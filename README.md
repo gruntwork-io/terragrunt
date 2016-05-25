@@ -37,26 +37,26 @@ script, and add it to your PATH.
 
 ## Quick start
 
-Go into the folder with your Terraform templates and create and commit a `.terragrunt` file. This is the file you use 
-to configure Terragrunt and tell it how to do locking.
+Go into the folder with your Terraform templates and create a `.terragrunt` file. This is the file you use to configure
+Terragrunt and tell it how to do locking.
  
-If you want to use Git for locking, `.terragrunt` should have the following contents (see 
-[Locking using Git](#locking-using-git) for more info):
+If you want to use Git for locking (see [Locking using Git](#locking-using-git)), `.terragrunt` should have the
+following contents:
 
 ```
 lock_type=git
 state_file_id=my-app
 ```
 
-If you wish to use DynamoDB for locking, `.terragrunt` should have the following contents (see [Locking using 
-DynamoDB](#locking-using-dynamodb) for more info):
+If you wish to use DynamoDB for locking (see [Locking using DynamoDB](#locking-using-dynamodb)), `.terragrunt` should
+have the following contents:
 
 ```
 lock_type=dynamodb
 state_file_id=my-app
 ```
 
-Now everyone on your team can run all the standard Terraform commands but using Terragrunt instead:
+Now everyone on your team can use Terragrunt to run all the standard Terraform commands:
 
 ```bash
 terragrunt get
@@ -105,8 +105,8 @@ remote_name=origin
  
 When you run `terragrunt apply` or `terragrunt destroy`, Terragrunt does the following:
 
-1. Clone your repo into a temporary directory under `/tmp/terragrunt/YOUR-REPO`. Terragrunt will make all changes and
-   commits in this tmp folder to ensure it doesn't mess up your local environment.
+1. Clone your local checkout into a temporary directory under `/tmp/terragrunt/YOUR-REPO`. Terragrunt will make all of
+   its changes and commits in this `/tmp/terragrunt/YOUR-REPO` folder to ensure it doesn't mess up your local checkout.
 1. Check out the `terragrunt-lock` branch in the `/tmp/terragrunt/YOUR-REPO` folder, creating the branch from master 
    if it doesn't already exist. Terragrunt does all its commits in this branch so it doesn't dirty the commit history 
    of your other branches.
@@ -137,14 +137,17 @@ using AWS.
 To use DynamoDB for locking, you must:
 
 1. Already have an AWS account.
-1. Set your AWS credentials in the environment, either by running `aws configure`, or by setting the environment 
-   variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, or by running on an EC2 instance with an IAM Role.
+1. Set your AWS credentials in the environment using one of the following options:
+    1. Set your credentials as the environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+    1. Run `aws configure` and fill in the details it asks for.
+    1. Run Terragrunt on an EC2 instance with an IAM Role.
 1. Your AWS user must have an [IAM 
    policy](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/access-control-identity-based.html) 
    granting all DynamoDB actions (`dynamodb:*`) on the table `terragrunt_lock_table` (see the 
    [DynamoDB locking configuration](#dynamodb-locking-configuration) for how to configure this table name). Here is an 
    example IAM policy that grants the necessary permissions on the `terragrunt_lock_table` in region `us-west-2` for 
    an account with account id `1234567890`:
+
     ```json
     {
       "Version": "2012-10-17",
@@ -182,7 +185,7 @@ When you run `terragrunt apply` or `terragrunt destroy`, Terragrunt does the fol
 1. Try to write an item to the `terragrunt_lock_table` with `state_file_id` equal to the id specified in your 
    `.terragrunt` file. This item will include useful metadata about the lock, such as who created it (e.g. your 
    username) and when. 
-1. Note that the write is a conditional write that will file if an item with the same `state_file_id` already exists. 
+1. Note that the write is a conditional write that will fail if an item with the same `state_file_id` already exists.
     1. If the write succeeds, it means we have a lock!
     1. If the write does not succeed, it means someone else has a lock. Keep retrying every 30 seconds until we get a 
        lock.
@@ -197,7 +200,7 @@ acquired the lock and when, which can be useful in determining if a lock is stal
 
 To clean up old locks, you can use the `release-lock` command:
 
-```bash
+```
 terragrunt release-lock
 Are you sure you want to forcibly remove the lock for state_file_id "my-app"? (y/n): 
 ```
