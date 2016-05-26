@@ -218,7 +218,7 @@ If for some reason this doesn't work, you can also clean up locks manually:
 
 ## TODO
 
-* CI job
 * Automated tests
-* Implement best-practices in Terragrunt, such as checking if all changes are committed, calling `terraform get`, 
+* CI job to run the tests and build and publish new binaries
+* Implement best-practices in Terragrunt, such as checking if all changes are committed, calling `terraform get`,
   calling `terraform configure`, etc.
