@@ -55,7 +55,6 @@ have the following contents:
 ```hcl
 lockType = "dynamodb"
 stateFileId = "my-app"
-awsRegion = "us-west-2"
 ```
 
 Now everyone on your team can use Terragrunt to run all the standard Terraform commands:
@@ -93,13 +92,19 @@ For Git locking, Terragrunt supports the following settings in `.terragrunt`:
 ```hcl
 lockType = "git"
 stateFileId = "my-app"
-remoteName = "origin"
+
+gitLock = {
+  lockBranch = "terragrunt_locks"
+  remoteName = "origin"
+}
 ```
 
 * `lockType`: (Required) Must be set to `git`.
 * `stateFileId`: (Required) A unique id for the state file for these Terraform templates. Many teams have more than
   one set of templates, and therefore more than one state file, so this setting is used to disambiguate locks for one 
-  state file from another. 
+  state file from another.
+* `lockBranch`: (Optional) The branch Terragrunt should use for creating and deleting lock files. Default:
+  `terragrunt_locks`.
 * `remoteName`: (Optional) The name of the remote repository that should be used as the central source of truth, and
   therefore locking. Default: `origin`.
  
@@ -109,18 +114,18 @@ When you run `terragrunt apply` or `terragrunt destroy`, Terragrunt does the fol
 
 1. Clone your local checkout into a temporary directory under `/tmp/terragrunt/YOUR-REPO`. Terragrunt will make all of
    its changes and commits in this `/tmp/terragrunt/YOUR-REPO` folder to ensure it doesn't mess up your local checkout.
-1. Check out the `terragrunt-lock` branch in the `/tmp/terragrunt/YOUR-REPO` folder, creating the branch from master 
+1. Check out the `terragrunt_locks` branch in the `/tmp/terragrunt/YOUR-REPO` folder, creating the branch from master
    if it doesn't already exist. Terragrunt does all its commits in this branch so it doesn't dirty the commit history 
    of your other branches.
 1. Read the `stateFileId` value from your `.terragrunt` file and create a *Lock File* of the same name in the
-   `terragrunt-lock` branch. The Lock File contents will include useful metadata about the lock, such as who created it 
+   `terragrunt_locks` branch. The Lock File contents will include useful metadata about the lock, such as who created it
    (e.g. your username) and when.
-1. Try to push the Lock File to the `terragrunt-lock` branch. 
+1. Try to push the Lock File to the `terragrunt_locks` branch.
     1. If the push succeeds, it means we have a lock!
     1. If the push does not succeed, it means someone else has a lock. Keep retrying every 30 seconds until we get a 
        lock.
 1. Run `terraform apply` or `terraform destroy`.
-1. When Terraform is done, delete the Lock File from the `terragrunt-lock` branch to release the lock.
+1. When Terraform is done, delete the Lock File from the `terragrunt_locks` branch to release the lock.
 1. Delete `/tmp/terragrunt/YOUR-REPO`.
 
 ## Locking using DynamoDB
@@ -145,9 +150,9 @@ To use DynamoDB for locking, you must:
     1. Run Terragrunt on an EC2 instance with an IAM Role.
 1. Your AWS user must have an [IAM 
    policy](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/access-control-identity-based.html) 
-   granting all DynamoDB actions (`dynamodb:*`) on the table `terragrunt_lock_table` (see the 
+   granting all DynamoDB actions (`dynamodb:*`) on the table `terragrunt_locks` (see the
    [DynamoDB locking configuration](#dynamodb-locking-configuration) for how to configure this table name). Here is an 
-   example IAM policy that grants the necessary permissions on the `terragrunt_lock_table` in region `us-west-2` for 
+   example IAM policy that grants the necessary permissions on the `terragrunt_locks` in region `us-west-2` for
    an account with account id `1234567890`:
 
     ```json
@@ -157,7 +162,7 @@ To use DynamoDB for locking, you must:
         "Sid": "",
         "Effect": "Allow",
         "Action": "dynamodb:*",
-        "Resource": "arn:aws:dynamodb:us-west-2:1234567890:table/terragrunt_lock_table"
+        "Resource": "arn:aws:dynamodb:us-west-2:1234567890:table/terragrunt_locks"
       }]
     }
     ```
@@ -169,24 +174,27 @@ For DynamoDB locking, Terragrunt supports the following settings in `.terragrunt
 ```hcl
 lockType = "dynamodb"
 stateFileId = "my-app"
-awsRegion = "us-west-2"
-tableName = "terragrunt_lock_table"
+
+dynamoLock = {
+  awsRegion = "us-east-1"
+  tableName = "terragrunt_locks"
+}
 ```
 
 * `lockType`: (Required) Must be set to `dynamodb`.
 * `stateFileId`: (Required) A unique id for the state file for these Terraform templates. Many teams have more than
   one set of templates, and therefore more than one state file, so this setting is used to disambiguate locks for one 
   state file from another.
-* `awsRegion`: (Required) The AWS region to use.
+* `awsRegion`: (Optional) The AWS region to use. Default: `us-east-1`.
 * `tableName`: (Optional) The name of the table in DynamoDB to use to store lock information. Default:
-  `terragrunt_lock_table`.
+  `terragrunt_locks`.
 
 #### How DynamoDB locking works
 
 When you run `terragrunt apply` or `terragrunt destroy`, Terragrunt does the following:
 
-1. Create the `terragrunt_lock_table` if it doesn't already exist.
-1. Try to write an item to the `terragrunt_lock_table` with `stateFileId` equal to the id specified in your
+1. Create the `terragrunt_locks` if it doesn't already exist.
+1. Try to write an item to the `terragrunt_locks` with `stateFileId` equal to the id specified in your
    `.terragrunt` file. This item will include useful metadata about the lock, such as who created it (e.g. your 
    username) and when. 
 1. Note that the write is a conditional write that will fail if an item with the same `stateFileId` already exists.
@@ -194,7 +202,7 @@ When you run `terragrunt apply` or `terragrunt destroy`, Terragrunt does the fol
     1. If the write does not succeed, it means someone else has a lock. Keep retrying every 30 seconds until we get a 
        lock.
 1. Run `terraform apply` or `terraform destroy`.
-1. When Terraform is done, delete the item from the `terragrunt_lock_table` to release the lock.
+1. When Terraform is done, delete the item from the `terragrunt_locks` to release the lock.
  
 ## Cleaning up old locks
 
@@ -211,9 +219,9 @@ Are you sure you want to forcibly remove the lock for stateFileId "my-app"? (y/n
 
 If for some reason this doesn't work, you can also clean up locks manually:
 
-1. For Git locking, delete the lock file in the `terragrunt-lock` branch in Git (see [How Git locking
+1. For Git locking, delete the lock file in the `terragrunt_locks` branch in Git (see [How Git locking
    works](#how-git-locking-works)).
-1. For DynamoDB, delete the lock item in the `terragrunt_lock_table` (see [How DynamoDB locking
+1. For DynamoDB, delete the lock item in the `terragrunt_locks` (see [How DynamoDB locking
    works](#how-dynamodb-locking-works)).
 
 ## TODO

@@ -13,6 +13,8 @@ import (
 const TERRAGRUNT_CONFIG_FILE = ".terragrunt"
 const DEFAULT_REMOTE_NAME = "origin"
 const DEFAULT_TABLE_NAME = "terragrunt_locks"
+const DEFAULT_BRANCH_NAME = "terragrunt_locks"
+const DEFAULT_AWS_REGION = "us-east-1"
 
 // A common interface with all fields that could be in the config file
 type LockConfig struct {
@@ -64,19 +66,19 @@ func fillDefaults(config *LockConfig) {
 	if config.TableName == "" {
 		config.TableName = DEFAULT_TABLE_NAME
 	}
+
+	if config.LockBranch == "" {
+		config.LockBranch = DEFAULT_BRANCH_NAME
+	}
+
+	if config.AwsRegion == "" {
+		config.AwsRegion = DEFAULT_AWS_REGION
+	}
 }
 
 func validateConfig(config *LockConfig) error {
-	if _, err := config.GetLockForConfig(); err != nil {
-		return err
-	}
-
 	if config.StateFileId == "" {
 		return fmt.Errorf("The stateFileId field cannot be empty")
-	}
-
-	if config.LockType == "dynamodb" && config.AwsRegion == "" {
-		return fmt.Errorf("The awsRegion field cannot be empty for the DynamoDB lock")
 	}
 
 	return nil
