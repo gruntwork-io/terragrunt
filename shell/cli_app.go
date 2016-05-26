@@ -95,7 +95,7 @@ func releaseLockCommand(cliContext *cli.Context) error {
 		return err
 	}
 
-	proceed, err := PromptUserForYesNo(fmt.Sprintf("Are you sure you want to release lock %s?", lock))
+	proceed, err := PromptUserForYesNo(fmt.Sprintf("Are you sure you want to release %s?", lock))
 	if err != nil {
 		return err
 	}

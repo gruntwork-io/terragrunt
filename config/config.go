@@ -59,6 +59,9 @@ func getLockForConfig(configPath string) (locks.Lock, error) {
 }
 
 func fillDefaults(config *LockConfig) {
+	config.GitLock.StateFileId = config.StateFileId
+	config.DynamoLock.StateFileId = config.StateFileId
+
 	if config.RemoteName == "" {
 		config.RemoteName = DEFAULT_REMOTE_NAME
 	}
