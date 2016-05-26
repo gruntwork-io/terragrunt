@@ -68,7 +68,26 @@ terragrunt destroy
 ```
 
 Terragrunt forwards most commands directly to Terraform. However, for the `apply` and `destroy` commands, it will first 
-acquire a locking using either [Git](#locking-using-git) or [DynamoDB](#locking-using-dynamodb), as described below.
+acquire a locking using either [Git](#locking-using-git) or [DynamoDB](#locking-using-dynamodb):
+
+```
+terragrunt apply
+[terragrunt] 2016/05/27 00:39:18 Attempting to acquire lock for state file my-app in DynamoDB
+[terragrunt] 2016/05/27 00:39:19 Attempting to create lock item for state file my-app in DynamoDB table terragrunt_locks
+[terragrunt] 2016/05/27 00:39:19 Lock acquired!
+terraform apply
+
+aws_instance.example: Creating...
+  ami:                      "" => "ami-0d729a60"
+  instance_type:            "" => "t2.micro"
+
+[...]
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+
+[terragrunt] 2016/05/27 00:39:19 Attempting to release lock for state file my-app in DynamoDB
+[terragrunt] 2016/05/27 00:39:19 Lock released!
+```
 
 ## Locking using Git
 
