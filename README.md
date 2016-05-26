@@ -30,30 +30,32 @@ can safely collaborate on Terraform state.
 
 ## Install
 
-Prerequisite: you must already have [Terraform](https://www.terraform.io/) installed and in your PATH.
-
-To install Terragrunt, go to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases), download the
-script, and add it to your PATH. 
+1. Install [Terraform](https://www.terraform.io/).
+1. Install [jq](https://stedolan.github.io/jq/).
+1. Install Terragrunt by going to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases), downloading
+   the script, and adding it to your PATH.
 
 ## Quick start
 
-Go into the folder with your Terraform templates and create a `.terragrunt` file. This is the file you use to configure
-Terragrunt and tell it how to do locking.
+Go into the folder with your Terraform templates and create a `.terragrunt` file. This file uses the same
+[HCL](https://github.com/hashicorp/hcl) syntax as Terraform and is used to configure Terragrunt and tell it how to do
+locking.
  
 If you want to use Git for locking (see [Locking using Git](#locking-using-git)), `.terragrunt` should have the
 following contents:
 
-```
-lock_type=git
-state_file_id=my-app
+```hcl
+lockType = "git"
+stateFileId = "my-app"
 ```
 
 If you wish to use DynamoDB for locking (see [Locking using DynamoDB](#locking-using-dynamodb)), `.terragrunt` should
 have the following contents:
 
-```
-lock_type=dynamodb
-state_file_id=my-app
+```hcl
+lockType = "dynamodb"
+stateFileId = "my-app"
+awsRegion = "us-west-2"
 ```
 
 Now everyone on your team can use Terragrunt to run all the standard Terraform commands:
@@ -88,17 +90,17 @@ To use Git for locking, you must:
  
 For Git locking, Terragrunt supports the following settings in `.terragrunt`:
 
-```
-lock_type=git
-state_file_id=my-app
-remote_name=origin
+```hcl
+lockType = "git"
+stateFileId = "my-app"
+remoteName = "origin"
 ```
 
-* `lock_type`: (Required) Must be set to `git`.
-* `state_file_id`: (Required) A unique id for the state file for these Terraform templates. Many teams have more than 
+* `lockType`: (Required) Must be set to `git`.
+* `stateFileId`: (Required) A unique id for the state file for these Terraform templates. Many teams have more than
   one set of templates, and therefore more than one state file, so this setting is used to disambiguate locks for one 
   state file from another. 
-* `remote_name`: (Optional) The name of the remote repository that should be used as the central source of truth, and
+* `remoteName`: (Optional) The name of the remote repository that should be used as the central source of truth, and
   therefore locking. Default: `origin`.
  
 #### How Git locking works
@@ -110,7 +112,7 @@ When you run `terragrunt apply` or `terragrunt destroy`, Terragrunt does the fol
 1. Check out the `terragrunt-lock` branch in the `/tmp/terragrunt/YOUR-REPO` folder, creating the branch from master 
    if it doesn't already exist. Terragrunt does all its commits in this branch so it doesn't dirty the commit history 
    of your other branches.
-1. Read the `state_file_id` value from your `.terragrunt` file and create a *Lock File* of the same name in the 
+1. Read the `stateFileId` value from your `.terragrunt` file and create a *Lock File* of the same name in the
    `terragrunt-lock` branch. The Lock File contents will include useful metadata about the lock, such as who created it 
    (e.g. your username) and when.
 1. Try to push the Lock File to the `terragrunt-lock` branch. 
@@ -164,28 +166,30 @@ To use DynamoDB for locking, you must:
  
 For DynamoDB locking, Terragrunt supports the following settings in `.terragrunt`:
 
-```
-lock_type=dynamodb
-state_file_id=my-app
-table_name=terragrunt_lock_table
+```hcl
+lockType = "dynamodb"
+stateFileId = "my-app"
+awsRegion = "us-west-2"
+tableName = "terragrunt_lock_table"
 ```
 
-* `lock_type`: (Required) Must be set to `dynamodb`.
-* `state_file_id`: (Required) A unique id for the state file for these Terraform templates. Many teams have more than 
+* `lockType`: (Required) Must be set to `dynamodb`.
+* `stateFileId`: (Required) A unique id for the state file for these Terraform templates. Many teams have more than
   one set of templates, and therefore more than one state file, so this setting is used to disambiguate locks for one 
   state file from another.
-* `table_name`: (Optional) The name of the table in DynamoDB to use to store lock information. Default: 
-  `terragrunt_lock_table`.   
- 
+* `awsRegion`: (Required) The AWS region to use.
+* `tableName`: (Optional) The name of the table in DynamoDB to use to store lock information. Default:
+  `terragrunt_lock_table`.
+
 #### How DynamoDB locking works
 
 When you run `terragrunt apply` or `terragrunt destroy`, Terragrunt does the following:
 
 1. Create the `terragrunt_lock_table` if it doesn't already exist.
-1. Try to write an item to the `terragrunt_lock_table` with `state_file_id` equal to the id specified in your 
+1. Try to write an item to the `terragrunt_lock_table` with `stateFileId` equal to the id specified in your
    `.terragrunt` file. This item will include useful metadata about the lock, such as who created it (e.g. your 
    username) and when. 
-1. Note that the write is a conditional write that will fail if an item with the same `state_file_id` already exists.
+1. Note that the write is a conditional write that will fail if an item with the same `stateFileId` already exists.
     1. If the write succeeds, it means we have a lock!
     1. If the write does not succeed, it means someone else has a lock. Keep retrying every 30 seconds until we get a 
        lock.
@@ -202,7 +206,7 @@ To clean up old locks, you can use the `release-lock` command:
 
 ```
 terragrunt release-lock
-Are you sure you want to forcibly remove the lock for state_file_id "my-app"? (y/n): 
+Are you sure you want to forcibly remove the lock for stateFileId "my-app"? (y/n):
 ```
 
 If for some reason this doesn't work, you can also clean up locks manually:
