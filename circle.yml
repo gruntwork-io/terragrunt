@@ -6,7 +6,7 @@ machine:
 
 dependencies:
   override:
-    - ${REPO}/_ci/install-dependencies.sh
+    - _ci/install-dependencies.sh
   cache_directories:
     - ~/glide
 
