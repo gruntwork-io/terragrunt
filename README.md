@@ -83,7 +83,7 @@ as well as [conditional writes](http://docs.aws.amazon.com/amazondynamodb/latest
 which are all the primitives we need for a very basic distributed lock system. It's also part of [AWS's free
 tier](https://aws.amazon.com/dynamodb/pricing/), and given the tiny amount of data we are working with and the 
 relatively small number of times per day you're likely to run Terraform, it _should_ be a free option for teams already
-using AWS (note: we take no responsibility if you get charged for some reason!).
+using AWS. We take no responsibility for any charges you may incur.
 
 #### DynamoDB locking prerequisites
 
@@ -142,21 +142,21 @@ dynamoLock = {
 
 When you run `terragrunt apply` or `terragrunt destroy`, Terragrunt does the following:
 
-1. Create the `terragrunt_locks` if it doesn't already exist.
+1. Create the `terragrunt_locks` table if it doesn't already exist.
 1. Try to write an item to the `terragrunt_locks` with `stateFileId` equal to the id specified in your
    `.terragrunt` file. This item will include useful metadata about the lock, such as who created it (e.g. your 
    username) and when. 
 1. Note that the write is a conditional write that will fail if an item with the same `stateFileId` already exists.
     1. If the write succeeds, it means we have a lock!
-    1. If the write does not succeed, it means someone else has a lock. Keep retrying every 30 seconds until we get a 
+    1. If the write does not succeed, it means someone else has a lock. Keep retrying every 10 seconds until we get a
        lock.
 1. Run `terraform apply` or `terraform destroy`.
-1. When Terraform is done, delete the item from the `terragrunt_locks` to release the lock.
+1. When Terraform is done, delete the item from the `terragrunt_locks` table to release the lock.
  
 ## Cleaning up old locks
 
-If you shut down Terragrunt (e.g. via `CTRL+C`) before it releases a lock, the lock hangs around forever, and will 
-prevent future changes to your state files. To clean up old locks, you can use the `release-lock` command:
+If Terragrunt is shut down before it releases a lock (e.g. via `CTRL+C` or a crash), the lock might not be deleted, and
+will prevent future changes to your state files. To clean up old locks, you can use the `release-lock` command:
 
 ```
 terragrunt release-lock
@@ -167,7 +167,8 @@ Are you sure you want to forcibly remove the lock for stateFileId "my-app"? (y/n
 
 #### Running all tests
 
-**Note**: The tests for Terragrunt run against a real AWS account and will add and remove real data from DynamoDB.
+**Note**: The tests in the `dynamodb` folder for Terragrunt run against a real AWS account and will add and remove
+real data from DynamoDB. We are not responsible for any charges you may incur.
 
 To run all the tests:
 

@@ -5,13 +5,13 @@ machine:
 
 dependencies:
   override:
-    - ./_ci/install-dependencies.sh
+    - ${REPO}/_ci/install-dependencies.sh
   cache_directories:
     - ~/glide
 
 test:
   override:
-    - cd "$REPO" && ./_ci/run-tests.sh
+    - ${REPO}/_ci/run-tests.sh
 
 deployment:
   release:
@@ -26,3 +26,4 @@ deployment:
              --github-repo-name "$CIRCLE_PROJECT_REPONAME" \
              --git-tag "$CIRCLE_TAG"
              --app-name "terragrunt"
+             --ld-flags "-X main.VERSION=$CIRCLE_TAG"

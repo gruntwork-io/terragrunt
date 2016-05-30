@@ -18,6 +18,7 @@ function print_usage {
   echo -e "  --git-tag\t\t\tThe git tag for which binaries should be built and pushed. We assume that the code at --local-src-path"
   echo -e "           \t\t\tcorresponds to the git tag."
   echo -e "  --app-name\t\t\tWhat to name the binary for this app (e.g. terragrunt)"
+  echo -e "  --ld-flags\t\t\tAny custom Go build flags to set with the -ldflags parameter"
   echo
   echo "Example:"
   echo
@@ -57,10 +58,11 @@ function build_binaries {
     local readonly local_src_path="$1"
     local readonly local_bin_output_path="$2"
     local readonly app_name="$3"
+    local readonly ld_flags="$4"
 
     # build the binaries
     cd "$local_src_path"
-    gox -os "darwin linux windows" -arch "386 amd64" -output "$local_bin_output_path/${app_name}_{{.OS}}_{{.Arch}}"
+    gox -os "darwin linux windows" -arch "386 amd64" -output "$local_bin_output_path/${app_name}_{{.OS}}_{{.Arch}}" -ldflags "$ld_flags"
 }
 
 # In order to push assets to a GitHub release, we must find the "github tag id" associated with the git tag
@@ -114,6 +116,7 @@ function build_and_push_release_assets {
   local github_repo_name=""
   local git_tag=""
   local app_name=""
+  local ld_flags=""
 
   assert_env_var_not_empty "$GITHUB_OAUTH_TOKEN"
   local readonly github_oauth_token="$GITHUB_OAUTH_TOKEN"
@@ -146,6 +149,10 @@ function build_and_push_release_assets {
         app_name="$2"
         shift
         ;;
+      --ld-flags)
+        ld_flags="$2"
+        shift
+        ;;
       --help)
         print_usage
         exit
@@ -171,7 +178,7 @@ function build_and_push_release_assets {
   assert_not_empty "--git-tag" "$git_tag"
   assert_not_empty "--app-name" "$app_name"
 
-  build_binaries "$local_src_path" "$local_bin_output_path" "$app_name"
+  build_binaries "$local_src_path" "$local_bin_output_path" "$app_name" "$ld_flags"
 
   local github_tag_id=""
   github_tag_id=$(get_github_tag_id "$github_oauth_token" "$git_tag" "$github_repo_owner" "$github_repo_name")
