@@ -1,6 +1,5 @@
 machine:
   environment:
-    PATH: $PATH:$HOME/glide
     IMPORT_PATH: "github.com/gruntwork-io/${CIRCLE_PROJECT_REPONAME}"
     REPO: "$HOME/.go_workspace/src/${IMPORT_PATH}"
 

@@ -165,10 +165,11 @@ Are you sure you want to forcibly remove the lock for stateFileId "my-app"? (y/n
 
 ## Developing terragrunt
 
-#### Running all tests
+#### Running tests
 
 **Note**: The tests in the `dynamodb` folder for Terragrunt run against a real AWS account and will add and remove
-real data from DynamoDB. We are not responsible for any charges you may incur.
+real data from DynamoDB. DO NOT hit `CTRL+C` while the tests are running, as this will prevent them from cleaning up
+temporary tables and data in DynamoDB. We are not responsible for any charges you may incur.
 
 To run all the tests:
 
@@ -176,13 +177,11 @@ To run all the tests:
    section.
 2. `./_ci/run-tests.sh`
 
-#### Running one test
-
-To run a single test, go into the folder with the test and use the `go test` command. Example:
+To run a single test called `TestFoo`:
 
 ```bash
 cd config
-go test -v -parallel 128
+go test -v -parallel 128 -run TestFoo
 ```
 
 #### Releasing new versions

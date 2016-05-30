@@ -20,5 +20,5 @@ go get github.com/mitchellh/gox
 
 echo "Installing dependencies using Glide"
 cd "$REPO"
-glide install
+~/glide/linux-amd64/glide install
 
