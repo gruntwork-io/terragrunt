@@ -25,3 +25,4 @@ deployment:
              --github-repo-owner "$CIRCLE_PROJECT_USERNAME" \
              --github-repo-name "$CIRCLE_PROJECT_REPONAME" \
              --git-tag "$CIRCLE_TAG"
+             --app-name "terragrunt"
