@@ -185,12 +185,16 @@ cd config
 go test -v -parallel 128
 ```
 
-#### Building
+#### Releasing new versions
 
-```bash
-export VERSION=0.0.1
-gox -os "darwin linux" -output "bin/${APP_NAME}_{{.OS}}_{{.Arch}}" -ldflags="-X main.VERSION=$VERSION"
-```
+To release a new version, just go to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases) and
+create a new release. The The CircleCI job for this repo has been configured to:
+
+1. Automatically detect new tags.
+1. Build binaries for every OS, using that tag as a version number.
+1. Upload the binaries to the release in GitHub.
+
+See `circle.yml` and `_ci/build-and-push-release-asset.sh` for details.
 
 ## TODO
 
