@@ -4,7 +4,8 @@ Terragrunt is a thin wrapper for the [Terraform client](https://www.terraform.io
 mechanism which allows multiple people to collaborate on the same Terraform state without overwriting each other's
 changes. Terragrunt currently uses Amazon's [DynamoDB](https://aws.amazon.com/dynamodb/) to acquire and release locks.
 DynamoDB is part of the [AWS free tier](https://aws.amazon.com/dynamodb/pricing/), so if you're already using AWS, this
-locking mechanism _should_ be completely free. Other locking mechanisms may be added in the future.
+locking mechanism _should_ be completely free (we take no responsibility if you get charged!). Other locking
+mechanisms may be added in the future.
  
 ## Motivation
 
