@@ -3,7 +3,6 @@ machine:
     PATH: $PATH:$HOME/glide/linux-amd64/
     IMPORT_PATH: "github.com/gruntwork-io/${CIRCLE_PROJECT_REPONAME}"
     REPO: "$HOME/.go_workspace/src/${IMPORT_PATH}"
-    GO15VENDOREXPERIMENT: 1
 
 dependencies:
   override:
