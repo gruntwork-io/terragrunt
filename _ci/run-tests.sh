@@ -12,8 +12,5 @@ readonly TEST_TIMEOUT="45m"
 # should easily be able to handle if we ever get to the point that we have 128 tests!
 readonly TEST_PARALLELISM="128"
 
-# SCRIPT_DIR contains the location of the script you're reading now
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 # Run all the tests that are not in the vendor directory
-cd "$SCRIPT_DIR/.." && go test -v -timeout "$TEST_TIMEOUT" -parallel "$TEST_PARALLELISM" $(glide novendor)
+cd "$REPO" && go test -v -timeout "$TEST_TIMEOUT" -parallel "$TEST_PARALLELISM" $(glide novendor)

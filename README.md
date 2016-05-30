@@ -171,16 +171,18 @@ Are you sure you want to forcibly remove the lock for stateFileId "my-app"? (y/n
 real data from DynamoDB. DO NOT hit `CTRL+C` while the tests are running, as this will prevent them from cleaning up
 temporary tables and data in DynamoDB. We are not responsible for any charges you may incur.
 
+Before running the tests, you must configure your AWS credentials as explained in the [DynamoDB locking
+prerequisites](#dynamodb-locking-prerequisites) section.
+
 To run all the tests:
 
-1. Configure your AWS credentials as explained in the [DynamoDB locking prerequisites](#dynamodb-locking-prerequisites)
-   section.
-2. `./_ci/run-tests.sh`
+```bash
+go test -v -parallel 128 $(glide novendor)
+```
 
 To run a single test called `TestFoo`:
 
 ```bash
-cd config
 go test -v -parallel 128 -run TestFoo
 ```
 
