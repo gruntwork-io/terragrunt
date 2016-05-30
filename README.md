@@ -6,7 +6,7 @@ changes. Terragrunt currently uses Amazon's [DynamoDB](https://aws.amazon.com/dy
 DynamoDB is part of the [AWS free tier](https://aws.amazon.com/dynamodb/pricing/), so if you're already using AWS, this
 locking mechanism _should_ be completely free (we take no responsibility if you get charged!). Other locking
 mechanisms may be added in the future.
- 
+
 ## Motivation
 
 When you use Terraform to provision infrastructure, it records the state of your infrastructure in [state 
@@ -58,9 +58,10 @@ acquire a locking using [DynamoDB](#locking-using-dynamodb):
 
 ```
 terragrunt apply
-[terragrunt] 2016/05/27 00:39:18 Attempting to acquire lock for state file my-app in DynamoDB
-[terragrunt] 2016/05/27 00:39:19 Attempting to create lock item for state file my-app in DynamoDB table terragrunt_locks
-[terragrunt] 2016/05/27 00:39:19 Lock acquired!
+[terragrunt] 2016/05/30 16:55:29 Attempting to acquire lock for state file my-app in DynamoDB
+[terragrunt] 2016/05/30 16:55:30 Attempting to create lock item for state file my-app in DynamoDB table terragrunt_locks
+[terragrunt] 2016/05/30 16:55:30 Lock acquired!
+[terragrunt] 2016/05/30 16:55:30 Running command: terraform apply
 terraform apply
 
 aws_instance.example: Creating...
