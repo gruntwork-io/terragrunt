@@ -236,7 +236,7 @@ func getAttribute(item map[string]*dynamodb.AttributeValue, attribute string) (s
 }
 
 func createItem(itemId string) (map[string]*dynamodb.AttributeValue, error) {
-	lockMetadata, err := locks.CreateLockMetadata()
+	lockMetadata, err := locks.CreateLockMetadata(itemId)
 	if err != nil {
 		return nil, err
 	}

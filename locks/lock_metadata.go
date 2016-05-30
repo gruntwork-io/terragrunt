@@ -11,12 +11,13 @@ import (
 const DEFAULT_TIME_FORMAT = "2006-01-02 15:04:05.999999999 -0700 MST"
 
 type LockMetadata struct {
+	StateFileId string
 	Username    string
 	IpAddress   string
 	DateCreated time.Time
 }
 
-func CreateLockMetadata() (*LockMetadata, error) {
+func CreateLockMetadata(stateFileId string) (*LockMetadata, error) {
 	user, err := user.Current()
 	if err != nil {
 		return nil, err
@@ -29,7 +30,12 @@ func CreateLockMetadata() (*LockMetadata, error) {
 
 	dateCreated := time.Now().UTC()
 
-	return &LockMetadata{Username: user.Username, IpAddress: ipAddress, DateCreated: dateCreated}, nil
+	return &LockMetadata{
+		StateFileId: stateFileId,
+		Username: user.Username,
+		IpAddress: ipAddress,
+		DateCreated: dateCreated,
+	}, nil
 }
 
 func getIpAddress() (string, error) {
