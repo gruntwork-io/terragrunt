@@ -4,7 +4,7 @@ Terragrunt is a thin wrapper for the [Terraform client](https://www.terraform.io
 mechanism which allows multiple people to collaborate on the same Terraform state without overwriting each other's
 changes. Terragrunt currently uses Amazon's [DynamoDB](https://aws.amazon.com/dynamodb/) to acquire and release locks.
 DynamoDB is part of the [AWS free tier](https://aws.amazon.com/dynamodb/pricing/), so if you're already using AWS, this
-locking mechanism should be completely free. Other locking mechanisms may be added in the future.
+locking mechanism _should_ be completely free. Other locking mechanisms may be added in the future.
  
 ## Motivation
 
@@ -123,6 +123,7 @@ stateFileId = "my-app"
 dynamoLock = {
   awsRegion = "us-east-1"
   tableName = "terragrunt_locks"
+  maxLockRetries = 360
 }
 ```
 
@@ -133,6 +134,8 @@ dynamoLock = {
 * `awsRegion`: (Optional) The AWS region to use. Default: `us-east-1`.
 * `tableName`: (Optional) The name of the table in DynamoDB to use to store lock information. Default:
   `terragrunt_locks`.
+* `maxLockRetries`: (Optional) The maximum number of times to retry acquiring a lock. Terragrunt waits 10 seconds
+  between retries. Default: 360 retries (one hour).
 
 #### How DynamoDB locking works
 
@@ -159,10 +162,38 @@ terragrunt release-lock
 Are you sure you want to forcibly remove the lock for stateFileId "my-app"? (y/n):
 ```
 
+## Developing terragrunt
+
+#### Running all tests
+
+**Note**: The tests for Terragrunt run against a real AWS account and will add and remove real data from DynamoDB.
+
+To run all the tests:
+
+1. Configure your AWS credentials as explained in the [DynamoDB locking prerequisites](dynamodb-locking-prerequisites)
+   section.
+2. `./_ci/run-tests.sh`
+
+#### Running one test
+
+To run a single test, go into the folder with the test and use the `go test` command. Example:
+
+```bash
+cd config
+go test -v -parallel 128
+```
+
+#### Building
+
+```bash
+export VERSION=0.0.1
+gox -os "darwin linux" -output "bin/${APP_NAME}_{{.OS}}_{{.Arch}}" -ldflags="-X main.VERSION=$VERSION"
+```
+
 ## TODO
 
-* Automated tests
 * CI job to run the tests and build and publish new binaries
 * Implement best-practices in Terragrunt, such as checking if all changes are committed, calling `terraform get`,
   calling `terraform configure`, etc.
 * Consider implementing alternative locking mechanisms, such as using Git instead of DynamoDB.
+* Consider embedding the Terraform Go code within Terragrunt instead of calling out to it.

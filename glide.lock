@@ -1,5 +1,5 @@
-hash: 252101ffd4b4c2752de39aa70b484955dd261f825c14443120ceffc061acc622
-updated: 2016-05-30T13:14:43.335045993+02:00
+hash: 06a77b6efc6fa044dffcd589c164eb69fe98096f5839281a669af8a6c8372fe3
+updated: 2016-05-30T13:56:17.810673412+02:00
 imports:
 - name: github.com/aws/aws-sdk-go
   version: 665c623d7f3e0ee276596b006655ba4dbe0565b0
@@ -40,6 +40,10 @@ imports:
   - json/token
 - name: github.com/jmespath/go-jmespath
   version: 0b12d6b521d83fc7f755e7cfc1b1fbdd35a01a74
+- name: github.com/stretchr/testify
+  version: 8d64eb7173c7753d6419fd4a9caf057398611364
+  subpackages:
+  - assert
 - name: github.com/urfave/cli
   version: 9a18ffad6c548ca4d458d4c30a8aa4d181cf92fa
 devImports: []

@@ -12,6 +12,7 @@ import (
 const TERRAGRUNT_CONFIG_FILE = ".terragrunt"
 const DEFAULT_TABLE_NAME = "terragrunt_locks"
 const DEFAULT_AWS_REGION = "us-east-1"
+const DEFAULT_MAX_RETRIES_WAITING_FOR_LOCK = 360
 
 // A common interface with all fields that could be in the config file. We keep this generic to be able to support
 // different lock types in the future.
@@ -34,26 +35,34 @@ func (lockConfig *LockConfig) GetLockForConfig() (locks.Lock, error) {
 }
 
 func GetLockForConfig() (locks.Lock, error) {
-	return getLockForConfig(TERRAGRUNT_CONFIG_FILE)
+	return getLockForConfigFile(TERRAGRUNT_CONFIG_FILE)
 }
 
-func getLockForConfig(configPath string) (locks.Lock, error) {
+func getLockForConfigFile(configPath string) (locks.Lock, error) {
 	bytes, err := ioutil.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("Error reading Terragrunt config file %s (did you create one?): %s", configPath, err.Error())
 	}
 
-	config := &LockConfig{}
-	if err := hcl.Decode(config, string(bytes)); err != nil {
+	lock, err := getLockForConfig(string(bytes))
+	if err != nil {
 		return nil, fmt.Errorf("Error parsing Terragrunt config file %s: %s", configPath, err.Error())
 	}
+	return lock, nil
+}
 
-	fillDefaults(config)
-	if err := validateConfig(config); err != nil {
-		return nil, fmt.Errorf("Error validating Terragrunt config file %s: %s", configPath, err.Error())
+func getLockForConfig(config string) (locks.Lock, error) {
+	lockConfig := &LockConfig{}
+	if err := hcl.Decode(lockConfig, config); err != nil {
+		return nil, err
 	}
 
-	return config.GetLockForConfig()
+	fillDefaults(lockConfig)
+	if err := validateConfig(lockConfig); err != nil {
+		return nil, err
+	}
+
+	return lockConfig.GetLockForConfig()
 }
 
 func fillDefaults(config *LockConfig) {
@@ -65,6 +74,10 @@ func fillDefaults(config *LockConfig) {
 
 	if config.AwsRegion == "" {
 		config.AwsRegion = DEFAULT_AWS_REGION
+	}
+
+	if config.MaxLockRetries == 0 {
+		config.MaxLockRetries = DEFAULT_MAX_RETRIES_WAITING_FOR_LOCK
 	}
 }
 
