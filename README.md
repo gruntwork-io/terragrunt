@@ -192,7 +192,6 @@ gox -os "darwin linux" -output "bin/${APP_NAME}_{{.OS}}_{{.Arch}}" -ldflags="-X 
 
 ## TODO
 
-* CI job to run the tests and build and publish new binaries
 * Implement best-practices in Terragrunt, such as checking if all changes are committed, calling `terraform get`,
   calling `terraform configure`, etc.
 * Consider implementing alternative locking mechanisms, such as using Git instead of DynamoDB.
