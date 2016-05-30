@@ -173,7 +173,7 @@ temporary tables and data in DynamoDB. We are not responsible for any charges yo
 
 To run all the tests:
 
-1. Configure your AWS credentials as explained in the [DynamoDB locking prerequisites](dynamodb-locking-prerequisites)
+1. Configure your AWS credentials as explained in the [DynamoDB locking prerequisites](#dynamodb-locking-prerequisites)
    section.
 2. `./_ci/run-tests.sh`
 
