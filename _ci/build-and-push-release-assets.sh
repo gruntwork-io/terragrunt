@@ -3,6 +3,8 @@
 # Build golang binaries for all major operating systems, and push them to the given tagged release in GitHub
 #
 
+set -e
+
 function print_usage {
   echo
   echo "Usage: build-and-push-release-assets.sh [OPTIONS]"

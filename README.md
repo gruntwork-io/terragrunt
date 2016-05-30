@@ -188,10 +188,10 @@ go test -v -parallel 128
 #### Releasing new versions
 
 To release a new version, just go to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases) and
-create a new release. The The CircleCI job for this repo has been configured to:
+create a new release. The CircleCI job for this repo has been configured to:
 
 1. Automatically detect new tags.
-1. Build binaries for every OS, using that tag as a version number.
+1. Build binaries for every OS using that tag as a version number.
 1. Upload the binaries to the release in GitHub.
 
 See `circle.yml` and `_ci/build-and-push-release-asset.sh` for details.

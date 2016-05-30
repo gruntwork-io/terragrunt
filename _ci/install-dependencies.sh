@@ -1,6 +1,8 @@
 #!/bin/bash
 # This script is meant to be run in a Circle CI job to install and configure dependencies.
 
+set -e
+
 echo "Creating symlinks to get our repo into the CircleCI GOPATH"
 mkdir -p "$REPO"
 rmdir "$REPO"
@@ -18,5 +20,5 @@ go get github.com/mitchellh/gox
 
 echo "Installing dependencies using Glide"
 cd "$REPO"
-~/glide/linux-amd64/glide install
+glide install
 
