@@ -6,14 +6,11 @@ import (
 	"strings"
 	"github.com/hashicorp/hcl"
 	"github.com/gruntwork-io/terragrunt/locks"
-	"github.com/gruntwork-io/terragrunt/git"
 	"github.com/gruntwork-io/terragrunt/dynamodb"
 )
 
 const TERRAGRUNT_CONFIG_FILE = ".terragrunt"
-const DEFAULT_REMOTE_NAME = "origin"
 const DEFAULT_TABLE_NAME = "terragrunt_locks"
-const DEFAULT_BRANCH_NAME = "terragrunt_locks"
 const DEFAULT_AWS_REGION = "us-east-1"
 
 // A common interface with all fields that could be in the config file
@@ -22,14 +19,14 @@ type LockConfig struct {
 	LockType 	string
 	StateFileId 	string
 
-	// Embedded fields from all lock types
-	git.GitLock
+	// Embedded fields from any supported lock types
 	dynamodb.DynamoLock
 }
 
+// This method returns the lock impelemntation specified in the config file. Currently, only DynamoDB is supported, but
+// we may add other lock mechanisms in the future.
 func (lockConfig *LockConfig) GetLockForConfig() (locks.Lock, error) {
 	switch strings.ToLower(lockConfig.LockType) {
-	case "git": return lockConfig.GitLock, nil
 	case "dynamodb": return lockConfig.DynamoLock, nil
 	default: return nil, fmt.Errorf("Unrecognized lock type: %s", lockConfig.LockType)
 	}
@@ -59,19 +56,10 @@ func getLockForConfig(configPath string) (locks.Lock, error) {
 }
 
 func fillDefaults(config *LockConfig) {
-	config.GitLock.StateFileId = config.StateFileId
 	config.DynamoLock.StateFileId = config.StateFileId
-
-	if config.RemoteName == "" {
-		config.RemoteName = DEFAULT_REMOTE_NAME
-	}
 
 	if config.TableName == "" {
 		config.TableName = DEFAULT_TABLE_NAME
-	}
-
-	if config.LockBranch == "" {
-		config.LockBranch = DEFAULT_BRANCH_NAME
 	}
 
 	if config.AwsRegion == "" {

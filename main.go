@@ -2,7 +2,7 @@ package main
 
 import (
 	"os"
-	"github.com/gruntwork-io/gruntcreds/gruntcreds/util"
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/gruntwork-io/terragrunt/cli"
 )
 

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/gruntwork-io/gruntcreds/gruntcreds/util"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const CUSTOM_USAGE_TEXT = `DESCRIPTION:
@@ -43,10 +43,10 @@ func CreateTerragruntCli(version string) *cli.App {
 	app.Version = version
 	app.Action = runApp
 	app.Usage = "terragrunt <COMMAND>"
-	app.UsageText = `Terragrunt is a thin wrapper for the Terraform client that provides simple locking mechanisms
-   so that multiple people can collaborate on the same Terraform state without overwriting each other's changes. The
-   supported locking mechanisms are Git and DynamoDB. You can configure the locking mechanisms using a .terragrunt file
-   in the current directory.
+	app.UsageText = `Terragrunt is a thin wrapper for the Terraform client that provides a distributed locking
+   mechanism which allows multiple people to collaborate on the same Terraform state without overwriting each other's
+   changes. Terragrunt currently uses Amazon's DynamoDB to acquire and release locks. For documentation, see
+   https://github.com/gruntwork-io/terragrunt/.
 
    Terragrunt supports all the same commands as Terraform (e.g. plan, apply, destroy, etc). However, for the apply and
    destroy commands, it will first acquire a lock, then run the command with Terraform, and then release the lock.`
