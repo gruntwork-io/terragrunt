@@ -5,7 +5,7 @@ set -e
 
 echo "Creating symlinks to get our repo into the CircleCI GOPATH"
 mkdir -p "$REPO"
-rmdir "$REPO"
+rm -f "$REPO"
 ln -s "/home/ubuntu/${CIRCLE_PROJECT_REPONAME}" "${REPO}"
 
 readonly GLIDE_VERSION=0.10.2
