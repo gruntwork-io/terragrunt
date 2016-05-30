@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/gruntwork-io/terragrunt/locks"
+	"strings"
 )
 
 type GitLock struct {
@@ -66,6 +67,10 @@ func tryToAcquireLock(gitLock GitLock, gitDir string) error {
 		return err
 	}
 
+	if util.PathExists(lockFilePath(gitLock.StateFileId, gitDir)) {
+		// TODO: handle case where lock file already exists
+	}
+
 	lockFile, err := createLockFile(gitLock.StateFileId, gitDir)
 	if err != nil {
 		return err
@@ -88,6 +93,21 @@ func commitAndPushFileToGit(filePath string, gitDir string, remoteName string, b
 	}
 
 	return shell.RunShellCommand("git", "push", remoteName, branchName, "--git-dir", gitDir)
+}
+
+func getLockFileMetadata(stateFileId string, gitDir string) (*locks.LockMetadata, error) {
+	lockFilePath := lockFilePath(stateFileId, gitDir)
+	bytes, err := ioutil.ReadFile(lockFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	lockFileMetadata := &locks.LockMetadata{}
+	if err := json.Unmarshal(bytes, lockFileMetadata); err != nil {
+		return nil, err
+	}
+
+	return lockFileMetadata, nil
 }
 
 // Create a lock file for the given stateFileId in gitDir. The file will contain metadata about the lock, such as who
@@ -138,7 +158,12 @@ func checkoutLockBranch(lockBranch string, gitDir string) error {
 // use for scratch work. We make all our changes in a temp directory to ensure we don't mess up the user's local
 // checkout.
 func cloneRepoToDir(destDir string) error {
-	if util.IsDirEmpty(destDir) {
+	isDirEmpty, err := util.IsDirEmpty(destDir)
+	if err != nil {
+		return err
+	}
+
+	if isDirEmpty {
 		srcDir, err := getGitRootDir()
 		if err != nil {
 			return err
@@ -154,7 +179,11 @@ func cloneRepoToDir(destDir string) error {
 
 // Return the root directory of this git project. This is useful as the Terraform templates are often in a subfolder.
 func getGitRootDir() (string, error) {
-	return shell.RunShellCommandAndGetOutput("git", "rev-parse", "--show-toplevel")
+	output, err := shell.RunShellCommandAndGetOutput("git", "rev-parse", "--show-toplevel")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(output), nil
 }
 
 // Create the temp folder to use for the Git project in the current working directory and return the path to the temp

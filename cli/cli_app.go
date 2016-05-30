@@ -1,4 +1,4 @@
-package shell
+package cli
 
 import (
 	"github.com/urfave/cli"
@@ -6,6 +6,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/locks"
 	"fmt"
 	"strings"
+	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/gruntcreds/gruntcreds/util"
 )
 
 const CUSTOM_USAGE_TEXT = `DESCRIPTION:
@@ -73,8 +75,8 @@ func runTerraformCommandWithLock(cliContext *cli.Context) error {
 }
 
 func runTerraformCommand(cliContext *cli.Context) error {
-	fmt.Printf("terraform %s\n", strings.Join(cliContext.Args(), " "))
-	return RunShellCommand("terraform", cliContext.Args()...)
+	util.Logger.Printf("Running command: terraform %s", strings.Join(cliContext.Args(), " "))
+	return shell.RunShellCommand("terraform", cliContext.Args()...)
 }
 
 func releaseLockCommand(cliContext *cli.Context) error {
@@ -83,7 +85,7 @@ func releaseLockCommand(cliContext *cli.Context) error {
 		return err
 	}
 
-	proceed, err := PromptUserForYesNo(fmt.Sprintf("Are you sure you want to release %s?", lock))
+	proceed, err := shell.PromptUserForYesNo(fmt.Sprintf("Are you sure you want to release %s?", lock))
 	if err != nil {
 		return err
 	}
