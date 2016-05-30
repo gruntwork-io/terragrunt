@@ -98,7 +98,7 @@ To use DynamoDB for locking, you must:
    policy](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/access-control-identity-based.html) 
    granting all DynamoDB actions (`dynamodb:*`) on the table `terragrunt_locks` (see the
    [DynamoDB locking configuration](#dynamodb-locking-configuration) for how to configure this table name). Here is an 
-   example IAM policy that grants the necessary permissions on the `terragrunt_locks` in region `us-west-2` for
+   example IAM policy that grants the necessary permissions on the `terragrunt_locks` table in region `us-west-2` for
    an account with account id `1234567890`:
 
     ```json
