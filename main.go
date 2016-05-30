@@ -6,9 +6,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli"
 )
 
+// This variable is set at build time using -ldflags parameters. For more info, see:
+// http://stackoverflow.com/a/11355611/483528
+var VERSION string
+
 func main() {
-	// TODO: allow build to plug in the version number
-	app := cli.CreateTerragruntCli("0.0.1")
+	app := cli.CreateTerragruntCli(VERSION)
 	err := app.Run(os.Args)
 
 	if err != nil {

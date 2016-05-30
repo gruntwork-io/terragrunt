@@ -13,7 +13,8 @@ const TERRAGRUNT_CONFIG_FILE = ".terragrunt"
 const DEFAULT_TABLE_NAME = "terragrunt_locks"
 const DEFAULT_AWS_REGION = "us-east-1"
 
-// A common interface with all fields that could be in the config file
+// A common interface with all fields that could be in the config file. We keep this generic to be able to support
+// different lock types in the future.
 type LockConfig struct {
 	// Common fields
 	LockType 	string
@@ -68,6 +69,10 @@ func fillDefaults(config *LockConfig) {
 }
 
 func validateConfig(config *LockConfig) error {
+	if config.LockType == "" {
+		return fmt.Errorf("The lockType field cannot be empty")
+	}
+
 	if config.StateFileId == "" {
 		return fmt.Errorf("The stateFileId field cannot be empty")
 	}
