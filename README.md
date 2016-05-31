@@ -7,9 +7,9 @@ to use Terraform collaboratively. It offers the following key features:
    mechanism to ensure that two team members working on the same Terraform state files do not overwrite each other's
    changes. DynamoDB is part of the [AWS free tier](https://aws.amazon.com/dynamodb/pricing/), so if you're already
    using AWS, this locking mechanism should be completely free. Other locking mechanisms may be added in the future.
-1. **CLI best practices**: Terragrunt also enforces a few CLI best practices. For example, you can put your Terraform
-   remote state configuration in a file, and Terragrunt will automatically apply it, preventing team members from
-   accidentally forgetting to enable or misconfiguring remote state.
+1. **Automation**: Terragrunt also enforces automates a few Terraform best practices. For example, you can define your
+   Terraform remote state configuration in a file, and Terragrunt will automatically apply it, preventing team members
+   from accidentally forgetting to enable or misconfiguring remote state.
 
 ## Motivation
 
@@ -22,7 +22,7 @@ backend](https://www.terraform.io/docs/state/remote/index.html) to store the sta
 [Consul](https://www.terraform.io/docs/state/remote/consul.html), 
 or [etcd](https://www.terraform.io/docs/state/remote/etcd.html). All of these options have two problems:
 
-1. They do not provide *locking*, so if two team members run `terraform apply` on the same state files at the same
+1. They do not provide *locking*. If two team members run `terraform apply` on the same state files at the same
    time, they may overwrite each other's changes. The official solution to this problem is to use [Hashicorp's
    Atlas](https://www.hashicorp.com/atlas.html), but that can be a fairly expensive option, and it requires you to use
    a SaaS platform for all Terraform operations.
