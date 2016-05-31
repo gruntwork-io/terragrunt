@@ -81,7 +81,7 @@ remote state is configured according to the settings in the `.terragrunt` file. 
 ```
 terragrunt apply
 [terragrunt] 2016/05/30 16:55:28 Configuring remote state for the s3 backend
-[terragrunt] 2016/05/30 16:55:28 Running command: terraform remote config -backend s3 -backend-config=key=terraform.tfstate -backend-config=region=us-east-1 -backend-config=encrypted=true -backend-config=bucket=foo
+[terragrunt] 2016/05/30 16:55:28 Running command: terraform remote config -backend s3 -backend-config=key=terraform.tfstate -backend-config=region=us-east-1 -backend-config=encrypted=true -backend-config=bucket=my-bucket
 Initialized blank state with remote state enabled!
 [terragrunt] 2016/05/30 16:55:29 Attempting to acquire lock for state file my-app in DynamoDB
 [terragrunt] 2016/05/30 16:55:30 Attempting to create lock item for state file my-app in DynamoDB table terragrunt_locks
