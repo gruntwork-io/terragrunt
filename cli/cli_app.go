@@ -41,13 +41,11 @@ func CreateTerragruntCli(version string) *cli.App {
 	app.Version = version
 	app.Action = runApp
 	app.Usage = "terragrunt <COMMAND>"
-	app.UsageText = `Terragrunt is a thin wrapper for the Terraform client that provides a distributed locking
-   mechanism which allows multiple people to collaborate on the same Terraform state without overwriting each other's
-   changes. Terragrunt currently uses Amazon's DynamoDB to acquire and release locks. For documentation, see
-   https://github.com/gruntwork-io/terragrunt/.
-
-   Terragrunt supports all the same commands as Terraform (e.g. plan, apply, destroy, etc). However, for the apply and
-   destroy commands, it will first acquire a lock, then run the command with Terraform, and then release the lock.`
+	app.UsageText = `Terragrunt is a thin wrapper for the Terraform that makes it easier for teams to to use
+   Terraform collaboratively. It can use Amazon's DynamoDB as a distributed locking mechanism to ensure that two team
+   members working on the same Terraform state files do not overwrite each other's changes. Terragrunt also automates a
+   few Terraform best practices to prevent manual errors, including automatically managing Terraform remote state to
+   ensure you don't forget to configure remote state. For documentation, see https://github.com/gruntwork-io/terragrunt/.`
 
 	return app
 }
