@@ -1,15 +1,17 @@
 # Terragrunt
 
-Terragrunt is a thin wrapper for the [Terraform client](https://www.terraform.io/) that makes it easier for teams to
-to use Terraform collaboratively. It offers the following key features:
+Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that supports locking and enforces best
+practices:
 
 1. **Locking**: Terragrunt can use Amazon's [DynamoDB](https://aws.amazon.com/dynamodb/) as a distributed locking
    mechanism to ensure that two team members working on the same Terraform state files do not overwrite each other's
-   changes. DynamoDB is part of the [AWS free tier](https://aws.amazon.com/dynamodb/pricing/), so if you're already
-   using AWS, this locking mechanism should be completely free. Other locking mechanisms may be added in the future.
-1. **Automation**: Terragrunt also automates a few Terraform best practices to prevent common errors. For example, you
-   can define your Terraform remote state configuration in a file, and Terragrunt will automatically apply it,
-   ensuring team members don't accidentally forget to enable remote state.
+   changes. DynamoDB is part of the [AWS free tier](https://aws.amazon.com/dynamodb/pricing/), so using it as a locking
+   mechanism should not cost you anything.
+1. **Remote state management**: A common mistake when using Terraform is to forget to configure remote state or to
+   configure it incorrectly. Terragrunt can prevent these sorts of errors by automatically configuring remote state for
+   everyone on your team.
+
+Other locking mechanisms and automation for other best practices may be added in the future.
 
 ## Motivation
 
