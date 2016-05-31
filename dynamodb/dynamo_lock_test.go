@@ -11,7 +11,7 @@ func TestAcquireLockHappyPath(t *testing.T) {
 	t.Parallel()
 
 	client := createDynamoDbClientForTest(t)
-	lock := DynamoLock{
+	lock := DynamoDbLock{
 		StateFileId: uniqueId(),
 		AwsRegion: DEFAULT_TEST_REGION,
 		TableName: uniqueTableNameForTest(),
@@ -28,7 +28,7 @@ func TestAcquireLockWhenLockIsAlreadyTaken(t *testing.T) {
 	t.Parallel()
 
 	client := createDynamoDbClientForTest(t)
-	lock := DynamoLock{
+	lock := DynamoDbLock{
 		StateFileId: uniqueId(),
 		AwsRegion: DEFAULT_TEST_REGION,
 		TableName: uniqueTableNameForTest(),
@@ -50,7 +50,7 @@ func TestAcquireAndReleaseLock(t *testing.T) {
 	t.Parallel()
 
 	client := createDynamoDbClientForTest(t)
-	lock := DynamoLock{
+	lock := DynamoDbLock{
 		StateFileId: uniqueId(),
 		AwsRegion: DEFAULT_TEST_REGION,
 		TableName: uniqueTableNameForTest(),
@@ -80,7 +80,7 @@ func TestAcquireLockConcurrency(t *testing.T) {
 	t.Parallel()
 
 	client := createDynamoDbClientForTest(t)
-	lock := DynamoLock{
+	lock := DynamoDbLock{
 		StateFileId: uniqueId(),
 		AwsRegion: DEFAULT_TEST_REGION,
 		TableName: uniqueTableNameForTest(),

@@ -5,9 +5,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/locks"
 	"fmt"
-	"strings"
 	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const CUSTOM_USAGE_TEXT = `DESCRIPTION:
@@ -55,36 +53,37 @@ func CreateTerragruntCli(version string) *cli.App {
 }
 
 func runApp(cliContext *cli.Context) error {
-	args := cliContext.Args()
-	switch args.First() {
-	case "apply", "destroy": return runTerraformCommandWithLock(cliContext)
-	case "release-lock": return releaseLockCommand(cliContext)
-	default: return runTerraformCommand(cliContext)
-	}
-}
-
-func runTerraformCommandWithLock(cliContext *cli.Context) error {
-	lock, err := config.GetLockForConfig()
+	terragruntConfig, err := config.ReadTerragruntConfig()
 	if err != nil {
 		return err
 	}
 
-	return locks.WithLock(lock, func() error {
-		return runTerraformCommand(cliContext)
-	})
+	if terragruntConfig.RemoteState != nil {
+		if err := terragruntConfig.RemoteState.ConfigureRemoteState(); err != nil {
+			return err
+		}
+	}
+
+	if terragruntConfig.DynamoDbLock != nil {
+		return runCommandWithLock(cliContext, terragruntConfig.DynamoDbLock)
+	} else {
+		return runCommand(cliContext)
+	}
 }
 
-func runTerraformCommand(cliContext *cli.Context) error {
-	util.Logger.Printf("Running command: terraform %s", strings.Join(cliContext.Args(), " "))
+func runCommandWithLock(cliContext *cli.Context, lock locks.Lock) error {
+	switch cliContext.Args().First() {
+	case "apply", "destroy": return locks.WithLock(lock, func() error { return runCommand(cliContext) })
+	case "release-lock": return runReleaseLockCommand(cliContext, lock)
+	default: return runCommand(cliContext)
+	}
+}
+
+func runCommand(cliContext *cli.Context) error {
 	return shell.RunShellCommand("terraform", cliContext.Args()...)
 }
 
-func releaseLockCommand(cliContext *cli.Context) error {
-	lock, err := config.GetLockForConfig()
-	if err != nil {
-		return err
-	}
-
+func runReleaseLockCommand(cliContext *cli.Context, lock locks.Lock) error {
 	proceed, err := shell.PromptUserForYesNo(fmt.Sprintf("Are you sure you want to release %s?", lock))
 	if err != nil {
 		return err
@@ -96,4 +95,3 @@ func releaseLockCommand(cliContext *cli.Context) error {
 		return nil
 	}
 }
-
