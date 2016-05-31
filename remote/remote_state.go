@@ -4,20 +4,24 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/errors"
 )
 
+// Configuration for Terraform remote state
 type RemoteState struct {
 	Backend        string
 	BackendConfigs map[string]string
 }
 
+// Fill in any default configuration for remote state
 func (remoteState *RemoteState) FillDefaults() {
 	// Nothing to do
 }
 
+// Validate that the remote state is configured correctly
 func (remoteState *RemoteState) Validate() error {
 	if remoteState.Backend == "" {
-		return fmt.Errorf("The remoteState.backend field cannot be empty")
+		return errors.WithStackTrace(RemoteBackendMissing)
 	}
 
 	// TODO: for the S3 backend, check that encryption is enabled
@@ -26,16 +30,16 @@ func (remoteState *RemoteState) Validate() error {
 	return nil
 }
 
+// Configure Terraform remote state
 func (remoteState RemoteState) ConfigureRemoteState() error {
-	if remoteState.Backend != "" {
-		// TODO: skip this step if the tfstate shows that remote state is *already* configured
-		util.Logger.Printf("Configuring remote state for the %s backend", remoteState.Backend)
-		return shell.RunShellCommand("terraform", remoteState.toTerraformRemoteConfigArgs()...)
-	}
+	// TODO: skip this step if the tfstate shows that remote state is *already* configured
+	util.Logger.Printf("Configuring remote state for the %s backend", remoteState.Backend)
+	return shell.RunShellCommand("terraform", remoteState.toTerraformRemoteConfigArgs()...)
 
 	return nil
 }
 
+// Convert the RemoteState config into the format used by Terraform
 func (remoteState RemoteState) toTerraformRemoteConfigArgs() []string {
 	baseArgs := []string{"remote", "config", "-backend", remoteState.Backend}
 
@@ -47,3 +51,5 @@ func (remoteState RemoteState) toTerraformRemoteConfigArgs() []string {
 
 	return append(baseArgs, backendConfigArgs...)
 }
+
+var RemoteBackendMissing = fmt.Errorf("The remoteState.backend field cannot be empty")

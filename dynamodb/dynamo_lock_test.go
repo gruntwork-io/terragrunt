@@ -5,6 +5,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"sync/atomic"
 	"sync"
+	"github.com/gruntwork-io/terragrunt/errors"
 )
 
 func TestAcquireLockHappyPath(t *testing.T) {
@@ -28,8 +29,9 @@ func TestAcquireLockWhenLockIsAlreadyTaken(t *testing.T) {
 	t.Parallel()
 
 	client := createDynamoDbClientForTest(t)
+	stateFileId := uniqueId()
 	lock := DynamoDbLock{
-		StateFileId: uniqueId(),
+		StateFileId: stateFileId,
 		AwsRegion: DEFAULT_TEST_REGION,
 		TableName: uniqueTableNameForTest(),
 		MaxLockRetries: 1,
@@ -43,15 +45,16 @@ func TestAcquireLockWhenLockIsAlreadyTaken(t *testing.T) {
 
 	// Now try to acquire the lock again and make sure you get an error
 	err = lock.AcquireLock()
-	assert.NotNil(t, err)
+	assert.True(t, errors.IsError(err, AcquireLockRetriesExceeded{ItemId: stateFileId, Retries: 1}))
 }
 
 func TestAcquireAndReleaseLock(t *testing.T) {
 	t.Parallel()
 
 	client := createDynamoDbClientForTest(t)
+	stateFileId := uniqueId()
 	lock := DynamoDbLock{
-		StateFileId: uniqueId(),
+		StateFileId: stateFileId,
 		AwsRegion: DEFAULT_TEST_REGION,
 		TableName: uniqueTableNameForTest(),
 		MaxLockRetries: 1,
@@ -65,7 +68,7 @@ func TestAcquireAndReleaseLock(t *testing.T) {
 
 	// Now try to acquire the lock again and make sure you get an error
 	err = lock.AcquireLock()
-	assert.NotNil(t, err)
+	assert.True(t, errors.IsError(err, AcquireLockRetriesExceeded{ItemId: stateFileId, Retries: 1}))
 
 	// Release the lock
 	err = lock.ReleaseLock()
@@ -80,8 +83,9 @@ func TestAcquireLockConcurrency(t *testing.T) {
 	t.Parallel()
 
 	client := createDynamoDbClientForTest(t)
+	stateFileId := uniqueId()
 	lock := DynamoDbLock{
-		StateFileId: uniqueId(),
+		StateFileId: stateFileId,
 		AwsRegion: DEFAULT_TEST_REGION,
 		TableName: uniqueTableNameForTest(),
 		MaxLockRetries: 1,
@@ -104,6 +108,8 @@ func TestAcquireLockConcurrency(t *testing.T) {
 			err := lock.AcquireLock()
 			if err == nil {
 				atomic.AddInt32(&locksAcquired, 1)
+			} else {
+				assert.True(t, errors.IsError(err, AcquireLockRetriesExceeded{ItemId: stateFileId, Retries: 1}))
 			}
 		}()
 	}

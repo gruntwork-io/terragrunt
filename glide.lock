@@ -1,5 +1,5 @@
-hash: 06a77b6efc6fa044dffcd589c164eb69fe98096f5839281a669af8a6c8372fe3
-updated: 2016-05-30T13:56:17.810673412+02:00
+hash: a0b6052956cc547eca14fb8e727e4e60a6d9dc9d781d3aea890b2f182397e51a
+updated: 2016-05-31T14:38:06.054106296+02:00
 imports:
 - name: github.com/aws/aws-sdk-go
   version: 665c623d7f3e0ee276596b006655ba4dbe0565b0
@@ -25,6 +25,12 @@ imports:
   - private/protocol/json/jsonutil
   - private/protocol/rest
   - private/protocol
+- name: github.com/davecgh/go-spew
+  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
+  subpackages:
+  - spew
+- name: github.com/go-errors/errors
+  version: a41850380601eeb43f4350f7d17c6bbd8944aaf8
 - name: github.com/go-ini/ini
   version: 12f418cc7edc5a618a51407b7ac1f1f512139df3
 - name: github.com/hashicorp/hcl
@@ -40,6 +46,10 @@ imports:
   - json/token
 - name: github.com/jmespath/go-jmespath
   version: 0b12d6b521d83fc7f755e7cfc1b1fbdd35a01a74
+- name: github.com/pmezard/go-difflib
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  subpackages:
+  - difflib
 - name: github.com/stretchr/testify
   version: 8d64eb7173c7753d6419fd4a9caf057398611364
   subpackages:

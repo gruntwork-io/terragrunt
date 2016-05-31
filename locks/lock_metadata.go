@@ -2,14 +2,16 @@ package locks
 
 import (
 	"time"
-	"fmt"
 	"net"
 	"os/user"
+	"github.com/gruntwork-io/terragrunt/errors"
+	"fmt"
 )
 
 // Copied from format.go. Not sure why it's not exposed as a variable.
 const DEFAULT_TIME_FORMAT = "2006-01-02 15:04:05.999999999 -0700 MST"
 
+// This structure represents useful metadata about the lock, such as who acquired it, when, and from what IP
 type LockMetadata struct {
 	StateFileId string
 	Username    string
@@ -17,15 +19,16 @@ type LockMetadata struct {
 	DateCreated time.Time
 }
 
+// Create the LockMetadata for the current user
 func CreateLockMetadata(stateFileId string) (*LockMetadata, error) {
 	user, err := user.Current()
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStackTrace(err)
 	}
 
 	ipAddress, err := getIpAddress()
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStackTrace(err)
 	}
 
 	dateCreated := time.Now().UTC()
@@ -38,16 +41,18 @@ func CreateLockMetadata(stateFileId string) (*LockMetadata, error) {
 	}, nil
 }
 
+// Get the IP address for the current host. This method makes a best effort to read all available interfaces and grab
+// teh first one that looks like an IPV4 address.
 func getIpAddress() (string, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		return "", err
+		return "", errors.WithStackTrace(err)
 	}
 
 	for _, iface := range ifaces {
 		addrs, err := iface.Addrs()
 		if err != nil {
-			return "", err
+			return "", errors.WithStackTrace(err)
 		}
 
 		for _, addr := range addrs {
@@ -64,5 +69,7 @@ func getIpAddress() (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("Could not find IP address for current machine")
+	return "", errors.WithStackTrace(NoIpAddressFound)
 }
+
+var NoIpAddressFound = fmt.Errorf("Could not find IP address for current machine")
