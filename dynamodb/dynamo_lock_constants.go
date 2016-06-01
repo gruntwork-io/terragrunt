@@ -7,7 +7,13 @@ const ATTR_USERNAME = "Username"
 const ATTR_IP = "Ip"
 const ATTR_CREATION_DATE = "CreationDate"
 
+// Default is to retry for up to 5 minutes
+const MAX_RETRIES_WAITING_FOR_TABLE_TO_BE_ACTIVE = 30
 const SLEEP_BETWEEN_TABLE_STATUS_CHECKS = 10 * time.Second
+
+// Default is to retry for up to 1 hour
+const DEFAULT_MAX_RETRIES_WAITING_FOR_LOCK = 360
 const SLEEP_BETWEEN_TABLE_LOCK_ACQUIRE_ATTEMPTS = 10 * time.Second
 
-const MAX_RETRIES_WAITING_FOR_TABLE_TO_BE_ACTIVE = 30
+const DEFAULT_TABLE_NAME = "terragrunt_locks"
+const DEFAULT_AWS_REGION = "us-east-1"

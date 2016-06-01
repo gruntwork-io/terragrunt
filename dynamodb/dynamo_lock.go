@@ -8,37 +8,59 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-type DynamoLock struct {
+type DynamoDbLock struct {
 	StateFileId 	string
 	AwsRegion   	string
 	TableName   	string
 	MaxLockRetries	int
 }
 
-func (dynamoLock DynamoLock) AcquireLock() error {
-	util.Logger.Printf("Attempting to acquire lock for state file %s in DynamoDB", dynamoLock.StateFileId)
-
-	client, err := createDynamoDbClient(dynamoLock.AwsRegion)
-	if err != nil {
-		return err
+func (dynamoLock *DynamoDbLock) FillDefaults() {
+	if dynamoLock.AwsRegion == "" {
+		dynamoLock.AwsRegion = DEFAULT_AWS_REGION
 	}
 
-	if err := createLockTableIfNecessary(dynamoLock.TableName, client); err != nil {
-		return err
+	if dynamoLock.TableName == "" {
+		dynamoLock.TableName = DEFAULT_TABLE_NAME
 	}
 
-	return writeItemToLockTableUntilSuccess(dynamoLock.StateFileId, dynamoLock.TableName, client, dynamoLock.MaxLockRetries)
+	if dynamoLock.MaxLockRetries == 0 {
+		dynamoLock.MaxLockRetries = DEFAULT_MAX_RETRIES_WAITING_FOR_LOCK
+	}
 }
 
-func (dynamoLock DynamoLock) ReleaseLock() error {
-	util.Logger.Printf("Attempting to release lock for state file %s in DynamoDB", dynamoLock.StateFileId)
+func (dynamoDbLock *DynamoDbLock) Validate() error {
+	if dynamoDbLock.StateFileId == "" {
+		return fmt.Errorf("The dynamodb.lockType field cannot be empty")
+	}
 
-	client, err := createDynamoDbClient(dynamoLock.AwsRegion)
+	return nil
+}
+
+func (dynamoDbLock DynamoDbLock) AcquireLock() error {
+	util.Logger.Printf("Attempting to acquire lock for state file %s in DynamoDB", dynamoDbLock.StateFileId)
+
+	client, err := createDynamoDbClient(dynamoDbLock.AwsRegion)
 	if err != nil {
 		return err
 	}
 
-	if err := removeItemFromLockTable(dynamoLock.StateFileId, dynamoLock.TableName, client); err != nil {
+	if err := createLockTableIfNecessary(dynamoDbLock.TableName, client); err != nil {
+		return err
+	}
+
+	return writeItemToLockTableUntilSuccess(dynamoDbLock.StateFileId, dynamoDbLock.TableName, client, dynamoDbLock.MaxLockRetries)
+}
+
+func (dynamoDbLock DynamoDbLock) ReleaseLock() error {
+	util.Logger.Printf("Attempting to release lock for state file %s in DynamoDB", dynamoDbLock.StateFileId)
+
+	client, err := createDynamoDbClient(dynamoDbLock.AwsRegion)
+	if err != nil {
+		return err
+	}
+
+	if err := removeItemFromLockTable(dynamoDbLock.StateFileId, dynamoDbLock.TableName, client); err != nil {
 		return err
 	}
 
@@ -46,7 +68,7 @@ func (dynamoLock DynamoLock) ReleaseLock() error {
 	return nil
 }
 
-func (dynamoLock DynamoLock) String() string {
+func (dynamoLock DynamoDbLock) String() string {
 	return fmt.Sprintf("DynamoDB lock for state file %s", dynamoLock.StateFileId)
 }
 
