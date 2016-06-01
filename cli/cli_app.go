@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/locks"
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
@@ -72,6 +73,7 @@ func runApp(cliContext *cli.Context) error {
 	if terragruntConfig.DynamoDbLock != nil {
 		return runTerraformCommandWithLock(cliContext, terragruntConfig.DynamoDbLock)
 	} else {
+		util.Logger.Printf("WARNING: you have not configured locking in your .terragrunt file. Concurrent changes to your .tfstate files may cause conflicts!")
 		return runTerraformCommand(cliContext)
 	}
 }

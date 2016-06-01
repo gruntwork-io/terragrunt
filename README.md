@@ -196,8 +196,8 @@ manual errors such as forgetting to enable remote state or using the wrong setti
 
 #### Remote state management prerequisites
 
-Check out the [Terraform remote state docs](https://www.terraform.io/docs/state/remote/) for the requirements to use
-a particular remote state backend.
+Terragrunt works with all backends supported by Terraform. Check out the [Terraform remote state
+docs](https://www.terraform.io/docs/state/remote/) for the requirements to use a particular remote state backend.
 
 #### Remote state management configuration
 
