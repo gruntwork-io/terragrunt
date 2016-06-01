@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/gruntcreds/gruntcreds/util"
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // TODO: this file could be changed to use the Terraform Go code to read state files, but that code is relatively
