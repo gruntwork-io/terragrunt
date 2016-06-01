@@ -304,5 +304,8 @@ See `circle.yml` and `_ci/build-and-push-release-asset.sh` for details.
 * Add a check that all local changes have been committed before running `terraform apply`.
 * Consider implementing alternative locking mechanisms, such as using Git instead of DynamoDB.
 * Consider embedding the Terraform Go code within Terragrunt instead of calling out to it.
+* To avoid storing tfstate files on disk, consider keeping them solely in memory and feeding Terraform the file via
+  `/dev/stdin`, process substitution, or one of the other options described
+  [here](http://stackoverflow.com/questions/4092252/is-there-any-way-to-supply-stdin-out-instead-of-a-file-to-a-program-in-unix).
 * Add a `show-lock` command.
 * Use IAM username instead of the local OS username in lock metadata.

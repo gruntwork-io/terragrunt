@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"regexp"
 )
 
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
@@ -66,6 +67,10 @@ func runApp(cliContext *cli.Context) error {
 		return err
 	}
 
+	if err := downloadModules(cliContext); err != nil {
+		return err
+	}
+
 	if terragruntConfig.RemoteState != nil {
 		if err := configureRemoteState(cliContext, terragruntConfig.RemoteState); err != nil {
 			return err
@@ -78,6 +83,31 @@ func runApp(cliContext *cli.Context) error {
 		util.Logger.Printf("WARNING: you have not configured locking in your .terragrunt file. Concurrent changes to your .tfstate files may cause conflicts!")
 		return runTerraformCommand(cliContext)
 	}
+}
+
+// A quick sanity check that calls `terraform get` to download modules, if they aren't already downloaded
+func downloadModules(cliContext *cli.Context) error {
+	switch cliContext.Args().First() {
+	case "apply", "destroy", "graph", "output", "plan", "show", "taint", "untaint", "validate":
+		shouldDownload, err := shouldDownloadModules()
+		if err != nil {
+			return err
+		}
+		if shouldDownload {
+			return shell.RunShellCommand("terraform", "get")
+		}
+	}
+
+	return nil
+}
+
+// Return true if modules aren't already downloaded and the Terraform templates in this project reference modules
+func shouldDownloadModules() (bool, error) {
+	if util.FileExists(".terraform/modules") {
+		return false, nil
+	}
+
+	return util.Grep(regexp.MustCompile(`module ".+"`), "*.tf")
 }
 
 func configureRemoteState(cliContext *cli.Context, remoteState *remote.RemoteState) error {
@@ -96,9 +126,9 @@ func configureRemoteState(cliContext *cli.Context, remoteState *remote.RemoteSta
 			// with the configuration
 			return nil
 		}
-	default:
-		return nil
 	}
+
+	return nil
 }
 
 // Run the given Terraform command with the given lock (if the command requires locking)
