@@ -26,7 +26,8 @@ func WithStackTraceAndPrefix(err error, message string, args ... interface{}) er
 	return goerrors.WrapPrefix(err, fmt.Sprintf(message, args...), 1)
 }
 
-// Returns true if actual is the same type of error as expected
+// Returns true if actual is the same type of error as expected. This method unwraps the given error objects (if they
+// are wrapped in objects with a stacktrace) and then does a simple equality check on them.
 func IsError(actual error, expected error) bool {
 	return goerrors.Is(actual, expected)
 }

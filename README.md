@@ -250,8 +250,8 @@ go test -v -parallel 128 -run TestToTerraformRemoteConfigArgsNoBackendConfigs
 
 #### Debug logging
 
-If you set the `DEBUG` environment variable to "true", the stack trace for any error will be printed to stdout when
-you run the app.
+If you set the `TERRAGRUNT_DEBUG` environment variable to "true", the stack trace for any error will be printed to
+stdout when you run the app.
 
 #### Error handling
 

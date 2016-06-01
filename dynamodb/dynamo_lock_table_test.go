@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"sync"
+	"sync/atomic"
 )
 
 func TestCreateLockTableIfNecessaryTableDoesntAlreadyExist(t *testing.T) {
@@ -172,3 +173,37 @@ func TestWriteItemToLockTableUntilSuccessItemAlreadyExistsButGetsDeleted(t *test
 	})
 }
 
+func TestWriteItemToLockTableConcurrency(t * testing.T) {
+	t.Parallel()
+
+	// First, create a table
+	withLockTable(t, func(tableName string, client *dynamodb.DynamoDB) {
+		itemId := uniqueId()
+
+		// Use a WaitGroup to ensure the test doesn't exit before all goroutines finish.
+		var waitGroup sync.WaitGroup
+		// This will count how many of the goroutines succeeded in writing an item (we expect only 1 to
+		// succeed). We use Go's atomic package to ensure all modifications to this counter are atomic
+		// operations.
+		successfulWrites := int32(0)
+
+		// Launch a bunch of goroutines who will all try to create the same item at more or less the same time.
+		// Only one of the goroutines should succeed.
+		for i := 0; i < 20; i++ {
+			waitGroup.Add(1)
+			go func() {
+				defer waitGroup.Done()
+				err := writeItemToLockTable(itemId, tableName, client)
+				if err == nil {
+					atomic.AddInt32(&successfulWrites, 1)
+				} else {
+					assert.True(t, isItemAlreadyExistsErr(err))
+				}
+			}()
+		}
+
+		waitGroup.Wait()
+
+		assert.Equal(t, int32(1), successfulWrites, "Only one of the goroutines should have been able to successfully write an item")
+	})
+}
