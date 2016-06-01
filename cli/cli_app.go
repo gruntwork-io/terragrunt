@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/locks"
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/gruntcreds/gruntcreds/util"
 )
 
 const CUSTOM_USAGE_TEXT = `DESCRIPTION:
@@ -62,6 +63,7 @@ func runApp(cliContext *cli.Context) error {
 	if terragruntConfig.DynamoDbLock != nil {
 		return runCommandWithLock(cliContext, terragruntConfig.DynamoDbLock)
 	} else {
+		util.Logger.Printf("WARNING: you have not configured locking in your .terragrunt file. Concurrent changes to your .tfstate files may cause conflicts!")
 		return runCommand(cliContext)
 	}
 }
