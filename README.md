@@ -208,7 +208,9 @@ For remote state management, Terragrunt supports the following settings in `.ter
 remoteState = {
   backend = "s3"
   backendConfigs = {
-    key = "value"
+    key1 = "value1"
+    key2 = "value2"
+    key3 = "value3"
   }
 }
 ```
