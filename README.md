@@ -11,7 +11,7 @@ practices:
    configure it incorrectly. Terragrunt can prevent these sorts of errors by automatically configuring remote state for
    everyone on your team.
 
-Other locking mechanisms and automation for other best practices may be added in the future.
+Other types of locking mechanisms and automation for more best practices may be added in the future.
 
 ## Motivation
 
@@ -51,6 +51,7 @@ state](#managing-remote-state) for you using the [S3 backend](https://www.terraf
 
 ```hcl
 dynamoDbLock = {
+  # A unique ID for this set of templates. This allows you to have separate locks for separate templates.
   stateFileId = "my-app"
 }
 
@@ -76,9 +77,10 @@ terragrunt output
 terragrunt destroy
 ```
 
-Terragrunt forwards most commands directly to Terraform. However, before running the command, it will ensure your
-remote state is configured according to the settings in the `.terragrunt` file. Moreover, for the `apply` and
-`destroy` commands, Terragrunt will first try to acquire a lock using [DynamoDB](#locking-using-dynamodb):
+Terragrunt forwards almost all commands, arguments, and options directly to Terraform, using whatever version of
+Terraform you already have installed. However, before running Terraform, Terragrunt will ensure your remote state is
+configured according to the settings in the `.terragrunt` file. Moreover, for the `apply` and `destroy` commands,
+Terragrunt will first try to acquire a lock using [DynamoDB](#locking-using-dynamodb):
 
 ```
 terragrunt apply
@@ -291,3 +293,5 @@ See `circle.yml` and `_ci/build-and-push-release-asset.sh` for details.
 * Add a check that all local changes have been committed before running `terraform apply`.
 * Consider implementing alternative locking mechanisms, such as using Git instead of DynamoDB.
 * Consider embedding the Terraform Go code within Terragrunt instead of calling out to it.
+* Add a `show-lock` command.
+* Use IAM username instead of the local OS username in lock metadata.

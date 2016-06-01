@@ -116,6 +116,8 @@ func writeItemToLockTable(itemId string, tableName string, client *dynamodb.Dyna
 		return err
 	}
 
+	// Conditional writes in DynamoDB should be strongly consistent: http://stackoverflow.com/a/23371813/483528
+	// https://r.32k.io/locking-with-dynamodb
 	_, err = client.PutItem(&dynamodb.PutItemInput{
 		TableName: aws.String(tableName),
 		Item: item,
