@@ -25,6 +25,6 @@ deployment:
              --local-bin-output-path "/home/ubuntu/bin" \
              --github-repo-owner "$CIRCLE_PROJECT_USERNAME" \
              --github-repo-name "$CIRCLE_PROJECT_REPONAME" \
-             --git-tag "$CIRCLE_TAG"
-             --app-name "terragrunt"
+             --git-tag "$CIRCLE_TAG" \
+             --app-name "terragrunt" \
              --ld-flags "-X main.VERSION=$CIRCLE_TAG"
