@@ -6,7 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/locks"
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/gruntwork-io/gruntcreds/gruntcreds/util"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const CUSTOM_USAGE_TEXT = `DESCRIPTION:
