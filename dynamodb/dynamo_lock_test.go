@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"sync"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"reflect"
 )
 
 func TestAcquireLockHappyPath(t *testing.T) {
@@ -45,7 +46,7 @@ func TestAcquireLockWhenLockIsAlreadyTaken(t *testing.T) {
 
 	// Now try to acquire the lock again and make sure you get an error
 	err = lock.AcquireLock()
-	assert.True(t, errors.IsError(err, AcquireLockRetriesExceeded{ItemId: stateFileId, Retries: 1}))
+	assert.True(t, errors.IsError(err, AcquireLockRetriesExceeded{ItemId: stateFileId, Retries: 1}), "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 }
 
 func TestAcquireAndReleaseLock(t *testing.T) {
@@ -68,7 +69,7 @@ func TestAcquireAndReleaseLock(t *testing.T) {
 
 	// Now try to acquire the lock again and make sure you get an error
 	err = lock.AcquireLock()
-	assert.True(t, errors.IsError(err, AcquireLockRetriesExceeded{ItemId: stateFileId, Retries: 1}))
+	assert.True(t, errors.IsError(err, AcquireLockRetriesExceeded{ItemId: stateFileId, Retries: 1}), "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 
 	// Release the lock
 	err = lock.ReleaseLock()
@@ -109,7 +110,7 @@ func TestAcquireLockConcurrency(t *testing.T) {
 			if err == nil {
 				atomic.AddInt32(&locksAcquired, 1)
 			} else {
-				assert.True(t, errors.IsError(err, AcquireLockRetriesExceeded{ItemId: stateFileId, Retries: 1}))
+				assert.True(t, errors.IsError(err, AcquireLockRetriesExceeded{ItemId: stateFileId, Retries: 1}), "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 			}
 		}()
 	}

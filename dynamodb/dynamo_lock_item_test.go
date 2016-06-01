@@ -7,6 +7,7 @@ import (
 	"time"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"reflect"
 )
 
 func TestToLockMetadata(t *testing.T) {
@@ -52,7 +53,7 @@ func TestToLockMetadataInvalidCreationDate(t *testing.T) {
 	underlying := errors.Unwrap(err)
 	invalidDateFormat, isInvalidDateFormat := underlying.(InvalidDateFormat)
 
-	assert.True(t, isInvalidDateFormat)
+	assert.True(t, isInvalidDateFormat, "Unexpected error of type %s: %s", reflect.TypeOf(underlying), underlying)
 	assert.Equal(t, invalidDate, invalidDateFormat.Date)
 }
 
@@ -68,5 +69,5 @@ func TestToLockMetadataMissingUsername(t *testing.T) {
 	}
 
 	_, err := toLockMetadata(itemId, attributes)
-	assert.True(t, errors.IsError(err, AttributeMissing{AttributeName: ATTR_USERNAME}))
+	assert.True(t, errors.IsError(err, AttributeMissing{AttributeName: ATTR_USERNAME}), "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"reflect"
 )
 
 func TestParseTerragruntConfigDynamoLockMinimalConfig(t *testing.T) {
@@ -63,7 +64,7 @@ func TestParseTerragruntConfigDynamoLockMissingStateFileId(t *testing.T) {
 	`
 
 	_, err := parseTerragruntConfig(config)
-	assert.True(t, errors.IsError(err, dynamodb.StateFileIdMissing))
+	assert.True(t, errors.IsError(err, dynamodb.StateFileIdMissing), "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 }
 
 func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
@@ -95,7 +96,7 @@ func TestParseTerragruntConfigRemoteStateMissingBackend(t *testing.T) {
 	`
 
 	_, err := parseTerragruntConfig(config)
-	assert.True(t, errors.IsError(err, remote.RemoteBackendMissing))
+	assert.True(t, errors.IsError(err, remote.RemoteBackendMissing), "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 }
 
 

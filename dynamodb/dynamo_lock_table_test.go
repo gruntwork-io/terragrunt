@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"sync"
 	"sync/atomic"
+	"reflect"
 )
 
 func TestCreateLockTableIfNecessaryTableDoesntAlreadyExist(t *testing.T) {
@@ -53,7 +54,7 @@ func TestWaitForTableToBeActiveTableDoesNotExist(t *testing.T) {
 
 	err := waitForTableToBeActive(tableName, client, retries, 1 * time.Millisecond)
 
-	assert.True(t, errors.IsError(err, TableActiveRetriesExceeded{TableName: tableName, Retries: retries}))
+	assert.True(t, errors.IsError(err, TableActiveRetriesExceeded{TableName: tableName, Retries: retries}), "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 }
 
 func TestCreateLockTableIfNecessaryTableAlreadyExists(t *testing.T) {
@@ -140,7 +141,7 @@ func TestWriteItemToLockTableUntilSuccessItemAlreadyExists(t *testing.T) {
 
 		// Now try to write the item to the table again. Allow no retries to ensure this fails immediately.
 		err = writeItemToLockTableUntilSuccess(itemId, tableName, client, 1, 1 * time.Millisecond)
-		assert.True(t, errors.IsError(err, AcquireLockRetriesExceeded{ItemId: itemId, Retries: 1}))
+		assert.True(t, errors.IsError(err, AcquireLockRetriesExceeded{ItemId: itemId, Retries: 1}), "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 	})
 }
 
@@ -197,7 +198,7 @@ func TestWriteItemToLockTableConcurrency(t * testing.T) {
 				if err == nil {
 					atomic.AddInt32(&successfulWrites, 1)
 				} else {
-					assert.True(t, isItemAlreadyExistsErr(err))
+					assert.True(t, isItemAlreadyExistsErr(err), "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 				}
 			}()
 		}
