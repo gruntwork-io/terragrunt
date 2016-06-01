@@ -1,0 +1,15 @@
+package: github.com/gruntwork-io/terragrunt
+owners:
+- name: Gruntwork
+  homepage: http://www.gruntwork.io
+import:
+- package: github.com/urfave/cli
+- package: github.com/hashicorp/hcl
+- package: github.com/stretchr/testify/assert
+- package: github.com/aws/aws-sdk-go
+  subpackages:
+  - aws
+  - aws/defaults
+  - aws/session
+  - aws/awserr
+  - aws/service/dynamodb

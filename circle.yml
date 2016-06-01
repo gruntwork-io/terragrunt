@@ -1,0 +1,30 @@
+machine:
+  environment:
+    PATH: $PATH:$HOME/glide/linux-amd64/
+    IMPORT_PATH: "github.com/gruntwork-io/${CIRCLE_PROJECT_REPONAME}"
+    REPO: "$HOME/.go_workspace/src/${IMPORT_PATH}"
+
+dependencies:
+  override:
+    - _ci/install-dependencies.sh
+  cache_directories:
+    - ~/glide
+
+test:
+  override:
+    - ${REPO}/_ci/run-tests.sh
+
+deployment:
+  release:
+    tag: /v.*/
+    commands:
+      # If a new release is tagged in GitHub, build the binaries and upload them to GitHub.
+      - |
+         ${REPO}/_ci/build-and-push-release-assets.sh \
+             --local-src-path "$REPO" \
+             --local-bin-output-path "/home/ubuntu/bin" \
+             --github-repo-owner "$CIRCLE_PROJECT_USERNAME" \
+             --github-repo-name "$CIRCLE_PROJECT_REPONAME" \
+             --git-tag "$CIRCLE_TAG"
+             --app-name "terragrunt"
+             --ld-flags "-X main.VERSION=$CIRCLE_TAG"

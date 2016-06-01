@@ -1,0 +1,49 @@
+hash: 06a77b6efc6fa044dffcd589c164eb69fe98096f5839281a669af8a6c8372fe3
+updated: 2016-05-30T13:56:17.810673412+02:00
+imports:
+- name: github.com/aws/aws-sdk-go
+  version: 665c623d7f3e0ee276596b006655ba4dbe0565b0
+  subpackages:
+  - aws
+  - aws/defaults
+  - aws/session
+  - aws/awserr
+  - aws/service/dynamodb
+  - service/dynamodb
+  - aws/credentials
+  - aws/corehandlers
+  - aws/credentials/ec2rolecreds
+  - aws/ec2metadata
+  - aws/request
+  - private/endpoints
+  - aws/client
+  - aws/awsutil
+  - aws/client/metadata
+  - private/protocol/jsonrpc
+  - private/signer/v4
+  - private/waiter
+  - private/protocol/json/jsonutil
+  - private/protocol/rest
+  - private/protocol
+- name: github.com/go-ini/ini
+  version: 12f418cc7edc5a618a51407b7ac1f1f512139df3
+- name: github.com/hashicorp/hcl
+  version: 9a905a34e6280ce905da1a32344b25e81011197a
+  subpackages:
+  - hcl/ast
+  - hcl/parser
+  - hcl/token
+  - json/parser
+  - hcl/scanner
+  - hcl/strconv
+  - json/scanner
+  - json/token
+- name: github.com/jmespath/go-jmespath
+  version: 0b12d6b521d83fc7f755e7cfc1b1fbdd35a01a74
+- name: github.com/stretchr/testify
+  version: 8d64eb7173c7753d6419fd4a9caf057398611364
+  subpackages:
+  - assert
+- name: github.com/urfave/cli
+  version: 9a18ffad6c548ca4d458d4c30a8aa4d181cf92fa
+devImports: []
