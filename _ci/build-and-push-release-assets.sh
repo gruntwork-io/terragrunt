@@ -120,7 +120,7 @@ function build_and_push_release_assets {
   local app_name=""
   local ld_flags=""
 
-  assert_env_var_not_empty "$GITHUB_OAUTH_TOKEN"
+  assert_env_var_not_empty "GITHUB_OAUTH_TOKEN"
   local readonly github_oauth_token="$GITHUB_OAUTH_TOKEN"
 
   while [[ $# > 0 ]]; do
