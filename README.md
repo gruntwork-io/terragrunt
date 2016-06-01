@@ -50,11 +50,12 @@ Terragrunt to use [DynamoDB for locking](#locking-using-dynamodb) and to [automa
 state](#managing-remote-state) for you using the [S3 backend](https://www.terraform.io/docs/state/remote/s3.html):
 
 ```hcl
+# Configure Terragrunt to use DynamoDB for locking
 dynamoDbLock = {
-  # A unique ID for this set of templates. This allows you to have separate locks for separate templates.
   stateFileId = "my-app"
 }
 
+# Configure Terragrunt to automatically store tfstate files in an S3 bucket
 remoteState = {
   backend = "s3"
   backendConfigs = {
