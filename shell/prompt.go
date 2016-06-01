@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"bufio"
+	"github.com/gruntwork-io/terragrunt/errors"
 )
 
 // Prompt the user for text in the CLI. Returns the text entered by the user.
@@ -14,7 +15,7 @@ func PromptUserForInput(prompt string) (string, error) {
 
 	text, err := reader.ReadString('\n')
 	if err != nil {
-		return "", err
+		return "", errors.WithStackTrace(err)
 	}
 
 	return strings.TrimSpace(text), nil
@@ -25,7 +26,7 @@ func PromptUserForYesNo(prompt string) (bool, error) {
 	resp, err := PromptUserForInput(fmt.Sprintf("%s (y/n) ", prompt))
 
 	if err != nil {
-		return false, err
+		return false, errors.WithStackTrace(err)
 	}
 
 	switch strings.ToLower(resp) {

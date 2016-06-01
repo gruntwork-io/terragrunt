@@ -3,12 +3,13 @@
 
 set -e
 
+readonly GLIDE_VERSION=0.10.2
+
 echo "Creating symlinks to get our repo into the CircleCI GOPATH"
 mkdir -p "$REPO"
 rm -rf "$REPO"
 ln -s "/home/ubuntu/${CIRCLE_PROJECT_REPONAME}" "${REPO}"
 
-readonly GLIDE_VERSION=0.10.2
 if [[ ! -d ~/glide ]]; then
   echo "Installing Glide"
   wget "https://github.com/Masterminds/glide/releases/download/$GLIDE_VERSION/glide-$GLIDE_VERSION-linux-amd64.zip"

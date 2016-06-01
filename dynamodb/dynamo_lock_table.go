@@ -7,8 +7,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/gruntwork-io/terragrunt/errors"
 )
 
+// Create the lock table in DynamoDB if it doesn't already exist
 func createLockTableIfNecessary(tableName string, client *dynamodb.DynamoDB) error {
 	tableExists, err := lockTableExistsAndIsActive(tableName, client)
 	if err != nil {
@@ -23,19 +25,22 @@ func createLockTableIfNecessary(tableName string, client *dynamodb.DynamoDB) err
 	return nil
 }
 
+// Return true if the lock table exists in DynamoDB and is in "active" state
 func lockTableExistsAndIsActive(tableName string, client *dynamodb.DynamoDB) (bool, error) {
 	output, err := client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
 	if err != nil {
 		if awsErr, isAwsErr := err.(awserr.Error); isAwsErr && awsErr.Code() == "ResourceNotFoundException" {
 			return false, nil
 		} else {
-			return false, err
+			return false, errors.WithStackTrace(err)
 		}
 	}
 
 	return *output.Table.TableStatus == dynamodb.TableStatusActive, nil
 }
 
+// Create a lock table in DynamoDB and wait until it is in "active" state. If the table already exists, merely wait
+// until it is in "active" state.
 func createLockTable(tableName string, client *dynamodb.DynamoDB) error {
 	util.Logger.Printf("Creating table %s in DynamoDB", tableName)
 
@@ -55,14 +60,26 @@ func createLockTable(tableName string, client *dynamodb.DynamoDB) error {
 	})
 
 	if err != nil {
-		return err
+		if isTableAlreadyBeingCreatedError(err) {
+			util.Logger.Printf("Looks like someone created table %s at the same time. Will wait for it to be in active state.", tableName)
+		} else {
+			return errors.WithStackTrace(err)
+		}
 	}
 
-	return waitForTableToBeActive(tableName, client)
+	return waitForTableToBeActive(tableName, client, MAX_RETRIES_WAITING_FOR_TABLE_TO_BE_ACTIVE, SLEEP_BETWEEN_TABLE_STATUS_CHECKS)
 }
 
-func waitForTableToBeActive(tableName string, client *dynamodb.DynamoDB) error {
-	for i := 0; i < MAX_RETRIES_WAITING_FOR_TABLE_TO_BE_ACTIVE; i++ {
+// Return true if the given error is the error message returned by AWS when the resource already exists
+func isTableAlreadyBeingCreatedError(err error) bool {
+	awsErr, isAwsErr := err.(awserr.Error)
+	return isAwsErr && awsErr.Code() == "ResourceInUseException"
+}
+
+// Wait for the given DynamoDB table to be in the "active" state. If it's not in "active" state, sleep for the
+// specified amount of time, and try again, up to a maximum of maxRetries retries.
+func waitForTableToBeActive(tableName string, client *dynamodb.DynamoDB, maxRetries int, sleepBetweenRetries time.Duration) error {
+	for i := 0; i < maxRetries; i++ {
 		tableReady, err := lockTableExistsAndIsActive(tableName, client)
 		if err != nil {
 			return err
@@ -73,38 +90,47 @@ func waitForTableToBeActive(tableName string, client *dynamodb.DynamoDB) error {
 			return nil
 		}
 
-		util.Logger.Printf("Table %s is not yet in active state. Will check again after %s.", tableName, SLEEP_BETWEEN_TABLE_STATUS_CHECKS)
-		time.Sleep(SLEEP_BETWEEN_TABLE_STATUS_CHECKS)
+		util.Logger.Printf("Table %s is not yet in active state. Will check again after %s.", tableName, sleepBetweenRetries)
+		time.Sleep(sleepBetweenRetries)
 	}
 
-	return fmt.Errorf("Table %s is still not in active state after %d retries. Exiting.", tableName, MAX_RETRIES_WAITING_FOR_TABLE_TO_BE_ACTIVE)
+	return errors.WithStackTrace(TableActiveRetriesExceeded{TableName: tableName, Retries: maxRetries})
 }
 
+// Remove the given item from the DynamoDB lock table
 func removeItemFromLockTable(itemId string, tableName string, client *dynamodb.DynamoDB) error {
+	// TODO: should we check that the entry has our own metadata and not someone else's?
+
 	_, err := client.DeleteItem(&dynamodb.DeleteItemInput{
 		Key: createKeyFromItemId(itemId),
 		TableName: aws.String(tableName),
 	})
 
-	return err
+	return errors.WithStackTrace(err)
 }
 
+// Write the given item to the DynamoDB lock table. If the given item already exists, return an error.
 func writeItemToLockTable(itemId string, tableName string, client *dynamodb.DynamoDB) error {
 	item, err := createItem(itemId)
 	if err != nil {
 		return err
 	}
 
+	// Conditional writes in DynamoDB should be strongly consistent: http://stackoverflow.com/a/23371813/483528
+	// https://r.32k.io/locking-with-dynamodb
 	_, err = client.PutItem(&dynamodb.PutItemInput{
 		TableName: aws.String(tableName),
 		Item: item,
 		ConditionExpression: aws.String(fmt.Sprintf("attribute_not_exists(%s)", ATTR_STATE_FILE_ID)),
 	})
 
-	return err
+	return errors.WithStackTrace(err)
 }
 
-func writeItemToLockTableUntilSuccess(itemId string, tableName string, client *dynamodb.DynamoDB, maxRetries int) error {
+// Try to write the given item to the DynamoDB lock table. If the item already exists, that means someone already has
+// the lock, so display their metadata, sleep for the given amount of time, and try again, up to a maximum of
+// maxRetries retries.
+func writeItemToLockTableUntilSuccess(itemId string, tableName string, client *dynamodb.DynamoDB, maxRetries int, sleepBetweenRetries time.Duration) error {
 	for i := 0; i < maxRetries; i++ {
 		util.Logger.Printf("Attempting to create lock item for state file %s in DynamoDB table %s", itemId, tableName)
 
@@ -116,17 +142,38 @@ func writeItemToLockTableUntilSuccess(itemId string, tableName string, client *d
 
 		if isItemAlreadyExistsErr(err) {
 			displayLockMetadata(itemId, tableName, client)
-			util.Logger.Printf("Will try to acquire lock again in %s.", SLEEP_BETWEEN_TABLE_LOCK_ACQUIRE_ATTEMPTS)
-			time.Sleep(SLEEP_BETWEEN_TABLE_LOCK_ACQUIRE_ATTEMPTS)
+			util.Logger.Printf("Will try to acquire lock again in %s.", sleepBetweenRetries)
+			time.Sleep(sleepBetweenRetries)
 		} else {
 			return err
 		}
 	}
 
-	return fmt.Errorf("Unable to acquire lock for item %s after %d retries. Exiting.", itemId, maxRetries)
+	return errors.WithStackTrace(AcquireLockRetriesExceeded{ItemId: itemId, Retries: maxRetries})
 }
 
+// Return true if the given error is the error returned by AWS when a conditional check fails. This is usually
+// indicates an item you tried to create already exists.
 func isItemAlreadyExistsErr(err error) bool {
-	awsErr, isAwsErr := err.(awserr.Error)
+	unwrappedErr := errors.Unwrap(err)
+	awsErr, isAwsErr := unwrappedErr.(awserr.Error)
 	return isAwsErr && awsErr.Code() == "ConditionalCheckFailedException"
+}
+
+type TableActiveRetriesExceeded struct {
+	TableName string
+	Retries   int
+}
+
+func (err TableActiveRetriesExceeded) Error() string {
+	return fmt.Sprintf("Table %s is still not in active state after %d retries.", err.TableName, err.Retries)
+}
+
+type AcquireLockRetriesExceeded struct {
+	ItemId  string
+	Retries int
+}
+
+func (err AcquireLockRetriesExceeded) Error() string {
+	return fmt.Sprintf("Unable to acquire lock for item %s after %d retries.", err.ItemId, err.Retries)
 }
