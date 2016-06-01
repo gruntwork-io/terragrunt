@@ -177,8 +177,10 @@ func TestWriteItemToLockTableUntilSuccessItemAlreadyExistsButGetsDeleted(t *test
 func TestWriteItemToLockTableConcurrency(t * testing.T) {
 	t.Parallel()
 
-	// First, create a table
-	withLockTable(t, func(tableName string, client *dynamodb.DynamoDB) {
+	concurrency := 20
+
+	// First, create a table with enough read and write units to ensure this test doesn't get throttled
+	withLockTableProvisionedUnits(t, concurrency, concurrency, func(tableName string, client *dynamodb.DynamoDB) {
 		itemId := uniqueId()
 
 		// Use a WaitGroup to ensure the test doesn't exit before all goroutines finish.
@@ -190,7 +192,7 @@ func TestWriteItemToLockTableConcurrency(t * testing.T) {
 
 		// Launch a bunch of goroutines who will all try to create the same item at more or less the same time.
 		// Only one of the goroutines should succeed.
-		for i := 0; i < 20; i++ {
+		for i := 0; i < concurrency; i++ {
 			waitGroup.Add(1)
 			go func() {
 				defer waitGroup.Done()

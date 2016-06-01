@@ -92,3 +92,14 @@ func withLockTable(t *testing.T, action func(tableName string, client *dynamodb.
 
 	action(tableName, client)
 }
+
+func withLockTableProvisionedUnits(t *testing.T, readCapacityUnits int, writeCapacityUnits int, action func(tableName string, client *dynamodb.DynamoDB)) {
+	client := createDynamoDbClientForTest(t)
+	tableName := uniqueTableNameForTest()
+
+	err := createLockTable(tableName, readCapacityUnits, writeCapacityUnits, client)
+	assert.Nil(t, err)
+	defer cleanupTable(t, tableName, client)
+
+	action(tableName, client)
+}

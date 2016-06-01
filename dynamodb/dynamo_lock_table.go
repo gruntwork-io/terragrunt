@@ -19,7 +19,7 @@ func createLockTableIfNecessary(tableName string, client *dynamodb.DynamoDB) err
 
 	if !tableExists {
 		util.Logger.Printf("Lock table %s does not exist in DynamoDB. Will need to create it just this first time.", tableName)
-		return createLockTable(tableName, client)
+		return createLockTable(tableName, DEFAULT_READ_CAPACITY_UNITS, DEFAULT_WRITE_CAPACITY_UNITS, client)
 	}
 
 	return nil
@@ -41,7 +41,7 @@ func lockTableExistsAndIsActive(tableName string, client *dynamodb.DynamoDB) (bo
 
 // Create a lock table in DynamoDB and wait until it is in "active" state. If the table already exists, merely wait
 // until it is in "active" state.
-func createLockTable(tableName string, client *dynamodb.DynamoDB) error {
+func createLockTable(tableName string, readCapacityUnits int, writeCapacityUnits int, client *dynamodb.DynamoDB) error {
 	util.Logger.Printf("Creating table %s in DynamoDB", tableName)
 
 	attributeDefinitions := []*dynamodb.AttributeDefinition{
@@ -56,7 +56,10 @@ func createLockTable(tableName string, client *dynamodb.DynamoDB) error {
 		TableName: aws.String(tableName),
 		AttributeDefinitions: attributeDefinitions,
 		KeySchema: keySchema,
-		ProvisionedThroughput: &dynamodb.ProvisionedThroughput{ReadCapacityUnits: aws.Int64(1), WriteCapacityUnits: aws.Int64(1)},
+		ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits: aws.Int64(int64(readCapacityUnits)),
+			WriteCapacityUnits: aws.Int64(int64(writeCapacityUnits)),
+		},
 	})
 
 	if err != nil {
