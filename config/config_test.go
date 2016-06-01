@@ -4,6 +4,8 @@ import (
 	"testing"
 	"github.com/gruntwork-io/terragrunt/dynamodb"
 	"github.com/stretchr/testify/assert"
+	"github.com/gruntwork-io/terragrunt/remote"
+	"github.com/gruntwork-io/terragrunt/errors"
 )
 
 func TestParseTerragruntConfigDynamoLockMinimalConfig(t *testing.T) {
@@ -61,7 +63,7 @@ func TestParseTerragruntConfigDynamoLockMissingStateFileId(t *testing.T) {
 	`
 
 	_, err := parseTerragruntConfig(config)
-	assert.NotNil(t, err)
+	assert.True(t, errors.IsError(err, dynamodb.StateFileIdMissing))
 }
 
 func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
@@ -82,6 +84,20 @@ func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
 	assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
 	assert.Empty(t, terragruntConfig.RemoteState.BackendConfigs)
 }
+
+func TestParseTerragruntConfigRemoteStateMissingBackend(t *testing.T) {
+	t.Parallel()
+
+	config :=
+	`
+	remoteState = {
+	}
+	`
+
+	_, err := parseTerragruntConfig(config)
+	assert.True(t, errors.IsError(err, remote.RemoteBackendMissing))
+}
+
 
 func TestParseTerragruntConfigRemoteStateFullConfig(t *testing.T) {
 	t.Parallel()

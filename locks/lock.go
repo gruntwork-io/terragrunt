@@ -2,6 +2,7 @@ package locks
 
 import (
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/errors"
 )
 
 // Every type of lock must implement this interface
@@ -33,7 +34,7 @@ func WithLock(lock Lock, action func() error) (finalErr error) {
 			if finalErr == nil {
 				finalErr = err
 			} else {
-				util.Logger.Printf("ERROR: failed to release lock %s: %s", lock, err.Error())
+				util.Logger.Printf("ERROR: failed to release lock %s: %s", lock, errors.PrintErrorWithStackTrace(err))
 			}
 		}
 	}()

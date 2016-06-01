@@ -2,6 +2,7 @@ package dynamodb
 
 import "time"
 
+// The names of attributes we use in the DynamoDB lock table
 const ATTR_STATE_FILE_ID = "StateFileId"
 const ATTR_USERNAME = "Username"
 const ATTR_IP = "Ip"

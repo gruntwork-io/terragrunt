@@ -81,3 +81,14 @@ func assertItemNotExistsInTable(t *testing.T, itemId string, tableName string, c
 	assert.Nil(t, err)
 	assert.Empty(t, output.Item)
 }
+
+func withLockTable(t *testing.T, action func(tableName string, client *dynamodb.DynamoDB)) {
+	client := createDynamoDbClientForTest(t)
+	tableName := uniqueTableNameForTest()
+
+	err := createLockTableIfNecessary(tableName, client)
+	assert.Nil(t, err)
+	defer cleanupTable(t, tableName, client)
+
+	action(tableName, client)
+}

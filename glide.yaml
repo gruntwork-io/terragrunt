@@ -6,6 +6,7 @@ import:
 - package: github.com/urfave/cli
 - package: github.com/hashicorp/hcl
 - package: github.com/stretchr/testify/assert
+- package: github.com/go-errors/errors
 - package: github.com/aws/aws-sdk-go
   subpackages:
   - aws

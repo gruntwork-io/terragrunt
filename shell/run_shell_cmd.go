@@ -5,8 +5,11 @@ import (
 	"os/exec"
 	"strings"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/errors"
 )
 
+// Run the specified shell command with the specified arguments. Connect the command's stdin, stdout, and stderr to
+// the currently running app.
 func RunShellCommand(command string, args ... string) error {
 	util.Logger.Printf("Running command: %s %s", command, strings.Join(args, " "))
 
@@ -16,5 +19,5 @@ func RunShellCommand(command string, args ... string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	return cmd.Run()
+	return errors.WithStackTrace(cmd.Run())
 }

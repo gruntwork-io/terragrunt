@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"time"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/gruntwork-io/terragrunt/errors"
 )
 
 func TestToLockMetadata(t *testing.T) {
@@ -37,24 +38,35 @@ func TestToLockMetadataInvalidCreationDate(t *testing.T) {
 	itemId := "item-id"
 	username := "username"
 	ip := "11.22.33.44"
+	invalidDate := "not-a-valid-date"
 
 	attributes := map[string]*dynamodb.AttributeValue{
 		ATTR_USERNAME: &dynamodb.AttributeValue{S: aws.String(username)},
+		ATTR_IP: &dynamodb.AttributeValue{S: aws.String(ip)},
+		ATTR_CREATION_DATE: &dynamodb.AttributeValue{S: aws.String(invalidDate)},
+	}
+
+	_, err := toLockMetadata(itemId, attributes)
+	assert.NotNil(t, err)
+
+	underlying := errors.Unwrap(err)
+	invalidDateFormat, isInvalidDateFormat := underlying.(InvalidDateFormat)
+
+	assert.True(t, isInvalidDateFormat)
+	assert.Equal(t, invalidDate, invalidDateFormat.Date)
+}
+
+func TestToLockMetadataMissingUsername(t *testing.T) {
+	t.Parallel()
+
+	itemId := "item-id"
+	ip := "11.22.33.44"
+
+	attributes := map[string]*dynamodb.AttributeValue{
 		ATTR_IP: &dynamodb.AttributeValue{S: aws.String(ip)},
 		ATTR_CREATION_DATE: &dynamodb.AttributeValue{S: aws.String("not-a-valid-date")},
 	}
 
 	_, err := toLockMetadata(itemId, attributes)
-
-	assert.NotNil(t, err)
-}
-
-func TestToLockMetadataEmpty(t *testing.T) {
-	t.Parallel()
-
-	itemId := "item-id"
-	attributes := map[string]*dynamodb.AttributeValue{}
-
-	_, err := toLockMetadata(itemId, attributes)
-	assert.NotNil(t, err)
+	assert.True(t, errors.IsError(err, AttributeMissing{AttributeName: ATTR_USERNAME}))
 }

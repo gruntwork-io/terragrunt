@@ -8,6 +8,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 )
 
+// Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
+// in its definition, we don't quite fit into the model of any Go CLI library. Fortunately, urfave/cli allows us to
+// override the whole template used for the Usage Text.
 const CUSTOM_USAGE_TEXT = `DESCRIPTION:
    {{.Name}} - {{.UsageText}}
 
@@ -31,6 +34,7 @@ AUTHOR(S):
    {{end}}
 `
 
+// Create the Terragrunt CLI App
 func CreateTerragruntCli(version string) *cli.App {
 	cli.AppHelpTemplate = CUSTOM_USAGE_TEXT
 
@@ -42,11 +46,17 @@ func CreateTerragruntCli(version string) *cli.App {
 	app.Action = runApp
 	app.Usage = "terragrunt <COMMAND>"
 	app.UsageText = `Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that supports locking
-   via Amazon's DynamoDB and enforces best practices. For documentation, see https://github.com/gruntwork-io/terragrunt/.`
+   via Amazon's DynamoDB and enforces best practices. Terragrunt forwards almost all commands, arguments, and options
+   directly to Terraform, using whatever version of Terraform you already have installed. However, before running
+   Terraform, Terragrunt will ensure your remote state is configured according to the settings in the .terragrunt file.
+   Moreover, for the apply and destroy commands, Terragrunt will first try to acquire a lock using DynamoDB. For
+   documentation, see https://github.com/gruntwork-io/terragrunt/.`
 
 	return app
 }
 
+// The sole action for the app. It forwards all commands directly to Terraform, enforcing a few best practices along
+// the way, such as configuring remote state or acquiring a lock.
 func runApp(cliContext *cli.Context) error {
 	terragruntConfig, err := config.ReadTerragruntConfig()
 	if err != nil {
@@ -60,24 +70,27 @@ func runApp(cliContext *cli.Context) error {
 	}
 
 	if terragruntConfig.DynamoDbLock != nil {
-		return runCommandWithLock(cliContext, terragruntConfig.DynamoDbLock)
+		return runTerraformCommandWithLock(cliContext, terragruntConfig.DynamoDbLock)
 	} else {
-		return runCommand(cliContext)
+		return runTerraformCommand(cliContext)
 	}
 }
 
-func runCommandWithLock(cliContext *cli.Context, lock locks.Lock) error {
+// Run the given Terraform command with the given lock (if the command requires locking)
+func runTerraformCommandWithLock(cliContext *cli.Context, lock locks.Lock) error {
 	switch cliContext.Args().First() {
-	case "apply", "destroy": return locks.WithLock(lock, func() error { return runCommand(cliContext) })
+	case "apply", "destroy": return locks.WithLock(lock, func() error { return runTerraformCommand(cliContext) })
 	case "release-lock": return runReleaseLockCommand(cliContext, lock)
-	default: return runCommand(cliContext)
+	default: return runTerraformCommand(cliContext)
 	}
 }
 
-func runCommand(cliContext *cli.Context) error {
+// Run the given Terraform command
+func runTerraformCommand(cliContext *cli.Context) error {
 	return shell.RunShellCommand("terraform", cliContext.Args()...)
 }
 
+// Release a lock, prompting the user for confirmation first
 func runReleaseLockCommand(cliContext *cli.Context, lock locks.Lock) error {
 	proceed, err := shell.PromptUserForYesNo(fmt.Sprintf("Are you sure you want to release %s?", lock))
 	if err != nil {
