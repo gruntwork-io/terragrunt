@@ -64,7 +64,7 @@ function build_binaries {
 
     # build the binaries
     cd "$local_src_path"
-    gox -os "darwin linux windows" -arch "386 amd64" -output "$local_bin_output_path/${app_name}_{{.OS}}_{{.Arch}}" -ldflags "$ld_flags" -parallel 32
+    gox -os "darwin linux windows" -arch "386 amd64" -output "$local_bin_output_path/${app_name}_{{.OS}}_{{.Arch}}" -ldflags "$ld_flags"
 }
 
 # In order to push assets to a GitHub release, we must find the "github tag id" associated with the git tag
