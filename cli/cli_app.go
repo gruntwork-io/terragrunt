@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/remote"
+	"github.com/gruntwork-io/terragrunt/errors"
 )
 
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
@@ -65,7 +67,7 @@ func runApp(cliContext *cli.Context) error {
 	}
 
 	if terragruntConfig.RemoteState != nil {
-		if err := terragruntConfig.RemoteState.ConfigureRemoteState(); err != nil {
+		if err := configureRemoteState(cliContext, terragruntConfig.RemoteState); err != nil {
 			return err
 		}
 	}
@@ -75,6 +77,27 @@ func runApp(cliContext *cli.Context) error {
 	} else {
 		util.Logger.Printf("WARNING: you have not configured locking in your .terragrunt file. Concurrent changes to your .tfstate files may cause conflicts!")
 		return runTerraformCommand(cliContext)
+	}
+}
+
+func configureRemoteState(cliContext *cli.Context, remoteState *remote.RemoteState) error {
+	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
+	// commands such as "get" or "version".
+	switch cliContext.Args().First() {
+	case "apply", "destroy", "graph", "output", "plan", "push", "refresh", "show", "taint", "untaint", "validate":
+		return remoteState.ConfigureRemoteState()
+	case "remote":
+		if cliContext.Args().Get(1) == "config" {
+			// Encourage the user to configure remote state by defining it in .terragrunt and letting
+			// Terragrunt handle it for them
+			return errors.WithStackTrace(DontManuallyConfigureRemoteState)
+		} else {
+			// The other "terraform remote" commands explicitly push or pull state, so we shouldn't mess
+			// with the configuration
+			return nil
+		}
+	default:
+		return nil
 	}
 }
 
@@ -105,3 +128,5 @@ func runReleaseLockCommand(cliContext *cli.Context, lock locks.Lock) error {
 		return nil
 	}
 }
+
+var DontManuallyConfigureRemoteState = fmt.Errorf("Instead of manually using the 'remote config' command, define your remote state settings in .terragrunt and Terragrunt will automatically configure it for you (and all your team members) next time you run it.")

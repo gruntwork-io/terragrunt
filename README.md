@@ -59,7 +59,7 @@ dynamoDbLock = {
 remoteState = {
   backend = "s3"
   backendConfigs = {
-    encrypted = "true"
+    encrypt = "true"
     bucket = "my-bucket"
     key = "terraform.tfstate"
     region = "us-east-1"
@@ -86,7 +86,7 @@ Terragrunt will first try to acquire a lock using [DynamoDB](#locking-using-dyna
 ```
 terragrunt apply
 [terragrunt] 2016/05/30 16:55:28 Configuring remote state for the s3 backend
-[terragrunt] 2016/05/30 16:55:28 Running command: terraform remote config -backend s3 -backend-config=key=terraform.tfstate -backend-config=region=us-east-1 -backend-config=encrypted=true -backend-config=bucket=my-bucket
+[terragrunt] 2016/05/30 16:55:28 Running command: terraform remote config -backend s3 -backend-config=key=terraform.tfstate -backend-config=region=us-east-1 -backend-config=encrypt=true -backend-config=bucket=my-bucket
 Initialized blank state with remote state enabled!
 [terragrunt] 2016/05/30 16:55:29 Attempting to acquire lock for state file my-app in DynamoDB
 [terragrunt] 2016/05/30 16:55:30 Attempting to create lock item for state file my-app in DynamoDB table terragrunt_locks
@@ -221,6 +221,14 @@ remoteState = {
   for details.
 
 ## Developing terragrunt
+
+#### Running locally
+
+To run Terragrunt locally, use the `go run` command:
+
+```bash
+go run main.go plan
+```
 
 #### Running tests
 
