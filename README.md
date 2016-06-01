@@ -1,10 +1,17 @@
 # Terragrunt
 
-Terragrunt is a thin wrapper for the [Terraform client](https://www.terraform.io/) that provides a distributed locking
-mechanism which allows multiple people to collaborate on the same Terraform state without overwriting each other's
-changes. Terragrunt currently uses Amazon's [DynamoDB](https://aws.amazon.com/dynamodb/) to acquire and release locks.
-DynamoDB is part of the [AWS free tier](https://aws.amazon.com/dynamodb/pricing/), so if you're already using AWS, this
-locking mechanism should be completely free. Other locking mechanisms may be added in the future.
+Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that supports locking and enforces best
+practices:
+
+1. **Locking**: Terragrunt can use Amazon's [DynamoDB](https://aws.amazon.com/dynamodb/) as a distributed locking
+   mechanism to ensure that two team members working on the same Terraform state files do not overwrite each other's
+   changes. DynamoDB is part of the [AWS free tier](https://aws.amazon.com/dynamodb/pricing/), so using it as a locking
+   mechanism should not cost you anything.
+1. **Remote state management**: A common mistake when using Terraform is to forget to configure remote state or to
+   configure it incorrectly. Terragrunt can prevent these sorts of errors by automatically configuring remote state for
+   everyone on your team.
+
+Other locking mechanisms and automation for other best practices may be added in the future.
 
 ## Motivation
 
@@ -15,34 +22,51 @@ files may contain secrets) or use a supported [remote state
 backend](https://www.terraform.io/docs/state/remote/index.html) to store the state files in a shared location such as 
 [S3](https://www.terraform.io/docs/state/remote/s3.html), 
 [Consul](https://www.terraform.io/docs/state/remote/consul.html), 
-or [etcd](https://www.terraform.io/docs/state/remote/etcd.html). The problem is that none of these options provide 
-*locking*, so if two team members run `terraform apply` on the same state files at the same time, they may overwrite 
-each other's changes. The official solution to this problem is to use [Hashicorp's 
-Atlas](https://www.hashicorp.com/atlas.html), but that requires using a SaaS platform for all Terraform operations and
-can cost a lot of money.
+or [etcd](https://www.terraform.io/docs/state/remote/etcd.html). All of these options have two problems:
 
-The goal of Terragrunt is to provide a simple, free locking mechanism that allows multiple people to safely collaborate
-on Terraform state.
+1. They do not provide *locking*. If two team members run `terraform apply` on the same state files at the same
+   time, they may overwrite each other's changes. The official solution to this problem is to use [Hashicorp's
+   Atlas](https://www.hashicorp.com/atlas.html), but that can be a fairly expensive option, and it requires you to use
+   a SaaS platform for all Terraform operations.
+1. They are error prone. Very often, you do a fresh checkout of a bunch of Terraform templates from version control,
+   forget to enable remote state storage before applying them, and end up creating a bunch of duplicate resources.
+   Sometimes you do remember to enable remote state storage, but you use the wrong configuration (e.g. the wrong S3
+   bucket name or key) and you end up overwriting the state for a totally different set of templates.
+
+The goal of Terragrunt is to take Terraform, which is a fantastic tool, and make it even better for teams by providing
+a simple, free locking mechanism, and enforcing best practices around CLI usage.
 
 ## Install
 
-1. Install [Terraform](https://www.terraform.io/).
+1. Install [Terraform](https://www.terraform.io/) and make sure it is in your PATH.
 1. Install Terragrunt by going to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases), downloading
    the binary for your OS, renaming it to `terragrunt`, and adding it to your PATH.
 
 ## Quick start
 
 Go into the folder with your Terraform templates and create a `.terragrunt` file. This file uses the same
-[HCL](https://github.com/hashicorp/hcl) syntax as Terraform and is used to configure Terragrunt and tell it how to do
-locking. To use DynamoDB for locking (see [Locking using DynamoDB](#locking-using-dynamodb)), `.terragrunt` should
-have the following contents:
+[HCL](https://github.com/hashicorp/hcl) syntax as Terraform. Here is an example `.terragrunt` file that configures
+Terragrunt to [automatically manage remote state](#managing-remote-state) for you using the [S3
+backend](https://www.terraform.io/docs/state/remote/s3.html) and to use [DynamoDB for locking](#locking-using-dynamodb):
 
 ```hcl
-lockType = "dynamodb"
-stateFileId = "my-app"
+remoteState = {
+  backend = "s3"
+  backendConfigs = {
+    encrypted = "true"
+    bucket = "my-bucket"
+    key = "terraform.tfstate"
+    region = "us-east-1"
+  }
+}
+
+dynamoDbLock = {
+  stateFileId = "my-app"
+}
 ```
 
-Now everyone on your team can use Terragrunt to run all the standard Terraform commands:
+Once you check this `.terragrunt` file into source control, everyone on your team can use Terragrunt to run all the
+standard Terraform commands:
 
 ```bash
 terragrunt get
@@ -52,11 +76,15 @@ terragrunt output
 terragrunt destroy
 ```
 
-Terragrunt forwards most commands directly to Terraform. However, for the `apply` and `destroy` commands, it will first 
-acquire a locking using [DynamoDB](#locking-using-dynamodb):
+Terragrunt forwards most commands directly to Terraform. However, before running the command, it will ensure your
+remote state is configured according to the settings in the `.terragrunt` file. Moreover, for the `apply` and
+`destroy` commands, Terragrunt will first try to acquire a lock using [DynamoDB](#locking-using-dynamodb):
 
 ```
 terragrunt apply
+[terragrunt] 2016/05/30 16:55:28 Configuring remote state for the s3 backend
+[terragrunt] 2016/05/30 16:55:28 Running command: terraform remote config -backend s3 -backend-config=key=terraform.tfstate -backend-config=region=us-east-1 -backend-config=encrypted=true -backend-config=bucket=my-bucket
+Initialized blank state with remote state enabled!
 [terragrunt] 2016/05/30 16:55:29 Attempting to acquire lock for state file my-app in DynamoDB
 [terragrunt] 2016/05/30 16:55:30 Attempting to create lock item for state file my-app in DynamoDB table terragrunt_locks
 [terragrunt] 2016/05/30 16:55:30 Lock acquired!
@@ -118,17 +146,14 @@ To use DynamoDB for locking, you must:
 For DynamoDB locking, Terragrunt supports the following settings in `.terragrunt`:
 
 ```hcl
-lockType = "dynamodb"
-stateFileId = "my-app"
-
-dynamoLock = {
+dynamoDbLock = {
+  stateFileId = "my-app"
   awsRegion = "us-east-1"
   tableName = "terragrunt_locks"
   maxLockRetries = 360
 }
 ```
 
-* `lockType`: (Required) Must be set to `dynamodb`.
 * `stateFileId`: (Required) A unique id for the state file for these Terraform templates. Many teams have more than
   one set of templates, and therefore more than one state file, so this setting is used to disambiguate locks for one 
   state file from another.
@@ -163,6 +188,34 @@ terragrunt release-lock
 Are you sure you want to forcibly remove the lock for stateFileId "my-app"? (y/n):
 ```
 
+## Managing remote state
+
+Terragrunt can automatically manage [remote state](https://www.terraform.io/docs/state/remote/) for you, preventing
+manual errors such as forgetting to enable remote state or using the wrong settings.
+
+#### Remote state management prerequisites
+
+Terragrunt works with all backends supported by Terraform. Check out the [Terraform remote state
+docs](https://www.terraform.io/docs/state/remote/) for the requirements to use a particular backend.
+
+#### Remote state management configuration
+
+For remote state management, Terragrunt supports the following settings in `.terragrunt`:
+
+```hcl
+remoteState = {
+  backend = "s3"
+  backendConfigs = {
+    key = "value"
+  }
+}
+```
+
+* `backend`: (Required) The name of the remote state backend to use (e.g. s3, consul).
+* `backendConfigs`: (Optional) A map of additional key/value pairs to pass to the backend. Each backend requires
+  different key/value pairs, so consult the [Terraform remote state docs](https://www.terraform.io/docs/state/remote/)
+  for details.
+
 ## Developing terragrunt
 
 #### Running tests
@@ -180,10 +233,18 @@ To run all the tests:
 go test -v -parallel 128 $(glide novendor)
 ```
 
-To run a single test called `TestFoo`:
+To run only the tests in a specific package, such as the package `remote`:
 
 ```bash
-go test -v -parallel 128 -run TestFoo
+cd remote
+go test -v -parallel 128
+```
+
+And to run a specific test, such as `TestToTerraformRemoteConfigArgsNoBackendConfigs` in package `remote`:
+
+```bash
+cd remote
+go test -v -parallel 128 -run TestToTerraformRemoteConfigArgsNoBackendConfigs
 ```
 
 #### Releasing new versions
@@ -199,7 +260,7 @@ See `circle.yml` and `_ci/build-and-push-release-asset.sh` for details.
 
 ## TODO
 
-* Implement best-practices in Terragrunt, such as checking if all changes are committed, calling `terraform get`,
-  calling `terraform configure`, etc.
+* Add a check that modules have been downloaded using `terraform get`.
+* Add a check that all local changes have been committed before running `terraform apply`.
 * Consider implementing alternative locking mechanisms, such as using Git instead of DynamoDB.
 * Consider embedding the Terraform Go code within Terragrunt instead of calling out to it.

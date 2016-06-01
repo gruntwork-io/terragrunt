@@ -6,93 +6,161 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetLockForDynamoDbMinimalConfig(t *testing.T) {
+func TestParseTerragruntConfigDynamoLockMinimalConfig(t *testing.T) {
 	t.Parallel()
 
 	config :=
 	`
-	lockType = "dynamodb"
-	stateFileId = "expected-state-file-id"
-	`
-
-	lock, err := getLockForConfig(config)
-
-	assert.Nil(t, err)
-	assert.IsType(t, dynamodb.DynamoLock{}, lock)
-
-	dynamoLock := lock.(dynamodb.DynamoLock)
-	assert.Equal(t, "expected-state-file-id", dynamoLock.StateFileId)
-	assert.Equal(t, DEFAULT_AWS_REGION, dynamoLock.AwsRegion)
-	assert.Equal(t, DEFAULT_TABLE_NAME, dynamoLock.TableName)
-}
-
-func TestGetLockForDynamoDbFullConfig(t *testing.T) {
-	t.Parallel()
-
-	config :=
-	`
-	lockType = "dynamodb"
-	stateFileId = "expected-state-file-id"
-
-	dynamoLock = {
-	  awsRegion = "expected-region"
-	  tableName = "expected-table-name"
+	dynamoDbLock = {
+	  stateFileId = "expected-state-file-id"
 	}
 	`
 
-	lock, err := getLockForConfig(config)
-
+	terragruntConfig, err := parseTerragruntConfig(config)
 	assert.Nil(t, err)
-	assert.IsType(t, dynamodb.DynamoLock{}, lock)
 
-	dynamoLock := lock.(dynamodb.DynamoLock)
-	assert.Equal(t, "expected-state-file-id", dynamoLock.StateFileId)
-	assert.Equal(t, "expected-region", dynamoLock.AwsRegion)
-	assert.Equal(t, "expected-table-name", dynamoLock.TableName)
+	assert.Nil(t, terragruntConfig.RemoteState)
+	assert.NotNil(t, terragruntConfig.DynamoDbLock)
+	assert.Equal(t, "expected-state-file-id", terragruntConfig.DynamoDbLock.StateFileId)
+	assert.Equal(t, dynamodb.DEFAULT_AWS_REGION, terragruntConfig.DynamoDbLock.AwsRegion)
+	assert.Equal(t, dynamodb.DEFAULT_TABLE_NAME, terragruntConfig.DynamoDbLock.TableName)
+	assert.Equal(t, dynamodb.DEFAULT_MAX_RETRIES_WAITING_FOR_LOCK, terragruntConfig.DynamoDbLock.MaxLockRetries)
 }
 
-func TestGetLockForEmptyConfig(t *testing.T) {
+func TestParseTerragruntConfigDynamoLockFullConfig(t *testing.T) {
+	t.Parallel()
+
+	config :=
+	`
+	dynamoDbLock = {
+	  stateFileId = "expected-state-file-id"
+	  awsRegion = "expected-region"
+	  tableName = "expected-table-name"
+	  maxLockRetries = 100
+	}
+	`
+
+	terragruntConfig, err := parseTerragruntConfig(config)
+	assert.Nil(t, err)
+
+	assert.Nil(t, terragruntConfig.RemoteState)
+	assert.NotNil(t, terragruntConfig.DynamoDbLock)
+	assert.Equal(t, "expected-state-file-id", terragruntConfig.DynamoDbLock.StateFileId)
+	assert.Equal(t, "expected-region", terragruntConfig.DynamoDbLock.AwsRegion)
+	assert.Equal(t, "expected-table-name", terragruntConfig.DynamoDbLock.TableName)
+	assert.Equal(t, 100, terragruntConfig.DynamoDbLock.MaxLockRetries)
+}
+
+func TestParseTerragruntConfigDynamoLockMissingStateFileId(t *testing.T) {
+	t.Parallel()
+
+	config :=
+	`
+	dynamoDbLock = {
+	}
+	`
+
+	_, err := parseTerragruntConfig(config)
+	assert.NotNil(t, err)
+}
+
+func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
+	t.Parallel()
+
+	config :=
+	`
+	remoteState = {
+	  backend = "s3"
+	}
+	`
+
+	terragruntConfig, err := parseTerragruntConfig(config)
+	assert.Nil(t, err)
+
+	assert.Nil(t, terragruntConfig.DynamoDbLock)
+	assert.NotNil(t, terragruntConfig.RemoteState)
+	assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
+	assert.Empty(t, terragruntConfig.RemoteState.BackendConfigs)
+}
+
+func TestParseTerragruntConfigRemoteStateFullConfig(t *testing.T) {
+	t.Parallel()
+
+	config :=
+	`
+	remoteState = {
+	  backend = "s3"
+	  backendConfigs = {
+	    encrypted = "true"
+	    bucket = "my-bucket"
+	    key = "terraform.tfstate"
+	    region = "us-east-1"
+	  }
+	}
+	`
+
+	terragruntConfig, err := parseTerragruntConfig(config)
+	assert.Nil(t, err)
+
+	assert.Nil(t, terragruntConfig.DynamoDbLock)
+	assert.NotNil(t, terragruntConfig.RemoteState)
+	assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
+	assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfigs)
+	assert.Equal(t, "true", terragruntConfig.RemoteState.BackendConfigs["encrypted"])
+	assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.BackendConfigs["bucket"])
+	assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.BackendConfigs["key"])
+	assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfigs["region"])
+}
+
+func TestParseTerragruntConfigRemoteStateAndDynamoDbFullConfig(t *testing.T) {
+	t.Parallel()
+
+	config :=
+	`
+	dynamoDbLock = {
+	  stateFileId = "expected-state-file-id"
+	  awsRegion = "expected-region"
+	  tableName = "expected-table-name"
+	  maxLockRetries = 100
+	}
+
+	remoteState = {
+	  backend = "s3"
+	  backendConfigs = {
+	    encrypted = "true"
+	    bucket = "my-bucket"
+	    key = "terraform.tfstate"
+	    region = "us-east-1"
+	  }
+	}
+	`
+
+	terragruntConfig, err := parseTerragruntConfig(config)
+	assert.Nil(t, err)
+
+	assert.NotNil(t, terragruntConfig.DynamoDbLock)
+	assert.Equal(t, "expected-state-file-id", terragruntConfig.DynamoDbLock.StateFileId)
+	assert.Equal(t, "expected-region", terragruntConfig.DynamoDbLock.AwsRegion)
+	assert.Equal(t, "expected-table-name", terragruntConfig.DynamoDbLock.TableName)
+	assert.Equal(t, 100, terragruntConfig.DynamoDbLock.MaxLockRetries)
+
+	assert.NotNil(t, terragruntConfig.RemoteState)
+	assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
+	assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfigs)
+	assert.Equal(t, "true", terragruntConfig.RemoteState.BackendConfigs["encrypted"])
+	assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.BackendConfigs["bucket"])
+	assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.BackendConfigs["key"])
+	assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfigs["region"])
+}
+
+func TestParseTerragruntConfigEmptyConfig(t *testing.T) {
 	t.Parallel()
 
 	config := ``
 
-	_, err := getLockForConfig(config)
-	assert.NotNil(t, err)
-}
+	terragruntConfig, err := parseTerragruntConfig(config)
+	assert.Nil(t, err)
 
-func TestGetLockForConfigWithNoStateFileId(t *testing.T) {
-	t.Parallel()
-
-	config :=
-	`
-	lockType = "dynamodb"
-	`
-
-	_, err := getLockForConfig(config)
-	assert.NotNil(t, err)
-}
-
-func TestGetLockForConfigWithNoLockType(t *testing.T) {
-	t.Parallel()
-
-	config :=
-	`
-	stateFileId = "foo"
-	`
-
-	_, err := getLockForConfig(config)
-	assert.NotNil(t, err)
-}
-
-func TestGetLockForConfigWithInvalidLockType(t *testing.T) {
-	t.Parallel()
-
-	config :=
-	`
-	lockType = "not-a-valid-lock-type"
-	stateFileId = "foo"
-	`
-
-	_, err := getLockForConfig(config)
-	assert.NotNil(t, err)
+	assert.Nil(t, terragruntConfig.RemoteState)
+	assert.Nil(t, terragruntConfig.DynamoDbLock)
 }
