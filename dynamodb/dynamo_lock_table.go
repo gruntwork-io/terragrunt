@@ -114,7 +114,7 @@ func removeItemFromLockTable(itemId string, tableName string, client *dynamodb.D
 
 // Write the given item to the DynamoDB lock table. If the given item already exists, return an error.
 func writeItemToLockTable(itemId string, tableName string, client *dynamodb.DynamoDB) error {
-	item, err := createItem(itemId)
+	item, err := createItem(itemId, *client.Config.Region)
 	if err != nil {
 		return err
 	}

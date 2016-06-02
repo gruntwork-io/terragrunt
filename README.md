@@ -297,4 +297,3 @@ See `circle.yml` and `_ci/build-and-push-release-asset.sh` for details.
 * Consider implementing alternative locking mechanisms, such as using Git instead of DynamoDB.
 * Consider embedding the Terraform Go code within Terragrunt instead of calling out to it.
 * Add a `show-lock` command.
-* Use IAM username instead of the local OS username in lock metadata.

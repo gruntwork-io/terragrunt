@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/aws/aws-sdk-go/aws"
 )
 
 // A lock that uses AWS's DynamoDB to acquire and release locks
@@ -82,6 +83,16 @@ func (dynamoLock DynamoDbLock) String() string {
 
 // Create an authenticated client for DynamoDB
 func createDynamoDbClient(awsRegion string) (*dynamodb.DynamoDB, error) {
+	config, err := createAwsConfig(awsRegion)
+	if err != nil {
+		return nil, err
+	}
+
+	return dynamodb.New(session.New(), config), nil
+}
+
+// Returns an AWS config object for the given region, ensuring that the config has credentials
+func createAwsConfig(awsRegion string) (*aws.Config, error) {
 	config := defaults.Get().Config.WithRegion(awsRegion)
 
 	_, err := config.Credentials.Get()
@@ -89,7 +100,7 @@ func createDynamoDbClient(awsRegion string) (*dynamodb.DynamoDB, error) {
 		return nil, errors.WithStackTraceAndPrefix(err, "Error finding AWS credentials (did you set the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables?)")
 	}
 
-	return dynamodb.New(session.New(), config), nil
+	return config, nil
 }
 
 var StateFileIdMissing = fmt.Errorf("The dynamodb.stateFileId field cannot be empty")
