@@ -64,6 +64,12 @@ func runApp(cliContext *cli.Context) error {
 		return err
 	}
 
+	// If someone calls us with no args at all, show the help text and exit
+	if !cliContext.Args().Present() {
+		cli.ShowAppHelp(cliContext)
+		return nil
+	}
+
 	if terragruntConfig.RemoteState != nil {
 		if err := terragruntConfig.RemoteState.ConfigureRemoteState(); err != nil {
 			return err
