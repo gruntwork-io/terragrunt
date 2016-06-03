@@ -89,8 +89,8 @@ func getAttribute(item map[string]*dynamodb.AttributeValue, attribute string) (s
 
 // Create a DynamoDB item for the given item id. This item represents a lock and will include metadata about the
 // current user, who is trying to acquire the lock.
-func createItem(itemId string, awsRegion string) (map[string]*dynamodb.AttributeValue, error) {
-	iamUsername, err := getIamUsername(awsRegion)
+func createItemAttributes(itemId string, client *dynamodb.DynamoDB) (map[string]*dynamodb.AttributeValue, error) {
+	iamUsername, err := getIamUsername(client)
 	if err != nil {
 		return nil, err
 	}
@@ -109,13 +109,8 @@ func createItem(itemId string, awsRegion string) (map[string]*dynamodb.Attribute
 }
 
 // Return the IAM username of the currently logged in user
-func getIamUsername(awsRegion string) (string, error) {
-	config, err := createAwsConfig(awsRegion)
-	if err != nil {
-		return "", err
-	}
-
-	iamClient := iam.New(session.New(), config)
+func getIamUsername(client *dynamodb.DynamoDB) (string, error) {
+	iamClient := iam.New(session.New(), &client.Config)
 	output, err := iamClient.GetUser(&iam.GetUserInput{})
 	if err != nil {
 		return "", errors.WithStackTrace(err)
