@@ -108,7 +108,7 @@ func TestParseTerragruntConfigRemoteStateFullConfig(t *testing.T) {
 	remoteState = {
 	  backend = "s3"
 	  backendConfigs = {
-	    encrypted = "true"
+	    encrypt = "true"
 	    bucket = "my-bucket"
 	    key = "terraform.tfstate"
 	    region = "us-east-1"
@@ -123,7 +123,7 @@ func TestParseTerragruntConfigRemoteStateFullConfig(t *testing.T) {
 	assert.NotNil(t, terragruntConfig.RemoteState)
 	assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
 	assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfigs)
-	assert.Equal(t, "true", terragruntConfig.RemoteState.BackendConfigs["encrypted"])
+	assert.Equal(t, "true", terragruntConfig.RemoteState.BackendConfigs["encrypt"])
 	assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.BackendConfigs["bucket"])
 	assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.BackendConfigs["key"])
 	assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfigs["region"])
@@ -144,7 +144,7 @@ func TestParseTerragruntConfigRemoteStateAndDynamoDbFullConfig(t *testing.T) {
 	remoteState = {
 	  backend = "s3"
 	  backendConfigs = {
-	    encrypted = "true"
+	    encrypt = "true"
 	    bucket = "my-bucket"
 	    key = "terraform.tfstate"
 	    region = "us-east-1"
@@ -164,7 +164,7 @@ func TestParseTerragruntConfigRemoteStateAndDynamoDbFullConfig(t *testing.T) {
 	assert.NotNil(t, terragruntConfig.RemoteState)
 	assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
 	assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfigs)
-	assert.Equal(t, "true", terragruntConfig.RemoteState.BackendConfigs["encrypted"])
+	assert.Equal(t, "true", terragruntConfig.RemoteState.BackendConfigs["encrypt"])
 	assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.BackendConfigs["bucket"])
 	assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.BackendConfigs["key"])
 	assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfigs["region"])

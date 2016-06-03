@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/remote"
+	"github.com/gruntwork-io/terragrunt/errors"
+	"regexp"
 )
 
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
@@ -34,6 +37,9 @@ AUTHOR(S):
    {{range .Authors}}{{.}}{{end}}
    {{end}}
 `
+
+var MODULE_REGEX = regexp.MustCompile(`module ".+"`)
+const TERRAFORM_EXTENSION_GLOB = "*.tf"
 
 // Create the Terragrunt CLI App
 func CreateTerragruntCli(version string) *cli.App {
@@ -70,8 +76,12 @@ func runApp(cliContext *cli.Context) error {
 		return nil
 	}
 
+	if err := downloadModules(cliContext); err != nil {
+		return err
+	}
+
 	if terragruntConfig.RemoteState != nil {
-		if err := terragruntConfig.RemoteState.ConfigureRemoteState(); err != nil {
+		if err := configureRemoteState(cliContext, terragruntConfig.RemoteState); err != nil {
 			return err
 		}
 	}
@@ -82,6 +92,57 @@ func runApp(cliContext *cli.Context) error {
 		util.Logger.Printf("WARNING: you have not configured locking in your .terragrunt file. Concurrent changes to your .tfstate files may cause conflicts!")
 		return runTerraformCommand(cliContext)
 	}
+}
+
+// A quick sanity check that calls `terraform get` to download modules, if they aren't already downloaded.
+func downloadModules(cliContext *cli.Context) error {
+	switch cliContext.Args().First() {
+	case "apply", "destroy", "graph", "output", "plan", "show", "taint", "untaint", "validate":
+		shouldDownload, err := shouldDownloadModules()
+		if err != nil {
+			return err
+		}
+		if shouldDownload {
+			return shell.RunShellCommand("terraform", "get", "-update")
+		}
+	}
+
+	return nil
+}
+
+// Return true if modules aren't already downloaded and the Terraform templates in this project reference modules.
+// Note that to keep the logic in this code very simple, this code ONLY detects the case where you haven't downloaded
+// modules at all. Detecting if your downloaded modules are out of date (as opposed to missing entirely) is more
+// complicated and not something we handle at the moment.
+func shouldDownloadModules() (bool, error) {
+	if util.FileExists(".terraform/modules") {
+		return false, nil
+	}
+
+	return util.Grep(MODULE_REGEX, TERRAFORM_EXTENSION_GLOB)
+}
+
+// If the user entered a Terraform command that uses state (e.g. plan, apply), make sure remote state is configured
+// before running the command.
+func configureRemoteState(cliContext *cli.Context, remoteState *remote.RemoteState) error {
+	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
+	// commands such as "get" or "version".
+	switch cliContext.Args().First() {
+	case "apply", "destroy", "graph", "output", "plan", "push", "refresh", "show", "taint", "untaint", "validate":
+		return remoteState.ConfigureRemoteState()
+	case "remote":
+		if cliContext.Args().Get(1) == "config" {
+			// Encourage the user to configure remote state by defining it in .terragrunt and letting
+			// Terragrunt handle it for them
+			return errors.WithStackTrace(DontManuallyConfigureRemoteState)
+		} else {
+			// The other "terraform remote" commands explicitly push or pull state, so we shouldn't mess
+			// with the configuration
+			return nil
+		}
+	}
+
+	return nil
 }
 
 // Run the given Terraform command with the given lock (if the command requires locking)
@@ -111,3 +172,5 @@ func runReleaseLockCommand(cliContext *cli.Context, lock locks.Lock) error {
 		return nil
 	}
 }
+
+var DontManuallyConfigureRemoteState = fmt.Errorf("Instead of manually using the 'remote config' command, define your remote state settings in .terragrunt and Terragrunt will automatically configure it for you (and all your team members) next time you run it.")
