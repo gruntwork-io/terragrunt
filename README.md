@@ -484,8 +484,8 @@ or Consul? Should you enable encryption or not?
 
 We recommend using one of the following two configurations:
 
-1. Git locking, Git state management, and KMS encryption
-1. DynamoDB locking and S3 state management
+1. [Git locking, Git state management, and KMS encryption](#git-locking-git-state-management-and-kms-encryption)
+1. [DynamoDB locking and S3 state management](#dynamodb-locking-and-s3-state-management)
 
 We discuss the trade-offs between them next.
 
