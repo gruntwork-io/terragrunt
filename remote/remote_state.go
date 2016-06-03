@@ -32,11 +32,46 @@ func (remoteState *RemoteState) Validate() error {
 
 // Configure Terraform remote state
 func (remoteState RemoteState) ConfigureRemoteState() error {
-	// TODO: skip this step if the tfstate shows that remote state is *already* configured
-	util.Logger.Printf("Configuring remote state for the %s backend", remoteState.Backend)
-	return shell.RunShellCommand("terraform", remoteState.toTerraformRemoteConfigArgs()...)
+	shouldConfigure, err := shouldConfigureRemoteState(remoteState)
+	if err != nil {
+		return err
+	}
+
+	if shouldConfigure {
+		util.Logger.Printf("Configuring remote state for the %s backend", remoteState.Backend)
+		return shell.RunShellCommand("terraform", remoteState.toTerraformRemoteConfigArgs()...)
+	}
 
 	return nil
+}
+
+// Returns true if remote state needs to be configured. This will be the case when:
+//
+// 1. Remote state has not already been configured
+// 2. Remote state has been configured, but for a different backend type, and the user confirms it's OK to overwrite it.
+func shouldConfigureRemoteState(remoteStateFromTerragruntConfig RemoteState) (bool, error) {
+	state, err := ParseTerraformStateFileFromDefaultLocations()
+	if err != nil {
+		return false, err
+	}
+
+	if state.IsRemote() {
+		return shouldOverrideExistingRemoteState(state.Remote, remoteStateFromTerragruntConfig)
+	} else {
+		return true, nil
+	}
+}
+
+// Check if the remote state that is already configured matches the one specified in the Terragrunt config. If it does,
+// return false to indicate remote state does not need to be configured again. If it doesn't, prompt the user whether
+// we should override the existing remote state setting.
+func shouldOverrideExistingRemoteState(existingRemoteState *TerraformStateRemote, remoteStateFromTerragruntConfig RemoteState) (bool, error) {
+	if existingRemoteState.Type == remoteStateFromTerragruntConfig.Backend {
+		util.Logger.Printf("Remote state is already configured for backend %s", existingRemoteState.Type)
+		return false, nil
+	} else {
+		return shell.PromptUserForYesNo(fmt.Sprintf("WARNING: Terraform remote state is already configured, but for backend %s, whereas your Terragrunt configuration specifies %s. Overwrite?", existingRemoteState.Type, remoteStateFromTerragruntConfig.Backend))
+	}
 }
 
 // Convert the RemoteState config into the format used by Terraform
