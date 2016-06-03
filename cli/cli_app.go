@@ -38,6 +38,9 @@ AUTHOR(S):
    {{end}}
 `
 
+var MODULE_REGEX = regexp.MustCompile(`module ".+"`)
+const TERRAFORM_EXTENSION_GLOB = "*.tf"
+
 // Create the Terragrunt CLI App
 func CreateTerragruntCli(version string) *cli.App {
 	cli.AppHelpTemplate = CUSTOM_USAGE_TEXT
@@ -85,7 +88,7 @@ func runApp(cliContext *cli.Context) error {
 	}
 }
 
-// A quick sanity check that calls `terraform get` to download modules, if they aren't already downloaded
+// A quick sanity check that calls `terraform get` to download modules, if they aren't already downloaded.
 func downloadModules(cliContext *cli.Context) error {
 	switch cliContext.Args().First() {
 	case "apply", "destroy", "graph", "output", "plan", "show", "taint", "untaint", "validate":
@@ -94,22 +97,27 @@ func downloadModules(cliContext *cli.Context) error {
 			return err
 		}
 		if shouldDownload {
-			return shell.RunShellCommand("terraform", "get")
+			return shell.RunShellCommand("terraform", "get", "-update")
 		}
 	}
 
 	return nil
 }
 
-// Return true if modules aren't already downloaded and the Terraform templates in this project reference modules
+// Return true if modules aren't already downloaded and the Terraform templates in this project reference modules.
+// Note that to keep the logic in this code very simple, this code ONLY detects the case where you haven't downloaded
+// modules at all. Detecting if your downloaded modules are out of date (as opposed to missing entirely) is more
+// complicated and not something we handle at the moment.
 func shouldDownloadModules() (bool, error) {
 	if util.FileExists(".terraform/modules") {
 		return false, nil
 	}
 
-	return util.Grep(regexp.MustCompile(`module ".+"`), "*.tf")
+	return util.Grep(MODULE_REGEX, TERRAFORM_EXTENSION_GLOB)
 }
 
+// If the user entered a Terraform command that uses state (e.g. plan, apply), make sure remote state is configured
+// before running the command.
 func configureRemoteState(cliContext *cli.Context, remoteState *remote.RemoteState) error {
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
