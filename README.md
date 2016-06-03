@@ -308,4 +308,3 @@ See `circle.yml` and `_ci/build-and-push-release-asset.sh` for details.
 * Add a command to automatically set up best-practices remote state storage in a versioned, encrypted, S3 bucket.
 * Add a command to list the different versions of state available in a versioned S3 bucket and to diff any two state
   files.
-* Use IAM username instead of the local OS username in lock metadata.

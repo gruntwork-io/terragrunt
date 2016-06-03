@@ -8,6 +8,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go/aws/session"
 )
 
 // Create a DynamoDB key for the given item id
@@ -87,8 +89,13 @@ func getAttribute(item map[string]*dynamodb.AttributeValue, attribute string) (s
 
 // Create a DynamoDB item for the given item id. This item represents a lock and will include metadata about the
 // current user, who is trying to acquire the lock.
-func createItem(itemId string) (map[string]*dynamodb.AttributeValue, error) {
-	lockMetadata, err := locks.CreateLockMetadata(itemId)
+func createItemAttributes(itemId string, client *dynamodb.DynamoDB) (map[string]*dynamodb.AttributeValue, error) {
+	iamUsername, err := getIamUsername(client)
+	if err != nil {
+		return nil, err
+	}
+
+	lockMetadata, err := locks.CreateLockMetadata(itemId, iamUsername)
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +106,17 @@ func createItem(itemId string) (map[string]*dynamodb.AttributeValue, error) {
 		ATTR_IP: &dynamodb.AttributeValue{S: aws.String(lockMetadata.IpAddress)},
 		ATTR_CREATION_DATE: &dynamodb.AttributeValue{S: aws.String(lockMetadata.DateCreated.String())},
 	}, nil
+}
+
+// Return the IAM username of the currently logged in user
+func getIamUsername(client *dynamodb.DynamoDB) (string, error) {
+	iamClient := iam.New(session.New(), &client.Config)
+	output, err := iamClient.GetUser(&iam.GetUserInput{})
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	return *output.User.UserName, nil
 }
 
 type AttributeMissing struct {

@@ -3,7 +3,6 @@ package locks
 import (
 	"time"
 	"net"
-	"os/user"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"fmt"
 )
@@ -19,13 +18,8 @@ type LockMetadata struct {
 	DateCreated time.Time
 }
 
-// Create the LockMetadata for the current user
-func CreateLockMetadata(stateFileId string) (*LockMetadata, error) {
-	user, err := user.Current()
-	if err != nil {
-		return nil, errors.WithStackTrace(err)
-	}
-
+// Create the LockMetadata for the given state file and user
+func CreateLockMetadata(stateFileId string, username string) (*LockMetadata, error) {
 	ipAddress, err := getIpAddress()
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
@@ -35,7 +29,7 @@ func CreateLockMetadata(stateFileId string) (*LockMetadata, error) {
 
 	return &LockMetadata{
 		StateFileId: stateFileId,
-		Username: user.Username,
+		Username: username,
 		IpAddress: ipAddress,
 		DateCreated: dateCreated,
 	}, nil

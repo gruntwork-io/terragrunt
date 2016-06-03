@@ -18,13 +18,14 @@ func TestCreateLockMetadata(t *testing.T) {
 	t.Parallel()
 
 	expectedStateFileId := "expected-state-file-id"
-	lockMetadata, err := CreateLockMetadata(expectedStateFileId)
+	expectedUsername := "jim"
+	lockMetadata, err := CreateLockMetadata(expectedStateFileId, expectedUsername)
 
 	assert.Nil(t, err)
 	assert.Equal(t, expectedStateFileId, lockMetadata.StateFileId)
 	assert.False(t, lockMetadata.DateCreated.IsZero())
 	assertIsValidIp(t, lockMetadata.IpAddress)
-	assert.NotEmpty(t, lockMetadata.Username)
+	assert.Equal(t, expectedUsername, lockMetadata.Username)
 }
 
 func assertIsValidIp(t *testing.T, ip string) {

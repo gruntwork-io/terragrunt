@@ -70,6 +70,12 @@ func runApp(cliContext *cli.Context) error {
 		return err
 	}
 
+	// If someone calls us with no args at all, show the help text and exit
+	if !cliContext.Args().Present() {
+		cli.ShowAppHelp(cliContext)
+		return nil
+	}
+
 	if err := downloadModules(cliContext); err != nil {
 		return err
 	}
