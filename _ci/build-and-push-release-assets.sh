@@ -93,11 +93,14 @@ function push_assets_to_github {
     for filepath in $local_bin_output_path/*; do
         # Given a filepath like /a/b/c.txt, return c.txt
         local readonly filename=$(echo "$filepath" | rev | cut -d"/" -f1 | rev)
+        local readonly url="https://uploads.github.com/repos/$github_repo_owner/$github_repo_name/releases/$github_tag_id/assets?name=$filename"
+
+        echo "Pushing $filepath to $url"
         curl --header "Authorization: token $github_oauth_token" \
              --header "Content-Type: application/x-executable" \
              --data-binary @"$filepath" \
              --request POST \
-             "https://uploads.github.com/repos/$github_repo_owner/$github_repo_name/releases/$github_tag_id/assets?name=$filename"
+             "$url"
     done;
 }
 
