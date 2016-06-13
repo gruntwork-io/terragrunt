@@ -64,7 +64,9 @@ func CreateTerragruntCli(version string) *cli.App {
 
 // The sole action for the app. It forwards all commands directly to Terraform, enforcing a few best practices along
 // the way, such as configuring remote state or acquiring a lock.
-func runApp(cliContext *cli.Context) error {
+func runApp(cliContext *cli.Context) (finalErr error) {
+	defer errors.Recover(func(cause error) { finalErr = cause })
+
 	terragruntConfig, err := config.ReadTerragruntConfig()
 	if err != nil {
 		return err

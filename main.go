@@ -13,20 +13,25 @@ var VERSION string
 
 // The main entrypoint for Terragrunt
 func main() {
+	defer errors.Recover(checkForErrorsAndExit)
+
 	app := cli.CreateTerragruntCli(VERSION)
 	err := app.Run(os.Args)
 
-	if err != nil {
-		printError(err)
-		os.Exit(1)
-	}
+	checkForErrorsAndExit(err)
 }
 
-// Display the given error in the console
-func printError(err error) {
-	if os.Getenv("TERRAGRUNT_DEBUG") != "" {
-		util.Logger.Println(errors.PrintErrorWithStackTrace(err))
+// If there is an error, display it in the console and exit with a non-zero exit code. Otherwise, exit 0.
+func checkForErrorsAndExit(err error) {
+	if err == nil {
+		os.Exit(0)
 	} else {
-		util.Logger.Println(err)
+		if os.Getenv("TERRAGRUNT_DEBUG") != "" {
+			util.Logger.Println(errors.PrintErrorWithStackTrace(err))
+		} else {
+			util.Logger.Println(err)
+		}
+		os.Exit(1)
 	}
+
 }

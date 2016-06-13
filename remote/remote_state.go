@@ -55,7 +55,7 @@ func shouldConfigureRemoteState(remoteStateFromTerragruntConfig RemoteState) (bo
 		return false, err
 	}
 
-	if state.IsRemote() {
+	if state != nil && state.IsRemote() {
 		return shouldOverrideExistingRemoteState(state.Remote, remoteStateFromTerragruntConfig)
 	} else {
 		return true, nil
