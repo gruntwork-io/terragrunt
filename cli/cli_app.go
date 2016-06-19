@@ -67,15 +67,15 @@ func CreateTerragruntCli(version string) *cli.App {
 func runApp(cliContext *cli.Context) (finalErr error) {
 	defer errors.Recover(func(cause error) { finalErr = cause })
 
-	terragruntConfig, err := config.ReadTerragruntConfig()
-	if err != nil {
-		return err
-	}
-
 	// If someone calls us with no args at all, show the help text and exit
 	if !cliContext.Args().Present() {
 		cli.ShowAppHelp(cliContext)
 		return nil
+	}
+
+	terragruntConfig, err := config.ReadTerragruntConfig()
+	if err != nil {
+		return err
 	}
 
 	if err := downloadModules(cliContext); err != nil {

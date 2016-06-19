@@ -3,6 +3,8 @@ package locks
 import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"os"
+	"os/signal"
 )
 
 // Every type of lock must implement this interface
@@ -38,6 +40,15 @@ func WithLock(lock Lock, action func() error) (finalErr error) {
 			}
 		}
 	}()
+
+	// When Go receives the interrupt signal SIGINT (e.g. from someone hitting CTRL+C), the default behavior is to
+	// exit the program immediately. Here, we override that behavior, which ensures our deferred code has a chance
+	// to run and release the lock. Note that we don't have to do anything to cancel the running action, as
+	// Terraform itself automatically detects SIGINT and does a graceful shutdown in response, so we can just allow
+	// the blocking call to action() to return normally.
+	signalChannel := make(chan os.Signal, 1)
+	signal.Notify(signalChannel, os.Interrupt)
+	go func() { util.Logger.Printf("Caught signal '%s'. Terraform should be shutting down gracefully now.", <- signalChannel) }()
 
 	return action()
 }
