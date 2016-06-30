@@ -127,19 +127,30 @@ To use DynamoDB for locking, you must:
 1. Your AWS user must have an [IAM 
    policy](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/access-control-identity-based.html) 
    granting all DynamoDB actions (`dynamodb:*`) on the table `terragrunt_locks` (see the
-   [DynamoDB locking configuration](#dynamodb-locking-configuration) for how to configure this table name). Here is an 
-   example IAM policy that grants the necessary permissions on the `terragrunt_locks` table in region `us-west-2` for
+   [DynamoDB locking configuration](#dynamodb-locking-configuration) for how to configure this table name). In 
+   addition, IAM users will need the `iam:GetUser` permission on themselves so that DynamoDB can record which IAM
+   User wrote the most recent lock.
+   
+   Here is an example IAM policy that grants the necessary permissions on the `terragrunt_locks` table in region `us-west-2` for
    an account with account id `1234567890`:
 
     ```json
     {
       "Version": "2012-10-17",
-      "Statement": [{
-        "Sid": "",
-        "Effect": "Allow",
-        "Action": "dynamodb:*",
-        "Resource": "arn:aws:dynamodb:us-west-2:1234567890:table/terragrunt_locks"
-      }]
+      "Statement": [
+          {
+            "Sid": "ReadWriteToDynamoDB",
+            "Effect": "Allow",
+            "Action": "dynamodb:*",
+            "Resource": "arn:aws:dynamodb:us-west-2:1234567890:table/terragrunt_locks"
+          },
+          {
+            "Sid": "GetSelfIamUser",
+            "Effect": "Allow",
+            "Action": "iam:GetUser",
+            "Resource": "arn:aws:iam::123456789012:user/${aws:username}"
+          }
+      ]
     }
     ```
 
