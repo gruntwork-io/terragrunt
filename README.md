@@ -148,7 +148,7 @@ To use DynamoDB for locking, you must:
             "Sid": "GetSelfIamUser",
             "Effect": "Allow",
             "Action": "iam:GetUser",
-            "Resource": "arn:aws:iam::123456789012:user/${aws:username}"
+            "Resource": "*"
           }
       ]
     }
