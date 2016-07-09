@@ -309,6 +309,10 @@ create a new release. The CircleCI job for this repo has been configured to:
 
 See `circle.yml` and `_ci/build-and-push-release-asset.sh` for details.
 
+## License
+
+This code is released under the MIT License. See LICENSE.txt.
+
 ## TODO
 
 * Add a check that modules have been downloaded using `terraform get`.
