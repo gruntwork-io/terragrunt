@@ -11,7 +11,7 @@ practices:
    configure it incorrectly. Terragrunt can prevent these sorts of errors by automatically configuring remote state for
    everyone on your team.
 
-Other types of locking mechanisms and automation for more best practices may be added in the future.
+Other types of locking mechanisms and automation for more best practices may be added in the future. 
 
 ## Motivation
 
@@ -34,7 +34,7 @@ or [etcd](https://www.terraform.io/docs/state/remote/etcd.html). All of these op
    bucket name or key) and you end up overwriting the state for a totally different set of templates.
 
 The goal of Terragrunt is to take Terraform, which is a fantastic tool, and make it even better for teams by providing
-a simple, free locking mechanism, and enforcing best practices around CLI usage.
+a simple, free locking mechanism, and enforcing best practices around CLI usage. Check out [Add Automatic Remote State Locking and Configuration to Terraform with Terragrunt](https://blog.gruntwork.io/add-automatic-remote-state-locking-and-configuration-to-terraform-with-terragrunt-656a57565a4d) for more info.
 
 ## Install
 
