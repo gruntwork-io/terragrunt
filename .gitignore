@@ -1,4 +1,4 @@
 .idea
 vendor
-.terragrunt
+.terraform
 .vscode
