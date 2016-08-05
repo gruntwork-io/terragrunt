@@ -40,13 +40,8 @@ func runTerragruntApply() error {
 	os.Chdir(TEST_FIXTURE_PATH)
 
 	app := cli.CreateTerragruntCli("TEST")
-	err := app.Run(strings.Split("terragrunt apply", " "))
 
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return app.Run(strings.Split("terragrunt apply", " "))
 }
 
 // Validate that a local instance of Terraform is installed.
