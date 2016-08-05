@@ -1,5 +1,5 @@
-hash: a0b6052956cc547eca14fb8e727e4e60a6d9dc9d781d3aea890b2f182397e51a
-updated: 2016-05-31T14:38:06.054106296+02:00
+hash: fc8ac779222734178cd8acdc9cd83045935b2a83b9d53935c841caa14d764c1d
+updated: 2016-08-05T10:04:10.661580636-07:00
 imports:
 - name: github.com/aws/aws-sdk-go
   version: 665c623d7f3e0ee276596b006655ba4dbe0565b0
@@ -9,22 +9,26 @@ imports:
   - aws/session
   - aws/awserr
   - aws/service/dynamodb
+  - aws/service/s3
   - service/dynamodb
+  - service/iam
+  - service/s3
   - aws/credentials
-  - aws/corehandlers
-  - aws/credentials/ec2rolecreds
-  - aws/ec2metadata
-  - aws/request
-  - private/endpoints
-  - aws/client
-  - aws/awsutil
   - aws/client/metadata
+  - aws/request
+  - aws/ec2metadata
+  - service/sts
+  - private/endpoints
   - private/protocol/jsonrpc
   - private/signer/v4
   - private/waiter
+  - private/protocol
+  - private/protocol/query
+  - private/protocol/restxml
   - private/protocol/json/jsonutil
   - private/protocol/rest
-  - private/protocol
+  - private/protocol/query/queryutil
+  - private/protocol/xml/xmlutil
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
   subpackages:
@@ -40,8 +44,8 @@ imports:
   - hcl/parser
   - hcl/token
   - json/parser
+  - hcl/printer
   - hcl/scanner
-  - hcl/strconv
   - json/scanner
   - json/token
 - name: github.com/jmespath/go-jmespath
@@ -56,4 +60,6 @@ imports:
   - assert
 - name: github.com/urfave/cli
   version: 9a18ffad6c548ca4d458d4c30a8aa4d181cf92fa
-devImports: []
+- name: gopkg.in/yaml.v2
+  version: e4d366fc3c7938e2958e662b4258c7a89e1f0e3e
+testImports: []
