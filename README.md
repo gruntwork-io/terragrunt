@@ -1,7 +1,7 @@
 # Terragrunt
 
 Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that supports locking and enforces best
-practices:
+practices for Terraform state:
 
 1. **Locking**: Terragrunt can use Amazon's [DynamoDB](https://aws.amazon.com/dynamodb/) as a distributed locking
    mechanism to ensure that two team members working on the same Terraform state files do not overwrite each other's
