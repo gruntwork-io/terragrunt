@@ -121,15 +121,13 @@ using AWS. We take no responsibility for any charges you may incur.
 To use DynamoDB for locking, you must:
 
 1. Set your AWS credentials in the environment using one of the following options:
-    1. Set your credentials as the environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+    1. Set your credentials as the environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (and also `AWS_SESSION_TOKEN` if using [STS temporary credentials](http://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html))
     1. Run `aws configure` and fill in the details it asks for.
     1. Run Terragrunt on an EC2 instance with an IAM Role.
 1. Your AWS user must have an [IAM 
    policy](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/access-control-identity-based.html) 
    granting all DynamoDB actions (`dynamodb:*`) on the table `terragrunt_locks` (see the
-   [DynamoDB locking configuration](#dynamodb-locking-configuration) for how to configure this table name). In 
-   addition, IAM users will need the `iam:GetUser` permission on themselves so that DynamoDB can record which IAM
-   User wrote the most recent lock.
+   [DynamoDB locking configuration](#dynamodb-locking-configuration) for how to configure this table name).
    
    Here is an example IAM policy that grants the necessary permissions on the `terragrunt_locks` table in region `us-west-2` for
    an account with account id `1234567890`:
@@ -143,12 +141,6 @@ To use DynamoDB for locking, you must:
             "Effect": "Allow",
             "Action": "dynamodb:*",
             "Resource": "arn:aws:dynamodb:us-west-2:1234567890:table/terragrunt_locks"
-          },
-          {
-            "Sid": "GetSelfIamUser",
-            "Effect": "Allow",
-            "Action": "iam:GetUser",
-            "Resource": "*"
           }
       ]
     }
