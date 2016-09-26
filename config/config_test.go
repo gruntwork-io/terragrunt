@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/locks/azure"
 	"github.com/gruntwork-io/terragrunt/locks/dynamodb"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/stretchr/testify/assert"
@@ -185,6 +186,31 @@ func TestParseTerragruntConfigRemoteStateAndDynamoDbFullConfig(t *testing.T) {
 	assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
 	assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
 	assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+}
+
+func TestParseTerragruntConfigAzureBlobLock(t *testing.T) {
+	t.Parallel()
+
+	config := `
+    lock = {
+        backend = "azure_blob"
+        config {
+            storage_account_name = "expected-account"
+            container_name = "expected-container"
+            key = "expected-key"
+        }
+    }
+	`
+
+	terragruntConfig, err := parseConfigString(config)
+	assert.Nil(t, err)
+
+	assert.NotNil(t, terragruntConfig.Lock)
+	assert.IsType(t, &azure.StorageLock{}, terragruntConfig.Lock)
+	lock := terragruntConfig.Lock.(*azure.StorageLock)
+	assert.Equal(t, "expected-account", lock.StorageAccountName)
+	assert.Equal(t, "expected-container", lock.ContainerName)
+	assert.Equal(t, "expected-key", lock.Key)
 }
 
 func TestParseTerragruntConfigInvalidLockBackend(t *testing.T) {

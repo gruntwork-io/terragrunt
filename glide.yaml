@@ -5,7 +5,9 @@ owners:
 import:
 - package: github.com/urfave/cli
 - package: github.com/hashicorp/hcl
-- package: github.com/stretchr/testify/assert
+- package: github.com/stretchr/testify
+  subpackages:
+  - assert
 - package: github.com/go-errors/errors
 - package: github.com/aws/aws-sdk-go
   subpackages:
@@ -15,3 +17,7 @@ import:
   - aws/awserr
   - aws/service/dynamodb
   - aws/service/s3
+- package: github.com/Azure/azure-sdk-for-go
+  version: ^4.0.0-beta
+  subpackages:
+  - storage

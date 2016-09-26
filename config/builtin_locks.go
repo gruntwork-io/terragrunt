@@ -5,6 +5,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/locks"
+	"github.com/gruntwork-io/terragrunt/locks/azure"
 	"github.com/gruntwork-io/terragrunt/locks/dynamodb"
 )
 
@@ -26,5 +27,6 @@ func lookupLock(name string, conf map[string]string) (locks.Lock, error) {
 }
 
 var builtinLocks = map[string]lockFactory{
-	"dynamodb": dynamodb.New,
+	"dynamodb":   dynamodb.New,
+	"azure_blob": azure.New,
 }

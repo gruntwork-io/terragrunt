@@ -1,34 +1,41 @@
-hash: fc8ac779222734178cd8acdc9cd83045935b2a83b9d53935c841caa14d764c1d
-updated: 2016-08-05T10:04:10.661580636-07:00
+hash: 1409991dc7fe52324d517cbc0a567415db1ba257834c1edeef870674bd5c8de3
+updated: 2016-09-23T14:26:55.677530851+01:00
 imports:
 - name: github.com/aws/aws-sdk-go
   version: 665c623d7f3e0ee276596b006655ba4dbe0565b0
   subpackages:
   - aws
-  - aws/defaults
-  - aws/session
   - aws/awserr
+  - aws/awsutil
+  - aws/client
+  - aws/client/metadata
+  - aws/corehandlers
+  - aws/credentials
+  - aws/credentials/ec2rolecreds
+  - aws/defaults
+  - aws/ec2metadata
+  - aws/request
   - aws/service/dynamodb
   - aws/service/s3
-  - service/dynamodb
-  - service/iam
-  - service/s3
-  - aws/credentials
-  - aws/client/metadata
-  - aws/request
-  - aws/ec2metadata
-  - service/sts
+  - aws/session
   - private/endpoints
+  - private/protocol
+  - private/protocol/json/jsonutil
   - private/protocol/jsonrpc
+  - private/protocol/query
+  - private/protocol/query/queryutil
+  - private/protocol/rest
+  - private/protocol/restxml
+  - private/protocol/xml/xmlutil
   - private/signer/v4
   - private/waiter
-  - private/protocol
-  - private/protocol/query
-  - private/protocol/restxml
-  - private/protocol/json/jsonutil
-  - private/protocol/rest
-  - private/protocol/query/queryutil
-  - private/protocol/xml/xmlutil
+  - service/dynamodb
+  - service/s3
+  - service/sts
+- name: github.com/Azure/azure-sdk-for-go
+  version: 23dddbb0f51799ace6588d35f2fea3d425c4fb54
+  subpackages:
+  - storage
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
   subpackages:
@@ -42,10 +49,10 @@ imports:
   subpackages:
   - hcl/ast
   - hcl/parser
+  - hcl/scanner
+  - hcl/strconv
   - hcl/token
   - json/parser
-  - hcl/printer
-  - hcl/scanner
   - json/scanner
   - json/token
 - name: github.com/jmespath/go-jmespath
@@ -60,6 +67,4 @@ imports:
   - assert
 - name: github.com/urfave/cli
   version: 9a18ffad6c548ca4d458d4c30a8aa4d181cf92fa
-- name: gopkg.in/yaml.v2
-  version: e4d366fc3c7938e2958e662b4258c7a89e1f0e3e
 testImports: []
