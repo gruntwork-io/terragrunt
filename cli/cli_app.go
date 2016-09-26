@@ -1,15 +1,16 @@
 package cli
 
 import (
-	"github.com/urfave/cli"
-	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/locks"
 	"fmt"
+	"regexp"
+
+	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/locks"
+	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/gruntwork-io/terragrunt/remote"
-	"github.com/gruntwork-io/terragrunt/errors"
-	"regexp"
+	"github.com/urfave/cli"
 )
 
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
@@ -39,6 +40,7 @@ AUTHOR(S):
 `
 
 var MODULE_REGEX = regexp.MustCompile(`module ".+"`)
+
 const TERRAFORM_EXTENSION_GLOB = "*.tf"
 
 // Create the Terragrunt CLI App
@@ -73,7 +75,7 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 		return nil
 	}
 
-	terragruntConfig, err := config.ReadTerragruntConfig()
+	conf, err := config.ReadTerragruntConfig()
 	if err != nil {
 		return err
 	}
@@ -82,18 +84,18 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 		return err
 	}
 
-	if terragruntConfig.RemoteState != nil {
-		if err := configureRemoteState(cliContext, terragruntConfig.RemoteState); err != nil {
+	if conf.RemoteState != nil {
+		if err := configureRemoteState(cliContext, conf.RemoteState); err != nil {
 			return err
 		}
 	}
 
-	if terragruntConfig.DynamoDbLock != nil {
-		return runTerraformCommandWithLock(cliContext, terragruntConfig.DynamoDbLock)
-	} else {
+	if conf.Lock == nil {
 		util.Logger.Printf("WARNING: you have not configured locking in your .terragrunt file. Concurrent changes to your .tfstate files may cause conflicts!")
 		return runTerraformCommand(cliContext)
 	}
+
+	return runTerraformCommandWithLock(cliContext, conf.Lock)
 }
 
 // A quick sanity check that calls `terraform get` to download modules, if they aren't already downloaded.
@@ -150,9 +152,12 @@ func configureRemoteState(cliContext *cli.Context, remoteState *remote.RemoteSta
 // Run the given Terraform command with the given lock (if the command requires locking)
 func runTerraformCommandWithLock(cliContext *cli.Context, lock locks.Lock) error {
 	switch cliContext.Args().First() {
-	case "apply", "destroy": return locks.WithLock(lock, func() error { return runTerraformCommand(cliContext) })
-	case "release-lock": return runReleaseLockCommand(cliContext, lock)
-	default: return runTerraformCommand(cliContext)
+	case "apply", "destroy":
+		return locks.WithLock(lock, func() error { return runTerraformCommand(cliContext) })
+	case "release-lock":
+		return runReleaseLockCommand(cliContext, lock)
+	default:
+		return runTerraformCommand(cliContext)
 	}
 }
 

@@ -51,8 +51,11 @@ state](#managing-remote-state) for you using the [S3 backend](https://www.terraf
 
 ```hcl
 # Configure Terragrunt to use DynamoDB for locking
-dynamoDbLock = {
-  stateFileId = "my-app"
+lock = {
+  backend = "dynamodb"
+  config {
+    stateFileId = "my-app"
+  }
 }
 
 # Configure Terragrunt to automatically store tfstate files in an S3 bucket
@@ -151,11 +154,14 @@ To use DynamoDB for locking, you must:
 For DynamoDB locking, Terragrunt supports the following settings in `.terragrunt`:
 
 ```hcl
-dynamoDbLock = {
-  stateFileId = "my-app"
-  awsRegion = "us-east-1"
-  tableName = "terragrunt_locks"
-  maxLockRetries = 360
+lock = {
+  backend = "dynamodb"
+  config {
+    stateFileId = "my-app"
+    awsRegion = "us-east-1"
+    tableName = "terragrunt_locks"
+    maxLockRetries = 360
+  }
 }
 ```
 
