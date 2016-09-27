@@ -1,9 +1,10 @@
 package remote
 
 import (
-	"testing"
-	"github.com/stretchr/testify/assert"
 	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestToTerraformRemoteConfigArgs(t *testing.T) {
@@ -11,11 +12,11 @@ func TestToTerraformRemoteConfigArgs(t *testing.T) {
 
 	remoteState := RemoteState{
 		Backend: "s3",
-		BackendConfigs: map[string]string {
+		Config: map[string]string{
 			"encrypt": "true",
-			"bucket": "my-bucket",
-			"key": "terraform.tfstate",
-			"region": "us-east-1",
+			"bucket":  "my-bucket",
+			"key":     "terraform.tfstate",
+			"region":  "us-east-1",
 		},
 	}
 	args := remoteState.toTerraformRemoteConfigArgs()

@@ -85,7 +85,7 @@ func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
 
 	config :=
 		`
-	remoteState = {
+    remote_state = {
 	  backend = "s3"
 	}
 	`
@@ -96,7 +96,7 @@ func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
 	assert.Nil(t, terragruntConfig.Lock)
 	assert.NotNil(t, terragruntConfig.RemoteState)
 	assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-	assert.Empty(t, terragruntConfig.RemoteState.BackendConfigs)
+	assert.Empty(t, terragruntConfig.RemoteState.Config)
 }
 
 func TestParseTerragruntConfigRemoteStateMissingBackend(t *testing.T) {
@@ -104,7 +104,7 @@ func TestParseTerragruntConfigRemoteStateMissingBackend(t *testing.T) {
 
 	config :=
 		`
-	remoteState = {
+	remote_state = {
 	}
 	`
 
@@ -117,9 +117,9 @@ func TestParseTerragruntConfigRemoteStateFullConfig(t *testing.T) {
 
 	config :=
 		`
-	remoteState = {
+	remote_state = {
 	  backend = "s3"
-	  backendConfigs = {
+	  config = {
 	    encrypt = "true"
 	    bucket = "my-bucket"
 	    key = "terraform.tfstate"
@@ -134,11 +134,11 @@ func TestParseTerragruntConfigRemoteStateFullConfig(t *testing.T) {
 	assert.Nil(t, terragruntConfig.Lock)
 	assert.NotNil(t, terragruntConfig.RemoteState)
 	assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-	assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfigs)
-	assert.Equal(t, "true", terragruntConfig.RemoteState.BackendConfigs["encrypt"])
-	assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.BackendConfigs["bucket"])
-	assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.BackendConfigs["key"])
-	assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfigs["region"])
+	assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
+	assert.Equal(t, "true", terragruntConfig.RemoteState.Config["encrypt"])
+	assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
+	assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
+	assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
 }
 
 func TestParseTerragruntConfigRemoteStateAndDynamoDbFullConfig(t *testing.T) {
@@ -156,9 +156,9 @@ func TestParseTerragruntConfigRemoteStateAndDynamoDbFullConfig(t *testing.T) {
       }
 	}
 
-	remoteState = {
+	remote_state = {
 	  backend = "s3"
-	  backendConfigs = {
+	  config {
 	    encrypt = "true"
 	    bucket = "my-bucket"
 	    key = "terraform.tfstate"
@@ -180,11 +180,11 @@ func TestParseTerragruntConfigRemoteStateAndDynamoDbFullConfig(t *testing.T) {
 
 	assert.NotNil(t, terragruntConfig.RemoteState)
 	assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-	assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfigs)
-	assert.Equal(t, "true", terragruntConfig.RemoteState.BackendConfigs["encrypt"])
-	assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.BackendConfigs["bucket"])
-	assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.BackendConfigs["key"])
-	assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfigs["region"])
+	assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
+	assert.Equal(t, "true", terragruntConfig.RemoteState.Config["encrypt"])
+	assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
+	assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
+	assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
 }
 
 func TestParseTerragruntConfigInvalidLockBackend(t *testing.T) {
