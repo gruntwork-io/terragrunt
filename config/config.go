@@ -19,14 +19,14 @@ type TerragruntConfig struct {
 
 // terragruntConfigFile represents the configuration supported in the .terragrunt file
 type terragruntConfigFile struct {
-	Lock        *LockConfig `json:"lock,omitempty"`
-	RemoteState *remote.RemoteState
+	Lock        *LockConfig         `hcl:"lock,omitempty"`
+	RemoteState *remote.RemoteState `hcl:"remote_state"`
 }
 
 // LockConfig represents generic configuration for Lock providers
 type LockConfig struct {
-	Backend string            `json:"backend"`
-	Config  map[string]string `json:"config"`
+	Backend string            `hcl:"backend"`
+	Config  map[string]string `hcl:"config"`
 }
 
 // ReadTerragruntConfig the Terragrunt config file from its default location

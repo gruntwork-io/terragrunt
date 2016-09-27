@@ -1,16 +1,17 @@
 package remote
 
 import (
-	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/gruntwork-io/terragrunt/shell"
 	"fmt"
+
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // Configuration for Terraform remote state
 type RemoteState struct {
-	Backend        string
-	BackendConfigs map[string]string
+	Backend string            `hcl:"backend"`
+	Config  map[string]string `hcl:"config"`
 }
 
 // Fill in any default configuration for remote state
@@ -79,7 +80,7 @@ func (remoteState RemoteState) toTerraformRemoteConfigArgs() []string {
 	baseArgs := []string{"remote", "config", "-backend", remoteState.Backend}
 
 	backendConfigArgs := []string{}
-	for key, value := range remoteState.BackendConfigs {
+	for key, value := range remoteState.Config {
 		arg := fmt.Sprintf("-backend-config=%s=%s", key, value)
 		backendConfigArgs = append(backendConfigArgs, arg)
 	}

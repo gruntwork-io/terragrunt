@@ -59,9 +59,9 @@ lock = {
 }
 
 # Configure Terragrunt to automatically store tfstate files in an S3 bucket
-remoteState = {
+remote_state = {
   backend = "s3"
-  backendConfigs = {
+  config {
     encrypt = "true"
     bucket = "my-bucket"
     key = "terraform.tfstate"
@@ -214,9 +214,9 @@ docs](https://www.terraform.io/docs/state/remote/) for the requirements to use a
 For remote state management, Terragrunt supports the following settings in `.terragrunt`:
 
 ```hcl
-remoteState = {
+remote_state = {
   backend = "s3"
-  backendConfigs = {
+  config {
     key1 = "value1"
     key2 = "value2"
     key3 = "value3"
