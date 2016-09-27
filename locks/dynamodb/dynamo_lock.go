@@ -2,24 +2,52 @@ package dynamodb
 
 import (
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/aws/defaults"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/gruntwork-io/terragrunt/errors"
+	"strconv"
+
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/defaults"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/locks"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // A lock that uses AWS's DynamoDB to acquire and release locks
 type DynamoDbLock struct {
-	StateFileId 	string
-	AwsRegion   	string
-	TableName   	string
-	MaxLockRetries	int
+	StateFileId    string
+	AwsRegion      string
+	TableName      string
+	MaxLockRetries int
+}
+
+// New is the factory function for DynamoDbLock
+func New(conf map[string]string) (locks.Lock, error) {
+	lock := &DynamoDbLock{
+		StateFileId:    conf["state_file_id"],
+		AwsRegion:      conf["aws_region"],
+		TableName:      conf["table_name"],
+		MaxLockRetries: 0,
+	}
+
+	if lock.StateFileId == "" {
+		return nil, errors.WithStackTrace(StateFileIdMissing)
+	}
+
+	if confMaxRetries := conf["max_lock_retries"]; confMaxRetries != "" {
+		maxRetries, err := strconv.Atoi(confMaxRetries)
+		if err != nil {
+			return nil, errors.WithStackTrace(&InvalidMaxLockRetriesValue{err})
+		}
+		lock.MaxLockRetries = maxRetries
+	}
+
+	lock.fillDefaults()
+	return lock, nil
 }
 
 // Fill in default configuration values for this lock
-func (dynamoLock *DynamoDbLock) FillDefaults() {
+func (dynamoLock *DynamoDbLock) fillDefaults() {
 	if dynamoLock.AwsRegion == "" {
 		dynamoLock.AwsRegion = DEFAULT_AWS_REGION
 	}
@@ -31,15 +59,6 @@ func (dynamoLock *DynamoDbLock) FillDefaults() {
 	if dynamoLock.MaxLockRetries == 0 {
 		dynamoLock.MaxLockRetries = DEFAULT_MAX_RETRIES_WAITING_FOR_LOCK
 	}
-}
-
-// Validate that this lock is configured correctly
-func (dynamoDbLock *DynamoDbLock) Validate() error {
-	if dynamoDbLock.StateFileId == "" {
-		return errors.WithStackTrace(StateFileIdMissing)
-	}
-
-	return nil
 }
 
 // Acquire a lock by writing an entry to DynamoDB. If that write fails, it means someone else already has the lock, so
@@ -103,6 +122,12 @@ func createAwsConfig(awsRegion string) (*aws.Config, error) {
 	return config, nil
 }
 
-var StateFileIdMissing = fmt.Errorf("The dynamodb.stateFileId field cannot be empty")
+var StateFileIdMissing = fmt.Errorf("state_file_id cannot be empty")
 
+type InvalidMaxLockRetriesValue struct {
+	ValidationErr error
+}
 
+func (err *InvalidMaxLockRetriesValue) Error() string {
+	return fmt.Sprintf("unable to parse config value max_lock_retries: %s", err.ValidationErr)
+}
