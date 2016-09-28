@@ -54,7 +54,7 @@ state](#managing-remote-state) for you using the [S3 backend](https://www.terraf
 lock = {
   backend = "dynamodb"
   config {
-    stateFileId = "my-app"
+    state_file_id = "my-app"
   }
 }
 
@@ -157,10 +157,10 @@ For DynamoDB locking, Terragrunt supports the following settings in `.terragrunt
 lock = {
   backend = "dynamodb"
   config {
-    stateFileId = "my-app"
-    awsRegion = "us-east-1"
-    tableName = "terragrunt_locks"
-    maxLockRetries = 360
+    state_file_id = "my-app"
+    aws_region = "us-east-1"
+    table_name = "terragrunt_locks"
+    max_lock_retries = 360
   }
 }
 ```
