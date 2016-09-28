@@ -3,10 +3,12 @@
 Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that supports locking and enforces best
 practices for Terraform state:
 
-1. **Locking**: Terragrunt can use Amazon's [DynamoDB](https://aws.amazon.com/dynamodb/) as a distributed locking
-   mechanism to ensure that two team members working on the same Terraform state files do not overwrite each other's
-   changes. DynamoDB is part of the [AWS free tier](https://aws.amazon.com/dynamodb/pricing/), so using it as a locking
-   mechanism should not cost you anything.
+1. **Locking**: Terragrunt can use one of several services to provide a distributed locking mechanism, ensuring that two
+   team members working on the same Terraform state files do not overwrite each other's changes.
+   * Amazon's [DynamoDB](https://aws.amazon.com/dynamodb/) which is part of the [AWS free tier](https://aws.amazon.com/dynamodb/pricing/),
+   so using it as a locking mechanism should not cost you anything.
+   * Azure [Blob Storage](https://azure.microsoft.com/en-gb/services/storage/blobs/) which is unlikely to cost a
+   noticable amount.
 1. **Remote state management**: A common mistake when using Terraform is to forget to configure remote state or to
    configure it incorrectly. Terragrunt can prevent these sorts of errors by automatically configuring remote state for
    everyone on your team.
@@ -188,7 +190,49 @@ When you run `terragrunt apply` or `terragrunt destroy`, Terragrunt does the fol
        lock.
 1. Run `terraform apply` or `terraform destroy`.
 1. When Terraform is done, delete the item from the `terragrunt_locks` table to release the lock.
+
+## Locking using Azure Blob Storage
+
+Terragrunt can use Azure [Blob Storage](https://azure.microsoft.com/en-gb/services/storage/blobs/) to acquire and
+release locks, relying on leasing to provide [consistency](https://azure.microsoft.com/en-gb/documentation/articles/storage-concurrency/#managing-concurrency-in-blob-storage).
+Blob Storage is low cost, and shoult not cost a considerable amoount given the tiny size of the lock files and the
+frequency with which they are created/deleted. We take no responsibility for any charges you may incur.
+
+#### Azure Blob Storage locking prerequisites
+
+To use Azure Blob Storage for locking, you must:
+
+1. Create a Storage Account and Container within that account for the lock files
+1. Set the access key for the Storage Account as the `ARM_ACCESS_KEY` environment variable
+1. Run Terragrunt
+
+#### Azure Blob Storage locking configuration
  
+For Azure Blob Storage locking, Terragrunt supports the following settings in `.terragrunt`:
+
+```hcl
+lock = {
+  backend = "azure_blob"
+  config {
+    storage_account_name = "my_terragrunt_locks"
+    container_name = "locks"
+    key = "my-app"
+  }
+}
+```
+
+* `storage_account_name`: (Required) The name of the Storage Account.
+* `container_name`: (Requuired) The name of the container in the Storage Account.
+* `key`: (Required) The name of the blob to create as the lock file.
+
+#### How Azure Blob Storage locking works
+
+When you run `terragrunt apply` or `terragrunt destroy`, Terragrunt does the following:
+
+1. Try to create a blob in the storage container and acquire a lease on it.
+1. Run `terraform apply` or `terraform destroy`.
+1. When Terraform is done, delete the blob from the storage container.
+
 ## Cleaning up old locks
 
 If Terragrunt is shut down before it releases a lock (e.g. via `CTRL+C` or a crash), the lock might not be deleted, and
@@ -241,12 +285,20 @@ go run main.go plan
 
 #### Running tests
 
-**Note**: The tests in the `dynamodb` folder for Terragrunt run against a real AWS account and will add and remove
-real data from DynamoDB. DO NOT hit `CTRL+C` while the tests are running, as this will prevent them from cleaning up
-temporary tables and data in DynamoDB. We are not responsible for any charges you may incur.
+**Note**: The tests in the sub-packages of `locks` run against real world infrastructure to test integration, as a
+result configuration for each provider must be provided:
 
-Before running the tests, you must configure your AWS credentials as explained in the [DynamoDB locking
-prerequisites](#dynamodb-locking-prerequisites) section.
+1. DynamoDB - Configure your AWS credentials as explained in the [DynamoDB lockingprerequisites](#dynamodb-locking-prerequisites)
+section.
+1. Azure Blob Storage - Configure your access key as explained in the [prerequisites](#azure-blob-storage-locking-prerequisites)
+and define the following environment variables:
+  * `AZURE_STORAGE_ACCOUNT` - The Storage Account to be used by the tests
+  * `AZURE_STORAGE_CONTAINER` - The Storage Container to be used by the tests
+
+Avoid hitting `CTRL+C` while the tests are running, as this will prevent them from cleaning up temporary resources used
+as part of the tests.
+
+Before running the tests, you must 
 
 To run all the tests:
 
