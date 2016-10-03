@@ -165,13 +165,13 @@ lock = {
 }
 ```
 
-* `stateFileId`: (Required) A unique id for the state file for these Terraform templates. Many teams have more than
+* `state_file_id`: (Required) A unique id for the state file for these Terraform templates. Many teams have more than
   one set of templates, and therefore more than one state file, so this setting is used to disambiguate locks for one 
   state file from another.
-* `awsRegion`: (Optional) The AWS region to use. Default: `us-east-1`.
-* `tableName`: (Optional) The name of the table in DynamoDB to use to store lock information. Default:
+* `aws_region`: (Optional) The AWS region to use. Default: `us-east-1`.
+* `table_name`: (Optional) The name of the table in DynamoDB to use to store lock information. Default:
   `terragrunt_locks`.
-* `maxLockRetries`: (Optional) The maximum number of times to retry acquiring a lock. Terragrunt waits 10 seconds
+* `max_lock_retries`: (Optional) The maximum number of times to retry acquiring a lock. Terragrunt waits 10 seconds
   between retries. Default: 360 retries (one hour).
 
 #### How DynamoDB locking works
@@ -179,10 +179,10 @@ lock = {
 When you run `terragrunt apply` or `terragrunt destroy`, Terragrunt does the following:
 
 1. Create the `terragrunt_locks` table if it doesn't already exist.
-1. Try to write an item to the `terragrunt_locks` table with `stateFileId` equal to the id specified in your
+1. Try to write an item to the `terragrunt_locks` table with `state_file_id` equal to the id specified in your
    `.terragrunt` file. This item will include useful metadata about the lock, such as who created it (e.g. your 
    username) and when. 
-1. Note that the write is a conditional write that will fail if an item with the same `stateFileId` already exists.
+1. Note that the write is a conditional write that will fail if an item with the same `state_file_id` already exists.
     1. If the write succeeds, it means we have a lock!
     1. If the write does not succeed, it means someone else has a lock. Keep retrying every 10 seconds until we get a
        lock.
@@ -225,7 +225,7 @@ remote_state = {
 ```
 
 * `backend`: (Required) The name of the remote state backend to use (e.g. s3, consul).
-* `backendConfigs`: (Optional) A map of additional key/value pairs to pass to the backend. Each backend requires
+* `config`: (Optional) A map of additional key/value pairs to pass to the backend. Each backend requires
   different key/value pairs, so consult the [Terraform remote state docs](https://www.terraform.io/docs/state/remote/)
   for details.
 
