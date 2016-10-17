@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/hcl"
 )
 
-const configFilePath = ".terragrunt"
+const ConfigFilePath = ".terragrunt"
 
 // TerragruntConfig represents a parsed and expanded configuration
 type TerragruntConfig struct {
@@ -30,8 +30,8 @@ type LockConfig struct {
 }
 
 // ReadTerragruntConfig the Terragrunt config file from its default location
-func ReadTerragruntConfig() (*TerragruntConfig, error) {
-	return parseConfigFile(configFilePath)
+func ReadTerragruntConfig(filePath string) (*TerragruntConfig, error) {
+	return parseConfigFile(filePath)
 }
 
 // Parse the Terragrunt config file at the given path
