@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -61,6 +62,19 @@ func CreateTerragruntCli(version string) *cli.App {
    Moreover, for the apply and destroy commands, Terragrunt will first try to acquire a lock using DynamoDB. For
    documentation, see https://github.com/gruntwork-io/terragrunt/.`
 
+	var defaultConfigFilePath = config.ConfigFilePath
+	if os.Getenv("TERRAGRUNT_CONFIG") != "" {
+		defaultConfigFilePath = os.Getenv("TERRAGRUNT_CONFIG")
+	}
+
+	app.Flags = []cli.Flag{
+		cli.StringFlag{
+			Name:  "terragrunt-config",
+			Value: defaultConfigFilePath,
+			Usage: ".terragrunt file to use",
+		},
+	}
+
 	return app
 }
 
@@ -75,7 +89,7 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 		return nil
 	}
 
-	conf, err := config.ReadTerragruntConfig()
+	conf, err := config.ReadTerragruntConfig(cliContext.String("terragrunt-config"))
 	if err != nil {
 		return err
 	}
