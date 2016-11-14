@@ -83,7 +83,7 @@ terragrunt destroy
 
 Terragrunt forwards almost all commands, arguments, and options directly to Terraform, using whatever version of
 Terraform you already have installed. However, before running Terraform, Terragrunt will ensure your remote state is
-configured according to the settings in the `.terragrunt` file. Moreover, for the `apply` and `destroy` commands,
+configured according to the settings in the `.terragrunt` file. Moreover, for the `apply`, `refresh`, and `destroy` commands,
 Terragrunt will first try to acquire a lock using [DynamoDB](#locking-using-dynamodb):
 
 ```
