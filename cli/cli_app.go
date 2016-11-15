@@ -27,6 +27,7 @@ COMMANDS:
    apply                Acquire a lock and run 'terraform apply'
    destroy              Acquire a lock and run 'terraform destroy'
    import               Acquire a lock and run 'terraform import'
+   refresh              Acquire a lock and run 'terraform refresh'
    remote push          Acquire a lock and run 'terraform remote push'
    release-lock         Release a lock that is left over from some previous command
    *                    Terragrunt forwards all other commands directly to Terraform
@@ -168,7 +169,7 @@ func configureRemoteState(cliContext *cli.Context, remoteState *remote.RemoteSta
 // Run the given Terraform command with the given lock (if the command requires locking)
 func runTerraformCommandWithLock(cliContext *cli.Context, lock locks.Lock) error {
 	switch cliContext.Args().First() {
-	case "apply", "destroy", "import":
+	case "apply", "destroy", "import", "refresh":
 		return locks.WithLock(lock, func() error { return runTerraformCommand(cliContext) })
 	case "remote":
 		if cliContext.Args().Get(1) == "push" {
