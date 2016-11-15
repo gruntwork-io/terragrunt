@@ -38,7 +38,7 @@ func TestCreateLockTableConcurrency(t *testing.T) {
 		go func() {
 			defer waitGroup.Done()
 			err := createLockTableIfNecessary(tableName, client)
-			assert.Nil(t, err)
+			assert.Nil(t, err, "Unexpected error: %v", err)
 		}()
 	}
 
@@ -66,7 +66,7 @@ func TestCreateLockTableIfNecessaryTableAlreadyExists(t *testing.T) {
 
 		// Try to create the table the second time and make sure you get no errors
 		err := createLockTableIfNecessary(tableName, client)
-		assert.Nil(t, err)
+		assert.Nil(t, err, "Unexpected error: %v", err)
 	})
 }
 
@@ -79,7 +79,7 @@ func TestWriteItemToLockTable(t *testing.T) {
 
 		// Now write an item to the table
 		err := writeItemToLockTable(itemId, tableName, client)
-		assert.Nil(t, err)
+		assert.Nil(t, err, "Unexpected error: %v", err)
 
 		// Finally, check the item exists
 		assertItemExistsInTable(t, itemId, tableName, client)
@@ -95,14 +95,14 @@ func TestWriteAndRemoveItemFromLockTable(t *testing.T) {
 
 		// Now write an item to the table
 		err := writeItemToLockTable(itemId, tableName, client)
-		assert.Nil(t, err)
+		assert.Nil(t, err, "Unexpected error: %v", err)
 
 		// Next, check the item exists
 		assertItemExistsInTable(t, itemId, tableName, client)
 
 		// Now remove the item
 		err = removeItemFromLockTable(itemId, tableName, client)
-		assert.Nil(t, err)
+		assert.Nil(t, err, "Unexpected error: %v", err)
 
 		// Finally, check the item no longer exists
 		assertItemNotExistsInTable(t, itemId, tableName, client)
@@ -118,7 +118,7 @@ func TestWriteItemToLockTableUntilSuccessItemDoesntAlreadyExist(t *testing.T) {
 
 		// Now write an item to the table. Allow no retries, as the item shouldn't already exit.
 		err := writeItemToLockTableUntilSuccess(itemId, tableName, client, 1, 1 * time.Millisecond)
-		assert.Nil(t, err)
+		assert.Nil(t, err, "Unexpected error: %v", err)
 
 		// Finally, check the item exists
 		assertItemExistsInTable(t, itemId, tableName, client)
@@ -134,7 +134,7 @@ func TestWriteItemToLockTableUntilSuccessItemAlreadyExists(t *testing.T) {
 
 		// Now write an item to the table
 		err := writeItemToLockTable(itemId, tableName, client)
-		assert.Nil(t, err)
+		assert.Nil(t, err, "Unexpected error: %v", err)
 
 		// Check the item exists
 		assertItemExistsInTable(t, itemId, tableName, client)
@@ -154,7 +154,7 @@ func TestWriteItemToLockTableUntilSuccessItemAlreadyExistsButGetsDeleted(t *test
 
 		// Now write an item to the table
 		err := writeItemToLockTable(itemId, tableName, client)
-		assert.Nil(t, err)
+		assert.Nil(t, err, "Unexpected error: %v", err)
 
 		// Check the item exists
 		assertItemExistsInTable(t, itemId, tableName, client)
@@ -163,7 +163,7 @@ func TestWriteItemToLockTableUntilSuccessItemAlreadyExistsButGetsDeleted(t *test
 		go func() {
 			time.Sleep(30 * time.Second)
 			err := removeItemFromLockTable(itemId, tableName, client)
-			assert.Nil(t, err)
+			assert.Nil(t, err, "Unexpected error: %v", err)
 		}()
 
 		// In the meantime, try to write the item to the table again. This should fail initially, so allow 18

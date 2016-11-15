@@ -46,7 +46,7 @@ func uniqueTableNameForTest() string {
 
 func cleanupTable(t *testing.T, tableName string, client *dynamodb.DynamoDB) {
 	_, err := client.DeleteTable(&dynamodb.DeleteTableInput{TableName: aws.String(tableName)})
-	assert.Nil(t, err)
+	assert.Nil(t, err, "Unexpected error: %v", err)
 }
 
 func assertCanWriteToTable(t *testing.T, tableName string, client *dynamodb.DynamoDB) {
@@ -57,7 +57,7 @@ func assertCanWriteToTable(t *testing.T, tableName string, client *dynamodb.Dyna
 		Item: item,
 	})
 
-	assert.Nil(t, err)
+	assert.Nil(t, err, "Unexpected error: %v", err)
 }
 
 func assertItemExistsInTable(t *testing.T, itemId string, tableName string, client *dynamodb.DynamoDB) {
@@ -67,8 +67,8 @@ func assertItemExistsInTable(t *testing.T, itemId string, tableName string, clie
 		TableName: aws.String(tableName),
 	})
 
-	assert.Nil(t, err)
-	assert.NotEmpty(t, output.Item)
+	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.NotEmpty(t, output.Item, "Did not expect item with id %s in table %s to be empty", itemId, tableName)
 }
 
 func assertItemNotExistsInTable(t *testing.T, itemId string, tableName string, client *dynamodb.DynamoDB) {
@@ -78,8 +78,8 @@ func assertItemNotExistsInTable(t *testing.T, itemId string, tableName string, c
 		TableName: aws.String(tableName),
 	})
 
-	assert.Nil(t, err)
-	assert.Empty(t, output.Item)
+	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.Empty(t, output.Item, "Did not expect item with id %s in table %s to be empty", itemId, tableName)
 }
 
 func withLockTable(t *testing.T, action func(tableName string, client *dynamodb.DynamoDB)) {
@@ -87,7 +87,7 @@ func withLockTable(t *testing.T, action func(tableName string, client *dynamodb.
 	tableName := uniqueTableNameForTest()
 
 	err := createLockTableIfNecessary(tableName, client)
-	assert.Nil(t, err)
+	assert.Nil(t, err, "Unexpected error: %v", err)
 	defer cleanupTable(t, tableName, client)
 
 	action(tableName, client)
@@ -98,7 +98,7 @@ func withLockTableProvisionedUnits(t *testing.T, readCapacityUnits int, writeCap
 	tableName := uniqueTableNameForTest()
 
 	err := createLockTable(tableName, readCapacityUnits, writeCapacityUnits, client)
-	assert.Nil(t, err)
+	assert.Nil(t, err, "Unexpected error: %v", err)
 	defer cleanupTable(t, tableName, client)
 
 	action(tableName, client)
