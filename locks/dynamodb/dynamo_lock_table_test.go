@@ -170,7 +170,7 @@ func TestWriteItemToLockTableUntilSuccessItemAlreadyExistsButGetsDeleted(t *test
 		// retries. At 10 seconds per retry, that's 3 minutes, which should be enough time for the goroutine to
 		// delete the item and for that info to make it to the majority of the DynamoDB nodes.
 		err = writeItemToLockTableUntilSuccess(itemId, tableName, client, 18, 10 * time.Second)
-		assert.Nil(t, err)
+		assert.Nil(t, err, "Got unexpected error: %v", err)
 	})
 }
 
