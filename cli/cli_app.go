@@ -113,18 +113,21 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 
 // Parse command line options that are passed in for Terragrunt
 func parseTerragruntOptions(cliContext *cli.Context) (*options.TerragruntOptions, error) {
-	// TODO: replace the urfave CLI library with something else.
-	//
-	// EXPLANATION: The normal way to parse flags with the urfave CLI library would be to define the flags in the
-	// CreateTerragruntCLI method and to read the values of those flags using cliContext.String(...),
-	// cliContext.Bool(...), etc. Unfortunately, this does not work here due to a limitation in the urfave
-	// CLI library: if the user passes in any "command" whatsever, (e.g. the "apply" in "terragrunt apply"), then
-	// any flags that come after it are not parsed (e.g. the "--foo" is not parsed in "terragrunt apply --foo").
-	// Therefore, we have to parse options ourselves, which is infuriating. For more details on this limitation,
-	// see: https://github.com/urfave/cli/issues/533. For now, our workaround is to dumbly loop over the arguments
-	// and look for the ones we need, but in the future, we should change to a different CLI library to avoid this
-	// limitation.
+	return parseTerragruntOptionsFromArgs(cliContext.Args())
+}
 
+// TODO: replace the urfave CLI library with something else.
+//
+// EXPLANATION: The normal way to parse flags with the urfave CLI library would be to define the flags in the
+// CreateTerragruntCLI method and to read the values of those flags using cliContext.String(...),
+// cliContext.Bool(...), etc. Unfortunately, this does not work here due to a limitation in the urfave
+// CLI library: if the user passes in any "command" whatsever, (e.g. the "apply" in "terragrunt apply"), then
+// any flags that come after it are not parsed (e.g. the "--foo" is not parsed in "terragrunt apply --foo").
+// Therefore, we have to parse options ourselves, which is infuriating. For more details on this limitation,
+// see: https://github.com/urfave/cli/issues/533. For now, our workaround is to dumbly loop over the arguments
+// and look for the ones we need, but in the future, we should change to a different CLI library to avoid this
+// limitation.
+func parseTerragruntOptionsFromArgs(args []string) (*options.TerragruntOptions, error) {
 	nonInteractive := false
 	terragruntConfigPath := os.Getenv("TERRAGRUNT_CONFIG")
 	if terragruntConfigPath == "" {
@@ -133,12 +136,12 @@ func parseTerragruntOptions(cliContext *cli.Context) (*options.TerragruntOptions
 	nonTerragruntArgs := []string{}
 	skipArg := false
 
-	for i, arg := range cliContext.Args() {
+	for i, arg := range args {
 		if arg == fmt.Sprintf("--%s", OPT_NON_INTERACTIVE) {
 			nonInteractive = true
 		} else if arg == fmt.Sprintf("--%s", OPT_TERRAGRUNT_CONFIG) {
-			if (i + 1) < cliContext.NArg() {
-				terragruntConfigPath = cliContext.Args()[i + 1]
+			if (i + 1) < len(args) {
+				terragruntConfigPath = args[i + 1]
 				skipArg = true
 			}  else {
 				return nil, errors.WithStackTrace(MissingTerragruntConfigValue)
