@@ -29,7 +29,7 @@ type TerraformState struct {
 // The structure of the "remote" section of the Terraform .tfstate file
 type TerraformStateRemote struct {
 	Type   string
-	Config map[string]interface{}
+	Config map[string]string
 }
 
 // The structure of a "module" section of the Terraform .tfstate file

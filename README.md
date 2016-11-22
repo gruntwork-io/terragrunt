@@ -229,6 +229,16 @@ remote_state = {
   different key/value pairs, so consult the [Terraform remote state docs](https://www.terraform.io/docs/state/remote/)
   for details.
 
+## CLI Options
+
+Terragrunt forwards all arguments and options to Terraform. The only exceptions are the options that start with the
+prefix `--terragrunt-`. The currently available options are:
+
+* `--terragrunt-config`: A custom path to the `.terragrunt` file. May also be specified via the `TERRAGRUNT_CONFIG`
+  environment variable. The default path is `.terragrunt` in the current directory.
+* `--terragrunt-non-interactive`: Don't show interactive user prompts. This will default the answer for all prompts to 
+  'yes'. Useful if you need to run Terragrunt in an automated setting (e.g. from a script).  
+
 ## Developing terragrunt
 
 #### Running locally
