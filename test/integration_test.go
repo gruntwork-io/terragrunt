@@ -41,7 +41,7 @@ func runTerragruntApply() error {
 
 	app := cli.CreateTerragruntCli("TEST")
 
-	return app.Run(strings.Split("terragrunt apply", " "))
+	return app.Run(strings.Split("terragrunt apply --terragrunt-non-interactive", " "))
 }
 
 // Validate that a local instance of Terraform is installed.

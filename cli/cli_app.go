@@ -48,7 +48,7 @@ var MODULE_REGEX = regexp.MustCompile(`module ".+"`)
 const TERRAFORM_EXTENSION_GLOB = "*.tf"
 
 const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
-const OPT_NON_INTERACTIVE = "non-interactive"
+const OPT_NON_INTERACTIVE = "terragrunt-non-interactive"
 
 // Create the Terragrunt CLI App
 func CreateTerragruntCli(version string) *cli.App {
@@ -76,7 +76,7 @@ func CreateTerragruntCli(version string) *cli.App {
 		},
 		cli.BoolFlag{
 			Name:  OPT_NON_INTERACTIVE,
-			Usage: "Don't show interactive user prompts. Instead, default their answer to 'yes'.",
+			Usage: "Don't show interactive user prompts. This will default the answer for all prompts to 'yes'.",
 		},
 	}
 
