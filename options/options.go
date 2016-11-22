@@ -4,5 +4,6 @@ package options
 type TerragruntOptions struct {
 	TerragruntConfigPath string
 	NonInteractive       bool
+	NonTerragruntArgs    []string
 }
 

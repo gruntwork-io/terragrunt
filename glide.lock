@@ -1,69 +1,144 @@
-hash: 666953d8f40b0f514bae75d3cfad7ad396a809a56538c176e2aafd0babb1a591
-updated: 2016-10-03T10:44:33.610775636-07:00
+hash: f70d8455d9f5f68d4449263ab8d0485d5b938b65b4c31716be50aac64fedc6ae
+updated: 2016-11-22T14:42:34.38236539Z
 imports:
 - name: github.com/aws/aws-sdk-go
-  version: 74a703abb31ea9faf7622930e5daba1559b01b37
-  repo: git@github.com:aws/aws-sdk-go
+  version: 665c623d7f3e0ee276596b006655ba4dbe0565b0
   subpackages:
   - aws
-  - aws/awserr
-  - aws/awsutil
-  - aws/client
-  - aws/client/metadata
-  - aws/corehandlers
-  - aws/credentials
-  - aws/credentials/ec2rolecreds
-  - aws/credentials/endpointcreds
-  - aws/credentials/stscreds
   - aws/defaults
-  - aws/ec2metadata
-  - aws/request
+  - aws/session
+  - aws/awserr
   - aws/service/dynamodb
   - aws/service/s3
-  - aws/session
-  - aws/signer/v4
-  - private/endpoints
-  - private/protocol
-  - private/protocol/json/jsonutil
-  - private/protocol/jsonrpc
-  - private/protocol/query
-  - private/protocol/query/queryutil
-  - private/protocol/rest
-  - private/protocol/restxml
-  - private/protocol/xml/xmlutil
-  - private/waiter
   - service/dynamodb
-  - service/s3
   - service/sts
+  - aws/credentials
+  - aws/client/metadata
+  - aws/request
+  - aws/ec2metadata
+  - private/endpoints
+  - awsmigrate/awsmigrate-renamer/rename
+  - private/model/api
+  - awstesting/mock
+  - service/acm
+  - service/apigateway
+  - service/applicationdiscoveryservice
+  - service/autoscaling
+  - service/cloudformation
+  - service/cloudfront
+  - service/cloudhsm
+  - service/cloudsearch
+  - service/cloudtrail
+  - service/cloudwatch
+  - service/cloudwatchlogs
+  - service/codecommit
+  - service/codedeploy
+  - service/codepipeline
+  - service/cognitoidentity
+  - service/cognitosync
+  - service/configservice
+  - service/datapipeline
+  - service/devicefarm
+  - service/directconnect
+  - service/directoryservice
+  - service/dynamodbstreams
+  - service/ec2
+  - service/ecs
+  - service/efs
+  - service/elasticache
+  - service/elasticbeanstalk
+  - service/elb
+  - service/elastictranscoder
+  - service/emr
+  - service/elasticsearchservice
+  - service/glacier
+  - service/iam
+  - service/iot
+  - service/iotdataplane
+  - service/kinesis
+  - service/kms
+  - service/lambda
+  - service/machinelearning
+  - service/opsworks
+  - service/rds
+  - service/redshift
+  - service/route53
+  - service/route53domains
+  - service/ses
+  - service/simpledb
+  - service/sns
+  - service/sqs
+  - service/ssm
+  - service/storagegateway
+  - service/support
+  - service/swf
+  - service/waf
+  - service/workspaces
+  - service/cloudsearchdomain
+  - service/cloudwatchevents
+  - service/dynamodb/dynamodbattribute
+  - service/ecr
+  - service/firehose
+  - service/inspector
+  - service/marketplacecommerceanalytics
+  - service/mobileanalytics
+  - service/s3
+  - service/cloudfront/sign
+  - private/util
+  - private/protocol/query/queryutil
+  - private/protocol/xml/xmlutil
+  - private/protocol/rest
 - name: github.com/davecgh/go-spew
-  version: 2df174808ee097f90d259e432cc04442cf60be21
+  version: 04cdfd42973bb9c8589fd6a731800cf222fde1a9
   subpackages:
   - spew
 - name: github.com/go-errors/errors
   version: a41850380601eeb43f4350f7d17c6bbd8944aaf8
 - name: github.com/go-ini/ini
-  version: 6e4869b434bd001f6983749881c7ead3545887d8
+  version: 12f418cc7edc5a618a51407b7ac1f1f512139df3
+- name: github.com/gucumber/gucumber
+  version: 71608e2f6e76fd4da5b09a376aeec7a5c0b5edbc
+  subpackages:
+  - gherkin
 - name: github.com/hashicorp/hcl
-  version: ef8133da8cda503718a74741312bf50821e6de79
+  version: 9a905a34e6280ce905da1a32344b25e81011197a
   subpackages:
   - hcl/ast
   - hcl/parser
-  - hcl/scanner
-  - hcl/strconv
   - hcl/token
   - json/parser
+  - hcl/printer
+  - hcl/scanner
   - json/scanner
   - json/token
 - name: github.com/jmespath/go-jmespath
-  version: bd40a432e4c76585ef6b72d3fd96fb9b6dc7b68d
+  version: 0b12d6b521d83fc7f755e7cfc1b1fbdd35a01a74
+- name: github.com/lsegal/gucumber
+  version: 71608e2f6e76fd4da5b09a376aeec7a5c0b5edbc
+- name: github.com/mitchellh/mapstructure
+  version: f3009df150dadf309fdee4a54ed65c124afad715
 - name: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
   - difflib
+- name: github.com/shiena/ansicolor
+  version: a422bbe96644373c5753384a59d678f7d261ff10
+- name: github.com/stretchr/objx
+  version: cbeaeb16a013161a98496fad62933b1d21786672
 - name: github.com/stretchr/testify
-  version: f390dcf405f7b83c997eac1b06768bb9f44dec18
+  version: 18a02ba4a312f95da08ff4cfc0055750ce50ae9e
   subpackages:
   - assert
+  - http
+  - mock
 - name: github.com/urfave/cli
-  version: d53eb991652b1d438abdd34ce4bfa3ef1539108e
-testImports: []
+  version: 9a18ffad6c548ca4d458d4c30a8aa4d181cf92fa
+- name: golang.org/x/tools
+  version: 8b84dae17391c154ca50b0162662aa1fc9ff84c2
+  subpackages:
+  - go/loader
+  - go/ast/astutil
+  - go/buildutil
+- name: gopkg.in/yaml.v2
+  version: a5b47d31c556af34a302ce5d659e6fea44d90de0
+devImports: []
