@@ -14,7 +14,7 @@ remote_state = {
   backend = "s3"
   config {
     encrypt = "true"
-    bucket = "gruntwork-terragrunt-tests"
+    bucket = "__FILL_IN_BUCKET_NAME__"
     key = "terraform.tfstate"
     region = "us-west-2"
   }

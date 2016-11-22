@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/hashicorp/hcl"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const DefaultTerragruntConfigPath = ".terragrunt"
@@ -31,7 +32,8 @@ type LockConfig struct {
 }
 
 // ReadTerragruntConfig the Terragrunt config file from its default location
-func ReadTerragruntConfig(terragruntOptions options.TerragruntOptions) (*TerragruntConfig, error) {
+func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*TerragruntConfig, error) {
+	util.Logger.Printf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
 	return parseConfigFile(terragruntOptions.TerragruntConfigPath)
 }
 

@@ -91,7 +91,7 @@ func TestShouldOverrideExistingRemoteState(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		shouldOverride, err := shouldOverrideExistingRemoteState(&testCase.existingState, testCase.stateFromConfig, terragruntOptions)
+		shouldOverride, err := shouldOverrideExistingRemoteState(&testCase.existingState, testCase.stateFromConfig, &terragruntOptions)
 		assert.Nil(t, err, "Unexpected error: %v", err)
 		assert.Equal(t, testCase.shouldOverride, shouldOverride, "Expect shouldOverrideExistingRemoteState to return %t but got %t for existingRemoteState %v and remoteStateFromTerragruntConfig %v", testCase.shouldOverride, shouldOverride, testCase.existingState, testCase.stateFromConfig)
 	}

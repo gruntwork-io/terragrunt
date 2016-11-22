@@ -11,7 +11,7 @@ import (
 )
 
 // Prompt the user for text in the CLI. Returns the text entered by the user.
-func PromptUserForInput(prompt string, terragruntOptions options.TerragruntOptions) (string, error) {
+func PromptUserForInput(prompt string, terragruntOptions *options.TerragruntOptions) (string, error) {
 	fmt.Print(prompt)
 
 	if terragruntOptions.NonInteractive {
@@ -31,7 +31,7 @@ func PromptUserForInput(prompt string, terragruntOptions options.TerragruntOptio
 }
 
 // Prompt the user for a yes/no response and return true if they entered yes.
-func PromptUserForYesNo(prompt string, terragruntOptions options.TerragruntOptions) (bool, error) {
+func PromptUserForYesNo(prompt string, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	resp, err := PromptUserForInput(fmt.Sprintf("%s (y/n) ", prompt), terragruntOptions)
 
 	if err != nil {
