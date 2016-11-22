@@ -6,11 +6,20 @@ import (
 	"os"
 	"bufio"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/options"
 )
 
 // Prompt the user for text in the CLI. Returns the text entered by the user.
-func PromptUserForInput(prompt string) (string, error) {
+func PromptUserForInput(prompt string, terragruntOptions options.TerragruntOptions) (string, error) {
 	fmt.Print(prompt)
+
+	if terragruntOptions.NonInteractive {
+		fmt.Println()
+		util.Logger.Printf("The non-interactive flag is set to true, so assuming 'yes' for all prompts")
+		return "yes", nil
+	}
+
 	reader := bufio.NewReader(os.Stdin)
 
 	text, err := reader.ReadString('\n')
@@ -22,8 +31,8 @@ func PromptUserForInput(prompt string) (string, error) {
 }
 
 // Prompt the user for a yes/no response and return true if they entered yes.
-func PromptUserForYesNo(prompt string) (bool, error) {
-	resp, err := PromptUserForInput(fmt.Sprintf("%s (y/n) ", prompt))
+func PromptUserForYesNo(prompt string, terragruntOptions options.TerragruntOptions) (bool, error) {
+	resp, err := PromptUserForInput(fmt.Sprintf("%s (y/n) ", prompt), terragruntOptions)
 
 	if err != nil {
 		return false, errors.WithStackTrace(err)

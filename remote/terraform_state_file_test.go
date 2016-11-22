@@ -81,7 +81,7 @@ func TestParseTerraformStateRemote(t *testing.T) {
 		Serial: 12,
 		Remote: &TerraformStateRemote{
 			Type: "s3",
-			Config: map[string]interface{}{
+			Config: map[string]string{
 				"bucket": "bucket",
 				"encrypt": "true",
 				"key": "experiment-1.tfstate",
@@ -211,7 +211,7 @@ func TestParseTerraformStateRemoteFull(t *testing.T) {
 		Serial: 51,
 		Remote: &TerraformStateRemote{
 			Type: "s3",
-			Config: map[string]interface{}{
+			Config: map[string]string{
 				"bucket": "bucket",
 				"encrypt": "true",
 				"key": "terraform.tfstate",

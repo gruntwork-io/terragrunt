@@ -7,9 +7,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/locks"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/hashicorp/hcl"
+	"github.com/gruntwork-io/terragrunt/options"
 )
 
-const ConfigFilePath = ".terragrunt"
+const DefaultTerragruntConfigPath = ".terragrunt"
 
 // TerragruntConfig represents a parsed and expanded configuration
 type TerragruntConfig struct {
@@ -30,8 +31,8 @@ type LockConfig struct {
 }
 
 // ReadTerragruntConfig the Terragrunt config file from its default location
-func ReadTerragruntConfig(filePath string) (*TerragruntConfig, error) {
-	return parseConfigFile(filePath)
+func ReadTerragruntConfig(terragruntOptions options.TerragruntOptions) (*TerragruntConfig, error) {
+	return parseConfigFile(terragruntOptions.TerragruntConfigPath)
 }
 
 // Parse the Terragrunt config file at the given path
