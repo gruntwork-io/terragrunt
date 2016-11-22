@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/urfave/cli"
 	"github.com/gruntwork-io/terragrunt/options"
+	"strings"
 )
 
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
@@ -205,7 +206,20 @@ func runTerraformCommandWithLock(cliContext *cli.Context, lock locks.Lock, terra
 
 // Run the given Terraform command
 func runTerraformCommand(cliContext *cli.Context) error {
-	return shell.RunShellCommand("terraform", cliContext.Args()...)
+	return shell.RunShellCommand("terraform", filterOutTerragruntArgs(cliContext)...)
+}
+
+// Return the args in teh given CLI Context object, filtering any args that are only meant for Terragrunt itself
+func filterOutTerragruntArgs(cliContext *cli.Context) []string {
+	args := []string{}
+
+	for _, arg := range cliContext.Args() {
+		if !strings.HasPrefix(arg, "--terragrunt") {
+			args = append(args, arg)
+		}
+	}
+
+	return args
 }
 
 // Release a lock, prompting the user for confirmation first
