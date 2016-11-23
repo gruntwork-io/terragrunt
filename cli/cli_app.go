@@ -30,7 +30,8 @@ COMMANDS:
    import               Acquire a lock and run 'terraform import'
    refresh              Acquire a lock and run 'terraform refresh'
    remote push          Acquire a lock and run 'terraform remote push'
-   release-lock         Release a lock that is left over from some previous command
+   acquire-lock         Acquire a long-term long for these templates
+   release-lock         Release a long-term lock or a lock that failed to clean up
    *                    Terragrunt forwards all other commands directly to Terraform
 {{if .VisibleFlags}}
 GLOBAL OPTIONS:
@@ -222,11 +223,28 @@ func runTerraformCommandWithLock(cliContext *cli.Context, lock locks.Lock, terra
 		} else {
 			return runTerraformCommand(terragruntOptions)
 		}
+	case "acquire-lock":
+		return acquireLock(lock, terragruntOptions)
 	case "release-lock":
 		return runReleaseLockCommand(cliContext, lock, terragruntOptions)
 	default:
 		return runTerraformCommand(terragruntOptions)
 	}
+}
+
+// Acquire a lock. This can be useful for locking down a deploy for a long time, such as during a major deployment.
+func acquireLock(lock locks.Lock, terragruntOptions *options.TerragruntOptions) error {
+	shouldAcquireLock, err := shell.PromptUserForYesNo("Are you sure you want to acquire a long-term lock?", terragruntOptions)
+	if err != nil {
+		return err
+	}
+
+	if shouldAcquireLock {
+		util.Logger.Printf("Acquiring long-term lock. To release the lock, use the release-lock command.")
+		return lock.AcquireLock()
+	}
+
+	return nil
 }
 
 // Run the given Terraform command
