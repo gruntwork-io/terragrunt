@@ -2,7 +2,6 @@ package test
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -23,30 +22,54 @@ import (
 const (
 	TERRAFORM_REMOTE_STATE_S3_REGION      = "us-west-2"
 	TEST_FIXTURE_PATH                     = "fixture/"
+	TEST_FIXTURE_LOCK_PATH                = "fixture-lock/"
 )
 
 func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
-	validateCommandInstalled(t, "terraform")
+	t.Parallel()
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, TEST_FIXTURE_PATH, s3BucketName)
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	runTerragruntApply(t, TEST_FIXTURE_PATH, tmpTerragruntConfigPath)
+	runTerragrunt(t, fmt.Sprintf("terragrunty apply --terragrunt-non-interactive --terragrunt-config %s %s", tmpTerragruntConfigPath, TEST_FIXTURE_PATH))
 	validateS3BucketExists(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 }
 
-// Run Terragrunt Apply directory in the test fixture path
-func runTerragruntApply(t *testing.T, templatesPath string, terragruntConfigPath string) {
-	os.Chdir(templatesPath)
+func TestAcquireAndReleaseLock(t *testing.T) {
+	t.Parallel()
+
+	terragruntConfigPath := path.Join(TEST_FIXTURE_LOCK_PATH, ".terragrunt")
+
+	// Acquire a long-term lock
+	runTerragrunt(t, fmt.Sprintf("terragrunt acquire-lock --terragrunt-non-interactive --terragrunt-config %s", terragruntConfigPath))
+
+	// Try to apply the templates. Since a lock has been acquired, and max_lock_retries is set to 1, this should
+	// fail quickly.
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s %s", terragruntConfigPath, TEST_FIXTURE_LOCK_PATH))
+
+	if assert.NotNil(t, err, "Expected to get an error when trying to apply templates after a long-term lock has already been acquired, but got nil") {
+		assert.Contains(t, err.Error(), "Unable to acquire lock")
+	}
+
+	// Release the lock
+	runTerragrunt(t, fmt.Sprintf("terragrunt release-lock --terragrunt-non-interactive --terragrunt-config %s", terragruntConfigPath))
+
+	// Try to apply the templates. Since the lock has been released, this should work without errors.
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s %s", terragruntConfigPath, TEST_FIXTURE_LOCK_PATH))
+}
+
+func runTerragruntCommand(t *testing.T, command string) error {
+	validateCommandInstalled(t, "terraform")
+	args := strings.Split(command, " ")
 
 	app := cli.CreateTerragruntCli("TEST")
+	return app.Run(args)
+}
 
-	cmd := fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s", terragruntConfigPath)
-	args := strings.Split(cmd, " ")
-
-	if err := app.Run(args); err != nil {
-		t.Fatalf("Failed to run terragrunt: %s", err)
+func runTerragrunt(t *testing.T, command string) {
+	if err := runTerragruntCommand(t, command); err != nil {
+		t.Fatalf("Failed to run Terragrunt command '%s' due to error: %s", command, err)
 	}
 }
 

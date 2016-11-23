@@ -134,7 +134,7 @@ func writeItemToLockTable(itemId string, tableName string, client *dynamodb.Dyna
 // the lock, so display their metadata, sleep for the given amount of time, and try again, up to a maximum of
 // maxRetries retries.
 func writeItemToLockTableUntilSuccess(itemId string, tableName string, client *dynamodb.DynamoDB, maxRetries int, sleepBetweenRetries time.Duration) error {
-	for i := 0; i < maxRetries; i++ {
+	for retries := 1; ; retries++ {
 		util.Logger.Printf("Attempting to create lock item for state file %s in DynamoDB table %s", itemId, tableName)
 
 		err := writeItemToLockTable(itemId, tableName, client)
@@ -143,16 +143,19 @@ func writeItemToLockTableUntilSuccess(itemId string, tableName string, client *d
 			return nil
 		}
 
-		if isItemAlreadyExistsErr(err) {
-			displayLockMetadata(itemId, tableName, client)
-			util.Logger.Printf("Will try to acquire lock again in %s.", sleepBetweenRetries)
-			time.Sleep(sleepBetweenRetries)
-		} else {
+		if !isItemAlreadyExistsErr(err) {
 			return err
 		}
-	}
 
-	return errors.WithStackTrace(AcquireLockRetriesExceeded{ItemId: itemId, Retries: maxRetries})
+		displayLockMetadata(itemId, tableName, client)
+
+		if retries >= maxRetries {
+			return errors.WithStackTrace(AcquireLockRetriesExceeded{ItemId: itemId, Retries: maxRetries})
+		}
+
+		util.Logger.Printf("Will try to acquire lock again in %s.", sleepBetweenRetries)
+		time.Sleep(sleepBetweenRetries)
+	}
 }
 
 // Return true if the given error is the error returned by AWS when a conditional check fails. This is usually

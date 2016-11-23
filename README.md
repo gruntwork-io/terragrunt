@@ -189,10 +189,23 @@ When you run `terragrunt apply` or `terragrunt destroy`, Terragrunt does the fol
 1. Run `terraform apply` or `terraform destroy`.
 1. When Terraform is done, delete the item from the `terragrunt_locks` table to release the lock.
  
-## Cleaning up old locks
+## Acquiring a long-term lock
+ 
+Occasionally, you may want to lock a set of Terraform files and not allow further changes, perhaps during maintenance 
+work or as a precaution for templates that rarely change. To do that, you can use the `acquire-lock` command:
+ 
+```
+terragrunt acquire-lock
+Are you sure you want to acquire a long-term lock? (y/n): y
+```
+ 
+See the next section for how to release this lock. 
+ 
+## Manually releasing a lock
 
-If Terragrunt is shut down before it releases a lock (e.g. via `CTRL+C` or a crash), the lock might not be deleted, and
-will prevent future changes to your state files. To clean up old locks, you can use the `release-lock` command:
+You can use the `release-lock` command to manually release a lock. This is useful if you used the `acquire-lock` 
+command to create a long-term lock or if Terragrunt shut down before it released a lock (e.g. because of `CTRL+C` or a 
+crash).
 
 ```
 terragrunt release-lock
