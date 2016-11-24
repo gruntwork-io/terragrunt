@@ -242,6 +242,210 @@ remote_state = {
   different key/value pairs, so consult the [Terraform remote state docs](https://www.terraform.io/docs/state/remote/)
   for details.
 
+## Managing multiple .terragrunt files
+
+With Terraform, it can be a good idea to store your templates in separate folders (and therefore, separate state files)
+to provide isolation between different environments,such as stage and prod, and different components, such as a 
+database and an app cluster (for more info, see [How to Manage Terraform 
+State](https://blog.gruntwork.io/how-to-manage-terraform-state-28f5697e68fa)). That means you will need a `.terragrunt`
+file in each folder:
+
+```
+my-terraform-repo
+  └ qa
+      └ my-app
+          └ main.tf
+          └ .terragrunt
+  └ stage
+      └ my-app
+          └ main.tf
+          └ .terragrunt
+  └ prod
+      └ my-app
+          └ main.tf
+          └ .terragrunt
+```
+
+Most of these `.terragrunt` files will have the almost the same content. For example, `qa/my-app/.terragrunt` may look
+like this:
+
+```hcl
+# Configure Terragrunt to use DynamoDB for locking
+lock = {
+  backend = "dynamodb"
+  config {
+    state_file_id = "qa/my-app"
+  }
+}
+
+# Configure Terragrunt to automatically store tfstate files in an S3 bucket
+remote_state = {
+  backend = "s3"
+  config {
+    encrypt = "true"
+    bucket = "my-bucket"
+    key = "qa/my-app/terraform.tfstate"
+    region = "us-east-1"
+  }
+}
+```
+
+And `stage/my-app/.terragrunt` may look like this:
+
+```hcl
+# Configure Terragrunt to use DynamoDB for locking
+lock = {
+  backend = "dynamodb"
+  config {
+    state_file_id = "stage/my-app"
+  }
+}
+
+# Configure Terragrunt to automatically store tfstate files in an S3 bucket
+remote_state = {
+  backend = "s3"
+  config {
+    encrypt = "true"
+    bucket = "my-bucket"
+    key = "stage/my-app/terraform.tfstate"
+    region = "us-east-1"
+  }
+}
+```
+
+Note how most of the content is copy/pasted, except for the `state_file_id` and `key` parameters, which match the path
+of the `.terragrunt` file itself. How do you avoid having to manually maintain the contents of all of these 
+similar-looking `.terragrunt` files?
+
+The solution is to use the following features of Terragrunt:
+
+* Inheritance
+* Find parent helper
+* Relative path helper
+* Overriding settings from the parent
+
+### Inheritance
+
+One `.terragrunt` file can "inherit" from another `.terragrunt` file. For example, imagine you have the following file
+layout:
+
+```
+my-terraform-repo
+  └ .terragrunt
+  └ qa
+      └ my-app
+          └ main.tf
+          └ .terragrunt
+  └ stage
+      └ my-app
+          └ main.tf
+          └ .terragrunt
+  └ prod
+      └ my-app
+          └ main.tf
+          └ .terragrunt
+```
+
+The `.terragrunt` file in the root folder defines the typical `lock` and `remote_state` settings. The `.terragrunt` 
+files in all the subfolders (e.g. `qa/my-app/.terragrunt`) can automatically reuse ("inherit") all the settings from
+a parent file using the `parent` block:
+
+```hcl
+parent = {
+  path = "../../.terragrunt"
+}
+```
+
+There are a few problems with the simple approach above, so read on before using it!
+
+1. Having to manually manage the file paths to the parent folder is tedious. To solve this problem, you can use the 
+   `find_in_parent_folders` helper. 
+1. If the parent `.terragrunt` file hard-codes the `state_file_id` and `key` settings, then every child would rely on
+   the same lock and write state to the same location. To avoid this problem, you can use the `path_relative_to_parent`
+   helper.
+1. Some of the child `.terragrunt` files may want to override settings from the parent. To do this, see the section
+   on overriding settings from the parent.
+
+Each of these items is discussed next.
+
+### find_in_parent_folders helper
+
+Terragrunt supports the use of a few helper functions using the same syntax as Terraform: `${some_function()}`. One of
+the supported helper functions is `find_in_parent_folders`, which returns the path to the first `.terragrunt` file it
+finds in the parent folders above the current `.terragrunt` file. 
+
+Example:
+
+```hcl
+parent = {
+  path = "${find_in_parent_folders()}"
+}
+```
+
+If you ran this in `qa/my-app/.terragrunt`, this would automatically set `path` to `../../.terragrunt`. You will almost
+always want to use this function, as it allows you to copy/paste the same `.terragrunt` file to all child folders with
+no changes.
+
+The only time you may want to specify the `path` manually is if you moved a child folder. In that case, to ensure it
+can reuse its old state, you may want to explicitly set the `path` to the old file path. However, a safer approach
+would be to move the state files themselves to match the new location of the child folder, as that makes things more
+consistent!
+
+### path_relative_to_parent helper
+
+Another helper function supported by Terragrunt is `path_relative_to_parent`, which returns the relative path between 
+the current `.terragrunt` file and the path specified in its `parent` block. For example, in the root `.terragrunt` 
+file, you could do the following:
+ 
+```hcl
+# Configure Terragrunt to use DynamoDB for locking
+lock = {
+  backend = "dynamodb"
+  config {
+    state_file_id = "${path_relative_to_parent()}"
+  }
+}
+
+# Configure Terragrunt to automatically store tfstate files in an S3 bucket
+remote_state = {
+  backend = "s3"
+  config {
+    encrypt = "true"
+    bucket = "my-bucket"
+    key = "${path_relative_to_parent()}/terraform.tfstate"
+    region = "us-east-1"
+  }
+}
+``` 
+
+Using the configuration above, each child `.terragrunt` file will get a unique path for its `state_file_id` and `key` 
+settings. For example, in `qa/my-app/.terragrunt`, the `state_file_id` will resolve to `qa/my-app` and the `key` will
+resolve to `qa/my-app/terraform.tfstate`.  
+
+### Overriding settings from the parent
+
+Any settings in the child `.terragrunt` file will override the settings from the parent. For example, imagine if
+`qa/my-app/.terragrunt` had the following contents:
+ 
+```hcl
+parent = {
+  path = "${find_in_parent_folders()}"
+}
+
+remote_state = {
+  backend = "s3"
+  config {
+    encrypt = "true"
+    bucket = "some-other-bucket"
+    key = "/foo/bar/terraform.tfstate"
+    region = "us-west-2"
+  }
+}
+``` 
+
+The result is that when you run `terragrunt` commands in the `qa/my-app` folder, you get the `lock` settings from the 
+parent, but the `remote_state` settings of the child. 
+
 ## CLI Options
 
 Terragrunt forwards all arguments and options to Terraform. The only exceptions are the options that start with the
