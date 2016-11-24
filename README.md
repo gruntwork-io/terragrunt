@@ -179,7 +179,7 @@ lock = {
 When you run `terragrunt apply` or `terragrunt destroy`, Terragrunt does the following:
 
 1. Create the `terragrunt_locks` table if it doesn't already exist.
-1. Try to write an item to the `terragrunt_locks` table with `state_file_id` equal to the id specified in your
+1. Try to write an item to the `terragrunt_locks` table with `StateFileId` equal to the `state_file_id` specified in your
    `.terragrunt` file. This item will include useful metadata about the lock, such as who created it (e.g. your 
    username) and when. 
 1. Note that the write is a conditional write that will fail if an item with the same `state_file_id` already exists.
