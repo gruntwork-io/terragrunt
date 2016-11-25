@@ -386,11 +386,6 @@ If you ran this in `qa/my-app/.terragrunt`, this would automatically set `path` 
 always want to use this function, as it allows you to copy/paste the same `.terragrunt` file to all child folders with
 no changes.
 
-The only time you may want to specify the `path` manually is if you moved a child folder. In that case, to ensure it
-can reuse its old state, you may want to explicitly set the `path` to the old file path. However, a safer approach
-would be to move the state files themselves to match the new location of the child folder, as that makes things more
-consistent!
-
 ### path_relative_to_parent helper
 
 Another helper function supported by Terragrunt is `path_relative_to_parent`, which returns the relative path between 
@@ -421,6 +416,11 @@ remote_state = {
 Using the configuration above, each child `.terragrunt` file will get a unique path for its `state_file_id` and `key` 
 settings. For example, in `qa/my-app/.terragrunt`, the `state_file_id` will resolve to `qa/my-app` and the `key` will
 resolve to `qa/my-app/terraform.tfstate`.  
+
+You will almost always want to use this helper too. The only time you may want to specify the `state_file_id` or `key` 
+manually is if you moved a child folder. In that case, to ensure it can reuse its old state and lock, you may want to 
+hard-code the `state_file_id` and `key` to the old file path. However, a safer approach would be to move the state 
+files themselves to match the new location of the child folder, as that makes things more consistent!
 
 ### Overriding settings from the parent
 
