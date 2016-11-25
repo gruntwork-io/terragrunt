@@ -446,6 +446,10 @@ remote_state = {
 The result is that when you run `terragrunt` commands in the `qa/my-app` folder, you get the `lock` settings from the 
 parent, but the `remote_state` settings of the child. 
 
+**Note**: only one level of inheritance is allowed. If `foo/.terragrunt` is specified as the `parent` of 
+`foo/bar/.terragrunt`, then `foo/.terragrunt` may NOT itself specify a `parent`. Otherwise, reasoning about helper
+functions such as `path_relative_to_parent` gets too complicated.
+
 ## CLI Options
 
 Terragrunt forwards all arguments and options to Terraform. The only exceptions are the options that start with the
