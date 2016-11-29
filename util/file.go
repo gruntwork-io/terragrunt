@@ -40,3 +40,33 @@ func Grep(regex *regexp.Regexp, glob string) (bool, error) {
 
 	return false, nil
 }
+
+// Return the relative path you would have to take to get from basePath to path
+func GetPathRelativeTo(path string, basePath string) (string, error) {
+	inputFolderAbs, err := filepath.Abs(basePath)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	fileAbs, err := filepath.Abs(path)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	relPath, err := filepath.Rel(inputFolderAbs, fileAbs)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	return relPath, nil
+}
+
+// Return the contents of the file at the given path as a string
+func ReadFileAsString(path string) (string, error) {
+	bytes, err := ioutil.ReadFile(path)
+	if err != nil {
+		return "", errors.WithStackTraceAndPrefix(err, "Error reading file at path %s", path)
+	}
+
+	return string(bytes), nil
+}
