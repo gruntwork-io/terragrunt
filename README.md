@@ -356,8 +356,12 @@ include = {
 }
 ```
 
-When you run Terragrunt, it will see the `include` block and load the contents of the root `.terragrunt` file, almost
-as if you had copy/pasted the contents of the root `.terragrunt` file into `qa/my-app/.terragrunt`.
+When you run Terragrunt in the `qa/my-app` folder, it will see the `include` block in the `qa/my-app/.terragrunt` file
+and realize that it should load the contents of the root `.terragrunt` file instead. It's almost as if you had 
+copy/pasted the contents of the root `.terragrunt` file into `qa/my-app/.terragrunt`, but much easier to maintain!
+
+**Note**: only one level of includes is allowed. If `root/qa/my-app/.terragrunt` includes `root/.terragrunt`, then 
+`root/.terragrunt` may NOT specify an `include` block.
 
 There are a few problems with the simple approach above, so read on before using it!
 
@@ -391,10 +395,6 @@ no changes.
 
 `find_in_parent_folders()` will search up the directory tree until it hits the root folder of your file system, and if
 no `.terragrunt` file is found, Terragrunt will exit with an error.
-
-**Note**: only one level of includes is allowed. If  `foo/bar/.terragrunt` includes `foo/.terragrunt`, then 
-`foo/.terragrunt` may NOT itself specify an `include` block. Otherwise, reasoning about helper functions such as 
-`path_relative_to_include()` gets too complicated.
 
 ### path_relative_to_include helper
 
