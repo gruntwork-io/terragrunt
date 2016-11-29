@@ -21,13 +21,14 @@ type TerragruntConfig struct {
 
 // terragruntConfigFile represents the configuration supported in the .terragrunt file
 type terragruntConfigFile struct {
-	Parent      *ParentConfig       `hcl:"parent,omitempty"`
+	Include     *IncludeConfig      `hcl:"include,omitempty"`
 	Lock        *LockConfig         `hcl:"lock,omitempty"`
 	RemoteState *remote.RemoteState `hcl:"remote_state,omitempty"`
 }
 
-// ParentConfig represents the configuration settings for a parent .terragrunt file that you can inherit settings from
-type ParentConfig struct {
+// IncludeConfig represents the configuration settings for a parent .terragrunt file that you can "include" in a
+// child .terragrunt file
+type IncludeConfig struct {
 	Path string `hcl:"path"`
 }
 
@@ -43,15 +44,15 @@ func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*Terrag
 	return parseConfigFile(terragruntOptions.TerragruntConfigPath, terragruntOptions, nil)
 }
 
-// Parse the Terragrunt config file at the given path. If parent is specified, then treat this config is a parent
-// config of some other file when resolving relative paths.
-func parseConfigFile(configPath string, terragruntOptions *options.TerragruntOptions, parent *ParentConfig) (*TerragruntConfig, error) {
+// Parse the Terragrunt config file at the given path. If include is specified, then treat this as a config included in
+// some other file when resolving relative paths.
+func parseConfigFile(configPath string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) (*TerragruntConfig, error) {
 	configString, err := util.ReadFileAsString(configPath)
 	if err != nil {
 		return nil, err
 	}
 
-	config, err := parseConfigString(configString, terragruntOptions, parent)
+	config, err := parseConfigString(configString, terragruntOptions, include)
 	if err != nil {
 		return nil, errors.WithStackTraceAndPrefix(err, "Error parsing Terragrunt config file %s", configPath)
 	}
@@ -60,7 +61,7 @@ func parseConfigFile(configPath string, terragruntOptions *options.TerragruntOpt
 }
 
 // Parse the Terragrunt config contained in the given string.
-func parseConfigString(configString string, terragruntOptions *options.TerragruntOptions, parent *ParentConfig) (*TerragruntConfig, error) {
+func parseConfigString(configString string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) (*TerragruntConfig, error) {
 	// HCL does not natively process interpolations (${...}), and we don't want to write our own HCL parser, so for
 	// now, we'll do the parsing in two passes. The first pass reads in the config file without processing any
 	// interpolations. This is mostly to make the (un-interpolated) variables available programmatically,
@@ -71,7 +72,7 @@ func parseConfigString(configString string, terragruntOptions *options.Terragrun
 	}
 
 	// Now we process the interpolations in the string
-	resolvedConfigString, err := ResolveTerragruntConfigString(configString, parent, terragruntOptions)
+	resolvedConfigString, err := ResolveTerragruntConfigString(configString, include, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -88,58 +89,56 @@ func parseConfigString(configString string, terragruntOptions *options.Terragrun
 		return nil, err
 	}
 
-	if parent != nil && terragruntConfigFromFileFirstPass.Parent != nil {
+	if include != nil && terragruntConfigFromFileFirstPass.Include != nil {
 		return nil, errors.WithStackTrace(TooManyLevelsOfInheritance(terragruntOptions.TerragruntConfigPath))
 	}
 
-	parentConfig, err := parseParentConfig(terragruntConfigFromFileFirstPass.Parent, terragruntOptions)
+	includedConfig, err := parseIncludedConfig(terragruntConfigFromFileFirstPass.Include, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	return mergeConfigIntoParentConfig(config, parentConfig)
+	return mergeConfigWithIncludedConfig(config, includedConfig)
 }
 
-// Merge the given config into its parent config. Anything specified in the current config will override the contents
-// of the parent config. If the parent config is nil, just returns the current config.
-func mergeConfigIntoParentConfig(config *TerragruntConfig, parentConfig *TerragruntConfig) (*TerragruntConfig, error) {
-	if parentConfig == nil {
+// Merge the given config with an included config. Anything specified in the current config will override the contents
+// of the included config. If the included config is nil, just return the current config.
+func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *TerragruntConfig) (*TerragruntConfig, error) {
+	if includedConfig == nil {
 		return config, nil
 	}
 
 	if config.Lock != nil {
-		parentConfig.Lock = config.Lock
+		includedConfig.Lock = config.Lock
 	}
 
 	if config.RemoteState != nil {
-		parentConfig.RemoteState = config.RemoteState
+		includedConfig.RemoteState = config.RemoteState
 	}
 
 
-	return parentConfig, nil
+	return includedConfig, nil
 }
 
-// Parse the config of the given parent, if one is specified
-func parseParentConfig(parentConfig *ParentConfig, terragruntOptions *options.TerragruntOptions) (*TerragruntConfig, error) {
-	if parentConfig == nil {
+// Parse the config of the given include, if one is specified
+func parseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *options.TerragruntOptions) (*TerragruntConfig, error) {
+	if includedConfig == nil {
 		return nil, nil
 	}
-
-	parentPath := parentConfig.Path
-	if parentPath == "" {
-		return nil, errors.WithStackTrace(ParentConfigMissingPath(terragruntOptions.TerragruntConfigPath))
+	if includedConfig.Path == "" {
+		return nil, errors.WithStackTrace(IncludedConfigMissingPath(terragruntOptions.TerragruntConfigPath))
 	}
 
-	resolvedParentPath, err := ResolveTerragruntConfigString(parentPath, nil, terragruntOptions)
+	resolvedIncludePath, err := ResolveTerragruntConfigString(includedConfig.Path, nil, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	if !filepath.IsAbs(resolvedParentPath) {
-		resolvedParentPath = filepath.Join(filepath.Dir(terragruntOptions.TerragruntConfigPath), resolvedParentPath)
+	if !filepath.IsAbs(resolvedIncludePath) {
+		resolvedIncludePath = filepath.Join(filepath.Dir(terragruntOptions.TerragruntConfigPath), resolvedIncludePath)
 	}
 
-	return parseConfigFile(resolvedParentPath, terragruntOptions, parentConfig)
+	return parseConfigFile(resolvedIncludePath, terragruntOptions, includedConfig)
 }
 
 // Convert the contents of a fully resolved .terragrunt file to a TerragruntConfig object
@@ -169,12 +168,12 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 
 // Custom error types
 
-type ParentConfigMissingPath string
-func (err ParentConfigMissingPath) Error() string {
-	return fmt.Sprintf("The parent configuration in %s must specify a 'path' parameter", string(err))
+type IncludedConfigMissingPath string
+func (err IncludedConfigMissingPath) Error() string {
+	return fmt.Sprintf("The include configuration in %s must specify a 'path' parameter", string(err))
 }
 
 type TooManyLevelsOfInheritance string
 func (err TooManyLevelsOfInheritance) Error() string {
-	return fmt.Sprintf("%s inherits from a %s file that inherits from yet another %s file. Only one level of parent inheritance is allowed.", string(err), DefaultTerragruntConfigPath, DefaultTerragruntConfigPath)
+	return fmt.Sprintf("%s includes %s, which itself includes %s. Only one level of includes is allowed.", string(err), DefaultTerragruntConfigPath, DefaultTerragruntConfigPath)
 }

@@ -27,8 +27,8 @@ const (
 	TERRAFORM_REMOTE_STATE_S3_REGION        = "us-west-2"
 	TEST_FIXTURE_PATH                       = "fixture/"
 	TEST_FIXTURE_LOCK_PATH                  = "fixture-lock/"
-	TEST_FIXTURE_INHERITANCE_PARENT_PATH    = "fixture-inheritance/"
-	TEST_FIXTURE_INHERITANCE_CHILD_REL_PATH = "qa/my-app"
+	TEST_FIXTURE_INCLUDE_PATH               = "fixture-include/"
+	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH     = "qa/my-app"
 	TERRAFORM_FOLDER                        = ".terraform"
 )
 
@@ -89,7 +89,7 @@ func TestTerragruntWorksWithInheritance(t *testing.T) {
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 
-	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_INHERITANCE_PARENT_PATH, TEST_FIXTURE_INHERITANCE_CHILD_REL_PATH, s3BucketName)
+	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_INCLUDE_PATH, TEST_FIXTURE_INCLUDE_CHILD_REL_PATH, s3BucketName)
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 	runTerragrunt(t, fmt.Sprintf("terragrunty apply --terragrunt-non-interactive --terragrunt-config %s %s", tmpTerragruntConfigPath, TEST_FIXTURE_PATH))

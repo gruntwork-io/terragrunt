@@ -208,12 +208,12 @@ lock = {
 	assert.True(t, errors.IsError(err, ErrLockNotFound))
 }
 
-func TestParseTerragruntConfigParent(t *testing.T) {
+func TestParseTerragruntConfigInclude(t *testing.T) {
 	t.Parallel()
 
 	config :=
 `
-parent = {
+include = {
   path = "../../../.terragrunt"
 }
 `
@@ -241,12 +241,12 @@ parent = {
 
 }
 
-func TestParseTerragruntConfigParentWithFindInParentFolders(t *testing.T) {
+func TestParseTerragruntConfigIncludeWithFindInParentFolders(t *testing.T) {
 	t.Parallel()
 
 	config :=
 `
-parent = {
+include = {
   path = "${find_in_parent_folders()}"
 }
 `
@@ -274,12 +274,12 @@ parent = {
 
 }
 
-func TestParseTerragruntConfigParentOverrideRemote(t *testing.T) {
+func TestParseTerragruntConfigIncludeOverrideRemote(t *testing.T) {
 	t.Parallel()
 
 	config :=
 `
-parent = {
+include = {
   path = "../../../.terragrunt"
 }
 
@@ -318,12 +318,12 @@ remote_state = {
 
 }
 
-func TestParseTerragruntConfigParentOverrideAll(t *testing.T) {
+func TestParseTerragruntConfigIncludeOverrideAll(t *testing.T) {
 	t.Parallel()
 
 	config :=
 `
-parent = {
+include = {
   path = "../../../.terragrunt"
 }
 
@@ -415,13 +415,13 @@ func TestParseTerragruntConfigEmptyConfig(t *testing.T) {
 	assert.Nil(t, terragruntConfig.Lock)
 }
 
-func TestMergeConfigIntoParentConfig(t *testing.T) {
+func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		config       *TerragruntConfig
-		parentConfig *TerragruntConfig
-		expected     *TerragruntConfig
+		config         *TerragruntConfig
+		includedConfig *TerragruntConfig
+		expected       *TerragruntConfig
 	}{
 		{
 			&TerragruntConfig{},
@@ -471,9 +471,9 @@ func TestMergeConfigIntoParentConfig(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		actual, err := mergeConfigIntoParentConfig(testCase.config, testCase.parentConfig)
-		if assert.Nil(t, err, "Unexpected error for config %v and parentConfig %v: %v", testCase.config, testCase.parentConfig, err) {
-			assert.Equal(t, testCase.expected, actual, "For config %v and parentConfig %v", testCase.config, testCase.parentConfig)
+		actual, err := mergeConfigWithIncludedConfig(testCase.config, testCase.includedConfig)
+		if assert.Nil(t, err, "Unexpected error for config %v and includeConfig %v: %v", testCase.config, testCase.includedConfig, err) {
+			assert.Equal(t, testCase.expected, actual, "For config %v and includeConfig %v", testCase.config, testCase.includedConfig)
 		}
 	}
 }

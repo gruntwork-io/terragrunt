@@ -7,11 +7,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 )
 
-func TestPathRelativeToParent(t *testing.T) {
+func TestPathRelativeToInclude(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		parent 	  	  *ParentConfig
+		include           *IncludeConfig
 		terragruntOptions options.TerragruntOptions
 		expectedPath      string
 	}{
@@ -21,46 +21,46 @@ func TestPathRelativeToParent(t *testing.T) {
 			".",
 		},
 		{
-			&ParentConfig{Path: "../.terragrunt"},
+			&IncludeConfig{Path: "../.terragrunt"},
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
 			"child",
 		},
 		{
-			&ParentConfig{Path: "/root/.terragrunt"},
+			&IncludeConfig{Path: "/root/.terragrunt"},
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
 			"child",
 		},
 		{
-			&ParentConfig{Path: "../../../.terragrunt"},
+			&IncludeConfig{Path: "../../../.terragrunt"},
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/sub-child/sub-sub-child/.terragrunt", NonInteractive: true},
 			"child/sub-child/sub-sub-child",
 		},
 		{
-			&ParentConfig{Path: "/root/.terragrunt"},
+			&IncludeConfig{Path: "/root/.terragrunt"},
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/sub-child/sub-sub-child/.terragrunt", NonInteractive: true},
 			"child/sub-child/sub-sub-child",
 		},
 		{
-			&ParentConfig{Path: "../../other-child/.terragrunt"},
+			&IncludeConfig{Path: "../../other-child/.terragrunt"},
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/sub-child/.terragrunt", NonInteractive: true},
 			"../child/sub-child",
 		},
 		{
-			&ParentConfig{Path: "../../.terragrunt"},
+			&IncludeConfig{Path: "../../.terragrunt"},
 			options.TerragruntOptions{TerragruntConfigPath: "../child/sub-child/.terragrunt", NonInteractive: true},
 			"child/sub-child",
 		},
 		{
-			&ParentConfig{Path: "${find_in_parent_folders()}"},
+			&IncludeConfig{Path: "${find_in_parent_folders()}"},
 			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/.terragrunt", NonInteractive: true},
 			"child/sub-child",
 		},
 	}
 
 	for _, testCase := range testCases {
-		actualPath, actualErr := pathRelativeToParent(testCase.parent, &testCase.terragruntOptions)
-		assert.Nil(t, actualErr, "For parent %v and options %v, unexpected error: %v", testCase.parent, testCase.terragruntOptions, actualErr)
-		assert.Equal(t, testCase.expectedPath, actualPath, "For parent %v and options %v", testCase.parent, testCase.terragruntOptions)
+		actualPath, actualErr := pathRelativeToInclude(testCase.include, &testCase.terragruntOptions)
+		assert.Nil(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
+		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
 	}
 }
 
@@ -130,28 +130,28 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 
 	testCases := []struct {
 		str               string
-		parent            *ParentConfig
+		include           *IncludeConfig
 		terragruntOptions options.TerragruntOptions
 		expectedOut       string
 		expectedErr       error
 	}{
 		{
-			"${path_relative_to_parent()}",
+			"${path_relative_to_include()}",
 			nil,
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
 			".",
 			nil,
 		},
 		{
-			"${path_relative_to_parent()}",
-			&ParentConfig{Path: "../.terragrunt"},
+			"${path_relative_to_include()}",
+			&IncludeConfig{Path: "../.terragrunt"},
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
 			"child",
 			nil,
 		},
 		{
-			"${path_relative_to_parent()}",
-			&ParentConfig{Path: "${find_in_parent_folders()}"},
+			"${path_relative_to_include()}",
+			&IncludeConfig{Path: "${find_in_parent_folders()}"},
 			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/.terragrunt", NonInteractive: true},
 			"child/sub-child",
 			nil,
@@ -194,12 +194,12 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		actualOut, actualErr := resolveTerragruntInterpolation(testCase.str, testCase.parent, &testCase.terragruntOptions)
+		actualOut, actualErr := resolveTerragruntInterpolation(testCase.str, testCase.include, &testCase.terragruntOptions)
 		if testCase.expectedErr != nil {
-			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "For string '%s' parent %v and options %v, expected error %v but got error %v", testCase.str, testCase.parent, testCase.terragruntOptions, testCase.expectedErr, actualErr)
+			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "For string '%s' include %v and options %v, expected error %v but got error %v", testCase.str, testCase.include, testCase.terragruntOptions, testCase.expectedErr, actualErr)
 		} else {
-			assert.Nil(t, actualErr, "For string '%s' parent %v and options %v, unexpected error: %v", testCase.str, testCase.parent, testCase.terragruntOptions, actualErr)
-			assert.Equal(t, testCase.expectedOut, actualOut, "For string '%s' parent %v and options %v", testCase.str, testCase.parent, testCase.terragruntOptions)
+			assert.Nil(t, actualErr, "For string '%s' include %v and options %v, unexpected error: %v", testCase.str, testCase.include, testCase.terragruntOptions, actualErr)
+			assert.Equal(t, testCase.expectedOut, actualOut, "For string '%s' include %v and options %v", testCase.str, testCase.include, testCase.terragruntOptions)
 		}
 	}
 }
@@ -209,7 +209,7 @@ func TestResolveTerragruntConfigString(t *testing.T) {
 
 	testCases := []struct {
 		str               string
-		parent 	  	  *ParentConfig
+		include           *IncludeConfig
 		terragruntOptions options.TerragruntOptions
 		expectedOut       string
 		expectedErr       error
@@ -236,43 +236,43 @@ func TestResolveTerragruntConfigString(t *testing.T) {
 			nil,
 		},
 		{
-			"${path_relative_to_parent()}",
+			"${path_relative_to_include()}",
 			nil,
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
 			".",
 			nil,
 		},
 		{
-			"${path_relative_to_parent()}",
-			&ParentConfig{Path: "../.terragrunt"},
+			"${path_relative_to_include()}",
+			&IncludeConfig{Path: "../.terragrunt"},
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
 			"child",
 			nil,
 		},
 		{
-			"${path_relative_to_parent()}",
-			&ParentConfig{Path: "${find_in_parent_folders()}"},
+			"${path_relative_to_include()}",
+			&IncludeConfig{Path: "${find_in_parent_folders()}"},
 			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/.terragrunt", NonInteractive: true},
 			"child/sub-child",
 			nil,
 		},
 		{
-			"foo/${path_relative_to_parent()}/bar",
+			"foo/${path_relative_to_include()}/bar",
 			nil,
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
 			"foo/./bar",
 			nil,
 		},
 		{
-			"foo/${path_relative_to_parent()}/bar",
-			&ParentConfig{Path: "../.terragrunt"},
+			"foo/${path_relative_to_include()}/bar",
+			&IncludeConfig{Path: "../.terragrunt"},
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
 			"foo/child/bar",
 			nil,
 		},
 		{
-			"foo/${path_relative_to_parent()}/bar/${path_relative_to_parent()}",
-			&ParentConfig{Path: "../.terragrunt"},
+			"foo/${path_relative_to_include()}/bar/${path_relative_to_include()}",
+			&IncludeConfig{Path: "../.terragrunt"},
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
 			"foo/child/bar/child",
 			nil,
@@ -308,12 +308,12 @@ func TestResolveTerragruntConfigString(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		actualOut, actualErr := ResolveTerragruntConfigString(testCase.str, testCase.parent, &testCase.terragruntOptions)
+		actualOut, actualErr := ResolveTerragruntConfigString(testCase.str, testCase.include, &testCase.terragruntOptions)
 		if testCase.expectedErr != nil {
-			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "For string '%s' parent %v and options %v, expected error %v but got error %v", testCase.str, testCase.parent , testCase.terragruntOptions, testCase.expectedErr, actualErr)
+			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "For string '%s' include %v and options %v, expected error %v but got error %v", testCase.str, testCase.include, testCase.terragruntOptions, testCase.expectedErr, actualErr)
 		} else {
-			assert.Nil(t, actualErr, "For string '%s' parent %v and options %v, unexpected error: %v", testCase.str, testCase.parent , testCase.terragruntOptions, actualErr)
-			assert.Equal(t, testCase.expectedOut, actualOut, "For string '%s' parent %v and options %v", testCase.str, testCase.parent , testCase.terragruntOptions)
+			assert.Nil(t, actualErr, "For string '%s' include %v and options %v, unexpected error: %v", testCase.str, testCase.include, testCase.terragruntOptions, actualErr)
+			assert.Equal(t, testCase.expectedOut, actualOut, "For string '%s' include %v and options %v", testCase.str, testCase.include, testCase.terragruntOptions)
 		}
 	}
 }

@@ -319,15 +319,15 @@ similar-looking `.terragrunt` files?
 
 The solution is to use the following features of Terragrunt:
 
-* Inheritance
+* Includes
 * Find parent helper
 * Relative path helper
-* Overriding settings from the parent
+* Overriding included settings
 
-### Inheritance
+### Includes
 
-One `.terragrunt` file can "inherit" from another `.terragrunt` file. For example, imagine you have the following file
-layout:
+One `.terragrunt` file can automatically "include" the contents of another `.terragrunt` file using the `include` 
+block. For example, imagine you have the following file layout:
 
 ```
 my-terraform-repo
@@ -347,37 +347,40 @@ my-terraform-repo
 ```
 
 The `.terragrunt` file in the root folder defines the typical `lock` and `remote_state` settings. The `.terragrunt` 
-files in all the subfolders (e.g. `qa/my-app/.terragrunt`) can automatically reuse ("inherit") all the settings from
-a parent file using the `parent` block:
+files in all the subfolders (e.g. `qa/my-app/.terragrunt`) can automatically include all the settings from a parent 
+file using the `include` block:
 
 ```hcl
-parent = {
+include = {
   path = "../../.terragrunt"
 }
 ```
 
+When you run Terragrunt, it will see the `include` block and load the contents of the root `.terragrunt` file, almost
+as if you had copy/pasted the contents of the root `.terragrunt` file into `qa/my-app/.terragrunt`.
+
 There are a few problems with the simple approach above, so read on before using it!
 
-1. Having to manually manage the file paths to the parent folder is tedious. To solve this problem, you can use the 
-   `find_in_parent_folders` helper. 
-1. If the parent `.terragrunt` file hard-codes the `state_file_id` and `key` settings, then every child would rely on
-   the same lock and write state to the same location. To avoid this problem, you can use the `path_relative_to_parent`
-   helper.
-1. Some of the child `.terragrunt` files may want to override settings from the parent. To do this, see the section
-   on overriding settings from the parent.
+1. Having to manually manage the file paths to the included `.terragrunt` file is tedious and error prone. To solve 
+   this problem, you can use the `find_in_parent_folders()` helper. 
+1. If the included `.terragrunt` file hard-codes the `state_file_id` and `key` settings, then every child that includes
+   it would end up using the same lock and write state to the same location. To avoid this problem, you can use the 
+   `path_relative_to_include()` helper.
+1. Some of the child `.terragrunt` files may want to override the settings they include. To do this, see the section
+   on overriding included settings.
 
 Each of these items is discussed next.
 
 ### find_in_parent_folders helper
 
 Terragrunt supports the use of a few helper functions using the same syntax as Terraform: `${some_function()}`. One of
-the supported helper functions is `find_in_parent_folders`, which returns the path to the first `.terragrunt` file it
+the supported helper functions is `find_in_parent_folders()`, which returns the path to the first `.terragrunt` file it
 finds in the parent folders above the current `.terragrunt` file. 
 
 Example:
 
 ```hcl
-parent = {
+include = {
   path = "${find_in_parent_folders()}"
 }
 ```
@@ -386,10 +389,17 @@ If you ran this in `qa/my-app/.terragrunt`, this would automatically set `path` 
 always want to use this function, as it allows you to copy/paste the same `.terragrunt` file to all child folders with
 no changes.
 
-### path_relative_to_parent helper
+`find_in_parent_folders()` will search up the directory tree until it hits the root folder of your file system, and if
+no `.terragrunt` file is found, Terragrunt will exit with an error.
 
-Another helper function supported by Terragrunt is `path_relative_to_parent`, which returns the relative path between 
-the current `.terragrunt` file and the path specified in its `parent` block. For example, in the root `.terragrunt` 
+**Note**: only one level of includes is allowed. If  `foo/bar/.terragrunt` includes `foo/.terragrunt`, then 
+`foo/.terragrunt` may NOT itself specify an `include` block. Otherwise, reasoning about helper functions such as 
+`path_relative_to_include()` gets too complicated.
+
+### path_relative_to_include helper
+
+Another helper function supported by Terragrunt is `path_relative_to_include()`, which returns the relative path between 
+the current `.terragrunt` file and the path specified in its `include` block. For example, in the root `.terragrunt` 
 file, you could do the following:
  
 ```hcl
@@ -397,7 +407,7 @@ file, you could do the following:
 lock = {
   backend = "dynamodb"
   config {
-    state_file_id = "${path_relative_to_parent()}"
+    state_file_id = "${path_relative_to_include()}"
   }
 }
 
@@ -407,28 +417,28 @@ remote_state = {
   config {
     encrypt = "true"
     bucket = "my-bucket"
-    key = "${path_relative_to_parent()}/terraform.tfstate"
+    key = "${path_relative_to_include()}/terraform.tfstate"
     region = "us-east-1"
   }
 }
 ``` 
 
-Using the configuration above, each child `.terragrunt` file will get a unique path for its `state_file_id` and `key` 
-settings. For example, in `qa/my-app/.terragrunt`, the `state_file_id` will resolve to `qa/my-app` and the `key` will
-resolve to `qa/my-app/terraform.tfstate`.  
+Each child `.terragrunt` file that references the configuration above in its `include` block will get a unique path for 
+its `state_file_id` and `key` settings. For example, in `qa/my-app/.terragrunt`, the `state_file_id` will resolve to 
+`qa/my-app` and the `key` will resolve to `qa/my-app/terraform.tfstate`.  
 
 You will almost always want to use this helper too. The only time you may want to specify the `state_file_id` or `key` 
 manually is if you moved a child folder. In that case, to ensure it can reuse its old state and lock, you may want to 
 hard-code the `state_file_id` and `key` to the old file path. However, a safer approach would be to move the state 
 files themselves to match the new location of the child folder, as that makes things more consistent!
 
-### Overriding settings from the parent
+### Overriding included settings
 
-Any settings in the child `.terragrunt` file will override the settings from the parent. For example, imagine if
-`qa/my-app/.terragrunt` had the following contents:
+Any settings in the child `.terragrunt` file will override the settings pulled in via an `include`. For example, 
+imagine if `qa/my-app/.terragrunt` had the following contents:
  
 ```hcl
-parent = {
+include = {
   path = "${find_in_parent_folders()}"
 }
 
@@ -445,10 +455,6 @@ remote_state = {
 
 The result is that when you run `terragrunt` commands in the `qa/my-app` folder, you get the `lock` settings from the 
 parent, but the `remote_state` settings of the child. 
-
-**Note**: only one level of inheritance is allowed. If `foo/.terragrunt` is specified as the `parent` of 
-`foo/bar/.terragrunt`, then `foo/.terragrunt` may NOT itself specify a `parent`. Otherwise, reasoning about helper
-functions such as `path_relative_to_parent` gets too complicated.
 
 ## CLI Options
 
