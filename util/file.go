@@ -14,12 +14,6 @@ func FileExists(path string) bool {
 	return err == nil
 }
 
-// Return true if the given path exists and points to a directory
-func IsDirectory(path string) bool {
-	fileInfo, err := os.Stat(path)
-	return err == nil && fileInfo.IsDir()
-}
-
 // Returns true if the given regex can be found in any of the files matched by the given glob
 func Grep(regex *regexp.Regexp, glob string) (bool, error) {
 	matches, err := filepath.Glob(glob)
