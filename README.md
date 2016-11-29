@@ -315,7 +315,8 @@ remote_state = {
 
 Note how most of the content is copy/pasted, except for the `state_file_id` and `key` parameters, which match the path
 of the `.terragrunt` file itself. How do you avoid having to manually maintain the contents of all of these 
-similar-looking `.terragrunt` files?
+similar-looking `.terragrunt` files? Also, if you want to spin up an entire environment (e.g. `stage`, `prod`), how do
+you do it without having to manually run `terragrunt apply` in each of the Terraform folders within that environment?
 
 The solution is to use the following features of Terragrunt:
 
@@ -323,6 +324,8 @@ The solution is to use the following features of Terragrunt:
 * Find parent helper
 * Relative path helper
 * Overriding included settings
+* The spin-up and tear-down commands
+* Dependencies between modules
 
 ### Includes
 
@@ -455,6 +458,129 @@ remote_state = {
 
 The result is that when you run `terragrunt` commands in the `qa/my-app` folder, you get the `lock` settings from the 
 parent, but the `remote_state` settings of the child. 
+
+### The spin-up and tear-down commands
+
+Let's say you have a single environment (e.g. `stage` or `prod`) that has a number of Terraform modules within it:
+
+```
+my-terraform-repo
+  └ .terragrunt
+  └ stage
+      └ frontend-app
+          └ main.tf
+          └ .terragrunt
+      └ backend-app
+          └ main.tf
+          └ .terragrunt
+      └ search-app
+          └ main.tf
+          └ .terragrunt
+      └ mysql
+          └ main.tf
+          └ .terragrunt
+      └ redis
+          └ main.tf
+          └ .terragrunt
+      └ vpc
+          └ main.tf
+          └ .terragrunt
+```
+
+There is one module to deploy a frontend-app, another to deploy a backend-app, another for the MySQL database, and so 
+on. To deploy such an environment, you'd have to manually run `terragrunt apply` in each of the subfolders. How do you
+avoid this tedious and time-consuming process?
+
+The answer is that you can use the `spin-up` command:
+ 
+```
+cd my-terraform-repo/stage
+terragrunt spin-up
+```
+
+When you run this command, Terragrunt will find all `.terragrunt` files in the subfolders of the current working 
+directory, and run `terragrunt apply` in each one concurrently.  
+
+Similarly, to undeploy all the Terraform modules, you can use the `tear-down` command:
+
+```
+cd my-terraform-repo/stage
+terragrunt tear-down
+```
+
+Of course, if your modules have dependencies between them—for example, you can't deploy the backend-app until the MySQL
+database is deployed—you'll need to express those dependencines in your `.terragrunt` config as explained in the next
+section.
+
+### Dependencies between modules
+
+Consider the following file structure for the `stage` environment:
+
+```
+my-terraform-repo
+  └ .terragrunt
+  └ stage
+      └ frontend-app
+          └ main.tf
+          └ .terragrunt
+      └ backend-app
+          └ main.tf
+          └ .terragrunt
+      └ search-app
+          └ main.tf
+          └ .terragrunt
+      └ mysql
+          └ main.tf
+          └ .terragrunt
+      └ redis
+          └ main.tf
+          └ .terragrunt
+      └ vpc
+          └ main.tf
+          └ .terragrunt
+```
+
+Let's assume you have the following dependencies between Terraform modules:
+
+* Every module depends on the VPC being deployed
+* The backend-app depends on the MySQL database and Redis
+* The frontend-app and search-app depend on the backend-app
+
+You can express these dependencies in your `.terragrunt` config files using the `dependencies` block. For example, in
+`stage/backend-app/.terragrunt` you would specify:
+
+```hcl
+include = {
+  path = "${find_in_parent_folders()}"
+}
+
+dependencies = {
+  paths = ["../vpc", "../mysql", "../redis"]
+}
+```
+
+Similarly, in `stage/frontend-app/.terragrunt`, you would specify:
+
+```hcl
+include = {
+  path = "${find_in_parent_folders()}"
+}
+
+dependencies = {
+  paths = ["../vpc", "../backend-app"]
+}
+```
+
+Once you've specified the depenedencies in each `.terragrunt` file, when you run the `terragrunt spin-up` and 
+`terragrunt tear-down`, Terragrunt will ensure that the dependencies are applied or destroyed, respectively, in the
+correct order. For the example at the start of this section, the order for the `spin-up` command would be:
+
+1. Deploy the VPC
+1. Deploy MySQL and Redis in parallel
+1. Deploy the backend-app
+1. Deploy the frontend-app and search-app in parallel
+
+If any of the modules fail to deploy, then Terragrunt will not attempt to deploy the modules that depend on them.
 
 ## CLI Options
 
