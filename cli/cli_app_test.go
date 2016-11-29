@@ -21,7 +21,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 			&options.TerragruntOptions{
 				TerragruntConfigPath: config.DefaultTerragruntConfigPath,
 				NonInteractive: false,
-				NonTerragruntArgs: []string{},
+				TerraformCliArgs: []string{},
 			},
 			nil,
 		},
@@ -31,7 +31,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 			&options.TerragruntOptions{
 				TerragruntConfigPath: config.DefaultTerragruntConfigPath,
 				NonInteractive: false,
-				NonTerragruntArgs: []string{"foo", "bar"},
+				TerraformCliArgs: []string{"foo", "bar"},
 			},
 			nil,
 		},
@@ -41,7 +41,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 			&options.TerragruntOptions{
 				TerragruntConfigPath: config.DefaultTerragruntConfigPath,
 				NonInteractive: false,
-				NonTerragruntArgs: []string{"--foo", "--bar"},
+				TerraformCliArgs: []string{"--foo", "--bar"},
 			},
 			nil,
 		},
@@ -51,7 +51,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 			&options.TerragruntOptions{
 				TerragruntConfigPath: config.DefaultTerragruntConfigPath,
 				NonInteractive: false,
-				NonTerragruntArgs: []string{"--foo", "apply", "--bar"},
+				TerraformCliArgs: []string{"--foo", "apply", "--bar"},
 			},
 			nil,
 		},
@@ -61,7 +61,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 			&options.TerragruntOptions{
 				TerragruntConfigPath: config.DefaultTerragruntConfigPath,
 				NonInteractive: true,
-				NonTerragruntArgs: []string{},
+				TerraformCliArgs: []string{},
 			},
 			nil,
 		},
@@ -71,7 +71,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 			&options.TerragruntOptions{
 				TerragruntConfigPath: "/some/path/.terragrunt",
 				NonInteractive: false,
-				NonTerragruntArgs: []string{},
+				TerraformCliArgs: []string{},
 			},
 			nil,
 		},
@@ -81,7 +81,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 			&options.TerragruntOptions{
 				TerragruntConfigPath: "/some/path/.terragrunt",
 				NonInteractive: true,
-				NonTerragruntArgs: []string{},
+				TerraformCliArgs: []string{},
 			},
 			nil,
 		},
@@ -91,7 +91,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 			&options.TerragruntOptions{
 				TerragruntConfigPath: "/some/path/.terragrunt",
 				NonInteractive: true,
-				NonTerragruntArgs: []string{"--foo", "bar", "--baz"},
+				TerraformCliArgs: []string{"--foo", "bar", "--baz"},
 			},
 			nil,
 		},

@@ -4,12 +4,12 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/gruntwork-io/terragrunt/locks"
 	"time"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/aws/aws-sdk-go/aws"
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/gruntwork-io/terragrunt/options"
 )
 
 // Create a DynamoDB key for the given item id
@@ -21,12 +21,12 @@ func createKeyFromItemId(itemId string) map[string]*dynamodb.AttributeValue {
 
 // Fetch the metadata for the given item from DynamoDB and display it to stdout. This metadata will contain info about
 // who currently has the lock.
-func displayLockMetadata(itemId string, tableName string, client *dynamodb.DynamoDB) {
+func displayLockMetadata(itemId string, tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) {
 	lockMetadata, err := getLockMetadata(itemId, tableName, client)
 	if err != nil {
-		util.Logger.Printf("Someone already has a lock on state file %s in table %s in DynamoDB! However, failed to fetch metadata for the lock (perhaps the lock has since been released?): %s", itemId, tableName, err.Error())
+		terragruntOptions.Logger.Printf("Someone already has a lock on state file %s in table %s in DynamoDB! However, failed to fetch metadata for the lock (perhaps the lock has since been released?): %s", itemId, tableName, err.Error())
 	} else {
-		util.Logger.Printf("Someone already has a lock on state file %s! %s@%s acquired the lock on %s.", itemId, lockMetadata.Username, lockMetadata.IpAddress, lockMetadata.DateCreated.String())
+		terragruntOptions.Logger.Printf("Someone already has a lock on state file %s! %s@%s acquired the lock on %s.", itemId, lockMetadata.Username, lockMetadata.IpAddress, lockMetadata.DateCreated.String())
 	}
 }
 

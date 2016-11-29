@@ -15,14 +15,16 @@ const DefaultTerragruntConfigPath = ".terragrunt"
 
 // TerragruntConfig represents a parsed and expanded configuration
 type TerragruntConfig struct {
-	Lock        locks.Lock
-	RemoteState *remote.RemoteState
+	Lock         locks.Lock
+	RemoteState  *remote.RemoteState
+	Dependencies *ModuleDependencies
 }
 
 // terragruntConfigFile represents the configuration supported in the .terragrunt file
 type terragruntConfigFile struct {
-	Lock        *LockConfig         `hcl:"lock,omitempty"`
-	RemoteState *remote.RemoteState `hcl:"remote_state"`
+	Lock         *LockConfig         `hcl:"lock,omitempty"`
+	RemoteState  *remote.RemoteState `hcl:"remote_state"`
+	Dependencies *ModuleDependencies `hcl:"dependencies"`
 }
 
 // LockConfig represents generic configuration for Lock providers
@@ -31,14 +33,20 @@ type LockConfig struct {
 	Config  map[string]string `hcl:"config"`
 }
 
+// ModuleDependencies represents the paths to other Terraform modules that must be applied before the current module
+// can be applied
+type ModuleDependencies struct {
+	Paths []string `hcl:"paths"`
+}
+
 // ReadTerragruntConfig the Terragrunt config file from its default location
 func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*TerragruntConfig, error) {
-	util.Logger.Printf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
-	return parseConfigFile(terragruntOptions.TerragruntConfigPath)
+	terragruntOptions.Logger.Printf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
+	return ParseConfigFile(terragruntOptions.TerragruntConfigPath)
 }
 
 // Parse the Terragrunt config file at the given path
-func parseConfigFile(configPath string) (*TerragruntConfig, error) {
+func ParseConfigFile(configPath string) (*TerragruntConfig, error) {
 	bytes, err := ioutil.ReadFile(configPath)
 	if err != nil {
 		return nil, errors.WithStackTraceAndPrefix(err, "Error reading Terragrunt config file %s", configPath)
@@ -78,6 +86,8 @@ func parseConfigString(configSrc string) (*TerragruntConfig, error) {
 
 		c.RemoteState = terragruntConfigFromFile.RemoteState
 	}
+
+	c.Dependencies = terragruntConfigFromFile.Dependencies
 
 	return c, nil
 }

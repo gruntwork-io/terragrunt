@@ -56,13 +56,13 @@ func (remoteState RemoteState) ConfigureRemoteState(terragruntOptions *options.T
 	}
 
 	if shouldConfigure {
-		util.Logger.Printf("Initializing remote state for the %s backend", remoteState.Backend)
+		terragruntOptions.Logger.Printf("Initializing remote state for the %s backend", remoteState.Backend)
 		if err := remoteState.Initialize(terragruntOptions); err != nil {
 			return err
 		}
 
-		util.Logger.Printf("Configuring remote state for the %s backend", remoteState.Backend)
-		return shell.RunShellCommand("terraform", remoteState.toTerraformRemoteConfigArgs()...)
+		terragruntOptions.Logger.Printf("Configuring remote state for the %s backend", remoteState.Backend)
+		return shell.RunShellCommand(terragruntOptions, "terraform", remoteState.toTerraformRemoteConfigArgs()...)
 	}
 
 	return nil
@@ -99,7 +99,7 @@ func shouldOverrideExistingRemoteState(existingRemoteState *TerraformStateRemote
 		return shell.PromptUserForYesNo(prompt, terragruntOptions)
 	}
 
-	util.Logger.Printf("Remote state is already configured for backend %s", existingRemoteState.Type)
+	terragruntOptions.Logger.Printf("Remote state is already configured for backend %s", existingRemoteState.Type)
 	return false, nil
 }
 

@@ -8,7 +8,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/aws"
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 )
@@ -74,7 +73,7 @@ func validateS3Config(config *RemoteStateConfigS3, terragruntOptions *options.Te
 	}
 
 	if config.Encrypt != "true" {
-		util.Logger.Printf("WARNING: encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enablying encryption!", config.Bucket)
+		terragruntOptions.Logger.Printf("WARNING: encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enablying encryption!", config.Bucket)
 	}
 
 	return nil
@@ -91,7 +90,7 @@ func createS3BucketIfNecessary(s3Client *s3.S3, config *RemoteStateConfigS3, ter
 		}
 
 		if shouldCreateBucket {
-			return CreateS3BucketWithVersioning(s3Client, config)
+			return CreateS3BucketWithVersioning(s3Client, config, terragruntOptions)
 		}
 	}
 
@@ -106,19 +105,19 @@ func checkIfVersioningEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 	}
 
 	if *out.Status != s3.BucketVersioningStatusEnabled {
-		util.Logger.Printf("WARNING: Versioning is not enabled for the remote state S3 bucket %s. We recommend enabling versioning so that you can roll back to previous versions of your Terraform state in case of error.", config.Bucket)
+		terragruntOptions.Logger.Printf("WARNING: Versioning is not enabled for the remote state S3 bucket %s. We recommend enabling versioning so that you can roll back to previous versions of your Terraform state in case of error.", config.Bucket)
 	}
 
 	return nil
 }
 
 // Create the given S3 bucket and enable versioning for it
-func CreateS3BucketWithVersioning(s3Client *s3.S3, config *RemoteStateConfigS3) error {
-	if err := CreateS3Bucket(s3Client, config); err != nil {
+func CreateS3BucketWithVersioning(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	if err := CreateS3Bucket(s3Client, config, terragruntOptions); err != nil {
 		return err
 	}
 
-	if err := EnableVersioningForS3Bucket(s3Client, config); err != nil {
+	if err := EnableVersioningForS3Bucket(s3Client, config, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -126,15 +125,15 @@ func CreateS3BucketWithVersioning(s3Client *s3.S3, config *RemoteStateConfigS3) 
 }
 
 // Create the S3 bucket specified in the given config
-func CreateS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3) error {
-	util.Logger.Printf("Creating S3 bucket %s", config.Bucket)
+func CreateS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Printf("Creating S3 bucket %s", config.Bucket)
 	_, err := s3Client.CreateBucket(&s3.CreateBucketInput{Bucket: aws.String(config.Bucket)})
 	return errors.WithStackTrace(err)
 }
 
 // Enable versioning for the S3 bucket specified in the given config
-func EnableVersioningForS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3) error {
-	util.Logger.Printf("Enabling versioning on S3 bucket %s", config.Bucket)
+func EnableVersioningForS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Printf("Enabling versioning on S3 bucket %s", config.Bucket)
 	input := s3.PutBucketVersioningInput{
 		Bucket: aws.String(config.Bucket),
 		VersioningConfiguration: &s3.VersioningConfiguration{Status: aws.String(s3.BucketVersioningStatusEnabled)},

@@ -13,12 +13,24 @@ import (
 	"github.com/urfave/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 	"os"
+	"github.com/gruntwork-io/terragrunt/spin"
+	"strings"
 )
+
+const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
+const OPT_NON_INTERACTIVE = "terragrunt-non-interactive"
+const OPT_WORKING_DIR = "terragrunt-working-dir"
+
+const CMD_ACQUIRE_LOCK = "acquire-lock"
+const CMD_RELEASE_LOCK = "release-lock"
+const CMD_SPIN_UP = "spin-up"
+const CMD_TEAR_DOWN = "tear-down"
+var ALL_TERRAGRUNT_COMMANDS = []string{CMD_ACQUIRE_LOCK, CMD_RELEASE_LOCK, CMD_SPIN_UP, CMD_TEAR_DOWN}
 
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
 // in its definition, we don't quite fit into the model of any Go CLI library. Fortunately, urfave/cli allows us to
 // override the whole template used for the Usage Text.
-const CUSTOM_USAGE_TEXT = `DESCRIPTION:
+const CUSTOM_USAGE_TEXT = fmt.Sprintf(`DESCRIPTION:
    {{.Name}} - {{.UsageText}}
 
 USAGE:
@@ -30,8 +42,10 @@ COMMANDS:
    import               Acquire a lock and run 'terraform import'
    refresh              Acquire a lock and run 'terraform refresh'
    remote push          Acquire a lock and run 'terraform remote push'
-   acquire-lock         Acquire a long-term long for these templates
-   release-lock         Release a long-term lock or a lock that failed to clean up
+   %s                   Acquire a long-term long for these templates
+   %s                   Release a long-term lock or a lock that failed to clean up
+   %s                   Spin up a 'stack' by running 'terragrunt apply' in each subfolder
+   %s                   Tear down a 'stack' by running 'terragrunt destroy' in each subfolder
    *                    Terragrunt forwards all other commands directly to Terraform
 {{if .VisibleFlags}}
 GLOBAL OPTIONS:
@@ -43,14 +57,11 @@ VERSION:
 AUTHOR(S):
    {{range .Authors}}{{.}}{{end}}
    {{end}}
-`
+`, CMD_ACQUIRE_LOCK, CMD_RELEASE_LOCK, CMD_SPIN_UP, CMD_TEAR_DOWN)
 
 var MODULE_REGEX = regexp.MustCompile(`module ".+"`)
 
 const TERRAFORM_EXTENSION_GLOB = "*.tf"
-
-const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
-const OPT_NON_INTERACTIVE = "terragrunt-non-interactive"
 
 // Create the Terragrunt CLI App
 func CreateTerragruntCli(version string) *cli.App {
@@ -89,27 +100,33 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 		return err
 	}
 
+	return runTerragrunt(terragruntOptions)
+}
+
+// Run Terragrunt with the given options and CLI args. This will forward all the args directly to Terraform, enforcing
+// best practices along the way, such as configuring remote state or acquiring a lock.
+func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	conf, err := config.ReadTerragruntConfig(terragruntOptions)
 	if err != nil {
 		return err
 	}
 
-	if err := downloadModules(cliContext); err != nil {
+	if err := downloadModules(terragruntOptions); err != nil {
 		return err
 	}
 
 	if conf.RemoteState != nil {
-		if err := configureRemoteState(cliContext, conf.RemoteState, terragruntOptions); err != nil {
+		if err := configureRemoteState(conf.RemoteState, terragruntOptions); err != nil {
 			return err
 		}
 	}
 
 	if conf.Lock == nil {
-		util.Logger.Printf("WARNING: you have not configured locking in your .terragrunt file. Concurrent changes to your .tfstate files may cause conflicts!")
+		terragruntOptions.Logger.Printf("WARNING: you have not configured locking in your .terragrunt file. Concurrent changes to your .tfstate files may cause conflicts!")
 		return runTerraformCommand(terragruntOptions)
 	}
 
-	return runTerraformCommandWithLock(cliContext, conf.Lock, terragruntOptions)
+	return runTerraformCommandWithLock(conf.Lock, terragruntOptions)
 }
 
 // Parse command line options that are passed in for Terragrunt
@@ -129,48 +146,81 @@ func parseTerragruntOptions(cliContext *cli.Context) (*options.TerragruntOptions
 // and look for the ones we need, but in the future, we should change to a different CLI library to avoid this
 // limitation.
 func parseTerragruntOptionsFromArgs(args []string) (*options.TerragruntOptions, error) {
-	nonInteractive := false
-	terragruntConfigPath := os.Getenv("TERRAGRUNT_CONFIG")
+	terragruntConfigPath, err := parseStringArg(args, OPT_TERRAGRUNT_CONFIG, os.Getenv("TERRAGRUNT_CONFIG"))
+	if err != nil {
+		return nil, err
+	}
 	if terragruntConfigPath == "" {
 		terragruntConfigPath = config.DefaultTerragruntConfigPath
 	}
-	nonTerragruntArgs := []string{}
-	skipArg := false
 
-	for i, arg := range args {
-		if arg == fmt.Sprintf("--%s", OPT_NON_INTERACTIVE) {
-			nonInteractive = true
-		} else if arg == fmt.Sprintf("--%s", OPT_TERRAGRUNT_CONFIG) {
-			if (i + 1) < len(args) {
-				terragruntConfigPath = args[i + 1]
-				skipArg = true
-			}  else {
-				return nil, errors.WithStackTrace(MissingTerragruntConfigValue)
-			}
-		} else if skipArg {
-			skipArg = false
-		} else {
-			nonTerragruntArgs = append(nonTerragruntArgs, arg)
-		}
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
+	workingDir, err := parseStringArg(args, OPT_WORKING_DIR, currentDir)
+	if err != nil {
+		return nil, err
 	}
 
 	return &options.TerragruntOptions{
 		TerragruntConfigPath: terragruntConfigPath,
-		NonInteractive: nonInteractive,
-		NonTerragruntArgs: nonTerragruntArgs,
+		NonInteractive: parseBooleanArg(args, OPT_NON_INTERACTIVE, false),
+		TerraformCliArgs: filterTerragruntArgs(args),
+		WorkingDir: workingDir,
+		Logger: util.CreateLogger(""),
+		RunTerragrunt: runTerragrunt,
 	}, nil
 }
 
+// Return a copy of the given args with all Terragrunt-specific args removed
+func filterTerragruntArgs(args[]string) []string {
+	out := []string{}
+	for _, arg := range args {
+		if !strings.HasPrefix(arg, "--terragrunt") && !util.ListContainsElement(ALL_TERRAGRUNT_COMMANDS, arg) {
+			out = append(args, arg)
+		}
+	}
+	return out
+}
+
+// Find a boolean argument (e.g. --foo) of the given name in the given list of arguments. If it's present, return true.
+// If it isn't, return defaultValue.
+func parseBooleanArg(args []string, argName string, defaultValue bool) bool {
+	for _, arg := range args {
+		if arg == fmt.Sprintf("--%s", argName) {
+			return true
+		}
+	}
+	return defaultValue
+}
+
+// Find a string argument (e.g. --foo "VALUE") of the given name in the given list of arguments. If it's present,
+// return its value. If it is present, but has not value, return an error. If it isn't present, return defaultValue.
+func parseStringArg(args []string, argName string, defaultValue string) (string, error) {
+	for i, arg := range args {
+		if arg == fmt.Sprintf("--%s", argName) {
+			if (i + 1) < len(args) {
+				return args[i + 1], nil
+			}  else {
+				return nil, errors.WithStackTrace(ArgMissingValue(argName))
+			}
+		}
+	}
+	return defaultValue, nil
+}
+
 // A quick sanity check that calls `terraform get` to download modules, if they aren't already downloaded.
-func downloadModules(cliContext *cli.Context) error {
-	switch cliContext.Args().First() {
+func downloadModules(terragruntOptions *options.TerragruntOptions) error {
+	switch firstArg(terragruntOptions.TerraformCliArgs) {
 	case "apply", "destroy", "graph", "output", "plan", "show", "taint", "untaint", "validate":
 		shouldDownload, err := shouldDownloadModules()
 		if err != nil {
 			return err
 		}
 		if shouldDownload {
-			return shell.RunShellCommand("terraform", "get", "-update")
+			return shell.RunShellCommand(terragruntOptions, "terraform", "get", "-update")
 		}
 	}
 
@@ -191,14 +241,14 @@ func shouldDownloadModules() (bool, error) {
 
 // If the user entered a Terraform command that uses state (e.g. plan, apply), make sure remote state is configured
 // before running the command.
-func configureRemoteState(cliContext *cli.Context, remoteState *remote.RemoteState, terragruntOptions *options.TerragruntOptions) error {
+func configureRemoteState(remoteState *remote.RemoteState, terragruntOptions *options.TerragruntOptions) error {
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
-	switch cliContext.Args().First() {
+	switch firstArg(terragruntOptions.TerraformCliArgs) {
 	case "apply", "destroy", "import", "graph", "output", "plan", "push", "refresh", "show", "taint", "untaint", "validate":
 		return remoteState.ConfigureRemoteState(terragruntOptions)
 	case "remote":
-		if cliContext.Args().Get(1) == "config" {
+		if secondArg(terragruntOptions.TerraformCliArgs) == "config" {
 			// Encourage the user to configure remote state by defining it in .terragrunt and letting
 			// Terragrunt handle it for them
 			return errors.WithStackTrace(DontManuallyConfigureRemoteState)
@@ -213,23 +263,79 @@ func configureRemoteState(cliContext *cli.Context, remoteState *remote.RemoteSta
 }
 
 // Run the given Terraform command with the given lock (if the command requires locking)
-func runTerraformCommandWithLock(cliContext *cli.Context, lock locks.Lock, terragruntOptions *options.TerragruntOptions) error {
-	switch cliContext.Args().First() {
+func runTerraformCommandWithLock(lock locks.Lock, terragruntOptions *options.TerragruntOptions) error {
+	switch firstArg(terragruntOptions.TerraformCliArgs) {
 	case "apply", "destroy", "import", "refresh":
-		return locks.WithLock(lock, func() error { return runTerraformCommand(terragruntOptions) })
+		return locks.WithLock(lock, terragruntOptions, func() error { return runTerraformCommand(terragruntOptions) })
 	case "remote":
-		if cliContext.Args().Get(1) == "push" {
-			return locks.WithLock(lock, func() error { return runTerraformCommand(terragruntOptions) })
+		if secondArg(terragruntOptions.TerraformCliArgs) == "push" {
+			return locks.WithLock(lock, terragruntOptions, func() error { return runTerraformCommand(terragruntOptions) })
 		} else {
 			return runTerraformCommand(terragruntOptions)
 		}
-	case "acquire-lock":
+	case CMD_ACQUIRE_LOCK:
 		return acquireLock(lock, terragruntOptions)
-	case "release-lock":
-		return runReleaseLockCommand(cliContext, lock, terragruntOptions)
+	case CMD_RELEASE_LOCK:
+		return runReleaseLockCommand(lock, terragruntOptions)
+	case CMD_SPIN_UP:
+		return spinUp(terragruntOptions)
+	case CMD_TEAR_DOWN:
+		return tearDown(terragruntOptions)
 	default:
 		return runTerraformCommand(terragruntOptions)
 	}
+}
+
+// Spin up an entire "stack" by running 'terragrunt apply' in each subfolder, processing them in the right order based
+// on terraform_remote_state dependencies.
+func spinUp(terragruntOptions *options.TerragruntOptions) error {
+	workingDir, err := os.Getwd()
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	stack, err := spin.FindStackInSubfolders(workingDir, terragruntOptions)
+	if err != nil {
+		return err
+	}
+
+	terragruntOptions.Logger.Printf("Stack: %s", stack.String())
+	shouldSpinUp, err := shell.PromptUserForYesNo("Are you sure you want to run 'terragrunt apply' in each folder of the stack described above?", terragruntOptions)
+	if err != nil {
+		return err
+	}
+
+	if shouldSpinUp {
+		return stack.Apply(terragruntOptions)
+	}
+
+	return nil
+}
+
+// Tear down an entire "stack" by running 'terragrunt destroy' in each subfolder, processing them in the right order
+// based on terraform_remote_state dependencies.
+func tearDown(terragruntOptions *options.TerragruntOptions) error {
+	workingDir, err := os.Getwd()
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	stack, err := spin.FindStackInSubfolders(workingDir, terragruntOptions)
+	if err != nil {
+		return err
+	}
+
+	terragruntOptions.Logger.Printf("Stack: %s", stack.String())
+	shouldTearDown, err := shell.PromptUserForYesNo("WARNING: Are you sure you want to run `terragrunt destroy` in each folder of the stack described above? There is no undo!", terragruntOptions)
+	if err != nil {
+		return err
+	}
+
+	if shouldTearDown {
+		return stack.Destroy(terragruntOptions)
+	}
+
+	return nil
 }
 
 // Acquire a lock. This can be useful for locking down a deploy for a long time, such as during a major deployment.
@@ -240,8 +346,8 @@ func acquireLock(lock locks.Lock, terragruntOptions *options.TerragruntOptions) 
 	}
 
 	if shouldAcquireLock {
-		util.Logger.Printf("Acquiring long-term lock. To release the lock, use the release-lock command.")
-		return lock.AcquireLock()
+		terragruntOptions.Logger.Printf("Acquiring long-term lock. To release the lock, use the release-lock command.")
+		return lock.AcquireLock(terragruntOptions)
 	}
 
 	return nil
@@ -249,11 +355,11 @@ func acquireLock(lock locks.Lock, terragruntOptions *options.TerragruntOptions) 
 
 // Run the given Terraform command
 func runTerraformCommand(terragruntOptions *options.TerragruntOptions) error {
-	return shell.RunShellCommand("terraform", terragruntOptions.NonTerragruntArgs...)
+	return shell.RunShellCommand(terragruntOptions, "terraform", terragruntOptions.TerraformCliArgs...)
 }
 
 // Release a lock, prompting the user for confirmation first
-func runReleaseLockCommand(cliContext *cli.Context, lock locks.Lock, terragruntOptions *options.TerragruntOptions) error {
+func runReleaseLockCommand(lock locks.Lock, terragruntOptions *options.TerragruntOptions) error {
 	prompt := fmt.Sprintf("Are you sure you want to release %s?", lock)
 	proceed, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
 	if err != nil {
@@ -261,11 +367,33 @@ func runReleaseLockCommand(cliContext *cli.Context, lock locks.Lock, terragruntO
 	}
 
 	if proceed {
-		return lock.ReleaseLock()
+		return lock.ReleaseLock(terragruntOptions)
 	} else {
 		return nil
 	}
 }
 
+// A convenience method that returns the first item (0th index) in the given list or an empty string if this is an
+// empty list
+func firstArg(args []string) string {
+	if len(args) > 0 {
+		return args[0]
+	}
+	return ""
+}
+
+// A convenience method that returns the second item (1st index) in the given list or an empty string if this is a
+// list that has less than 2 items in it
+func secondArg(args []string) string {
+	if len(args) > 1 {
+		return args[1]
+	}
+	return ""
+}
+
 var DontManuallyConfigureRemoteState = fmt.Errorf("Instead of manually using the 'remote config' command, define your remote state settings in .terragrunt and Terragrunt will automatically configure it for you (and all your team members) next time you run it.")
-var MissingTerragruntConfigValue = fmt.Errorf("You must specify a value for the --%s option", OPT_TERRAGRUNT_CONFIG)
+
+type ArgMissingValue string
+func (err ArgMissingValue) String() error {
+	return fmt.Sprintf("You must specify a value for the --%s option", string(err))
+}

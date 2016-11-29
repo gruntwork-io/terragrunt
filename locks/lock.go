@@ -1,33 +1,33 @@
 package locks
 
 import (
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"os"
 	"os/signal"
+	"github.com/gruntwork-io/terragrunt/options"
 )
 
 // Every type of lock must implement this interface
 type Lock interface {
 	// Acquire a lock
-	AcquireLock() 		error
+	AcquireLock(terragruntOptions *options.TerragruntOptions) error
 
 	// Release a lock
-	ReleaseLock() 		error
+	ReleaseLock(terragruntOptions *options.TerragruntOptions) error
 
 	// Print a string representation of the lock
-	String()      		string
+	String() string
 }
 
 // Acquire a lock, execute the given function, and release the lock
-func WithLock(lock Lock, action func() error) (finalErr error) {
-	if err := lock.AcquireLock(); err != nil {
+func WithLock(lock Lock, terragruntOptions *options.TerragruntOptions, action func() error) (finalErr error) {
+	if err := lock.AcquireLock(terragruntOptions); err != nil {
 		return err
 	}
 
 	defer func() {
 		// We call ReleaseLock in a deferred function so that we release locks even in the case of a panic
-		err := lock.ReleaseLock()
+		err := lock.ReleaseLock(terragruntOptions)
 		if err != nil {
 			// We are using a named return variable so that if ReleaseLock returns an error, we can still
 			// return that error from a deferred function. However, if that named return variable is
@@ -36,7 +36,7 @@ func WithLock(lock Lock, action func() error) (finalErr error) {
 			if finalErr == nil {
 				finalErr = err
 			} else {
-				util.Logger.Printf("ERROR: failed to release lock %s: %s", lock, errors.PrintErrorWithStackTrace(err))
+				terragruntOptions.Logger.Printf("ERROR: failed to release lock %s: %s", lock, errors.PrintErrorWithStackTrace(err))
 			}
 		}
 	}()
@@ -48,7 +48,7 @@ func WithLock(lock Lock, action func() error) (finalErr error) {
 	// the blocking call to action() to return normally.
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt)
-	go func() { util.Logger.Printf("Caught signal '%s'. Terraform should be shutting down gracefully now.", <- signalChannel) }()
+	go func() { terragruntOptions.Logger.Printf("Caught signal '%s'. Terraform should be shutting down gracefully now.", <- signalChannel) }()
 
 	return action()
 }

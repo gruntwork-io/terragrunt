@@ -4,6 +4,8 @@ import (
 	"testing"
 	"github.com/stretchr/testify/assert"
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // A mock lock that performs a No Op for every operation
@@ -12,10 +14,15 @@ func (lock NoopLock) AcquireLock() error { return nil }
 func (lock NoopLock) ReleaseLock() error { return nil }
 func (lock NoopLock) String() string { return "MockLock" }
 
+var mockOptions = &options.TerragruntOptions{
+	Logger: util.CreateLogger("test"),
+	NonInteractive: true,
+}
+
 func TestWithLockNoop(t *testing.T) {
 	t.Parallel()
 
-	err := WithLock(NoopLock{}, func() error { return nil })
+	err := WithLock(NoopLock{}, mockOptions, func() error { return nil })
 	assert.Nil(t, err)
 }
 
@@ -31,7 +38,7 @@ func TestWithLockErrorOnAcquire(t *testing.T) {
 
 	actionDidExecute := false
 
-	err := WithLock(ErrorOnAcquireLock{}, func() error {
+	err := WithLock(ErrorOnAcquireLock{}, mockOptions, func() error {
 		actionDidExecute = true
 		return nil
 	})
@@ -52,7 +59,7 @@ func TestWithLockErrorOnRelease(t *testing.T) {
 
 	actionDidExecute := false
 
-	err := WithLock(ErrorOnReleaseLock{}, func() error {
+	err := WithLock(ErrorOnReleaseLock{}, mockOptions, func() error {
 		actionDidExecute = true
 		return nil
 	})
@@ -67,7 +74,7 @@ func TestWithLockErrorOnReleaseAndErrorInAction(t *testing.T) {
 	actionDidExecute := false
 	actionErr := fmt.Errorf("error-in-action")
 
-	err := WithLock(ErrorOnReleaseLock{}, func() error {
+	err := WithLock(ErrorOnReleaseLock{}, mockOptions, func() error {
 		actionDidExecute = true
 		return actionErr
 	})
@@ -87,7 +94,7 @@ func TestWithLockErrorOnReleaseAndPanicInAction(t *testing.T) {
 	actionDidExecute := false
 	actionErr := fmt.Errorf("error-in-action")
 
-	err := WithLock(ErrorOnReleaseLock{}, func() error {
+	err := WithLock(ErrorOnReleaseLock{}, mockOptions, func() error {
 		actionDidExecute = true
 		panic(actionErr)
 	})
