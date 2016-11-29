@@ -172,7 +172,7 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 		terragruntConfig.RemoteState = terragruntConfigFromFile.RemoteState
 	}
 
-	terragruntConfigFromFile.Dependencies = terragruntConfigFromFile.Dependencies
+	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
 
 	return terragruntConfig, nil
 }
