@@ -44,8 +44,8 @@ func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*Terrag
 	return parseConfigFile(terragruntOptions.TerragruntConfigPath, terragruntOptions, nil)
 }
 
-// Parse the Terragrunt config file at the given path. If include is specified, then treat this as a config included in
-// some other file when resolving relative paths.
+// Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
+// included in some other config file when resolving relative paths.
 func parseConfigFile(configPath string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) (*TerragruntConfig, error) {
 	configString, err := util.ReadFileAsString(configPath)
 	if err != nil {
