@@ -13,7 +13,7 @@ import (
 // and the list of other modules that this module depends on
 type TerraformModule struct {
 	Path              string
-	DependsOn         []TerraformModule
+	Dependencies      []TerraformModule
 	Config            config.TerragruntConfig
 	TerragruntOptions *options.TerragruntOptions
 }
@@ -21,7 +21,7 @@ type TerraformModule struct {
 // Render this module as a human-readable string
 func (module TerraformModule) String() string {
 	dependencies := []string{}
-	for _, dependency := range module.DependsOn {
+	for _, dependency := range module.Dependencies {
 		dependencies = append(dependencies, dependency.Path)
 	}
 	return fmt.Sprintf("Module %s (dependencies: [%s])", module.Path, strings.Join(dependencies, ", "))
@@ -43,7 +43,7 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 			return modules, err
 		}
 
-		module.DependsOn = dependencies
+		module.Dependencies = dependencies
 		modules = append(modules, module)
 	}
 
@@ -113,7 +113,7 @@ func resolvePathForModule(terragruntConfigPath string) (string, error) {
 // Return the path for the given dependency, which is specified in a .terragrunt config file of the given module
 func resolvePathForDependency(dependencyPath string, modulePath string) string {
 	if filepath.IsAbs(dependencyPath) {
-		return dependencyPath, nil
+		return dependencyPath
 	}
 
 	return filepath.Join(modulePath, dependencyPath)

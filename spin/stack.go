@@ -44,15 +44,15 @@ func (stack *Stack) CheckForCycles() error {
 	return CheckForCycles(stack.Modules)
 }
 
-// Find all the Terraform modules in the subfolders of the given path and assemble them into a Stack object that can
-// be applied or destroyed in a single command
-func FindStackInSubfolders(path string, terragruntOptions *options.TerragruntOptions) (*Stack, error) {
-	terragruntConfigFiles, err := filepath.Glob(fmt.Sprintf("%s/**/%s", path, config.DefaultTerragruntConfigPath))
+// Find all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
+// assemble them into a Stack object that can be applied or destroyed in a single command
+func FindStackInSubfolders(terragruntOptions *options.TerragruntOptions) (*Stack, error) {
+	terragruntConfigFiles, err := filepath.Glob(fmt.Sprintf("%s/**/%s", terragruntOptions.WorkingDir, config.DefaultTerragruntConfigPath))
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return nil, errors.WithStackTrace(err)
 	}
 
-	return createStackForTerragruntConfigPaths(path, terragruntConfigFiles, terragruntOptions)
+	return createStackForTerragruntConfigPaths(terragruntOptions.WorkingDir, terragruntConfigFiles, terragruntOptions)
 }
 
 // Set the command in the TerragruntOptions object of each module in this stack to the given command.

@@ -4,6 +4,8 @@ import (
 	"log"
 	"path/filepath"
 	"github.com/gruntwork-io/terragrunt/util"
+	"fmt"
+	"github.com/gruntwork-io/terragrunt/errors"
 )
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
@@ -31,6 +33,31 @@ type TerragruntOptions struct {
 	RunTerragrunt        func(*TerragruntOptions) error
 }
 
+// Create a new TerragruntOptions object with reasonable defaults for real usage
+func NewTerragruntOptions(terragruntConfigPath string) *TerragruntOptions {
+	workingDir := filepath.Dir(terragruntConfigPath)
+
+	return &TerragruntOptions{
+		TerragruntConfigPath: terragruntConfigPath,
+		NonInteractive: false,
+		TerraformCliArgs: []string{},
+		WorkingDir: workingDir,
+		Logger: util.CreateLogger(""),
+		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
+			return errors.WithStackTrace(RunTerragruntCommandNotSet)
+		},
+	}
+}
+
+// Create a new TerragruntOptions object with reasonable defaults for test usage
+func NewTerragruntOptionsForTest(terragruntConfigPath string) *TerragruntOptions {
+	opts := NewTerragruntOptions(terragruntConfigPath)
+
+	opts.NonInteractive = true
+
+	return opts
+}
+
 // Create a copy of this TerragruntOptions, but with different values for the given variables. This is useful for
 // creating a TerragruntOptions that behaves the same way, but is used for a Terraform module in a different folder.
 func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOptions {
@@ -45,3 +72,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		RunTerragrunt: terragruntOptions.RunTerragrunt,
 	}
 }
+
+// Custom error types
+
+var RunTerragruntCommandNotSet = fmt.Errorf("The RunTerragrunt option has not been set on this TerragruntOptions object")

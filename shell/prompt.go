@@ -6,7 +6,6 @@ import (
 	"os"
 	"bufio"
 	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 

@@ -251,6 +251,8 @@ prefix `--terragrunt-`. The currently available options are:
   environment variable. The default path is `.terragrunt` in the current directory.
 * `--terragrunt-non-interactive`: Don't show interactive user prompts. This will default the answer for all prompts to 
   'yes'. Useful if you need to run Terragrunt in an automated setting (e.g. from a script).  
+* `--terragrunt-working-dir`: Set the directory where Terragrunt should execute the `terraform` command. Default is the
+  current working directory.
 
 ## Developing terragrunt
 

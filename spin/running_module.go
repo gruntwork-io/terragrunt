@@ -1,7 +1,6 @@
 package spin
 
 import (
-	"github.com/gruntwork-io/terragrunt/util"
 	"sync"
 	"fmt"
 	"strings"
@@ -21,7 +20,7 @@ type runningModule struct {
 	Status         ModuleStatus
 	Err            error
 	DependencyDone chan runningModule
-	Dependencies   []runningModule
+	Dependencies   map[string]runningModule
 	NotifyWhenDone []chan runningModule
 }
 
@@ -33,14 +32,14 @@ const (
 )
 
 // Create a new RunningModule struct for the given module. This will initialize all fields to reasonable defaults,
-// except for the Dependencies and NotifyWhenDone lists, both of which will be empty. You should fill these using a
+// except for the Dependencies and NotifyWhenDone, both of which will be empty. You should fill these using a
 // function such as crossLinkDependencies.
 func newRunningModule(module TerraformModule) runningModule {
 	return runningModule{
 		Module: module,
 		Status: Waiting,
 		DependencyDone: make(chan runningModule),
-		Dependencies: []runningModule{},
+		Dependencies: map[string]runningModule{},
 		NotifyWhenDone: []chan runningModule{},
 	}
 }
@@ -77,13 +76,13 @@ func toRunningModules(modules []TerraformModule, dependencyOrder DependencyOrder
 // * If dependencyOrder is ReverseOrder, do the reverse.
 func crossLinkDependencies(modules map[string]runningModule, dependencyOrder DependencyOrder) map[string]runningModule {
 	for _, module := range modules {
-		for _, dependency := range module.Module.DependsOn {
+		for _, dependency := range module.Module.Dependencies {
 			runningDependency := modules[dependency.Path]
 			if dependencyOrder == NormalOrder {
-				module.Dependencies = append(module.Dependencies, runningDependency)
+				module.Dependencies[runningDependency.Module.Path] = runningDependency
 				runningDependency.NotifyWhenDone = append(runningDependency.NotifyWhenDone, module.DependencyDone)
 			} else {
-				runningDependency.Dependencies = append(runningDependency.Dependencies, module)
+				runningDependency.Dependencies[module.Module.Path] = module
 				module.NotifyWhenDone = append(module.NotifyWhenDone, runningDependency.DependencyDone)
 			}
 		}
@@ -142,7 +141,7 @@ func (module runningModule) runModuleWhenReady() {
 func (module runningModule) waitForDependencies() error {
 	for len(module.Dependencies) > 0 {
 		doneDependency := <- module.DependencyDone
-		module.Dependencies = util.RemoveElementFromList(module.Dependencies, doneDependency)
+		delete(module.Dependencies, doneDependency.Module.Path)
 
 		if doneDependency.Err != nil {
 			return DependencyFinishedWithError{module.Module, doneDependency.Module, doneDependency.Err}

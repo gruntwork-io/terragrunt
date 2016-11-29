@@ -8,7 +8,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/hashicorp/hcl"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const DefaultTerragruntConfigPath = ".terragrunt"

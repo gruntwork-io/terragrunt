@@ -4,7 +4,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -20,6 +19,8 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	cmd.Dir = terragruntOptions.WorkingDir
 
 	return errors.WithStackTrace(cmd.Run())
 }

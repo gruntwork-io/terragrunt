@@ -33,19 +33,19 @@ func checkForCyclesUsingDepthFirstSearch(module TerraformModule, visitedPaths *[
 		return nil
 	}
 
-	if util.ListContainsElement(currentTraversalPaths, module.Path) {
+	if util.ListContainsElement(*currentTraversalPaths, module.Path) {
 		return errors.WithStackTrace(DependencyCycle(append(*currentTraversalPaths, module.Path)))
 	}
 
-	currentTraversalPaths = append(currentTraversalPaths, module.Path)
-	for _, dependency := range module.DependsOn {
+	*currentTraversalPaths = append(*currentTraversalPaths, module.Path)
+	for _, dependency := range module.Dependencies {
 		if err := checkForCyclesUsingDepthFirstSearch(dependency, visitedPaths, currentTraversalPaths); err != nil {
 			return err
 		}
 	}
 
-	visitedPaths = append(*visitedPaths, module.Path)
-	currentTraversalPaths = util.RemoveElementFromList(*currentTraversalPaths, module.Path)
+	*visitedPaths = append(*visitedPaths, module.Path)
+	*currentTraversalPaths = util.RemoveElementFromList(*currentTraversalPaths, module.Path)
 
 	return nil
 }

@@ -12,25 +12,24 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/urfave/cli"
 	"github.com/gruntwork-io/terragrunt/options"
-	"os"
 	"github.com/gruntwork-io/terragrunt/spin"
-	"strings"
 )
 
 const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
 const OPT_NON_INTERACTIVE = "terragrunt-non-interactive"
 const OPT_WORKING_DIR = "terragrunt-working-dir"
+var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE}
+var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_WORKING_DIR}
 
 const CMD_ACQUIRE_LOCK = "acquire-lock"
 const CMD_RELEASE_LOCK = "release-lock"
 const CMD_SPIN_UP = "spin-up"
 const CMD_TEAR_DOWN = "tear-down"
-var ALL_TERRAGRUNT_COMMANDS = []string{CMD_ACQUIRE_LOCK, CMD_RELEASE_LOCK, CMD_SPIN_UP, CMD_TEAR_DOWN}
 
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
 // in its definition, we don't quite fit into the model of any Go CLI library. Fortunately, urfave/cli allows us to
 // override the whole template used for the Usage Text.
-const CUSTOM_USAGE_TEXT = fmt.Sprintf(`DESCRIPTION:
+var CUSTOM_USAGE_TEXT = fmt.Sprintf(`DESCRIPTION:
    {{.Name}} - {{.UsageText}}
 
 USAGE:
@@ -95,7 +94,7 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 		return nil
 	}
 
-	terragruntOptions, err := parseTerragruntOptions(cliContext)
+	terragruntOptions, err := ParseTerragruntOptions(cliContext)
 	if err != nil {
 		return err
 	}
@@ -129,87 +128,6 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	return runTerraformCommandWithLock(conf.Lock, terragruntOptions)
 }
 
-// Parse command line options that are passed in for Terragrunt
-func parseTerragruntOptions(cliContext *cli.Context) (*options.TerragruntOptions, error) {
-	return parseTerragruntOptionsFromArgs(cliContext.Args())
-}
-
-// TODO: replace the urfave CLI library with something else.
-//
-// EXPLANATION: The normal way to parse flags with the urfave CLI library would be to define the flags in the
-// CreateTerragruntCLI method and to read the values of those flags using cliContext.String(...),
-// cliContext.Bool(...), etc. Unfortunately, this does not work here due to a limitation in the urfave
-// CLI library: if the user passes in any "command" whatsever, (e.g. the "apply" in "terragrunt apply"), then
-// any flags that come after it are not parsed (e.g. the "--foo" is not parsed in "terragrunt apply --foo").
-// Therefore, we have to parse options ourselves, which is infuriating. For more details on this limitation,
-// see: https://github.com/urfave/cli/issues/533. For now, our workaround is to dumbly loop over the arguments
-// and look for the ones we need, but in the future, we should change to a different CLI library to avoid this
-// limitation.
-func parseTerragruntOptionsFromArgs(args []string) (*options.TerragruntOptions, error) {
-	terragruntConfigPath, err := parseStringArg(args, OPT_TERRAGRUNT_CONFIG, os.Getenv("TERRAGRUNT_CONFIG"))
-	if err != nil {
-		return nil, err
-	}
-	if terragruntConfigPath == "" {
-		terragruntConfigPath = config.DefaultTerragruntConfigPath
-	}
-
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return nil, errors.WithStackTrace(err)
-	}
-
-	workingDir, err := parseStringArg(args, OPT_WORKING_DIR, currentDir)
-	if err != nil {
-		return nil, err
-	}
-
-	return &options.TerragruntOptions{
-		TerragruntConfigPath: terragruntConfigPath,
-		NonInteractive: parseBooleanArg(args, OPT_NON_INTERACTIVE, false),
-		TerraformCliArgs: filterTerragruntArgs(args),
-		WorkingDir: workingDir,
-		Logger: util.CreateLogger(""),
-		RunTerragrunt: runTerragrunt,
-	}, nil
-}
-
-// Return a copy of the given args with all Terragrunt-specific args removed
-func filterTerragruntArgs(args[]string) []string {
-	out := []string{}
-	for _, arg := range args {
-		if !strings.HasPrefix(arg, "--terragrunt") && !util.ListContainsElement(ALL_TERRAGRUNT_COMMANDS, arg) {
-			out = append(args, arg)
-		}
-	}
-	return out
-}
-
-// Find a boolean argument (e.g. --foo) of the given name in the given list of arguments. If it's present, return true.
-// If it isn't, return defaultValue.
-func parseBooleanArg(args []string, argName string, defaultValue bool) bool {
-	for _, arg := range args {
-		if arg == fmt.Sprintf("--%s", argName) {
-			return true
-		}
-	}
-	return defaultValue
-}
-
-// Find a string argument (e.g. --foo "VALUE") of the given name in the given list of arguments. If it's present,
-// return its value. If it is present, but has not value, return an error. If it isn't present, return defaultValue.
-func parseStringArg(args []string, argName string, defaultValue string) (string, error) {
-	for i, arg := range args {
-		if arg == fmt.Sprintf("--%s", argName) {
-			if (i + 1) < len(args) {
-				return args[i + 1], nil
-			}  else {
-				return nil, errors.WithStackTrace(ArgMissingValue(argName))
-			}
-		}
-	}
-	return defaultValue, nil
-}
 
 // A quick sanity check that calls `terraform get` to download modules, if they aren't already downloaded.
 func downloadModules(terragruntOptions *options.TerragruntOptions) error {
@@ -276,7 +194,7 @@ func runTerraformCommandWithLock(lock locks.Lock, terragruntOptions *options.Ter
 	case CMD_ACQUIRE_LOCK:
 		return acquireLock(lock, terragruntOptions)
 	case CMD_RELEASE_LOCK:
-		return runReleaseLockCommand(lock, terragruntOptions)
+		return releaseLockCommand(lock, terragruntOptions)
 	case CMD_SPIN_UP:
 		return spinUp(terragruntOptions)
 	case CMD_TEAR_DOWN:
@@ -289,12 +207,7 @@ func runTerraformCommandWithLock(lock locks.Lock, terragruntOptions *options.Ter
 // Spin up an entire "stack" by running 'terragrunt apply' in each subfolder, processing them in the right order based
 // on terraform_remote_state dependencies.
 func spinUp(terragruntOptions *options.TerragruntOptions) error {
-	workingDir, err := os.Getwd()
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-
-	stack, err := spin.FindStackInSubfolders(workingDir, terragruntOptions)
+	stack, err := spin.FindStackInSubfolders(terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -315,12 +228,7 @@ func spinUp(terragruntOptions *options.TerragruntOptions) error {
 // Tear down an entire "stack" by running 'terragrunt destroy' in each subfolder, processing them in the right order
 // based on terraform_remote_state dependencies.
 func tearDown(terragruntOptions *options.TerragruntOptions) error {
-	workingDir, err := os.Getwd()
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-
-	stack, err := spin.FindStackInSubfolders(workingDir, terragruntOptions)
+	stack, err := spin.FindStackInSubfolders(terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -353,13 +261,8 @@ func acquireLock(lock locks.Lock, terragruntOptions *options.TerragruntOptions) 
 	return nil
 }
 
-// Run the given Terraform command
-func runTerraformCommand(terragruntOptions *options.TerragruntOptions) error {
-	return shell.RunShellCommand(terragruntOptions, "terraform", terragruntOptions.TerraformCliArgs...)
-}
-
 // Release a lock, prompting the user for confirmation first
-func runReleaseLockCommand(lock locks.Lock, terragruntOptions *options.TerragruntOptions) error {
+func releaseLockCommand(lock locks.Lock, terragruntOptions *options.TerragruntOptions) error {
 	prompt := fmt.Sprintf("Are you sure you want to release %s?", lock)
 	proceed, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
 	if err != nil {
@@ -373,27 +276,12 @@ func runReleaseLockCommand(lock locks.Lock, terragruntOptions *options.Terragrun
 	}
 }
 
-// A convenience method that returns the first item (0th index) in the given list or an empty string if this is an
-// empty list
-func firstArg(args []string) string {
-	if len(args) > 0 {
-		return args[0]
-	}
-	return ""
+// Run the given Terraform command
+func runTerraformCommand(terragruntOptions *options.TerragruntOptions) error {
+	return shell.RunShellCommand(terragruntOptions, "terraform", terragruntOptions.TerraformCliArgs...)
 }
 
-// A convenience method that returns the second item (1st index) in the given list or an empty string if this is a
-// list that has less than 2 items in it
-func secondArg(args []string) string {
-	if len(args) > 1 {
-		return args[1]
-	}
-	return ""
-}
+
+// Custom error types
 
 var DontManuallyConfigureRemoteState = fmt.Errorf("Instead of manually using the 'remote config' command, define your remote state settings in .terragrunt and Terragrunt will automatically configure it for you (and all your team members) next time you run it.")
-
-type ArgMissingValue string
-func (err ArgMissingValue) String() error {
-	return fmt.Sprintf("You must specify a value for the --%s option", string(err))
-}

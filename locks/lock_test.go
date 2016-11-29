@@ -5,19 +5,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // A mock lock that performs a No Op for every operation
 type NoopLock struct {}
-func (lock NoopLock) AcquireLock() error { return nil }
-func (lock NoopLock) ReleaseLock() error { return nil }
+func (lock NoopLock) AcquireLock(terragruntOptions *options.TerragruntOptions) error { return nil }
+func (lock NoopLock) ReleaseLock(terragruntOptions *options.TerragruntOptions) error { return nil }
 func (lock NoopLock) String() string { return "MockLock" }
 
-var mockOptions = &options.TerragruntOptions{
-	Logger: util.CreateLogger("test"),
-	NonInteractive: true,
-}
+var mockOptions = options.NewTerragruntOptionsForTest("lock_test")
 
 func TestWithLockNoop(t *testing.T) {
 	t.Parallel()
@@ -29,8 +25,8 @@ func TestWithLockNoop(t *testing.T) {
 // A mock lock that returns an error on AcquireLock
 type ErrorOnAcquireLock struct {}
 var ErrorOnAcquire = fmt.Errorf("error-on-acquire")
-func (lock ErrorOnAcquireLock) AcquireLock() error { return ErrorOnAcquire }
-func (lock ErrorOnAcquireLock) ReleaseLock() error { return nil }
+func (lock ErrorOnAcquireLock) AcquireLock(terragruntOptions *options.TerragruntOptions) error { return ErrorOnAcquire }
+func (lock ErrorOnAcquireLock) ReleaseLock(terragruntOptions *options.TerragruntOptions) error { return nil }
 func (lock ErrorOnAcquireLock) String() string { return "ErrorOnAcquireLock" }
 
 func TestWithLockErrorOnAcquire(t *testing.T) {
@@ -50,8 +46,8 @@ func TestWithLockErrorOnAcquire(t *testing.T) {
 // A mock lock that returns an error on Release
 type ErrorOnReleaseLock struct {}
 var ErrorOnRelease = fmt.Errorf("error-on-release")
-func (lock ErrorOnReleaseLock) AcquireLock() error { return nil }
-func (lock ErrorOnReleaseLock) ReleaseLock() error { return ErrorOnRelease }
+func (lock ErrorOnReleaseLock) AcquireLock(terragruntOptions *options.TerragruntOptions) error { return nil }
+func (lock ErrorOnReleaseLock) ReleaseLock(terragruntOptions *options.TerragruntOptions) error { return ErrorOnRelease }
 func (lock ErrorOnReleaseLock) String() string { return "ErrorOnRelease" }
 
 func TestWithLockErrorOnRelease(t *testing.T) {
