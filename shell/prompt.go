@@ -12,7 +12,7 @@ import (
 // Prompt the user for text in the CLI. Returns the text entered by the user.
 func PromptUserForInput(prompt string, terragruntOptions *options.TerragruntOptions) (string, error) {
 	if terragruntOptions.Logger.Prefix() != "" {
-		prompt = fmt.Sprintf("[%s] %s", terragruntOptions.Logger.Prefix(), prompt)
+		prompt = fmt.Sprintf("%s %s", terragruntOptions.Logger.Prefix(), prompt)
 	}
 	fmt.Print(prompt)
 

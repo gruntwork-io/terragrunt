@@ -56,7 +56,7 @@ func createModuleMap(terragruntConfigPaths []string, terragruntOptions *options.
 	moduleMap := map[string]TerraformModule{}
 
 	for _, terragruntConfigPath := range terragruntConfigPaths {
-		terragruntConfig, err := config.ParseConfigFile(terragruntConfigPath)
+		terragruntConfig, err := config.ParseConfigFile(terragruntConfigPath, terragruntOptions, nil)
 		if err != nil {
 			return moduleMap, err
 		}

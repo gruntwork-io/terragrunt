@@ -49,12 +49,12 @@ type ModuleDependencies struct {
 // Read the Terragrunt config file from its default location
 func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*TerragruntConfig, error) {
 	terragruntOptions.Logger.Printf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
-	return parseConfigFile(terragruntOptions.TerragruntConfigPath, terragruntOptions, nil)
+	return ParseConfigFile(terragruntOptions.TerragruntConfigPath, terragruntOptions, nil)
 }
 
 // Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
-func parseConfigFile(configPath string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) (*TerragruntConfig, error) {
+func ParseConfigFile(configPath string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) (*TerragruntConfig, error) {
 	configString, err := util.ReadFileAsString(configPath)
 
 	if err != nil {
@@ -147,7 +147,7 @@ func parseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *optio
 		resolvedIncludePath = filepath.Join(filepath.Dir(terragruntOptions.TerragruntConfigPath), resolvedIncludePath)
 	}
 
-	return parseConfigFile(resolvedIncludePath, terragruntOptions, includedConfig)
+	return ParseConfigFile(resolvedIncludePath, terragruntOptions, includedConfig)
 }
 
 // Convert the contents of a fully resolved .terragrunt file to a TerragruntConfig object
