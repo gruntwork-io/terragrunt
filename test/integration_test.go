@@ -16,17 +16,30 @@ import (
 	"path"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/stretchr/testify/assert"
+	"path/filepath"
+	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/util"
+	"os"
 )
 
 // hard-code this to match the test fixture for now
 const (
-	TERRAFORM_REMOTE_STATE_S3_REGION      = "us-west-2"
-	TEST_FIXTURE_PATH                     = "fixture/"
-	TEST_FIXTURE_LOCK_PATH                = "fixture-lock/"
+	TERRAFORM_REMOTE_STATE_S3_REGION        = "us-west-2"
+	TEST_FIXTURE_PATH                       = "fixture/"
+	TEST_FIXTURE_LOCK_PATH                  = "fixture-lock/"
+	TEST_FIXTURE_INCLUDE_PATH               = "fixture-include/"
+	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH     = "qa/my-app"
+	TERRAFORM_FOLDER                        = ".terraform"
 )
 
 func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
-	t.Parallel()
+	// These integration tests run Terraform under the hood, and Terraform creates a .terraform folder in the
+	// "current working directory". Since the current working directory is the same for everything running in this
+	// process, we can't run tests in parallel, or they'll all try to write to the same folder, which will cause
+	// conflicts and weird errors.
+	// t.Parallel()
+
+	cleanupTerraformFolder(t)
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, TEST_FIXTURE_PATH, s3BucketName)
@@ -37,9 +50,15 @@ func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
 }
 
 func TestAcquireAndReleaseLock(t *testing.T) {
-	t.Parallel()
+	// These integration tests run Terraform under the hood, and Terraform creates a .terraform folder in the
+	// "current working directory". Since the current working directory is the same for everything running in this
+	// process, we can't run tests in parallel, or they'll all try to write to the same folder, which will cause
+	// conflicts and weird errors.
+	// t.Parallel()
 
-	terragruntConfigPath := path.Join(TEST_FIXTURE_LOCK_PATH, ".terragrunt")
+	cleanupTerraformFolder(t)
+
+	terragruntConfigPath := path.Join(TEST_FIXTURE_LOCK_PATH, config.DefaultTerragruntConfigPath)
 
 	// Acquire a long-term lock
 	runTerragrunt(t, fmt.Sprintf("terragrunt acquire-lock --terragrunt-non-interactive --terragrunt-config %s", terragruntConfigPath))
@@ -59,6 +78,34 @@ func TestAcquireAndReleaseLock(t *testing.T) {
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s %s", terragruntConfigPath, TEST_FIXTURE_LOCK_PATH))
 }
 
+func TestTerragruntWorksWithInheritance(t *testing.T) {
+	// These integration tests run Terraform under the hood, and Terraform creates a .terraform folder in the
+	// "current working directory". Since the current working directory is the same for everything running in this
+	// process, we can't run tests in parallel, or they'll all try to write to the same folder, which will cause
+	// conflicts and weird errors.
+	// t.Parallel()
+
+	cleanupTerraformFolder(t)
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_INCLUDE_PATH, TEST_FIXTURE_INCLUDE_CHILD_REL_PATH, s3BucketName)
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	runTerragrunt(t, fmt.Sprintf("terragrunty apply --terragrunt-non-interactive --terragrunt-config %s %s", tmpTerragruntConfigPath, TEST_FIXTURE_PATH))
+	validateS3BucketExists(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+}
+
+func cleanupTerraformFolder(t *testing.T) {
+	if !util.FileExists(TERRAFORM_FOLDER) {
+		return
+	}
+
+	if err := os.RemoveAll(TERRAFORM_FOLDER); err != nil {
+		t.Fatalf("Error while removing %s folder: %v", TERRAFORM_FOLDER, err)
+	}
+}
+
 func runTerragruntCommand(t *testing.T, command string) error {
 	validateCommandInstalled(t, "terraform")
 	args := strings.Split(command, " ")
@@ -73,26 +120,52 @@ func runTerragrunt(t *testing.T, command string) {
 	}
 }
 
+func createTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string, childRelPath string, s3BucketName string) string {
+	tmpDir, err := ioutil.TempDir("", "terragrunt-parent-child-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir due to error: %v", err)
+	}
+
+	childDestPath := filepath.Join(tmpDir, childRelPath)
+
+	if err := os.MkdirAll(childDestPath, 0777); err != nil {
+		t.Fatalf("Failed to create temp dir %s due to error %v", childDestPath, err)
+	}
+
+	parentTerragruntSrcPath := filepath.Join(parentPath, config.DefaultTerragruntConfigPath)
+	parentTerragruntDestPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, parentTerragruntSrcPath, parentTerragruntDestPath, s3BucketName)
+
+	childTerragruntSrcPath := filepath.Join(filepath.Join(parentPath, childRelPath), config.DefaultTerragruntConfigPath)
+	childTerragruntDestPath := filepath.Join(childDestPath, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, childTerragruntSrcPath, childTerragruntDestPath, s3BucketName)
+
+	return childTerragruntDestPath
+}
+
 func createTmpTerragruntConfig(t *testing.T, templatesPath string, s3BucketName string) string {
-	tmpTerragruntConfigFile, err := ioutil.TempFile("", ".terragrunt")
+	tmpTerragruntConfigFile, err := ioutil.TempFile("", config.DefaultTerragruntConfigPath)
 	if err != nil {
 		t.Fatalf("Failed to create temp file due to error: %v", err)
 	}
 
-	originalTerragruntConfigPath := path.Join(templatesPath, ".terragrunt")
-	originalTerragruntConfigBytes, err := ioutil.ReadFile(originalTerragruntConfigPath)
-	if err != nil {
-		t.Fatalf("Error reading Terragrunt config at %s: %v", originalTerragruntConfigPath, err)
-	}
-
-	originalTerragruntConfigString := string(originalTerragruntConfigBytes)
-	newTerragruntConfigString := strings.Replace(originalTerragruntConfigString, "__FILL_IN_BUCKET_NAME__", s3BucketName, -1)
-
-	if err := ioutil.WriteFile(tmpTerragruntConfigFile.Name(), []byte(newTerragruntConfigString), 0444); err != nil {
-		t.Fatalf("Error writing temp Terragrunt config to %s: %v", tmpTerragruntConfigFile.Name(), err)
-	}
+	originalTerragruntConfigPath := path.Join(templatesPath, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile.Name(), s3BucketName)
 
 	return tmpTerragruntConfigFile.Name()
+}
+
+func copyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string, configDestPath string, s3BucketName string) {
+	originalContents, err := util.ReadFileAsString(configSrcPath)
+	if err != nil {
+		t.Fatalf("Error reading Terragrunt config at %s: %v", configSrcPath, err)
+	}
+
+	newContents := strings.Replace(originalContents, "__FILL_IN_BUCKET_NAME__", s3BucketName, -1)
+
+	if err := ioutil.WriteFile(configDestPath, []byte(newContents), 0444); err != nil {
+		t.Fatalf("Error writing temp Terragrunt config to %s: %v", configDestPath, err)
+	}
 }
 
 // Returns a unique (ish) id we can attach to resources and tfstate files so they don't conflict with each other

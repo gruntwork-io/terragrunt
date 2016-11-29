@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"time"
 )
 
 // A representation of the configuration options available for S3 remote state
@@ -20,6 +21,9 @@ type RemoteStateConfigS3 struct {
 	Key     string
 	Region  string
 }
+
+const MAX_RETRIES_WAITING_FOR_S3_BUCKET = 12
+const SLEEP_BETWEEN_RETRIES_WAITING_FOR_S3_BUCKET = 5 * time.Second
 
 // Initialize the remote state S3 bucket specified in the given config. This function will validate the config
 // parameters, create the S3 bucket if it doesn't already exist, and check that versioning is enabled.
@@ -118,11 +122,31 @@ func CreateS3BucketWithVersioning(s3Client *s3.S3, config *RemoteStateConfigS3) 
 		return err
 	}
 
+	if err := WaitUntilS3BucketExists(s3Client, config); err != nil {
+		return err
+	}
+
 	if err := EnableVersioningForS3Bucket(s3Client, config); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// AWS is eventually consistent, so after creating an S3 bucket, this method can be used to wait until the information
+// about that S3 bucket has propagated everywhere
+func WaitUntilS3BucketExists(s3Client *s3.S3, config *RemoteStateConfigS3) error {
+	for retries := 0; retries < MAX_RETRIES_WAITING_FOR_S3_BUCKET; retries++ {
+		if DoesS3BucketExist(s3Client, config) {
+			util.Logger.Printf("S3 bucket %s created.", config.Bucket)
+			return nil
+		} else if retries < MAX_RETRIES_WAITING_FOR_S3_BUCKET - 1 {
+			util.Logger.Printf("S3 bucket %s has not been created yet. Sleeping for %s and will check again.", config.Bucket, SLEEP_BETWEEN_RETRIES_WAITING_FOR_S3_BUCKET)
+			time.Sleep(SLEEP_BETWEEN_RETRIES_WAITING_FOR_S3_BUCKET)
+		}
+	}
+
+	return errors.WithStackTrace(MaxRetriesWaitingForS3BucketExceeded(config.Bucket))
 }
 
 // Create the S3 bucket specified in the given config
@@ -165,4 +189,9 @@ func CreateS3Client(awsRegion string) (*s3.S3, error) {
 type MissingRequiredS3RemoteStateConfig string
 func (configName MissingRequiredS3RemoteStateConfig) Error() string {
 	return fmt.Sprintf("Missing required S3 remote state configuration %s", string(configName))
+}
+
+type MaxRetriesWaitingForS3BucketExceeded string
+func (err MaxRetriesWaitingForS3BucketExceeded) Error() string {
+	return fmt.Sprintf("Exceeded max retries (%d) waiting for bucket S3 bucket %s", MAX_RETRIES_WAITING_FOR_S3_BUCKET, string(err))
 }
