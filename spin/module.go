@@ -38,13 +38,13 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 	}
 
 	for _, module := range moduleMap {
-		dependencies, err := getDependenciesForModule(module, moduleMap, terragruntConfigPaths)
+		dependencies, err := getDependenciesForModule(*module, moduleMap, terragruntConfigPaths)
 		if err != nil {
 			return modules, err
 		}
 
 		module.Dependencies = dependencies
-		modules = append(modules, module)
+		modules = append(modules, *module)
 	}
 
 	return modules, nil
@@ -52,11 +52,12 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 
 // Create a mapping from the absolute path of a module to the TerraformModule struct for that module. Note that this
 // method will NOT fill in the Dependencies field of the TerraformModule struct.
-func createModuleMap(terragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions) (map[string]TerraformModule, error) {
-	moduleMap := map[string]TerraformModule{}
+func createModuleMap(terragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions) (map[string]*TerraformModule, error) {
+	moduleMap := map[string]*TerraformModule{}
 
 	for _, terragruntConfigPath := range terragruntConfigPaths {
-		terragruntConfig, err := config.ParseConfigFile(terragruntConfigPath, terragruntOptions, nil)
+		opts := terragruntOptions.Clone(terragruntConfigPath)
+		terragruntConfig, err := config.ParseConfigFile(terragruntConfigPath, opts, nil)
 		if err != nil {
 			return moduleMap, err
 		}
@@ -66,10 +67,10 @@ func createModuleMap(terragruntConfigPaths []string, terragruntOptions *options.
 			return moduleMap, err
 		}
 
-		moduleMap[modulePath] = TerraformModule{
+		moduleMap[modulePath] = &TerraformModule{
 			Path: modulePath,
 			Config: *terragruntConfig,
-			TerragruntOptions: terragruntOptions.Clone(terragruntConfigPath),
+			TerragruntOptions: opts,
 		}
 	}
 
@@ -77,7 +78,7 @@ func createModuleMap(terragruntConfigPaths []string, terragruntOptions *options.
 }
 
 // Get the list of modules this module depends on
-func getDependenciesForModule(module TerraformModule, moduleMap map[string]TerraformModule, terragruntConfigPaths []string) ([]TerraformModule, error) {
+func getDependenciesForModule(module TerraformModule, moduleMap map[string]*TerraformModule, terragruntConfigPaths []string) ([]TerraformModule, error) {
 	dependencies := []TerraformModule{}
 
 	if module.Config.Dependencies == nil || len(module.Config.Dependencies.Paths) == 0 {
@@ -95,7 +96,7 @@ func getDependenciesForModule(module TerraformModule, moduleMap map[string]Terra
 			}
 			return dependencies, errors.WithStackTrace(err)
 		}
-		dependencies = append(dependencies, dependencyModule)
+		dependencies = append(dependencies, *dependencyModule)
 	}
 
 	return dependencies, nil

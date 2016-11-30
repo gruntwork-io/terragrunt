@@ -391,6 +391,10 @@ remote_state = {
     region = "override"
   }
 }
+
+dependencies = {
+  paths = ["override"]
+}
 `
 
 	opts := options.TerragruntOptions{
@@ -412,6 +416,7 @@ remote_state = {
 		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["bucket"])
 		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["key"])
 		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["region"])
+		assert.Equal(t, []string{"override"}, terragruntConfig.Dependencies.Paths)
 	}
 
 }

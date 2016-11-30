@@ -125,6 +125,9 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 		includedConfig.RemoteState = config.RemoteState
 	}
 
+	if config.Dependencies != nil {
+		includedConfig.Dependencies = config.Dependencies
+	}
 
 	return includedConfig, nil
 }
