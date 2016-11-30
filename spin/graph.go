@@ -6,7 +6,7 @@ import (
 )
 
 // Check for dependency cycles in the given list of modules and return an error if one is found
-func CheckForCycles(modules []TerraformModule) error {
+func CheckForCycles(modules []*TerraformModule) error {
 	visitedPaths := []string{}
 	currentTraversalPaths := []string{}
 
@@ -28,7 +28,7 @@ func CheckForCycles(modules []TerraformModule) error {
 // list doesn't perform well with repeated contains() and remove() checks, so ideally we'd use an ordered Map (e.g.
 // Java's LinkedHashMap), but since Go doesn't have such a data structure built-in, and our lists are going to be very
 // small (at most, a few dozen paths), there is no point in worrying about performance.
-func checkForCyclesUsingDepthFirstSearch(module TerraformModule, visitedPaths *[]string, currentTraversalPaths *[]string) error {
+func checkForCyclesUsingDepthFirstSearch(module *TerraformModule, visitedPaths *[]string, currentTraversalPaths *[]string) error {
 	if util.ListContainsElement(*visitedPaths, module.Path) {
 		return nil
 	}

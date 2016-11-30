@@ -12,13 +12,15 @@ import (
 	"sort"
 )
 
-type ByPath []TerraformModule
+type ByPath []*TerraformModule
 
 func (byPath ByPath) Len() int           { return len(byPath) }
 func (byPath ByPath) Swap(i, j int)      { byPath[i], byPath[j] = byPath[j], byPath[i] }
 func (byPath ByPath) Less(i, j int) bool { return byPath[i].Path < byPath[j].Path }
 
-func assertModuleListsEqual(t *testing.T, expectedModules []TerraformModule, actualModules []TerraformModule, messageAndArgs ...interface{}) {
+// We can't use assert.Equals on TerraformModule or any data structure that contains it because it contains some
+// fields (e.g. TerragruntOptions) that cannot be compared directly
+func assertModuleListsEqual(t *testing.T, expectedModules []*TerraformModule, actualModules []*TerraformModule, messageAndArgs ...interface{}) {
 	if !assert.Equal(t, len(expectedModules), len(actualModules), messageAndArgs...) {
 		t.Logf("%s != %s", expectedModules, actualModules)
 		return
@@ -34,7 +36,9 @@ func assertModuleListsEqual(t *testing.T, expectedModules []TerraformModule, act
 	}
 }
 
-func assertModulesEqual(t *testing.T, expected TerraformModule, actual TerraformModule, messageAndArgs ...interface{}) {
+// We can't use assert.Equals on TerraformModule because it contains some fields (e.g. TerragruntOptions) that cannot
+// be compared directly
+func assertModulesEqual(t *testing.T, expected *TerraformModule, actual *TerraformModule, messageAndArgs ...interface{}) {
 	if assert.NotNil(t, actual, messageAndArgs...) {
 		assert.Equal(t, expected.Config, actual.Config, messageAndArgs...)
 		assert.Equal(t, expected.Path, actual.Path, messageAndArgs...)
@@ -44,11 +48,38 @@ func assertModulesEqual(t *testing.T, expected TerraformModule, actual Terraform
 	}
 }
 
+// We can't use assert.Equals on TerraformModule or any data structure that contains it (e.g. runningModule) because it
+// contains some fields (e.g. TerragruntOptions) that cannot be compared directly
+func assertRunningModuleMapsEqual(t *testing.T, expectedModules map[string]*runningModule, actualModules map[string]*runningModule, messageAndArgs ...interface{}) {
+	if !assert.Equal(t, len(expectedModules), len(actualModules), messageAndArgs...) {
+		t.Logf("%s != %s", expectedModules, actualModules)
+		return
+	}
+
+	for expectedPath, expectedModule := range expectedModules {
+		actualModule, containsModule := actualModules[expectedPath]
+		if assert.True(t, containsModule, messageAndArgs...) {
+			assertRunningModulesEqual(t, expectedModule, actualModule, messageAndArgs...)
+		}
+	}
+}
+
+// We can't use assert.Equals on TerraformModule or any data structure that contains it (e.g. runningModule) because it
+// contains some fields (e.g. TerragruntOptions) that cannot be compared directly
+func assertRunningModulesEqual(t *testing.T, expected *runningModule, actual *runningModule, messageAndArgs ...interface{}) {
+	if assert.NotNil(t, actual, messageAndArgs...) {
+		assertModulesEqual(t, expected.Module, actual.Module, messageAndArgs...)
+		assert.Equal(t, expected.Status, actual.Status, messageAndArgs...)
+		assertErrorsEqual(t, expected.Err, actual.Err, messageAndArgs...)
+		assertRunningModuleMapsEqual(t, expected.Dependencies, actual.Dependencies, messageAndArgs...)
+	}
+}
+
+// We can't do a simple IsError comparison for UnrecognizedDependency because that error is a struct that
+// contains an array, and in Go, trying to compare arrays gives a "comparing uncomparable type
+// spin.UnrecognizedDependency" panic. Therefore, we have to compare that error more manually.
 func assertErrorsEqual(t *testing.T, expected error, actual error, messageAndArgs ...interface{}) {
 	actual = errors.Unwrap(actual)
-	// We can't do a simple IsError comparison for UnrecognizedDependency because that error is a struct that
-	// contains an array, and in Go, trying to compare arrays gives a "comparing uncomparable type
-	// spin.UnrecognizedDependency" panic. Therefore, we have to compare that error more manually.
 	if expectedUnrecognized, isUnrecognizedDependencyError := expected.(UnrecognizedDependency); isUnrecognizedDependencyError {
 		actualUnrecognized, isUnrecognizedDependencyError := actual.(UnrecognizedDependency)
 		if assert.True(t, isUnrecognizedDependencyError, messageAndArgs...) {

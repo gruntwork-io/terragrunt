@@ -16,12 +16,12 @@ const (
 
 // Represents a module we are trying to "run" (i.e. apply or destroy) as part of the spin-up or tear-down command
 type runningModule struct {
-	Module         TerraformModule
+	Module         *TerraformModule
 	Status         ModuleStatus
 	Err            error
-	DependencyDone chan runningModule
-	Dependencies   map[string]runningModule
-	NotifyWhenDone []chan runningModule
+	DependencyDone chan *runningModule
+	Dependencies   map[string]*runningModule
+	NotifyWhenDone []chan *runningModule
 }
 
 // This controls in what order dependencies should be enforced between modules
@@ -34,34 +34,35 @@ const (
 // Create a new RunningModule struct for the given module. This will initialize all fields to reasonable defaults,
 // except for the Dependencies and NotifyWhenDone, both of which will be empty. You should fill these using a
 // function such as crossLinkDependencies.
-func newRunningModule(module TerraformModule) runningModule {
-	return runningModule{
+func newRunningModule(module *TerraformModule) *runningModule {
+	return &runningModule{
 		Module: module,
 		Status: Waiting,
-		DependencyDone: make(chan runningModule),
-		Dependencies: map[string]runningModule{},
-		NotifyWhenDone: []chan runningModule{},
+		DependencyDone: make(chan *runningModule),
+		Dependencies: map[string]*runningModule{},
+		NotifyWhenDone: []chan *runningModule{},
 	}
 }
 
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func RunModules(modules []TerraformModule) error {
+func RunModules(modules []*TerraformModule) error {
 	return runModules(toRunningModules(modules, NormalOrder))
 }
 
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in the reverse order of their inter-dependencies, using
 // as much concurrency as possible.
-func RunModulesReverseOrder(modules []TerraformModule) error {
+func RunModulesReverseOrder(modules []*TerraformModule) error {
 	return runModules(toRunningModules(modules, ReverseOrder))
 }
 
 // Convert the list of modules to a map from module path to a runningModule struct. This struct contains information
-// about executing the module, such as whether it has finished running or not and any errors that happened.
-func toRunningModules(modules []TerraformModule, dependencyOrder DependencyOrder) map[string]runningModule {
-	runningModules := map[string]runningModule{}
+// about executing the module, such as whether it has finished running or not and any errors that happened. Note that
+// this does NOT actually run the module. For that, see the RunModules method.
+func toRunningModules(modules []*TerraformModule, dependencyOrder DependencyOrder) map[string]*runningModule {
+	runningModules := map[string]*runningModule{}
 	for _, module := range modules {
 		runningModules[module.Path] = newRunningModule(module)
 	}
@@ -74,7 +75,7 @@ func toRunningModules(modules []TerraformModule, dependencyOrder DependencyOrder
 // * If dependencyOrder is NormalOrder, plug in all the modules M depends on into the Dependencies field and all the
 //   modules that depend on M into the NotifyWhenDone field.
 // * If dependencyOrder is ReverseOrder, do the reverse.
-func crossLinkDependencies(modules map[string]runningModule, dependencyOrder DependencyOrder) map[string]runningModule {
+func crossLinkDependencies(modules map[string]*runningModule, dependencyOrder DependencyOrder) map[string]*runningModule {
 	for _, module := range modules {
 		for _, dependency := range module.Module.Dependencies {
 			runningDependency := modules[dependency.Path]
@@ -94,12 +95,12 @@ func crossLinkDependencies(modules map[string]runningModule, dependencyOrder Dep
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func runModules(modules map[string]runningModule) error {
+func runModules(modules map[string]*runningModule) error {
 	var waitGroup sync.WaitGroup
 
 	for _, module := range modules {
 		waitGroup.Add(1)
-		go func(module runningModule) {
+		go func(module *runningModule) {
 			defer waitGroup.Done()
 			module.runModuleWhenReady()
 		}(module)
@@ -112,7 +113,7 @@ func runModules(modules map[string]runningModule) error {
 
 // Collect the errors from the given modules and return a single error object to represent them, or nil if no errors
 // occurred
-func collectErrors(modules map[string]runningModule) error {
+func collectErrors(modules map[string]*runningModule) error {
 	errs := []error{}
 	for _, module := range modules {
 		if module.Err != nil {
@@ -128,7 +129,7 @@ func collectErrors(modules map[string]runningModule) error {
 }
 
 // Run a module once all of its dependencies have finished executing.
-func (module runningModule) runModuleWhenReady() {
+func (module *runningModule) runModuleWhenReady() {
 	err := module.waitForDependencies()
 	if err == nil {
 		err = module.runNow()
@@ -138,7 +139,7 @@ func (module runningModule) runModuleWhenReady() {
 
 // Wait for all of this modules dependencies to finish executing. Return an error if any of those dependencies complete
 // with an error. Return immediately if this module has no dependencies.
-func (module runningModule) waitForDependencies() error {
+func (module *runningModule) waitForDependencies() error {
 	for len(module.Dependencies) > 0 {
 		doneDependency := <- module.DependencyDone
 		delete(module.Dependencies, doneDependency.Module.Path)
@@ -152,13 +153,13 @@ func (module runningModule) waitForDependencies() error {
 }
 
 // Run a module right now by executing the RunTerragrunt command of its TerragruntOptions field.
-func (module runningModule) runNow() error {
+func (module *runningModule) runNow() error {
 	module.Status = Running
 	return module.Module.TerragruntOptions.RunTerragrunt(module.Module.TerragruntOptions)
 }
 
 // Record that a module has finished executing and notify all of this module's dependencies
-func (module runningModule) moduleFinished(moduleErr error) {
+func (module *runningModule) moduleFinished(moduleErr error) {
 	module.Status = Finished
 	module.Err = moduleErr
 
@@ -170,8 +171,8 @@ func (module runningModule) moduleFinished(moduleErr error) {
 // Custom error types
 
 type DependencyFinishedWithError struct {
-	Module     TerraformModule
-	Dependency TerraformModule
+	Module     *TerraformModule
+	Dependency *TerraformModule
 	Err        error
 }
 func (err DependencyFinishedWithError) Error() string {
@@ -187,12 +188,4 @@ func (err MultiError) Error() string {
 		errorStrings = append(errorStrings, err.Error())
 	}
 	return fmt.Sprintf("Encountered the following errors:\n%s", strings.Join(errorStrings, "\n"))
-}
-
-type MissingDependencyInternalError struct {
-	Module     TerraformModule
-	Dependency TerraformModule
-}
-func (err MissingDependencyInternalError) Error() string {
-	return fmt.Sprintf("Error: could not find dependency %s for module %s. This is an internal error in Terragrunt and should be filed as a bug.", err.Module, err.Dependency)
 }

@@ -12,16 +12,16 @@ func TestResolveTerraformModules(t *testing.T) {
 
 	mockOptions := options.NewTerragruntOptionsForTest("TestResolveTerraformModules")
 
-	moduleA := TerraformModule{
+	moduleA := &TerraformModule{
 		Path: abs(t, "../test/fixture-modules/module-a"),
-		Dependencies: []TerraformModule{},
+		Dependencies: []*TerraformModule{},
 		Config: config.TerragruntConfig{},
 		TerragruntOptions: mockOptions.Clone("../test/fixture-modules/module-a/.terragrunt"),
 	}
 
-	moduleB := TerraformModule{
+	moduleB := &TerraformModule{
 		Path: abs(t, "../test/fixture-modules/module-b/module-b-child"),
-		Dependencies: []TerraformModule{},
+		Dependencies: []*TerraformModule{},
 		Config: config.TerragruntConfig{
 			Lock: lock(t, "module-b-child"),
 			RemoteState: state(t, "bucket", "module-b-child/terraform.tfstate"),
@@ -29,9 +29,9 @@ func TestResolveTerraformModules(t *testing.T) {
 		TerragruntOptions: mockOptions.Clone("../test/fixture-modules/module-b/module-b-child/.terragrunt"),
 	}
 
-	moduleC := TerraformModule{
+	moduleC := &TerraformModule{
 		Path: abs(t, "../test/fixture-modules/module-c"),
-		Dependencies: []TerraformModule{moduleA},
+		Dependencies: []*TerraformModule{moduleA},
 		Config: config.TerragruntConfig{
 			Lock: lock(t, "module-c"),
 			Dependencies: &config.ModuleDependencies{Paths: []string{"../module-a"}},
@@ -39,18 +39,18 @@ func TestResolveTerraformModules(t *testing.T) {
 		TerragruntOptions: mockOptions.Clone("../test/fixture-modules/module-c/.terragrunt"),
 	}
 
-	moduleD := TerraformModule{
+	moduleD := &TerraformModule{
 		Path: abs(t, "../test/fixture-modules/module-d"),
-		Dependencies: []TerraformModule{moduleA, moduleB, moduleC},
+		Dependencies: []*TerraformModule{moduleA, moduleB, moduleC},
 		Config: config.TerragruntConfig{
 			Dependencies: &config.ModuleDependencies{Paths: []string{"../module-a", "../module-b/module-b-child", "../module-c"}},
 		},
 		TerragruntOptions: mockOptions.Clone("../test/fixture-modules/module-d/.terragrunt"),
 	}
 
-	moduleE := TerraformModule{
+	moduleE := &TerraformModule{
 		Path: abs(t, "../test/fixture-modules/module-e/module-e-child"),
-		Dependencies: []TerraformModule{moduleA, moduleB},
+		Dependencies: []*TerraformModule{moduleA, moduleB},
 		Config: config.TerragruntConfig{
 			Lock: lock(t, "module-e-child"),
 			RemoteState: state(t, "bucket", "module-e-child/terraform.tfstate"),
@@ -61,42 +61,42 @@ func TestResolveTerraformModules(t *testing.T) {
 
 	testCases := []struct {
 		terragruntConfigPaths []string
-		expectedModules       []TerraformModule
+		expectedModules       []*TerraformModule
 		expectedErr           error
 	}{
 		{
 			[]string{},
-			[]TerraformModule{},
+			[]*TerraformModule{},
 			nil,
 		},
 		{
 			[]string{"../test/fixture-modules/module-a/.terragrunt"},
-			[]TerraformModule{moduleA},
+			[]*TerraformModule{moduleA},
 			nil,
 		},
 		{
 			[]string{"../test/fixture-modules/module-b/module-b-child/.terragrunt"},
-			[]TerraformModule{moduleB},
+			[]*TerraformModule{moduleB},
 			nil,
 		},
 		{
 			[]string{"../test/fixture-modules/module-a/.terragrunt", "../test/fixture-modules/module-c/.terragrunt"},
-			[]TerraformModule{moduleA, moduleC},
+			[]*TerraformModule{moduleA, moduleC},
 			nil,
 		},
 		{
 			[]string{"../test/fixture-modules/module-a/.terragrunt", "../test/fixture-modules/module-b/module-b-child/.terragrunt", "../test/fixture-modules/module-c/.terragrunt", "../test/fixture-modules/module-d/.terragrunt"},
-			[]TerraformModule{moduleA, moduleB, moduleC, moduleD},
+			[]*TerraformModule{moduleA, moduleB, moduleC, moduleD},
 			nil,
 		},
 		{
 			[]string{"../test/fixture-modules/module-a/.terragrunt", "../test/fixture-modules/module-b/module-b-child/.terragrunt", "../test/fixture-modules/module-e/module-e-child/.terragrunt"},
-			[]TerraformModule{moduleA, moduleB, moduleE},
+			[]*TerraformModule{moduleA, moduleB, moduleE},
 			nil,
 		},
 		{
 			[]string{"../test/fixture-modules/module-c/.terragrunt"},
-			[]TerraformModule{},
+			[]*TerraformModule{},
 			UnrecognizedDependency{
 				ModulePath: abs(t, "../test/fixture-modules/module-c"),
 				DependencyPath: "../module-a",
@@ -105,7 +105,7 @@ func TestResolveTerraformModules(t *testing.T) {
 		},
 		{
 			[]string{"../test/fixture-modules/module-missing-dependency/.terragrunt"},
-			[]TerraformModule{},
+			[]*TerraformModule{},
 			UnrecognizedDependency{
 				ModulePath: abs(t, "../test/fixture-modules/module-missing-dependency"),
 				DependencyPath: "../not-a-real-dependency",

@@ -13,7 +13,7 @@ import (
 // "spin down" in a single command
 type Stack struct {
 	Path    string
-	Modules []TerraformModule
+	Modules []*TerraformModule
 }
 
 // Render this stack as a human-readable string
