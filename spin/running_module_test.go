@@ -386,6 +386,22 @@ func TestRunModulesOneModuleSuccess(t *testing.T) {
 	assert.True(t, aRan)
 }
 
+func TestRunModulesReverseOrderOneModuleSuccess(t *testing.T) {
+	t.Parallel()
+
+	aRan := false
+	moduleA := &TerraformModule{
+		Path: "a",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("a", nil, &aRan),
+	}
+
+	err := RunModulesReverseOrder([]*TerraformModule{moduleA})
+	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.True(t, aRan)
+}
+
 func TestRunModulesOneModuleError(t *testing.T) {
 	t.Parallel()
 
@@ -399,6 +415,23 @@ func TestRunModulesOneModuleError(t *testing.T) {
 	}
 
 	err := RunModules([]*TerraformModule{moduleA})
+	assertMultiErrorContains(t, err, expectedErrA)
+	assert.True(t, aRan)
+}
+
+func TestRunModulesReverseOrderOneModuleError(t *testing.T) {
+	t.Parallel()
+
+	aRan := false
+	expectedErrA := fmt.Errorf("Expected error for module a")
+	moduleA := &TerraformModule{
+		Path: "a",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("a", expectedErrA, &aRan),
+	}
+
+	err := RunModulesReverseOrder([]*TerraformModule{moduleA})
 	assertMultiErrorContains(t, err, expectedErrA)
 	assert.True(t, aRan)
 }
@@ -431,6 +464,41 @@ func TestRunModulesMultipleModulesNoDependenciesSuccess(t *testing.T) {
 	}
 
 	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC})
+	assert.Nil(t, err, "Unexpected error: %v", err)
+
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
+}
+
+func TestRunModulesReverseOrderMultipleModulesNoDependenciesSuccess(t *testing.T) {
+	t.Parallel()
+
+	aRan := false
+	moduleA := &TerraformModule{
+		Path: "a",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("a", nil, &aRan),
+	}
+
+	bRan := false
+	moduleB := &TerraformModule{
+		Path: "b",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("b", nil, &bRan),
+	}
+
+	cRan := false
+	moduleC := &TerraformModule{
+		Path: "c",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("c", nil, &cRan),
+	}
+
+	err := RunModulesReverseOrder([]*TerraformModule{moduleA, moduleB, moduleC})
 	assert.Nil(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -547,6 +615,41 @@ func TestRunModulesMultipleModulesWithDependenciesSuccess(t *testing.T) {
 	assert.True(t, cRan)
 }
 
+func TestRunModulesReverseOrderMultipleModulesWithDependenciesSuccess(t *testing.T) {
+	t.Parallel()
+
+	aRan := false
+	moduleA := &TerraformModule{
+		Path: "a",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("a", nil, &aRan),
+	}
+
+	bRan := false
+	moduleB := &TerraformModule{
+		Path: "b",
+		Dependencies: []*TerraformModule{moduleA},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("b", nil, &bRan),
+	}
+
+	cRan := false
+	moduleC := &TerraformModule{
+		Path: "c",
+		Dependencies: []*TerraformModule{moduleB},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("c", nil, &cRan),
+	}
+
+	err := RunModulesReverseOrder([]*TerraformModule{moduleA, moduleB, moduleC})
+	assert.Nil(t, err, "Unexpected error: %v", err)
+
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
+}
+
 func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
 	t.Parallel()
 
@@ -583,6 +686,44 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
 	assert.True(t, aRan)
 	assert.True(t, bRan)
 	assert.False(t, cRan)
+}
+
+func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *testing.T) {
+	t.Parallel()
+
+	aRan := false
+	moduleA := &TerraformModule{
+		Path: "a",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("a", nil, &aRan),
+	}
+
+	bRan := false
+	expectedErrB := fmt.Errorf("Expected error for module b")
+	moduleB := &TerraformModule{
+		Path: "b",
+		Dependencies: []*TerraformModule{moduleA},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("b", expectedErrB, &bRan),
+	}
+
+	cRan := false
+	moduleC := &TerraformModule{
+		Path: "c",
+		Dependencies: []*TerraformModule{moduleB},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("c", nil, &cRan),
+	}
+
+	expectedErrA := DependencyFinishedWithError{moduleA, moduleB, expectedErrB}
+
+	err := RunModulesReverseOrder([]*TerraformModule{moduleA, moduleB, moduleC})
+	assertMultiErrorContains(t, err, expectedErrB, expectedErrA)
+
+	assert.False(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
 }
 
 func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T) {
@@ -692,6 +833,72 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 
 	aRan := false
 	moduleA := &TerraformModule{
+		Path: "large-graph-a",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("large-graph-a", nil, &aRan),
+	}
+
+	bRan := false
+	moduleB := &TerraformModule{
+		Path: "large-graph-b",
+		Dependencies: []*TerraformModule{moduleA},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("large-graph-b", nil, &bRan),
+	}
+
+	cRan := false
+	expectedErrC := fmt.Errorf("Expected error for module large-graph-c")
+	moduleC := &TerraformModule{
+		Path: "large-graph-c",
+		Dependencies: []*TerraformModule{moduleB},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("large-graph-c", expectedErrC, &cRan),
+	}
+
+	dRan := false
+	moduleD := &TerraformModule{
+		Path: "large-graph-d",
+		Dependencies: []*TerraformModule{moduleA, moduleB, moduleC},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("large-graph-d", nil, &dRan),
+	}
+
+	eRan := false
+	moduleE := &TerraformModule{
+		Path: "large-graph-e",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("large-graph-e", nil, &eRan),
+	}
+
+	fRan := false
+	moduleF := &TerraformModule{
+		Path: "large-graph-f",
+		Dependencies: []*TerraformModule{moduleE, moduleD},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("large-graph-f", nil, &fRan),
+	}
+
+	expectedErrD := DependencyFinishedWithError{moduleD, moduleC, expectedErrC}
+	expectedErrF := DependencyFinishedWithError{moduleF, moduleD, expectedErrD}
+
+	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF})
+	assertMultiErrorContains(t, err, expectedErrC, expectedErrD, expectedErrF)
+
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
+	assert.False(t, dRan)
+	assert.True(t, eRan)
+	assert.False(t, fRan)
+}
+
+func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialFailure(t *testing.T) {
+	t.Parallel()
+
+	aRan := false
+	moduleA := &TerraformModule{
 		Path: "a",
 		Dependencies: []*TerraformModule{},
 		Config: config.TerragruntConfig{},
@@ -739,18 +946,17 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 		TerragruntOptions: optionsWithMockTerragruntCommand("f", nil, &fRan),
 	}
 
-	expectedErrD := DependencyFinishedWithError{moduleD, moduleC, expectedErrC}
-	expectedErrF := DependencyFinishedWithError{moduleF, moduleD, expectedErrD}
+	expectedErrB := DependencyFinishedWithError{moduleB, moduleC, expectedErrC}
+	expectedErrA := DependencyFinishedWithError{moduleA, moduleB, expectedErrB}
 
-	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF})
-	assertMultiErrorContains(t, err, expectedErrC, expectedErrD, expectedErrF)
+	err := RunModulesReverseOrder([]*TerraformModule{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF})
+	assertMultiErrorContains(t, err, expectedErrC, expectedErrB, expectedErrA)
 
-	assert.True(t, aRan)
-	assert.True(t, bRan)
+	assert.False(t, aRan)
+	assert.False(t, bRan)
 	assert.True(t, cRan)
-	assert.False(t, dRan)
+	assert.True(t, dRan)
 	assert.True(t, eRan)
-	assert.False(t, fRan)
+	assert.True(t, fRan)
 }
 
-// TODO: test RunModulesReverseOrder
