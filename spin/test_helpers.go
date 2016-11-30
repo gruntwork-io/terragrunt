@@ -159,3 +159,32 @@ func state(t *testing.T, bucket string, key string) *remote.RemoteState {
 		},
 	}
 }
+
+// Create a mock TerragruntOptions object and configure its RunTerragrunt command to return the given error object. If
+// the RunTerragrunt command is called, this method will also set the executed boolean to true.
+func optionsWithMockTerragruntCommand(terragruntConfigPath string, toReturnFromTerragruntCommand error, executed *bool) *options.TerragruntOptions {
+	opts := options.NewTerragruntOptionsForTest(terragruntConfigPath)
+	opts.RunTerragrunt = func(_ *options.TerragruntOptions) error {
+		*executed = true
+		return toReturnFromTerragruntCommand
+	}
+	return opts
+}
+
+func assertMultiErrorContains(t *testing.T, actualError error, expectedErrors ...error) {
+	actualError = errors.Unwrap(actualError)
+	multiError, isMultiError := actualError.(MultiError)
+	if assert.True(t, isMultiError, "Expected a MutliError, but got: %v", actualError) {
+		assert.Equal(t, len(expectedErrors), len(multiError.Errors))
+		for _, expectedErr := range expectedErrors {
+			found := false
+			for _, actualErr := range multiError.Errors {
+				if expectedErr == actualErr {
+					found = true
+					break
+				}
+			}
+			assert.True(t, found, "Couldn't find expected error %v", expectedErr)
+		}
+	}
+}

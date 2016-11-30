@@ -136,7 +136,7 @@ func collectErrors(modules map[string]*runningModule) error {
 	if len(errs) == 0 {
 		return nil
 	} else {
-		return MultiError{Errors: errs}
+		return errors.WithStackTrace(MultiError{Errors: errs})
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
+	"fmt"
 )
 
 var mockOptions = options.NewTerragruntOptionsForTest("running_module_test")
@@ -362,8 +363,394 @@ func testToRunningModules(t *testing.T, modules []*TerraformModule, order Depend
 	}
 }
 
-func TestRunModules(t *testing.T) {
+func TestRunModulesNoModules(t *testing.T) {
 	t.Parallel()
 
-	// TODO
+	err := RunModules([]*TerraformModule{})
+	assert.Nil(t, err, "Unexpected error: %v", err)
 }
+
+func TestRunModulesOneModuleSuccess(t *testing.T) {
+	t.Parallel()
+
+	aRan := false
+	moduleA := &TerraformModule{
+		Path: "a",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("a", nil, &aRan),
+	}
+
+	err := RunModules([]*TerraformModule{moduleA})
+	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.True(t, aRan)
+}
+
+func TestRunModulesOneModuleError(t *testing.T) {
+	t.Parallel()
+
+	aRan := false
+	expectedErrA := fmt.Errorf("Expected error for module a")
+	moduleA := &TerraformModule{
+		Path: "a",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("a", expectedErrA, &aRan),
+	}
+
+	err := RunModules([]*TerraformModule{moduleA})
+	assertMultiErrorContains(t, err, expectedErrA)
+	assert.True(t, aRan)
+}
+
+func TestRunModulesMultipleModulesNoDependenciesSuccess(t *testing.T) {
+	t.Parallel()
+
+	aRan := false
+	moduleA := &TerraformModule{
+		Path: "a",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("a", nil, &aRan),
+	}
+
+	bRan := false
+	moduleB := &TerraformModule{
+		Path: "b",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("b", nil, &bRan),
+	}
+
+	cRan := false
+	moduleC := &TerraformModule{
+		Path: "c",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("c", nil, &cRan),
+	}
+
+	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC})
+	assert.Nil(t, err, "Unexpected error: %v", err)
+
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
+}
+
+func TestRunModulesMultipleModulesNoDependenciesOneFailure(t *testing.T) {
+	t.Parallel()
+
+	aRan := false
+	moduleA := &TerraformModule{
+		Path: "a",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("a", nil, &aRan),
+	}
+
+	bRan := false
+	expectedErrB := fmt.Errorf("Expected error for module b")
+	moduleB := &TerraformModule{
+		Path: "b",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("b", expectedErrB, &bRan),
+	}
+
+	cRan := false
+	moduleC := &TerraformModule{
+		Path: "c",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("c", nil, &cRan),
+	}
+
+	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC})
+	assertMultiErrorContains(t, err, expectedErrB)
+
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
+}
+
+func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
+	t.Parallel()
+
+	aRan := false
+	expectedErrA := fmt.Errorf("Expected error for module a")
+	moduleA := &TerraformModule{
+		Path: "a",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("a", expectedErrA, &aRan),
+	}
+
+	bRan := false
+	expectedErrB := fmt.Errorf("Expected error for module b")
+	moduleB := &TerraformModule{
+		Path: "b",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("b", expectedErrB, &bRan),
+	}
+
+	cRan := false
+	expectedErrC := fmt.Errorf("Expected error for module c")
+	moduleC := &TerraformModule{
+		Path: "c",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("c", expectedErrC, &cRan),
+	}
+
+	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC})
+	assertMultiErrorContains(t, err, expectedErrA, expectedErrB, expectedErrC)
+
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
+}
+
+func TestRunModulesMultipleModulesWithDependenciesSuccess(t *testing.T) {
+	t.Parallel()
+
+	aRan := false
+	moduleA := &TerraformModule{
+		Path: "a",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("a", nil, &aRan),
+	}
+
+	bRan := false
+	moduleB := &TerraformModule{
+		Path: "b",
+		Dependencies: []*TerraformModule{moduleA},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("b", nil, &bRan),
+	}
+
+	cRan := false
+	moduleC := &TerraformModule{
+		Path: "c",
+		Dependencies: []*TerraformModule{moduleB},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("c", nil, &cRan),
+	}
+
+	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC})
+	assert.Nil(t, err, "Unexpected error: %v", err)
+
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
+}
+
+func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
+	t.Parallel()
+
+	aRan := false
+	moduleA := &TerraformModule{
+		Path: "a",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("a", nil, &aRan),
+	}
+
+	bRan := false
+	expectedErrB := fmt.Errorf("Expected error for module b")
+	moduleB := &TerraformModule{
+		Path: "b",
+		Dependencies: []*TerraformModule{moduleA},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("b", expectedErrB, &bRan),
+	}
+
+	cRan := false
+	moduleC := &TerraformModule{
+		Path: "c",
+		Dependencies: []*TerraformModule{moduleB},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("c", nil, &cRan),
+	}
+
+	expectedErrC := DependencyFinishedWithError{moduleC, moduleB, expectedErrB}
+
+	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC})
+	assertMultiErrorContains(t, err, expectedErrB, expectedErrC)
+
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.False(t, cRan)
+}
+
+func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T) {
+	t.Parallel()
+
+	aRan := false
+	expectedErrA := fmt.Errorf("Expected error for module a")
+	moduleA := &TerraformModule{
+		Path: "a",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("a", expectedErrA, &aRan),
+	}
+
+	bRan := false
+	moduleB := &TerraformModule{
+		Path: "b",
+		Dependencies: []*TerraformModule{moduleA},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("b", nil, &bRan),
+	}
+
+	cRan := false
+	moduleC := &TerraformModule{
+		Path: "c",
+		Dependencies: []*TerraformModule{moduleB},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("c", nil, &cRan),
+	}
+
+	expectedErrB := DependencyFinishedWithError{moduleB, moduleA, expectedErrA}
+	expectedErrC := DependencyFinishedWithError{moduleC, moduleB, expectedErrB}
+
+	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC})
+	assertMultiErrorContains(t, err, expectedErrA, expectedErrB, expectedErrC)
+
+	assert.True(t, aRan)
+	assert.False(t, bRan)
+	assert.False(t, cRan)
+}
+
+func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testing.T) {
+	t.Parallel()
+
+	aRan := false
+	moduleA := &TerraformModule{
+		Path: "a",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("a", nil, &aRan),
+	}
+
+	bRan := false
+	moduleB := &TerraformModule{
+		Path: "b",
+		Dependencies: []*TerraformModule{moduleA},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("b", nil, &bRan),
+	}
+
+	cRan := false
+	moduleC := &TerraformModule{
+		Path: "c",
+		Dependencies: []*TerraformModule{moduleB},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("c", nil, &cRan),
+	}
+
+	dRan := false
+	moduleD := &TerraformModule{
+		Path: "d",
+		Dependencies: []*TerraformModule{moduleA, moduleB, moduleC},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("d", nil, &dRan),
+	}
+
+	eRan := false
+	moduleE := &TerraformModule{
+		Path: "e",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("e", nil, &eRan),
+	}
+
+	fRan := false
+	moduleF := &TerraformModule{
+		Path: "f",
+		Dependencies: []*TerraformModule{moduleE, moduleD},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("f", nil, &fRan),
+	}
+
+
+	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF})
+	assert.Nil(t, err)
+
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
+	assert.True(t, dRan)
+	assert.True(t, eRan)
+	assert.True(t, fRan)
+}
+
+func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *testing.T) {
+	t.Parallel()
+
+	aRan := false
+	moduleA := &TerraformModule{
+		Path: "a",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("a", nil, &aRan),
+	}
+
+	bRan := false
+	moduleB := &TerraformModule{
+		Path: "b",
+		Dependencies: []*TerraformModule{moduleA},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("b", nil, &bRan),
+	}
+
+	cRan := false
+	expectedErrC := fmt.Errorf("Expected error for module c")
+	moduleC := &TerraformModule{
+		Path: "c",
+		Dependencies: []*TerraformModule{moduleB},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("c", expectedErrC, &cRan),
+	}
+
+	dRan := false
+	moduleD := &TerraformModule{
+		Path: "d",
+		Dependencies: []*TerraformModule{moduleA, moduleB, moduleC},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("d", nil, &dRan),
+	}
+
+	eRan := false
+	moduleE := &TerraformModule{
+		Path: "e",
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("e", nil, &eRan),
+	}
+
+	fRan := false
+	moduleF := &TerraformModule{
+		Path: "f",
+		Dependencies: []*TerraformModule{moduleE, moduleD},
+		Config: config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand("f", nil, &fRan),
+	}
+
+	expectedErrD := DependencyFinishedWithError{moduleD, moduleC, expectedErrC}
+	expectedErrF := DependencyFinishedWithError{moduleF, moduleD, expectedErrD}
+
+	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF})
+	assertMultiErrorContains(t, err, expectedErrC, expectedErrD, expectedErrF)
+
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
+	assert.False(t, dRan)
+	assert.True(t, eRan)
+	assert.False(t, fRan)
+}
+
+// TODO: test RunModulesReverseOrder
