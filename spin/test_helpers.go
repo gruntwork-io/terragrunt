@@ -12,11 +12,15 @@ import (
 	"sort"
 )
 
-type ByPath []*TerraformModule
+type TerraformModuleByPath []*TerraformModule
+func (byPath TerraformModuleByPath) Len() int           { return len(byPath) }
+func (byPath TerraformModuleByPath) Swap(i, j int)      { byPath[i], byPath[j] = byPath[j], byPath[i] }
+func (byPath TerraformModuleByPath) Less(i, j int) bool { return byPath[i].Path < byPath[j].Path }
 
-func (byPath ByPath) Len() int           { return len(byPath) }
-func (byPath ByPath) Swap(i, j int)      { byPath[i], byPath[j] = byPath[j], byPath[i] }
-func (byPath ByPath) Less(i, j int) bool { return byPath[i].Path < byPath[j].Path }
+type RunningModuleByPath []*runningModule
+func (byPath RunningModuleByPath) Len() int           { return len(byPath) }
+func (byPath RunningModuleByPath) Swap(i, j int)      { byPath[i], byPath[j] = byPath[j], byPath[i] }
+func (byPath RunningModuleByPath) Less(i, j int) bool { return byPath[i].Module.Path < byPath[j].Module.Path }
 
 // We can't use assert.Equals on TerraformModule or any data structure that contains it because it contains some
 // fields (e.g. TerragruntOptions) that cannot be compared directly
@@ -26,8 +30,8 @@ func assertModuleListsEqual(t *testing.T, expectedModules []*TerraformModule, ac
 		return
 	}
 
-	sort.Sort(ByPath(expectedModules))
-	sort.Sort(ByPath(actualModules))
+	sort.Sort(TerraformModuleByPath(expectedModules))
+	sort.Sort(TerraformModuleByPath(actualModules))
 
 	for i := 0; i < len(expectedModules); i++ {
 		expected := expectedModules[i]
@@ -50,7 +54,7 @@ func assertModulesEqual(t *testing.T, expected *TerraformModule, actual *Terrafo
 
 // We can't use assert.Equals on TerraformModule or any data structure that contains it (e.g. runningModule) because it
 // contains some fields (e.g. TerragruntOptions) that cannot be compared directly
-func assertRunningModuleMapsEqual(t *testing.T, expectedModules map[string]*runningModule, actualModules map[string]*runningModule, messageAndArgs ...interface{}) {
+func assertRunningModuleMapsEqual(t *testing.T, expectedModules map[string]*runningModule, actualModules map[string]*runningModule, doDeepCheck bool, messageAndArgs ...interface{}) {
 	if !assert.Equal(t, len(expectedModules), len(actualModules), messageAndArgs...) {
 		t.Logf("%s != %s", expectedModules, actualModules)
 		return
@@ -59,19 +63,44 @@ func assertRunningModuleMapsEqual(t *testing.T, expectedModules map[string]*runn
 	for expectedPath, expectedModule := range expectedModules {
 		actualModule, containsModule := actualModules[expectedPath]
 		if assert.True(t, containsModule, messageAndArgs...) {
-			assertRunningModulesEqual(t, expectedModule, actualModule, messageAndArgs...)
+			assertRunningModulesEqual(t, expectedModule, actualModule, doDeepCheck, messageAndArgs...)
 		}
 	}
 }
 
 // We can't use assert.Equals on TerraformModule or any data structure that contains it (e.g. runningModule) because it
 // contains some fields (e.g. TerragruntOptions) that cannot be compared directly
-func assertRunningModulesEqual(t *testing.T, expected *runningModule, actual *runningModule, messageAndArgs ...interface{}) {
+func assertRunningModuleListsEqual(t *testing.T, expectedModules []*runningModule, actualModules []*runningModule, doDeepCheck bool, messageAndArgs ...interface{}) {
+	if !assert.Equal(t, len(expectedModules), len(actualModules), messageAndArgs...) {
+		t.Logf("%s != %s", expectedModules, actualModules)
+		return
+	}
+
+	sort.Sort(RunningModuleByPath(expectedModules))
+	sort.Sort(RunningModuleByPath(actualModules))
+
+	for i := 0; i < len(expectedModules); i++ {
+		expected := expectedModules[i]
+		actual := actualModules[i]
+		assertRunningModulesEqual(t, expected, actual, doDeepCheck, messageAndArgs...)
+	}
+}
+
+// We can't use assert.Equals on TerraformModule or any data structure that contains it (e.g. runningModule) because it
+// contains some fields (e.g. TerragruntOptions) that cannot be compared directly
+func assertRunningModulesEqual(t *testing.T, expected *runningModule, actual *runningModule, doDeepCheck bool, messageAndArgs ...interface{}) {
 	if assert.NotNil(t, actual, messageAndArgs...) {
-		assertModulesEqual(t, expected.Module, actual.Module, messageAndArgs...)
 		assert.Equal(t, expected.Status, actual.Status, messageAndArgs...)
+
+		assertModulesEqual(t, expected.Module, actual.Module, messageAndArgs...)
 		assertErrorsEqual(t, expected.Err, actual.Err, messageAndArgs...)
-		assertRunningModuleMapsEqual(t, expected.Dependencies, actual.Dependencies, messageAndArgs...)
+
+		// This ensures we don't end up in a circular loop, since there is a (intentional) circular dependency
+		// between NotifyWhenDone and Dependencies
+		if doDeepCheck {
+			assertRunningModuleMapsEqual(t, expected.Dependencies, actual.Dependencies, false, messageAndArgs...)
+			assertRunningModuleListsEqual(t, expected.NotifyWhenDone, actual.NotifyWhenDone, false, messageAndArgs...)
+		}
 	}
 }
 

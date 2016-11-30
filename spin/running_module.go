@@ -4,6 +4,7 @@ import (
 	"sync"
 	"fmt"
 	"strings"
+	"github.com/gruntwork-io/terragrunt/errors"
 )
 
 // Represents the status of a module that we are trying to apply as part of the spin-up or tear-down command
@@ -21,7 +22,7 @@ type runningModule struct {
 	Err            error
 	DependencyDone chan *runningModule
 	Dependencies   map[string]*runningModule
-	NotifyWhenDone []chan *runningModule
+	NotifyWhenDone []*runningModule
 }
 
 // This controls in what order dependencies should be enforced between modules
@@ -40,7 +41,7 @@ func newRunningModule(module *TerraformModule) *runningModule {
 		Status: Waiting,
 		DependencyDone: make(chan *runningModule),
 		Dependencies: map[string]*runningModule{},
-		NotifyWhenDone: []chan *runningModule{},
+		NotifyWhenDone: []*runningModule{},
 	}
 }
 
@@ -48,20 +49,28 @@ func newRunningModule(module *TerraformModule) *runningModule {
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
 func RunModules(modules []*TerraformModule) error {
-	return runModules(toRunningModules(modules, NormalOrder))
+	runningModules, err := toRunningModules(modules, NormalOrder)
+	if err != nil {
+		return err
+	}
+	return runModules(runningModules)
 }
 
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in the reverse order of their inter-dependencies, using
 // as much concurrency as possible.
 func RunModulesReverseOrder(modules []*TerraformModule) error {
-	return runModules(toRunningModules(modules, ReverseOrder))
+	runningModules, err := toRunningModules(modules, ReverseOrder)
+	if err != nil {
+		return err
+	}
+	return runModules(runningModules)
 }
 
 // Convert the list of modules to a map from module path to a runningModule struct. This struct contains information
 // about executing the module, such as whether it has finished running or not and any errors that happened. Note that
 // this does NOT actually run the module. For that, see the RunModules method.
-func toRunningModules(modules []*TerraformModule, dependencyOrder DependencyOrder) map[string]*runningModule {
+func toRunningModules(modules []*TerraformModule, dependencyOrder DependencyOrder) (map[string]*runningModule, error) {
 	runningModules := map[string]*runningModule{}
 	for _, module := range modules {
 		runningModules[module.Path] = newRunningModule(module)
@@ -75,21 +84,24 @@ func toRunningModules(modules []*TerraformModule, dependencyOrder DependencyOrde
 // * If dependencyOrder is NormalOrder, plug in all the modules M depends on into the Dependencies field and all the
 //   modules that depend on M into the NotifyWhenDone field.
 // * If dependencyOrder is ReverseOrder, do the reverse.
-func crossLinkDependencies(modules map[string]*runningModule, dependencyOrder DependencyOrder) map[string]*runningModule {
+func crossLinkDependencies(modules map[string]*runningModule, dependencyOrder DependencyOrder) (map[string]*runningModule, error) {
 	for _, module := range modules {
 		for _, dependency := range module.Module.Dependencies {
-			runningDependency := modules[dependency.Path]
+			runningDependency, hasDependency := modules[dependency.Path]
+			if !hasDependency {
+				return modules, errors.WithStackTrace(DependencyNotFoundWhileCrossLinking{module, dependency})
+			}
 			if dependencyOrder == NormalOrder {
 				module.Dependencies[runningDependency.Module.Path] = runningDependency
-				runningDependency.NotifyWhenDone = append(runningDependency.NotifyWhenDone, module.DependencyDone)
+				runningDependency.NotifyWhenDone = append(runningDependency.NotifyWhenDone, module)
 			} else {
 				runningDependency.Dependencies[module.Module.Path] = module
-				module.NotifyWhenDone = append(module.NotifyWhenDone, runningDependency.DependencyDone)
+				module.NotifyWhenDone = append(module.NotifyWhenDone, runningDependency)
 			}
 		}
 	}
 
-	return modules
+	return modules, nil
 }
 
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
@@ -163,8 +175,8 @@ func (module *runningModule) moduleFinished(moduleErr error) {
 	module.Status = Finished
 	module.Err = moduleErr
 
-	for _, channel := range module.NotifyWhenDone {
-		channel <- module
+	for _, toNotify := range module.NotifyWhenDone {
+		toNotify.DependencyDone <- module
 	}
 }
 
@@ -188,4 +200,12 @@ func (err MultiError) Error() string {
 		errorStrings = append(errorStrings, err.Error())
 	}
 	return fmt.Sprintf("Encountered the following errors:\n%s", strings.Join(errorStrings, "\n"))
+}
+
+type DependencyNotFoundWhileCrossLinking struct {
+	Module     *runningModule
+	Dependency *TerraformModule
+}
+func (err DependencyNotFoundWhileCrossLinking) Error() string {
+	return fmt.Sprintf("Module %v specifies a dependency on module %v, but could not find that module while cross-linking dependencies. This is most likely a bug in Terragrunt. Please report it.", err.Module, err.Dependency)
 }
