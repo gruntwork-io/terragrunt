@@ -88,5 +88,5 @@ var NoTerraformModulesFound = fmt.Errorf("Could not find any subfolders with %s 
 
 type DependencyCycle []string
 func (err DependencyCycle) Error() string {
-	return fmt.Sprintf("Found a dependency cycle between modules: %v", []string(err))
+	return fmt.Sprintf("Found a dependency cycle between modules: %s", strings.Join([]string(err), " -> "))
 }
