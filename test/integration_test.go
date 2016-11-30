@@ -29,6 +29,7 @@ const (
 	TEST_FIXTURE_LOCK_PATH                  = "fixture-lock/"
 	TEST_FIXTURE_INCLUDE_PATH               = "fixture-include/"
 	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH     = "qa/my-app"
+	TEST_FIXTURE_STACK                      = "fixture-stack/"
 	TERRAFORM_FOLDER                        = ".terraform"
 )
 
@@ -78,7 +79,7 @@ func TestAcquireAndReleaseLock(t *testing.T) {
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s %s", terragruntConfigPath, TEST_FIXTURE_LOCK_PATH))
 }
 
-func TestTerragruntWorksWithInheritance(t *testing.T) {
+func TestTerragruntWorksWithIncludes(t *testing.T) {
 	// These integration tests run Terraform under the hood, and Terraform creates a .terraform folder in the
 	// "current working directory". Since the current working directory is the same for everything running in this
 	// process, we can't run tests in parallel, or they'll all try to write to the same folder, which will cause
@@ -93,7 +94,29 @@ func TestTerragruntWorksWithInheritance(t *testing.T) {
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 	runTerragrunt(t, fmt.Sprintf("terragrunty apply --terragrunt-non-interactive --terragrunt-config %s %s", tmpTerragruntConfigPath, TEST_FIXTURE_PATH))
-	validateS3BucketExists(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+}
+
+func TestTerragruntSpinUpAndTearDown(t *testing.T) {
+	// These integration tests run Terraform under the hood, and Terraform creates a .terraform folder in the
+	// "current working directory". Since the current working directory is the same for everything running in this
+	// process, we can't run tests in parallel, or they'll all try to write to the same folder, which will cause
+	// conflicts and weird errors.
+	// t.Parallel()
+
+	cleanupTerraformFolder(t)
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_STACK)
+
+	rootTerragruntConfigPath := filepath.Join(tmpEnvPath, "fixture-stack", config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName)
+
+	spinUpPath := fmt.Sprintf("%s/fixture-stack/stage", tmpEnvPath)
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	runTerragrunt(t, fmt.Sprintf("terragrunt spin-up --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", spinUpPath, s3BucketName))
+	runTerragrunt(t, fmt.Sprintf("terragrunt tear-down --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", spinUpPath, s3BucketName))
 }
 
 func cleanupTerraformFolder(t *testing.T) {
@@ -118,6 +141,46 @@ func runTerragrunt(t *testing.T, command string) {
 	if err := runTerragruntCommand(t, command); err != nil {
 		t.Fatalf("Failed to run Terragrunt command '%s' due to error: %s", command, err)
 	}
+}
+
+func copyEnvironment(t*testing.T, environmentPath string) string {
+	tmpDir, err := ioutil.TempDir("", "terragrunt-stack-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir due to error: %v", err)
+	}
+
+	err = filepath.Walk(environmentPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		destPath := filepath.Join(tmpDir, path)
+
+		destPathDir := filepath.Dir(destPath)
+		if err := os.MkdirAll(destPathDir, 0777); err != nil {
+			return err
+		}
+
+		return copyFile(path, destPath)
+	})
+
+	if err != nil {
+		t.Fatalf("Error walking file path %s due to error: %v", environmentPath, err)
+	}
+
+	return tmpDir
+}
+
+func copyFile(srcPath string, destPath string) error {
+	contents, err := ioutil.ReadFile(srcPath)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(destPath, contents, 0644)
 }
 
 func createTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string, childRelPath string, s3BucketName string) string {

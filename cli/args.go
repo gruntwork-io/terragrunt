@@ -63,6 +63,11 @@ func filterTerragruntArgs(args[]string) []string {
 		arg := args[i]
 		argWithoutPrefix := strings.TrimPrefix(arg, "--")
 
+		if util.ListContainsElement(MULTI_MODULE_COMMANDS, arg) {
+			// Skip multi-module commands entirely
+			continue
+		}
+
 		if util.ListContainsElement(ALL_TERRAGRUNT_STRING_OPTS, argWithoutPrefix) {
 			// String flags have the argument and the value, so skip both
 			i = i + 1

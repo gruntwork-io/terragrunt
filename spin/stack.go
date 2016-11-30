@@ -20,7 +20,7 @@ type Stack struct {
 func (stack *Stack) String() string {
 	modules := []string{}
 	for _, module := range stack.Modules {
-		modules = append(modules, module.String())
+		modules = append(modules, fmt.Sprintf("  => %s", module.String()))
 	}
 	return fmt.Sprintf("Stack at %s:\n%s", stack.Path, strings.Join(modules, "\n"))
 }
@@ -28,14 +28,14 @@ func (stack *Stack) String() string {
 // Apply all the modules in the given stack, making sure to apply the dependencies of each module in the stack in the
 // proper order.
 func (stack *Stack) Apply(terragruntOptions *options.TerragruntOptions) error {
-	stack.setTerraformCommand("apply")
+	stack.setTerraformCommand([]string{"apply", "-input=false"})
 	return RunModules(stack.Modules)
 }
 
 // Destroy all the modules in the given stack, making sure to destroy the dependencies of each module in the stack in
 // the proper order.
 func (stack *Stack) Destroy(terragruntOptions *options.TerragruntOptions) error {
-	stack.setTerraformCommand("destroy")
+	stack.setTerraformCommand([]string{"destroy", "-force", "-input=false"})
 	return RunModulesReverseOrder(stack.Modules)
 }
 
@@ -56,9 +56,9 @@ func FindStackInSubfolders(terragruntOptions *options.TerragruntOptions) (*Stack
 }
 
 // Set the command in the TerragruntOptions object of each module in this stack to the given command.
-func (stack *Stack) setTerraformCommand(command string) {
+func (stack *Stack) setTerraformCommand(command []string) {
 	for _, module := range stack.Modules {
-		module.TerragruntOptions.TerraformCliArgs = strings.Split(command, " ")
+		module.TerragruntOptions.TerraformCliArgs = append(command, module.TerragruntOptions.TerraformCliArgs...)
 	}
 }
 

@@ -140,8 +140,8 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		{[]string{"foo", "--terragrunt-config", "/some/path/.terragrunt"}, []string{"foo"}},
 		{[]string{"foo", "--terragrunt-non-interactive"}, []string{"foo"}},
 		{[]string{"foo", "--terragrunt-non-interactive", "--bar", "--terragrunt-working-dir", "/some/path", "--baz", "--terragrunt-config", "/some/path/.terragrunt"}, []string{"foo", "--bar", "--baz"}},
-		{[]string{"spin-up", "foo", "bar"}, []string{"spin-up", "foo", "bar"}},
-		{[]string{"foo", "tear-down", "--foo", "--bar"}, []string{"foo", "tear-down", "--foo", "--bar"}},
+		{[]string{"spin-up", "foo", "bar"}, []string{"foo", "bar"}},
+		{[]string{"foo", "tear-down", "--foo", "--bar"}, []string{"foo", "--foo", "--bar"}},
 	}
 
 	for _, testCase := range testCases {

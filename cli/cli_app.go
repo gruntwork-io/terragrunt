@@ -25,6 +25,7 @@ const CMD_ACQUIRE_LOCK = "acquire-lock"
 const CMD_RELEASE_LOCK = "release-lock"
 const CMD_SPIN_UP = "spin-up"
 const CMD_TEAR_DOWN = "tear-down"
+var MULTI_MODULE_COMMANDS = []string{CMD_SPIN_UP, CMD_TEAR_DOWN}
 
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
 // in its definition, we don't quite fit into the model of any Go CLI library. Fortunately, urfave/cli allows us to
@@ -99,7 +100,11 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 		return err
 	}
 
-	return runTerragrunt(terragruntOptions)
+	if isMultiModuleCommand(cliContext.Args().First()) {
+		return runMultiModuleCommand(cliContext.Args().First(), terragruntOptions)
+	} else {
+		return runTerragrunt(terragruntOptions)
+	}
 }
 
 // Run Terragrunt with the given options and CLI args. This will forward all the args directly to Terraform, enforcing
@@ -128,6 +133,23 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	return runTerraformCommandWithLock(conf.Lock, terragruntOptions)
 }
 
+// Returns true if the command the user wants to execute is supposed to affect multiple Terraform modules, such as the
+// spin-up or tear-down command.
+func isMultiModuleCommand(command string) bool {
+	return util.ListContainsElement(MULTI_MODULE_COMMANDS, command)
+}
+
+// Execute a command that affects multiple Terraform modules, such as the spin-up or tear-down command.
+func runMultiModuleCommand(command string, terragruntOptions *options.TerragruntOptions) error {
+	switch command {
+	case CMD_SPIN_UP:
+		return spinUp(terragruntOptions)
+	case CMD_TEAR_DOWN:
+		return tearDown(terragruntOptions)
+	default:
+		return errors.WithStackTrace(UnrecognizedCommand(command))
+	}
+}
 
 // A quick sanity check that calls `terraform get` to download modules, if they aren't already downloaded.
 func downloadModules(terragruntOptions *options.TerragruntOptions) error {
@@ -195,10 +217,6 @@ func runTerraformCommandWithLock(lock locks.Lock, terragruntOptions *options.Ter
 		return acquireLock(lock, terragruntOptions)
 	case CMD_RELEASE_LOCK:
 		return releaseLockCommand(lock, terragruntOptions)
-	case CMD_SPIN_UP:
-		return spinUp(terragruntOptions)
-	case CMD_TEAR_DOWN:
-		return tearDown(terragruntOptions)
 	default:
 		return runTerraformCommand(terragruntOptions)
 	}
@@ -212,7 +230,7 @@ func spinUp(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
-	terragruntOptions.Logger.Printf("Stack: %s", stack.String())
+	terragruntOptions.Logger.Printf("%s", stack.String())
 	shouldSpinUp, err := shell.PromptUserForYesNo("Are you sure you want to run 'terragrunt apply' in each folder of the stack described above?", terragruntOptions)
 	if err != nil {
 		return err
@@ -233,7 +251,7 @@ func tearDown(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
-	terragruntOptions.Logger.Printf("Stack: %s", stack.String())
+	terragruntOptions.Logger.Printf("%s", stack.String())
 	shouldTearDown, err := shell.PromptUserForYesNo("WARNING: Are you sure you want to run `terragrunt destroy` in each folder of the stack described above? There is no undo!", terragruntOptions)
 	if err != nil {
 		return err
@@ -285,3 +303,8 @@ func runTerraformCommand(terragruntOptions *options.TerragruntOptions) error {
 // Custom error types
 
 var DontManuallyConfigureRemoteState = fmt.Errorf("Instead of manually using the 'remote config' command, define your remote state settings in .terragrunt and Terragrunt will automatically configure it for you (and all your team members) next time you run it.")
+
+type UnrecognizedCommand string
+func (err UnrecognizedCommand) Error() string {
+	return fmt.Sprintf("Unrecognized command: %s", string(err))
+}
