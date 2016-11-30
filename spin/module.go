@@ -51,7 +51,7 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 }
 
 // Create a mapping from the absolute path of a module to the TerraformModule struct for that module. Note that this
-// method will NOT fill in the DependsOn field of the TerraformModule struct.
+// method will NOT fill in the Dependencies field of the TerraformModule struct.
 func createModuleMap(terragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions) (map[string]TerraformModule, error) {
 	moduleMap := map[string]TerraformModule{}
 
