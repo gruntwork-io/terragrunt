@@ -34,11 +34,7 @@ const (
 )
 
 func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
-	// These integration tests run Terraform under the hood, and Terraform creates a .terraform folder in the
-	// "current working directory". Since the current working directory is the same for everything running in this
-	// process, we can't run tests in parallel, or they'll all try to write to the same folder, which will cause
-	// conflicts and weird errors.
-	// t.Parallel()
+	t.Parallel()
 
 	cleanupTerraformFolder(t)
 
@@ -46,45 +42,37 @@ func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
 	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, TEST_FIXTURE_PATH, s3BucketName)
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	runTerragrunt(t, fmt.Sprintf("terragrunty apply --terragrunt-non-interactive --terragrunt-config %s %s", tmpTerragruntConfigPath, TEST_FIXTURE_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, TEST_FIXTURE_PATH))
 	validateS3BucketExists(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 }
 
 func TestAcquireAndReleaseLock(t *testing.T) {
-	// These integration tests run Terraform under the hood, and Terraform creates a .terraform folder in the
-	// "current working directory". Since the current working directory is the same for everything running in this
-	// process, we can't run tests in parallel, or they'll all try to write to the same folder, which will cause
-	// conflicts and weird errors.
-	// t.Parallel()
+	t.Parallel()
 
 	cleanupTerraformFolder(t)
 
 	terragruntConfigPath := path.Join(TEST_FIXTURE_LOCK_PATH, config.DefaultTerragruntConfigPath)
 
 	// Acquire a long-term lock
-	runTerragrunt(t, fmt.Sprintf("terragrunt acquire-lock --terragrunt-non-interactive --terragrunt-config %s", terragruntConfigPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt acquire-lock --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", terragruntConfigPath, TEST_FIXTURE_LOCK_PATH))
 
 	// Try to apply the templates. Since a lock has been acquired, and max_lock_retries is set to 1, this should
 	// fail quickly.
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s %s", terragruntConfigPath, TEST_FIXTURE_LOCK_PATH))
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", terragruntConfigPath, TEST_FIXTURE_LOCK_PATH))
 
 	if assert.NotNil(t, err, "Expected to get an error when trying to apply templates after a long-term lock has already been acquired, but got nil") {
 		assert.Contains(t, err.Error(), "Unable to acquire lock")
 	}
 
 	// Release the lock
-	runTerragrunt(t, fmt.Sprintf("terragrunt release-lock --terragrunt-non-interactive --terragrunt-config %s", terragruntConfigPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt release-lock --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", terragruntConfigPath, TEST_FIXTURE_LOCK_PATH))
 
 	// Try to apply the templates. Since the lock has been released, this should work without errors.
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s %s", terragruntConfigPath, TEST_FIXTURE_LOCK_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", terragruntConfigPath, TEST_FIXTURE_LOCK_PATH))
 }
 
 func TestTerragruntWorksWithIncludes(t *testing.T) {
-	// These integration tests run Terraform under the hood, and Terraform creates a .terraform folder in the
-	// "current working directory". Since the current working directory is the same for everything running in this
-	// process, we can't run tests in parallel, or they'll all try to write to the same folder, which will cause
-	// conflicts and weird errors.
-	// t.Parallel()
+	t.Parallel()
 
 	cleanupTerraformFolder(t)
 
@@ -93,15 +81,11 @@ func TestTerragruntWorksWithIncludes(t *testing.T) {
 	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_INCLUDE_PATH, TEST_FIXTURE_INCLUDE_CHILD_REL_PATH, s3BucketName)
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	runTerragrunt(t, fmt.Sprintf("terragrunty apply --terragrunt-non-interactive --terragrunt-config %s %s", tmpTerragruntConfigPath, TEST_FIXTURE_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, TEST_FIXTURE_PATH))
 }
 
 func TestTerragruntSpinUpAndTearDown(t *testing.T) {
-	// These integration tests run Terraform under the hood, and Terraform creates a .terraform folder in the
-	// "current working directory". Since the current working directory is the same for everything running in this
-	// process, we can't run tests in parallel, or they'll all try to write to the same folder, which will cause
-	// conflicts and weird errors.
-	// t.Parallel()
+	t.Parallel()
 
 	cleanupTerraformFolder(t)
 
