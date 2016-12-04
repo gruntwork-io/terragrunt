@@ -108,7 +108,7 @@ func createItemAttributes(itemId string, client *dynamodb.DynamoDB) (map[string]
 	}, nil
 }
 
-// Return the UserID
+// Return the UserArn
 func getCallerIdentity(client *dynamodb.DynamoDB) (string, error) {
 	stsconn := sts.New(session.New(), &client.Config)
 	output, err := stsconn.GetCallerIdentity(&sts.GetCallerIdentityInput{})
@@ -116,7 +116,7 @@ func getCallerIdentity(client *dynamodb.DynamoDB) (string, error) {
 		return "", errors.WithStackTrace(err)
 	}
 
-	return *output.UserId, nil
+	return *output.Arn, nil
 }
 
 type AttributeMissing struct {
