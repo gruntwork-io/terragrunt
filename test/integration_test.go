@@ -36,7 +36,7 @@ const (
 func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t)
+	cleanupTerraformFolder(t, TEST_FIXTURE_PATH)
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, TEST_FIXTURE_PATH, s3BucketName)
@@ -49,7 +49,7 @@ func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
 func TestAcquireAndReleaseLock(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t)
+	cleanupTerraformFolder(t, TEST_FIXTURE_LOCK_PATH)
 
 	terragruntConfigPath := path.Join(TEST_FIXTURE_LOCK_PATH, config.DefaultTerragruntConfigPath)
 
@@ -74,20 +74,19 @@ func TestAcquireAndReleaseLock(t *testing.T) {
 func TestTerragruntWorksWithIncludes(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t)
+	childPath := filepath.Join(TEST_FIXTURE_INCLUDE_PATH, TEST_FIXTURE_INCLUDE_CHILD_REL_PATH)
+	cleanupTerraformFolder(t, childPath)
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 
 	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_INCLUDE_PATH, TEST_FIXTURE_INCLUDE_CHILD_REL_PATH, s3BucketName)
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, TEST_FIXTURE_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
 }
 
 func TestTerragruntSpinUpAndTearDown(t *testing.T) {
 	t.Parallel()
-
-	cleanupTerraformFolder(t)
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 
@@ -96,20 +95,26 @@ func TestTerragruntSpinUpAndTearDown(t *testing.T) {
 	rootTerragruntConfigPath := filepath.Join(tmpEnvPath, "fixture-stack", config.DefaultTerragruntConfigPath)
 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName)
 
-	spinUpPath := fmt.Sprintf("%s/fixture-stack/stage", tmpEnvPath)
+	mgmtEnvironmentPath := fmt.Sprintf("%s/fixture-stack/mgmt", tmpEnvPath)
+	stageEnvironmentPath := fmt.Sprintf("%s/fixture-stack/stage", tmpEnvPath)
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	runTerragrunt(t, fmt.Sprintf("terragrunt spin-up --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", spinUpPath, s3BucketName))
-	runTerragrunt(t, fmt.Sprintf("terragrunt tear-down --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", spinUpPath, s3BucketName))
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt spin-up --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", mgmtEnvironmentPath, s3BucketName))
+	runTerragrunt(t, fmt.Sprintf("terragrunt spin-up --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", stageEnvironmentPath, s3BucketName))
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt tear-down --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", stageEnvironmentPath, s3BucketName))
+	runTerragrunt(t, fmt.Sprintf("terragrunt tear-down --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", mgmtEnvironmentPath, s3BucketName))
 }
 
-func cleanupTerraformFolder(t *testing.T) {
-	if !util.FileExists(TERRAFORM_FOLDER) {
+func cleanupTerraformFolder(t *testing.T, templatesPath string) {
+	terraformFolder := filepath.Join(templatesPath, TERRAFORM_FOLDER)
+	if !util.FileExists(terraformFolder) {
 		return
 	}
 
-	if err := os.RemoveAll(TERRAFORM_FOLDER); err != nil {
-		t.Fatalf("Error while removing %s folder: %v", TERRAFORM_FOLDER, err)
+	if err := os.RemoveAll(terraformFolder); err != nil {
+		t.Fatalf("Error while removing %s folder: %v", terraformFolder, err)
 	}
 }
 
@@ -273,12 +278,14 @@ func deleteS3Bucket(t *testing.T, awsRegion string, bucketName string) {
 		})
 	}
 
-	deleteInput := &s3.DeleteObjectsInput{
-		Bucket: aws.String(bucketName),
-		Delete: &s3.Delete{Objects: objectIdentifiers},
-	}
-	if _, err := s3Client.DeleteObjects(deleteInput); err != nil {
-		t.Fatalf("Error deleting all versions of all objects in bucket %s: %v", bucketName, err)
+	if len(objectIdentifiers) > 0 {
+		deleteInput := &s3.DeleteObjectsInput{
+			Bucket: aws.String(bucketName),
+			Delete: &s3.Delete{Objects: objectIdentifiers},
+		}
+		if _, err := s3Client.DeleteObjects(deleteInput); err != nil {
+			t.Fatalf("Error deleting all versions of all objects in bucket %s: %v", bucketName, err)
+		}
 	}
 
 	if _, err := s3Client.DeleteBucket(&s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {

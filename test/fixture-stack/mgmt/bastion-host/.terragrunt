@@ -3,5 +3,5 @@ include = {
 }
 
 dependencies = {
-  paths = ["../vpc", "../../mgmt/bastion-host", "../backend-app"]
+  paths = ["../vpc"]
 }

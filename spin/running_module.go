@@ -170,9 +170,15 @@ func (module *runningModule) waitForDependencies() error {
 
 // Run a module right now by executing the RunTerragrunt command of its TerragruntOptions field.
 func (module *runningModule) runNow() error {
-	module.Module.TerragruntOptions.Logger.Printf("Running module %s now", module.Module.Path)
 	module.Status = Running
-	return module.Module.TerragruntOptions.RunTerragrunt(module.Module.TerragruntOptions)
+
+	if module.Module.AssumeAlreadyApplied {
+		module.Module.TerragruntOptions.Logger.Printf("Assuming module %s has already been applied and skipping it", module.Module.Path)
+		return nil
+	} else {
+		module.Module.TerragruntOptions.Logger.Printf("Running module %s now", module.Module.Path)
+		return module.Module.TerragruntOptions.RunTerragrunt(module.Module.TerragruntOptions)
+	}
 }
 
 // Record that a module has finished executing and notify all of this module's dependencies

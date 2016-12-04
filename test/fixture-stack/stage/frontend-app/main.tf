@@ -1,6 +1,6 @@
 # Create an arbitrary local resource
 data "template_file" "text" {
-  template = "[I am a frontend-app template. Data from my dependencies: vpc = ${data.terraform_remote_state.vpc.text}, backend-app = ${data.terraform_remote_state.backend_app.text}]"
+  template = "[I am a frontend-app template. Data from my dependencies: vpc = ${data.terraform_remote_state.vpc.text}, bastion-host = ${data.terraform_remote_state.bastion_host.text}, backend-app = ${data.terraform_remote_state.backend_app.text}]"
 }
 
 output "text" {
@@ -26,5 +26,15 @@ data "terraform_remote_state" "backend_app" {
     region = "us-west-2"
     bucket = "${var.terraform_remote_state_s3_bucket}"
     key = "stage/backend-app/terraform.tfstate"
+  }
+}
+
+
+data "terraform_remote_state" "bastion_host" {
+  backend = "s3"
+  config {
+    region = "us-west-2"
+    bucket = "${var.terraform_remote_state_s3_bucket}"
+    key = "mgmt/bastion-host/terraform.tfstate"
   }
 }

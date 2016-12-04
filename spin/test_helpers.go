@@ -4,12 +4,12 @@ import (
 	"testing"
 	"github.com/stretchr/testify/assert"
 	"github.com/gruntwork-io/terragrunt/options"
-	"path/filepath"
 	"github.com/gruntwork-io/terragrunt/locks/dynamodb"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/locks"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"sort"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 type TerraformModuleByPath []*TerraformModule
@@ -46,6 +46,7 @@ func assertModulesEqual(t *testing.T, expected *TerraformModule, actual *Terrafo
 	if assert.NotNil(t, actual, messageAndArgs...) {
 		assert.Equal(t, expected.Config, actual.Config, messageAndArgs...)
 		assert.Equal(t, expected.Path, actual.Path, messageAndArgs...)
+		assert.Equal(t, expected.AssumeAlreadyApplied, actual.AssumeAlreadyApplied, messageAndArgs...)
 
 		assertOptionsEqual(t, *expected.TerragruntOptions, *actual.TerragruntOptions, messageAndArgs...)
 		assertModuleListsEqual(t, expected.Dependencies, actual.Dependencies, messageAndArgs...)
@@ -132,8 +133,8 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 }
 
 // Return the absolute path for the given path
-func abs(t *testing.T, path string) string {
-	out, err := filepath.Abs(path)
+func canonical(t *testing.T, path string) string {
+	out, err := util.CanonicalPath(path, ".")
 	if err != nil {
 		t.Fatal(err)
 	}
