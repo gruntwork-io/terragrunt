@@ -111,7 +111,7 @@ func checkIfVersioningEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 
 	// NOTE: There must be a bug in the AWS SDK since out == nil when versioning is not enabled. In the future,
 	// check the AWS SDK for updates to see if we can remove "out == nil ||".
-	if out == nil || *out.Status != s3.BucketVersioningStatusEnabled {
+	if out == nil || out.Status == nil || *out.Status != s3.BucketVersioningStatusEnabled {
 		util.Logger.Printf("WARNING: Versioning is not enabled for the remote state S3 bucket %s. We recommend enabling versioning so that you can roll back to previous versions of your Terraform state in case of error.", config.Bucket)
 	}
 
