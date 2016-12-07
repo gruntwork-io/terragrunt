@@ -87,7 +87,7 @@ func validateS3Config(config *RemoteStateConfigS3, terragruntOptions *options.Te
 // confirms, create the bucket and enable versioning for it.
 func createS3BucketIfNecessary(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	if !DoesS3BucketExist(s3Client, config) {
-		prompt := fmt.Sprintf("Remote state S3 bucket %s does not exist or you don't have permissions to access it. Would you Terragrunt to create it?", config.Bucket)
+		prompt := fmt.Sprintf("Remote state S3 bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", config.Bucket)
 		shouldCreateBucket, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
 		if err != nil {
 			return err
@@ -108,7 +108,9 @@ func checkIfVersioningEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 		return errors.WithStackTrace(err)
 	}
 
-	if *out.Status != s3.BucketVersioningStatusEnabled {
+	// NOTE: There must be a bug in the AWS SDK since out == nil when versioning is not enabled. In the future,
+	// check the AWS SDK for updates to see if we can remove "out == nil ||".
+	if out == nil || out.Status == nil || *out.Status != s3.BucketVersioningStatusEnabled {
 		terragruntOptions.Logger.Printf("WARNING: Versioning is not enabled for the remote state S3 bucket %s. We recommend enabling versioning so that you can roll back to previous versions of your Terraform state in case of error.", config.Bucket)
 	}
 
