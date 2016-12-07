@@ -23,7 +23,7 @@ func TestAcquireLockHappyPath(t *testing.T) {
 
 	defer cleanupTable(t, lock.TableName, client)
 
-	err := lock.AcquireLock()
+	err := lock.AcquireLock(mockOptions)
 	assert.Nil(t, err)
 }
 
@@ -42,11 +42,11 @@ func TestAcquireLockWhenLockIsAlreadyTaken(t *testing.T) {
 	defer cleanupTable(t, lock.TableName, client)
 
 	// Acquire the lock the first time
-	err := lock.AcquireLock()
+	err := lock.AcquireLock(mockOptions)
 	assert.Nil(t, err)
 
 	// Now try to acquire the lock again and make sure you get an error
-	err = lock.AcquireLock()
+	err = lock.AcquireLock(mockOptions)
 	assert.True(t, errors.IsError(err, AcquireLockRetriesExceeded{ItemId: stateFileId, Retries: 1}), "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 }
 
@@ -65,19 +65,19 @@ func TestAcquireAndReleaseLock(t *testing.T) {
 	defer cleanupTable(t, lock.TableName, client)
 
 	// Acquire the lock the first time
-	err := lock.AcquireLock()
+	err := lock.AcquireLock(mockOptions)
 	assert.Nil(t, err)
 
 	// Now try to acquire the lock again and make sure you get an error
-	err = lock.AcquireLock()
+	err = lock.AcquireLock(mockOptions)
 	assert.True(t, errors.IsError(err, AcquireLockRetriesExceeded{ItemId: stateFileId, Retries: 1}), "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 
 	// Release the lock
-	err = lock.ReleaseLock()
+	err = lock.ReleaseLock(mockOptions)
 	assert.Nil(t, err)
 
 	// Finally, try to acquire the lock again; you should succeed
-	err = lock.AcquireLock()
+	err = lock.AcquireLock(mockOptions)
 	assert.Nil(t, err)
 }
 
@@ -107,7 +107,7 @@ func TestAcquireLockConcurrency(t *testing.T) {
 			waitGroup.Add(1)
 			go func() {
 				defer waitGroup.Done()
-				err := lock.AcquireLock()
+				err := lock.AcquireLock(mockOptions)
 				if err == nil {
 					atomic.AddInt32(&locksAcquired, 1)
 				} else {

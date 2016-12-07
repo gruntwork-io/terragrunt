@@ -9,10 +9,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/aws/aws-sdk-go/aws"
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/options"
 )
 
 // For simplicity, do all testing in the us-east-1 region
 const DEFAULT_TEST_REGION = "us-east-1"
+
+var mockOptions = options.NewTerragruntOptionsForTest("dynamo_lock_test_utils")
 
 // Returns a unique (ish) id we can use to name resources so they don't conflict with each other. Uses base 62 to
 // generate a 6 character string that's unlikely to collide with the handful of tests we run in parallel. Based on code
@@ -23,9 +26,9 @@ func uniqueId() string {
 
 	var out bytes.Buffer
 
-	rand := rand.New(rand.NewSource(time.Now().UnixNano()))
+	random := rand.New(rand.NewSource(time.Now().UnixNano()))
 	for i := 0; i < UNIQUE_ID_LENGTH; i++ {
-		out.WriteByte(BASE_62_CHARS[rand.Intn(len(BASE_62_CHARS))])
+		out.WriteByte(BASE_62_CHARS[random.Intn(len(BASE_62_CHARS))])
 	}
 
 	return out.String()
@@ -86,7 +89,7 @@ func withLockTable(t *testing.T, action func(tableName string, client *dynamodb.
 	client := createDynamoDbClientForTest(t)
 	tableName := uniqueTableNameForTest()
 
-	err := createLockTableIfNecessary(tableName, client)
+	err := createLockTableIfNecessary(tableName, client, mockOptions)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	defer cleanupTable(t, tableName, client)
 
@@ -97,7 +100,7 @@ func withLockTableProvisionedUnits(t *testing.T, readCapacityUnits int, writeCap
 	client := createDynamoDbClientForTest(t)
 	tableName := uniqueTableNameForTest()
 
-	err := createLockTable(tableName, readCapacityUnits, writeCapacityUnits, client)
+	err := createLockTable(tableName, readCapacityUnits, writeCapacityUnits, client, mockOptions)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	defer cleanupTable(t, tableName, client)
 

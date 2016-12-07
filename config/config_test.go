@@ -146,7 +146,47 @@ remote_state = {
 	assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
 }
 
-func TestParseTerragruntConfigRemoteStateAndDynamoDbFullConfig(t *testing.T) {
+func TestParseTerragruntConfigDependenciesOnePath(t *testing.T) {
+	t.Parallel()
+
+	config :=
+`
+dependencies = {
+  paths = ["../vpc"]
+}
+`
+
+	terragruntConfig, err := parseConfigString(config, &mockOptions, nil)
+	assert.Nil(t, err)
+
+	assert.Nil(t, terragruntConfig.Lock)
+	assert.Nil(t, terragruntConfig.RemoteState)
+
+	assert.NotNil(t, terragruntConfig.Dependencies)
+	assert.Equal(t, []string{"../vpc"}, terragruntConfig.Dependencies.Paths)
+}
+
+func TestParseTerragruntConfigDependenciesMultiplePaths(t *testing.T) {
+	t.Parallel()
+
+	config :=
+`
+dependencies = {
+  paths = ["../vpc", "../mysql", "../backend-app"]
+}
+`
+
+	terragruntConfig, err := parseConfigString(config, &mockOptions, nil)
+	assert.Nil(t, err)
+
+	assert.Nil(t, terragruntConfig.Lock)
+	assert.Nil(t, terragruntConfig.RemoteState)
+
+	assert.NotNil(t, terragruntConfig.Dependencies)
+	assert.Equal(t, []string{"../vpc", "../mysql", "../backend-app"}, terragruntConfig.Dependencies.Paths)
+}
+
+func TestParseTerragruntConfigRemoteStateDynamoDbAndDependenciesFullConfig(t *testing.T) {
 	t.Parallel()
 
 	config :=
@@ -170,6 +210,10 @@ remote_state = {
     region = "us-east-1"
   }
 }
+
+dependencies = {
+  paths = ["../vpc", "../mysql", "../backend-app"]
+}
 `
 
 	terragruntConfig, err := parseConfigString(config, &mockOptions, nil)
@@ -190,6 +234,9 @@ remote_state = {
 	assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
 	assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
 	assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+
+	assert.NotNil(t, terragruntConfig.Dependencies)
+	assert.Equal(t, []string{"../vpc", "../mysql", "../backend-app"}, terragruntConfig.Dependencies.Paths)
 }
 
 func TestParseTerragruntConfigInvalidLockBackend(t *testing.T) {
@@ -344,6 +391,10 @@ remote_state = {
     region = "override"
   }
 }
+
+dependencies = {
+  paths = ["override"]
+}
 `
 
 	opts := options.TerragruntOptions{
@@ -365,6 +416,7 @@ remote_state = {
 		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["bucket"])
 		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["key"])
 		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["region"])
+		assert.Equal(t, []string{"override"}, terragruntConfig.Dependencies.Paths)
 	}
 
 }

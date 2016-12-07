@@ -4,22 +4,22 @@ import (
 	"time"
 	"fmt"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/options"
 )
 
 // Create the lock table in DynamoDB if it doesn't already exist
-func createLockTableIfNecessary(tableName string, client *dynamodb.DynamoDB) error {
+func createLockTableIfNecessary(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
 	tableExists, err := lockTableExistsAndIsActive(tableName, client)
 	if err != nil {
 		return err
 	}
 
 	if !tableExists {
-		util.Logger.Printf("Lock table %s does not exist in DynamoDB. Will need to create it just this first time.", tableName)
-		return createLockTable(tableName, DEFAULT_READ_CAPACITY_UNITS, DEFAULT_WRITE_CAPACITY_UNITS, client)
+		terragruntOptions.Logger.Printf("Lock table %s does not exist in DynamoDB. Will need to create it just this first time.", tableName)
+		return createLockTable(tableName, DEFAULT_READ_CAPACITY_UNITS, DEFAULT_WRITE_CAPACITY_UNITS, client, terragruntOptions)
 	}
 
 	return nil
@@ -41,8 +41,8 @@ func lockTableExistsAndIsActive(tableName string, client *dynamodb.DynamoDB) (bo
 
 // Create a lock table in DynamoDB and wait until it is in "active" state. If the table already exists, merely wait
 // until it is in "active" state.
-func createLockTable(tableName string, readCapacityUnits int, writeCapacityUnits int, client *dynamodb.DynamoDB) error {
-	util.Logger.Printf("Creating table %s in DynamoDB", tableName)
+func createLockTable(tableName string, readCapacityUnits int, writeCapacityUnits int, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Printf("Creating table %s in DynamoDB", tableName)
 
 	attributeDefinitions := []*dynamodb.AttributeDefinition{
 		&dynamodb.AttributeDefinition{AttributeName: aws.String(ATTR_STATE_FILE_ID), AttributeType: aws.String(dynamodb.ScalarAttributeTypeS)},
@@ -64,13 +64,13 @@ func createLockTable(tableName string, readCapacityUnits int, writeCapacityUnits
 
 	if err != nil {
 		if isTableAlreadyBeingCreatedError(err) {
-			util.Logger.Printf("Looks like someone created table %s at the same time. Will wait for it to be in active state.", tableName)
+			terragruntOptions.Logger.Printf("Looks like someone created table %s at the same time. Will wait for it to be in active state.", tableName)
 		} else {
 			return errors.WithStackTrace(err)
 		}
 	}
 
-	return waitForTableToBeActive(tableName, client, MAX_RETRIES_WAITING_FOR_TABLE_TO_BE_ACTIVE, SLEEP_BETWEEN_TABLE_STATUS_CHECKS)
+	return waitForTableToBeActive(tableName, client, MAX_RETRIES_WAITING_FOR_TABLE_TO_BE_ACTIVE, SLEEP_BETWEEN_TABLE_STATUS_CHECKS, terragruntOptions)
 }
 
 // Return true if the given error is the error message returned by AWS when the resource already exists
@@ -81,7 +81,7 @@ func isTableAlreadyBeingCreatedError(err error) bool {
 
 // Wait for the given DynamoDB table to be in the "active" state. If it's not in "active" state, sleep for the
 // specified amount of time, and try again, up to a maximum of maxRetries retries.
-func waitForTableToBeActive(tableName string, client *dynamodb.DynamoDB, maxRetries int, sleepBetweenRetries time.Duration) error {
+func waitForTableToBeActive(tableName string, client *dynamodb.DynamoDB, maxRetries int, sleepBetweenRetries time.Duration, terragruntOptions *options.TerragruntOptions) error {
 	for i := 0; i < maxRetries; i++ {
 		tableReady, err := lockTableExistsAndIsActive(tableName, client)
 		if err != nil {
@@ -89,11 +89,11 @@ func waitForTableToBeActive(tableName string, client *dynamodb.DynamoDB, maxRetr
 		}
 
 		if tableReady {
-			util.Logger.Printf("Success! Table %s is now in active state.", tableName)
+			terragruntOptions.Logger.Printf("Success! Table %s is now in active state.", tableName)
 			return nil
 		}
 
-		util.Logger.Printf("Table %s is not yet in active state. Will check again after %s.", tableName, sleepBetweenRetries)
+		terragruntOptions.Logger.Printf("Table %s is not yet in active state. Will check again after %s.", tableName, sleepBetweenRetries)
 		time.Sleep(sleepBetweenRetries)
 	}
 
@@ -133,13 +133,13 @@ func writeItemToLockTable(itemId string, tableName string, client *dynamodb.Dyna
 // Try to write the given item to the DynamoDB lock table. If the item already exists, that means someone already has
 // the lock, so display their metadata, sleep for the given amount of time, and try again, up to a maximum of
 // maxRetries retries.
-func writeItemToLockTableUntilSuccess(itemId string, tableName string, client *dynamodb.DynamoDB, maxRetries int, sleepBetweenRetries time.Duration) error {
+func writeItemToLockTableUntilSuccess(itemId string, tableName string, client *dynamodb.DynamoDB, maxRetries int, sleepBetweenRetries time.Duration, terragruntOptions *options.TerragruntOptions) error {
 	for retries := 1; ; retries++ {
-		util.Logger.Printf("Attempting to create lock item for state file %s in DynamoDB table %s", itemId, tableName)
+		terragruntOptions.Logger.Printf("Attempting to create lock item for state file %s in DynamoDB table %s", itemId, tableName)
 
 		err := writeItemToLockTable(itemId, tableName, client)
 		if err == nil {
-			util.Logger.Printf("Lock acquired!")
+			terragruntOptions.Logger.Printf("Lock acquired!")
 			return nil
 		}
 
@@ -147,13 +147,13 @@ func writeItemToLockTableUntilSuccess(itemId string, tableName string, client *d
 			return err
 		}
 
-		displayLockMetadata(itemId, tableName, client)
+		displayLockMetadata(itemId, tableName, client, terragruntOptions)
 
 		if retries >= maxRetries {
 			return errors.WithStackTrace(AcquireLockRetriesExceeded{ItemId: itemId, Retries: maxRetries})
 		}
 
-		util.Logger.Printf("Will try to acquire lock again in %s.", sleepBetweenRetries)
+		terragruntOptions.Logger.Printf("Will try to acquire lock again in %s.", sleepBetweenRetries)
 		time.Sleep(sleepBetweenRetries)
 	}
 }

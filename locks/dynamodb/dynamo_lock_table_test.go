@@ -37,7 +37,7 @@ func TestCreateLockTableConcurrency(t *testing.T) {
 		waitGroup.Add(1)
 		go func() {
 			defer waitGroup.Done()
-			err := createLockTableIfNecessary(tableName, client)
+			err := createLockTableIfNecessary(tableName, client, mockOptions)
 			assert.Nil(t, err, "Unexpected error: %v", err)
 		}()
 	}
@@ -52,7 +52,7 @@ func TestWaitForTableToBeActiveTableDoesNotExist(t *testing.T) {
 	tableName := "table-does-not-exist"
 	retries := 5
 
-	err := waitForTableToBeActive(tableName, client, retries, 1 * time.Millisecond)
+	err := waitForTableToBeActive(tableName, client, retries, 1 * time.Millisecond, mockOptions)
 
 	assert.True(t, errors.IsError(err, TableActiveRetriesExceeded{TableName: tableName, Retries: retries}), "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 }
@@ -65,7 +65,7 @@ func TestCreateLockTableIfNecessaryTableAlreadyExists(t *testing.T) {
 		assertCanWriteToTable(t, tableName, client)
 
 		// Try to create the table the second time and make sure you get no errors
-		err := createLockTableIfNecessary(tableName, client)
+		err := createLockTableIfNecessary(tableName, client, mockOptions)
 		assert.Nil(t, err, "Unexpected error: %v", err)
 	})
 }
@@ -117,7 +117,7 @@ func TestWriteItemToLockTableUntilSuccessItemDoesntAlreadyExist(t *testing.T) {
 		itemId := uniqueId()
 
 		// Now write an item to the table. Allow no retries, as the item shouldn't already exit.
-		err := writeItemToLockTableUntilSuccess(itemId, tableName, client, 1, 1 * time.Millisecond)
+		err := writeItemToLockTableUntilSuccess(itemId, tableName, client, 1, 1 * time.Millisecond, mockOptions)
 		assert.Nil(t, err, "Unexpected error: %v", err)
 
 		// Finally, check the item exists
@@ -140,7 +140,7 @@ func TestWriteItemToLockTableUntilSuccessItemAlreadyExists(t *testing.T) {
 		assertItemExistsInTable(t, itemId, tableName, client)
 
 		// Now try to write the item to the table again. Allow no retries to ensure this fails immediately.
-		err = writeItemToLockTableUntilSuccess(itemId, tableName, client, 1, 1 * time.Millisecond)
+		err = writeItemToLockTableUntilSuccess(itemId, tableName, client, 1, 1 * time.Millisecond, mockOptions)
 		assert.True(t, errors.IsError(err, AcquireLockRetriesExceeded{ItemId: itemId, Retries: 1}), "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 	})
 }
@@ -169,7 +169,7 @@ func TestWriteItemToLockTableUntilSuccessItemAlreadyExistsButGetsDeleted(t *test
 		// In the meantime, try to write the item to the table again. This should fail initially, so allow 18
 		// retries. At 10 seconds per retry, that's 3 minutes, which should be enough time for the goroutine to
 		// delete the item and for that info to make it to the majority of the DynamoDB nodes.
-		err = writeItemToLockTableUntilSuccess(itemId, tableName, client, 18, 10 * time.Second)
+		err = writeItemToLockTableUntilSuccess(itemId, tableName, client, 18, 10 * time.Second, mockOptions)
 		assert.Nil(t, err, "Got unexpected error: %v", err)
 	})
 }

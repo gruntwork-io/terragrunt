@@ -15,15 +15,17 @@ const DefaultTerragruntConfigPath = ".terragrunt"
 
 // TerragruntConfig represents a parsed and expanded configuration
 type TerragruntConfig struct {
-	Lock        locks.Lock
-	RemoteState *remote.RemoteState
+	Lock         locks.Lock
+	RemoteState  *remote.RemoteState
+	Dependencies *ModuleDependencies
 }
 
 // terragruntConfigFile represents the configuration supported in the .terragrunt file
 type terragruntConfigFile struct {
-	Include     *IncludeConfig      `hcl:"include,omitempty"`
-	Lock        *LockConfig         `hcl:"lock,omitempty"`
-	RemoteState *remote.RemoteState `hcl:"remote_state,omitempty"`
+	Include      *IncludeConfig      `hcl:"include,omitempty"`
+	Lock         *LockConfig         `hcl:"lock,omitempty"`
+	RemoteState  *remote.RemoteState `hcl:"remote_state,omitempty"`
+	Dependencies *ModuleDependencies `hcl:"dependencies,omitempty"`
 }
 
 // IncludeConfig represents the configuration settings for a parent .terragrunt file that you can "include" in a
@@ -38,16 +40,23 @@ type LockConfig struct {
 	Config  map[string]string `hcl:"config"`
 }
 
-// ReadTerragruntConfig the Terragrunt config file from its default location
+// ModuleDependencies represents the paths to other Terraform modules that must be applied before the current module
+// can be applied
+type ModuleDependencies struct {
+	Paths []string `hcl:"paths"`
+}
+
+// Read the Terragrunt config file from its default location
 func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*TerragruntConfig, error) {
-	util.Logger.Printf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
-	return parseConfigFile(terragruntOptions.TerragruntConfigPath, terragruntOptions, nil)
+	terragruntOptions.Logger.Printf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
+	return ParseConfigFile(terragruntOptions.TerragruntConfigPath, terragruntOptions, nil)
 }
 
 // Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
-func parseConfigFile(configPath string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) (*TerragruntConfig, error) {
+func ParseConfigFile(configPath string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) (*TerragruntConfig, error) {
 	configString, err := util.ReadFileAsString(configPath)
+
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +125,9 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 		includedConfig.RemoteState = config.RemoteState
 	}
 
+	if config.Dependencies != nil {
+		includedConfig.Dependencies = config.Dependencies
+	}
 
 	return includedConfig, nil
 }
@@ -138,7 +150,7 @@ func parseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *optio
 		resolvedIncludePath = filepath.Join(filepath.Dir(terragruntOptions.TerragruntConfigPath), resolvedIncludePath)
 	}
 
-	return parseConfigFile(resolvedIncludePath, terragruntOptions, includedConfig)
+	return ParseConfigFile(resolvedIncludePath, terragruntOptions, includedConfig)
 }
 
 // Convert the contents of a fully resolved .terragrunt file to a TerragruntConfig object
@@ -162,6 +174,8 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 
 		terragruntConfig.RemoteState = terragruntConfigFromFile.RemoteState
 	}
+
+	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
 
 	return terragruntConfig, nil
 }

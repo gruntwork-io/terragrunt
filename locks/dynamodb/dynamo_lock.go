@@ -8,8 +8,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/locks"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/gruntwork-io/terragrunt/options"
 )
 
 // A lock that uses AWS's DynamoDB to acquire and release locks
@@ -62,24 +62,24 @@ func (dynamoLock *DynamoDbLock) fillDefaults() {
 
 // Acquire a lock by writing an entry to DynamoDB. If that write fails, it means someone else already has the lock, so
 // retry until they release the lock.
-func (dynamoDbLock DynamoDbLock) AcquireLock() error {
-	util.Logger.Printf("Attempting to acquire lock for state file %s in DynamoDB", dynamoDbLock.StateFileId)
+func (dynamoDbLock DynamoDbLock) AcquireLock(terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Printf("Attempting to acquire lock for state file %s in DynamoDB", dynamoDbLock.StateFileId)
 
 	client, err := createDynamoDbClient(dynamoDbLock.AwsRegion)
 	if err != nil {
 		return err
 	}
 
-	if err := createLockTableIfNecessary(dynamoDbLock.TableName, client); err != nil {
+	if err := createLockTableIfNecessary(dynamoDbLock.TableName, client, terragruntOptions); err != nil {
 		return err
 	}
 
-	return writeItemToLockTableUntilSuccess(dynamoDbLock.StateFileId, dynamoDbLock.TableName, client, dynamoDbLock.MaxLockRetries, SLEEP_BETWEEN_TABLE_LOCK_ACQUIRE_ATTEMPTS)
+	return writeItemToLockTableUntilSuccess(dynamoDbLock.StateFileId, dynamoDbLock.TableName, client, dynamoDbLock.MaxLockRetries, SLEEP_BETWEEN_TABLE_LOCK_ACQUIRE_ATTEMPTS, terragruntOptions)
 }
 
 // Release a lock by deleting an entry from DynamoDB.
-func (dynamoDbLock DynamoDbLock) ReleaseLock() error {
-	util.Logger.Printf("Attempting to release lock for state file %s in DynamoDB", dynamoDbLock.StateFileId)
+func (dynamoDbLock DynamoDbLock) ReleaseLock(terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Printf("Attempting to release lock for state file %s in DynamoDB", dynamoDbLock.StateFileId)
 
 	client, err := createDynamoDbClient(dynamoDbLock.AwsRegion)
 	if err != nil {
@@ -90,7 +90,7 @@ func (dynamoDbLock DynamoDbLock) ReleaseLock() error {
 		return err
 	}
 
-	util.Logger.Printf("Lock released!")
+	terragruntOptions.Logger.Printf("Lock released!")
 	return nil
 }
 

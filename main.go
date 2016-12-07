@@ -26,10 +26,11 @@ func checkForErrorsAndExit(err error) {
 	if err == nil {
 		os.Exit(0)
 	} else {
+		logger := util.CreateLogger("")
 		if os.Getenv("TERRAGRUNT_DEBUG") != "" {
-			util.Logger.Println(errors.PrintErrorWithStackTrace(err))
+			logger.Println(errors.PrintErrorWithStackTrace(err))
 		} else {
-			util.Logger.Println(err)
+			logger.Println(err)
 		}
 		os.Exit(1)
 	}
