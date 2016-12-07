@@ -42,7 +42,7 @@ COMMANDS:
    import               Acquire a lock and run 'terraform import'
    refresh              Acquire a lock and run 'terraform refresh'
    remote push          Acquire a lock and run 'terraform remote push'
-   %s                   Acquire a long-term long for these templates
+   %s                   Acquire a long-term lock for these templates
    %s                   Release a long-term lock or a lock that failed to clean up
    %s                   Spin up a 'stack' by running 'terragrunt apply' in each subfolder
    %s                   Tear down a 'stack' by running 'terragrunt destroy' in each subfolder
@@ -305,6 +305,6 @@ func runTerraformCommand(terragruntOptions *options.TerragruntOptions) error {
 var DontManuallyConfigureRemoteState = fmt.Errorf("Instead of manually using the 'remote config' command, define your remote state settings in .terragrunt and Terragrunt will automatically configure it for you (and all your team members) next time you run it.")
 
 type UnrecognizedCommand string
-func (err UnrecognizedCommand) Error() string {
-	return fmt.Sprintf("Unrecognized command: %s", string(err))
+func (commandName UnrecognizedCommand) Error() string {
+	return fmt.Sprintf("Unrecognized command: %s", string(commandName))
 }

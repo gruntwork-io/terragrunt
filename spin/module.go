@@ -30,7 +30,7 @@ func (module *TerraformModule) String() string {
 	return fmt.Sprintf("Module %s (dependencies: [%s])", module.Path, strings.Join(dependencies, ", "))
 }
 
-// Go through each of the given .terragrunt config files and resolve the module that .terragrunt file represents it
+// Go through each of the given .terragrunt config files and resolve the module that .terragrunt file represents
 // into a TerraformModule struct. Return the list of these TerraformModule structs.
 func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions) ([]*TerraformModule, error) {
 	canonicalTerragruntConfigPaths, err := util.CanonicalPaths(terragruntConfigPaths, ".")

@@ -21,7 +21,7 @@ func ParseTerragruntOptions(cliContext *cli.Context) (*options.TerragruntOptions
 // EXPLANATION: The normal way to parse flags with the urfave CLI library would be to define the flags in the
 // CreateTerragruntCLI method and to read the values of those flags using cliContext.String(...),
 // cliContext.Bool(...), etc. Unfortunately, this does not work here due to a limitation in the urfave
-// CLI library: if the user passes in any "command" whatsever, (e.g. the "apply" in "terragrunt apply"), then
+// CLI library: if the user passes in any "command" whatsoever, (e.g. the "apply" in "terragrunt apply"), then
 // any flags that come after it are not parsed (e.g. the "--foo" is not parsed in "terragrunt apply --foo").
 // Therefore, we have to parse options ourselves, which is infuriating. For more details on this limitation,
 // see: https://github.com/urfave/cli/issues/533. For now, our workaround is to dumbly loop over the arguments
@@ -95,7 +95,7 @@ func parseBooleanArg(args []string, argName string, defaultValue bool) bool {
 }
 
 // Find a string argument (e.g. --foo "VALUE") of the given name in the given list of arguments. If it's present,
-// return its value. If it is present, but has not value, return an error. If it isn't present, return defaultValue.
+// return its value. If it is present, but has no value, return an error. If it isn't present, return defaultValue.
 func parseStringArg(args []string, argName string, defaultValue string) (string, error) {
 	for i, arg := range args {
 		if arg == fmt.Sprintf("--%s", argName) {

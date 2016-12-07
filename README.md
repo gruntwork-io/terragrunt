@@ -580,7 +580,10 @@ correct order. For the example at the start of this section, the order for the `
 1. Deploy the backend-app
 1. Deploy the frontend-app and search-app in parallel
 
-If any of the modules fail to deploy, then Terragrunt will not attempt to deploy the modules that depend on them.
+If any of the modules fail to deploy, then Terragrunt will not attempt to deploy the modules that depend on them. Once
+you've fixed the error, it's usually safe to re-run the `spin-up` or `tear-down` command again, since it'll be a noop
+for the modules that already deployed successfully, and should only affect the ones that had an error the last time
+around.
 
 ## CLI Options
 
@@ -592,7 +595,9 @@ prefix `--terragrunt-`. The currently available options are:
 * `--terragrunt-non-interactive`: Don't show interactive user prompts. This will default the answer for all prompts to 
   'yes'. Useful if you need to run Terragrunt in an automated setting (e.g. from a script).  
 * `--terragrunt-working-dir`: Set the directory where Terragrunt should execute the `terraform` command. Default is the
-  current working directory.
+  current working directory. Note that for the `spin-up` and `tear-down` directories, this parameter has a different 
+  meaning: Terragrunt will apply or destroy all the Terraform modules in the subfolders of the 
+  `terragrunt-working-dir`, running `terraform` in the root of each module it finds.
 
 ## Developing terragrunt
 
