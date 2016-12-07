@@ -10,6 +10,8 @@ practices for Terraform state:
 1. **Remote state management**: A common mistake when using Terraform is to forget to configure remote state or to
    configure it incorrectly. Terragrunt can prevent these sorts of errors by automatically configuring remote state for
    everyone on your team.
+1. **Managing multiple modules**: Terragrunt has tools that make it easier to work with multiple Terraform folders, and 
+   therefore, multiple state files. 
 
 Other types of locking mechanisms and automation for more best practices may be added in the future. 
 
@@ -32,9 +34,14 @@ or [etcd](https://www.terraform.io/docs/state/remote/etcd.html). All of these op
    forget to enable remote state storage before applying them, and end up creating a bunch of duplicate resources.
    Sometimes you do remember to enable remote state storage, but you use the wrong configuration (e.g. the wrong S3
    bucket name or key) and you end up overwriting the state for a totally different set of templates.
+1. If you define all of your environments (stage, prod) and components (database, app server) in one set of templates
+   (and therefore one state file), then a mistake anywhere can cause problems everywhere. To isolate different 
+   environments and components, you need to define your Terraform code in multiple different folders (see [How to 
+   manage Terraform state](https://blog.gruntwork.io/how-to-manage-terraform-state-28f5697e68fa)), but this makes
+   it harder to manage state and quickly spin up and tear down environments.
 
 The goal of Terragrunt is to take Terraform, which is a fantastic tool, and make it even better for teams by providing
-a simple, free locking mechanism, and enforcing best practices around CLI usage. Check out [Add Automatic Remote State Locking and Configuration to Terraform with Terragrunt](https://blog.gruntwork.io/add-automatic-remote-state-locking-and-configuration-to-terraform-with-terragrunt-656a57565a4d) for more info.
+a simple, free locking mechanism, and enforcing best practices around CLI usage and state management.
 
 ## Install
 
@@ -324,7 +331,7 @@ The solution is to use the following features of Terragrunt:
 * Find parent helper
 * Relative path helper
 * Overriding included settings
-* The spin-up and tear-down commands
+* The `spin-up` and `tear-down` commands
 * Dependencies between modules
 
 ### Includes
