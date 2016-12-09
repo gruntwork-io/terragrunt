@@ -30,7 +30,7 @@ var MULTI_MODULE_COMMANDS = []string{CMD_SPIN_UP, CMD_TEAR_DOWN}
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
 // in its definition, we don't quite fit into the model of any Go CLI library. Fortunately, urfave/cli allows us to
 // override the whole template used for the Usage Text.
-var CUSTOM_USAGE_TEXT = fmt.Sprintf(`DESCRIPTION:
+var CUSTOM_USAGE_TEXT = `DESCRIPTION:
    {{.Name}} - {{.UsageText}}
 
 USAGE:
@@ -42,22 +42,24 @@ COMMANDS:
    import               Acquire a lock and run 'terraform import'
    refresh              Acquire a lock and run 'terraform refresh'
    remote push          Acquire a lock and run 'terraform remote push'
-   %s                   Acquire a long-term lock for these templates
-   %s                   Release a long-term lock or a lock that failed to clean up
-   %s                   Spin up a 'stack' by running 'terragrunt apply' in each subfolder
-   %s                   Tear down a 'stack' by running 'terragrunt destroy' in each subfolder
+   acquire-lock         Acquire a long-term lock for these templates
+   release-lock         Release a long-term lock or a lock that failed to clean up
+   spin-up              Spin up a 'stack' by running 'terragrunt apply' in each subfolder
+   tear-down            Tear down a 'stack' by running 'terragrunt destroy' in each subfolder
    *                    Terragrunt forwards all other commands directly to Terraform
-{{if .VisibleFlags}}
+
 GLOBAL OPTIONS:
-   {{range .VisibleFlags}}{{.}}
-   {{end}}{{end}}
+   terragrunt-config             Path to the Terragrunt config file. Default is .terragrunt.
+   terragrunt-non-interactive    Assume "yes" for all prompts.
+   terragrunt-working-dir        The path to the Terraform templates. Default is current directory.
+
 VERSION:
    {{.Version}}{{if len .Authors}}
 
 AUTHOR(S):
    {{range .Authors}}{{.}}{{end}}
    {{end}}
-`, CMD_ACQUIRE_LOCK, CMD_RELEASE_LOCK, CMD_SPIN_UP, CMD_TEAR_DOWN)
+`
 
 var MODULE_REGEX = regexp.MustCompile(`module ".+"`)
 

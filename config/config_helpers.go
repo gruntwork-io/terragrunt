@@ -50,7 +50,10 @@ func executeTerragruntHelperFunction(functionName string, include *IncludeConfig
 
 // Find a parent .terragrunt file in the parent folders above the current .terragrunt file and return its path
 func findInParentFolders(terragruntOptions *options.TerragruntOptions) (string, error) {
-	previousDir := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+	previousDir, err := filepath.Abs(filepath.Dir(terragruntOptions.TerragruntConfigPath))
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
 
 	// To avoid getting into an accidental infinite loop (e.g. do to cyclical symlinks), set a max on the number of
 	// parent folders we'll check
