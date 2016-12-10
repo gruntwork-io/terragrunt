@@ -24,7 +24,7 @@ files may contain secrets) or use a supported [remote state
 backend](https://www.terraform.io/docs/state/remote/index.html) to store the state files in a shared location such as 
 [S3](https://www.terraform.io/docs/state/remote/s3.html), 
 [Consul](https://www.terraform.io/docs/state/remote/consul.html), 
-or [etcd](https://www.terraform.io/docs/state/remote/etcd.html). All of these options have two problems:
+or [etcd](https://www.terraform.io/docs/state/remote/etcd.html). All of these options have three problems:
 
 1. They do not provide *locking*. If two team members run `terraform apply` on the same state files at the same
    time, they may overwrite each other's changes. The official solution to this problem is to use [Hashicorp's
@@ -273,7 +273,7 @@ my-terraform-repo
           └ .terragrunt
 ```
 
-Most of these `.terragrunt` files will have the almost the same content. For example, `qa/my-app/.terragrunt` may look
+Most of these `.terragrunt` files will have almost the same content. For example, `qa/my-app/.terragrunt` may look
 like this:
 
 ```hcl
