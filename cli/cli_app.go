@@ -13,6 +13,7 @@ import (
 	"github.com/urfave/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/spin"
+	"path/filepath"
 )
 
 const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
@@ -157,7 +158,7 @@ func runMultiModuleCommand(command string, terragruntOptions *options.Terragrunt
 func downloadModules(terragruntOptions *options.TerragruntOptions) error {
 	switch firstArg(terragruntOptions.TerraformCliArgs) {
 	case "apply", "destroy", "graph", "output", "plan", "show", "taint", "untaint", "validate":
-		shouldDownload, err := shouldDownloadModules()
+		shouldDownload, err := shouldDownloadModules(terragruntOptions)
 		if err != nil {
 			return err
 		}
@@ -173,12 +174,12 @@ func downloadModules(terragruntOptions *options.TerragruntOptions) error {
 // Note that to keep the logic in this code very simple, this code ONLY detects the case where you haven't downloaded
 // modules at all. Detecting if your downloaded modules are out of date (as opposed to missing entirely) is more
 // complicated and not something we handle at the moment.
-func shouldDownloadModules() (bool, error) {
-	if util.FileExists(".terraform/modules") {
+func shouldDownloadModules(terragruntOptions *options.TerragruntOptions) (bool, error) {
+	if util.FileExists(filepath.Join(terragruntOptions.WorkingDir, ".terraform/modules")) {
 		return false, nil
 	}
 
-	return util.Grep(MODULE_REGEX, TERRAFORM_EXTENSION_GLOB)
+	return util.Grep(MODULE_REGEX, fmt.Sprintf("%s/%s", terragruntOptions.WorkingDir, TERRAFORM_EXTENSION_GLOB))
 }
 
 // If the user entered a Terraform command that uses state (e.g. plan, apply), make sure remote state is configured
