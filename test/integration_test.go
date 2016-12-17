@@ -119,7 +119,6 @@ func cleanupTerraformFolder(t *testing.T, templatesPath string) {
 }
 
 func runTerragruntCommand(t *testing.T, command string) error {
-	validateCommandInstalled(t, "terraform")
 	args := strings.Split(command, " ")
 
 	app := cli.CreateTerragruntCli("TEST")

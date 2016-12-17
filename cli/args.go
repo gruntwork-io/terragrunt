@@ -36,6 +36,14 @@ func parseTerragruntOptionsFromArgs(args []string) (*options.TerragruntOptions, 
 		terragruntConfigPath = config.DefaultTerragruntConfigPath
 	}
 
+	terraformPath, err := parseStringArg(args, OPT_TERRAGRUNT_TFPATH, os.Getenv("TERRAGRUNT_TFPATH"))
+	if err != nil {
+		return nil, err
+	}
+	if terraformPath == "" {
+		terraformPath = "terraform"
+	}
+
 	currentDir, err := os.Getwd()
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
@@ -48,6 +56,7 @@ func parseTerragruntOptionsFromArgs(args []string) (*options.TerragruntOptions, 
 
 	return &options.TerragruntOptions{
 		TerragruntConfigPath: terragruntConfigPath,
+		TerraformPath: terraformPath,
 		NonInteractive: parseBooleanArg(args, OPT_NON_INTERACTIVE, false),
 		TerraformCliArgs: filterTerragruntArgs(args),
 		WorkingDir: workingDir,
