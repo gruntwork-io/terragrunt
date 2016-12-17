@@ -464,7 +464,57 @@ remote_state = {
 ``` 
 
 The result is that when you run `terragrunt` commands in the `qa/my-app` folder, you get the `lock` settings from the 
-parent, but the `remote_state` settings of the child. 
+parent, but the `remote_state` settings of the child.
+
+### Environment variables replacement
+
+With terraform is possible to set variables via Environment variables. This allows to control similar infrastructures with the same configuration files. Is also possible to use these variables in `.terragrunt` file by using the `get_env()` helper function.
+
+```hcl
+remote_state = {
+  backend = "s3"
+  config {
+    encrypt = "true"
+    bucket = "${get_env(ENVIRONMENT_VARIABLE, 'development')}-bucket"
+    key = "/foo/bar/terraform.tfstate"
+    region = "us-west-2"
+  }
+}
+```
+
+This function takes two parameters: `ENVIRONMENT_VARIABLE` and `default`. When parsing the file, `terragrunt` will evaluate the environment variable `ENVIRONMENT_VARIABLE` and replace with the registered value. If there is no environment variable with that name or is empty, it will use the one registered in the `default`. The default value is mandatory but can be empty `${get_env(ENVIRONMENT_VARIABLE, '')}`.
+
+If there is no environment variable with that name registered in the system, the configuration file would be evaluated to:
+
+```hcl
+remote_state = {
+  backend = "s3"
+  config {
+    encrypt = "true"
+    bucket = "development-bucket"
+    key = "/foo/bar/terraform.tfstate"
+    region = "us-west-2"
+  }
+}
+```
+
+But if the variable is set
+```bash
+ENVIRONMENT_VARIABLE="value" terragrunt
+```
+then the previous example would evaluate to:
+
+```hcl
+remote_state = {
+  backend = "s3"
+  config {
+    encrypt = "true"
+    bucket = "value-bucket"
+    key = "/foo/bar/terraform.tfstate"
+    region = "us-west-2"
+  }
+}
+```
 
 ### The spin-up and tear-down commands
 
