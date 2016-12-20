@@ -52,7 +52,7 @@ func TestWaitForTableToBeActiveTableDoesNotExist(t *testing.T) {
 	tableName := "table-does-not-exist"
 	retries := 5
 
-	err := waitForTableToBeActive(tableName, client, retries, 1 * time.Millisecond, mockOptions)
+	err := waitForTableToBeActiveWithRandomSleep(tableName, client, retries, 1 * time.Millisecond, 500 * time.Millisecond, mockOptions)
 
 	assert.True(t, errors.IsError(err, TableActiveRetriesExceeded{TableName: tableName, Retries: retries}), "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // Create the lock table in DynamoDB if it doesn't already exist
@@ -82,6 +83,12 @@ func isTableAlreadyBeingCreatedError(err error) bool {
 // Wait for the given DynamoDB table to be in the "active" state. If it's not in "active" state, sleep for the
 // specified amount of time, and try again, up to a maximum of maxRetries retries.
 func waitForTableToBeActive(tableName string, client *dynamodb.DynamoDB, maxRetries int, sleepBetweenRetries time.Duration, terragruntOptions *options.TerragruntOptions) error {
+	return waitForTableToBeActiveWithRandomSleep(tableName, client, maxRetries, sleepBetweenRetries, sleepBetweenRetries, terragruntOptions)
+}
+
+// Waits for the given table as described above, but sleeps a random amount of time between sleepBetweenRetriesMin and sleepBetweenRetriesMax between
+// tries. This is to avoid an AWS issue where all waiting requests fires at the same time, triggering AWS's "subscriber limit exceeded" error.
+func waitForTableToBeActiveWithRandomSleep(tableName string, client *dynamodb.DynamoDB, maxRetries int, sleepBetweenRetriesMin time.Duration, sleepBetweenRetriesMax time.Duration, terragruntOptions *options.TerragruntOptions) error {
 	for i := 0; i < maxRetries; i++ {
 		tableReady, err := lockTableExistsAndIsActive(tableName, client)
 		if err != nil {
@@ -93,6 +100,7 @@ func waitForTableToBeActive(tableName string, client *dynamodb.DynamoDB, maxRetr
 			return nil
 		}
 
+		sleepBetweenRetries := util.GetRandomTime(sleepBetweenRetriesMin, sleepBetweenRetriesMax)
 		terragruntOptions.Logger.Printf("Table %s is not yet in active state. Will check again after %s.", tableName, sleepBetweenRetries)
 		time.Sleep(sleepBetweenRetries)
 	}
