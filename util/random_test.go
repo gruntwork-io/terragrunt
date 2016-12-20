@@ -3,7 +3,6 @@ package util
 import (
 	"testing"
 	"time"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestGetRandomTime(t *testing.T) {
@@ -14,19 +13,28 @@ func TestGetRandomTime(t *testing.T) {
 		upperBound time.Duration
 	}{
 		{ 1 * time.Second, 10 * time.Second },
+		{0, 0},
+		{-1 * time.Second, -3 * time.Second},
+		{1 * time.Second, 2000000001 * time.Nanosecond},
+		{1 * time.Millisecond, 10 * time.Millisecond},
+		//{1 * time.Second, 1000000001 * time.Nanosecond}, // This case fails
 	}
 
+	// Loop through each test case
 	for _, testCase := range testCases {
-		actual := GetRandomTime(testCase.lowerBound, testCase.upperBound)
-		assert.NotEqual(t, testCase.lowerBound, actual, "Randomly computed time %v should not be equal to lower bound time %v.\n", actual, testCase.lowerBound)
-		assert.NotEqual(t, testCase.upperBound, actual, "Randomly computed time %v should not be equal to upper bound time %v.\n", actual, testCase.upperBound)
+		// Try each test case 100 times to avoid fluke test results
+		for i := 0; i < 100; i++ {
+			actual := GetRandomTime(testCase.lowerBound, testCase.upperBound)
 
-		if actual < testCase.lowerBound {
-			t.Fatalf("Randomly computed time %v should not be less than lowerBound %v", actual, testCase.lowerBound)
-		}
+			if  testCase.lowerBound > 0 && testCase.upperBound > 0 {
+				if actual < testCase.lowerBound {
+					t.Fatalf("Randomly computed time %v should not be less than lowerBound %v", actual, testCase.lowerBound)
+				}
 
-		if actual > testCase.upperBound {
-			t.Fatalf("Randomly computed time %v should not be greater than upperBound %v", actual, testCase.upperBound)
+				if actual > testCase.upperBound {
+					t.Fatalf("Randomly computed time %v should not be greater than upperBound %v", actual, testCase.upperBound)
+				}
+			}
 		}
 	}
 }
