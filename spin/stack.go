@@ -1,12 +1,14 @@
 package spin
 
 import (
-	"github.com/gruntwork-io/terragrunt/options"
 	"fmt"
-	"path/filepath"
+	"strings"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
-	"strings"
+	"github.com/gruntwork-io/terragrunt/options"
+
+	"github.com/mattn/go-zglob"
 )
 
 // Represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or
@@ -47,7 +49,10 @@ func (stack *Stack) CheckForCycles() error {
 // Find all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
 // assemble them into a Stack object that can be applied or destroyed in a single command
 func FindStackInSubfolders(terragruntOptions *options.TerragruntOptions) (*Stack, error) {
-	terragruntConfigFiles, err := filepath.Glob(fmt.Sprintf("%s/**/%s", terragruntOptions.WorkingDir, config.DefaultTerragruntConfigPath))
+	// Ideally, we'd use a builin Go library like filepath.Glob here, but per https://github.com/golang/go/issues/11862,
+	// the current go implementation doesn't support treating ** as zero or more directories, just zero or one.
+	// So we use a third-party library.
+	terragruntConfigFiles, err := zglob.Glob(fmt.Sprintf("%s/**/%s", terragruntOptions.WorkingDir, config.DefaultTerragruntConfigPath))
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}

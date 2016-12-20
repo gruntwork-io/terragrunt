@@ -8,6 +8,7 @@ import:
 - package: github.com/stretchr/testify/assert
 - package: github.com/go-errors/errors
 - package: github.com/mitchellh/mapstructure
+- package: github.com/mattn/go-zglob
 - package: github.com/aws/aws-sdk-go
   subpackages:
   - aws
