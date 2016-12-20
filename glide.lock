@@ -1,5 +1,5 @@
 hash: f70d8455d9f5f68d4449263ab8d0485d5b938b65b4c31716be50aac64fedc6ae
-updated: 2016-12-19T23:23:04.584262219Z
+updated: 2016-12-19T19:45:59.216824394-07:00
 imports:
 - name: github.com/aws/aws-sdk-go
   version: 665c623d7f3e0ee276596b006655ba4dbe0565b0
@@ -53,6 +53,8 @@ imports:
   - json/token
 - name: github.com/jmespath/go-jmespath
   version: 0b12d6b521d83fc7f755e7cfc1b1fbdd35a01a74
+- name: github.com/mattn/go-zglob
+  version: 2dbd7f37a45e993d5180a251b4bdd314d6333b70
 - name: github.com/mitchellh/mapstructure
   version: f3009df150dadf309fdee4a54ed65c124afad715
 - name: github.com/pmezard/go-difflib
