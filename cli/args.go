@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 	"strings"
+	"path/filepath"
 )
 
 // Parse command line options that are passed in for Terragrunt
@@ -28,22 +29,6 @@ func ParseTerragruntOptions(cliContext *cli.Context) (*options.TerragruntOptions
 // and look for the ones we need, but in the future, we should change to a different CLI library to avoid this
 // limitation.
 func parseTerragruntOptionsFromArgs(args []string) (*options.TerragruntOptions, error) {
-	terragruntConfigPath, err := parseStringArg(args, OPT_TERRAGRUNT_CONFIG, os.Getenv("TERRAGRUNT_CONFIG"))
-	if err != nil {
-		return nil, err
-	}
-	if terragruntConfigPath == "" {
-		terragruntConfigPath = config.DefaultTerragruntConfigPath
-	}
-
-	terraformPath, err := parseStringArg(args, OPT_TERRAGRUNT_TFPATH, os.Getenv("TERRAGRUNT_TFPATH"))
-	if err != nil {
-		return nil, err
-	}
-	if terraformPath == "" {
-		terraformPath = "terraform"
-	}
-
 	currentDir, err := os.Getwd()
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
@@ -52,6 +37,22 @@ func parseTerragruntOptionsFromArgs(args []string) (*options.TerragruntOptions, 
 	workingDir, err := parseStringArg(args, OPT_WORKING_DIR, currentDir)
 	if err != nil {
 		return nil, err
+	}
+
+	terragruntConfigPath, err := parseStringArg(args, OPT_TERRAGRUNT_CONFIG, os.Getenv("TERRAGRUNT_CONFIG"))
+	if err != nil {
+		return nil, err
+	}
+	if terragruntConfigPath == "" {
+		terragruntConfigPath = filepath.Join(workingDir, config.DefaultTerragruntConfigPath)
+	}
+
+	terraformPath, err := parseStringArg(args, OPT_TERRAGRUNT_TFPATH, os.Getenv("TERRAGRUNT_TFPATH"))
+	if err != nil {
+		return nil, err
+	}
+	if terraformPath == "" {
+		terraformPath = "terraform"
 	}
 
 	return &options.TerragruntOptions{

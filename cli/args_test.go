@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/config"
 	"os"
+	"path/filepath"
 )
 
 func TestParseTerragruntOptionsFromArgs(t *testing.T) {
@@ -24,31 +25,31 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 	}{
 		{
 			[]string{},
-			mockOptions(config.DefaultTerragruntConfigPath, workingDir, []string{}, false),
+			mockOptions(filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false),
 			nil,
 		},
 
 		{
 			[]string{"foo", "bar"},
-			mockOptions(config.DefaultTerragruntConfigPath, workingDir, []string{"foo", "bar"}, false),
+			mockOptions(filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"foo", "bar"}, false),
 			nil,
 		},
 
 		{
 			[]string{"--foo", "--bar"},
-			mockOptions(config.DefaultTerragruntConfigPath, workingDir, []string{"--foo", "--bar"}, false),
+			mockOptions(filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"--foo", "--bar"}, false),
 			nil,
 		},
 
 		{
 			[]string{"--foo", "apply", "--bar"},
-			mockOptions(config.DefaultTerragruntConfigPath, workingDir, []string{"--foo", "apply", "--bar"}, false),
+			mockOptions(filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"--foo", "apply", "--bar"}, false),
 			nil,
 		},
 
 		{
 			[]string{"--terragrunt-non-interactive"},
-			mockOptions(config.DefaultTerragruntConfigPath, workingDir, []string{}, true),
+			mockOptions(filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, true),
 			nil,
 		},
 
@@ -60,7 +61,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 
 		{
 			[]string{"--terragrunt-working-dir", "/some/path"},
-			mockOptions(config.DefaultTerragruntConfigPath, "/some/path", []string{}, false),
+			mockOptions(filepath.Join("/some/path", config.DefaultTerragruntConfigPath), "/some/path", []string{}, false),
 			nil,
 		},
 
