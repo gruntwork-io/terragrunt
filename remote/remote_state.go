@@ -61,7 +61,7 @@ func (remoteState RemoteState) ConfigureRemoteState(terragruntOptions *options.T
 		}
 
 		terragruntOptions.Logger.Printf("Configuring remote state for the %s backend", remoteState.Backend)
-		return shell.RunShellCommand(terragruntOptions, "terraform", remoteState.toTerraformRemoteConfigArgs()...)
+		return shell.RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, remoteState.toTerraformRemoteConfigArgs()...)
 	}
 
 	return nil

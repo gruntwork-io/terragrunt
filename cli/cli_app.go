@@ -17,10 +17,11 @@ import (
 )
 
 const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
+const OPT_TERRAGRUNT_TFPATH = "terragrunt-tfpath"
 const OPT_NON_INTERACTIVE = "terragrunt-non-interactive"
 const OPT_WORKING_DIR = "terragrunt-working-dir"
 var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE}
-var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_WORKING_DIR}
+var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_TFPATH, OPT_WORKING_DIR}
 
 const CMD_ACQUIRE_LOCK = "acquire-lock"
 const CMD_RELEASE_LOCK = "release-lock"
@@ -51,6 +52,7 @@ COMMANDS:
 
 GLOBAL OPTIONS:
    terragrunt-config             Path to the Terragrunt config file. Default is .terragrunt.
+   terragrunt-tfpath             Path to the Terraform binary. Default is terraform (on PATH).
    terragrunt-non-interactive    Assume "yes" for all prompts.
    terragrunt-working-dir        The path to the Terraform templates. Default is current directory.
 
@@ -163,7 +165,7 @@ func downloadModules(terragruntOptions *options.TerragruntOptions) error {
 			return err
 		}
 		if shouldDownload {
-			return shell.RunShellCommand(terragruntOptions, "terraform", "get", "-update")
+			return shell.RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, "get", "-update")
 		}
 	}
 
@@ -299,7 +301,7 @@ func releaseLockCommand(lock locks.Lock, terragruntOptions *options.TerragruntOp
 
 // Run the given Terraform command
 func runTerraformCommand(terragruntOptions *options.TerragruntOptions) error {
-	return shell.RunShellCommand(terragruntOptions, "terraform", terragruntOptions.TerraformCliArgs...)
+	return shell.RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, terragruntOptions.TerraformCliArgs...)
 }
 
 

@@ -45,7 +45,16 @@ a simple, free locking mechanism, and enforcing best practices around CLI usage 
 
 ## Install
 
-1. Install [Terraform](https://www.terraform.io/) and make sure it is in your PATH.
+1. Install [Terraform](https://www.terraform.io/), and let Terragrunt know where to find it using one of the following options:
+
+    * Place `terraform` in a directory on your PATH.
+
+       **Caution**: this makes it easy to accidentally invoke Terraform directly from the command line (thus bypassing the protections offered by Terragrunt).
+
+    * Specify the full path to the Terraform binary in the environment variable `TERRAGRUNT_TFPATH`.
+
+    * Specify the full path to the Terraform binary in `--terragrunt-tfpath` each time you run Terragrunt (see [CLI Options](#cli-options)).
+
 1. Install Terragrunt by going to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases), downloading
    the binary for your OS, renaming it to `terragrunt`, and adding it to your PATH.
 
@@ -599,6 +608,8 @@ prefix `--terragrunt-`. The currently available options are:
 
 * `--terragrunt-config`: A custom path to the `.terragrunt` file. May also be specified via the `TERRAGRUNT_CONFIG`
   environment variable. The default path is `.terragrunt` in the current directory.
+* `--terragrunt-tfpath`: A custom path to the Terraform binary. May also be specified via the `TERRAGRUNT_TFPATH`
+  environment variable. The default is `terraform` in a directory on your PATH.
 * `--terragrunt-non-interactive`: Don't show interactive user prompts. This will default the answer for all prompts to 
   'yes'. Useful if you need to run Terragrunt in an automated setting (e.g. from a script).  
 * `--terragrunt-working-dir`: Set the directory where Terragrunt should execute the `terraform` command. Default is the

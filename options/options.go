@@ -13,6 +13,9 @@ type TerragruntOptions struct {
 	// Location of the .terragrunt config file
 	TerragruntConfigPath string
 
+	// Location of the terraform binary
+	TerraformPath        string
+
 	// Whether we should prompt the user for confirmation or always assume "yes"
 	NonInteractive       bool
 
@@ -39,6 +42,7 @@ func NewTerragruntOptions(terragruntConfigPath string) *TerragruntOptions {
 
 	return &TerragruntOptions{
 		TerragruntConfigPath: terragruntConfigPath,
+		TerraformPath: "terraform",
 		NonInteractive: false,
 		TerraformCliArgs: []string{},
 		WorkingDir: workingDir,
@@ -65,6 +69,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 
 	return &TerragruntOptions {
 		TerragruntConfigPath: terragruntConfigPath,
+		TerraformPath: terragruntOptions.TerraformPath,
 		NonInteractive: terragruntOptions.NonInteractive,
 		TerraformCliArgs: terragruntOptions.TerraformCliArgs,
 		WorkingDir: workingDir,
