@@ -3,6 +3,7 @@ package shell
 import (
 	"os"
 	"os/exec"
+	"bytes"
 	"strings"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -23,4 +24,22 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 	cmd.Dir = terragruntOptions.WorkingDir
 
 	return errors.WithStackTrace(cmd.Run())
+}
+
+// Run the specified shell command with the specified arguments. Connect the command's stdin to
+// the current running app, and return the fully read stdout and stderr streams as strings.
+func GetShellOutput(terragruntOptions *options.TerragruntOptions, command string, args ... string) (string, string, error) {
+	terragruntOptions.Logger.Printf("Running command: %s %s", command, strings.Join(args, " "))
+
+	cmd := exec.Command(command, args...)
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := errors.WithStackTrace(cmd.Run())
+
+	return stdout.String(), stderr.String(), err
 }
