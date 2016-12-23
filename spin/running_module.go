@@ -1,14 +1,16 @@
 package spin
 
 import (
-	"sync"
 	"fmt"
-	"strings"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/shell"
+	"strings"
+	"sync"
 )
 
 // Represents the status of a module that we are trying to apply as part of the spin-up or tear-down command
 type ModuleStatus int
+
 const (
 	Waiting ModuleStatus = iota
 	Running
@@ -27,6 +29,7 @@ type runningModule struct {
 
 // This controls in what order dependencies should be enforced between modules
 type DependencyOrder int
+
 const (
 	NormalOrder DependencyOrder = iota
 	ReverseOrder
@@ -37,10 +40,10 @@ const (
 // function such as crossLinkDependencies.
 func newRunningModule(module *TerraformModule) *runningModule {
 	return &runningModule{
-		Module: module,
-		Status: Waiting,
+		Module:         module,
+		Status:         Waiting,
 		DependencyDone: make(chan *runningModule, 1000), // Use a huge buffer to ensure senders are never blocked
-		Dependencies: map[string]*runningModule{},
+		Dependencies:   map[string]*runningModule{},
 		NotifyWhenDone: []*runningModule{},
 	}
 }
@@ -154,7 +157,7 @@ func (module *runningModule) runModuleWhenReady() {
 func (module *runningModule) waitForDependencies() error {
 	module.Module.TerragruntOptions.Logger.Printf("Module %s must wait for %d dependencies to finish", module.Module.Path, len(module.Dependencies))
 	for len(module.Dependencies) > 0 {
-		doneDependency := <- module.DependencyDone
+		doneDependency := <-module.DependencyDone
 		delete(module.Dependencies, doneDependency.Module.Path)
 
 		if doneDependency.Err != nil {
@@ -168,16 +171,68 @@ func (module *runningModule) waitForDependencies() error {
 	return nil
 }
 
+// FIXME: document purpose of populating dependency inputs before a run as opposed to
+// only this modules outputs after a run.
+func (module *runningModule) getDependencyOutputs() (map[string]string, error) {
+	var outputs = make(map[string]string)
+
+	for _, dependency := range module.Module.Dependencies {
+		var options = dependency.TerragruntOptions.Clone(dependency.TerragruntOptions.TerragruntConfigPath)
+
+		options.Logger.Printf("Refreshing module %s outputs", dependency.Path)
+
+		stdout, _, err := shell.GetShellOutput(options, options.TerraformPath, "output")
+		if err != nil {
+			// FIXME: Needs to ignore only terraform's no outputs defined error.
+			return outputs, nil
+		}
+
+		lines := strings.Split(stdout, "\n")
+		for i := range lines {
+			line := strings.TrimSpace(lines[i])
+
+			if len(line) > 0 {
+				str := strings.SplitN(line, "=", 2)
+				if len(str) > 1 {
+					key := strings.TrimSpace(str[0])
+					val := strings.TrimSpace(str[1])
+					outputs[key] = val
+				}
+			}
+		}
+	}
+
+	return outputs, nil
+}
+
 // Run a module right now by executing the RunTerragrunt command of its TerragruntOptions field.
 func (module *runningModule) runNow() error {
 	module.Status = Running
 
+	var options = module.Module.TerragruntOptions
+
 	if module.Module.AssumeAlreadyApplied {
-		module.Module.TerragruntOptions.Logger.Printf("Assuming module %s has already been applied and skipping it", module.Module.Path)
+		options.Logger.Printf("Assuming module %s has already been applied and skipping it", module.Module.Path)
 		return nil
 	} else {
-		module.Module.TerragruntOptions.Logger.Printf("Running module %s now", module.Module.Path)
-		return module.Module.TerragruntOptions.RunTerragrunt(module.Module.TerragruntOptions)
+		variables, err := module.getDependencyOutputs()
+		if err != nil {
+			return err
+		}
+
+		inputs := make([]string, 0, len(variables))
+		for key, val := range variables {
+			inputs = append(inputs, fmt.Sprintf("-var='%s=%s'", key, val))
+		}
+
+		if len(inputs) > 0 {
+			options.Logger.Printf("Adding module %s inputs: %v", module.Module.Path, inputs)
+		}
+
+		options.TerraformCliArgs = append(options.TerraformCliArgs, inputs...)
+		options.Logger.Printf("Running module %s now", module.Module.Path)
+
+		return options.RunTerragrunt(options)
 	}
 }
 
@@ -204,6 +259,7 @@ type DependencyFinishedWithError struct {
 	Dependency *TerraformModule
 	Err        error
 }
+
 func (err DependencyFinishedWithError) Error() string {
 	return fmt.Sprintf("Cannot process module %s because one of its dependencies, %s, finished with an error: %s", err.Module, err.Dependency, err.Err)
 }
@@ -211,6 +267,7 @@ func (err DependencyFinishedWithError) Error() string {
 type MultiError struct {
 	Errors []error
 }
+
 func (err MultiError) Error() string {
 	errorStrings := []string{}
 	for _, err := range err.Errors {
@@ -223,6 +280,7 @@ type DependencyNotFoundWhileCrossLinking struct {
 	Module     *runningModule
 	Dependency *TerraformModule
 }
+
 func (err DependencyNotFoundWhileCrossLinking) Error() string {
 	return fmt.Sprintf("Module %v specifies a dependency on module %v, but could not find that module while cross-linking dependencies. This is most likely a bug in Terragrunt. Please report it.", err.Module, err.Dependency)
 }
