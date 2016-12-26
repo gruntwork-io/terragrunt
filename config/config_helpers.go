@@ -1,7 +1,6 @@
 package config
 
 import (
-	"os"
 	"regexp"
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -12,7 +11,7 @@ import (
 
 var INTERPOLATION_SYNTAX_REGEX = regexp.MustCompile("\\$\\{.*?\\}")
 var HELPER_FUNCTION_SYNTAX_REGEX = regexp.MustCompile(`\$\{(.*?)\((.*?)\)\}`)
-var HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX = regexp.MustCompile(`(?P<ENV>[a-zA-Z_]+[a-zA-Z0-9_]+?)\,\s*\'(?P<default>.*?)\'`)
+var HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX = regexp.MustCompile(`\"(?P<ENV>[a-zA-Z_]+[a-zA-Z0-9_]+?)\"\,\s*\"(?P<default>.*?)\"`)
 var MAX_PARENT_FOLDERS_TO_CHECK = 100
 
 // Given a string value from a .terragrunt config file, parse the string, resolve any calls to helper functions using
@@ -35,18 +34,18 @@ func ResolveTerragruntConfigString(terragruntConfigString string, include *Inclu
 func resolveTerragruntInterpolation(str string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	matches := HELPER_FUNCTION_SYNTAX_REGEX.FindStringSubmatch(str)
 	if len(matches) == 3 {
-		return executeTerragruntHelperFunction(matches[1], include, terragruntOptions, matches[2])
+		return executeTerragruntHelperFunction(matches[1], matches[2], include, terragruntOptions)
 	} else {
 		return "", errors.WithStackTrace(InvalidInterpolationSyntax(str))
 	}
 }
 
 // Execute a single Terragrunt helper function and return its value as a string
-func executeTerragruntHelperFunction(functionName string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions, parameters string) (string, error) {
+func executeTerragruntHelperFunction(functionName string, parameters string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	switch functionName {
 	case "find_in_parent_folders": return findInParentFolders(terragruntOptions)
 	case "path_relative_to_include": return pathRelativeToInclude(include, terragruntOptions)
-	case "get_env": return getEnvironmentVariables(parameters)
+	case "get_env": return getEnvironmentVariables(parameters, terragruntOptions)
 	default: return "", errors.WithStackTrace(UnknownHelperFunction(functionName))
 	}
 }
@@ -57,21 +56,24 @@ func extractParametersFromFunction(parameters string) (map[string]string, error)
 		return nil, errors.WithStackTrace(InvalidFunctionParameters(parameters))
 	}
 	result := make(map[string]string)
-	for i, name := range HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX.SubexpNames() {
-		if i != 0 { result[name] = matches[i] }
+	for value, name := range HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX.SubexpNames() {
+		if value != 0 {
+			result[name] = matches[value]
+		}
   }
 
 	return result, nil
 }
 
-func getEnvironmentVariables(parameters string) (string, error) {
-	result, err := extractParametersFromFunction(parameters)
+func getEnvironmentVariables(parameters string, terragruntOptions *options.TerragruntOptions) (string, error) {
+	parameterMap, err := extractParametersFromFunction(parameters)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
-	envValue, exists := os.LookupEnv(result["ENV"])
+	envValue, exists := terragruntOptions.Env[parameterMap["ENV"]]
+
 	if !exists {
-		envValue = result["default"]
+		envValue = parameterMap["default"]
 	}
 
 	return envValue, nil
@@ -148,5 +150,5 @@ func (err CheckedTooManyParentFolders) Error() string {
 
 type InvalidFunctionParameters string
 func (err InvalidFunctionParameters) Error() string {
-	return fmt.Sprintf("Invalid parameters. Expected syntax of the form '${get_env(ENV, 'default')}', but got '%s'", string(err))
+	return fmt.Sprintf("Invalid parameters. Expected syntax of the form '${get_env(\"ENV\", \"default\")}', but got '%s'", string(err))
 }

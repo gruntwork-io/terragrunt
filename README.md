@@ -475,14 +475,14 @@ remote_state = {
   backend = "s3"
   config {
     encrypt = "true"
-    bucket = "${get_env(ENVIRONMENT_VARIABLE, 'development')}-bucket"
+    bucket = "${get_env("ENVIRONMENT_VARIABLE", "development")}-bucket"
     key = "/foo/bar/terraform.tfstate"
     region = "us-west-2"
   }
 }
 ```
 
-This function takes two parameters: `ENVIRONMENT_VARIABLE` and `default`. When parsing the file, `terragrunt` will evaluate the environment variable `ENVIRONMENT_VARIABLE` and replace with the registered value. If there is no environment variable with that name or is empty, it will use the one registered in the `default`. The default value is mandatory but can be empty `${get_env(ENVIRONMENT_VARIABLE, '')}`.
+This function takes two parameters: `ENVIRONMENT_VARIABLE` and `default`. When parsing the file, `terragrunt` will evaluate the environment variable `ENVIRONMENT_VARIABLE` and replace with the registered value. If there is no environment variable with that name or is empty, it will use the one registered in the `default`. The default value is mandatory but can be empty `${get_env("ENVIRONMENT_VARIABLE", "")}`.
 
 If there is no environment variable with that name registered in the system, the configuration file would be evaluated to:
 

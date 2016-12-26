@@ -149,3 +149,40 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		assert.Equal(t, testCase.expected, actual, "For args %v", testCase.args)
 	}
 }
+
+func TestParseEnvironmentVariables(t *testing.T) {
+	testCases := []struct {
+		environmentVariables []string
+		expectedVariables    map[string]string
+	}{
+		{
+			[]string{},
+			map[string]string{},
+		},
+
+		{
+			[]string{"foobar"},
+			map[string]string{},
+		},
+
+		{
+			[]string{"foo=bar"},
+			map[string]string{"foo": "bar"},
+		},
+
+		{
+			[]string{"foo=bar", "goo=gar"},
+			map[string]string{"foo": "bar", "goo": "gar"},
+		},
+
+		{
+			[]string{"foo=composite=bar"},
+			map[string]string{"foo": "composite=bar"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		actualVariables := parseEnvironmentVariables(testCase.environmentVariables)
+			assert.Equal(t, testCase.expectedVariables, actualVariables)
+	}
+}

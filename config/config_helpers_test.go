@@ -1,7 +1,6 @@
 package config
 
 import (
-	"os"
 	"testing"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
@@ -323,12 +322,11 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		str			   string
-		include		   *IncludeConfig
+		str            string
+		include        *IncludeConfig
 		terragruntOptions options.TerragruntOptions
-		expectedOut	   string
-		expectedErr	   error
-		env			   map[string]string
+		expectedOut    string
+		expectedErr    error
 	}{
 		{
 			"foo/${get_env()}/bar",
@@ -336,7 +334,6 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
 			"",
 			InvalidFunctionParameters(""),
-			nil,
 		},
 		{
 			"foo/${get_env(Invalid Parameters)}/bar",
@@ -344,59 +341,56 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
 			"",
 			InvalidFunctionParameters("Invalid Parameters"),
-			nil,
 		},
 		{
-			"foo/${get_env(ENV,\"\")}/bar",
+			"foo/${get_env('ENV','')}/bar",
 			nil,
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
 			"",
-			InvalidFunctionParameters("ENV,\"\""),
-			nil,
+			InvalidFunctionParameters("'ENV',''"),
 		},
 		{
-			"foo/${get_env(TEST_ENV_TERRAGRUNT_HIT,'')}/bar",
+			`foo/${get_env("TEST_ENV_TERRAGRUNT_HIT","")}/bar`,
 			nil,
-			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
+			options.TerragruntOptions{
+				TerragruntConfigPath: "/root/child/.terragrunt",
+				NonInteractive: true,
+				Env: map[string]string{"TEST_ENV_TERRAGRUNT_OTHER": "SOMETHING"},
+			},
 			"foo//bar",
 			nil,
-			map[string]string{"TEST_ENV_TERRAGRUNT_OTHER": "SOMETHING"},
 		},
 		{
-			"foo/${get_env(TEST_ENV_TERRAGRUNT_HIT,'DEFAULT')}/bar",
+			`foo/${get_env("TEST_ENV_TERRAGRUNT_HIT","DEFAULT")}/bar`,
 			nil,
-			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
+			options.TerragruntOptions{
+				TerragruntConfigPath: "/root/child/.terragrunt",
+				NonInteractive: true,
+				Env: map[string]string{"TEST_ENV_TERRAGRUNT_OTHER": "SOMETHING"},
+			},
 			"foo/DEFAULT/bar",
 			nil,
-			map[string]string{"TEST_ENV_TERRAGRUNT_OTHER": "SOMETHING"},
 		},
 		{
-			"foo/${get_env(TEST_ENV_TERRAGRUNT_HIT,'default')}/bar",
+			`foo/${get_env("TEST_ENV_TERRAGRUNT_HIT","default")}/bar`,
 			nil,
-			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
+			options.TerragruntOptions{
+				TerragruntConfigPath: "/root/child/.terragrunt",
+				NonInteractive: true,
+				Env: map[string]string{"TEST_ENV_TERRAGRUNT_HIT": "HIT"},
+			},
 			"foo/HIT/bar",
 			nil,
-			map[string]string{"TEST_ENV_TERRAGRUNT_HIT": "HIT"},
 		},
 	}
 
 	for _, testCase := range testCases {
-		if len(testCase.env) > 0 {
-			for key, value := range testCase.env {
-				os.Setenv(key, value)
-			}
-		}
 		actualOut, actualErr := ResolveTerragruntConfigString(testCase.str, testCase.include, &testCase.terragruntOptions)
 		if testCase.expectedErr != nil {
 			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "For string '%s' include %v and options %v, expected error %v but got error %v", testCase.str, testCase.include, testCase.terragruntOptions, testCase.expectedErr, actualErr)
 		} else {
 			assert.Nil(t, actualErr, "For string '%s' include %v and options %v, unexpected error: %v", testCase.str, testCase.include, testCase.terragruntOptions, actualErr)
 			assert.Equal(t, testCase.expectedOut, actualOut, "For string '%s' include %v and options %v", testCase.str, testCase.include, testCase.terragruntOptions)
-		}
-		if len(testCase.env) > 0 {
-			for key, _ := range testCase.env {
-				os.Unsetenv(key)
-			}
 		}
 	}
 }

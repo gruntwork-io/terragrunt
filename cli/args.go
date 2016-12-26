@@ -53,7 +53,21 @@ func parseTerragruntOptionsFromArgs(args []string) (*options.TerragruntOptions, 
 		WorkingDir: workingDir,
 		Logger: util.CreateLogger(""),
 		RunTerragrunt: runTerragrunt,
+		Env: parseEnvironmentVariables(os.Environ()),
 	}, nil
+}
+
+func parseEnvironmentVariables(environment []string) map[string]string {
+	environmentMap := make(map[string]string)
+
+	for i := 0; i < len(environment); i++ {
+		variableSplit := strings.SplitN(environment[i], "=", 2)
+		if (len(variableSplit) == 2) {
+			environmentMap[variableSplit[0]] = variableSplit[1]
+		}
+	}
+
+	return environmentMap
 }
 
 // Return a copy of the given args with all Terragrunt-specific args removed

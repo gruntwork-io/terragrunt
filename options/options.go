@@ -25,6 +25,9 @@ type TerragruntOptions struct {
 	// The logger to use for all logging
 	Logger               *log.Logger
 
+	// Environment variables at runtime
+	Env                  map[string]string
+
 	// A command that can be used to run Terragrunt with the given options. This is useful for running Terragrunt
 	// multiple times (e.g. when spinning up a stack of Terraform modules). The actual command is normally defined
 	// in the cli package, which depends on almost all other packages, so we declare it here so that other
