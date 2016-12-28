@@ -6,31 +6,36 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/gruntwork-io/terragrunt/cli"
 	"bytes"
-	"time"
-	"math/rand"
-	"io/ioutil"
-	"path"
-	"github.com/gruntwork-io/terragrunt/remote"
-	"github.com/stretchr/testify/assert"
-	"path/filepath"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/stretchr/testify/assert"
+	"io/ioutil"
+	"math/rand"
 	"os"
+	"path"
+	"path/filepath"
+	"time"
 )
 
 // hard-code this to match the test fixture for now
 const (
-	TERRAFORM_REMOTE_STATE_S3_REGION        = "us-west-2"
-	TEST_FIXTURE_PATH                       = "fixture/"
-	TEST_FIXTURE_LOCK_PATH                  = "fixture-lock/"
-	TEST_FIXTURE_INCLUDE_PATH               = "fixture-include/"
-	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH     = "qa/my-app"
-	TEST_FIXTURE_STACK                      = "fixture-stack/"
-	TERRAFORM_FOLDER                        = ".terraform"
+	TERRAFORM_REMOTE_STATE_S3_REGION    = "us-west-2"
+	TEST_FIXTURE_PATH                   = "fixture/"
+	TEST_FIXTURE_LOCK_PATH              = "fixture-lock/"
+	TEST_FIXTURE_INCLUDE_PATH           = "fixture-include/"
+	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH = "qa/my-app"
+	TEST_FIXTURE_STACK                  = "fixture-stack/"
+	TERRAFORM_FOLDER                    = ".terraform"
+	DEFAULT_TEST_REGION                 = "us-east-1"
+	DEFAULT_TABLE_NAME                  = "terragrunt_locks"
 )
 
 func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
@@ -100,6 +105,10 @@ func TestTerragruntSpinUpAndTearDown(t *testing.T) {
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 
+	client := createDynamoDbClientForTest(t)
+
+	defer cleanupTable(t, DEFAULT_TABLE_NAME, client)
+
 	runTerragrunt(t, fmt.Sprintf("terragrunt spin-up --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", mgmtEnvironmentPath, s3BucketName))
 	runTerragrunt(t, fmt.Sprintf("terragrunt spin-up --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", stageEnvironmentPath, s3BucketName))
 
@@ -131,7 +140,7 @@ func runTerragrunt(t *testing.T, command string) {
 	}
 }
 
-func copyEnvironment(t*testing.T, environmentPath string) string {
+func copyEnvironment(t *testing.T, environmentPath string) string {
 	tmpDir, err := ioutil.TempDir("", "terragrunt-stack-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir due to error: %v", err)
@@ -272,7 +281,7 @@ func deleteS3Bucket(t *testing.T, awsRegion string, bucketName string) {
 	objectIdentifiers := []*s3.ObjectIdentifier{}
 	for _, version := range out.Versions {
 		objectIdentifiers = append(objectIdentifiers, &s3.ObjectIdentifier{
-			Key: version.Key,
+			Key:       version.Key,
 			VersionId: version.VersionId,
 		})
 	}
@@ -290,4 +299,27 @@ func deleteS3Bucket(t *testing.T, awsRegion string, bucketName string) {
 	if _, err := s3Client.DeleteBucket(&s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
 		t.Fatalf("Failed to delete S3 bucket %s: %v", bucketName, err)
 	}
+}
+
+// Create an authenticated client for DynamoDB
+func createDynamoDbClient(awsRegion string) (*dynamodb.DynamoDB, error) {
+	config, err := aws_helper.CreateAwsConfig(awsRegion)
+	if err != nil {
+		return nil, err
+	}
+
+	return dynamodb.New(session.New(), config), nil
+}
+
+func createDynamoDbClientForTest(t *testing.T) *dynamodb.DynamoDB {
+	client, err := createDynamoDbClient(DEFAULT_TEST_REGION)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return client
+}
+
+func cleanupTable(t *testing.T, tableName string, client *dynamodb.DynamoDB) {
+	_, err := client.DeleteTable(&dynamodb.DeleteTableInput{TableName: aws.String(tableName)})
+	assert.Nil(t, err, "Unexpected error: %v", err)
 }
