@@ -1,13 +1,13 @@
 package dynamodb
 
 import (
-	"testing"
-	"github.com/stretchr/testify/assert"
-	"sync/atomic"
-	"sync"
-	"github.com/gruntwork-io/terragrunt/errors"
-	"reflect"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/stretchr/testify/assert"
+	"reflect"
+	"sync"
+	"sync/atomic"
+	"testing"
 )
 
 func TestAcquireLockHappyPath(t *testing.T) {
@@ -15,9 +15,9 @@ func TestAcquireLockHappyPath(t *testing.T) {
 
 	client := createDynamoDbClientForTest(t)
 	lock := DynamoDbLock{
-		StateFileId: uniqueId(),
-		AwsRegion: DEFAULT_TEST_REGION,
-		TableName: uniqueTableNameForTest(),
+		StateFileId:    uniqueId(),
+		AwsRegion:      DEFAULT_TEST_REGION,
+		TableName:      uniqueTableNameForTest(),
 		MaxLockRetries: 1,
 	}
 
@@ -33,9 +33,9 @@ func TestAcquireLockWhenLockIsAlreadyTaken(t *testing.T) {
 	client := createDynamoDbClientForTest(t)
 	stateFileId := uniqueId()
 	lock := DynamoDbLock{
-		StateFileId: stateFileId,
-		AwsRegion: DEFAULT_TEST_REGION,
-		TableName: uniqueTableNameForTest(),
+		StateFileId:    stateFileId,
+		AwsRegion:      DEFAULT_TEST_REGION,
+		TableName:      uniqueTableNameForTest(),
 		MaxLockRetries: 1,
 	}
 
@@ -56,9 +56,9 @@ func TestAcquireAndReleaseLock(t *testing.T) {
 	client := createDynamoDbClientForTest(t)
 	stateFileId := uniqueId()
 	lock := DynamoDbLock{
-		StateFileId: stateFileId,
-		AwsRegion: DEFAULT_TEST_REGION,
-		TableName: uniqueTableNameForTest(),
+		StateFileId:    stateFileId,
+		AwsRegion:      DEFAULT_TEST_REGION,
+		TableName:      uniqueTableNameForTest(),
 		MaxLockRetries: 1,
 	}
 
@@ -89,11 +89,13 @@ func TestAcquireLockConcurrency(t *testing.T) {
 	withLockTableProvisionedUnits(t, concurrency, concurrency, func(tableName string, client *dynamodb.DynamoDB) {
 		stateFileId := uniqueId()
 		lock := DynamoDbLock{
-			StateFileId: stateFileId,
-			AwsRegion: DEFAULT_TEST_REGION,
-			TableName: uniqueTableNameForTest(),
+			StateFileId:    stateFileId,
+			AwsRegion:      DEFAULT_TEST_REGION,
+			TableName:      uniqueTableNameForTest(),
 			MaxLockRetries: 1,
 		}
+
+		defer cleanupTable(t, lock.TableName, client)
 
 		// Use a WaitGroup to ensure the test doesn't exit before all goroutines finish.
 		var waitGroup sync.WaitGroup
