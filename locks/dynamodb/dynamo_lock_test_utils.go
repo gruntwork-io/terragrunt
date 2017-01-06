@@ -10,12 +10,15 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/options"
+	"sync"
 )
 
 // For simplicity, do all testing in the us-east-1 region
 const DEFAULT_TEST_REGION = "us-east-1"
 
 var mockOptions = options.NewTerragruntOptionsForTest("dynamo_lock_test_utils")
+
+var cleanupTableLock sync.Mutex
 
 // Returns a unique (ish) id we can use to name resources so they don't conflict with each other. Uses base 62 to
 // generate a 6 character string that's unlikely to collide with the handful of tests we run in parallel. Based on code
@@ -48,6 +51,17 @@ func uniqueTableNameForTest() string {
 }
 
 func cleanupTable(t *testing.T, tableName string, client *dynamodb.DynamoDB) {
+
+	// DynamoDB only allows 10 table creates/deletes simultaneously. Since our tests run in parallel, we may end
+	// up doing more than 10, and we get the error:
+	//
+	// Subscriber limit exceeded: Only 10 tables can be created, updated, or deleted simultaneously
+	//
+	// This is a quick hack to ensure we are only ever deleting one table at a time, we should be enough to keep us
+	// below the simultaneous limit.
+	cleanupTableLock.Lock()
+	defer cleanupTableLock.Unlock()
+
 	_, err := client.DeleteTable(&dynamodb.DeleteTableInput{TableName: aws.String(tableName)})
 	assert.Nil(t, err, "Unexpected error: %v", err)
 }
