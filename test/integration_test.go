@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
+	terragruntDynamoDb "github.com/gruntwork-io/terragrunt/locks/dynamodb"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"math/rand"
@@ -107,7 +108,7 @@ func TestTerragruntSpinUpAndTearDown(t *testing.T) {
 
 	client := createDynamoDbClientForTest(t)
 
-	defer cleanupTable(t, DEFAULT_TABLE_NAME, client)
+	defer cleanupTableForTest(t, DEFAULT_TABLE_NAME, client)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt spin-up --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", mgmtEnvironmentPath, s3BucketName))
 	runTerragrunt(t, fmt.Sprintf("terragrunt spin-up --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", stageEnvironmentPath, s3BucketName))
@@ -319,7 +320,7 @@ func createDynamoDbClientForTest(t *testing.T) *dynamodb.DynamoDB {
 	return client
 }
 
-func cleanupTable(t *testing.T, tableName string, client *dynamodb.DynamoDB) {
-	_, err := client.DeleteTable(&dynamodb.DeleteTableInput{TableName: aws.String(tableName)})
+func cleanupTableForTest(t *testing.T, tableName string, client *dynamodb.DynamoDB) {
+	err := terragruntDynamoDb.DeleteTable(tableName, client)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 }

@@ -11,8 +11,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+// DynamoDB only allows 10 table creates/deletes simultaneously. To ensure we don't hit this error, especially when
+// running many automated tests in parallel, we use a counting semaphore
+var tableCreateDeleteSemaphore = NewCountingSemaphore(10)
+
 // Create the lock table in DynamoDB if it doesn't already exist
-func createLockTableIfNecessary(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
+func CreateLockTableIfNecessary(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
 	tableExists, err := lockTableExistsAndIsActive(tableName, client)
 	if err != nil {
 		return err
@@ -20,7 +24,7 @@ func createLockTableIfNecessary(tableName string, client *dynamodb.DynamoDB, ter
 
 	if !tableExists {
 		terragruntOptions.Logger.Printf("Lock table %s does not exist in DynamoDB. Will need to create it just this first time.", tableName)
-		return createLockTable(tableName, DEFAULT_READ_CAPACITY_UNITS, DEFAULT_WRITE_CAPACITY_UNITS, client, terragruntOptions)
+		return CreateLockTable(tableName, DEFAULT_READ_CAPACITY_UNITS, DEFAULT_WRITE_CAPACITY_UNITS, client, terragruntOptions)
 	}
 
 	return nil
@@ -42,7 +46,10 @@ func lockTableExistsAndIsActive(tableName string, client *dynamodb.DynamoDB) (bo
 
 // Create a lock table in DynamoDB and wait until it is in "active" state. If the table already exists, merely wait
 // until it is in "active" state.
-func createLockTable(tableName string, readCapacityUnits int, writeCapacityUnits int, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
+func CreateLockTable(tableName string, readCapacityUnits int, writeCapacityUnits int, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
+	tableCreateDeleteSemaphore.Acquire()
+	defer tableCreateDeleteSemaphore.Release()
+
 	terragruntOptions.Logger.Printf("Creating table %s in DynamoDB", tableName)
 
 	attributeDefinitions := []*dynamodb.AttributeDefinition{
@@ -72,6 +79,15 @@ func createLockTable(tableName string, readCapacityUnits int, writeCapacityUnits
 	}
 
 	return waitForTableToBeActive(tableName, client, MAX_RETRIES_WAITING_FOR_TABLE_TO_BE_ACTIVE, SLEEP_BETWEEN_TABLE_STATUS_CHECKS, terragruntOptions)
+}
+
+// Delete the given table in DynamoDB
+func DeleteTable(tableName string, client *dynamodb.DynamoDB) error {
+	tableCreateDeleteSemaphore.Acquire()
+	defer tableCreateDeleteSemaphore.Release()
+
+	_, err := client.DeleteTable(&dynamodb.DeleteTableInput{TableName: aws.String(tableName)})
+	return err
 }
 
 // Return true if the given error is the error message returned by AWS when the resource already exists

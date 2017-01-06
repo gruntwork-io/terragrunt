@@ -25,7 +25,7 @@ func TestCreateLockTableConcurrency(t *testing.T) {
 	client := createDynamoDbClientForTest(t)
 	tableName := uniqueTableNameForTest()
 
-	defer cleanupTable(t, tableName, client)
+	defer cleanupTableForTest(t, tableName, client)
 
 	// Use a WaitGroup to ensure the test doesn't exit before all goroutines finish.
 	var waitGroup sync.WaitGroup
@@ -37,7 +37,7 @@ func TestCreateLockTableConcurrency(t *testing.T) {
 		waitGroup.Add(1)
 		go func() {
 			defer waitGroup.Done()
-			err := createLockTableIfNecessary(tableName, client, mockOptions)
+			err := CreateLockTableIfNecessary(tableName, client, mockOptions)
 			assert.Nil(t, err, "Unexpected error: %v", err)
 		}()
 	}
@@ -65,7 +65,7 @@ func TestCreateLockTableIfNecessaryTableAlreadyExists(t *testing.T) {
 		assertCanWriteToTable(t, tableName, client)
 
 		// Try to create the table the second time and make sure you get no errors
-		err := createLockTableIfNecessary(tableName, client, mockOptions)
+		err := CreateLockTableIfNecessary(tableName, client, mockOptions)
 		assert.Nil(t, err, "Unexpected error: %v", err)
 	})
 }

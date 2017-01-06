@@ -21,7 +21,7 @@ func TestAcquireLockHappyPath(t *testing.T) {
 		MaxLockRetries: 1,
 	}
 
-	defer cleanupTable(t, lock.TableName, client)
+	defer cleanupTableForTest(t, lock.TableName, client)
 
 	err := lock.AcquireLock(mockOptions)
 	assert.Nil(t, err)
@@ -39,7 +39,7 @@ func TestAcquireLockWhenLockIsAlreadyTaken(t *testing.T) {
 		MaxLockRetries: 1,
 	}
 
-	defer cleanupTable(t, lock.TableName, client)
+	defer cleanupTableForTest(t, lock.TableName, client)
 
 	// Acquire the lock the first time
 	err := lock.AcquireLock(mockOptions)
@@ -62,7 +62,7 @@ func TestAcquireAndReleaseLock(t *testing.T) {
 		MaxLockRetries: 1,
 	}
 
-	defer cleanupTable(t, lock.TableName, client)
+	defer cleanupTableForTest(t, lock.TableName, client)
 
 	// Acquire the lock the first time
 	err := lock.AcquireLock(mockOptions)
@@ -95,7 +95,7 @@ func TestAcquireLockConcurrency(t *testing.T) {
 			MaxLockRetries: 1,
 		}
 
-		defer cleanupTable(t, lock.TableName, client)
+		defer cleanupTableForTest(t, lock.TableName, client)
 
 		// Use a WaitGroup to ensure the test doesn't exit before all goroutines finish.
 		var waitGroup sync.WaitGroup

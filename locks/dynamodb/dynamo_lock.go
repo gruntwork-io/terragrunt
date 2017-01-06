@@ -70,7 +70,7 @@ func (dynamoDbLock DynamoDbLock) AcquireLock(terragruntOptions *options.Terragru
 		return err
 	}
 
-	if err := createLockTableIfNecessary(dynamoDbLock.TableName, client, terragruntOptions); err != nil {
+	if err := CreateLockTableIfNecessary(dynamoDbLock.TableName, client, terragruntOptions); err != nil {
 		return err
 	}
 
