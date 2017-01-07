@@ -70,6 +70,11 @@ const TERRAFORM_EXTENSION_GLOB = "*.tf"
 
 // Create the Terragrunt CLI App
 func CreateTerragruntCli(version string) *cli.App {
+	cli.OsExiter = func(exitCode int) {
+		// Do nothing. We just need to override this function, as the default value calls os.Exit, which
+		// kills the app (or any automated test) dead in its tracks.
+	}
+
 	cli.AppHelpTemplate = CUSTOM_USAGE_TEXT
 
 	app := cli.NewApp()
