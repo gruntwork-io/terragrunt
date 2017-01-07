@@ -31,12 +31,12 @@ func TestCountingSemaphoreConcurrency(t *testing.T) {
 	var waitForAllGoRoutinesToFinish sync.WaitGroup
 
 	endGoRoutine := func() {
-		semaphore.Release()
-		waitForAllGoRoutinesToFinish.Done()
-
 		// Decrement the number of running goroutines. Note that decrementing an unsigned int is a bit odd.
 		// This is copied from the docs: https://golang.org/pkg/sync/atomic/#AddUint32
 		atomic.AddUint32(&goRoutinesExecutingSimultaneously, ^uint32(0))
+
+		semaphore.Release()
+		waitForAllGoRoutinesToFinish.Done()
 	}
 
 	runGoRoutine := func() {
