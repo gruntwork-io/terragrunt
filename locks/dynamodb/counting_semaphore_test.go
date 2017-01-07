@@ -5,6 +5,7 @@ import (
 	"sync/atomic"
 	"time"
 	"math/rand"
+	"sync"
 )
 
 func TestCountingSemaphoreHappyPath(t *testing.T) {
@@ -26,11 +27,12 @@ func TestCountingSemaphoreConcurrency(t *testing.T) {
 	goroutines := 100
 	semaphore := NewCountingSemaphore(permits)
 
-	var goRoutinesExecuted uint32
 	var goRoutinesExecutingSimultaneously uint32
+	var waitForAllGoRoutinesToFinish sync.WaitGroup
 
 	endGoRoutine := func() {
 		semaphore.Release()
+		waitForAllGoRoutinesToFinish.Done()
 
 		// Decrement the number of running goroutines. Note that decrementing an unsigned int is a bit odd.
 		// This is copied from the docs: https://golang.org/pkg/sync/atomic/#AddUint32
@@ -42,22 +44,10 @@ func TestCountingSemaphoreConcurrency(t *testing.T) {
 		semaphore.Acquire()
 
 		// Increment the total number of running goroutines
-		totalGoroutinesExecuted := atomic.AddUint32(&goRoutinesExecuted, 1)
 		totalGoRoutinesExecutingSimultaneously := atomic.AddUint32(&goRoutinesExecutingSimultaneously, 1)
 
 		if totalGoRoutinesExecutingSimultaneously > uint32(permits) {
 			t.Fatalf("The semaphore was only supposed to allow %d goroutines to run simultaneously, but has allowed %d", permits, totalGoRoutinesExecutingSimultaneously)
-		}
-
-		expectedRunningSimultaneously := uint32(permits)
-		if totalGoroutinesExecuted < uint32(permits) {
-			expectedRunningSimultaneously = totalGoroutinesExecuted
-		} else if (uint32(goroutines) - totalGoroutinesExecuted) < uint32(permits) {
-			expectedRunningSimultaneously = uint32(goroutines) - totalGoroutinesExecuted
-		}
-
-		if totalGoRoutinesExecutingSimultaneously != expectedRunningSimultaneously {
-			t.Fatalf("After %d goroutines had executed, expected %d goroutines to be running simultaneously, but instead got %d", totalGoroutinesExecuted, expectedRunningSimultaneously, totalGoRoutinesExecutingSimultaneously)
 		}
 
 		// Sleep for a random amount of time to represent this goroutine doing work
@@ -67,6 +57,9 @@ func TestCountingSemaphoreConcurrency(t *testing.T) {
 
 	// Fire up a whole bunch of goroutines that will all try to acquire the semaphore at the same time
 	for i := 0; i < goroutines; i++ {
+		waitForAllGoRoutinesToFinish.Add(1)
 		go runGoRoutine()
 	}
+
+	waitForAllGoRoutinesToFinish.Wait()
 }
