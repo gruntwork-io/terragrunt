@@ -3,6 +3,7 @@ lock = {
   backend = "dynamodb"
   config {
     state_file_id = "${path_relative_to_include()}"
+    table_name = "terragrunt_locks_test_fixture_include"
   }
 }
 

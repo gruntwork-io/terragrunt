@@ -2,7 +2,6 @@ package test
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
 	"testing"
 
@@ -36,7 +35,6 @@ const (
 	TEST_FIXTURE_STACK                  = "fixture-stack/"
 	TERRAFORM_FOLDER                    = ".terraform"
 	DEFAULT_TEST_REGION                 = "us-east-1"
-	DEFAULT_TABLE_NAME                  = "terragrunt_locks"
 )
 
 func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
@@ -48,6 +46,8 @@ func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
 	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, TEST_FIXTURE_PATH, s3BucketName)
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture")
+
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, TEST_FIXTURE_PATH))
 	validateS3BucketExists(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 }
@@ -58,6 +58,8 @@ func TestAcquireAndReleaseLock(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCK_PATH)
 
 	terragruntConfigPath := path.Join(TEST_FIXTURE_LOCK_PATH, config.DefaultTerragruntConfigPath)
+
+	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_lock")
 
 	// Acquire a long-term lock
 	runTerragrunt(t, fmt.Sprintf("terragrunt acquire-lock --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", terragruntConfigPath, TEST_FIXTURE_LOCK_PATH))
@@ -88,6 +90,8 @@ func TestTerragruntWorksWithIncludes(t *testing.T) {
 	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_INCLUDE_PATH, TEST_FIXTURE_INCLUDE_CHILD_REL_PATH, s3BucketName)
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_include")
+
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
 }
 
@@ -105,10 +109,7 @@ func TestTerragruntSpinUpAndTearDown(t *testing.T) {
 	stageEnvironmentPath := fmt.Sprintf("%s/fixture-stack/stage", tmpEnvPath)
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-
-	client := createDynamoDbClientForTest(t)
-
-	defer cleanupTableForTest(t, DEFAULT_TABLE_NAME, client)
+	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_stack")
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt spin-up --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", mgmtEnvironmentPath, s3BucketName))
 	runTerragrunt(t, fmt.Sprintf("terragrunt spin-up --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", stageEnvironmentPath, s3BucketName))
@@ -246,14 +247,6 @@ func uniqueId() string {
 	return out.String()
 }
 
-// Validate that the given command is available in PATH
-func validateCommandInstalled(t *testing.T, command string) {
-	_, err := exec.LookPath(command)
-	if err != nil {
-		t.Fatalf("Command '%s' not found in PATH", command)
-	}
-}
-
 // Check that the S3 Bucket of the given name and region exists. Terragrunt should create this bucket during the test.
 func validateS3BucketExists(t *testing.T, awsRegion string, bucketName string) {
 	s3Client, err := remote.CreateS3Client(awsRegion)
@@ -320,7 +313,8 @@ func createDynamoDbClientForTest(t *testing.T) *dynamodb.DynamoDB {
 	return client
 }
 
-func cleanupTableForTest(t *testing.T, tableName string, client *dynamodb.DynamoDB) {
+func cleanupTableForTest(t *testing.T, tableName string) {
+	client := createDynamoDbClientForTest(t)
 	err := terragruntDynamoDb.DeleteTable(tableName, client)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 }

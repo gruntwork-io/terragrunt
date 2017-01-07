@@ -4,7 +4,7 @@ lock = {
    config {
      state_file_id = "terragrunt-test-fixture"
      aws_region = "us-east-1"
-     table_name = "terragrunt_locks"
+     table_name = "terragrunt_locks_test_fixture"
      max_lock_retries = 360
    }
 }
