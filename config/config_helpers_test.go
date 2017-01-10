@@ -26,7 +26,7 @@ func TestPathRelativeToInclude(t *testing.T) {
 			"child",
 		},
 		{
-			&IncludeConfig{Path: "/root/.terragrunt"},
+			&IncludeConfig{Path: rootFolder + "/.terragrunt"},
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
 			"child",
 		},
@@ -36,7 +36,7 @@ func TestPathRelativeToInclude(t *testing.T) {
 			"child/sub-child/sub-sub-child",
 		},
 		{
-			&IncludeConfig{Path: "/root/.terragrunt"},
+			&IncludeConfig{Path: rootFolder + "/.terragrunt"},
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/sub-child/sub-sub-child/.terragrunt", NonInteractive: true},
 			"child/sub-child/sub-sub-child",
 		},
