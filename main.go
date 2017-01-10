@@ -2,6 +2,8 @@ package main
 
 import (
 	"os"
+	"os/exec"
+	"syscall"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -32,7 +34,13 @@ func checkForErrorsAndExit(err error) {
 		} else {
 			logger.Println(err)
 		}
-		os.Exit(1)
+		// exit with the underlying error code
+		var retCode int
+		if exiterr, ok := errors.Unwrap(err).(*exec.ExitError); ok {
+			status := exiterr.Sys().(syscall.WaitStatus)
+			retCode = status.ExitStatus()
+		}
+		os.Exit(retCode)
 	}
 
 }
