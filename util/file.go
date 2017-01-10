@@ -6,7 +6,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"io/ioutil"
 	"regexp"
-	"strings"
 )
 
 // Return true if the given file exists
@@ -84,7 +83,6 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 		return "", errors.WithStackTrace(err)
 	}
 
-	relPath = strings.Replace(relPath, `\`,"/", -1)
 	return relPath, nil
 }
 
