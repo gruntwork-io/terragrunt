@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"path/filepath"
 	"github.com/gruntwork-io/terragrunt/util"
+	"strings"
 )
 
 var INTERPOLATION_SYNTAX_REGEX = regexp.MustCompile("\\$\\{.*?\\}")
@@ -42,8 +43,12 @@ func resolveTerragruntInterpolation(str string, include *IncludeConfig, terragru
 // Execute a single Terragrunt helper function and return its value as a string
 func executeTerragruntHelperFunction(functionName string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	switch functionName {
-	case "find_in_parent_folders": return findInParentFolders(terragruntOptions)
-	case "path_relative_to_include": return pathRelativeToInclude(include, terragruntOptions)
+	case "find_in_parent_folders":
+		path, err := findInParentFolders(terragruntOptions)
+		return cleanPathForHcl( path ), err
+	case "path_relative_to_include":
+		path, err := pathRelativeToInclude(include, terragruntOptions)
+		return cleanPathForHcl( path ), err
 	default: return "", errors.WithStackTrace(UnknownHelperFunction(functionName))
 	}
 }
@@ -93,6 +98,16 @@ func pathRelativeToInclude(include *IncludeConfig, terragruntOptions *options.Te
 	}
 
 	return util.GetPathRelativeTo(currentPath, includePath)
+}
+
+// Perform any cleaning required for a HCL path
+func cleanPathForHcl(path string) string {
+	cleanPath := path
+
+	// Windows filesystems use the backslash path separator which must be escaped in HCL
+	cleanPath = strings.Replace(cleanPath, `\`, `\\`, -1)
+
+	return cleanPath
 }
 
 // Custom error types

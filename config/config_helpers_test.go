@@ -60,7 +60,7 @@ func TestPathRelativeToInclude(t *testing.T) {
 	for _, testCase := range testCases {
 		actualPath, actualErr := pathRelativeToInclude(testCase.include, &testCase.terragruntOptions)
 		assert.Nil(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
-		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
+		assert.Equal(t, cleanPath(testCase.expectedPath), cleanPath(actualPath), "For include %v and options %v", testCase.include, testCase.terragruntOptions)
 	}
 }
 
@@ -120,7 +120,7 @@ func TestFindInParentFolders(t *testing.T) {
 			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "For options %v, expected error %v but got error %v", testCase.terragruntOptions, testCase.expectedErr, actualErr)
 		} else {
 			assert.Nil(t, actualErr, "For options %v, unexpected error: %v", testCase.terragruntOptions, actualErr)
-			assert.Equal(t, testCase.expectedPath, actualPath, "For options %v", testCase.terragruntOptions)
+			assert.Equal(t, cleanPath(testCase.expectedPath), cleanPath(actualPath), "For options %v", testCase.terragruntOptions)
 		}
 	}
 }
