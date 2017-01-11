@@ -68,6 +68,13 @@ func Grep(regex *regexp.Regexp, glob string) (bool, error) {
 
 // Return the relative path you would have to take to get from basePath to path
 func GetPathRelativeTo(path string, basePath string) (string, error) {
+	if path == "" {
+		path = "."
+	}
+	if basePath == "" {
+		basePath = "."
+	}
+
 	inputFolderAbs, err := filepath.Abs(basePath)
 	if err != nil {
 		return "", errors.WithStackTrace(err)

@@ -5,6 +5,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
 func TestPathRelativeToInclude(t *testing.T) {
@@ -17,32 +18,32 @@ func TestPathRelativeToInclude(t *testing.T) {
 	}{
 		{
 			nil,
-			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/.terragrunt", NonInteractive: true},
 			".",
 		},
 		{
 			&IncludeConfig{Path: "../.terragrunt"},
-			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/.terragrunt", NonInteractive: true},
 			"child",
 		},
 		{
-			&IncludeConfig{Path: rootFolder + "/.terragrunt"},
-			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
+			&IncludeConfig{Path: helpers.RootFolder + ".terragrunt"},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/.terragrunt", NonInteractive: true},
 			"child",
 		},
 		{
 			&IncludeConfig{Path: "../../../.terragrunt"},
-			options.TerragruntOptions{TerragruntConfigPath: "/root/child/sub-child/sub-sub-child/.terragrunt", NonInteractive: true},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/sub-child/sub-sub-child/.terragrunt", NonInteractive: true},
 			"child/sub-child/sub-sub-child",
 		},
 		{
-			&IncludeConfig{Path: rootFolder + "/.terragrunt"},
-			options.TerragruntOptions{TerragruntConfigPath: "/root/child/sub-child/sub-sub-child/.terragrunt", NonInteractive: true},
+			&IncludeConfig{Path: helpers.RootFolder + ".terragrunt"},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/sub-child/sub-sub-child/.terragrunt", NonInteractive: true},
 			"child/sub-child/sub-sub-child",
 		},
 		{
 			&IncludeConfig{Path: "../../other-child/.terragrunt"},
-			options.TerragruntOptions{TerragruntConfigPath: "/root/child/sub-child/.terragrunt", NonInteractive: true},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/sub-child/.terragrunt", NonInteractive: true},
 			"../child/sub-child",
 		},
 		{
@@ -60,7 +61,7 @@ func TestPathRelativeToInclude(t *testing.T) {
 	for _, testCase := range testCases {
 		actualPath, actualErr := pathRelativeToInclude(testCase.include, &testCase.terragruntOptions)
 		assert.Nil(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
-		assert.Equal(t, cleanPath(testCase.expectedPath), cleanPath(actualPath), "For include %v and options %v", testCase.include, testCase.terragruntOptions)
+		assert.Equal(t, helpers.CleanHclPath(testCase.expectedPath), actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
 	}
 }
 
@@ -120,7 +121,7 @@ func TestFindInParentFolders(t *testing.T) {
 			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "For options %v, expected error %v but got error %v", testCase.terragruntOptions, testCase.expectedErr, actualErr)
 		} else {
 			assert.Nil(t, actualErr, "For options %v, unexpected error: %v", testCase.terragruntOptions, actualErr)
-			assert.Equal(t, cleanPath(testCase.expectedPath), cleanPath(actualPath), "For options %v", testCase.terragruntOptions)
+			assert.Equal(t, helpers.CleanHclPath(testCase.expectedPath), helpers.CleanHclPath(actualPath), "For options %v", testCase.terragruntOptions)
 		}
 	}
 }
@@ -199,7 +200,7 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "For string '%s' include %v and options %v, expected error %v but got error %v", testCase.str, testCase.include, testCase.terragruntOptions, testCase.expectedErr, actualErr)
 		} else {
 			assert.Nil(t, actualErr, "For string '%s' include %v and options %v, unexpected error: %v", testCase.str, testCase.include, testCase.terragruntOptions, actualErr)
-			assert.Equal(t, testCase.expectedOut, actualOut, "For string '%s' include %v and options %v", testCase.str, testCase.include, testCase.terragruntOptions)
+			assert.Equal(t, helpers.CleanHclPath(testCase.expectedOut), actualOut, "For string '%s' include %v and options %v", testCase.str, testCase.include, testCase.terragruntOptions)
 		}
 	}
 }
@@ -313,7 +314,7 @@ func TestResolveTerragruntConfigString(t *testing.T) {
 			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "For string '%s' include %v and options %v, expected error %v but got error %v", testCase.str, testCase.include, testCase.terragruntOptions, testCase.expectedErr, actualErr)
 		} else {
 			assert.Nil(t, actualErr, "For string '%s' include %v and options %v, unexpected error: %v", testCase.str, testCase.include, testCase.terragruntOptions, actualErr)
-			assert.Equal(t, testCase.expectedOut, actualOut, "For string '%s' include %v and options %v", testCase.str, testCase.include, testCase.terragruntOptions)
+			assert.Equal(t, helpers.CleanHclPath( testCase.expectedOut ), helpers.CleanHclPath( actualOut ), "For string '%s' include %v and options %v", testCase.str, testCase.include, testCase.terragruntOptions)
 		}
 	}
 }
