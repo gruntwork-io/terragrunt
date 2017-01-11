@@ -3,6 +3,7 @@ package util
 import (
 	"testing"
 	"github.com/stretchr/testify/assert"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
 func TestGetPathRelativeTo(t *testing.T) {
@@ -14,19 +15,19 @@ func TestGetPathRelativeTo(t *testing.T) {
 		expected string
 	}{
 		{"", "", "."},
-		{"/root", "/root", "."},
-		{"/root", "/root/child", ".."},
-		{"/root", "/root/child/sub-child/sub-sub-child", "../../.."},
-		{"/root/other-child", "/root/child", "../other-child"},
-		{"/root/other-child/sub-child", "/root/child/sub-child", "../../other-child/sub-child"},
-		{"/root", "/other-root", "../root"},
-		{"/root", "/other-root/sub-child/sub-sub-child", "../../../root"},
+		{helpers.RootFolder, helpers.RootFolder, "."},
+		{helpers.RootFolder, helpers.RootFolder + "child", ".."},
+		{helpers.RootFolder, helpers.RootFolder + "child/sub-child/sub-sub-child", "../../.."},
+		{helpers.RootFolder + "other-child", helpers.RootFolder + "child", "../other-child"},
+		{helpers.RootFolder + "other-child/sub-child", helpers.RootFolder + "child/sub-child", "../../other-child/sub-child"},
+		{helpers.RootFolder + "root", helpers.RootFolder + "other-root", "../root"},
+		{helpers.RootFolder + "root", helpers.RootFolder + "other-root/sub-child/sub-sub-child", "../../../root"},
 	}
 
 	for _, testCase := range testCases {
 		actual, err := GetPathRelativeTo(testCase.path, testCase.basePath)
 		assert.Nil(t, err, "Unexpected error for path %s and basePath %s: %v", testCase.path, testCase.basePath, err)
-		assert.Equal(t, testCase.expected, actual, "For path %s and basePath %s", testCase.path, testCase.basePath)
+		assert.Equal(t, helpers.CleanPath(testCase.expected), actual, "For path %s and basePath %s", testCase.path, testCase.basePath)
 	}
 }
 
@@ -38,23 +39,23 @@ func TestCanonicalPath(t *testing.T) {
 		basePath string
 		expected string
 	}{
-		{"", "/foo", "/foo"},
-		{".", "/foo", "/foo"},
-		{"bar", "/foo", "/foo/bar"},
-		{"bar/baz/blah", "/foo", "/foo/bar/baz/blah"},
-		{"bar/../blah", "/foo", "/foo/blah"},
-		{"bar/../..", "/foo", "/"},
-		{"bar/.././../baz", "/foo", "/baz"},
-		{"bar", "/foo/../baz", "/baz/bar"},
-		{"a/b/../c/d/..", "/foo/../baz/.", "/baz/a/c"},
-		{"/other", "/foo", "/other"},
-		{"/other/bar/blah", "/foo", "/other/bar/blah"},
-		{"/other/../blah", "/foo", "/blah"},
+		{"", helpers.RootFolder + "foo", helpers.RootFolder + "foo"},
+		{".", helpers.RootFolder + "foo", helpers.RootFolder + "foo"},
+		{"bar", helpers.RootFolder + "foo", helpers.RootFolder + "foo/bar"},
+		{"bar/baz/blah", helpers.RootFolder + "foo", helpers.RootFolder + "foo/bar/baz/blah"},
+		{"bar/../blah", helpers.RootFolder + "foo", helpers.RootFolder + "foo/blah"},
+		{"bar/../..", helpers.RootFolder + "foo", helpers.RootFolder },
+		{"bar/.././../baz", helpers.RootFolder + "foo", helpers.RootFolder + "baz"},
+		{"bar", helpers.RootFolder + "foo/../baz", helpers.RootFolder + "baz/bar"},
+		{"a/b/../c/d/..", helpers.RootFolder + "foo/../baz/.", helpers.RootFolder + "baz/a/c"},
+		{helpers.RootFolder + "other", helpers.RootFolder + "foo", helpers.RootFolder + "other"},
+		{helpers.RootFolder + "other/bar/blah", helpers.RootFolder + "foo", helpers.RootFolder + "other/bar/blah"},
+		{helpers.RootFolder + "other/../blah", helpers.RootFolder + "foo", helpers.RootFolder + "blah"},
 	}
 
 	for _, testCase := range testCases {
 		actual, err := CanonicalPath(testCase.path, testCase.basePath)
 		assert.Nil(t, err, "Unexpected error for path %s and basePath %s: %v", testCase.path, testCase.basePath, err)
-		assert.Equal(t, testCase.expected, actual, "For path %s and basePath %s", testCase.path, testCase.basePath)
+		assert.Equal(t, helpers.CleanPath(testCase.expected), actual, "For path %s and basePath %s", testCase.path, testCase.basePath)
 	}
 }

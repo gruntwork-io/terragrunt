@@ -12,6 +12,7 @@ import (
 var INTERPOLATION_SYNTAX_REGEX = regexp.MustCompile("\\$\\{.*?\\}")
 var HELPER_FUNCTION_SYNTAX_REGEX = regexp.MustCompile("\\$\\{(.*?)\\(\\)\\}")
 var MAX_PARENT_FOLDERS_TO_CHECK = 100
+var UNESCAPED_BACKSLASHES_REGEX = regexp.MustCompile(`\\+([^\\]+)`)
 
 // Given a string value from a .terragrunt config file, parse the string, resolve any calls to helper functions using
 // the syntax ${...}, and return the final value.
@@ -42,8 +43,10 @@ func resolveTerragruntInterpolation(str string, include *IncludeConfig, terragru
 // Execute a single Terragrunt helper function and return its value as a string
 func executeTerragruntHelperFunction(functionName string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	switch functionName {
-	case "find_in_parent_folders": return findInParentFolders(terragruntOptions)
-	case "path_relative_to_include": return pathRelativeToInclude(include, terragruntOptions)
+	case "find_in_parent_folders":
+		return findInParentFolders(terragruntOptions)
+	case "path_relative_to_include":
+		return pathRelativeToInclude(include, terragruntOptions)
 	default: return "", errors.WithStackTrace(UnknownHelperFunction(functionName))
 	}
 }
@@ -65,7 +68,9 @@ func findInParentFolders(terragruntOptions *options.TerragruntOptions) (string, 
 
 		configPath := filepath.Join(currentDir, DefaultTerragruntConfigPath)
 		if util.FileExists(configPath) {
-			return util.GetPathRelativeTo(configPath, filepath.Dir(terragruntOptions.TerragruntConfigPath))
+			path, err := util.GetPathRelativeTo(configPath, filepath.Dir(terragruntOptions.TerragruntConfigPath))
+
+			return cleanPathForHcl(path), err
 		}
 
 		previousDir = currentDir
@@ -92,7 +97,19 @@ func pathRelativeToInclude(include *IncludeConfig, terragruntOptions *options.Te
 		includePath = filepath.Join(currentPath, includePath)
 	}
 
-	return util.GetPathRelativeTo(currentPath, includePath)
+	path, err := util.GetPathRelativeTo(currentPath, includePath)
+
+	return cleanPathForHcl(path), err
+}
+
+// Perform any cleaning required for an HCL path string representation
+func cleanPathForHcl(path string) string {
+	cleanPath := path
+
+	// Windows filesystems use the backslash path separator which must be escaped in HCL
+	cleanPath = UNESCAPED_BACKSLASHES_REGEX.ReplaceAllString(cleanPath, `\\${1}`)
+
+	return cleanPath
 }
 
 // Custom error types
