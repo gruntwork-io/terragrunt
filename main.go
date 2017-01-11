@@ -35,7 +35,7 @@ func checkForErrorsAndExit(err error) {
 			logger.Println(err)
 		}
 		// exit with the underlying error code
-		var retCode int
+		var retCode int = 1
 		if exiterr, ok := errors.Unwrap(err).(*exec.ExitError); ok {
 			status := exiterr.Sys().(syscall.WaitStatus)
 			retCode = status.ExitStatus()
