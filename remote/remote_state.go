@@ -2,7 +2,6 @@ package remote
 
 import (
 	"fmt"
-
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/options"

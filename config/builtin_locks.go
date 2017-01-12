@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/locks"
 	"github.com/gruntwork-io/terragrunt/locks/dynamodb"

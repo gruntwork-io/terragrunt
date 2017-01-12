@@ -3,7 +3,6 @@ package remote
 import (
 	"strings"
 	"testing"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/gruntwork-io/terragrunt/options"
 )
