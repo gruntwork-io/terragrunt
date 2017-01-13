@@ -5,6 +5,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
 func TestPathRelativeToInclude(t *testing.T) {
@@ -17,32 +18,32 @@ func TestPathRelativeToInclude(t *testing.T) {
 	}{
 		{
 			nil,
-			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/.terragrunt", NonInteractive: true},
 			".",
 		},
 		{
 			&IncludeConfig{Path: "../.terragrunt"},
-			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/.terragrunt", NonInteractive: true},
 			"child",
 		},
 		{
-			&IncludeConfig{Path: "/root/.terragrunt"},
-			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
+			&IncludeConfig{Path: helpers.RootFolder + ".terragrunt"},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/.terragrunt", NonInteractive: true},
 			"child",
 		},
 		{
 			&IncludeConfig{Path: "../../../.terragrunt"},
-			options.TerragruntOptions{TerragruntConfigPath: "/root/child/sub-child/sub-sub-child/.terragrunt", NonInteractive: true},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/sub-child/sub-sub-child/.terragrunt", NonInteractive: true},
 			"child/sub-child/sub-sub-child",
 		},
 		{
-			&IncludeConfig{Path: "/root/.terragrunt"},
-			options.TerragruntOptions{TerragruntConfigPath: "/root/child/sub-child/sub-sub-child/.terragrunt", NonInteractive: true},
+			&IncludeConfig{Path: helpers.RootFolder + ".terragrunt"},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/sub-child/sub-sub-child/.terragrunt", NonInteractive: true},
 			"child/sub-child/sub-sub-child",
 		},
 		{
 			&IncludeConfig{Path: "../../other-child/.terragrunt"},
-			options.TerragruntOptions{TerragruntConfigPath: "/root/child/sub-child/.terragrunt", NonInteractive: true},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/sub-child/.terragrunt", NonInteractive: true},
 			"../child/sub-child",
 		},
 		{

@@ -19,13 +19,14 @@ func FileExists(path string) bool {
 // components (e.g. "../") fully resolved, which makes it safe to compare paths as strings.
 func CanonicalPath(path string, basePath string) (string, error) {
 	if !filepath.IsAbs(path) {
-		path = filepath.Join(basePath, path)
+		path = JoinPath(basePath, path)
 	}
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return "", err
 	}
-	return filepath.Clean(absPath), nil
+
+	return CleanPath(absPath), nil
 }
 
 // Return the canonical version of the given paths, relative to the given base path. That is, if a given path is a
@@ -83,7 +84,7 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 		return "", errors.WithStackTrace(err)
 	}
 
-	return relPath, nil
+	return filepath.ToSlash(relPath), nil
 }
 
 // Return the contents of the file at the given path as a string
@@ -94,4 +95,12 @@ func ReadFileAsString(path string) (string, error) {
 	}
 
 	return string(bytes), nil
+}
+
+func JoinPath(elem ...string) string {
+	return filepath.ToSlash(filepath.Join(elem...))
+}
+
+func CleanPath(path string) string {
+	return filepath.ToSlash(filepath.Clean(path))
 }

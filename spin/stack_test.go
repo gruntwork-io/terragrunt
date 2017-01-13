@@ -25,7 +25,7 @@ func TestFindStackInSubfolders(t *testing.T) {
 	tempFolder := createTempFolder(t)
 	writeAsEmptyFiles(t, tempFolder, filePaths)
 
-	envFolder := filepath.Join(tempFolder + "/stage")
+	envFolder := filepath.ToSlash(util.JoinPath(tempFolder + "/stage"))
 	terragruntOptions := options.NewTerragruntOptions(envFolder)
 	terragruntOptions.WorkingDir = envFolder
 
@@ -38,7 +38,7 @@ func TestFindStackInSubfolders(t *testing.T) {
 
 	for _, module := range stack.Modules {
 		relPath := strings.Replace(module.Path, tempFolder, "", 1)
-		relPath = filepath.Join(relPath, ".terragrunt")
+		relPath = filepath.ToSlash(util.JoinPath(relPath, ".terragrunt"))
 
 		modulePaths = append(modulePaths, relPath)
 	}
@@ -56,13 +56,13 @@ func createTempFolder(t *testing.T) string {
 		t.Fatalf("Failed to create temp directory: %s\n", err.Error())
 	}
 
-	return tmpFolder
+	return filepath.ToSlash(tmpFolder)
 }
 
 // Create an empty file at each of the given paths
 func writeAsEmptyFiles(t *testing.T, tmpFolder string, paths []string) {
 	for _, path := range paths {
-		absPath := filepath.Join(tmpFolder, path)
+		absPath := util.JoinPath(tmpFolder, path)
 
 		containingDir := filepath.Dir(absPath)
 		createDirIfNotExist(t, containingDir)

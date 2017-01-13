@@ -82,7 +82,7 @@ func TestAcquireAndReleaseLock(t *testing.T) {
 func TestTerragruntWorksWithIncludes(t *testing.T) {
 	t.Parallel()
 
-	childPath := filepath.Join(TEST_FIXTURE_INCLUDE_PATH, TEST_FIXTURE_INCLUDE_CHILD_REL_PATH)
+	childPath := util.JoinPath(TEST_FIXTURE_INCLUDE_PATH, TEST_FIXTURE_INCLUDE_CHILD_REL_PATH)
 	cleanupTerraformFolder(t, childPath)
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
@@ -102,7 +102,7 @@ func TestTerragruntSpinUpAndTearDown(t *testing.T) {
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_STACK)
 
-	rootTerragruntConfigPath := filepath.Join(tmpEnvPath, "fixture-stack", config.DefaultTerragruntConfigPath)
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, "fixture-stack", config.DefaultTerragruntConfigPath)
 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName)
 
 	mgmtEnvironmentPath := fmt.Sprintf("%s/fixture-stack/mgmt", tmpEnvPath)
@@ -119,7 +119,7 @@ func TestTerragruntSpinUpAndTearDown(t *testing.T) {
 }
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
-	terraformFolder := filepath.Join(templatesPath, TERRAFORM_FOLDER)
+	terraformFolder := util.JoinPath(templatesPath, TERRAFORM_FOLDER)
 	if !util.FileExists(terraformFolder) {
 		return
 	}
@@ -157,7 +157,7 @@ func copyEnvironment(t *testing.T, environmentPath string) string {
 			return nil
 		}
 
-		destPath := filepath.Join(tmpDir, path)
+		destPath := util.JoinPath(tmpDir, path)
 
 		destPathDir := filepath.Dir(destPath)
 		if err := os.MkdirAll(destPathDir, 0777); err != nil {
@@ -188,18 +188,18 @@ func createTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string
 		t.Fatalf("Failed to create temp dir due to error: %v", err)
 	}
 
-	childDestPath := filepath.Join(tmpDir, childRelPath)
+	childDestPath := util.JoinPath(tmpDir, childRelPath)
 
 	if err := os.MkdirAll(childDestPath, 0777); err != nil {
 		t.Fatalf("Failed to create temp dir %s due to error %v", childDestPath, err)
 	}
 
-	parentTerragruntSrcPath := filepath.Join(parentPath, config.DefaultTerragruntConfigPath)
-	parentTerragruntDestPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+	parentTerragruntSrcPath := util.JoinPath(parentPath, config.DefaultTerragruntConfigPath)
+	parentTerragruntDestPath := util.JoinPath(tmpDir, config.DefaultTerragruntConfigPath)
 	copyTerragruntConfigAndFillPlaceholders(t, parentTerragruntSrcPath, parentTerragruntDestPath, s3BucketName)
 
-	childTerragruntSrcPath := filepath.Join(filepath.Join(parentPath, childRelPath), config.DefaultTerragruntConfigPath)
-	childTerragruntDestPath := filepath.Join(childDestPath, config.DefaultTerragruntConfigPath)
+	childTerragruntSrcPath := util.JoinPath(util.JoinPath(parentPath, childRelPath), config.DefaultTerragruntConfigPath)
+	childTerragruntDestPath := util.JoinPath(childDestPath, config.DefaultTerragruntConfigPath)
 	copyTerragruntConfigAndFillPlaceholders(t, childTerragruntSrcPath, childTerragruntDestPath, s3BucketName)
 
 	return childTerragruntDestPath

@@ -182,7 +182,7 @@ func downloadModules(terragruntOptions *options.TerragruntOptions) error {
 // modules at all. Detecting if your downloaded modules are out of date (as opposed to missing entirely) is more
 // complicated and not something we handle at the moment.
 func shouldDownloadModules(terragruntOptions *options.TerragruntOptions) (bool, error) {
-	if util.FileExists(filepath.Join(terragruntOptions.WorkingDir, ".terraform/modules")) {
+	if util.FileExists(util.JoinPath(terragruntOptions.WorkingDir, ".terraform/modules")) {
 		return false, nil
 	}
 
