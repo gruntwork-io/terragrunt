@@ -51,6 +51,8 @@ func executeTerragruntHelperFunction(functionName string, include *IncludeConfig
 // Find a parent .terragrunt file in the parent folders above the current .terragrunt file and return its path
 func findInParentFolders(terragruntOptions *options.TerragruntOptions) (string, error) {
 	previousDir, err := filepath.Abs(filepath.Dir(terragruntOptions.TerragruntConfigPath))
+	previousDir = filepath.ToSlash(previousDir)
+
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
@@ -58,12 +60,12 @@ func findInParentFolders(terragruntOptions *options.TerragruntOptions) (string, 
 	// To avoid getting into an accidental infinite loop (e.g. do to cyclical symlinks), set a max on the number of
 	// parent folders we'll check
 	for i := 0; i < MAX_PARENT_FOLDERS_TO_CHECK; i++ {
-		currentDir := filepath.Dir(previousDir)
+		currentDir := filepath.ToSlash(filepath.Dir(previousDir))
 		if currentDir == previousDir {
 			return "", errors.WithStackTrace(ParentTerragruntConfigNotFound(terragruntOptions.TerragruntConfigPath))
 		}
 
-		configPath := filepath.Join(currentDir, DefaultTerragruntConfigPath)
+		configPath := util.JoinPath(currentDir, DefaultTerragruntConfigPath)
 		if util.FileExists(configPath) {
 			return util.GetPathRelativeTo(configPath, filepath.Dir(terragruntOptions.TerragruntConfigPath))
 		}
@@ -89,7 +91,7 @@ func pathRelativeToInclude(include *IncludeConfig, terragruntOptions *options.Te
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 
 	if !filepath.IsAbs(includePath) {
-		includePath = filepath.Join(currentPath, includePath)
+		includePath = util.JoinPath(currentPath, includePath)
 	}
 
 	return util.GetPathRelativeTo(currentPath, includePath)

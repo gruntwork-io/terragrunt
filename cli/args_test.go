@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"os"
 	"path/filepath"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 func TestParseTerragruntOptionsFromArgs(t *testing.T) {
@@ -18,6 +19,8 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	workingDir = filepath.ToSlash(workingDir)
+
 	testCases := []struct {
 		args 		[]string
 		expectedOptions *options.TerragruntOptions
@@ -25,31 +28,31 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 	}{
 		{
 			[]string{},
-			mockOptions(filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false),
+			mockOptions(util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false),
 			nil,
 		},
 
 		{
 			[]string{"foo", "bar"},
-			mockOptions(filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"foo", "bar"}, false),
+			mockOptions(util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"foo", "bar"}, false),
 			nil,
 		},
 
 		{
 			[]string{"--foo", "--bar"},
-			mockOptions(filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"--foo", "--bar"}, false),
+			mockOptions(util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"--foo", "--bar"}, false),
 			nil,
 		},
 
 		{
 			[]string{"--foo", "apply", "--bar"},
-			mockOptions(filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"--foo", "apply", "--bar"}, false),
+			mockOptions(util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"--foo", "apply", "--bar"}, false),
 			nil,
 		},
 
 		{
 			[]string{"--terragrunt-non-interactive"},
-			mockOptions(filepath.Join(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, true),
+			mockOptions(util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, true),
 			nil,
 		},
 
@@ -61,7 +64,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 
 		{
 			[]string{"--terragrunt-working-dir", "/some/path"},
-			mockOptions(filepath.Join("/some/path", config.DefaultTerragruntConfigPath), "/some/path", []string{}, false),
+			mockOptions(util.JoinPath("/some/path", config.DefaultTerragruntConfigPath), "/some/path", []string{}, false),
 			nil,
 		},
 

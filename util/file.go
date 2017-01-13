@@ -19,13 +19,14 @@ func FileExists(path string) bool {
 // components (e.g. "../") fully resolved, which makes it safe to compare paths as strings.
 func CanonicalPath(path string, basePath string) (string, error) {
 	if !filepath.IsAbs(path) {
-		path = filepath.Join(basePath, path)
+		path = JoinPath(basePath, path)
 	}
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return "", err
 	}
-	return filepath.Clean(absPath), nil
+
+	return CleanPath(absPath), nil
 }
 
 // Return the canonical version of the given paths, relative to the given base path. That is, if a given path is a
@@ -68,6 +69,13 @@ func Grep(regex *regexp.Regexp, glob string) (bool, error) {
 
 // Return the relative path you would have to take to get from basePath to path
 func GetPathRelativeTo(path string, basePath string) (string, error) {
+	if path == "" {
+		path = "."
+	}
+	if basePath == "" {
+		basePath = "."
+	}
+
 	inputFolderAbs, err := filepath.Abs(basePath)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
@@ -83,7 +91,7 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 		return "", errors.WithStackTrace(err)
 	}
 
-	return relPath, nil
+	return filepath.ToSlash(relPath), nil
 }
 
 // Return the contents of the file at the given path as a string
@@ -94,4 +102,16 @@ func ReadFileAsString(path string) (string, error) {
 	}
 
 	return string(bytes), nil
+}
+
+// Windows systems use \ as the path separator *nix uses /
+// Use this function when joining paths to force the returned path to use / as the path separator
+// This will improve cross-platform compatibility
+func JoinPath(elem ...string) string {
+	return filepath.ToSlash(filepath.Join(elem...))
+}
+
+// Use this function when cleaning paths to ensure the returned path uses / as the path separator to improve cross-platform compatibility
+func CleanPath(path string) string {
+	return filepath.ToSlash(filepath.Clean(path))
 }

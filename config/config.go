@@ -147,7 +147,7 @@ func parseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *optio
 	}
 
 	if !filepath.IsAbs(resolvedIncludePath) {
-		resolvedIncludePath = filepath.Join(filepath.Dir(terragruntOptions.TerragruntConfigPath), resolvedIncludePath)
+		resolvedIncludePath = util.JoinPath(filepath.Dir(terragruntOptions.TerragruntConfigPath), resolvedIncludePath)
 	}
 
 	return ParseConfigFile(resolvedIncludePath, terragruntOptions, includedConfig)

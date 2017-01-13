@@ -15,6 +15,10 @@ import (
 // For simplicity, do all testing in the us-east-1 region
 const DEFAULT_TEST_REGION = "us-east-1"
 
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
 var mockOptions = options.NewTerragruntOptionsForTest("dynamo_lock_test_utils")
 
 // Returns a unique (ish) id we can use to name resources so they don't conflict with each other. Uses base 62 to
@@ -26,9 +30,8 @@ func uniqueId() string {
 
 	var out bytes.Buffer
 
-	random := rand.New(rand.NewSource(time.Now().UnixNano()))
 	for i := 0; i < UNIQUE_ID_LENGTH; i++ {
-		out.WriteByte(BASE_62_CHARS[random.Intn(len(BASE_62_CHARS))])
+		out.WriteByte(BASE_62_CHARS[rand.Intn(len(BASE_62_CHARS))])
 	}
 
 	return out.String()
