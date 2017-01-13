@@ -27,7 +27,7 @@ func TestGetPathRelativeTo(t *testing.T) {
 	for _, testCase := range testCases {
 		actual, err := GetPathRelativeTo(testCase.path, testCase.basePath)
 		assert.Nil(t, err, "Unexpected error for path %s and basePath %s: %v", testCase.path, testCase.basePath, err)
-		assert.Equal(t, helpers.CleanPath(testCase.expected), actual, "For path %s and basePath %s", testCase.path, testCase.basePath)
+		assert.Equal(t, testCase.expected, actual, "For path %s and basePath %s", testCase.path, testCase.basePath)
 	}
 }
 
@@ -56,6 +56,6 @@ func TestCanonicalPath(t *testing.T) {
 	for _, testCase := range testCases {
 		actual, err := CanonicalPath(testCase.path, testCase.basePath)
 		assert.Nil(t, err, "Unexpected error for path %s and basePath %s: %v", testCase.path, testCase.basePath, err)
-		assert.Equal(t, helpers.CleanPath(testCase.expected), actual, "For path %s and basePath %s", testCase.path, testCase.basePath)
+		assert.Equal(t, testCase.expected, actual, "For path %s and basePath %s", testCase.path, testCase.basePath)
 	}
 }
