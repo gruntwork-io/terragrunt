@@ -19,6 +19,8 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	workingDir = filepath.ToSlash(workingDir)
+
 	testCases := []struct {
 		args 		[]string
 		expectedOptions *options.TerragruntOptions
