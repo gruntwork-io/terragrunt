@@ -13,7 +13,6 @@ import (
 	"github.com/urfave/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/spin"
-	"path/filepath"
 )
 
 const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
