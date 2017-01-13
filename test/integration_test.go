@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"bytes"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -22,6 +21,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"bytes"
 	"time"
 )
 
@@ -36,6 +36,10 @@ const (
 	TERRAFORM_FOLDER                    = ".terraform"
 	DEFAULT_TEST_REGION                 = "us-east-1"
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
 	t.Parallel()
@@ -239,13 +243,14 @@ func uniqueId() string {
 
 	var out bytes.Buffer
 
-	randInstance := rand.New(rand.NewSource(time.Now().UnixNano()))
+
 	for i := 0; i < UNIQUE_ID_LENGTH; i++ {
-		out.WriteByte(BASE_62_CHARS[randInstance.Intn(len(BASE_62_CHARS))])
+		out.WriteByte(BASE_62_CHARS[rand.Intn(len(BASE_62_CHARS))])
 	}
 
 	return out.String()
 }
+
 
 // Check that the S3 Bucket of the given name and region exists. Terragrunt should create this bucket during the test.
 func validateS3BucketExists(t *testing.T, awsRegion string, bucketName string) {
