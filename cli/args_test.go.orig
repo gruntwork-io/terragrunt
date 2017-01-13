@@ -159,26 +159,22 @@ func TestParseEnvironmentVariables(t *testing.T) {
 			[]string{},
 			map[string]string{},
 		},
+
 		{
 			[]string{"foobar"},
 			map[string]string{},
 		},
+
 		{
 			[]string{"foo=bar"},
 			map[string]string{"foo": "bar"},
 		},
+
 		{
 			[]string{"foo=bar", "goo=gar"},
 			map[string]string{"foo": "bar", "goo": "gar"},
 		},
-		{
-			[]string{"foo=bar   "},
-			map[string]string{"foo": "bar   "},
-		},
-		{
-			[]string{"foo   =bar   "},
-			map[string]string{"foo": "bar   "},
-		},
+
 		{
 			[]string{"foo=composite=bar"},
 			map[string]string{"foo": "composite=bar"},
@@ -187,6 +183,6 @@ func TestParseEnvironmentVariables(t *testing.T) {
 
 	for _, testCase := range testCases {
 		actualVariables := parseEnvironmentVariables(testCase.environmentVariables)
-		assert.Equal(t, testCase.expectedVariables, actualVariables)
+			assert.Equal(t, testCase.expectedVariables, actualVariables)
 	}
 }

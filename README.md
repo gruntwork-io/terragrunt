@@ -468,7 +468,7 @@ parent, but the `remote_state` settings of the child.
 
 ### Environment variables replacement
 
-With terraform is possible to set variables via Environment variables. This allows to control similar infrastructures with the same configuration files. Is also possible to use these variables in `.terragrunt` file by using the `get_env()` helper function.
+You can read in environment variables in your `.terragrunt` file using the `get_env()` helper function:
 
 ```hcl
 remote_state = {
