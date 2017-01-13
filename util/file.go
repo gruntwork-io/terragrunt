@@ -104,10 +104,14 @@ func ReadFileAsString(path string) (string, error) {
 	return string(bytes), nil
 }
 
+// Windows systems use \ as the path separator *nix uses /
+// Use this function when joining paths to force the returned path to use / as the path separator
+// This will improve cross-platform compatibility
 func JoinPath(elem ...string) string {
 	return filepath.ToSlash(filepath.Join(elem...))
 }
 
+// Use this function when cleaning paths to ensure the returned path uses / as the path separator to improve cross-platform compatibility
 func CleanPath(path string) string {
 	return filepath.ToSlash(filepath.Clean(path))
 }
