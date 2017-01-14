@@ -318,3 +318,129 @@ func TestResolveTerragruntConfigString(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveEnvInterpolationConfigString(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		str            string
+		include        *IncludeConfig
+		terragruntOptions options.TerragruntOptions
+		expectedOut    string
+		expectedErr    error
+	}{
+		{
+			"foo/${get_env()}/bar",
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
+			"",
+			InvalidFunctionParameters(""),
+		},
+		{
+			"foo/${get_env(Invalid Parameters)}/bar",
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
+			"",
+			InvalidFunctionParameters("Invalid Parameters"),
+		},
+		{
+			"foo/${get_env('env','')}/bar",
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
+			"",
+			InvalidFunctionParameters("'env',''"),
+		},
+		{
+			`foo/${get_env("","")}/bar`,
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
+			"",
+			InvalidFunctionParameters(`"",""`),
+		},
+		{
+			`foo/${get_env(   ""    ,   ""    )}/bar`,
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: "/root/child/.terragrunt", NonInteractive: true},
+			"",
+			InvalidFunctionParameters(`   ""    ,   ""    `),
+		},
+		{
+			`foo/${get_env("TEST_ENV_TERRAGRUNT_HIT","")}/bar`,
+			nil,
+			options.TerragruntOptions{
+				TerragruntConfigPath: "/root/child/.terragrunt",
+				NonInteractive: true,
+				Env: map[string]string{"TEST_ENV_TERRAGRUNT_OTHER": "SOMETHING"},
+			},
+			"foo//bar",
+			nil,
+		},
+		{
+			`foo/${get_env(    "TEST_ENV_TERRAGRUNT_HIT"   ,   ""   )}/bar`,
+			nil,
+			options.TerragruntOptions{
+				TerragruntConfigPath: "/root/child/.terragrunt",
+				NonInteractive: true,
+				Env: map[string]string{"TEST_ENV_TERRAGRUNT_OTHER": "SOMETHING"},
+			},
+			"foo//bar",
+			nil,
+		},
+		{
+		`foo/${get_env("TEST_ENV_
+TERRAGRUNT_HIT","")}/bar`,
+		nil,
+		options.TerragruntOptions{
+			TerragruntConfigPath: "/root/child/.terragrunt",
+			NonInteractive: true,
+			Env: map[string]string{"TEST_ENV_TERRAGRUNT_OTHER": "SOMETHING"},
+		},
+			`foo/${get_env("TEST_ENV_
+TERRAGRUNT_HIT","")}/bar`,
+		nil,
+		},
+		{
+			`foo/${get_env("TEST_ENV_TERRAGRUNT_HIT","DEFAULT")}/bar`,
+			nil,
+			options.TerragruntOptions{
+				TerragruntConfigPath: "/root/child/.terragrunt",
+				NonInteractive: true,
+				Env: map[string]string{"TEST_ENV_TERRAGRUNT_OTHER": "SOMETHING"},
+			},
+			"foo/DEFAULT/bar",
+			nil,
+		},
+		{
+			`foo/${get_env(    "TEST_ENV_TERRAGRUNT_HIT      "   ,   "default"   )}/bar`,
+			nil,
+			options.TerragruntOptions{
+				TerragruntConfigPath: "/root/child/.terragrunt",
+				NonInteractive: true,
+				Env: map[string]string{"TEST_ENV_TERRAGRUNT_HIT": "environment hit  "},
+			},
+			"foo/environment hit  /bar",
+			nil,
+		},
+		{
+			`foo/${get_env("TEST_ENV_TERRAGRUNT_HIT","default")}/bar`,
+			nil,
+			options.TerragruntOptions{
+				TerragruntConfigPath: "/root/child/.terragrunt",
+				NonInteractive: true,
+				Env: map[string]string{"TEST_ENV_TERRAGRUNT_HIT": "HIT"},
+			},
+			"foo/HIT/bar",
+			nil,
+		},
+	}
+
+	for _, testCase := range testCases {
+		actualOut, actualErr := ResolveTerragruntConfigString(testCase.str, testCase.include, &testCase.terragruntOptions)
+		if testCase.expectedErr != nil {
+			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "For string '%s' include %v and options %v, expected error %v but got error %v and output %v", testCase.str, testCase.include, testCase.terragruntOptions, testCase.expectedErr, actualErr, actualOut)
+		} else {
+			assert.Nil(t, actualErr, "For string '%s' include %v and options %v, unexpected error: %v", testCase.str, testCase.include, testCase.terragruntOptions, actualErr)
+			assert.Equal(t, testCase.expectedOut, actualOut, "For string '%s' include %v and options %v", testCase.str, testCase.include, testCase.terragruntOptions)
+		}
+	}
+}

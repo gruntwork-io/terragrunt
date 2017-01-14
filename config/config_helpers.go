@@ -7,11 +7,18 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"path/filepath"
 	"github.com/gruntwork-io/terragrunt/util"
+	"strings"
 )
 
 var INTERPOLATION_SYNTAX_REGEX = regexp.MustCompile("\\$\\{.*?\\}")
-var HELPER_FUNCTION_SYNTAX_REGEX = regexp.MustCompile("\\$\\{(.*?)\\(\\)\\}")
+var HELPER_FUNCTION_SYNTAX_REGEX = regexp.MustCompile(`\$\{(.*?)\((.*?)\)\}`)
+var HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX = regexp.MustCompile(`\s*"(?P<env>[^=]+?)"\s*\,\s*"(?P<default>.*?)"\s*`)
 var MAX_PARENT_FOLDERS_TO_CHECK = 100
+
+type EnvVar struct {
+	Name         string
+	DefaultValue string
+}
 
 // Given a string value from a .terragrunt config file, parse the string, resolve any calls to helper functions using
 // the syntax ${...}, and return the final value.
@@ -32,20 +39,55 @@ func ResolveTerragruntConfigString(terragruntConfigString string, include *Inclu
 // Resolve a single call to an interpolation function of the format ${some_function()} in a .terragrunt file
 func resolveTerragruntInterpolation(str string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	matches := HELPER_FUNCTION_SYNTAX_REGEX.FindStringSubmatch(str)
-	if len(matches) == 2 {
-		return executeTerragruntHelperFunction(matches[1], include, terragruntOptions)
+	if len(matches) == 3 {
+		return executeTerragruntHelperFunction(matches[1], matches[2], include, terragruntOptions)
 	} else {
 		return "", errors.WithStackTrace(InvalidInterpolationSyntax(str))
 	}
 }
 
 // Execute a single Terragrunt helper function and return its value as a string
-func executeTerragruntHelperFunction(functionName string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+func executeTerragruntHelperFunction(functionName string, parameters string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	switch functionName {
 	case "find_in_parent_folders": return findInParentFolders(terragruntOptions)
 	case "path_relative_to_include": return pathRelativeToInclude(include, terragruntOptions)
+	case "get_env": return getEnvironmentVariable(parameters, terragruntOptions)
 	default: return "", errors.WithStackTrace(UnknownHelperFunction(functionName))
 	}
+}
+
+func parseGetEnvParameters(parameters string) (EnvVar, error) {
+	envVariable := EnvVar {}
+	matches := HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX.FindStringSubmatch(parameters)
+	if len(matches) < 2 {
+		return envVariable, errors.WithStackTrace(InvalidFunctionParameters(parameters))
+	}
+
+	for index, name := range HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX.SubexpNames() {
+		if name == "env" {
+			envVariable.Name = strings.TrimSpace(matches[index])
+		}
+		if name == "default" {
+			envVariable.DefaultValue = strings.TrimSpace(matches[index])
+		}
+  	}
+
+	return envVariable, nil
+}
+
+func getEnvironmentVariable(parameters string, terragruntOptions *options.TerragruntOptions) (string, error) {
+	parameterMap, err := parseGetEnvParameters(parameters)
+
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+	envValue, exists := terragruntOptions.Env[parameterMap.Name]
+
+	if !exists {
+		envValue = parameterMap.DefaultValue
+	}
+
+	return envValue, nil
 }
 
 // Find a parent .terragrunt file in the parent folders above the current .terragrunt file and return its path
@@ -117,4 +159,9 @@ func (err ParentTerragruntConfigNotFound) Error() string {
 type CheckedTooManyParentFolders string
 func (err CheckedTooManyParentFolders) Error() string {
 	return fmt.Sprintf("Could not find a %s config file in a parent folder of %s after checking %d parent folders", DefaultTerragruntConfigPath, string(err), MAX_PARENT_FOLDERS_TO_CHECK)
+}
+
+type InvalidFunctionParameters string
+func (err InvalidFunctionParameters) Error() string {
+	return fmt.Sprintf("Invalid parameters. Expected syntax of the form '${get_env(\"env\", \"default\")}', but got '%s'", string(err))
 }

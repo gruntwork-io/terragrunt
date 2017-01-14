@@ -473,7 +473,75 @@ remote_state = {
 ``` 
 
 The result is that when you run `terragrunt` commands in the `qa/my-app` folder, you get the `lock` settings from the 
-parent, but the `remote_state` settings of the child. 
+parent, but the `remote_state` settings of the child.
+
+### Environment variables replacement
+
+You can read in environment variables in your `.terragrunt` file using the `get_env()` helper function:
+
+```hcl
+remote_state = {
+  backend = "s3"
+  config {
+    encrypt = "true"
+    bucket = "${get_env("ENVIRONMENT_VARIABLE_NAME", "development")}-bucket"
+    key = "/foo/bar/terraform.tfstate"
+    region = "us-west-2"
+  }
+}
+```
+
+This function takes two parameters: `ENVIRONMENT_VARIABLE_NAME` and `default`. When parsing the file, `terragrunt` will evaluate the environment variable `ENVIRONMENT_VARIABLE_NAME` and replace with the registered value. If there is no environment variable with that name or is empty, it will use the one registered in the `default`. The default value is mandatory but can be empty `${get_env("ENVIRONMENT_VARIABLE_NAME", "")}`.
+
+If there is no environment variable with that name registered in the system, the configuration file would be evaluated to:
+
+```hcl
+remote_state = {
+  backend = "s3"
+  config {
+    encrypt = "true"
+    bucket = "development-bucket"
+    key = "/foo/bar/terraform.tfstate"
+    region = "us-west-2"
+  }
+}
+```
+
+But if the variable is set
+```bash
+ENVIRONMENT_VARIABLE="value" terragrunt
+```
+then the previous example would evaluate to:
+
+```hcl
+remote_state = {
+  backend = "s3"
+  config {
+    encrypt = "true"
+    bucket = "value-bucket"
+    key = "/foo/bar/terraform.tfstate"
+    region = "us-west-2"
+  }
+}
+```
+
+Terraform itself also supports loading variables via the environment. Is possible to use the same variables by correctly using the terrraform prefix `TF_VAR_`.
+
+```bash
+TF_VAR_variable="value" terragrunt
+```
+
+```hcl
+remote_state = {
+  backend = "s3"
+  config {
+    encrypt = "true"
+    bucket = "${get_env("TF_VAR_variable", "value")}-bucket"
+    key = "/foo/bar/terraform.tfstate"
+    region = "us-west-2"
+  }
+}
+```
 
 ### The spin-up and tear-down commands
 
