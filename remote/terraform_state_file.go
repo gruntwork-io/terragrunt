@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"fmt"
+	"path"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -44,13 +45,13 @@ func (state *TerraformState) IsRemote() bool {
 	return state.Remote != nil
 }
 
-// Parse the Terraform .tfstate file from its default locations. If the file doesn't exist at any of the default
-// locations, return nil.
-func ParseTerraformStateFileFromDefaultLocations() (*TerraformState, error) {
-	if util.FileExists(DEFAULT_PATH_TO_LOCAL_STATE_FILE) {
-		return ParseTerraformStateFile(DEFAULT_PATH_TO_LOCAL_STATE_FILE)
-	} else if util.FileExists(DEFAULT_PATH_TO_REMOTE_STATE_FILE) {
-		return ParseTerraformStateFile(DEFAULT_PATH_TO_REMOTE_STATE_FILE)
+// Parse the Terraform .tfstate file from the location specified by workingDir. If no location is specified,
+// search the current directory. If the file doesn't exist at any of the default locations, return nil.
+func ParseTerraformStateFileFromLocation(workingDir string) (*TerraformState, error) {
+	if util.FileExists(path.Join(workingDir, DEFAULT_PATH_TO_LOCAL_STATE_FILE)) {
+		return ParseTerraformStateFile(path.Join(workingDir, DEFAULT_PATH_TO_LOCAL_STATE_FILE))
+	} else if util.FileExists(path.Join(workingDir, DEFAULT_PATH_TO_REMOTE_STATE_FILE)) {
+		return ParseTerraformStateFile(path.Join(workingDir, DEFAULT_PATH_TO_REMOTE_STATE_FILE))
 	} else {
 		return nil, nil
 	}

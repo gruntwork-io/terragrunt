@@ -71,7 +71,7 @@ func (remoteState RemoteState) ConfigureRemoteState(terragruntOptions *options.T
 // 1. Remote state has not already been configured
 // 2. Remote state has been configured, but for a different backend type, and the user confirms it's OK to overwrite it.
 func shouldConfigureRemoteState(remoteStateFromTerragruntConfig RemoteState, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	state, err := ParseTerraformStateFileFromDefaultLocations()
+	state, err := ParseTerraformStateFileFromLocation(terragruntOptions.WorkingDir)
 	if err != nil {
 		return false, err
 	}
