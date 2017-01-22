@@ -1,7 +1,6 @@
 package dynamodb
 
 import (
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/stretchr/testify/assert"
@@ -110,18 +109,14 @@ func TestWriteAndRemoveItemFromLockTable(t *testing.T) {
 
 		// Additionally, verify removing an item that doesn't exist returns an expected error
 		err = removeItemFromLockTable(itemId, tableName, client)
-		if assert.NotNil(t, err, "Error expected") {
-			awsErr, isAwsErr := errors.Unwrap(err).(awserr.Error)
-			assert.True(t, isAwsErr, "Expected error to be an awserr error")
-			assert.Equal(t, awsErr.Code(), "ConditionalCheckFailedException", "Unexpected awsErr code")
+		if assert.NotNil(t, err) {
+			assert.IsType(t, errors.Unwrap(err), ItemDoesNotExist{})
 		}
 
 		// And then, verify removing an item from a non-existent table returns an expected error
 		err = removeItemFromLockTable(itemId, uniqueTableNameForTest(), client)
-		if assert.NotNil(t, err, "Error expected") {
-			awsErr, isAwsErr := errors.Unwrap(err).(awserr.Error)
-			assert.True(t, isAwsErr, "Expected error to be an awserr error")
-			assert.Equal(t, awsErr.Code(), "ResourceNotFoundException", "Unexpected awsErr code")
+		if assert.NotNil(t, err) {
+			assert.IsType(t, errors.Unwrap(err), TableDoesNotExist{})
 		}
 	})
 }
