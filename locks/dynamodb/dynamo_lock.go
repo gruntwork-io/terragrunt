@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
@@ -87,19 +86,8 @@ func (dynamoDbLock DynamoDbLock) ReleaseLock(terragruntOptions *options.Terragru
 		return err
 	}
 
-	err = removeItemFromLockTable(dynamoDbLock.StateFileId, dynamoDbLock.TableName, client)
-
-	// If the table or lock doesn't exist log it, else return the error
-	if err != nil {
-		if awsErr, isAwsErr := errors.Unwrap(err).(awserr.Error); isAwsErr && awsErr.Code() == "ResourceNotFoundException" {
-			terragruntOptions.Logger.Printf("Table %s does not exist in DynamoDB!", dynamoDbLock.TableName)
-			return nil
-		} else if awsErr, isAwsErr := errors.Unwrap(err).(awserr.Error); isAwsErr && awsErr.Code() == "ConditionalCheckFailedException" {
-			terragruntOptions.Logger.Printf("Nothing to release, specified lock does not exist in table %s", dynamoDbLock.TableName)
-			return nil
-		} else {
-			return err
-		}
+	if err := removeItemFromLockTable(dynamoDbLock.StateFileId, dynamoDbLock.TableName, client); err != nil {
+		return err
 	}
 
 	terragruntOptions.Logger.Printf("Lock released!")

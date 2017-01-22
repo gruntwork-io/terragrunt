@@ -129,20 +129,26 @@ func waitForTableToBeActiveWithRandomSleep(tableName string, client *dynamodb.Dy
 func removeItemFromLockTable(itemId string, tableName string, client *dynamodb.DynamoDB) error {
 	// TODO: should we check that the entry has our own metadata and not someone else's?
 
-	// Verify the table actually exists
-	_, err := client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-
 	// Unless you specify conditions, the DeleteItem is an idempotent operation;
 	// running it multiple times on the same item or attribute does not result in an error response.
 	// https://docs.aws.amazon.com/sdk-for-go/api/service/dynamodb/#DynamoDB.DeleteItem
-	_, err = client.DeleteItem(&dynamodb.DeleteItemInput{
+	_, err := client.DeleteItem(&dynamodb.DeleteItemInput{
 		Key:                 createKeyFromItemId(itemId),
 		TableName:           aws.String(tableName),
 		ConditionExpression: aws.String(fmt.Sprintf("attribute_exists(%s)", ATTR_STATE_FILE_ID)),
 	})
+
+	// handle expected errors
+	if err != nil {
+		if awsErr, ok := err.(awserr.Error); ok {
+			switch awsErr.Code() {
+			case "ConditionalCheckFailedException":
+				err = ItemDoesNotExist{itemId, tableName, awsErr}
+			case "ResourceNotFoundException":
+				err = TableDoesNotExist{tableName, awsErr}
+			}
+		}
+	}
 
 	return errors.WithStackTrace(err)
 }
@@ -217,4 +223,23 @@ type AcquireLockRetriesExceeded struct {
 
 func (err AcquireLockRetriesExceeded) Error() string {
 	return fmt.Sprintf("Unable to acquire lock for item %s after %d retries.", err.ItemId, err.Retries)
+}
+
+type TableDoesNotExist struct {
+	TableName string
+	Underlying error
+}
+
+func (err TableDoesNotExist) Error() string {
+	return fmt.Sprintf("Table %s does not exist in DynamoDB! Original error from AWS: %v", err.TableName, err.Underlying)
+}
+
+type ItemDoesNotExist struct {
+	ItemName string
+	TableName string
+	Underlying error
+}
+
+func (err ItemDoesNotExist) Error() string {
+	return fmt.Sprintf("Item %s does not exist in %s DynamoDB table! Original error from AWS: %v", err.ItemName, err.TableName, err.Underlying)
 }
