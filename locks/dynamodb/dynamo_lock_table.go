@@ -235,11 +235,11 @@ func (err TableDoesNotExist) Error() string {
 }
 
 type ItemDoesNotExist struct {
-	ItemName string
+	ItemId string
 	TableName string
 	Underlying error
 }
 
 func (err ItemDoesNotExist) Error() string {
-	return fmt.Sprintf("Item %s does not exist in %s DynamoDB table! Original error from AWS: %v", err.ItemName, err.TableName, err.Underlying)
+	return fmt.Sprintf("Item %s does not exist in %s DynamoDB table! Original error from AWS: %v", err.ItemId, err.TableName, err.Underlying)
 }
