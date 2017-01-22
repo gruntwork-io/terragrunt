@@ -1,14 +1,14 @@
 package dynamodb
 
 import (
-	"time"
 	"fmt"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
+	"time"
 )
 
 // DynamoDB only allows 10 table creates/deletes simultaneously. To ensure we don't hit this error, especially when
@@ -61,11 +61,11 @@ func CreateLockTable(tableName string, readCapacityUnits int, writeCapacityUnits
 	}
 
 	_, err := client.CreateTable(&dynamodb.CreateTableInput{
-		TableName: aws.String(tableName),
+		TableName:            aws.String(tableName),
 		AttributeDefinitions: attributeDefinitions,
-		KeySchema: keySchema,
+		KeySchema:            keySchema,
 		ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
-			ReadCapacityUnits: aws.Int64(int64(readCapacityUnits)),
+			ReadCapacityUnits:  aws.Int64(int64(readCapacityUnits)),
 			WriteCapacityUnits: aws.Int64(int64(writeCapacityUnits)),
 		},
 	})
@@ -129,10 +129,26 @@ func waitForTableToBeActiveWithRandomSleep(tableName string, client *dynamodb.Dy
 func removeItemFromLockTable(itemId string, tableName string, client *dynamodb.DynamoDB) error {
 	// TODO: should we check that the entry has our own metadata and not someone else's?
 
+	// Unless you specify conditions, the DeleteItem is an idempotent operation;
+	// running it multiple times on the same item or attribute does not result in an error response.
+	// https://docs.aws.amazon.com/sdk-for-go/api/service/dynamodb/#DynamoDB.DeleteItem
 	_, err := client.DeleteItem(&dynamodb.DeleteItemInput{
-		Key: createKeyFromItemId(itemId),
-		TableName: aws.String(tableName),
+		Key:                 createKeyFromItemId(itemId),
+		TableName:           aws.String(tableName),
+		ConditionExpression: aws.String(fmt.Sprintf("attribute_exists(%s)", ATTR_STATE_FILE_ID)),
 	})
+
+	// handle expected errors
+	if err != nil {
+		if awsErr, ok := err.(awserr.Error); ok {
+			switch awsErr.Code() {
+			case "ConditionalCheckFailedException":
+				err = ItemDoesNotExist{itemId, tableName, awsErr}
+			case "ResourceNotFoundException":
+				err = TableDoesNotExist{tableName, awsErr}
+			}
+		}
+	}
 
 	return errors.WithStackTrace(err)
 }
@@ -147,8 +163,8 @@ func writeItemToLockTable(itemId string, tableName string, client *dynamodb.Dyna
 	// Conditional writes in DynamoDB should be strongly consistent: http://stackoverflow.com/a/23371813/483528
 	// https://r.32k.io/locking-with-dynamodb
 	_, err = client.PutItem(&dynamodb.PutItemInput{
-		TableName: aws.String(tableName),
-		Item: item,
+		TableName:           aws.String(tableName),
+		Item:                item,
 		ConditionExpression: aws.String(fmt.Sprintf("attribute_not_exists(%s)", ATTR_STATE_FILE_ID)),
 	})
 
@@ -207,4 +223,23 @@ type AcquireLockRetriesExceeded struct {
 
 func (err AcquireLockRetriesExceeded) Error() string {
 	return fmt.Sprintf("Unable to acquire lock for item %s after %d retries.", err.ItemId, err.Retries)
+}
+
+type TableDoesNotExist struct {
+	TableName string
+	Underlying error
+}
+
+func (err TableDoesNotExist) Error() string {
+	return fmt.Sprintf("Table %s does not exist in DynamoDB! Original error from AWS: %v", err.TableName, err.Underlying)
+}
+
+type ItemDoesNotExist struct {
+	ItemId string
+	TableName string
+	Underlying error
+}
+
+func (err ItemDoesNotExist) Error() string {
+	return fmt.Sprintf("Item %s does not exist in %s DynamoDB table! Original error from AWS: %v", err.ItemId, err.TableName, err.Underlying)
 }
