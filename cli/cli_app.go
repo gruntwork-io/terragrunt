@@ -41,6 +41,7 @@ COMMANDS:
    apply                Acquire a lock and run 'terraform apply'
    destroy              Acquire a lock and run 'terraform destroy'
    import               Acquire a lock and run 'terraform import'
+   plan                 Acquire a lock and run 'terraform plan'
    refresh              Acquire a lock and run 'terraform refresh'
    remote push          Acquire a lock and run 'terraform remote push'
    acquire-lock         Acquire a long-term lock for these templates
