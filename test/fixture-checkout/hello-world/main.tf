@@ -1,6 +1,5 @@
-# Create an arbitrary local resource
 data "template_file" "test" {
-  template = "Hello, ${var.name}"
+  template = "${module.hello.hello}, ${var.name}"
 }
 
 variable "name" {
@@ -9,4 +8,8 @@ variable "name" {
 
 output "test" {
   value = "${data.template_file.test.rendered}"
+}
+
+module "hello" {
+  source = "./hello"
 }

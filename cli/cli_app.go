@@ -127,16 +127,6 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
-	if err := downloadModules(terragruntOptions); err != nil {
-		return err
-	}
-
-	if conf.RemoteState != nil {
-		if err := configureRemoteState(conf.RemoteState, terragruntOptions); err != nil {
-			return err
-		}
-	}
-
 	if terragruntOptions.Source != "" {
 		if err := checkoutTerraformSource(terragruntOptions.Source, terragruntOptions); err != nil {
 			return err
@@ -145,6 +135,16 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 
 	if terragruntOptions.Source == "" && conf.Terraform != nil && len(conf.Terraform.Source) > 0 {
 		if err := checkoutTerraformSource(conf.Terraform.Source, terragruntOptions); err != nil {
+			return err
+		}
+	}
+
+	if err := downloadModules(terragruntOptions); err != nil {
+		return err
+	}
+
+	if conf.RemoteState != nil {
+		if err := configureRemoteState(conf.RemoteState, terragruntOptions); err != nil {
 			return err
 		}
 	}
