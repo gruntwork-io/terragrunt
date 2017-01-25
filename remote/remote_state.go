@@ -13,6 +13,9 @@ type RemoteState struct {
 	Backend string            `hcl:"backend"`
 	Config  map[string]string `hcl:"config"`
 }
+func (state *RemoteState) String() string {
+	return fmt.Sprintf("RemoteState{Backend = %v, Config = %v}", state.Backend, state.Config)
+}
 
 type RemoteStateInitializer func(map[string]string, *options.TerragruntOptions) error
 

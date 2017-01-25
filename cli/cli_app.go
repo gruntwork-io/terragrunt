@@ -13,6 +13,7 @@ import (
 	"github.com/urfave/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/spin"
+	"io/ioutil"
 )
 
 const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
@@ -134,6 +135,12 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
+	if conf.Terraform != nil && len(conf.Terraform.Source) > 0 {
+		if err := checkoutTerraformSource(conf.Terraform.Source, terragruntOptions); err != nil {
+			return err
+		}
+	}
+
 	if conf.Lock == nil {
 		terragruntOptions.Logger.Printf("WARNING: you have not configured locking in your .terragrunt file. Concurrent changes to your .tfstate files may cause conflicts!")
 		return runTerraformCommand(terragruntOptions)
@@ -209,6 +216,39 @@ func configureRemoteState(remoteState *remote.RemoteState, terragruntOptions *op
 	}
 
 	return nil
+}
+
+// 1. Check out the given source URL, which should use Terraform's module source syntax, into a temporary folder
+// 2. Copy the contents of terragruntOptions.WorkingDir into the temporary folder.
+// 3. Set terragruntOptions.WorkingDir to the temporary folder.
+func checkoutTerraformSource(source string, terragruntOptions *options.TerragruntOptions) error {
+	tmpFolder, err := ioutil.TempDir("", "terragrunt-tmp-checkout")
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	terragruntOptions.Logger.Printf("Downloading Terraform configurations from %s into %s", source, tmpFolder)
+	if err := terraformInit(source, tmpFolder, terragruntOptions); err != nil {
+		return err
+	}
+
+	terragruntOptions.Logger.Printf("Copying files from %s into %s", terragruntOptions.WorkingDir, tmpFolder)
+	if err := util.CopyFolder(terragruntOptions.WorkingDir, tmpFolder); err != nil {
+		return err
+	}
+
+	terragruntOptions.Logger.Printf("Setting working directory to %s", tmpFolder)
+	terragruntOptions.WorkingDir = tmpFolder
+
+	return nil
+}
+
+// Download the code from source into dest using the terraform init command
+func terraformInit(source string, dest string, terragruntOptions *options.TerragruntOptions) error {
+	terragruntInitOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	terragruntInitOptions.TerraformCliArgs = []string{"init", source, dest}
+
+	return runTerraformCommand(terragruntInitOptions)
 }
 
 // Run the given Terraform command with the given lock (if the command requires locking)

@@ -15,13 +15,18 @@ const DefaultTerragruntConfigPath = ".terragrunt"
 
 // TerragruntConfig represents a parsed and expanded configuration
 type TerragruntConfig struct {
+	Terraform    *TerraformConfig
 	Lock         locks.Lock
 	RemoteState  *remote.RemoteState
 	Dependencies *ModuleDependencies
 }
+func (conf *TerragruntConfig) String() string {
+	return fmt.Sprintf("TerragruntConfig{Terraform = %v, Lock = %v, RemoteState = %v, Dependencies = %v}", conf.Terraform, conf.Lock, conf.RemoteState, conf.Dependencies)
+}
 
 // terragruntConfigFile represents the configuration supported in the .terragrunt file
 type terragruntConfigFile struct {
+	Terraform    *TerraformConfig    `hcl:"terraform,omitempty"`
 	Include      *IncludeConfig      `hcl:"include,omitempty"`
 	Lock         *LockConfig         `hcl:"lock,omitempty"`
 	RemoteState  *remote.RemoteState `hcl:"remote_state,omitempty"`
@@ -44,6 +49,17 @@ type LockConfig struct {
 // can be applied
 type ModuleDependencies struct {
 	Paths []string `hcl:"paths"`
+}
+func (deps *ModuleDependencies) String() string {
+	return fmt.Sprintf("ModuleDependencies{Paths = %v}", deps.Paths)
+}
+
+// TerraformConfig specifies where to find the Terraform configuration files
+type TerraformConfig struct {
+	Source string `hcl:"source"`
+}
+func (conf *TerraformConfig) String() string {
+	return fmt.Sprintf("TerraformConfig{Source = %v}", conf.Source)
 }
 
 // Read the Terragrunt config file from its default location
@@ -125,6 +141,10 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 		includedConfig.RemoteState = config.RemoteState
 	}
 
+	if config.Terraform != nil {
+		includedConfig.Terraform = config.Terraform
+	}
+
 	if config.Dependencies != nil {
 		includedConfig.Dependencies = config.Dependencies
 	}
@@ -175,6 +195,7 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 		terragruntConfig.RemoteState = terragruntConfigFromFile.RemoteState
 	}
 
+	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
 
 	return terragruntConfig, nil

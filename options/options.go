@@ -50,6 +50,7 @@ func NewTerragruntOptions(terragruntConfigPath string) *TerragruntOptions {
 		TerraformCliArgs: []string{},
 		WorkingDir: workingDir,
 		Logger: util.CreateLogger(""),
+		Env: map[string]string{},
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
@@ -77,6 +78,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		TerraformCliArgs: terragruntOptions.TerraformCliArgs,
 		WorkingDir: workingDir,
 		Logger: util.CreateLogger(workingDir),
+		Env: terragruntOptions.Env,
 		RunTerragrunt: terragruntOptions.RunTerragrunt,
 	}
 }

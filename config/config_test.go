@@ -30,6 +30,7 @@ lock = {
 	assert.Nil(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
+	assert.Nil(t, terragruntConfig.Terraform)
 	assert.NotNil(t, terragruntConfig.Lock)
 	assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
 	lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
@@ -59,13 +60,16 @@ lock = {
 	assert.Nil(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
-	assert.NotNil(t, terragruntConfig.Lock)
-	assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
-	lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
-	assert.Equal(t, "expected-state-file-id", lock.StateFileId)
-	assert.Equal(t, "expected-region", lock.AwsRegion)
-	assert.Equal(t, "expected-table-name", lock.TableName)
-	assert.Equal(t, 100, lock.MaxLockRetries)
+	assert.Nil(t, terragruntConfig.Terraform)
+
+	if assert.NotNil(t, terragruntConfig.Lock) {
+		assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
+		lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
+		assert.Equal(t, "expected-state-file-id", lock.StateFileId)
+		assert.Equal(t, "expected-region", lock.AwsRegion)
+		assert.Equal(t, "expected-table-name", lock.TableName)
+		assert.Equal(t, 100, lock.MaxLockRetries)
+	}
 }
 
 func TestParseTerragruntConfigDynamoLockMissingStateFileId(t *testing.T) {
@@ -98,9 +102,12 @@ remote_state = {
 	assert.Nil(t, err)
 
 	assert.Nil(t, terragruntConfig.Lock)
-	assert.NotNil(t, terragruntConfig.RemoteState)
-	assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-	assert.Empty(t, terragruntConfig.RemoteState.Config)
+	assert.Nil(t, terragruntConfig.Terraform)
+
+	if assert.NotNil(t, terragruntConfig.RemoteState){
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
+		assert.Empty(t, terragruntConfig.RemoteState.Config)
+	}
 }
 
 func TestParseTerragruntConfigRemoteStateMissingBackend(t *testing.T) {
@@ -136,13 +143,16 @@ remote_state = {
 	assert.Nil(t, err)
 
 	assert.Nil(t, terragruntConfig.Lock)
-	assert.NotNil(t, terragruntConfig.RemoteState)
-	assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-	assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-	assert.Equal(t, "true", terragruntConfig.RemoteState.Config["encrypt"])
-	assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
-	assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
-	assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+	assert.Nil(t, terragruntConfig.Terraform)
+
+	if assert.NotNil(t, terragruntConfig.RemoteState) {
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
+		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
+		assert.Equal(t, "true", terragruntConfig.RemoteState.Config["encrypt"])
+		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
+		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
+		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+	}
 }
 
 func TestParseTerragruntConfigDependenciesOnePath(t *testing.T) {
@@ -160,9 +170,11 @@ dependencies = {
 
 	assert.Nil(t, terragruntConfig.Lock)
 	assert.Nil(t, terragruntConfig.RemoteState)
+	assert.Nil(t, terragruntConfig.Terraform)
 
-	assert.NotNil(t, terragruntConfig.Dependencies)
-	assert.Equal(t, []string{"../vpc"}, terragruntConfig.Dependencies.Paths)
+	if assert.NotNil(t, terragruntConfig.Dependencies) {
+		assert.Equal(t, []string{"../vpc"}, terragruntConfig.Dependencies.Paths)
+	}
 }
 
 func TestParseTerragruntConfigDependenciesMultiplePaths(t *testing.T) {
@@ -180,17 +192,23 @@ dependencies = {
 
 	assert.Nil(t, terragruntConfig.Lock)
 	assert.Nil(t, terragruntConfig.RemoteState)
+	assert.Nil(t, terragruntConfig.Terraform)
 
-	assert.NotNil(t, terragruntConfig.Dependencies)
-	assert.Equal(t, []string{"../vpc", "../mysql", "../backend-app"}, terragruntConfig.Dependencies.Paths)
+	if assert.NotNil(t, terragruntConfig.Dependencies) {
+		assert.Equal(t, []string{"../vpc", "../mysql", "../backend-app"}, terragruntConfig.Dependencies.Paths)
+	}
 }
 
-func TestParseTerragruntConfigRemoteStateDynamoDbAndDependenciesFullConfig(t *testing.T) {
+func TestParseTerragruntConfigRemoteStateDynamoDbTerraformConfigAndDependenciesFullConfig(t *testing.T) {
 	t.Parallel()
 
 	config :=
 `
-lock = {
+terraform {
+  source = "foo"
+}
+
+lock {
   backend = "dynamodb"
   config {
     state_file_id = "expected-state-file-id"
@@ -200,7 +218,7 @@ lock = {
   }
 }
 
-remote_state = {
+remote_state {
   backend = "s3"
   config {
     encrypt = "true"
@@ -218,24 +236,31 @@ dependencies = {
 	terragruntConfig, err := parseConfigString(config, &mockOptions, nil)
 	assert.Nil(t, err)
 
-	assert.NotNil(t, terragruntConfig.Lock)
-	assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
-	lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
-	assert.Equal(t, "expected-state-file-id", lock.StateFileId)
-	assert.Equal(t, "expected-region", lock.AwsRegion)
-	assert.Equal(t, "expected-table-name", lock.TableName)
-	assert.Equal(t, 100, lock.MaxLockRetries)
+	if assert.NotNil(t, terragruntConfig.Terraform) {
+		assert.Equal(t, "foo", terragruntConfig.Terraform.Source)
+	}
 
-	assert.NotNil(t, terragruntConfig.RemoteState)
-	assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-	assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-	assert.Equal(t, "true", terragruntConfig.RemoteState.Config["encrypt"])
-	assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
-	assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
-	assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+	if assert.NotNil(t, terragruntConfig.Lock) {
+		assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
+		lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
+		assert.Equal(t, "expected-state-file-id", lock.StateFileId)
+		assert.Equal(t, "expected-region", lock.AwsRegion)
+		assert.Equal(t, "expected-table-name", lock.TableName)
+		assert.Equal(t, 100, lock.MaxLockRetries)
+	}
 
-	assert.NotNil(t, terragruntConfig.Dependencies)
-	assert.Equal(t, []string{"../vpc", "../mysql", "../backend-app"}, terragruntConfig.Dependencies.Paths)
+	if assert.NotNil(t, terragruntConfig.RemoteState) {
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
+		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
+		assert.Equal(t, "true", terragruntConfig.RemoteState.Config["encrypt"])
+		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
+		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
+		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+	}
+
+	if assert.NotNil(t, terragruntConfig.Dependencies) {
+		assert.Equal(t, []string{"../vpc", "../mysql", "../backend-app"}, terragruntConfig.Dependencies.Paths)
+	}
 }
 
 func TestParseTerragruntConfigInvalidLockBackend(t *testing.T) {
@@ -271,18 +296,22 @@ include = {
 
 	terragruntConfig, err := parseConfigString(config, &opts, nil)
 	if assert.Nil(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err)) {
-		assert.NotNil(t, terragruntConfig.Lock)
-		assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
-		lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
-		assert.Equal(t, "child/sub-child/sub-sub-child", lock.StateFileId)
+		assert.Nil(t, terragruntConfig.Terraform)
 
-		assert.NotNil(t, terragruntConfig.RemoteState)
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-		assert.Equal(t, "true", terragruntConfig.RemoteState.Config["encrypt"])
-		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
-		assert.Equal(t, "child/sub-child/sub-sub-child/terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
-		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+		if assert.NotNil(t, terragruntConfig.Lock) {
+			assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
+			lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
+			assert.Equal(t, "child/sub-child/sub-sub-child", lock.StateFileId)
+		}
+
+		if assert.NotNil(t, terragruntConfig.RemoteState) {
+			assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
+			assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
+			assert.Equal(t, "true", terragruntConfig.RemoteState.Config["encrypt"])
+			assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
+			assert.Equal(t, "child/sub-child/sub-sub-child/terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
+			assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+		}
 	}
 
 }
@@ -304,18 +333,23 @@ include = {
 
 	terragruntConfig, err := parseConfigString(config, &opts, nil)
 	if assert.Nil(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err)) {
-		assert.NotNil(t, terragruntConfig.Lock)
-		assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
-		lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
-		assert.Equal(t, "child/sub-child/sub-sub-child", lock.StateFileId)
+		assert.Nil(t, terragruntConfig.Terraform)
 
-		assert.NotNil(t, terragruntConfig.RemoteState)
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-		assert.Equal(t, "true", terragruntConfig.RemoteState.Config["encrypt"])
-		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
-		assert.Equal(t, "child/sub-child/sub-sub-child/terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
-		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+		if assert.NotNil(t, terragruntConfig.Lock) {
+			assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
+			lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
+			assert.Equal(t, "child/sub-child/sub-sub-child", lock.StateFileId)
+		}
+
+
+		if assert.NotNil(t, terragruntConfig.RemoteState) {
+			assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
+			assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
+			assert.Equal(t, "true", terragruntConfig.RemoteState.Config["encrypt"])
+			assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
+			assert.Equal(t, "child/sub-child/sub-sub-child/terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
+			assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+		}
 	}
 
 }
@@ -348,18 +382,22 @@ remote_state = {
 
 	terragruntConfig, err := parseConfigString(config, &opts, nil)
 	if assert.Nil(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err)) {
-		assert.NotNil(t, terragruntConfig.Lock)
-		assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
-		lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
-		assert.Equal(t, "child/sub-child/sub-sub-child", lock.StateFileId)
+		assert.Nil(t, terragruntConfig.Terraform)
 
-		assert.NotNil(t, terragruntConfig.RemoteState)
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["encrypt"])
-		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["bucket"])
-		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["key"])
-		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["region"])
+		if assert.NotNil(t, terragruntConfig.Lock) {
+			assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
+			lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
+			assert.Equal(t, "child/sub-child/sub-sub-child", lock.StateFileId)
+		}
+
+		if assert.NotNil(t, terragruntConfig.RemoteState) {
+			assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
+			assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
+			assert.Equal(t, "override", terragruntConfig.RemoteState.Config["encrypt"])
+			assert.Equal(t, "override", terragruntConfig.RemoteState.Config["bucket"])
+			assert.Equal(t, "override", terragruntConfig.RemoteState.Config["key"])
+			assert.Equal(t, "override", terragruntConfig.RemoteState.Config["region"])
+		}
 	}
 
 }
@@ -369,8 +407,12 @@ func TestParseTerragruntConfigIncludeOverrideAll(t *testing.T) {
 
 	config :=
 `
-include = {
+include {
   path = "../../../.terragrunt"
+}
+
+terraform {
+  source = "foo"
 }
 
 lock = {
@@ -381,7 +423,7 @@ lock = {
 }
 
 # Configure Terragrunt to automatically store tfstate files in an S3 bucket
-remote_state = {
+remote_state {
   backend = "s3"
   config {
     encrypt = "override"
@@ -391,7 +433,7 @@ remote_state = {
   }
 }
 
-dependencies = {
+dependencies {
   paths = ["override"]
 }
 `
@@ -403,18 +445,25 @@ dependencies = {
 
 	terragruntConfig, err := parseConfigString(config, &opts, nil)
 	if assert.Nil(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err)) {
-		assert.NotNil(t, terragruntConfig.Lock)
-		assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
-		lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
-		assert.Equal(t, "override", lock.StateFileId)
+		if assert.NotNil(t, terragruntConfig.Terraform) {
+			assert.Equal(t, "foo", terragruntConfig.Terraform.Source)
+		}
 
-		assert.NotNil(t, terragruntConfig.RemoteState)
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["encrypt"])
-		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["bucket"])
-		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["key"])
-		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["region"])
+		if assert.NotNil(t, terragruntConfig.Lock) {
+			assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
+			lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
+			assert.Equal(t, "override", lock.StateFileId)
+		}
+
+		if assert.NotNil(t, terragruntConfig.RemoteState) {
+			assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
+			assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
+			assert.Equal(t, "override", terragruntConfig.RemoteState.Config["encrypt"])
+			assert.Equal(t, "override", terragruntConfig.RemoteState.Config["bucket"])
+			assert.Equal(t, "override", terragruntConfig.RemoteState.Config["key"])
+			assert.Equal(t, "override", terragruntConfig.RemoteState.Config["region"])
+		}
+
 		assert.Equal(t, []string{"override"}, terragruntConfig.Dependencies.Paths)
 	}
 
@@ -501,23 +550,33 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 		},
 		{
 			&TerragruntConfig{},
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "bar"}},
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "bar"}},
+			&TerragruntConfig{Terraform: &TerraformConfig{Source: "foo"}},
+			&TerragruntConfig{Terraform: &TerraformConfig{Source: "foo"}},
+		},
+		{
+			&TerragruntConfig{},
+			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &TerraformConfig{Source: "foo"}},
+			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &TerraformConfig{Source: "foo"}},
 		},
 		{
 			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "foo"}},
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "bar"}},
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "foo"}, RemoteState: &remote.RemoteState{Backend: "bar"}},
+			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &TerraformConfig{Source: "foo"}},
+			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "foo"}, RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &TerraformConfig{Source: "foo"}},
 		},
 		{
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "foo"}, RemoteState: &remote.RemoteState{Backend: "foo"}},
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "bar"}},
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "foo"}, RemoteState: &remote.RemoteState{Backend: "foo"}},
+			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "foo"}, RemoteState: &remote.RemoteState{Backend: "foo"}, Terraform: &TerraformConfig{Source: "foo"}},
+			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &TerraformConfig{Source: "bar"}},
+			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "foo"}, RemoteState: &remote.RemoteState{Backend: "foo"}, Terraform: &TerraformConfig{Source: "foo"}},
 		},
 		{
 			&TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "foo"}},
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "bar"}},
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "foo"}},
+			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &TerraformConfig{Source: "bar"}},
+			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "foo"}, Terraform: &TerraformConfig{Source: "bar"}},
+		},
+		{
+			&TerragruntConfig{Terraform: &TerraformConfig{Source: "foo"}},
+			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &TerraformConfig{Source: "bar"}},
+			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &TerraformConfig{Source: "foo"}},
 		},
 	}
 
@@ -526,5 +585,48 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 		if assert.Nil(t, err, "Unexpected error for config %v and includeConfig %v: %v", testCase.config, testCase.includedConfig, err) {
 			assert.Equal(t, testCase.expected, actual, "For config %v and includeConfig %v", testCase.config, testCase.includedConfig)
 		}
+	}
+}
+
+func TestParseTerragruntConfigTerraformNoSource(t *testing.T) {
+	t.Parallel()
+
+	config :=
+`
+terraform {
+}
+`
+
+	terragruntConfig, err := parseConfigString(config, &mockOptions, nil)
+	assert.Nil(t, err)
+
+	assert.Nil(t, terragruntConfig.Lock)
+	assert.Nil(t, terragruntConfig.RemoteState)
+	assert.Nil(t, terragruntConfig.Dependencies)
+
+	if assert.NotNil(t, terragruntConfig.Terraform) {
+		assert.Empty(t, terragruntConfig.Terraform.Source)
+	}
+}
+
+func TestParseTerragruntConfigTerraformWithSource(t *testing.T) {
+	t.Parallel()
+
+	config :=
+`
+terraform {
+  source = "foo"
+}
+`
+
+	terragruntConfig, err := parseConfigString(config, &mockOptions, nil)
+	assert.Nil(t, err)
+
+	assert.Nil(t, terragruntConfig.Lock)
+	assert.Nil(t, terragruntConfig.RemoteState)
+	assert.Nil(t, terragruntConfig.Dependencies)
+
+	if assert.NotNil(t, terragruntConfig.Terraform) {
+		assert.Equal(t, "foo", terragruntConfig.Terraform.Source)
 	}
 }

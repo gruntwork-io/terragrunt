@@ -669,6 +669,105 @@ you've fixed the error, it's usually safe to re-run the `spin-up` or `tear-down`
 for the modules that already deployed successfully, and should only affect the ones that had an error the last time
 around.
 
+## Remote Terraform configurations
+
+Terragrunt has the ability to work with Terraform configurations that are not in your working directory. This is 
+especially useful if you have versioned all of your Terraform code and want to `apply` a specific version of it
+(see [Using Pipelines to Manage Environments with Infrastructure as 
+Code](https://medium.com/@kief/https-medium-com-kief-using-pipelines-to-manage-environments-with-infrastructure-as-code-b37285a1cbf5)).
+
+In your `.terragrunt` file, you can specify a `terraform` block with a `source` parameter that tells Terragrunt where 
+to find the Terraform configuration files:
+
+```hcl
+terraform {
+  source = "git::git@github.com:foo/bar.git//my-terraform-configurations?ref=v0.0.1"
+}
+```
+
+When Terragrunt finds a `terraform` block, it will:
+ 
+1. Download the configurations specified via the `source` parameter into a temporary folder. This is done using the
+   [terraform init command](https://www.terraform.io/docs/commands/init.html), so the `source` parameter supports the
+   exact same syntax as the [module source](https://www.terraform.io/docs/modules/sources.html) parameter, including
+   local file paths, Git URLs, and Git URLs with `ref` parameters (useful for checking out a specific tag, commit, or
+   branch of Git repo).
+1. Copy all files from the current working directory into the temporary folder. This is useful if you have `.tfvars`
+   files in your local path that you are using to set variables within your templates.
+1. Execute whatever Terraform command you specified in that temporary folder. **Note**: if you are passing any file
+   paths (other than paths to files in the current working directory) to Terraform via command-line options, those 
+   paths must be absolute paths since we will be running Terraform from the temporary folder!
+
+With this approach, you could define all of your Terraform code in one repo called, for example, 
+infrastructure-modules:
+
+```
+infrastructure-modules
+  └ frontend-app
+      └ main.tf
+      └ vars.tf
+      └ outputs.tf
+  └ backend-app
+  └ search-app
+  └ mysql
+  └ redis
+  └ vpc
+```
+
+You could then use this infrastructure in a separate repo called, for example, infrastructure-live, as follows:
+
+```
+infrastructure-live
+  └ stage
+    └ frontend-app
+        └ .terragrunt
+        └ terraform.tfvars
+    └ backend-app
+    └ search-app
+    └ mysql
+    └ redis
+    └ vpc
+  └ prod
+    └ frontend-app
+        └ .terragrunt
+        └ terraform.tfvars
+    └ backend-app
+    └ search-app
+    └ mysql
+    └ redis
+    └ vpc
+```
+
+Each `.terragrunt` file would set the `source` parameter to a specific version of the relevant module in 
+infrastructure-modules:
+
+```hcl
+terraform {
+  source = "git::git@github.com:my-company/infrastructure-modules.git//frontend-app?ref=v0.0.1"
+}
+```
+
+The `terraform.tfvars` files would provide all the variables needed for that module:
+
+```hcl
+app_name = "my-frontend-app"
+num_instances = 5
+instance_type = "m4.large"
+```
+
+Now, all of your infrastructure is versioned, and there is no duplication of Terraform code to use it across many
+environments. You just run `terragrunt apply` and Terragrunt will check out the specified version of the code and run
+`terraform apply` on it.
+
+Note that you can also use the `--terragrunt-source` command-line option and `TERRAGRUNT_SOURCE` environment variable
+to override the `source` parameter. This is useful to point Terragrunt at a local checkout of your code so you can do 
+rapid, iterative, make-a-change-and-rerun development:
+   
+```
+cd infrastructure-live/stage/frontend-app
+terragrunt apply --terragrunt-source ../../../infrastructure-modules/frontend-app
+```   
+
 ## CLI Options
 
 Terragrunt forwards all arguments and options to Terraform. The only exceptions are the options that start with the
@@ -684,6 +783,9 @@ prefix `--terragrunt-`. The currently available options are:
   current working directory. Note that for the `spin-up` and `tear-down` directories, this parameter has a different 
   meaning: Terragrunt will apply or destroy all the Terraform modules in the subfolders of the 
   `terragrunt-working-dir`, running `terraform` in the root of each module it finds.
+* `--terragrunt-source`: Check out templates from the specified source, which uses the [module 
+  source](https://www.terraform.io/docs/modules/sources.html) syntax, into a temporary folder, and run Terraform in
+  that temporary folder. May also be specified via the `TERRAGRUNT_SOURCE` environment variable.  
 
 ## Developing terragrunt
 

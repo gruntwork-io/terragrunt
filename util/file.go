@@ -104,6 +104,51 @@ func ReadFileAsString(path string) (string, error) {
 	return string(bytes), nil
 }
 
+// Copy the contents of the source folder into the destination folder
+func CopyFolder(source string, destination string) error {
+	return errors.WithStackTrace(filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if path == source {
+			return nil
+		}
+
+		if info.IsDir() {
+			if err := os.MkdirAll(filepath.Join(destination, path), info.Mode()); err != nil {
+				return err
+			}
+		} else {
+			if err := CopyFile(path, filepath.Join(destination, path)); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}))
+}
+
+// Copy a file from source to destination
+func CopyFile(source string, destination string) error {
+	contents, err := ioutil.ReadFile(source)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	return WriteFileWithSamePermissions(source, destination, contents)
+}
+
+// Write a file to the given destination with the given contents using the same permissions as the file at source
+func WriteFileWithSamePermissions(source string, destination string, contents []byte) error {
+	fileInfo, err := os.Stat(source)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	return ioutil.WriteFile(destination, contents, fileInfo.Mode())
+}
+
 // Windows systems use \ as the path separator *nix uses /
 // Use this function when joining paths to force the returned path to use / as the path separator
 // This will improve cross-platform compatibility
