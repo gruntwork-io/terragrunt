@@ -22,6 +22,7 @@ const OPT_WORKING_DIR = "terragrunt-working-dir"
 var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE}
 var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_TFPATH, OPT_WORKING_DIR}
 
+const CMD_SETUP_STATE = "setup-state"
 const CMD_ACQUIRE_LOCK = "acquire-lock"
 const CMD_RELEASE_LOCK = "release-lock"
 const CMD_SPIN_UP = "spin-up"
@@ -45,6 +46,7 @@ COMMANDS:
    remote push          Acquire a lock and run 'terraform remote push'
    acquire-lock         Acquire a long-term lock for these templates
    release-lock         Release a long-term lock or a lock that failed to clean up
+   setup-state          Configure the terraform remote state
    spin-up              Spin up a 'stack' by running 'terragrunt apply' in each subfolder
    tear-down            Tear down a 'stack' by running 'terragrunt destroy' in each subfolder
    *                    Terragrunt forwards all other commands directly to Terraform
@@ -194,7 +196,7 @@ func configureRemoteState(remoteState *remote.RemoteState, terragruntOptions *op
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
 	switch firstArg(terragruntOptions.TerraformCliArgs) {
-	case "apply", "destroy", "import", "graph", "output", "plan", "push", "refresh", "show", "taint", "untaint", "validate":
+	case CMD_SETUP_STATE, "apply", "destroy", "import", "graph", "output", "plan", "push", "refresh", "show", "taint", "untaint", "validate":
 		return remoteState.ConfigureRemoteState(terragruntOptions)
 	case "remote":
 		if secondArg(terragruntOptions.TerraformCliArgs) == "config" {
@@ -222,6 +224,8 @@ func runTerraformCommandWithLock(lock locks.Lock, terragruntOptions *options.Ter
 		} else {
 			return runTerraformCommand(terragruntOptions)
 		}
+	case CMD_SETUP_STATE:
+		return nil // Nothing to do
 	case CMD_ACQUIRE_LOCK:
 		return acquireLock(lock, terragruntOptions)
 	case CMD_RELEASE_LOCK:
