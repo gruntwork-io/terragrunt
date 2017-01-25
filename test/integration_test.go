@@ -139,7 +139,7 @@ func TestRemoteCheckout(t *testing.T) {
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_REMOTE_CHECKOUT_PATH)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_CHECKOUT_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_REMOTE_CHECKOUT_PATH))
 }
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
