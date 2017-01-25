@@ -20,8 +20,9 @@ const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
 const OPT_TERRAGRUNT_TFPATH = "terragrunt-tfpath"
 const OPT_NON_INTERACTIVE = "terragrunt-non-interactive"
 const OPT_WORKING_DIR = "terragrunt-working-dir"
+const OPT_TERRAGRUNT_SOURCE = "terragrunt-source"
 var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE}
-var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_TFPATH, OPT_WORKING_DIR}
+var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_TFPATH, OPT_WORKING_DIR, OPT_TERRAGRUNT_SOURCE}
 
 const CMD_ACQUIRE_LOCK = "acquire-lock"
 const CMD_RELEASE_LOCK = "release-lock"
@@ -55,6 +56,7 @@ GLOBAL OPTIONS:
    terragrunt-tfpath             Path to the Terraform binary. Default is terraform (on PATH).
    terragrunt-non-interactive    Assume "yes" for all prompts.
    terragrunt-working-dir        The path to the Terraform templates. Default is current directory.
+   terragrunt-source             Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder
 
 VERSION:
    {{.Version}}{{if len .Authors}}
@@ -135,7 +137,13 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
-	if conf.Terraform != nil && len(conf.Terraform.Source) > 0 {
+	if terragruntOptions.Source != "" {
+		if err := checkoutTerraformSource(terragruntOptions.Source, terragruntOptions); err != nil {
+			return err
+		}
+	}
+
+	if terragruntOptions.Source == "" && conf.Terraform != nil && len(conf.Terraform.Source) > 0 {
 		if err := checkoutTerraformSource(conf.Terraform.Source, terragruntOptions); err != nil {
 			return err
 		}

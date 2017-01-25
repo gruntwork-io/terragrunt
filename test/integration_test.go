@@ -35,6 +35,7 @@ const (
 	TEST_FIXTURE_STACK                  = "fixture-stack/"
 	TEST_FIXTURE_LOCAL_CHECKOUT_PATH    = "fixture-checkout/local"
 	TEST_FIXTURE_REMOTE_CHECKOUT_PATH   = "fixture-checkout/remote"
+	TEST_FIXTURE_OVERRIDE_CHECKOUT_PATH = "fixture-checkout/override"
 	TERRAFORM_FOLDER                    = ".terraform"
 	TERRAFORM_STATE                     = "terraform.tfstate"
 	TERRAFORM_STATE_BACKUP              = "terraform.tfstate.backup"
@@ -140,6 +141,14 @@ func TestRemoteCheckout(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_REMOTE_CHECKOUT_PATH)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_REMOTE_CHECKOUT_PATH))
+}
+
+func TestRemoteCheckoutOverride(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_OVERRIDE_CHECKOUT_PATH)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", TEST_FIXTURE_OVERRIDE_CHECKOUT_PATH, "../hello-world"))
 }
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {

@@ -55,6 +55,11 @@ func parseTerragruntOptionsFromArgs(args []string) (*options.TerragruntOptions, 
 		terraformPath = "terraform"
 	}
 
+	terraformSource, err := parseStringArg(args, OPT_TERRAGRUNT_SOURCE, os.Getenv("TERRAGRUNT_SOURCE"))
+	if err != nil {
+		return nil, err
+	}
+
 	return &options.TerragruntOptions{
 		TerragruntConfigPath: filepath.ToSlash(terragruntConfigPath),
 		TerraformPath: filepath.ToSlash(terraformPath),
@@ -63,6 +68,7 @@ func parseTerragruntOptionsFromArgs(args []string) (*options.TerragruntOptions, 
 		WorkingDir: filepath.ToSlash(workingDir),
 		Logger: util.CreateLogger(""),
 		RunTerragrunt: runTerragrunt,
+		Source: terraformSource,
 		Env: parseEnvironmentVariables(os.Environ()),
 	}, nil
 }

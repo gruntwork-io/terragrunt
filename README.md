@@ -783,9 +783,10 @@ prefix `--terragrunt-`. The currently available options are:
   current working directory. Note that for the `spin-up` and `tear-down` directories, this parameter has a different 
   meaning: Terragrunt will apply or destroy all the Terraform modules in the subfolders of the 
   `terragrunt-working-dir`, running `terraform` in the root of each module it finds.
-* `--terragrunt-source`: Check out templates from the specified source, which uses the [module 
-  source](https://www.terraform.io/docs/modules/sources.html) syntax, into a temporary folder, and run Terraform in
-  that temporary folder. May also be specified via the `TERRAGRUNT_SOURCE` environment variable.  
+* `--terragrunt-source`: Download Terraform configurations from the specified source into a temporary folder, and run 
+  Terraform in that temporary folder. May also be specified via the `TERRAGRUNT_SOURCE` environment variable. The 
+  source should use the same syntax as the [Terraform module source](https://www.terraform.io/docs/modules/sources.html) 
+  parameter.  
 
 ## Developing terragrunt
 
