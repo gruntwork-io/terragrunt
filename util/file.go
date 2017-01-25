@@ -104,29 +104,33 @@ func ReadFileAsString(path string) (string, error) {
 	return string(bytes), nil
 }
 
-// Copy the contents of the source folder into the destination folder
-func CopyFolder(source string, destination string) error {
-	return errors.WithStackTrace(filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
+// Copy the files and folders within the source folder into the destination folder
+func CopyFolderContents(source string, destination string) error {
+	files, err := ioutil.ReadDir(source)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
 
-		if path == source {
-			return nil
-		}
+	for _, file := range files {
+		src := filepath.Join(source, file.Name())
+		dest := filepath.Join(destination, file.Name())
 
-		if info.IsDir() {
-			if err := os.MkdirAll(filepath.Join(destination, path), info.Mode()); err != nil {
+		if file.IsDir() {
+			if err := os.MkdirAll(dest, file.Mode()); err != nil {
+				return errors.WithStackTrace(err)
+			}
+
+			if err := CopyFolderContents(src, dest); err != nil {
 				return err
 			}
 		} else {
-			if err := CopyFile(path, filepath.Join(destination, path)); err != nil {
+			if err := CopyFile(src, dest); err != nil {
 				return err
 			}
 		}
+	}
 
-		return nil
-	}))
+	return nil
 }
 
 // Copy a file from source to destination

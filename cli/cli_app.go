@@ -233,7 +233,7 @@ func checkoutTerraformSource(source string, terragruntOptions *options.Terragrun
 	}
 
 	terragruntOptions.Logger.Printf("Copying files from %s into %s", terragruntOptions.WorkingDir, tmpFolder)
-	if err := util.CopyFolder(terragruntOptions.WorkingDir, tmpFolder); err != nil {
+	if err := util.CopyFolderContents(terragruntOptions.WorkingDir, tmpFolder); err != nil {
 		return err
 	}
 
