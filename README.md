@@ -718,11 +718,11 @@ infrastructure-modules
 
 This repo contains typical Terraform code, with one difference: anything in your code that should be different between 
 environments should be exposed as an input variable. For example, the frontend-app might expose a variable called
-`instance_count` to determine how many instance to run and `instance_type` to determine what kind of server to deploy,
+`instance_count` to determine how many instances to run and `instance_type` to determine what kind of server to deploy,
 as you may want to run smaller/fewer servers in staging than in prod to save money.
 
 In a separate repo, called, for example, infrastructure-live, you define the code for all of your environments, which
-now consists of just two files:
+now consists of just two files per component:
 
 1. `terraform.tfvars`: This file defines the environment-specific values for all of your input variables. For example,
    for `stage/frontend-app/terraform.tfvars`, you might have:
@@ -792,7 +792,7 @@ Just as importantly, since the Terraform code is now defined in a single repo, y
 tags and referencing them using the `ref` parameter in the `source` URL), and promote a single, immutable version 
 through each environment (e.g. qa -> stage -> prod). This idea is inspired by Kief Morris' blog post [Using Pipelines 
 to Manage Environments with Infrastructure as 
-Code](https://medium.com/@kief/https-medium-com-kief-using-pipelines-to-manage-environments-with-infrastructure-as-code-b37285a1cbf5)).
+Code](https://medium.com/@kief/https-medium-com-kief-using-pipelines-to-manage-environments-with-infrastructure-as-code-b37285a1cbf5).
 
 Note that you can also use the `--terragrunt-source` command-line option or the `TERRAGRUNT_SOURCE` environment variable
 to override the `source` parameter. This is useful to point Terragrunt at a local checkout of your code so you can do 
