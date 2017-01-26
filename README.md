@@ -698,7 +698,7 @@ For each environment, you have to copy/paste `main.tf`, `vars.tf`, and `outputs.
 frontend-app, backend-app, vpc, etc). As the number of components and environments grows, having to maintain more and 
 more code can become error prone. You can significantly reduce the amount of copy paste using [Terraform 
 modules](https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d), but even 
-the code to use the module module and set up input variables, output variables, providers, and remote state can still
+the code to instantiate the module and set up input variables, output variables, providers, and remote state can still
 create a lot of maintenance overhead.  
 
 To solve this problem, Terragrunt has the ability to download Terraform configurations. How does that help? Well, 
