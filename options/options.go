@@ -31,6 +31,10 @@ type TerragruntOptions struct {
 	// Environment variables at runtime
 	Env                  map[string]string
 
+	// Download Terraform configurations from the specified source location into a temporary folder and run
+	// Terraform in that temporary folder
+	Source               string
+
 	// A command that can be used to run Terragrunt with the given options. This is useful for running Terragrunt
 	// multiple times (e.g. when spinning up a stack of Terraform modules). The actual command is normally defined
 	// in the cli package, which depends on almost all other packages, so we declare it here so that other
@@ -50,6 +54,8 @@ func NewTerragruntOptions(terragruntConfigPath string) *TerragruntOptions {
 		TerraformCliArgs: []string{},
 		WorkingDir: workingDir,
 		Logger: util.CreateLogger(""),
+		Env: map[string]string{},
+		Source: "",
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
@@ -77,6 +83,8 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		TerraformCliArgs: terragruntOptions.TerraformCliArgs,
 		WorkingDir: workingDir,
 		Logger: util.CreateLogger(workingDir),
+		Env: terragruntOptions.Env,
+		Source: terragruntOptions.Source,
 		RunTerragrunt: terragruntOptions.RunTerragrunt,
 	}
 }

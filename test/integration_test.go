@@ -33,7 +33,12 @@ const (
 	TEST_FIXTURE_INCLUDE_PATH           = "fixture-include/"
 	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH = "qa/my-app"
 	TEST_FIXTURE_STACK                  = "fixture-stack/"
+	TEST_FIXTURE_LOCAL_CHECKOUT_PATH    = "fixture-checkout/local"
+	TEST_FIXTURE_REMOTE_CHECKOUT_PATH   = "fixture-checkout/remote"
+	TEST_FIXTURE_OVERRIDE_CHECKOUT_PATH = "fixture-checkout/override"
 	TERRAFORM_FOLDER                    = ".terraform"
+	TERRAFORM_STATE                     = "terraform.tfstate"
+	TERRAFORM_STATE_BACKUP              = "terraform.tfstate.backup"
 	DEFAULT_TEST_REGION                 = "us-east-1"
 )
 
@@ -122,14 +127,49 @@ func TestTerragruntSpinUpAndTearDown(t *testing.T) {
 	runTerragrunt(t, fmt.Sprintf("terragrunt tear-down --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", mgmtEnvironmentPath, s3BucketName))
 }
 
-func cleanupTerraformFolder(t *testing.T, templatesPath string) {
-	terraformFolder := util.JoinPath(templatesPath, TERRAFORM_FOLDER)
-	if !util.FileExists(terraformFolder) {
-		return
-	}
+func TestLocalCheckout(t *testing.T) {
+	t.Parallel()
 
-	if err := os.RemoveAll(terraformFolder); err != nil {
-		t.Fatalf("Error while removing %s folder: %v", terraformFolder, err)
+	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_CHECKOUT_PATH)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_CHECKOUT_PATH))
+}
+
+func TestRemoteCheckout(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_REMOTE_CHECKOUT_PATH)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_REMOTE_CHECKOUT_PATH))
+}
+
+func TestRemoteCheckoutOverride(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_OVERRIDE_CHECKOUT_PATH)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", TEST_FIXTURE_OVERRIDE_CHECKOUT_PATH, "../hello-world"))
+}
+
+func cleanupTerraformFolder(t *testing.T, templatesPath string) {
+	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE))
+	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE_BACKUP))
+	removeFolder(t, util.JoinPath(templatesPath, TERRAFORM_FOLDER))
+}
+
+func removeFile(t *testing.T, path string) {
+	if util.FileExists(path) {
+		if err := os.Remove(path); err != nil {
+			t.Fatalf("Error while removing %s: %v", path, err)
+		}
+	}
+}
+
+func removeFolder(t *testing.T, path string) {
+	if util.FileExists(path) {
+		if err := os.RemoveAll(path); err != nil {
+			t.Fatalf("Error while removing %s: %v", path, err)
+		}
 	}
 }
 

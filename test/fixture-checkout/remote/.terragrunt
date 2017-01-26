@@ -1,0 +1,4 @@
+# TODO: update the ref from a branch name to a specific release of Terragrunt as soon as this test is merged into master!
+terraform {
+  source = "github.com/gruntwork-io/terragrunt.git//test/fixture-checkout/hello-world?ref=checkout"
+}
