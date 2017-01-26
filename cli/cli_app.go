@@ -127,14 +127,8 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
-	if terragruntOptions.Source != "" {
-		if err := checkoutTerraformSource(terragruntOptions.Source, terragruntOptions); err != nil {
-			return err
-		}
-	}
-
-	if terragruntOptions.Source == "" && conf.Terraform != nil && len(conf.Terraform.Source) > 0 {
-		if err := checkoutTerraformSource(conf.Terraform.Source, terragruntOptions); err != nil {
+	if sourceUrl, hasSourceUrl := getTerraformSourceUrl(terragruntOptions, conf); hasSourceUrl {
+		if err := checkoutTerraformSource(sourceUrl, terragruntOptions); err != nil {
 			return err
 		}
 	}
@@ -155,6 +149,19 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	return runTerraformCommandWithLock(conf.Lock, terragruntOptions)
+}
+
+// There are two ways a user can tell Terragrunt that it needs to download Terraform configurations from a specific
+// URL: via a command-line option or via an entry in the .terragrunt config file. If the user used one of these, this
+// method returns the source URL and the boolean true; if not, this method returns an empty string and false.
+func getTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (string, bool) {
+	if terragruntOptions.Source != "" {
+		return terragruntOptions.Source, true
+	} else if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.Source != "" {
+		return terragruntConfig.Terraform.Source, true
+	} else {
+		return "", false
+	}
 }
 
 // Returns true if the command the user wants to execute is supposed to affect multiple Terraform modules, such as the
