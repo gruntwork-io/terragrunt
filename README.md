@@ -682,9 +682,7 @@ infrastructure-live
         └ vars.tf
         └ outputs.tf
     └ backend-app
-    └ search-app
     └ mysql
-    └ redis
     └ vpc
   └ prod
     └ frontend-app
@@ -692,9 +690,7 @@ infrastructure-live
         └ vars.tf
         └ outputs.tf
     └ backend-app
-    └ search-app
     └ mysql
-    └ redis
     └ vpc
 ```
 
@@ -716,9 +712,7 @@ infrastructure-modules
       └ vars.tf
       └ outputs.tf
   └ backend-app
-  └ search-app
   └ mysql
-  └ redis
   └ vpc
 ```
 
@@ -756,18 +750,14 @@ infrastructure-live
         └ .terragrunt
         └ terraform.tfvars
     └ backend-app
-    └ search-app
     └ mysql
-    └ redis
     └ vpc
   └ prod
     └ frontend-app
         └ .terragrunt
         └ terraform.tfvars
     └ backend-app
-    └ search-app
     └ mysql
-    └ redis
     └ vpc
 ```
  
