@@ -46,6 +46,16 @@ func CanonicalPaths(paths []string, basePath string) ([]string, error) {
 	return canonicalPaths, nil
 }
 
+// Delete the given list of files
+func DeleteFiles(files []string) error {
+	for _, file := range files {
+		if err := os.Remove(file); err != nil {
+			return errors.WithStackTrace(err)
+		}
+	}
+	return nil
+}
+
 // Returns true if the given regex can be found in any of the files matched by the given glob
 func Grep(regex *regexp.Regexp, glob string) (bool, error) {
 	matches, err := filepath.Glob(glob)

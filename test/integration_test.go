@@ -133,6 +133,9 @@ func TestLocalCheckout(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_CHECKOUT_PATH)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_CHECKOUT_PATH))
+
+	// Run a second time to make sure the temporary folder can be reused without errors
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_CHECKOUT_PATH))
 }
 
 func TestRemoteCheckout(t *testing.T) {
@@ -141,6 +144,9 @@ func TestRemoteCheckout(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_REMOTE_CHECKOUT_PATH)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_REMOTE_CHECKOUT_PATH))
+
+	// Run a second time to make sure the temporary folder can be reused without errors
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_REMOTE_CHECKOUT_PATH))
 }
 
 func TestRemoteCheckoutOverride(t *testing.T) {
@@ -148,6 +154,9 @@ func TestRemoteCheckoutOverride(t *testing.T) {
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_OVERRIDE_CHECKOUT_PATH)
 
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", TEST_FIXTURE_OVERRIDE_CHECKOUT_PATH, "../hello-world"))
+
+	// Run a second time to make sure the temporary folder can be reused without errors
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", TEST_FIXTURE_OVERRIDE_CHECKOUT_PATH, "../hello-world"))
 }
 
