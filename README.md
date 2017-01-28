@@ -140,8 +140,9 @@ using AWS. We take no responsibility for any charges you may incur.
 To use DynamoDB for locking, you must:
 
 1. Set your AWS credentials in the environment using one of the following options:
-    1. Set your credentials as the environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (and also `AWS_SESSION_TOKEN` if using [STS temporary credentials](http://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html)), or et the environment variable `AWS_PROFILE`.
-    1. Specify the profile using the `aws_profile` key in `.terragrunt` (see below).
+    1. Set your credentials as the environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (and also `AWS_SESSION_TOKEN` if using [STS temporary credentials](http://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html)).
+    1. Specify the AWS profile to use using the environment variable `AWS_PROFILE`.
+    1. Specify the AWS profile to use using the `aws_profile` key in `.terragrunt` (see below).
     1. Run `aws configure` and fill in the details it asks for.
     1. Run Terragrunt on an EC2 instance with an IAM Role.
 1. Your AWS user must have an [IAM 
@@ -176,9 +177,9 @@ lock = {
   config {
     state_file_id = "my-app"
     aws_region = "us-east-1"
-    aws_profile = "production"
     table_name = "terragrunt_locks"
     max_lock_retries = 360
+    aws_profile = "production"    
   }
 }
 ```
@@ -191,6 +192,7 @@ lock = {
   `terragrunt_locks`.
 * `max_lock_retries`: (Optional) The maximum number of times to retry acquiring a lock. Terragrunt waits 10 seconds
   between retries. Default: 360 retries (one hour).
+* `aws_profile`: (Optional) The AWS login profile to use.  
 
 #### How DynamoDB locking works
 
