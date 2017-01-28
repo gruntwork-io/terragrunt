@@ -140,14 +140,16 @@ using AWS. We take no responsibility for any charges you may incur.
 To use DynamoDB for locking, you must:
 
 1. Set your AWS credentials in the environment using one of the following options:
-    1. Set your credentials as the environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (and also `AWS_SESSION_TOKEN` if using [STS temporary credentials](http://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html))
+    1. Set your credentials as the environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (and also `AWS_SESSION_TOKEN` if using [STS temporary credentials](http://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html)).
+    1. Specify the AWS profile to use using the environment variable `AWS_PROFILE`.
+    1. Specify the AWS profile to use using the `aws_profile` key in `.terragrunt` (see below).
     1. Run `aws configure` and fill in the details it asks for.
     1. Run Terragrunt on an EC2 instance with an IAM Role.
 1. Your AWS user must have an [IAM 
    policy](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/access-control-identity-based.html) 
    granting all DynamoDB actions (`dynamodb:*`) on the table `terragrunt_locks` (see the
    [DynamoDB locking configuration](#dynamodb-locking-configuration) for how to configure this table name).
-   
+
    Here is an example IAM policy that grants the necessary permissions on the `terragrunt_locks` table in region `us-west-2` for
    an account with account id `1234567890`:
 
@@ -177,6 +179,7 @@ lock = {
     aws_region = "us-east-1"
     table_name = "terragrunt_locks"
     max_lock_retries = 360
+    aws_profile = "production"    
   }
 }
 ```
@@ -189,6 +192,7 @@ lock = {
   `terragrunt_locks`.
 * `max_lock_retries`: (Optional) The maximum number of times to retry acquiring a lock. Terragrunt waits 10 seconds
   between retries. Default: 360 retries (one hour).
+* `aws_profile`: (Optional) The AWS login profile to use.  
 
 #### How DynamoDB locking works
 
@@ -257,6 +261,8 @@ remote_state = {
 * `config`: (Optional) A map of additional key/value pairs to pass to the backend. Each backend requires
   different key/value pairs, so consult the [Terraform remote state docs](https://www.terraform.io/docs/state/remote/)
   for details.
+  
+  > Note: Terragrunt will use the value provided in the `profile` key to configure the AWS SDK when using the S3 backend.
 
 ## Managing multiple .terragrunt files
 

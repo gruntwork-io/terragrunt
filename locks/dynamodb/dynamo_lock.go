@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -16,6 +15,7 @@ import (
 type DynamoDbLock struct {
 	StateFileId    string
 	AwsRegion      string
+	AwsProfile     string
 	TableName      string
 	MaxLockRetries int
 }
@@ -25,6 +25,7 @@ func New(conf map[string]string) (locks.Lock, error) {
 	lock := &DynamoDbLock{
 		StateFileId:    conf["state_file_id"],
 		AwsRegion:      conf["aws_region"],
+		AwsProfile:     conf["aws_profile"],
 		TableName:      conf["table_name"],
 		MaxLockRetries: 0,
 	}
@@ -65,7 +66,7 @@ func (dynamoLock *DynamoDbLock) fillDefaults() {
 func (dynamoDbLock DynamoDbLock) AcquireLock(terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Attempting to acquire lock for state file %s in DynamoDB", dynamoDbLock.StateFileId)
 
-	client, err := createDynamoDbClient(dynamoDbLock.AwsRegion)
+	client, err := createDynamoDbClient(dynamoDbLock.AwsRegion, dynamoDbLock.AwsProfile)
 	if err != nil {
 		return err
 	}
@@ -81,7 +82,7 @@ func (dynamoDbLock DynamoDbLock) AcquireLock(terragruntOptions *options.Terragru
 func (dynamoDbLock DynamoDbLock) ReleaseLock(terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Attempting to release lock for state file %s in DynamoDB", dynamoDbLock.StateFileId)
 
-	client, err := createDynamoDbClient(dynamoDbLock.AwsRegion)
+	client, err := createDynamoDbClient(dynamoDbLock.AwsRegion, dynamoDbLock.AwsProfile)
 	if err != nil {
 		return err
 	}
@@ -100,13 +101,13 @@ func (dynamoLock DynamoDbLock) String() string {
 }
 
 // Create an authenticated client for DynamoDB
-func createDynamoDbClient(awsRegion string) (*dynamodb.DynamoDB, error) {
-	config, err := aws_helper.CreateAwsConfig(awsRegion)
+func createDynamoDbClient(awsRegion, awsProfile string) (*dynamodb.DynamoDB, error) {
+	session, err := aws_helper.CreateAwsSession(awsRegion, awsProfile)
 	if err != nil {
 		return nil, err
 	}
 
-	return dynamodb.New(session.New(), config), nil
+	return dynamodb.New(session), nil
 }
 
 var StateFileIdMissing = fmt.Errorf("state_file_id cannot be empty")

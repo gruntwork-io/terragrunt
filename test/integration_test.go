@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
@@ -291,10 +290,9 @@ func uniqueId() string {
 	return out.String()
 }
 
-
 // Check that the S3 Bucket of the given name and region exists. Terragrunt should create this bucket during the test.
 func validateS3BucketExists(t *testing.T, awsRegion string, bucketName string) {
-	s3Client, err := remote.CreateS3Client(awsRegion)
+	s3Client, err := remote.CreateS3Client(awsRegion, "")
 	if err != nil {
 		t.Fatalf("Error creating S3 client: %v", err)
 	}
@@ -305,7 +303,7 @@ func validateS3BucketExists(t *testing.T, awsRegion string, bucketName string) {
 
 // Delete the specified S3 bucket to clean up after a test
 func deleteS3Bucket(t *testing.T, awsRegion string, bucketName string) {
-	s3Client, err := remote.CreateS3Client(awsRegion)
+	s3Client, err := remote.CreateS3Client(awsRegion, "")
 	if err != nil {
 		t.Fatalf("Error creating S3 client: %v", err)
 	}
@@ -341,17 +339,17 @@ func deleteS3Bucket(t *testing.T, awsRegion string, bucketName string) {
 }
 
 // Create an authenticated client for DynamoDB
-func createDynamoDbClient(awsRegion string) (*dynamodb.DynamoDB, error) {
-	config, err := aws_helper.CreateAwsConfig(awsRegion)
+func createDynamoDbClient(awsRegion, awsProfile string) (*dynamodb.DynamoDB, error) {
+	session, err := aws_helper.CreateAwsSession(awsRegion, awsProfile)
 	if err != nil {
 		return nil, err
 	}
 
-	return dynamodb.New(session.New(), config), nil
+	return dynamodb.New(session), nil
 }
 
 func createDynamoDbClientForTest(t *testing.T) *dynamodb.DynamoDB {
-	client, err := createDynamoDbClient(DEFAULT_TEST_REGION)
+	client, err := createDynamoDbClient(DEFAULT_TEST_REGION, "")
 	if err != nil {
 		t.Fatal(err)
 	}

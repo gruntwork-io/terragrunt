@@ -5,7 +5,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/aws"
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -19,6 +18,7 @@ type RemoteStateConfigS3 struct {
 	Bucket  string
 	Key     string
 	Region  string
+	Profile string
 }
 
 const MAX_RETRIES_WAITING_FOR_S3_BUCKET = 12
@@ -36,7 +36,7 @@ func InitializeRemoteStateS3(config map[string]string, terragruntOptions *option
 		return err
 	}
 
-	s3Client, err := CreateS3Client(s3Config.Region)
+	s3Client, err := CreateS3Client(s3Config.Region, s3Config.Profile)
 	if err != nil {
 		return err
 	}
@@ -176,13 +176,13 @@ func DoesS3BucketExist(s3Client *s3.S3, config *RemoteStateConfigS3) bool {
 }
 
 // Create an authenticated client for DynamoDB
-func CreateS3Client(awsRegion string) (*s3.S3, error) {
-	config, err := aws_helper.CreateAwsConfig(awsRegion)
+func CreateS3Client(awsRegion, awsProfile string) (*s3.S3, error) {
+	session, err := aws_helper.CreateAwsSession(awsRegion, awsProfile)
 	if err != nil {
 		return nil, err
 	}
 
-	return s3.New(session.New(), config), nil
+	return s3.New(session), nil
 }
 
 // Custom error types
