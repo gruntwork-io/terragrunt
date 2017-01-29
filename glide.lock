@@ -1,43 +1,102 @@
-hash: 86932a90d9bfe69d9f4a0bbf6e103c3b0670d47e8e1e2176fdd0b2637257d3a9
-updated: 2017-01-05T10:16:18.659229152-08:00
+hash: b50c74fff3d496405d1bc9dadfb044d56f1557317f22e34c186b8744af9acaa0
+updated: 2017-01-29T17:21:51.671174219Z
 imports:
 - name: github.com/aws/aws-sdk-go
-  version: 8649d278323ebf6bd20c9cd56ecb152b1c617375
+  version: 2ae1f45d01cdc7316a4d6c518c21a6d9d81a4970
   subpackages:
   - aws
-  - aws/awserr
-  - aws/awsutil
-  - aws/client
-  - aws/client/metadata
-  - aws/corehandlers
-  - aws/credentials
-  - aws/credentials/ec2rolecreds
-  - aws/credentials/endpointcreds
-  - aws/credentials/stscreds
   - aws/defaults
-  - aws/ec2metadata
-  - aws/endpoints
-  - aws/request
+  - aws/session
+  - aws/awserr
   - aws/service/dynamodb
   - aws/service/s3
-  - aws/session
-  - aws/signer/v4
-  - private/protocol
-  - private/protocol/json/jsonutil
-  - private/protocol/jsonrpc
-  - private/protocol/query
-  - private/protocol/query/queryutil
-  - private/protocol/rest
-  - private/protocol/restxml
-  - private/protocol/xml/xmlutil
-  - private/waiter
   - service/dynamodb
-  - service/kms
-  - service/kms/kmsiface
-  - service/s3
-  - service/s3/s3iface
-  - service/s3/s3manager
   - service/sts
+  - service/s3
+  - aws/credentials
+  - aws/credentials/ec2rolecreds
+  - aws/ec2metadata
+  - aws/endpoints
+  - aws/client/metadata
+  - aws/request
+  - private/protocol/rest
+  - awsmigrate/awsmigrate-renamer/rename
+  - private/model/api
+  - private/util
+  - service/kms
+  - service/s3/s3crypto
+  - service/acm
+  - service/apigateway
+  - service/applicationdiscoveryservice
+  - service/autoscaling
+  - service/cloudformation
+  - service/cloudfront
+  - service/cloudhsm
+  - service/cloudsearch
+  - service/cloudtrail
+  - service/cloudwatch
+  - service/cloudwatchlogs
+  - service/codecommit
+  - service/codedeploy
+  - service/codepipeline
+  - service/cognitoidentity
+  - service/cognitosync
+  - service/configservice
+  - service/datapipeline
+  - service/devicefarm
+  - service/directconnect
+  - service/directoryservice
+  - service/dynamodbstreams
+  - service/ec2
+  - service/ecs
+  - service/efs
+  - service/elasticache
+  - service/elasticbeanstalk
+  - service/elb
+  - service/elastictranscoder
+  - service/emr
+  - service/elasticsearchservice
+  - service/glacier
+  - service/iam
+  - service/iot
+  - service/iotdataplane
+  - service/kinesis
+  - service/lambda
+  - service/machinelearning
+  - service/opsworks
+  - service/rds
+  - service/redshift
+  - service/route53
+  - service/route53domains
+  - service/ses
+  - service/simpledb
+  - service/sns
+  - service/sqs
+  - service/ssm
+  - service/storagegateway
+  - service/support
+  - service/swf
+  - service/waf
+  - service/workspaces
+  - awstesting/unit
+  - service/cloudsearchdomain
+  - service/cloudwatchevents
+  - service/dynamodb/dynamodbattribute
+  - service/ecr
+  - service/firehose
+  - service/inspector
+  - service/marketplacecommerceanalytics
+  - service/mobileanalytics
+  - service/cloudfront/sign
+  - service/dynamodb/dynamodbiface
+  - service/sqs/sqsiface
+  - private/protocol/query/queryutil
+  - private/protocol/xml/xmlutil
+  - service/s3/s3iface
+- name: github.com/bgentry/go-netrc
+  version: 9fd32a8b3d3d3f9d43c341bfe098430e07609480
+  subpackages:
+  - netrc
 - name: github.com/BurntSushi/toml
   version: 99064174e013895bbd9b025c31100bd1d9b590ca
 - name: github.com/davecgh/go-spew
@@ -47,37 +106,85 @@ imports:
 - name: github.com/go-errors/errors
   version: 8fa88b06e5974e97fbf9899a7f86a344bfd1f105
 - name: github.com/go-ini/ini
-  version: 6f66b0e091edb3c7b380f7c4f0f884274d550b67
+  version: e3c2d47c61e5333f9aa2974695dd94396eb69c75
+- name: github.com/gucumber/gucumber
+  version: 71608e2f6e76fd4da5b09a376aeec7a5c0b5edbc
+  subpackages:
+  - gherkin
+- name: github.com/hashicorp/go-getter
+  version: cc80f38c726badeae53775d179755e1c4953d6cf
+  subpackages:
+  - helper/url
+- name: github.com/hashicorp/go-version
+  version: e96d3840402619007766590ecea8dd7af1292276
 - name: github.com/hashicorp/hcl
-  version: 80e628d796135357b3d2e33a985c666b9f35eee1
+  version: db4f0768927a665a06c32855186e1bc762bcc8f5
   subpackages:
   - hcl/ast
   - hcl/parser
-  - hcl/printer
-  - hcl/scanner
-  - hcl/strconv
   - hcl/token
   - json/parser
+  - hcl/printer
+  - hcl/scanner
   - json/scanner
   - json/token
 - name: github.com/jmespath/go-jmespath
   version: bd40a432e4c76585ef6b72d3fd96fb9b6dc7b68d
 - name: github.com/mattn/go-zglob
-  version: 2dbd7f37a45e993d5180a251b4bdd314d6333b70
+  version: 95345c4e1c0ebc9d16a3284177f09360f4d20fab
+  subpackages:
+  - fastwalk
+- name: github.com/mitchellh/go-homedir
+  version: b8bc1bf767474819792c23f32d8286a45736f1c6
 - name: github.com/mitchellh/mapstructure
-  version: bfdb1a85537d60bc7e954e600c250219ea497417
+  version: db1efb556f84b25a0a13a04aad883943538ad2e0
 - name: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
   - difflib
+- name: github.com/shiena/ansicolor
+  version: a422bbe96644373c5753384a59d678f7d261ff10
+- name: github.com/stretchr/objx
+  version: cbeaeb16a013161a98496fad62933b1d21786672
 - name: github.com/stretchr/testify
   version: 2402e8e7a02fc811447d11f881aa9746cdc57983
   subpackages:
   - assert
+  - http
+  - mock
 - name: github.com/urfave/cli
-  version: 0bdeddeeb0f650497d603c4ad7b20cfe685682f6
+  version: 347a9884a87374d000eec7e6445a34487c1f4a2b
+- name: golang.org/x/net
+  version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
+  subpackages:
+  - html
+  - html/atom
+- name: golang.org/x/text
+  version: ece019dcfd29abcf65d0d1dfe145e8faad097640
+  subpackages:
+  - encoding
+  - encoding/charmap
+  - encoding/htmlindex
+  - transform
+  - encoding/internal/identifier
+  - encoding/internal
+  - encoding/japanese
+  - encoding/korean
+  - encoding/simplifiedchinese
+  - encoding/traditionalchinese
+  - encoding/unicode
+  - language
+  - internal/utf8internal
+  - runes
+  - internal/tag
+- name: golang.org/x/tools
+  version: f8ed2e405fdcbb42c55233531ad98721e6d1cb3e
+  subpackages:
+  - go/loader
+  - go/ast/astutil
+  - go/buildutil
 - name: gopkg.in/urfave/cli.v1
   version: 0bdeddeeb0f650497d603c4ad7b20cfe685682f6
 - name: gopkg.in/yaml.v2
-  version: a5b47d31c556af34a302ce5d659e6fea44d90de0
-testImports: []
+  version: 4c78c975fe7c825c6d1466c42be594d1d6f3aba6
+devImports: []
