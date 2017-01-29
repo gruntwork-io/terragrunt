@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"github.com/hashicorp/go-getter"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
-	"encoding/base64"
 )
 
 type TerraformSource struct {
@@ -42,14 +41,14 @@ func downloadTerraformSource(source string, terragruntOptions *options.Terragrun
 	// case the user is probably doing local, iterative development and we should assume the Terraform files have
 	// changed and need to be recopied every time (which is very fast anyway).
 	if !util.FileExists(terraformSource.DownloadFolder) {
-		if err := terraformInit(source, terraformSource.DownloadFolder, terragruntOptions); err != nil {
+		if err := terraformInit(terraformSource, terragruntOptions); err != nil {
 			return err
 		}
 	} else if terraformSource.IsLocalSource {
 		if err := cleanupTerraformFiles(terraformSource.DownloadFolder, terragruntOptions); err != nil {
 			return err
 		}
-		if err := terraformInit(source, terraformSource.DownloadFolder, terragruntOptions); err != nil {
+		if err := terraformInit(terraformSource, terragruntOptions); err != nil {
 			return err
 		}
 	} else {
@@ -68,12 +67,21 @@ func downloadTerraformSource(source string, terragruntOptions *options.Terragrun
 }
 
 // Take the given source path and create a TerraformSource struct from it, including the folder where the source should
-// be downloaded to. We try to use the same download folder for a given source path by converting the source path to
-// a canonical form (e.g. converting relative file paths to absolute file paths) and using the base 64 encoded version
-// of the canonical path, within the OS tmp folder, as the download path. This way, if the source path doesn't change,
-// we don't have to unnecessarily re-download the source code, modules, and Terraform state.
+// be downloaded to. We try to use the same download folder, D, for a given source path by:
+//
+// 1. C = Convert the source path to a canonical form (e.g. converting relative file paths to absolute file paths)
+// 2. H = Compute the base 64 encoded sha1 hash of C
+// 3. D = TMP/terragrunt-download/H (where TMP is the temp folder for the current OS)
+//
+// By reusing the same folder, we only have to download the Terraform code, modules, and Terraform state for each
+// source path once.
 func processTerraformSource(source string, terragruntOptions *options.TerragruntOptions) (*TerraformSource, error) {
-	canonicalUrl, err := getter.Detect(source, terragruntOptions.WorkingDir, getter.Detectors)
+	workingDirAbs, err := filepath.Abs(terragruntOptions.WorkingDir)
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
+	canonicalUrl, err := getter.Detect(source, workingDirAbs, getter.Detectors)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
@@ -95,8 +103,7 @@ func processTerraformSource(source string, terragruntOptions *options.Terragrunt
 		}
 	}
 
-	canonicalUrlHash := base64.StdEncoding.EncodeToString([]byte(canonicalUrl))
-	downloadFolder := filepath.Join(os.TempDir(), "terragrunt-download", canonicalUrlHash)
+	downloadFolder := filepath.Join(os.TempDir(), "terragrunt-download", util.Base64EncodedSha1(canonicalUrl))
 
 	return &TerraformSource{
 		RawSource: source,
@@ -105,6 +112,7 @@ func processTerraformSource(source string, terragruntOptions *options.Terragrunt
 		IsLocalSource: isLocalSource,
 	}, nil
 }
+
 
 // If this temp folder already exists, simply delete all the Terraform configurations (*.tf) within it
 // (the terraform init command will redownload the latest ones), but leave all the other files, such
@@ -132,12 +140,12 @@ func getTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragr
 	}
 }
 
-// Download the code from source into dest using the terraform init command
-func terraformInit(source string, dest string, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Printf("Downloading Terraform configurations from %s into %s", source, dest)
+// Download the code from the Canonical Source URL into the Download Folder using the terraform init command
+func terraformInit(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Printf("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceUrl, terraformSource.DownloadFolder)
 
 	terragruntInitOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
-	terragruntInitOptions.TerraformCliArgs = []string{"init", source, dest}
+	terragruntInitOptions.TerraformCliArgs = []string{"init", terraformSource.CanonicalSourceUrl, terraformSource.DownloadFolder}
 
 	return runTerraformCommand(terragruntInitOptions)
 }
