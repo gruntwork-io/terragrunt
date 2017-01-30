@@ -6,8 +6,7 @@ import (
 )
 
 // Returns the base 64 encoded sha1 hash of the given string
-func Base64EncodedSha1(str string) string {
+func EncodeBase64Sha1(str string) string {
 	hash := sha1.Sum([]byte(str))
-	return base64.StdEncoding.EncodeToString(hash[:])
+	return base64.URLEncoding.EncodeToString(hash[:])
 }
-
