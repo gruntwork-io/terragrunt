@@ -14,6 +14,7 @@ import (
 	"fmt"
 )
 
+// This struct represents information about Terraform source code that needs to be downloaded
 type TerraformSource struct {
 	// A canonical version of RawSource, in URL format
 	CanonicalSourceURL *url.URL
