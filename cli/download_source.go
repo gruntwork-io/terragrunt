@@ -131,7 +131,7 @@ func writeVersionFile(terraformSource *TerraformSource) error {
 // 2. W is the base 64 encoded sha1 hash of w. This ensures that if you are running Terragrunt concurrently in
 //    multiple folders (e.g. during automated tests), then even if those folders are using the same source URL s, they
 //    do not overwrite each other.
-// 3. S is the base 64 encoded sha1 has of s without its query string. For remote source URLs (e.g. Git
+// 3. S is the base 64 encoded sha1 of s without its query string. For remote source URLs (e.g. Git
 //    URLs), this is based on the assumption that the scheme/host/path of the URL 
 //    (e.g. git::github.com/foo/bar//some-module) identifies the module name, and we always want to download the same
 //    module name into the same folder (see the encodeSourceName method). We also assume the version of the module is
