@@ -59,6 +59,13 @@ func downloadTerraformSource(source string, terragruntOptions *options.Terragrun
 
 // Download the specified TerraformSource if the latest code hasn't already been downloaded.
 func downloadTerraformSourceIfNecessary(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions) error {
+	if terragruntOptions.UpdateSource {
+		terragruntOptions.Logger.Printf("The --%s flag is set, so deleting the temporary folder %s before downloading source.", OPT_TERRAGRUNT_SOURCE_UPDATE, terraformSource.DownloadDir)
+		if err := os.RemoveAll(terraformSource.DownloadDir); err != nil {
+			return errors.WithStackTrace(err)
+		}
+	}
+
 	alreadyLatest, err := alreadyHaveLatestCode(terraformSource)
 	if err != nil {
 		return err

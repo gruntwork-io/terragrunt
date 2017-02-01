@@ -60,6 +60,8 @@ func parseTerragruntOptionsFromArgs(args []string) (*options.TerragruntOptions, 
 		return nil, err
 	}
 
+	updateSource := parseBooleanArg(args, OPT_TERRAGRUNT_SOURCE_UPDATE, false)
+
 	return &options.TerragruntOptions{
 		TerragruntConfigPath: filepath.ToSlash(terragruntConfigPath),
 		TerraformPath: filepath.ToSlash(terraformPath),
@@ -69,6 +71,7 @@ func parseTerragruntOptionsFromArgs(args []string) (*options.TerragruntOptions, 
 		Logger: util.CreateLogger(""),
 		RunTerragrunt: runTerragrunt,
 		Source: terraformSource,
+		UpdateSource: updateSource,
 		Env: parseEnvironmentVariables(os.Environ()),
 	}, nil
 }

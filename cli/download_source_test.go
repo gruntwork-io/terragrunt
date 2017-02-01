@@ -73,7 +73,7 @@ func TestDownloadTerraformSourceIfNecessaryLocalDirToEmptyDir(t *testing.T) {
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, "# Hello, World")
+	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World")
 }
 
 func TestDownloadTerraformSourceIfNecessaryLocalDirToAlreadyDownloadedDir(t *testing.T) {
@@ -85,7 +85,7 @@ func TestDownloadTerraformSourceIfNecessaryLocalDirToAlreadyDownloadedDir(t *tes
 
 	copyFolder(t, "../test/fixture-download-source/hello-world-2", downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, "# Hello, World")
+	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World")
 }
 
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlToEmptyDir(t *testing.T) {
@@ -95,7 +95,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToEmptyDir(t *testing.T) {
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, "# Hello, World")
+	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World")
 }
 
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDir(t *testing.T) {
@@ -107,7 +107,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDir(t *te
 
 	copyFolder(t, "../test/fixture-download-source/hello-world-2", downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, "# Hello, World 2")
+	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World 2")
 }
 
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirDifferentVersion(t *testing.T) {
@@ -119,7 +119,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirDiffer
 
 	copyFolder(t, "../test/fixture-download-source/hello-world-2", downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, "# Hello, World")
+	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World")
 }
 
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVersion(t *testing.T) {
@@ -131,17 +131,32 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVe
 
 	copyFolder(t, "../test/fixture-download-source/hello-world-version-remote", downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, "# Hello, World version remote")
+	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World version remote")
 }
 
-func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, downloadDir string, expectedFileContents string) {
+func TestDownloadTerraformSourceIfNecessaryRemoteUrlOverrideSource(t *testing.T) {
+	t.Parallel()
+
+	canonicalUrl := "github.com/gruntwork-io/terragrunt//test/fixture-download-source/hello-world?ref=v0.9.7"
+	downloadDir := tmpDir(t)
+	defer os.Remove(downloadDir)
+
+	copyFolder(t, "../test/fixture-download-source/hello-world-version-remote", downloadDir)
+
+	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, true, "# Hello, World")
+}
+
+func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, downloadDir string, updateSource bool, expectedFileContents string) {
 	terraformSource := &TerraformSource{
 		CanonicalSourceURL: parseUrl(t, canonicalUrl),
 		DownloadDir: downloadDir,
 		VersionFile: filepath.Join(downloadDir, "version-file.txt"),
 	}
 
-	err := downloadTerraformSourceIfNecessary(terraformSource, options.NewTerragruntOptionsForTest("./should-not-be-used"))
+	terragruntOptions := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	terragruntOptions.UpdateSource = updateSource
+
+	err := downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions)
 	assert.Nil(t, err, "For terraform source %v: %v", terraformSource, err)
 
 	expectedFilePath := filepath.Join(downloadDir, "main.tf")
