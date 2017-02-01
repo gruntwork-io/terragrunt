@@ -88,36 +88,32 @@ func TestDownloadTerraformSourceIfNecessaryLocalDirToAlreadyDownloadedDir(t *tes
 	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, "# Hello, World")
 }
 
-// TODO re-enable these two tests once this is merged into master, since they are trying to download code from master
-//func TestDownloadTerraformSourceIfNecessaryRemoteUrlToEmptyDir(t *testing.T) {
-//	t.Parallel()
-//
-//	// TODO: update URL to master branch once this is merged
-//	canonicalUrl := "github.com/gruntwork-io/terragrunt//test/fixture-download-source/hello-world"
-//	downloadDir := tmpDir(t)
-//	defer os.Remove(downloadDir)
-//
-//	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, "# Hello, World")
-//}
-//
-//func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDir(t *testing.T) {
-//	t.Parallel()
-//
-//	// TODO: update URL to master branch once this is merged
-//	canonicalUrl := "github.com/gruntwork-io/terragrunt//test/fixture-download-source/hello-world"
-//	downloadDir := tmpDir(t)
-//	defer os.Remove(downloadDir)
-//
-//	copyFolder(t, "../test/fixture-download-source/hello-world-2", downloadDir)
-//
-//	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, "# Hello, World 2")
-//}
+func TestDownloadTerraformSourceIfNecessaryRemoteUrlToEmptyDir(t *testing.T) {
+	t.Parallel()
+
+	canonicalUrl := "github.com/gruntwork-io/terragrunt//test/fixture-download-source/hello-world"
+	downloadDir := tmpDir(t)
+	defer os.Remove(downloadDir)
+
+	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, "# Hello, World")
+}
+
+func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDir(t *testing.T) {
+	t.Parallel()
+
+	canonicalUrl := "github.com/gruntwork-io/terragrunt//test/fixture-download-source/hello-world"
+	downloadDir := tmpDir(t)
+	defer os.Remove(downloadDir)
+
+	copyFolder(t, "../test/fixture-download-source/hello-world-2", downloadDir)
+
+	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, "# Hello, World 2")
+}
 
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirDifferentVersion(t *testing.T) {
 	t.Parallel()
 
-	// TODO: update URL to master branch once this is merged
-	canonicalUrl := "github.com/gruntwork-io/terragrunt//test/fixture-download-source/hello-world?ref=cache-tmp-folder"
+	canonicalUrl := "github.com/gruntwork-io/terragrunt//test/fixture-download-source/hello-world?ref=v0.9.7"
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
@@ -129,8 +125,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirDiffer
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVersion(t *testing.T) {
 	t.Parallel()
 
-	// TODO: update URL to master branch once this is merged
-	canonicalUrl := "github.com/gruntwork-io/terragrunt//test/fixture-download-source/hello-world?ref=cache-tmp-folder"
+	canonicalUrl := "github.com/gruntwork-io/terragrunt//test/fixture-download-source/hello-world?ref=v0.9.7"
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
