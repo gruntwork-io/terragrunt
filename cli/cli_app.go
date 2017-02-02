@@ -20,7 +20,8 @@ const OPT_TERRAGRUNT_TFPATH = "terragrunt-tfpath"
 const OPT_NON_INTERACTIVE = "terragrunt-non-interactive"
 const OPT_WORKING_DIR = "terragrunt-working-dir"
 const OPT_TERRAGRUNT_SOURCE = "terragrunt-source"
-var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE}
+const OPT_TERRAGRUNT_SOURCE_UPDATE = "terragrunt-source-update"
+var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE}
 var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_TFPATH, OPT_WORKING_DIR, OPT_TERRAGRUNT_SOURCE}
 
 const CMD_ACQUIRE_LOCK = "acquire-lock"
@@ -56,6 +57,7 @@ GLOBAL OPTIONS:
    terragrunt-non-interactive    Assume "yes" for all prompts.
    terragrunt-working-dir        The path to the Terraform templates. Default is current directory.
    terragrunt-source             Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder
+   terragrunt-source-update      Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it
 
 VERSION:
    {{.Version}}{{if len .Authors}}

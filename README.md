@@ -828,6 +828,8 @@ prefix `--terragrunt-`. The currently available options are:
   Terraform in that temporary folder. May also be specified via the `TERRAGRUNT_SOURCE` environment variable. The 
   source should use the same syntax as the [Terraform module source](https://www.terraform.io/docs/modules/sources.html) 
   parameter.  
+* `--terragrunt-source-update`: Delete the contents of the temporary folder before downloading Terraform source code
+  into it.
 
 ## Developing terragrunt
 
