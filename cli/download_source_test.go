@@ -146,7 +146,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlOverrideSource(t *testing.T)
 	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, true, "# Hello, World")
 }
 
-func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, downloadDir string, updateSource bool, expectedFileContents string) {
+func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool, expectedFileContents string) {
 	terraformSource := &TerraformSource{
 		CanonicalSourceURL: parseUrl(t, canonicalUrl),
 		DownloadDir: downloadDir,
@@ -154,7 +154,7 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 	}
 
 	terragruntOptions := options.NewTerragruntOptionsForTest("./should-not-be-used")
-	terragruntOptions.UpdateSource = updateSource
+	terragruntOptions.SourceUpdate = sourceUpdate
 
 	err := downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions)
 	assert.Nil(t, err, "For terraform source %v: %v", terraformSource, err)

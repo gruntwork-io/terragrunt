@@ -36,7 +36,7 @@ type TerragruntOptions struct {
 	Source               string
 
 	// If set to true, delete the contents of the temporary folder before downloading Terraform source code into it
-	UpdateSource         bool
+	SourceUpdate  bool
 
 	// A command that can be used to run Terragrunt with the given options. This is useful for running Terragrunt
 	// multiple times (e.g. when spinning up a stack of Terraform modules). The actual command is normally defined
@@ -59,7 +59,7 @@ func NewTerragruntOptions(terragruntConfigPath string) *TerragruntOptions {
 		Logger: util.CreateLogger(""),
 		Env: map[string]string{},
 		Source: "",
-		UpdateSource: false,
+		SourceUpdate: false,
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
@@ -89,7 +89,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		Logger: util.CreateLogger(workingDir),
 		Env: terragruntOptions.Env,
 		Source: terragruntOptions.Source,
-		UpdateSource: terragruntOptions.UpdateSource,
+		SourceUpdate: terragruntOptions.SourceUpdate,
 		RunTerragrunt: terragruntOptions.RunTerragrunt,
 	}
 }
