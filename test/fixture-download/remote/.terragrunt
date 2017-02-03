@@ -1,0 +1,3 @@
+terraform {
+  source = "github.com/gruntwork-io/terragrunt.git//test/fixture-checkout/hello-world?ref=v0.9.4"
+}

@@ -26,19 +26,21 @@ import (
 
 // hard-code this to match the test fixture for now
 const (
-	TERRAFORM_REMOTE_STATE_S3_REGION    = "us-west-2"
-	TEST_FIXTURE_PATH                   = "fixture/"
-	TEST_FIXTURE_LOCK_PATH              = "fixture-lock/"
-	TEST_FIXTURE_INCLUDE_PATH           = "fixture-include/"
-	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH = "qa/my-app"
-	TEST_FIXTURE_STACK                  = "fixture-stack/"
-	TEST_FIXTURE_LOCAL_CHECKOUT_PATH    = "fixture-checkout/local"
-	TEST_FIXTURE_REMOTE_CHECKOUT_PATH   = "fixture-checkout/remote"
-	TEST_FIXTURE_OVERRIDE_CHECKOUT_PATH = "fixture-checkout/override"
-	TERRAFORM_FOLDER                    = ".terraform"
-	TERRAFORM_STATE                     = "terraform.tfstate"
-	TERRAFORM_STATE_BACKUP              = "terraform.tfstate.backup"
-	DEFAULT_TEST_REGION                 = "us-east-1"
+	TERRAFORM_REMOTE_STATE_S3_REGION           = "us-west-2"
+	TEST_FIXTURE_PATH                          = "fixture/"
+	TEST_FIXTURE_LOCK_PATH                     = "fixture-lock/"
+	TEST_FIXTURE_INCLUDE_PATH                  = "fixture-include/"
+	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH        = "qa/my-app"
+	TEST_FIXTURE_STACK                         = "fixture-stack/"
+	TEST_FIXTURE_LOCAL_DOWNLOAD_PATH           = "fixture-download/local"
+	TEST_FIXTURE_REMOTE_DOWNLOAD_PATH          = "fixture-download/remote"
+	TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH        = "fixture-download/override"
+	TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH  = "fixture-download/relative"
+	TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH = "fixture-download/relative"
+	TERRAFORM_FOLDER                           = ".terraform"
+	TERRAFORM_STATE                            = "terraform.tfstate"
+	TERRAFORM_STATE_BACKUP                     = "terraform.tfstate.backup"
+	DEFAULT_TEST_REGION                        = "us-east-1"
 )
 
 func init() {
@@ -126,37 +128,59 @@ func TestTerragruntSpinUpAndTearDown(t *testing.T) {
 	runTerragrunt(t, fmt.Sprintf("terragrunt tear-down --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", mgmtEnvironmentPath, s3BucketName))
 }
 
-func TestLocalCheckout(t *testing.T) {
+func TestLocalDownload(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_CHECKOUT_PATH)
+	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_DOWNLOAD_PATH)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_CHECKOUT_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_DOWNLOAD_PATH))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_CHECKOUT_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_DOWNLOAD_PATH))
 }
 
-func TestRemoteCheckout(t *testing.T) {
+func TestLocalDownloadWithRelativePath(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_REMOTE_CHECKOUT_PATH)
+	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_REMOTE_CHECKOUT_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_REMOTE_CHECKOUT_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH))
 }
 
-func TestRemoteCheckoutOverride(t *testing.T) {
+func TestRemoteDownload(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_OVERRIDE_CHECKOUT_PATH)
+	cleanupTerraformFolder(t, TEST_FIXTURE_REMOTE_DOWNLOAD_PATH)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", TEST_FIXTURE_OVERRIDE_CHECKOUT_PATH, "../hello-world"))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_REMOTE_DOWNLOAD_PATH))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", TEST_FIXTURE_OVERRIDE_CHECKOUT_PATH, "../hello-world"))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_REMOTE_DOWNLOAD_PATH))
+}
+
+func TestRemoteDownloadWithRelativePath(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH))
+
+	// Run a second time to make sure the temporary folder can be reused without errors
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH))
+}
+
+func TestRemoteDownloadOverride(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH, "../hello-world"))
+
+	// Run a second time to make sure the temporary folder can be reused without errors
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH, "../hello-world"))
 }
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
