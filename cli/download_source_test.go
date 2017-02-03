@@ -150,6 +150,7 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 	terraformSource := &TerraformSource{
 		CanonicalSourceURL: parseUrl(t, canonicalUrl),
 		DownloadDir: downloadDir,
+		WorkingDir: downloadDir,
 		VersionFile: filepath.Join(downloadDir, "version-file.txt"),
 	}
 
@@ -170,6 +171,7 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalUrl string, downloadDir st
 	terraformSource := &TerraformSource{
 		CanonicalSourceURL: parseUrl(t, canonicalUrl),
 		DownloadDir: downloadDir,
+		WorkingDir: downloadDir,
 		VersionFile: filepath.Join(downloadDir, "version-file.txt"),
 	}
 
