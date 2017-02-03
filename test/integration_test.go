@@ -35,7 +35,7 @@ const (
 	TEST_FIXTURE_LOCAL_DOWNLOAD_PATH           = "fixture-download/local"
 	TEST_FIXTURE_REMOTE_DOWNLOAD_PATH          = "fixture-download/remote"
 	TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH        = "fixture-download/override"
-	TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH  = "fixture-download/relative"
+	TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH  = "fixture-download/local-relative"
 	TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH = "fixture-download/remote-relative"
 	TERRAFORM_FOLDER                           = ".terraform"
 	TERRAFORM_STATE                            = "terraform.tfstate"
