@@ -20,7 +20,7 @@ type EnvVar struct {
 	DefaultValue string
 }
 
-// Given a string value from a .terragrunt config file, parse the string, resolve any calls to helper functions using
+// Given a string value from a Terragrunt configuration, parse the string, resolve any calls to helper functions using
 // the syntax ${...}, and return the final value.
 func ResolveTerragruntConfigString(terragruntConfigString string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (resolved string, finalErr error) {
 	// The function we pass to ReplaceAllStringFunc cannot return an error, so we have to use named error
@@ -36,7 +36,7 @@ func ResolveTerragruntConfigString(terragruntConfigString string, include *Inclu
 	return
 }
 
-// Resolve a single call to an interpolation function of the format ${some_function()} in a .terragrunt file
+// Resolve a single call to an interpolation function of the format ${some_function()} in a Terragrunt configuration
 func resolveTerragruntInterpolation(str string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	matches := HELPER_FUNCTION_SYNTAX_REGEX.FindStringSubmatch(str)
 	if len(matches) == 3 {
@@ -90,7 +90,7 @@ func getEnvironmentVariable(parameters string, terragruntOptions *options.Terrag
 	return envValue, nil
 }
 
-// Find a parent .terragrunt file in the parent folders above the current .terragrunt file and return its path
+// Find a parent terraform.tfvars file in the parent folders above the current terraform.tfvars file and return its path
 func findInParentFolders(terragruntOptions *options.TerragruntOptions) (string, error) {
 	previousDir, err := filepath.Abs(filepath.Dir(terragruntOptions.TerragruntConfigPath))
 	previousDir = filepath.ToSlash(previousDir)
@@ -118,7 +118,7 @@ func findInParentFolders(terragruntOptions *options.TerragruntOptions) (string, 
 	return "", errors.WithStackTrace(CheckedTooManyParentFolders(terragruntOptions.TerragruntConfigPath))
 }
 
-// Return the relative path between the included .terragrunt file and the current .terragrunt file
+// Return the relative path between the included terraform.tfvars file and the current terraform.tfvars file
 func pathRelativeToInclude(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	if include == nil {
 		return ".", nil

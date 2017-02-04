@@ -15,11 +15,11 @@ func TestFindStackInSubfolders(t *testing.T) {
 	t.Parallel()
 
 	filePaths := []string{
-		"/stage/data-stores/redis/.terragrunt",
-		"/stage/data-stores/postgres/.terragrunt",
-		"/stage/ecs-cluster/.terragrunt",
-		"/stage/kms-master-key/.terragrunt",
-		"/stage/vpc/.terragrunt",
+		"/stage/data-stores/redis/terraform.tfvars",
+		"/stage/data-stores/postgres/terraform.tfvars",
+		"/stage/ecs-cluster/terraform.tfvars",
+		"/stage/kms-master-key/terraform.tfvars",
+		"/stage/vpc/terraform.tfvars",
 	}
 
 	tempFolder := createTempFolder(t)
@@ -38,7 +38,7 @@ func TestFindStackInSubfolders(t *testing.T) {
 
 	for _, module := range stack.Modules {
 		relPath := strings.Replace(module.Path, tempFolder, "", 1)
-		relPath = filepath.ToSlash(util.JoinPath(relPath, ".terragrunt"))
+		relPath = filepath.ToSlash(util.JoinPath(relPath, "terraform.tfvars"))
 
 		modulePaths = append(modulePaths, relPath)
 	}

@@ -52,7 +52,7 @@ COMMANDS:
    *                    Terragrunt forwards all other commands directly to Terraform
 
 GLOBAL OPTIONS:
-   terragrunt-config             Path to the Terragrunt config file. Default is .terragrunt.
+   terragrunt-config             Path to the Terragrunt config file. Default is terraform.tfvars.
    terragrunt-tfpath             Path to the Terraform binary. Default is terraform (on PATH).
    terragrunt-non-interactive    Assume "yes" for all prompts.
    terragrunt-working-dir        The path to the Terraform templates. Default is current directory.
@@ -90,7 +90,7 @@ func CreateTerragruntCli(version string) *cli.App {
 	app.UsageText = `Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that supports locking
    via Amazon's DynamoDB and enforces best practices. Terragrunt forwards almost all commands, arguments, and options
    directly to Terraform, using whatever version of Terraform you already have installed. However, before running
-   Terraform, Terragrunt will ensure your remote state is configured according to the settings in the .terragrunt file.
+   Terraform, Terragrunt will ensure your remote state is configured according to the settings in terraform.tfvars.
    Moreover, for the apply and destroy commands, Terragrunt will first try to acquire a lock using DynamoDB. For
    documentation, see https://github.com/gruntwork-io/terragrunt/.`
 
@@ -145,7 +145,7 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	if conf.Lock == nil {
-		terragruntOptions.Logger.Printf("WARNING: you have not configured locking in your .terragrunt file. Concurrent changes to your .tfstate files may cause conflicts!")
+		terragruntOptions.Logger.Printf("WARNING: you have not configured locking in your Terragrunt configuration. Concurrent changes to your .tfstate files may cause conflicts!")
 		return runTerraformCommand(terragruntOptions)
 	}
 
@@ -208,7 +208,7 @@ func configureRemoteState(remoteState *remote.RemoteState, terragruntOptions *op
 		return remoteState.ConfigureRemoteState(terragruntOptions)
 	case "remote":
 		if secondArg(terragruntOptions.TerraformCliArgs) == "config" {
-			// Encourage the user to configure remote state by defining it in .terragrunt and letting
+			// Encourage the user to configure remote state by defining it in terraform.tfvars and letting
 			// Terragrunt handle it for them
 			return errors.WithStackTrace(DontManuallyConfigureRemoteState)
 		} else {
@@ -321,7 +321,7 @@ func runTerraformCommand(terragruntOptions *options.TerragruntOptions) error {
 
 // Custom error types
 
-var DontManuallyConfigureRemoteState = fmt.Errorf("Instead of manually using the 'remote config' command, define your remote state settings in .terragrunt and Terragrunt will automatically configure it for you (and all your team members) next time you run it.")
+var DontManuallyConfigureRemoteState = fmt.Errorf("Instead of manually using the 'remote config' command, define your remote state settings in terraform.tfvars and Terragrunt will automatically configure it for you (and all your team members) next time you run it.")
 
 type UnrecognizedCommand string
 func (commandName UnrecognizedCommand) Error() string {

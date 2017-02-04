@@ -10,7 +10,7 @@ import (
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
-	// Location of the .terragrunt config file
+	// Location of the Terragrunt config file
 	TerragruntConfigPath string
 
 	// Location of the terraform binary

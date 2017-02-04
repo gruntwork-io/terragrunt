@@ -1,3 +1,5 @@
-dependencies = {
-  paths = ["../not-a-real-dependency"]
+terragrunt = {
+  dependencies {
+    paths = ["../not-a-real-dependency"]
+  }
 }
