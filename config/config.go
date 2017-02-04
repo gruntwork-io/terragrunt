@@ -11,7 +11,8 @@ import (
 	"path/filepath"
 )
 
-const DefaultTerragruntConfigPath = ".terragrunt"
+const DefaultTerragruntConfigPath = "terraform.tfvars"
+const OldTerragruntConfigPath = ".terragrunt"
 
 // TerragruntConfig represents a parsed and expanded configuration
 type TerragruntConfig struct {
@@ -24,7 +25,8 @@ func (conf *TerragruntConfig) String() string {
 	return fmt.Sprintf("TerragruntConfig{Terraform = %v, Lock = %v, RemoteState = %v, Dependencies = %v}", conf.Terraform, conf.Lock, conf.RemoteState, conf.Dependencies)
 }
 
-// terragruntConfigFile represents the configuration supported in the terraform.tfvars file
+// terragruntConfigFile represents the configuration supported in a Terragrunt configuration file (i.e.
+// terraform.tfvars or .terragrunt)
 type terragruntConfigFile struct {
 	Terraform    *TerraformConfig    `hcl:"terraform,omitempty"`
 	Include      *IncludeConfig      `hcl:"include,omitempty"`
@@ -33,8 +35,8 @@ type terragruntConfigFile struct {
 	Dependencies *ModuleDependencies `hcl:"dependencies,omitempty"`
 }
 
-// IncludeConfig represents the configuration settings for a parent terraform.tfvars file that you can "include" in a
-// child terraform.tfvars file
+// IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
+// "include" in a child Terragrunt configuration file
 type IncludeConfig struct {
 	Path string `hcl:"path"`
 }
@@ -173,7 +175,7 @@ func parseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *optio
 	return ParseConfigFile(resolvedIncludePath, terragruntOptions, includedConfig)
 }
 
-// Convert the contents of a fully resolved terraform.tfvars file to a TerragruntConfig object
+// Convert the contents of a fully resolved Terragrunt configuration to a TerragruntConfig object
 func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, terragruntOptions *options.TerragruntOptions) (*TerragruntConfig, error) {
 	terragruntConfig := &TerragruntConfig{}
 

@@ -33,6 +33,10 @@ var MULTI_MODULE_COMMANDS = []string{CMD_SPIN_UP, CMD_TEAR_DOWN}
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
 // in its definition, we don't quite fit into the model of any Go CLI library. Fortunately, urfave/cli allows us to
 // override the whole template used for the Usage Text.
+//
+// TODO: this description text has copy/pasted versions of many Terragrunt constants, such as command names and file
+// names. It would be easy to make this code DRY using fmt.Sprintf(), but then it's hard to make the text align nicely.
+// Write some code to take generate this help text automatically, possibly leveraging code that's part of urfave/cli.
 var CUSTOM_USAGE_TEXT = `DESCRIPTION:
    {{.Name}} - {{.UsageText}}
 
@@ -87,12 +91,12 @@ func CreateTerragruntCli(version string) *cli.App {
 	app.Version = version
 	app.Action = runApp
 	app.Usage = "terragrunt <COMMAND>"
-	app.UsageText = `Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that supports locking
+	app.UsageText = fmt.Sprintf(`Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that supports locking
    via Amazon's DynamoDB and enforces best practices. Terragrunt forwards almost all commands, arguments, and options
    directly to Terraform, using whatever version of Terraform you already have installed. However, before running
-   Terraform, Terragrunt will ensure your remote state is configured according to the settings in terraform.tfvars.
+   Terraform, Terragrunt will ensure your remote state is configured according to the settings in %s.
    Moreover, for the apply and destroy commands, Terragrunt will first try to acquire a lock using DynamoDB. For
-   documentation, see https://github.com/gruntwork-io/terragrunt/.`
+   documentation, see https://github.com/gruntwork-io/terragrunt/.`, config.DefaultTerragruntConfigPath)
 
 	return app
 }
@@ -208,8 +212,8 @@ func configureRemoteState(remoteState *remote.RemoteState, terragruntOptions *op
 		return remoteState.ConfigureRemoteState(terragruntOptions)
 	case "remote":
 		if secondArg(terragruntOptions.TerraformCliArgs) == "config" {
-			// Encourage the user to configure remote state by defining it in terraform.tfvars and letting
-			// Terragrunt handle it for them
+			// Encourage the user to configure remote state by defining it in a Terragrunt configuration
+			// file and letting Terragrunt handle remote state for them
 			return errors.WithStackTrace(DontManuallyConfigureRemoteState)
 		} else {
 			// The other "terraform remote" commands explicitly push or pull state, so we shouldn't mess
@@ -321,7 +325,7 @@ func runTerraformCommand(terragruntOptions *options.TerragruntOptions) error {
 
 // Custom error types
 
-var DontManuallyConfigureRemoteState = fmt.Errorf("Instead of manually using the 'remote config' command, define your remote state settings in terraform.tfvars and Terragrunt will automatically configure it for you (and all your team members) next time you run it.")
+var DontManuallyConfigureRemoteState = fmt.Errorf("Instead of manually using the 'remote config' command, define your remote state settings in %s and Terragrunt will automatically configure it for you (and all your team members) next time you run it.", config.DefaultTerragruntConfigPath)
 
 type UnrecognizedCommand string
 func (commandName UnrecognizedCommand) Error() string {

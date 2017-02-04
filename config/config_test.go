@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
+	"fmt"
 )
 
 var mockOptions = options.TerragruntOptions{TerragruntConfigPath: "test-time-mock", NonInteractive: true}
@@ -283,14 +284,14 @@ func TestParseTerragruntConfigInclude(t *testing.T) {
 	t.Parallel()
 
 	config :=
-`
+fmt.Sprintf(`
 include = {
-  path = "../../../terraform.tfvars"
+  path = "../../../%s"
 }
-`
+`, DefaultTerragruntConfigPath)
 
 	opts := options.TerragruntOptions{
-		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/terraform.tfvars",
+		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + DefaultTerragruntConfigPath,
 		NonInteractive: true,
 	}
 
@@ -327,7 +328,7 @@ include = {
 `
 
 	opts := options.TerragruntOptions{
-		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/terraform.tfvars",
+		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + DefaultTerragruntConfigPath,
 		NonInteractive: true,
 	}
 
@@ -358,9 +359,9 @@ func TestParseTerragruntConfigIncludeOverrideRemote(t *testing.T) {
 	t.Parallel()
 
 	config :=
-`
+fmt.Sprintf(`
 include = {
-  path = "../../../terraform.tfvars"
+  path = "../../../%s"
 }
 
 # Configure Terragrunt to automatically store tfstate files in an S3 bucket
@@ -373,10 +374,10 @@ remote_state = {
     region = "override"
   }
 }
-`
+`, DefaultTerragruntConfigPath)
 
 	opts := options.TerragruntOptions{
-		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/terraform.tfvars",
+		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + DefaultTerragruntConfigPath,
 		NonInteractive: true,
 	}
 
@@ -406,9 +407,9 @@ func TestParseTerragruntConfigIncludeOverrideAll(t *testing.T) {
 	t.Parallel()
 
 	config :=
-`
+fmt.Sprintf(`
 include {
-  path = "../../../terraform.tfvars"
+  path = "../../../%s"
 }
 
 terraform {
@@ -436,10 +437,10 @@ remote_state {
 dependencies {
   paths = ["override"]
 }
-`
+`, DefaultTerragruntConfigPath)
 
 	opts := options.TerragruntOptions{
-		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/terraform.tfvars",
+		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + DefaultTerragruntConfigPath,
 		NonInteractive: true,
 	}
 
@@ -472,7 +473,7 @@ dependencies {
 func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 	t.Parallel()
 
-	configPath := "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/terraform.tfvars"
+	configPath := "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/" + DefaultTerragruntConfigPath
 
 	config, err := util.ReadFileAsString(configPath)
 	if err != nil {
@@ -489,7 +490,7 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 func TestParseTerragruntConfigThreeLevels(t *testing.T) {
 	t.Parallel()
 
-	configPath := "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/sub-sub-child/terraform.tfvars"
+	configPath := "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/sub-sub-child/" + DefaultTerragruntConfigPath
 
 	config, err := util.ReadFileAsString(configPath)
 	if err != nil {

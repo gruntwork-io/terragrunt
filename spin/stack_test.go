@@ -9,17 +9,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/gruntwork-io/terragrunt/util"
 	"strings"
+	"github.com/gruntwork-io/terragrunt/config"
 )
 
 func TestFindStackInSubfolders(t *testing.T) {
 	t.Parallel()
 
 	filePaths := []string{
-		"/stage/data-stores/redis/terraform.tfvars",
-		"/stage/data-stores/postgres/terraform.tfvars",
-		"/stage/ecs-cluster/terraform.tfvars",
-		"/stage/kms-master-key/terraform.tfvars",
-		"/stage/vpc/terraform.tfvars",
+		"/stage/data-stores/redis/" + config.DefaultTerragruntConfigPath,
+		"/stage/data-stores/postgres/" + config.DefaultTerragruntConfigPath,
+		"/stage/ecs-cluster/" + config.DefaultTerragruntConfigPath,
+		"/stage/kms-master-key/" + config.DefaultTerragruntConfigPath,
+		"/stage/vpc/" + config.DefaultTerragruntConfigPath,
 	}
 
 	tempFolder := createTempFolder(t)
@@ -38,7 +39,7 @@ func TestFindStackInSubfolders(t *testing.T) {
 
 	for _, module := range stack.Modules {
 		relPath := strings.Replace(module.Path, tempFolder, "", 1)
-		relPath = filepath.ToSlash(util.JoinPath(relPath, "terraform.tfvars"))
+		relPath = filepath.ToSlash(util.JoinPath(relPath, config.DefaultTerragruntConfigPath))
 
 		modulePaths = append(modulePaths, relPath)
 	}

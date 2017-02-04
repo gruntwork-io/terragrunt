@@ -90,7 +90,8 @@ func getEnvironmentVariable(parameters string, terragruntOptions *options.Terrag
 	return envValue, nil
 }
 
-// Find a parent terraform.tfvars file in the parent folders above the current terraform.tfvars file and return its path
+// Find a parent Terragrunt configuration file in the parent folders above the current Terragrunt configuration file
+// and return its path
 func findInParentFolders(terragruntOptions *options.TerragruntOptions) (string, error) {
 	previousDir, err := filepath.Abs(filepath.Dir(terragruntOptions.TerragruntConfigPath))
 	previousDir = filepath.ToSlash(previousDir)
@@ -118,7 +119,8 @@ func findInParentFolders(terragruntOptions *options.TerragruntOptions) (string, 
 	return "", errors.WithStackTrace(CheckedTooManyParentFolders(terragruntOptions.TerragruntConfigPath))
 }
 
-// Return the relative path between the included terraform.tfvars file and the current terraform.tfvars file
+// Return the relative path between the included Terragrunt cnofiguration file and the current Terragrunt configuration
+// file
 func pathRelativeToInclude(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	if include == nil {
 		return ".", nil

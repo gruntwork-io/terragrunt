@@ -30,7 +30,7 @@ func (module *TerraformModule) String() string {
 	return fmt.Sprintf("Module %s (dependencies: [%s])", module.Path, strings.Join(dependencies, ", "))
 }
 
-// Go through each of the given terraform.tfvars files and resolve the module that terraform.tfvars file represents
+// Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents
 // into a TerraformModule struct. Return the list of these TerraformModule structs.
 func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions) ([]*TerraformModule, error) {
 	canonicalTerragruntConfigPaths, err := util.CanonicalPaths(terragruntConfigPaths, ".")
@@ -51,7 +51,7 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 	return crosslinkDependencies(mergeMaps(modules, externalDependencies), canonicalTerragruntConfigPaths)
 }
 
-// Go through each of the given terraform.tfvars files and resolve the module that terraform.tfvars file represents
+// Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents
 // into a TerraformModule struct. Note that this method will NOT fill in the Dependencies field of the TerraformModule
 // struct (see the crosslinkDependencies method for that). Return a map from module path to TerraformModule struct.
 func resolveModules(canonicalTerragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions) (map[string]*TerraformModule, error) {
@@ -68,8 +68,8 @@ func resolveModules(canonicalTerragruntConfigPaths []string, terragruntOptions *
 	return moduleMap, nil
 }
 
-// Create a TerraformModule struct for the Terraform module specified by the given terraform.tfvars file path. Note
-// that this method will NOT fill in the Dependencies field of the TerraformModule struct (see the
+// Create a TerraformModule struct for the Terraform module specified by the given Terragrunt configuration file path.
+// Note that this method will NOT fill in the Dependencies field of the TerraformModule struct (see the
 // crosslinkDependencies method for that).
 func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *options.TerragruntOptions) (*TerraformModule, error) {
 	modulePath, err := util.CanonicalPath(filepath.Dir(terragruntConfigPath), ".")
@@ -88,7 +88,7 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 
 
 // Look through the dependencies of the modules in the given map and resolve the "external" dependency paths listed in
-// each modules config (i.e. those dependencies not in the given list of terraform.tfvars config canonical file paths).
+// each modules config (i.e. those dependencies not in the given list of Terragrunt config canonical file paths).
 // These external dependencies are outside of the current working directory, which means they may not be part of the
 // environment the user is trying to spin-up or tear down. Therefore, this method also confirms whether the user wants
 // to actually apply those dependencies or just assume they are already applied. Note that this method will NOT fill in
@@ -121,7 +121,7 @@ func resolveExternalDependenciesForModules(canonicalTerragruntConfigPaths []stri
 }
 
 // Look through the dependencies of the given module and resolve the "external" dependency paths listed in the module's
-// config (i.e. those dependencies not in the given list of terraform.tfvars config canonical file paths). These external
+// config (i.e. those dependencies not in the given list of Terragrunt config canonical file paths). These external
 // dependencies are outside of the current working directory, which means they may not be part of the environment the
 // user is trying to spin-up or tear down. Note that this method will NOT fill in the Dependencies field of the
 // TerraformModule struct (see the crosslinkDependencies method for that).

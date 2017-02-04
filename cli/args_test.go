@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"github.com/gruntwork-io/terragrunt/util"
+	"fmt"
 )
 
 func TestParseTerragruntOptionsFromArgs(t *testing.T) {
@@ -57,8 +58,8 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			[]string{"--terragrunt-config", "/some/path/terraform.tfvars"},
-			mockOptions("/some/path/terraform.tfvars", workingDir, []string{}, false, ""),
+			[]string{"--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath)},
+			mockOptions(fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, false, ""),
 			nil,
 		},
 
@@ -75,14 +76,14 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			[]string{"--terragrunt-config", "/some/path/terraform.tfvars", "--terragrunt-non-interactive"},
-			mockOptions("/some/path/terraform.tfvars", workingDir, []string{}, true, ""),
+			[]string{"--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "--terragrunt-non-interactive"},
+			mockOptions(fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, true, ""),
 			nil,
 		},
 
 		{
-			[]string{"--foo", "--terragrunt-config", "/some/path/terraform.tfvars", "bar", "--terragrunt-non-interactive", "--baz", "--terragrunt-working-dir", "/some/path", "--terragrunt-source", "github.com/foo/bar//baz?ref=1.0.3"},
-			mockOptions("/some/path/terraform.tfvars", "/some/path", []string{"--foo", "bar", "--baz"}, true, "github.com/foo/bar//baz?ref=1.0.3"),
+			[]string{"--foo", "--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "bar", "--terragrunt-non-interactive", "--baz", "--terragrunt-working-dir", "/some/path", "--terragrunt-source", "github.com/foo/bar//baz?ref=1.0.3"},
+			mockOptions(fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "/some/path", []string{"--foo", "bar", "--baz"}, true, "github.com/foo/bar//baz?ref=1.0.3"),
 			nil,
 		},
 
@@ -149,9 +150,9 @@ func TestFilterTerragruntArgs(t *testing.T) {
 	}{
 		{[]string{}, []string{}},
 		{[]string{"foo", "--bar"}, []string{"foo", "--bar"}},
-		{[]string{"foo", "--terragrunt-config", "/some/path/terraform.tfvars"}, []string{"foo"}},
+		{[]string{"foo", "--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath)}, []string{"foo"}},
 		{[]string{"foo", "--terragrunt-non-interactive"}, []string{"foo"}},
-		{[]string{"foo", "--terragrunt-non-interactive", "--bar", "--terragrunt-working-dir", "/some/path", "--baz", "--terragrunt-config", "/some/path/terraform.tfvars"}, []string{"foo", "--bar", "--baz"}},
+		{[]string{"foo", "--terragrunt-non-interactive", "--bar", "--terragrunt-working-dir", "/some/path", "--baz", "--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath)}, []string{"foo", "--bar", "--baz"}},
 		{[]string{"spin-up", "foo", "bar"}, []string{"foo", "bar"}},
 		{[]string{"foo", "tear-down", "--foo", "--bar"}, []string{"foo", "--foo", "--bar"}},
 	}
