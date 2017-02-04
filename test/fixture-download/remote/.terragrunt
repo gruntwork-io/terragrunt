@@ -1,4 +1,3 @@
-# TODO: update the ref from a branch name to a specific release of Terragrunt as soon as this test is merged into master!
 terraform {
-  source = "github.com/gruntwork-io/terragrunt.git//test/fixture-download/hello-world?ref=multi-source"
+  source = "github.com/gruntwork-io/terragrunt.git//test/fixture-download/hello-world?ref=v0.9.9"
 }
