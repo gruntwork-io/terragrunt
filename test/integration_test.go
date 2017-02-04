@@ -26,21 +26,27 @@ import (
 
 // hard-code this to match the test fixture for now
 const (
-	TERRAFORM_REMOTE_STATE_S3_REGION           = "us-west-2"
-	TEST_FIXTURE_PATH                          = "fixture/"
-	TEST_FIXTURE_LOCK_PATH                     = "fixture-lock/"
-	TEST_FIXTURE_INCLUDE_PATH                  = "fixture-include/"
-	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH        = "qa/my-app"
-	TEST_FIXTURE_STACK                         = "fixture-stack/"
-	TEST_FIXTURE_LOCAL_DOWNLOAD_PATH           = "fixture-download/local"
-	TEST_FIXTURE_REMOTE_DOWNLOAD_PATH          = "fixture-download/remote"
-	TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH        = "fixture-download/override"
-	TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH  = "fixture-download/local-relative"
-	TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH = "fixture-download/remote-relative"
-	TERRAFORM_FOLDER                           = ".terraform"
-	TERRAFORM_STATE                            = "terraform.tfstate"
-	TERRAFORM_STATE_BACKUP                     = "terraform.tfstate.backup"
-	DEFAULT_TEST_REGION                        = "us-east-1"
+	TERRAFORM_REMOTE_STATE_S3_REGION                    = "us-west-2"
+	TEST_FIXTURE_PATH                                   = "fixture/"
+	TEST_FIXTURE_LOCK_PATH                              = "fixture-lock/"
+	TEST_FIXTURE_INCLUDE_PATH                           = "fixture-include/"
+	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH                 = "qa/my-app"
+	TEST_FIXTURE_STACK                                  = "fixture-stack/"
+	TEST_FIXTURE_LOCAL_DOWNLOAD_PATH                    = "fixture-download/local"
+	TEST_FIXTURE_REMOTE_DOWNLOAD_PATH                   = "fixture-download/remote"
+	TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH                 = "fixture-download/override"
+	TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH           = "fixture-download/local-relative"
+	TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH          = "fixture-download/remote-relative"
+	TEST_FIXTURE_OLD_CONFIG_LOCK_PATH                   = "fixture-old-terragrunt-config/lock"
+	TEST_FIXTURE_OLD_CONFIG_INCLUDE_PATH                = "fixture-old-terragrunt-config/include"
+	TEST_FIXTURE_OLD_CONFIG_INCLUDE_CHILD_UPDATED_PATH  = "fixture-old-terragrunt-config/include-child-updated"
+	TEST_FIXTURE_OLD_CONFIG_INCLUDE_PARENT_UPDATED_PATH = "fixture-old-terragrunt-config/include-parent-updated"
+	TEST_FIXTURE_OLD_CONFIG_STACK_PATH                  = "fixture-old-terragrunt-config/stack"
+	TEST_FIXTURE_OLD_CONFIG_DOWNLOAD_PATH               = "fixture-old-terragrunt-config/download"
+	TERRAFORM_FOLDER                                    = ".terraform"
+	TERRAFORM_STATE                                     = "terraform.tfstate"
+	TERRAFORM_STATE_BACKUP                              = "terraform.tfstate.backup"
+	DEFAULT_TEST_REGION                                 = "us-east-1"
 )
 
 func init() {
@@ -59,6 +65,21 @@ func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
 	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture")
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, TEST_FIXTURE_PATH))
+	validateS3BucketExists(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+}
+
+func TestTerragruntWorksWithLocalTerraformVersionAndOldConfig(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_OLD_CONFIG_LOCK_PATH)
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, TEST_FIXTURE_OLD_CONFIG_LOCK_PATH, s3BucketName)
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_old_config_lock")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, TEST_FIXTURE_OLD_CONFIG_LOCK_PATH))
 	validateS3BucketExists(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 }
 
@@ -105,6 +126,54 @@ func TestTerragruntWorksWithIncludes(t *testing.T) {
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
 }
 
+func TestTerragruntWorksWithIncludesAndOldConfig(t *testing.T) {
+	t.Parallel()
+
+	childPath := util.JoinPath(TEST_FIXTURE_OLD_CONFIG_INCLUDE_PATH, "child")
+	cleanupTerraformFolder(t, childPath)
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_OLD_CONFIG_INCLUDE_PATH, "child", s3BucketName)
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_old_config_include")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
+}
+
+func TestTerragruntWorksWithIncludesChildUpdatedAndOldConfig(t *testing.T) {
+	t.Parallel()
+
+	childPath := util.JoinPath(TEST_FIXTURE_OLD_CONFIG_INCLUDE_CHILD_UPDATED_PATH, "child")
+	cleanupTerraformFolder(t, childPath)
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_OLD_CONFIG_INCLUDE_CHILD_UPDATED_PATH, "child", s3BucketName)
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_old_config_include_child_updated")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
+}
+
+func TestTerragruntWorksWithIncludesParentUpdatedAndOldConfig(t *testing.T) {
+	t.Parallel()
+
+	childPath := util.JoinPath(TEST_FIXTURE_OLD_CONFIG_INCLUDE_PARENT_UPDATED_PATH, "child")
+	cleanupTerraformFolder(t, childPath)
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_OLD_CONFIG_INCLUDE_PARENT_UPDATED_PATH, "child", s3BucketName)
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_old_config_include_parent_updated")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
+}
+
 func TestTerragruntSpinUpAndTearDown(t *testing.T) {
 	t.Parallel()
 
@@ -128,6 +197,24 @@ func TestTerragruntSpinUpAndTearDown(t *testing.T) {
 	runTerragrunt(t, fmt.Sprintf("terragrunt tear-down --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", mgmtEnvironmentPath, s3BucketName))
 }
 
+func TestTerragruntSpinUpAndTearDownWithOldConfig(t *testing.T) {
+	t.Parallel()
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OLD_CONFIG_STACK_PATH)
+
+	rootPath := util.JoinPath(tmpEnvPath, "fixture-stack-old-config")
+	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName)
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_old_config_stack")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt spin-up --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", rootPath, s3BucketName))
+	runTerragrunt(t, fmt.Sprintf("terragrunt tear-down --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", rootPath, s3BucketName))
+}
+
 func TestLocalDownload(t *testing.T) {
 	t.Parallel()
 
@@ -137,6 +224,17 @@ func TestLocalDownload(t *testing.T) {
 
 	// Run a second time to make sure the temporary folder can be reused without errors
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_DOWNLOAD_PATH))
+}
+
+func TestLocalDownloadWithOldConfig(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_OLD_CONFIG_DOWNLOAD_PATH)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_OLD_CONFIG_DOWNLOAD_PATH))
+
+	// Run a second time to make sure the temporary folder can be reused without errors
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_OLD_CONFIG_DOWNLOAD_PATH))
 }
 
 func TestLocalDownloadWithRelativePath(t *testing.T) {
