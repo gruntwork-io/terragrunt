@@ -776,13 +776,17 @@ terraform {
 }
 ```
 
+*(Note: the double slash (`//`) is intentional and required. It's part of Terraform's Git syntax for [module 
+sources](https://www.terraform.io/docs/modules/sources.html).)
+
 When you run Terragrunt and it finds a `terraform` block in your configuration, Terragrunt will:
  
 1. Download the configurations specified via the `source` parameter into a temporary folder. This is done using the
    [terraform init command](https://www.terraform.io/docs/commands/init.html), so the `source` parameter supports the
    exact same syntax as the [module source](https://www.terraform.io/docs/modules/sources.html) parameter, including
    local file paths, Git URLs, and Git URLs with `ref` parameters (useful for checking out a specific tag, commit, or
-   branch of Git repo).
+   branch of Git repo). Terragrunt will download all the code in the repo (i.e. the part before the double-slash `//`) 
+   so that relative paths work correctly. 
 1. Copy all files from the current working directory into the temporary folder. This is useful if you have `.tfvars`
    files in your local path that you are using to set variables within your templates.
 1. Execute whatever Terraform command you specified in that temporary folder. **Note**: if you are passing any file
@@ -806,8 +810,11 @@ rapid, iterative, make-a-change-and-rerun development:
    
 ```
 cd infrastructure-live/stage/frontend-app
-terragrunt apply --terragrunt-source ../../../infrastructure-modules/frontend-app
-```   
+terragrunt apply --terragrunt-source ../../../infrastructure-modules//frontend-app
+```
+   
+*(Note: the double slash (`//`) here too is intentional and required. Terragrunt downloads all the code in the folder 
+before the double-slash into the temporary folder so that relative paths between modules work correctly.)*   
 
 ## CLI Options
 
