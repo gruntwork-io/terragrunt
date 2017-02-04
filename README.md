@@ -10,8 +10,8 @@ practices for Terraform state:
 1. **Remote state management**: A common mistake when using Terraform is to forget to configure remote state or to
    configure it incorrectly. Terragrunt can prevent these sorts of errors by automatically configuring remote state for
    everyone on your team.
-1. **Managing multiple modules**: Terragrunt has tools that make it easier to work with multiple Terraform folders, and 
-   therefore, multiple state files. 
+1. **Managing multiple modules**: Terragrunt has tools that make it easier to work with multiple Terraform folders,
+   environments, and state files. 
 
 Other types of locking mechanisms and automation for more best practices may be added in the future. 
 
@@ -30,11 +30,11 @@ or [etcd](https://www.terraform.io/docs/state/remote/etcd.html). All of these op
    time, they may overwrite each other's changes. The official solution to this problem is to use [Hashicorp's
    Atlas](https://www.hashicorp.com/atlas.html), but that can be a fairly expensive option, and it requires you to use
    a SaaS platform for all Terraform operations.
-1. They are error prone. Very often, you do a fresh checkout of a bunch of Terraform templates from version control,
+1. They are error prone. Very often, you do a fresh checkout of a bunch of Terraform configurations from version control,
    forget to enable remote state storage before applying them, and end up creating a bunch of duplicate resources.
    Sometimes you do remember to enable remote state storage, but you use the wrong configuration (e.g. the wrong S3
-   bucket name or key) and you end up overwriting the state for a totally different set of templates.
-1. If you define all of your environments (stage, prod) and components (database, app server) in one set of templates
+   bucket name or key) and you end up overwriting the state for a totally different set of configurations.
+1. If you define all of your environments (stage, prod) and components (database, app server) in one set of `.tf` files
    (and therefore one state file), then a mistake anywhere can cause problems everywhere. To isolate different 
    environments and components, you need to define your Terraform code in multiple different folders (see [How to 
    manage Terraform state](https://blog.gruntwork.io/how-to-manage-terraform-state-28f5697e68fa)), but this makes
@@ -60,7 +60,7 @@ a simple, free locking mechanism, and enforcing best practices around CLI usage 
 
 ## Quick start
 
-Go into the folder with your Terraform templates and create a `.terragrunt` file. This file uses the same
+Go into the folder with your Terraform configurations and create a `.terragrunt` file. This file uses the same
 [HCL](https://github.com/hashicorp/hcl) syntax as Terraform. Here is an example `.terragrunt` file that configures
 Terragrunt to use [DynamoDB for locking](#locking-using-dynamodb) and to [automatically manage remote
 state](#managing-remote-state) for you using the [S3 backend](https://www.terraform.io/docs/state/remote/s3.html):
@@ -184,9 +184,9 @@ lock = {
 }
 ```
 
-* `state_file_id`: (Required) A unique id for the state file for these Terraform templates. Many teams have more than
-  one set of templates, and therefore more than one state file, so this setting is used to disambiguate locks for one 
-  state file from another.
+* `state_file_id`: (Required) A unique id for the state file for these Terraform configurations. Many teams have more 
+  than one set of Terraform configurations, and therefore more than one state file, so this setting is used to 
+  disambiguate locks for one state file from another.
 * `aws_region`: (Optional) The AWS region to use. Default: `us-east-1`.
 * `table_name`: (Optional) The name of the table in DynamoDB to use to store lock information. Default:
   `terragrunt_locks`.
@@ -212,7 +212,7 @@ When you run `terragrunt apply` or `terragrunt destroy`, Terragrunt does the fol
 ## Acquiring a long-term lock
  
 Occasionally, you may want to lock a set of Terraform files and not allow further changes, perhaps during maintenance 
-work or as a precaution for templates that rarely change. To do that, you can use the `acquire-lock` command:
+work or as a precaution for configurations that rarely change. To do that, you can use the `acquire-lock` command:
  
 ```
 terragrunt acquire-lock
@@ -266,8 +266,8 @@ remote_state = {
 
 ## Managing multiple .terragrunt files
 
-With Terraform, it can be a good idea to store your templates in separate folders (and therefore, separate state files)
-to provide isolation between different environments,such as stage and prod, and different components, such as a 
+With Terraform, it can be a good idea to store your configurations in separate folders (and therefore, separate state 
+files) to provide isolation between different environments,such as stage and prod, and different components, such as a 
 database and an app cluster (for more info, see [How to Manage Terraform 
 State](https://blog.gruntwork.io/how-to-manage-terraform-state-28f5697e68fa)). That means you will need a `.terragrunt`
 file in each folder:
@@ -788,7 +788,7 @@ When you run Terragrunt and it finds a `terraform` block in your configuration, 
    branch of Git repo). Terragrunt will download all the code in the repo (i.e. the part before the double-slash `//`) 
    so that relative paths work correctly. 
 1. Copy all files from the current working directory into the temporary folder. This is useful if you have `.tfvars`
-   files in your local path that you are using to set variables within your templates.
+   files in your local path that you are using to set variables within your configurations.
 1. Execute whatever Terraform command you specified in that temporary folder. **Note**: if you are passing any file
    paths (other than paths to files in the current working directory) to Terraform via command-line options, those 
    paths must be absolute paths since we will be running Terraform from the temporary folder!
