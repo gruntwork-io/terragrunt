@@ -8,7 +8,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 
-	"github.com/mattn/go-zglob"
 )
 
 // Represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or
@@ -49,12 +48,9 @@ func (stack *Stack) CheckForCycles() error {
 // Find all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
 // assemble them into a Stack object that can be applied or destroyed in a single command
 func FindStackInSubfolders(terragruntOptions *options.TerragruntOptions) (*Stack, error) {
-	// Ideally, we'd use a builin Go library like filepath.Glob here, but per https://github.com/golang/go/issues/11862,
-	// the current go implementation doesn't support treating ** as zero or more directories, just zero or one.
-	// So we use a third-party library.
-	terragruntConfigFiles, err := zglob.Glob(fmt.Sprintf("%s/**/%s", terragruntOptions.WorkingDir, config.DefaultTerragruntConfigPath))
+	terragruntConfigFiles, err := config.FindConfigFilesInPath(terragruntOptions.WorkingDir)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, err
 	}
 
 	return createStackForTerragruntConfigPaths(terragruntOptions.WorkingDir, terragruntConfigFiles, terragruntOptions)
@@ -89,7 +85,7 @@ func createStackForTerragruntConfigPaths(path string, terragruntConfigPaths []st
 
 // Custom error types
 
-var NoTerraformModulesFound = fmt.Errorf("Could not find any subfolders with %s files", config.DefaultTerragruntConfigPath)
+var NoTerraformModulesFound = fmt.Errorf("Could not find any subfolders with Terragrunt configuration files")
 
 type DependencyCycle []string
 func (err DependencyCycle) Error() string {

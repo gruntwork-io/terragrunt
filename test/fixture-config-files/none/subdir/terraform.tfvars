@@ -1,0 +1,1 @@
+# This is a tfvars file, but it intentionally contains no terragrunt block

@@ -108,7 +108,7 @@ func findInParentFolders(terragruntOptions *options.TerragruntOptions) (string, 
 			return "", errors.WithStackTrace(ParentTerragruntConfigNotFound(terragruntOptions.TerragruntConfigPath))
 		}
 
-		configPath := util.JoinPath(currentDir, DefaultTerragruntConfigPath)
+		configPath := DefaultConfigPath(currentDir)
 		if util.FileExists(configPath) {
 			return util.GetPathRelativeTo(configPath, filepath.Dir(terragruntOptions.TerragruntConfigPath))
 		}
@@ -155,12 +155,12 @@ func (err UnknownHelperFunction) Error() string {
 
 type ParentTerragruntConfigNotFound string
 func (err ParentTerragruntConfigNotFound) Error() string {
-	return fmt.Sprintf("Could not find a %s config file in any of the parent folders of %s", DefaultTerragruntConfigPath, string(err))
+	return fmt.Sprintf("Could not find a Terragrunt config file in any of the parent folders of %s", string(err))
 }
 
 type CheckedTooManyParentFolders string
 func (err CheckedTooManyParentFolders) Error() string {
-	return fmt.Sprintf("Could not find a %s config file in a parent folder of %s after checking %d parent folders", DefaultTerragruntConfigPath, string(err), MAX_PARENT_FOLDERS_TO_CHECK)
+	return fmt.Sprintf("Could not find a Terragrunt config file in a parent folder of %s after checking %d parent folders", string(err), MAX_PARENT_FOLDERS_TO_CHECK)
 }
 
 type InvalidFunctionParameters string
