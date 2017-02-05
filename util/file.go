@@ -123,8 +123,8 @@ func CopyFolderContents(source string, destination string) error {
 	}
 
 	for _, file := range files {
-		src := filepath.Join(source, file.Name())
-		dest := filepath.Join(destination, file.Name())
+		src := JoinPath(source, file.Name())
+		dest := JoinPath(destination, file.Name())
 
 		if file.IsDir() {
 			if err := os.MkdirAll(dest, file.Mode()); err != nil {

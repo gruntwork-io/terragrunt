@@ -6,7 +6,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"os"
 	"github.com/gruntwork-io/terragrunt/errors"
-	"path/filepath"
 	"github.com/hashicorp/go-getter"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 	"io/ioutil"
@@ -196,9 +195,9 @@ func processTerraformSource(source string, terragruntOptions *options.Terragrunt
 	}
 
 	encodedWorkingDir := util.EncodeBase64Sha1(canonicalWorkingDir)
-	downloadDir := filepath.Join(os.TempDir(), "terragrunt-download", encodedWorkingDir, rootPath)
-	workingDir := filepath.Join(downloadDir, modulePath)
-	versionFile := filepath.Join(downloadDir, ".terragrunt-source-version")
+	downloadDir := util.JoinPath(os.TempDir(), "terragrunt-download", encodedWorkingDir, rootPath)
+	workingDir := util.JoinPath(downloadDir, modulePath)
+	versionFile := util.JoinPath(downloadDir, ".terragrunt-source-version")
 
 	return &TerraformSource{
 		CanonicalSourceURL: rootSourceUrl,
@@ -315,7 +314,7 @@ func cleanupTerraformFiles(path string, terragruntOptions *options.TerragruntOpt
 
 	terragruntOptions.Logger.Printf("Cleaning up existing *.tf files in %s", path)
 
-	files, err := zglob.Glob(filepath.Join(path, "**/*.tf"))
+	files, err := zglob.Glob(util.JoinPath(path, "**/*.tf"))
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}

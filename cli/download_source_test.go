@@ -151,7 +151,7 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 		CanonicalSourceURL: parseUrl(t, canonicalUrl),
 		DownloadDir: downloadDir,
 		WorkingDir: downloadDir,
-		VersionFile: filepath.Join(downloadDir, "version-file.txt"),
+		VersionFile: util.JoinPath(downloadDir, "version-file.txt"),
 	}
 
 	terragruntOptions := options.NewTerragruntOptionsForTest("./should-not-be-used")
@@ -160,7 +160,7 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 	err := downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions)
 	assert.Nil(t, err, "For terraform source %v: %v", terraformSource, err)
 
-	expectedFilePath := filepath.Join(downloadDir, "main.tf")
+	expectedFilePath := util.JoinPath(downloadDir, "main.tf")
 	if assert.True(t, util.FileExists(expectedFilePath), "For terraform source %v", terraformSource) {
 		actualFileContents := readFile(t, expectedFilePath)
 		assert.Equal(t, expectedFileContents, actualFileContents, "For terraform source %v", terraformSource)
@@ -172,7 +172,7 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalUrl string, downloadDir st
 		CanonicalSourceURL: parseUrl(t, canonicalUrl),
 		DownloadDir: downloadDir,
 		WorkingDir: downloadDir,
-		VersionFile: filepath.Join(downloadDir, "version-file.txt"),
+		VersionFile: util.JoinPath(downloadDir, "version-file.txt"),
 	}
 
 	actual, err := alreadyHaveLatestCode(terraformSource)

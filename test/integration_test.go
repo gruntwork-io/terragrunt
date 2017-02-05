@@ -18,7 +18,6 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"os"
-	"path"
 	"path/filepath"
 	"bytes"
 	"time"
@@ -88,7 +87,7 @@ func TestAcquireAndReleaseLock(t *testing.T) {
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCK_PATH)
 
-	terragruntConfigPath := path.Join(TEST_FIXTURE_LOCK_PATH, config.DefaultTerragruntConfigPath)
+	terragruntConfigPath := util.JoinPath(TEST_FIXTURE_LOCK_PATH, config.DefaultTerragruntConfigPath)
 
 	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_lock")
 
@@ -386,8 +385,8 @@ func createTmpTerragruntConfig(t *testing.T, templatesPath string, s3BucketName 
 		t.Fatalf("Failed to create temp folder due to error: %v", err)
 	}
 
-	tmpTerragruntConfigFile := path.Join(tmpFolder, configFileName)
-	originalTerragruntConfigPath := path.Join(templatesPath, configFileName)
+	tmpTerragruntConfigFile := util.JoinPath(tmpFolder, configFileName)
+	originalTerragruntConfigPath := util.JoinPath(templatesPath, configFileName)
 	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName)
 
 	return tmpTerragruntConfigFile
