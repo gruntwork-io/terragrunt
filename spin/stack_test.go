@@ -24,7 +24,7 @@ func TestFindStackInSubfolders(t *testing.T) {
 	}
 
 	tempFolder := createTempFolder(t)
-	writeAsEmptyFiles(t, tempFolder, filePaths)
+	writeDummyTerragruntConfigs(t, tempFolder, filePaths)
 
 	envFolder := filepath.ToSlash(util.JoinPath(tempFolder + "/stage"))
 	terragruntOptions := options.NewTerragruntOptions(envFolder)
@@ -60,15 +60,16 @@ func createTempFolder(t *testing.T) string {
 	return filepath.ToSlash(tmpFolder)
 }
 
-// Create an empty file at each of the given paths
-func writeAsEmptyFiles(t *testing.T, tmpFolder string, paths []string) {
+// Create a dummy Terragrunt config file at each of the given paths
+func writeDummyTerragruntConfigs(t *testing.T, tmpFolder string, paths []string) {
+	contents := []byte("terragrunt = {}")
 	for _, path := range paths {
 		absPath := util.JoinPath(tmpFolder, path)
 
 		containingDir := filepath.Dir(absPath)
 		createDirIfNotExist(t, containingDir)
 
-		err := ioutil.WriteFile(absPath, nil, os.ModePerm)
+		err := ioutil.WriteFile(absPath, contents, os.ModePerm)
 		if err != nil {
 			t.Fatalf("Failed to write file at path %s: %s\n", path, err.Error())
 		}
