@@ -838,12 +838,12 @@ to save money, larger/more instances in `prod` for scalability and high availabi
 
 When you run Terragrunt and it finds a `terraform` block, it will:
  
-1. Download the configurations specified via the `source` parameter into a temporary folder. This is done using the
-   [terraform init command](https://www.terraform.io/docs/commands/init.html), so the `source` parameter supports the
-   exact same syntax as the [module source](https://www.terraform.io/docs/modules/sources.html) parameter, including
-   local file paths, Git URLs, and Git URLs with `ref` parameters (useful for checking out a specific tag, commit, or
-   branch of Git repo). Terragrunt will download all the code in the repo (i.e. the part before the double-slash `//`) 
-   so that relative paths work correctly between modules in that repo. 
+1. Download the configurations specified via the `source` parameter into a temporary folder. This downloading is done 
+   by using the [terraform init command](https://www.terraform.io/docs/commands/init.html), so the `source` parameter 
+   supports the exact same syntax as the [module source](https://www.terraform.io/docs/modules/sources.html) parameter, 
+   including local file paths, Git URLs, and Git URLs with `ref` parameters (useful for checking out a specific tag, 
+   commit, or branch of Git repo). Terragrunt will download all the code in the repo (i.e. the part before the 
+   double-slash `//`) so that relative paths work correctly between modules in that repo. 
 1. Copy all files from the current working directory into the temporary folder. This way, Terraform will automatically
    read in the variables defined in the `terraform.tfvars` file.
 1. Execute whatever Terraform command you specified in that temporary folder. **Note**: if you are passing any file
