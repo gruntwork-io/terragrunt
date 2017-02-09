@@ -512,7 +512,8 @@ parent, but the `remote_state` settings of the child.
 
 ### Environment variables replacement
 
-You can read in environment variables in your `terraform.tfvars` file using the `get_env()` helper function:
+You can read in environment variables in the `terragrunt = { ... }` portion of your `terraform.tfvars` file using the 
+`get_env()` helper function:
 
 ```hcl
 terragrunt = {
@@ -572,8 +573,8 @@ terragrunt = {
 }
 ```
 
-Terraform itself also supports loading variables via the environment. Is possible to use the same variables by 
-correctly using the terrraform prefix `TF_VAR_`.
+Terraform itself also supports loading variables via the environment. It is possible to use the same variables by 
+correctly using the terraform prefix `TF_VAR_`.
 
 ```bash
 TF_VAR_variable="value" terragrunt apply
