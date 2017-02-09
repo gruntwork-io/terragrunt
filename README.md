@@ -856,9 +856,10 @@ environment-specific values in the `.tfvars` files, which is about as close to t
 problem as you can get.
 
 Just as importantly, since the Terraform code is now defined in a single repo, you can version it (e.g., using Git
-tags and referencing them using the `ref` parameter in the `source` URL), and promote a single, immutable version 
-through each environment (e.g., qa -> stage -> prod). This idea is inspired by Kief Morris' blog post [Using Pipelines 
-to Manage Environments with Infrastructure as 
+tags and referencing them using the `ref` parameter in the `source` URL, as in the 
+`stage/frontend-app/terraform.tfvars` and `prod/frontend-app/terraform.tfvars` examples above), and promote a single, 
+immutable version through each environment (e.g., qa -> stage -> prod). This idea is inspired by Kief Morris' blog 
+post [Using Pipelines to Manage Environments with Infrastructure as 
 Code](https://medium.com/@kief/https-medium-com-kief-using-pipelines-to-manage-environments-with-infrastructure-as-code-b37285a1cbf5).
 
 Note that you can also use the `--terragrunt-source` command-line option or the `TERRAGRUNT_SOURCE` environment variable
