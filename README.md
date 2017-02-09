@@ -60,11 +60,8 @@ a simple, free locking mechanism, and enforcing best practices around CLI usage 
 
 ## Quick start
 
-Go into the folder with your Terraform configurations and create a `terraform.tfvars` file. Terraform reads this file 
-by default for [variables](https://www.terraform.io/intro/getting-started/variables.html#from-a-file); Terragrunt reads
-this file by default for its configuration. Here is an example `terraform.tfvars` file that configures
-Terragrunt to use [DynamoDB for locking](#locking-using-dynamodb) and to [automatically manage remote
-state](#managing-remote-state) for you using the [S3 backend](https://www.terraform.io/docs/state/remote/s3.html):
+Go into a folder with your Terraform configurations (`.tf` files) and create a `terraform.tfvars` file with the 
+following contents:
 
 ```hcl
 terragrunt = {
@@ -88,9 +85,16 @@ terragrunt = {
   }
 }
 ```
+ 
+By default, Terragrunt reads all of its configuration from the `terragrunt = { ... }` block in your `terraform.tfvars` 
+file; Terraform also uses `terraform.tfvars` as a place where you can set values for your 
+[variables](https://www.terraform.io/intro/getting-started/variables.html#from-a-file), but so long as your Terraform
+code doesn't define any variables named `terragrunt`, Terraform will safely ignore this value. 
 
-Once you check this `terraform.tfvars` file into source control, everyone on your team can use `terragrunt` to run all 
-the standard `terraform` commands:
+The `terraform.tfvars` file above tells Terragrunt to use [DynamoDB for locking](#locking-using-dynamodb) and to 
+[automatically manage remote state](#managing-remote-state) for using the 
+[S3 backend](https://www.terraform.io/docs/state/remote/s3.html). Once you check this `terraform.tfvars` file into 
+source control, everyone on your team can use `terragrunt` to run all the standard `terraform` commands:
 
 ```bash
 terragrunt get
