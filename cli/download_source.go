@@ -6,7 +6,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"os"
 	"github.com/gruntwork-io/terragrunt/errors"
-	"path/filepath"
 	"github.com/hashicorp/go-getter"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 	"io/ioutil"
@@ -196,9 +195,9 @@ func processTerraformSource(source string, terragruntOptions *options.Terragrunt
 	}
 
 	encodedWorkingDir := util.EncodeBase64Sha1(canonicalWorkingDir)
-	downloadDir := filepath.Join(os.TempDir(), "terragrunt-download", encodedWorkingDir, rootPath)
-	workingDir := filepath.Join(downloadDir, modulePath)
-	versionFile := filepath.Join(downloadDir, ".terragrunt-source-version")
+	downloadDir := util.JoinPath(os.TempDir(), "terragrunt-download", encodedWorkingDir, rootPath)
+	workingDir := util.JoinPath(downloadDir, modulePath)
+	versionFile := util.JoinPath(downloadDir, ".terragrunt-source-version")
 
 	return &TerraformSource{
 		CanonicalSourceURL: rootSourceUrl,
@@ -315,7 +314,7 @@ func cleanupTerraformFiles(path string, terragruntOptions *options.TerragruntOpt
 
 	terragruntOptions.Logger.Printf("Cleaning up existing *.tf files in %s", path)
 
-	files, err := zglob.Glob(filepath.Join(path, "**/*.tf"))
+	files, err := zglob.Glob(util.JoinPath(path, "**/*.tf"))
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -323,7 +322,7 @@ func cleanupTerraformFiles(path string, terragruntOptions *options.TerragruntOpt
 }
 
 // There are two ways a user can tell Terragrunt that it needs to download Terraform configurations from a specific
-// URL: via a command-line option or via an entry in the .terragrunt config file. If the user used one of these, this
+// URL: via a command-line option or via an entry in the Terragrunt configuratino. If the user used one of these, this
 // method returns the source URL and the boolean true; if not, this method returns an empty string and false.
 func getTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (string, bool) {
 	if terragruntOptions.Source != "" {

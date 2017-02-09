@@ -44,7 +44,7 @@ func parseTerragruntOptionsFromArgs(args []string) (*options.TerragruntOptions, 
 		return nil, err
 	}
 	if terragruntConfigPath == "" {
-		terragruntConfigPath = util.JoinPath(workingDir, config.DefaultTerragruntConfigPath)
+		terragruntConfigPath = config.DefaultConfigPath(workingDir)
 	}
 
 	terraformPath, err := parseStringArg(args, OPT_TERRAGRUNT_TFPATH, os.Getenv("TERRAGRUNT_TFPATH"))

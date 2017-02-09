@@ -20,7 +20,7 @@ type EnvVar struct {
 	DefaultValue string
 }
 
-// Given a string value from a .terragrunt config file, parse the string, resolve any calls to helper functions using
+// Given a string value from a Terragrunt configuration, parse the string, resolve any calls to helper functions using
 // the syntax ${...}, and return the final value.
 func ResolveTerragruntConfigString(terragruntConfigString string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (resolved string, finalErr error) {
 	// The function we pass to ReplaceAllStringFunc cannot return an error, so we have to use named error
@@ -36,7 +36,7 @@ func ResolveTerragruntConfigString(terragruntConfigString string, include *Inclu
 	return
 }
 
-// Resolve a single call to an interpolation function of the format ${some_function()} in a .terragrunt file
+// Resolve a single call to an interpolation function of the format ${some_function()} in a Terragrunt configuration
 func resolveTerragruntInterpolation(str string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	matches := HELPER_FUNCTION_SYNTAX_REGEX.FindStringSubmatch(str)
 	if len(matches) == 3 {
@@ -90,7 +90,8 @@ func getEnvironmentVariable(parameters string, terragruntOptions *options.Terrag
 	return envValue, nil
 }
 
-// Find a parent .terragrunt file in the parent folders above the current .terragrunt file and return its path
+// Find a parent Terragrunt configuration file in the parent folders above the current Terragrunt configuration file
+// and return its path
 func findInParentFolders(terragruntOptions *options.TerragruntOptions) (string, error) {
 	previousDir, err := filepath.Abs(filepath.Dir(terragruntOptions.TerragruntConfigPath))
 	previousDir = filepath.ToSlash(previousDir)
@@ -107,7 +108,7 @@ func findInParentFolders(terragruntOptions *options.TerragruntOptions) (string, 
 			return "", errors.WithStackTrace(ParentTerragruntConfigNotFound(terragruntOptions.TerragruntConfigPath))
 		}
 
-		configPath := util.JoinPath(currentDir, DefaultTerragruntConfigPath)
+		configPath := DefaultConfigPath(currentDir)
 		if util.FileExists(configPath) {
 			return util.GetPathRelativeTo(configPath, filepath.Dir(terragruntOptions.TerragruntConfigPath))
 		}
@@ -118,7 +119,8 @@ func findInParentFolders(terragruntOptions *options.TerragruntOptions) (string, 
 	return "", errors.WithStackTrace(CheckedTooManyParentFolders(terragruntOptions.TerragruntConfigPath))
 }
 
-// Return the relative path between the included .terragrunt file and the current .terragrunt file
+// Return the relative path between the included Terragrunt cnofiguration file and the current Terragrunt configuration
+// file
 func pathRelativeToInclude(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	if include == nil {
 		return ".", nil
@@ -153,12 +155,12 @@ func (err UnknownHelperFunction) Error() string {
 
 type ParentTerragruntConfigNotFound string
 func (err ParentTerragruntConfigNotFound) Error() string {
-	return fmt.Sprintf("Could not find a %s config file in any of the parent folders of %s", DefaultTerragruntConfigPath, string(err))
+	return fmt.Sprintf("Could not find a Terragrunt config file in any of the parent folders of %s", string(err))
 }
 
 type CheckedTooManyParentFolders string
 func (err CheckedTooManyParentFolders) Error() string {
-	return fmt.Sprintf("Could not find a %s config file in a parent folder of %s after checking %d parent folders", DefaultTerragruntConfigPath, string(err), MAX_PARENT_FOLDERS_TO_CHECK)
+	return fmt.Sprintf("Could not find a Terragrunt config file in a parent folder of %s after checking %d parent folders", string(err), MAX_PARENT_FOLDERS_TO_CHECK)
 }
 
 type InvalidFunctionParameters string

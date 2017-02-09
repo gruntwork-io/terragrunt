@@ -10,8 +10,8 @@ practices for Terraform state:
 1. **Remote state management**: A common mistake when using Terraform is to forget to configure remote state or to
    configure it incorrectly. Terragrunt can prevent these sorts of errors by automatically configuring remote state for
    everyone on your team.
-1. **Managing multiple modules**: Terragrunt has tools that make it easier to work with multiple Terraform folders, and 
-   therefore, multiple state files. 
+1. **Managing multiple modules**: Terragrunt has tools that make it easier to work with multiple Terraform folders,
+   environments, and state files. 
 
 Other types of locking mechanisms and automation for more best practices may be added in the future. 
 
@@ -30,11 +30,11 @@ or [etcd](https://www.terraform.io/docs/state/remote/etcd.html). All of these op
    time, they may overwrite each other's changes. The official solution to this problem is to use [Hashicorp's
    Atlas](https://www.hashicorp.com/atlas.html), but that can be a fairly expensive option, and it requires you to use
    a SaaS platform for all Terraform operations.
-1. They are error prone. Very often, you do a fresh checkout of a bunch of Terraform templates from version control,
+1. They are error prone. Very often, you do a fresh checkout of a bunch of Terraform configurations from version control,
    forget to enable remote state storage before applying them, and end up creating a bunch of duplicate resources.
    Sometimes you do remember to enable remote state storage, but you use the wrong configuration (e.g. the wrong S3
-   bucket name or key) and you end up overwriting the state for a totally different set of templates.
-1. If you define all of your environments (stage, prod) and components (database, app server) in one set of templates
+   bucket name or key) and you end up overwriting the state for a totally different set of configurations.
+1. If you define all of your environments (stage, prod) and components (database, app server) in one set of `.tf` files
    (and therefore one state file), then a mistake anywhere can cause problems everywhere. To isolate different 
    environments and components, you need to define your Terraform code in multiple different folders (see [How to 
    manage Terraform state](https://blog.gruntwork.io/how-to-manage-terraform-state-28f5697e68fa)), but this makes
@@ -60,34 +60,41 @@ a simple, free locking mechanism, and enforcing best practices around CLI usage 
 
 ## Quick start
 
-Go into the folder with your Terraform templates and create a `.terragrunt` file. This file uses the same
-[HCL](https://github.com/hashicorp/hcl) syntax as Terraform. Here is an example `.terragrunt` file that configures
-Terragrunt to use [DynamoDB for locking](#locking-using-dynamodb) and to [automatically manage remote
-state](#managing-remote-state) for you using the [S3 backend](https://www.terraform.io/docs/state/remote/s3.html):
+Go into a folder with your Terraform configurations (`.tf` files) and create a `terraform.tfvars` file with the 
+following contents:
 
 ```hcl
-# Configure Terragrunt to use DynamoDB for locking
-lock = {
-  backend = "dynamodb"
-  config {
-    state_file_id = "my-app"
+terragrunt = {
+  # Configure Terragrunt to use DynamoDB for locking
+  lock {
+    backend = "dynamodb"
+    config {
+      state_file_id = "my-app"
+    }
   }
-}
-
-# Configure Terragrunt to automatically store tfstate files in an S3 bucket
-remote_state = {
-  backend = "s3"
-  config {
-    encrypt = "true"
-    bucket = "my-bucket"
-    key = "terraform.tfstate"
-    region = "us-east-1"
+  
+  # Configure Terragrunt to automatically store tfstate files in an S3 bucket
+  remote_state {
+    backend = "s3"
+    config {
+      encrypt = "true"
+      bucket = "my-bucket"
+      key = "terraform.tfstate"
+      region = "us-east-1"
+    }
   }
 }
 ```
+ 
+By default, Terragrunt reads all of its configuration from the `terragrunt = { ... }` block in your `terraform.tfvars` 
+file; Terraform also uses `terraform.tfvars` as a place where you can set values for your 
+[variables](https://www.terraform.io/intro/getting-started/variables.html#from-a-file), but so long as your Terraform
+code doesn't define any variables named `terragrunt`, Terraform will safely ignore this value. 
 
-Once you check this `.terragrunt` file into source control, everyone on your team can use Terragrunt to run all the
-standard Terraform commands:
+The `terraform.tfvars` file above tells Terragrunt to use [DynamoDB for locking](#locking-using-dynamodb) and to 
+[automatically manage remote state](#managing-remote-state) for using the 
+[S3 backend](https://www.terraform.io/docs/state/remote/s3.html). Once you check this `terraform.tfvars` file into 
+source control, everyone on your team can use `terragrunt` to run all the standard `terraform` commands:
 
 ```bash
 terragrunt get
@@ -99,8 +106,8 @@ terragrunt destroy
 
 Terragrunt forwards almost all commands, arguments, and options directly to Terraform, using whatever version of
 Terraform you already have installed. However, before running Terraform, Terragrunt will ensure your remote state is
-configured according to the settings in the `.terragrunt` file. Moreover, for the `apply`, `refresh`, and `destroy` commands,
-Terragrunt will first try to acquire a lock using [DynamoDB](#locking-using-dynamodb):
+configured according to the settings in the `terraform.tfvars` file. Moreover, for the `apply`, `refresh`, and 
+`destroy` commands, Terragrunt will first try to acquire a lock using [DynamoDB](#locking-using-dynamodb):
 
 ```
 terragrunt apply
@@ -130,7 +137,7 @@ Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
 Terragrunt can use Amazon's [DynamoDB](https://aws.amazon.com/dynamodb/) to acquire and release locks. DynamoDB supports
 [strongly consistent reads](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.DataConsistency.html)
 as well as [conditional writes](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.SpecifyingConditions.html),
-which are all the primitives we need for a very basic distributed lock system. It's also part of [AWS's free
+which are all the primitives we need for a basic distributed lock system. It's also part of [AWS's free
 tier](https://aws.amazon.com/dynamodb/pricing/), and given the tiny amount of data we are working with and the 
 relatively small number of times per day you're likely to run Terraform, it _should_ be a free option for teams already
 using AWS. We take no responsibility for any charges you may incur.
@@ -142,7 +149,7 @@ To use DynamoDB for locking, you must:
 1. Set your AWS credentials in the environment using one of the following options:
     1. Set your credentials as the environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (and also `AWS_SESSION_TOKEN` if using [STS temporary credentials](http://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html)).
     1. Specify the AWS profile to use using the environment variable `AWS_PROFILE`.
-    1. Specify the AWS profile to use using the `aws_profile` key in `.terragrunt` (see below).
+    1. Specify the AWS profile to use using the `aws_profile` key in `terraform.tfvars` (see below).
     1. Run `aws configure` and fill in the details it asks for.
     1. Run Terragrunt on an EC2 instance with an IAM Role.
 1. Your AWS user must have an [IAM 
@@ -150,8 +157,8 @@ To use DynamoDB for locking, you must:
    granting all DynamoDB actions (`dynamodb:*`) on the table `terragrunt_locks` (see the
    [DynamoDB locking configuration](#dynamodb-locking-configuration) for how to configure this table name).
 
-   Here is an example IAM policy that grants the necessary permissions on the `terragrunt_locks` table in region `us-west-2` for
-   an account with account id `1234567890`:
+   Here is an example IAM policy that grants the necessary permissions on the `terragrunt_locks` table in region 
+   `us-west-2` for an account with account id `1234567890`:
 
     ```json
     {
@@ -169,24 +176,26 @@ To use DynamoDB for locking, you must:
 
 #### DynamoDB locking configuration
  
-For DynamoDB locking, Terragrunt supports the following settings in `.terragrunt`:
+For DynamoDB locking, Terragrunt supports the following settings in `terraform.tfvars`:
 
 ```hcl
-lock = {
-  backend = "dynamodb"
-  config {
-    state_file_id = "my-app"
-    aws_region = "us-east-1"
-    table_name = "terragrunt_locks"
-    max_lock_retries = 360
-    aws_profile = "production"    
+terragrunt = {
+  lock {
+    backend = "dynamodb"
+    config {
+      state_file_id = "my-app"
+      aws_region = "us-east-1"
+      table_name = "terragrunt_locks"
+      max_lock_retries = 360
+      aws_profile = "production"    
+    }
   }
 }
 ```
 
-* `state_file_id`: (Required) A unique id for the state file for these Terraform templates. Many teams have more than
-  one set of templates, and therefore more than one state file, so this setting is used to disambiguate locks for one 
-  state file from another.
+* `state_file_id`: (Required) A unique id for the state file for these Terraform configurations. Many teams have more 
+  than one set of Terraform configurations, and therefore more than one state file, so this setting is used to 
+  disambiguate locks for one state file from another.
 * `aws_region`: (Optional) The AWS region to use. Default: `us-east-1`.
 * `table_name`: (Optional) The name of the table in DynamoDB to use to store lock information. Default:
   `terragrunt_locks`.
@@ -199,9 +208,9 @@ lock = {
 When you run `terragrunt apply` or `terragrunt destroy`, Terragrunt does the following:
 
 1. Create the `terragrunt_locks` table if it doesn't already exist.
-1. Try to write an item to the `terragrunt_locks` table with `StateFileId` equal to the `state_file_id` specified in your
-   `.terragrunt` file. This item will include useful metadata about the lock, such as who created it (e.g. your 
-   username) and when. 
+1. Try to write an item to the `terragrunt_locks` table with `StateFileId` equal to the `state_file_id` specified in 
+   your `terraform.tfvars` file. This item will include useful metadata about the lock, such as who created it (e.g. 
+   your username) and when. 
 1. Note that the write is a conditional write that will fail if an item with the same `state_file_id` already exists.
     1. If the write succeeds, it means we have a lock!
     1. If the write does not succeed, it means someone else has a lock. Keep retrying every 10 seconds until we get a
@@ -212,7 +221,7 @@ When you run `terragrunt apply` or `terragrunt destroy`, Terragrunt does the fol
 ## Acquiring a long-term lock
  
 Occasionally, you may want to lock a set of Terraform files and not allow further changes, perhaps during maintenance 
-work or as a precaution for templates that rarely change. To do that, you can use the `acquire-lock` command:
+work or as a precaution for configurations that rarely change. To do that, you can use the `acquire-lock` command:
  
 ```
 terragrunt acquire-lock
@@ -244,15 +253,17 @@ docs](https://www.terraform.io/docs/state/remote/) for the requirements to use a
 
 #### Remote state management configuration
 
-For remote state management, Terragrunt supports the following settings in `.terragrunt`:
+For remote state management, Terragrunt supports the following settings in `terraform.tfvars`:
 
 ```hcl
-remote_state = {
-  backend = "s3"
-  config {
-    key1 = "value1"
-    key2 = "value2"
-    key3 = "value3"
+terragrunt = {
+  remote_state {
+    backend = "s3"
+    config {
+      key1 = "value1"
+      key2 = "value2"
+      key3 = "value3"
+    }
   }
 }
 ```
@@ -264,81 +275,86 @@ remote_state = {
   
   > Note: Terragrunt will use the value provided in the `profile` key to configure the AWS SDK when using the S3 backend.
 
-## Managing multiple .terragrunt files
+## Managing multiple Terraform configurations
 
-With Terraform, it can be a good idea to store your templates in separate folders (and therefore, separate state files)
-to provide isolation between different environments,such as stage and prod, and different components, such as a 
+With Terraform, it can be a good idea to store your configurations in separate folders (and therefore, separate state 
+files) to provide isolation between different environments,such as stage and prod, and different components, such as a 
 database and an app cluster (for more info, see [How to Manage Terraform 
-State](https://blog.gruntwork.io/how-to-manage-terraform-state-28f5697e68fa)). That means you will need a `.terragrunt`
-file in each folder:
+State](https://blog.gruntwork.io/how-to-manage-terraform-state-28f5697e68fa)). That means you will need a 
+`terraform.tfvars` file in each folder:
 
 ```
 my-terraform-repo
   └ qa
       └ my-app
           └ main.tf
-          └ .terragrunt
+          └ terraform.tfvars
   └ stage
       └ my-app
           └ main.tf
-          └ .terragrunt
+          └ terraform.tfvars
   └ prod
       └ my-app
           └ main.tf
-          └ .terragrunt
+          └ terraform.tfvars
 ```
 
-Most of these `.terragrunt` files will have almost the same content. For example, `qa/my-app/.terragrunt` may look
-like this:
+Most of these `terraform.tfvars` files will have almost the same content. For example, `qa/my-app/terraform.tfvars` may 
+look like this:
 
 ```hcl
-# Configure Terragrunt to use DynamoDB for locking
-lock = {
-  backend = "dynamodb"
-  config {
-    state_file_id = "qa/my-app"
+terragrunt = {
+  # Configure Terragrunt to use DynamoDB for locking
+  lock {
+    backend = "dynamodb"
+    config {
+      state_file_id = "qa/my-app"
+    }
   }
-}
-
-# Configure Terragrunt to automatically store tfstate files in an S3 bucket
-remote_state = {
-  backend = "s3"
-  config {
-    encrypt = "true"
-    bucket = "my-bucket"
-    key = "qa/my-app/terraform.tfstate"
-    region = "us-east-1"
+  
+  # Configure Terragrunt to automatically store tfstate files in an S3 bucket
+  remote_state {
+    backend = "s3"
+    config {
+      encrypt = "true"
+      bucket = "my-bucket"
+      key = "qa/my-app/terraform.tfstate"
+      region = "us-east-1"
+    }
   }
 }
 ```
 
-And `stage/my-app/.terragrunt` may look like this:
+And `stage/my-app/terraform.tfvars` may look like this:
 
 ```hcl
-# Configure Terragrunt to use DynamoDB for locking
-lock = {
-  backend = "dynamodb"
-  config {
-    state_file_id = "stage/my-app"
+terragrunt = {
+  # Configure Terragrunt to use DynamoDB for locking
+  lock {
+    backend = "dynamodb"
+    config {
+      state_file_id = "stage/my-app"
+    }
   }
-}
-
-# Configure Terragrunt to automatically store tfstate files in an S3 bucket
-remote_state = {
-  backend = "s3"
-  config {
-    encrypt = "true"
-    bucket = "my-bucket"
-    key = "stage/my-app/terraform.tfstate"
-    region = "us-east-1"
+  
+  # Configure Terragrunt to automatically store tfstate files in an S3 bucket
+  remote_state {
+    backend = "s3"
+    config {
+      encrypt = "true"
+      bucket = "my-bucket"
+      key = "stage/my-app/terraform.tfstate"
+      region = "us-east-1"
+    }
   }
 }
 ```
 
 Note how most of the content is copy/pasted, except for the `state_file_id` and `key` parameters, which match the path
-of the `.terragrunt` file itself. How do you avoid having to manually maintain the contents of all of these 
-similar-looking `.terragrunt` files? Also, if you want to spin up an entire environment (e.g. `stage`, `prod`), how do
-you do it without having to manually run `terragrunt apply` in each of the Terraform folders within that environment?
+of the `terraform.tfvars` file itself. How do you avoid having to manually maintain the contents of all of these 
+similar-looking `terraform.tfvars` files? Also, if you want to spin up an entire environment (e.g. `stage`, `prod`), 
+how do you do it without having to manually run `terragrunt apply` in each of the Terraform folders within that 
+environment?
 
 The solution is to use the following features of Terragrunt:
 
@@ -351,106 +367,117 @@ The solution is to use the following features of Terragrunt:
 
 ### Includes
 
-One `.terragrunt` file can automatically "include" the contents of another `.terragrunt` file using the `include` 
-block. For example, imagine you have the following file layout:
+One `terraform.tfvars` file can automatically "include" the contents of another `terraform.tfvars` file using the 
+`include` block. For example, imagine you have the following file layout:
 
 ```
 my-terraform-repo
-  └ .terragrunt
+  └ terraform.tfvars
   └ qa
       └ my-app
           └ main.tf
-          └ .terragrunt
+          └ terraform.tfvars
   └ stage
       └ my-app
           └ main.tf
-          └ .terragrunt
+          └ terraform.tfvars
   └ prod
       └ my-app
           └ main.tf
-          └ .terragrunt
+          └ terraform.tfvars
 ```
 
-The `.terragrunt` file in the root folder defines the typical `lock` and `remote_state` settings. The `.terragrunt` 
-files in all the subfolders (e.g. `qa/my-app/.terragrunt`) can automatically include all the settings from a parent 
-file using the `include` block:
+The `terraform.tfvars` file in the root folder defines the typical `lock` and `remote_state` settings. The 
+`terraform.tfvars`  files in all the subfolders (e.g. `qa/my-app/terraform.tfvars`) can automatically include all the 
+settings from a parent file using the `include` block:
 
 ```hcl
-include = {
-  path = "../../.terragrunt"
+terragrunt = {
+  include {
+    path = "../../terraform.tfvars"
+  }
 }
 ```
 
-When you run Terragrunt in the `qa/my-app` folder, it will see the `include` block in the `qa/my-app/.terragrunt` file
-and realize that it should load the contents of the root `.terragrunt` file instead. It's almost as if you had 
-copy/pasted the contents of the root `.terragrunt` file into `qa/my-app/.terragrunt`, but much easier to maintain!
+When you run Terragrunt in the `qa/my-app` folder, it will see the `include` block in the `qa/my-app/terraform.tfvars` 
+file and realize that it should load the contents of the root `terraform.tfvars` file instead. It's almost as if you had 
+copy/pasted the contents of the root `terraform.tfvars` file into `qa/my-app/terraform.tfvars`, but much easier to 
+maintain!
 
-**Note**: only one level of includes is allowed. If `root/qa/my-app/.terragrunt` includes `root/.terragrunt`, then 
-`root/.terragrunt` may NOT specify an `include` block.
+**Note**: only one level of includes is allowed. If `root/qa/my-app/terraform.tfvars` includes `root/terraform.tfvars`, 
+then `root/terraform.tfvars` may NOT specify an `include` block.
 
 There are a few problems with the simple approach above, so read on before using it!
 
-1. Having to manually manage the file paths to the included `.terragrunt` file is tedious and error prone. To solve 
+1. Having to manually manage the file paths to the included `terraform.tfvars` file is tedious and error prone. To solve 
    this problem, you can use the `find_in_parent_folders()` helper. 
-1. If the included `.terragrunt` file hard-codes the `state_file_id` and `key` settings, then every child that includes
-   it would end up using the same lock and write state to the same location. To avoid this problem, you can use the 
-   `path_relative_to_include()` helper.
-1. Some of the child `.terragrunt` files may want to override the settings they include. To do this, see the section
-   on overriding included settings.
+1. If the included `terraform.tfvars` file hard-codes the `state_file_id` and `key` settings, then every child that 
+   includes it would end up using the same lock and write state to the same location. To avoid this problem, you can 
+   use the `path_relative_to_include()` helper.
+1. Some of the child `terraform.tfvars` files may want to override the settings they include. To do this, see the 
+   section on overriding included settings.
 
 Each of these items is discussed next.
 
 ### find_in_parent_folders helper
 
-Terragrunt supports the use of a few helper functions using the same syntax as Terraform: `${some_function()}`. One of
-the supported helper functions is `find_in_parent_folders()`, which returns the path to the first `.terragrunt` file it
-finds in the parent folders above the current `.terragrunt` file. 
+Terragrunt supports the use of a few helper functions in the `terraform.tfvars` file using the same syntax as 
+Terraform: `${some_function()}`. Note that these helper functions are *only* evaluated by Terragrunt and not Terraform,
+so they won't work outside of the `terragrunt = { ... }` block in the `terraform.tfvars` file.
+
+
+One of the supported helper functions is `find_in_parent_folders()`, which returns the path to the first 
+`terraform.tfvars` file it finds in the parent folders above the current `terraform.tfvars` file. 
 
 Example:
 
 ```hcl
-include = {
-  path = "${find_in_parent_folders()}"
+terragrunt = {
+  include {
+    path = "${find_in_parent_folders()}"
+  }
 }
 ```
 
-If you ran this in `qa/my-app/.terragrunt`, this would automatically set `path` to `../../.terragrunt`. You will almost
-always want to use this function, as it allows you to copy/paste the same `.terragrunt` file to all child folders with
-no changes.
+If you ran this in `qa/my-app/terraform.tfvars`, this would automatically set `path` to `../../terraform.tfvars`. You 
+will almost always want to use this function, as it allows you to copy/paste the same `terraform.tfvars` file to all 
+child folders with no changes.
 
 `find_in_parent_folders()` will search up the directory tree until it hits the root folder of your file system, and if
-no `.terragrunt` file is found, Terragrunt will exit with an error.
+no `terraform.tfvars` file is found, Terragrunt will exit with an error.
 
 ### path_relative_to_include helper
 
 Another helper function supported by Terragrunt is `path_relative_to_include()`, which returns the relative path between 
-the current `.terragrunt` file and the path specified in its `include` block. For example, in the root `.terragrunt` 
-file, you could do the following:
+the current `terraform.tfvars` file and the path specified in its `include` block. For example, in the root 
+`terraform.tfvars` file, you could do the following:
  
 ```hcl
-# Configure Terragrunt to use DynamoDB for locking
-lock = {
-  backend = "dynamodb"
-  config {
-    state_file_id = "${path_relative_to_include()}"
+terragrunt = {
+  # Configure Terragrunt to use DynamoDB for locking
+  lock {
+    backend = "dynamodb"
+    config {
+      state_file_id = "${path_relative_to_include()}"
+    }
   }
-}
-
-# Configure Terragrunt to automatically store tfstate files in an S3 bucket
-remote_state = {
-  backend = "s3"
-  config {
-    encrypt = "true"
-    bucket = "my-bucket"
-    key = "${path_relative_to_include()}/terraform.tfstate"
-    region = "us-east-1"
+  
+  # Configure Terragrunt to automatically store tfstate files in an S3 bucket
+  remote_state {
+    backend = "s3"
+    config {
+      encrypt = "true"
+      bucket = "my-bucket"
+      key = "${path_relative_to_include()}/terraform.tfstate"
+      region = "us-east-1"
+    }
   }
 }
 ``` 
 
-Each child `.terragrunt` file that references the configuration above in its `include` block will get a unique path for 
-its `state_file_id` and `key` settings. For example, in `qa/my-app/.terragrunt`, the `state_file_id` will resolve to 
-`qa/my-app` and the `key` will resolve to `qa/my-app/terraform.tfstate`.  
+Each child `terraform.tfvars` file that references the configuration above in its `include` block will get a unique 
+path for its `state_file_id` and `key` settings. For example, in `qa/my-app/terraform.tfvars`, the `state_file_id` will 
+resolve to `qa/my-app` and the `key` will resolve to `qa/my-app/terraform.tfstate`.  
 
 You will almost always want to use this helper too. The only time you may want to specify the `state_file_id` or `key` 
 manually is if you moved a child folder. In that case, to ensure it can reuse its old state and lock, you may want to 
@@ -459,21 +486,23 @@ files themselves to match the new location of the child folder, as that makes th
 
 ### Overriding included settings
 
-Any settings in the child `.terragrunt` file will override the settings pulled in via an `include`. For example, 
-imagine if `qa/my-app/.terragrunt` had the following contents:
+Any settings in the child `terraform.tfvars` file will override the settings pulled in via an `include`. For example, 
+imagine if `qa/my-app/terraform.tfvars` had the following contents:
  
 ```hcl
-include = {
-  path = "${find_in_parent_folders()}"
-}
-
-remote_state = {
-  backend = "s3"
-  config {
-    encrypt = "true"
-    bucket = "some-other-bucket"
-    key = "/foo/bar/terraform.tfstate"
-    region = "us-west-2"
+terragrunt = {
+  include {
+    path = "${find_in_parent_folders()}"
+  }
+  
+  remote_state {
+    backend = "s3"
+    config {
+      encrypt = "true"
+      bucket = "some-other-bucket"
+      key = "/foo/bar/terraform.tfstate"
+      region = "us-west-2"
+    }
   }
 }
 ``` 
@@ -483,68 +512,84 @@ parent, but the `remote_state` settings of the child.
 
 ### Environment variables replacement
 
-You can read in environment variables in your `.terragrunt` file using the `get_env()` helper function:
+You can read in environment variables in the `terragrunt = { ... }` portion of your `terraform.tfvars` file using the 
+`get_env()` helper function:
 
 ```hcl
-remote_state = {
-  backend = "s3"
-  config {
-    encrypt = "true"
-    bucket = "${get_env("ENVIRONMENT_VARIABLE_NAME", "development")}-bucket"
-    key = "/foo/bar/terraform.tfstate"
-    region = "us-west-2"
+terragrunt = {
+  remote_state {
+    backend = "s3"
+    config {
+      encrypt = "true"
+      bucket = "${get_env("ENVIRONMENT_VARIABLE_NAME", "development")}-bucket"
+      key = "/foo/bar/terraform.tfstate"
+      region = "us-west-2"
+    }
   }
 }
 ```
 
-This function takes two parameters: `ENVIRONMENT_VARIABLE_NAME` and `default`. When parsing the file, `terragrunt` will evaluate the environment variable `ENVIRONMENT_VARIABLE_NAME` and replace with the registered value. If there is no environment variable with that name or is empty, it will use the one registered in the `default`. The default value is mandatory but can be empty `${get_env("ENVIRONMENT_VARIABLE_NAME", "")}`.
+This function takes two parameters: `ENVIRONMENT_VARIABLE_NAME` and `default`. When parsing the file, Terragrunt 
+will evaluate the environment variable `ENVIRONMENT_VARIABLE_NAME` and replace with the registered value. If there is 
+no environment variable with that name or is empty, it will use the one registered in the `default`. The default value 
+is mandatory but can be empty (e.g. `${get_env("ENVIRONMENT_VARIABLE_NAME", "")}`).
 
-If there is no environment variable with that name registered in the system, the configuration file would be evaluated to:
+If there is no environment variable with that name registered in the system, the configuration file would be evaluated 
+to:
 
 ```hcl
-remote_state = {
-  backend = "s3"
-  config {
-    encrypt = "true"
-    bucket = "development-bucket"
-    key = "/foo/bar/terraform.tfstate"
-    region = "us-west-2"
+terragrunt = {
+  remote_state {
+    backend = "s3"
+    config {
+      encrypt = "true"
+      bucket = "development-bucket"
+      key = "/foo/bar/terraform.tfstate"
+      region = "us-west-2"
+    }
   }
 }
 ```
 
-But if the variable is set
+But if the variable is set:
+
 ```bash
 ENVIRONMENT_VARIABLE="value" terragrunt
 ```
-then the previous example would evaluate to:
+
+Then the previous example would evaluate to:
 
 ```hcl
-remote_state = {
-  backend = "s3"
-  config {
-    encrypt = "true"
-    bucket = "value-bucket"
-    key = "/foo/bar/terraform.tfstate"
-    region = "us-west-2"
+terragrunt = {
+  remote_state {
+    backend = "s3"
+    config {
+      encrypt = "true"
+      bucket = "value-bucket"
+      key = "/foo/bar/terraform.tfstate"
+      region = "us-west-2"
+    }
   }
 }
 ```
 
-Terraform itself also supports loading variables via the environment. Is possible to use the same variables by correctly using the terrraform prefix `TF_VAR_`.
+Terraform itself also supports loading variables via the environment. It is possible to use the same variables by 
+correctly using the terraform prefix `TF_VAR_`.
 
 ```bash
-TF_VAR_variable="value" terragrunt
+TF_VAR_variable="value" terragrunt apply
 ```
 
 ```hcl
-remote_state = {
-  backend = "s3"
-  config {
-    encrypt = "true"
-    bucket = "${get_env("TF_VAR_variable", "value")}-bucket"
-    key = "/foo/bar/terraform.tfstate"
-    region = "us-west-2"
+terragrunt = {
+  remote_state {
+    backend = "s3"
+    config {
+      encrypt = "true"
+      bucket = "${get_env("TF_VAR_variable", "value")}-bucket"
+      key = "/foo/bar/terraform.tfstate"
+      region = "us-west-2"
+    }
   }
 }
 ```
@@ -555,26 +600,26 @@ Let's say you have a single environment (e.g. `stage` or `prod`) that has a numb
 
 ```
 my-terraform-repo
-  └ .terragrunt
+  └ terraform.tfvars
   └ stage
       └ frontend-app
           └ main.tf
-          └ .terragrunt
+          └ terraform.tfvars
       └ backend-app
           └ main.tf
-          └ .terragrunt
+          └ terraform.tfvars
       └ search-app
           └ main.tf
-          └ .terragrunt
+          └ terraform.tfvars
       └ mysql
           └ main.tf
-          └ .terragrunt
+          └ terraform.tfvars
       └ redis
           └ main.tf
-          └ .terragrunt
+          └ terraform.tfvars
       └ vpc
           └ main.tf
-          └ .terragrunt
+          └ terraform.tfvars
 ```
 
 There is one module to deploy a frontend-app, another to deploy a backend-app, another for the MySQL database, and so 
@@ -588,8 +633,8 @@ cd my-terraform-repo/stage
 terragrunt spin-up
 ```
 
-When you run this command, Terragrunt will find all `.terragrunt` files in the subfolders of the current working 
-directory, and run `terragrunt apply` in each one concurrently.  
+When you run this command, Terragrunt will find all `terraform.tfvars` files in the subfolders of the current working 
+directory that contain `terragrunt = { ... }` blocks, and run `terragrunt apply` in each one concurrently.  
 
 Similarly, to undeploy all the Terraform modules, you can use the `tear-down` command:
 
@@ -599,8 +644,8 @@ terragrunt tear-down
 ```
 
 Of course, if your modules have dependencies between them—for example, you can't deploy the backend-app until the MySQL
-database is deployed—you'll need to express those dependencines in your `.terragrunt` config as explained in the next
-section.
+database is deployed—you'll need to express those dependencines in your `terraform.tfvars` config as explained in the 
+next section.
 
 ### Dependencies between modules
 
@@ -608,26 +653,26 @@ Consider the following file structure for the `stage` environment:
 
 ```
 my-terraform-repo
-  └ .terragrunt
+  └ terraform.tfvars
   └ stage
       └ frontend-app
           └ main.tf
-          └ .terragrunt
+          └ terraform.tfvars
       └ backend-app
           └ main.tf
-          └ .terragrunt
+          └ terraform.tfvars
       └ search-app
           └ main.tf
-          └ .terragrunt
+          └ terraform.tfvars
       └ mysql
           └ main.tf
-          └ .terragrunt
+          └ terraform.tfvars
       └ redis
           └ main.tf
-          └ .terragrunt
+          └ terraform.tfvars
       └ vpc
           └ main.tf
-          └ .terragrunt
+          └ terraform.tfvars
 ```
 
 Let's assume you have the following dependencies between Terraform modules:
@@ -636,32 +681,36 @@ Let's assume you have the following dependencies between Terraform modules:
 * The backend-app depends on the MySQL database and Redis
 * The frontend-app and search-app depend on the backend-app
 
-You can express these dependencies in your `.terragrunt` config files using the `dependencies` block. For example, in
-`stage/backend-app/.terragrunt` you would specify:
+You can express these dependencies in your `terraform.tfvars` config files using the `dependencies` block. For example, 
+in `stage/backend-app/terraform.tfvars` you would specify:
 
 ```hcl
-include = {
-  path = "${find_in_parent_folders()}"
-}
-
-dependencies = {
-  paths = ["../vpc", "../mysql", "../redis"]
+terragrunt = {
+  include {
+    path = "${find_in_parent_folders()}"
+  }
+  
+  dependencies {
+    paths = ["../vpc", "../mysql", "../redis"]
+  }
 }
 ```
 
-Similarly, in `stage/frontend-app/.terragrunt`, you would specify:
+Similarly, in `stage/frontend-app/terraform.tfvars`, you would specify:
 
 ```hcl
-include = {
-  path = "${find_in_parent_folders()}"
-}
-
-dependencies = {
-  paths = ["../vpc", "../backend-app"]
+terragrunt = {
+  include {
+    path = "${find_in_parent_folders()}"
+  }
+  
+  dependencies {
+    paths = ["../vpc", "../backend-app"]
+  }
 }
 ```
 
-Once you've specified the depenedencies in each `.terragrunt` file, when you run the `terragrunt spin-up` and 
+Once you've specified the depenedencies in each `terraform.tfvars` file, when you run the `terragrunt spin-up` and 
 `terragrunt tear-down`, Terragrunt will ensure that the dependencies are applied or destroyed, respectively, in the
 correct order. For the example at the start of this section, the order for the `spin-up` command would be:
 
@@ -728,80 +777,89 @@ environments should be exposed as an input variable. For example, the frontend-a
 as you may want to run smaller/fewer servers in staging than in prod to save money.
 
 In a separate repo, called, for example, infrastructure-live, you define the code for all of your environments, which
-now consists of just two files per component:
-
-1. `terraform.tfvars`: This file defines the environment-specific values for all of your input variables. For example,
-   for `stage/frontend-app/terraform.tfvars`, you might have:
-   
-    ```hcl
-    instance_count = 3
-    instance_type = "t2.micro"
-    ```
-
-    Whereas for `prod/frontend-app/terraform.tfvars`, you might have:
-   
-    ```hcl
-    instance_count = 10
-    instance_type = "m2.large"
-    ```
-1. `.terragrunt`: This is the typical Terragrunt configuration file, which specifies how to manage remote state and 
-   locking. 
-   
-This gives you the following folder structure:   
+now consists of just one `.tfvars` file per component (e.g. `frontend-app.tfvars`, `backend-app.tfvars`, etc). This 
+gives you the following file layout:   
  
 ```
 infrastructure-live
   └ stage
     └ frontend-app
-        └ .terragrunt
-        └ terraform.tfvars
+      └ terraform.tfvars
     └ backend-app
     └ mysql
     └ vpc
   └ prod
     └ frontend-app
-        └ .terragrunt
-        └ terraform.tfvars
+      └ terraform.tfvars
     └ backend-app
     └ mysql
     └ vpc
 ```
- 
-Notice how there are no Terraform configurations (`.tf` files) in any of the folders. To tell Terragrunt where to
-find your Terraform code, each `.terragrunt` file can contain a `terraform` block:
 
+This 
+file defines a `terragrunt = { ... }` block to configure Terragrunt, . 
+
+Notice how there are no Terraform configurations (`.tf` files) in any of the folders. Instead, each `.tfvars` file 
+specifies a `terraform { ... }` block that specifies from where to download the Terraform code, as well as the 
+environment-specific values for the input variables in that Terraform code. For example, 
+`stage/frontend-app/terraform.tfvars` may look like this:
+   
 ```hcl
-terraform {
-  source = "git::git@github.com:foo/bar.git//frontend-app?ref=v0.0.1"
+terragrunt = {
+  terraform {
+    source = "git::git@github.com:foo/bar.git//frontend-app?ref=v0.0.3"
+  }
 }
+
+instance_count = 3
+instance_type = "t2.micro"
 ```
 
 *(Note: the double slash (`//`) is intentional and required. It's part of Terraform's Git syntax for [module 
 sources](https://www.terraform.io/docs/modules/sources.html).)
 
-When you run Terragrunt and it finds a `terraform` block in your configuration, Terragrunt will:
+And `prod/frontend-app/terraform.tfvars` may look like this:
+   
+```hcl
+terragrunt = {
+  terraform {
+    source = "git::git@github.com:foo/bar.git//frontend-app?ref=v0.0.1"
+  }
+}
+
+instance_count = 10
+instance_type = "m2.large"
+```
+
+Notice how the two `terraform.tfvars` files set the `source` URL to the same `frontend-app` module, but at different 
+versions (i.e. `stage` is testing out a newer version of the module). They also set the parameters for the 
+`frontend-app` module to different values that are appropriate for the environment: smaller/fewer servers in `stage` 
+to save money, larger/more instances in `prod` for scalability and high availability.  
+
+When you run Terragrunt and it finds a `terraform` block, it will:
  
-1. Download the configurations specified via the `source` parameter into a temporary folder. This is done using the
-   [terraform init command](https://www.terraform.io/docs/commands/init.html), so the `source` parameter supports the
-   exact same syntax as the [module source](https://www.terraform.io/docs/modules/sources.html) parameter, including
-   local file paths, Git URLs, and Git URLs with `ref` parameters (useful for checking out a specific tag, commit, or
-   branch of Git repo). Terragrunt will download all the code in the repo (i.e. the part before the double-slash `//`) 
-   so that relative paths work correctly. 
-1. Copy all files from the current working directory into the temporary folder. This is useful if you have `.tfvars`
-   files in your local path that you are using to set variables within your templates.
+1. Download the configurations specified via the `source` parameter into a temporary folder. This downloading is done 
+   by using the [terraform init command](https://www.terraform.io/docs/commands/init.html), so the `source` parameter 
+   supports the exact same syntax as the [module source](https://www.terraform.io/docs/modules/sources.html) parameter, 
+   including local file paths, Git URLs, and Git URLs with `ref` parameters (useful for checking out a specific tag, 
+   commit, or branch of Git repo). Terragrunt will download all the code in the repo (i.e. the part before the 
+   double-slash `//`) so that relative paths work correctly between modules in that repo. 
+1. Copy all files from the current working directory into the temporary folder. This way, Terraform will automatically
+   read in the variables defined in the `terraform.tfvars` file.
 1. Execute whatever Terraform command you specified in that temporary folder. **Note**: if you are passing any file
    paths (other than paths to files in the current working directory) to Terraform via command-line options, those 
    paths must be absolute paths since we will be running Terraform from the temporary folder!
 
-With new approach, copy/paste between environments is minimized. `terraform.tfvars` contains solely the variables 
-that are different between environments and `.terragrunt` specifies from where to download the actual Terraform code.
-To create a new environment, you copy and old one and update just the environment-specific values in `terraform.tfvars`,
-which is about as close to the "essential complexity" of the problem as you can get.
+With new approach, copy/paste between environments is minimized. The `.tfvars` files contain solely the variables 
+that are different between environments. To create a new environment, you copy an old one and update just the 
+environment-specific values in the `.tfvars` files, which is about as close to the "essential complexity" of the 
+problem as you can get.
 
-Just as importantly, since the Terraform code is now defined in a single repo, you can version it (e.g. using Git
-tags and referencing them using the `ref` parameter in the `source` URL), and promote a single, immutable version 
-through each environment (e.g. qa -> stage -> prod). This idea is inspired by Kief Morris' blog post [Using Pipelines 
-to Manage Environments with Infrastructure as 
+Just as importantly, since the Terraform code is now defined in a single repo, you can version it (e.g., using Git
+tags and referencing them using the `ref` parameter in the `source` URL, as in the 
+`stage/frontend-app/terraform.tfvars` and `prod/frontend-app/terraform.tfvars` examples above), and promote a single, 
+immutable version through each environment (e.g., qa -> stage -> prod). This idea is inspired by Kief Morris' blog 
+post [Using Pipelines to Manage Environments with Infrastructure as 
 Code](https://medium.com/@kief/https-medium-com-kief-using-pipelines-to-manage-environments-with-infrastructure-as-code-b37285a1cbf5).
 
 Note that you can also use the `--terragrunt-source` command-line option or the `TERRAGRUNT_SOURCE` environment variable
@@ -821,8 +879,9 @@ before the double-slash into the temporary folder so that relative paths between
 Terragrunt forwards all arguments and options to Terraform. The only exceptions are the options that start with the
 prefix `--terragrunt-`. The currently available options are:
 
-* `--terragrunt-config`: A custom path to the `.terragrunt` file. May also be specified via the `TERRAGRUNT_CONFIG`
-  environment variable. The default path is `.terragrunt` in the current directory.
+* `--terragrunt-config`: A custom path to the `terraform.tfvars` file. May also be specified via the `TERRAGRUNT_CONFIG`
+  environment variable. The default path is `terraform.tfvars` in the current directory (see 
+  [Terragrunt config files](#terragrnt-config-files) for a slightly more nuanced explanation).
 * `--terragrunt-tfpath`: A custom path to the Terraform binary. May also be specified via the `TERRAGRUNT_TFPATH`
   environment variable. The default is `terraform` in a directory on your PATH.
 * `--terragrunt-non-interactive`: Don't show interactive user prompts. This will default the answer for all prompts to 
@@ -837,6 +896,63 @@ prefix `--terragrunt-`. The currently available options are:
   parameter.  
 * `--terragrunt-source-update`: Delete the contents of the temporary folder before downloading Terraform source code
   into it.
+
+## Terragrunt config files
+
+The current version of Terragrunt expects configuration to be defined in a `terraform.tfvars` file. Previous
+versions defined the config in a `.terragrunt` file. **The `.terragrunt` format is now deprecated**!
+
+For backwards compatibility, Terragrunt will continue to support the `.terragrunt` file format for a short period of 
+time. Check out the next section for how this works. Note that you will get a warning in your logs every time you run 
+Terragrunt with a `.terragrunt` file, and we will eventually stop supporting this older format, so we recommend 
+migrating to the `terraform.tfvars` format ASAP!
+
+### Config file search paths
+
+Terragrunt figures out the path to its config file according to the following rules:
+
+1. The value of the `--terragrunt-config` command-line option, if specified.
+1. The value of the `TERRAGRUNT_CONFIG` environment variable, if defined.
+1. A `.terragrunt` file in the current working directory, if it exists.
+1. A `terraform.tfvars` file in the current working directory, if it exists.
+1. If none of these are found, exit with an error.
+
+### Migrating from .terragrunt to terraform.tfvars
+
+The configuration in a `.terragrunt` file is identical to that of the `terraform.tfvars` file, except the 
+`terraform.tfvars` file requires you to wrap that configuration in a `terragrunt = { ... }` block. 
+
+For example, if this is your `.terragrunt` file:
+
+```hcl
+include {
+  path = "${find_in_parent_folders()}"
+}
+
+dependencies {
+  paths = ["../vpc", "../mysql", "../redis"]
+}
+```
+
+The equivalent `terraform.tfvars` file is:
+
+```hcl
+terragrunt = {
+  include {
+    path = "${find_in_parent_folders()}"
+  }
+  
+  dependencies {
+    paths = ["../vpc", "../mysql", "../redis"]
+  }
+}
+```
+
+To migrate, all you need to do is:
+
+1. Copy all the contents of the `.terragrunt` file.
+1. Paste those contents into a `terragrunt = { ... }` block in a `terraform.tfvars` file.
+1. Delete the `.terragrunt` file.
 
 ## Developing terragrunt
 
@@ -919,14 +1035,3 @@ See `circle.yml` and `_ci/build-and-push-release-asset.sh` for details.
 ## License
 
 This code is released under the MIT License. See LICENSE.txt.
-
-## TODO
-
-* Add a check that modules have been downloaded using `terraform get`.
-* Add a check that all local changes have been committed before running `terraform apply`.
-* Consider implementing alternative locking mechanisms, such as using Git instead of DynamoDB.
-* Consider embedding the Terraform Go code within Terragrunt instead of calling out to it.
-* Add a `show-lock` command.
-* Add a command to automatically set up best-practices remote state storage in a versioned, encrypted, S3 bucket.
-* Add a command to list the different versions of state available in a versioned S3 bucket and to diff any two state
-  files.

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
+	"fmt"
 )
 
 var mockOptions = options.TerragruntOptions{TerragruntConfigPath: "test-time-mock", NonInteractive: true}
@@ -18,16 +19,20 @@ func TestParseTerragruntConfigDynamoLockMinimalConfig(t *testing.T) {
 
 	config :=
 `
-lock = {
-  backend = "dynamodb"
-  config {
-    state_file_id = "expected-state-file-id"
+terragrunt = {
+  lock {
+    backend = "dynamodb"
+    config {
+      state_file_id = "expected-state-file-id"
+    }
   }
 }
 `
 
-	terragruntConfig, err := parseConfigString(config, &mockOptions, nil)
-	assert.Nil(t, err)
+	terragruntConfig, err := parseConfigString(config, &mockOptions, nil, DefaultTerragruntConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -45,19 +50,23 @@ func TestParseTerragruntConfigDynamoLockFullConfig(t *testing.T) {
 
 	config :=
 `
-lock = {
-  backend = "dynamodb"
-  config {
-    state_file_id = "expected-state-file-id"
-    aws_region = "expected-region"
-    table_name = "expected-table-name"
-    max_lock_retries = 100
+terragrunt = {
+  lock {
+    backend = "dynamodb"
+    config {
+      state_file_id = "expected-state-file-id"
+      aws_region = "expected-region"
+      table_name = "expected-table-name"
+      max_lock_retries = 100
+    }
   }
 }
 `
 
-	terragruntConfig, err := parseConfigString(config, &mockOptions, nil)
-	assert.Nil(t, err)
+	terragruntConfig, err := parseConfigString(config, &mockOptions, nil, DefaultTerragruntConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -77,14 +86,16 @@ func TestParseTerragruntConfigDynamoLockMissingStateFileId(t *testing.T) {
 
 	config :=
 `
-lock = {
-  backend = "dynamodb"
-  config {
+terragrunt = {
+  lock {
+    backend = "dynamodb"
+    config {
+    }
   }
 }
 `
 
-	_, err := parseConfigString(config, &mockOptions, nil)
+	_, err := parseConfigString(config, &mockOptions, nil, DefaultTerragruntConfigPath)
 	assert.True(t, errors.IsError(err, dynamodb.StateFileIdMissing))
 }
 
@@ -93,13 +104,17 @@ func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
 
 	config :=
 `
-remote_state = {
-  backend = "s3"
+terragrunt = {
+  remote_state {
+    backend = "s3"
+  }
 }
 `
 
-	terragruntConfig, err := parseConfigString(config, &mockOptions, nil)
-	assert.Nil(t, err)
+	terragruntConfig, err := parseConfigString(config, &mockOptions, nil, DefaultTerragruntConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	assert.Nil(t, terragruntConfig.Lock)
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -115,11 +130,13 @@ func TestParseTerragruntConfigRemoteStateMissingBackend(t *testing.T) {
 
 	config :=
 `
-remote_state = {
+terragrunt = {
+  remote_state {
+  }
 }
 `
 
-	_, err := parseConfigString(config, &mockOptions, nil)
+	_, err := parseConfigString(config, &mockOptions, nil, DefaultTerragruntConfigPath)
 	assert.True(t, errors.IsError(err, remote.RemoteBackendMissing), "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 }
 
@@ -128,19 +145,23 @@ func TestParseTerragruntConfigRemoteStateFullConfig(t *testing.T) {
 
 	config :=
 `
-remote_state = {
-  backend = "s3"
-  config = {
-    encrypt = "true"
-    bucket = "my-bucket"
-    key = "terraform.tfstate"
-    region = "us-east-1"
+terragrunt = {
+  remote_state {
+    backend = "s3"
+    config {
+      encrypt = "true"
+      bucket = "my-bucket"
+      key = "terraform.tfstate"
+      region = "us-east-1"
+    }
   }
 }
 `
 
-	terragruntConfig, err := parseConfigString(config, &mockOptions, nil)
-	assert.Nil(t, err)
+	terragruntConfig, err := parseConfigString(config, &mockOptions, nil, DefaultTerragruntConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	assert.Nil(t, terragruntConfig.Lock)
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -160,13 +181,17 @@ func TestParseTerragruntConfigDependenciesOnePath(t *testing.T) {
 
 	config :=
 `
-dependencies = {
-  paths = ["../vpc"]
+terragrunt = {
+  dependencies {
+    paths = ["../vpc"]
+  }
 }
 `
 
-	terragruntConfig, err := parseConfigString(config, &mockOptions, nil)
-	assert.Nil(t, err)
+	terragruntConfig, err := parseConfigString(config, &mockOptions, nil, DefaultTerragruntConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	assert.Nil(t, terragruntConfig.Lock)
 	assert.Nil(t, terragruntConfig.RemoteState)
@@ -182,13 +207,17 @@ func TestParseTerragruntConfigDependenciesMultiplePaths(t *testing.T) {
 
 	config :=
 `
-dependencies = {
-  paths = ["../vpc", "../mysql", "../backend-app"]
+terragrunt = {
+  dependencies {
+    paths = ["../vpc", "../mysql", "../backend-app"]
+  }
 }
 `
 
-	terragruntConfig, err := parseConfigString(config, &mockOptions, nil)
-	assert.Nil(t, err)
+	terragruntConfig, err := parseConfigString(config, &mockOptions, nil, DefaultTerragruntConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	assert.Nil(t, terragruntConfig.Lock)
 	assert.Nil(t, terragruntConfig.RemoteState)
@@ -200,6 +229,74 @@ dependencies = {
 }
 
 func TestParseTerragruntConfigRemoteStateDynamoDbTerraformConfigAndDependenciesFullConfig(t *testing.T) {
+	t.Parallel()
+
+	config :=
+`
+terragrunt = {
+  terraform {
+    source = "foo"
+  }
+
+  lock {
+    backend = "dynamodb"
+    config {
+      state_file_id = "expected-state-file-id"
+      aws_region = "expected-region"
+      table_name = "expected-table-name"
+      max_lock_retries = 100
+    }
+  }
+
+  remote_state {
+    backend = "s3"
+    config {
+      encrypt = "true"
+      bucket = "my-bucket"
+      key = "terraform.tfstate"
+      region = "us-east-1"
+    }
+  }
+
+  dependencies {
+    paths = ["../vpc", "../mysql", "../backend-app"]
+  }
+}
+`
+
+	terragruntConfig, err := parseConfigString(config, &mockOptions, nil, DefaultTerragruntConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if assert.NotNil(t, terragruntConfig.Terraform) {
+		assert.Equal(t, "foo", terragruntConfig.Terraform.Source)
+	}
+
+	if assert.NotNil(t, terragruntConfig.Lock) {
+		assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
+		lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
+		assert.Equal(t, "expected-state-file-id", lock.StateFileId)
+		assert.Equal(t, "expected-region", lock.AwsRegion)
+		assert.Equal(t, "expected-table-name", lock.TableName)
+		assert.Equal(t, 100, lock.MaxLockRetries)
+	}
+
+	if assert.NotNil(t, terragruntConfig.RemoteState) {
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
+		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
+		assert.Equal(t, "true", terragruntConfig.RemoteState.Config["encrypt"])
+		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
+		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
+		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+	}
+
+	if assert.NotNil(t, terragruntConfig.Dependencies) {
+		assert.Equal(t, []string{"../vpc", "../mysql", "../backend-app"}, terragruntConfig.Dependencies.Paths)
+	}
+}
+
+func TestParseTerragruntConfigRemoteStateDynamoDbTerraformConfigAndDependenciesFullConfigOldConfigFormat(t *testing.T) {
 	t.Parallel()
 
 	config :=
@@ -228,13 +325,15 @@ remote_state {
   }
 }
 
-dependencies = {
+dependencies {
   paths = ["../vpc", "../mysql", "../backend-app"]
 }
 `
 
-	terragruntConfig, err := parseConfigString(config, &mockOptions, nil)
-	assert.Nil(t, err)
+	terragruntConfig, err := parseConfigString(config, &mockOptions, nil, OldTerragruntConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if assert.NotNil(t, terragruntConfig.Terraform) {
 		assert.Equal(t, "foo", terragruntConfig.Terraform.Source)
@@ -268,14 +367,16 @@ func TestParseTerragruntConfigInvalidLockBackend(t *testing.T) {
 
 	config :=
 `
-lock = {
-  backend = "invalid"
-  config {
+terragrunt = {
+  lock {
+    backend = "invalid"
+    config {
+    }
   }
 }
 `
 
-	_, err := parseConfigString(config, &mockOptions, nil)
+	_, err := parseConfigString(config, &mockOptions, nil, DefaultTerragruntConfigPath)
 	assert.True(t, errors.IsError(err, ErrLockNotFound))
 }
 
@@ -283,18 +384,20 @@ func TestParseTerragruntConfigInclude(t *testing.T) {
 	t.Parallel()
 
 	config :=
-`
-include = {
-  path = "../../../.terragrunt"
+fmt.Sprintf(`
+terragrunt = {
+  include {
+    path = "../../../%s"
+  }
 }
-`
+`, DefaultTerragruntConfigPath)
 
 	opts := options.TerragruntOptions{
-		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/.terragrunt",
+		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + DefaultTerragruntConfigPath,
 		NonInteractive: true,
 	}
 
-	terragruntConfig, err := parseConfigString(config, &opts, nil)
+	terragruntConfig, err := parseConfigString(config, &opts, nil, opts.TerragruntConfigPath)
 	if assert.Nil(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err)) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
@@ -321,17 +424,19 @@ func TestParseTerragruntConfigIncludeWithFindInParentFolders(t *testing.T) {
 
 	config :=
 `
-include = {
-  path = "${find_in_parent_folders()}"
+terragrunt = {
+  include {
+    path = "${find_in_parent_folders()}"
+  }
 }
 `
 
 	opts := options.TerragruntOptions{
-		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/.terragrunt",
+		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + DefaultTerragruntConfigPath,
 		NonInteractive: true,
 	}
 
-	terragruntConfig, err := parseConfigString(config, &opts, nil)
+	terragruntConfig, err := parseConfigString(config, &opts, nil, opts.TerragruntConfigPath)
 	if assert.Nil(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err)) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
@@ -358,29 +463,31 @@ func TestParseTerragruntConfigIncludeOverrideRemote(t *testing.T) {
 	t.Parallel()
 
 	config :=
-`
-include = {
-  path = "../../../.terragrunt"
-}
+fmt.Sprintf(`
+terragrunt = {
+  include {
+    path = "../../../%s"
+  }
 
-# Configure Terragrunt to automatically store tfstate files in an S3 bucket
-remote_state = {
-  backend = "s3"
-  config {
-    encrypt = "override"
-    bucket = "override"
-    key = "override"
-    region = "override"
+  # Configure Terragrunt to automatically store tfstate files in an S3 bucket
+  remote_state {
+    backend = "s3"
+    config {
+      encrypt = "override"
+      bucket = "override"
+      key = "override"
+      region = "override"
+    }
   }
 }
-`
+`, DefaultTerragruntConfigPath)
 
 	opts := options.TerragruntOptions{
-		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/.terragrunt",
+		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + DefaultTerragruntConfigPath,
 		NonInteractive: true,
 	}
 
-	terragruntConfig, err := parseConfigString(config, &opts, nil)
+	terragruntConfig, err := parseConfigString(config, &opts, nil, opts.TerragruntConfigPath)
 	if assert.Nil(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err)) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
@@ -406,44 +513,46 @@ func TestParseTerragruntConfigIncludeOverrideAll(t *testing.T) {
 	t.Parallel()
 
 	config :=
-`
-include {
-  path = "../../../.terragrunt"
-}
+fmt.Sprintf(`
+terragrunt = {
+  include {
+    path = "../../../%s"
+  }
 
-terraform {
-  source = "foo"
-}
+  terraform {
+    source = "foo"
+  }
 
-lock = {
-  backend = "dynamodb"
-  config {
-    state_file_id = "override"
+  lock {
+    backend = "dynamodb"
+    config {
+      state_file_id = "override"
+    }
+  }
+
+  # Configure Terragrunt to automatically store tfstate files in an S3 bucket
+  remote_state {
+    backend = "s3"
+    config {
+      encrypt = "override"
+      bucket = "override"
+      key = "override"
+      region = "override"
+    }
+  }
+
+  dependencies {
+    paths = ["override"]
   }
 }
-
-# Configure Terragrunt to automatically store tfstate files in an S3 bucket
-remote_state {
-  backend = "s3"
-  config {
-    encrypt = "override"
-    bucket = "override"
-    key = "override"
-    region = "override"
-  }
-}
-
-dependencies {
-  paths = ["override"]
-}
-`
+`, DefaultTerragruntConfigPath)
 
 	opts := options.TerragruntOptions{
-		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/.terragrunt",
+		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + DefaultTerragruntConfigPath,
 		NonInteractive: true,
 	}
 
-	terragruntConfig, err := parseConfigString(config, &opts, nil)
+	terragruntConfig, err := parseConfigString(config, &opts, nil, opts.TerragruntConfigPath)
 	if assert.Nil(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err)) {
 		if assert.NotNil(t, terragruntConfig.Terraform) {
 			assert.Equal(t, "foo", terragruntConfig.Terraform.Source)
@@ -472,7 +581,7 @@ dependencies {
 func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 	t.Parallel()
 
-	configPath := "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/.terragrunt"
+	configPath := "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/" + DefaultTerragruntConfigPath
 
 	config, err := util.ReadFileAsString(configPath)
 	if err != nil {
@@ -481,15 +590,19 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 
 	opts := options.TerragruntOptions{TerragruntConfigPath: configPath, NonInteractive: true}
 
-	_, actualErr := parseConfigString(config, &opts, nil)
-	expectedErr := TooManyLevelsOfInheritance(configPath)
+	_, actualErr := parseConfigString(config, &opts, nil, configPath)
+	expectedErr := TooManyLevelsOfInheritance{
+		ConfigPath: configPath,
+		FirstLevelIncludePath: "../" + DefaultTerragruntConfigPath,
+		SecondLevelIncludePath: "../" + DefaultTerragruntConfigPath,
+	}
 	assert.True(t, errors.IsError(actualErr, expectedErr), "Expected error %v but got %v", expectedErr, actualErr)
 }
 
 func TestParseTerragruntConfigThreeLevels(t *testing.T) {
 	t.Parallel()
 
-	configPath := "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/sub-sub-child/.terragrunt"
+	configPath := "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/sub-sub-child/" + DefaultTerragruntConfigPath
 
 	config, err := util.ReadFileAsString(configPath)
 	if err != nil {
@@ -498,8 +611,12 @@ func TestParseTerragruntConfigThreeLevels(t *testing.T) {
 
 	opts := options.TerragruntOptions{TerragruntConfigPath: configPath, NonInteractive: true}
 
-	_, actualErr := parseConfigString(config, &opts, nil)
-	expectedErr := TooManyLevelsOfInheritance(configPath)
+	_, actualErr := parseConfigString(config, &opts, nil, configPath)
+	expectedErr := TooManyLevelsOfInheritance{
+		ConfigPath: configPath,
+		FirstLevelIncludePath: "../" + DefaultTerragruntConfigPath,
+		SecondLevelIncludePath: "../" + DefaultTerragruntConfigPath,
+	}
 	assert.True(t, errors.IsError(actualErr, expectedErr), "Expected error %v but got %v", expectedErr, actualErr)
 }
 
@@ -508,8 +625,19 @@ func TestParseTerragruntConfigEmptyConfig(t *testing.T) {
 
 	config := ``
 
-	terragruntConfig, err := parseConfigString(config, &mockOptions, nil)
-	assert.Nil(t, err)
+	_, err := parseConfigString(config, &mockOptions, nil, DefaultTerragruntConfigPath)
+	assert.True(t, errors.IsError(err, CouldNotResolveTerragruntConfigInFile(DefaultTerragruntConfigPath)))
+}
+
+func TestParseTerragruntConfigEmptyConfigOldConfig(t *testing.T) {
+	t.Parallel()
+
+	config := ``
+
+	terragruntConfig, err := parseConfigString(config, &mockOptions, nil, OldTerragruntConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Lock)
@@ -593,12 +721,16 @@ func TestParseTerragruntConfigTerraformNoSource(t *testing.T) {
 
 	config :=
 `
-terraform {
+terragrunt = {
+  terraform {
+  }
 }
 `
 
-	terragruntConfig, err := parseConfigString(config, &mockOptions, nil)
-	assert.Nil(t, err)
+	terragruntConfig, err := parseConfigString(config, &mockOptions, nil, DefaultTerragruntConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	assert.Nil(t, terragruntConfig.Lock)
 	assert.Nil(t, terragruntConfig.RemoteState)
@@ -614,13 +746,17 @@ func TestParseTerragruntConfigTerraformWithSource(t *testing.T) {
 
 	config :=
 `
-terraform {
-  source = "foo"
+terragrunt = {
+  terraform {
+    source = "foo"
+  }
 }
 `
 
-	terragruntConfig, err := parseConfigString(config, &mockOptions, nil)
-	assert.Nil(t, err)
+	terragruntConfig, err := parseConfigString(config, &mockOptions, nil, DefaultTerragruntConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	assert.Nil(t, terragruntConfig.Lock)
 	assert.Nil(t, terragruntConfig.RemoteState)
@@ -629,4 +765,48 @@ terraform {
 	if assert.NotNil(t, terragruntConfig.Terraform) {
 		assert.Equal(t, "foo", terragruntConfig.Terraform.Source)
 	}
+}
+
+func TestFindConfigFilesInPathNone(t *testing.T) {
+	t.Parallel()
+
+	expected := []string{}
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/none")
+
+	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.Equal(t, expected, actual)
+}
+
+func TestFindConfigFilesInPathOneNewConfig(t *testing.T) {
+	t.Parallel()
+
+	expected := []string{"../test/fixture-config-files/one-new-config/subdir/terraform.tfvars"}
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/one-new-config")
+
+	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.Equal(t, expected, actual)
+}
+
+func TestFindConfigFilesInPathOneOldConfig(t *testing.T) {
+	t.Parallel()
+
+	expected := []string{"../test/fixture-config-files/one-old-config/subdir/.terragrunt"}
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/one-old-config")
+
+	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.Equal(t, expected, actual)
+}
+
+func TestFindConfigFilesInPathMultipleConfigs(t *testing.T) {
+	t.Parallel()
+
+	expected := []string{
+		"../test/fixture-config-files/multiple-configs/terraform.tfvars",
+		"../test/fixture-config-files/multiple-configs/subdir-2/subdir/.terragrunt",
+		"../test/fixture-config-files/multiple-configs/subdir-3/terraform.tfvars",
+	}
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/multiple-configs")
+
+	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.Equal(t, expected, actual)
 }
