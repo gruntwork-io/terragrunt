@@ -880,7 +880,8 @@ Terragrunt forwards all arguments and options to Terraform. The only exceptions 
 prefix `--terragrunt-`. The currently available options are:
 
 * `--terragrunt-config`: A custom path to the `terraform.tfvars` file. May also be specified via the `TERRAGRUNT_CONFIG`
-  environment variable. The default path is `terraform.tfvars` in the current directory.
+  environment variable. The default path is `terraform.tfvars` in the current directory (see 
+  [Terragrunt config files](#terragrnt-config-files) for a slightly more nuanced explanation).
 * `--terragrunt-tfpath`: A custom path to the Terraform binary. May also be specified via the `TERRAGRUNT_TFPATH`
   environment variable. The default is `terraform` in a directory on your PATH.
 * `--terragrunt-non-interactive`: Don't show interactive user prompts. This will default the answer for all prompts to 
@@ -896,12 +897,62 @@ prefix `--terragrunt-`. The currently available options are:
 * `--terragrunt-source-update`: Delete the contents of the temporary folder before downloading Terraform source code
   into it.
 
-## The old .terragrunt configuration file
+## Terragrunt config files
 
-Older versions of Terragrunt used to read their configuration from a `.terragrunt` file instead of `terraform.tfvars`.
-This file format is now **deprecated**, although for backwards compatibility, Terragrunt will continue to support it
-for the near future. The configuration in a `.terragrunt` file is identical to that of the `terraform.tfvars` file 
-except it does *not* need to be wrapped with a `terragrunt = { ... }` block.
+The current version of Terragrunt expects configuration to be defined in a `terraform.tfvars` file. Previous
+versions defined the config in a `.terragrunt` file. **The `.terragrunt` format is now deprecated**!
+
+For backwards compatibility, Terragrunt will continue to support the `.terragrunt` file format for a short period of 
+time. Check out the next section for how this works. Note that you will get a warning in your logs every time you run 
+Terragrunt with a `.terragrunt` file, and we will eventually stop supporting this older format, so we recommend 
+migrating to the `terraform.tfvars` format ASAP!
+
+### Config file search paths
+
+Terragrunt figures out the path to its config file according to the following rules:
+
+1. The value of the `--terragrunt-config` command-line option, if specified.
+1. The value of the `TERRAGRUNT_CONFIG` environment variable, if defined.
+1. A `.terragrunt` file in the current working directory, if it exists.
+1. A `terraform.tfvars` file in the current working directory, if it exists.
+1. If none of these are found, exit with an error.
+
+### Migrating from .terragrunt to terraform.tfvars
+
+The configuration in a `.terragrunt` file is identical to that of the `terraform.tfvars` file, except the 
+`terraform.tfvars` file requires you to wrap that configuration in a `terragrunt = { ... }` block. 
+
+For example, if this is your `.terragrunt` file:
+
+```hcl
+include {
+  path = "${find_in_parent_folders()}"
+}
+
+dependencies {
+  paths = ["../vpc", "../mysql", "../redis"]
+}
+```
+
+The equivalent `terraform.tfvars` file is:
+
+```hcl
+terragrunt = {
+  include {
+    path = "${find_in_parent_folders()}"
+  }
+  
+  dependencies {
+    paths = ["../vpc", "../mysql", "../redis"]
+  }
+}
+```
+
+To migrate, all you need to do is:
+
+1. Copy all the contents of the `.terragrunt` file.
+1. Paste those contents into a `terragrunt = { ... }` block in a `terraform.tfvars` file.
+1. Delete the `.terragrunt` file.
 
 ## Developing terragrunt
 
