@@ -778,36 +778,7 @@ as you may want to run smaller/fewer servers in staging than in prod to save mon
 
 In a separate repo, called, for example, infrastructure-live, you define the code for all of your environments, which
 now consists of just one `.tfvars` file per component (e.g. `frontend-app.tfvars`, `backend-app.tfvars`, etc). This 
-file defines a `terragrunt = { ... }` block to configure Terragrunt, as well as the environment-specific values for the
-input variables for that component. 
-
-For example, `stage/frontend-app.tfvars` may look like this:
-   
-```hcl
-terragrunt = {
-  include {
-    path = "${find_in_parent_folders()}"
-  }
-}
-
-instance_count = 3
-instance_type = "t2.micro"
-```
-
-And `prod/frontend-app.tfvars` may look like this:
-   
-```hcl
-terragrunt = {
-  include {
-    path = "${find_in_parent_folders()}"
-  }
-}
-
-instance_count = 10
-instance_type = "m2.large"
-```
-
-This gives you the following file layout:   
+gives you the following file layout:   
  
 ```
 infrastructure-live
@@ -825,23 +796,45 @@ infrastructure-live
     └ vpc
 ```
 
-Notice how there are no Terraform configurations (`.tf` files) in any of the folders. Instead, each `.tfvars` file 
-tells Terragrunt where to find your Terraform code using a `terraform` block:
+This 
+file defines a `terragrunt = { ... }` block to configure Terragrunt, . 
 
+Notice how there are no Terraform configurations (`.tf` files) in any of the folders. Instead, each `.tfvars` file 
+specifies a `terraform { ... }` block that specifies from where to download the Terraform code, as well as the 
+environment-specific values for the input variables in that Terraform code. For example, 
+`stage/frontend-app/terraform.tfvars` may look like this:
+   
 ```hcl
 terragrunt = {
-  include {
-    path = "${find_in_parent_folders()}"
-  }
-  
   terraform {
-    source = "git::git@github.com:foo/bar.git//frontend-app?ref=v0.0.1"
+    source = "git::git@github.com:foo/bar.git//frontend-app?ref=v0.0.3"
   }
 }
+
+instance_count = 3
+instance_type = "t2.micro"
 ```
 
 *(Note: the double slash (`//`) is intentional and required. It's part of Terraform's Git syntax for [module 
 sources](https://www.terraform.io/docs/modules/sources.html).)
+
+And `prod/frontend-app/terraform.tfvars` may look like this:
+   
+```hcl
+terragrunt = {
+  terraform {
+    source = "git::git@github.com:foo/bar.git//frontend-app?ref=v0.0.1"
+  }
+}
+
+instance_count = 10
+instance_type = "m2.large"
+```
+
+Notice how the two `terraform.tfvars` files set the `source` URL to the same `frontend-app` module, but at different 
+versions (i.e. `stage` is testing out a newer version of the module). They also set the parameters for the 
+`frontend-app` module to different values that are appropriate for the environment: smaller/fewer servers in `stage` 
+to save money, larger/more instances in `prod` for scalability and high availability.  
 
 When you run Terragrunt and it finds a `terraform` block, it will:
  
