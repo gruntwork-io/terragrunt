@@ -318,7 +318,17 @@ func cleanupTerraformFiles(path string, terragruntOptions *options.TerragruntOpt
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
-	return util.DeleteFiles(files)
+
+	// Filter out files in .terraform folders, since those are from modules downloaded via a call to terraform get,
+	// and we don't want to re-download them.
+	filteredFiles := []string{}
+	for _, file := range files {
+		if !strings.Contains(file, ".terraform") {
+			filteredFiles = append(filteredFiles, file)
+		}
+	}
+
+	return util.DeleteFiles(filteredFiles)
 }
 
 // There are two ways a user can tell Terragrunt that it needs to download Terraform configurations from a specific
