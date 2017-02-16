@@ -917,6 +917,12 @@ Terragrunt figures out the path to its config file according to the following ru
 1. A `terraform.tfvars` file in the current working directory, if it exists.
 1. If none of these are found, exit with an error.
 
+Setting `--terragrunt-config` does not override the config file used by Terraform and its own configuration file processing still applies. If you use a single `.tfvars` file for Terragrunt and Terraform configuration that is not named `terraform.tfvars` then remember to pass the `.tfvars` file name by using the `--var-file` argument.
+
+```bash
+terragrunt plan --terragrunt-config example.tfvars --var-file example.tfvars
+```
+
 ### Migrating from .terragrunt to terraform.tfvars
 
 The configuration in a `.terragrunt` file is identical to that of the `terraform.tfvars` file, except the 
