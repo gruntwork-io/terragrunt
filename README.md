@@ -917,7 +917,7 @@ Terragrunt figures out the path to its config file according to the following ru
 1. A `terraform.tfvars` file in the current working directory, if it exists.
 1. If none of these are found, exit with an error.
 
-Setting `--terragrunt-config` does not override the config file used by Terraform and its own configuration file processing still applies. If you use a single `.tfvars` file for Terragrunt and Terraform configuration that is not named `terraform.tfvars` then remember to pass the `.tfvars` file name by using the `--var-file` argument.
+The `--terragrunt-config` parameter is only used by Terragrunt and has no effect on which variable files are loaded by Terraform. Terraform will automatically read variables from a file named terraform.tfvars, but if you want it to read variables from some other .tfvars file, you must pass it in using the `--var-file` argument:
 
 ```bash
 terragrunt plan --terragrunt-config example.tfvars --var-file example.tfvars
