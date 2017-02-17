@@ -767,6 +767,106 @@ terragrunt = {
 	}
 }
 
+func TestParseTerragruntConfigTerraformWithExtraArguments(t *testing.T) {
+	t.Parallel()
+
+	config :=
+`
+terragrunt = {
+  terraform {
+    extra_arguments "secrets" {
+      arguments = [
+        "-var-file=terraform.tfvars",
+        "-var-file=terraform-secret.tfvars"
+      ]
+      commands = [
+        "apply",
+        "plan",
+        "import",
+        "push",
+        "refresh"
+      ]
+    }
+  }
+}
+`
+
+	terragruntConfig, err := parseConfigString(config, &mockOptions, nil, DefaultTerragruntConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Nil(t, terragruntConfig.Lock)
+	assert.Nil(t, terragruntConfig.RemoteState)
+	assert.Nil(t, terragruntConfig.Dependencies)
+
+	if assert.NotNil(t, terragruntConfig.Terraform) {
+		assert.Equal(t, "secrets", terragruntConfig.Terraform.ExtraArgs[0].Name)
+		assert.Equal(t,
+			[]string{
+				"-var-file=terraform.tfvars",
+				"-var-file=terraform-secret.tfvars",
+			},
+			terragruntConfig.Terraform.ExtraArgs[0].Arguments)
+		assert.Equal(t,
+			[]string{
+        "apply",
+        "plan",
+        "import",
+        "push",
+        "refresh",
+			},
+			terragruntConfig.Terraform.ExtraArgs[0].Commands)
+	}
+}
+
+func TestParseTerragruntConfigTerraformWithMultipleExtraArguments(t *testing.T) {
+	t.Parallel()
+
+	config :=
+`
+terragrunt = {
+  terraform {
+    extra_arguments "json_output" {
+      arguments = [
+        "-json"
+      ]
+      commands = [
+        "output"
+      ]
+    }
+
+    extra_arguments "fmt_diff" {
+      arguments = [
+        "-diff=true"
+      ]
+      commands = [
+        "fmt"
+      ]
+    }
+  }
+}
+`
+
+	terragruntConfig, err := parseConfigString(config, &mockOptions, nil, DefaultTerragruntConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Nil(t, terragruntConfig.Lock)
+	assert.Nil(t, terragruntConfig.RemoteState)
+	assert.Nil(t, terragruntConfig.Dependencies)
+
+	if assert.NotNil(t, terragruntConfig.Terraform) {
+		assert.Equal(t, "json_output", terragruntConfig.Terraform.ExtraArgs[0].Name)
+		assert.Equal(t,	[]string{"-json"}, terragruntConfig.Terraform.ExtraArgs[0].Arguments)
+		assert.Equal(t,	[]string{"output"}, terragruntConfig.Terraform.ExtraArgs[0].Commands)
+		assert.Equal(t, "fmt_diff", terragruntConfig.Terraform.ExtraArgs[1].Name)
+		assert.Equal(t,	[]string{"-diff=true"}, terragruntConfig.Terraform.ExtraArgs[1].Arguments)
+		assert.Equal(t,	[]string{"fmt"}, terragruntConfig.Terraform.ExtraArgs[1].Commands)
+	}
+}
+
 func TestFindConfigFilesInPathNone(t *testing.T) {
 	t.Parallel()
 

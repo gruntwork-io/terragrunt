@@ -31,6 +31,7 @@ const (
 	TEST_FIXTURE_INCLUDE_PATH                           = "fixture-include/"
 	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH                 = "qa/my-app"
 	TEST_FIXTURE_STACK                                  = "fixture-stack/"
+	TEST_FIXTURE_EXTRA_ARGS_PATH                        = "fixture-extra-args/"
 	TEST_FIXTURE_LOCAL_DOWNLOAD_PATH                    = "fixture-download/local"
 	TEST_FIXTURE_REMOTE_DOWNLOAD_PATH                   = "fixture-download/remote"
 	TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH                 = "fixture-download/override"
@@ -279,6 +280,11 @@ func TestRemoteDownloadOverride(t *testing.T) {
 
 	// Run a second time to make sure the temporary folder can be reused without errors
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH, "../hello-world"))
+}
+
+func TestExtraArguments(t *testing.T) {
+	t.Parallel()
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_EXTRA_ARGS_PATH))
 }
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {

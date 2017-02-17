@@ -76,6 +76,23 @@ func parseTerragruntOptionsFromArgs(args []string) (*options.TerragruntOptions, 
 	}, nil
 }
 
+func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
+	out := []string{}
+	cmd := firstArg(terragruntOptions.TerraformCliArgs)
+
+	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
+		if arg.Commands != nil && arg.Arguments != nil {
+			for _, arg_cmd := range arg.Commands {
+				if cmd == arg_cmd {
+					out = append(out, arg.Arguments...)
+				}
+			}
+		}
+	}
+
+	return out
+}
+
 func parseEnvironmentVariables(environment []string) map[string]string {
 	environmentMap := make(map[string]string)
 

@@ -65,10 +65,22 @@ func (deps *ModuleDependencies) String() string {
 
 // TerraformConfig specifies where to find the Terraform configuration files
 type TerraformConfig struct {
-	Source string `hcl:"source"`
+	ExtraArgs []TerraformExtraArguments `hcl:"extra_arguments"`
+	Source    string                    `hcl:"source"`
 }
+
 func (conf *TerraformConfig) String() string {
 	return fmt.Sprintf("TerraformConfig{Source = %v}", conf.Source)
+}
+
+// TerraformExtraArguments sets a list of arguments to pass to Terraform if command fits any in the `Commands` list
+type TerraformExtraArguments struct {
+	Name      string   `hcl:",key"`
+	Arguments []string `hcl:"arguments,omitempty"`
+	Commands   []string `hcl:"commands,omitempty"`
+}
+func (conf *TerraformExtraArguments) String() string {
+	return fmt.Sprintf("TerraformArguments{Name = %s, Arguments = %v, Commands = %v}", conf.Name, conf.Arguments, conf.Commands)
 }
 
 // Return the default path to use for the Terragrunt configuration file. The reason this is a method rather than a
