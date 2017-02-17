@@ -594,6 +594,57 @@ terragrunt = {
 }
 ```
 
+### Passing extra command line arguments to Terraform
+
+Sometimes you may need to pass extra arguments to Terraform on each run. For example if you have a separate file with
+secret variables you may use extra_arguments option in terraform section of Terragrunt configuration to do it
+automatically.
+
+Each set of arguments will be appended only if current Terraform command is in `commands` list. If more than one set is
+applicable, they will be added in the order of of appearance in config.
+
+Sample config:
+
+``` hcl
+terragrunt= {
+  terraform = {
+    {
+      extra_arguments "secrets" {
+        arguments = [
+          "-var-file=terraform.tfvars",
+          "-var-file=terraform-secret.tfvars"
+        ]
+        commands = [
+          "apply",
+          "plan",
+          "import",
+          "push",
+          "refresh"
+        ]
+      }
+
+      extra_arguments "json_output" {
+        arguments = [
+          "-json"
+        ]
+        commands = [
+          "output"
+        ]
+      }
+
+      extra_arguments "fmt_diff" {
+        arguments = [
+          "-diff=true"
+        ]
+        commands = [
+          "fmt"
+        ]
+      }
+
+    }
+  }
+```
+
 ### The spin-up and tear-down commands
 
 Let's say you have a single environment (e.g. `stage` or `prod`) that has a number of Terraform modules within it:
