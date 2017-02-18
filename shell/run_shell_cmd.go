@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -33,15 +34,19 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 
 	cmd.Dir = terragruntOptions.WorkingDir
 
-	signalChannel := NewSignalsForwarder(forwardSignals, cmd.Process, terragruntOptions.Logger)
+	cmdChannel := make(chan error)
+	signalChannel := NewSignalsForwarder(forwardSignals, cmd, terragruntOptions.Logger, cmdChannel)
 	defer signalChannel.Close()
 
-	return errors.WithStackTrace(cmd.Run())
+	err := cmd.Run()
+	cmdChannel <- err
+
+	return errors.WithStackTrace(err)
 }
 
 type SignalsForwarder chan os.Signal
 
-func NewSignalsForwarder(signals []os.Signal, p *os.Process, logger *log.Logger) SignalsForwarder {
+func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger *log.Logger, cmdChannel chan error) SignalsForwarder {
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, signals...)
 
@@ -49,14 +54,13 @@ func NewSignalsForwarder(signals []os.Signal, p *os.Process, logger *log.Logger)
 		for {
 			select {
 			case s := <-signalChannel:
-				if s == nil {
-					return
-				}
 				logger.Printf("Forward signal %s to terraform.", s.String())
-				err := p.Signal(s)
+				err := c.Process.Signal(s)
 				if err != nil {
 					logger.Printf("Error forwarding signal: %v", err)
 				}
+			case <- cmdChannel:
+				return
 			}
 		}
 	}()
