@@ -1,13 +1,13 @@
 package shell
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"os/signal"
 	"reflect"
 	"strings"
+	"syscall"
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -44,8 +44,22 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 	return errors.WithStackTrace(err)
 }
 
+
+// Return the exit code of a command. If the error is not an exec.ExitError type,
+// the error is returned.
+func GetExitCode(err error) (int, error) {
+	var retCode int
+	if exiterr, ok := errors.Unwrap(err).(*exec.ExitError); ok {
+	status := exiterr.Sys().(syscall.WaitStatus)
+	retCode = status.ExitStatus()
+	return retCode, nil
+		}
+	return retCode, err
+}
+
 type SignalsForwarder chan os.Signal
 
+// Fowards signals to a command, waiting for the command to finish.
 func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger *log.Logger, cmdChannel chan error) SignalsForwarder {
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, signals...)
