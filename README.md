@@ -402,7 +402,8 @@ terragrunt = {
 When you run Terragrunt in the `qa/my-app` folder, it will see the `include` block in the `qa/my-app/terraform.tfvars` 
 file and realize that it should load the contents of the root `terraform.tfvars` file instead. It's almost as if you had 
 copy/pasted the contents of the root `terraform.tfvars` file into `qa/my-app/terraform.tfvars`, but much easier to 
-maintain!
+maintain! Note that only the `terragrunt` section in this parent file is inserted: anything else in the file (e.g.,
+variables) will not be placed into (in this case) `qa/my-app/terraform.tfvars`.
 
 **Note**: only one level of includes is allowed. If `root/qa/my-app/terraform.tfvars` includes `root/terraform.tfvars`, 
 then `root/terraform.tfvars` may NOT specify an `include` block.
