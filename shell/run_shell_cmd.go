@@ -48,13 +48,11 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 // Return the exit code of a command. If the error is not an exec.ExitError type,
 // the error is returned.
 func GetExitCode(err error) (int, error) {
-	var retCode int
 	if exiterr, ok := errors.Unwrap(err).(*exec.ExitError); ok {
-	status := exiterr.Sys().(syscall.WaitStatus)
-	retCode = status.ExitStatus()
-	return retCode, nil
-		}
-	return retCode, err
+		status := exiterr.Sys().(syscall.WaitStatus)
+		return status.ExitStatus(), nil
+	}
+	return 0, err
 }
 
 type SignalsForwarder chan os.Signal
