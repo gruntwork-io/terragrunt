@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 
 WAIT_TIME=$1
 

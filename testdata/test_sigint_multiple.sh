@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 
 INT_REQUIRED=$1
 INT_COUNTER=0
