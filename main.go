@@ -34,12 +34,11 @@ func checkForErrorsAndExit(err error) {
 			logger.Println(err)
 		}
 		// exit with the underlying error code
-		var retCode int
-		retCode, err := shell.GetExitCode(err)
-		if err != nil {
-			retCode = 1
+		exitCode, exitCodeErr := shell.GetExitCode(err)
+		if exitCodeErr != nil {
+			exitCode = 1
 		}
-		os.Exit(retCode)
+		os.Exit(exitCode)
 	}
 
 }
