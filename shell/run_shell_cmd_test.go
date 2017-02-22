@@ -97,21 +97,23 @@ func TestNewSignalsForwarderMultiple(t *testing.T) {
 	}()
 
 	time.Sleep(1000 * time.Millisecond)
-	var interrupts int
-	var err error
 
-loop:
-	for {
-		time.Sleep(500 * time.Millisecond)
-		select {
-		case err = <-runChannel:
-			break loop
-		default:
-			cmd.Process.Signal(os.Interrupt)
-			interrupts++
+	interruptAndWaitForProcess := func() (int, error) {
+		var interrupts int
+		var err error
+		for {
+			time.Sleep(500 * time.Millisecond)
+			select {
+			case err = <-runChannel:
+				return interrupts, err
+			default:
+				cmd.Process.Signal(os.Interrupt)
+				interrupts++
+			}
 		}
 	}
 
+	interrupts, err := interruptAndWaitForProcess()
 	cmdChannel <- err
 	assert.Error(t, err)
 	retCode, err := GetExitCode(err)
