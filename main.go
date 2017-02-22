@@ -2,8 +2,7 @@ package main
 
 import (
 	"os"
-	"os/exec"
-	"syscall"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -35,12 +34,12 @@ func checkForErrorsAndExit(err error) {
 			logger.Println(err)
 		}
 		// exit with the underlying error code
-		var retCode int = 1
-		if exiterr, ok := errors.Unwrap(err).(*exec.ExitError); ok {
-			status := exiterr.Sys().(syscall.WaitStatus)
-			retCode = status.ExitStatus()
+		exitCode, exitCodeErr := shell.GetExitCode(err)
+		if exitCodeErr != nil {
+			exitCode = 1
+			logger.Println("Unable to determine underlying exit code, so Terragrunt will exit with error code 1")
 		}
-		os.Exit(retCode)
+		os.Exit(exitCode)
 	}
 
 }
