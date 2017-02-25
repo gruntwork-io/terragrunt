@@ -17,8 +17,7 @@ var mockOptions = options.TerragruntOptions{TerragruntConfigPath: "test-time-moc
 func TestParseTerragruntConfigDynamoLockMinimalConfig(t *testing.T) {
 	t.Parallel()
 
-	config :=
-		`
+	config := `
 terragrunt = {
   lock {
     backend = "dynamodb"
@@ -48,8 +47,7 @@ terragrunt = {
 func TestParseTerragruntConfigDynamoLockFullConfig(t *testing.T) {
 	t.Parallel()
 
-	config :=
-		`
+	config := `
 terragrunt = {
   lock {
     backend = "dynamodb"
@@ -84,8 +82,7 @@ terragrunt = {
 func TestParseTerragruntConfigDynamoLockMissingStateFileId(t *testing.T) {
 	t.Parallel()
 
-	config :=
-		`
+	config := `
 terragrunt = {
   lock {
     backend = "dynamodb"
@@ -102,8 +99,7 @@ terragrunt = {
 func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
 	t.Parallel()
 
-	config :=
-		`
+	config := `
 terragrunt = {
   remote_state {
     backend = "s3"
@@ -128,8 +124,7 @@ terragrunt = {
 func TestParseTerragruntConfigRemoteStateMissingBackend(t *testing.T) {
 	t.Parallel()
 
-	config :=
-		`
+	config := `
 terragrunt = {
   remote_state {
   }
@@ -143,8 +138,7 @@ terragrunt = {
 func TestParseTerragruntConfigRemoteStateFullConfig(t *testing.T) {
 	t.Parallel()
 
-	config :=
-		`
+	config := `
 terragrunt = {
   remote_state {
     backend = "s3"
@@ -179,8 +173,7 @@ terragrunt = {
 func TestParseTerragruntConfigDependenciesOnePath(t *testing.T) {
 	t.Parallel()
 
-	config :=
-		`
+	config := `
 terragrunt = {
   dependencies {
     paths = ["../vpc"]
@@ -205,8 +198,7 @@ terragrunt = {
 func TestParseTerragruntConfigDependenciesMultiplePaths(t *testing.T) {
 	t.Parallel()
 
-	config :=
-		`
+	config := `
 terragrunt = {
   dependencies {
     paths = ["../vpc", "../mysql", "../backend-app"]
@@ -231,8 +223,7 @@ terragrunt = {
 func TestParseTerragruntConfigRemoteStateDynamoDbTerraformConfigAndDependenciesFullConfig(t *testing.T) {
 	t.Parallel()
 
-	config :=
-		`
+	config := `
 terragrunt = {
   terraform {
     source = "foo"
@@ -299,8 +290,7 @@ terragrunt = {
 func TestParseTerragruntConfigRemoteStateDynamoDbTerraformConfigAndDependenciesFullConfigOldConfigFormat(t *testing.T) {
 	t.Parallel()
 
-	config :=
-		`
+	config := `
 terraform {
   source = "foo"
 }
@@ -365,8 +355,7 @@ dependencies {
 func TestParseTerragruntConfigInvalidLockBackend(t *testing.T) {
 	t.Parallel()
 
-	config :=
-		`
+	config := `
 terragrunt = {
   lock {
     backend = "invalid"
@@ -422,8 +411,7 @@ terragrunt = {
 func TestParseTerragruntConfigIncludeWithFindInParentFolders(t *testing.T) {
 	t.Parallel()
 
-	config :=
-		`
+	config := `
 terragrunt = {
   include {
     path = "${find_in_parent_folders()}"
@@ -718,8 +706,7 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 func TestParseTerragruntConfigTerraformNoSource(t *testing.T) {
 	t.Parallel()
 
-	config :=
-		`
+	config := `
 terragrunt = {
   terraform {
   }
@@ -743,8 +730,7 @@ terragrunt = {
 func TestParseTerragruntConfigTerraformWithSource(t *testing.T) {
 	t.Parallel()
 
-	config :=
-		`
+	config := `
 terragrunt = {
   terraform {
     source = "foo"
@@ -769,8 +755,7 @@ terragrunt = {
 func TestParseTerragruntConfigTerraformWithExtraArguments(t *testing.T) {
 	t.Parallel()
 
-	config :=
-		`
+	config := `
 terragrunt = {
   terraform {
     extra_arguments "secrets" {
@@ -822,8 +807,7 @@ terragrunt = {
 func TestParseTerragruntConfigTerraformWithMultipleExtraArguments(t *testing.T) {
 	t.Parallel()
 
-	config :=
-		`
+	config := `
 terragrunt = {
   terraform {
     extra_arguments "json_output" {
