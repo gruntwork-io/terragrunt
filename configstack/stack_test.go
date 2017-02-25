@@ -1,4 +1,4 @@
-package spin
+package configstack
 
 import (
 	"github.com/gruntwork-io/terragrunt/config"

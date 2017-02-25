@@ -5,12 +5,12 @@ import (
 	"regexp"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/locks"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/gruntwork-io/terragrunt/spin"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/urfave/cli"
 )
@@ -289,7 +289,7 @@ func runTerraformCommandWithLock(lock locks.Lock, terragruntOptions *options.Ter
 // Spin up an entire "stack" by running 'terragrunt apply' in each subfolder, processing them in the right order based
 // on terraform_remote_state dependencies.
 func applyAll(terragruntOptions *options.TerragruntOptions) error {
-	stack, err := spin.FindStackInSubfolders(terragruntOptions)
+	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -310,7 +310,7 @@ func applyAll(terragruntOptions *options.TerragruntOptions) error {
 // Tear down an entire "stack" by running 'terragrunt destroy' in each subfolder, processing them in the right order
 // based on terraform_remote_state dependencies.
 func destroyAll(terragruntOptions *options.TerragruntOptions) error {
-	stack, err := spin.FindStackInSubfolders(terragruntOptions)
+	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -331,7 +331,7 @@ func destroyAll(terragruntOptions *options.TerragruntOptions) error {
 // outputAll prints the outputs from all configuration in a stack, in the order
 // specified in the terraform_remote_state dependencies
 func outputAll(terragruntOptions *options.TerragruntOptions) error {
-	stack, err := spin.FindStackInSubfolders(terragruntOptions)
+	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
 	if err != nil {
 		return err
 	}
