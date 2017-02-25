@@ -14,6 +14,7 @@ dependencies:
 
 test:
   override:
+    - make fmtcheck
     - run-go-tests
 
 deployment:
