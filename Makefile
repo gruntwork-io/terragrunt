@@ -1,3 +1,6 @@
+# Some of the targets in this file were taken from the terraform project:
+# https://github.com/hashicorp/terraform/blob/master/scripts/gofmtcheck.sh
+
 GOFMT_FILES?=$$(find . -name '*.go' | grep -v vendor)
 
 help:

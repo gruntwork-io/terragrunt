@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Check gofmt
+# Check gofmt; from terraform: https://github.com/hashicorp/terraform/blob/master/scripts/gofmtcheck.sh
 echo "==> Checking that code complies with gofmt requirements..."
 gofmt_files=$(gofmt -l `find . -name '*.go' | grep -v vendor`)
 if [[ -n ${gofmt_files} ]]; then
