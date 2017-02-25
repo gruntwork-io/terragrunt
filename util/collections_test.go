@@ -1,15 +1,15 @@
 package util
 
 import (
-	"testing"
 	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func TestListContainsElement(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		list	 []string
+		list     []string
 		element  string
 		expected bool
 	}{
@@ -31,7 +31,7 @@ func TestRemoveElementFromList(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		list	 []string
+		list     []string
 		element  string
 		expected []string
 	}{

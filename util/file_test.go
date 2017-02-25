@@ -1,16 +1,16 @@
 package util
 
 import (
-	"testing"
-	"github.com/stretchr/testify/assert"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func TestGetPathRelativeTo(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		path	 string
+		path     string
 		basePath string
 		expected string
 	}{
@@ -35,7 +35,7 @@ func TestCanonicalPath(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		path	 string
+		path     string
 		basePath string
 		expected string
 	}{
@@ -44,7 +44,7 @@ func TestCanonicalPath(t *testing.T) {
 		{"bar", helpers.RootFolder + "foo", helpers.RootFolder + "foo/bar"},
 		{"bar/baz/blah", helpers.RootFolder + "foo", helpers.RootFolder + "foo/bar/baz/blah"},
 		{"bar/../blah", helpers.RootFolder + "foo", helpers.RootFolder + "foo/blah"},
-		{"bar/../..", helpers.RootFolder + "foo", helpers.RootFolder },
+		{"bar/../..", helpers.RootFolder + "foo", helpers.RootFolder},
 		{"bar/.././../baz", helpers.RootFolder + "foo", helpers.RootFolder + "baz"},
 		{"bar", helpers.RootFolder + "foo/../baz", helpers.RootFolder + "baz/bar"},
 		{"a/b/../c/d/..", helpers.RootFolder + "foo/../baz/.", helpers.RootFolder + "baz/a/c"},

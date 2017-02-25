@@ -2,14 +2,14 @@ package cli
 
 import (
 	"fmt"
-	"os"
-	"github.com/urfave/cli"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
-	"strings"
+	"github.com/urfave/cli"
+	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Parse command line options that are passed in for Terragrunt
@@ -64,15 +64,15 @@ func parseTerragruntOptionsFromArgs(args []string) (*options.TerragruntOptions, 
 
 	return &options.TerragruntOptions{
 		TerragruntConfigPath: filepath.ToSlash(terragruntConfigPath),
-		TerraformPath: filepath.ToSlash(terraformPath),
-		NonInteractive: parseBooleanArg(args, OPT_NON_INTERACTIVE, false),
-		TerraformCliArgs: filterTerragruntArgs(args),
-		WorkingDir: filepath.ToSlash(workingDir),
-		Logger: util.CreateLogger(""),
-		RunTerragrunt: runTerragrunt,
-		Source: terraformSource,
-		SourceUpdate: sourceUpdate,
-		Env: parseEnvironmentVariables(os.Environ()),
+		TerraformPath:        filepath.ToSlash(terraformPath),
+		NonInteractive:       parseBooleanArg(args, OPT_NON_INTERACTIVE, false),
+		TerraformCliArgs:     filterTerragruntArgs(args),
+		WorkingDir:           filepath.ToSlash(workingDir),
+		Logger:               util.CreateLogger(""),
+		RunTerragrunt:        runTerragrunt,
+		Source:               terraformSource,
+		SourceUpdate:         sourceUpdate,
+		Env:                  parseEnvironmentVariables(os.Environ()),
 	}, nil
 }
 
@@ -108,7 +108,7 @@ func parseEnvironmentVariables(environment []string) map[string]string {
 }
 
 // Return a copy of the given args with all Terragrunt-specific args removed
-func filterTerragruntArgs(args[]string) []string {
+func filterTerragruntArgs(args []string) []string {
 	out := []string{}
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
@@ -151,15 +151,14 @@ func parseStringArg(args []string, argName string, defaultValue string) (string,
 	for i, arg := range args {
 		if arg == fmt.Sprintf("--%s", argName) {
 			if (i + 1) < len(args) {
-				return args[i + 1], nil
-			}  else {
+				return args[i+1], nil
+			} else {
 				return "", errors.WithStackTrace(ArgMissingValue(argName))
 			}
 		}
 	}
 	return defaultValue, nil
 }
-
 
 // A convenience method that returns the first item (0th index) in the given list or an empty string if this is an
 // empty list
@@ -182,6 +181,7 @@ func secondArg(args []string) string {
 // Custom error types
 
 type ArgMissingValue string
+
 func (err ArgMissingValue) Error() string {
 	return fmt.Sprintf("You must specify a value for the --%s option", string(err))
 }

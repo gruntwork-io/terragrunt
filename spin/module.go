@@ -1,24 +1,24 @@
 package spin
 
 import (
-	"github.com/gruntwork-io/terragrunt/config"
-	"path/filepath"
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
-	"strings"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/util"
+	"path/filepath"
+	"strings"
 )
 
 // Represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
 // module and the list of other modules that this module depends on
 type TerraformModule struct {
-	Path                   string
-	Dependencies           []*TerraformModule
-	Config                 config.TerragruntConfig
-	TerragruntOptions      *options.TerragruntOptions
-	AssumeAlreadyApplied   bool
+	Path                 string
+	Dependencies         []*TerraformModule
+	Config               config.TerragruntConfig
+	TerragruntOptions    *options.TerragruntOptions
+	AssumeAlreadyApplied bool
 }
 
 // Render this module as a human-readable string
@@ -85,7 +85,6 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 
 	return &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil
 }
-
 
 // Look through the dependencies of the modules in the given map and resolve the "external" dependency paths listed in
 // each modules config (i.e. those dependencies not in the given list of Terragrunt config canonical file paths).
@@ -204,8 +203,8 @@ func getDependenciesForModule(module *TerraformModule, moduleMap map[string]*Ter
 		dependencyModule, foundModule := moduleMap[dependencyModulePath]
 		if !foundModule {
 			err := UnrecognizedDependency{
-				ModulePath: module.Path,
-				DependencyPath: dependencyPath,
+				ModulePath:            module.Path,
+				DependencyPath:        dependencyPath,
 				TerragruntConfigPaths: terragruntConfigPaths,
 			}
 			return dependencies, errors.WithStackTrace(err)
@@ -219,9 +218,9 @@ func getDependenciesForModule(module *TerraformModule, moduleMap map[string]*Ter
 // Custom error types
 
 type UnrecognizedDependency struct {
-	ModulePath              string
-	DependencyPath          string
-	TerragruntConfigPaths   []string
+	ModulePath            string
+	DependencyPath        string
+	TerragruntConfigPaths []string
 }
 
 func (err UnrecognizedDependency) Error() string {

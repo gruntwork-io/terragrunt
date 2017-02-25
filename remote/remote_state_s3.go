@@ -1,14 +1,14 @@
 package remote
 
 import (
-	"github.com/mitchellh/mapstructure"
+	"fmt"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/aws"
-	"fmt"
 	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/mitchellh/mapstructure"
 	"time"
 )
 
@@ -141,7 +141,7 @@ func WaitUntilS3BucketExists(s3Client *s3.S3, config *RemoteStateConfigS3, terra
 		if DoesS3BucketExist(s3Client, config) {
 			terragruntOptions.Logger.Printf("S3 bucket %s created.", config.Bucket)
 			return nil
-		} else if retries < MAX_RETRIES_WAITING_FOR_S3_BUCKET - 1 {
+		} else if retries < MAX_RETRIES_WAITING_FOR_S3_BUCKET-1 {
 			terragruntOptions.Logger.Printf("S3 bucket %s has not been created yet. Sleeping for %s and will check again.", config.Bucket, SLEEP_BETWEEN_RETRIES_WAITING_FOR_S3_BUCKET)
 			time.Sleep(SLEEP_BETWEEN_RETRIES_WAITING_FOR_S3_BUCKET)
 		}
@@ -161,7 +161,7 @@ func CreateS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOpti
 func EnableVersioningForS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Enabling versioning on S3 bucket %s", config.Bucket)
 	input := s3.PutBucketVersioningInput{
-		Bucket: aws.String(config.Bucket),
+		Bucket:                  aws.String(config.Bucket),
 		VersioningConfiguration: &s3.VersioningConfiguration{Status: aws.String(s3.BucketVersioningStatusEnabled)},
 	}
 	_, err := s3Client.PutBucketVersioning(&input)
@@ -188,11 +188,13 @@ func CreateS3Client(awsRegion, awsProfile string) (*s3.S3, error) {
 // Custom error types
 
 type MissingRequiredS3RemoteStateConfig string
+
 func (configName MissingRequiredS3RemoteStateConfig) Error() string {
 	return fmt.Sprintf("Missing required S3 remote state configuration %s", string(configName))
 }
 
 type MaxRetriesWaitingForS3BucketExceeded string
+
 func (err MaxRetriesWaitingForS3BucketExceeded) Error() string {
 	return fmt.Sprintf("Exceeded max retries (%d) waiting for bucket S3 bucket %s", MAX_RETRIES_WAITING_FOR_S3_BUCKET, string(err))
 }

@@ -1,17 +1,17 @@
 package remote
 
 import (
-	"testing"
-	"github.com/stretchr/testify/assert"
-	"github.com/gruntwork-io/terragrunt/errors"
 	"encoding/json"
+	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func TestParseTerraformStateLocal(t *testing.T) {
 	t.Parallel()
 
 	stateFile :=
-	`
+		`
 	{
 		"version": 1,
 		"serial": 0,
@@ -29,12 +29,12 @@ func TestParseTerraformStateLocal(t *testing.T) {
 
 	expectedTerraformState := &TerraformState{
 		Version: 1,
-		Serial: 0,
-		Remote: nil,
+		Serial:  0,
+		Remote:  nil,
 		Modules: []TerraformStateModule{
 			TerraformStateModule{
-				Path: []string{"root"},
-				Outputs: map[string]interface{}{},
+				Path:      []string{"root"},
+				Outputs:   map[string]interface{}{},
 				Resources: map[string]interface{}{},
 			},
 		},
@@ -51,7 +51,7 @@ func TestParseTerraformStateRemote(t *testing.T) {
 	t.Parallel()
 
 	stateFile :=
-	`
+		`
 	{
 		"version": 5,
 		"serial": 12,
@@ -78,20 +78,20 @@ func TestParseTerraformStateRemote(t *testing.T) {
 
 	expectedTerraformState := &TerraformState{
 		Version: 5,
-		Serial: 12,
+		Serial:  12,
 		Remote: &TerraformStateRemote{
 			Type: "s3",
 			Config: map[string]string{
-				"bucket": "bucket",
+				"bucket":  "bucket",
 				"encrypt": "true",
-				"key": "experiment-1.tfstate",
-				"region": "us-east-1",
+				"key":     "experiment-1.tfstate",
+				"region":  "us-east-1",
 			},
 		},
 		Modules: []TerraformStateModule{
 			TerraformStateModule{
-				Path: []string{"root"},
-				Outputs: map[string]interface{}{},
+				Path:      []string{"root"},
+				Outputs:   map[string]interface{}{},
 				Resources: map[string]interface{}{},
 			},
 		},
@@ -109,7 +109,7 @@ func TestParseTerraformStateRemoteFull(t *testing.T) {
 
 	// This is a small snippet (with lots of editing) of Terraform templates that created a VPC
 	stateFile :=
-	`
+		`
 	{
 	    "version": 1,
 	    "serial": 51,
@@ -208,14 +208,14 @@ func TestParseTerraformStateRemoteFull(t *testing.T) {
 
 	expectedTerraformState := &TerraformState{
 		Version: 1,
-		Serial: 51,
+		Serial:  51,
 		Remote: &TerraformStateRemote{
 			Type: "s3",
 			Config: map[string]string{
-				"bucket": "bucket",
+				"bucket":  "bucket",
 				"encrypt": "true",
-				"key": "terraform.tfstate",
-				"region": "us-east-1",
+				"key":     "terraform.tfstate",
+				"region":  "us-east-1",
 			},
 		},
 		Modules: []TerraformStateModule{
@@ -237,48 +237,48 @@ func TestParseTerraformStateRemoteFull(t *testing.T) {
 				Resources: map[string]interface{}{},
 			},
 			TerraformStateModule{
-				Path: []string{"root", "module_with_resources_no_outputs"},
+				Path:    []string{"root", "module_with_resources_no_outputs"},
 				Outputs: map[string]interface{}{},
 				Resources: map[string]interface{}{
 					"aws_eip.nat.0": map[string]interface{}{
-						"type": "aws_eip",
+						"type":       "aws_eip",
 						"depends_on": []interface{}{"aws_internet_gateway.main"},
 						"primary": map[string]interface{}{
 							"id": "eipalloc-b421becd",
 							"attributes": map[string]interface{}{
-								"association_id": "",
-								"domain": "vpc",
-								"id": "eipalloc-b421becd",
-								"instance": "",
+								"association_id":    "",
+								"domain":            "vpc",
+								"id":                "eipalloc-b421becd",
+								"instance":          "",
 								"network_interface": "",
-								"private_ip": "",
-								"public_ip": "23.20.182.117",
-								"vpc": "true",
+								"private_ip":        "",
+								"public_ip":         "23.20.182.117",
+								"vpc":               "true",
 							},
 						},
 					},
 					"aws_eip.nat.1": map[string]interface{}{
-						"type": "aws_eip",
+						"type":       "aws_eip",
 						"depends_on": []interface{}{"aws_internet_gateway.main"},
 						"primary": map[string]interface{}{
 							"id": "eipalloc-95d846ec",
 							"attributes": map[string]interface{}{
-								"association_id": "",
-								"domain": "vpc",
-								"id": "eipalloc-95d846ec",
-								"instance": "",
+								"association_id":    "",
+								"domain":            "vpc",
+								"id":                "eipalloc-95d846ec",
+								"instance":          "",
 								"network_interface": "",
-								"private_ip": "",
-								"public_ip": "52.21.82.253",
-								"vpc": "true",
+								"private_ip":        "",
+								"public_ip":         "52.21.82.253",
+								"vpc":               "true",
 							},
 						},
 					},
 				},
 			},
 			TerraformStateModule{
-				Path: []string{"root", "module_level_1", "module_level_2"},
-				Outputs: map[string]interface{}{},
+				Path:      []string{"root", "module_level_1", "module_level_2"},
+				Outputs:   map[string]interface{}{},
 				Resources: map[string]interface{}{},
 			},
 		},

@@ -1,19 +1,19 @@
 package cli
 
 import (
+	"fmt"
+	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/gruntwork-io/terragrunt/config"
-	"os"
-	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/hashicorp/go-getter"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
+	"github.com/mattn/go-zglob"
 	"io/ioutil"
 	"net/url"
-	"fmt"
-	"strings"
-	"github.com/mattn/go-zglob"
+	"os"
 	"regexp"
+	"strings"
 )
 
 // This struct represents information about Terraform source code that needs to be downloaded
@@ -22,13 +22,13 @@ type TerraformSource struct {
 	CanonicalSourceURL *url.URL
 
 	// The folder where we should download the source to
-	DownloadDir         string
+	DownloadDir string
 
 	// The folder in DownloadDir that should be used as the working directory for Terraform
-	WorkingDir          string
+	WorkingDir string
 
 	// The path to a file in DownloadDir that stores the version number of the code
-	VersionFile         string
+	VersionFile string
 }
 
 func (src *TerraformSource) String() string {
@@ -52,7 +52,7 @@ func downloadTerraformSource(source string, terragruntOptions *options.Terragrun
 	if err := downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions); err != nil {
 		return err
 	}
-	
+
 	terragruntOptions.Logger.Printf("Copying files from %s into %s", terragruntOptions.WorkingDir, terraformSource.WorkingDir)
 	if err := util.CopyFolderContents(terragruntOptions.WorkingDir, terraformSource.WorkingDir); err != nil {
 		return err
@@ -103,7 +103,7 @@ func downloadTerraformSourceIfNecessary(terraformSource *TerraformSource, terrag
 // to a local file path, we assume the user is doing local development and always return false to ensure the latest
 // code is downloaded (or rather, copied) every single time. See the processTerraformSource method for more info.
 func alreadyHaveLatestCode(terraformSource *TerraformSource) (bool, error) {
-	if 	isLocalSource(terraformSource.CanonicalSourceURL) ||
+	if isLocalSource(terraformSource.CanonicalSourceURL) ||
 		!util.FileExists(terraformSource.DownloadDir) ||
 		!util.FileExists(terraformSource.WorkingDir) ||
 		!util.FileExists(terraformSource.VersionFile) {
@@ -139,7 +139,7 @@ func writeVersionFile(terraformSource *TerraformSource) error {
 // be downloaded to. Our goal is to reuse the download folder for the same source URL between Terragrunt runs.
 // Otherwise, for every Terragrunt command, you'd have to wait for Terragrunt to download your Terraform code, download
 // that code's dependencies (terraform get), and configure remote state (terraform remote config), which is very slow.
-// 
+//
 // To maximize reuse, given a working directory w and a source URL s, we download code from S into the folder /T/W/H
 // where:
 //
@@ -201,9 +201,9 @@ func processTerraformSource(source string, terragruntOptions *options.Terragrunt
 
 	return &TerraformSource{
 		CanonicalSourceURL: rootSourceUrl,
-		DownloadDir: downloadDir,
-		WorkingDir: workingDir,
-		VersionFile: versionFile,
+		DownloadDir:        downloadDir,
+		WorkingDir:         workingDir,
+		VersionFile:        versionFile,
 	}, nil
 }
 

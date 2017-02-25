@@ -1,10 +1,10 @@
 package util
 
 import (
-	"os"
-	"path/filepath"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 	"regexp"
 )
 

@@ -1,10 +1,10 @@
 package remote
 
 import (
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/stretchr/testify/assert"
 	"strings"
 	"testing"
-	"github.com/stretchr/testify/assert"
-	"github.com/gruntwork-io/terragrunt/options"
 )
 
 func TestToTerraformRemoteConfigArgs(t *testing.T) {
@@ -48,42 +48,42 @@ func TestShouldOverrideExistingRemoteState(t *testing.T) {
 		{TerraformStateRemote{Type: "s3"}, RemoteState{Backend: "atlas"}, true},
 		{
 			TerraformStateRemote{
-				Type: "s3",
+				Type:   "s3",
 				Config: map[string]string{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
 			RemoteState{
 				Backend: "s3",
-				Config: map[string]string{"bucket": "foo", "key": "bar", "region": "us-east-1"},
+				Config:  map[string]string{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
 			false,
-		},{
+		}, {
 			TerraformStateRemote{
-				Type: "s3",
+				Type:   "s3",
 				Config: map[string]string{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
 			RemoteState{
 				Backend: "s3",
-				Config: map[string]string{"bucket": "different", "key": "bar", "region": "us-east-1"},
+				Config:  map[string]string{"bucket": "different", "key": "bar", "region": "us-east-1"},
 			},
 			true,
-		},{
+		}, {
 			TerraformStateRemote{
-				Type: "s3",
+				Type:   "s3",
 				Config: map[string]string{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
 			RemoteState{
 				Backend: "s3",
-				Config: map[string]string{"bucket": "foo", "key": "different", "region": "us-east-1"},
+				Config:  map[string]string{"bucket": "foo", "key": "different", "region": "us-east-1"},
 			},
 			true,
-		},{
+		}, {
 			TerraformStateRemote{
-				Type: "s3",
+				Type:   "s3",
 				Config: map[string]string{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
 			RemoteState{
 				Backend: "s3",
-				Config: map[string]string{"bucket": "foo", "key": "bar", "region": "different"},
+				Config:  map[string]string{"bucket": "foo", "key": "bar", "region": "different"},
 			},
 			true,
 		},

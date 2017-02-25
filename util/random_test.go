@@ -8,11 +8,11 @@ import (
 func TestGetRandomTime(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct{
+	testCases := []struct {
 		lowerBound time.Duration
 		upperBound time.Duration
 	}{
-		{ 1 * time.Second, 10 * time.Second },
+		{1 * time.Second, 10 * time.Second},
 		{0, 0},
 		{-1 * time.Second, -3 * time.Second},
 		{1 * time.Second, 2000000001 * time.Nanosecond},
@@ -26,7 +26,7 @@ func TestGetRandomTime(t *testing.T) {
 		for i := 0; i < 100; i++ {
 			actual := GetRandomTime(testCase.lowerBound, testCase.upperBound)
 
-			if  testCase.lowerBound > 0 && testCase.upperBound > 0 {
+			if testCase.lowerBound > 0 && testCase.upperBound > 0 {
 				if actual < testCase.lowerBound {
 					t.Fatalf("Randomly computed time %v should not be less than lowerBound %v", actual, testCase.lowerBound)
 				}

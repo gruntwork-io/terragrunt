@@ -1,8 +1,8 @@
 package errors
 
 import (
-	goerrors "github.com/go-errors/errors"
 	"fmt"
+	goerrors "github.com/go-errors/errors"
 )
 
 // Wrap the given error in an Error type that contains the stack trace. If the given error already has a stack trace,
@@ -18,7 +18,7 @@ func WithStackTrace(err error) error {
 // Wrap the given error in an Error type that contains the stack trace and has the given message prepended as part of
 // the error message. If the given error already has a stack trace, it is used directly. If the given error is nil,
 // return nil.
-func WithStackTraceAndPrefix(err error, message string, args ... interface{}) error {
+func WithStackTraceAndPrefix(err error, message string, args ...interface{}) error {
 	if err == nil {
 		return nil
 	}
@@ -54,8 +54,10 @@ func PrintErrorWithStackTrace(err error) string {
 	}
 
 	switch underlyingErr := err.(type) {
-	case *goerrors.Error: return underlyingErr.ErrorStack()
-	default: return err.Error()
+	case *goerrors.Error:
+		return underlyingErr.ErrorStack()
+	default:
+		return err.Error()
 	}
 }
 

@@ -1,15 +1,15 @@
 package config
 
 import (
+	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/locks"
-	"github.com/gruntwork-io/terragrunt/remote"
-	"github.com/hashicorp/hcl"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
-	"fmt"
-	"path/filepath"
+	"github.com/hashicorp/hcl"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -23,6 +23,7 @@ type TerragruntConfig struct {
 	RemoteState  *remote.RemoteState
 	Dependencies *ModuleDependencies
 }
+
 func (conf *TerragruntConfig) String() string {
 	return fmt.Sprintf("TerragruntConfig{Terraform = %v, Lock = %v, RemoteState = %v, Dependencies = %v}", conf.Terraform, conf.Lock, conf.RemoteState, conf.Dependencies)
 }
@@ -59,6 +60,7 @@ type LockConfig struct {
 type ModuleDependencies struct {
 	Paths []string `hcl:"paths"`
 }
+
 func (deps *ModuleDependencies) String() string {
 	return fmt.Sprintf("ModuleDependencies{Paths = %v}", deps.Paths)
 }
@@ -77,8 +79,9 @@ func (conf *TerraformConfig) String() string {
 type TerraformExtraArguments struct {
 	Name      string   `hcl:",key"`
 	Arguments []string `hcl:"arguments,omitempty"`
-	Commands   []string `hcl:"commands,omitempty"`
+	Commands  []string `hcl:"commands,omitempty"`
 }
+
 func (conf *TerraformExtraArguments) String() string {
 	return fmt.Sprintf("TerraformArguments{Name = %s, Arguments = %v, Commands = %v}", conf.Name, conf.Arguments, conf.Commands)
 }
@@ -212,8 +215,8 @@ func parseConfigString(configString string, terragruntOptions *options.Terragrun
 
 	if include != nil && terragruntConfigFile.Include != nil {
 		return nil, errors.WithStackTrace(TooManyLevelsOfInheritance{
-			ConfigPath: terragruntOptions.TerragruntConfigPath,
-			FirstLevelIncludePath: include.Path,
+			ConfigPath:             terragruntOptions.TerragruntConfigPath,
+			FirstLevelIncludePath:  include.Path,
 			SecondLevelIncludePath: terragruntConfigFile.Include.Path,
 		})
 	}
@@ -322,6 +325,7 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 // Custom error types
 
 type IncludedConfigMissingPath string
+
 func (err IncludedConfigMissingPath) Error() string {
 	return fmt.Sprintf("The include configuration in %s must specify a 'path' parameter", string(err))
 }
@@ -331,11 +335,13 @@ type TooManyLevelsOfInheritance struct {
 	FirstLevelIncludePath  string
 	SecondLevelIncludePath string
 }
+
 func (err TooManyLevelsOfInheritance) Error() string {
 	return fmt.Sprintf("%s includes %s, which itself includes %s. Only one level of includes is allowed.", err.ConfigPath, err.FirstLevelIncludePath, err.SecondLevelIncludePath)
 }
 
 type CouldNotResolveTerragruntConfigInFile string
+
 func (err CouldNotResolveTerragruntConfigInFile) Error() string {
 	return fmt.Sprintf("Could not find Terragrunt configuration settings in %s", string(err))
 }

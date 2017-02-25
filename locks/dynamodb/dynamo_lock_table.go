@@ -226,7 +226,7 @@ func (err AcquireLockRetriesExceeded) Error() string {
 }
 
 type TableDoesNotExist struct {
-	TableName string
+	TableName  string
 	Underlying error
 }
 
@@ -235,8 +235,8 @@ func (err TableDoesNotExist) Error() string {
 }
 
 type ItemDoesNotExist struct {
-	ItemId string
-	TableName string
+	ItemId     string
+	TableName  string
 	Underlying error
 }
 

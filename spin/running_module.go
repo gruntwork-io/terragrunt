@@ -1,14 +1,15 @@
 package spin
 
 import (
-	"sync"
 	"fmt"
-	"strings"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"strings"
+	"sync"
 )
 
 // Represents the status of a module that we are trying to apply as part of the spin-up or tear-down command
 type ModuleStatus int
+
 const (
 	Waiting ModuleStatus = iota
 	Running
@@ -27,6 +28,7 @@ type runningModule struct {
 
 // This controls in what order dependencies should be enforced between modules
 type DependencyOrder int
+
 const (
 	NormalOrder DependencyOrder = iota
 	ReverseOrder
@@ -37,10 +39,10 @@ const (
 // function such as crossLinkDependencies.
 func newRunningModule(module *TerraformModule) *runningModule {
 	return &runningModule{
-		Module: module,
-		Status: Waiting,
+		Module:         module,
+		Status:         Waiting,
 		DependencyDone: make(chan *runningModule, 1000), // Use a huge buffer to ensure senders are never blocked
-		Dependencies: map[string]*runningModule{},
+		Dependencies:   map[string]*runningModule{},
 		NotifyWhenDone: []*runningModule{},
 	}
 }
@@ -154,7 +156,7 @@ func (module *runningModule) runModuleWhenReady() {
 func (module *runningModule) waitForDependencies() error {
 	module.Module.TerragruntOptions.Logger.Printf("Module %s must wait for %d dependencies to finish", module.Module.Path, len(module.Dependencies))
 	for len(module.Dependencies) > 0 {
-		doneDependency := <- module.DependencyDone
+		doneDependency := <-module.DependencyDone
 		delete(module.Dependencies, doneDependency.Module.Path)
 
 		if doneDependency.Err != nil {
@@ -204,6 +206,7 @@ type DependencyFinishedWithError struct {
 	Dependency *TerraformModule
 	Err        error
 }
+
 func (err DependencyFinishedWithError) Error() string {
 	return fmt.Sprintf("Cannot process module %s because one of its dependencies, %s, finished with an error: %s", err.Module, err.Dependency, err.Err)
 }
@@ -211,6 +214,7 @@ func (err DependencyFinishedWithError) Error() string {
 type MultiError struct {
 	Errors []error
 }
+
 func (err MultiError) Error() string {
 	errorStrings := []string{}
 	for _, err := range err.Errors {
@@ -223,6 +227,7 @@ type DependencyNotFoundWhileCrossLinking struct {
 	Module     *runningModule
 	Dependency *TerraformModule
 }
+
 func (err DependencyNotFoundWhileCrossLinking) Error() string {
 	return fmt.Sprintf("Module %v specifies a dependency on module %v, but could not find that module while cross-linking dependencies. This is most likely a bug in Terragrunt. Please report it.", err.Module, err.Dependency)
 }

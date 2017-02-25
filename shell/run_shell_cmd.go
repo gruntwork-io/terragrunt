@@ -44,7 +44,6 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 	return errors.WithStackTrace(err)
 }
 
-
 // Return the exit code of a command. If the error is not an exec.ExitError type,
 // the error is returned.
 func GetExitCode(err error) (int, error) {
@@ -71,7 +70,7 @@ func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger *log.Logger, c
 				if err != nil {
 					logger.Printf("Error forwarding signal: %v", err)
 				}
-			case <- cmdChannel:
+			case <-cmdChannel:
 				return
 			}
 		}
