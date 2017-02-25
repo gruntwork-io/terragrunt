@@ -10,6 +10,7 @@ fmtcheck:
 	@sh -c "'$(CURDIR)/scripts/gofmtcheck.sh'"
 
 fmt:
+	@echo "Running source files through gofmt..."
 	gofmt -w $(GOFMT_FILES)
 
 install-pre-commit-hook:
