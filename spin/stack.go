@@ -39,6 +39,12 @@ func (stack *Stack) Destroy(terragruntOptions *options.TerragruntOptions) error 
 	return RunModulesReverseOrder(stack.Modules)
 }
 
+// Output prints the outputs of all the modules in the given stack in their specified order.
+func (stack *Stack) Output(terragruntOptions *options.TerragruntOptions) error {
+	stack.setTerraformCommand([]string{"output"})
+	return RunModulesReverseOrder(stack.Modules)
+}
+
 // Return an error if there is a dependency cycle in the modules of this stack.
 func (stack *Stack) CheckForCycles() error {
 	return CheckForCycles(stack.Modules)

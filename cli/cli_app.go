@@ -31,6 +31,7 @@ const CMD_RELEASE_LOCK = "release-lock"
 const CMD_APPLY_ALL = "apply-all"
 const CMD_APPLY_ALL_INTERACTIVE = "apply-all-interactive"
 const CMD_DESTROY_ALL = "destroy-all"
+const CMD_OUTPUT_ALL = "output-all"
 
 // CMD_SPIN_UP is deprecated.
 const CMD_SPIN_UP = "spin-up"
@@ -38,7 +39,7 @@ const CMD_SPIN_UP = "spin-up"
 // CMD_TEAR_DOWN is deprecated.
 const CMD_TEAR_DOWN = "tear-down"
 
-var MULTI_MODULE_COMMANDS = []string{CMD_APPLY_ALL, CMD_APPLY_ALL_INTERACTIVE, CMD_DESTROY_ALL}
+var MULTI_MODULE_COMMANDS = []string{CMD_APPLY_ALL, CMD_APPLY_ALL_INTERACTIVE, CMD_DESTROY_ALL, CMD_OUTPUT_ALL}
 
 // DEPRECATED_COMMANDS is a map of deprecated commands to the commands that replace them.
 var DEPRECATED_COMMANDS = map[string]string{
@@ -68,6 +69,7 @@ COMMANDS:
    acquire-lock         Acquire a long-term lock for these templates
    release-lock         Release a long-term lock or a lock that failed to clean up
    apply-all            Apply a 'stack' by running 'terragrunt apply' in each subfolder
+   output-all           Display the outputs of a 'stack' by running 'terragrunt output' in each subfolder
    destroy-all          Destroy a 'stack' by running 'terragrunt destroy' in each subfolder
    *                    Terragrunt forwards all other commands directly to Terraform
 
@@ -206,6 +208,8 @@ func runMultiModuleCommand(command string, terragruntOptions *options.Terragrunt
 		return applyAll(terragruntOptions)
 	case CMD_DESTROY_ALL:
 		return destroyAll(terragruntOptions)
+	case CMD_OUTPUT_ALL:
+		return outputAll(terragruntOptions)
 	default:
 		return errors.WithStackTrace(UnrecognizedCommand(command))
 	}
@@ -322,6 +326,18 @@ func destroyAll(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	return nil
+}
+
+// outputAll prints the outputs from all configuration in a stack, in the order
+// specified in the terraform_remote_state dependencies
+func outputAll(terragruntOptions *options.TerragruntOptions) error {
+	stack, err := spin.FindStackInSubfolders(terragruntOptions)
+	if err != nil {
+		return err
+	}
+
+	terragruntOptions.Logger.Printf("%s", stack.String())
+	return stack.Output(terragruntOptions)
 }
 
 // Acquire a lock. This can be useful for locking down a deploy for a long time, such as during a major deployment.
