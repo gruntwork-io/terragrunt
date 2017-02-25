@@ -1081,7 +1081,7 @@ Here is how the `errors` package should be used:
 
 #### Formatting
 
-Every source file in this project should be formatted with `go fmt`. Feel free to accomplish this any way you choose. There are also few helper scripts and targets in the Makefile that can help with this (mostly stolen from the [terraform repo](https://github.com/hashicorp/terraform/)):
+Every source file in this project should be formatted with `go fmt`. Feel free to accomplish this any way you choose. There are also few helper scripts and targets in the Makefile that can help with this (mostly taken from the [terraform repo](https://github.com/hashicorp/terraform/)):
 
 1. `make fmtcheck`
 
