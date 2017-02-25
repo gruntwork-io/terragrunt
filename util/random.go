@@ -1,8 +1,8 @@
 package util
 
 import (
-	"time"
 	"math/rand"
+	"time"
 )
 
 // Get a random time duration between the lower bound and upper bound. This is useful because some of our automated tests
@@ -38,5 +38,5 @@ func GetRandomTime(lowerBound, upperBound time.Duration) time.Duration {
 // Generate a random int between min and max, inclusive
 func random(min int, max int) int {
 	rand.Seed(time.Now().UnixNano())
-	return rand.Intn(max - min) + min
+	return rand.Intn(max-min) + min
 }

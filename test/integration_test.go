@@ -5,21 +5,21 @@ import (
 	"strings"
 	"testing"
 
+	"bytes"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/config"
+	terragruntDynamoDb "github.com/gruntwork-io/terragrunt/locks/dynamodb"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
-	terragruntDynamoDb "github.com/gruntwork-io/terragrunt/locks/dynamodb"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
-	"bytes"
 	"time"
 )
 
@@ -419,7 +419,6 @@ func uniqueId() string {
 	const UNIQUE_ID_LENGTH = 6 // Should be good for 62^6 = 56+ billion combinations
 
 	var out bytes.Buffer
-
 
 	for i := 0; i < UNIQUE_ID_LENGTH; i++ {
 		out.WriteByte(BASE_62_CHARS[rand.Intn(len(BASE_62_CHARS))])

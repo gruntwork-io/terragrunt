@@ -1,12 +1,12 @@
 package shell
 
 import (
-	"strings"
-	"fmt"
-	"os"
 	"bufio"
+	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"os"
+	"strings"
 )
 
 // Prompt the user for text in the CLI. Returns the text entered by the user.
@@ -41,7 +41,9 @@ func PromptUserForYesNo(prompt string, terragruntOptions *options.TerragruntOpti
 	}
 
 	switch strings.ToLower(resp) {
-	case "y", "yes": return true, nil
-	default: return false, nil
+	case "y", "yes":
+		return true, nil
+	default:
+		return false, nil
 	}
 }

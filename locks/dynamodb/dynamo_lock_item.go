@@ -1,20 +1,20 @@
 package dynamodb
 
 import (
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/gruntwork-io/terragrunt/locks"
-	"time"
-	"github.com/aws/aws-sdk-go/aws"
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/locks"
 	"github.com/gruntwork-io/terragrunt/options"
+	"time"
 )
 
 // Create a DynamoDB key for the given item id
 func createKeyFromItemId(itemId string) map[string]*dynamodb.AttributeValue {
-	return map[string]*dynamodb.AttributeValue {
+	return map[string]*dynamodb.AttributeValue{
 		ATTR_STATE_FILE_ID: &dynamodb.AttributeValue{S: aws.String(itemId)},
 	}
 }
@@ -34,9 +34,9 @@ func displayLockMetadata(itemId string, tableName string, client *dynamodb.Dynam
 // the lock.
 func getLockMetadata(itemId string, tableName string, client *dynamodb.DynamoDB) (*locks.LockMetadata, error) {
 	output, err := client.GetItem(&dynamodb.GetItemInput{
-		Key: createKeyFromItemId(itemId),
+		Key:            createKeyFromItemId(itemId),
 		ConsistentRead: aws.Bool(true),
-		TableName: aws.String(tableName),
+		TableName:      aws.String(tableName),
 	})
 
 	if err != nil {
@@ -70,8 +70,8 @@ func toLockMetadata(itemId string, item map[string]*dynamodb.AttributeValue) (*l
 
 	return &locks.LockMetadata{
 		StateFileId: itemId,
-		Username: username,
-		IpAddress: ipAddress,
+		Username:    username,
+		IpAddress:   ipAddress,
 		DateCreated: dateCreated,
 	}, nil
 }
@@ -102,8 +102,8 @@ func createItemAttributes(itemId string, client *dynamodb.DynamoDB) (map[string]
 
 	return map[string]*dynamodb.AttributeValue{
 		ATTR_STATE_FILE_ID: &dynamodb.AttributeValue{S: aws.String(itemId)},
-		ATTR_USERNAME: &dynamodb.AttributeValue{S: aws.String(lockMetadata.Username)},
-		ATTR_IP: &dynamodb.AttributeValue{S: aws.String(lockMetadata.IpAddress)},
+		ATTR_USERNAME:      &dynamodb.AttributeValue{S: aws.String(lockMetadata.Username)},
+		ATTR_IP:            &dynamodb.AttributeValue{S: aws.String(lockMetadata.IpAddress)},
 		ATTR_CREATION_DATE: &dynamodb.AttributeValue{S: aws.String(lockMetadata.DateCreated.String())},
 	}, nil
 }
@@ -128,8 +128,8 @@ func (err AttributeMissing) Error() string {
 }
 
 type InvalidDateFormat struct {
-	Date 		string
-	UnderlyingErr 	error
+	Date          string
+	UnderlyingErr error
 }
 
 func (err InvalidDateFormat) Error() string {

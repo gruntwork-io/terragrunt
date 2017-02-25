@@ -1,11 +1,11 @@
 package dynamodb
 
 import (
-	"testing"
-	"sync/atomic"
-	"time"
 	"math/rand"
 	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
 )
 
 func TestCountingSemaphoreHappyPath(t *testing.T) {

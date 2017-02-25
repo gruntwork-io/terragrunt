@@ -2,10 +2,10 @@ package remote
 
 import (
 	"encoding/json"
-	"io/ioutil"
-	"github.com/gruntwork-io/terragrunt/errors"
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
+	"io/ioutil"
 )
 
 // TODO: this file could be changed to use the Terraform Go code to read state files, but that code is relatively

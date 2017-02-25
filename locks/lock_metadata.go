@@ -1,10 +1,10 @@
 package locks
 
 import (
-	"time"
-	"net"
-	"github.com/gruntwork-io/terragrunt/errors"
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/errors"
+	"net"
+	"time"
 )
 
 // Copied from format.go. Not sure why it's not exposed as a variable.
@@ -29,8 +29,8 @@ func CreateLockMetadata(stateFileId string, username string) (*LockMetadata, err
 
 	return &LockMetadata{
 		StateFileId: stateFileId,
-		Username: username,
-		IpAddress: ipAddress,
+		Username:    username,
+		IpAddress:   ipAddress,
 		DateCreated: dateCreated,
 	}, nil
 }

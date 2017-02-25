@@ -1,15 +1,15 @@
 package cli
 
 import (
-	"testing"
 	"fmt"
-	"path/filepath"
-	"github.com/stretchr/testify/assert"
-	"net/url"
 	"github.com/gruntwork-io/terragrunt/options"
-	"io/ioutil"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/stretchr/testify/assert"
+	"io/ioutil"
+	"net/url"
 	"os"
+	"path/filepath"
+	"testing"
 )
 
 func TestAlreadyHaveLatestCodeLocalFilePath(t *testing.T) {
@@ -149,9 +149,9 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlOverrideSource(t *testing.T)
 func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool, expectedFileContents string) {
 	terraformSource := &TerraformSource{
 		CanonicalSourceURL: parseUrl(t, canonicalUrl),
-		DownloadDir: downloadDir,
-		WorkingDir: downloadDir,
-		VersionFile: util.JoinPath(downloadDir, "version-file.txt"),
+		DownloadDir:        downloadDir,
+		WorkingDir:         downloadDir,
+		VersionFile:        util.JoinPath(downloadDir, "version-file.txt"),
 	}
 
 	terragruntOptions := options.NewTerragruntOptionsForTest("./should-not-be-used")
@@ -170,9 +170,9 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 func testAlreadyHaveLatestCode(t *testing.T, canonicalUrl string, downloadDir string, expected bool) {
 	terraformSource := &TerraformSource{
 		CanonicalSourceURL: parseUrl(t, canonicalUrl),
-		DownloadDir: downloadDir,
-		WorkingDir: downloadDir,
-		VersionFile: util.JoinPath(downloadDir, "version-file.txt"),
+		DownloadDir:        downloadDir,
+		WorkingDir:         downloadDir,
+		VersionFile:        util.JoinPath(downloadDir, "version-file.txt"),
 	}
 
 	actual, err := alreadyHaveLatestCode(terraformSource)

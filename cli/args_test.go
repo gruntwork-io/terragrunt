@@ -1,15 +1,15 @@
 package cli
 
 import (
-	"testing"
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/stretchr/testify/assert"
-	"github.com/gruntwork-io/terragrunt/errors"
+	"fmt"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/stretchr/testify/assert"
 	"os"
 	"path/filepath"
-	"github.com/gruntwork-io/terragrunt/util"
-	"fmt"
+	"testing"
 )
 
 func TestParseTerragruntOptionsFromArgs(t *testing.T) {
@@ -23,7 +23,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 	workingDir = filepath.ToSlash(workingDir)
 
 	testCases := []struct {
-		args 		[]string
+		args            []string
 		expectedOptions *options.TerragruntOptions
 		expectedErr     error
 	}{

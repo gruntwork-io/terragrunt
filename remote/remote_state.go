@@ -3,8 +3,8 @@ package remote
 import (
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"reflect"
 )
 
@@ -13,6 +13,7 @@ type RemoteState struct {
 	Backend string            `hcl:"backend"`
 	Config  map[string]string `hcl:"config"`
 }
+
 func (state *RemoteState) String() string {
 	return fmt.Sprintf("RemoteState{Backend = %v, Config = %v}", state.Backend, state.Config)
 }
@@ -20,7 +21,7 @@ func (state *RemoteState) String() string {
 type RemoteStateInitializer func(map[string]string, *options.TerragruntOptions) error
 
 // TODO: initialization actions for other remote state backends can be added here
-var remoteStateInitializers = map[string]RemoteStateInitializer {
+var remoteStateInitializers = map[string]RemoteStateInitializer{
 	"s3": InitializeRemoteStateS3,
 }
 

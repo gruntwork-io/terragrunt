@@ -1,15 +1,15 @@
 package spin
 
 import (
-	"testing"
-	"io/ioutil"
-	"path/filepath"
-	"os"
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/stretchr/testify/assert"
-	"github.com/gruntwork-io/terragrunt/util"
-	"strings"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/stretchr/testify/assert"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
 )
 
 func TestFindStackInSubfolders(t *testing.T) {

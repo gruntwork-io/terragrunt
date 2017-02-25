@@ -1,15 +1,15 @@
 package dynamodb
 
 import (
-	"time"
 	"bytes"
+	"fmt"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"testing"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/stretchr/testify/assert"
-	"github.com/aws/aws-sdk-go/aws"
-	"fmt"
-	"github.com/gruntwork-io/terragrunt/options"
+	"time"
 )
 
 // For simplicity, do all testing in the us-east-1 region
@@ -60,7 +60,7 @@ func assertCanWriteToTable(t *testing.T, tableName string, client *dynamodb.Dyna
 
 	_, err := client.PutItem(&dynamodb.PutItemInput{
 		TableName: aws.String(tableName),
-		Item: item,
+		Item:      item,
 	})
 
 	assert.Nil(t, err, "Unexpected error: %v", err)
@@ -69,8 +69,8 @@ func assertCanWriteToTable(t *testing.T, tableName string, client *dynamodb.Dyna
 func assertItemExistsInTable(t *testing.T, itemId string, tableName string, client *dynamodb.DynamoDB) {
 	output, err := client.GetItem(&dynamodb.GetItemInput{
 		ConsistentRead: aws.Bool(true),
-		Key: createKeyFromItemId(itemId),
-		TableName: aws.String(tableName),
+		Key:            createKeyFromItemId(itemId),
+		TableName:      aws.String(tableName),
 	})
 
 	assert.Nil(t, err, "Unexpected error: %v", err)
@@ -80,8 +80,8 @@ func assertItemExistsInTable(t *testing.T, itemId string, tableName string, clie
 func assertItemNotExistsInTable(t *testing.T, itemId string, tableName string, client *dynamodb.DynamoDB) {
 	output, err := client.GetItem(&dynamodb.GetItemInput{
 		ConsistentRead: aws.Bool(true),
-		Key: createKeyFromItemId(itemId),
-		TableName: aws.String(tableName),
+		Key:            createKeyFromItemId(itemId),
+		TableName:      aws.String(tableName),
 	})
 
 	assert.Nil(t, err, "Unexpected error: %v", err)

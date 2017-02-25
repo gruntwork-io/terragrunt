@@ -7,12 +7,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/locks"
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/spin"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/urfave/cli"
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/spin"
 )
 
 const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
@@ -21,6 +21,7 @@ const OPT_NON_INTERACTIVE = "terragrunt-non-interactive"
 const OPT_WORKING_DIR = "terragrunt-working-dir"
 const OPT_TERRAGRUNT_SOURCE = "terragrunt-source"
 const OPT_TERRAGRUNT_SOURCE_UPDATE = "terragrunt-source-update"
+
 var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE}
 var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_TFPATH, OPT_WORKING_DIR, OPT_TERRAGRUNT_SOURCE}
 
@@ -28,6 +29,7 @@ const CMD_ACQUIRE_LOCK = "acquire-lock"
 const CMD_RELEASE_LOCK = "release-lock"
 const CMD_SPIN_UP = "spin-up"
 const CMD_TEAR_DOWN = "tear-down"
+
 var MULTI_MODULE_COMMANDS = []string{CMD_SPIN_UP, CMD_TEAR_DOWN}
 
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
@@ -132,9 +134,9 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
-  if conf.Terraform != nil && conf.Terraform.ExtraArgs != nil && len(conf.Terraform.ExtraArgs) > 0	{
-    terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs,	filterTerraformExtraArgs(terragruntOptions, conf)...)
-  }
+	if conf.Terraform != nil && conf.Terraform.ExtraArgs != nil && len(conf.Terraform.ExtraArgs) > 0 {
+		terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, filterTerraformExtraArgs(terragruntOptions, conf)...)
+	}
 
 	if sourceUrl, hasSourceUrl := getTerraformSourceUrl(terragruntOptions, conf); hasSourceUrl {
 		if err := downloadTerraformSource(sourceUrl, terragruntOptions); err != nil {
@@ -326,12 +328,12 @@ func runTerraformCommand(terragruntOptions *options.TerragruntOptions) error {
 	return shell.RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, terragruntOptions.TerraformCliArgs...)
 }
 
-
 // Custom error types
 
 var DontManuallyConfigureRemoteState = fmt.Errorf("Instead of manually using the 'remote config' command, define your remote state settings in %s and Terragrunt will automatically configure it for you (and all your team members) next time you run it.", config.DefaultTerragruntConfigPath)
 
 type UnrecognizedCommand string
+
 func (commandName UnrecognizedCommand) Error() string {
 	return fmt.Sprintf("Unrecognized command: %s", string(commandName))
 }

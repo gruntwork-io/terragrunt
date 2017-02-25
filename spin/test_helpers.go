@@ -1,26 +1,30 @@
 package spin
 
 import (
-	"testing"
-	"github.com/stretchr/testify/assert"
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/locks/dynamodb"
-	"github.com/gruntwork-io/terragrunt/remote"
-	"github.com/gruntwork-io/terragrunt/locks"
 	"github.com/gruntwork-io/terragrunt/errors"
-	"sort"
+	"github.com/gruntwork-io/terragrunt/locks"
+	"github.com/gruntwork-io/terragrunt/locks/dynamodb"
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/stretchr/testify/assert"
+	"sort"
+	"testing"
 )
 
 type TerraformModuleByPath []*TerraformModule
+
 func (byPath TerraformModuleByPath) Len() int           { return len(byPath) }
 func (byPath TerraformModuleByPath) Swap(i, j int)      { byPath[i], byPath[j] = byPath[j], byPath[i] }
 func (byPath TerraformModuleByPath) Less(i, j int) bool { return byPath[i].Path < byPath[j].Path }
 
 type RunningModuleByPath []*runningModule
-func (byPath RunningModuleByPath) Len() int           { return len(byPath) }
-func (byPath RunningModuleByPath) Swap(i, j int)      { byPath[i], byPath[j] = byPath[j], byPath[i] }
-func (byPath RunningModuleByPath) Less(i, j int) bool { return byPath[i].Module.Path < byPath[j].Module.Path }
+
+func (byPath RunningModuleByPath) Len() int      { return len(byPath) }
+func (byPath RunningModuleByPath) Swap(i, j int) { byPath[i], byPath[j] = byPath[j], byPath[i] }
+func (byPath RunningModuleByPath) Less(i, j int) bool {
+	return byPath[i].Module.Path < byPath[j].Module.Path
+}
 
 // We can't use assert.Equals on TerraformModule or any data structure that contains it because it contains some
 // fields (e.g. TerragruntOptions) that cannot be compared directly
@@ -156,7 +160,7 @@ func state(t *testing.T, bucket string, key string) *remote.RemoteState {
 		Backend: "s3",
 		Config: map[string]string{
 			"bucket": bucket,
-			"key": key,
+			"key":    key,
 		},
 	}
 }

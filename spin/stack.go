@@ -7,7 +7,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-
 )
 
 // Represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or
@@ -88,6 +87,7 @@ func createStackForTerragruntConfigPaths(path string, terragruntConfigPaths []st
 var NoTerraformModulesFound = fmt.Errorf("Could not find any subfolders with Terragrunt configuration files")
 
 type DependencyCycle []string
+
 func (err DependencyCycle) Error() string {
 	return fmt.Sprintf("Found a dependency cycle between modules: %s", strings.Join([]string(err), " -> "))
 }

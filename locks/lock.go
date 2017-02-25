@@ -2,9 +2,9 @@ package locks
 
 import (
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/options"
 	"os"
 	"os/signal"
-	"github.com/gruntwork-io/terragrunt/options"
 )
 
 // Every type of lock must implement this interface
@@ -48,7 +48,9 @@ func WithLock(lock Lock, terragruntOptions *options.TerragruntOptions, action fu
 	// the blocking call to action() to return normally.
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt)
-	go func() { terragruntOptions.Logger.Printf("Caught signal '%s'. Terraform should be shutting down gracefully now.", <- signalChannel) }()
+	go func() {
+		terragruntOptions.Logger.Printf("Caught signal '%s'. Terraform should be shutting down gracefully now.", <-signalChannel)
+	}()
 
 	return action()
 }

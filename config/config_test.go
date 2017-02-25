@@ -1,15 +1,15 @@
 package config
 
 import (
-	"reflect"
-	"testing"
+	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/locks/dynamodb"
-	"github.com/gruntwork-io/terragrunt/remote"
-	"github.com/stretchr/testify/assert"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
-	"fmt"
+	"github.com/stretchr/testify/assert"
+	"reflect"
+	"testing"
 )
 
 var mockOptions = options.TerragruntOptions{TerragruntConfigPath: "test-time-mock", NonInteractive: true}
@@ -18,7 +18,7 @@ func TestParseTerragruntConfigDynamoLockMinimalConfig(t *testing.T) {
 	t.Parallel()
 
 	config :=
-`
+		`
 terragrunt = {
   lock {
     backend = "dynamodb"
@@ -49,7 +49,7 @@ func TestParseTerragruntConfigDynamoLockFullConfig(t *testing.T) {
 	t.Parallel()
 
 	config :=
-`
+		`
 terragrunt = {
   lock {
     backend = "dynamodb"
@@ -85,7 +85,7 @@ func TestParseTerragruntConfigDynamoLockMissingStateFileId(t *testing.T) {
 	t.Parallel()
 
 	config :=
-`
+		`
 terragrunt = {
   lock {
     backend = "dynamodb"
@@ -103,7 +103,7 @@ func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
 	t.Parallel()
 
 	config :=
-`
+		`
 terragrunt = {
   remote_state {
     backend = "s3"
@@ -119,7 +119,7 @@ terragrunt = {
 	assert.Nil(t, terragruntConfig.Lock)
 	assert.Nil(t, terragruntConfig.Terraform)
 
-	if assert.NotNil(t, terragruntConfig.RemoteState){
+	if assert.NotNil(t, terragruntConfig.RemoteState) {
 		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
 		assert.Empty(t, terragruntConfig.RemoteState.Config)
 	}
@@ -129,7 +129,7 @@ func TestParseTerragruntConfigRemoteStateMissingBackend(t *testing.T) {
 	t.Parallel()
 
 	config :=
-`
+		`
 terragrunt = {
   remote_state {
   }
@@ -144,7 +144,7 @@ func TestParseTerragruntConfigRemoteStateFullConfig(t *testing.T) {
 	t.Parallel()
 
 	config :=
-`
+		`
 terragrunt = {
   remote_state {
     backend = "s3"
@@ -180,7 +180,7 @@ func TestParseTerragruntConfigDependenciesOnePath(t *testing.T) {
 	t.Parallel()
 
 	config :=
-`
+		`
 terragrunt = {
   dependencies {
     paths = ["../vpc"]
@@ -206,7 +206,7 @@ func TestParseTerragruntConfigDependenciesMultiplePaths(t *testing.T) {
 	t.Parallel()
 
 	config :=
-`
+		`
 terragrunt = {
   dependencies {
     paths = ["../vpc", "../mysql", "../backend-app"]
@@ -232,7 +232,7 @@ func TestParseTerragruntConfigRemoteStateDynamoDbTerraformConfigAndDependenciesF
 	t.Parallel()
 
 	config :=
-`
+		`
 terragrunt = {
   terraform {
     source = "foo"
@@ -300,7 +300,7 @@ func TestParseTerragruntConfigRemoteStateDynamoDbTerraformConfigAndDependenciesF
 	t.Parallel()
 
 	config :=
-`
+		`
 terraform {
   source = "foo"
 }
@@ -366,7 +366,7 @@ func TestParseTerragruntConfigInvalidLockBackend(t *testing.T) {
 	t.Parallel()
 
 	config :=
-`
+		`
 terragrunt = {
   lock {
     backend = "invalid"
@@ -384,7 +384,7 @@ func TestParseTerragruntConfigInclude(t *testing.T) {
 	t.Parallel()
 
 	config :=
-fmt.Sprintf(`
+		fmt.Sprintf(`
 terragrunt = {
   include {
     path = "../../../%s"
@@ -394,7 +394,7 @@ terragrunt = {
 
 	opts := options.TerragruntOptions{
 		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + DefaultTerragruntConfigPath,
-		NonInteractive: true,
+		NonInteractive:       true,
 	}
 
 	terragruntConfig, err := parseConfigString(config, &opts, nil, opts.TerragruntConfigPath)
@@ -423,7 +423,7 @@ func TestParseTerragruntConfigIncludeWithFindInParentFolders(t *testing.T) {
 	t.Parallel()
 
 	config :=
-`
+		`
 terragrunt = {
   include {
     path = "${find_in_parent_folders()}"
@@ -433,7 +433,7 @@ terragrunt = {
 
 	opts := options.TerragruntOptions{
 		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + DefaultTerragruntConfigPath,
-		NonInteractive: true,
+		NonInteractive:       true,
 	}
 
 	terragruntConfig, err := parseConfigString(config, &opts, nil, opts.TerragruntConfigPath)
@@ -445,7 +445,6 @@ terragrunt = {
 			lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
 			assert.Equal(t, "child/sub-child/sub-sub-child", lock.StateFileId)
 		}
-
 
 		if assert.NotNil(t, terragruntConfig.RemoteState) {
 			assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
@@ -463,7 +462,7 @@ func TestParseTerragruntConfigIncludeOverrideRemote(t *testing.T) {
 	t.Parallel()
 
 	config :=
-fmt.Sprintf(`
+		fmt.Sprintf(`
 terragrunt = {
   include {
     path = "../../../%s"
@@ -484,7 +483,7 @@ terragrunt = {
 
 	opts := options.TerragruntOptions{
 		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + DefaultTerragruntConfigPath,
-		NonInteractive: true,
+		NonInteractive:       true,
 	}
 
 	terragruntConfig, err := parseConfigString(config, &opts, nil, opts.TerragruntConfigPath)
@@ -513,7 +512,7 @@ func TestParseTerragruntConfigIncludeOverrideAll(t *testing.T) {
 	t.Parallel()
 
 	config :=
-fmt.Sprintf(`
+		fmt.Sprintf(`
 terragrunt = {
   include {
     path = "../../../%s"
@@ -549,7 +548,7 @@ terragrunt = {
 
 	opts := options.TerragruntOptions{
 		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + DefaultTerragruntConfigPath,
-		NonInteractive: true,
+		NonInteractive:       true,
 	}
 
 	terragruntConfig, err := parseConfigString(config, &opts, nil, opts.TerragruntConfigPath)
@@ -592,8 +591,8 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 
 	_, actualErr := parseConfigString(config, &opts, nil, configPath)
 	expectedErr := TooManyLevelsOfInheritance{
-		ConfigPath: configPath,
-		FirstLevelIncludePath: "../" + DefaultTerragruntConfigPath,
+		ConfigPath:             configPath,
+		FirstLevelIncludePath:  "../" + DefaultTerragruntConfigPath,
 		SecondLevelIncludePath: "../" + DefaultTerragruntConfigPath,
 	}
 	assert.True(t, errors.IsError(actualErr, expectedErr), "Expected error %v but got %v", expectedErr, actualErr)
@@ -613,8 +612,8 @@ func TestParseTerragruntConfigThreeLevels(t *testing.T) {
 
 	_, actualErr := parseConfigString(config, &opts, nil, configPath)
 	expectedErr := TooManyLevelsOfInheritance{
-		ConfigPath: configPath,
-		FirstLevelIncludePath: "../" + DefaultTerragruntConfigPath,
+		ConfigPath:             configPath,
+		FirstLevelIncludePath:  "../" + DefaultTerragruntConfigPath,
 		SecondLevelIncludePath: "../" + DefaultTerragruntConfigPath,
 	}
 	assert.True(t, errors.IsError(actualErr, expectedErr), "Expected error %v but got %v", expectedErr, actualErr)
@@ -720,7 +719,7 @@ func TestParseTerragruntConfigTerraformNoSource(t *testing.T) {
 	t.Parallel()
 
 	config :=
-`
+		`
 terragrunt = {
   terraform {
   }
@@ -745,7 +744,7 @@ func TestParseTerragruntConfigTerraformWithSource(t *testing.T) {
 	t.Parallel()
 
 	config :=
-`
+		`
 terragrunt = {
   terraform {
     source = "foo"
@@ -771,7 +770,7 @@ func TestParseTerragruntConfigTerraformWithExtraArguments(t *testing.T) {
 	t.Parallel()
 
 	config :=
-`
+		`
 terragrunt = {
   terraform {
     extra_arguments "secrets" {
@@ -810,11 +809,11 @@ terragrunt = {
 			terragruntConfig.Terraform.ExtraArgs[0].Arguments)
 		assert.Equal(t,
 			[]string{
-        "apply",
-        "plan",
-        "import",
-        "push",
-        "refresh",
+				"apply",
+				"plan",
+				"import",
+				"push",
+				"refresh",
 			},
 			terragruntConfig.Terraform.ExtraArgs[0].Commands)
 	}
@@ -824,7 +823,7 @@ func TestParseTerragruntConfigTerraformWithMultipleExtraArguments(t *testing.T) 
 	t.Parallel()
 
 	config :=
-`
+		`
 terragrunt = {
   terraform {
     extra_arguments "json_output" {
@@ -859,11 +858,11 @@ terragrunt = {
 
 	if assert.NotNil(t, terragruntConfig.Terraform) {
 		assert.Equal(t, "json_output", terragruntConfig.Terraform.ExtraArgs[0].Name)
-		assert.Equal(t,	[]string{"-json"}, terragruntConfig.Terraform.ExtraArgs[0].Arguments)
-		assert.Equal(t,	[]string{"output"}, terragruntConfig.Terraform.ExtraArgs[0].Commands)
+		assert.Equal(t, []string{"-json"}, terragruntConfig.Terraform.ExtraArgs[0].Arguments)
+		assert.Equal(t, []string{"output"}, terragruntConfig.Terraform.ExtraArgs[0].Commands)
 		assert.Equal(t, "fmt_diff", terragruntConfig.Terraform.ExtraArgs[1].Name)
-		assert.Equal(t,	[]string{"-diff=true"}, terragruntConfig.Terraform.ExtraArgs[1].Arguments)
-		assert.Equal(t,	[]string{"fmt"}, terragruntConfig.Terraform.ExtraArgs[1].Commands)
+		assert.Equal(t, []string{"-diff=true"}, terragruntConfig.Terraform.ExtraArgs[1].Arguments)
+		assert.Equal(t, []string{"fmt"}, terragruntConfig.Terraform.ExtraArgs[1].Commands)
 	}
 }
 

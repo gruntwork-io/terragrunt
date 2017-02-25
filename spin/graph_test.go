@@ -1,9 +1,9 @@
 package spin
 
 import (
-	"testing"
-	"github.com/stretchr/testify/assert"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func TestCheckForCycles(t *testing.T) {
@@ -58,7 +58,7 @@ func TestCheckForCycles(t *testing.T) {
 	l.Dependencies = append(l.Dependencies, m)
 
 	testCases := []struct {
-		modules	 []*TerraformModule
+		modules  []*TerraformModule
 		expected DependencyCycle
 	}{
 		{[]*TerraformModule{}, nil},
