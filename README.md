@@ -1079,6 +1079,20 @@ Here is how the `errors` package should be used:
    `errors.WithStackTrace`. This gives us a stacktrace as close to the source as possible.
 1. If you need to get back the underlying error, you can use the `errors.IsError` and `errors.Unwrap` functions.
 
+#### Formatting
+
+Every source file in this project should be formatted with `go fmt`. Feel free to accomplish this any way you choose. There are also few helper scripts and targets in the Makefile that can help with this (mostly stolen from the [terraform repo](https://github.com/hashicorp/terraform/)):
+
+1. `make fmtcheck`
+
+   Checks to see if all source files are formatted. Exits 1 if there are unformatted files.
+1. `make fmt`
+
+    Formats all source files with `gofmt`. 
+1. `make install-pre-commit-hook`
+
+    Installs a git pre-commit hook that will check if all source files are formatted, and block the commit if not.
+
 #### Releasing new versions
 
 To release a new version, just go to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases) and
