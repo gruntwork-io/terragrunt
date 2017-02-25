@@ -1081,7 +1081,8 @@ Here is how the `errors` package should be used:
 
 #### Formatting
 
-Every source file in this project should be formatted with `go fmt`. Feel free to accomplish this any way you choose. There are also few helper scripts and targets in the Makefile that can help with this (mostly taken from the [terraform repo](https://github.com/hashicorp/terraform/)):
+Every source file in this project should be formatted with `go fmt`. There are few helper scripts and targets in the
+Makefile that can help with this (mostly taken from the [terraform repo](https://github.com/hashicorp/terraform/)):
 
 1. `make fmtcheck`
 
@@ -1091,8 +1092,10 @@ Every source file in this project should be formatted with `go fmt`. Feel free t
     Formats all source files with `gofmt`. 
 1. `make install-pre-commit-hook`
 
-    Installs a git pre-commit hook that will check if all source files are formatted, and block the commit if not.
-
+    Installs a git pre-commit hook that will run all of the source files through `gofmt`.
+    
+To ensure that your changes get properly formatted, please install the git pre-commit hook with `make install-pre-commit-hook`.
+    
 #### Releasing new versions
 
 To release a new version, just go to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases) and
