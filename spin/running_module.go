@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-// Represents the status of a module that we are trying to apply as part of the spin-up or tear-down command
+// Represents the status of a module that we are trying to apply as part of the apply-all or destroy-all command
 type ModuleStatus int
 
 const (
@@ -16,7 +16,7 @@ const (
 	Finished
 )
 
-// Represents a module we are trying to "run" (i.e. apply or destroy) as part of the spin-up or tear-down command
+// Represents a module we are trying to "run" (i.e. apply or destroy) as part of the apply-all or destroy-all command
 type runningModule struct {
 	Module         *TerraformModule
 	Status         ModuleStatus

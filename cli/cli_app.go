@@ -27,10 +27,24 @@ var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_
 
 const CMD_ACQUIRE_LOCK = "acquire-lock"
 const CMD_RELEASE_LOCK = "release-lock"
+
+const CMD_APPLY_ALL = "apply-all"
+const CMD_APPLY_ALL_INTERACTIVE = "apply-all-interactive"
+const CMD_DESTROY_ALL = "destroy-all"
+
+// CMD_SPIN_UP is deprecated.
 const CMD_SPIN_UP = "spin-up"
+
+// CMD_TEAR_DOWN is deprecated.
 const CMD_TEAR_DOWN = "tear-down"
 
-var MULTI_MODULE_COMMANDS = []string{CMD_SPIN_UP, CMD_TEAR_DOWN}
+var MULTI_MODULE_COMMANDS = []string{CMD_APPLY_ALL, CMD_APPLY_ALL_INTERACTIVE, CMD_DESTROY_ALL}
+
+// DEPRECATED_COMMANDS is a map of deprecated commands to the commands that replace them.
+var DEPRECATED_COMMANDS = map[string]string{
+	CMD_SPIN_UP:   CMD_APPLY_ALL,
+	CMD_TEAR_DOWN: CMD_DESTROY_ALL,
+}
 
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
 // in its definition, we don't quite fit into the model of any Go CLI library. Fortunately, urfave/cli allows us to
@@ -53,8 +67,8 @@ COMMANDS:
    remote push          Acquire a lock and run 'terraform remote push'
    acquire-lock         Acquire a long-term lock for these templates
    release-lock         Release a long-term lock or a lock that failed to clean up
-   spin-up              Spin up a 'stack' by running 'terragrunt apply' in each subfolder
-   tear-down            Tear down a 'stack' by running 'terragrunt destroy' in each subfolder
+   apply-all            Apply a 'stack' by running 'terragrunt apply' in each subfolder
+   destroy-all          Destroy a 'stack' by running 'terragrunt destroy' in each subfolder
    *                    Terragrunt forwards all other commands directly to Terraform
 
 GLOBAL OPTIONS:
@@ -119,11 +133,28 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 		return err
 	}
 
-	if isMultiModuleCommand(cliContext.Args().First()) {
-		return runMultiModuleCommand(cliContext.Args().First(), terragruntOptions)
-	} else {
-		return runTerragrunt(terragruntOptions)
+	givenCommand := cliContext.Args().First()
+	command := checkDeprecated(givenCommand)
+	return runCommand(command, terragruntOptions)
+}
+
+// checkDeprecated checks if the given command is deprecated.  If so: prints a message and returns the new command.
+func checkDeprecated(command string) string {
+	newCommand, deprecated := DEPRECATED_COMMANDS[command]
+	if deprecated {
+		fmt.Printf("%v is deprecated; running %v instead.\n", command, newCommand)
+		return newCommand
 	}
+	return command
+}
+
+// runCommand runs one or many terraform commands based on the type of
+// terragrunt command
+func runCommand(command string, terragruntOptions *options.TerragruntOptions) (finalEff error) {
+	if isMultiModuleCommand(command) {
+		return runMultiModuleCommand(command, terragruntOptions)
+	}
+	return runTerragrunt(terragruntOptions)
 }
 
 // Run Terragrunt with the given options and CLI args. This will forward all the args directly to Terraform, enforcing
@@ -163,18 +194,18 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 }
 
 // Returns true if the command the user wants to execute is supposed to affect multiple Terraform modules, such as the
-// spin-up or tear-down command.
+// apply-all or destroy-all command.
 func isMultiModuleCommand(command string) bool {
 	return util.ListContainsElement(MULTI_MODULE_COMMANDS, command)
 }
 
-// Execute a command that affects multiple Terraform modules, such as the spin-up or tear-down command.
+// Execute a command that affects multiple Terraform modules, such as the apply-all or destroy-all command.
 func runMultiModuleCommand(command string, terragruntOptions *options.TerragruntOptions) error {
 	switch command {
-	case CMD_SPIN_UP:
-		return spinUp(terragruntOptions)
-	case CMD_TEAR_DOWN:
-		return tearDown(terragruntOptions)
+	case CMD_APPLY_ALL:
+		return applyAll(terragruntOptions)
+	case CMD_DESTROY_ALL:
+		return destroyAll(terragruntOptions)
 	default:
 		return errors.WithStackTrace(UnrecognizedCommand(command))
 	}
@@ -253,19 +284,19 @@ func runTerraformCommandWithLock(lock locks.Lock, terragruntOptions *options.Ter
 
 // Spin up an entire "stack" by running 'terragrunt apply' in each subfolder, processing them in the right order based
 // on terraform_remote_state dependencies.
-func spinUp(terragruntOptions *options.TerragruntOptions) error {
+func applyAll(terragruntOptions *options.TerragruntOptions) error {
 	stack, err := spin.FindStackInSubfolders(terragruntOptions)
 	if err != nil {
 		return err
 	}
 
 	terragruntOptions.Logger.Printf("%s", stack.String())
-	shouldSpinUp, err := shell.PromptUserForYesNo("Are you sure you want to run 'terragrunt apply' in each folder of the stack described above?", terragruntOptions)
+	shouldApplyAll, err := shell.PromptUserForYesNo("Are you sure you want to run 'terragrunt apply' in each folder of the stack described above?", terragruntOptions)
 	if err != nil {
 		return err
 	}
 
-	if shouldSpinUp {
+	if shouldApplyAll {
 		return stack.Apply(terragruntOptions)
 	}
 
@@ -274,19 +305,19 @@ func spinUp(terragruntOptions *options.TerragruntOptions) error {
 
 // Tear down an entire "stack" by running 'terragrunt destroy' in each subfolder, processing them in the right order
 // based on terraform_remote_state dependencies.
-func tearDown(terragruntOptions *options.TerragruntOptions) error {
+func destroyAll(terragruntOptions *options.TerragruntOptions) error {
 	stack, err := spin.FindStackInSubfolders(terragruntOptions)
 	if err != nil {
 		return err
 	}
 
 	terragruntOptions.Logger.Printf("%s", stack.String())
-	shouldTearDown, err := shell.PromptUserForYesNo("WARNING: Are you sure you want to run `terragrunt destroy` in each folder of the stack described above? There is no undo!", terragruntOptions)
+	shouldDestroyAll, err := shell.PromptUserForYesNo("WARNING: Are you sure you want to run `terragrunt destroy` in each folder of the stack described above? There is no undo!", terragruntOptions)
 	if err != nil {
 		return err
 	}
 
-	if shouldTearDown {
+	if shouldDestroyAll {
 		return stack.Destroy(terragruntOptions)
 	}
 

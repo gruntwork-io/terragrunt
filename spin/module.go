@@ -89,7 +89,7 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 // Look through the dependencies of the modules in the given map and resolve the "external" dependency paths listed in
 // each modules config (i.e. those dependencies not in the given list of Terragrunt config canonical file paths).
 // These external dependencies are outside of the current working directory, which means they may not be part of the
-// environment the user is trying to spin-up or tear down. Therefore, this method also confirms whether the user wants
+// environment the user is trying to apply-all or destroy-all. Therefore, this method also confirms whether the user wants
 // to actually apply those dependencies or just assume they are already applied. Note that this method will NOT fill in
 // the Dependencies field of the TerraformModule struct (see the crosslinkDependencies method for that).
 func resolveExternalDependenciesForModules(canonicalTerragruntConfigPaths []string, moduleMap map[string]*TerraformModule, terragruntOptions *options.TerragruntOptions) (map[string]*TerraformModule, error) {
@@ -122,7 +122,7 @@ func resolveExternalDependenciesForModules(canonicalTerragruntConfigPaths []stri
 // Look through the dependencies of the given module and resolve the "external" dependency paths listed in the module's
 // config (i.e. those dependencies not in the given list of Terragrunt config canonical file paths). These external
 // dependencies are outside of the current working directory, which means they may not be part of the environment the
-// user is trying to spin-up or tear down. Note that this method will NOT fill in the Dependencies field of the
+// user is trying to apply-all or destroy-all. Note that this method will NOT fill in the Dependencies field of the
 // TerraformModule struct (see the crosslinkDependencies method for that).
 func resolveExternalDependenciesForModule(module *TerraformModule, canonicalTerragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions) (map[string]*TerraformModule, error) {
 	if module.Config.Dependencies == nil || len(module.Config.Dependencies.Paths) == 0 {
