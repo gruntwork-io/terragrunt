@@ -646,7 +646,7 @@ terragrunt= {
   }
 ```
 
-### The apply-all and destroy-all commands
+### The apply-all destroy-all, and output-all commands
 
 Let's say you have a single environment (e.g. `stage` or `prod`) that has a number of Terraform modules within it:
 
@@ -686,13 +686,20 @@ terragrunt apply-all
 ```
 
 When you run this command, Terragrunt will find all `terraform.tfvars` files in the subfolders of the current working 
-directory that contain `terragrunt = { ... }` blocks, and run `terragrunt apply` in each one concurrently.  
+directory that contain `terragrunt = { ... }` blocks, and run `terragrunt apply` in each one concurrently.
 
 Similarly, to undeploy all the Terraform modules, you can use the `destroy-all` command:
 
 ```
 cd my-terraform-repo/stage
 terragrunt destroy-all
+```
+
+Finally, to see the currently applied outputs of all of the subfolders, you can use the `output-all` command:
+
+```
+cd my-terraform-repo/stage
+terragrunt output-all
 ```
 
 Of course, if your modules have dependencies between them—for example, you can't deploy the backend-app until the MySQL
