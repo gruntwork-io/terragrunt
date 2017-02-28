@@ -86,7 +86,6 @@ func validateS3Config(config *RemoteStateConfigS3, terragruntOptions *options.Te
 // If the bucket specified in the given config doesn't already exist, prompt the user to create it, and if the user
 // confirms, create the bucket and enable versioning for it.
 func createS3BucketIfNecessary(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Printf(":::checking s3 bucket existence: %s", terragruntOptions.TerragruntConfigPath)
 	if !DoesS3BucketExist(s3Client, config) {
 		prompt := fmt.Sprintf("Remote state S3 bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", config.Bucket)
 		shouldCreateBucket, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
@@ -95,7 +94,6 @@ func createS3BucketIfNecessary(s3Client *s3.S3, config *RemoteStateConfigS3, ter
 		}
 
 		if shouldCreateBucket {
-			terragruntOptions.Logger.Printf(":::creating bucket: %s", terragruntOptions.TerragruntConfigPath)
 			return CreateS3BucketWithVersioning(s3Client, config, terragruntOptions)
 		}
 	}
