@@ -362,7 +362,7 @@ The solution is to use the following features of Terragrunt:
 * Find parent helper
 * Relative path helper
 * Overriding included settings
-* The `apply-all` and `destroy-all` commands
+* The `apply-all`, `destroy-all`, and `output-all` commands
 * Dependencies between modules
 
 ### Includes
@@ -646,7 +646,7 @@ terragrunt= {
   }
 ```
 
-### The apply-all destroy-all, and output-all commands
+### The apply-all, destroy-all, and output-all commands
 
 Let's say you have a single environment (e.g. `stage` or `prod`) that has a number of Terraform modules within it:
 
