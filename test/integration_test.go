@@ -31,6 +31,7 @@ const (
 	TEST_FIXTURE_INCLUDE_PATH                           = "fixture-include/"
 	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH                 = "qa/my-app"
 	TEST_FIXTURE_STACK                                  = "fixture-stack/"
+	TEST_FIXTURE_OUTPUT_ALL                             = "fixture-output-all"
 	TEST_FIXTURE_EXTRA_ARGS_PATH                        = "fixture-extra-args/"
 	TEST_FIXTURE_LOCAL_DOWNLOAD_PATH                    = "fixture-download/local"
 	TEST_FIXTURE_REMOTE_DOWNLOAD_PATH                   = "fixture-download/remote"
@@ -172,6 +173,26 @@ func TestTerragruntWorksWithIncludesParentUpdatedAndOldConfig(t *testing.T) {
 	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_old_config_include_parent_updated")
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
+}
+
+func TestTerragruntOutputAllCommand(t *testing.T) {
+	t.Parallel()
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUTPUT_ALL)
+
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName)
+
+	environmentPath := fmt.Sprintf("%s/%s", tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", environmentPath, s3BucketName))
+	runTerragrunt(t, fmt.Sprintf("terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath))
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_output_all")
+
 }
 
 func TestTerragruntStackCommands(t *testing.T) {
