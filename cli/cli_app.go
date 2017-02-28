@@ -29,7 +29,6 @@ const CMD_ACQUIRE_LOCK = "acquire-lock"
 const CMD_RELEASE_LOCK = "release-lock"
 
 const CMD_APPLY_ALL = "apply-all"
-const CMD_APPLY_ALL_INTERACTIVE = "apply-all-interactive"
 const CMD_DESTROY_ALL = "destroy-all"
 const CMD_OUTPUT_ALL = "output-all"
 
@@ -39,7 +38,7 @@ const CMD_SPIN_UP = "spin-up"
 // CMD_TEAR_DOWN is deprecated.
 const CMD_TEAR_DOWN = "tear-down"
 
-var MULTI_MODULE_COMMANDS = []string{CMD_APPLY_ALL, CMD_APPLY_ALL_INTERACTIVE, CMD_DESTROY_ALL, CMD_OUTPUT_ALL}
+var MULTI_MODULE_COMMANDS = []string{CMD_APPLY_ALL, CMD_DESTROY_ALL, CMD_OUTPUT_ALL}
 
 // DEPRECATED_COMMANDS is a map of deprecated commands to the commands that replace them.
 var DEPRECATED_COMMANDS = map[string]string{
