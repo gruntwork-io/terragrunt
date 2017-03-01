@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/urfave/cli"
+	"io"
 )
 
 const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
@@ -93,7 +94,7 @@ var MODULE_REGEX = regexp.MustCompile(`module ".+"`)
 const TERRAFORM_EXTENSION_GLOB = "*.tf"
 
 // Create the Terragrunt CLI App
-func CreateTerragruntCli(version string) *cli.App {
+func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) *cli.App {
 	cli.OsExiter = func(exitCode int) {
 		// Do nothing. We just need to override this function, as the default value calls os.Exit, which
 		// kills the app (or any automated test) dead in its tracks.
@@ -108,6 +109,8 @@ func CreateTerragruntCli(version string) *cli.App {
 	app.Version = version
 	app.Action = runApp
 	app.Usage = "terragrunt <COMMAND>"
+	app.Writer = writer
+	app.ErrWriter = errwriter
 	app.UsageText = fmt.Sprintf(`Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that supports locking
    via Amazon's DynamoDB and enforces best practices. Terragrunt forwards almost all commands, arguments, and options
    directly to Terraform, using whatever version of Terraform you already have installed. However, before running

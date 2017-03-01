@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -98,7 +99,7 @@ func TestAcquireAndReleaseLock(t *testing.T) {
 
 	// Try to apply the templates. Since a lock has been acquired, and max_lock_retries is set to 1, this should
 	// fail quickly.
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", terragruntConfigPath, TEST_FIXTURE_LOCK_PATH))
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", terragruntConfigPath, TEST_FIXTURE_LOCK_PATH), nil, nil)
 
 	if assert.NotNil(t, err, "Expected to get an error when trying to apply templates after a long-term lock has already been acquired, but got nil") {
 		assert.Contains(t, err.Error(), "Unable to acquire lock")
@@ -180,6 +181,9 @@ func TestTerragruntOutputAllCommand(t *testing.T) {
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_output_all")
+
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUTPUT_ALL)
 
 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL, config.DefaultTerragruntConfigPath)
@@ -188,11 +192,17 @@ func TestTerragruntOutputAllCommand(t *testing.T) {
 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", environmentPath, s3BucketName))
-	runTerragrunt(t, fmt.Sprintf("terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath))
 
-	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_output_all")
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
+	output := stdout.String()
 
+	assert.True(t, strings.Contains(output, "app1 output"))
+	assert.True(t, strings.Contains(output, "app2 output"))
+	assert.True(t, strings.Contains(output, "app3 output"))
 }
 
 func TestTerragruntStackCommands(t *testing.T) {
@@ -334,15 +344,19 @@ func removeFolder(t *testing.T, path string) {
 	}
 }
 
-func runTerragruntCommand(t *testing.T, command string) error {
+func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {
 	args := strings.Split(command, " ")
 
-	app := cli.CreateTerragruntCli("TEST")
+	app := cli.CreateTerragruntCli("TEST", writer, errwriter)
 	return app.Run(args)
 }
 
 func runTerragrunt(t *testing.T, command string) {
-	if err := runTerragruntCommand(t, command); err != nil {
+	runTerragruntRedirectOutput(t, command, nil, nil)
+}
+
+func runTerragruntRedirectOutput(t *testing.T, command string, writer io.Writer, errwriter io.Writer) {
+	if err := runTerragruntCommand(t, command, writer, errwriter); err != nil {
 		t.Fatalf("Failed to run Terragrunt command '%s' due to error: %s", command, err)
 	}
 }

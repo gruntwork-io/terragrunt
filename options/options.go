@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
+	"io"
 	"log"
 	"path/filepath"
 )
@@ -37,6 +38,12 @@ type TerragruntOptions struct {
 
 	// If set to true, delete the contents of the temporary folder before downloading Terraform source code into it
 	SourceUpdate bool
+
+	// If you want stdout to go somewhere other than os.stdout
+	Writer io.Writer
+
+	// If you want stderr to go somewhere other than os.stderr
+	ErrWriter io.Writer
 
 	// A command that can be used to run Terragrunt with the given options. This is useful for running Terragrunt
 	// multiple times (e.g. when spinning up a stack of Terraform modules). The actual command is normally defined
@@ -91,6 +98,8 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		Source:               terragruntOptions.Source,
 		SourceUpdate:         terragruntOptions.SourceUpdate,
 		RunTerragrunt:        terragruntOptions.RunTerragrunt,
+		Writer:               terragruntOptions.Writer,
+		ErrWriter:            terragruntOptions.ErrWriter,
 	}
 }
 

@@ -14,7 +14,25 @@ import (
 
 // Parse command line options that are passed in for Terragrunt
 func ParseTerragruntOptions(cliContext *cli.Context) (*options.TerragruntOptions, error) {
-	return parseTerragruntOptionsFromArgs(cliContext.Args())
+	terragruntOptions, err := parseTerragruntOptionsFromArgs(cliContext.Args())
+	if err != nil {
+		return nil, err
+	}
+
+	if cliContext.App.Writer == nil {
+		terragruntOptions.Writer = os.Stdout
+
+	} else {
+		terragruntOptions.Writer = cliContext.App.Writer
+	}
+
+	if cliContext.App.ErrWriter == nil {
+		terragruntOptions.ErrWriter = os.Stderr
+	} else {
+		terragruntOptions.ErrWriter = cliContext.App.ErrWriter
+	}
+
+	return terragruntOptions, nil
 }
 
 // TODO: replace the urfave CLI library with something else.

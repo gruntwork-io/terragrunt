@@ -22,8 +22,8 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 
 	// TODO: consider adding prefix from terragruntOptions logger to stdout and stderr
 	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = terragruntOptions.Writer
+	cmd.Stderr = terragruntOptions.ErrWriter
 
 	// Terragrunt can run some commands (such as terraform remote config) before running the actual terraform
 	// command requested by the user. The output of these other commands should not end up on stdout as this
