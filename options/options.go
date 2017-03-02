@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"io"
 	"log"
+	"os"
 	"path/filepath"
 )
 
@@ -67,6 +68,8 @@ func NewTerragruntOptions(terragruntConfigPath string) *TerragruntOptions {
 		Env:                  map[string]string{},
 		Source:               "",
 		SourceUpdate:         false,
+		Writer:               os.Stdout,
+		ErrWriter:            os.Stderr,
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
