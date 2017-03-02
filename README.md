@@ -362,7 +362,7 @@ The solution is to use the following features of Terragrunt:
 * Find parent helper
 * Relative path helper
 * Overriding included settings
-* The `spin-up` and `tear-down` commands
+* The `apply-all`, `destroy-all`, and `output-all` commands
 * Dependencies between modules
 
 ### Includes
@@ -646,7 +646,7 @@ terragrunt= {
   }
 ```
 
-### The spin-up and tear-down commands
+### The apply-all, destroy-all, and output-all commands
 
 Let's say you have a single environment (e.g. `stage` or `prod`) that has a number of Terraform modules within it:
 
@@ -678,21 +678,28 @@ There is one module to deploy a frontend-app, another to deploy a backend-app, a
 on. To deploy such an environment, you'd have to manually run `terragrunt apply` in each of the subfolders. How do you
 avoid this tedious and time-consuming process?
 
-The answer is that you can use the `spin-up` command:
+The answer is that you can use the `apply-all` command:
  
 ```
 cd my-terraform-repo/stage
-terragrunt spin-up
+terragrunt apply-all
 ```
 
 When you run this command, Terragrunt will find all `terraform.tfvars` files in the subfolders of the current working 
-directory that contain `terragrunt = { ... }` blocks, and run `terragrunt apply` in each one concurrently.  
+directory that contain `terragrunt = { ... }` blocks, and run `terragrunt apply` in each one concurrently.
 
-Similarly, to undeploy all the Terraform modules, you can use the `tear-down` command:
+Similarly, to undeploy all the Terraform modules, you can use the `destroy-all` command:
 
 ```
 cd my-terraform-repo/stage
-terragrunt tear-down
+terragrunt destroy-all
+```
+
+Finally, to see the currently applied outputs of all of the subfolders, you can use the `output-all` command:
+
+```
+cd my-terraform-repo/stage
+terragrunt output-all
 ```
 
 Of course, if your modules have dependencies between them—for example, you can't deploy the backend-app until the MySQL
@@ -762,9 +769,9 @@ terragrunt = {
 }
 ```
 
-Once you've specified the depenedencies in each `terraform.tfvars` file, when you run the `terragrunt spin-up` and 
-`terragrunt tear-down`, Terragrunt will ensure that the dependencies are applied or destroyed, respectively, in the
-correct order. For the example at the start of this section, the order for the `spin-up` command would be:
+Once you've specified the depenedencies in each `terraform.tfvars` file, when you run the `terragrunt apply-all` and 
+`terragrunt destroy-all`, Terragrunt will ensure that the dependencies are applied or destroyed, respectively, in the
+correct order. For the example at the start of this section, the order for the `apply-all` command would be:
 
 1. Deploy the VPC
 1. Deploy MySQL and Redis in parallel
@@ -772,7 +779,7 @@ correct order. For the example at the start of this section, the order for the `
 1. Deploy the frontend-app and search-app in parallel
 
 If any of the modules fail to deploy, then Terragrunt will not attempt to deploy the modules that depend on them. Once
-you've fixed the error, it's usually safe to re-run the `spin-up` or `tear-down` command again, since it'll be a noop
+you've fixed the error, it's usually safe to re-run the `apply-all` or `destroy-all` command again, since it'll be a noop
 for the modules that already deployed successfully, and should only affect the ones that had an error the last time
 around.
 
@@ -939,7 +946,7 @@ prefix `--terragrunt-`. The currently available options are:
 * `--terragrunt-non-interactive`: Don't show interactive user prompts. This will default the answer for all prompts to 
   'yes'. Useful if you need to run Terragrunt in an automated setting (e.g. from a script).  
 * `--terragrunt-working-dir`: Set the directory where Terragrunt should execute the `terraform` command. Default is the
-  current working directory. Note that for the `spin-up` and `tear-down` directories, this parameter has a different 
+  current working directory. Note that for the `apply-all` and `destroy-all` directories, this parameter has a different 
   meaning: Terragrunt will apply or destroy all the Terraform modules in the subfolders of the 
   `terragrunt-working-dir`, running `terraform` in the root of each module it finds.
 * `--terragrunt-source`: Download Terraform configurations from the specified source into a temporary folder, and run 
