@@ -99,7 +99,7 @@ func TestAcquireAndReleaseLock(t *testing.T) {
 
 	// Try to apply the templates. Since a lock has been acquired, and max_lock_retries is set to 1, this should
 	// fail quickly.
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", terragruntConfigPath, TEST_FIXTURE_LOCK_PATH), nil, nil)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", terragruntConfigPath, TEST_FIXTURE_LOCK_PATH), os.Stdout, os.Stderr)
 
 	if assert.NotNil(t, err, "Expected to get an error when trying to apply templates after a long-term lock has already been acquired, but got nil") {
 		assert.Contains(t, err.Error(), "Unable to acquire lock")
@@ -352,7 +352,7 @@ func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwri
 }
 
 func runTerragrunt(t *testing.T, command string) {
-	runTerragruntRedirectOutput(t, command, nil, nil)
+	runTerragruntRedirectOutput(t, command, os.Stdout, os.Stderr)
 }
 
 func runTerragruntRedirectOutput(t *testing.T, command string, writer io.Writer, errwriter io.Writer) {

@@ -19,18 +19,8 @@ func ParseTerragruntOptions(cliContext *cli.Context) (*options.TerragruntOptions
 		return nil, err
 	}
 
-	if cliContext.App.Writer == nil {
-		terragruntOptions.Writer = os.Stdout
-
-	} else {
-		terragruntOptions.Writer = cliContext.App.Writer
-	}
-
-	if cliContext.App.ErrWriter == nil {
-		terragruntOptions.ErrWriter = os.Stderr
-	} else {
-		terragruntOptions.ErrWriter = cliContext.App.ErrWriter
-	}
+	terragruntOptions.Writer = cliContext.App.Writer
+	terragruntOptions.ErrWriter = cliContext.App.ErrWriter
 
 	return terragruntOptions, nil
 }

@@ -16,7 +16,7 @@ var VERSION string
 func main() {
 	defer errors.Recover(checkForErrorsAndExit)
 
-	app := cli.CreateTerragruntCli(VERSION, nil, nil)
+	app := cli.CreateTerragruntCli(VERSION, os.Stdout, os.Stderr)
 	err := app.Run(os.Args)
 
 	checkForErrorsAndExit(err)
