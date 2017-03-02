@@ -73,7 +73,7 @@ AUTHOR(S):
    {{end}}
 `
 
-var MODULE_REGEX = regexp.MustCompile(`module ".+"`)
+var MODULE_REGEX = regexp.MustCompile(`module[[:blank:]]+".+"`)
 
 const TERRAFORM_EXTENSION_GLOB = "*.tf"
 
