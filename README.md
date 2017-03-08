@@ -607,43 +607,42 @@ applicable, they will be added in the order of of appearance in config.
 Sample config:
 
 ``` hcl
-terragrunt= {
-  terraform = {
-    {
-      extra_arguments "secrets" {
-        arguments = [
-          "-var-file=terraform.tfvars",
-          "-var-file=terraform-secret.tfvars"
-        ]
-        commands = [
-          "apply",
-          "plan",
-          "import",
-          "push",
-          "refresh"
-        ]
-      }
-
-      extra_arguments "json_output" {
-        arguments = [
-          "-json"
-        ]
-        commands = [
-          "output"
-        ]
-      }
-
-      extra_arguments "fmt_diff" {
-        arguments = [
-          "-diff=true"
-        ]
-        commands = [
-          "fmt"
-        ]
-      }
-
+terragrunt = {
+  terraform {
+    extra_arguments "secrets" {
+      arguments = [
+        "-var-file=terraform.tfvars",
+        "-var-file=terraform-secret.tfvars"
+      ]
+      commands = [
+        "apply",
+        "plan",
+        "import",
+        "push",
+        "refresh"
+      ]
     }
+
+    extra_arguments "json_output" {
+      arguments = [
+        "-json"
+      ]
+      commands = [
+        "output"
+      ]
+    }
+
+    extra_arguments "fmt_diff" {
+      arguments = [
+        "-diff=true"
+      ]
+      commands = [
+        "fmt"
+      ]
+    }
+
   }
+}
 ```
 
 ### The apply-all, destroy-all, and output-all commands
