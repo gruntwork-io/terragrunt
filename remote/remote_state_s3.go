@@ -14,11 +14,11 @@ import (
 
 // A representation of the configuration options available for S3 remote state
 type RemoteStateConfigS3 struct {
-	Encrypt string
-	Bucket  string
-	Key     string
-	Region  string
-	Profile string
+	Encrypt  string
+	Bucket   string
+	Key      string
+	Region   string
+	Profile  string
 	Role_Arn string
 }
 

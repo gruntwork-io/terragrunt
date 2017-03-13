@@ -13,10 +13,10 @@ func TestToTerraformRemoteConfigArgs(t *testing.T) {
 	remoteState := RemoteState{
 		Backend: "s3",
 		Config: map[string]string{
-			"encrypt": "true",
-			"bucket":  "my-bucket",
-			"key":     "terraform.tfstate",
-			"region":  "us-east-1",
+			"encrypt":  "true",
+			"bucket":   "my-bucket",
+			"key":      "terraform.tfstate",
+			"region":   "us-east-1",
 			"role_arn": "arn:aws:iam::318125143396:role/delegated-admin.apps-sandbox",
 		},
 	}
