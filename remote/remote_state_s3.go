@@ -19,6 +19,7 @@ type RemoteStateConfigS3 struct {
 	Key     string
 	Region  string
 	Profile string
+	Role_Arn string
 }
 
 const MAX_RETRIES_WAITING_FOR_S3_BUCKET = 12
@@ -36,7 +37,7 @@ func InitializeRemoteStateS3(config map[string]string, terragruntOptions *option
 		return err
 	}
 
-	s3Client, err := CreateS3Client(s3Config.Region, s3Config.Profile)
+	s3Client, err := CreateS3Client(s3Config.Region, s3Config.Profile, s3Config.Role_Arn)
 	if err != nil {
 		return err
 	}
@@ -176,8 +177,8 @@ func DoesS3BucketExist(s3Client *s3.S3, config *RemoteStateConfigS3) bool {
 }
 
 // Create an authenticated client for DynamoDB
-func CreateS3Client(awsRegion, awsProfile string) (*s3.S3, error) {
-	session, err := aws_helper.CreateAwsSession(awsRegion, awsProfile)
+func CreateS3Client(awsRegion, awsProfile, awsRoleArn string) (*s3.S3, error) {
+	session, err := aws_helper.CreateAwsSession(awsRegion, awsProfile, awsRoleArn)
 	if err != nil {
 		return nil, err
 	}

@@ -17,6 +17,8 @@ func TestAcquireLockHappyPath(t *testing.T) {
 	lock := DynamoDbLock{
 		StateFileId:    uniqueId(),
 		AwsRegion:      DEFAULT_TEST_REGION,
+		AwsProfile:     DEFAULT_TEST_PROFILE,
+		AwsRoleARN:     DEFAULT_TEST_ROLE_ARN,
 		TableName:      uniqueTableNameForTest(),
 		MaxLockRetries: 1,
 	}
@@ -35,6 +37,8 @@ func TestAcquireLockWhenLockIsAlreadyTaken(t *testing.T) {
 	lock := DynamoDbLock{
 		StateFileId:    stateFileId,
 		AwsRegion:      DEFAULT_TEST_REGION,
+		AwsProfile:     DEFAULT_TEST_PROFILE,
+		AwsRoleARN:     DEFAULT_TEST_ROLE_ARN,
 		TableName:      uniqueTableNameForTest(),
 		MaxLockRetries: 1,
 	}
@@ -58,6 +62,8 @@ func TestAcquireAndReleaseLock(t *testing.T) {
 	lock := DynamoDbLock{
 		StateFileId:    stateFileId,
 		AwsRegion:      DEFAULT_TEST_REGION,
+		AwsProfile:     DEFAULT_TEST_PROFILE,
+		AwsRoleARN:     DEFAULT_TEST_ROLE_ARN,
 		TableName:      uniqueTableNameForTest(),
 		MaxLockRetries: 1,
 	}
@@ -91,6 +97,8 @@ func TestAcquireLockConcurrency(t *testing.T) {
 		lock := DynamoDbLock{
 			StateFileId:    stateFileId,
 			AwsRegion:      DEFAULT_TEST_REGION,
+			AwsProfile:     DEFAULT_TEST_PROFILE,
+			AwsRoleARN:     DEFAULT_TEST_ROLE_ARN,
 			TableName:      uniqueTableNameForTest(),
 			MaxLockRetries: 1,
 		}
