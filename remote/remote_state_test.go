@@ -17,7 +17,7 @@ func TestToTerraformRemoteConfigArgs(t *testing.T) {
 			"bucket":   "my-bucket",
 			"key":      "terraform.tfstate",
 			"region":   "us-east-1",
-			"role_arn": "arn:aws:iam::318125143396:role/delegated-admin.apps-sandbox",
+			"role_arn": "",
 		},
 	}
 	args := remoteState.toTerraformRemoteConfigArgs()
