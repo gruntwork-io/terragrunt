@@ -45,6 +45,8 @@ a simple, free locking mechanism, and enforcing best practices around CLI usage 
 
 ## Install
 
+**NOTE**: Terraform 0.9 includes backwards incompatible changes and is NOT currently supported by Terragrunt. 
+
 1. Install [Terraform](https://www.terraform.io/), and let Terragrunt know where to find it using one of the following options:
 
     * Place `terraform` in a directory on your PATH.
