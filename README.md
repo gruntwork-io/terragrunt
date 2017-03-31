@@ -1,3 +1,5 @@
+**Terragrunt is not yet compatiable with Terraform 0.9.x, but we're working on it. See [#158](https://github.com/gruntwork-io/terragrunt/issues/158) for the latest status.**
+
 # Terragrunt
 
 Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that supports locking and enforces best
