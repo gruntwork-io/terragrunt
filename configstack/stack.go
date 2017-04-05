@@ -45,6 +45,12 @@ func (stack *Stack) Output(terragruntOptions *options.TerragruntOptions) error {
 	return RunModulesReverseOrder(stack.Modules)
 }
 
+// Plan execute plan in the given stack in their specified order.
+func (stack *Stack) Plan(terragruntOptions *options.TerragruntOptions) error {
+	stack.setTerraformCommand([]string{"plan"})
+	return RunModulesReverseOrder(stack.Modules)
+}
+
 // Return an error if there is a dependency cycle in the modules of this stack.
 func (stack *Stack) CheckForCycles() error {
 	return CheckForCycles(stack.Modules)
