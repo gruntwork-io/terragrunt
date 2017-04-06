@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"regexp"
 
-	"io"
-
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -15,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/urfave/cli"
+	"io"
 )
 
 const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
@@ -30,7 +29,6 @@ var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_
 const CMD_ACQUIRE_LOCK = "acquire-lock"
 const CMD_RELEASE_LOCK = "release-lock"
 
-const CMD_PLAN_ALL = "plan-all"
 const CMD_APPLY_ALL = "apply-all"
 const CMD_DESTROY_ALL = "destroy-all"
 const CMD_OUTPUT_ALL = "output-all"
@@ -41,7 +39,7 @@ const CMD_SPIN_UP = "spin-up"
 // CMD_TEAR_DOWN is deprecated.
 const CMD_TEAR_DOWN = "tear-down"
 
-var MULTI_MODULE_COMMANDS = []string{CMD_APPLY_ALL, CMD_DESTROY_ALL, CMD_OUTPUT_ALL, CMD_PLAN_ALL}
+var MULTI_MODULE_COMMANDS = []string{CMD_APPLY_ALL, CMD_DESTROY_ALL, CMD_OUTPUT_ALL}
 
 // DEPRECATED_COMMANDS is a map of deprecated commands to the commands that replace them.
 var DEPRECATED_COMMANDS = map[string]string{
@@ -70,7 +68,6 @@ COMMANDS:
    remote push          Acquire a lock and run 'terraform remote push'
    acquire-lock         Acquire a long-term lock for these templates
    release-lock         Release a long-term lock or a lock that failed to clean up
-   plan-all             Display the plans of a 'stack' by running 'terragrunt plan' in each subfolder
    apply-all            Apply a 'stack' by running 'terragrunt apply' in each subfolder
    output-all           Display the outputs of a 'stack' by running 'terragrunt output' in each subfolder
    destroy-all          Destroy a 'stack' by running 'terragrunt destroy' in each subfolder
@@ -215,8 +212,6 @@ func runMultiModuleCommand(command string, terragruntOptions *options.Terragrunt
 		return destroyAll(terragruntOptions)
 	case CMD_OUTPUT_ALL:
 		return outputAll(terragruntOptions)
-	case CMD_PLAN_ALL:
-		return planAll(terragruntOptions)
 	default:
 		return errors.WithStackTrace(UnrecognizedCommand(command))
 	}
@@ -345,18 +340,6 @@ func outputAll(terragruntOptions *options.TerragruntOptions) error {
 
 	terragruntOptions.Logger.Printf("%s", stack.String())
 	return stack.Output(terragruntOptions)
-}
-
-// planAll prints the plans from all configuration in a stack, in the order
-// specified in the terraform_remote_state dependencies
-func planAll(terragruntOptions *options.TerragruntOptions) error {
-	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
-	if err != nil {
-		return err
-	}
-
-	terragruntOptions.Logger.Printf("%s", stack.String())
-	return stack.Plan(terragruntOptions)
 }
 
 // Acquire a lock. This can be useful for locking down a deploy for a long time, such as during a major deployment.
