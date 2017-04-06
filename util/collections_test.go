@@ -76,3 +76,21 @@ func TestRemoveDuplicatesFromList(t *testing.T) {
 		t.Logf("%v passed", testCase.list)
 	}
 }
+
+func TestListToHCLArray(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		list     []string
+		expected string
+	}{
+		{[]string{}, `[]`},
+		{[]string{"foo"}, `["foo"]`},
+		{[]string{"foo", "bar"}, `["foo", "bar"]`},
+	}
+
+	for _, testCase := range testCases {
+		assert.Equal(t, ListToHCLArray(testCase.list), testCase.expected, "For list %v", testCase.list)
+		t.Logf("%v passed", testCase.list)
+	}
+}

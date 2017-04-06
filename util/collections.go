@@ -1,5 +1,10 @@
 package util
 
+import (
+	"fmt"
+	"strings"
+)
+
 // Return true if the given list contains the given element
 func ListContainsElement(list []string, element string) bool {
 	for _, item := range list {
@@ -48,4 +53,13 @@ func removeDuplicatesFromList(list []string, keepLast bool) []string {
 		present[value] = true
 	}
 	return out
+}
+
+// Returns an HCL compliant formated list of strings
+func ListToHCLArray(list []string) string {
+	values := make([]string, 0, len(list))
+	for _, value := range list {
+		values = append(values, fmt.Sprintf(`"%s"`, value))
+	}
+	return fmt.Sprintf("[%v]", strings.Join(values, ", "))
 }
