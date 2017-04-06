@@ -3,9 +3,11 @@ package remote
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
-	"io/ioutil"
 )
 
 // TODO: this file could be changed to use the Terraform Go code to read state files, but that code is relatively
@@ -20,10 +22,12 @@ const DEFAULT_PATH_TO_REMOTE_STATE_FILE = ".terraform/terraform.tfstate"
 
 // The structure of the Terraform .tfstate file
 type TerraformState struct {
-	Version int
-	Serial  int
-	Remote  *TerraformStateRemote
-	Modules []TerraformStateModule
+	Version           int
+	Serial            int
+	Terraform_Version *string
+	Remote            *TerraformStateRemote // Legacy (prior 0.9.0) data for remote configuration
+	Backend           *TerraformStateRemote // Current (>= 0.9.0) data for remote configuration
+	Modules           []TerraformStateModule
 }
 
 // The structure of the "remote" section of the Terraform .tfstate file
@@ -56,6 +60,12 @@ func ParseTerraformStateFileFromLocation(workingDir string) (*TerraformState, er
 	}
 }
 
+// ReplaceRemoteStateFile :
+// Rename the outdated remote state file to configure the folder using a newer version of the file
+func ReplaceRemoteStateFile() {
+	os.Rename(DEFAULT_PATH_TO_REMOTE_STATE_FILE, DEFAULT_PATH_TO_REMOTE_STATE_FILE+".backup")
+}
+
 // Parse the Terraform .tfstate file at the given path
 func ParseTerraformStateFile(path string) (*TerraformState, error) {
 	bytes, err := ioutil.ReadFile(path)
@@ -72,6 +82,9 @@ func parseTerraformState(terraformStateData []byte) (*TerraformState, error) {
 
 	if err := json.Unmarshal(terraformStateData, terraformState); err != nil {
 		return nil, errors.WithStackTrace(err)
+	}
+	if terraformState.Backend != nil {
+		terraformState.Remote = terraformState.Backend
 	}
 
 	return terraformState, nil
