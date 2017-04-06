@@ -187,6 +187,10 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		if err := configureRemoteState(conf.RemoteState, terragruntOptions); err != nil {
 			return err
 		}
+
+		// If there is a remote state configuration, a temporary file will be created,
+		// so we delete it once the terraform command is executed.
+		defer conf.RemoteState.RemoveTemporaryConfigFile()
 	}
 
 	if conf.Lock == nil {

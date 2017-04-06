@@ -12,6 +12,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 )
 
+// File name used to inject temporary configuration information to terraform
+const temporaryConfigFile = "temp_terragrunt_config.tf"
+
 // NewRemoteStateFormatTerraformVersion : The terraform version that implements new format for remote state
 const NewRemoteStateFormatTerraformVersion = "0.9.0"
 
@@ -67,6 +70,19 @@ func (remoteState RemoteState) ConfigureRemoteState(terragruntOptions *options.T
 		return err
 	}
 
+	// Retreive the terraform version
+	version, err := getTerraformVersion(terragruntOptions)
+	if err != nil {
+		return err
+	}
+
+	// Check if we should add a temporary config file
+	if version >= NewRemoteStateFormatTerraformVersion {
+		if err = remoteState.addTemporaryConfigFile(terragruntOptions); err != nil {
+			return err
+		}
+	}
+
 	if shouldConfigure {
 		terragruntOptions.Logger.Printf("Initializing remote state for the %s backend", remoteState.Backend)
 		if err = remoteState.Initialize(terragruntOptions); err != nil {
@@ -74,32 +90,42 @@ func (remoteState RemoteState) ConfigureRemoteState(terragruntOptions *options.T
 		}
 
 		terragruntOptions.Logger.Printf("Configuring remote state for the %s backend", remoteState.Backend)
-		version, err := getTerraformVersion(terragruntOptions)
-		if err != nil {
-			return err
-		}
+
+		options := []string{"init"}
 		if version < NewRemoteStateFormatTerraformVersion {
 			// Legacy remote state management (Before terraform v0.9.0)
-			err = shell.RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, remoteState.toTerraformRemoteConfigArgs()...)
-		} else {
-			// Inject a temporary file to configure the remote state backend
-			var config string
-			for key, value := range remoteState.Config {
-				config += fmt.Sprintf("    %s = \"%s\"\n", key, value)
-			}
-			text := fmt.Sprintf("terraform {\n  backend \"%s\" {\n%s  }\n}\n", remoteState.Backend, config)
-			tempFile := "terragrunt-temp-remote-state.tf"
-			if outputFile, err := os.Create(tempFile); err == nil {
-				//defer os.Remove(tempFile)
-				outputFile.WriteString(text)
-				outputFile.Close()
-				err = shell.RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, "init")
-			}
+			options = remoteState.toTerraformRemoteConfigArgs()
 		}
-		return err
+
+		return shell.RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, options...)
 	}
 
 	return nil
+}
+
+// AddTemporaryConfigFile :
+// Add a temporary .tf file that inject required terraform configuration for remote state
+func (remoteState RemoteState) addTemporaryConfigFile(terragruntOptions *options.TerragruntOptions) error {
+	// Inject a temporary file to configure the remote state backend
+	var config string
+	for key, value := range remoteState.Config {
+		config += fmt.Sprintf("    %s = \"%s\"\n", key, value)
+	}
+	text := fmt.Sprintf("terraform {\n  backend \"%s\" {\n%s  }\n}\n", remoteState.Backend, config)
+	outputFile, err := os.Create(temporaryConfigFile)
+	if err != nil {
+		return err
+	}
+	outputFile.WriteString(text)
+	outputFile.Close()
+	return nil
+}
+
+// RemoveTemporaryConfigFile :
+// Erase the temporary file that stores the remote state configuration
+// The error is ignored if the file no longer exists
+func (remoteState RemoteState) RemoveTemporaryConfigFile() {
+	os.Remove(temporaryConfigFile)
 }
 
 // Get the terraform version
@@ -140,11 +166,10 @@ func shouldOverrideExistingRemoteState(existingState *TerraformState, remoteStat
 
 	if existingState.Terraform_Version != nil && *existingState.Terraform_Version < version {
 		prompt := fmt.Sprintf("WARNING: Terraform remote state is already configured, but for an older version of terraform (v%s), you currently run (v%s). Overwrite?", *existingState.Terraform_Version, version)
-		answer, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
-		if answer {
+		if answer, _ := shell.PromptUserForYesNo(prompt, terragruntOptions); answer {
 			ReplaceRemoteStateFile()
 		}
-		return answer, err
+		return true, nil
 	}
 
 	if existingState.Remote.Type != remoteStateFromTerragruntConfig.Backend {

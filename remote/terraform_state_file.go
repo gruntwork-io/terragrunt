@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-
 	"os"
 
 	"github.com/gruntwork-io/terragrunt/errors"
