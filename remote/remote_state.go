@@ -150,7 +150,19 @@ func shouldConfigureRemoteState(remoteStateFromTerragruntConfig RemoteState, ter
 	}
 
 	if state != nil && state.IsRemote() {
-		return shouldOverrideExistingRemoteState(state, remoteStateFromTerragruntConfig, terragruntOptions)
+		version, err := getTerraformVersion(terragruntOptions)
+		if err != nil {
+			return false, err
+		}
+		if state.Terraform_Version != nil && *state.Terraform_Version < version {
+			prompt := fmt.Sprintf("WARNING: Terraform remote state is already configured, but for an older version of terraform (v%s), you currently run (v%s). Overwrite?", *state.Terraform_Version, version)
+			if answer, _ := shell.PromptUserForYesNo(prompt, terragruntOptions); answer {
+				ReplaceRemoteStateFile()
+			}
+			return true, nil
+		}
+
+		return shouldOverrideExistingRemoteState(state.Remote, remoteStateFromTerragruntConfig, terragruntOptions)
 	}
 	return true, nil
 }
@@ -158,31 +170,18 @@ func shouldConfigureRemoteState(remoteStateFromTerragruntConfig RemoteState, ter
 // Check if the remote state that is already configured matches the one specified in the Terragrunt config. If it does,
 // return false to indicate remote state does not need to be configured again. If it doesn't, prompt the user whether
 // we should override the existing remote state setting.
-func shouldOverrideExistingRemoteState(existingState *TerraformState, remoteStateFromTerragruntConfig RemoteState, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	version, err := getTerraformVersion(terragruntOptions)
-	if err != nil {
-		return false, err
-	}
-
-	if existingState.Terraform_Version != nil && *existingState.Terraform_Version < version {
-		prompt := fmt.Sprintf("WARNING: Terraform remote state is already configured, but for an older version of terraform (v%s), you currently run (v%s). Overwrite?", *existingState.Terraform_Version, version)
-		if answer, _ := shell.PromptUserForYesNo(prompt, terragruntOptions); answer {
-			ReplaceRemoteStateFile()
-		}
-		return true, nil
-	}
-
-	if existingState.Remote.Type != remoteStateFromTerragruntConfig.Backend {
-		prompt := fmt.Sprintf("WARNING: Terraform remote state is already configured, but for backend %s, whereas your Terragrunt configuration specifies %s. Overwrite?", existingState.Remote.Type, remoteStateFromTerragruntConfig.Backend)
+func shouldOverrideExistingRemoteState(existingRemoteState *TerraformStateRemote, remoteStateFromTerragruntConfig RemoteState, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	if existingRemoteState.Type != remoteStateFromTerragruntConfig.Backend {
+		prompt := fmt.Sprintf("WARNING: Terraform remote state is already configured, but for backend %s, whereas your Terragrunt configuration specifies %s. Overwrite?", existingRemoteState.Type, remoteStateFromTerragruntConfig.Backend)
 		return shell.PromptUserForYesNo(prompt, terragruntOptions)
 	}
 
-	if !reflect.DeepEqual(existingState.Remote.Config, remoteStateFromTerragruntConfig.Config) {
-		prompt := fmt.Sprintf("WARNING: Terraform remote state is already configured for backend %s with config %v, but your Terragrunt configuration specifies config %v. Overwrite?", existingState.Remote.Type, existingState.Remote.Config, remoteStateFromTerragruntConfig.Config)
+	if !reflect.DeepEqual(existingRemoteState.Config, remoteStateFromTerragruntConfig.Config) {
+		prompt := fmt.Sprintf("WARNING: Terraform remote state is already configured for backend %s with config %v, but your Terragrunt configuration specifies config %v. Overwrite?", existingRemoteState.Type, existingRemoteState.Config, remoteStateFromTerragruntConfig.Config)
 		return shell.PromptUserForYesNo(prompt, terragruntOptions)
 	}
 
-	terragruntOptions.Logger.Printf("Remote state is already configured for backend %s", existingState.Remote.Type)
+	terragruntOptions.Logger.Printf("Remote state is already configured for backend %s", existingRemoteState.Type)
 	return false, nil
 }
 
