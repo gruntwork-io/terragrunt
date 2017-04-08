@@ -187,6 +187,10 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		if err := configureRemoteState(conf.RemoteState, terragruntOptions); err != nil {
 			return err
 		}
+
+		// If there is a remote state configuration, a temporary file will be created,
+		// so we delete it once the terraform command is executed.
+		defer conf.RemoteState.RemoveTemporaryConfigFile()
 	}
 
 	if conf.Lock == nil {
@@ -251,7 +255,7 @@ func configureRemoteState(remoteState *remote.RemoteState, terragruntOptions *op
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
 	switch firstArg(terragruntOptions.TerraformCliArgs) {
-	case "apply", "destroy", "import", "graph", "output", "plan", "push", "refresh", "show", "taint", "untaint", "validate":
+	case "apply", "destroy", "env", "import", "graph", "output", "plan", "push", "refresh", "show", "taint", "untaint", "validate", "console", "state":
 		return remoteState.ConfigureRemoteState(terragruntOptions)
 	case "remote":
 		if secondArg(terragruntOptions.TerraformCliArgs) == "config" {

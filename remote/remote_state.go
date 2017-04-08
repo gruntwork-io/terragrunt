@@ -2,11 +2,24 @@ package remote
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
+	"reflect"
+	"strings"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
-	"reflect"
 )
+
+// File name used to inject temporary configuration information to terraform
+const temporaryConfigFile = "temp_terragrunt_config.tf"
+
+// NewRemoteStateFormatTerraformVersion : The terraform version that implements new format for remote state
+const NewRemoteStateFormatTerraformVersion = "0.9.0"
+
+// TerraformVersion : Version of the terraform tool
+var TerraformVersion string
 
 // Configuration for Terraform remote state
 type RemoteState struct {
@@ -57,17 +70,73 @@ func (remoteState RemoteState) ConfigureRemoteState(terragruntOptions *options.T
 		return err
 	}
 
+	// Retreive the terraform version
+	version, err := getTerraformVersion(terragruntOptions)
+	if err != nil {
+		return err
+	}
+
+	// Check if we should add a temporary config file
+	if version >= NewRemoteStateFormatTerraformVersion {
+		if err = remoteState.addTemporaryConfigFile(terragruntOptions); err != nil {
+			return err
+		}
+	}
+
 	if shouldConfigure {
 		terragruntOptions.Logger.Printf("Initializing remote state for the %s backend", remoteState.Backend)
-		if err := remoteState.Initialize(terragruntOptions); err != nil {
+		if err = remoteState.Initialize(terragruntOptions); err != nil {
 			return err
 		}
 
 		terragruntOptions.Logger.Printf("Configuring remote state for the %s backend", remoteState.Backend)
-		return shell.RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, remoteState.toTerraformRemoteConfigArgs()...)
+
+		options := []string{"init"}
+		if version < NewRemoteStateFormatTerraformVersion {
+			// Legacy remote state management (Before terraform v0.9.0)
+			options = remoteState.toTerraformRemoteConfigArgs()
+		}
+
+		return shell.RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, options...)
 	}
 
 	return nil
+}
+
+// AddTemporaryConfigFile :
+// Add a temporary .tf file that inject required terraform configuration for remote state
+func (remoteState RemoteState) addTemporaryConfigFile(terragruntOptions *options.TerragruntOptions) error {
+	// Inject a temporary file to configure the remote state backend
+	var config string
+	for key, value := range remoteState.Config {
+		config += fmt.Sprintf("    %s = \"%s\"\n", key, value)
+	}
+	text := fmt.Sprintf("terraform {\n  backend \"%s\" {\n%s  }\n}\n", remoteState.Backend, config)
+	outputFile, err := os.Create(temporaryConfigFile)
+	if err != nil {
+		return err
+	}
+	outputFile.WriteString(text)
+	outputFile.Close()
+	return nil
+}
+
+// RemoveTemporaryConfigFile :
+// Erase the temporary file that stores the remote state configuration
+// The error is ignored if the file no longer exists
+func (remoteState RemoteState) RemoveTemporaryConfigFile() {
+	os.Remove(temporaryConfigFile)
+}
+
+// Get the terraform version
+func getTerraformVersion(terragruntOptions *options.TerragruntOptions) (version string, err error) {
+	if TerraformVersion == "" {
+		if out, err := exec.Command(terragruntOptions.TerraformPath, "version").Output(); err == nil {
+			TerraformVersion = strings.Fields(string(out))[1][1:]
+		}
+	}
+	version = TerraformVersion
+	return
 }
 
 // Returns true if remote state needs to be configured. This will be the case when:
@@ -81,10 +150,21 @@ func shouldConfigureRemoteState(remoteStateFromTerragruntConfig RemoteState, ter
 	}
 
 	if state != nil && state.IsRemote() {
+		version, err := getTerraformVersion(terragruntOptions)
+		if err != nil {
+			return false, err
+		}
+		if state.Terraform_Version != nil && *state.Terraform_Version < version {
+			prompt := fmt.Sprintf("WARNING: Terraform remote state is already configured, but for an older version of terraform (v%s), you currently run (v%s). Overwrite?", *state.Terraform_Version, version)
+			if answer, _ := shell.PromptUserForYesNo(prompt, terragruntOptions); answer {
+				ReplaceRemoteStateFile()
+			}
+			return true, nil
+		}
+
 		return shouldOverrideExistingRemoteState(state.Remote, remoteStateFromTerragruntConfig, terragruntOptions)
-	} else {
-		return true, nil
 	}
+	return true, nil
 }
 
 // Check if the remote state that is already configured matches the one specified in the Terragrunt config. If it does,
