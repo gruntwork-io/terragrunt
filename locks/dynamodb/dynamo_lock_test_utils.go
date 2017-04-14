@@ -14,6 +14,8 @@ import (
 
 // For simplicity, do all testing in the us-east-1 region
 const DEFAULT_TEST_REGION = "us-east-1"
+const DEFAULT_TEST_PROFILE = ""
+const DEFAULT_TEST_ROLE_ARN = ""
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
@@ -39,7 +41,7 @@ func uniqueId() string {
 
 // Create a DynamoDB client we can use at test time. If there are any errors creating the client, fail the test.
 func createDynamoDbClientForTest(t *testing.T) *dynamodb.DynamoDB {
-	client, err := createDynamoDbClient(DEFAULT_TEST_REGION, "")
+	client, err := createDynamoDbClient(DEFAULT_TEST_REGION, DEFAULT_TEST_PROFILE, DEFAULT_TEST_ROLE_ARN)
 	if err != nil {
 		t.Fatal(err)
 	}

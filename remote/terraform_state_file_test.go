@@ -61,7 +61,8 @@ func TestParseTerraformStateRemote(t *testing.T) {
 				"bucket": "bucket",
 				"encrypt": "true",
 				"key": "experiment-1.tfstate",
-				"region": "us-east-1"
+				"region": "us-east-1",
+				"role_arn": "arn:aws:iam::123456789:role/terragrunt"
 			}
 		},
 		"modules": [
@@ -82,10 +83,11 @@ func TestParseTerraformStateRemote(t *testing.T) {
 		Remote: &TerraformStateRemote{
 			Type: "s3",
 			Config: map[string]string{
-				"bucket":  "bucket",
-				"encrypt": "true",
-				"key":     "experiment-1.tfstate",
-				"region":  "us-east-1",
+				"bucket":   "bucket",
+				"encrypt":  "true",
+				"key":      "experiment-1.tfstate",
+				"region":   "us-east-1",
+				"role_arn": "arn:aws:iam::123456789:role/terragrunt",
 			},
 		},
 		Modules: []TerraformStateModule{
@@ -119,7 +121,8 @@ func TestParseTerraformStateRemoteFull(t *testing.T) {
 		    "bucket": "bucket",
 		    "encrypt": "true",
 		    "key": "terraform.tfstate",
-		    "region": "us-east-1"
+		    "region": "us-east-1",
+		    "role_arn": "arn:aws:iam::123456789:role/terragrunt"
 		}
 	    },
 	    "modules": [
@@ -212,10 +215,11 @@ func TestParseTerraformStateRemoteFull(t *testing.T) {
 		Remote: &TerraformStateRemote{
 			Type: "s3",
 			Config: map[string]string{
-				"bucket":  "bucket",
-				"encrypt": "true",
-				"key":     "terraform.tfstate",
-				"region":  "us-east-1",
+				"bucket":   "bucket",
+				"encrypt":  "true",
+				"key":      "terraform.tfstate",
+				"region":   "us-east-1",
+				"role_arn": "arn:aws:iam::123456789:role/terragrunt",
 			},
 		},
 		Modules: []TerraformStateModule{

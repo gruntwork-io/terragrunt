@@ -18,6 +18,7 @@ type DynamoDbLock struct {
 	AwsProfile     string
 	TableName      string
 	MaxLockRetries int
+	AwsRoleARN     string
 }
 
 // New is the factory function for DynamoDbLock
@@ -26,6 +27,7 @@ func New(conf map[string]string) (locks.Lock, error) {
 		StateFileId:    conf["state_file_id"],
 		AwsRegion:      conf["aws_region"],
 		AwsProfile:     conf["aws_profile"],
+		AwsRoleARN:     conf["aws_role_arn"],
 		TableName:      conf["table_name"],
 		MaxLockRetries: 0,
 	}
@@ -66,7 +68,7 @@ func (dynamoLock *DynamoDbLock) fillDefaults() {
 func (dynamoDbLock DynamoDbLock) AcquireLock(terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Attempting to acquire lock for state file %s in DynamoDB", dynamoDbLock.StateFileId)
 
-	client, err := createDynamoDbClient(dynamoDbLock.AwsRegion, dynamoDbLock.AwsProfile)
+	client, err := createDynamoDbClient(dynamoDbLock.AwsRegion, dynamoDbLock.AwsProfile, dynamoDbLock.AwsRoleARN)
 	if err != nil {
 		return err
 	}
@@ -82,7 +84,7 @@ func (dynamoDbLock DynamoDbLock) AcquireLock(terragruntOptions *options.Terragru
 func (dynamoDbLock DynamoDbLock) ReleaseLock(terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Attempting to release lock for state file %s in DynamoDB", dynamoDbLock.StateFileId)
 
-	client, err := createDynamoDbClient(dynamoDbLock.AwsRegion, dynamoDbLock.AwsProfile)
+	client, err := createDynamoDbClient(dynamoDbLock.AwsRegion, dynamoDbLock.AwsProfile, dynamoDbLock.AwsRoleARN)
 	if err != nil {
 		return err
 	}
@@ -101,8 +103,8 @@ func (dynamoLock DynamoDbLock) String() string {
 }
 
 // Create an authenticated client for DynamoDB
-func createDynamoDbClient(awsRegion, awsProfile string) (*dynamodb.DynamoDB, error) {
-	session, err := aws_helper.CreateAwsSession(awsRegion, awsProfile)
+func createDynamoDbClient(awsRegion, awsProfile, awsRoleArn string) (*dynamodb.DynamoDB, error) {
+	session, err := aws_helper.CreateAwsSession(awsRegion, awsProfile, awsRoleArn)
 	if err != nil {
 		return nil, err
 	}

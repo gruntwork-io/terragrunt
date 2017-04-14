@@ -13,15 +13,16 @@ func TestToTerraformRemoteConfigArgs(t *testing.T) {
 	remoteState := RemoteState{
 		Backend: "s3",
 		Config: map[string]string{
-			"encrypt": "true",
-			"bucket":  "my-bucket",
-			"key":     "terraform.tfstate",
-			"region":  "us-east-1",
+			"encrypt":  "true",
+			"bucket":   "my-bucket",
+			"key":      "terraform.tfstate",
+			"region":   "us-east-1",
+			"role_arn": "arn:aws:iam::123456789:role/terragrunt",
 		},
 	}
 	args := remoteState.toTerraformRemoteConfigArgs()
 
-	assertRemoteConfigArgsEqual(t, args, "remote config -backend s3 -backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1")
+	assertRemoteConfigArgsEqual(t, args, "remote config -backend s3 -backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1 -backend-config=role_arn=arn:aws:iam::123456789:role/terragrunt")
 }
 
 func TestToTerraformRemoteConfigArgsNoBackendConfigs(t *testing.T) {
@@ -84,6 +85,17 @@ func TestShouldOverrideExistingRemoteState(t *testing.T) {
 			RemoteState{
 				Backend: "s3",
 				Config:  map[string]string{"bucket": "foo", "key": "bar", "region": "different"},
+			},
+			true,
+		},
+		{
+			TerraformStateRemote{
+				Type:   "s3",
+				Config: map[string]string{"bucket": "foo", "key": "bar", "region": "us-east-1", "role_arn": "arn:aws:iam::123456789:role/terragrunt"},
+			},
+			RemoteState{
+				Backend: "s3",
+				Config:  map[string]string{"bucket": "foo", "key": "bar", "region": "us-east-1", "role_arn": "arn:aws:iam::987654321:role/gruntterra"},
 			},
 			true,
 		},
