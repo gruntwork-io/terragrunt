@@ -608,6 +608,10 @@ automatically.
 Each set of arguments will be appended only if current Terraform command is in `commands` list. If more than one set is
 applicable, they will be added in the order of of appearance in config.
 
+The list of arguments cannot include whitespaces, therefore if you would like to separate a command line switch from its
+corresponding argument, then you would need to pass both the command line switch and the argument as a list (see example
+below for more details), rather than a space-separated string.
+
 Sample config:
 
 ``` hcl
@@ -617,6 +621,19 @@ terragrunt = {
       arguments = [
         "-var-file=terraform.tfvars",
         "-var-file=terraform-secret.tfvars"
+      ]
+      commands = [
+        "apply",
+        "plan",
+        "import",
+        "push",
+        "refresh"
+      ]
+    }
+
+    extra_arguments "bucket" {
+      arguments = [
+        "-var", "bucket=example.bucket.name",
       ]
       commands = [
         "apply",
