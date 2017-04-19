@@ -861,6 +861,13 @@ Are you sure you want to forcibly remove the lock for stateFileId "my-app"? (y/n
 
 ## Terragrunt details
 
+This section contains detailed documentation for the following aspects of Terragrunt:
+
+1. [Helper functions](#helper-functions)
+1. [CLI options](#cli-options)
+1. [Terragrunt config files](#terragrunt-config-files)
+1. [Developing Terragrunt](#developing-terragrunt)
+1. [License](#license)
 
 
 ### Helper functions
