@@ -148,23 +148,32 @@ These variables allow you to run smaller/fewer servers in qa and stage to save m
 ensure availability and scalability.
 
 In a separate repo, called, for example, `live`, you define the code for all of your environments, which now consists 
-of just one `.tfvars` file per component (e.g. `app.tfvars`, `mysql.tfvars`, etc). This gives you the following file 
-layout:   
+of just one `.tfvars` file per component (e.g. `app/terraform.tfvars`, `mysql/terraform.tfvars`, etc). This gives you 
+the following file layout:   
  
 ```
 └── live
     ├── prod
-    │   ├── app.tfvars
-    │   ├── mysql.tfvars
-    │   └── vpc.tfvars
+    │   ├── app
+    │   │   └── terraform.tfvars
+    │   ├── mysql
+    │   │   └── terraform.tfvars
+    │   └── vpc
+    │       └── terraform.tfvars
     ├── qa
-    │   ├── app.tfvars
-    │   ├── mysql.tfvars
-    │   └── vpc.tfvars
+    │   ├── app
+    │   │   └── terraform.tfvars
+    │   ├── mysql
+    │   │   └── terraform.tfvars
+    │   └── vpc
+    │       └── terraform.tfvars
     └── stage
-        ├── app.tfvars
-        ├── mysql.tfvars
-        └── vpc.tfvars
+    │   ├── app
+    │   │   └── terraform.tfvars
+    │   ├── mysql
+    │   │   └── terraform.tfvars
+    │   └── vpc
+    │       └── terraform.tfvars
 ```
 
 Notice how there are no Terraform configurations (`.tf` files) in any of the folders. Instead, each `.tfvars` file 
@@ -205,7 +214,17 @@ versions (i.e. `stage` is testing out a newer version of the module). They also 
 to save money, larger/more instances in `prod` for scalability and high availability.  
 
 
-When you run Terragrunt and it finds a `terraform` block with a `source` parameter, it will:
+#### How to use remote configurations
+
+Once you've set up your `live` and `modules` repositories, all you need to do is run `terragrunt` commands in the 
+`live` repository. For example, to deploy the `app` module in qa, you would do the following:
+
+```
+cd live/qa/app
+terragrunt apply
+```
+
+When Terragrunt finds the `terraform` block with a `source` parameter in `live/qa/app/terraform.tfvars` file, it will:
  
 1. Download the configurations specified via the `source` parameter into a temporary folder. This downloading is done 
    by using the [terraform init command](https://www.terraform.io/docs/commands/init.html), so the `source` parameter 
