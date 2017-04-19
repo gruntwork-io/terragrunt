@@ -107,7 +107,7 @@ func shouldOverrideExistingRemoteState(existingRemoteState *TerraformStateRemote
 
 // Convert the RemoteState config into the format used by Terraform
 func (remoteState RemoteState) toTerraformRemoteConfigArgs() []string {
-	baseArgs := []string{"remote", "config", "-backend", remoteState.Backend}
+	baseArgs := []string{"init"}
 
 	backendConfigArgs := []string{}
 	for key, value := range remoteState.Config {
@@ -118,4 +118,4 @@ func (remoteState RemoteState) toTerraformRemoteConfigArgs() []string {
 	return append(baseArgs, backendConfigArgs...)
 }
 
-var RemoteBackendMissing = fmt.Errorf("The remoteState.backend field cannot be empty")
+var RemoteBackendMissing = fmt.Errorf("The remote_state.backend field cannot be empty")
