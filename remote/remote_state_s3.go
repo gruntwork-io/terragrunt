@@ -5,12 +5,12 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/gruntwork-io/terragrunt/dynamodb"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/mitchellh/mapstructure"
 	"time"
-	"github.com/gruntwork-io/terragrunt/dynamodb"
 )
 
 // A representation of the configuration options available for S3 remote state

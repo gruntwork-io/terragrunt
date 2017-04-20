@@ -68,4 +68,3 @@ func TestCreateLockTableIfNecessaryTableAlreadyExists(t *testing.T) {
 		assert.Nil(t, err, "Unexpected error: %v", err)
 	})
 }
-
