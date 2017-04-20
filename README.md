@@ -102,31 +102,16 @@ have to define it once, no matter how many environments you have?
 #### Remote Terraform configurations
 
 Terragrunt has the ability to download remote Terraform configurations. The idea is that you define the Terraform code 
-for all of your infrastructure in a single repo, called, for example, `modules`:
+for your infrastructure just once, in a single repo, called, for example, `modules`:
 
 ```
 └── modules
-    ├── prod
-    │   ├── app
-    │   │   └── main.tf
-    │   ├── mysql
-    │   │   └── main.tf
-    │   └── vpc
-    │       └── main.tf
-    ├── qa
-    │   ├── app
-    │   │   └── main.tf
-    │   ├── mysql
-    │   │   └── main.tf
-    │   └── vpc
-    │       └── main.tf
-    └── stage
-        ├── app
-        │   └── main.tf
-        ├── mysql
-        │   └── main.tf
-        └── vpc
-            └── main.tf
+    ├── app
+    │   └── main.tf
+    ├── mysql
+    │   └── main.tf
+    └── vpc
+        └── main.tf
 ```
 
 This repo contains typical Terraform code, with one difference: anything in your code that should be different between 
