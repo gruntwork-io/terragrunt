@@ -320,7 +320,7 @@ to use in each module, but instead of copying and pasting the configuration sett
  
 ```hcl
 terraform {
-  # These settings will be filled in by Terragrunt
+  # The configuration for this backend will be filled in by Terragrunt
   backend "s3" {}
 }
 ``` 
@@ -915,63 +915,69 @@ To migrate, all you need to do is:
 
 
 ### Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older
- 
-Terraform 0.8.x and older did not support:
 
-1. Defining remote state configuration in a file
-1. Locking
+#### Background
 
-Terragrunt was originally created to support both of these features. As of Terraform 0.9.0, both of these features are
-supported natively, so we have had to make changes to Terragrunt: 
+Terragrunt was originally created to support two features that were not available in Terraform: defining remote state
+configuration in a file (rather than via CLI commands) and locking. As of version 0.9.0, Terraform now supports both of 
+these features natively, so we have had to make changes to Terragrunt: 
 
 1. Terragrunt still supports remote state configuration so you can take advantage of Terragrunt's interpolation
    functions.
 1. Terragrunt no longer supports locking.
 
-If you were using Terragrunt v0.11.x and Terraform 0.8.x or older, here is how to migrate:
 
-1. You may leave your `remote_state` configuration largely unchanged. However, in your Terraform code, you must now
-   define a `backend`, although you can leave its configuration blank. For example, to use S3 as a remote state 
+#### Migration instructions
+
+If you were using Terragrunt <= v0.11.x and Terraform <= 0.8.x, here is how to migrate:
+
+1. In your Terraform code (the `.tf` files), you must now define a `backend`. For example, to use S3 as a remote state 
    backend, you will need to add the following to your Terraform code:
    
     ```hcl
+    # main.tf
     terraform {
+      # The configuration for this backend will be filled in by Terragrunt
       backend "s3" {}
     }
     ```
    
-    You can continue to use Terragrunt to configure this remote state backend in your `terraform.tfvars` files, taking 
-    advantage of Terragrunt's interpolation functions:
+    Note that you can leave the configuration of the `backend` empty and allow Terragrunt to provide that configuration  
+    instead. This allows you to keep your remote state configuration more DRY by taking advantage of Terragrunt's 
+    interpolation functions:
     
     ```hcl
+    # terraform.tfvars
     terragrunt = {
       remote_state {
         backend = "s3"
         config {
-          bucket     = "my-terraform-state"
-          key        = "${path_relative_to_include()}/terraform.tfstate"
-          region     = "us-east-1"
-          encrypt    = true
+          bucket  = "my-terraform-state"
+          key     = "${path_relative_to_include()}/terraform.tfstate"
+          region  = "us-east-1"
+          encrypt = true
         }
       }
     }
     ```    
    
-1. Remove any `lock { ... }` blocks from your Terragrunt configurations, as these are no longer supported. If you were
-   storing remote state in S3 and relying on DynamoDB as a locking mechanism, Terraform now supports that natively. 
-   To enable it, simply add the `lock_table` parameter to your S3 backend configuration. If you configure your S3 
-   backend using Terragrunt, then Terragrunt will automatically create the `lock_table` for your if it doesn't already
-   exist:
+1. Remove any `lock { ... }` blocks from your Terragrunt configurations, as these are no longer supported. 
+
+    If you were storing remote state in S3 and relying on DynamoDB as a locking mechanism, Terraform now supports that 
+    natively. To enable it, simply add the `lock_table` parameter to your S3 backend configuration. If you configure 
+    your S3 backend using Terragrunt, then Terragrunt will automatically create the `lock_table` for you if that table
+    doesn't already exist:
 
     ```hcl
+    # terraform.tfvars
     terragrunt = {
       remote_state {
         backend = "s3" 
         config {
-          bucket     = "my-terraform-state"
-          key        = "${path_relative_to_include()}/terraform.tfstate"
-          region     = "us-east-1"
-          encrypt    = true
+          bucket  = "my-terraform-state"
+          key     = "${path_relative_to_include()}/terraform.tfstate"
+          region  = "us-east-1"
+          encrypt = true
        
           # Tell Terraform to do locking using DynamoDB. Terragrunt will automatically create this table for you if
           # it doesn't already exist. 
@@ -985,38 +991,39 @@ If you were using Terragrunt v0.11.x and Terraform 0.8.x or older, here is how t
     running Terraform as part of an automated script, such as a CI build), you use an `extra_arguments` block:
 
     ```hcl
+    # terraform.tfvars
     terragrunt = {
       remote_state {
         backend = "s3" 
         config {
-          bucket     = "my-terraform-state"
-          key        = "${path_relative_to_include()}/terraform.tfstate"
-          region     = "us-east-1"
-          encrypt    = true
+          bucket  = "my-terraform-state"
+          key     = "${path_relative_to_include()}/terraform.tfstate"
+          region  = "us-east-1"
+          encrypt = true
     
           # Tell Terraform to do locking using DynamoDB. Terragrunt will automatically create this table for you if
           # it doesn't already exist. 
           lock_table = "my-lock-table"
         }
       }
-    }
-    
-    # Force Terraform to keep trying to acquire a lock for up to 20 minutes if someone else already has the lock 
-    extra_arguments "retry_lock" {
-      commands = [
-        "init",
-        "apply",
-        "refresh",
-        "import",
-        "plan",
-        "taint",
-        "untaint"
-      ]
-    
-      arguments = [
-        "-lock-timeout=20m"
-      ]    
-    }   
+   
+      # Force Terraform to keep trying to acquire a lock for up to 20 minutes if someone else already has the lock 
+      extra_arguments "retry_lock" {
+        commands = [
+          "init",
+          "apply",
+          "refresh",
+          "import",
+          "plan",
+          "taint",
+          "untaint"
+        ]
+      
+        arguments = [
+          "-lock-timeout=20m"
+        ]    
+      }     
+    }     
     ``` 
 
  
