@@ -62,7 +62,7 @@ func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
 	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, TEST_FIXTURE_PATH, s3BucketName, config.DefaultTerragruntConfigPath)
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture")
+	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture", TERRAFORM_REMOTE_STATE_S3_REGION)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, TEST_FIXTURE_PATH))
 	validateS3BucketExists(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
@@ -170,7 +170,7 @@ func TestTerragruntStackCommands(t *testing.T) {
 	stageEnvironmentPath := fmt.Sprintf("%s/fixture-stack/stage", tmpEnvPath)
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_stack")
+	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_stack", TERRAFORM_REMOTE_STATE_S3_REGION)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", mgmtEnvironmentPath, s3BucketName))
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", stageEnvironmentPath, s3BucketName))
@@ -474,16 +474,16 @@ func createDynamoDbClient(awsRegion, awsProfile string) (*dynamodb.DynamoDB, err
 	return dynamodb.New(session), nil
 }
 
-func createDynamoDbClientForTest(t *testing.T) *dynamodb.DynamoDB {
-	client, err := createDynamoDbClient(DEFAULT_TEST_REGION, "")
+func createDynamoDbClientForTest(t *testing.T, awsRegion string) *dynamodb.DynamoDB {
+	client, err := createDynamoDbClient(awsRegion, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	return client
 }
 
-func cleanupTableForTest(t *testing.T, tableName string) {
-	client := createDynamoDbClientForTest(t)
+func cleanupTableForTest(t *testing.T, tableName string, awsRegion string) {
+	client := createDynamoDbClientForTest(t, awsRegion)
 	err := terragruntDynamoDb.DeleteTable(tableName, client)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 }

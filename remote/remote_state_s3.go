@@ -15,12 +15,12 @@ import (
 
 // A representation of the configuration options available for S3 remote state
 type RemoteStateConfigS3 struct {
-	Encrypt   string
-	Bucket    string
-	Key       string
-	Region    string
-	Profile   string
-	LockTable string
+	Encrypt   string `mapstructure:"encrypt"`
+	Bucket    string `mapstructure:"bucket"`
+	Key       string `mapstructure:"key"`
+	Region    string `mapstructure:"region"`
+	Profile   string `mapstructure:"profile"`
+	LockTable string `mapstructure:"lock_table"`
 }
 
 const MAX_RETRIES_WAITING_FOR_S3_BUCKET = 12
