@@ -55,9 +55,21 @@ func executeTerragruntHelperFunction(functionName string, parameters string, inc
 		return pathRelativeToInclude(include, terragruntOptions)
 	case "get_env":
 		return getEnvironmentVariable(parameters, terragruntOptions)
+	case "get_tfvars_dir":
+		return getTfVarsDir(terragruntOptions)
 	default:
 		return "", errors.WithStackTrace(UnknownHelperFunction(functionName))
 	}
+}
+
+// Return the directory where the Terragrunt configuration file lives
+func getTfVarsDir(terragruntOptions *options.TerragruntOptions) (string, error) {
+	terragruntConfigFileAbsPath, err := filepath.Abs(terragruntOptions.TerragruntConfigPath)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	return filepath.Dir(terragruntConfigFileAbsPath), nil
 }
 
 func parseGetEnvParameters(parameters string) (EnvVar, error) {

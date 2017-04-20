@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"testing"
+	"os"
 )
 
 func TestPathRelativeToInclude(t *testing.T) {
@@ -444,4 +445,25 @@ TERRAGRUNT_HIT","")}/bar`,
 			assert.Equal(t, testCase.expectedOut, actualOut, "For string '%s' include %v and options %v", testCase.str, testCase.include, testCase.terragruntOptions)
 		}
 	}
+}
+
+func TestGetTfVarsDirAbsPath(t *testing.T) {
+	t.Parallel()
+	testGetTfVarsDir(t, "/foo/bar/terraform.tfvars", "/foo/bar")
+}
+
+func TestGetTfVarsDirRelPath(t *testing.T) {
+	t.Parallel()
+	workingDir, err := os.Getwd()
+	assert.Nil(t, err, "Could not get current working dir: %v", err)
+
+	testGetTfVarsDir(t, "foo/bar/terraform.tfvars", fmt.Sprintf("%s/foo/bar", workingDir))
+}
+
+func testGetTfVarsDir(t *testing.T, configPath string, expectedPath string) {
+	terragruntOptions := options.NewTerragruntOptionsForTest(configPath)
+	actualPath, err := getTfVarsDir(terragruntOptions)
+
+	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.Equal(t, expectedPath, actualPath)
 }
