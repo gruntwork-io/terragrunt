@@ -594,8 +594,8 @@ root
 │   ├── main.tf
 │   └── terraform.tfvars
 └── vpc
-│   ├── main.tf
-│   └── terraform.tfvars
+    ├── main.tf
+    └── terraform.tfvars
 ```
 
 Inside each `terraform.tfvars` file, add a `terragrunt = { ... }` block to identify this as a module managed by 
@@ -654,8 +654,8 @@ root
 │   ├── main.tf
 │   └── terraform.tfvars
 └── vpc
-│   ├── main.tf
-│   └── terraform.tfvars
+    ├── main.tf
+    └── terraform.tfvars
 ```
 
 Let's assume you have the following dependencies between Terraform modules:
