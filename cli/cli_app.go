@@ -2,12 +2,9 @@ package cli
 
 import (
 	"fmt"
-	"regexp"
-
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/locks"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -25,9 +22,6 @@ const OPT_TERRAGRUNT_SOURCE_UPDATE = "terragrunt-source-update"
 
 var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE}
 var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_TFPATH, OPT_WORKING_DIR, OPT_TERRAGRUNT_SOURCE}
-
-const CMD_ACQUIRE_LOCK = "acquire-lock"
-const CMD_RELEASE_LOCK = "release-lock"
 
 const CMD_APPLY_ALL = "apply-all"
 const CMD_DESTROY_ALL = "destroy-all"
@@ -61,13 +55,6 @@ USAGE:
    {{.Usage}}
 
 COMMANDS:
-   apply                Acquire a lock and run 'terraform apply'
-   destroy              Acquire a lock and run 'terraform destroy'
-   import               Acquire a lock and run 'terraform import'
-   refresh              Acquire a lock and run 'terraform refresh'
-   remote push          Acquire a lock and run 'terraform remote push'
-   acquire-lock         Acquire a long-term lock for these templates
-   release-lock         Release a long-term lock or a lock that failed to clean up
    apply-all            Apply a 'stack' by running 'terragrunt apply' in each subfolder
    output-all           Display the outputs of a 'stack' by running 'terragrunt output' in each subfolder
    destroy-all          Destroy a 'stack' by running 'terragrunt destroy' in each subfolder
@@ -89,10 +76,6 @@ AUTHOR(S):
    {{end}}
 `
 
-var MODULE_REGEX = regexp.MustCompile(`module ".+"`)
-
-const TERRAFORM_EXTENSION_GLOB = "*.tf"
-
 // Create the Terragrunt CLI App
 func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) *cli.App {
 	cli.OsExiter = func(exitCode int) {
@@ -111,18 +94,13 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 	app.Usage = "terragrunt <COMMAND>"
 	app.Writer = writer
 	app.ErrWriter = errwriter
-	app.UsageText = fmt.Sprintf(`Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that supports locking
-   via Amazon's DynamoDB and enforces best practices. Terragrunt forwards almost all commands, arguments, and options
-   directly to Terraform, using whatever version of Terraform you already have installed. However, before running
-   Terraform, Terragrunt will ensure your remote state is configured according to the settings in %s.
-   Moreover, for the apply and destroy commands, Terragrunt will first try to acquire a lock using DynamoDB. For
-   documentation, see https://github.com/gruntwork-io/terragrunt/.`, config.DefaultTerragruntConfigPath)
+	app.UsageText = `Terragrunt is a thin wrapper for Terraform that provides extra tools for working with multiple
+   Terraform modules, remote state, and locking. For documentation, see https://github.com/gruntwork-io/terragrunt/.`
 
 	return app
 }
 
-// The sole action for the app. It forwards all commands directly to Terraform, enforcing a few best practices along
-// the way, such as configuring remote state or acquiring a lock.
+// The sole action for the app
 func runApp(cliContext *cli.Context) (finalErr error) {
 	defer errors.Recover(func(cause error) { finalErr = cause })
 
@@ -162,7 +140,7 @@ func runCommand(command string, terragruntOptions *options.TerragruntOptions) (f
 }
 
 // Run Terragrunt with the given options and CLI args. This will forward all the args directly to Terraform, enforcing
-// best practices along the way, such as configuring remote state or acquiring a lock.
+// best practices along the way.
 func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	conf, err := config.ReadTerragruntConfig(terragruntOptions)
 	if err != nil {
@@ -185,12 +163,7 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
-	if conf.Lock == nil {
-		terragruntOptions.Logger.Printf("WARNING: you have not configured locking in your Terragrunt configuration. Concurrent changes to your .tfstate files may cause conflicts!")
-		return runTerraformCommand(terragruntOptions)
-	}
-
-	return runTerraformCommandWithLock(conf.Lock, terragruntOptions)
+	return runTerraformCommand(terragruntOptions)
 }
 
 // Returns true if the command the user wants to execute is supposed to affect multiple Terraform modules, such as the
@@ -234,26 +207,6 @@ func configureRemoteState(remoteState *remote.RemoteState, terragruntOptions *op
 	}
 
 	return nil
-}
-
-// Run the given Terraform command with the given lock (if the command requires locking)
-func runTerraformCommandWithLock(lock locks.Lock, terragruntOptions *options.TerragruntOptions) error {
-	switch firstArg(terragruntOptions.TerraformCliArgs) {
-	case "apply", "destroy", "import", "refresh":
-		return locks.WithLock(lock, terragruntOptions, func() error { return runTerraformCommand(terragruntOptions) })
-	case "remote":
-		if secondArg(terragruntOptions.TerraformCliArgs) == "push" {
-			return locks.WithLock(lock, terragruntOptions, func() error { return runTerraformCommand(terragruntOptions) })
-		} else {
-			return runTerraformCommand(terragruntOptions)
-		}
-	case CMD_ACQUIRE_LOCK:
-		return acquireLock(lock, terragruntOptions)
-	case CMD_RELEASE_LOCK:
-		return releaseLockCommand(lock, terragruntOptions)
-	default:
-		return runTerraformCommand(terragruntOptions)
-	}
 }
 
 // Spin up an entire "stack" by running 'terragrunt apply' in each subfolder, processing them in the right order based
@@ -308,36 +261,6 @@ func outputAll(terragruntOptions *options.TerragruntOptions) error {
 
 	terragruntOptions.Logger.Printf("%s", stack.String())
 	return stack.Output(terragruntOptions)
-}
-
-// Acquire a lock. This can be useful for locking down a deploy for a long time, such as during a major deployment.
-func acquireLock(lock locks.Lock, terragruntOptions *options.TerragruntOptions) error {
-	shouldAcquireLock, err := shell.PromptUserForYesNo("Are you sure you want to acquire a long-term lock?", terragruntOptions)
-	if err != nil {
-		return err
-	}
-
-	if shouldAcquireLock {
-		terragruntOptions.Logger.Printf("Acquiring long-term lock. To release the lock, use the release-lock command.")
-		return lock.AcquireLock(terragruntOptions)
-	}
-
-	return nil
-}
-
-// Release a lock, prompting the user for confirmation first
-func releaseLockCommand(lock locks.Lock, terragruntOptions *options.TerragruntOptions) error {
-	prompt := fmt.Sprintf("Are you sure you want to release %s?", lock)
-	proceed, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
-	if err != nil {
-		return err
-	}
-
-	if proceed {
-		return lock.ReleaseLock(terragruntOptions)
-	} else {
-		return nil
-	}
 }
 
 // Run the given Terraform command

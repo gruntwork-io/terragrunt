@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/locks/dynamodb"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -13,88 +12,6 @@ import (
 )
 
 var mockOptions = options.TerragruntOptions{TerragruntConfigPath: "test-time-mock", NonInteractive: true}
-
-func TestParseTerragruntConfigDynamoLockMinimalConfig(t *testing.T) {
-	t.Parallel()
-
-	config := `
-terragrunt = {
-  lock {
-    backend = "dynamodb"
-    config {
-      state_file_id = "expected-state-file-id"
-    }
-  }
-}
-`
-
-	terragruntConfig, err := parseConfigString(config, &mockOptions, nil, DefaultTerragruntConfigPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	assert.Nil(t, terragruntConfig.RemoteState)
-	assert.Nil(t, terragruntConfig.Terraform)
-	assert.NotNil(t, terragruntConfig.Lock)
-	assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
-	lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
-	assert.Equal(t, "expected-state-file-id", lock.StateFileId)
-	assert.Equal(t, dynamodb.DEFAULT_AWS_REGION, lock.AwsRegion)
-	assert.Equal(t, dynamodb.DEFAULT_TABLE_NAME, lock.TableName)
-	assert.Equal(t, dynamodb.DEFAULT_MAX_RETRIES_WAITING_FOR_LOCK, lock.MaxLockRetries)
-}
-
-func TestParseTerragruntConfigDynamoLockFullConfig(t *testing.T) {
-	t.Parallel()
-
-	config := `
-terragrunt = {
-  lock {
-    backend = "dynamodb"
-    config {
-      state_file_id = "expected-state-file-id"
-      aws_region = "expected-region"
-      table_name = "expected-table-name"
-      max_lock_retries = 100
-    }
-  }
-}
-`
-
-	terragruntConfig, err := parseConfigString(config, &mockOptions, nil, DefaultTerragruntConfigPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	assert.Nil(t, terragruntConfig.RemoteState)
-	assert.Nil(t, terragruntConfig.Terraform)
-
-	if assert.NotNil(t, terragruntConfig.Lock) {
-		assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
-		lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
-		assert.Equal(t, "expected-state-file-id", lock.StateFileId)
-		assert.Equal(t, "expected-region", lock.AwsRegion)
-		assert.Equal(t, "expected-table-name", lock.TableName)
-		assert.Equal(t, 100, lock.MaxLockRetries)
-	}
-}
-
-func TestParseTerragruntConfigDynamoLockMissingStateFileId(t *testing.T) {
-	t.Parallel()
-
-	config := `
-terragrunt = {
-  lock {
-    backend = "dynamodb"
-    config {
-    }
-  }
-}
-`
-
-	_, err := parseConfigString(config, &mockOptions, nil, DefaultTerragruntConfigPath)
-	assert.True(t, errors.IsError(err, dynamodb.StateFileIdMissing))
-}
 
 func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
 	t.Parallel()
@@ -112,7 +29,6 @@ terragrunt = {
 		t.Fatal(err)
 	}
 
-	assert.Nil(t, terragruntConfig.Lock)
 	assert.Nil(t, terragruntConfig.Terraform)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
@@ -157,7 +73,6 @@ terragrunt = {
 		t.Fatal(err)
 	}
 
-	assert.Nil(t, terragruntConfig.Lock)
 	assert.Nil(t, terragruntConfig.Terraform)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
@@ -186,7 +101,6 @@ terragrunt = {
 		t.Fatal(err)
 	}
 
-	assert.Nil(t, terragruntConfig.Lock)
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
 
@@ -211,7 +125,6 @@ terragrunt = {
 		t.Fatal(err)
 	}
 
-	assert.Nil(t, terragruntConfig.Lock)
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
 
@@ -227,16 +140,6 @@ func TestParseTerragruntConfigRemoteStateDynamoDbTerraformConfigAndDependenciesF
 terragrunt = {
   terraform {
     source = "foo"
-  }
-
-  lock {
-    backend = "dynamodb"
-    config {
-      state_file_id = "expected-state-file-id"
-      aws_region = "expected-region"
-      table_name = "expected-table-name"
-      max_lock_retries = 100
-    }
   }
 
   remote_state {
@@ -264,15 +167,6 @@ terragrunt = {
 		assert.Equal(t, "foo", terragruntConfig.Terraform.Source)
 	}
 
-	if assert.NotNil(t, terragruntConfig.Lock) {
-		assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
-		lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
-		assert.Equal(t, "expected-state-file-id", lock.StateFileId)
-		assert.Equal(t, "expected-region", lock.AwsRegion)
-		assert.Equal(t, "expected-table-name", lock.TableName)
-		assert.Equal(t, 100, lock.MaxLockRetries)
-	}
-
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
 		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
 		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
@@ -293,16 +187,6 @@ func TestParseTerragruntConfigRemoteStateDynamoDbTerraformConfigAndDependenciesF
 	config := `
 terraform {
   source = "foo"
-}
-
-lock {
-  backend = "dynamodb"
-  config {
-    state_file_id = "expected-state-file-id"
-    aws_region = "expected-region"
-    table_name = "expected-table-name"
-    max_lock_retries = 100
-  }
 }
 
 remote_state {
@@ -329,15 +213,6 @@ dependencies {
 		assert.Equal(t, "foo", terragruntConfig.Terraform.Source)
 	}
 
-	if assert.NotNil(t, terragruntConfig.Lock) {
-		assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
-		lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
-		assert.Equal(t, "expected-state-file-id", lock.StateFileId)
-		assert.Equal(t, "expected-region", lock.AwsRegion)
-		assert.Equal(t, "expected-table-name", lock.TableName)
-		assert.Equal(t, 100, lock.MaxLockRetries)
-	}
-
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
 		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
 		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
@@ -350,23 +225,6 @@ dependencies {
 	if assert.NotNil(t, terragruntConfig.Dependencies) {
 		assert.Equal(t, []string{"../vpc", "../mysql", "../backend-app"}, terragruntConfig.Dependencies.Paths)
 	}
-}
-
-func TestParseTerragruntConfigInvalidLockBackend(t *testing.T) {
-	t.Parallel()
-
-	config := `
-terragrunt = {
-  lock {
-    backend = "invalid"
-    config {
-    }
-  }
-}
-`
-
-	_, err := parseConfigString(config, &mockOptions, nil, DefaultTerragruntConfigPath)
-	assert.True(t, errors.IsError(err, ErrLockNotFound))
 }
 
 func TestParseTerragruntConfigInclude(t *testing.T) {
@@ -389,12 +247,6 @@ terragrunt = {
 	terragruntConfig, err := parseConfigString(config, &opts, nil, opts.TerragruntConfigPath)
 	if assert.Nil(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err)) {
 		assert.Nil(t, terragruntConfig.Terraform)
-
-		if assert.NotNil(t, terragruntConfig.Lock) {
-			assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
-			lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
-			assert.Equal(t, "child/sub-child/sub-sub-child", lock.StateFileId)
-		}
 
 		if assert.NotNil(t, terragruntConfig.RemoteState) {
 			assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
@@ -427,12 +279,6 @@ terragrunt = {
 	terragruntConfig, err := parseConfigString(config, &opts, nil, opts.TerragruntConfigPath)
 	if assert.Nil(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err)) {
 		assert.Nil(t, terragruntConfig.Terraform)
-
-		if assert.NotNil(t, terragruntConfig.Lock) {
-			assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
-			lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
-			assert.Equal(t, "child/sub-child/sub-sub-child", lock.StateFileId)
-		}
 
 		if assert.NotNil(t, terragruntConfig.RemoteState) {
 			assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
@@ -478,12 +324,6 @@ terragrunt = {
 	if assert.Nil(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err)) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
-		if assert.NotNil(t, terragruntConfig.Lock) {
-			assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
-			lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
-			assert.Equal(t, "child/sub-child/sub-sub-child", lock.StateFileId)
-		}
-
 		if assert.NotNil(t, terragruntConfig.RemoteState) {
 			assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
 			assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
@@ -508,13 +348,6 @@ terragrunt = {
 
   terraform {
     source = "foo"
-  }
-
-  lock {
-    backend = "dynamodb"
-    config {
-      state_file_id = "override"
-    }
   }
 
   # Configure Terragrunt to automatically store tfstate files in an S3 bucket
@@ -543,12 +376,6 @@ terragrunt = {
 	if assert.Nil(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err)) {
 		if assert.NotNil(t, terragruntConfig.Terraform) {
 			assert.Equal(t, "foo", terragruntConfig.Terraform.Source)
-		}
-
-		if assert.NotNil(t, terragruntConfig.Lock) {
-			assert.IsType(t, &dynamodb.DynamoDbLock{}, terragruntConfig.Lock)
-			lock := terragruntConfig.Lock.(*dynamodb.DynamoDbLock)
-			assert.Equal(t, "override", lock.StateFileId)
 		}
 
 		if assert.NotNil(t, terragruntConfig.RemoteState) {
@@ -627,7 +454,6 @@ func TestParseTerragruntConfigEmptyConfigOldConfig(t *testing.T) {
 	}
 
 	assert.Nil(t, terragruntConfig.RemoteState)
-	assert.Nil(t, terragruntConfig.Lock)
 }
 
 func TestMergeConfigIntoIncludedConfig(t *testing.T) {
@@ -644,54 +470,34 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 			&TerragruntConfig{},
 		},
 		{
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "foo"}},
-			nil,
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "foo"}},
-		},
-		{
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "foo"}, RemoteState: &remote.RemoteState{Backend: "foo"}},
-			nil,
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "foo"}, RemoteState: &remote.RemoteState{Backend: "foo"}},
-		},
-		{
-			&TerragruntConfig{},
-			&TerragruntConfig{},
-			&TerragruntConfig{},
-		},
-		{
-			&TerragruntConfig{},
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}},
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}},
-		},
-		{
-			&TerragruntConfig{},
-			&TerragruntConfig{Terraform: &TerraformConfig{Source: "foo"}},
-			&TerragruntConfig{Terraform: &TerraformConfig{Source: "foo"}},
-		},
-		{
-			&TerragruntConfig{},
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &TerraformConfig{Source: "foo"}},
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &TerraformConfig{Source: "foo"}},
-		},
-		{
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "foo"}},
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &TerraformConfig{Source: "foo"}},
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "foo"}, RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &TerraformConfig{Source: "foo"}},
-		},
-		{
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "foo"}, RemoteState: &remote.RemoteState{Backend: "foo"}, Terraform: &TerraformConfig{Source: "foo"}},
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &TerraformConfig{Source: "bar"}},
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "foo"}, RemoteState: &remote.RemoteState{Backend: "foo"}, Terraform: &TerraformConfig{Source: "foo"}},
-		},
-		{
 			&TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "foo"}},
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &TerraformConfig{Source: "bar"}},
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "foo"}, Terraform: &TerraformConfig{Source: "bar"}},
+			nil,
+			&TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "foo"}},
+		},
+		{
+			&TerragruntConfig{},
+			&TerragruntConfig{},
+			&TerragruntConfig{},
+		},
+		{
+			&TerragruntConfig{},
+			&TerragruntConfig{Terraform: &TerraformConfig{Source: "foo"}},
+			&TerragruntConfig{Terraform: &TerraformConfig{Source: "foo"}},
+		},
+		{
+			&TerragruntConfig{},
+			&TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &TerraformConfig{Source: "foo"}},
+			&TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &TerraformConfig{Source: "foo"}},
+		},
+		{
+			&TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "foo"}, Terraform: &TerraformConfig{Source: "foo"}},
+			&TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &TerraformConfig{Source: "bar"}},
+			&TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "foo"}, Terraform: &TerraformConfig{Source: "foo"}},
 		},
 		{
 			&TerragruntConfig{Terraform: &TerraformConfig{Source: "foo"}},
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &TerraformConfig{Source: "bar"}},
-			&TerragruntConfig{Lock: dynamodb.DynamoDbLock{StateFileId: "bar"}, RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &TerraformConfig{Source: "foo"}},
+			&TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &TerraformConfig{Source: "bar"}},
+			&TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &TerraformConfig{Source: "foo"}},
 		},
 	}
 
@@ -718,7 +524,6 @@ terragrunt = {
 		t.Fatal(err)
 	}
 
-	assert.Nil(t, terragruntConfig.Lock)
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Dependencies)
 
@@ -743,7 +548,6 @@ terragrunt = {
 		t.Fatal(err)
 	}
 
-	assert.Nil(t, terragruntConfig.Lock)
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Dependencies)
 
@@ -780,7 +584,6 @@ terragrunt = {
 		t.Fatal(err)
 	}
 
-	assert.Nil(t, terragruntConfig.Lock)
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Dependencies)
 
@@ -836,7 +639,6 @@ terragrunt = {
 		t.Fatal(err)
 	}
 
-	assert.Nil(t, terragruntConfig.Lock)
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Dependencies)
 

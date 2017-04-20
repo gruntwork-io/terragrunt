@@ -1,13 +1,4 @@
 terragrunt = {
-  # Configure Terragrunt to use DynamoDB for locking
-  lock {
-    backend = "dynamodb"
-    config {
-      state_file_id = "${path_relative_to_include()}"
-      table_name = "terragrunt_locks_test_fixture_include"
-    }
-  }
-
   # Configure Terragrunt to automatically store tfstate files in an S3 bucket
   remote_state {
     backend = "s3"

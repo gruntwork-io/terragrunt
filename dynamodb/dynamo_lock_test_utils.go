@@ -39,7 +39,7 @@ func uniqueId() string {
 
 // Create a DynamoDB client we can use at test time. If there are any errors creating the client, fail the test.
 func createDynamoDbClientForTest(t *testing.T) *dynamodb.DynamoDB {
-	client, err := createDynamoDbClient(DEFAULT_TEST_REGION, "")
+	client, err := CreateDynamoDbClient(DEFAULT_TEST_REGION, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,28 +66,6 @@ func assertCanWriteToTable(t *testing.T, tableName string, client *dynamodb.Dyna
 	assert.Nil(t, err, "Unexpected error: %v", err)
 }
 
-func assertItemExistsInTable(t *testing.T, itemId string, tableName string, client *dynamodb.DynamoDB) {
-	output, err := client.GetItem(&dynamodb.GetItemInput{
-		ConsistentRead: aws.Bool(true),
-		Key:            createKeyFromItemId(itemId),
-		TableName:      aws.String(tableName),
-	})
-
-	assert.Nil(t, err, "Unexpected error: %v", err)
-	assert.NotEmpty(t, output.Item, "Did not expect item with id %s in table %s to be empty", itemId, tableName)
-}
-
-func assertItemNotExistsInTable(t *testing.T, itemId string, tableName string, client *dynamodb.DynamoDB) {
-	output, err := client.GetItem(&dynamodb.GetItemInput{
-		ConsistentRead: aws.Bool(true),
-		Key:            createKeyFromItemId(itemId),
-		TableName:      aws.String(tableName),
-	})
-
-	assert.Nil(t, err, "Unexpected error: %v", err)
-	assert.Empty(t, output.Item, "Did not expect item with id %s in table %s to be empty", itemId, tableName)
-}
-
 func withLockTable(t *testing.T, action func(tableName string, client *dynamodb.DynamoDB)) {
 	client := createDynamoDbClientForTest(t)
 	tableName := uniqueTableNameForTest()
@@ -99,13 +77,8 @@ func withLockTable(t *testing.T, action func(tableName string, client *dynamodb.
 	action(tableName, client)
 }
 
-func withLockTableProvisionedUnits(t *testing.T, readCapacityUnits int, writeCapacityUnits int, action func(tableName string, client *dynamodb.DynamoDB)) {
-	client := createDynamoDbClientForTest(t)
-	tableName := uniqueTableNameForTest()
-
-	err := CreateLockTable(tableName, readCapacityUnits, writeCapacityUnits, client, mockOptions)
-	assert.Nil(t, err, "Unexpected error: %v", err)
-	defer cleanupTableForTest(t, tableName, client)
-
-	action(tableName, client)
+func createKeyFromItemId(itemId string) map[string]*dynamodb.AttributeValue {
+	return map[string]*dynamodb.AttributeValue{
+		ATTR_LOCK_ID: &dynamodb.AttributeValue{S: aws.String(itemId)},
+	}
 }
