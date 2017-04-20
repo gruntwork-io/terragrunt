@@ -6,8 +6,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
-	"testing"
 	"os"
+	"testing"
 )
 
 func TestPathRelativeToInclude(t *testing.T) {
