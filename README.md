@@ -152,12 +152,12 @@ the following file layout:
     │   └── vpc
     │       └── terraform.tfvars
     └── stage
-    │   ├── app
-    │   │   └── terraform.tfvars
-    │   ├── mysql
-    │   │   └── terraform.tfvars
-    │   └── vpc
-    │       └── terraform.tfvars
+        ├── app
+        │   └── terraform.tfvars
+        ├── mysql
+        │   └── terraform.tfvars
+        └── vpc
+            └── terraform.tfvars
 ```
 
 Notice how there are no Terraform configurations (`.tf` files) in any of the folders. Instead, each `.tfvars` file 
