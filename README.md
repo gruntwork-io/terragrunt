@@ -742,79 +742,92 @@ that helper functions *only* work within a `terragrunt = { ... }` block. Terrafo
 
 Here are the supported helper functions:
 
-* `find_in_parent_folders()`: Search up the directory tree from the current `.tfvars` file and return the relative path
-  to to the first `terraform.tfvars` in a parent folder or exit with an error if no such file is found. This is 
-  primarily useful in an `include` block to automatically find the path to a parent `.tfvars` file:
-  
-    ```hcl
-    terragrunt = {
-      include {
-        path = "${find_in_parent_folders()}"
-      }
-    }
-    ```
+* [find_in_parent_folders](#find_in_parent_folders)
+* [path_relative_to_include](#path_relative_to_include)
+* [get_env](#get_env)
 
-* `path_relative_to_include()`: Return the relative path between the current `.tfvars` file and the `path` specified in 
-  its `include` block. For example, consider the following folder structure:
-  
-    ```
-    ├── terraform.tfvars
-    └── prod
-        └── mysql
-            └── terraform.tfvars
-    └── stage
-        └── mysql
-            └── terraform.tfvars
-    ```
 
-    Imagine `prod/mysql/terraform.tfvars` and `stage/mysql/terraform.tfvars` include all settings from the root 
-    `terraform.tfvars` file:
-     
-    ```hcl
-    terragrunt = {
-      include {
-        path = "${find_in_parent_folders()}"
-      }
-    }
-    ```
-     
-    The root `terraform.tfvars` can use the `path_relative_to_include()` in its `remote_state` configuration to ensure 
-    each child stores its remote state at a different `key`: 
-    
-    ```hcl
-    terragrunt = {
-      remote_state {
-        backend = "s3" 
-        config {
-          bucket = "my-terraform-bucket"
-          region = "us-east-1"
-          key    = "${path_relative_to_include()}/terraform.tfstate"
-        }
-      }
-    }
-    ```
-    
-    The resulting `key` will be `prod/mysql/terraform.tfstate` for the prod `mysql` module and 
-    `stage/mysql/terraform.tfstate` for the stage `mysql` module. 
+#### find_in_parent_folders
 
-* `get_env(NAME, DEFAULT)`: Return the value of the environment variable named `NAME` or `DEFAULT` if that environment
-  variable is not set. Example: 
+`find_in_parent_folders()` searches up the directory tree from the current `.tfvars` file and returns the relative path
+to to the first `terraform.tfvars` in a parent folder or exit with an error if no such file is found. This is 
+primarily useful in an `include` block to automatically find the path to a parent `.tfvars` file:
+
+```hcl
+terragrunt = {
+  include {
+    path = "${find_in_parent_folders()}"
+  }
+}
+```
+
   
-    ```hcl
-    terragrunt = {
-      remote_state {
-        backend = "s3"
-        config {
-          bucket = "${get_env("BUCKET", "my-terraform-bucket")}"
-        }
-      }  
+#### path_relative_to_include
+
+`path_relative_to_include()` returns the relative path between the current `.tfvars` file and the `path` specified in 
+its `include` block. For example, consider the following folder structure:
+
+```
+├── terraform.tfvars
+└── prod
+    └── mysql
+        └── terraform.tfvars
+└── stage
+    └── mysql
+        └── terraform.tfvars
+```
+
+Imagine `prod/mysql/terraform.tfvars` and `stage/mysql/terraform.tfvars` include all settings from the root 
+`terraform.tfvars` file:
+ 
+```hcl
+terragrunt = {
+  include {
+    path = "${find_in_parent_folders()}"
+  }
+}
+```
+ 
+The root `terraform.tfvars` can use the `path_relative_to_include()` in its `remote_state` configuration to ensure 
+each child stores its remote state at a different `key`: 
+
+```hcl
+terragrunt = {
+  remote_state {
+    backend = "s3" 
+    config {
+      bucket = "my-terraform-bucket"
+      region = "us-east-1"
+      key    = "${path_relative_to_include()}/terraform.tfstate"
     }
-    ```  
-  
-    Note that [Terraform will read environment 
-    variables](https://www.terraform.io/docs/configuration/environment-variables.html#tf_var_name) that start with the
-    prefix `TF_VAR_`, so one way to share the a variable named `foo` between Terraform and Terragrunt is to set its value
-    as the environment variable `TF_VAR_foo` and to read that value in using this `get_env` helper function.
+  }
+}
+```
+
+The resulting `key` will be `prod/mysql/terraform.tfstate` for the prod `mysql` module and 
+`stage/mysql/terraform.tfstate` for the stage `mysql` module. 
+
+
+#### get_env
+
+`get_env(NAME, DEFAULT)`: Return the value of the environment variable named `NAME` or `DEFAULT` if that environment
+variable is not set. Example: 
+
+```hcl
+terragrunt = {
+  remote_state {
+    backend = "s3"
+    config {
+      bucket = "${get_env("BUCKET", "my-terraform-bucket")}"
+    }
+  }  
+}
+```  
+
+Note that [Terraform will read environment 
+variables](https://www.terraform.io/docs/configuration/environment-variables.html#tf_var_name) that start with the
+prefix `TF_VAR_`, so one way to share the a variable named `foo` between Terraform and Terragrunt is to set its value
+as the environment variable `TF_VAR_foo` and to read that value in using this `get_env` helper function.
 
 
 
