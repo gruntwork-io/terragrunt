@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/urfave/cli"
 	"io"
+	"regexp"
 )
 
 const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
@@ -75,6 +76,10 @@ AUTHOR(S):
    {{range .Authors}}{{.}}{{end}}
    {{end}}
 `
+
+var MODULE_REGEX = regexp.MustCompile(`module ".+"`)
+
+const TERRAFORM_EXTENSION_GLOB = "*.tf"
 
 // Create the Terragrunt CLI App
 func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) *cli.App {
@@ -157,6 +162,10 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
+	if err := downloadModules(terragruntOptions); err != nil {
+		return err
+	}
+
 	if conf.RemoteState != nil {
 		if err := configureRemoteState(conf.RemoteState, terragruntOptions); err != nil {
 			return err
@@ -184,6 +193,34 @@ func runMultiModuleCommand(command string, terragruntOptions *options.Terragrunt
 	default:
 		return errors.WithStackTrace(UnrecognizedCommand(command))
 	}
+}
+
+// A quick sanity check that calls `terraform get` to download modules, if they aren't already downloaded.
+func downloadModules(terragruntOptions *options.TerragruntOptions) error {
+	switch firstArg(terragruntOptions.TerraformCliArgs) {
+	case "apply", "destroy", "graph", "output", "plan", "show", "taint", "untaint", "validate":
+		shouldDownload, err := shouldDownloadModules(terragruntOptions)
+		if err != nil {
+			return err
+		}
+		if shouldDownload {
+			return shell.RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, "get", "-update")
+		}
+	}
+
+	return nil
+}
+
+// Return true if modules aren't already downloaded and the Terraform templates in this project reference modules.
+// Note that to keep the logic in this code very simple, this code ONLY detects the case where you haven't downloaded
+// modules at all. Detecting if your downloaded modules are out of date (as opposed to missing entirely) is more
+// complicated and not something we handle at the moment.
+func shouldDownloadModules(terragruntOptions *options.TerragruntOptions) (bool, error) {
+	if util.FileExists(util.JoinPath(terragruntOptions.WorkingDir, ".terraform/modules")) {
+		return false, nil
+	}
+
+	return util.Grep(MODULE_REGEX, fmt.Sprintf("%s/%s", terragruntOptions.WorkingDir, TERRAFORM_EXTENSION_GLOB))
 }
 
 // If the user entered a Terraform command that uses state (e.g. plan, apply), make sure remote state is configured
