@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -31,6 +32,7 @@ const (
 	TEST_FIXTURE_INCLUDE_PATH                           = "fixture-include/"
 	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH                 = "qa/my-app"
 	TEST_FIXTURE_STACK                                  = "fixture-stack/"
+	TEST_FIXTURE_OUTPUT_ALL                             = "fixture-output-all"
 	TEST_FIXTURE_EXTRA_ARGS_PATH                        = "fixture-extra-args/"
 	TEST_FIXTURE_LOCAL_DOWNLOAD_PATH                    = "fixture-download/local"
 	TEST_FIXTURE_REMOTE_DOWNLOAD_PATH                   = "fixture-download/remote"
@@ -97,7 +99,7 @@ func TestAcquireAndReleaseLock(t *testing.T) {
 
 	// Try to apply the templates. Since a lock has been acquired, and max_lock_retries is set to 1, this should
 	// fail quickly.
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", terragruntConfigPath, TEST_FIXTURE_LOCK_PATH))
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", terragruntConfigPath, TEST_FIXTURE_LOCK_PATH), os.Stdout, os.Stderr)
 
 	if assert.NotNil(t, err, "Expected to get an error when trying to apply templates after a long-term lock has already been acquired, but got nil") {
 		assert.Contains(t, err.Error(), "Unable to acquire lock")
@@ -174,7 +176,36 @@ func TestTerragruntWorksWithIncludesParentUpdatedAndOldConfig(t *testing.T) {
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
 }
 
-func TestTerragruntSpinUpAndTearDown(t *testing.T) {
+func TestTerragruntOutputAllCommand(t *testing.T) {
+	t.Parallel()
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_output_all")
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUTPUT_ALL)
+
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName)
+
+	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", environmentPath, s3BucketName))
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
+	output := stdout.String()
+
+	assert.True(t, strings.Contains(output, "app1 output"))
+	assert.True(t, strings.Contains(output, "app2 output"))
+	assert.True(t, strings.Contains(output, "app3 output"))
+}
+
+func TestTerragruntStackCommands(t *testing.T) {
 	t.Parallel()
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
@@ -190,14 +221,17 @@ func TestTerragruntSpinUpAndTearDown(t *testing.T) {
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_stack")
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt spin-up --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", mgmtEnvironmentPath, s3BucketName))
-	runTerragrunt(t, fmt.Sprintf("terragrunt spin-up --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", stageEnvironmentPath, s3BucketName))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", mgmtEnvironmentPath, s3BucketName))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", stageEnvironmentPath, s3BucketName))
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt tear-down --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", stageEnvironmentPath, s3BucketName))
-	runTerragrunt(t, fmt.Sprintf("terragrunt tear-down --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", mgmtEnvironmentPath, s3BucketName))
+	runTerragrunt(t, fmt.Sprintf("terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir %s", mgmtEnvironmentPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir %s", stageEnvironmentPath))
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt destroy-all --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", stageEnvironmentPath, s3BucketName))
+	runTerragrunt(t, fmt.Sprintf("terragrunt destroy-all --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", mgmtEnvironmentPath, s3BucketName))
 }
 
-func TestTerragruntSpinUpAndTearDownWithOldConfig(t *testing.T) {
+func TestTerragruntStackCommandsWithOldConfig(t *testing.T) {
 	t.Parallel()
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
@@ -212,8 +246,9 @@ func TestTerragruntSpinUpAndTearDownWithOldConfig(t *testing.T) {
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_old_config_stack")
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt spin-up --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", stagePath, s3BucketName))
-	runTerragrunt(t, fmt.Sprintf("terragrunt tear-down --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", stagePath, s3BucketName))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", stagePath, s3BucketName))
+	runTerragrunt(t, fmt.Sprintf("terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir %s", stagePath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt destroy-all --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", stagePath, s3BucketName))
 }
 
 func TestLocalDownload(t *testing.T) {
@@ -309,15 +344,19 @@ func removeFolder(t *testing.T, path string) {
 	}
 }
 
-func runTerragruntCommand(t *testing.T, command string) error {
+func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {
 	args := strings.Split(command, " ")
 
-	app := cli.CreateTerragruntCli("TEST")
+	app := cli.CreateTerragruntCli("TEST", writer, errwriter)
 	return app.Run(args)
 }
 
 func runTerragrunt(t *testing.T, command string) {
-	if err := runTerragruntCommand(t, command); err != nil {
+	runTerragruntRedirectOutput(t, command, os.Stdout, os.Stderr)
+}
+
+func runTerragruntRedirectOutput(t *testing.T, command string, writer io.Writer, errwriter io.Writer) {
+	if err := runTerragruntCommand(t, command, writer, errwriter); err != nil {
 		t.Fatalf("Failed to run Terragrunt command '%s' due to error: %s", command, err)
 	}
 }

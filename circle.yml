@@ -6,8 +6,9 @@ dependencies:
   override:
     # Install the gruntwork-module-circleci-helpers and use it to configure the build environment and run tests.
     - curl -Ls https://raw.githubusercontent.com/gruntwork-io/gruntwork-installer/master/bootstrap-gruntwork-installer.sh | bash /dev/stdin --version 0.0.13
-    - gruntwork-install --module-name "gruntwork-module-circleci-helpers" --repo "https://github.com/gruntwork-io/module-ci" --tag "v0.3.2"
-    - configure-environment-for-gruntwork-module --packer-version NONE --terragrunt-version NONE --go-src-path .
+    - gruntwork-install --module-name "gruntwork-module-circleci-helpers" --repo "https://github.com/gruntwork-io/module-ci" --tag "v0.3.10"
+    # Have to stick with Terraform 0.8.x, as Terraform 0.9 has backwards incompatible changes that Terragrunt does not yet support
+    - configure-environment-for-gruntwork-module --terraform-version 0.8.8 --packer-version NONE --terragrunt-version NONE --go-src-path .
 
   cache_directories:
     - ~/glide
