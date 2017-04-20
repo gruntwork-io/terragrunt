@@ -728,7 +728,7 @@ This section contains detailed documentation for the following aspects of Terrag
 
 1. [Helper functions](#helper-functions)
 1. [CLI options](#cli-options)
-1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v0.11.x-and-terraform-0.8.x-and-older)
+1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
 1. [Terragrunt config files](#terragrunt-config-files)
 1. [Developing Terragrunt](#developing-terragrunt)
 1. [License](#license)
