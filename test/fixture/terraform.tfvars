@@ -7,7 +7,7 @@ terragrunt = {
       bucket = "__FILL_IN_BUCKET_NAME__"
       key = "terraform.tfstate"
       region = "us-west-2"
-      lock_table = "terragrunt_locks_test_fixture"
+      lock_table = "__FILL_IN_LOCK_TABLE_NAME__"
     }
   }
 }
