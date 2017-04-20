@@ -1,3 +1,7 @@
+terraform {
+  backend "s3" {}
+}
+
 # Create an arbitrary local resource
 data "template_file" "text" {
   template = "[I am a stage vpc template. Data from my dependencies: vpc = ${data.terraform_remote_state.mgmt_vpc.text}]"
