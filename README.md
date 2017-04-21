@@ -220,9 +220,7 @@ When Terragrunt finds the `terraform` block with a `source` parameter in `live/q
 1. Copy all files from the current working directory into the temporary folder. This way, Terraform will automatically
    read in the variables defined in the `terraform.tfvars` file.
 
-1. Execute whatever Terraform command you specified in that temporary folder. **Note**: if you are passing any file
-   paths (other than paths to files in the current working directory) to Terraform via command-line options, those 
-   paths must be absolute paths since we will be running Terraform from the temporary folder!
+1. Execute whatever Terraform command you specified in that temporary folder. 
 
 
 #### DRY Terraform code and immutable infrastructure
@@ -252,6 +250,56 @@ terragrunt apply --terragrunt-source ../../../modules//app
    
 *(Note: the double slash (`//`) here too is intentional and required. Terragrunt downloads all the code in the folder 
 before the double-slash into the temporary folder so that relative paths between modules work correctly.)*   
+
+
+#### Important gotcha: working with relative file paths
+
+One of the gotchas with downloading Terraform configurations is that when you run `terragrunt apply` in folder `foo`,
+Terraform will actually execute in some temporary folder such as `/tmp/foo`. That means you have to be especially 
+careful with relative file paths, as they will be relative to that temporary folder and not the folder where you ran
+Terragrunt!
+
+In particular:
+
+* **Command line**: When using file paths on the command line, such as passing an extra `-var-file` argument, you 
+  should use absolute paths:
+
+    ```bash
+    # Use absolute file paths on the CLI!
+    terragrunt apply -var-file /foo/bar/extra.tfvars
+    ```
+
+* **Terragrunt configuration**: When using file paths directly in your Terragrunt configuration (`terraform.tfvars`), 
+  such as in an `extra_arguments` block, you can't use hard-coded absolute file paths, or it won't work on your 
+  teammates' computers. Therefore, you should use a relative file path with the `get_tfvars_dir()` helper:
+
+    ```hcl
+    terragrunt = {
+      terraform {
+        source = "git::git@github.com:foo/modules.git//frontend-app?ref=v0.0.3"
+        
+        extra_arguments "custom_vars" {
+          commands = [
+            "apply",
+            "plan",
+            "import",
+            "push",
+            "refresh"
+          ]
+          
+          # With the get_tfvars_dir helper, you can use relative paths! 
+          arguments = [
+            "-var-file=${get_tfvars_dir()}/../common.tfvars",
+            "-var-file=terraform.tfvars"
+          ]
+        }    
+      }
+    }
+    ```
+
+  See the [get_tfvars_dir()](#get_tfvars_dir) documentation for more details.
+
+
 
 
 
@@ -732,6 +780,7 @@ Here are the supported helper functions:
 * [find_in_parent_folders](#find_in_parent_folders)
 * [path_relative_to_include](#path_relative_to_include)
 * [get_env](#get_env)
+* [get_tfvars_dir](#get_tfvars_dir)
 
 
 #### find_in_parent_folders
@@ -797,7 +846,7 @@ The resulting `key` will be `prod/mysql/terraform.tfstate` for the prod `mysql` 
 
 #### get_env
 
-`get_env(NAME, DEFAULT)`: Return the value of the environment variable named `NAME` or `DEFAULT` if that environment
+`get_env(NAME, DEFAULT)` returns the value of the environment variable named `NAME` or `DEFAULT` if that environment
 variable is not set. Example: 
 
 ```hcl
@@ -815,6 +864,84 @@ Note that [Terraform will read environment
 variables](https://www.terraform.io/docs/configuration/environment-variables.html#tf_var_name) that start with the
 prefix `TF_VAR_`, so one way to share the a variable named `foo` between Terraform and Terragrunt is to set its value
 as the environment variable `TF_VAR_foo` and to read that value in using this `get_env` helper function.
+
+
+#### get_tfvars_dir
+
+`get_tfvars_dir()` returns the directory where the Terragrunt configuration file (by default, `terraform.tfvars`) lives. 
+This is useful when you need to use relative paths with [remote Terraform 
+configurations](#remote-terraform-configurations) and you want those paths relative to your Terragrunt configuration 
+file and not relative to the temporary directory where Terragrunt downloads the code. 
+
+For example, imagine you have the following file structure: 
+
+```
+/terraform-code
+├── common.tfvars
+├── frontend-app
+│   └── terraform.tfvars
+```
+
+Inside of `/terraform-code/frontend-app/terraform.tfvars` you might try to write code that looks like this:
+
+```hcl
+terragrunt = {
+  terraform {
+    source = "git::git@github.com:foo/modules.git//frontend-app?ref=v0.0.3"
+    
+    extra_arguments "custom_vars" {
+      commands = [
+        "apply",
+        "plan",
+        "import",
+        "push",
+        "refresh"
+      ]
+      
+      arguments = [
+        "-var-file=../common.tfvars", # Note: This relative path will NOT work correctly!
+        "-var-file=terraform.tfvars"
+      ]
+    }    
+  }
+}
+```
+
+Note how the `source` parameter is set, so Terragrunt will download the `frontend-app` code from the `modules` repo 
+into a temporary folder and run `terraform` in that temporary folder. Note also that there is an `extra_arguments` 
+block that is trying to allow the `frontend-app` to read some shared variables from a `common.tfvars` file. 
+Unfortunately, the relative path (`../common.tfvars`) won't work, as it will be relative to the temporary folder! 
+Moreover, you can't use an absolute path, or the code won't work on any of your teammates' computers.
+
+To make the relative path work, you need to use the `get_tfvars_dir()` helper to combine the path with the folder where
+the `.tfvars` file lives:
+
+```hcl
+terragrunt = {
+  terraform {
+    source = "git::git@github.com:foo/modules.git//frontend-app?ref=v0.0.3"
+    
+    extra_arguments "custom_vars" {
+      commands = [
+        "apply",
+        "plan",
+        "import",
+        "push",
+        "refresh"
+      ]
+      
+      # With the get_tfvars_dir helper, you can use relative paths! 
+      arguments = [
+        "-var-file=${get_tfvars_dir()}/../common.tfvars",
+        "-var-file=terraform.tfvars"
+      ]
+    }    
+  }
+}
+```
+
+For the example above, this path will resolve to `/terraform-code/frontend-app/../common.tfvars`, which is exactly 
+what you want.
 
 
 
