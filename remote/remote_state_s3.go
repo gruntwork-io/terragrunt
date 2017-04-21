@@ -5,6 +5,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/gruntwork-io/terragrunt/dynamodb"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -14,11 +15,12 @@ import (
 
 // A representation of the configuration options available for S3 remote state
 type RemoteStateConfigS3 struct {
-	Encrypt string
-	Bucket  string
-	Key     string
-	Region  string
-	Profile string
+	Encrypt   string `mapstructure:"encrypt"`
+	Bucket    string `mapstructure:"bucket"`
+	Key       string `mapstructure:"key"`
+	Region    string `mapstructure:"region"`
+	Profile   string `mapstructure:"profile"`
+	LockTable string `mapstructure:"lock_table"`
 }
 
 const MAX_RETRIES_WAITING_FOR_S3_BUCKET = 12
@@ -46,6 +48,10 @@ func InitializeRemoteStateS3(config map[string]string, terragruntOptions *option
 	}
 
 	if err := checkIfVersioningEnabled(s3Client, s3Config, terragruntOptions); err != nil {
+		return err
+	}
+
+	if err := createLockTableIfNecessary(s3Config, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -173,6 +179,20 @@ func EnableVersioningForS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, t
 func DoesS3BucketExist(s3Client *s3.S3, config *RemoteStateConfigS3) bool {
 	_, err := s3Client.HeadBucket(&s3.HeadBucketInput{Bucket: aws.String(config.Bucket)})
 	return err == nil
+}
+
+// Create a table for locks in DynamoDB if the user has configured a lock table and the table doesn't already exist
+func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	if s3Config.LockTable == "" {
+		return nil
+	}
+
+	dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.Region, s3Config.Profile)
+	if err != nil {
+		return err
+	}
+
+	return dynamodb.CreateLockTableIfNecessary(s3Config.LockTable, dynamodbClient, terragruntOptions)
 }
 
 // Create an authenticated client for DynamoDB

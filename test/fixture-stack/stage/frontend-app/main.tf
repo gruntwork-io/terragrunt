@@ -1,3 +1,7 @@
+terraform {
+  backend "s3" {}
+}
+
 # Create an arbitrary local resource
 data "template_file" "text" {
   template = "[I am a frontend-app template. Data from my dependencies: vpc = ${data.terraform_remote_state.vpc.text}, bastion-host = ${data.terraform_remote_state.bastion_host.text}, backend-app = ${data.terraform_remote_state.backend_app.text}]"

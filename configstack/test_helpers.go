@@ -2,8 +2,6 @@ package configstack
 
 import (
 	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/locks"
-	"github.com/gruntwork-io/terragrunt/locks/dynamodb"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -143,15 +141,6 @@ func canonical(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return out
-}
-
-// Create a new DynamoDB lock
-func lock(t *testing.T, stateFileId string) locks.Lock {
-	lock, err := dynamodb.New(map[string]string{"state_file_id": stateFileId})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return lock
 }
 
 // Create a RemoteState struct

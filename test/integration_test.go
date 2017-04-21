@@ -12,7 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/config"
-	terragruntDynamoDb "github.com/gruntwork-io/terragrunt/locks/dynamodb"
+	terragruntDynamoDb "github.com/gruntwork-io/terragrunt/dynamodb"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -28,7 +28,6 @@ import (
 const (
 	TERRAFORM_REMOTE_STATE_S3_REGION                    = "us-west-2"
 	TEST_FIXTURE_PATH                                   = "fixture/"
-	TEST_FIXTURE_LOCK_PATH                              = "fixture-lock/"
 	TEST_FIXTURE_INCLUDE_PATH                           = "fixture-include/"
 	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH                 = "qa/my-app"
 	TEST_FIXTURE_STACK                                  = "fixture-stack/"
@@ -39,7 +38,6 @@ const (
 	TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH                 = "fixture-download/override"
 	TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH           = "fixture-download/local-relative"
 	TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH          = "fixture-download/remote-relative"
-	TEST_FIXTURE_OLD_CONFIG_LOCK_PATH                   = "fixture-old-terragrunt-config/lock"
 	TEST_FIXTURE_OLD_CONFIG_INCLUDE_PATH                = "fixture-old-terragrunt-config/include"
 	TEST_FIXTURE_OLD_CONFIG_INCLUDE_CHILD_UPDATED_PATH  = "fixture-old-terragrunt-config/include-child-updated"
 	TEST_FIXTURE_OLD_CONFIG_INCLUDE_PARENT_UPDATED_PATH = "fixture-old-terragrunt-config/include-parent-updated"
@@ -61,55 +59,15 @@ func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_PATH)
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, TEST_FIXTURE_PATH, s3BucketName, config.DefaultTerragruntConfigPath)
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+
+	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, TEST_FIXTURE_PATH, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture")
+	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, TEST_FIXTURE_PATH))
 	validateS3BucketExists(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-}
-
-func TestTerragruntWorksWithLocalTerraformVersionAndOldConfig(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, TEST_FIXTURE_OLD_CONFIG_LOCK_PATH)
-
-	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, TEST_FIXTURE_OLD_CONFIG_LOCK_PATH, s3BucketName, config.OldTerragruntConfigPath)
-
-	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_old_config_lock")
-
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, TEST_FIXTURE_OLD_CONFIG_LOCK_PATH))
-	validateS3BucketExists(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-}
-
-func TestAcquireAndReleaseLock(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, TEST_FIXTURE_LOCK_PATH)
-
-	terragruntConfigPath := util.JoinPath(TEST_FIXTURE_LOCK_PATH, config.DefaultTerragruntConfigPath)
-
-	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_lock")
-
-	// Acquire a long-term lock
-	runTerragrunt(t, fmt.Sprintf("terragrunt acquire-lock --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", terragruntConfigPath, TEST_FIXTURE_LOCK_PATH))
-
-	// Try to apply the templates. Since a lock has been acquired, and max_lock_retries is set to 1, this should
-	// fail quickly.
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", terragruntConfigPath, TEST_FIXTURE_LOCK_PATH), os.Stdout, os.Stderr)
-
-	if assert.NotNil(t, err, "Expected to get an error when trying to apply templates after a long-term lock has already been acquired, but got nil") {
-		assert.Contains(t, err.Error(), "Unable to acquire lock")
-	}
-
-	// Release the lock
-	runTerragrunt(t, fmt.Sprintf("terragrunt release-lock --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", terragruntConfigPath, TEST_FIXTURE_LOCK_PATH))
-
-	// Try to apply the templates. Since the lock has been released, this should work without errors.
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", terragruntConfigPath, TEST_FIXTURE_LOCK_PATH))
 }
 
 func TestTerragruntWorksWithIncludes(t *testing.T) {
@@ -123,7 +81,6 @@ func TestTerragruntWorksWithIncludes(t *testing.T) {
 	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_INCLUDE_PATH, TEST_FIXTURE_INCLUDE_CHILD_REL_PATH, s3BucketName, config.DefaultTerragruntConfigPath, config.DefaultTerragruntConfigPath)
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_include")
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
 }
@@ -139,7 +96,6 @@ func TestTerragruntWorksWithIncludesAndOldConfig(t *testing.T) {
 	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_OLD_CONFIG_INCLUDE_PATH, "child", s3BucketName, config.OldTerragruntConfigPath, config.OldTerragruntConfigPath)
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_old_config_include")
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
 }
@@ -155,7 +111,6 @@ func TestTerragruntWorksWithIncludesChildUpdatedAndOldConfig(t *testing.T) {
 	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_OLD_CONFIG_INCLUDE_CHILD_UPDATED_PATH, "child", s3BucketName, config.OldTerragruntConfigPath, config.DefaultTerragruntConfigPath)
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_old_config_include_child_updated")
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
 }
@@ -171,7 +126,6 @@ func TestTerragruntWorksWithIncludesParentUpdatedAndOldConfig(t *testing.T) {
 	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_OLD_CONFIG_INCLUDE_PARENT_UPDATED_PATH, "child", s3BucketName, config.DefaultTerragruntConfigPath, config.OldTerragruntConfigPath)
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_old_config_include_parent_updated")
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
 }
@@ -182,12 +136,11 @@ func TestTerragruntOutputAllCommand(t *testing.T) {
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_output_all")
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUTPUT_ALL)
 
 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used")
 
 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL)
 
@@ -209,17 +162,18 @@ func TestTerragruntStackCommands(t *testing.T) {
 	t.Parallel()
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_STACK)
 
 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, "fixture-stack", config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName)
 
 	mgmtEnvironmentPath := fmt.Sprintf("%s/fixture-stack/mgmt", tmpEnvPath)
 	stageEnvironmentPath := fmt.Sprintf("%s/fixture-stack/stage", tmpEnvPath)
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_stack")
+	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", mgmtEnvironmentPath, s3BucketName))
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", stageEnvironmentPath, s3BucketName))
@@ -241,10 +195,9 @@ func TestTerragruntStackCommandsWithOldConfig(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, "fixture-old-terragrunt-config/stack")
 	stagePath := util.JoinPath(rootPath, "stage")
 	rootTerragruntConfigPath := util.JoinPath(rootPath, config.OldTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used")
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	defer cleanupTableForTest(t, "terragrunt_locks_test_fixture_old_config_stack")
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", stagePath, s3BucketName))
 	runTerragrunt(t, fmt.Sprintf("terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir %s", stagePath))
@@ -415,16 +368,16 @@ func createTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string
 
 	parentTerragruntSrcPath := util.JoinPath(parentPath, parentConfigFileName)
 	parentTerragruntDestPath := util.JoinPath(tmpDir, parentConfigFileName)
-	copyTerragruntConfigAndFillPlaceholders(t, parentTerragruntSrcPath, parentTerragruntDestPath, s3BucketName)
+	copyTerragruntConfigAndFillPlaceholders(t, parentTerragruntSrcPath, parentTerragruntDestPath, s3BucketName, "not-used")
 
 	childTerragruntSrcPath := util.JoinPath(util.JoinPath(parentPath, childRelPath), childConfigFileName)
 	childTerragruntDestPath := util.JoinPath(childDestPath, childConfigFileName)
-	copyTerragruntConfigAndFillPlaceholders(t, childTerragruntSrcPath, childTerragruntDestPath, s3BucketName)
+	copyTerragruntConfigAndFillPlaceholders(t, childTerragruntSrcPath, childTerragruntDestPath, s3BucketName, "not-used")
 
 	return childTerragruntDestPath
 }
 
-func createTmpTerragruntConfig(t *testing.T, templatesPath string, s3BucketName string, configFileName string) string {
+func createTmpTerragruntConfig(t *testing.T, templatesPath string, s3BucketName string, lockTableName string, configFileName string) string {
 	tmpFolder, err := ioutil.TempDir("", "terragrunt-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp folder due to error: %v", err)
@@ -432,20 +385,21 @@ func createTmpTerragruntConfig(t *testing.T, templatesPath string, s3BucketName 
 
 	tmpTerragruntConfigFile := util.JoinPath(tmpFolder, configFileName)
 	originalTerragruntConfigPath := util.JoinPath(templatesPath, configFileName)
-	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName)
+	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName)
 
 	return tmpTerragruntConfigFile
 }
 
-func copyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string, configDestPath string, s3BucketName string) {
-	originalContents, err := util.ReadFileAsString(configSrcPath)
+func copyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string, configDestPath string, s3BucketName string, lockTableName string) {
+	contents, err := util.ReadFileAsString(configSrcPath)
 	if err != nil {
 		t.Fatalf("Error reading Terragrunt config at %s: %v", configSrcPath, err)
 	}
 
-	newContents := strings.Replace(originalContents, "__FILL_IN_BUCKET_NAME__", s3BucketName, -1)
+	contents = strings.Replace(contents, "__FILL_IN_BUCKET_NAME__", s3BucketName, -1)
+	contents = strings.Replace(contents, "__FILL_IN_LOCK_TABLE_NAME__", lockTableName, -1)
 
-	if err := ioutil.WriteFile(configDestPath, []byte(newContents), 0444); err != nil {
+	if err := ioutil.WriteFile(configDestPath, []byte(contents), 0444); err != nil {
 		t.Fatalf("Error writing temp Terragrunt config to %s: %v", configDestPath, err)
 	}
 }
@@ -524,16 +478,16 @@ func createDynamoDbClient(awsRegion, awsProfile string) (*dynamodb.DynamoDB, err
 	return dynamodb.New(session), nil
 }
 
-func createDynamoDbClientForTest(t *testing.T) *dynamodb.DynamoDB {
-	client, err := createDynamoDbClient(DEFAULT_TEST_REGION, "")
+func createDynamoDbClientForTest(t *testing.T, awsRegion string) *dynamodb.DynamoDB {
+	client, err := createDynamoDbClient(awsRegion, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	return client
 }
 
-func cleanupTableForTest(t *testing.T, tableName string) {
-	client := createDynamoDbClientForTest(t)
+func cleanupTableForTest(t *testing.T, tableName string, awsRegion string) {
+	client := createDynamoDbClientForTest(t, awsRegion)
 	err := terragruntDynamoDb.DeleteTable(tableName, client)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 }

@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/locks"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -19,13 +18,12 @@ const OldTerragruntConfigPath = ".terragrunt"
 // TerragruntConfig represents a parsed and expanded configuration
 type TerragruntConfig struct {
 	Terraform    *TerraformConfig
-	Lock         locks.Lock
 	RemoteState  *remote.RemoteState
 	Dependencies *ModuleDependencies
 }
 
 func (conf *TerragruntConfig) String() string {
-	return fmt.Sprintf("TerragruntConfig{Terraform = %v, Lock = %v, RemoteState = %v, Dependencies = %v}", conf.Terraform, conf.Lock, conf.RemoteState, conf.Dependencies)
+	return fmt.Sprintf("TerragruntConfig{Terraform = %v, RemoteState = %v, Dependencies = %v}", conf.Terraform, conf.RemoteState, conf.Dependencies)
 }
 
 // terragruntConfigFile represents the configuration supported in a Terragrunt configuration file (i.e.
@@ -38,6 +36,11 @@ type terragruntConfigFile struct {
 	Dependencies *ModuleDependencies `hcl:"dependencies,omitempty"`
 }
 
+// Older versions of Terraform did not support locking, so Terragrunt offered locking as a feature. As of version 0.9.0,
+// Terraform supports locking natively, so this feature was removed from Terragrunt. However, we keep around the
+// LockConfig so we can log a warning for Terragrunt users who are still trying to use it.
+type LockConfig map[interface{}]interface{}
+
 // tfvarsFileWithTerragruntConfig represents a .tfvars file that contains a terragrunt = { ... } block
 type tfvarsFileWithTerragruntConfig struct {
 	Terragrunt *terragruntConfigFile `hcl:"terragrunt,omitempty"`
@@ -47,12 +50,6 @@ type tfvarsFileWithTerragruntConfig struct {
 // "include" in a child Terragrunt configuration file
 type IncludeConfig struct {
 	Path string `hcl:"path"`
-}
-
-// LockConfig represents generic configuration for Lock providers
-type LockConfig struct {
-	Backend string            `hcl:"backend"`
-	Config  map[string]string `hcl:"config"`
 }
 
 // ModuleDependencies represents the paths to other Terraform modules that must be applied before the current module
@@ -254,10 +251,6 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 		return config, nil
 	}
 
-	if config.Lock != nil {
-		includedConfig.Lock = config.Lock
-	}
-
 	if config.RemoteState != nil {
 		includedConfig.RemoteState = config.RemoteState
 	}
@@ -299,12 +292,7 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 	terragruntConfig := &TerragruntConfig{}
 
 	if terragruntConfigFromFile.Lock != nil {
-		lock, err := lookupLock(terragruntConfigFromFile.Lock.Backend, terragruntConfigFromFile.Lock.Config)
-		if err != nil {
-			return nil, err
-		}
-
-		terragruntConfig.Lock = lock
+		terragruntOptions.Logger.Printf("WARNING: Found a lock configuration in the Terraform configuration at %s. Terraform added native support for locking as of version 0.9.0, so this feature has been removed from Terragrunt and will have no effect. See your Terraform backend docs for how to configure locking: https://www.terraform.io/docs/backends/types/index.html.", terragruntOptions.TerragruntConfigPath)
 	}
 
 	if terragruntConfigFromFile.RemoteState != nil {
