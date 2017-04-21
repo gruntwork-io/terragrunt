@@ -177,7 +177,7 @@ instance_type = "t2.micro"
 ```
 
 *(Note: the double slash (`//`) is intentional and required. It's part of Terraform's Git syntax for [module 
-sources](https://www.terraform.io/docs/modules/sources.html).)
+sources](https://www.terraform.io/docs/modules/sources.html).)*
 
 And `prod/app/terraform.tfvars` may look like this:
    
@@ -232,7 +232,7 @@ that are different between environments. To create a new environment, you copy a
 environment-specific values in the `.tfvars` files, which is about as close to the "essential complexity" of the 
 problem as you can get.
 
-Just as importantly, since the Terraform code is now defined in a single repo, you can version it (e.g., using Git
+Just as importantly, since the Terraform module code is now defined in a single repo, you can version it (e.g., using Git
 tags and referencing them using the `ref` parameter in the `source` URL, as in the `stage/app/terraform.tfvars` and 
 `prod/app/terraform.tfvars` examples above), and promote a single, immutable version through each environment (e.g., 
 qa -> stage -> prod). This idea is inspired by Kief Morris' blog post [Using Pipelines to Manage Environments with 
@@ -332,7 +332,7 @@ Terraform modules:
     └── terraform.tfvars
 ```
 
-In your root `terraform.tfvars` file, you can define your entire remote state configuration just once in a 
+In your **root** `terraform.tfvars` file, you can define your entire remote state configuration just once in a 
 `remote_state` block, as follows:
 
 ```hcl
@@ -355,7 +355,7 @@ as Terraform. The next time you run `terragrunt`, it will automatically configur
 `remote_state.config` block, if they aren't configured already, by calling [terraform 
 init](https://www.terraform.io/docs/commands/init.html).
 
-In each of the child `terraform.tfvars` files, such as `mysql/terraform.tfvars`, you can tell Terragrunt to 
+In each of the **child** `terraform.tfvars` files, such as `mysql/terraform.tfvars`, you can tell Terragrunt to 
 automatically include all the settings from the root `terraform.tfvars` file as follows:
 
 ```hcl
@@ -379,10 +379,10 @@ The `terraform.tfvars` files above use two *helper functions*:
   parameter in every module.
 
 * `path_relative_to_include()`: This helper function returns the relative path between the current `terraform.tfvars` 
-  file and the path specified in its `include` block. We use this so that each Terraform module stores its Terraform
-  state at a different `key`. For example, the `mysql` module will have its `key` parameter resolve to 
-  `mysql/terraform.tstate` and the `frontend-app` module will have its `key` parameter resolve to 
-  `frontend-app/terraform.tfstate`.
+  file and the path specified in its `include` block. We typically use this in a root `terraform.tfvars` file so that 
+  each Terraform child module stores its Terraform state at a different `key`. For example, the `mysql` module will 
+  have its `key` parameter resolve to `mysql/terraform.tstate` and the `frontend-app` module will have its `key` 
+  parameter resolve to `frontend-app/terraform.tfstate`.
 
 See [the helper functions docs](#helper-functions) for more info.
 
@@ -401,7 +401,7 @@ they don't already exist:
   locking](https://www.terraform.io/docs/backends/types/s3.html#lock_table)) in `remote_state.config`, if that table
   doesn't already exist, Terragrunt will create it automatically, including a primary key called `LockID`.
 
-**Note*: If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile 
+**Note**: If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile 
 when creating the S3 bucket or DynamoDB table. 
 
 
@@ -445,7 +445,9 @@ terragrunt = {
 }
 ```
 
-With the configuration above, when you run `terragrunt apply`, Terragrunt will call Terraform as follows:
+Each `extra_arguments` block includes an arbitrary name (in the example above, `retry_lock`), a list of `commands` to
+which the extra arguments should be add, and the list of `arguments` to add. With the configuration above, when you 
+run `terragrunt apply`, Terragrunt will call Terraform as follows:
 
 ```
 > terragrunt apply
@@ -511,10 +513,9 @@ terraform apply -lock-timeout=20m -var-file=terraform.tfvars -var-file=terraform
 
 #### Handling whitespace
 
-The list of arguments cannot include whitespaces, therefore if you would like to separate a command line switch from its
-corresponding argument, then you will need to pass both the command line switch and the argument as a list:
-
-Sample config:
+The list of arguments cannot include whitespaces, so if you need to pass command line arguments that include 
+spaces (e.g. `-var bucket=example.bucket.name`), then each of the arguments will need to be a separate item in the
+`arguments` list:
 
 ```hcl
 terragrunt = {
@@ -607,15 +608,16 @@ terragrunt = {
 }
 ```
 
-Now you can go into the root folder and deploy all the modules within it by using the `apply-all` command:
+Now you can go into the `root` folder and deploy all the modules within it by using the `apply-all` command:
  
 ```
 cd root
 terragrunt apply-all
 ```
 
-When you run this command, Terragrunt will look through all the subfolders of the current working directory, find all 
-`terraform.tfvars` files with a `terragrunt = { ... }` block, and run `terragrunt apply` in each one concurrently.
+When you run this command, Terragrunt will recursively look through all the subfolders of the current working 
+directory, find all `terraform.tfvars` files with a `terragrunt = { ... }` block, and run `terragrunt apply` in each 
+one concurrently.
 
 Similarly, to undeploy all the Terraform modules, you can use the `destroy-all` command:
 
@@ -819,12 +821,13 @@ as the environment variable `TF_VAR_foo` and to read that value in using this `g
 
 ### CLI Options
 
-Terragrunt forwards all arguments and options to Terraform. The only exceptions are the options that start with the
-prefix `--terragrunt-`. The currently available options are:
+Terragrunt forwards all arguments and options to Terraform. The only exceptions are `--version` and arguments that 
+start with the prefix `--terragrunt-`. The currently available options are:
 
 * `--terragrunt-config`: A custom path to the `terraform.tfvars` file. May also be specified via the `TERRAGRUNT_CONFIG`
   environment variable. The default path is `terraform.tfvars` in the current directory (see 
-  [Terragrunt config files](#terragrnt-config-files) for a slightly more nuanced explanation).
+  [Terragrunt config files](#terragrnt-config-files) for a slightly more nuanced explanation). This argument is not 
+  used with the `apply-all`, `destroy-all`, and `output-all` commands.
 
 * `--terragrunt-tfpath`: A custom path to the Terraform binary. May also be specified via the `TERRAGRUNT_TFPATH`
   environment variable. The default is `terraform` in a directory on your PATH. 
@@ -840,7 +843,7 @@ prefix `--terragrunt-`. The currently available options are:
 * `--terragrunt-source`: Download Terraform configurations from the specified source into a temporary folder, and run 
   Terraform in that temporary folder. May also be specified via the `TERRAGRUNT_SOURCE` environment variable. The 
   source should use the same syntax as the [Terraform module source](https://www.terraform.io/docs/modules/sources.html) 
-  parameter.  
+  parameter. This argument is not used with the `apply-all`, `destroy-all`, and `output-all` commands. 
 
 * `--terragrunt-source-update`: Delete the contents of the temporary folder before downloading Terraform source code
   into it.
