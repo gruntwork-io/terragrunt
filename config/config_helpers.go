@@ -2,12 +2,16 @@ package config
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/util"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 var INTERPOLATION_SYNTAX_REGEX = regexp.MustCompile("\\$\\{.*?\\}")
@@ -53,10 +57,14 @@ func executeTerragruntHelperFunction(functionName string, parameters string, inc
 		return findInParentFolders(terragruntOptions)
 	case "path_relative_to_include":
 		return pathRelativeToInclude(include, terragruntOptions)
+	case "path_relative_from_include":
+		return pathRelativeFromInclude(include, terragruntOptions)
 	case "get_env":
 		return getEnvironmentVariable(parameters, terragruntOptions)
 	case "get_tfvars_dir":
 		return getTfVarsDir(terragruntOptions)
+	case "get_aws_account_id":
+		return getAWSAccountID(terragruntOptions)
 	default:
 		return "", errors.WithStackTrace(UnknownHelperFunction(functionName))
 	}
@@ -135,7 +143,7 @@ func findInParentFolders(terragruntOptions *options.TerragruntOptions) (string, 
 	return "", errors.WithStackTrace(CheckedTooManyParentFolders(terragruntOptions.TerragruntConfigPath))
 }
 
-// Return the relative path between the included Terragrunt cnofiguration file and the current Terragrunt configuration
+// Return the relative path between the included Terragrunt configuration file and the current Terragrunt configuration
 // file
 func pathRelativeToInclude(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	if include == nil {
@@ -155,6 +163,33 @@ func pathRelativeToInclude(include *IncludeConfig, terragruntOptions *options.Te
 	}
 
 	return util.GetPathRelativeTo(currentPath, includePath)
+}
+
+// Return the relative path from the current Terragrunt configuration to the included Terragrunt configuration file
+func pathRelativeFromInclude(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	if include == nil {
+		return ".", nil
+	}
+
+	relativePath, err := findInParentFolders(terragruntOptions)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	return filepath.ToSlash(filepath.Dir(relativePath)), nil
+}
+
+// Return the AWS account id associated to the current set of credentials
+func getAWSAccountID(terragruntOptions *options.TerragruntOptions) (string, error) {
+	iamSession := iam.New(session.Must(session.NewSession()))
+
+	result, err := iamSession.ListUsers(&iam.ListUsersInput{MaxItems: aws.Int64(1)})
+
+	if err != nil {
+		return "", err
+	}
+
+	return strings.Split(*result.Users[0].Arn, ":")[4], nil
 }
 
 // Custom error types

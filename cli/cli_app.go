@@ -229,7 +229,7 @@ func configureRemoteState(remoteState *remote.RemoteState, terragruntOptions *op
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
 	switch firstArg(terragruntOptions.TerraformCliArgs) {
-	case "apply", "destroy", "import", "graph", "output", "plan", "push", "refresh", "show", "taint", "untaint", "validate":
+	case "apply", "destroy", "import", "graph", "output", "plan", "push", "refresh", "show", "state", "taint", "untaint", "validate":
 		return remoteState.ConfigureRemoteState(terragruntOptions)
 	case "remote":
 		if secondArg(terragruntOptions.TerraformCliArgs) == "config" {
