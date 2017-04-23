@@ -147,7 +147,7 @@ func canonical(t *testing.T, path string) string {
 func state(t *testing.T, bucket string, key string) *remote.RemoteState {
 	return &remote.RemoteState{
 		Backend: "s3",
-		Config: map[string]string{
+		Config: map[string]interface{}{
 			"bucket": bucket,
 			"key":    key,
 		},

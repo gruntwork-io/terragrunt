@@ -10,15 +10,15 @@ import (
 
 // Configuration for Terraform remote state
 type RemoteState struct {
-	Backend string            `hcl:"backend"`
-	Config  map[string]string `hcl:"config"`
+	Backend string                 `hcl:"backend"`
+	Config  map[string]interface{} `hcl:"config"`
 }
 
 func (state *RemoteState) String() string {
 	return fmt.Sprintf("RemoteState{Backend = %v, Config = %v}", state.Backend, state.Config)
 }
 
-type RemoteStateInitializer func(map[string]string, *options.TerragruntOptions) error
+type RemoteStateInitializer func(map[string]interface{}, *options.TerragruntOptions) error
 
 // TODO: initialization actions for other remote state backends can be added here
 var remoteStateInitializers = map[string]RemoteStateInitializer{
@@ -113,7 +113,7 @@ func initCommand(remoteState RemoteState) []string {
 func (remoteState RemoteState) ToTerraformInitArgs() []string {
 	backendConfigArgs := []string{}
 	for key, value := range remoteState.Config {
-		arg := fmt.Sprintf("-backend-config=%s=%s", key, value)
+		arg := fmt.Sprintf("-backend-config=%s=%v", key, value)
 		backendConfigArgs = append(backendConfigArgs, arg)
 	}
 
