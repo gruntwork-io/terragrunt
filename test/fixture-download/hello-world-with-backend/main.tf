@@ -1,5 +1,5 @@
 data "template_file" "test" {
-  template = "${module.hello.hello}, ${var.name}"
+  template = "hello, ${var.name}"
 }
 
 variable "name" {
