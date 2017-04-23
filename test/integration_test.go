@@ -286,12 +286,22 @@ func TestLocalWithRelativeExtraArgs(t *testing.T) {
 func TestRemoteWithBackend(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_REMOTE_WITH_BACKEND)
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	lockTableName := fmt.Sprintf("terragrunt-lock-table-%s", strings.ToLower(uniqueId()))
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_REMOTE_WITH_BACKEND))
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_REMOTE_WITH_BACKEND)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_REMOTE_WITH_BACKEND)
+
+	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName)
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_REMOTE_WITH_BACKEND))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 }
 
 func TestExtraArguments(t *testing.T) {
@@ -343,6 +353,8 @@ func copyEnvironment(t *testing.T, environmentPath string) string {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir due to error: %v", err)
 	}
+
+	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 
 	err = filepath.Walk(environmentPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
