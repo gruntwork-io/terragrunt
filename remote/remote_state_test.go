@@ -38,15 +38,15 @@ func TestShouldOverrideExistingRemoteState(t *testing.T) {
 	terragruntOptions := options.NewTerragruntOptionsForTest("remote_state_test")
 
 	testCases := []struct {
-		existingState   TerraformStateRemote
+		existingBackend TerraformBackend
 		stateFromConfig RemoteState
 		shouldOverride  bool
 	}{
-		{TerraformStateRemote{}, RemoteState{}, false},
-		{TerraformStateRemote{Type: "s3"}, RemoteState{Backend: "s3"}, false},
-		{TerraformStateRemote{Type: "s3"}, RemoteState{Backend: "atlas"}, true},
+		{TerraformBackend{}, RemoteState{}, false},
+		{TerraformBackend{Type: "s3"}, RemoteState{Backend: "s3"}, false},
+		{TerraformBackend{Type: "s3"}, RemoteState{Backend: "atlas"}, true},
 		{
-			TerraformStateRemote{
+			TerraformBackend{
 				Type:   "s3",
 				Config: map[string]string{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
@@ -56,7 +56,7 @@ func TestShouldOverrideExistingRemoteState(t *testing.T) {
 			},
 			false,
 		}, {
-			TerraformStateRemote{
+			TerraformBackend{
 				Type:   "s3",
 				Config: map[string]string{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
@@ -66,7 +66,7 @@ func TestShouldOverrideExistingRemoteState(t *testing.T) {
 			},
 			true,
 		}, {
-			TerraformStateRemote{
+			TerraformBackend{
 				Type:   "s3",
 				Config: map[string]string{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
@@ -76,7 +76,7 @@ func TestShouldOverrideExistingRemoteState(t *testing.T) {
 			},
 			true,
 		}, {
-			TerraformStateRemote{
+			TerraformBackend{
 				Type:   "s3",
 				Config: map[string]string{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
@@ -89,9 +89,9 @@ func TestShouldOverrideExistingRemoteState(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		shouldOverride, err := shouldOverrideExistingRemoteState(&testCase.existingState, testCase.stateFromConfig, terragruntOptions)
+		shouldOverride, err := shouldOverrideExistingRemoteState(&testCase.existingBackend, testCase.stateFromConfig, terragruntOptions)
 		assert.Nil(t, err, "Unexpected error: %v", err)
-		assert.Equal(t, testCase.shouldOverride, shouldOverride, "Expect shouldOverrideExistingRemoteState to return %t but got %t for existingRemoteState %v and remoteStateFromTerragruntConfig %v", testCase.shouldOverride, shouldOverride, testCase.existingState, testCase.stateFromConfig)
+		assert.Equal(t, testCase.shouldOverride, shouldOverride, "Expect shouldOverrideExistingRemoteState to return %t but got %t for existingRemoteState %v and remoteStateFromTerragruntConfig %v", testCase.shouldOverride, shouldOverride, testCase.existingBackend, testCase.stateFromConfig)
 	}
 }
 

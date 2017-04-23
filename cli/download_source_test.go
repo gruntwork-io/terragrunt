@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -157,9 +156,8 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 
 	terragruntOptions := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	terragruntOptions.SourceUpdate = sourceUpdate
-	terragruntConfig := config.TerragruntConfig{}
 
-	err := downloadTerraformSourceIfNecessary(terraformSource, &terragruntConfig, terragruntOptions)
+	err := downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions)
 	assert.Nil(t, err, "For terraform source %v: %v", terraformSource, err)
 
 	expectedFilePath := util.JoinPath(downloadDir, "main.tf")
