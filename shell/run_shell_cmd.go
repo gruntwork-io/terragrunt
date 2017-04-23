@@ -9,9 +9,9 @@ import (
 	"strings"
 	"syscall"
 
+	"bytes"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"bytes"
 )
 
 // Run the specified shell command with the specified arguments. Connect the command's stdin, stdout, and stderr to

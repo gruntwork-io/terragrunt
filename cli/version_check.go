@@ -1,11 +1,11 @@
 package cli
 
 import (
-	"github.com/gruntwork-io/terragrunt/options"
-	"regexp"
-	"github.com/hashicorp/go-version"
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/hashicorp/go-version"
+	"regexp"
 )
 
 // The terraform --version output is of the format: Terraform v0.9.3
@@ -63,6 +63,7 @@ func parseTerraformVersion(versionCommandOutput string) (*version.Version, error
 // Custom error types
 
 type InvalidTerraformVersionSyntax string
+
 func (err InvalidTerraformVersionSyntax) Error() string {
 	return fmt.Sprintf("Unable to parse Terraform version output: %s", string(err))
 }
@@ -71,6 +72,7 @@ type InvalidTerraformVersion struct {
 	CurrentVersion     *version.Version
 	VersionConstraints version.Constraints
 }
+
 func (err InvalidTerraformVersion) Error() string {
 	return fmt.Sprintf("The currently installed version of Terraform (%s) is not compatible with the version Terragrunt requires (%s).", err.CurrentVersion.String(), err.VersionConstraints.String())
 }
