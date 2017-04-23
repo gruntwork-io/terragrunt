@@ -29,8 +29,7 @@ func TestToTerraformInitArgsNoBackendConfigs(t *testing.T) {
 
 	remoteState := RemoteState{Backend: "s3"}
 	args := remoteState.ToTerraformInitArgs()
-
-	assertTerraformInitArgsEqual(t, args, "")
+	assert.Empty(t, args)
 }
 
 func TestShouldOverrideExistingRemoteState(t *testing.T) {
