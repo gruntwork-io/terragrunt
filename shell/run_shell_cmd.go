@@ -9,6 +9,7 @@ import (
 	"strings"
 	"syscall"
 
+	"bytes"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -42,6 +43,21 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 	cmdChannel <- err
 
 	return errors.WithStackTrace(err)
+}
+
+// Run the specified shell command with the specified arguments. Capture the command's stdout and return it as a
+// string.
+func RunShellCommandAndCaptureOutput(terragruntOptions *options.TerragruntOptions, command string, args ...string) (string, error) {
+	stdout := new(bytes.Buffer)
+
+	terragruntOptionsCopy := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	terragruntOptionsCopy.Writer = stdout
+
+	if err := RunShellCommand(terragruntOptionsCopy, command, args...); err != nil {
+		return "", err
+	}
+
+	return stdout.String(), nil
 }
 
 // Return the exit code of a command. If the error is not an exec.ExitError type,
