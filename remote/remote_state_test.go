@@ -19,7 +19,7 @@ func TestToTerraformRemoteConfigArgs(t *testing.T) {
 			"region":  "us-east-1",
 		},
 	}
-	args := remoteState.toTerraformRemoteConfigArgs()
+	args := remoteState.ToTerraformInitArgs()
 
 	assertRemoteConfigArgsEqual(t, args, "init -backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1")
 }
@@ -28,7 +28,7 @@ func TestToTerraformRemoteConfigArgsNoBackendConfigs(t *testing.T) {
 	t.Parallel()
 
 	remoteState := RemoteState{Backend: "s3"}
-	args := remoteState.toTerraformRemoteConfigArgs()
+	args := remoteState.ToTerraformInitArgs()
 
 	assertRemoteConfigArgsEqual(t, args, "init")
 }

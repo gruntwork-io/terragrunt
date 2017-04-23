@@ -157,7 +157,7 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	if sourceUrl, hasSourceUrl := getTerraformSourceUrl(terragruntOptions, conf); hasSourceUrl {
-		if err := downloadTerraformSource(sourceUrl, terragruntOptions); err != nil {
+		if err := downloadTerraformSource(sourceUrl, conf, terragruntOptions); err != nil {
 			return err
 		}
 	}

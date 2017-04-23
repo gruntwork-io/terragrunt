@@ -43,13 +43,13 @@ var forcedRegexp = regexp.MustCompile(`^([A-Za-z0-9]+)::(.+)$`)
 //
 // See the processTerraformSource method for how we determine the temporary folder so we can reuse it across multiple
 // runs of Terragrunt to avoid downloading everything from scratch every time.
-func downloadTerraformSource(source string, terragruntOptions *options.TerragruntOptions) error {
+func downloadTerraformSource(source string, terragruntConfig *config.TerragruntConfig, terragruntOptions *options.TerragruntOptions) error {
 	terraformSource, err := processTerraformSource(source, terragruntOptions)
 	if err != nil {
 		return err
 	}
 
-	if err := downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions); err != nil {
+	if err := downloadTerraformSourceIfNecessary(terraformSource, terragruntConfig, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -65,7 +65,7 @@ func downloadTerraformSource(source string, terragruntOptions *options.Terragrun
 }
 
 // Download the specified TerraformSource if the latest code hasn't already been downloaded.
-func downloadTerraformSourceIfNecessary(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions) error {
+func downloadTerraformSourceIfNecessary(terraformSource *TerraformSource, terragruntConfig *config.TerragruntConfig, terragruntOptions *options.TerragruntOptions) error {
 	if terragruntOptions.SourceUpdate {
 		terragruntOptions.Logger.Printf("The --%s flag is set, so deleting the temporary folder %s before downloading source.", OPT_TERRAGRUNT_SOURCE_UPDATE, terraformSource.DownloadDir)
 		if err := os.RemoveAll(terraformSource.DownloadDir); err != nil {
@@ -87,7 +87,7 @@ func downloadTerraformSourceIfNecessary(terraformSource *TerraformSource, terrag
 		return err
 	}
 
-	if err := terraformInit(terraformSource, terragruntOptions); err != nil {
+	if err := terraformInit(terraformSource, terragruntConfig, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -345,11 +345,17 @@ func getTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragr
 }
 
 // Download the code from the Canonical Source URL into the Download Folder using the terraform init command
-func terraformInit(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions) error {
+func terraformInit(terraformSource *TerraformSource, terragruntConfig *config.TerragruntConfig, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
 
 	terragruntInitOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
-	terragruntInitOptions.TerraformCliArgs = []string{"init", terraformSource.CanonicalSourceURL.String(), terraformSource.DownloadDir}
+
+	terragruntInitOptions.TerraformCliArgs = []string{"init"}
+	if terragruntConfig.RemoteState != nil {
+		terragruntInitOptions.TerraformCliArgs = append(terragruntInitOptions.TerraformCliArgs, terragruntConfig.RemoteState.ToTerraformInitArgs()...)
+	}
+	terragruntInitOptions.TerraformCliArgs = append(terragruntInitOptions.TerraformCliArgs, terraformSource.CanonicalSourceURL.String(), terraformSource.DownloadDir)
+
 
 	return runTerraformCommand(terragruntInitOptions)
 }

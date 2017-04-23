@@ -64,7 +64,7 @@ func (remoteState RemoteState) ConfigureRemoteState(terragruntOptions *options.T
 		}
 
 		terragruntOptions.Logger.Printf("Configuring remote state for the %s backend", remoteState.Backend)
-		return shell.RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, remoteState.toTerraformRemoteConfigArgs()...)
+		return shell.RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, initCommand(remoteState)...)
 	}
 
 	return nil
@@ -105,17 +105,19 @@ func shouldOverrideExistingRemoteState(existingRemoteState *TerraformStateRemote
 	return false, nil
 }
 
-// Convert the RemoteState config into the format used by Terraform
-func (remoteState RemoteState) toTerraformRemoteConfigArgs() []string {
-	baseArgs := []string{"init"}
+func initCommand(remoteState RemoteState) []string {
+	return append([]string{"init"}, remoteState.ToTerraformInitArgs()...)
+}
 
+// Convert the RemoteState config into the format used by the terraform init command
+func (remoteState RemoteState) ToTerraformInitArgs() []string {
 	backendConfigArgs := []string{}
 	for key, value := range remoteState.Config {
 		arg := fmt.Sprintf("-backend-config=%s=%s", key, value)
 		backendConfigArgs = append(backendConfigArgs, arg)
 	}
 
-	return append(baseArgs, backendConfigArgs...)
+	return backendConfigArgs
 }
 
 var RemoteBackendMissing = fmt.Errorf("The remote_state.backend field cannot be empty")
