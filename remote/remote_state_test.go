@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestToTerraformRemoteConfigArgs(t *testing.T) {
+func TestToTerraformInitArgs(t *testing.T) {
 	t.Parallel()
 
 	remoteState := RemoteState{
@@ -21,16 +21,16 @@ func TestToTerraformRemoteConfigArgs(t *testing.T) {
 	}
 	args := remoteState.ToTerraformInitArgs()
 
-	assertRemoteConfigArgsEqual(t, args, "init -backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1")
+	assertTerraformInitArgsEqual(t, args, "-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1")
 }
 
-func TestToTerraformRemoteConfigArgsNoBackendConfigs(t *testing.T) {
+func TestToTerraformInitArgsNoBackendConfigs(t *testing.T) {
 	t.Parallel()
 
 	remoteState := RemoteState{Backend: "s3"}
 	args := remoteState.ToTerraformInitArgs()
 
-	assertRemoteConfigArgsEqual(t, args, "init")
+	assertTerraformInitArgsEqual(t, args, "")
 }
 
 func TestShouldOverrideExistingRemoteState(t *testing.T) {
@@ -96,7 +96,7 @@ func TestShouldOverrideExistingRemoteState(t *testing.T) {
 	}
 }
 
-func assertRemoteConfigArgsEqual(t *testing.T, actualArgs []string, expectedArgs string) {
+func assertTerraformInitArgsEqual(t *testing.T, actualArgs []string, expectedArgs string) {
 	expected := strings.Split(expectedArgs, " ")
 	assert.Len(t, actualArgs, len(expected))
 
