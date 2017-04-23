@@ -356,6 +356,5 @@ func terraformInit(terraformSource *TerraformSource, terragruntConfig *config.Te
 	}
 	terragruntInitOptions.TerraformCliArgs = append(terragruntInitOptions.TerraformCliArgs, terraformSource.CanonicalSourceURL.String(), terraformSource.DownloadDir)
 
-
 	return runTerraformCommand(terragruntInitOptions)
 }
