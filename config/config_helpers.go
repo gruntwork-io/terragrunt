@@ -6,9 +6,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -168,7 +167,7 @@ func pathRelativeToInclude(include *IncludeConfig, terragruntOptions *options.Te
 
 	includedConfigPath, err := ResolveTerragruntConfigString(include.Path, include, terragruntOptions)
 	if err != nil {
-		return "", err
+		return "", errors.WithStackTrace(err)
 	}
 
 	includePath := filepath.Dir(includedConfigPath)
@@ -197,15 +196,17 @@ func pathRelativeFromInclude(include *IncludeConfig, terragruntOptions *options.
 
 // Return the AWS account id associated to the current set of credentials
 func getAWSAccountID() (string, error) {
-	iamSession := iam.New(session.Must(session.NewSession()))
-
-	result, err := iamSession.ListUsers(&iam.ListUsersInput{MaxItems: aws.Int64(1)})
-
+	session, err := session.NewSession()
 	if err != nil {
-		return "", err
+		return "", errors.WithStackTrace(err)
 	}
 
-	return strings.Split(*result.Users[0].Arn, ":")[4], nil
+	identity, err := sts.New(session).GetCallerIdentity(nil)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	return *identity.Account, nil
 }
 
 // Custom error types
