@@ -89,17 +89,10 @@ func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 	cmd := firstArg(terragruntOptions.TerraformCliArgs)
 
 	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
-		if arg.Commands != nil && (arg.Arguments != nil || arg.VarFiles != nil) {
+		if arg.Commands != nil && arg.Arguments != nil {
 			for _, arg_cmd := range arg.Commands {
 				if cmd == arg_cmd {
 					out = append(out, arg.Arguments...)
-
-					// If VarFiles are specified, check for each file if it exists and if so, add a -var-file=<file>
-					for _, file := range arg.VarFiles {
-						if _, err := os.Stat(file); err == nil {
-							out = append(out, fmt.Sprintf("-var-file=%s", file))
-						}
-					}
 				}
 			}
 		}
