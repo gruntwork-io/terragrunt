@@ -97,6 +97,8 @@ AUTHOR(S):
 
 var MODULE_REGEX = regexp.MustCompile(`module[[:blank:]]+".+"`)
 
+const DEFAULT_TERRAFORM_VERSION_CONSTRAINT = ">= v0.9.3"
+
 const TERRAFORM_EXTENSION_GLOB = "*.tf"
 
 // Create the Terragrunt CLI App
@@ -135,6 +137,10 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 
 	terragruntOptions, err := ParseTerragruntOptions(cliContext)
 	if err != nil {
+		return err
+	}
+
+	if err := CheckTerraformVersion(DEFAULT_TERRAFORM_VERSION_CONSTRAINT, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -310,6 +316,11 @@ func outputAll(terragruntOptions *options.TerragruntOptions) error {
 // Run the given Terraform command
 func runTerraformCommand(terragruntOptions *options.TerragruntOptions) error {
 	return shell.RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, terragruntOptions.TerraformCliArgs...)
+}
+
+// Run the given Terraform command and return the stdout as a string
+func runTerraformCommandAndCaptureOutput(terragruntOptions *options.TerragruntOptions) (string, error) {
+	return shell.RunShellCommandAndCaptureOutput(terragruntOptions, terragruntOptions.TerraformPath, terragruntOptions.TerraformCliArgs...)
 }
 
 // Custom error types
