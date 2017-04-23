@@ -63,8 +63,10 @@ func executeTerragruntHelperFunction(functionName string, parameters string, inc
 		return getEnvironmentVariable(parameters, terragruntOptions)
 	case "get_tfvars_dir":
 		return getTfVarsDir(terragruntOptions)
+	case "get_parent_dir":
+		return getParentDir(include, terragruntOptions)
 	case "get_aws_account_id":
-		return getAWSAccountID(terragruntOptions)
+		return getAWSAccountID()
 	default:
 		return "", errors.WithStackTrace(UnknownHelperFunction(functionName))
 	}
@@ -78,6 +80,20 @@ func getTfVarsDir(terragruntOptions *options.TerragruntOptions) (string, error) 
 	}
 
 	return filepath.Dir(terragruntConfigFileAbsPath), nil
+}
+
+// Return the parent directory where the Terragrunt configuration file lives
+func getParentDir(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	parentPath, err := pathRelativeFromInclude(include, terragruntOptions)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+	parentPath, err = filepath.Abs(parentPath)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	return parentPath, nil
 }
 
 func parseGetEnvParameters(parameters string) (EnvVar, error) {
@@ -180,7 +196,7 @@ func pathRelativeFromInclude(include *IncludeConfig, terragruntOptions *options.
 }
 
 // Return the AWS account id associated to the current set of credentials
-func getAWSAccountID(terragruntOptions *options.TerragruntOptions) (string, error) {
+func getAWSAccountID() (string, error) {
 	iamSession := iam.New(session.Must(session.NewSession()))
 
 	result, err := iamSession.ListUsers(&iam.ListUsersInput{MaxItems: aws.Int64(1)})

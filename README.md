@@ -779,8 +779,11 @@ Here are the supported helper functions:
 
 * [find_in_parent_folders](#find_in_parent_folders)
 * [path_relative_to_include](#path_relative_to_include)
+* [path_relative_from_include](#path_relative_from_include)
 * [get_env](#get_env)
+* [get_aws_account_id](#get_aws_account_id)
 * [get_tfvars_dir](#get_tfvars_dir)
+* [get_parent_dir](#get_parent_dir)
 
 
 #### find_in_parent_folders
@@ -1057,6 +1060,15 @@ For the example above, this path will resolve to `/terraform-code/frontend-app/.
 what you want.
 
 
+#### get_parent_dir
+
+`get_parent_dir()` returns the absolute directory where the Terragrunt parent configuration file (by default, `terraform.tfvars`) lives.
+This is useful when you need to use relative paths with [remote Terraform configurations](#remote-terraform-configurations) and you want
+those paths relative to your parent Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads
+the code.
+
+This function is very similar to [get_tfvars_dir()](#get_tfvars_dir) except it returns the root instead of the leaf of your terragrunt
+configuration folder.
 
 
 ### CLI Options
