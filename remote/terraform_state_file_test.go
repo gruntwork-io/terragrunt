@@ -30,7 +30,7 @@ func TestParseTerraformStateLocal(t *testing.T) {
 	expectedTerraformState := &TerraformState{
 		Version: 1,
 		Serial:  0,
-		Remote:  nil,
+		Backend: nil,
 		Modules: []TerraformStateModule{
 			TerraformStateModule{
 				Path:      []string{"root"},
@@ -55,7 +55,7 @@ func TestParseTerraformStateRemote(t *testing.T) {
 	{
 		"version": 5,
 		"serial": 12,
-		"remote": {
+		"backend": {
 			"type": "s3",
 			"config": {
 				"bucket": "bucket",
@@ -79,7 +79,7 @@ func TestParseTerraformStateRemote(t *testing.T) {
 	expectedTerraformState := &TerraformState{
 		Version: 5,
 		Serial:  12,
-		Remote: &TerraformStateRemote{
+		Backend: &TerraformBackend{
 			Type: "s3",
 			Config: map[string]string{
 				"bucket":  "bucket",
@@ -113,7 +113,7 @@ func TestParseTerraformStateRemoteFull(t *testing.T) {
 	{
 	    "version": 1,
 	    "serial": 51,
-	    "remote": {
+	    "backend": {
 		"type": "s3",
 		"config": {
 		    "bucket": "bucket",
@@ -209,7 +209,7 @@ func TestParseTerraformStateRemoteFull(t *testing.T) {
 	expectedTerraformState := &TerraformState{
 		Version: 1,
 		Serial:  51,
-		Remote: &TerraformStateRemote{
+		Backend: &TerraformBackend{
 			Type: "s3",
 			Config: map[string]string{
 				"bucket":  "bucket",

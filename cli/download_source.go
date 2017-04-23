@@ -349,7 +349,10 @@ func terraformInit(terraformSource *TerraformSource, terragruntOptions *options.
 	terragruntOptions.Logger.Printf("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
 
 	terragruntInitOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
-	terragruntInitOptions.TerraformCliArgs = []string{"init", terraformSource.CanonicalSourceURL.String(), terraformSource.DownloadDir}
+
+	// Backend and get configuration will be handled separately
+	terragruntInitOptions.TerraformCliArgs = []string{"init", "-backend=false", "-get=false"}
+	terragruntInitOptions.TerraformCliArgs = append(terragruntInitOptions.TerraformCliArgs, terraformSource.CanonicalSourceURL.String(), terraformSource.DownloadDir)
 
 	return runTerraformCommand(terragruntInitOptions)
 }

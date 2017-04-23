@@ -22,12 +22,12 @@ const DEFAULT_PATH_TO_REMOTE_STATE_FILE = ".terraform/terraform.tfstate"
 type TerraformState struct {
 	Version int
 	Serial  int
-	Remote  *TerraformStateRemote
+	Backend *TerraformBackend
 	Modules []TerraformStateModule
 }
 
-// The structure of the "remote" section of the Terraform .tfstate file
-type TerraformStateRemote struct {
+// The structure of the "backend" section of the Terraform .tfstate file
+type TerraformBackend struct {
 	Type   string
 	Config map[string]string
 }
@@ -41,7 +41,7 @@ type TerraformStateModule struct {
 
 // Return true if this Terraform state is configured for remote state storage
 func (state *TerraformState) IsRemote() bool {
-	return state.Remote != nil
+	return state.Backend != nil && state.Backend.Type != "local"
 }
 
 // Parse the Terraform .tfstate file from the location specified by workingDir. If no location is specified,

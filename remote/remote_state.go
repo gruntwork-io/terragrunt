@@ -64,7 +64,7 @@ func (remoteState RemoteState) ConfigureRemoteState(terragruntOptions *options.T
 		}
 
 		terragruntOptions.Logger.Printf("Configuring remote state for the %s backend", remoteState.Backend)
-		return shell.RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, remoteState.toTerraformRemoteConfigArgs()...)
+		return shell.RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, initCommand(remoteState)...)
 	}
 
 	return nil
@@ -81,7 +81,7 @@ func shouldConfigureRemoteState(remoteStateFromTerragruntConfig RemoteState, ter
 	}
 
 	if state != nil && state.IsRemote() {
-		return shouldOverrideExistingRemoteState(state.Remote, remoteStateFromTerragruntConfig, terragruntOptions)
+		return shouldOverrideExistingRemoteState(state.Backend, remoteStateFromTerragruntConfig, terragruntOptions)
 	} else {
 		return true, nil
 	}
@@ -90,32 +90,34 @@ func shouldConfigureRemoteState(remoteStateFromTerragruntConfig RemoteState, ter
 // Check if the remote state that is already configured matches the one specified in the Terragrunt config. If it does,
 // return false to indicate remote state does not need to be configured again. If it doesn't, prompt the user whether
 // we should override the existing remote state setting.
-func shouldOverrideExistingRemoteState(existingRemoteState *TerraformStateRemote, remoteStateFromTerragruntConfig RemoteState, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	if existingRemoteState.Type != remoteStateFromTerragruntConfig.Backend {
-		prompt := fmt.Sprintf("WARNING: Terraform remote state is already configured, but for backend %s, whereas your Terragrunt configuration specifies %s. Overwrite?", existingRemoteState.Type, remoteStateFromTerragruntConfig.Backend)
+func shouldOverrideExistingRemoteState(existingBackend *TerraformBackend, remoteStateFromTerragruntConfig RemoteState, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	if existingBackend.Type != remoteStateFromTerragruntConfig.Backend {
+		prompt := fmt.Sprintf("WARNING: Terraform remote state is already configured, but for backend %s, whereas your Terragrunt configuration specifies %s. Overwrite?", existingBackend.Type, remoteStateFromTerragruntConfig.Backend)
 		return shell.PromptUserForYesNo(prompt, terragruntOptions)
 	}
 
-	if !reflect.DeepEqual(existingRemoteState.Config, remoteStateFromTerragruntConfig.Config) {
-		prompt := fmt.Sprintf("WARNING: Terraform remote state is already configured for backend %s with config %v, but your Terragrunt configuration specifies config %v. Overwrite?", existingRemoteState.Type, existingRemoteState.Config, remoteStateFromTerragruntConfig.Config)
+	if !reflect.DeepEqual(existingBackend.Config, remoteStateFromTerragruntConfig.Config) {
+		prompt := fmt.Sprintf("WARNING: Terraform remote state is already configured for backend %s with config %v, but your Terragrunt configuration specifies config %v. Overwrite?", existingBackend.Type, existingBackend.Config, remoteStateFromTerragruntConfig.Config)
 		return shell.PromptUserForYesNo(prompt, terragruntOptions)
 	}
 
-	terragruntOptions.Logger.Printf("Remote state is already configured for backend %s", existingRemoteState.Type)
+	terragruntOptions.Logger.Printf("Remote state is already configured for backend %s", existingBackend.Type)
 	return false, nil
 }
 
-// Convert the RemoteState config into the format used by Terraform
-func (remoteState RemoteState) toTerraformRemoteConfigArgs() []string {
-	baseArgs := []string{"init"}
+func initCommand(remoteState RemoteState) []string {
+	return append([]string{"init"}, remoteState.ToTerraformInitArgs()...)
+}
 
+// Convert the RemoteState config into the format used by the terraform init command
+func (remoteState RemoteState) ToTerraformInitArgs() []string {
 	backendConfigArgs := []string{}
 	for key, value := range remoteState.Config {
 		arg := fmt.Sprintf("-backend-config=%s=%s", key, value)
 		backendConfigArgs = append(backendConfigArgs, arg)
 	}
 
-	return append(baseArgs, backendConfigArgs...)
+	return backendConfigArgs
 }
 
 var RemoteBackendMissing = fmt.Errorf("The remote_state.backend field cannot be empty")

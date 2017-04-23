@@ -42,6 +42,24 @@ var DEPRECATED_COMMANDS = map[string]string{
 	CMD_TEAR_DOWN: CMD_DESTROY_ALL,
 }
 
+var TERRAFORM_COMMANDS_THAT_USE_STATE = []string{
+	"apply",
+	"destroy",
+	"env",
+	"import",
+	"graph",
+	"output",
+	"plan",
+	"push",
+	"refresh",
+	"show",
+	"taint",
+	"untaint",
+	"validate",
+	"force-unlock",
+	"state",
+}
+
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
 // in its definition, we don't quite fit into the model of any Go CLI library. Fortunately, urfave/cli allows us to
 // override the whole template used for the Usage Text.
@@ -78,6 +96,8 @@ AUTHOR(S):
 `
 
 var MODULE_REGEX = regexp.MustCompile(`module[[:blank:]]+".+"`)
+
+const DEFAULT_TERRAFORM_VERSION_CONSTRAINT = ">= v0.9.3"
 
 const TERRAFORM_EXTENSION_GLOB = "*.tf"
 
@@ -117,6 +137,10 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 
 	terragruntOptions, err := ParseTerragruntOptions(cliContext)
 	if err != nil {
+		return err
+	}
+
+	if err := CheckTerraformVersion(DEFAULT_TERRAFORM_VERSION_CONSTRAINT, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -228,19 +252,8 @@ func shouldDownloadModules(terragruntOptions *options.TerragruntOptions) (bool, 
 func configureRemoteState(remoteState *remote.RemoteState, terragruntOptions *options.TerragruntOptions) error {
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
-	switch firstArg(terragruntOptions.TerraformCliArgs) {
-	case "apply", "destroy", "import", "graph", "output", "plan", "push", "refresh", "show", "state", "taint", "untaint", "validate":
+	if util.ListContainsElement(TERRAFORM_COMMANDS_THAT_USE_STATE, firstArg(terragruntOptions.TerraformCliArgs)) {
 		return remoteState.ConfigureRemoteState(terragruntOptions)
-	case "remote":
-		if secondArg(terragruntOptions.TerraformCliArgs) == "config" {
-			// Encourage the user to configure remote state by defining it in a Terragrunt configuration
-			// file and letting Terragrunt handle remote state for them
-			return errors.WithStackTrace(DontManuallyConfigureRemoteState)
-		} else {
-			// The other "terraform remote" commands explicitly push or pull state, so we shouldn't mess
-			// with the configuration
-			return nil
-		}
 	}
 
 	return nil
@@ -303,6 +316,11 @@ func outputAll(terragruntOptions *options.TerragruntOptions) error {
 // Run the given Terraform command
 func runTerraformCommand(terragruntOptions *options.TerragruntOptions) error {
 	return shell.RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, terragruntOptions.TerraformCliArgs...)
+}
+
+// Run the given Terraform command and return the stdout as a string
+func runTerraformCommandAndCaptureOutput(terragruntOptions *options.TerragruntOptions) (string, error) {
+	return shell.RunShellCommandAndCaptureOutput(terragruntOptions, terragruntOptions.TerraformPath, terragruntOptions.TerraformCliArgs...)
 }
 
 // Custom error types
