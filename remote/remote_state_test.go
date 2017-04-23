@@ -12,8 +12,8 @@ func TestToTerraformInitArgs(t *testing.T) {
 
 	remoteState := RemoteState{
 		Backend: "s3",
-		Config: map[string]string{
-			"encrypt": "true",
+		Config: map[string]interface{}{
+			"encrypt": true,
 			"bucket":  "my-bucket",
 			"key":     "terraform.tfstate",
 			"region":  "us-east-1",
@@ -48,41 +48,41 @@ func TestShouldOverrideExistingRemoteState(t *testing.T) {
 		{
 			TerraformBackend{
 				Type:   "s3",
-				Config: map[string]string{"bucket": "foo", "key": "bar", "region": "us-east-1"},
+				Config: map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
 			RemoteState{
 				Backend: "s3",
-				Config:  map[string]string{"bucket": "foo", "key": "bar", "region": "us-east-1"},
+				Config:  map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
 			false,
 		}, {
 			TerraformBackend{
 				Type:   "s3",
-				Config: map[string]string{"bucket": "foo", "key": "bar", "region": "us-east-1"},
+				Config: map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
 			RemoteState{
 				Backend: "s3",
-				Config:  map[string]string{"bucket": "different", "key": "bar", "region": "us-east-1"},
+				Config:  map[string]interface{}{"bucket": "different", "key": "bar", "region": "us-east-1"},
 			},
 			true,
 		}, {
 			TerraformBackend{
 				Type:   "s3",
-				Config: map[string]string{"bucket": "foo", "key": "bar", "region": "us-east-1"},
+				Config: map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
 			RemoteState{
 				Backend: "s3",
-				Config:  map[string]string{"bucket": "foo", "key": "different", "region": "us-east-1"},
+				Config:  map[string]interface{}{"bucket": "foo", "key": "different", "region": "us-east-1"},
 			},
 			true,
 		}, {
 			TerraformBackend{
 				Type:   "s3",
-				Config: map[string]string{"bucket": "foo", "key": "bar", "region": "us-east-1"},
+				Config: map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
 			RemoteState{
 				Backend: "s3",
-				Config:  map[string]string{"bucket": "foo", "key": "bar", "region": "different"},
+				Config:  map[string]interface{}{"bucket": "foo", "key": "bar", "region": "different"},
 			},
 			true,
 		},

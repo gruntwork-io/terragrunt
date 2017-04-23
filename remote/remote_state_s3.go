@@ -15,7 +15,7 @@ import (
 
 // A representation of the configuration options available for S3 remote state
 type RemoteStateConfigS3 struct {
-	Encrypt   string `mapstructure:"encrypt"`
+	Encrypt   bool   `mapstructure:"encrypt"`
 	Bucket    string `mapstructure:"bucket"`
 	Key       string `mapstructure:"key"`
 	Region    string `mapstructure:"region"`
@@ -28,7 +28,7 @@ const SLEEP_BETWEEN_RETRIES_WAITING_FOR_S3_BUCKET = 5 * time.Second
 
 // Initialize the remote state S3 bucket specified in the given config. This function will validate the config
 // parameters, create the S3 bucket if it doesn't already exist, and check that versioning is enabled.
-func InitializeRemoteStateS3(config map[string]string, terragruntOptions *options.TerragruntOptions) error {
+func InitializeRemoteStateS3(config map[string]interface{}, terragruntOptions *options.TerragruntOptions) error {
 	s3Config, err := parseS3Config(config)
 	if err != nil {
 		return err
@@ -59,7 +59,7 @@ func InitializeRemoteStateS3(config map[string]string, terragruntOptions *option
 }
 
 // Parse the given map into an S3 config
-func parseS3Config(config map[string]string) (*RemoteStateConfigS3, error) {
+func parseS3Config(config map[string]interface{}) (*RemoteStateConfigS3, error) {
 	var s3Config RemoteStateConfigS3
 	if err := mapstructure.Decode(config, &s3Config); err != nil {
 		return nil, errors.WithStackTrace(err)
@@ -82,7 +82,7 @@ func validateS3Config(config *RemoteStateConfigS3, terragruntOptions *options.Te
 		return errors.WithStackTrace(MissingRequiredS3RemoteStateConfig("key"))
 	}
 
-	if config.Encrypt != "true" {
+	if !config.Encrypt {
 		terragruntOptions.Logger.Printf("WARNING: encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enabling encryption!", config.Bucket)
 	}
 

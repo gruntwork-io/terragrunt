@@ -29,7 +29,7 @@ type TerraformState struct {
 // The structure of the "backend" section of the Terraform .tfstate file
 type TerraformBackend struct {
 	Type   string
-	Config map[string]string
+	Config map[string]interface{}
 }
 
 // The structure of a "module" section of the Terraform .tfstate file
