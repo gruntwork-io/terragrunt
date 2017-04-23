@@ -2,8 +2,7 @@ name = "World"
 
 terragrunt = {
   terraform {
-    # TODO: Update the ref to a tag once the fix-init branch has been merged
-    source = "github.com/gruntwork-io/terragrunt.git//test/fixture-download/hello-world-with-backend?ref=fix-init"
+    source = "github.com/gruntwork-io/terragrunt.git//test/fixture-download/hello-world-with-backend?ref=v0.12.3"
   }
 
   # Configure Terragrunt to automatically store tfstate files in an S3 bucket
