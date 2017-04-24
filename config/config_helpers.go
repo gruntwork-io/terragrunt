@@ -78,7 +78,7 @@ func getTfVarsDir(terragruntOptions *options.TerragruntOptions) (string, error) 
 		return "", errors.WithStackTrace(err)
 	}
 
-	return filepath.Dir(terragruntConfigFileAbsPath), nil
+	return filepath.ToSlash(filepath.Dir(terragruntConfigFileAbsPath)), nil
 }
 
 // Return the parent directory where the Terragrunt configuration file lives
