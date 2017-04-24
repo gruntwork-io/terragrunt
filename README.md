@@ -779,8 +779,11 @@ Here are the supported helper functions:
 
 * [find_in_parent_folders](#find_in_parent_folders)
 * [path_relative_to_include](#path_relative_to_include)
+* [path_relative_from_include](#path_relative_from_include)
 * [get_env](#get_env)
 * [get_tfvars_dir](#get_tfvars_dir)
+* [get_parent_tfvars_dir](#get_parent_tfvars_dir)
+* [get_aws_account_id](#get_aws_account_id)
 
 
 #### find_in_parent_folders
@@ -843,6 +846,78 @@ terragrunt = {
 The resulting `key` will be `prod/mysql/terraform.tfstate` for the prod `mysql` module and 
 `stage/mysql/terraform.tfstate` for the stage `mysql` module. 
 
+
+#### path_relative_from_include
+
+`path_relative_from_include()` returns the relative path between the `path` specified in its `include` block and the current
+`.tfvars` file (it is the counterpart of `path_relative_to_include()`). For example, consider the following folder structure:
+
+```
+├── sources
+|  ├── mysql
+|  |  └── *.tf
+|  └── secrets
+|     └── mysql
+|         └── *.tf
+└── terragrunt
+  └── common.tfvars
+  ├── mysql
+  |  └── terraform.tfvars
+  ├── secrets
+  |  └── mysql
+  |     └── terraform.tfvars
+  └── terraform.tfvars
+```
+
+Imagine `terragrunt/mysql/terraform.tfvars` and `terragrunt/secrets/mysql/terraform.tfvars` include all settings from the root
+`terraform.tfvars` file:
+
+```hcl
+terragrunt = {
+  include {
+    path = "${find_in_parent_folders()}"
+  }
+}
+```
+
+The root `terraform.tfvars` can use the `path_relative_from_include()` in combination with `path_relative_to_include()` in its `source` configuration to retrieve the relative terraform source code from the terragrunt configuration file:
+
+```hcl
+terragrunt = {
+  terraform {
+    source = "${path_relative_from_include()}/../sources//${path_relative_to_include()}"
+  }
+  ...
+}
+```
+
+The resulting `source` will be `../../sources//mysql` for `mysql` module and `../../../sources//secrets/mysql` for `secrets/mysql` module.
+
+Another use case would be to add extra argument to include the common.tfvars file for all subdirectories:
+
+```hcl
+terragrunt = {
+  terraform = {
+    ...
+
+    extra_arguments "common_var" {
+      commands = [
+        "apply",
+        "plan",
+        "import",
+        "push",
+        "refresh"
+      ]
+
+      arguments = [
+        "-var-file=${get_tfvars_dir()}/${path_relative_from_include()}/common.tfvars",
+      ]
+    }
+  }
+}
+```
+
+This allows proper retrieval of the `common.tfvars` from whatever the level of subdirectories we have.
 
 #### get_env
 
@@ -943,6 +1018,92 @@ terragrunt = {
 For the example above, this path will resolve to `/terraform-code/frontend-app/../common.tfvars`, which is exactly 
 what you want.
 
+
+#### get_parent_tfvars_dir
+
+`get_parent_tfvars_dir()` returns the absolute directory where the Terragrunt parent configuration file (by default, `terraform.tfvars`) lives.
+This is useful when you need to use relative paths with [remote Terraform configurations](#remote-terraform-configurations) and you want
+those paths relative to your parent Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads
+the code.
+
+This function is very similar to [get_tfvars_dir()](#get_tfvars_dir) except it returns the root instead of the leaf of your terragrunt
+configuration folder.
+
+```
+/terraform-code
+├── terraform.tfvars
+├── common.tfvars
+├── app1
+│   └── terraform.tfvars
+├── tests
+│   ├── app2
+│   |   └── terraform.tfvars
+│   └── app3
+│       └── terraform.tfvars
+```
+
+```hcl
+terragrunt = {
+  terraform {
+    extra_arguments "common_vars" {
+      commands = [
+        "apply",
+        "plan",
+        "import",
+        "push",
+        "refresh"
+      ]
+
+      arguments = [
+        "-var-file=${get_parent_tfvars_dir()}/common.tfvars"
+      ]
+    }
+  }
+}
+```
+
+The common.tfvars located in the terraform root folder will be included by all applications, whatever their relative location to the root.
+
+#### get_aws_account_id
+
+`get_aws_account_id()` returns the AWS account id associated with the current set of credentials. Example:
+
+```hcl
+terragrunt = {
+  remote_state {
+    backend = "s3"
+    config {
+      bucket = "mycompany-${get_aws_account_id())"
+    }
+  }
+}
+```
+
+This allows uniqueness of the storage bucket per AWS account (since bucket name must be globally unique).
+
+It is also possible to configure variables specifically based on the account used:
+
+```
+terragrunt = {
+  terraform = {
+    ...
+
+    extra_arguments "common_var" {
+      commands = [
+        "apply",
+        "plan",
+        "import",
+        "push",
+        "refresh"
+      ]
+
+      arguments = [
+        "-var-file=${get_aws_account_id()}.tfvars",
+      ]
+    }
+  }
+}
+```
 
 
 

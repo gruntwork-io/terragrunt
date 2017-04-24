@@ -2,12 +2,15 @@ package config
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/util"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 var INTERPOLATION_SYNTAX_REGEX = regexp.MustCompile("\\$\\{.*?\\}")
@@ -53,10 +56,16 @@ func executeTerragruntHelperFunction(functionName string, parameters string, inc
 		return findInParentFolders(terragruntOptions)
 	case "path_relative_to_include":
 		return pathRelativeToInclude(include, terragruntOptions)
+	case "path_relative_from_include":
+		return pathRelativeFromInclude(include, terragruntOptions)
 	case "get_env":
 		return getEnvironmentVariable(parameters, terragruntOptions)
 	case "get_tfvars_dir":
 		return getTfVarsDir(terragruntOptions)
+	case "get_parent_tfvars_dir":
+		return getParentTfVarsDir(include, terragruntOptions)
+	case "get_aws_account_id":
+		return getAWSAccountID()
 	default:
 		return "", errors.WithStackTrace(UnknownHelperFunction(functionName))
 	}
@@ -70,6 +79,22 @@ func getTfVarsDir(terragruntOptions *options.TerragruntOptions) (string, error) 
 	}
 
 	return filepath.Dir(terragruntConfigFileAbsPath), nil
+}
+
+// Return the parent directory where the Terragrunt configuration file lives
+func getParentTfVarsDir(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	parentPath, err := pathRelativeFromInclude(include, terragruntOptions)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+	parentPath, err = filepath.Abs(filepath.Join(currentPath, parentPath))
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	return filepath.ToSlash(parentPath), nil
 }
 
 func parseGetEnvParameters(parameters string) (EnvVar, error) {
@@ -135,7 +160,7 @@ func findInParentFolders(terragruntOptions *options.TerragruntOptions) (string, 
 	return "", errors.WithStackTrace(CheckedTooManyParentFolders(terragruntOptions.TerragruntConfigPath))
 }
 
-// Return the relative path between the included Terragrunt cnofiguration file and the current Terragrunt configuration
+// Return the relative path between the included Terragrunt configuration file and the current Terragrunt configuration
 // file
 func pathRelativeToInclude(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	if include == nil {
@@ -144,7 +169,7 @@ func pathRelativeToInclude(include *IncludeConfig, terragruntOptions *options.Te
 
 	includedConfigPath, err := ResolveTerragruntConfigString(include.Path, include, terragruntOptions)
 	if err != nil {
-		return "", err
+		return "", errors.WithStackTrace(err)
 	}
 
 	includePath := filepath.Dir(includedConfigPath)
@@ -155,6 +180,42 @@ func pathRelativeToInclude(include *IncludeConfig, terragruntOptions *options.Te
 	}
 
 	return util.GetPathRelativeTo(currentPath, includePath)
+}
+
+// Return the relative path from the current Terragrunt configuration to the included Terragrunt configuration file
+func pathRelativeFromInclude(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	if include == nil {
+		return ".", nil
+	}
+
+	includedConfigPath, err := ResolveTerragruntConfigString(include.Path, include, terragruntOptions)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	includePath := filepath.Dir(includedConfigPath)
+	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+
+	if !filepath.IsAbs(includePath) {
+		includePath = util.JoinPath(currentPath, includePath)
+	}
+
+	return util.GetPathRelativeTo(includePath, currentPath)
+}
+
+// Return the AWS account id associated to the current set of credentials
+func getAWSAccountID() (string, error) {
+	session, err := session.NewSession()
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	identity, err := sts.New(session).GetCallerIdentity(nil)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	return *identity.Account, nil
 }
 
 // Custom error types
