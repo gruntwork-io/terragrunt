@@ -558,6 +558,70 @@ With the configuration above, when you run `terragrunt apply`, Terragrunt will c
 terraform apply -lock-timeout=20m -var-file=terraform.tfvars -var-file=terraform-secret.tfvars
 ```
 
+#### Conditional var-files
+
+Sometime, it is required to include variables to terraform conditionally. The problem is that if we use
+-var-file=<file.tfvars>, <file.tfvars> must have to exist, otherwise, we get an error from terraform.
+
+For example, you may want to include files if they are available only.
+
+```
+/my_project/terraform
+├── terraform.tfvars
+├── prod.tfvars
+├── us-west-2.tfvars
+├── backend-app
+│   ├── main.tf
+│   ├── dev.tfvars
+│   └── terraform.tfvars
+├── frontend-app
+│   ├── main.tf
+│   ├── us-east-1.tfvars
+│   └── terraform.tfvars
+```
+
+```hcl
+terragrunt = {
+  terraform {
+    extra_arguments "conditional_vars" {
+      commands = [
+        "apply",
+        "plan",
+        "import",
+        "push",
+        "refresh"
+      ]
+
+      var_files = [
+        "${get_parent_tfvars_dir()}/${get_env("TF_VAR_env", "dev")}.tfvars",
+        "${get_parent_tfvars_dir()}/${get_env("TF_VAR_region", "us-east-1")}.tfvars"
+        "${get_tfvars_dir()}/${get_env("TF_VAR_env", "dev")}.tfvars",
+        "${get_tfvars_dir()}/${get_env("TF_VAR_region", "us-east-1")}.tfvars"
+      ]
+    }
+  }
+```
+
+See the [get_tfvars_dir()](#get_tfvars_dir) and [get_parent_tfvars_dir()](#get_parent_tfvars_dir) documentation for more details.
+
+_Note that terragrunt cannot interpolate terraform variables (${var.xxx}) in the terragrunt configuration,
+your variables have to be defined through TF_VAR_xxx environment variable to be referred by terragrunt._
+
+With the configuration above, when you run `terragrunt apply-all`, Terragrunt will call Terraform as follows:
+
+```
+> terragrunt apply-all
+[backend-app]  terraform apply -var-file=/my_project/terraform/backend-app/dev.tfvars
+[frontend-app] terraform apply -var-file=/my_project/terraform/frontend-app/us-east-1.tfvars
+
+> TF_VAR_env=prod terragrunt apply-all
+[backend-app]  terraform apply -var-file=/my_project/terraform/prod.tfvars
+[frontend-app] terraform apply -var-file=/my_project/terraform/prod.tfvars -var-file=/my_project/terraform/frontend-app/us-east-1.tfvars
+
+> TF_VAR_env=prod TF_VAR_region=us-west-2 terragrunt apply-all
+[backend-app]  terraform apply -var-file=/my_project/terraform/prod.tfvars -var-file=/my_project/terraform/us-west-2.tfvars
+[frontend-app] terraform apply -var-file=/my_project/terraform/prod.tfvars -var-file=/my_project/terraform/us-west-2.tfvars
+```
 
 #### Handling whitespace
 

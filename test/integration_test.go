@@ -327,8 +327,28 @@ func TestRemoteWithBackend(t *testing.T) {
 }
 
 func TestExtraArguments(t *testing.T) {
-	t.Parallel()
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_EXTRA_ARGS_PATH))
+	out := new(bytes.Buffer)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_EXTRA_ARGS_PATH), out, os.Stderr)
+	t.Log(out.String())
+	assert.Contains(t, out.String(), "Hello, World from dev!")
+}
+
+func TestExtraArgumentsWithEnv(t *testing.T) {
+	out := new(bytes.Buffer)
+	os.Setenv("TF_VAR_env", "prod")
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_EXTRA_ARGS_PATH), out, os.Stderr)
+	t.Log(out.String())
+	assert.Contains(t, out.String(), "Hello, World!")
+	os.Unsetenv("TF_VAR_env")
+}
+
+func TestExtraArgumentsWithRegion(t *testing.T) {
+	out := new(bytes.Buffer)
+	os.Setenv("TF_VAR_region", "us-west-2")
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_EXTRA_ARGS_PATH), out, os.Stderr)
+	t.Log(out.String())
+	assert.Contains(t, out.String(), "Hello, World from Oregon!")
+	os.Unsetenv("TF_VAR_region")
 }
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {

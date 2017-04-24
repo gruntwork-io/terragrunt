@@ -630,6 +630,16 @@ terragrunt = {
         "fmt"
       ]
     }
+
+    extra_arguments "conditional_tfvars" {
+      var_files = [
+        "file1.tfvars",
+				"file2.tfvars"
+      ]
+      commands = [
+        "apply"
+      ]
+    }
   }
 }
 `
@@ -649,6 +659,9 @@ terragrunt = {
 		assert.Equal(t, "fmt_diff", terragruntConfig.Terraform.ExtraArgs[1].Name)
 		assert.Equal(t, []string{"-diff=true"}, terragruntConfig.Terraform.ExtraArgs[1].Arguments)
 		assert.Equal(t, []string{"fmt"}, terragruntConfig.Terraform.ExtraArgs[1].Commands)
+		assert.Equal(t, "conditional_tfvars", terragruntConfig.Terraform.ExtraArgs[2].Name)
+		assert.Equal(t, []string{"file1.tfvars", "file2.tfvars"}, terragruntConfig.Terraform.ExtraArgs[2].VarFiles)
+		assert.Equal(t, []string{"apply"}, terragruntConfig.Terraform.ExtraArgs[2].Commands)
 	}
 }
 
