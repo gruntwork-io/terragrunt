@@ -507,13 +507,16 @@ TERRAGRUNT_HIT","")}/bar`,
 
 func TestGetTfVarsDirAbsPath(t *testing.T) {
 	t.Parallel()
-	testGetTfVarsDir(t, "/foo/bar/terraform.tfvars", "/foo/bar")
+	workingDir, err := os.Getwd()
+	assert.Nil(t, err, "Could not get current working dir: %v", err)
+	testGetTfVarsDir(t, "/foo/bar/terraform.tfvars", fmt.Sprintf("%s/foo/bar", filepath.VolumeName(workingDir)))
 }
 
 func TestGetTfVarsDirRelPath(t *testing.T) {
 	t.Parallel()
 	workingDir, err := os.Getwd()
 	assert.Nil(t, err, "Could not get current working dir: %v", err)
+	workingDir = filepath.ToSlash(workingDir)
 
 	testGetTfVarsDir(t, "foo/bar/terraform.tfvars", fmt.Sprintf("%s/foo/bar", workingDir))
 }
@@ -566,7 +569,7 @@ func TestGetParentTfVarsDir(t *testing.T) {
 		{
 			&IncludeConfig{Path: "../../other-child/" + DefaultTerragruntConfigPath},
 			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
-			"/other-child",
+			fmt.Sprintf("%s/other-child", filepath.VolumeName(parentDir)),
 		},
 		{
 			&IncludeConfig{Path: "../../" + DefaultTerragruntConfigPath},
