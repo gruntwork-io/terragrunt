@@ -62,8 +62,8 @@ func executeTerragruntHelperFunction(functionName string, parameters string, inc
 		return getEnvironmentVariable(parameters, terragruntOptions)
 	case "get_tfvars_dir":
 		return getTfVarsDir(terragruntOptions)
-	case "get_parent_dir":
-		return getParentDir(include, terragruntOptions)
+	case "get_parent_tfvars_dir":
+		return getParentTfVarsDir(include, terragruntOptions)
 	case "get_aws_account_id":
 		return getAWSAccountID()
 	default:
@@ -82,17 +82,19 @@ func getTfVarsDir(terragruntOptions *options.TerragruntOptions) (string, error) 
 }
 
 // Return the parent directory where the Terragrunt configuration file lives
-func getParentDir(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+func getParentTfVarsDir(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	parentPath, err := pathRelativeFromInclude(include, terragruntOptions)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
-	parentPath, err = filepath.Abs(parentPath)
+
+	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+	parentPath, err = filepath.Abs(filepath.Join(currentPath, parentPath))
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
 
-	return parentPath, nil
+	return filepath.ToSlash(parentPath), nil
 }
 
 func parseGetEnvParameters(parameters string) (EnvVar, error) {
@@ -186,12 +188,19 @@ func pathRelativeFromInclude(include *IncludeConfig, terragruntOptions *options.
 		return ".", nil
 	}
 
-	relativePath, err := findInParentFolders(terragruntOptions)
+	includedConfigPath, err := ResolveTerragruntConfigString(include.Path, include, terragruntOptions)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
 
-	return filepath.ToSlash(filepath.Dir(relativePath)), nil
+	includePath := filepath.Dir(includedConfigPath)
+	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+
+	if !filepath.IsAbs(includePath) {
+		includePath = util.JoinPath(currentPath, includePath)
+	}
+
+	return util.GetPathRelativeTo(includePath, currentPath)
 }
 
 // Return the AWS account id associated to the current set of credentials

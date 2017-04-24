@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -62,6 +63,63 @@ func TestPathRelativeToInclude(t *testing.T) {
 
 	for _, testCase := range testCases {
 		actualPath, actualErr := pathRelativeToInclude(testCase.include, &testCase.terragruntOptions)
+		assert.Nil(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
+		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
+	}
+}
+
+func TestPathRelativeFromInclude(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		include           *IncludeConfig
+		terragruntOptions options.TerragruntOptions
+		expectedPath      string
+	}{
+		{
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			".",
+		},
+		{
+			&IncludeConfig{Path: "../" + DefaultTerragruntConfigPath},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			"..",
+		},
+		{
+			&IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			"..",
+		},
+		{
+			&IncludeConfig{Path: "../../../" + DefaultTerragruntConfigPath},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/sub-child/sub-sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			"../../..",
+		},
+		{
+			&IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/sub-child/sub-sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			"../../..",
+		},
+		{
+			&IncludeConfig{Path: "../../other-child/" + DefaultTerragruntConfigPath},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			"../../other-child",
+		},
+		{
+			&IncludeConfig{Path: "../../" + DefaultTerragruntConfigPath},
+			options.TerragruntOptions{TerragruntConfigPath: "../child/sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			"../..",
+		},
+		{
+			&IncludeConfig{Path: "${find_in_parent_folders()}"},
+			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			"../..",
+		},
+	}
+
+	for _, testCase := range testCases {
+		actualPath, actualErr := pathRelativeFromInclude(testCase.include, &testCase.terragruntOptions)
 		assert.Nil(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
 		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
 	}
@@ -466,4 +524,65 @@ func testGetTfVarsDir(t *testing.T, configPath string, expectedPath string) {
 
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, expectedPath, actualPath)
+}
+
+func TestGetParentTfVarsDir(t *testing.T) {
+	t.Parallel()
+
+	currentDir, err := os.Getwd()
+	assert.Nil(t, err, "Could not get current working dir: %v", err)
+	parentDir := filepath.ToSlash(filepath.Dir(currentDir))
+
+	testCases := []struct {
+		include           *IncludeConfig
+		terragruntOptions options.TerragruntOptions
+		expectedPath      string
+	}{
+		{
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			helpers.RootFolder + "child",
+		},
+		{
+			&IncludeConfig{Path: "../" + DefaultTerragruntConfigPath},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			helpers.RootFolder,
+		},
+		{
+			&IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			helpers.RootFolder,
+		},
+		{
+			&IncludeConfig{Path: "../../../" + DefaultTerragruntConfigPath},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/sub-child/sub-sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			helpers.RootFolder,
+		},
+		{
+			&IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/sub-child/sub-sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			helpers.RootFolder,
+		},
+		{
+			&IncludeConfig{Path: "../../other-child/" + DefaultTerragruntConfigPath},
+			options.TerragruntOptions{TerragruntConfigPath: helpers.RootFolder + "child/sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			"/other-child",
+		},
+		{
+			&IncludeConfig{Path: "../../" + DefaultTerragruntConfigPath},
+			options.TerragruntOptions{TerragruntConfigPath: "../child/sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			parentDir,
+		},
+		{
+			&IncludeConfig{Path: "${find_in_parent_folders()}"},
+			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			fmt.Sprintf("%s/test/fixture-parent-folders/terragrunt-in-root", parentDir),
+		},
+	}
+
+	for _, testCase := range testCases {
+		actualPath, actualErr := getParentTfVarsDir(testCase.include, &testCase.terragruntOptions)
+		assert.Nil(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
+		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
+	}
 }
