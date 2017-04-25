@@ -94,8 +94,9 @@ func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 				if cmd == arg_cmd {
 					out = append(out, arg.Arguments...)
 
-					// If VarFiles are specified, check for each file if it exists and if so, add a -var-file=<file>
-					for _, file := range arg.VarFiles {
+					// If VarFiles is specified, check for each file if it exists and if so, add -var-file=<file>
+					// It is possible that many files resolve to the same path, so we remove duplicates.
+					for _, file := range util.RemoveDuplicatesFromListKeepLast(arg.VarFiles) {
 						if _, err := os.Stat(file); err == nil {
 							out = append(out, fmt.Sprintf("-var-file=%s", file))
 						}
