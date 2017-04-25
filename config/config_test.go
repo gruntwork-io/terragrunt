@@ -631,13 +631,23 @@ terragrunt = {
       ]
     }
 
-    extra_arguments "conditional_tfvars" {
-      var_files = [
+    extra_arguments "required_tfvars" {
+      required_var_files = [
         "file1.tfvars",
 				"file2.tfvars"
       ]
       commands = [
         "apply"
+      ]
+    }
+
+    extra_arguments "optional_tfvars" {
+      optional_var_files = [
+        "opt1.tfvars",
+				"opt2.tfvars"
+      ]
+      commands = [
+        "plan"
       ]
     }
   }
@@ -659,9 +669,12 @@ terragrunt = {
 		assert.Equal(t, "fmt_diff", terragruntConfig.Terraform.ExtraArgs[1].Name)
 		assert.Equal(t, []string{"-diff=true"}, terragruntConfig.Terraform.ExtraArgs[1].Arguments)
 		assert.Equal(t, []string{"fmt"}, terragruntConfig.Terraform.ExtraArgs[1].Commands)
-		assert.Equal(t, "conditional_tfvars", terragruntConfig.Terraform.ExtraArgs[2].Name)
-		assert.Equal(t, []string{"file1.tfvars", "file2.tfvars"}, terragruntConfig.Terraform.ExtraArgs[2].VarFiles)
+		assert.Equal(t, "required_tfvars", terragruntConfig.Terraform.ExtraArgs[2].Name)
+		assert.Equal(t, []string{"file1.tfvars", "file2.tfvars"}, terragruntConfig.Terraform.ExtraArgs[2].RequiredVarFiles)
 		assert.Equal(t, []string{"apply"}, terragruntConfig.Terraform.ExtraArgs[2].Commands)
+		assert.Equal(t, "optional_tfvars", terragruntConfig.Terraform.ExtraArgs[3].Name)
+		assert.Equal(t, []string{"opt1.tfvars", "opt2.tfvars"}, terragruntConfig.Terraform.ExtraArgs[3].OptionalVarFiles)
+		assert.Equal(t, []string{"plan"}, terragruntConfig.Terraform.ExtraArgs[3].Commands)
 	}
 }
 
