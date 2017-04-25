@@ -197,7 +197,7 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
-	return runTerraformCommand(terragruntOptions)
+	return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
 }
 
 // Returns true if the command the user wants to execute is supposed to affect multiple Terraform modules, such as the
@@ -229,7 +229,7 @@ func downloadModules(terragruntOptions *options.TerragruntOptions) error {
 			return err
 		}
 		if shouldDownload {
-			return shell.RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, "get", "-update")
+			return shell.RunTerraformCommand(terragruntOptions, "get", "-update")
 		}
 	}
 
@@ -312,16 +312,6 @@ func outputAll(terragruntOptions *options.TerragruntOptions) error {
 
 	terragruntOptions.Logger.Printf("%s", stack.String())
 	return stack.Output(terragruntOptions)
-}
-
-// Run the given Terraform command
-func runTerraformCommand(terragruntOptions *options.TerragruntOptions) error {
-	return shell.RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, terragruntOptions.TerraformCliArgs...)
-}
-
-// Run the given Terraform command and return the stdout as a string
-func runTerraformCommandAndCaptureOutput(terragruntOptions *options.TerragruntOptions) (string, error) {
-	return shell.RunShellCommandAndCaptureOutput(terragruntOptions, terragruntOptions.TerraformPath, terragruntOptions.TerraformCliArgs...)
 }
 
 // Custom error types

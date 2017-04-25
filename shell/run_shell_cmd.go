@@ -14,6 +14,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
+// Run the given Terraform command
+func RunTerraformCommand(terragruntOptions *options.TerragruntOptions, args ...string) error {
+	return RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, args...)
+}
+
+// Run the given Terraform command and return the stdout as a string
+func RunTerraformCommandAndCaptureOutput(terragruntOptions *options.TerragruntOptions, args ...string) (string, error) {
+	return RunShellCommandAndCaptureOutput(terragruntOptions, terragruntOptions.TerraformPath, args...)
+}
+
 // Run the specified shell command with the specified arguments. Connect the command's stdin, stdout, and stderr to
 // the currently running app.
 func RunShellCommand(terragruntOptions *options.TerragruntOptions, command string, args ...string) error {

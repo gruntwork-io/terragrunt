@@ -14,6 +14,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"github.com/gruntwork-io/terragrunt/shell"
 )
 
 // This struct represents information about Terraform source code that needs to be downloaded
@@ -348,11 +349,6 @@ func getTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragr
 func terraformInit(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
 
-	terragruntInitOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
-
 	// Backend and get configuration will be handled separately
-	terragruntInitOptions.TerraformCliArgs = []string{"init", "-backend=false", "-get=false"}
-	terragruntInitOptions.TerraformCliArgs = append(terragruntInitOptions.TerraformCliArgs, terraformSource.CanonicalSourceURL.String(), terraformSource.DownloadDir)
-
-	return runTerraformCommand(terragruntInitOptions)
+	return shell.RunTerraformCommand(terragruntOptions, "init", "-backend=false", "-get=false", terraformSource.CanonicalSourceURL.String(), terraformSource.DownloadDir)
 }
