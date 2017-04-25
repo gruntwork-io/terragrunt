@@ -5,7 +5,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/util"
 	"reflect"
+	"strconv"
 )
 
 // Configuration for Terraform remote state
@@ -96,6 +98,12 @@ func shouldOverrideExistingRemoteState(existingBackend *TerraformBackend, remote
 		return shell.PromptUserForYesNo(prompt, terragruntOptions)
 	}
 
+	if util.KindOf(existingBackend.Config["encrypt"]) == reflect.String && util.KindOf(remoteStateFromTerragruntConfig.Config["encrypt"]) == reflect.Bool {
+		// If encrypt in remoteStateFromTerragruntConfig is a bool and a string in existingBackend, DeepEqual will consider the maps to be different1.
+		// So we convert the value from string to bool to make them equivalent.
+		value, _ := strconv.ParseBool(existingBackend.Config["encrypt"].(string))
+		existingBackend.Config["encrypt"] = value
+	}
 	if !reflect.DeepEqual(existingBackend.Config, remoteStateFromTerragruntConfig.Config) {
 		prompt := fmt.Sprintf("WARNING: Terraform remote state is already configured for backend %s with config %v, but your Terragrunt configuration specifies config %v. Overwrite?", existingBackend.Type, existingBackend.Config, remoteStateFromTerragruntConfig.Config)
 		return shell.PromptUserForYesNo(prompt, terragruntOptions)
