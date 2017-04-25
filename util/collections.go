@@ -24,38 +24,28 @@ func RemoveElementFromList(list []string, element string) []string {
 
 // Returns a copy of the given list with all duplicates removed (keeping the first encountereds)
 func RemoveDuplicatesFromList(list []string) []string {
-	return removeDuplicatesFromList(list, true)
+	return removeDuplicatesFromList(list, false)
 }
 
 // Returns a copy of the given list with all duplicates removed (keeping the last encountereds)
 func RemoveDuplicatesFromListKeepLast(list []string) []string {
-	return removeDuplicatesFromList(list, false)
+	return removeDuplicatesFromList(list, true)
 }
 
-func removeDuplicatesFromList(list []string, fromStart bool) []string {
-	out := make([]*string, len(list))
+func removeDuplicatesFromList(list []string, keepLast bool) []string {
+	out := make([]string, 0, len(list))
 	present := make(map[string]bool)
 
-	for i := range list {
-		if !fromStart { // We change the index to start from the end
-			i = len(list) - i - 1
+	for _, value := range list {
+		if _, ok := present[value]; ok {
+			if keepLast {
+				out = RemoveElementFromList(out, value)
+			} else {
+				continue
+			}
 		}
-
-		if _, ok := present[list[i]]; !ok {
-			out[i] = &list[i]
-			present[list[i]] = true // Indicates that element is already in the list
-		}
+		out = append(out, value)
+		present[value] = true
 	}
-	return removeNil(out)
-}
-
-// Remove the nil element from the array
-func removeNil(list []*string) (out []string) {
-	out = make([]string, 0, len(list))
-	for _, element := range list {
-		if element != nil {
-			out = append(out, *element)
-		}
-	}
-	return
+	return out
 }

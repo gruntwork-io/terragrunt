@@ -61,8 +61,10 @@ func TestRemoveDuplicatesFromList(t *testing.T) {
 		{[]string{}, []string{}, false},
 		{[]string{"foo"}, []string{"foo"}, false},
 		{[]string{"foo", "bar"}, []string{"foo", "bar"}, false},
-		{[]string{"foo", "bar", "foo", "bar"}, []string{"foo", "bar"}, false},
-		{[]string{"foo", "bar", "foo", "bar"}, []string{"bar", "foo"}, true},
+		{[]string{"foo", "bar", "foobar", "bar", "foo"}, []string{"foo", "bar", "foobar"}, false},
+		{[]string{"foo", "bar", "foobar", "foo", "bar"}, []string{"foo", "bar", "foobar"}, false},
+		{[]string{"foo", "bar", "foobar", "bar", "foo"}, []string{"foobar", "bar", "foo"}, true},
+		{[]string{"foo", "bar", "foobar", "foo", "bar"}, []string{"foobar", "foo", "bar"}, true},
 	}
 
 	for _, testCase := range testCases {
