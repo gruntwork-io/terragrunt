@@ -494,8 +494,8 @@ terragrunt = {
 ```
 
 Each `extra_arguments` block includes an arbitrary name (in the example above, `retry_lock`), a list of `commands` to
-which the extra arguments should be add, and the list of `arguments` to add. With the configuration above, when you 
-run `terragrunt apply`, Terragrunt will call Terraform as follows:
+which the extra arguments should be add, a list of `arguments` or `required_var_files` or `optional_var_files` to add.
+With the configuration above, when you run `terragrunt apply`, Terragrunt will call Terraform as follows:
 
 ```
 > terragrunt apply
@@ -542,8 +542,8 @@ terragrunt = {
       ]
       
       arguments = [
-        "-var-file=terraform.tfvars",
-        "-var-file=terraform-secret.tfvars"
+        "-var", "foo=bar",
+        "-var", "region=us-west-1"
       ]
     }
   }
@@ -558,12 +558,13 @@ With the configuration above, when you run `terragrunt apply`, Terragrunt will c
 terraform apply -lock-timeout=20m -var-file=terraform.tfvars -var-file=terraform-secret.tfvars
 ```
 
-#### Required and conditional var-files
+#### Required and optional var-files
 
-Sometime, it is required to include variables to terraform conditionally. The problem is that if we use
--var-file=<file.tfvars>, <file.tfvars> must have to exist, otherwise, we get an error from terraform.
-
-For example, you may want to include files if they are available only.
+One common usage of extra_arguments is to include tfvars files. instead of using arguments, it is simpler to use either `required_var_files`
+or `optional_var_files`. Both options require only to provide the list of file to include. The only difference is that `required_var_files`
+will add the extra argument `-var-file=<your file>` for each file specified and if they don't exist, terraform will complain. Using
+`optional_var_files` instead, terragrunt will only the `-var-file=<your file>` for existing files. This allows many conditional configurations
+based on environment variables as you can see in the following example:
 
 ```
 /my/tf
