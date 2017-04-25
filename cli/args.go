@@ -101,8 +101,10 @@ func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 				// If OptionalVarFiles is specified, check for each file if it exists and if so, add -var-file=<file>
 				// It is possible that many files resolve to the same path, so we remove duplicates.
 				for _, file := range util.RemoveDuplicatesFromListKeepLast(arg.OptionalVarFiles) {
-					if _, err := os.Stat(file); err == nil {
+					if util.FileExists(file) {
 						out = append(out, fmt.Sprintf("-var-file=%s", file))
+					} else {
+						terragruntOptions.Logger.Printf("Skipping var-file %s as it does not exist", file)
 					}
 				}
 			}
