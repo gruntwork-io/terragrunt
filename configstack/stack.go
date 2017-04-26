@@ -35,29 +35,32 @@ func (stack *Stack) Plan(terragruntOptions *options.TerragruntOptions) error {
 	for n, module := range stack.Modules {
 		module.TerragruntOptions.ErrWriter = &errorStreams[n]
 	}
+	defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
 
-	// Start the plan on each module
-	err := RunModules(stack.Modules)
+	return RunModules(stack.Modules)
+}
 
-	// We inspect the error streams to give an explicit message if the plan failed because there were references to
-	// remote states. `terraform plan` will fail if it tries to access remote state from dependencies and the plan
-	// has never been applied on the dependency.
-	for n, o := range errorStreams {
-		output := o.String()
+// We inspect the error streams to give an explicit message if the plan failed because there were references to
+// remote states. `terraform plan` will fail if it tries to access remote state from dependencies and the plan
+// has never been applied on the dependency.
+func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.TerragruntOptions, errorStreams []bytes.Buffer) {
+	for i, errorStream := range errorStreams {
+		output := errorStream.String()
 		if strings.Contains(output, "Error running plan:") {
 			terragruntOptions.Logger.Println(output)
-			if len(stack.Modules[n].Dependencies) > 0 && strings.Contains(output, ": Resource 'data.terraform_remote_state.") {
-				terragruntOptions.Logger.Printf(
-					"%v contains dependencies to %v and refers to remote state, "+
-						"you may have to apply your changes in the dependencies prior running terragrunt plan-all.\n",
-					stack.Modules[n].Path,
-					stack.Modules[n].Config.Dependencies.Paths,
+			if strings.Contains(output, ": Resource 'data.terraform_remote_state.") {
+				var dependenciesMsg string
+				if len(stack.Modules[i].Dependencies) > 0 {
+					dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", stack.Modules[i].Config.Dependencies.Paths)
+				}
+				terragruntOptions.Logger.Printf("%v%v refers to remote state "+
+					"you may have to apply your changes in the dependencies prior running terragrunt plan-all.\n",
+					stack.Modules[i].Path,
+					dependenciesMsg,
 				)
 			}
 		}
 	}
-
-	return err
 }
 
 // Apply all the modules in the given stack, making sure to apply the dependencies of each module in the stack in the
