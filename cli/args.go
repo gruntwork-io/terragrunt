@@ -89,10 +89,23 @@ func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 	cmd := firstArg(terragruntOptions.TerraformCliArgs)
 
 	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
-		if arg.Commands != nil && arg.Arguments != nil {
-			for _, arg_cmd := range arg.Commands {
-				if cmd == arg_cmd {
-					out = append(out, arg.Arguments...)
+		for _, arg_cmd := range arg.Commands {
+			if cmd == arg_cmd {
+				out = append(out, arg.Arguments...)
+
+				// If RequiredVarFiles is specified, add -var-file=<file> for each specified files
+				for _, file := range util.RemoveDuplicatesFromListKeepLast(arg.RequiredVarFiles) {
+					out = append(out, fmt.Sprintf("-var-file=%s", file))
+				}
+
+				// If OptionalVarFiles is specified, check for each file if it exists and if so, add -var-file=<file>
+				// It is possible that many files resolve to the same path, so we remove duplicates.
+				for _, file := range util.RemoveDuplicatesFromListKeepLast(arg.OptionalVarFiles) {
+					if util.FileExists(file) {
+						out = append(out, fmt.Sprintf("-var-file=%s", file))
+					} else {
+						terragruntOptions.Logger.Printf("Skipping var-file %s as it does not exist", file)
+					}
 				}
 			}
 		}

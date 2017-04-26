@@ -49,3 +49,30 @@ func TestRemoveElementFromList(t *testing.T) {
 		assert.Equal(t, testCase.expected, actual, "For list %v and element %s", testCase.list, testCase.element)
 	}
 }
+
+func TestRemoveDuplicatesFromList(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		list     []string
+		expected []string
+		reverse  bool
+	}{
+		{[]string{}, []string{}, false},
+		{[]string{"foo"}, []string{"foo"}, false},
+		{[]string{"foo", "bar"}, []string{"foo", "bar"}, false},
+		{[]string{"foo", "bar", "foobar", "bar", "foo"}, []string{"foo", "bar", "foobar"}, false},
+		{[]string{"foo", "bar", "foobar", "foo", "bar"}, []string{"foo", "bar", "foobar"}, false},
+		{[]string{"foo", "bar", "foobar", "bar", "foo"}, []string{"foobar", "bar", "foo"}, true},
+		{[]string{"foo", "bar", "foobar", "foo", "bar"}, []string{"foobar", "foo", "bar"}, true},
+	}
+
+	for _, testCase := range testCases {
+		f := RemoveDuplicatesFromList
+		if testCase.reverse {
+			f = RemoveDuplicatesFromListKeepLast
+		}
+		assert.Equal(t, f(testCase.list), testCase.expected, "For list %v", testCase.list)
+		t.Logf("%v passed", testCase.list)
+	}
+}

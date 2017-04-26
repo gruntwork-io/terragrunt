@@ -494,8 +494,8 @@ terragrunt = {
 ```
 
 Each `extra_arguments` block includes an arbitrary name (in the example above, `retry_lock`), a list of `commands` to
-which the extra arguments should be add, and the list of `arguments` to add. With the configuration above, when you 
-run `terragrunt apply`, Terragrunt will call Terraform as follows:
+which the extra arguments should be add, a list of `arguments` or `required_var_files` or `optional_var_files` to add.
+With the configuration above, when you run `terragrunt apply`, Terragrunt will call Terraform as follows:
 
 ```
 > terragrunt apply
@@ -542,8 +542,8 @@ terragrunt = {
       ]
       
       arguments = [
-        "-var-file=terraform.tfvars",
-        "-var-file=terraform-secret.tfvars"
+        "-var", "foo=bar",
+        "-var", "region=us-west-1"
       ]
     }
   }
@@ -555,9 +555,78 @@ With the configuration above, when you run `terragrunt apply`, Terragrunt will c
 ```
 > terragrunt apply
 
-terraform apply -lock-timeout=20m -var-file=terraform.tfvars -var-file=terraform-secret.tfvars
+terraform apply -lock-timeout=20m -var foo=bar -var region=us-west-1
 ```
 
+#### Required and optional var-files
+
+One common usage of extra_arguments is to include tfvars files. instead of using arguments, it is simpler to use either `required_var_files`
+or `optional_var_files`. Both options require only to provide the list of file to include. The only difference is that `required_var_files`
+will add the extra argument `-var-file=<your file>` for each file specified and if they don't exist, terraform will complain. Using
+`optional_var_files` instead, terragrunt will only add the `-var-file=<your file>` for existing files. This allows many conditional
+configurations based on environment variables as you can see in the following example:
+
+```
+/my/tf
+├── terraform.tfvars
+├── prod.tfvars
+├── us-west-2.tfvars
+├── backend-app
+│   ├── main.tf
+│   ├── dev.tfvars
+│   └── terraform.tfvars
+├── frontend-app
+│   ├── main.tf
+│   ├── us-east-1.tfvars
+│   └── terraform.tfvars
+```
+
+```hcl
+terragrunt = {
+  terraform {
+    extra_arguments "conditional_vars" {
+      commands = [
+        "apply",
+        "plan",
+        "import",
+        "push",
+        "refresh"
+      ]
+
+      required_var_files = [
+        "${get_parent_tfvars_dir()}/terraform.tfvars"
+      ]
+
+      optional_var_files = [
+        "${get_parent_tfvars_dir()}/${get_env("TF_VAR_env", "dev")}.tfvars",
+        "${get_parent_tfvars_dir()}/${get_env("TF_VAR_region", "us-east-1")}.tfvars"
+        "${get_tfvars_dir()}/${get_env("TF_VAR_env", "dev")}.tfvars",
+        "${get_tfvars_dir()}/${get_env("TF_VAR_region", "us-east-1")}.tfvars"
+      ]
+    }
+  }
+```
+
+See the [get_tfvars_dir()](#get_tfvars_dir) and [get_parent_tfvars_dir()](#get_parent_tfvars_dir) documentation for more details.
+
+_Note that terragrunt cannot interpolate terraform variables (${var.xxx}) in the terragrunt configuration,
+your variables have to be defined through TF_VAR_xxx environment variable to be referred by terragrunt._
+
+With the configuration above, when you run `terragrunt apply-all`, Terragrunt will call Terraform as follows:
+
+```
+> terragrunt apply-all
+[backend-app]  terraform apply -var-file=/my/tf/terraform.tfvars -var-file=/my/tf/backend-app/dev.tfvars
+[frontend-app] terraform apply -var-file=/my/tf/terraform.tfvars -var-file=/my/tf/frontend-app/us-east-1.tfvars
+
+> TF_VAR_env=prod terragrunt apply-all
+[backend-app]  terraform apply -var-file=/my/tf/terraform.tfvars -var-file=/my/tf/prod.tfvars
+[frontend-app] terraform apply -var-file=/my/tf/terraform.tfvars -var-file=/my/tf/prod.tfvars -var-file=/my/tf/frontend-app/us-east-1.tfvars
+
+> TF_VAR_env=prod TF_VAR_region=us-west-2 terragrunt apply-all
+[backend-app]  terraform apply -var-file=/my/tf/terraform.tfvars -var-file=/my/tf/prod.tfvars -var-file=/my/tf/us-west-2.tfvars
+[frontend-app] terraform apply -var-file=/my/tf/terraform.tfvars -var-file=/my/tf/prod.tfvars -var-file=/my/tf/us-west-2.tfvars
+```
 
 #### Handling whitespace
 
