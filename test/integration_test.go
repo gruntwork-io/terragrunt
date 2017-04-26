@@ -159,6 +159,8 @@ func TestTerragruntOutputAllCommand(t *testing.T) {
 	assert.True(t, strings.Contains(output, "app1 output"))
 	assert.True(t, strings.Contains(output, "app2 output"))
 	assert.True(t, strings.Contains(output, "app3 output"))
+
+	assert.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
 }
 
 func TestTerragruntStackCommands(t *testing.T) {
