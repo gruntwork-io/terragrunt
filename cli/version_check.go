@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/hashicorp/go-version"
 	"regexp"
-	"github.com/gruntwork-io/terragrunt/shell"
 )
 
 // The terraform --version output is of the format: Terraform v0.9.3
