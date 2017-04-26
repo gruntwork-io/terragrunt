@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/hashicorp/go-version"
 	"regexp"
 )
@@ -38,10 +39,7 @@ func checkTerraformVersionMeetsConstraint(currentVersion *version.Version, const
 
 // Get the currently installed version of Terraform
 func getTerraformVersion(terragruntOptions *options.TerragruntOptions) (*version.Version, error) {
-	terragruntOptionsCopy := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
-	terragruntOptionsCopy.TerraformCliArgs = []string{"--version"}
-
-	output, err := runTerraformCommandAndCaptureOutput(terragruntOptionsCopy)
+	output, err := shell.RunTerraformCommandAndCaptureOutput(terragruntOptions, "--version")
 	if err != nil {
 		return nil, err
 	}

@@ -5,6 +5,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-getter"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
@@ -348,11 +349,6 @@ func getTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragr
 func terraformInit(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
 
-	terragruntInitOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
-
 	// Backend and get configuration will be handled separately
-	terragruntInitOptions.TerraformCliArgs = []string{"init", "-backend=false", "-get=false"}
-	terragruntInitOptions.TerraformCliArgs = append(terragruntInitOptions.TerraformCliArgs, terraformSource.CanonicalSourceURL.String(), terraformSource.DownloadDir)
-
-	return runTerraformCommand(terragruntInitOptions)
+	return shell.RunTerraformCommand(terragruntOptions, "init", "-backend=false", "-get=false", terraformSource.CanonicalSourceURL.String(), terraformSource.DownloadDir)
 }

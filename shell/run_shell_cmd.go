@@ -14,6 +14,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
+// Run the given Terraform command
+func RunTerraformCommand(terragruntOptions *options.TerragruntOptions, args ...string) error {
+	return RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, args...)
+}
+
+// Run the given Terraform command and return the stdout as a string
+func RunTerraformCommandAndCaptureOutput(terragruntOptions *options.TerragruntOptions, args ...string) (string, error) {
+	return RunShellCommandAndCaptureOutput(terragruntOptions, terragruntOptions.TerraformPath, args...)
+}
+
 // Run the specified shell command with the specified arguments. Connect the command's stdin, stdout, and stderr to
 // the currently running app.
 func RunShellCommand(terragruntOptions *options.TerragruntOptions, command string, args ...string) error {
@@ -30,7 +40,7 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 	// command requested by the user. The output of these other commands should not end up on stdout as this
 	// breaks scripts relying on terraform's output.
 	if !reflect.DeepEqual(terragruntOptions.TerraformCliArgs, args) {
-		cmd.Stdout = os.Stderr
+		cmd.Stdout = cmd.Stderr
 	}
 
 	cmd.Dir = terragruntOptions.WorkingDir
@@ -52,6 +62,7 @@ func RunShellCommandAndCaptureOutput(terragruntOptions *options.TerragruntOption
 
 	terragruntOptionsCopy := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	terragruntOptionsCopy.Writer = stdout
+	terragruntOptionsCopy.ErrWriter = stdout
 
 	if err := RunShellCommand(terragruntOptionsCopy, command, args...); err != nil {
 		return "", err
