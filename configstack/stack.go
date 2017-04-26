@@ -1,6 +1,7 @@
 package configstack
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 
@@ -28,7 +29,35 @@ func (stack *Stack) String() string {
 // Plan execute plan in the given stack in their specified order.
 func (stack *Stack) Plan(terragruntOptions *options.TerragruntOptions) error {
 	stack.setTerraformCommand([]string{"plan"})
-	return RunModules(stack.Modules)
+
+	// We capture the out stream for each module
+	errorStreams := make([]bytes.Buffer, len(stack.Modules))
+	for n, module := range stack.Modules {
+		module.TerragruntOptions.ErrWriter = &errorStreams[n]
+	}
+
+	// Start the plan on each module
+	err := RunModules(stack.Modules)
+
+	// We inspect the error streams to give an explicit message if the plan failed because there were references to
+	// remote states. `terraform plan` will fail if it tries to access remote state from dependencies and the plan
+	// has never been applied on the dependency.
+	for n, o := range errorStreams {
+		output := o.String()
+		if strings.Contains(output, "Error running plan:") {
+			terragruntOptions.Logger.Println(output)
+			if len(stack.Modules[n].Dependencies) > 0 && strings.Contains(output, ": Resource 'data.terraform_remote_state.") {
+				terragruntOptions.Logger.Printf(
+					"%v contains dependencies to %v and refers to remote state, "+
+						"you may have to apply your changes in the dependencies prior running terragrunt plan-all.\n",
+					stack.Modules[n].Path,
+					stack.Modules[n].Config.Dependencies.Paths,
+				)
+			}
+		}
+	}
+
+	return err
 }
 
 // Apply all the modules in the given stack, making sure to apply the dependencies of each module in the stack in the
