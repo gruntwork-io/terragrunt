@@ -555,7 +555,7 @@ With the configuration above, when you run `terragrunt apply`, Terragrunt will c
 ```
 > terragrunt apply
 
-terraform apply -lock-timeout=20m -var-file=terraform.tfvars -var-file=terraform-secret.tfvars
+terraform apply -lock-timeout=20m -var foo=bar -var region=us-west-1
 ```
 
 #### Required and optional var-files
@@ -563,8 +563,8 @@ terraform apply -lock-timeout=20m -var-file=terraform.tfvars -var-file=terraform
 One common usage of extra_arguments is to include tfvars files. instead of using arguments, it is simpler to use either `required_var_files`
 or `optional_var_files`. Both options require only to provide the list of file to include. The only difference is that `required_var_files`
 will add the extra argument `-var-file=<your file>` for each file specified and if they don't exist, terraform will complain. Using
-`optional_var_files` instead, terragrunt will only the `-var-file=<your file>` for existing files. This allows many conditional configurations
-based on environment variables as you can see in the following example:
+`optional_var_files` instead, terragrunt will only add the `-var-file=<your file>` for existing files. This allows many conditional
+configurations based on environment variables as you can see in the following example:
 
 ```
 /my/tf
