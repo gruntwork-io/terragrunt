@@ -24,6 +24,7 @@ const OPT_TERRAGRUNT_SOURCE_UPDATE = "terragrunt-source-update"
 var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE}
 var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_TFPATH, OPT_WORKING_DIR, OPT_TERRAGRUNT_SOURCE}
 
+const CMD_PLAN_ALL = "plan-all"
 const CMD_APPLY_ALL = "apply-all"
 const CMD_DESTROY_ALL = "destroy-all"
 const CMD_OUTPUT_ALL = "output-all"
@@ -34,7 +35,7 @@ const CMD_SPIN_UP = "spin-up"
 // CMD_TEAR_DOWN is deprecated.
 const CMD_TEAR_DOWN = "tear-down"
 
-var MULTI_MODULE_COMMANDS = []string{CMD_APPLY_ALL, CMD_DESTROY_ALL, CMD_OUTPUT_ALL}
+var MULTI_MODULE_COMMANDS = []string{CMD_APPLY_ALL, CMD_DESTROY_ALL, CMD_OUTPUT_ALL, CMD_PLAN_ALL}
 
 // DEPRECATED_COMMANDS is a map of deprecated commands to the commands that replace them.
 var DEPRECATED_COMMANDS = map[string]string{
@@ -74,6 +75,7 @@ USAGE:
    {{.Usage}}
 
 COMMANDS:
+   plan-all             Display the plans of a 'stack' by running 'terragrunt plan' in each subfolder
    apply-all            Apply a 'stack' by running 'terragrunt apply' in each subfolder
    output-all           Display the outputs of a 'stack' by running 'terragrunt output' in each subfolder
    destroy-all          Destroy a 'stack' by running 'terragrunt destroy' in each subfolder
@@ -209,6 +211,8 @@ func isMultiModuleCommand(command string) bool {
 // Execute a command that affects multiple Terraform modules, such as the apply-all or destroy-all command.
 func runMultiModuleCommand(command string, terragruntOptions *options.TerragruntOptions) error {
 	switch command {
+	case CMD_PLAN_ALL:
+		return planAll(terragruntOptions)
 	case CMD_APPLY_ALL:
 		return applyAll(terragruntOptions)
 	case CMD_DESTROY_ALL:
@@ -258,6 +262,18 @@ func configureRemoteState(remoteState *remote.RemoteState, terragruntOptions *op
 	}
 
 	return nil
+}
+
+// planAll prints the plans from all configuration in a stack, in the order
+// specified in the terraform_remote_state dependencies
+func planAll(terragruntOptions *options.TerragruntOptions) error {
+	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
+	if err != nil {
+		return err
+	}
+
+	terragruntOptions.Logger.Printf("%s", stack.String())
+	return stack.Plan(terragruntOptions)
 }
 
 // Spin up an entire "stack" by running 'terragrunt apply' in each subfolder, processing them in the right order based
