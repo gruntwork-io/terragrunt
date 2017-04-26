@@ -5,7 +5,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/util"
 	"reflect"
+	"strconv"
 )
 
 // Configuration for Terraform remote state
@@ -94,6 +96,19 @@ func shouldOverrideExistingRemoteState(existingBackend *TerraformBackend, remote
 	if existingBackend.Type != remoteStateFromTerragruntConfig.Backend {
 		prompt := fmt.Sprintf("WARNING: Terraform remote state is already configured, but for backend %s, whereas your Terragrunt configuration specifies %s. Overwrite?", existingBackend.Type, remoteStateFromTerragruntConfig.Backend)
 		return shell.PromptUserForYesNo(prompt, terragruntOptions)
+	}
+
+	// Terraform's `backend` configuration uses a boolean for the `encrypt` parameter. However, perhaps for backwards compatibility reasons,
+	// Terraform stores that parameter as a string in the `terraform.tfstate` file. Therefore, we have to convert it accordingly, or `DeepEqual`
+	// will fail.
+	if util.KindOf(existingBackend.Config["encrypt"]) == reflect.String && util.KindOf(remoteStateFromTerragruntConfig.Config["encrypt"]) == reflect.Bool {
+		// If encrypt in remoteStateFromTerragruntConfig is a bool and a string in existingBackend, DeepEqual will consider the maps to be different.
+		// So we convert the value from string to bool to make them equivalent.
+		if value, err := strconv.ParseBool(existingBackend.Config["encrypt"].(string)); err == nil {
+			existingBackend.Config["encrypt"] = value
+		} else {
+			terragruntOptions.Logger.Printf("Remote state configuration encrypt contains invalid value %v, should be boolean.", existingBackend.Config["encrypt"])
+		}
 	}
 
 	if !reflect.DeepEqual(existingBackend.Config, remoteStateFromTerragruntConfig.Config) {
