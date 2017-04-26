@@ -429,7 +429,7 @@ The `terraform.tfvars` files above use two *helper functions*:
 * `path_relative_to_include()`: This helper function returns the relative path between the current `terraform.tfvars`
   file and the path specified in its `include` block. We typically use this in a root `terraform.tfvars` file so that
   each Terraform child module stores its Terraform state at a different `key`. For example, the `mysql` module will
-  have its `key` parameter resolve to `mysql/terraform.tstate` and the `frontend-app` module will have its `key`
+  have its `key` parameter resolve to `mysql/terraform.tfstate` and the `frontend-app` module will have its `key`
   parameter resolve to `frontend-app/terraform.tfstate`.
 
 See [the helper functions docs](#helper-functions) for more info.
@@ -751,7 +751,7 @@ terragrunt output-all
 ```
 
 If your modules have dependencies between them—for example, you can't deploy the backend-app until MySQL and redis are
-deployed—you'll need to express those dependencines in your Terragrunt configuation as explained in the next section.
+deployed—you'll need to express those dependencies in your Terragrunt configuration as explained in the next section.
 
 
 #### Dependencies between modules
@@ -840,7 +840,7 @@ This section contains detailed documentation for the following aspects of Terrag
 
 ### Helper functions
 
-Terragrunt allows you to use the same inteprolation syntax as Terraform (`${...}`) to call *helper functions*. Note
+Terragrunt allows you to use the same interpolation syntax as Terraform (`${...}`) to call *helper functions*. Note
 that helper functions *only* work within a `terragrunt = { ... }` block. Terraform does NOT process interpolations in
 `.tfvars` files.
 
@@ -1183,7 +1183,7 @@ start with the prefix `--terragrunt-`. The currently available options are:
 
 * `--terragrunt-config`: A custom path to the `terraform.tfvars` file. May also be specified via the `TERRAGRUNT_CONFIG`
   environment variable. The default path is `terraform.tfvars` in the current directory (see
-  [Terragrunt config files](#terragrnt-config-files) for a slightly more nuanced explanation). This argument is not
+  [Terragrunt config files](#terragrunt-config-files) for a slightly more nuanced explanation). This argument is not
   used with the `apply-all`, `destroy-all`, and `output-all` commands.
 
 * `--terragrunt-tfpath`: A custom path to the Terraform binary. May also be specified via the `TERRAGRUNT_TFPATH`
