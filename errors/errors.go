@@ -72,3 +72,8 @@ func Recover(onPanic func(cause error)) {
 		onPanic(WithStackTrace(err))
 	}
 }
+
+// Interface to determine if we can retrieve an exit status from an error
+type IErrorCode interface {
+	ExitStatus() (int, error)
+}
