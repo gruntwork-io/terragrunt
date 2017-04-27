@@ -693,7 +693,7 @@ to complete, and then run `terraform apply` in the next subfolder. How do you av
 process?
 
 
-#### The apply-all, destroy-all, and output-all commands
+#### The apply-all, destroy-all, output-all and plan-all commands
 
 To be able to deploy multiple Terraform modules in a single command, add a `terraform.tfvars` file to each module:
 
@@ -743,11 +743,24 @@ cd root
 terragrunt destroy-all
 ```
 
-Finally, to see the currently applied outputs of all of the subfolders, you can use the `output-all` command:
+To see the currently applied outputs of all of the subfolders, you can use the `output-all` command:
 
 ```
 cd root
 terragrunt output-all
+```
+
+Finally, if you make some changes to your project, you could evaluate the impact by using `plan-all` command:
+
+Note: It is important to realize that you could get errors running `plan-all` if you have dependencies between your projects
+and some of those dependencies haven't been applied yet.
+
+_Ex: If module A depends on module B and module B hasn't been applied yet, then plan-all will show the plan for B,
+but exit with an error when trying to show the plan for A._
+
+```
+cd root
+terragrunt plan-all
 ```
 
 If your modules have dependencies between them—for example, you can't deploy the backend-app until MySQL and redis are
@@ -1184,7 +1197,7 @@ start with the prefix `--terragrunt-`. The currently available options are:
 * `--terragrunt-config`: A custom path to the `terraform.tfvars` file. May also be specified via the `TERRAGRUNT_CONFIG`
   environment variable. The default path is `terraform.tfvars` in the current directory (see
   [Terragrunt config files](#terragrunt-config-files) for a slightly more nuanced explanation). This argument is not
-  used with the `apply-all`, `destroy-all`, and `output-all` commands.
+  used with the `apply-all`, `destroy-all`, `output-all` and `plan-all` commands.
 
 * `--terragrunt-tfpath`: A custom path to the Terraform binary. May also be specified via the `TERRAGRUNT_TFPATH`
   environment variable. The default is `terraform` in a directory on your PATH.
@@ -1200,7 +1213,7 @@ start with the prefix `--terragrunt-`. The currently available options are:
 * `--terragrunt-source`: Download Terraform configurations from the specified source into a temporary folder, and run
   Terraform in that temporary folder. May also be specified via the `TERRAGRUNT_SOURCE` environment variable. The
   source should use the same syntax as the [Terraform module source](https://www.terraform.io/docs/modules/sources.html)
-  parameter. This argument is not used with the `apply-all`, `destroy-all`, and `output-all` commands.
+  parameter. This argument is not used with the `apply-all`, `destroy-all`, `output-all` and `plan-all` commands.
 
 * `--terragrunt-source-update`: Delete the contents of the temporary folder before downloading Terraform source code
   into it.
