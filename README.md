@@ -752,10 +752,11 @@ terragrunt output-all
 
 Finally, if you make some changes to your project, you could evaluate the impact by using `plan-all` command:
 
-Note: It is important to realize that you could get errors running `plan-all` if you have dependencies between your projects.
+Note: It is important to realize that you could get errors running `plan-all` if you have dependencies between your projects
+and some of those dependencies haven't been applied yet.
 
-_Ex: If you import a state file from one of your dependencies, `plan-all` will not generate or update that state file, resulting
-in possible errors in the dependant project._
+_Ex: If module A depends on module B and module B hasn't been applied yet, then plan-all will show the plan for B,
+but exit with an error when trying to show the plan for A._
 
 ```
 cd root
