@@ -71,7 +71,7 @@ func RunShellCommandAndCaptureOutput(terragruntOptions *options.TerragruntOption
 	return stdout.String(), nil
 }
 
-// Return the exit code of a command. If the error is not an exec.ExitError type,
+// Return the exit code of a command. If the error does not implement errors.IErrorCode or is not an exec.ExitError type,
 // the error is returned.
 func GetExitCode(err error) (int, error) {
 	if exiterr, ok := errors.Unwrap(err).(errors.IErrorCode); ok {
