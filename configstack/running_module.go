@@ -3,6 +3,7 @@ package configstack
 import (
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"strings"
 	"sync"
 )
@@ -163,7 +164,7 @@ func (module *runningModule) waitForDependencies() error {
 			module.Module.TerragruntOptions.Logger.Printf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too.", doneDependency.Module.Path, module.Module.Path, module.Module.Path)
 			return DependencyFinishedWithError{module.Module, doneDependency.Module, doneDependency.Err}
 		} else {
-			module.Module.TerragruntOptions.Logger.Printf("Dependency %s of module %s just finished succesfully. Module %s must wait on %d more dependencies.", doneDependency.Module.Path, module.Module.Path, module.Module.Path, len(module.Dependencies))
+			module.Module.TerragruntOptions.Logger.Printf("Dependency %s of module %s just finished successfully. Module %s must wait on %d more dependencies.", doneDependency.Module.Path, module.Module.Path, module.Module.Path, len(module.Dependencies))
 		}
 	}
 
@@ -211,6 +212,13 @@ func (err DependencyFinishedWithError) Error() string {
 	return fmt.Sprintf("Cannot process module %s because one of its dependencies, %s, finished with an error: %s", err.Module, err.Dependency, err.Err)
 }
 
+func (this DependencyFinishedWithError) ExitStatus() (int, error) {
+	if exitCode, err := shell.GetExitCode(this.Err); err == nil {
+		return exitCode, nil
+	}
+	return -1, this
+}
+
 type MultiError struct {
 	Errors []error
 }
@@ -221,6 +229,18 @@ func (err MultiError) Error() string {
 		errorStrings = append(errorStrings, err.Error())
 	}
 	return fmt.Sprintf("Encountered the following errors:\n%s", strings.Join(errorStrings, "\n"))
+}
+
+func (this MultiError) ExitStatus() (int, error) {
+	exitCode := 0
+	for i := range this.Errors {
+		if code, err := shell.GetExitCode(this.Errors[i]); err != nil {
+			return -1, this
+		} else if code > exitCode {
+			exitCode = code
+		}
+	}
+	return exitCode, nil
 }
 
 type DependencyNotFoundWhileCrossLinking struct {
