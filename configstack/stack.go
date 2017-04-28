@@ -1,7 +1,6 @@
 package configstack
 
 import (
-	"bytes"
 	"fmt"
 	"strings"
 
@@ -26,41 +25,10 @@ func (stack *Stack) String() string {
 	return fmt.Sprintf("Stack at %s:\n%s", stack.Path, strings.Join(modules, "\n"))
 }
 
-// Plan execute plan in the given stack in their specified order.
+// Plan all the modules in the given stack in their specified order.
 func (stack *Stack) Plan(terragruntOptions *options.TerragruntOptions) error {
 	stack.setTerraformCommand([]string{"plan"})
-
-	// We capture the out stream for each module
-	errorStreams := make([]bytes.Buffer, len(stack.Modules))
-	for n, module := range stack.Modules {
-		module.TerragruntOptions.ErrWriter = &errorStreams[n]
-	}
-	defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
-
-	return RunModules(stack.Modules)
-}
-
-// We inspect the error streams to give an explicit message if the plan failed because there were references to
-// remote states. `terraform plan` will fail if it tries to access remote state from dependencies and the plan
-// has never been applied on the dependency.
-func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.TerragruntOptions, errorStreams []bytes.Buffer) {
-	for i, errorStream := range errorStreams {
-		output := errorStream.String()
-		if strings.Contains(output, "Error running plan:") {
-			terragruntOptions.Logger.Println(output)
-			if strings.Contains(output, ": Resource 'data.terraform_remote_state.") {
-				var dependenciesMsg string
-				if len(stack.Modules[i].Dependencies) > 0 {
-					dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", stack.Modules[i].Config.Dependencies.Paths)
-				}
-				terragruntOptions.Logger.Printf("%v%v refers to remote state "+
-					"you may have to apply your changes in the dependencies prior running terragrunt plan-all.\n",
-					stack.Modules[i].Path,
-					dependenciesMsg,
-				)
-			}
-		}
-	}
+	return stack.planWithSummary(terragruntOptions)
 }
 
 // Apply all the modules in the given stack, making sure to apply the dependencies of each module in the stack in the

@@ -1,9 +1,11 @@
 package configstack
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"io"
 	"strings"
 	"sync"
 )
@@ -25,6 +27,9 @@ type runningModule struct {
 	DependencyDone chan *runningModule
 	Dependencies   map[string]*runningModule
 	NotifyWhenDone []*runningModule
+	OutStream      bytes.Buffer
+	Writer         io.Writer
+	Handler        ModuleHandler
 }
 
 // This controls in what order dependencies should be enforced between modules
@@ -34,6 +39,12 @@ const (
 	NormalOrder DependencyOrder = iota
 	ReverseOrder
 )
+
+// Handler function prototype to inject interaction during the processing.
+// The function receive the current module, its output and its error in parameter.
+// Normally, the handler should return the same error as received in parameter, but it is possible to
+// alter the normal course of the proccess by changing the error result.
+type ModuleHandler func(TerraformModule, string, error) error
 
 // Create a new RunningModule struct for the given module. This will initialize all fields to reasonable defaults,
 // except for the Dependencies and NotifyWhenDone, both of which will be empty. You should fill these using a
@@ -45,6 +56,7 @@ func newRunningModule(module *TerraformModule) *runningModule {
 		DependencyDone: make(chan *runningModule, 1000), // Use a huge buffer to ensure senders are never blocked
 		Dependencies:   map[string]*runningModule{},
 		NotifyWhenDone: []*runningModule{},
+		Writer:         module.TerragruntOptions.Writer,
 	}
 }
 
@@ -52,22 +64,43 @@ func newRunningModule(module *TerraformModule) *runningModule {
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
 func RunModules(modules []*TerraformModule) error {
-	runningModules, err := toRunningModules(modules, NormalOrder)
-	if err != nil {
-		return err
-	}
-	return runModules(runningModules)
+	return RunModulesWithHandler(modules, nil, NormalOrder)
 }
 
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in the reverse order of their inter-dependencies, using
 // as much concurrency as possible.
 func RunModulesReverseOrder(modules []*TerraformModule) error {
-	runningModules, err := toRunningModules(modules, ReverseOrder)
+	return RunModulesWithHandler(modules, nil, ReverseOrder)
+}
+
+// Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
+// TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
+// as much concurrency as possible.
+// This version accepts a function as parameter (see: ModuleHander). The handler is called when the command is
+// completed (either succeeded or failed).
+func RunModulesWithHandler(modules []*TerraformModule, handler ModuleHandler, order DependencyOrder) error {
+	runningModules, err := toRunningModules(modules, order)
 	if err != nil {
 		return err
 	}
-	return runModules(runningModules)
+
+	var waitGroup sync.WaitGroup
+
+	for _, module := range runningModules {
+		waitGroup.Add(1)
+		module.Handler = handler
+		go func(module *runningModule) {
+			defer waitGroup.Done()
+			module.Module.TerragruntOptions.Writer = &module.OutStream
+			module.Module.TerragruntOptions.ErrWriter = &module.OutStream
+			module.runModuleWhenReady()
+		}(module)
+	}
+
+	waitGroup.Wait()
+
+	return collectErrors(runningModules)
 }
 
 // Convert the list of modules to a map from module path to a runningModule struct. This struct contains information
@@ -105,25 +138,6 @@ func crossLinkDependencies(modules map[string]*runningModule, dependencyOrder De
 	}
 
 	return modules, nil
-}
-
-// Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
-// TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
-// as much concurrency as possible.
-func runModules(modules map[string]*runningModule) error {
-	var waitGroup sync.WaitGroup
-
-	for _, module := range modules {
-		waitGroup.Add(1)
-		go func(module *runningModule) {
-			defer waitGroup.Done()
-			module.runModuleWhenReady()
-		}(module)
-	}
-
-	waitGroup.Wait()
-
-	return collectErrors(modules)
 }
 
 // Collect the errors from the given modules and return a single error object to represent them, or nil if no errors
@@ -186,11 +200,18 @@ func (module *runningModule) runNow() error {
 
 // Record that a module has finished executing and notify all of this module's dependencies
 func (module *runningModule) moduleFinished(moduleErr error) {
-	if moduleErr == nil {
-		module.Module.TerragruntOptions.Logger.Printf("Module %s has finished successfully!", module.Module.Path)
-	} else {
-		module.Module.TerragruntOptions.Logger.Printf("Module %s has finished with an error: %v", module.Module.Path, moduleErr)
+	status := "successfully!"
+	if moduleErr != nil {
+		status = fmt.Sprintf("with an error: %v", moduleErr)
 	}
+
+	separator := strings.Repeat("-", 132)
+	module.Module.TerragruntOptions.Logger.Printf("Module %s has finished %s", module.Module.Path, status)
+
+	if module.Handler != nil {
+		moduleErr = module.Handler(*module.Module, module.OutStream.String(), moduleErr)
+	}
+	fmt.Fprintf(module.Writer, "\n%s\n%v\n\n%v%s\n\n", separator, module.Module.Path, module.OutStream.String(), separator)
 
 	module.Status = Finished
 	module.Err = moduleErr

@@ -41,5 +41,4 @@ func checkForErrorsAndExit(err error) {
 		}
 		os.Exit(exitCode)
 	}
-
 }

@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"bytes"
+	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -19,9 +20,19 @@ func RunTerraformCommand(terragruntOptions *options.TerragruntOptions, args ...s
 	return RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, args...)
 }
 
+// Run the given Terraform command and ignore the output unless there is an error
+func RunTerraformCommandAndIgnoreOutput(terragruntOptions *options.TerragruntOptions, args ...string) error {
+	output, err := runShellCommandAndCaptureOutput(terragruntOptions, true, terragruntOptions.TerraformPath, args...)
+	if err != nil {
+		fmt.Fprintln(terragruntOptions.ErrWriter, output)
+	}
+
+	return err
+}
+
 // Run the given Terraform command and return the stdout as a string
 func RunTerraformCommandAndCaptureOutput(terragruntOptions *options.TerragruntOptions, args ...string) (string, error) {
-	return RunShellCommandAndCaptureOutput(terragruntOptions, terragruntOptions.TerraformPath, args...)
+	return runShellCommandAndCaptureOutput(terragruntOptions, false, terragruntOptions.TerraformPath, args...)
 }
 
 // Run the specified shell command with the specified arguments. Connect the command's stdin, stdout, and stderr to
@@ -57,10 +68,13 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 
 // Run the specified shell command with the specified arguments. Capture the command's stdout and return it as a
 // string.
-func RunShellCommandAndCaptureOutput(terragruntOptions *options.TerragruntOptions, command string, args ...string) (string, error) {
+func runShellCommandAndCaptureOutput(terragruntOptions *options.TerragruntOptions, copyWorkingDir bool, command string, args ...string) (string, error) {
 	stdout := new(bytes.Buffer)
 
 	terragruntOptionsCopy := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	if copyWorkingDir {
+		terragruntOptionsCopy.WorkingDir = terragruntOptions.WorkingDir
+	}
 	terragruntOptionsCopy.Writer = stdout
 	terragruntOptionsCopy.ErrWriter = stdout
 

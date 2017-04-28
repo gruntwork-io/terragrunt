@@ -233,7 +233,7 @@ func downloadModules(terragruntOptions *options.TerragruntOptions) error {
 			return err
 		}
 		if shouldDownload {
-			return shell.RunTerraformCommand(terragruntOptions, "get", "-update")
+			return shell.RunTerraformCommandAndIgnoreOutput(terragruntOptions, "get", "-update")
 		}
 	}
 
