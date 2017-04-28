@@ -44,7 +44,7 @@ func (stack *Stack) planWithSummary(terragruntOptions *options.TerragruntOptions
 	return err
 }
 
-// Returns the handler and the list of results
+// Returns the handler that will be executed after each completion of `terraform plan`
 func getResultHandler(detailedExitCode bool, results *[]moduleResult, mutex *sync.Mutex) ModuleHandler {
 	return func(module TerraformModule, output string, err error) error {
 		inspectPlanResult(module, output)

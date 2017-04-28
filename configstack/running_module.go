@@ -257,7 +257,9 @@ func (this MultiError) ExitStatus() (int, error) {
 	for i := range this.Errors {
 		if code, err := shell.GetExitCode(this.Errors[i]); err != nil {
 			return -1, this
-		} else if code > exitCode {
+		} else if code == 1 || code == 2 && exitCode == 0 {
+			// The exit code 1 is more significant that the exit code 2 because it represents an error
+			// while 2 represent a warning.
 			exitCode = code
 		}
 	}
