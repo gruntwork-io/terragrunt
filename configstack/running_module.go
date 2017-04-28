@@ -30,6 +30,7 @@ type runningModule struct {
 	OutStream      bytes.Buffer
 	Writer         io.Writer
 	Handler        ModuleHandler
+	Mutex          *sync.Mutex // A shared mutex pointer to ensure that there is no concurrency problem when job finish and report
 }
 
 // This controls in what order dependencies should be enforced between modules
@@ -49,7 +50,7 @@ type ModuleHandler func(TerraformModule, string, error) error
 // Create a new RunningModule struct for the given module. This will initialize all fields to reasonable defaults,
 // except for the Dependencies and NotifyWhenDone, both of which will be empty. You should fill these using a
 // function such as crossLinkDependencies.
-func newRunningModule(module *TerraformModule) *runningModule {
+func newRunningModule(module *TerraformModule, mutex *sync.Mutex) *runningModule {
 	return &runningModule{
 		Module:         module,
 		Status:         Waiting,
@@ -57,6 +58,7 @@ func newRunningModule(module *TerraformModule) *runningModule {
 		Dependencies:   map[string]*runningModule{},
 		NotifyWhenDone: []*runningModule{},
 		Writer:         module.TerragruntOptions.Writer,
+		Mutex:          mutex,
 	}
 }
 
@@ -107,9 +109,11 @@ func RunModulesWithHandler(modules []*TerraformModule, handler ModuleHandler, or
 // about executing the module, such as whether it has finished running or not and any errors that happened. Note that
 // this does NOT actually run the module. For that, see the RunModules method.
 func toRunningModules(modules []*TerraformModule, dependencyOrder DependencyOrder) (map[string]*runningModule, error) {
+	var mutex sync.Mutex
+
 	runningModules := map[string]*runningModule{}
 	for _, module := range modules {
-		runningModules[module.Path] = newRunningModule(module)
+		runningModules[module.Path] = newRunningModule(module, &mutex)
 	}
 
 	return crossLinkDependencies(runningModules, dependencyOrder)
@@ -198,6 +202,8 @@ func (module *runningModule) runNow() error {
 	}
 }
 
+var separator = strings.Repeat("-", 132)
+
 // Record that a module has finished executing and notify all of this module's dependencies
 func (module *runningModule) moduleFinished(moduleErr error) {
 	status := "successfully!"
@@ -205,13 +211,14 @@ func (module *runningModule) moduleFinished(moduleErr error) {
 		status = fmt.Sprintf("with an error: %v", moduleErr)
 	}
 
-	separator := strings.Repeat("-", 132)
+	module.Mutex.Lock()
+	defer module.Mutex.Unlock()
 	module.Module.TerragruntOptions.Logger.Printf("Module %s has finished %s", module.Module.Path, status)
 
 	if module.Handler != nil {
 		moduleErr = module.Handler(*module.Module, module.OutStream.String(), moduleErr)
 	}
-	fmt.Fprintf(module.Writer, "\n%s\n%v\n\n%v%s\n\n", separator, module.Module.Path, module.OutStream.String(), separator)
+	fmt.Fprintf(module.Writer, "%s\n%v\n\n%v\n", separator, module.Module.Path, module.OutStream.String())
 
 	module.Status = Finished
 	module.Err = moduleErr

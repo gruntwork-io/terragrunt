@@ -8,7 +8,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 // The returned information for each module
@@ -28,8 +27,7 @@ func (stack *Stack) planWithSummary(terragruntOptions *options.TerragruntOptions
 	}
 
 	results := make([]moduleResult, 0, len(stack.Modules))
-	var mutex sync.Mutex
-	err := RunModulesWithHandler(stack.Modules, getResultHandler(detailedExitCode, &results, &mutex), NormalOrder)
+	err := RunModulesWithHandler(stack.Modules, getResultHandler(detailedExitCode, &results), NormalOrder)
 	printSummary(terragruntOptions, results)
 
 	// If there is no error, but -detail-exitcode is specified, we return an error with the number of changes.
@@ -45,7 +43,7 @@ func (stack *Stack) planWithSummary(terragruntOptions *options.TerragruntOptions
 }
 
 // Returns the handler that will be executed after each completion of `terraform plan`
-func getResultHandler(detailedExitCode bool, results *[]moduleResult, mutex *sync.Mutex) ModuleHandler {
+func getResultHandler(detailedExitCode bool, results *[]moduleResult) ModuleHandler {
 	return func(module TerraformModule, output string, err error) error {
 		inspectPlanResult(module, output)
 		if exitCode, convErr := shell.GetExitCode(err); convErr == nil && detailedExitCode && exitCode == 2 {
@@ -54,9 +52,7 @@ func getResultHandler(detailedExitCode bool, results *[]moduleResult, mutex *syn
 
 		message, count := extractSummaryResultFromPlan(output)
 
-		// We add the result to the result list (using mutex to ensure that there is no conflict while appending to the result array)
-		mutex.Lock()
-		defer mutex.Unlock()
+		// We add the result to the result list (there is no concurrency problem because it is handled by the running_module)
 		*results = append(*results, moduleResult{module, err, message, count})
 
 		return err
@@ -65,7 +61,7 @@ func getResultHandler(detailedExitCode bool, results *[]moduleResult, mutex *syn
 
 // Print a little summary of the plan execution
 func printSummary(terragruntOptions *options.TerragruntOptions, results []moduleResult) {
-	fmt.Fprintln(terragruntOptions.Writer, "Summary:")
+	fmt.Fprintf(terragruntOptions.Writer, "%s\nSummary:\n", separator)
 	for _, result := range results {
 		errMsg := ""
 		if result.Err != nil {
