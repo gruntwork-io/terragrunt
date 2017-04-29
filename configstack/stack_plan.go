@@ -141,9 +141,9 @@ func (err countError) Error() string {
 // If there are changes, the exit status must be = 2
 func (err countError) ExitStatus() (int, error) {
 	if err.count > 0 {
-		return 2, nil
+		return CHANGE_EXIT_CODE, nil
 	}
-	return 0, nil
+	return NORMAL_EXIT_CODE, nil
 }
 
 // This is a specialized version of MultiError type
