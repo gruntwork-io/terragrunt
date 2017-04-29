@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"bytes"
 	"log"
 	"os"
 	"os/exec"
@@ -9,8 +10,6 @@ import (
 	"strings"
 	"syscall"
 
-	"bytes"
-	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -20,13 +19,13 @@ func RunTerraformCommand(terragruntOptions *options.TerragruntOptions, args ...s
 	return RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, args...)
 }
 
-// Run the given Terraform command and ignore the output unless there is an error
-func RunTerraformCommandAndIgnoreOutput(terragruntOptions *options.TerragruntOptions, args ...string) error {
+// Run the given Terraform command but redirect all outputs (both stdout and stderr) to the logger instead of
+// the default stream. This allows us to isolate the true output of terrraform command from the artefact of commands
+// like init and get during the preparation steps.
+// If the user redirect the stdout, he will only get the output for the terraform desired command.
+func RunTerraformCommandAndRedirectOutputToLogger(terragruntOptions *options.TerragruntOptions, args ...string) error {
 	output, err := runShellCommandAndCaptureOutput(terragruntOptions, true, terragruntOptions.TerraformPath, args...)
-	if err != nil {
-		fmt.Fprintln(terragruntOptions.ErrWriter, output)
-	}
-
+	terragruntOptions.Logger.Println(output)
 	return err
 }
 

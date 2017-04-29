@@ -13,11 +13,21 @@ import (
 // Represents the status of a module that we are trying to apply as part of the apply-all or destroy-all command
 type ModuleStatus int
 
+const NORMAL_EXIT_CODE = 0
+const ERROR_EXIT_CODE = 1
+const UNDEFINED_EXIT_CODE = -1
+
 const (
 	Waiting ModuleStatus = iota
 	Running
 	Finished
 )
+
+// Using CreateMultiErrors as a variable instead of a function allows us to override the function used to compose multi error object.
+// It is used if a command wants to change the default behaviour of the severity analysis that is implemented by default.
+var CreateMultiErrors = func(errs []error) error {
+	return MultiError{Errors: errs}
+}
 
 // Represents a module we are trying to "run" (i.e. apply or destroy) as part of the apply-all or destroy-all command
 type runningModule struct {
@@ -157,7 +167,7 @@ func collectErrors(modules map[string]*runningModule) error {
 	if len(errs) == 0 {
 		return nil
 	} else {
-		return errors.WithStackTrace(MultiError{Errors: errs})
+		return errors.WithStackTrace(CreateMultiErrors(errs))
 	}
 }
 
@@ -260,13 +270,11 @@ func (err MultiError) Error() string {
 }
 
 func (this MultiError) ExitStatus() (int, error) {
-	exitCode := 0
+	exitCode := NORMAL_EXIT_CODE
 	for i := range this.Errors {
 		if code, err := shell.GetExitCode(this.Errors[i]); err != nil {
-			return -1, this
-		} else if code == 1 || code == 2 && exitCode == 0 {
-			// The exit code 1 is more significant that the exit code 2 because it represents an error
-			// while 2 represent a warning.
+			return UNDEFINED_EXIT_CODE, this
+		} else if code > exitCode {
 			exitCode = code
 		}
 	}

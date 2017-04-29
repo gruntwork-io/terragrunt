@@ -18,7 +18,17 @@ type moduleResult struct {
 	NbChanges int
 }
 
+const CHANGE_EXIT_CODE = 2
+
+var planResultRegex = regexp.MustCompile(`(\d+) to add, (\d+) to change, (\d+) to destroy.`)
+
 func (stack *Stack) planWithSummary(terragruntOptions *options.TerragruntOptions) error {
+	// We override the multi errors creator to use a specialized error type for plan
+	// because error severity in plan is not standard (i.e. exit code 2 is less significant that exit code 1).
+	CreateMultiErrors = func(errs []error) error {
+		return PlanMultiError{MultiError{errs}}
+	}
+
 	// We do a special treatment for -detailed-exitcode since we do not want to interrupt the processing of dependant
 	// stacks if one dependency has changes
 	detailedExitCode := util.ListContainsElement(terragruntOptions.TerraformCliArgs, "-detailed-exitcode")
@@ -45,8 +55,11 @@ func (stack *Stack) planWithSummary(terragruntOptions *options.TerragruntOptions
 // Returns the handler that will be executed after each completion of `terraform plan`
 func getResultHandler(detailedExitCode bool, results *[]moduleResult) ModuleHandler {
 	return func(module TerraformModule, output string, err error) error {
-		inspectPlanResult(module, output)
-		if exitCode, convErr := shell.GetExitCode(err); convErr == nil && detailedExitCode && exitCode == 2 {
+		warnAboutMissingDependencies(module, output)
+		if exitCode, convErr := shell.GetExitCode(err); convErr == nil && detailedExitCode && exitCode == CHANGE_EXIT_CODE {
+			// We do not want to consider CHANGE_EXIT_CODE as an error and not execute the dependants because there is an "error" in the dependencies.
+			// CHANGE_EXIT_CODE is not an error in this case, it is simply a status. We will reintroduce the exit code at the very end to mimic the behaviour
+			// of the native terrafrom plan -detailed-exitcode to exit with CHANGE_EXIT_CODE if there are changes in any of the module in the stack.
 			err = nil
 		}
 
@@ -73,7 +86,7 @@ func printSummary(terragruntOptions *options.TerragruntOptions, results []module
 }
 
 // Check the output message
-func inspectPlanResult(module TerraformModule, output string) {
+func warnAboutMissingDependencies(module TerraformModule, output string) {
 	if strings.Contains(output, ": Resource 'data.terraform_remote_state.") {
 		var dependenciesMsg string
 		if len(module.Dependencies) > 0 {
@@ -94,8 +107,7 @@ func extractSummaryResultFromPlan(output string) (string, int) {
 		return "No change", 0
 	}
 
-	re := regexp.MustCompile(`(\d+) to add, (\d+) to change, (\d+) to destroy.`)
-	result := re.FindStringSubmatch(output)
+	result := planResultRegex.FindStringSubmatch(output)
 	if len(result) == 0 {
 		return "Unable to determine the plan status", -1
 	}
@@ -119,11 +131,11 @@ func extractSummaryResultFromPlan(output string) (string, int) {
 type countError struct{ count int }
 
 func (err countError) Error() string {
-	article, s := "is", ""
+	article, plural := "is", ""
 	if err.count > 1 {
-		article, s = "are", "s"
+		article, plural = "are", "s"
 	}
-	return fmt.Sprintf("There %s %v change%s to apply", article, err.count, s)
+	return fmt.Sprintf("There %s %v change%s to apply", article, err.count, plural)
 }
 
 // If there are changes, the exit status must be = 2
@@ -132,4 +144,24 @@ func (err countError) ExitStatus() (int, error) {
 		return 2, nil
 	}
 	return 0, nil
+}
+
+// This is a specialized version of MultiError type
+// It handles the exit code differently from the base implementation
+type PlanMultiError struct {
+	MultiError
+}
+
+func (this PlanMultiError) ExitStatus() (int, error) {
+	exitCode := NORMAL_EXIT_CODE
+	for i := range this.Errors {
+		if code, err := shell.GetExitCode(this.Errors[i]); err != nil {
+			return UNDEFINED_EXIT_CODE, this
+		} else if code == ERROR_EXIT_CODE || code == CHANGE_EXIT_CODE && exitCode == NORMAL_EXIT_CODE {
+			// The exit code 1 is more significant that the exit code 2 because it represents an error
+			// while 2 represent a warning.
+			return UNDEFINED_EXIT_CODE, this
+		}
+	}
+	return exitCode, nil
 }
