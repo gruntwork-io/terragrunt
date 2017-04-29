@@ -78,11 +78,8 @@ func runShellCommandAndCaptureOutput(terragruntOptions *options.TerragruntOption
 	terragruntOptionsCopy.Writer = stdout
 	terragruntOptionsCopy.ErrWriter = stdout
 
-	if err := RunShellCommand(terragruntOptionsCopy, command, args...); err != nil {
-		return "", err
-	}
-
-	return stdout.String(), nil
+	err := RunShellCommand(terragruntOptionsCopy, command, args...)
+	return stdout.String(), err
 }
 
 // Return the exit code of a command. If the error does not implement errors.IErrorCode or is not an exec.ExitError type,
