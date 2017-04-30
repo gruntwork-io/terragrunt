@@ -195,7 +195,7 @@ func processTerraformSource(source string, terragruntOptions *options.Terragrunt
 		return nil, err
 	}
 
-	encodedWorkingDir := util.EncodeBase64Sha1AlphaNum(canonicalWorkingDir)
+	encodedWorkingDir := util.EncodeBase64Sha1(canonicalWorkingDir)
 	downloadDir := util.JoinPath(os.TempDir(), "terragrunt-download", encodedWorkingDir, rootPath)
 	workingDir := util.JoinPath(downloadDir, modulePath)
 	versionFile := util.JoinPath(downloadDir, ".terragrunt-source-version")
@@ -280,7 +280,7 @@ func splitSourceUrl(sourceUrl *url.URL, terragruntOptions *options.TerragruntOpt
 // so the same file path (/foo/bar) is always considered the same version. See also the encodeSourceName and
 // processTerraformSource methods.
 func encodeSourceVersion(sourceUrl *url.URL) string {
-	return util.EncodeBase64Sha1AlphaNum(sourceUrl.Query().Encode())
+	return util.EncodeBase64Sha1(sourceUrl.Query().Encode())
 }
 
 // Encode a the module name for the given source URL. When calculating a module name, we calculate the base 64 encoded
@@ -297,7 +297,7 @@ func encodeSourceName(sourceUrl *url.URL) (string, error) {
 
 	sourceUrlNoQuery.RawQuery = ""
 
-	return util.EncodeBase64Sha1AlphaNum(sourceUrlNoQuery.String()), nil
+	return util.EncodeBase64Sha1(sourceUrlNoQuery.String()), nil
 }
 
 // Returns true if the given URL refers to a path on the local file system
