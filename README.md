@@ -10,7 +10,7 @@ multiple Terraform modules, remote state, and locking.
 
 1. Install [Terraform](https://www.terraform.io/).
 
-1. Install Terragrunt by going to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases), downloading
+1. Install Terragrunt on [snap enabled](https://snapcraft.io/docs/core/install) systems using ```snap install terragrunt``` or manually by going to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases), downloading
    the binary for your OS, renaming it to `terragrunt`, and adding it to your PATH.
 
 1. Go into a folder with your Terraform configurations (`.tf` files) and create a `terraform.tfvars` file with a
