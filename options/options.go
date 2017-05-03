@@ -40,6 +40,9 @@ type TerragruntOptions struct {
 	// If set to true, delete the contents of the temporary folder before downloading Terraform source code into it
 	SourceUpdate bool
 
+	// If set to true, continue running *-all commands even if a dependency has errors. This is mostly useful for 'output-all <some_variable>'. See https://github.com/gruntwork-io/terragrunt/issues/193
+	IgnoreDependencyErrors bool
+
 	// If you want stdout to go somewhere other than os.stdout
 	Writer io.Writer
 
