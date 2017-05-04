@@ -1,3 +1,4 @@
+.*.sw?
 .idea
 vendor
 .terraform

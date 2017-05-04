@@ -2,6 +2,6 @@ terraform {
   backend "s3" {}
 }
 
-output "text" {
+output "app3_text" {
   value = "app3 output"
 }
