@@ -567,13 +567,7 @@ terragrunt = {
         "-var-file=terraform.tfvars",
         "-var-file=terraform-secret.tfvars"
       ]
-      commands = [
-        "apply",
-        "plan",
-        "import",
-        "push",
-        "refresh"
-      ]
+      commands = ["${get_terraform_commands_that_need_vars()}"]
     }
   }
 }
@@ -596,13 +590,7 @@ terragrunt = {
 			},
 			terragruntConfig.Terraform.ExtraArgs[0].Arguments)
 		assert.Equal(t,
-			[]string{
-				"apply",
-				"plan",
-				"import",
-				"push",
-				"refresh",
-			},
+			TERRAFORM_COMMANDS_NEED_VARS,
 			terragruntConfig.Terraform.ExtraArgs[0].Commands)
 	}
 }
@@ -636,9 +624,7 @@ terragrunt = {
         "file1.tfvars",
 				"file2.tfvars"
       ]
-      commands = [
-        "apply"
-      ]
+      commands = ["${get_terraform_commands_that_need_vars()}"]
     }
 
     extra_arguments "optional_tfvars" {
@@ -646,9 +632,7 @@ terragrunt = {
         "opt1.tfvars",
 				"opt2.tfvars"
       ]
-      commands = [
-        "plan"
-      ]
+      commands = ["${get_terraform_commands_that_need_vars()}"]
     }
   }
 }
@@ -671,10 +655,10 @@ terragrunt = {
 		assert.Equal(t, []string{"fmt"}, terragruntConfig.Terraform.ExtraArgs[1].Commands)
 		assert.Equal(t, "required_tfvars", terragruntConfig.Terraform.ExtraArgs[2].Name)
 		assert.Equal(t, []string{"file1.tfvars", "file2.tfvars"}, terragruntConfig.Terraform.ExtraArgs[2].RequiredVarFiles)
-		assert.Equal(t, []string{"apply"}, terragruntConfig.Terraform.ExtraArgs[2].Commands)
+		assert.Equal(t, TERRAFORM_COMMANDS_NEED_VARS, terragruntConfig.Terraform.ExtraArgs[2].Commands)
 		assert.Equal(t, "optional_tfvars", terragruntConfig.Terraform.ExtraArgs[3].Name)
 		assert.Equal(t, []string{"opt1.tfvars", "opt2.tfvars"}, terragruntConfig.Terraform.ExtraArgs[3].OptionalVarFiles)
-		assert.Equal(t, []string{"plan"}, terragruntConfig.Terraform.ExtraArgs[3].Commands)
+		assert.Equal(t, TERRAFORM_COMMANDS_NEED_VARS, terragruntConfig.Terraform.ExtraArgs[3].Commands)
 	}
 }
 

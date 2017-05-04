@@ -61,5 +61,5 @@ func ListToHCLArray(list []string) string {
 	for _, value := range list {
 		values = append(values, fmt.Sprintf(`"%s"`, value))
 	}
-	return fmt.Sprintf("[%v]", strings.Join(values, ", "))
+	return strings.Join(values, ", ")
 }

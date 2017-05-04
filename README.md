@@ -460,7 +460,7 @@ when creating the S3 bucket or DynamoDB table.
 
 ### Keep your CLI flags DRY
 
-#### <a name="extra_arguments"></a>Motivation
+#### Motivation
 
 Sometimes you may need to pass extra CLI arguments every time you run certain `terraform` commands. For example, you
 may want to set the `lock-timeout` setting to 20 minutes for all commands that may modify remote state so that
@@ -507,7 +507,7 @@ terragrunt = {
   terraform {
     # Force Terraform to keep trying to acquire a lock for up to 20 minutes if someone else already has the lock
     extra_arguments "retry_lock" {
-      commands  = "${get_terraform_commands_that_need_locking()}"
+      commands  = ["${get_terraform_commands_that_need_locking()}"]
       arguments = ["-lock-timeout=20m"]
     }
   }
@@ -1169,18 +1169,43 @@ The common.tfvars located in the terraform root folder will be included by all a
 
 `get_terraform_commands_that_need_vars()`
 
-Returns the list of terraform commands that accept -var and -var-file parameters. This function is used when defining [extra_arguments](#extra_arguments):
+Returns the list of terraform commands that accept -var and -var-file parameters. This function is used when defining [extra_arguments](#keep-your-cli-flags-dry).
+
+```
+terragrunt = {
+  terraform = {
+    ...
+
+    extra_arguments "common_var" {
+      commands  = ["${get_terraform_commands_that_need_vars()}"]
+      arguments = ["-var-file=${get_aws_account_id()}.tfvars"]
+    }
+  }
+}
+```
 
 #### get_terraform_commands_that_need_locking
 
 `get_terraform_commands_that_need_locking()`
 
-Returns the list of terraform commands that accept -lock-timeout parameter. This function is used when defining [extra_arguments](#extra_arguments):
+Returns the list of terraform commands that accept -lock-timeout parameter. This function is used when defining [extra_arguments](#keep-your-cli-flags-dry).
+
+```hcl
+terragrunt = {
+  terraform {
+    # Force Terraform to keep trying to acquire a lock for up to 20 minutes if someone else already has the lock
+    extra_arguments "retry_lock" {
+      commands  = ["${get_terraform_commands_that_need_locking()}"]
+      arguments = ["-lock-timeout=20m"]
+    }
+  }
+}
+```
 
 _Note: Functions that return a list of values must be used in a single declaration like:_
 
 ```hcl
-commands = "${get_terraform_commands_that_need_vars()}"
+commands = ["${get_terraform_commands_that_need_vars()}"]
 
 # which result in:
 commands = ["apply", "console", "destroy", "import", "plan", "push", "refresh"]
@@ -1218,7 +1243,7 @@ terragrunt = {
     ...
 
     extra_arguments "common_var" {
-      commands = "${get_terraform_commands_that_need_vars()}"
+      commands = ["${get_terraform_commands_that_need_vars()}"]
       arguments = ["-var-file=${get_aws_account_id()}.tfvars"]
     }
   }

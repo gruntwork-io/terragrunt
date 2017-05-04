@@ -62,6 +62,12 @@ var TERRAFORM_COMMANDS_THAT_USE_STATE = []string{
 	"state",
 }
 
+var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
+	"debug",
+	"force-unlock",
+	"state",
+}
+
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
 // in its definition, we don't quite fit into the model of any Go CLI library. Fortunately, urfave/cli allows us to
 // override the whole template used for the Usage Text.
@@ -182,7 +188,17 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	if conf.Terraform != nil && conf.Terraform.ExtraArgs != nil && len(conf.Terraform.ExtraArgs) > 0 {
-		terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, filterTerraformExtraArgs(terragruntOptions, conf)...)
+		commandLength := 1
+		if util.ListContainsElement(TERRAFORM_COMMANDS_WITH_SUBCOMMAND, terragruntOptions.TerraformCliArgs[0]) {
+			commandLength = 2
+		}
+		var args []string
+		args = append(args, terragruntOptions.TerraformCliArgs[:commandLength]...)
+
+		// Options must be inserted after command but before the other args
+		// command is either 1 word or 2 words
+		args = append(args, filterTerraformExtraArgs(terragruntOptions, conf)...)
+		terragruntOptions.TerraformCliArgs = append(args, terragruntOptions.TerraformCliArgs[commandLength:]...)
 	}
 
 	if sourceUrl, hasSourceUrl := getTerraformSourceUrl(terragruntOptions, conf); hasSourceUrl {

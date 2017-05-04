@@ -84,9 +84,9 @@ func TestListToHCLArray(t *testing.T) {
 		list     []string
 		expected string
 	}{
-		{[]string{}, `[]`},
-		{[]string{"foo"}, `["foo"]`},
-		{[]string{"foo", "bar"}, `["foo", "bar"]`},
+		{[]string{}, ``},
+		{[]string{"foo"}, `"foo"`},
+		{[]string{"foo", "bar"}, `"foo", "bar"`},
 	}
 
 	for _, testCase := range testCases {
