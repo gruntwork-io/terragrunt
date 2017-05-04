@@ -1218,6 +1218,8 @@ start with the prefix `--terragrunt-`. The currently available options are:
 * `--terragrunt-source-update`: Delete the contents of the temporary folder before downloading Terraform source code
   into it.
 
+* `--terragrunt-ignore-dependency-errors`: `*-all` commands continue processing components even if a dependency fails
+
 
 ### Terragrunt config files
 
