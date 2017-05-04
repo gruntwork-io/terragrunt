@@ -76,6 +76,12 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
+			[]string{"--terragrunt-ignore-dependency-errors"},
+			mockOptions(util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", true),
+			nil,
+		},
+
+		{
 			[]string{"--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "--terragrunt-non-interactive"},
 			mockOptions(fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, true, "", false),
 			nil,

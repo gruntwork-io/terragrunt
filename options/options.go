@@ -71,6 +71,7 @@ func NewTerragruntOptions(terragruntConfigPath string) *TerragruntOptions {
 		Env:                  map[string]string{},
 		Source:               "",
 		SourceUpdate:         false,
+		IgnoreDependencyErrors: false,
 		Writer:               os.Stdout,
 		ErrWriter:            os.Stderr,
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
@@ -103,9 +104,10 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		Env:                  terragruntOptions.Env,
 		Source:               terragruntOptions.Source,
 		SourceUpdate:         terragruntOptions.SourceUpdate,
-		RunTerragrunt:        terragruntOptions.RunTerragrunt,
+		IgnoreDependencyErrors: terragruntOptions.IgnoreDependencyErrors,
 		Writer:               terragruntOptions.Writer,
 		ErrWriter:            terragruntOptions.ErrWriter,
+		RunTerragrunt:        terragruntOptions.RunTerragrunt,
 	}
 }
 

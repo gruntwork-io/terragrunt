@@ -70,6 +70,8 @@ func parseTerragruntOptionsFromArgs(args []string) (*options.TerragruntOptions, 
 
 	sourceUpdate := parseBooleanArg(args, OPT_TERRAGRUNT_SOURCE_UPDATE, false)
 
+	ignoreDependencyErrors := parseBooleanArg(args, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, false)
+
 	return &options.TerragruntOptions{
 		TerragruntConfigPath: filepath.ToSlash(terragruntConfigPath),
 		TerraformPath:        filepath.ToSlash(terraformPath),
@@ -80,6 +82,7 @@ func parseTerragruntOptionsFromArgs(args []string) (*options.TerragruntOptions, 
 		RunTerragrunt:        runTerragrunt,
 		Source:               terraformSource,
 		SourceUpdate:         sourceUpdate,
+		IgnoreDependencyErrors: ignoreDependencyErrors,
 		Env:                  parseEnvironmentVariables(os.Environ()),
 	}, nil
 }
