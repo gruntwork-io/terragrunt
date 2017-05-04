@@ -73,17 +73,17 @@ func parseTerragruntOptionsFromArgs(args []string) (*options.TerragruntOptions, 
 	ignoreDependencyErrors := parseBooleanArg(args, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, false)
 
 	return &options.TerragruntOptions{
-		TerragruntConfigPath: filepath.ToSlash(terragruntConfigPath),
-		TerraformPath:        filepath.ToSlash(terraformPath),
-		NonInteractive:       parseBooleanArg(args, OPT_NON_INTERACTIVE, false),
-		TerraformCliArgs:     filterTerragruntArgs(args),
-		WorkingDir:           filepath.ToSlash(workingDir),
-		Logger:               util.CreateLogger(""),
-		RunTerragrunt:        runTerragrunt,
-		Source:               terraformSource,
-		SourceUpdate:         sourceUpdate,
+		TerragruntConfigPath:   filepath.ToSlash(terragruntConfigPath),
+		TerraformPath:          filepath.ToSlash(terraformPath),
+		NonInteractive:         parseBooleanArg(args, OPT_NON_INTERACTIVE, false),
+		TerraformCliArgs:       filterTerragruntArgs(args),
+		WorkingDir:             filepath.ToSlash(workingDir),
+		Logger:                 util.CreateLogger(""),
+		RunTerragrunt:          runTerragrunt,
+		Source:                 terraformSource,
+		SourceUpdate:           sourceUpdate,
 		IgnoreDependencyErrors: ignoreDependencyErrors,
-		Env:                  parseEnvironmentVariables(os.Environ()),
+		Env: parseEnvironmentVariables(os.Environ()),
 	}, nil
 }
 

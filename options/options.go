@@ -62,18 +62,18 @@ func NewTerragruntOptions(terragruntConfigPath string) *TerragruntOptions {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
 	return &TerragruntOptions{
-		TerragruntConfigPath: terragruntConfigPath,
-		TerraformPath:        "terraform",
-		NonInteractive:       false,
-		TerraformCliArgs:     []string{},
-		WorkingDir:           workingDir,
-		Logger:               util.CreateLogger(""),
-		Env:                  map[string]string{},
-		Source:               "",
-		SourceUpdate:         false,
+		TerragruntConfigPath:   terragruntConfigPath,
+		TerraformPath:          "terraform",
+		NonInteractive:         false,
+		TerraformCliArgs:       []string{},
+		WorkingDir:             workingDir,
+		Logger:                 util.CreateLogger(""),
+		Env:                    map[string]string{},
+		Source:                 "",
+		SourceUpdate:           false,
 		IgnoreDependencyErrors: false,
-		Writer:               os.Stdout,
-		ErrWriter:            os.Stderr,
+		Writer:                 os.Stdout,
+		ErrWriter:              os.Stderr,
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
@@ -95,19 +95,19 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 	workingDir := filepath.Dir(terragruntConfigPath)
 
 	return &TerragruntOptions{
-		TerragruntConfigPath: terragruntConfigPath,
-		TerraformPath:        terragruntOptions.TerraformPath,
-		NonInteractive:       terragruntOptions.NonInteractive,
-		TerraformCliArgs:     terragruntOptions.TerraformCliArgs,
-		WorkingDir:           workingDir,
-		Logger:               util.CreateLogger(workingDir),
-		Env:                  terragruntOptions.Env,
-		Source:               terragruntOptions.Source,
-		SourceUpdate:         terragruntOptions.SourceUpdate,
+		TerragruntConfigPath:   terragruntConfigPath,
+		TerraformPath:          terragruntOptions.TerraformPath,
+		NonInteractive:         terragruntOptions.NonInteractive,
+		TerraformCliArgs:       terragruntOptions.TerraformCliArgs,
+		WorkingDir:             workingDir,
+		Logger:                 util.CreateLogger(workingDir),
+		Env:                    terragruntOptions.Env,
+		Source:                 terragruntOptions.Source,
+		SourceUpdate:           terragruntOptions.SourceUpdate,
 		IgnoreDependencyErrors: terragruntOptions.IgnoreDependencyErrors,
-		Writer:               terragruntOptions.Writer,
-		ErrWriter:            terragruntOptions.ErrWriter,
-		RunTerragrunt:        terragruntOptions.RunTerragrunt,
+		Writer:                 terragruntOptions.Writer,
+		ErrWriter:              terragruntOptions.ErrWriter,
+		RunTerragrunt:          terragruntOptions.RunTerragrunt,
 	}
 }
 
