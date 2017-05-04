@@ -12,16 +12,6 @@ func TestCheckTerraformVersionMeetsConstraintEqual(t *testing.T) {
 	testCheckTerraformVersionMeetsConstraint(t, "v0.9.3", ">= v0.9.3", true)
 }
 
-func TestCheckTerraformVersionMeetsConstraintGreaterWithDebug(t *testing.T) {
-        t.Parallel()
-        testCheckTerraformVersionMeetsConstraint(t, "v0.9.4 cad024a5fe131a546936674ef85445215bbc4226", ">= v0.9.3", true)
-}
-
-func TestCheckTerraformVersionMeetsConstraintGreaterDevWithChanges(t *testing.T) {
-	t.Parallel()
-	testCheckTerraformVersionMeetsConstraint(t, "v0.9.4-dev (cad024a5fe131a546936674ef85445215bbc4226+CHANGES)", ">= v0.9.3", true)
-}
-
 func TestCheckTerraformVersionMeetsConstraintGreaterDev(t *testing.T) {
 	t.Parallel()
 	testCheckTerraformVersionMeetsConstraint(t, "v0.9.4-dev", ">= v0.9.3", true)
@@ -55,6 +45,21 @@ func TestParseTerraformVersionNormal(t *testing.T) {
 func TestParseTerraformVersionWithoutV(t *testing.T) {
 	t.Parallel()
 	testParseTerraformVersion(t, "Terraform 0.9.3", "0.9.3", nil)
+}
+
+func TestParseTerraformVersionWithDebug(t *testing.T) {
+	t.Parallel()
+	testParseTerraformVersion(t, "Terraform v0.9.4 cad024a5fe131a546936674ef85445215bbc4226", "v0.9.4", nil)
+}
+
+func TestParseTerraformVersionWithChanges(t *testing.T) {
+	t.Parallel()
+	testParseTerraformVersion(t, "Terraform v0.9.4-dev (cad024a5fe131a546936674ef85445215bbc4226+CHANGES)", "v0.9.4", nil)
+}
+
+func TestParseTerraformVersionWithDev(t *testing.T) {
+	t.Parallel()
+	testParseTerraformVersion(t, "Terraform v0.9.4-dev", "v0.9.4", nil)
 }
 
 func TestParseTerraformVersionInvalidSyntax(t *testing.T) {
