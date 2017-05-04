@@ -750,6 +750,48 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
 	assert.False(t, cRan)
 }
 
+func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErrors(t *testing.T) {
+	t.Parallel()
+
+	aRan := false
+	terragruntOptionsA := optionsWithMockTerragruntCommand("a", nil, &aRan)
+	terragruntOptionsA.IgnoreDependencyErrors = true
+	moduleA := &TerraformModule{
+		Path:              "a",
+		Dependencies:      []*TerraformModule{},
+		Config:            config.TerragruntConfig{},
+		TerragruntOptions: terragruntOptionsA,
+	}
+
+	bRan := false
+	expectedErrB := fmt.Errorf("Expected error for module b")
+	terragruntOptionsB := optionsWithMockTerragruntCommand("b", expectedErrB, &bRan)
+	terragruntOptionsB.IgnoreDependencyErrors = true
+	moduleB := &TerraformModule{
+		Path:              "b",
+		Dependencies:      []*TerraformModule{moduleA},
+		Config:            config.TerragruntConfig{},
+		TerragruntOptions: terragruntOptionsB,
+	}
+
+	cRan := false
+	terragruntOptionsC := optionsWithMockTerragruntCommand("c", nil, &cRan)
+	terragruntOptionsC.IgnoreDependencyErrors = true
+	moduleC := &TerraformModule{
+		Path:              "c",
+		Dependencies:      []*TerraformModule{moduleB},
+		Config:            config.TerragruntConfig{},
+		TerragruntOptions: terragruntOptionsC,
+	}
+
+	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC})
+	assertMultiErrorContains(t, err, expectedErrB)
+
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
+}
+
 func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *testing.T) {
 	t.Parallel()
 

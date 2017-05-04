@@ -29,61 +29,67 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 	}{
 		{
 			[]string{},
-			mockOptions(util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, ""),
+			mockOptions(util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false),
 			nil,
 		},
 
 		{
 			[]string{"foo", "bar"},
-			mockOptions(util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"foo", "bar"}, false, ""),
+			mockOptions(util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"foo", "bar"}, false, "", false),
 			nil,
 		},
 
 		{
 			[]string{"--foo", "--bar"},
-			mockOptions(util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"--foo", "--bar"}, false, ""),
+			mockOptions(util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"--foo", "--bar"}, false, "", false),
 			nil,
 		},
 
 		{
 			[]string{"--foo", "apply", "--bar"},
-			mockOptions(util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"--foo", "apply", "--bar"}, false, ""),
+			mockOptions(util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"--foo", "apply", "--bar"}, false, "", false),
 			nil,
 		},
 
 		{
 			[]string{"--terragrunt-non-interactive"},
-			mockOptions(util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, true, ""),
+			mockOptions(util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, true, "", false),
 			nil,
 		},
 
 		{
 			[]string{"--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath)},
-			mockOptions(fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, false, ""),
+			mockOptions(fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false),
 			nil,
 		},
 
 		{
 			[]string{"--terragrunt-working-dir", "/some/path"},
-			mockOptions(util.JoinPath("/some/path", config.DefaultTerragruntConfigPath), "/some/path", []string{}, false, ""),
+			mockOptions(util.JoinPath("/some/path", config.DefaultTerragruntConfigPath), "/some/path", []string{}, false, "", false),
 			nil,
 		},
 
 		{
 			[]string{"--terragrunt-source", "/some/path"},
-			mockOptions(util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "/some/path"),
+			mockOptions(util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "/some/path", false),
+			nil,
+		},
+
+		{
+			[]string{"--terragrunt-ignore-dependency-errors"},
+			mockOptions(util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", true),
 			nil,
 		},
 
 		{
 			[]string{"--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "--terragrunt-non-interactive"},
-			mockOptions(fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, true, ""),
+			mockOptions(fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, true, "", false),
 			nil,
 		},
 
 		{
 			[]string{"--foo", "--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "bar", "--terragrunt-non-interactive", "--baz", "--terragrunt-working-dir", "/some/path", "--terragrunt-source", "github.com/foo/bar//baz?ref=1.0.3"},
-			mockOptions(fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "/some/path", []string{"--foo", "bar", "--baz"}, true, "github.com/foo/bar//baz?ref=1.0.3"),
+			mockOptions(fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "/some/path", []string{"--foo", "bar", "--baz"}, true, "github.com/foo/bar//baz?ref=1.0.3", false),
 			nil,
 		},
 
@@ -128,15 +134,17 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 	assert.Equal(t, expected.TerraformCliArgs, actual.TerraformCliArgs, msgAndArgs...)
 	assert.Equal(t, expected.WorkingDir, actual.WorkingDir, msgAndArgs...)
 	assert.Equal(t, expected.Source, actual.Source, msgAndArgs...)
+	assert.Equal(t, expected.IgnoreDependencyErrors, actual.IgnoreDependencyErrors, msgAndArgs...)
 }
 
-func mockOptions(terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string) *options.TerragruntOptions {
+func mockOptions(terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool) *options.TerragruntOptions {
 	opts := options.NewTerragruntOptionsForTest(terragruntConfigPath)
 
 	opts.WorkingDir = workingDir
 	opts.TerraformCliArgs = terraformCliArgs
 	opts.NonInteractive = nonInteractive
 	opts.Source = terragruntSource
+	opts.IgnoreDependencyErrors = ignoreDependencyErrors
 
 	return opts
 }
