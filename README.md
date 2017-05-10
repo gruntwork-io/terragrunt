@@ -6,7 +6,7 @@ multiple Terraform modules, remote state, and locking.
 
 ## Quick start
 
-1. Install [Terraform](https://www.terraform.io/).
+1. [Install Terraform](https://www.terraform.io/intro/getting-started/install.html).
 
 1. Install Terragrunt by going to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases), downloading
    the binary for your OS, renaming it to `terragrunt`, and adding it to your PATH.
