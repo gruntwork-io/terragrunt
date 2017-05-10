@@ -38,7 +38,20 @@ multiple Terraform modules, remote state, and locking.
    configure remote state, locking, extra arguments, and lots more.
 
 
+## Table of Contents
 
+1. [Use cases](#use-cases)
+   1. [Keep your Terraform code DRY](#keep-your-terraform-code-dry)
+   1. [Keep your remote state configuration DRY](#keep-your-remote-state-configuration-dry)
+   1. [Keep your CLI flags DRY](#keep-your-cli-flags-dry)
+   1. [Work with multiple Terraform modules](#work-with-multiple-terraform-modules)
+1. [Terragrunt details](#terragrunt-details)
+   1. [Helper functions](#helper-functions)
+   1. [CLI options](#cli-options)
+   1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
+   1. [Terragrunt config files](#terragrunt-config-files)
+   1. [Developing Terragrunt](#developing-terragrunt)
+   1. [License](#license)
 
 
 
@@ -51,12 +64,14 @@ Terragrunt supports the following use cases:
 1. [Keep your CLI flags DRY](#keep-your-cli-flags-dry)
 1. [Work with multiple Terraform modules](#work-with-multiple-terraform-modules)
 
-
-
-
-
-
 ### Keep your Terraform code DRY
+
+* [Motivation](#motivation)
+* [Remote Terraform configurations](#remote-terraform-configurations)
+* [How to use remote configurations](#how-to-use-remote-configurations)
+* [DRY Terraform code and immutable infrastructure](#dry-terraform-code-and-immutable-infrastructure)
+* [Working locally](#working-locally)
+* [Important gotcha: working with relative file paths](#important-gotcha-working-with-relative-file-paths)
 
 #### Motivation
 
@@ -309,6 +324,10 @@ In particular:
 
 ### Keep your remote state configuration DRY
 
+* [Motivation](#motivation-1)
+* [Filling in remote state settings with Terragrunt](#filling-in-remote-state-settings-with-terragrunt)
+* [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically)
+
 #### Motivation
 
 Terraform supports [remote state storage](https://www.terraform.io/docs/state/remote.html) via a variety of
@@ -459,6 +478,11 @@ when creating the S3 bucket or DynamoDB table.
 
 
 ### Keep your CLI flags DRY
+
+* [Motivation](#motivation-2)
+* [Multiple extra_arguments blocks](#multiple-extra_arguments-blocks)
+* [Required and optional var-files](#required-and-optional-var-files)
+* [Handling whitespace](#handling-whitespace)
 
 #### Motivation
 
@@ -668,6 +692,9 @@ terraform apply -var bucket=example.bucket.name
 
 ### Work with multiple Terraform modules
 
+* [Motivation](#motivation-3)
+* [The apply-all, destroy-all, output-all and plan-all commands](#the-apply-all-destroy-all-output-all-and-plan-all-commands)
+* [Dependencies between modules](#dependencies-between-modules)
 
 #### Motivation
 
