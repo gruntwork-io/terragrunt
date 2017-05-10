@@ -35,6 +35,7 @@ Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that pro
    Terraform you already have installed. However, based on the settings in your `terraform.tfvars` file, Terragrunt can
    configure remote state, locking, extra arguments, and lots more.
 
+1. For some optional, yet useful, background reading that will help explain the motivation for Terragrunt, see: [How to create reusable infrastructure with Terraform modules](https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d) and [How to use Terraform as a team](https://blog.gruntwork.io/how-to-use-terraform-as-a-team-251bc1104973).
 
 ## Table of Contents
 
