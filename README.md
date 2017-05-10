@@ -4,8 +4,6 @@ Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that pro
 multiple Terraform modules, remote state, and locking.
 
 
-
-
 ## Quick start
 
 1. Install [Terraform](https://www.terraform.io/).
@@ -54,7 +52,6 @@ multiple Terraform modules, remote state, and locking.
    1. [License](#license)
 
 
-
 ## Use cases
 
 Terragrunt supports the following use cases:
@@ -64,6 +61,7 @@ Terragrunt supports the following use cases:
 1. [Keep your CLI flags DRY](#keep-your-cli-flags-dry)
 1. [Work with multiple Terraform modules](#work-with-multiple-terraform-modules)
 
+
 ### Keep your Terraform code DRY
 
 * [Motivation](#motivation)
@@ -72,6 +70,7 @@ Terragrunt supports the following use cases:
 * [DRY Terraform code and immutable infrastructure](#dry-terraform-code-and-immutable-infrastructure)
 * [Working locally](#working-locally)
 * [Important gotcha: working with relative file paths](#important-gotcha-working-with-relative-file-paths)
+
 
 #### Motivation
 
@@ -315,18 +314,12 @@ In particular:
   See the [get_tfvars_dir()](#get_tfvars_dir) documentation for more details.
 
 
-
-
-
-
-
-
-
 ### Keep your remote state configuration DRY
 
 * [Motivation](#motivation-1)
 * [Filling in remote state settings with Terragrunt](#filling-in-remote-state-settings-with-terragrunt)
 * [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically)
+
 
 #### Motivation
 
@@ -470,11 +463,6 @@ they don't already exist:
 
 **Note**: If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile
 when creating the S3 bucket or DynamoDB table.
-
-
-
-
-
 
 
 ### Keep your CLI flags DRY
@@ -686,15 +674,12 @@ terraform apply -var bucket=example.bucket.name
 ```
 
 
-
-
-
-
 ### Work with multiple Terraform modules
 
 * [Motivation](#motivation-3)
 * [The apply-all, destroy-all, output-all and plan-all commands](#the-apply-all-destroy-all-output-all-and-plan-all-commands)
 * [Dependencies between modules](#dependencies-between-modules)
+
 
 #### Motivation
 
@@ -861,11 +846,6 @@ no-op for the modules that already deployed successfully, and should only affect
 time around.
 
 
-
-
-
-
-
 ## Terragrunt details
 
 This section contains detailed documentation for the following aspects of Terragrunt:
@@ -1027,6 +1007,7 @@ terragrunt = {
 ```
 
 This allows proper retrieval of the `common.tfvars` from whatever the level of subdirectories we have.
+
 
 #### get_env
 
@@ -1213,7 +1194,6 @@ terragrunt = {
   }
 }
 ```
-
 
 
 ### CLI Options
@@ -1431,8 +1411,8 @@ If you were using Terragrunt <= v0.11.x and Terraform <= 0.8.x, here is how to m
     ```
 
 
-
 ### Developing terragrunt
+
 
 #### Running locally
 
@@ -1441,6 +1421,7 @@ To run Terragrunt locally, use the `go run` command:
 ```bash
 go run main.go plan
 ```
+
 
 #### Running tests
 
