@@ -7,8 +7,9 @@ Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that pro
 
 1. [Install Terraform](https://www.terraform.io/intro/getting-started/install.html).
 
-1. Install Terragrunt by going to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases), downloading
-   the binary for your OS, renaming it to `terragrunt`, and adding it to your PATH.
+1. Install Terragrunt
+   * On OSX `brew install terragrunt`. 
+     See the [Install Terragrunt]() docs for other installation options.
 
 1. Go into a folder with your Terraform configurations (`.tf` files) and create a `terraform.tfvars` file with a
    `terragrunt = { ... }` block that contains the configuration for Terragrunt (check out the [Use cases](#use-cases)
@@ -37,6 +38,7 @@ Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that pro
 
 ## Table of Contents
 
+1. [Install Terragrunt](#install-terragrunt)
 1. [Use cases](#use-cases)
    1. [Keep your Terraform code DRY](#keep-your-terraform-code-dry)
    1. [Keep your remote state configuration DRY](#keep-your-remote-state-configuration-dry)
@@ -49,6 +51,16 @@ Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that pro
    1. [Terragrunt config files](#terragrunt-config-files)
    1. [Developing Terragrunt](#developing-terragrunt)
    1. [License](#license)
+
+
+## Install Terragrunt
+
+### OSX
+You can install Terragrunt on OSX using [Homebrew](https://brew.sh/): `brew install terragrunt`.
+
+### Manual
+You can install Terragrunt manually by going to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases),
+downloading the binary for your OS, renaming it to `terragrunt`, and adding it to your PATH.
 
 
 ## Use cases
