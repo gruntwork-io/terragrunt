@@ -44,7 +44,7 @@ multiple Terraform modules, remote state, and locking.
    1. [Keep your CLI flags DRY](#keep-your-cli-flags-dry)
    1. [Work with multiple Terraform modules](#work-with-multiple-terraform-modules)
 1. [Terragrunt details](#terragrunt-details)
-   1. [Helper functions](#helper-functions)
+   1. [Interpolation Syntax](#interpolation-syntax)
    1. [CLI options](#cli-options)
    1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
    1. [Terragrunt config files](#terragrunt-config-files)
@@ -285,7 +285,7 @@ In particular:
 
 * **Terragrunt configuration**: When using file paths directly in your Terragrunt configuration (`terraform.tfvars`),
   such as in an `extra_arguments` block, you can't use hard-coded absolute file paths, or it won't work on your
-  teammates' computers. Therefore, you should use a relative file path with the `get_tfvars_dir()` helper:
+  teammates' computers. Therefore, you should utilize `get_tfvars_dir()` to use a relative file path:
 
     ```hcl
     terragrunt = {
@@ -301,7 +301,7 @@ In particular:
             "refresh"
           ]
 
-          # With the get_tfvars_dir helper, you can use relative paths!
+          # With the get_tfvars_dir() function, you can use relative paths!
           arguments = [
             "-var-file=${get_tfvars_dir()}/../common.tfvars",
             "-var-file=terraform.tfvars"
@@ -431,20 +431,20 @@ The `include` block tells Terragrunt to use the exact settings from the `terrafo
 `mysql/terraform.tfvars`, but this approach is much easier to maintain! Note that if you include any other settings
 in the `terragrunt` block of a child `.tfvars` file, it will override the settings in the parent.
 
-The `terraform.tfvars` files above use two *helper functions*:
+The `terraform.tfvars` files above use two Terragrunt built-in functions:
 
-* `find_in_parent_folders()`: This helper returns the path to the first `terraform.tfvars` file it finds in the parent
+* `find_in_parent_folders()`: This function returns the path to the first `terraform.tfvars` file it finds in the parent
   folders above the current `terraform.tfvars` file. In the example above, the call to `find_in_parent_folders()` in
   `mysql/terraform.tfvars` will return `../terraform.tfvars`. This way, you don't have to hard code the `path`
   parameter in every module.
 
-* `path_relative_to_include()`: This helper function returns the relative path between the current `terraform.tfvars`
+* `path_relative_to_include()`: This function returns the relative path between the current `terraform.tfvars`
   file and the path specified in its `include` block. We typically use this in a root `terraform.tfvars` file so that
   each Terraform child module stores its Terraform state at a different `key`. For example, the `mysql` module will
   have its `key` parameter resolve to `mysql/terraform.tfstate` and the `frontend-app` module will have its `key`
   parameter resolve to `frontend-app/terraform.tfstate`.
 
-See [the helper functions docs](#helper-functions) for more info.
+See [the Interpolation Syntax docs](#interpolation-syntax) for more info.
 
 
 #### Create remote state and locking resources automatically
@@ -850,7 +850,7 @@ time around.
 
 This section contains detailed documentation for the following aspects of Terragrunt:
 
-1. [Helper functions](#helper-functions)
+1. [Interpolation Syntax](#interpolation-syntax)
 1. [CLI options](#cli-options)
 1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
 1. [Terragrunt config files](#terragrunt-config-files)
@@ -858,21 +858,21 @@ This section contains detailed documentation for the following aspects of Terrag
 1. [License](#license)
 
 
-### Helper functions
+### Interpolation syntax
 
-Terragrunt allows you to use the same interpolation syntax as Terraform (`${...}`) to call *helper functions*. Note
-that helper functions *only* work within a `terragrunt = { ... }` block. Terraform does NOT process interpolations in
-`.tfvars` files.
+Terragrunt allows you to use [Terraform interpolation syntax](https://www.terraform.io/docs/configuration/interpolation.html)
+(`${...}`) to call specific Terragrunt built-in functions. Note that Terragrunt built-in functions **only** work within a 
+`terragrunt = { ... }` block. Terraform does NOT process interpolations in `.tfvars` files.
 
-Here are the supported helper functions:
+Here are the supported built-in functions:
 
-* [find_in_parent_folders](#find_in_parent_folders)
-* [path_relative_to_include](#path_relative_to_include)
-* [path_relative_from_include](#path_relative_from_include)
-* [get_env](#get_env)
-* [get_tfvars_dir](#get_tfvars_dir)
-* [get_parent_tfvars_dir](#get_parent_tfvars_dir)
-* [get_aws_account_id](#get_aws_account_id)
+* [find_in_parent_folders()](#find_in_parent_folders)
+* [path_relative_to_include()](#path_relative_to_include)
+* [path_relative_from_include()](#path_relative_from_include)
+* [get_env(NAME, DEFAULT)](#get_env)
+* [get_tfvars_dir()](#get_tfvars_dir)
+* [get_parent_tfvars_dir()](#get_parent_tfvars_dir)
+* [get_aws_account_id()](#get_aws_account_id)
 
 
 #### find_in_parent_folders
@@ -1028,7 +1028,7 @@ terragrunt = {
 Note that [Terraform will read environment
 variables](https://www.terraform.io/docs/configuration/environment-variables.html#tf_var_name) that start with the
 prefix `TF_VAR_`, so one way to share the a variable named `foo` between Terraform and Terragrunt is to set its value
-as the environment variable `TF_VAR_foo` and to read that value in using this `get_env` helper function.
+as the environment variable `TF_VAR_foo` and to read that value in using this `get_env()` built-in function.
 
 
 #### get_tfvars_dir
@@ -1078,7 +1078,7 @@ block that is trying to allow the `frontend-app` to read some shared variables f
 Unfortunately, the relative path (`../common.tfvars`) won't work, as it will be relative to the temporary folder!
 Moreover, you can't use an absolute path, or the code won't work on any of your teammates' computers.
 
-To make the relative path work, you need to use the `get_tfvars_dir()` helper to combine the path with the folder where
+To make the relative path work, you need to use `get_tfvars_dir()` to combine the path with the folder where
 the `.tfvars` file lives:
 
 ```hcl
@@ -1095,7 +1095,7 @@ terragrunt = {
         "refresh"
       ]
 
-      # With the get_tfvars_dir helper, you can use relative paths!
+      # With the get_tfvars_dir() function, you can use relative paths!
       arguments = [
         "-var-file=${get_tfvars_dir()}/../common.tfvars",
         "-var-file=terraform.tfvars"
