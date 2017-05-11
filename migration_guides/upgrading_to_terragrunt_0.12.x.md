@@ -21,7 +21,7 @@ Migration steps include:
 
 * [Define a backend in your Terraform files](#define-a-backend-in-your-terraform-files)
 * [Switch from Terragrunt locking to Terraform locking](#switch-from-terragrunt-locking-to-terraform-locking)
-* [Migrate from .terragrunt to terraform.tfvars](#migrate-from-.terragrunt-to-terraform.tfvars)
+* [Migrate from .terragrunt to terraform.tfvars](#migrate-from-terragrunt-to-terraformtfvars)
 
 
 ### Define a backend in your Terraform files
