@@ -48,8 +48,7 @@ Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that pro
 1. [Terragrunt details](#terragrunt-details)
    1. [Interpolation Syntax](#interpolation-syntax)
    1. [CLI options](#cli-options)
-   1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
-   1. [Terragrunt config files](#terragrunt-config-files)
+   1. [Terragrunt configuration](#terragrunt-configuration)
    1. [Developing Terragrunt](#developing-terragrunt)
    1. [License](#license)
 
@@ -865,8 +864,7 @@ This section contains detailed documentation for the following aspects of Terrag
 
 1. [Interpolation Syntax](#interpolation-syntax)
 1. [CLI options](#cli-options)
-1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
-1. [Terragrunt config files](#terragrunt-config-files)
+1. [Terragrunt configuration](#terragrunt-configuration)
 1. [Developing Terragrunt](#developing-terragrunt)
 1. [License](#license)
 
@@ -1239,40 +1237,11 @@ start with the prefix `--terragrunt-`. The currently available options are:
   into it.
 
 
-### Terragrunt config files
+### Terragrunt configuration
 
-The current version of Terragrunt expects configuration to be defined in a `terraform.tfvars` file. Previous
-versions defined the config in a `.terragrunt` file. **The `.terragrunt` format is now deprecated**!
+Terragrunt configuration is defined in a `terraform.tfvars` file in a `terragrunt = { ... }` block.
 
-For backwards compatibility, Terragrunt will continue to support the `.terragrunt` file format for a short period of
-time. Check out the next section for how this works. Note that you will get a warning in your logs every time you run
-Terragrunt with a `.terragrunt` file, and we will eventually stop supporting this older format, so we recommend
-migrating to the `terraform.tfvars` format ASAP!
-
-
-#### Config file search paths
-
-Terragrunt figures out the path to its config file according to the following rules:
-
-1. The value of the `--terragrunt-config` command-line option, if specified.
-1. The value of the `TERRAGRUNT_CONFIG` environment variable, if defined.
-1. A `.terragrunt` file in the current working directory, if it exists.
-1. A `terraform.tfvars` file in the current working directory, if it exists.
-1. If none of these are found, exit with an error.
-
-The `--terragrunt-config` parameter is only used by Terragrunt and has no effect on which variable files are loaded by Terraform. Terraform will automatically read variables from a file named terraform.tfvars, but if you want it to read variables from some other .tfvars file, you must pass it in using the `--var-file` argument:
-
-```bash
-terragrunt plan --terragrunt-config example.tfvars --var-file example.tfvars
-```
-
-
-#### Migrating from .terragrunt to terraform.tfvars
-
-The configuration in a `.terragrunt` file is identical to that of the `terraform.tfvars` file, except the
-`terraform.tfvars` file requires you to wrap that configuration in a `terragrunt = { ... }` block.
-
-For example, if this is your `.terragrunt` file:
+For example:
 
 ```hcl
 include {
@@ -1284,144 +1253,10 @@ dependencies {
 }
 ```
 
-The equivalent `terraform.tfvars` file is:
-
-```hcl
-terragrunt = {
-  include {
-    path = "${find_in_parent_folders()}"
-  }
-
-  dependencies {
-    paths = ["../vpc", "../mysql", "../redis"]
-  }
-}
-```
-
-To migrate, all you need to do is:
-
-1. Copy all the contents of the `.terragrunt` file.
-1. Paste those contents into a `terragrunt = { ... }` block in a `terraform.tfvars` file.
-1. Delete the `.terragrunt` file.
-
-
-### Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older
-
-#### Background
-
-Terragrunt was originally created to support two features that were not available in Terraform: defining remote state
-configuration in a file (rather than via CLI commands) and locking. As of version 0.9.0, Terraform now supports both of
-these features natively, so we have had to make changes to Terragrunt:
-
-1. Terragrunt still supports remote state configuration so you can take advantage of Terragrunt's interpolation
-   functions.
-1. Terragrunt no longer supports locking.
-
-
-#### Migration instructions
-
-If you were using Terragrunt <= v0.11.x and Terraform <= 0.8.x, here is how to migrate:
-
-1. In your Terraform code (the `.tf` files), you must now define a `backend`. For example, to use S3 as a remote state
-   backend, you will need to add the following to your Terraform code:
-
-    ```hcl
-    # main.tf
-    terraform {
-      # The configuration for this backend will be filled in by Terragrunt
-      backend "s3" {}
-    }
-    ```
-
-    Note that you can leave the configuration of the `backend` empty and allow Terragrunt to provide that configuration
-    instead. This allows you to keep your remote state configuration more DRY by taking advantage of Terragrunt's
-    interpolation functions:
-
-    ```hcl
-    # terraform.tfvars
-    terragrunt = {
-      remote_state {
-        backend = "s3"
-        config {
-          bucket  = "my-terraform-state"
-          key     = "${path_relative_to_include()}/terraform.tfstate"
-          region  = "us-east-1"
-          encrypt = true
-        }
-      }
-    }
-    ```
-
-1. Remove any `lock { ... }` blocks from your Terragrunt configurations, as these are no longer supported.
-
-    If you were storing remote state in S3 and relying on DynamoDB as a locking mechanism, Terraform now supports that
-    natively. To enable it, simply add the `lock_table` parameter to your S3 backend configuration. If you configure
-    your S3 backend using Terragrunt, then Terragrunt will automatically create the `lock_table` for you if that table
-    doesn't already exist:
-
-    ```hcl
-    # terraform.tfvars
-    terragrunt = {
-      remote_state {
-        backend = "s3"
-        config {
-          bucket  = "my-terraform-state"
-          key     = "${path_relative_to_include()}/terraform.tfstate"
-          region  = "us-east-1"
-          encrypt = true
-
-          # Tell Terraform to do locking using DynamoDB. Terragrunt will automatically create this table for you if
-          # it doesn't already exist.
-          lock_table = "my-lock-table"
-        }
-      }
-    }
-    ```
-
-    **NOTE**: We recommend using a completely new lock table name and NOT reusing the lock table from older versions of
-    Terragrunt, as that older table had a different structure than what Terraform expects, and Terragrunt will not
-    automatically recreate it.
-
-    If you would like Terraform to automatically retry locks like Terragrunt did (this is particularly useful when
-    running Terraform as part of an automated script, such as a CI build), you use an `extra_arguments` block:
-
-    ```hcl
-    # terraform.tfvars
-    terragrunt = {
-      remote_state {
-        backend = "s3"
-        config {
-          bucket  = "my-terraform-state"
-          key     = "${path_relative_to_include()}/terraform.tfstate"
-          region  = "us-east-1"
-          encrypt = true
-
-          # Tell Terraform to do locking using DynamoDB. Terragrunt will automatically create this table for you if
-          # it doesn't already exist.
-          lock_table = "my-lock-table"
-        }
-      }
-
-      terraform {
-        # Force Terraform to keep trying to acquire a lock for up to 20 minutes if someone else already has the lock
-        extra_arguments "retry_lock" {
-          commands = [
-            "init",
-            "apply",
-            "refresh",
-            "import",
-            "plan",
-            "taint",
-            "untaint"
-          ]
-
-          arguments = [
-            "-lock-timeout=20m"
-          ]
-        }
-      }
-    }
-    ```
+:exclamation: **Note:** Terragrunt `v0.11.x` and earlier defined the config in a `.terragrunt` file. **The `.terragrunt`
+format is now deprecated**! You will get a warning in your logs every time you run Terragrunt with a 
+`.terragrunt` file, and we will eventually stop supporting this older format. We recommend following
+the migration guide ASAP: [Upgrading to Terragrunt 0.12.x](migration_guides/upgrading_to_terragrunt_0.12.x.md).
 
 
 ### Developing terragrunt
