@@ -48,7 +48,7 @@ Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that pro
 1. [Terragrunt details](#terragrunt-details)
    1. [Interpolation Syntax](#interpolation-syntax)
    1. [CLI options](#cli-options)
-   1. [Terragrunt configuration](#terragrunt-configuration)
+   1. [Configuration](#configuration)
    1. [Developing Terragrunt](#developing-terragrunt)
    1. [License](#license)
 
@@ -864,7 +864,7 @@ This section contains detailed documentation for the following aspects of Terrag
 
 1. [Interpolation Syntax](#interpolation-syntax)
 1. [CLI options](#cli-options)
-1. [Terragrunt configuration](#terragrunt-configuration)
+1. [Configuration](#configuration)
 1. [Developing Terragrunt](#developing-terragrunt)
 1. [License](#license)
 
@@ -1214,7 +1214,7 @@ start with the prefix `--terragrunt-`. The currently available options are:
 
 * `--terragrunt-config`: A custom path to the `terraform.tfvars` file. May also be specified via the `TERRAGRUNT_CONFIG`
   environment variable. The default path is `terraform.tfvars` in the current directory (see
-  [Terragrunt config files](#terragrunt-config-files) for a slightly more nuanced explanation). This argument is not
+  [Configuration](#configuration) for a slightly more nuanced explanation). This argument is not
   used with the `apply-all`, `destroy-all`, `output-all` and `plan-all` commands.
 
 * `--terragrunt-tfpath`: A custom path to the Terraform binary. May also be specified via the `TERRAGRUNT_TFPATH`
@@ -1237,21 +1237,38 @@ start with the prefix `--terragrunt-`. The currently available options are:
   into it.
 
 
-### Terragrunt configuration
+### Configuration
 
 Terragrunt configuration is defined in a `terraform.tfvars` file in a `terragrunt = { ... }` block.
 
 For example:
 
 ```hcl
-include {
-  path = "${find_in_parent_folders()}"
-}
+terragrunt = {
+  include {
+    path = "${find_in_parent_folders()}"
+  }
 
-dependencies {
-  paths = ["../vpc", "../mysql", "../redis"]
+  dependencies {
+    paths = ["../vpc", "../mysql", "../redis"]
+  }
 }
 ```
+
+Terragrunt figures out the path to its config file according to the following rules:		
+ 		
+ 1. The value of the `--terragrunt-config` command-line option, if specified.
+ 1. The value of the `TERRAGRUNT_CONFIG` environment variable, if defined.
+ 1. A `terraform.tfvars` file in the current working directory, if it exists.
+ 1. If none of these are found, exit with an error.
+ 		
+ The `--terragrunt-config` parameter is only used by Terragrunt and has no effect on which variable files are loaded
+ by Terraform. Terraform will automatically read variables from a file named `terraform.tfvars`, but if you want it
+ to read variables from some other .tfvars file, you must pass it in using the `--var-file` argument:		
+ 
+ ```bash
+  terragrunt plan --terragrunt-config example.tfvars --var-file example.tfvars		
+ ```
 
 :exclamation: **Note:** Terragrunt `v0.11.x` and earlier defined the config in a `.terragrunt` file. **The `.terragrunt`
 format is now deprecated**! You will get a warning in your logs every time you run Terragrunt with a 
