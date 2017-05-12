@@ -58,6 +58,10 @@ Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that pro
 ### OSX
 You can install Terragrunt on OSX using [Homebrew](https://brew.sh/): `brew install terragrunt`.
 
+### Linux
+
+You can install Terragrunt on Linux systems using [snap](https://snapcraft.io/docs/core/install): `snap install terragrunt`.
+
 ### Manual
 You can install Terragrunt manually by going to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases),
 downloading the binary for your OS, renaming it to `terragrunt`, and adding it to your PATH.
