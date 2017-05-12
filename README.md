@@ -1278,7 +1278,6 @@ the migration guide ASAP: [Upgrading to Terragrunt 0.12.x](migration_guides/upgr
 
 ### Developing terragrunt
 
-
 #### Running locally
 
 To run Terragrunt locally, use the `go run` command:
@@ -1287,6 +1286,53 @@ To run Terragrunt locally, use the `go run` command:
 go run main.go plan
 ```
 
+#### Dependencies
+
+* Terragrunt uses `glide`, a vendor package management tool for golang. See the glide repo for
+  [installation instructions](https://github.com/Masterminds/glide#install).
+
+#### AWS credentials
+
+Terragrunt uses the official [AWS SDK for Go](https://aws.amazon.com/sdk-for-go/), which
+means that it will automatically load credentials using the 
+[AWS standard approach](https://aws.amazon.com/blogs/security/a-new-and-standardized-way-to-manage-credentials-in-the-aws-sdks/). See the Go SDK guide on [Specifying Credentials](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html) for details, but basically your options include:
+
+1. Environment Variables
+    1. `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` for credentials (and also `AWS_SESSION_TOKEN` if using [STS temporary credentials](http://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html))
+   1. `AWS_PROFILE` for the profile
+1. [AWS credentials file](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#shared-credentials-file). You can set this up by running `aws configure` and filling in the details.
+1. Run Terragrunt on an EC2 instance with an IAM Role.
+
+
+#### AWS IAM profiles
+
+Your AWS user must have an [IAM 
+policy](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/access-control-identity-based.html) 
+granting the permeissions required to run the tests.
+
+The following IAM policy grants the `dynamodb:DescribeTable` permission on all tables and grant all DynamoDB
+permissions (`dynamodb:*`) for tables automatically created by the Terragrunt tests. Make sure to replace
+`1234567890` with your AWS account id.
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllowAllDynamoDBActionsOnTablesForTerragruntTesting",
+            "Effect": "Allow",
+            "Action": "dynamodb:*",
+            "Resource": "arn:aws:dynamodb:us-east-1:1234567890:table/terragrunt_test_*"
+        },
+        {
+            "Sid": "AllowDescribeTableOnAllTables",
+            "Effect": "Allow",
+            "Action": "dynamodb:DescribeTable",
+            "Resource": "arn:aws:dynamodb:us-east-1:1234567890:table/*"
+        }
+    ]
+}
+```
 
 #### Running tests
 
