@@ -1310,25 +1310,42 @@ Your AWS user must have an [IAM
 policy](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/access-control-identity-based.html) 
 granting the permeissions required to run the tests.
 
-The following IAM policy grants the `dynamodb:DescribeTable` permission on all tables and grant all DynamoDB
-permissions (`dynamodb:*`) for tables automatically created by the Terragrunt tests. Make sure to replace
-`1234567890` with your AWS account id.
+The following IAM policy grants:
+
+* `dynamodb:DescribeTable` permission in all regions on all tables
+* all DynamoDB permissions (`dynamodb:*`) in all regions for tables automatically created by the Terragrunt tests
+* all S3 permissions for buckets automatically created by the Terragrunt tests
+
+Make sure to replace `1234567890` with your AWS account id.
 
 ```json
 {
     "Version": "2012-10-17",
     "Statement": [
         {
-            "Sid": "AllowAllDynamoDBActionsOnTablesForTerragruntTesting",
-            "Effect": "Allow",
-            "Action": "dynamodb:*",
-            "Resource": "arn:aws:dynamodb:us-east-1:1234567890:table/terragrunt_test_*"
-        },
-        {
             "Sid": "AllowDescribeTableOnAllTables",
             "Effect": "Allow",
             "Action": "dynamodb:DescribeTable",
-            "Resource": "arn:aws:dynamodb:us-east-1:1234567890:table/*"
+            "Resource": "arn:aws:dynamodb:*:1234567890:table/*"
+        },
+        {
+            "Sid": "AllowAllDynamoDBActionsOnTablesForTerragruntTesting",
+            "Effect": "Allow",
+            "Action": "dynamodb:*",
+            "Resource": [
+                "arn:aws:dynamodb:*:1234567890:table/terragrunt_test_*",
+                "arn:aws:dynamodb:*:1234567890:table/terragrunt-lock-table-*",
+                "arn:aws:dynamodb:*:1234567890:table/terragrunt-test-locks-*"
+            ]
+        },
+        {
+            "Sid": "AllowAllS3ActionsOnBucketsCreatedForTerragruntTesting",
+            "Effect": "Allow",
+            "Action": "s3:*",
+            "Resource": [
+                "arn:aws:s3:::terragrunt-test-bucket-*",
+                "arn:aws:s3:::terragrunt-test-bucket-*/*"
+            ]
         }
     ]
 }
