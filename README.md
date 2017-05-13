@@ -1299,13 +1299,7 @@ go run main.go plan
 
 Terragrunt uses the official [AWS SDK for Go](https://aws.amazon.com/sdk-for-go/), which
 means that it will automatically load credentials using the 
-[AWS standard approach](https://aws.amazon.com/blogs/security/a-new-and-standardized-way-to-manage-credentials-in-the-aws-sdks/). See the Go SDK guide on [Specifying Credentials](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html) for details, but basically your options include:
-
-1. Environment Variables
-    1. `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` for credentials (and also `AWS_SESSION_TOKEN` if using [STS temporary credentials](http://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html))
-   1. `AWS_PROFILE` for the profile
-1. [AWS credentials file](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#shared-credentials-file). You can set this up by running `aws configure` and filling in the details.
-1. Run Terragrunt on an EC2 instance with an IAM Role.
+[AWS standard approach](https://aws.amazon.com/blogs/security/a-new-and-standardized-way-to-manage-credentials-in-the-aws-sdks/). If you need help configuring your credentials, please refer to the [Terraform docs](https://www.terraform.io/docs/providers/aws/#authentication).
 
 
 #### AWS IAM profiles
