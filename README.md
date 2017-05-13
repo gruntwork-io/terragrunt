@@ -300,7 +300,8 @@ In particular:
 
 * **Terragrunt configuration**: When using file paths directly in your Terragrunt configuration (`terraform.tfvars`),
   such as in an `extra_arguments` block, you can't use hard-coded absolute file paths, or it won't work on your
-  teammates' computers. Therefore, you should utilize `get_tfvars_dir()` to use a relative file path:
+  teammates' computers. Therefore, you should utilize the Terragrunt built-in function `get_tfvars_dir()` to use
+  a relative file path:
 
     ```hcl
     terragrunt = {
