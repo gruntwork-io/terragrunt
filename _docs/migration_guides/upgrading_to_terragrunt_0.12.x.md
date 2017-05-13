@@ -3,7 +3,7 @@
 ## Background
 
 Terragrunt was originally created to support two features that were not available in Terraform: defining remote state
-configuration in a file (rather than via CLI commands) and locking. As of version `0.9.0`, Terraform now supports both of
+configuration in a file (rather than via CLI commands) and locking. As of version 0.9.0, Terraform now supports both of
 these features natively, so we have made some changes to Terragrunt:
 
 1. Terragrunt still supports remote state configuration, so you can take advantage of Terragrunt's interpolation
@@ -13,8 +13,8 @@ these features natively, so we have made some changes to Terragrunt:
 
 ## Migration guide
 
-The following sections outlines the steps you may need to take in order to migrate from Terragrunt `<= v0.11.x`
-to Terragrunt `0.12.x`. If you are using Terraform `<= 0.8.x`, see the upgrade guide on the Terraform website
+The following sections outlines the steps you may need to take in order to migrate from Terragrunt <= v0.11.x
+to Terragrunt 0.12.x. If you are using Terraform <= 0.8.x, see the upgrade guide on the Terraform website
 [Upgrading to Terraform v0.9](https://www.terraform.io/upgrade-guides/0-9.html).
 
 Migration steps include:
