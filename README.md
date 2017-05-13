@@ -1274,10 +1274,18 @@ Terragrunt figures out the path to its config file according to the following ru
   terragrunt plan --terragrunt-config example.tfvars --var-file example.tfvars		
  ```
 
-:exclamation: **Note:** Terragrunt `v0.11.x` and earlier defined the config in a `.terragrunt` file. **The `.terragrunt`
-format is now deprecated**! You will get a warning in your logs every time you run Terragrunt with a 
-`.terragrunt` file, and we will eventually stop supporting this older format. We recommend following
-the migration guide ASAP: [Upgrading to Terragrunt 0.12.x](migration_guides/upgrading_to_terragrunt_0.12.x.md).
+
+##### Previous Versions of Terragrunt
+
+Terragrunt v0.11.x and earlier defined the config in a .terragrunt file. Note that the .terragrunt format
+is now deprecated. You will get a warning in your logs every time you run Terragrunt with a .terragrunt file,
+and we will eventually stop supporting this older format.
+
+
+##### Migrating from Previous Versions of Terragrunt
+
+After we released support for Terraform 0.9.x, we wrote a guide on 
+[Upgrading to Terragrunt 0.12.x](_docs/migration_guides/upgrading_to_terragrunt_0.12.x.md).
 
 
 ### Developing terragrunt
