@@ -26,7 +26,7 @@ Migration steps include:
 
 ### Define a backend in your Terraform files
 
-In your Terraform code (the `.tf` files), you must now define a `backend`. The Terraform guides 
+As of Terraform 0.9.0, you must define a `backend` in your Terraform code (the `.tf` files). The Terraform guides 
 [Upgrading to Terraform v0.9](https://www.terraform.io/upgrade-guides/0-9.html) and 
 [Backends: Migrating From 0.8.x and Earlier](https://www.terraform.io/docs/backends/legacy-0-8.html)
 may be useful to understand backends.
