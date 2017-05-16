@@ -1,6 +1,6 @@
 # Terragrunt
 
-Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that provides extra tools for keeping your Terraform scripts DRY, working with multiple Terraform modules, and managing remote state.
+Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that provides extra tools for keeping your Terraform configurations DRY, working with multiple Terraform modules, and managing remote state.
 
 
 ## Quick start
