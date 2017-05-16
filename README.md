@@ -301,6 +301,25 @@ In particular:
 
 
 
+#### Github using SSH
+To use terragrunt with SSH github authentication, use the following syntax. Note the `/` after 
+github.com instead of `:` and the uses of `//`. 
+
+```hcl
+terragrunt = {
+  terraform {
+    source = "git::ssh://git@github.com/foo/modules.git//path/to/module?ref=v0.0.1"
+  }
+}
+```
+For private git repositories, replace github.com with the private repository host. 
+
+Note: In automated pipelines, you may need to run the following command prior to calling
+`terragrunt` to ensure that the ssh host is registered locally:
+
+```
+$ ssh -T -oStrictHostKeyChecking=no git@github.com || true
+```
 
 
 
