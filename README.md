@@ -301,6 +301,27 @@ In particular:
 
 
 
+#### Using Terragrunt with private Git repos
+The easiest way to use Terragrunt with private Git repos is to use SSH authentication. 
+Configure your Git account so you can use it with SSH (see the [guide for GitHub here](https://help.github.com/articles/connecting-to-github-with-ssh/)) and use the SSH URL for your repo, 
+prepended with `git::ssh://`: 
+
+```hcl
+terragrunt = {
+  terraform {
+    source = "git::ssh://git@github.com/foo/modules.git//path/to/module?ref=v0.0.1"
+  }
+}
+```
+Look up the Git repo for your repository to find the proper format. 
+
+Note: In automated pipelines, you may need to run the following command for your 
+Git repository prior to calling `terragrunt` to ensure that the ssh host is registered 
+locally, e.g.:
+
+```
+$ ssh -T -oStrictHostKeyChecking=no git@github.com || true
+```
 
 
 
