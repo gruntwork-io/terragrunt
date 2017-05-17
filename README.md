@@ -301,9 +301,10 @@ In particular:
 
 
 
-#### Github using SSH
-To use terragrunt with SSH github authentication, use the following syntax. Note the `/` after 
-github.com instead of `:` and the uses of `//`. 
+#### Using Terragrunt with private Git repos
+The easiest way to use Terragrunt with private Git repos is to use SSH authentication. 
+Configure your Git account so you can use it with SSH (see the [guide for GitHub here](https://help.github.com/articles/connecting-to-github-with-ssh/)) and use the SSH URL for your repo, 
+prepended with `git::ssh://`: 
 
 ```hcl
 terragrunt = {
@@ -312,10 +313,11 @@ terragrunt = {
   }
 }
 ```
-For private git repositories, replace github.com with the private repository host. 
+Look up the Git repo for your repository to find the proper format. 
 
-Note: In automated pipelines, you may need to run the following command prior to calling
-`terragrunt` to ensure that the ssh host is registered locally:
+Note: In automated pipelines, you may need to run the following command for your 
+Git repository prior to calling `terragrunt` to ensure that the ssh host is registered 
+locally, e.g.:
 
 ```
 $ ssh -T -oStrictHostKeyChecking=no git@github.com || true
