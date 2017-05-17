@@ -53,6 +53,7 @@ Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that pro
    1. [Interpolation Syntax](#interpolation-syntax)
    1. [CLI options](#cli-options)
    1. [Configuration](#configuration)
+   1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
    1. [Developing Terragrunt](#developing-terragrunt)
    1. [License](#license)
 
@@ -878,6 +879,7 @@ This section contains detailed documentation for the following aspects of Terrag
 1. [Interpolation Syntax](#interpolation-syntax)
 1. [CLI options](#cli-options)
 1. [Configuration](#configuration)
+1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
 1. [Developing Terragrunt](#developing-terragrunt)
 1. [License](#license)
 
@@ -1290,8 +1292,7 @@ Terragrunt v0.11.x and earlier defined the config in a .terragrunt file. Note th
 is now deprecated. You will get a warning in your logs every time you run Terragrunt with a .terragrunt file,
 and we will eventually stop supporting this older format.
 
-
-##### Migrating from Previous Versions of Terragrunt
+#### Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older
 
 After we released support for Terraform 0.9.x, we wrote a guide on 
 [Upgrading to Terragrunt 0.12.x](_docs/migration_guides/upgrading_to_terragrunt_0.12.x.md).
