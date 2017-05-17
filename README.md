@@ -1373,8 +1373,7 @@ Make sure to replace `1234567890` with your AWS account id.
 real data from DynamoDB. DO NOT hit `CTRL+C` while the tests are running, as this will prevent them from cleaning up
 temporary tables and data in DynamoDB. We are not responsible for any charges you may incur.
 
-Before running the tests, you must configure your AWS credentials as explained in the [DynamoDB locking
-prerequisites](#dynamodb-locking-prerequisites) section.
+Before running the tests, you must configure your [AWS credentials](#aws-credentials) and [AWS IAM policies](#aws-iam-policies).
 
 To run all the tests:
 
