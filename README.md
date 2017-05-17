@@ -902,6 +902,8 @@ time around.
 
 This section contains detailed documentation for the following aspects of Terragrunt:
 
+1. [AWS credentials](#aws-credentials)
+1. [AWS IAM policies](#aws-iam-policies)
 1. [Interpolation Syntax](#interpolation-syntax)
 1. [CLI options](#cli-options)
 1. [Configuration](#configuration)
@@ -909,6 +911,54 @@ This section contains detailed documentation for the following aspects of Terrag
 1. [Developing Terragrunt](#developing-terragrunt)
 1. [License](#license)
 
+
+### AWS credentials
+
+Terragrunt uses the official [AWS SDK for Go](https://aws.amazon.com/sdk-for-go/), which
+means that it will automatically load credentials using the 
+[AWS standard approach](https://aws.amazon.com/blogs/security/a-new-and-standardized-way-to-manage-credentials-in-the-aws-sdks/). If you need help configuring your credentials, please refer to the [Terraform docs](https://www.terraform.io/docs/providers/aws/#authentication).
+
+
+### AWS IAM policies
+
+Your AWS user must have an [IAM 
+policy](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/access-control-identity-based.html) 
+which grants permissions for interacting with DynamoDB and S3. Terragrnt will automatically create
+the configured DynamoDB tables and S3 buckets for storing remote state if they do not already exist.
+
+The following is an example IAM policy which the Terragrunt organization would use. The policy grants 
+the following permissions:
+
+* all DynamoDB permissions in all regions for tables used by Terragrunt
+* all S3 permissions for buckets used by Terragrunt
+
+Before using this policy, make sure to replace `1234567890` with your AWS account id and `terragrunt*` with
+your organization's naming convention for AWS resources for Terraform remote state.
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllowAllDynamoDBActionsOnAllTerragruntTables",
+            "Effect": "Allow",
+            "Action": "dynamodb:*",
+            "Resource": [
+                "arn:aws:dynamodb:*:1234567890:table/terragrunt*"
+            ]
+        },
+        {
+            "Sid": "AllowAllS3ActionsOnTerragruntBuckets",
+            "Effect": "Allow",
+            "Action": "s3:*",
+            "Resource": [
+                "arn:aws:s3:::terragrunt*",
+                "arn:aws:s3:::terragrunt*/*"
+            ]
+        }
+    ]
+}
+```
 
 ### Interpolation syntax
 
@@ -1340,53 +1390,6 @@ go run main.go plan
 
 * Terragrunt uses `glide`, a vendor package management tool for golang. See the glide repo for
   [installation instructions](https://github.com/Masterminds/glide#install).
-
-#### AWS credentials
-
-Terragrunt uses the official [AWS SDK for Go](https://aws.amazon.com/sdk-for-go/), which
-means that it will automatically load credentials using the 
-[AWS standard approach](https://aws.amazon.com/blogs/security/a-new-and-standardized-way-to-manage-credentials-in-the-aws-sdks/). If you need help configuring your credentials, please refer to the [Terraform docs](https://www.terraform.io/docs/providers/aws/#authentication).
-
-
-#### AWS IAM policies
-
-Your AWS user must have an [IAM 
-policy](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/access-control-identity-based.html) 
-granting the permeissions required to run the tests.
-
-The following is an example IAM policy which the Terragrunt organization would use. The policy grants 
-the following permissions:
-
-* all DynamoDB permissions in all regions for tables used by Terragrunt
-* all S3 permissions for buckets used by Terragrunt
-
-Before using this policy, make sure to replace `1234567890` with your AWS account id and `terragrunt*` with
-your organization's naming convention for AWS resources for Terraform remote state.
-
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "AllowAllDynamoDBActionsOnAllTerragruntTables",
-            "Effect": "Allow",
-            "Action": "dynamodb:*",
-            "Resource": [
-                "arn:aws:dynamodb:*:1234567890:table/terragrunt*"
-            ]
-        },
-        {
-            "Sid": "AllowAllS3ActionsOnTerragruntBuckets",
-            "Effect": "Allow",
-            "Action": "s3:*",
-            "Resource": [
-                "arn:aws:s3:::terragrunt*",
-                "arn:aws:s3:::terragrunt*/*"
-            ]
-        }
-    ]
-}
-```
 
 #### Running tests
 
