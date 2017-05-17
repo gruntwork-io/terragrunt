@@ -40,6 +40,9 @@ type TerragruntOptions struct {
 	// If set to true, delete the contents of the temporary folder before downloading Terraform source code into it
 	SourceUpdate bool
 
+	// If set to true, continue running *-all commands even if a dependency has errors. This is mostly useful for 'output-all <some_variable>'. See https://github.com/gruntwork-io/terragrunt/issues/193
+	IgnoreDependencyErrors bool
+
 	// If you want stdout to go somewhere other than os.stdout
 	Writer io.Writer
 
@@ -59,17 +62,18 @@ func NewTerragruntOptions(terragruntConfigPath string) *TerragruntOptions {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
 	return &TerragruntOptions{
-		TerragruntConfigPath: terragruntConfigPath,
-		TerraformPath:        "terraform",
-		NonInteractive:       false,
-		TerraformCliArgs:     []string{},
-		WorkingDir:           workingDir,
-		Logger:               util.CreateLogger(""),
-		Env:                  map[string]string{},
-		Source:               "",
-		SourceUpdate:         false,
-		Writer:               os.Stdout,
-		ErrWriter:            os.Stderr,
+		TerragruntConfigPath:   terragruntConfigPath,
+		TerraformPath:          "terraform",
+		NonInteractive:         false,
+		TerraformCliArgs:       []string{},
+		WorkingDir:             workingDir,
+		Logger:                 util.CreateLogger(""),
+		Env:                    map[string]string{},
+		Source:                 "",
+		SourceUpdate:           false,
+		IgnoreDependencyErrors: false,
+		Writer:                 os.Stdout,
+		ErrWriter:              os.Stderr,
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
@@ -91,18 +95,19 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 	workingDir := filepath.Dir(terragruntConfigPath)
 
 	return &TerragruntOptions{
-		TerragruntConfigPath: terragruntConfigPath,
-		TerraformPath:        terragruntOptions.TerraformPath,
-		NonInteractive:       terragruntOptions.NonInteractive,
-		TerraformCliArgs:     terragruntOptions.TerraformCliArgs,
-		WorkingDir:           workingDir,
-		Logger:               util.CreateLogger(workingDir),
-		Env:                  terragruntOptions.Env,
-		Source:               terragruntOptions.Source,
-		SourceUpdate:         terragruntOptions.SourceUpdate,
-		RunTerragrunt:        terragruntOptions.RunTerragrunt,
-		Writer:               terragruntOptions.Writer,
-		ErrWriter:            terragruntOptions.ErrWriter,
+		TerragruntConfigPath:   terragruntConfigPath,
+		TerraformPath:          terragruntOptions.TerraformPath,
+		NonInteractive:         terragruntOptions.NonInteractive,
+		TerraformCliArgs:       terragruntOptions.TerraformCliArgs,
+		WorkingDir:             workingDir,
+		Logger:                 util.CreateLogger(workingDir),
+		Env:                    terragruntOptions.Env,
+		Source:                 terragruntOptions.Source,
+		SourceUpdate:           terragruntOptions.SourceUpdate,
+		IgnoreDependencyErrors: terragruntOptions.IgnoreDependencyErrors,
+		Writer:                 terragruntOptions.Writer,
+		ErrWriter:              terragruntOptions.ErrWriter,
+		RunTerragrunt:          terragruntOptions.RunTerragrunt,
 	}
 }
 

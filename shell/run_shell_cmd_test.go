@@ -118,6 +118,7 @@ func TestNewSignalsForwarderMultiple(t *testing.T) {
 	assert.Error(t, err)
 	retCode, err := GetExitCode(err)
 	assert.Nil(t, err)
-	assert.Equal(t, retCode, interrupts)
+	assert.True(t, retCode <= interrupts, "Subprocess received wrong number of signals")
+	assert.Equal(t, retCode, expectedInterrupts, "Subprocess didn't receive multiple signals")
 
 }

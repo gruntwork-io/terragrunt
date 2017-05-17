@@ -20,8 +20,9 @@ const OPT_NON_INTERACTIVE = "terragrunt-non-interactive"
 const OPT_WORKING_DIR = "terragrunt-working-dir"
 const OPT_TERRAGRUNT_SOURCE = "terragrunt-source"
 const OPT_TERRAGRUNT_SOURCE_UPDATE = "terragrunt-source-update"
+const OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS = "terragrunt-ignore-dependency-errors"
 
-var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE}
+var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS}
 var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_TFPATH, OPT_WORKING_DIR, OPT_TERRAGRUNT_SOURCE}
 
 const CMD_PLAN_ALL = "plan-all"
@@ -82,12 +83,13 @@ COMMANDS:
    *                    Terragrunt forwards all other commands directly to Terraform
 
 GLOBAL OPTIONS:
-   terragrunt-config             Path to the Terragrunt config file. Default is terraform.tfvars.
-   terragrunt-tfpath             Path to the Terraform binary. Default is terraform (on PATH).
-   terragrunt-non-interactive    Assume "yes" for all prompts.
-   terragrunt-working-dir        The path to the Terraform templates. Default is current directory.
-   terragrunt-source             Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder
-   terragrunt-source-update      Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it
+   terragrunt-config                    Path to the Terragrunt config file. Default is terraform.tfvars.
+   terragrunt-tfpath                    Path to the Terraform binary. Default is terraform (on PATH).
+   terragrunt-non-interactive           Assume "yes" for all prompts.
+   terragrunt-working-dir               The path to the Terraform templates. Default is current directory.
+   terragrunt-source                    Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.
+   terragrunt-source-update             Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it.
+   terragrunt-ignore-dependency-errors  *-all commands continue processing components even if a dependency fails.
 
 VERSION:
    {{.Version}}{{if len .Authors}}
