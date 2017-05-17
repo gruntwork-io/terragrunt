@@ -94,6 +94,7 @@ Terragrunt supports the following use cases:
 * [DRY Terraform code and immutable infrastructure](#dry-terraform-code-and-immutable-infrastructure)
 * [Working locally](#working-locally)
 * [Important gotcha: working with relative file paths](#important-gotcha-working-with-relative-file-paths)
+* [Using Terragrunt with private Git repos](#using-terragrunt-with-private-git-repos)
 
 
 #### Motivation
