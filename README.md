@@ -50,6 +50,8 @@ Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that pro
    1. [Keep your CLI flags DRY](#keep-your-cli-flags-dry)
    1. [Work with multiple Terraform modules](#work-with-multiple-terraform-modules)
 1. [Terragrunt details](#terragrunt-details)
+   1. [AWS credentials](#aws-credentials)
+   1. [AWS IAM policies](#aws-iam-policies)
    1. [Interpolation Syntax](#interpolation-syntax)
    1. [CLI options](#cli-options)
    1. [Configuration](#configuration)
