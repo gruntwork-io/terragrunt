@@ -539,7 +539,8 @@ in your `terraform.tfvars` file:
 ```hcl
 terragrunt = {
   terraform {
-    # Force Terraform to keep trying to acquire a lock for up to 20 minutes if someone else already has the lock
+    # Force Terraform to keep trying to acquire a lock for
+    # up to 20 minutes if someone else already has the lock
     extra_arguments "retry_lock" {
       commands = [
         "init",
@@ -580,7 +581,8 @@ lock settings, you may also want to pass custom `-var-file` arguments to several
 ```hcl
 terragrunt = {
   terraform {
-    # Force Terraform to keep trying to acquire a lock for up to 20 minutes if someone else already has the lock
+    # Force Terraform to keep trying to acquire a lock for
+    # up to 20 minutes if someone else already has the lock
     extra_arguments "retry_lock" {
       commands = [
         "init",
