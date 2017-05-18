@@ -48,7 +48,7 @@ Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that pro
    1. [Keep your Terraform code DRY](#keep-your-terraform-code-dry)
    1. [Keep your remote state configuration DRY](#keep-your-remote-state-configuration-dry)
    1. [Keep your CLI flags DRY](#keep-your-cli-flags-dry)
-   1. [Work with multiple Terraform modules](#work-with-multiple-terraform-modules)
+   1. [Execute Terraform commands on multiple modules at once](#execute-terraform-commands-on-multiple-modules-at-once)
 1. [Terragrunt details](#terragrunt-details)
    1. [AWS credentials](#aws-credentials)
    1. [AWS IAM policies](#aws-iam-policies)
@@ -85,7 +85,7 @@ Terragrunt supports the following use cases:
 1. [Keep your Terraform code DRY](#keep-your-terraform-code-dry)
 1. [Keep your remote state configuration DRY](#keep-your-remote-state-configuration-dry)
 1. [Keep your CLI flags DRY](#keep-your-cli-flags-dry)
-1. [Work with multiple Terraform modules](#work-with-multiple-terraform-modules)
+1. [Execute Terraform commands on multiple modules at once](#execute-terraform-commands-on-multiple-modules-at-once)
 
 
 ### Keep your Terraform code DRY
@@ -730,7 +730,7 @@ terraform apply -var bucket=example.bucket.name
 ```
 
 
-### Work with multiple Terraform modules
+### Execute Terraform commands on multiple modules at once
 
 * [Motivation](#motivation-3)
 * [The apply-all, destroy-all, output-all and plan-all commands](#the-apply-all-destroy-all-output-all-and-plan-all-commands)
