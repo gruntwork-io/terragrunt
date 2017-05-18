@@ -930,8 +930,7 @@ policy](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/access-c
 which grants permissions for interacting with DynamoDB and S3. Terragrunt will automatically create
 the configured DynamoDB tables and S3 buckets for storing remote state if they do not already exist.
 
-The following is an example IAM policy which the Terragrunt organization would use. The policy grants 
-the following permissions:
+The following is an example IAM policy for use with Terragrunt. The policy grants the following permissions:
 
 * all DynamoDB permissions in all regions for tables used by Terragrunt
 * all S3 permissions for buckets used by Terragrunt
