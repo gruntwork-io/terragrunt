@@ -93,7 +93,7 @@ Terragrunt supports the following use cases:
 * [Motivation](#motivation)
 * [Remote Terraform configurations](#remote-terraform-configurations)
 * [How to use remote configurations](#how-to-use-remote-configurations)
-* [DRY Terraform code and immutable infrastructure](#dry-terraform-code-and-immutable-infrastructure)
+* [Achieve DRY Terraform code and immutable infrastructure](#achieve-dry-terraform-code-and-immutable-infrastructure)
 * [Working locally](#working-locally)
 * [Important gotcha: working with relative file paths](#important-gotcha-working-with-relative-file-paths)
 * [Using Terragrunt with private Git repos](#using-terragrunt-with-private-git-repos)
@@ -264,7 +264,7 @@ When Terragrunt finds the `terraform` block with a `source` parameter in `live/q
 1. Execute whatever Terraform command you specified in that temporary folder.
 
 
-#### DRY Terraform code and immutable infrastructure
+#### Achieve DRY Terraform code and immutable infrastructure
 
 With this new approach, copy/paste between environments is minimized. The `.tfvars` files contain solely the variables
 that are different between environments. To create a new environment, you copy an old one and update just the
