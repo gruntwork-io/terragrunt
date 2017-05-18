@@ -1373,7 +1373,7 @@ Terragrunt v0.11.x and earlier defined the config in a .terragrunt file. Note th
 is now deprecated. You will get a warning in your logs every time you run Terragrunt with a .terragrunt file,
 and we will eventually stop supporting this older format.
 
-#### Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older
+### Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older
 
 After we released support for Terraform 0.9.x, we wrote a guide on 
 [Upgrading to Terragrunt 0.12.x](_docs/migration_guides/upgrading_to_terragrunt_0.12.x.md).
