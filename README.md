@@ -927,7 +927,7 @@ means that it will automatically load credentials using the
 
 Your AWS user must have an [IAM 
 policy](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/access-control-identity-based.html) 
-which grants permissions for interacting with DynamoDB and S3. Terragrnt will automatically create
+which grants permissions for interacting with DynamoDB and S3. Terragrunt will automatically create
 the configured DynamoDB tables and S3 buckets for storing remote state if they do not already exist.
 
 The following is an example IAM policy which the Terragrunt organization would use. The policy grants 
