@@ -1,13 +1,14 @@
 package dynamodb
 
 import (
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/stretchr/testify/assert"
 	"reflect"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCreateLockTableIfNecessaryTableDoesntAlreadyExist(t *testing.T) {
@@ -48,7 +49,7 @@ func TestWaitForTableToBeActiveTableDoesNotExist(t *testing.T) {
 	t.Parallel()
 
 	client := createDynamoDbClientForTest(t)
-	tableName := "table-does-not-exist"
+	tableName := "terragrunt-table-does-not-exist"
 	retries := 5
 
 	err := waitForTableToBeActiveWithRandomSleep(tableName, client, retries, 1*time.Millisecond, 500*time.Millisecond, mockOptions)
