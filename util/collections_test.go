@@ -77,7 +77,7 @@ func TestRemoveDuplicatesFromList(t *testing.T) {
 	}
 }
 
-func TestListToHCLArray(t *testing.T) {
+func TestCommaSeparatedStrings(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -90,7 +90,7 @@ func TestListToHCLArray(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		assert.Equal(t, ListToHCLArray(testCase.list), testCase.expected, "For list %v", testCase.list)
+		assert.Equal(t, CommaSeparatedStrings(testCase.list), testCase.expected, "For list %v", testCase.list)
 		t.Logf("%v passed", testCase.list)
 	}
 }
