@@ -564,6 +564,23 @@ Each `extra_arguments` block includes an arbitrary name (in the example above, `
 which the extra arguments should be add, a list of `arguments` or `required_var_files` or `optional_var_files` to add.
 With the configuration above, when you run `terragrunt apply`, Terragrunt will call Terraform as follows:
 
+When available, it is preferable to use interpolation functions such as
+[get_terraform_commands_that_need_locking](#get_terraform_commands_that_need_locking) and
+[get_terraform_commands_that_need_vars](#get_terraform_commands_that_need_vars)
+since they provide the complete list of terraform commands that make use of the desired parameter:
+
+```hcl
+terragrunt = {
+  terraform {
+    # Force Terraform to keep trying to acquire a lock for up to 20 minutes if someone else already has the lock
+    extra_arguments "retry_lock" {
+      commands  = ["${get_terraform_commands_that_need_locking()}"]
+      arguments = ["-lock-timeout=20m"]
+    }
+  }
+}
+```
+
 ```
 > terragrunt apply
 
@@ -969,14 +986,14 @@ Terragrunt allows you to use [Terraform interpolation syntax](https://www.terraf
 (`${...}`) to call specific Terragrunt built-in functions. Note that Terragrunt built-in functions **only** work within a 
 `terragrunt = { ... }` block. Terraform does NOT process interpolations in `.tfvars` files.
 
-Here are the supported built-in functions:
-
 * [find_in_parent_folders()](#find_in_parent_folders)
 * [path_relative_to_include()](#path_relative_to_include)
 * [path_relative_from_include()](#path_relative_from_include)
 * [get_env(NAME, DEFAULT)](#get_env)
 * [get_tfvars_dir()](#get_tfvars_dir)
 * [get_parent_tfvars_dir()](#get_parent_tfvars_dir)
+* [get_terraform_commands_that_need_vars()](#get_terraform_commands_that_need_vars)
+* [get_terraform_commands_that_need_locking()](#get_terraform_commands_that_need_locking)
 * [get_aws_account_id()](#get_aws_account_id)
 
 
@@ -1259,6 +1276,59 @@ terragrunt = {
 
 The common.tfvars located in the terraform root folder will be included by all applications, whatever their relative location to the root.
 
+#### get_terraform_commands_that_need_vars
+
+`get_terraform_commands_that_need_vars()`
+
+Returns the list of terraform commands that accept -var and -var-file parameters. This function is used when defining [extra_arguments](#keep-your-cli-flags-dry).
+
+```
+terragrunt = {
+  terraform = {
+    ...
+
+    extra_arguments "common_var" {
+      commands  = ["${get_terraform_commands_that_need_vars()}"]
+      arguments = ["-var-file=${get_aws_account_id()}.tfvars"]
+    }
+  }
+}
+```
+
+#### get_terraform_commands_that_need_locking
+
+`get_terraform_commands_that_need_locking()`
+
+Returns the list of terraform commands that accept -lock-timeout parameter. This function is used when defining [extra_arguments](#keep-your-cli-flags-dry).
+
+```hcl
+terragrunt = {
+  terraform {
+    # Force Terraform to keep trying to acquire a lock for up to 20 minutes if someone else already has the lock
+    extra_arguments "retry_lock" {
+      commands  = ["${get_terraform_commands_that_need_locking()}"]
+      arguments = ["-lock-timeout=20m"]
+    }
+  }
+}
+```
+
+_Note: Functions that return a list of values must be used in a single declaration like:_
+
+```hcl
+commands = ["${get_terraform_commands_that_need_vars()}"]
+
+# which result in:
+commands = ["apply", "console", "destroy", "import", "plan", "push", "refresh"]
+
+# We do not recommend using them in string composition like:
+commands = "Some text ${get_terraform_commands_that_need_locking()}"
+
+# which result in something useless like:
+commands = "Some text [apply destroy import init plan refresh taint untaint]"
+```
+
+
 #### get_aws_account_id
 
 `get_aws_account_id()` returns the AWS account id associated with the current set of credentials. Example:
@@ -1284,17 +1354,8 @@ terragrunt = {
     ...
 
     extra_arguments "common_var" {
-      commands = [
-        "apply",
-        "plan",
-        "import",
-        "push",
-        "refresh"
-      ]
-
-      arguments = [
-        "-var-file=${get_aws_account_id()}.tfvars",
-      ]
+      commands = ["${get_terraform_commands_that_need_vars()}"]
+      arguments = ["-var-file=${get_aws_account_id()}.tfvars"]
     }
   }
 }

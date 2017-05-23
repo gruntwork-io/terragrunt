@@ -1,5 +1,10 @@
 package util
 
+import (
+	"fmt"
+	"strings"
+)
+
 // Return true if the given list contains the given element
 func ListContainsElement(list []string, element string) bool {
 	for _, item := range list {
@@ -48,4 +53,13 @@ func removeDuplicatesFromList(list []string, keepLast bool) []string {
 		present[value] = true
 	}
 	return out
+}
+
+// CommaSeparatedStrings returns an HCL compliant formated list of strings (each string within double quote)
+func CommaSeparatedStrings(list []string) string {
+	values := make([]string, 0, len(list))
+	for _, value := range list {
+		values = append(values, fmt.Sprintf(`"%s"`, value))
+	}
+	return strings.Join(values, ", ")
 }
