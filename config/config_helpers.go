@@ -14,7 +14,7 @@ import (
 )
 
 var INTERPOLATION_SYNTAX_REGEX = regexp.MustCompile(`\$\{.*?\}`)
-var INTERPOLATION_SYNTAX_REGEX_SINGLE = regexp.MustCompile(`"\$\{.*?\}"`)
+var INTERPOLATION_SYNTAX_REGEX_SINGLE = regexp.MustCompile(fmt.Sprintf(`"(%s)"`, INTERPOLATION_SYNTAX_REGEX))
 var HELPER_FUNCTION_SYNTAX_REGEX = regexp.MustCompile(`\$\{(.*?)\((.*?)\)\}`)
 var HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX = regexp.MustCompile(`\s*"(?P<env>[^=]+?)"\s*\,\s*"(?P<default>.*?)"\s*`)
 var MAX_PARENT_FOLDERS_TO_CHECK = 100
@@ -49,55 +49,14 @@ type EnvVar struct {
 
 // Given a string value from a Terragrunt configuration, parse the string, resolve any calls to helper functions using
 // the syntax ${...}, and return the final value.
-func ResolveTerragruntConfigString(terragruntConfigString string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (resolved string, finalErr error) {
-	// The function we pass to ReplaceAllStringFunc cannot return an error, so we have to use named error
-	// parameters to capture such errors.
-
-	resolved = INTERPOLATION_SYNTAX_REGEX_SINGLE.ReplaceAllStringFunc(terragruntConfigString, func(str string) string {
-		// We do a special treatment for function returning an array of values because they need
-		// to be declared like that "${function()" and the result must get rid of the surrounding quote
-		// to return a real array of values.
-		internalStr := str[1 : len(str)-1] // We get rid of the surrounding quote
-		out, err := resolveTerragruntInterpolation(internalStr, include, terragruntOptions)
-		if err != nil {
-			finalErr = err
-		}
-
-		switch out := out.(type) {
-		case []string:
-			return util.ListToHCLArray(out)
-		}
-
-		// The function is not returning an array of string, so left the string unchanged
-		// Remaining functions will be processed by the next statement
-		return str
-	})
-
-	resolved = INTERPOLATION_SYNTAX_REGEX.ReplaceAllStringFunc(resolved, func(str string) string {
-		out, err := resolveTerragruntInterpolation(str, include, terragruntOptions)
-		if err != nil {
-			finalErr = err
-		}
-
-		switch out := out.(type) {
-		case string:
-			return out
-		default:
-			return fmt.Sprintf("%v", out)
-		}
-	})
-
-	return
-}
-
-// Resolve a single call to an interpolation function of the format ${some_function()} in a Terragrunt configuration
-func resolveTerragruntInterpolation(str string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (interface{}, error) {
-	matches := HELPER_FUNCTION_SYNTAX_REGEX.FindStringSubmatch(str)
-	if len(matches) == 3 {
-		return executeTerragruntHelperFunction(matches[1], matches[2], include, terragruntOptions)
-	} else {
-		return "", errors.WithStackTrace(InvalidInterpolationSyntax(str))
+func ResolveTerragruntConfigString(terragruntConfigString string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	// First, we replace all single interpolation syntax (i.e. function directly enclosed within quotes "${function()}")
+	terragruntConfigString, err := processSingleInterpolationInString(terragruntConfigString, include, terragruntOptions)
+	if err != nil {
+		return terragruntConfigString, err
 	}
+	// Then, we replace all other interpolation functions (i.e. functions not directly enclosed within quotes)
+	return processMultipleInterpolationsInString(terragruntConfigString, include, terragruntOptions)
 }
 
 // Execute a single Terragrunt helper function and return its value as a string
@@ -123,6 +82,57 @@ func executeTerragruntHelperFunction(functionName string, parameters string, inc
 		return TERRAFORM_COMMANDS_NEED_LOCKING, nil
 	default:
 		return "", errors.WithStackTrace(UnknownHelperFunction(functionName))
+	}
+}
+
+// For all interpolation functions that are called using the syntax "${function_name()}" (i.e. single interpolation function within string,
+// functions that return a non-string value we have to get rid of the surrounding quotes and convert the output to HCL syntax. For example,
+// for an array, we need to return "v1", "v2", "v3".
+func processSingleInterpolationInString(terragruntConfigString string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (resolved string, finalErr error) {
+	// The function we pass to ReplaceAllStringFunc cannot return an error, so we have to use named error parameters to capture such errors.
+	resolved = INTERPOLATION_SYNTAX_REGEX_SINGLE.ReplaceAllStringFunc(terragruntConfigString, func(str string) string {
+		matches := INTERPOLATION_SYNTAX_REGEX_SINGLE.FindStringSubmatch(terragruntConfigString)
+		out, err := resolveTerragruntInterpolation(matches[1], include, terragruntOptions)
+		if err != nil {
+			finalErr = err
+		}
+
+		switch out := out.(type) {
+		case string:
+			return fmt.Sprintf(`"%s"`, out)
+		case []string:
+			return util.CommaSeparatedStrings(out)
+		default:
+			return fmt.Sprintf("%v", out)
+		}
+	})
+	return
+}
+
+// For all interpolation functions that are called using the syntax "${function_a()}-${function_b()}" (i.e. multiple interpolation function
+// within the same string) or "Some text ${function_name()}" (i.e. string composition), we just replace the interpolation function call
+// by the string representation of its return.
+func processMultipleInterpolationsInString(terragruntConfigString string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (resolved string, finalErr error) {
+	// The function we pass to ReplaceAllStringFunc cannot return an error, so we have to use named error parameters to capture such errors.
+	resolved = INTERPOLATION_SYNTAX_REGEX.ReplaceAllStringFunc(terragruntConfigString, func(str string) string {
+		out, err := resolveTerragruntInterpolation(str, include, terragruntOptions)
+		if err != nil {
+			finalErr = err
+		}
+
+		return fmt.Sprintf("%v", out)
+	})
+	return
+}
+
+// Given a string value from a Terragrunt configuration, parse the string, resolve any calls to helper functions using
+// Resolve a single call to an interpolation function of the format ${some_function()} in a Terragrunt configuration
+func resolveTerragruntInterpolation(str string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (interface{}, error) {
+	matches := HELPER_FUNCTION_SYNTAX_REGEX.FindStringSubmatch(str)
+	if len(matches) == 3 {
+		return executeTerragruntHelperFunction(matches[1], matches[2], include, terragruntOptions)
+	} else {
+		return "", errors.WithStackTrace(InvalidInterpolationSyntax(str))
 	}
 }
 

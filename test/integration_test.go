@@ -384,6 +384,17 @@ func TestExtraArgumentsWithRegion(t *testing.T) {
 	assert.Contains(t, out.String(), "Hello, World from Oregon!")
 }
 
+func TestPriorityOrderOfArgument(t *testing.T) {
+	// Do not use t.Parallel() on this test, it will infers with the other TestExtraArguments.* tests
+	out := new(bytes.Buffer)
+	injectedValue := "Injected-directly-by-argument"
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply -var extra_var=%s --terragrunt-non-interactive --terragrunt-working-dir %s", injectedValue, TEST_FIXTURE_EXTRA_ARGS_PATH), out, os.Stderr)
+	t.Log(out.String())
+	// And the result value for test should be the injected variable since the injected arguments are injected before the suplied parameters,
+	// so our override of extra_var should be the last argument.
+	assert.Contains(t, out.String(), fmt.Sprintf("test = %s", injectedValue))
+}
+
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE))
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE_BACKUP))

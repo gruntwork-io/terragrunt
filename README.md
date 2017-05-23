@@ -1321,10 +1321,10 @@ commands = ["${get_terraform_commands_that_need_vars()}"]
 # which result in:
 commands = ["apply", "console", "destroy", "import", "plan", "push", "refresh"]
 
-# They shall not be used to do string composition like:
+# We do not recommend using them in string composition like:
 commands = "Some text ${get_terraform_commands_that_need_locking()}"
 
-# which result in:
+# which result in something useless like:
 commands = "Some text [apply destroy import init plan refresh taint untaint]"
 ```
 

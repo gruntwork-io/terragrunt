@@ -5,6 +5,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"path/filepath"
@@ -490,6 +491,27 @@ TERRAGRUNT_HIT","")}/bar`,
 				Env:                  map[string]string{"TEST_ENV_TERRAGRUNT_HIT": "HIT"},
 			},
 			"foo/HIT/bar",
+			nil,
+		},
+		{
+			`"${get_terraform_commands_that_need_locking()}"`,
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: "/root/child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			util.CommaSeparatedStrings(TERRAFORM_COMMANDS_NEED_LOCKING),
+			nil,
+		},
+		{
+			`commands = ["${get_terraform_commands_that_need_vars()}"]`,
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: "/root/child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			fmt.Sprintf("commands = [%s]", util.CommaSeparatedStrings(TERRAFORM_COMMANDS_NEED_VARS)),
+			nil,
+		},
+		{
+			`commands = "test-${get_terraform_commands_that_need_vars()}"`,
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: "/root/child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			fmt.Sprintf(`commands = "test-%v"`, TERRAFORM_COMMANDS_NEED_VARS),
 			nil,
 		},
 	}
