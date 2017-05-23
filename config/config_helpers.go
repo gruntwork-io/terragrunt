@@ -15,8 +15,8 @@ import (
 
 var INTERPOLATION_SYNTAX_REGEX = regexp.MustCompile(`\$\{.*?\}`)
 var INTERPOLATION_SYNTAX_REGEX_SINGLE = regexp.MustCompile(fmt.Sprintf(`"(%s)"`, INTERPOLATION_SYNTAX_REGEX))
-var HELPER_FUNCTION_SYNTAX_REGEX = regexp.MustCompile(`\$\{(.*?)\((.*?)\)\}`)
-var HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX = regexp.MustCompile(`\s*"(?P<env>[^=]+?)"\s*\,\s*"(?P<default>.*?)"\s*`)
+var HELPER_FUNCTION_SYNTAX_REGEX = regexp.MustCompile(`^\$\{(.*?)\((.*?)\)\}$`)
+var HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX = regexp.MustCompile(`^\s*"(?P<env>[^=]+?)"\s*\,\s*"(?P<default>.*?)"\s*$`)
 var MAX_PARENT_FOLDERS_TO_CHECK = 100
 
 // List of terraform commands that accept -lock-timeout
@@ -59,7 +59,7 @@ func ResolveTerragruntConfigString(terragruntConfigString string, include *Inclu
 	return processMultipleInterpolationsInString(terragruntConfigString, include, terragruntOptions)
 }
 
-// Execute a single Terragrunt helper function and return its value as a string
+// Execute a single Terragrunt helper function and return the result
 func executeTerragruntHelperFunction(functionName string, parameters string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (interface{}, error) {
 	switch functionName {
 	case "find_in_parent_folders":
