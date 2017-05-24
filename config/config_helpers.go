@@ -134,8 +134,8 @@ func resolveTerragruntInterpolation(str string, include *IncludeConfig, terragru
 	if len(matches) == 3 {
 		return executeTerragruntHelperFunction(matches[1], matches[2], include, terragruntOptions)
 	} else {
-	return "", errors.WithStackTrace(InvalidInterpolationSyntax(str))
-}
+		return "", errors.WithStackTrace(InvalidInterpolationSyntax(str))
+	}
 }
 
 // Return the directory where the Terragrunt configuration file lives
@@ -174,11 +174,11 @@ func parseGetEnvParameters(parameters string) (EnvVar, error) {
 	for index, name := range HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX.SubexpNames() {
 		if name == "env" {
 			envVariable.Name = strings.TrimSpace(matches[index])
-			}
+		}
 		if name == "default" {
 			envVariable.DefaultValue = strings.TrimSpace(matches[index])
-			}
 		}
+	}
 
 	return envVariable, nil
 }
@@ -232,7 +232,7 @@ func findInParentFolders(terragruntOptions *options.TerragruntOptions) (string, 
 func pathRelativeToInclude(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	if include == nil {
 		return ".", nil
-}
+	}
 
 	includedConfigPath, err := ResolveTerragruntConfigString(include.Path, include, terragruntOptions)
 	if err != nil {
@@ -253,12 +253,12 @@ func pathRelativeToInclude(include *IncludeConfig, terragruntOptions *options.Te
 func pathRelativeFromInclude(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	if include == nil {
 		return ".", nil
-}
+	}
 
 	includedConfigPath, err := ResolveTerragruntConfigString(include.Path, include, terragruntOptions)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
-		}
+	}
 
 	includePath := filepath.Dir(includedConfigPath)
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
