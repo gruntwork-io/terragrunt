@@ -91,10 +91,11 @@ func executeTerragruntHelperFunction(functionName string, parameters string, inc
 func processSingleInterpolationInString(terragruntConfigString string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (resolved string, finalErr error) {
 	// The function we pass to ReplaceAllStringFunc cannot return an error, so we have to use named error parameters to capture such errors.
 	resolved = INTERPOLATION_SYNTAX_REGEX_SINGLE.ReplaceAllStringFunc(terragruntConfigString, func(str string) string {
-		matches := INTERPOLATION_SYNTAX_REGEX_SINGLE.FindStringSubmatch(terragruntConfigString)
+		matches := INTERPOLATION_SYNTAX_REGEX_SINGLE.FindStringSubmatch(str)
 		out, err := resolveTerragruntInterpolation(matches[1], include, terragruntOptions)
 		if err != nil {
 			finalErr = err
+			return str
 		}
 
 		switch out := out.(type) {
@@ -118,6 +119,7 @@ func processMultipleInterpolationsInString(terragruntConfigString string, includ
 		out, err := resolveTerragruntInterpolation(str, include, terragruntOptions)
 		if err != nil {
 			finalErr = err
+			return str
 		}
 
 		return fmt.Sprintf("%v", out)
@@ -132,8 +134,8 @@ func resolveTerragruntInterpolation(str string, include *IncludeConfig, terragru
 	if len(matches) == 3 {
 		return executeTerragruntHelperFunction(matches[1], matches[2], include, terragruntOptions)
 	} else {
-		return "", errors.WithStackTrace(InvalidInterpolationSyntax(str))
-	}
+	return "", errors.WithStackTrace(InvalidInterpolationSyntax(str))
+}
 }
 
 // Return the directory where the Terragrunt configuration file lives
@@ -172,11 +174,11 @@ func parseGetEnvParameters(parameters string) (EnvVar, error) {
 	for index, name := range HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX.SubexpNames() {
 		if name == "env" {
 			envVariable.Name = strings.TrimSpace(matches[index])
-		}
+			}
 		if name == "default" {
 			envVariable.DefaultValue = strings.TrimSpace(matches[index])
+			}
 		}
-	}
 
 	return envVariable, nil
 }
@@ -230,7 +232,7 @@ func findInParentFolders(terragruntOptions *options.TerragruntOptions) (string, 
 func pathRelativeToInclude(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	if include == nil {
 		return ".", nil
-	}
+}
 
 	includedConfigPath, err := ResolveTerragruntConfigString(include.Path, include, terragruntOptions)
 	if err != nil {
@@ -251,12 +253,12 @@ func pathRelativeToInclude(include *IncludeConfig, terragruntOptions *options.Te
 func pathRelativeFromInclude(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	if include == nil {
 		return ".", nil
-	}
+}
 
 	includedConfigPath, err := ResolveTerragruntConfigString(include.Path, include, terragruntOptions)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
-	}
+		}
 
 	includePath := filepath.Dir(includedConfigPath)
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
