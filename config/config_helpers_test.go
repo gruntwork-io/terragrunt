@@ -576,6 +576,13 @@ func TestResolveMultipleInterpolationsConfigString(t *testing.T) {
 			InvalidFunctionParameters(`"NON_EXISTING_VAR1", "default"-${get_terraform_commands_that_need_vars(`),
 		},
 		{
+			`test1 = "${get_env("NON_EXISTING_VAR1", "default")}" test2 = ["${get_terraform_commands_that_need_vars()}"]`,
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: DefaultTerragruntConfigPath, NonInteractive: true},
+			fmt.Sprintf(`test1 = "default" test2 = [%v]`, util.CommaSeparatedStrings(TERRAFORM_COMMANDS_NEED_VARS)),
+			nil,
+		},
+		{
 			`${get_env("NON_EXISTING_VAR1", "default")}-${get_terraform_commands_that_need_vars()}`,
 			nil,
 			options.TerragruntOptions{TerragruntConfigPath: DefaultTerragruntConfigPath, NonInteractive: true},

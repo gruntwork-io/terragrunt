@@ -91,10 +91,11 @@ func executeTerragruntHelperFunction(functionName string, parameters string, inc
 func processSingleInterpolationInString(terragruntConfigString string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (resolved string, finalErr error) {
 	// The function we pass to ReplaceAllStringFunc cannot return an error, so we have to use named error parameters to capture such errors.
 	resolved = INTERPOLATION_SYNTAX_REGEX_SINGLE.ReplaceAllStringFunc(terragruntConfigString, func(str string) string {
-		matches := INTERPOLATION_SYNTAX_REGEX_SINGLE.FindStringSubmatch(terragruntConfigString)
+		matches := INTERPOLATION_SYNTAX_REGEX_SINGLE.FindStringSubmatch(str)
 		out, err := resolveTerragruntInterpolation(matches[1], include, terragruntOptions)
 		if err != nil {
 			finalErr = err
+			return str
 		}
 
 		switch out := out.(type) {
@@ -118,6 +119,7 @@ func processMultipleInterpolationsInString(terragruntConfigString string, includ
 		out, err := resolveTerragruntInterpolation(str, include, terragruntOptions)
 		if err != nil {
 			finalErr = err
+			return str
 		}
 
 		return fmt.Sprintf("%v", out)
