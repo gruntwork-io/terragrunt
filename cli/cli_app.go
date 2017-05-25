@@ -45,6 +45,7 @@ var DEPRECATED_COMMANDS = map[string]string{
 }
 
 var TERRAFORM_COMMANDS_THAT_USE_STATE = []string{
+	"init",
 	"apply",
 	"destroy",
 	"env",
