@@ -568,6 +568,14 @@ func TestResolveMultipleInterpolationsConfigString(t *testing.T) {
 			nil,
 		},
 		{
+			// Included within quotes
+			`"${get_env("NON_EXISTING_VAR1", "default1")}-${get_env("NON_EXISTING_VAR2", "default2")}"`,
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: DefaultTerragruntConfigPath, NonInteractive: true},
+			fmt.Sprintf(`"default1-default2"`),
+			nil,
+		},
+		{
 			// Malformed parameters
 			`${get_env("NON_EXISTING_VAR1", "default"-${get_terraform_commands_that_need_vars()}`,
 			nil,
