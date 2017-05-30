@@ -993,6 +993,7 @@ Terragrunt allows you to use [Terraform interpolation syntax](https://www.terraf
 * [get_tfvars_dir()](#get_tfvars_dir)
 * [get_parent_tfvars_dir()](#get_parent_tfvars_dir)
 * [get_terraform_commands_that_need_vars()](#get_terraform_commands_that_need_vars)
+* [get_terraform_commands_that_need_input()](#get_terraform_commands_that_need_input)
 * [get_terraform_commands_that_need_locking()](#get_terraform_commands_that_need_locking)
 * [get_aws_account_id()](#get_aws_account_id)
 
@@ -1290,6 +1291,24 @@ terragrunt = {
     extra_arguments "common_var" {
       commands  = ["${get_terraform_commands_that_need_vars()}"]
       arguments = ["-var-file=${get_aws_account_id()}.tfvars"]
+    }
+  }
+}
+```
+
+#### get_terraform_commands_that_need_input
+
+`get_terraform_commands_that_need_input()`
+
+Returns the list of terraform commands that accept -input=(true or false) parameter. This function is used when defining [extra_arguments](#keep-your-cli-flags-dry).
+
+```hcl
+terragrunt = {
+  terraform {
+    # Force Terraform to not ask for input value if some variables are undefined.
+    extra_arguments "disable_input" {
+      commands  = ["${get_terraform_commands_that_need_input()}"]
+      arguments = ["-input=false"]
     }
   }
 }

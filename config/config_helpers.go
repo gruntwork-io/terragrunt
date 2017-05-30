@@ -13,8 +13,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-var INTERPOLATION_SYNTAX_REGEX = regexp.MustCompile(`\$\{.*?\}`)
+var INTERPOLATION_PARAMETERS = `(\s*"[^"]*?"\s*,?\s*)*`
+var INTERPOLATION_SYNTAX_REGEX = regexp.MustCompile(fmt.Sprintf(`\$\{\s*(\w+\(%s\))\s*\}`, INTERPOLATION_PARAMETERS))
 var INTERPOLATION_SYNTAX_REGEX_SINGLE = regexp.MustCompile(fmt.Sprintf(`"(%s)"`, INTERPOLATION_SYNTAX_REGEX))
+var INTERPOLATION_SYNTAX_REGEX_REMAINING = regexp.MustCompile(`\$\{.*?\}`)
 var HELPER_FUNCTION_SYNTAX_REGEX = regexp.MustCompile(`^\$\{(.*?)\((.*?)\)\}$`)
 var HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX = regexp.MustCompile(`^\s*"(?P<env>[^=]+?)"\s*\,\s*"(?P<default>.*?)"\s*$`)
 var MAX_PARENT_FOLDERS_TO_CHECK = 100
@@ -39,6 +41,15 @@ var TERRAFORM_COMMANDS_NEED_VARS = []string{
 	"import",
 	"plan",
 	"push",
+	"refresh",
+}
+
+// List of terraform commands that accept -input=
+var TERRAFORM_COMMANDS_NEED_INPUT = []string{
+	"apply",
+	"import",
+	"init",
+	"plan",
 	"refresh",
 }
 
@@ -80,6 +91,8 @@ func executeTerragruntHelperFunction(functionName string, parameters string, inc
 		return TERRAFORM_COMMANDS_NEED_VARS, nil
 	case "get_terraform_commands_that_need_locking":
 		return TERRAFORM_COMMANDS_NEED_LOCKING, nil
+	case "get_terraform_commands_that_need_input":
+		return TERRAFORM_COMMANDS_NEED_INPUT, nil
 	default:
 		return "", errors.WithStackTrace(UnknownHelperFunction(functionName))
 	}
@@ -92,12 +105,6 @@ func processSingleInterpolationInString(terragruntConfigString string, include *
 	// The function we pass to ReplaceAllStringFunc cannot return an error, so we have to use named error parameters to capture such errors.
 	resolved = INTERPOLATION_SYNTAX_REGEX_SINGLE.ReplaceAllStringFunc(terragruntConfigString, func(str string) string {
 		matches := INTERPOLATION_SYNTAX_REGEX_SINGLE.FindStringSubmatch(str)
-
-		if len(INTERPOLATION_SYNTAX_REGEX.FindAllString(matches[1], -1)) != 1 {
-			// If there is more that one expression we do not process it
-			// That could be the case if the user use a syntax like "${func1()}-${func2()}"
-			return str
-		}
 
 		out, err := resolveTerragruntInterpolation(matches[1], include, terragruntOptions)
 		if err != nil {
@@ -131,6 +138,16 @@ func processMultipleInterpolationsInString(terragruntConfigString string, includ
 
 		return fmt.Sprintf("%v", out)
 	})
+
+	if finalErr == nil {
+		// If there is no error, we check if there are remaining look-a-like interpolation strings
+		// that have not been considered. If so, they are certainly malformed.
+		remaining := INTERPOLATION_SYNTAX_REGEX_REMAINING.FindAllString(resolved, -1)
+		if len(remaining) > 0 {
+			finalErr = InvalidInterpolationSyntax(strings.Join(remaining, ", "))
+		}
+	}
+
 	return
 }
 
