@@ -347,6 +347,20 @@ func TestResolveTerragruntConfigString(t *testing.T) {
 			nil,
 		},
 		{
+			"${    find_in_parent_folders()    }",
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			"../../" + DefaultTerragruntConfigPath,
+			nil,
+		},
+		{
+			"${find_in_parent_folders ()}",
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			"",
+			InvalidInterpolationSyntax("${find_in_parent_folders ()}"),
+		},
+		{
 			"foo/${find_in_parent_folders()}/bar",
 			nil,
 			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
