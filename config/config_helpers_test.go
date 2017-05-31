@@ -347,6 +347,20 @@ func TestResolveTerragruntConfigString(t *testing.T) {
 			nil,
 		},
 		{
+			"${    find_in_parent_folders()    }",
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			"../../" + DefaultTerragruntConfigPath,
+			nil,
+		},
+		{
+			"${find_in_parent_folders ()}",
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			"",
+			InvalidInterpolationSyntax("${find_in_parent_folders ()}"),
+		},
+		{
 			"foo/${find_in_parent_folders()}/bar",
 			nil,
 			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
@@ -402,14 +416,14 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 			nil,
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/" + DefaultTerragruntConfigPath, NonInteractive: true},
 			"",
-			InvalidFunctionParameters("Invalid Parameters"),
+			InvalidInterpolationSyntax("${get_env(Invalid Parameters)}"),
 		},
 		{
 			"foo/${get_env('env','')}/bar",
 			nil,
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/" + DefaultTerragruntConfigPath, NonInteractive: true},
 			"",
-			InvalidFunctionParameters("'env',''"),
+			InvalidInterpolationSyntax("${get_env('env','')}"),
 		},
 		{
 			`foo/${get_env("","")}/bar`,
@@ -424,6 +438,13 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/" + DefaultTerragruntConfigPath, NonInteractive: true},
 			"",
 			InvalidFunctionParameters(`   ""    ,   ""    `),
+		},
+		{
+			`${get_env("SOME_VAR", "SOME{VALUE}")}`,
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: "/root/child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			"SOME{VALUE}",
+			nil,
 		},
 		{
 			`foo/${get_env("TEST_ENV_TERRAGRUNT_HIT","")}/bar`,
@@ -456,9 +477,9 @@ TERRAGRUNT_HIT","")}/bar`,
 				NonInteractive:       true,
 				Env:                  map[string]string{"TEST_ENV_TERRAGRUNT_OTHER": "SOMETHING"},
 			},
-			`foo/${get_env("TEST_ENV_
-TERRAGRUNT_HIT","")}/bar`,
-			nil,
+			"",
+			InvalidInterpolationSyntax(`${get_env("TEST_ENV_
+TERRAGRUNT_HIT","")}`),
 		},
 		{
 			`foo/${get_env("TEST_ENV_TERRAGRUNT_HIT","DEFAULT")}/bar`,
@@ -491,6 +512,22 @@ TERRAGRUNT_HIT","")}/bar`,
 				Env:                  map[string]string{"TEST_ENV_TERRAGRUNT_HIT": "HIT"},
 			},
 			"foo/HIT/bar",
+			nil,
+		},
+		{
+			// Unclosed quote
+			`foo/${get_env("TEST_ENV_TERRAGRUNT_HIT}/bar`,
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: "/root/child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			"",
+			InvalidInterpolationSyntax(`${get_env("TEST_ENV_TERRAGRUNT_HIT}`),
+		},
+		{
+			// Unclosed quote and interpolation pattern
+			`foo/${get_env("TEST_ENV_TERRAGRUNT_HIT/bar`,
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: "/root/child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			`foo/${get_env("TEST_ENV_TERRAGRUNT_HIT/bar`,
 			nil,
 		},
 	}
@@ -568,12 +605,20 @@ func TestResolveMultipleInterpolationsConfigString(t *testing.T) {
 			nil,
 		},
 		{
+			// Included within quotes
+			`"${get_env("NON_EXISTING_VAR1", "default1")}-${get_env("NON_EXISTING_VAR2", "default2")}"`,
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: DefaultTerragruntConfigPath, NonInteractive: true},
+			`"default1-default2"`,
+			nil,
+		},
+		{
 			// Malformed parameters
 			`${get_env("NON_EXISTING_VAR1", "default"-${get_terraform_commands_that_need_vars()}`,
 			nil,
 			options.TerragruntOptions{TerragruntConfigPath: DefaultTerragruntConfigPath, NonInteractive: true},
-			"",
-			InvalidFunctionParameters(`"NON_EXISTING_VAR1", "default"-${get_terraform_commands_that_need_vars(`),
+			fmt.Sprintf(`${get_env("NON_EXISTING_VAR1", "default"-%v`, TERRAFORM_COMMANDS_NEED_VARS),
+			nil,
 		},
 		{
 			`test1 = "${get_env("NON_EXISTING_VAR1", "default")}" test2 = ["${get_terraform_commands_that_need_vars()}"]`,
