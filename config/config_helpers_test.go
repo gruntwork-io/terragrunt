@@ -426,6 +426,13 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 			InvalidFunctionParameters(`   ""    ,   ""    `),
 		},
 		{
+			`${get_env("SOME_VAR", "SOME{VALUE}")}`,
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: "/root/child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			"SOME{VALUE}",
+			nil,
+		},
+		{
 			`foo/${get_env("TEST_ENV_TERRAGRUNT_HIT","")}/bar`,
 			nil,
 			options.TerragruntOptions{
