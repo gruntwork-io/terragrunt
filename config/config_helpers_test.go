@@ -514,6 +514,22 @@ TERRAGRUNT_HIT","")}`),
 			"foo/HIT/bar",
 			nil,
 		},
+		{
+			// Unclosed quote
+			`foo/${get_env("TEST_ENV_TERRAGRUNT_HIT}/bar`,
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: "/root/child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			"",
+			InvalidInterpolationSyntax(`${get_env("TEST_ENV_TERRAGRUNT_HIT}`),
+		},
+		{
+			// Unclosed quote and interpolation pattern
+			`foo/${get_env("TEST_ENV_TERRAGRUNT_HIT/bar`,
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: "/root/child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			`foo/${get_env("TEST_ENV_TERRAGRUNT_HIT/bar`,
+			nil,
+		},
 	}
 
 	for _, testCase := range testCases {
