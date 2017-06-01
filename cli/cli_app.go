@@ -30,6 +30,8 @@ const CMD_APPLY_ALL = "apply-all"
 const CMD_DESTROY_ALL = "destroy-all"
 const CMD_OUTPUT_ALL = "output-all"
 
+const CMD_INIT = "init"
+
 // CMD_SPIN_UP is deprecated.
 const CMD_SPIN_UP = "spin-up"
 
@@ -45,6 +47,7 @@ var DEPRECATED_COMMANDS = map[string]string{
 }
 
 var TERRAFORM_COMMANDS_THAT_USE_STATE = []string{
+	"init",
 	"apply",
 	"destroy",
 	"env",
@@ -216,6 +219,14 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		if err := configureRemoteState(conf.RemoteState, terragruntOptions); err != nil {
 			return err
 		}
+	}
+
+	// If the command is 'init', stop here. That's because ConfigureRemoteState above will have already called
+	// terraform init if it was necessary, and the below RunTerraformCommand would end up calling init without
+	// the correct remote state arguments, which is confusing.
+	if terragruntOptions.TerraformCliArgs[0] == CMD_INIT {
+		terragruntOptions.Logger.Println("Running 'init' manually is not necessary: Terragrunt will call it automatically when needed before running other Terraform commands")
+		return nil
 	}
 
 	return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
