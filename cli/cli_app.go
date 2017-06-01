@@ -225,7 +225,7 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	// terraform init if it was necessary, and the below RunTerraformCommand would end up calling init without
 	// the correct remote state arguments, which is confusing.
 	if terragruntOptions.TerraformCliArgs[0] == CMD_INIT {
-		terragruntOptions.Logger.Println("Running 'init' manually is not necessary: Terragrunt will call it when needed before running Terraform commands")
+		terragruntOptions.Logger.Println("Running 'init' manually is not necessary: Terragrunt will call it automatically when needed before running other Terraform commands")
 		return nil
 	}
 
