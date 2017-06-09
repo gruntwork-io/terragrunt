@@ -61,6 +61,8 @@ terragrunt = {
 }
 ```
 
+Note: when switching from Terragrunt v0.11.x to v0.12.x, you also need to change the `encrypt` setting from a string (e.g. `"true"`) to a boolean (e.g. `true` without the quotes).
+
 ### Switch from Terragrunt locking to Terraform locking
 
 Remove any `lock { ... }` blocks from your Terragrunt configurations, as these are no longer supported.
