@@ -14,10 +14,10 @@ func PromptUserForInput(prompt string, terragruntOptions *options.TerragruntOpti
 	if terragruntOptions.Logger.Prefix() != "" {
 		prompt = fmt.Sprintf("%s %s", terragruntOptions.Logger.Prefix(), prompt)
 	}
-	fmt.Print(prompt)
+	terragruntOptions.Logger.Print(prompt)
 
 	if terragruntOptions.NonInteractive {
-		fmt.Println()
+		terragruntOptions.Logger.Println()
 		terragruntOptions.Logger.Printf("The non-interactive flag is set to true, so assuming 'yes' for all prompts")
 		return "yes", nil
 	}
