@@ -159,15 +159,15 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 	}
 
 	givenCommand := cliContext.Args().First()
-	command := checkDeprecated(givenCommand)
+	command := checkDeprecated(givenCommand, terragruntOptions)
 	return runCommand(command, terragruntOptions)
 }
 
 // checkDeprecated checks if the given command is deprecated.  If so: prints a message and returns the new command.
-func checkDeprecated(command string) string {
+func checkDeprecated(command string, terragruntOptions *options.TerragruntOptions) string {
 	newCommand, deprecated := DEPRECATED_COMMANDS[command]
 	if deprecated {
-		fmt.Printf("%v is deprecated; running %v instead.\n", command, newCommand)
+		terragruntOptions.Logger.Printf("%v is deprecated; running %v instead.\n", command, newCommand)
 		return newCommand
 	}
 	return command
