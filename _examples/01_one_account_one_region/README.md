@@ -31,8 +31,54 @@ $> terragrunt apply-all
 ```
 
 ## Directory structure
-TODO: move the discussion of directory hierarchy and definitions out of the root
-`terraform.tfvars` file and put it here instead?
+Following best practices, the following directory structure contains all of our Terragrunt
+configuration:
+
+```
+live                                
+├── production                      <- environment directory
+│   ├── frontend-app                <- component directory
+│   |   └── terraform.tfvars        <- component configuration
+│   └── vpc
+│       └── terraform.tfvars
+├── staging                         <- environment directory
+│   ├── frontend-app                <- component directory
+│   |   └── terraform.tfvars        <- component configuration
+│   └── vpc
+│       └── terraform.tfvars
+└── terraform.tfvars                <- root configuration
+```
+
+The `live/` directory is the root of our Terragrunt configuration hierarchy.
+It contains a single `terraform.tfvars` file, which we will call
+the **root configuration**. The root configuration is optional, but allows 
+us to define general configuration that applies to all components in our infrastructure
+in a single place.
+
+The root contains a child directory for each environment in the infrastructure
+(e.g. production, staging), which we will call **environment directories**.
+The directory structure shown above contains two environment directories:
+`production` and `staging`.
+Environment directories do not normally contain any files. Instead, they are
+the location where Terragrunt commands such as `plan-all` and `apply-all`
+are executed to instantiate all of the infrastructure components for the
+given environment.
+
+Environment directories contain a child directory for each component of 
+the infrastructure, which we will call **component directories**.
+For example, a component might be a single app, a single MySQL DB, or a single VPC.
+The directory structure shown above contains 4 component directories: `frontend-app` and
+`vpc` in each environment.
+
+Each component directory contains a single `terraform.tfvars` file, which
+defines the configuration for that specific component. We will call this
+`terraform.tfvars` file the **component configuration**. The directory
+structure shown above contains 4 component configurations: one for
+each component in each environment.
+In a component configuration, we can use the `include` stanza to instruct 
+Terragrunt to locate and copy configuration from the root configuration file. 
+This allows us to keep our configurations DRY. Review the example
+code in this repo to see how this works in practice.
 
 ## Each infrastructure component is defined in a Terraform module
 In this example, our infrastructure contains two components: a VPC and a frontend_app.
