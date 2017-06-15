@@ -1,63 +1,6 @@
-# This terraform.tfvars file sits at the root of the live/ directory
-# and defines general configuration that applies to all components in
-# our infrastructure. We will call this file the "root configuration".
-# Each subdirectory defines a single environment of the overall infrastructure
-# (e.g. production, staging). For example, the following directory tree contains
-# a single root configuration (live/terraform.tfvars) and 2 environments 
-# (production and staging):
-#
-# live
-# ├── production
-# ├── staging
-# └── terraform.tfvars
-
-# Each environment directory does not normally contain any files. The environment
-# directory is the location where Terragrunt commands such as plan-all and apply-all
-# can be executed to instantiate all of the infrastructure for that environment.
-# The environment directory contains a child directory for each component of 
-# the infrastructure. We will call these child directories "component directories".
-# For example, the following directory tree contains 6 component directories;
-# 3 for production (vpc, fronent_app, mysql) and the same 3 for staging.
-#
-# live
-# ├── production
-# │   ├── frontend-app
-# │   ├── mysql
-# │   └── vpc
-# ├── staging
-# │   ├── frontend-app
-# │   ├── mysql
-# │   └── vpc
-# └── terraform.tfvars
-
-# Each component directory contains a single terraform.tfvars file, which
-# defines the configuration for that specific component. We will call this
-# terraform.tfvars file the "component configuration". Each component configuration
-# can contain an include stanza to instruct Terragrunt to locate the root configuration
-# and copy all Terragrunt configuration. This allows us to follow the same patterns
-# in all of our components and keep our configuration DRY.
-# For example, the following directory tree contains 6 component configurations;
-# 3 for the production components and 3 for the staging components:
-#
-# live
-# ├── production
-# │   ├── frontend-app
-# │   |   └── terraform.tfvars
-# │   ├── mysql
-# │   |   └── terraform.tfvars
-# │   └── vpc
-# │       └── terraform.tfvars
-# ├── staging
-# │   ├── frontend-app
-# │   |   └── terraform.tfvars
-# │   ├── mysql
-# │   |   └── terraform.tfvars
-# │   └── vpc
-# │       └── terraform.tfvars
-# └── terraform.tfvars
-
-# The following root configuration defines the remote_state configuration
-# a single time, which is then used by all component configurations.
+# This root configuration defines the settings for the S3 backend.
+# Component configurations throughout the infrastructure can use an
+# include stanza to copy these settings, thus keeping configurations DRY.
 
 terragrunt = {
   remote_state {
