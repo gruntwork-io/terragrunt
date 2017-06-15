@@ -89,21 +89,25 @@ and
 respectively.
 
 There are a few important things to note about the Terraform modules:
-1. The code in each of these repos is regular plain old Terraform code. These
-   Terraform modules can be used without modification in any project that does
+1. The code in each of these repos is 100% regular plain old Terraform code. These
+   Terraform modules can be used, without modification, in any project that does
    not use Terragrunt and instead uses Terarform directly.
 1. Each module defines a variable for any value that might change between invocations
    of the module. For example, values that might change between production and staging
    environments.
+1. Each module enables a backend for storing remote state. The backend intentionally
+   uses a [Partial Configuration](https://www.terraform.io/docs/backends/config.html#partial-configuration)
+   to keep the Terraform modules DRY. Terragrunt will use the `remote_state` stanza in
+   our component configurations to fully configure the backend at runtime.
 1. There are no `terraform.tfvars` files in the Terraform module repos. The Terraform
    modules are generic infrastructure templates and do not define values for any
-   variables in `*.tfvar` files. The values for variables are defined in a separate
-   repo where Terragrunt conifguration also lives. In this example, you can see that
-   the values for variables are defined in this repo in the `terraform.tfvars` file
-   in each component directory.
+   variables in `*.tfvar` files. The values for variables are defined in the same repo
+   as our Terragrunt conifguration. In this example, you can see that
+   the values for variables are defined in the component configuration
+   (`terraform.tfvars`) files in each component directory.
 
-Each component of our infrastructure will be defined in its own Terraform module
-in the same way. This provides several benefits:
+As our infrastructure grows and we add components, each will be defined similarly in its own
+Terraform module. This provides several benefits:
 1. Versioning
    1. Hosting each component in its own repo means that each component can be indepdently
       versioned, which allows each environment in the infrastructure to use a different
