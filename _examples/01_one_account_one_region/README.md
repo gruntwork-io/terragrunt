@@ -16,6 +16,20 @@ which is hosted in a single AWS account in a single AWS region.
   `dependencies` keyword
 * Sharing remote state between infrastructure components using `terraform_remote_state`
 
+## Running the example
+To create the staging environment:
+```
+$> cd live/staging
+$> terragrunt apply-all
+```
+
+
+To create the production environment:
+```
+$> cd live/production
+$> terragrunt apply-all
+```
+
 ## Directory structure
 TODO: move the discussion of directory hierarchy and definitions out of the root
 `terraform.tfvars` file and put it here instead?
