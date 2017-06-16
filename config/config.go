@@ -288,20 +288,32 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 // with the same name, the value from the child will win.
 func mergeExtraArgs(terragruntOptions *options.TerragruntOptions, childExtraArgs []TerraformExtraArguments, parentExtraArgs *[]TerraformExtraArguments) {
 	result := *parentExtraArgs
-addExtra:
 	for _, child := range childExtraArgs {
-		for i, parent := range result {
-			if parent.Name == child.Name {
-				terragruntOptions.Logger.Printf("extra_arguments '%v' from child overriding parent", child.Name)
-				// For extra args, we want to keep the values specified in the child and put them after
-				// the parent ones, so if we encounter a duplicate, we just overwrite it.
-				result[i] = child
-				continue addExtra
-			}
+		parentExtraArgsWithSameName := getIndexOfExtraArgsWithName(result, child.Name)
+		if parentExtraArgsWithSameName != -1 {
+			// If the parent contains an extra_arguments with the same name as the child,
+			// then override the parent's extra_arguments with the child's.
+			terragruntOptions.Logger.Printf("extra_arguments '%v' from child overriding parent", child.Name)
+			result[parentExtraArgsWithSameName] = child
+		} else {
+			// If the parent does not contain an extra_arguments with the same name as the child
+			// then add the child to the end.
+			// This ensures the child extra_arguments are added to the command line after the parent extra_arguments.
+			result = append(result, child)
 		}
-		result = append(result, child)
 	}
 	*parentExtraArgs = result
+}
+
+// Returns the index of the extraArgs with the given name,
+// or -1 if no extraArgs have the given name.
+func getIndexOfExtraArgsWithName(extraArgs []TerraformExtraArguments, name string) int {
+	for i, extra := range extraArgs {
+		if extra.Name == name {
+			return i
+		}
+	}
+	return -1
 }
 
 // Parse the config of the given include, if one is specified
