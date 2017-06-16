@@ -481,8 +481,22 @@ terragrunt = {
 
 The `include` block tells Terragrunt to use the exact same Terragrunt configuration from the `terraform.tfvars` file
 specified via the `path` parameter. It behaves exactly as if you had copy/pasted the Terraform configuration from 
-the root `terraform.tfvars` file into `mysql/terraform.tfvars`, but this approach is much easier to maintain! Note
-that if you include any other settings in the `terragrunt` block of a child `.tfvars` file, it will override the
+the root `terraform.tfvars` file into `mysql/terraform.tfvars`, but this approach is much easier to maintain!
+
+The child `.tfvars` file's `terragrunt.terraform` settings will be merged into the parent file's `terragrunt.terraform`
+settings as follows:
+
+* If an `extra_arguments` block in the child has the same name as an `extra_arguments` block in the parent,
+  then the child's block will override the parent's.
+  * Specifying an empty `extra_arguments` block in a child with the same name will effectively remove the parent's block.
+* If an `extra_arguments` block in the child has a different name than `extra_arguments` blocks in the parent,
+  then both the parent and child's `extra_arguments` will be effective.
+  * The child's `extra_arguments` will be placed _after_ the parent's `extra_arguments` on the terraform command line.
+  * Therefore, if a child's and parent's `extra_arguments` include `.tfvars` files with the same variable defined,
+    the value from the `.tfvars` file from the child's `extra_arguments` will be used by terraform.
+* The `source` field in the child will override `source` field in the parent
+
+Other settings in the child `.tfvars` file's `terragrunt` block (e.g. `remote_state`) override the respective
 settings in the parent.
 
 The `terraform.tfvars` files above use two Terragrunt built-in functions:

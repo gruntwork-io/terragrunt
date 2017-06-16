@@ -2,14 +2,15 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl"
-	"os"
-	"path/filepath"
-	"strings"
 )
 
 const DefaultTerragruntConfigPath = "terraform.tfvars"
@@ -225,7 +226,7 @@ func parseConfigString(configString string, terragruntOptions *options.Terragrun
 		return nil, err
 	}
 
-	return mergeConfigWithIncludedConfig(config, includedConfig)
+	return mergeConfigWithIncludedConfig(config, includedConfig, terragruntOptions)
 }
 
 // Parse the given config string, read from the given config file, as a terragruntConfigFile struct. This method solely
@@ -248,7 +249,7 @@ func parseConfigStringAsTerragruntConfigFile(configString string, configPath str
 
 // Merge the given config with an included config. Anything specified in the current config will override the contents
 // of the included config. If the included config is nil, just return the current config.
-func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *TerragruntConfig) (*TerragruntConfig, error) {
+func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *TerragruntConfig, terragruntOptions *options.TerragruntOptions) (*TerragruntConfig, error) {
 	if includedConfig == nil {
 		return config, nil
 	}
@@ -258,7 +259,14 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 	}
 
 	if config.Terraform != nil {
-		includedConfig.Terraform = config.Terraform
+		if includedConfig.Terraform == nil {
+			includedConfig.Terraform = config.Terraform
+		} else {
+			if config.Terraform.Source != "" {
+				includedConfig.Terraform.Source = config.Terraform.Source
+			}
+			mergeExtraArgs(terragruntOptions, config.Terraform.ExtraArgs, &includedConfig.Terraform.ExtraArgs)
+		}
 	}
 
 	if config.Dependencies != nil {
@@ -266,6 +274,46 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 	}
 
 	return includedConfig, nil
+}
+
+// Merge the extra arguments.
+//
+// If a child's extra_arguments has the same name a parent's extra_arguments,
+// then the child's extra_arguments will be selected (and the parent's ignored)
+// If a child's extra_arguments has a different name from all of the parent's extra_arguments,
+// then the child's extra_arguments will be added to the end  of the parents.
+// Therefore, terragrunt will put the child extra_arguments after the parent's
+// extra_arguments on the terraform cli.
+// Therefore, if .tfvar files from both the parent and child contain a variable
+// with the same name, the value from the child will win.
+func mergeExtraArgs(terragruntOptions *options.TerragruntOptions, childExtraArgs []TerraformExtraArguments, parentExtraArgs *[]TerraformExtraArguments) {
+	result := *parentExtraArgs
+	for _, child := range childExtraArgs {
+		parentExtraArgsWithSameName := getIndexOfExtraArgsWithName(result, child.Name)
+		if parentExtraArgsWithSameName != -1 {
+			// If the parent contains an extra_arguments with the same name as the child,
+			// then override the parent's extra_arguments with the child's.
+			terragruntOptions.Logger.Printf("extra_arguments '%v' from child overriding parent", child.Name)
+			result[parentExtraArgsWithSameName] = child
+		} else {
+			// If the parent does not contain an extra_arguments with the same name as the child
+			// then add the child to the end.
+			// This ensures the child extra_arguments are added to the command line after the parent extra_arguments.
+			result = append(result, child)
+		}
+	}
+	*parentExtraArgs = result
+}
+
+// Returns the index of the extraArgs with the given name,
+// or -1 if no extraArgs have the given name.
+func getIndexOfExtraArgsWithName(extraArgs []TerraformExtraArguments, name string) int {
+	for i, extra := range extraArgs {
+		if extra.Name == name {
+			return i
+		}
+	}
+	return -1
 }
 
 // Parse the config of the given include, if one is specified
