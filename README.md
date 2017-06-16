@@ -487,8 +487,8 @@ The child `.tfvars` file's `terragrunt.terraform` settings will be merged into t
 settings as follows:
 
 * If an `extra_arguments` block in the child has the same name as an `extra_arguments` block in the parent,
-  then the child's block will override the parents.
-  * Specifying an empty `extra_arguments` block in a child will effectively remove the parent's block.
+  then the child's block will override the parent's.
+  * Specifying an empty `extra_arguments` block in a child with the same name will effectively remove the parent's block.
 * If an `extra_arguments` block in the child has a different name than `extra_arguments` blocks in the parent,
   then both the parent and child's `extra_arguments` will be effective.
 * The `source` field in the child will override `source` field in the parent
