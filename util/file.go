@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 // Return true if the given file exists
@@ -115,7 +116,8 @@ func ReadFileAsString(path string) (string, error) {
 	return string(bytes), nil
 }
 
-// Copy the files and folders within the source folder into the destination folder
+// Copy the files and folders within the source folder into the destination folder. Note that hidden files and folders
+// (those starting with a dot) will be skipped.
 func CopyFolderContents(source string, destination string) error {
 	files, err := ioutil.ReadDir(source)
 	if err != nil {
@@ -126,7 +128,9 @@ func CopyFolderContents(source string, destination string) error {
 		src := JoinPath(source, file.Name())
 		dest := JoinPath(destination, file.Name())
 
-		if file.IsDir() {
+		if PathContainsHiddenFileOrFolder(src) {
+			continue
+		} else if file.IsDir() {
 			if err := os.MkdirAll(dest, file.Mode()); err != nil {
 				return errors.WithStackTrace(err)
 			}
@@ -142,6 +146,16 @@ func CopyFolderContents(source string, destination string) error {
 	}
 
 	return nil
+}
+
+func PathContainsHiddenFileOrFolder(path string) bool {
+	pathParts := strings.Split(path, string(filepath.Separator))
+	for _, pathPart := range pathParts {
+		if strings.HasPrefix(pathPart, ".") && pathPart != "." && pathPart != ".." {
+			return true
+		}
+	}
+	return false
 }
 
 // Copy a file from source to destination
