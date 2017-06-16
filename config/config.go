@@ -2,14 +2,15 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl"
-	"os"
-	"path/filepath"
-	"strings"
 )
 
 const DefaultTerragruntConfigPath = "terraform.tfvars"
@@ -225,7 +226,7 @@ func parseConfigString(configString string, terragruntOptions *options.Terragrun
 		return nil, err
 	}
 
-	return mergeConfigWithIncludedConfig(config, includedConfig)
+	return mergeConfigWithIncludedConfig(config, includedConfig, terragruntOptions)
 }
 
 // Parse the given config string, read from the given config file, as a terragruntConfigFile struct. This method solely
@@ -248,7 +249,7 @@ func parseConfigStringAsTerragruntConfigFile(configString string, configPath str
 
 // Merge the given config with an included config. Anything specified in the current config will override the contents
 // of the included config. If the included config is nil, just return the current config.
-func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *TerragruntConfig) (*TerragruntConfig, error) {
+func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *TerragruntConfig, terragruntOptions *options.TerragruntOptions) (*TerragruntConfig, error) {
 	if includedConfig == nil {
 		return config, nil
 	}
@@ -258,7 +259,14 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 	}
 
 	if config.Terraform != nil {
-		includedConfig.Terraform = config.Terraform
+		if includedConfig.Terraform == nil {
+			includedConfig.Terraform = config.Terraform
+		} else {
+			if config.Terraform.Source != "" {
+				includedConfig.Terraform.Source = config.Terraform.Source
+			}
+			mergeExtraArgs(terragruntOptions, config.Terraform.ExtraArgs, &includedConfig.Terraform.ExtraArgs)
+		}
 	}
 
 	if config.Dependencies != nil {
@@ -266,6 +274,25 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 	}
 
 	return includedConfig, nil
+}
+
+// Merge the extra arguments prioritizing those defined in the childExtraArgs
+func mergeExtraArgs(terragruntOptions *options.TerragruntOptions, childExtraArgs []TerraformExtraArguments, parentExtraArgs *[]TerraformExtraArguments) {
+	result := *parentExtraArgs
+addExtra:
+	for _, child := range childExtraArgs {
+		for i, parent := range result {
+			if parent.Name == child.Name {
+				terragruntOptions.Logger.Printf("extra_arguments '%v' from child overriding parent", child.Name)
+				// For extra args, we want to keep the values specified in the child and put them after
+				// the parent ones, so if we encounter a duplicate, we just overwrite it.
+				result[i] = child
+				continue addExtra
+			}
+		}
+		result = append(result, child)
+	}
+	*parentExtraArgs = result
 }
 
 // Parse the config of the given include, if one is specified
