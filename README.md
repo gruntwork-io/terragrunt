@@ -491,6 +491,9 @@ settings as follows:
   * Specifying an empty `extra_arguments` block in a child with the same name will effectively remove the parent's block.
 * If an `extra_arguments` block in the child has a different name than `extra_arguments` blocks in the parent,
   then both the parent and child's `extra_arguments` will be effective.
+  * The child's `extra_arguments` will be placed _after_ the parent's `extra_arguments` on the terraform command line.
+  * Therefore, if a child's and parent's `extra_arguments` include `.tfvars` files with the same variable defined,
+    the value from the `.tfvars` file from the child's `extra_arguments` will be used by terraform.
 * The `source` field in the child will override `source` field in the parent
 
 Other settings in the child `.tfvars` file's `terragrunt` block (e.g. `remote_state`) override the respective

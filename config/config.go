@@ -276,7 +276,16 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 	return includedConfig, nil
 }
 
-// Merge the extra arguments prioritizing those defined in the childExtraArgs
+// Merge the extra arguments.
+//
+// If a child's extra_arguments has the same name a parent's extra_arguments,
+// then the child's extra_arguments will be selected (and the parent's ignored)
+// If a child's extra_arguments has a different name from all of the parent's extra_arguments,
+// then the child's extra_arguments will be added to the end  of the parents.
+// Therefore, terragrunt will put the child extra_arguments after the parent's
+// extra_arguments on the terraform cli.
+// Therefore, if .tfvar files from both the parent and child contain a variable
+// with the same name, the value from the child will win.
 func mergeExtraArgs(terragruntOptions *options.TerragruntOptions, childExtraArgs []TerraformExtraArguments, parentExtraArgs *[]TerraformExtraArguments) {
 	result := *parentExtraArgs
 addExtra:
