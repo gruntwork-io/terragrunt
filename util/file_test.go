@@ -59,3 +59,30 @@ func TestCanonicalPath(t *testing.T) {
 		assert.Equal(t, testCase.expected, actual, "For path %s and basePath %s", testCase.path, testCase.basePath)
 	}
 }
+
+func TestPathContainsHiddenFileOrFolder(t *testing.T) {
+	testCases := []struct {
+		path     string
+		expected bool
+	}{
+		{"", false},
+		{".", false},
+		{".foo", true},
+		{".foo/", true},
+		{"foo/bar", false},
+		{"/foo/bar", false},
+		{".foo/bar", true},
+		{"foo/.bar", true},
+		{"/foo/.bar", true},
+		{"/foo/./bar", false},
+		{"/foo/../bar", false},
+		{"/foo/.././bar", false},
+		{"/foo/.././.bar", true},
+		{"/foo/.././.bar/", true},
+	}
+
+	for _, testCase := range testCases {
+		actual := PathContainsHiddenFileOrFolder(testCase.path)
+		assert.Equal(t, testCase.expected, actual, "For path %s", testCase.path)
+	}
+}
