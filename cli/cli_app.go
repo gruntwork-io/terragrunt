@@ -2,6 +2,9 @@ package cli
 
 import (
 	"fmt"
+	"io"
+	"regexp"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -10,8 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/urfave/cli"
-	"io"
-	"regexp"
 )
 
 const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
@@ -275,7 +276,8 @@ func downloadModules(terragruntOptions *options.TerragruntOptions) error {
 // modules at all. Detecting if your downloaded modules are out of date (as opposed to missing entirely) is more
 // complicated and not something we handle at the moment.
 func shouldDownloadModules(terragruntOptions *options.TerragruntOptions) (bool, error) {
-	if util.FileExists(util.JoinPath(terragruntOptions.WorkingDir, ".terraform/modules")) {
+	modulesPath := util.JoinPath(terragruntOptions.WorkingDir, ".terraform/modules")
+	if util.FileExists(modulesPath) {
 		return false, nil
 	}
 

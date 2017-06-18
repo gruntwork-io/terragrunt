@@ -1,9 +1,11 @@
 package util
 
 import (
+	"path/filepath"
+	"testing"
+
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestGetPathRelativeTo(t *testing.T) {
@@ -82,7 +84,8 @@ func TestPathContainsHiddenFileOrFolder(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		actual := PathContainsHiddenFileOrFolder(testCase.path)
-		assert.Equal(t, testCase.expected, actual, "For path %s", testCase.path)
+		path := filepath.FromSlash(testCase.path)
+		actual := PathContainsHiddenFileOrFolder(path)
+		assert.Equal(t, testCase.expected, actual, "For path %s", path)
 	}
 }

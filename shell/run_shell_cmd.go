@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"bytes"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -93,7 +94,7 @@ func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger *log.Logger, c
 		for {
 			select {
 			case s := <-signalChannel:
-				logger.Printf("Forward signal %s to terraform.", s.String())
+				logger.Printf("Forward signal %v to terraform.", s)
 				err := c.Process.Signal(s)
 				if err != nil {
 					logger.Printf("Error forwarding signal: %v", err)
