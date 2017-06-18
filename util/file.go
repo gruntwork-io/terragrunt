@@ -1,12 +1,13 @@
 package util
 
 import (
-	"github.com/gruntwork-io/terragrunt/errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/errors"
 )
 
 // Return true if the given file exists
@@ -125,8 +126,8 @@ func CopyFolderContents(source string, destination string) error {
 	}
 
 	for _, file := range files {
-		src := JoinPath(source, file.Name())
-		dest := JoinPath(destination, file.Name())
+		src := filepath.Join(source, file.Name())
+		dest := filepath.Join(destination, file.Name())
 
 		if PathContainsHiddenFileOrFolder(src) {
 			continue

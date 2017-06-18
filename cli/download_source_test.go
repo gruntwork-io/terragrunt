@@ -2,14 +2,16 @@ package cli
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestAlreadyHaveLatestCodeLocalFilePath(t *testing.T) {
@@ -185,7 +187,7 @@ func tmpDir(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return dir
+	return filepath.FromSlash(dir)
 }
 
 func absPath(t *testing.T, path string) string {
@@ -196,7 +198,10 @@ func absPath(t *testing.T, path string) string {
 	return abs
 }
 
-func parseUrl(t *testing.T, rawUrl string) *url.URL {
+func parseUrl(t *testing.T, str string) *url.URL {
+	// URLs should have only forward slashes, whereas on Windows, the file paths may be backslashes
+	rawUrl := strings.Join(strings.Split(str, string(filepath.Separator)), "/")
+
 	parsed, err := url.Parse(rawUrl)
 	if err != nil {
 		t.Fatal(err)
@@ -213,7 +218,7 @@ func readFile(t *testing.T, path string) string {
 }
 
 func copyFolder(t *testing.T, src string, dest string) {
-	err := util.CopyFolderContents(src, dest)
+	err := util.CopyFolderContents(filepath.FromSlash(src), filepath.FromSlash(dest))
 	if err != nil {
 		t.Fatal(err)
 	}

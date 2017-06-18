@@ -2,14 +2,15 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/urfave/cli"
-	"os"
-	"path/filepath"
-	"strings"
 )
 
 // Parse command line options that are passed in for Terragrunt
@@ -72,19 +73,20 @@ func parseTerragruntOptionsFromArgs(args []string) (*options.TerragruntOptions, 
 
 	ignoreDependencyErrors := parseBooleanArg(args, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, false)
 
-	return &options.TerragruntOptions{
-		TerragruntConfigPath:   filepath.ToSlash(terragruntConfigPath),
-		TerraformPath:          filepath.ToSlash(terraformPath),
-		NonInteractive:         parseBooleanArg(args, OPT_NON_INTERACTIVE, false),
-		TerraformCliArgs:       filterTerragruntArgs(args),
-		WorkingDir:             filepath.ToSlash(workingDir),
-		Logger:                 util.CreateLogger(""),
-		RunTerragrunt:          runTerragrunt,
-		Source:                 terraformSource,
-		SourceUpdate:           sourceUpdate,
-		IgnoreDependencyErrors: ignoreDependencyErrors,
-		Env: parseEnvironmentVariables(os.Environ()),
-	}, nil
+	opts := options.NewTerragruntOptions(filepath.ToSlash(terragruntConfigPath))
+
+	opts.TerraformPath = filepath.ToSlash(terraformPath)
+	opts.NonInteractive = parseBooleanArg(args, OPT_NON_INTERACTIVE, false)
+	opts.TerraformCliArgs = filterTerragruntArgs(args)
+	opts.WorkingDir = filepath.ToSlash(workingDir)
+	opts.Logger = util.CreateLogger("")
+	opts.RunTerragrunt = runTerragrunt
+	opts.Source = terraformSource
+	opts.SourceUpdate = sourceUpdate
+	opts.IgnoreDependencyErrors = ignoreDependencyErrors
+	opts.Env = parseEnvironmentVariables(os.Environ())
+
+	return opts, nil
 }
 
 func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
