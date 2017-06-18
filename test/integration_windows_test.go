@@ -1,4 +1,5 @@
 // +build windows
+
 package test
 
 import (
