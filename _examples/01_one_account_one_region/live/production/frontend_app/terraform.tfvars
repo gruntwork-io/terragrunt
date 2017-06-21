@@ -12,7 +12,7 @@ terragrunt = {
   # it straight forward to develop and test changes to Terraform modules in
   # staging environments before updating the production environment.
   terraform {
-    source = "git::git@github.com:conorgil/terragrunt_sample_frontend_app.git?ref=0.0.1"
+    source = "git::git@github.com:conorgil/terragrunt_sample_frontend_app.git?ref=v0.0.1"
   }
 }
 
