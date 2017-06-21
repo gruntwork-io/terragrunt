@@ -109,7 +109,7 @@ There are a few important things to note about the Terraform modules:
 As our infrastructure grows and we add components, each will be defined similarly in its own
 Terraform module. This provides several benefits:
 1. Versioning
-   1. Hosting each component in its own repo means that each component can be indepdently
+   1. Hosting each component in its own repo means that each component can be independently
       versioned, which allows each environment in the infrastructure to use a different
       version of the Terraform module. This allows for straightforward development and
       testing of Terraform module changes in QA and staging environments before applying
@@ -147,7 +147,7 @@ Some things to discuss with the `dependencies` keyword:
 If we do leave this in the first example, this section would also explain that the dependency
 between the two modules is because the
 [conorgil/terragrunt_sample_frontend_app](https://github.com/conorgil/terragrunt_sample_frontend_app)
-Terraofrm module needs to pull from the 
+Terraform module needs to pull from the 
 [conorgil/terragrunt_sample_vpc](https://github.com/conorgil/terragrunt_sample_vpc)
 module which subnet to use for the EC2 instance. Highlight that the 
 [conorgil/terragrunt_sample_frontend_app](https://github.com/conorgil/terragrunt_sample_frontend_app)
