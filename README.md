@@ -1371,7 +1371,7 @@ terragrunt = {
   remote_state {
     backend = "s3"
     config {
-      bucket = "mycompany-${get_aws_account_id())"
+      bucket = "mycompany-${get_aws_account_id()}"
     }
   }
 }
