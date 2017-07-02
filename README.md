@@ -41,6 +41,11 @@ Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that pro
    [How to create reusable infrastructure with Terraform modules](https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d)
    and [How to use Terraform as a team](https://blog.gruntwork.io/how-to-use-terraform-as-a-team-251bc1104973).
 
+1. Check out the [terragrunt-infrastructure-modules-example](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example)
+   and [terragrunt-infrastructure-live-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example) 
+   repos for fully-working sample code that demonstrates how to use Terragrunt.
+   
+
 ## Table of Contents
 
 1. [Install Terragrunt](#install-terragrunt)
@@ -237,6 +242,12 @@ Notice how the two `terraform.tfvars` files set the `source` URL to the same `ap
 versions (i.e. `stage` is testing out a newer version of the module). They also set the parameters for the
 `app` module to different values that are appropriate for the environment: smaller/fewer servers in `stage`
 to save money, larger/more instances in `prod` for scalability and high availability.
+
+Check out the [terragrunt-infrastructure-modules-example](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example)
+and [terragrunt-infrastructure-live-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example) 
+repos for fully-working sample code that demonstrates this new folder structure.
+
+
 
 
 #### How to use remote configurations
@@ -513,6 +524,12 @@ The `terraform.tfvars` files above use two Terragrunt built-in functions:
   parameter resolve to `frontend-app/terraform.tfstate`.
 
 See [the Interpolation Syntax docs](#interpolation-syntax) for more info.
+
+Check out the [terragrunt-infrastructure-modules-example](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example)
+and [terragrunt-infrastructure-live-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example) 
+repos for fully-working sample code that demonstrates how to use Terragrunt to manage remote state.
+
+
 
 
 #### Create remote state and locking resources automatically
