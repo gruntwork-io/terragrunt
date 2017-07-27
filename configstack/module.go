@@ -47,7 +47,6 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 	if err != nil {
 		return []*TerraformModule{}, err
 	}
-
 	return crosslinkDependencies(mergeMaps(modules, externalDependencies), canonicalTerragruntConfigPaths)
 }
 
@@ -62,7 +61,9 @@ func resolveModules(canonicalTerragruntConfigPaths []string, terragruntOptions *
 		if err != nil {
 			return moduleMap, err
 		}
-		moduleMap[module.Path] = module
+		if module != nil {
+			moduleMap[module.Path] = module
+		}
 	}
 
 	return moduleMap, nil
@@ -83,7 +84,18 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 		return nil, err
 	}
 
-	return &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil
+	if terragruntConfig.Terraform != nil {
+		s := []string{filepath.Dir(terragruntConfigPath), "*.tf"}
+		matches, err := filepath.Glob(strings.Join(s, ""))
+		if err != nil {
+			return nil, err
+		}
+		if terragruntConfig.Terraform.Source != "" || matches != nil {
+			return &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil
+		}
+	}
+	terragruntOptions.Logger.Printf("This module does not have an associated terraform config, sipping...")
+	return nil, nil
 }
 
 // Look through the dependencies of the modules in the given map and resolve the "external" dependency paths listed in
