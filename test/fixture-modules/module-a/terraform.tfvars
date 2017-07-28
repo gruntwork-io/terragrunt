@@ -1,3 +1,5 @@
 terragrunt = {
-  # Intentionally empty
+  terraform {
+    source = "test"
+  }
 }
