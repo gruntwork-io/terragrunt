@@ -85,10 +85,10 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 	}
 
 
-	s := []string{filepath.Dir(terragruntConfigPath), "*.tf"}
-	matches, err := filepath.Glob(strings.Join(s, ""))
-	if terragruntConfig.Terraform == nil || matches == nil || terragruntConfig.Terraform.Source == "" {
+	matches, err := filepath.Glob(filepath.Join(filepath.Dir(terragruntConfigPath), "*.tf"))
+	if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == "") && matches == nil {
 		terragruntOptions.Logger.Printf("This module does not have an associated terraform config, sipping...")
+		terragruntOptions.Logger.Printf("Matches: %s, Terraform: %s, Source: %s", matches, terragruntConfig.Terraform)
 		return nil, nil
 	}
 	return &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil
