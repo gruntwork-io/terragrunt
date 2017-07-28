@@ -263,3 +263,14 @@ func TestResolveTerraformModulesInvalidPaths(t *testing.T) {
 		assert.True(t, os.IsNotExist(unwrapped), "Expected a file not exists error but got %v", unwrapped)
 	}
 }
+
+func TestResolveTerraformModuleNoTerraformConfig(t *testing.T) {
+	t.Parallel()
+
+	configPaths := []string{"../test/fixture-modules/module-l/" + config.DefaultTerragruntConfigPath, }
+	expected := []*TerraformModule{}
+
+	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions)
+	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
