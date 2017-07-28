@@ -92,7 +92,6 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 	}
 	if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == "") && matches == nil {
 		terragruntOptions.Logger.Printf("This module does not have an associated terraform config, sipping...")
-		terragruntOptions.Logger.Printf("Matches: %s, Terraform: %s, Source: %s", matches, terragruntConfig.Terraform)
 		return nil, nil
 	}
 
