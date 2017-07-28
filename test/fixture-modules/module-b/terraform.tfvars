@@ -7,4 +7,7 @@ terragrunt = {
       key = "${path_relative_to_include()}/terraform.tfstate"
     }
   }
+  terraform {
+    source = "..."
+  }
 }
