@@ -84,7 +84,6 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 		return nil, err
 	}
 
-
 	// Fix for https://github.com/gruntwork-io/terragrunt/issues/208
 	matches, err := filepath.Glob(filepath.Join(filepath.Dir(terragruntConfigPath), "*.tf"))
 	if err != nil {
