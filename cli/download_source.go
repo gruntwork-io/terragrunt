@@ -351,5 +351,5 @@ func terraformInit(terraformSource *TerraformSource, terragruntOptions *options.
 	terragruntOptions.Logger.Printf("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
 
 	// Backend and get configuration will be handled separately
-	return shell.RunTerraformCommand(terragruntOptions, "init", "-backend=false", "-get=false", terraformSource.CanonicalSourceURL.String(), terraformSource.DownloadDir)
+	return shell.RunTerraformCommand(terragruntOptions, "init", "-backend=false", "-get=false", "-from-module="+terraformSource.CanonicalSourceURL.String(), terraformSource.DownloadDir)
 }

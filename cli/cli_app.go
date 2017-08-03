@@ -112,7 +112,7 @@ AUTHOR(S):
 var MODULE_REGEX = regexp.MustCompile(`module[[:blank:]]+".+"`)
 
 // This uses the constraint syntax from https://github.com/hashicorp/go-version
-const DEFAULT_TERRAFORM_VERSION_CONSTRAINT = ">= v0.9.3"
+const DEFAULT_TERRAFORM_VERSION_CONSTRAINT = ">= v0.10.0"
 
 const TERRAFORM_EXTENSION_GLOB = "*.tf"
 
