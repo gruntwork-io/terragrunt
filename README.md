@@ -76,6 +76,8 @@ You can install Terragrunt on OSX using [Homebrew](https://brew.sh/): `brew inst
 
 ### Linux
 
+**WARNING**: the snap installer seems to have a bug where it does not allow Terragrunt to work with Terraform and Git dependencies, so we currently do not recommend using it. See the manual install instructions below, instead.
+
 You can install Terragrunt on Linux systems using [snap](https://snapcraft.io/docs/core/install): `snap install terragrunt`.
 
 ### Manual
