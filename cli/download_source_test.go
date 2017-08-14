@@ -159,7 +159,10 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 	terragruntOptions := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	terragruntOptions.SourceUpdate = sourceUpdate
 
-	err := downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions)
+	err := PopulateTerraformVersion(terragruntOptions)
+	assert.Nil(t, err, "For terraform source %v: %v", terraformSource, err)
+
+	err = downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions)
 	assert.Nil(t, err, "For terraform source %v: %v", terraformSource, err)
 
 	expectedFilePath := util.JoinPath(downloadDir, "main.tf")

@@ -8,14 +8,15 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/hashicorp/go-getter"
+	urlhelper "github.com/hashicorp/go-getter/helper/url"
+	version "github.com/hashicorp/go-version"
+	"github.com/mattn/go-zglob"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/hashicorp/go-getter"
-	urlhelper "github.com/hashicorp/go-getter/helper/url"
-	"github.com/mattn/go-zglob"
 )
 
 // This struct represents information about Terraform source code that needs to be downloaded
@@ -335,14 +336,14 @@ func cleanupTerraformFiles(path string, terragruntOptions *options.TerragruntOpt
 
 // There are two ways a user can tell Terragrunt that it needs to download Terraform configurations from a specific
 // URL: via a command-line option or via an entry in the Terragrunt configuratino. If the user used one of these, this
-// method returns the source URL and the boolean true; if not, this method returns an empty string and false.
-func getTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (string, bool) {
+// method returns the source URL or an empty string if there is no source url
+func getTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) string {
 	if terragruntOptions.Source != "" {
-		return terragruntOptions.Source, true
-	} else if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.Source != "" {
-		return terragruntConfig.Terraform.Source, true
+		return terragruntOptions.Source
+	} else if terragruntConfig.Terraform != nil {
+		return terragruntConfig.Terraform.Source
 	} else {
-		return "", false
+		return ""
 	}
 }
 
@@ -350,6 +351,42 @@ func getTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragr
 func terraformInit(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
 
-	// Backend and get configuration will be handled separately
-	return shell.RunTerraformCommand(terragruntOptions, "init", "-backend=false", "-get=false", terraformSource.CanonicalSourceURL.String(), terraformSource.DownloadDir)
+	// This uses 'terraform init' to download terraform module source.
+	//
+	// If needed, backend configuration and module/plugins downloads
+	// will be handled by a separate call to 'terraform init' later.
+	//
+	// The main reason for the separation is because this code always
+	// retrieves the root of the git repositories.
+	// The separate call to 'terraform init' that occurs later
+	// might need to be run in a subdirectory if the terraform module
+	// source contains a double slash ('//') to indicate a subdirectory.
+
+	v0_10_0, err := version.NewVersion("v0.10.0")
+	if err != nil {
+		return err
+	}
+
+	if terragruntOptions.TerraformVersion.LessThan(v0_10_0) {
+		// Terraform versions prior to 0.10.0:
+		//     * did not have plugins, and
+		//     * specified the module source as an argument (rather than the -from-module option)
+		//
+		return shell.RunTerraformCommand(
+			terragruntOptions,
+			"init",
+			"-backend=false",
+			"-get=false",
+			terraformSource.CanonicalSourceURL.String(),
+			terraformSource.DownloadDir)
+	}
+
+	return shell.RunTerraformCommand(
+		terragruntOptions,
+		"init",
+		"-backend=false",
+		"-get=false",
+		"-get-plugins=false",
+		"-from-module="+terraformSource.CanonicalSourceURL.String(),
+		terraformSource.DownloadDir)
 }

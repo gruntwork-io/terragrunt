@@ -8,9 +8,16 @@ import (
 	"path/filepath"
 	"runtime"
 
+	version "github.com/hashicorp/go-version"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 )
+
+var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
+	"debug",
+	"force-unlock",
+	"state",
+}
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
@@ -20,8 +27,14 @@ type TerragruntOptions struct {
 	// Location of the terraform binary
 	TerraformPath string
 
+	// Version of terraform (obtained by running 'terraform version')
+	TerraformVersion *version.Version
+
 	// Whether we should prompt the user for confirmation or always assume "yes"
 	NonInteractive bool
+
+	// Whether we should automatically run terraform init if necessary when executing other commands
+	AutoInit bool
 
 	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
 	TerraformCliArgs []string
@@ -78,6 +91,7 @@ func NewTerragruntOptions(terragruntConfigPath string) *TerragruntOptions {
 	return &TerragruntOptions{
 		TerragruntConfigPath:   terragruntConfigPath,
 		TerraformPath:          "terraform",
+		AutoInit:               true,
 		NonInteractive:         false,
 		TerraformCliArgs:       []string{},
 		WorkingDir:             workingDir,
@@ -112,6 +126,8 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 	return &TerragruntOptions{
 		TerragruntConfigPath:   terragruntConfigPath,
 		TerraformPath:          terragruntOptions.TerraformPath,
+		TerraformVersion:       terragruntOptions.TerraformVersion,
+		AutoInit:               terragruntOptions.AutoInit,
 		NonInteractive:         terragruntOptions.NonInteractive,
 		TerraformCliArgs:       terragruntOptions.TerraformCliArgs,
 		WorkingDir:             workingDir,
@@ -125,6 +141,23 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		ErrWriter:              terragruntOptions.ErrWriter,
 		RunTerragrunt:          terragruntOptions.RunTerragrunt,
 	}
+}
+
+// Inserts the given argsToInsert after the terraform command argument, but before the remaining args
+func (terragruntOptions *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
+
+	commandLength := 1
+	if util.ListContainsElement(TERRAFORM_COMMANDS_WITH_SUBCOMMAND, terragruntOptions.TerraformCliArgs[0]) {
+		commandLength = 2
+	}
+
+	// Options must be inserted after command but before the other args
+	// command is either 1 word or 2 words
+	var args []string
+	args = append(args, terragruntOptions.TerraformCliArgs[:commandLength]...)
+	args = append(args, argsToInsert...)
+	args = append(args, terragruntOptions.TerraformCliArgs[commandLength:]...)
+	terragruntOptions.TerraformCliArgs = args
 }
 
 // Custom error types

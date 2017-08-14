@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
@@ -17,13 +18,14 @@ import (
 
 const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
 const OPT_TERRAGRUNT_TFPATH = "terragrunt-tfpath"
+const OPT_TERRAGRUNT_NO_AUTO_INIT = "terragrunt-no-auto-init"
 const OPT_NON_INTERACTIVE = "terragrunt-non-interactive"
 const OPT_WORKING_DIR = "terragrunt-working-dir"
 const OPT_TERRAGRUNT_SOURCE = "terragrunt-source"
 const OPT_TERRAGRUNT_SOURCE_UPDATE = "terragrunt-source-update"
 const OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS = "terragrunt-ignore-dependency-errors"
 
-var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS}
+var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, OPT_TERRAGRUNT_NO_AUTO_INIT}
 var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_TFPATH, OPT_WORKING_DIR, OPT_TERRAGRUNT_SOURCE}
 
 const CMD_PLAN_ALL = "plan-all"
@@ -66,10 +68,8 @@ var TERRAFORM_COMMANDS_THAT_USE_STATE = []string{
 	"state",
 }
 
-var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
-	"debug",
-	"force-unlock",
-	"state",
+var TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT = []string{
+	"version",
 }
 
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
@@ -95,6 +95,7 @@ COMMANDS:
 GLOBAL OPTIONS:
    terragrunt-config                    Path to the Terragrunt config file. Default is terraform.tfvars.
    terragrunt-tfpath                    Path to the Terraform binary. Default is terraform (on PATH).
+   terragrunt-no-auto-init              Don't automatically run 'terraform init' during other terragrunt commands.  Require using 'terragrunt init'.
    terragrunt-non-interactive           Assume "yes" for all prompts.
    terragrunt-working-dir               The path to the Terraform templates. Default is current directory.
    terragrunt-source                    Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.
@@ -155,6 +156,10 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 		return err
 	}
 
+	if err := PopulateTerraformVersion(terragruntOptions); err != nil {
+		return err
+	}
+
 	if err := CheckTerraformVersion(DEFAULT_TERRAFORM_VERSION_CONSTRAINT, terragruntOptions); err != nil {
 		return err
 	}
@@ -183,54 +188,111 @@ func runCommand(command string, terragruntOptions *options.TerragruntOptions) (f
 	return runTerragrunt(terragruntOptions)
 }
 
-// Run Terragrunt with the given options and CLI args. This will forward all the args directly to Terraform, enforcing
-// best practices along the way.
+// Downloads terraform source if necessary, then runs terraform with the given options and CLI args.
+// This will forward all the args directly to Terraform, enforcing best practices along the way.
 func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
-	conf, err := config.ReadTerragruntConfig(terragruntOptions)
+	terragruntConfig, err := config.ReadTerragruntConfig(terragruntOptions)
 	if err != nil {
 		return err
 	}
 
-	if conf.Terraform != nil && conf.Terraform.ExtraArgs != nil && len(conf.Terraform.ExtraArgs) > 0 {
-		commandLength := 1
-		if util.ListContainsElement(TERRAFORM_COMMANDS_WITH_SUBCOMMAND, terragruntOptions.TerraformCliArgs[0]) {
-			commandLength = 2
-		}
-
-		// Options must be inserted after command but before the other args
-		// command is either 1 word or 2 words
-		var args []string
-		args = append(args, terragruntOptions.TerraformCliArgs[:commandLength]...)
-		args = append(args, filterTerraformExtraArgs(terragruntOptions, conf)...)
-		args = append(args, terragruntOptions.TerraformCliArgs[commandLength:]...)
-		terragruntOptions.TerraformCliArgs = args
-	}
-
-	if sourceUrl, hasSourceUrl := getTerraformSourceUrl(terragruntOptions, conf); hasSourceUrl {
+	if sourceUrl := getTerraformSourceUrl(terragruntOptions, terragruntConfig); sourceUrl != "" {
 		if err := downloadTerraformSource(sourceUrl, terragruntOptions); err != nil {
 			return err
 		}
 	}
 
-	if err := downloadModules(terragruntOptions); err != nil {
-		return err
+	return runTerragruntWithConfig(terragruntOptions, terragruntConfig)
+}
+
+// Runs terraform with the given options and CLI args.
+// This will forward all the args directly to Terraform, enforcing best practices along the way.
+func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+
+	// Add extra_arguments to the command
+	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExtraArgs != nil && len(terragruntConfig.Terraform.ExtraArgs) > 0 {
+		terragruntOptions.InsertTerraformCliArgs(filterTerraformExtraArgs(terragruntOptions, terragruntConfig)...)
 	}
 
-	if conf.RemoteState != nil {
-		if err := configureRemoteState(conf.RemoteState, terragruntOptions); err != nil {
+	if terragruntOptions.TerraformCliArgs[0] == CMD_INIT {
+
+		if len(terragruntOptions.TerraformCliArgs) > 1 {
+			for _, arg := range terragruntOptions.TerraformCliArgs[1:] {
+				// Enforce that the user did not specify -from-module
+				if strings.Contains(arg, "-from-module") {
+					return errors.WithStackTrace(ArgumentNotAllowed{
+						Argument: arg,
+						Message:  "Option not allowed: %s.  Terragrunt will handle setting -from-module automatically.",
+					})
+				}
+				// The user is not allowed to pass non-option arguments (such as DIR)
+				if !strings.HasPrefix(arg, "-") {
+					return errors.WithStackTrace(ArgumentNotAllowed{
+						Argument: arg,
+						Message:  "Argument not allowed: %s.  Terragrunt will handle setting the module source and DIR arguments automatically.",
+					})
+				}
+			}
+		}
+
+		if terragruntConfig.RemoteState != nil {
+			// Initialize the remote state if necessary
+			if err := terragruntConfig.RemoteState.Initialize(terragruntOptions); err != nil {
+				return err
+			}
+
+			// Add backend config arguments to the command
+			terragruntOptions.InsertTerraformCliArgs(terragruntConfig.RemoteState.ToTerraformInitArgs()...)
+		}
+
+	} else {
+		needsInit, err := needsInit(terragruntOptions, terragruntConfig)
+		if err != nil {
 			return err
 		}
-	}
 
-	// If the command is 'init', stop here. That's because ConfigureRemoteState above will have already called
-	// terraform init if it was necessary, and the below RunTerraformCommand would end up calling init without
-	// the correct remote state arguments, which is confusing.
-	if terragruntOptions.TerraformCliArgs[0] == CMD_INIT {
-		terragruntOptions.Logger.Println("Running 'init' manually is not necessary: Terragrunt will call it automatically when needed before running other Terraform commands")
-		return nil
-	}
+		if needsInit {
+			if !terragruntOptions.AutoInit {
+				return errors.WithStackTrace(InitNeededButDisabled("Cannot continue because init is needed, but auto init is disabled.  You must run 'terragrunt init' manually."))
+			}
 
+			initOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+			initOptions.TerraformCliArgs = []string{CMD_INIT}
+			initOptions.WorkingDir = terragruntOptions.WorkingDir
+
+			if err := runTerragruntWithConfig(initOptions, terragruntConfig); err != nil {
+				return err
+			}
+		}
+
+	}
 	return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
+}
+
+// Determines if 'terraform init' needs to be executed
+func needsInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (bool, error) {
+
+	if util.ListContainsElement(TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT, firstArg(terragruntOptions.TerraformCliArgs)) {
+		return false, nil
+	}
+
+	modulesNeedsInit, err := modulesNeedInit(terragruntOptions)
+	if err != nil {
+		return false, err
+	}
+	if modulesNeedsInit {
+		return true, nil
+	}
+
+	remoteStateNeedsInit, err := remoteStateNeedsInit(terragruntConfig.RemoteState, terragruntOptions)
+	if err != nil {
+		return false, err
+	}
+	if remoteStateNeedsInit {
+		return true, nil
+	}
+	return false, nil
+
 }
 
 // Returns true if the command the user wants to execute is supposed to affect multiple Terraform modules, such as the
@@ -255,27 +317,11 @@ func runMultiModuleCommand(command string, terragruntOptions *options.Terragrunt
 	}
 }
 
-// A quick sanity check that calls `terraform get` to download modules, if they aren't already downloaded.
-func downloadModules(terragruntOptions *options.TerragruntOptions) error {
-	switch firstArg(terragruntOptions.TerraformCliArgs) {
-	case "apply", "destroy", "graph", "output", "plan", "show", "taint", "untaint", "validate":
-		shouldDownload, err := shouldDownloadModules(terragruntOptions)
-		if err != nil {
-			return err
-		}
-		if shouldDownload {
-			return shell.RunTerraformCommand(terragruntOptions, "get", "-update")
-		}
-	}
-
-	return nil
-}
-
 // Return true if modules aren't already downloaded and the Terraform templates in this project reference modules.
 // Note that to keep the logic in this code very simple, this code ONLY detects the case where you haven't downloaded
 // modules at all. Detecting if your downloaded modules are out of date (as opposed to missing entirely) is more
 // complicated and not something we handle at the moment.
-func shouldDownloadModules(terragruntOptions *options.TerragruntOptions) (bool, error) {
+func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error) {
 	modulesPath := util.JoinPath(terragruntOptions.WorkingDir, ".terraform/modules")
 	if util.FileExists(modulesPath) {
 		return false, nil
@@ -286,14 +332,14 @@ func shouldDownloadModules(terragruntOptions *options.TerragruntOptions) (bool, 
 
 // If the user entered a Terraform command that uses state (e.g. plan, apply), make sure remote state is configured
 // before running the command.
-func configureRemoteState(remoteState *remote.RemoteState, terragruntOptions *options.TerragruntOptions) error {
+func remoteStateNeedsInit(remoteState *remote.RemoteState, terragruntOptions *options.TerragruntOptions) (bool, error) {
+
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
-	if util.ListContainsElement(TERRAFORM_COMMANDS_THAT_USE_STATE, firstArg(terragruntOptions.TerraformCliArgs)) {
-		return remoteState.ConfigureRemoteState(terragruntOptions)
+	if remoteState != nil && util.ListContainsElement(TERRAFORM_COMMANDS_THAT_USE_STATE, firstArg(terragruntOptions.TerraformCliArgs)) {
+		return remoteState.NeedsInit(terragruntOptions)
 	}
-
-	return nil
+	return false, nil
 }
 
 // planAll prints the plans from all configuration in a stack, in the order
@@ -370,4 +416,19 @@ type UnrecognizedCommand string
 
 func (commandName UnrecognizedCommand) Error() string {
 	return fmt.Sprintf("Unrecognized command: %s", string(commandName))
+}
+
+type ArgumentNotAllowed struct {
+	Argument string
+	Message  string
+}
+
+func (err ArgumentNotAllowed) Error() string {
+	return fmt.Sprintf(err.Message, err.Argument)
+}
+
+type InitNeededButDisabled string
+
+func (err InitNeededButDisabled) Error() string {
+	return string(err)
 }

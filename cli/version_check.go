@@ -2,26 +2,38 @@ package cli
 
 import (
 	"fmt"
+	"regexp"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/hashicorp/go-version"
-	"regexp"
 )
 
 // The terraform --version output is of the format: Terraform v0.9.5-dev (cad024a5fe131a546936674ef85445215bbc4226+CHANGES)
 // where -dev and (commitid+CHANGES) is for custom builds or if TF_LOG is set for debug purposes
 var TERRAFORM_VERSION_REGEX = regexp.MustCompile("Terraform (v?[\\d\\.]+)(?:-dev)?(?: .+)?")
 
-// Check that the currently installed Terraform version works meets the specified version constraint and return an error
-// if it doesn't
-func CheckTerraformVersion(constraint string, terragruntOptions *options.TerragruntOptions) error {
-	currentVersion, err := getTerraformVersion(terragruntOptions)
+// Populate the currently installed version of Terraform into the given terragruntOptions
+func PopulateTerraformVersion(terragruntOptions *options.TerragruntOptions) error {
+	output, err := shell.RunTerraformCommandAndCaptureOutput(terragruntOptions, "--version")
 	if err != nil {
 		return err
 	}
 
-	return checkTerraformVersionMeetsConstraint(currentVersion, constraint)
+	version, err := parseTerraformVersion(output)
+	if err != nil {
+		return err
+	}
+
+	terragruntOptions.TerraformVersion = version
+	return nil
+}
+
+// Check that the currently installed Terraform version works meets the specified version constraint and return an error
+// if it doesn't
+func CheckTerraformVersion(constraint string, terragruntOptions *options.TerragruntOptions) error {
+	return checkTerraformVersionMeetsConstraint(terragruntOptions.TerraformVersion, constraint)
 }
 
 // Check that the current version of Terraform meets the specified constraint and return an error if it doesn't
@@ -36,16 +48,6 @@ func checkTerraformVersionMeetsConstraint(currentVersion *version.Version, const
 	}
 
 	return nil
-}
-
-// Get the currently installed version of Terraform
-func getTerraformVersion(terragruntOptions *options.TerragruntOptions) (*version.Version, error) {
-	output, err := shell.RunTerraformCommandAndCaptureOutput(terragruntOptions, "--version")
-	if err != nil {
-		return nil, err
-	}
-
-	return parseTerraformVersion(output)
 }
 
 // Parse the output of the terraform --version command
