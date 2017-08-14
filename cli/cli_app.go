@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	version "github.com/hashicorp/go-version"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -13,7 +14,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
-	version "github.com/hashicorp/go-version"
 	"github.com/urfave/cli"
 )
 
@@ -96,7 +96,7 @@ COMMANDS:
 GLOBAL OPTIONS:
    terragrunt-config                    Path to the Terragrunt config file. Default is terraform.tfvars.
    terragrunt-tfpath                    Path to the Terraform binary. Default is terraform (on PATH).
-   terragrunt-no-auto-init              Don't automatically run 'terraform init' during other terragrunt commands.  Require using 'terragrunt init'.
+   terragrunt-no-auto-init              Don't automatically run 'terraform init' during other terragrunt commands. You must run 'terragrunt init' manually.
    terragrunt-non-interactive           Assume "yes" for all prompts.
    terragrunt-working-dir               The path to the Terraform templates. Default is current directory.
    terragrunt-source                    Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.
@@ -217,45 +217,66 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 
 	if firstArg(terragruntOptions.TerraformCliArgs) == CMD_INIT {
 
-		// Do not allow the user to specify the source or DIR arguments
-		// on the command line or as part of extra_arguments
-		//
-		// However, allow download_source.go to specify the source and DIR arguments.
-		if err := verifySourceDownloadArguments(allowSourceDownload, terragruntOptions); err != nil {
+		if err := prepareInitCommand(terragruntOptions, terragruntConfig, allowSourceDownload); err != nil {
 			return err
-		}
-
-		if terragruntConfig.RemoteState != nil {
-
-			// Initialize the remote state if necessary  (e.g. create S3 bucket and DynamoDB table)
-			remoteStateNeedsInit, err := remoteStateNeedsInit(terragruntConfig.RemoteState, terragruntOptions)
-			if err != nil {
-				return err
-			}
-			if remoteStateNeedsInit {
-				if err := terragruntConfig.RemoteState.Initialize(terragruntOptions); err != nil {
-					return err
-				}
-			}
-
-			// Add backend config arguments to the command
-			terragruntOptions.InsertTerraformCliArgs(terragruntConfig.RemoteState.ToTerraformInitArgs()...)
 		}
 
 	} else {
-		needsInit, err := needsInit(terragruntOptions, terragruntConfig)
+
+		if err := prepareNonInitCommand(terragruntOptions, terragruntConfig); err != nil {
+			return err
+		}
+	}
+	return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
+}
+
+// Prepare for running 'terraform init' by
+// preventing users from passing source download arguments,
+// initializing remote state storage, and
+// adding backend configuration arguments to the TerraformCliArgs
+func prepareInitCommand(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, allowSourceDownload bool) error {
+
+	// Do not allow the user to specify the source or DIR arguments
+	// on the command line or as part of extra_arguments
+	//
+	// However, allow download_source.go to specify the source and DIR arguments.
+	if err := verifySourceDownloadArguments(allowSourceDownload, terragruntOptions); err != nil {
+		return err
+	}
+
+	if terragruntConfig.RemoteState != nil {
+
+		// Initialize the remote state if necessary  (e.g. create S3 bucket and DynamoDB table)
+		remoteStateNeedsInit, err := remoteStateNeedsInit(terragruntConfig.RemoteState, terragruntOptions)
 		if err != nil {
 			return err
 		}
-
-		if needsInit {
-			if err := runTerraformInit(terragruntOptions, terragruntConfig, nil); err != nil {
+		if remoteStateNeedsInit {
+			if err := terragruntConfig.RemoteState.Initialize(terragruntOptions); err != nil {
 				return err
 			}
 		}
 
+		// Add backend config arguments to the command
+		terragruntOptions.InsertTerraformCliArgs(terragruntConfig.RemoteState.ToTerraformInitArgs()...)
 	}
-	return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
+	return nil
+}
+
+// Prepare for running any command other than 'terraform init' by
+// running 'terraform init' if necessary
+func prepareNonInitCommand(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+	needsInit, err := needsInit(terragruntOptions, terragruntConfig)
+	if err != nil {
+		return err
+	}
+
+	if needsInit {
+		if err := runTerraformInit(terragruntOptions, terragruntConfig, nil); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Determines if 'terraform init' needs to be executed
@@ -273,15 +294,7 @@ func needsInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *c
 		return true, nil
 	}
 
-	remoteStateNeedsInit, err := remoteStateNeedsInit(terragruntConfig.RemoteState, terragruntOptions)
-	if err != nil {
-		return false, err
-	}
-	if remoteStateNeedsInit {
-		return true, nil
-	}
-	return false, nil
-
+	return remoteStateNeedsInit(terragruntConfig.RemoteState, terragruntOptions)
 }
 
 // Runs the terraform init command to perform what is referred to as Auto-Init in the README.md.
@@ -329,22 +342,23 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 
 // Returns an error if allowSourceDownload is false, and terragruntOptions.TerraformCliArgs contains source download related arguments
 func verifySourceDownloadArguments(allowSourceDownload bool, terragruntOptions *options.TerragruntOptions) error {
-	if !allowSourceDownload && len(terragruntOptions.TerraformCliArgs) > 1 {
-		for _, arg := range terragruntOptions.TerraformCliArgs[1:] {
-			// Enforce that the user did not specify -from-module
-			if strings.Contains(arg, "-from-module") {
-				return errors.WithStackTrace(ArgumentNotAllowed{
-					Argument: arg,
-					Message:  "Option not allowed: %s.  Terragrunt will handle setting -from-module automatically.",
-				})
-			}
-			// The user is not allowed to pass non-option arguments (such as DIR)
-			if !strings.HasPrefix(arg, "-") {
-				return errors.WithStackTrace(ArgumentNotAllowed{
-					Argument: arg,
-					Message:  "Argument not allowed: %s.  Terragrunt will handle setting the module source and DIR arguments automatically.",
-				})
-			}
+	if allowSourceDownload || len(terragruntOptions.TerraformCliArgs) <= 1 {
+		return nil
+	}
+	for _, arg := range terragruntOptions.TerraformCliArgs[1:] {
+		// Enforce that the user did not specify -from-module
+		if strings.Contains(arg, "-from-module") {
+			return errors.WithStackTrace(ArgumentNotAllowed{
+				Argument: arg,
+				Message:  "Option not allowed: %s.  Terragrunt will handle setting -from-module automatically.",
+			})
+		}
+		// The user is not allowed to pass non-option arguments (such as DIR)
+		if !strings.HasPrefix(arg, "-") {
+			return errors.WithStackTrace(ArgumentNotAllowed{
+				Argument: arg,
+				Message:  "Argument not allowed: %s.  Terragrunt will handle setting the module source and DIR arguments automatically.",
+			})
 		}
 	}
 	return nil

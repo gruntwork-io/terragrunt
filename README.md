@@ -689,6 +689,28 @@ run during other commands (see [Auto-Init](#auto-init)).
 You must _not_ specify the `-from-module` option (aka. the `SOURCE` argument for terraform < 0.10.0) or the `DIR` argument
 in the `extra_arguments` for `init`.  This option and argument will be provided automatically by terragrunt.
 
+Here's an example of configuring `extra_arguments` for `init` in an environment in which terraform plugins are manually installed,
+rather than relying on terraform to automatically download them.
+
+```hcl
+terragrunt = {
+  terraform = {
+    ...
+
+    extra_arguments "init_args" {
+      commands = [
+        "init"
+      ]
+
+      arguments = [
+        "-get-plugins=false",
+        "-plugin-dir=/my/terraform/plugin/dir",
+      ]
+    }
+  }
+}
+```
+
 
 #### Required and optional var-files
 
