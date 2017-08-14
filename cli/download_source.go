@@ -10,12 +10,10 @@ import (
 
 	"github.com/hashicorp/go-getter"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
-	version "github.com/hashicorp/go-version"
 	"github.com/mattn/go-zglob"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -46,13 +44,13 @@ var forcedRegexp = regexp.MustCompile(`^([A-Za-z0-9]+)::(.+)$`)
 //
 // See the processTerraformSource method for how we determine the temporary folder so we can reuse it across multiple
 // runs of Terragrunt to avoid downloading everything from scratch every time.
-func downloadTerraformSource(source string, terragruntOptions *options.TerragruntOptions) error {
+func downloadTerraformSource(source string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	terraformSource, err := processTerraformSource(source, terragruntOptions)
 	if err != nil {
 		return err
 	}
 
-	if err := downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions); err != nil {
+	if err := downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions, terragruntConfig); err != nil {
 		return err
 	}
 
@@ -68,7 +66,7 @@ func downloadTerraformSource(source string, terragruntOptions *options.Terragrun
 }
 
 // Download the specified TerraformSource if the latest code hasn't already been downloaded.
-func downloadTerraformSourceIfNecessary(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions) error {
+func downloadTerraformSourceIfNecessary(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	if terragruntOptions.SourceUpdate {
 		terragruntOptions.Logger.Printf("The --%s flag is set, so deleting the temporary folder %s before downloading source.", OPT_TERRAGRUNT_SOURCE_UPDATE, terraformSource.DownloadDir)
 		if err := os.RemoveAll(terraformSource.DownloadDir); err != nil {
@@ -90,7 +88,7 @@ func downloadTerraformSourceIfNecessary(terraformSource *TerraformSource, terrag
 		return err
 	}
 
-	if err := terraformInit(terraformSource, terragruntOptions); err != nil {
+	if err := terraformInit(terraformSource, terragruntOptions, terragruntConfig); err != nil {
 		return err
 	}
 
@@ -348,45 +346,8 @@ func getTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragr
 }
 
 // Download the code from the Canonical Source URL into the Download Folder using the terraform init command
-func terraformInit(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Printf("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
+func terraformInit(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+	terragruntOptions.Logger.Printf("Downloading Terraform configurations from %s into %s using terraform init", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
 
-	// This uses 'terraform init' to download terraform module source.
-	//
-	// If needed, backend configuration and module/plugins downloads
-	// will be handled by a separate call to 'terraform init' later.
-	//
-	// The main reason for the separation is because this code always
-	// retrieves the root of the git repositories.
-	// The separate call to 'terraform init' that occurs later
-	// might need to be run in a subdirectory if the terraform module
-	// source contains a double slash ('//') to indicate a subdirectory.
-
-	v0_10_0, err := version.NewVersion("v0.10.0")
-	if err != nil {
-		return err
-	}
-
-	if terragruntOptions.TerraformVersion.LessThan(v0_10_0) {
-		// Terraform versions prior to 0.10.0:
-		//     * did not have plugins, and
-		//     * specified the module source as an argument (rather than the -from-module option)
-		//
-		return shell.RunTerraformCommand(
-			terragruntOptions,
-			"init",
-			"-backend=false",
-			"-get=false",
-			terraformSource.CanonicalSourceURL.String(),
-			terraformSource.DownloadDir)
-	}
-
-	return shell.RunTerraformCommand(
-		terragruntOptions,
-		"init",
-		"-backend=false",
-		"-get=false",
-		"-get-plugins=false",
-		"-from-module="+terraformSource.CanonicalSourceURL.String(),
-		terraformSource.DownloadDir)
+	return runTerraformInit(terragruntOptions, terragruntConfig, terraformSource)
 }

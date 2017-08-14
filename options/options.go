@@ -160,6 +160,11 @@ func (terragruntOptions *TerragruntOptions) InsertTerraformCliArgs(argsToInsert 
 	terragruntOptions.TerraformCliArgs = args
 }
 
+// Appends the given argsToAppend after the current TerraformCliArgs
+func (terragruntOptions *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
+	terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, argsToAppend...)
+}
+
 // Custom error types
 
 var RunTerragruntCommandNotSet = fmt.Errorf("The RunTerragrunt option has not been set on this TerragruntOptions object")

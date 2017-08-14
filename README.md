@@ -682,11 +682,9 @@ terraform apply -lock-timeout=20m -var foo=bar -var region=us-west-1
 
 Extra arguments for the `init` command have some additional behavior and constraints.
 
-In addition to being appended to the `terraform init` command that is run when you run `terragrunt init`,
-`extra_arguments` for `init` will also be appended to the `init` command that is automatically run during other commands.
-For example, running `terragrunt plan` might trigger a `terraform init` command to run if the source, modules, or remote state is out of date.
-
-However, the `extra_arguments` for `init` are _not_ appended to the `terraform init` command that is run to download terraform module source.
+In addition to being appended to the `terraform init` command that is run when you explicitly run `terragrunt init`,
+`extra_arguments` for `init` will also be appended to the `init` commands that are automatically
+run during other commands (see [Auto-Init](#auto-init)).
 
 You must _not_ specify the `-from-module` option (aka. the `SOURCE` argument for terraform < 0.10.0) or the `DIR` argument
 in the `extra_arguments` for `init`.  This option and argument will be provided automatically by terragrunt.
@@ -1437,6 +1435,7 @@ _Auto-Init_ is a feature of terragrunt that makes it so that `terragrunt init` d
 When Auto-Init is enabled (the default), terragrunt will automatically call [`terraform init`](https://www.terraform.io/docs/commands/init.html)
 during other commands (e.g. `terragrunt plan`) when terragrunt detects that
 * `terraform init` has never been called, or
+* source needs to be downloaded, or
 * the modules or remote state used by the module have changed since the previous call to `terraform init`.
 
 As mentioned [above](#extra_arguments-for-init), `extra_arguments` can be configured
