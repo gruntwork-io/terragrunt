@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"runtime"
 
-	version "github.com/hashicorp/go-version"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
+	version "github.com/hashicorp/go-version"
 )
 
 var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{

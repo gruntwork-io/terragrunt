@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"strings"
 
-	version "github.com/hashicorp/go-version"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -14,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
+	version "github.com/hashicorp/go-version"
 	"github.com/urfave/cli"
 )
 

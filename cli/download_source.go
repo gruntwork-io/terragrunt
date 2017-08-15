@@ -8,13 +8,13 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/hashicorp/go-getter"
-	urlhelper "github.com/hashicorp/go-getter/helper/url"
-	"github.com/mattn/go-zglob"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/go-getter"
+	urlhelper "github.com/hashicorp/go-getter/helper/url"
+	"github.com/mattn/go-zglob"
 )
 
 // This struct represents information about Terraform source code that needs to be downloaded
