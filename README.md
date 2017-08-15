@@ -58,6 +58,7 @@ Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that pro
    1. [AWS credentials](#aws-credentials)
    1. [AWS IAM policies](#aws-iam-policies)
    1. [Interpolation Syntax](#interpolation-syntax)
+   1. [Auto-Init](#auto-init)
    1. [CLI options](#cli-options)
    1. [Configuration](#configuration)
    1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
@@ -556,6 +557,7 @@ when creating the S3 bucket or DynamoDB table.
 
 * [Motivation](#motivation-2)
 * [Multiple extra_arguments blocks](#multiple-extra_arguments-blocks)
+* [extra_arguments for init](#extra_arguments-for-init)
 * [Required and optional var-files](#required-and-optional-var-files)
 * [Handling whitespace](#handling-whitespace)
 
@@ -675,6 +677,40 @@ With the configuration above, when you run `terragrunt apply`, Terragrunt will c
 
 terraform apply -lock-timeout=20m -var foo=bar -var region=us-west-1
 ```
+
+#### `extra_arguments` for `init`
+
+Extra arguments for the `init` command have some additional behavior and constraints.
+
+In addition to being appended to the `terraform init` command that is run when you explicitly run `terragrunt init`,
+`extra_arguments` for `init` will also be appended to the `init` commands that are automatically
+run during other commands (see [Auto-Init](#auto-init)).
+
+You must _not_ specify the `-from-module` option (aka. the `SOURCE` argument for terraform < 0.10.0) or the `DIR` argument
+in the `extra_arguments` for `init`.  This option and argument will be provided automatically by terragrunt.
+
+Here's an example of configuring `extra_arguments` for `init` in an environment in which terraform plugins are manually installed,
+rather than relying on terraform to automatically download them.
+
+```hcl
+terragrunt = {
+  terraform = {
+    ...
+
+    extra_arguments "init_args" {
+      commands = [
+        "init"
+      ]
+
+      arguments = [
+        "-get-plugins=false",
+        "-plugin-dir=/my/terraform/plugin/dir",
+      ]
+    }
+  }
+}
+```
+
 
 #### Required and optional var-files
 
@@ -959,6 +995,7 @@ This section contains detailed documentation for the following aspects of Terrag
 1. [AWS credentials](#aws-credentials)
 1. [AWS IAM policies](#aws-iam-policies)
 1. [Interpolation Syntax](#interpolation-syntax)
+1. [Auto-Init](#auto-init)
 1. [CLI options](#cli-options)
 1. [Configuration](#configuration)
 1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
@@ -1413,6 +1450,32 @@ terragrunt = {
 }
 ```
 
+### Auto-Init
+
+_Auto-Init_ is a feature of terragrunt that makes it so that `terragrunt init` does not need to be called explicitly before other terragrunt commands.
+
+When Auto-Init is enabled (the default), terragrunt will automatically call [`terraform init`](https://www.terraform.io/docs/commands/init.html)
+during other commands (e.g. `terragrunt plan`) when terragrunt detects that
+* `terraform init` has never been called, or
+* source needs to be downloaded, or
+* the modules or remote state used by the module have changed since the previous call to `terraform init`.
+
+As mentioned [above](#extra_arguments-for-init), `extra_arguments` can be configured
+to allow customization of the `terraform init` command.
+
+Note that there might be cases where terragrunt does not properly detect that `terraform init` needs be called.
+In this case, terraform would fail.  Just run `terragrunt init` to correct this situation.
+
+
+
+For some use cases, it might be desirable to disable Auto-Init.
+For example, if each user wants to specify a different `-plugin-dir` option to `terraform init` (and therefore it cannot be put in `extra_arguments`).
+
+To disable Auto-Init, use the `--terragrunt-no-auto-init` command line option or set the `TERRAGRUNT_AUTO_INIT` environment variable to `false`.
+
+Disabling Auto-Init means that you _must_ explicitly call `terragrunt init` prior to any other terragrunt commands for a particular configuration.
+
+If Auto-Init is disabled, and terragrunt detects that `terraform init` needs to be called, then terragrunt will fail.
 
 ### CLI Options
 
@@ -1426,6 +1489,13 @@ start with the prefix `--terragrunt-`. The currently available options are:
 
 * `--terragrunt-tfpath`: A custom path to the Terraform binary. May also be specified via the `TERRAGRUNT_TFPATH`
   environment variable. The default is `terraform` in a directory on your PATH.
+
+* `--terragrunt-no-auto-init`: Don't automatically run `terraform init` when other commands are run (e.g. `terragrunt apply`).
+  Useful if you want to pass custom arguments to `terraform init` that are specific to a user or execution environment,
+  and therefore cannot be specified as `extra_arguments`.  For example, `-plugin-dir`.
+  You must run `terragrunt init` yourself in this case if needed.
+  `terragrunt` will fail if it detects that `init` is needed, but auto init is disabled.
+  See [Auto-Init](#auto-init)
 
 * `--terragrunt-non-interactive`: Don't show interactive user prompts. This will default the answer for all prompts to
   'yes'. Useful if you need to run Terragrunt in an automated setting (e.g. from a script).

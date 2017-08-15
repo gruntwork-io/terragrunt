@@ -1,10 +1,11 @@
 package remote
 
 import (
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/stretchr/testify/assert"
 	"strings"
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestToTerraformInitArgs(t *testing.T) {
@@ -32,7 +33,7 @@ func TestToTerraformInitArgsNoBackendConfigs(t *testing.T) {
 	assert.Empty(t, args)
 }
 
-func TestShouldOverrideExistingRemoteState(t *testing.T) {
+func TestDiffersFrom(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions := options.NewTerragruntOptionsForTest("remote_state_test")
@@ -89,9 +90,8 @@ func TestShouldOverrideExistingRemoteState(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		shouldOverride, err := shouldOverrideExistingRemoteState(&testCase.existingBackend, testCase.stateFromConfig, terragruntOptions)
-		assert.Nil(t, err, "Unexpected error: %v", err)
-		assert.Equal(t, testCase.shouldOverride, shouldOverride, "Expect shouldOverrideExistingRemoteState to return %t but got %t for existingRemoteState %v and remoteStateFromTerragruntConfig %v", testCase.shouldOverride, shouldOverride, testCase.existingBackend, testCase.stateFromConfig)
+		shouldOverride := testCase.stateFromConfig.differsFrom(&testCase.existingBackend, terragruntOptions)
+		assert.Equal(t, testCase.shouldOverride, shouldOverride, "Expect differsFrom to return %t but got %t for existingRemoteState %v and remoteStateFromTerragruntConfig %v", testCase.shouldOverride, shouldOverride, testCase.existingBackend, testCase.stateFromConfig)
 	}
 }
 
