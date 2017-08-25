@@ -7,7 +7,7 @@ terragrunt = {
       bucket = "__FILL_IN_BUCKET_NAME__"
       key = "${path_relative_to_include()}/terraform.tfstate"
       region = "us-west-2"
-      lock_table = "__FILL_IN_LOCK_TABLE_NAME__"
+      dynamodb_table = "__FILL_IN_DYNAMODB_TABLE_NAME__"
     }
   }
 }

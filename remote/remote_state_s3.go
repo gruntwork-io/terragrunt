@@ -15,12 +15,12 @@ import (
 
 // A representation of the configuration options available for S3 remote state
 type RemoteStateConfigS3 struct {
-	Encrypt   bool   `mapstructure:"encrypt"`
-	Bucket    string `mapstructure:"bucket"`
-	Key       string `mapstructure:"key"`
-	Region    string `mapstructure:"region"`
-	Profile   string `mapstructure:"profile"`
-	LockTable string `mapstructure:"lock_table"`
+	Encrypt       bool   `mapstructure:"encrypt"`
+	Bucket        string `mapstructure:"bucket"`
+	Key           string `mapstructure:"key"`
+	Region        string `mapstructure:"region"`
+	Profile       string `mapstructure:"profile"`
+	DynamoDBTable string `mapstructure:"dynamodb_table"`
 }
 
 const MAX_RETRIES_WAITING_FOR_S3_BUCKET = 12
@@ -183,7 +183,7 @@ func DoesS3BucketExist(s3Client *s3.S3, config *RemoteStateConfigS3) bool {
 
 // Create a table for locks in DynamoDB if the user has configured a lock table and the table doesn't already exist
 func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	if s3Config.LockTable == "" {
+	if s3Config.DynamoDBTable == "" {
 		return nil
 	}
 
@@ -192,7 +192,7 @@ func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, terragruntOptions
 		return err
 	}
 
-	return dynamodb.CreateLockTableIfNecessary(s3Config.LockTable, dynamodbClient, terragruntOptions)
+	return dynamodb.CreateLockTableIfNecessary(s3Config.DynamoDBTable, dynamodbClient, terragruntOptions)
 }
 
 // Create an authenticated client for DynamoDB
