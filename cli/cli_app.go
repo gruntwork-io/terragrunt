@@ -216,13 +216,10 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 	}
 
 	if firstArg(terragruntOptions.TerraformCliArgs) == CMD_INIT {
-
 		if err := prepareInitCommand(terragruntOptions, terragruntConfig, allowSourceDownload); err != nil {
 			return err
 		}
-
 	} else {
-
 		if err := prepareNonInitCommand(terragruntOptions, terragruntConfig); err != nil {
 			return err
 		}
@@ -322,6 +319,8 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 	// Only add the arguments to download source if terraformSource was specified
 	downloadSource := terraformSource != nil
 	if downloadSource {
+		initOptions.WorkingDir = terraformSource.WorkingDir
+
 		v0_10_0, err := version.NewVersion("v0.10.0")
 		if err != nil {
 			return err
