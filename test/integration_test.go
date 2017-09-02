@@ -151,10 +151,11 @@ func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 	if err := runTerragruntCommand(t, cmd, &stdout, &stderr); err == nil {
 		t.Fatalf("Failed to properly fail command.  The terraform should be bad", cmd)
 	}
+	output := stdout.String()
 	errOutput := stderr.String()
-	fmt.Printf("Stdout is %s.  Stderr is %s. Command was %s  End", stdout.String(), errOutput, cmd)
-	assert.True(t, strings.Contains(errOutput, "missingvar1"))
-	assert.True(t, strings.Contains(errOutput, "missingvar2"))
+	fmt.Printf("Stderr is %s. Command was %s  End", errOutput, cmd)
+	assert.True(t, strings.Contains(errOutput, "missingvar1") || strings.Contains(output, "missingvar1"))
+	assert.True(t, strings.Contains(errOutput, "missingvar2") || strings.Contains(output, "missingvar2"))
 }
 func TestTerragruntOutputAllCommand(t *testing.T) {
 	t.Parallel()
