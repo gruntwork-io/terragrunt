@@ -204,28 +204,30 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
-	return runTerragruntWithConfig(terragruntOptions, terragruntConfig, false)
+	return runTerragruntWithConfig(terragruntOptions, terragruntOptions, terragruntConfig, false)
 }
 
-// Runs terraform with the given options and CLI args.
-// This will forward all the args and extra_arguments directly to Terraform.
-func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, allowSourceDownload bool) error {
+// Runs terraform with the CLI options in terragruntOptionsForCommand. The originalTerragruntOptions contains the
+// original Options object that was created when Terragrunt was called, which may be different from
+// terragruntOptionsForCommand if Terragrunt is running additional commands (e.g. init) before the one the user
+// requested.
+func runTerragruntWithConfig(terragruntOptionsForCommand *options.TerragruntOptions, originalTerragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, allowSourceDownload bool) error {
 
 	// Add extra_arguments to the command
 	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExtraArgs != nil && len(terragruntConfig.Terraform.ExtraArgs) > 0 {
-		terragruntOptions.InsertTerraformCliArgs(filterTerraformExtraArgs(terragruntOptions, terragruntConfig)...)
+		terragruntOptionsForCommand.InsertTerraformCliArgs(filterTerraformExtraArgs(terragruntOptionsForCommand, terragruntConfig)...)
 	}
 
-	if firstArg(terragruntOptions.TerraformCliArgs) == CMD_INIT {
-		if err := prepareInitCommand(terragruntOptions, terragruntConfig, allowSourceDownload); err != nil {
+	if firstArg(terragruntOptionsForCommand.TerraformCliArgs) == CMD_INIT {
+		if err := prepareInitCommand(terragruntOptionsForCommand, terragruntConfig, allowSourceDownload); err != nil {
 			return err
 		}
 	} else {
-		if err := prepareNonInitCommand(terragruntOptions, terragruntConfig); err != nil {
+		if err := prepareNonInitCommand(terragruntOptionsForCommand, terragruntConfig); err != nil {
 			return err
 		}
 	}
-	return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
+	return shell.RunTerraformCommand(originalTerragruntOptions, terragruntOptionsForCommand.TerraformCliArgs...)
 }
 
 // Prepare for running 'terraform init' by
@@ -342,7 +344,7 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 		initOptions.AppendTerraformCliArgs(terraformSource.DownloadDir)
 	}
 
-	return runTerragruntWithConfig(initOptions, terragruntConfig, downloadSource)
+	return runTerragruntWithConfig(initOptions, terragruntOptions, terragruntConfig, downloadSource)
 }
 
 // Returns an error if allowSourceDownload is false, and terragruntOptions.TerraformCliArgs contains source download related arguments
