@@ -317,6 +317,9 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 	initOptions.TerraformCliArgs = []string{CMD_INIT}
 	initOptions.WorkingDir = terragruntOptions.WorkingDir
 
+	// Don't pollute stdout with the stdout from Aoto Init
+	initOptions.Writer = initOptions.ErrWriter
+
 	// Only add the arguments to download source if terraformSource was specified
 	downloadSource := terraformSource != nil
 	if downloadSource {

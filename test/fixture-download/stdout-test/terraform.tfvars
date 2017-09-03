@@ -1,0 +1,5 @@
+terragrunt = {
+  terraform {
+    source = "../stdout"
+  }
+}
