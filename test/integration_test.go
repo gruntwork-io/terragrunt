@@ -33,6 +33,7 @@ const (
 	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH                 = "qa/my-app"
 	TEST_FIXTURE_STACK                                  = "fixture-stack/"
 	TEST_FIXTURE_OUTPUT_ALL                             = "fixture-output-all"
+	TEST_FIXTURE_STDOUT                                 = "fixture-download/stdout-test"
 	TEST_FIXTURE_EXTRA_ARGS_PATH                        = "fixture-extra-args/"
 	TEST_FIXTURE_LOCAL_DOWNLOAD_PATH                    = "fixture-download/local"
 	TEST_FIXTURE_REMOTE_DOWNLOAD_PATH                   = "fixture-download/remote"
@@ -185,6 +186,22 @@ func TestTerragruntOutputAllCommand(t *testing.T) {
 	assert.True(t, strings.Contains(output, "app3 output"))
 
 	assert.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
+}
+
+// Check that Terragrunt does not pollute stdout with anything
+func TestTerragruntStdOut(t *testing.T) {
+	t.Parallel()
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_STDOUT))
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output foo --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_STDOUT), &stdout, &stderr)
+
+	output := stdout.String()
+	assert.Equal(t, "foo\n", output)
 }
 
 func TestTerragruntOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *testing.T) {
