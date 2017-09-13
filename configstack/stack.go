@@ -33,6 +33,7 @@ func (stack *Stack) Plan(terragruntOptions *options.TerragruntOptions) error {
 	// We capture the out stream for each module
 	errorStreams := make([]bytes.Buffer, len(stack.Modules))
 	for n, module := range stack.Modules {
+		// module.TerragruntOptions = module.TerragruntOptions.ReplaceErrWriter(&errorStreams[n])
 		module.TerragruntOptions.ErrWriter = &errorStreams[n]
 	}
 	defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
@@ -59,8 +60,8 @@ func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.Terragrunt
 					dependenciesMsg,
 				)
 			}
-		} else if errorStream.Len() > 0 {
-			terragruntOptions.Logger.Printf("Error with plan: %s", output)
+		} else if len(output) > 0 {
+			terragruntOptions.Logger.Printf("Error during plan: %s", output)
 		}
 	}
 }
