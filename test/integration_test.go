@@ -154,7 +154,7 @@ func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 	}
 	output := stdout.String()
 	errOutput := stderr.String()
-	fmt.Printf("Stderr is %s. Command was %s  End", errOutput, cmd)
+	fmt.Printf("STDERR is %s.\n STDOUT is %s", errOutput, output)
 	assert.True(t, strings.Contains(errOutput, "missingvar1") || strings.Contains(output, "missingvar1"))
 	assert.True(t, strings.Contains(errOutput, "missingvar2") || strings.Contains(output, "missingvar2"))
 }
