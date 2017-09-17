@@ -15,14 +15,10 @@ import (
 
 // Parse command line options that are passed in for Terragrunt
 func ParseTerragruntOptions(cliContext *cli.Context) (*options.TerragruntOptions, error) {
-	terragruntOptions, err := parseTerragruntOptionsFromArgs(cliContext.Args())
+	terragruntOptions, err := parseTerragruntOptionsFromArgs(cliContext)
 	if err != nil {
 		return nil, err
 	}
-
-	terragruntOptions.Writer = cliContext.App.Writer
-	terragruntOptions.ErrWriter = cliContext.App.ErrWriter
-
 	return terragruntOptions, nil
 }
 
@@ -37,7 +33,8 @@ func ParseTerragruntOptions(cliContext *cli.Context) (*options.TerragruntOptions
 // see: https://github.com/urfave/cli/issues/533. For now, our workaround is to dumbly loop over the arguments
 // and look for the ones we need, but in the future, we should change to a different CLI library to avoid this
 // limitation.
-func parseTerragruntOptionsFromArgs(args []string) (*options.TerragruntOptions, error) {
+func parseTerragruntOptionsFromArgs(cliContext *cli.Context) (*options.TerragruntOptions, error) {
+	args := cliContext.Args()
 	currentDir, err := os.Getwd()
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
@@ -80,11 +77,13 @@ func parseTerragruntOptionsFromArgs(args []string) (*options.TerragruntOptions, 
 	opts.NonInteractive = parseBooleanArg(args, OPT_NON_INTERACTIVE, false)
 	opts.TerraformCliArgs = filterTerragruntArgs(args)
 	opts.WorkingDir = filepath.ToSlash(workingDir)
-	opts.Logger = util.CreateLogger("")
+	opts.Logger = util.CreateLoggerWithWriter(cliContext.App.ErrWriter, "")
 	opts.RunTerragrunt = runTerragrunt
 	opts.Source = terraformSource
 	opts.SourceUpdate = sourceUpdate
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
+	opts.Writer = cliContext.App.Writer
+	opts.ErrWriter = cliContext.App.ErrWriter
 	opts.Env = parseEnvironmentVariables(os.Environ())
 
 	return opts, nil

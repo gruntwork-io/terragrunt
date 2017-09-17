@@ -143,17 +143,6 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 	}
 }
 
-/**
- * When run in bulk, we want to be able to capture for each module errors separetly.
- */
-func (terragruntOptions *TerragruntOptions) ReplaceErrWriter(errWriter io.Writer) *TerragruntOptions {
-	// Sometimes messages are written to Logger and sometimes to the errWriter. so we must replace both
-	logger := util.CreateLoggerWithWriter(errWriter, filepath.Dir(terragruntOptions.TerragruntConfigPath))
-	terragruntOptions.Logger = logger
-	terragruntOptions.ErrWriter = errWriter
-	return terragruntOptions
-}
-
 // Inserts the given argsToInsert after the terraform command argument, but before the remaining args
 func (terragruntOptions *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 
