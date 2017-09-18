@@ -48,6 +48,7 @@ const (
 	TEST_FIXTURE_OLD_CONFIG_INCLUDE_PARENT_UPDATED_PATH = "fixture-old-terragrunt-config/include-parent-updated"
 	TEST_FIXTURE_OLD_CONFIG_STACK_PATH                  = "fixture-old-terragrunt-config/stack"
 	TEST_FIXTURE_OLD_CONFIG_DOWNLOAD_PATH               = "fixture-old-terragrunt-config/download"
+	TEST_FIXTURE_FAILED_TERRAFORM                       = "fixture-failure"
 	TERRAFORM_FOLDER                                    = ".terraform"
 	TERRAFORM_STATE                                     = "terraform.tfstate"
 	TERRAFORM_STATE_BACKUP                              = "terraform.tfstate.backup"
@@ -135,6 +136,28 @@ func TestTerragruntWorksWithIncludesParentUpdatedAndOldConfig(t *testing.T) {
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
 }
 
+func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_FAILED_TERRAFORM)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_FAILED_TERRAFORM)
+
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, "fixture-failure")
+
+	cmd := fmt.Sprintf("terragrunt plan-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootTerragruntConfigPath)
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	// Call runTerragruntCommand directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
+	if err := runTerragruntCommand(t, cmd, &stdout, &stderr); err == nil {
+		t.Fatalf("Failed to properly fail command.  The terraform should be bad", cmd)
+	}
+	output := stdout.String()
+	errOutput := stderr.String()
+	fmt.Printf("STDERR is %s.\n STDOUT is %s", errOutput, output)
+	assert.True(t, strings.Contains(errOutput, "missingvar1") || strings.Contains(output, "missingvar1"))
+	assert.True(t, strings.Contains(errOutput, "missingvar2") || strings.Contains(output, "missingvar2"))
+}
 func TestTerragruntOutputAllCommand(t *testing.T) {
 	t.Parallel()
 

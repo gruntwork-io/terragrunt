@@ -1,15 +1,17 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
-	"os"
-	"path/filepath"
-	"testing"
 )
 
 func TestParseTerragruntOptionsFromArgs(t *testing.T) {
@@ -113,7 +115,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		actualOptions, actualErr := parseTerragruntOptionsFromArgs(testCase.args)
+		actualOptions, actualErr := parseTerragruntOptionsFromArgs(testCase.args, &bytes.Buffer{}, &bytes.Buffer{})
 		if testCase.expectedErr != nil {
 			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "Expected error %v but got error %v", testCase.expectedErr, actualErr)
 		} else {
