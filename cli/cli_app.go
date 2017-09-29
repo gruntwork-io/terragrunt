@@ -509,8 +509,6 @@ func outputAll(terragruntOptions *options.TerragruntOptions) error {
 
 // Custom error types
 
-var DontManuallyConfigureRemoteState = fmt.Errorf("Instead of manually using the 'remote config' command, define your remote state settings in %s and Terragrunt will automatically configure it for you (and all your team members) next time you run it.", config.DefaultTerragruntConfigPath)
-
 type UnrecognizedCommand string
 
 func (commandName UnrecognizedCommand) Error() string {
