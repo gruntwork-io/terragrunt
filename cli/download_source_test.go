@@ -66,6 +66,15 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionAndVersi
 	canonicalUrl := "http://www.some-url.com?ref=v0.0.1"
 	downloadDir := "../test/fixture-download-source/download-dir-version-file"
 
+	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, false)
+}
+
+func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionAndVersionFileAndTfCode(t *testing.T) {
+	t.Parallel()
+
+	canonicalUrl := "http://www.some-url.com?ref=v0.0.1"
+	downloadDir := "../test/fixture-download-source/download-dir-version-file-tf-code"
+
 	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, true)
 }
 
@@ -188,7 +197,7 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalUrl string, downloadDir st
 		VersionFile:        util.JoinPath(downloadDir, "version-file.txt"),
 	}
 
-	actual, err := alreadyHaveLatestCode(terraformSource)
+	actual, err := alreadyHaveLatestCode(terraformSource, options.NewTerragruntOptionsForTest("./should-not-be-used"))
 	assert.Nil(t, err, "Unexpected error for terraform source %v: %v", terraformSource, err)
 	assert.Equal(t, expected, actual, "For terraform source %v", terraformSource)
 }
