@@ -533,9 +533,10 @@ func (err InitNeededButDisabled) Error() string {
 }
 
 type BackendNotDefined struct {
-	Opts 		*options.TerragruntOptions
+	Opts        *options.TerragruntOptions
 	BackendType string
 }
+
 func (err BackendNotDefined) Error() string {
 	return fmt.Sprintf("Found remote_state settings in %s but no backend block in the Terraform code in %s. You must define a backend \"%s\" {} block (it can be empty!) in your Terraform code or your remote state settings will have no effect!", err.Opts.TerragruntConfigPath, err.Opts.WorkingDir, err.BackendType)
 }
