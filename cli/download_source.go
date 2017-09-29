@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/go-getter"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 	"github.com/mattn/go-zglob"
+	"path/filepath"
 )
 
 // This struct represents information about Terraform source code that needs to be downloaded
@@ -74,7 +75,7 @@ func downloadTerraformSourceIfNecessary(terraformSource *TerraformSource, terrag
 		}
 	}
 
-	alreadyLatest, err := alreadyHaveLatestCode(terraformSource)
+	alreadyLatest, err := alreadyHaveLatestCode(terraformSource, terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -103,12 +104,22 @@ func downloadTerraformSourceIfNecessary(terraformSource *TerraformSource, terrag
 // DownloadFolder. This helps avoid downloading the same code multiple times. Note that if the TerraformSource points
 // to a local file path, we assume the user is doing local development and always return false to ensure the latest
 // code is downloaded (or rather, copied) every single time. See the processTerraformSource method for more info.
-func alreadyHaveLatestCode(terraformSource *TerraformSource) (bool, error) {
+func alreadyHaveLatestCode(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	if isLocalSource(terraformSource.CanonicalSourceURL) ||
 		!util.FileExists(terraformSource.DownloadDir) ||
 		!util.FileExists(terraformSource.WorkingDir) ||
 		!util.FileExists(terraformSource.VersionFile) {
 
+		return false, nil
+	}
+
+	tfFiles, err := filepath.Glob(fmt.Sprintf("%s/*.tf", terraformSource.WorkingDir))
+	if err != nil {
+		return false, errors.WithStackTrace(err)
+	}
+
+	if len(tfFiles) == 0 {
+		terragruntOptions.Logger.Printf("Working dir %s exists but contains no Terraform files, so assuming code needs to be downloaded again.", terraformSource.WorkingDir)
 		return false, nil
 	}
 
