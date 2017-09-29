@@ -62,12 +62,18 @@ func DeleteFiles(files []string) error {
 
 // Returns true if the given regex can be found in any of the files matched by the given glob
 func Grep(regex *regexp.Regexp, glob string) (bool, error) {
+	// Ideally, we'd use a builin Go library like filepath.Glob here, but per https://github.com/golang/go/issues/11862,
+	// the current go implementation doesn't support treating ** as zero or more directories, just zero or one.
+	// So we use a third-party library.
 	matches, err := zglob.Glob(glob)
 	if err != nil {
 		return false, errors.WithStackTrace(err)
 	}
 
 	for _, match := range matches {
+		if IsDir(match) {
+			continue
+		}
 		bytes, err := ioutil.ReadFile(match)
 		if err != nil {
 			return false, errors.WithStackTrace(err)
@@ -79,6 +85,12 @@ func Grep(regex *regexp.Regexp, glob string) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// Return true if the path points to a directory
+func IsDir(path string) bool {
+	fileInfo, err := os.Stat(path)
+	return err == nil && fileInfo.IsDir()
 }
 
 // Return the relative path you would have to take to get from basePath to path
