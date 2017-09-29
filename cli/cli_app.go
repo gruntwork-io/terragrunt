@@ -204,6 +204,12 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
+	if terragruntConfig.RemoteState != nil {
+		if err := checkTerraformCodeDefinesBackend(terragruntOptions, terragruntConfig.RemoteState.Backend); err != nil {
+			return err
+		}
+	}
+
 	return runTerragruntWithConfig(terragruntOptions, terragruntConfig, false)
 }
 
@@ -243,7 +249,6 @@ func prepareInitCommand(terragruntOptions *options.TerragruntOptions, terragrunt
 	}
 
 	if terragruntConfig.RemoteState != nil {
-
 		// Initialize the remote state if necessary  (e.g. create S3 bucket and DynamoDB table)
 		remoteStateNeedsInit, err := remoteStateNeedsInit(terragruntConfig.RemoteState, terragruntOptions)
 		if err != nil {
@@ -258,6 +263,25 @@ func prepareInitCommand(terragruntOptions *options.TerragruntOptions, terragrunt
 		// Add backend config arguments to the command
 		terragruntOptions.InsertTerraformCliArgs(terragruntConfig.RemoteState.ToTerraformInitArgs()...)
 	}
+	return nil
+}
+
+// Check that the specified Terraform code defines a backend { ... } block and return an error if doesn't
+func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptions, backendType string) error {
+	terraformBackendRegexp, err := regexp.Compile(fmt.Sprintf(`backend[[:blank:]]+"%s"`, backendType))
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	definesBackend, err := util.Grep(terraformBackendRegexp, fmt.Sprintf("%s/**/*.tf", terragruntOptions.WorkingDir))
+	if err != nil {
+		return err
+	}
+
+	if !definesBackend {
+		return errors.WithStackTrace(BackendNotDefined{Opts: terragruntOptions, BackendType: backendType})
+	}
+
 	return nil
 }
 
@@ -487,8 +511,6 @@ func outputAll(terragruntOptions *options.TerragruntOptions) error {
 
 // Custom error types
 
-var DontManuallyConfigureRemoteState = fmt.Errorf("Instead of manually using the 'remote config' command, define your remote state settings in %s and Terragrunt will automatically configure it for you (and all your team members) next time you run it.", config.DefaultTerragruntConfigPath)
-
 type UnrecognizedCommand string
 
 func (commandName UnrecognizedCommand) Error() string {
@@ -508,4 +530,13 @@ type InitNeededButDisabled string
 
 func (err InitNeededButDisabled) Error() string {
 	return string(err)
+}
+
+type BackendNotDefined struct {
+	Opts        *options.TerragruntOptions
+	BackendType string
+}
+
+func (err BackendNotDefined) Error() string {
+	return fmt.Sprintf("Found remote_state settings in %s but no backend block in the Terraform code in %s. You must define a backend block (it can be empty!) in your Terraform code or your remote state settings will have no effect! It should look something like this:\n\nterraform {\n  backend \"%s\" {}\n}\n\n", err.Opts.TerragruntConfigPath, err.Opts.WorkingDir, err.BackendType)
 }
