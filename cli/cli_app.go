@@ -266,7 +266,7 @@ func prepareInitCommand(terragruntOptions *options.TerragruntOptions, terragrunt
 
 // Check that the specified Terraform code defines a backend { ... } block and return an error if doesn't
 func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptions, backendType string) error {
-	terraformBackendRegexp, err := regexp.Compile(fmt.Sprintf(`backend\s.+"%s"`, backendType))
+	terraformBackendRegexp, err := regexp.Compile(fmt.Sprintf(`backend[[:blank:]]+"%s"`, backendType))
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
