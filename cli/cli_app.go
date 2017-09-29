@@ -243,6 +243,9 @@ func prepareInitCommand(terragruntOptions *options.TerragruntOptions, terragrunt
 	}
 
 	if terragruntConfig.RemoteState != nil {
+		if err := checkTerraformCodeDefinesBackend(terragruntOptions, terragruntConfig.RemoteState.Backend); err != nil {
+			return err
+		}
 
 		// Initialize the remote state if necessary  (e.g. create S3 bucket and DynamoDB table)
 		remoteStateNeedsInit, err := remoteStateNeedsInit(terragruntConfig.RemoteState, terragruntOptions)
@@ -258,6 +261,25 @@ func prepareInitCommand(terragruntOptions *options.TerragruntOptions, terragrunt
 		// Add backend config arguments to the command
 		terragruntOptions.InsertTerraformCliArgs(terragruntConfig.RemoteState.ToTerraformInitArgs()...)
 	}
+	return nil
+}
+
+// Check that the specified Terraform code defines a backend { ... } block and return an error if doesn't
+func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptions, backendType string) error {
+	terraformBackendRegexp, err := regexp.Compile(fmt.Sprintf(`backend\s.+"%s"`, backendType))
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	definesBackend, err := util.Grep(terraformBackendRegexp, fmt.Sprintf("%s/**/*.tf", terragruntOptions.WorkingDir))
+	if err != nil {
+		return err
+	}
+
+	if !definesBackend {
+		return errors.WithStackTrace(BackendNotDefined{Opts: terragruntOptions, BackendType: backendType})
+	}
+
 	return nil
 }
 
@@ -508,4 +530,12 @@ type InitNeededButDisabled string
 
 func (err InitNeededButDisabled) Error() string {
 	return string(err)
+}
+
+type BackendNotDefined struct {
+	Opts 		*options.TerragruntOptions
+	BackendType string
+}
+func (err BackendNotDefined) Error() string {
+	return fmt.Sprintf("Found remote_state settings in %s but no backend block in the Terraform code in %s. You must define a backend \"%s\" {} block (it can be empty!) in your Terraform code or your remote state settings will have no effect!", err.Opts.TerragruntConfigPath, err.Opts.WorkingDir, err.BackendType)
 }

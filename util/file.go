@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/mattn/go-zglob"
 )
 
 // Return true if the given file exists
@@ -61,7 +62,7 @@ func DeleteFiles(files []string) error {
 
 // Returns true if the given regex can be found in any of the files matched by the given glob
 func Grep(regex *regexp.Regexp, glob string) (bool, error) {
-	matches, err := filepath.Glob(glob)
+	matches, err := zglob.Glob(glob)
 	if err != nil {
 		return false, errors.WithStackTrace(err)
 	}

@@ -23,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
+	"github.com/gruntwork-io/terragrunt/errors"
 )
 
 // hard-code this to match the test fixture for now
@@ -42,6 +43,7 @@ const (
 	TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH          = "fixture-download/remote-relative"
 	TEST_FIXTURE_LOCAL_WITH_BACKEND                     = "fixture-download/local-with-backend"
 	TEST_FIXTURE_REMOTE_WITH_BACKEND                    = "fixture-download/remote-with-backend"
+	TEST_FIXTURE_LOCAL_MISSING_BACKEND                  = "fixture-download/local-with-missing-backend"
 	TEST_FIXTURE_LOCAL_WITH_HIDDEN_FOLDER               = "fixture-download/local-with-hidden-folder"
 	TEST_FIXTURE_OLD_CONFIG_INCLUDE_PATH                = "fixture-old-terragrunt-config/include"
 	TEST_FIXTURE_OLD_CONFIG_INCLUDE_CHILD_UPDATED_PATH  = "fixture-old-terragrunt-config/include-child-updated"
@@ -52,7 +54,6 @@ const (
 	TERRAFORM_FOLDER                                    = ".terraform"
 	TERRAFORM_STATE                                     = "terraform.tfstate"
 	TERRAFORM_STATE_BACKUP                              = "terraform.tfstate.backup"
-	DEFAULT_TEST_REGION                                 = "us-east-1"
 )
 
 func init() {
@@ -376,6 +377,25 @@ func TestLocalWithBackend(t *testing.T) {
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 }
 
+func TestLocalWithMissingBackend(t *testing.T) {
+	t.Parallel()
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	lockTableName := fmt.Sprintf("terragrunt-lock-table-%s", strings.ToLower(uniqueId()))
+
+	tmpEnvPath := copyEnvironment(t, "fixture-download")
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_LOCAL_MISSING_BACKEND)
+
+	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName)
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), os.Stdout, os.Stderr)
+	if assert.Error(t, err) {
+		underlying := errors.Unwrap(err)
+		assert.IsType(t, cli.BackendNotDefined{}, underlying)
+	}
+}
+
 func TestRemoteWithBackend(t *testing.T) {
 	t.Parallel()
 
@@ -476,7 +496,7 @@ func runTerragruntRedirectOutput(t *testing.T, command string, writer io.Writer,
 }
 
 func copyEnvironment(t *testing.T, environmentPath string) string {
-	tmpDir, err := ioutil.TempDir("", "terragrunt-stack-test")
+	tmpDir, err := ioutil.TempDir("", "terragrunt-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir due to error: %v", err)
 	}
