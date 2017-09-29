@@ -204,6 +204,12 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
+	if terragruntConfig.RemoteState != nil {
+		if err := checkTerraformCodeDefinesBackend(terragruntOptions, terragruntConfig.RemoteState.Backend); err != nil {
+			return err
+		}
+	}
+
 	return runTerragruntWithConfig(terragruntOptions, terragruntConfig, false)
 }
 
@@ -243,10 +249,6 @@ func prepareInitCommand(terragruntOptions *options.TerragruntOptions, terragrunt
 	}
 
 	if terragruntConfig.RemoteState != nil {
-		if err := checkTerraformCodeDefinesBackend(terragruntOptions, terragruntConfig.RemoteState.Backend); err != nil {
-			return err
-		}
-
 		// Initialize the remote state if necessary  (e.g. create S3 bucket and DynamoDB table)
 		remoteStateNeedsInit, err := remoteStateNeedsInit(terragruntConfig.RemoteState, terragruntOptions)
 		if err != nil {
