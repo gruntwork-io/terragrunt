@@ -68,8 +68,8 @@ Note: when switching from Terragrunt v0.11.x to v0.12.x, you also need to change
 Remove any `lock { ... }` blocks from your Terragrunt configurations, as these are no longer supported.
 
 If you were storing remote state in S3 and relying on DynamoDB as a locking mechanism, Terraform now supports that
-natively. To enable it, simply add the `lock_table` parameter to your S3 backend configuration. If you configure
-your S3 backend using Terragrunt, then Terragrunt will automatically create the `lock_table` for you if that table
+natively. To enable it, simply add the `dynamodb_table` (formerly `lock_table`) parameter to your S3 backend configuration. If you configure
+your S3 backend using Terragrunt, then Terragrunt will automatically create the `dynamodb_table` for you if that table
 doesn't already exist:
 
 ```hcl
@@ -85,7 +85,7 @@ terragrunt = {
 
       # Tell Terraform to do locking using DynamoDB. Terragrunt will automatically
       # create this table for you if it doesn't already exist.
-      lock_table = "my-lock-table"
+      dynamodb_table = "my-dynamodb-table"
     }
   }
 }
@@ -111,7 +111,7 @@ terragrunt = {
 
       # Tell Terraform to do locking using DynamoDB. Terragrunt will automatically
       # create this table for you if it doesn't already exist.
-      lock_table = "my-lock-table"
+      dynamodb_table = "my-dynamodb-table"
     }
   }
 
