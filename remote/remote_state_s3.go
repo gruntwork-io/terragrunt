@@ -26,7 +26,7 @@ type RemoteStateConfigS3 struct {
 const MAX_RETRIES_WAITING_FOR_S3_BUCKET = 12
 const SLEEP_BETWEEN_RETRIES_WAITING_FOR_S3_BUCKET = 5 * time.Second
 
-type S3Initializer struct {}
+type S3Initializer struct{}
 
 // Returns true if the S3 bucket or DynamoDB table does not exist
 func (s3Initializer S3Initializer) NeedsInitialization(config map[string]interface{}, terragruntOptions *options.TerragruntOptions) (bool, error) {
