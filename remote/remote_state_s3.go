@@ -15,12 +15,22 @@ import (
 
 // A representation of the configuration options available for S3 remote state
 type RemoteStateConfigS3 struct {
-	Encrypt   bool   `mapstructure:"encrypt"`
-	Bucket    string `mapstructure:"bucket"`
-	Key       string `mapstructure:"key"`
-	Region    string `mapstructure:"region"`
-	Profile   string `mapstructure:"profile"`
-	LockTable string `mapstructure:"lock_table"`
+	Encrypt       bool   `mapstructure:"encrypt"`
+	Bucket        string `mapstructure:"bucket"`
+	Key           string `mapstructure:"key"`
+	Region        string `mapstructure:"region"`
+	Profile       string `mapstructure:"profile"`
+	LockTable     string `mapstructure:"lock_table"`
+	DynamoDBTable string `mapstructure:"dynamodb_table"`
+}
+
+// The DynamoDB lock table name used to be called lock_table, but has since been renamed to dynamodb_table, and the old
+// name deprecated. To maintain backwards compatibility, we support both names.
+func (s3Config *RemoteStateConfigS3) GetLockTableName() string {
+	if s3Config.DynamoDBTable != "" {
+		return s3Config.DynamoDBTable
+	}
+	return s3Config.LockTable
 }
 
 const MAX_RETRIES_WAITING_FOR_S3_BUCKET = 12
@@ -44,13 +54,13 @@ func (s3Initializer S3Initializer) NeedsInitialization(config map[string]interfa
 		return true, nil
 	}
 
-	if s3Config.LockTable != "" {
+	if s3Config.GetLockTableName() != "" {
 		dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.Region, s3Config.Profile)
 		if err != nil {
 			return false, err
 		}
 
-		tableExists, err := dynamodb.LockTableExistsAndIsActive(s3Config.LockTable, dynamodbClient)
+		tableExists, err := dynamodb.LockTableExistsAndIsActive(s3Config.GetLockTableName(), dynamodbClient)
 		if err != nil {
 			return false, err
 		}
@@ -219,7 +229,7 @@ func DoesS3BucketExist(s3Client *s3.S3, config *RemoteStateConfigS3) bool {
 
 // Create a table for locks in DynamoDB if the user has configured a lock table and the table doesn't already exist
 func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	if s3Config.LockTable == "" {
+	if s3Config.GetLockTableName() == "" {
 		return nil
 	}
 
@@ -228,7 +238,7 @@ func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, terragruntOptions
 		return err
 	}
 
-	return dynamodb.CreateLockTableIfNecessary(s3Config.LockTable, dynamodbClient, terragruntOptions)
+	return dynamodb.CreateLockTableIfNecessary(s3Config.GetLockTableName(), dynamodbClient, terragruntOptions)
 }
 
 // Create an authenticated client for DynamoDB
