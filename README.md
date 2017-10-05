@@ -396,11 +396,11 @@ Terraform supports [remote state storage](https://www.terraform.io/docs/state/re
 ```hcl
 terraform {
   backend "s3" {
-    bucket     = "my-terraform-state"
-    key        = "frontend-app/terraform.tfstate"
-    region     = "us-east-1"
-    encrypt    = true
-    lock_table = "my-lock-table"
+    bucket         = "my-terraform-state"
+    key            = "frontend-app/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "my-lock-table"
   }
 }
 ```
@@ -467,11 +467,11 @@ terragrunt = {
   remote_state {
     backend = "s3"
     config {
-      bucket     = "my-terraform-state"
-      key        = "${path_relative_to_include()}/terraform.tfstate"
-      region     = "us-east-1"
-      encrypt    = true
-      lock_table = "my-lock-table"
+      bucket         = "my-terraform-state"
+      key            = "${path_relative_to_include()}/terraform.tfstate"
+      region         = "us-east-1"
+      encrypt        = true
+      dynamodb_table = "my-lock-table"
     }
   }
 }
@@ -545,8 +545,8 @@ they don't already exist:
   automatically, with [versioning enabled](http://docs.aws.amazon.com/AmazonS3/latest/dev/Versioning.html).
 
 * **DynamoDB table**: If you are using the [S3 backend](https://www.terraform.io/docs/backends/types/s3.html) for
-  remote state storage and you specify a `lock_table` (a [DynamoDB table used for
-  locking](https://www.terraform.io/docs/backends/types/s3.html#lock_table)) in `remote_state.config`, if that table
+  remote state storage and you specify a `dynamodb_table` (a [DynamoDB table used for
+  locking](https://www.terraform.io/docs/backends/types/s3.html#dynamodb_table)) in `remote_state.config`, if that table
   doesn't already exist, Terragrunt will create it automatically, including a primary key called `LockID`.
 
 **Note**: If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile
