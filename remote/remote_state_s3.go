@@ -26,9 +26,45 @@ type RemoteStateConfigS3 struct {
 const MAX_RETRIES_WAITING_FOR_S3_BUCKET = 12
 const SLEEP_BETWEEN_RETRIES_WAITING_FOR_S3_BUCKET = 5 * time.Second
 
+type S3Initializer struct{}
+
+// Returns true if the S3 bucket or DynamoDB table does not exist
+func (s3Initializer S3Initializer) NeedsInitialization(config map[string]interface{}, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	s3Config, err := parseS3Config(config)
+	if err != nil {
+		return false, err
+	}
+
+	s3Client, err := CreateS3Client(s3Config.Region, s3Config.Profile)
+	if err != nil {
+		return false, err
+	}
+
+	if !DoesS3BucketExist(s3Client, s3Config) {
+		return true, nil
+	}
+
+	if s3Config.LockTable != "" {
+		dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.Region, s3Config.Profile)
+		if err != nil {
+			return false, err
+		}
+
+		tableExists, err := dynamodb.LockTableExistsAndIsActive(s3Config.LockTable, dynamodbClient)
+		if err != nil {
+			return false, err
+		}
+		if !tableExists {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 // Initialize the remote state S3 bucket specified in the given config. This function will validate the config
 // parameters, create the S3 bucket if it doesn't already exist, and check that versioning is enabled.
-func InitializeRemoteStateS3(config map[string]interface{}, terragruntOptions *options.TerragruntOptions) error {
+func (s3Initializer S3Initializer) Initialize(config map[string]interface{}, terragruntOptions *options.TerragruntOptions) error {
 	s3Config, err := parseS3Config(config)
 	if err != nil {
 		return err

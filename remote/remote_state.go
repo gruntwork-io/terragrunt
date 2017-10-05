@@ -20,11 +20,17 @@ func (remoteState *RemoteState) String() string {
 	return fmt.Sprintf("RemoteState{Backend = %v, Config = %v}", remoteState.Backend, remoteState.Config)
 }
 
-type RemoteStateInitializer func(map[string]interface{}, *options.TerragruntOptions) error
+type RemoteStateInitializer interface {
+	// Return true if remote state needs to be initialized
+	NeedsInitialization(config map[string]interface{}, terragruntOptions *options.TerragruntOptions) (bool, error)
+
+	// Initialize the remote state
+	Initialize(config map[string]interface{}, terragruntOptions *options.TerragruntOptions) error
+}
 
 // TODO: initialization actions for other remote state backends can be added here
 var remoteStateInitializers = map[string]RemoteStateInitializer{
-	"s3": InitializeRemoteStateS3,
+	"s3": S3Initializer{},
 }
 
 // Fill in any default configuration for remote state
@@ -47,7 +53,7 @@ func (remoteState *RemoteState) Initialize(terragruntOptions *options.Terragrunt
 	terragruntOptions.Logger.Printf("Initializing remote state for the %s backend", remoteState.Backend)
 	initializer, hasInitializer := remoteStateInitializers[remoteState.Backend]
 	if hasInitializer {
-		return initializer(remoteState.Config, terragruntOptions)
+		return initializer.Initialize(remoteState.Config, terragruntOptions)
 	}
 
 	return nil
@@ -56,17 +62,31 @@ func (remoteState *RemoteState) Initialize(terragruntOptions *options.Terragrunt
 // Returns true if remote state needs to be configured. This will be the case when:
 //
 // 1. Remote state has not already been configured
-// 2. Remote state has been configured, but for a different backend type, and the user confirms it's OK to overwrite it.
+// 2. Remote state has been configured, but with a different configuration
+// 3. The remote state initializer for this backend type, if there is one, says initialization is necessary
 func (remoteState *RemoteState) NeedsInit(terragruntOptions *options.TerragruntOptions) (bool, error) {
 	state, err := ParseTerraformStateFileFromLocation(terragruntOptions.WorkingDir)
 	if err != nil {
 		return false, err
 	}
 
-	if state != nil && state.IsRemote() {
-		return remoteState.differsFrom(state.Backend, terragruntOptions), nil
+	// Remote state not configured
+	if state == nil {
+		return true, nil
 	}
-	return true, nil
+
+	// Remote state configured, but with a different configuration
+	if remoteState.differsFrom(state.Backend, terragruntOptions) {
+		return true, nil
+	}
+
+	// Remote state initializer says initialization is necessary
+	initializer, hasInitializer := remoteStateInitializers[remoteState.Backend]
+	if hasInitializer {
+		return initializer.NeedsInitialization(remoteState.Config, terragruntOptions)
+	}
+
+	return false, nil
 }
 
 // Returns true if this remote state is different than the given remote state that is currently being used by terraform.
