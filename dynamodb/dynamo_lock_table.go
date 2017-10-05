@@ -38,7 +38,7 @@ func CreateDynamoDbClient(awsRegion, awsProfile string) (*dynamodb.DynamoDB, err
 
 // Create the lock table in DynamoDB if it doesn't already exist
 func CreateLockTableIfNecessary(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
-	tableExists, err := lockTableExistsAndIsActive(tableName, client)
+	tableExists, err := LockTableExistsAndIsActive(tableName, client)
 	if err != nil {
 		return err
 	}
@@ -52,7 +52,7 @@ func CreateLockTableIfNecessary(tableName string, client *dynamodb.DynamoDB, ter
 }
 
 // Return true if the lock table exists in DynamoDB and is in "active" state
-func lockTableExistsAndIsActive(tableName string, client *dynamodb.DynamoDB) (bool, error) {
+func LockTableExistsAndIsActive(tableName string, client *dynamodb.DynamoDB) (bool, error) {
 	output, err := client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
 	if err != nil {
 		if awsErr, isAwsErr := err.(awserr.Error); isAwsErr && awsErr.Code() == "ResourceNotFoundException" {
@@ -128,7 +128,7 @@ func waitForTableToBeActive(tableName string, client *dynamodb.DynamoDB, maxRetr
 // the same time, which continually triggered AWS's "subscriber limit exceeded" API error.
 func waitForTableToBeActiveWithRandomSleep(tableName string, client *dynamodb.DynamoDB, maxRetries int, sleepBetweenRetriesMin time.Duration, sleepBetweenRetriesMax time.Duration, terragruntOptions *options.TerragruntOptions) error {
 	for i := 0; i < maxRetries; i++ {
-		tableReady, err := lockTableExistsAndIsActive(tableName, client)
+		tableReady, err := LockTableExistsAndIsActive(tableName, client)
 		if err != nil {
 			return err
 		}
