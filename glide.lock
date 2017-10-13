@@ -1,5 +1,5 @@
-hash: 00b02dc4909284a30b3510930e41851bf67a35e1bd72dc45d5ebff80ef506f10
-updated: 2017-04-23T16:27:54.825537907+01:00
+hash: a89e95ac15288027c4efb727d15971a273be3021d179dd30f842f129c254f31f
+updated: 2017-10-13T13:24:38.288952273-07:00
 imports:
 - name: github.com/aws/aws-sdk-go
   version: 00fb2125993965df739fa3398b03bef3eb2e198f
@@ -83,4 +83,13 @@ imports:
   - assert
 - name: github.com/urfave/cli
   version: 8ba6f23b6e36d03666a14bd9421f5e3efcb59aca
+- name: golang.org/x/crypto
+  version: 9419663f5a44be8b34ca85f08abc5fe1be11f8a3
+  subpackages:
+  - ssh/terminal
+- name: golang.org/x/sys
+  version: 9a2e24c3733eddc63871eda99f253e2db29bd3b9
+  subpackages:
+  - unix
+  - windows
 testImports: []

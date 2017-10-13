@@ -2,6 +2,8 @@ package remote
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
@@ -10,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/mitchellh/mapstructure"
-	"time"
 )
 
 // A representation of the configuration options available for S3 remote state
@@ -139,6 +140,9 @@ func validateS3Config(config *RemoteStateConfigS3, terragruntOptions *options.Te
 // confirms, create the bucket and enable versioning for it.
 func createS3BucketIfNecessary(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	if !DoesS3BucketExist(s3Client, config) {
+		if !shell.CanAcceptPrompt() {
+			return fmt.Errorf("remote: S3 bucket does not exist, or you don't have permissions to access it: %q", config.Bucket)
+		}
 		prompt := fmt.Sprintf("Remote state S3 bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", config.Bucket)
 		shouldCreateBucket, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
 		if err != nil {

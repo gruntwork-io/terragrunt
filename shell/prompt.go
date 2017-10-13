@@ -3,11 +3,19 @@ package shell
 import (
 	"bufio"
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/options"
 	"os"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/options"
+	"golang.org/x/crypto/ssh/terminal"
 )
+
+// CanAcceptPrompt tells whether the program can receive input on the standard
+// input.
+func CanAcceptPrompt() bool {
+	return terminal.IsTerminal(int(os.Stdin.Fd()))
+}
 
 // Prompt the user for text in the CLI. Returns the text entered by the user.
 func PromptUserForInput(prompt string, terragruntOptions *options.TerragruntOptions) (string, error) {

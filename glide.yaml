@@ -3,6 +3,9 @@ owners:
 - name: Gruntwork
   homepage: http://www.gruntwork.io
 import:
+- package: golang.org/x/crypto
+  subpackages:
+  - ssh/terminal
 - package: github.com/urfave/cli
 - package: github.com/hashicorp/hcl
 - package: github.com/hashicorp/go-getter
