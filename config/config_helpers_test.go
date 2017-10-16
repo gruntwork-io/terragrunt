@@ -130,60 +130,126 @@ func TestFindInParentFolders(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		params            string
 		terragruntOptions options.TerragruntOptions
 		expectedPath      string
 		expectedErr       error
 	}{
 		{
+			"",
 			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/" + DefaultTerragruntConfigPath, NonInteractive: true},
 			"../" + DefaultTerragruntConfigPath,
 			nil,
 		},
 		{
+			"",
 			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
 			"../../../" + DefaultTerragruntConfigPath,
 			nil,
 		},
 		{
+			"",
 			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/no-terragrunt-in-root/child/sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
 			"",
-			ParentTerragruntConfigNotFound("../test/fixture-parent-folders/no-terragrunt-in-root/child/sub-child/" + DefaultTerragruntConfigPath),
+			ParentFileNotFound{},
 		},
 		{
+			"",
 			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/" + DefaultTerragruntConfigPath, NonInteractive: true},
 			"../" + DefaultTerragruntConfigPath,
 			nil,
 		},
 		{
+			"",
 			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
 			"../" + DefaultTerragruntConfigPath,
 			nil,
 		},
 		{
+			"",
 			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/sub-sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
 			"../" + DefaultTerragruntConfigPath,
 			nil,
 		},
 		{
-			options.TerragruntOptions{TerragruntConfigPath: "/", NonInteractive: true},
-			"",
-			ParentTerragruntConfigNotFound("/"),
+			`"foo.txt"`,
+			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/other-file-names/child/" + DefaultTerragruntConfigPath, NonInteractive: true},
+			"../foo.txt",
+			nil,
 		},
 		{
+			"",
+			options.TerragruntOptions{TerragruntConfigPath: "/", NonInteractive: true},
+			"",
+			ParentFileNotFound{},
+		},
+		{
+			"",
 			options.TerragruntOptions{TerragruntConfigPath: "/fake/path", NonInteractive: true},
 			"",
-			ParentTerragruntConfigNotFound("/fake/path"),
+			ParentFileNotFound{},
 		},
 	}
 
 	for _, testCase := range testCases {
-		actualPath, actualErr := findInParentFolders(&testCase.terragruntOptions)
-		if testCase.expectedErr != nil {
-			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "For options %v, expected error %v but got error %v", testCase.terragruntOptions, testCase.expectedErr, actualErr)
-		} else {
-			assert.Nil(t, actualErr, "For options %v, unexpected error: %v", testCase.terragruntOptions, actualErr)
-			assert.Equal(t, testCase.expectedPath, actualPath, "For options %v", testCase.terragruntOptions)
-		}
+		t.Run(testCase.terragruntOptions.TerragruntConfigPath, func(t *testing.T) {
+			actualPath, actualErr := findInParentFolders(testCase.params, &testCase.terragruntOptions)
+			if testCase.expectedErr != nil {
+				if assert.Error(t, actualErr) {
+					assert.IsType(t, testCase.expectedErr, errors.Unwrap(actualErr))
+				}
+			} else {
+				assert.Nil(t, actualErr)
+				assert.Equal(t, testCase.expectedPath, actualPath)
+			}
+		})
+	}
+}
+
+func TestParseOptionalQuotedParamHappyPath(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		params   string
+		hasParam bool
+		expected string
+	}{
+		{``, false, ""},
+		{`   `, false, ""},
+		{`""`, true, ""},
+		{`"foo.txt"`, true, "foo.txt"},
+		{`"foo bar baz"`, true, "foo bar baz"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.params, func(t *testing.T) {
+			actual, hasParam, err := parseOptionalQuotedParam(testCase.params)
+			assert.NoError(t, err)
+			assert.Equal(t, testCase.hasParam, hasParam)
+			assert.Equal(t, testCase.expected, actual)
+		})
+	}
+}
+
+func TestParseOptionalQuotedParamErrors(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		params   string
+		expected error
+	}{
+		{`abc`, InvalidStringParam(`abc`)},
+		{`"`, InvalidStringParam(`"`)},
+		{`"foo", "bar"`, InvalidStringParam(`"foo", "bar"`)},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.params, func(t *testing.T) {
+			_, _, err := parseOptionalQuotedParam(testCase.params)
+			if assert.Error(t, err) {
+				assert.IsType(t, testCase.expected, errors.Unwrap(err))
+			}
+		})
 	}
 }
 
@@ -230,7 +296,7 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 			nil,
 			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/no-terragrunt-in-root/child/sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
 			"",
-			ParentTerragruntConfigNotFound("../test/fixture-parent-folders/no-terragrunt-in-root/child/sub-child/" + DefaultTerragruntConfigPath),
+			ParentFileNotFound{},
 		},
 		{
 			"${find_in_parent_folders}",
@@ -256,13 +322,17 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		actualOut, actualErr := resolveTerragruntInterpolation(testCase.str, testCase.include, &testCase.terragruntOptions)
-		if testCase.expectedErr != nil {
-			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "For string '%s' include %v and options %v, expected error %v but got error %v", testCase.str, testCase.include, testCase.terragruntOptions, testCase.expectedErr, actualErr)
-		} else {
-			assert.Nil(t, actualErr, "For string '%s' include %v and options %v, unexpected error: %v", testCase.str, testCase.include, testCase.terragruntOptions, actualErr)
-			assert.Equal(t, testCase.expectedOut, actualOut, "For string '%s' include %v and options %v", testCase.str, testCase.include, testCase.terragruntOptions)
-		}
+		t.Run(testCase.str, func(t *testing.T) {
+			actualOut, actualErr := resolveTerragruntInterpolation(testCase.str, testCase.include, &testCase.terragruntOptions)
+			if testCase.expectedErr != nil {
+				if assert.Error(t, actualErr) {
+					assert.IsType(t, testCase.expectedErr, errors.Unwrap(actualErr))
+				}
+			} else {
+				assert.Nil(t, actualErr)
+				assert.Equal(t, testCase.expectedOut, actualOut)
+			}
+		})
 	}
 }
 
@@ -372,7 +442,7 @@ func TestResolveTerragruntConfigString(t *testing.T) {
 			nil,
 			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/no-terragrunt-in-root/child/sub-child/" + DefaultTerragruntConfigPath, NonInteractive: true},
 			"",
-			ParentTerragruntConfigNotFound("../test/fixture-parent-folders/no-terragrunt-in-root/child/sub-child/" + DefaultTerragruntConfigPath),
+			ParentFileNotFound{},
 		},
 		{
 			"foo/${unknown}/bar",
@@ -384,13 +454,17 @@ func TestResolveTerragruntConfigString(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		actualOut, actualErr := ResolveTerragruntConfigString(testCase.str, testCase.include, &testCase.terragruntOptions)
-		if testCase.expectedErr != nil {
-			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "For string '%s' include %v and options %v, expected error %v but got error %v", testCase.str, testCase.include, testCase.terragruntOptions, testCase.expectedErr, actualErr)
-		} else {
-			assert.Nil(t, actualErr, "For string '%s' include %v and options %v, unexpected error: %v", testCase.str, testCase.include, testCase.terragruntOptions, actualErr)
-			assert.Equal(t, testCase.expectedOut, actualOut, "For string '%s' include %v and options %v", testCase.str, testCase.include, testCase.terragruntOptions)
-		}
+		t.Run(testCase.str, func(t *testing.T) {
+			actualOut, actualErr := ResolveTerragruntConfigString(testCase.str, testCase.include, &testCase.terragruntOptions)
+			if testCase.expectedErr != nil {
+				if assert.Error(t, actualErr) {
+					assert.IsType(t, testCase.expectedErr, errors.Unwrap(actualErr))
+				}
+			} else {
+				assert.Nil(t, actualErr)
+				assert.Equal(t, testCase.expectedOut, actualOut)
+			}
+		})
 	}
 }
 
@@ -409,7 +483,7 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 			nil,
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/" + DefaultTerragruntConfigPath, NonInteractive: true},
 			"",
-			InvalidFunctionParameters(""),
+			InvalidGetEnvParams(""),
 		},
 		{
 			"foo/${get_env(Invalid Parameters)}/bar",
@@ -430,14 +504,14 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 			nil,
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/" + DefaultTerragruntConfigPath, NonInteractive: true},
 			"",
-			InvalidFunctionParameters(`"",""`),
+			InvalidGetEnvParams(`"",""`),
 		},
 		{
 			`foo/${get_env(   ""    ,   ""    )}/bar`,
 			nil,
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/" + DefaultTerragruntConfigPath, NonInteractive: true},
 			"",
-			InvalidFunctionParameters(`   ""    ,   ""    `),
+			InvalidGetEnvParams(`   ""    ,   ""    `),
 		},
 		{
 			`${get_env("SOME_VAR", "SOME{VALUE}")}`,

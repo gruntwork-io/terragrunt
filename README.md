@@ -1082,6 +1082,16 @@ terragrunt = {
 }
 ```
 
+The function takes an optional `name` parameter that allows you to specify a different filename to search for:
+
+```hcl
+terragrunt = {
+  include {
+    path = "${find_in_parent_folders("some-other-file-name.tfvars")}"
+  }
+}
+```
+
 
 #### path_relative_to_include
 
