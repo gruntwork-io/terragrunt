@@ -74,7 +74,7 @@ func ResolveTerragruntConfigString(terragruntConfigString string, include *Inclu
 func executeTerragruntHelperFunction(functionName string, parameters string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (interface{}, error) {
 	switch functionName {
 	case "find_in_parent_folders":
-		return findInParentFolders(terragruntOptions)
+		return findInParentFolders(parameters, terragruntOptions)
 	case "path_relative_to_include":
 		return pathRelativeToInclude(include, terragruntOptions)
 	case "path_relative_from_include":
@@ -192,7 +192,7 @@ func parseGetEnvParameters(parameters string) (EnvVar, error) {
 	envVariable := EnvVar{}
 	matches := HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX.FindStringSubmatch(parameters)
 	if len(matches) < 2 {
-		return envVariable, errors.WithStackTrace(InvalidFunctionParameters(parameters))
+		return envVariable, errors.WithStackTrace(InvalidGetEnvParams(parameters))
 	}
 
 	for index, name := range HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX.SubexpNames() {
@@ -224,7 +224,15 @@ func getEnvironmentVariable(parameters string, terragruntOptions *options.Terrag
 
 // Find a parent Terragrunt configuration file in the parent folders above the current Terragrunt configuration file
 // and return its path
-func findInParentFolders(terragruntOptions *options.TerragruntOptions) (string, error) {
+func findInParentFolders(parameters string, terragruntOptions *options.TerragruntOptions) (string, error) {
+	fileToFindParam, hasParam, err := parseOptionalQuotedParam(parameters)
+	if err != nil {
+		return "", err
+	}
+	if hasParam && fileToFindParam == "" {
+		return "", errors.WithStackTrace(EmptyStringNotAllowed("parameter to the find_in_parent_folders_function"))
+	}
+
 	previousDir, err := filepath.Abs(filepath.Dir(terragruntOptions.TerragruntConfigPath))
 	previousDir = filepath.ToSlash(previousDir)
 
@@ -237,18 +245,47 @@ func findInParentFolders(terragruntOptions *options.TerragruntOptions) (string, 
 	for i := 0; i < MAX_PARENT_FOLDERS_TO_CHECK; i++ {
 		currentDir := filepath.ToSlash(filepath.Dir(previousDir))
 		if currentDir == previousDir {
-			return "", errors.WithStackTrace(ParentTerragruntConfigNotFound(terragruntOptions.TerragruntConfigPath))
+			file := fmt.Sprintf("%s or %s", DefaultTerragruntConfigPath, OldTerragruntConfigPath)
+			if fileToFindParam != "" {
+				file = fileToFindParam
+			}
+			return "", errors.WithStackTrace(ParentFileNotFound{Path: terragruntOptions.TerragruntConfigPath, File: file})
 		}
 
-		configPath := DefaultConfigPath(currentDir)
-		if util.FileExists(configPath) {
-			return util.GetPathRelativeTo(configPath, filepath.Dir(terragruntOptions.TerragruntConfigPath))
+		fileToFind := DefaultConfigPath(currentDir)
+		if fileToFindParam != "" {
+			fileToFind = util.JoinPath(currentDir, fileToFindParam)
+		}
+
+		if util.FileExists(fileToFind) {
+			return util.GetPathRelativeTo(fileToFind, filepath.Dir(terragruntOptions.TerragruntConfigPath))
 		}
 
 		previousDir = currentDir
 	}
 
 	return "", errors.WithStackTrace(CheckedTooManyParentFolders(terragruntOptions.TerragruntConfigPath))
+}
+
+var quotedParamRegex = regexp.MustCompile(`^"([^"]*)"$`)
+
+// Parse a single parameter, wrapped in quotes, passed to a function. For example, if you have a function foo(bar) that
+// takes an optional parameter called bar, then if the parameter was set to "abc" (including the quotes), this function
+// would return the string abc and true. If the parameter set to "" (quotes with nothing inside), this function would
+// return  the string "" and true. If the parameter was a completely empty string, this function will return an empty
+// string and false. If the parameter is anything else, you get an error.
+func parseOptionalQuotedParam(parameters string) (string, bool, error) {
+	trimmedParameters := strings.TrimSpace(parameters)
+	if trimmedParameters == "" {
+		return "", false, nil
+	}
+
+	matches := quotedParamRegex.FindStringSubmatch(trimmedParameters)
+	if len(matches) == 2 {
+		return matches[1], true, nil
+	}
+
+	return "", false, errors.WithStackTrace(InvalidStringParam(parameters))
 }
 
 // Return the relative path between the included Terragrunt configuration file and the current Terragrunt configuration
@@ -323,10 +360,13 @@ func (err UnknownHelperFunction) Error() string {
 	return fmt.Sprintf("Unknown helper function: %s", string(err))
 }
 
-type ParentTerragruntConfigNotFound string
+type ParentFileNotFound struct {
+	Path string
+	File string
+}
 
-func (err ParentTerragruntConfigNotFound) Error() string {
-	return fmt.Sprintf("Could not find a Terragrunt config file in any of the parent folders of %s", string(err))
+func (err ParentFileNotFound) Error() string {
+	return fmt.Sprintf("Could not find a %s in any of the parent folders of %s", err.File, err.Path)
 }
 
 type CheckedTooManyParentFolders string
@@ -335,8 +375,20 @@ func (err CheckedTooManyParentFolders) Error() string {
 	return fmt.Sprintf("Could not find a Terragrunt config file in a parent folder of %s after checking %d parent folders", string(err), MAX_PARENT_FOLDERS_TO_CHECK)
 }
 
-type InvalidFunctionParameters string
+type InvalidGetEnvParams string
 
-func (err InvalidFunctionParameters) Error() string {
+func (err InvalidGetEnvParams) Error() string {
 	return fmt.Sprintf("Invalid parameters. Expected syntax of the form '${get_env(\"env\", \"default\")}', but got '%s'", string(err))
+}
+
+type InvalidStringParam string
+
+func (err InvalidStringParam) Error() string {
+	return fmt.Sprintf("Invalid parameters. Expected a single string parameter (e.g. ${foo(\"...\")}) or no parameters (e.g., ${foo()}) but got '%s'.", string(err))
+}
+
+type EmptyStringNotAllowed string
+
+func (err EmptyStringNotAllowed) Error() string {
+	return fmt.Sprintf("Empty string value is not allowed for %s", string(err))
 }
