@@ -214,11 +214,11 @@ func TestParseOptionalQuotedParamHappyPath(t *testing.T) {
 		hasParam bool
 		expected string
 	}{
-		{``, false,""},
-		{`   `, false,""},
+		{``, false, ""},
+		{`   `, false, ""},
 		{`""`, true, ""},
 		{`"foo.txt"`, true, "foo.txt"},
-		{`"foo bar baz"`, true,"foo bar baz"},
+		{`"foo bar baz"`, true, "foo bar baz"},
 	}
 
 	for _, testCase := range testCases {
