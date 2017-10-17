@@ -225,11 +225,11 @@ func getEnvironmentVariable(parameters string, terragruntOptions *options.Terrag
 // Find a parent Terragrunt configuration file in the parent folders above the current Terragrunt configuration file
 // and return its path
 func findInParentFolders(parameters string, terragruntOptions *options.TerragruntOptions) (string, error) {
-	fileToFindParam, hasParam, err := parseOptionalQuotedParam(parameters)
+	fileToFindParam, fallbackParam, numParams, err := parseOptionalQuotedParam(parameters)
 	if err != nil {
 		return "", err
 	}
-	if hasParam && fileToFindParam == "" {
+	if numParams > 0 && fileToFindParam == "" {
 		return "", errors.WithStackTrace(EmptyStringNotAllowed("parameter to the find_in_parent_folders_function"))
 	}
 
@@ -245,6 +245,9 @@ func findInParentFolders(parameters string, terragruntOptions *options.Terragrun
 	for i := 0; i < MAX_PARENT_FOLDERS_TO_CHECK; i++ {
 		currentDir := filepath.ToSlash(filepath.Dir(previousDir))
 		if currentDir == previousDir {
+			if numParams == 2 {
+				return fallbackParam, nil
+			}
 			file := fmt.Sprintf("%s or %s", DefaultTerragruntConfigPath, OldTerragruntConfigPath)
 			if fileToFindParam != "" {
 				file = fileToFindParam
@@ -267,25 +270,34 @@ func findInParentFolders(parameters string, terragruntOptions *options.Terragrun
 	return "", errors.WithStackTrace(CheckedTooManyParentFolders(terragruntOptions.TerragruntConfigPath))
 }
 
-var quotedParamRegex = regexp.MustCompile(`^"([^"]*)"$`)
+var oneQuotedParamRegex = regexp.MustCompile(`^"([^"]*?)"$`)
+var twoQuotedParamsRegex = regexp.MustCompile(`^"([^"]*?)"\s*,\s*"([^"]*?)"$`)
 
-// Parse a single parameter, wrapped in quotes, passed to a function. For example, if you have a function foo(bar) that
-// takes an optional parameter called bar, then if the parameter was set to "abc" (including the quotes), this function
-// would return the string abc and true. If the parameter set to "" (quotes with nothing inside), this function would
-// return  the string "" and true. If the parameter was a completely empty string, this function will return an empty
-// string and false. If the parameter is anything else, you get an error.
-func parseOptionalQuotedParam(parameters string) (string, bool, error) {
+// Parse two optional parameters, wrapped in quotes, passed to a function, and return the parameter values and how many
+// of the parameters were actually set. For example, if you have a function foo(bar, baz), where bar and baz are
+// optional string parameters, this function will behave as follows:
+//
+// foo() -> return "", "", 0, nil
+// foo("a") -> return "a", "", 1, nil
+// foo("a", "b") -> return "a", "b", 2, nil
+//
+func parseOptionalQuotedParam(parameters string) (string, string, int, error) {
 	trimmedParameters := strings.TrimSpace(parameters)
 	if trimmedParameters == "" {
-		return "", false, nil
+		return "", "", 0, nil
 	}
 
-	matches := quotedParamRegex.FindStringSubmatch(trimmedParameters)
+	matches := oneQuotedParamRegex.FindStringSubmatch(trimmedParameters)
 	if len(matches) == 2 {
-		return matches[1], true, nil
+		return matches[1], "", 1, nil
 	}
 
-	return "", false, errors.WithStackTrace(InvalidStringParam(parameters))
+	matches = twoQuotedParamsRegex.FindStringSubmatch(trimmedParameters)
+	if len(matches) == 3 {
+		return matches[1], matches[2], 2, nil
+	}
+
+	return "", "", 0, errors.WithStackTrace(InvalidStringParams(parameters))
 }
 
 // Return the relative path between the included Terragrunt configuration file and the current Terragrunt configuration
@@ -381,10 +393,10 @@ func (err InvalidGetEnvParams) Error() string {
 	return fmt.Sprintf("Invalid parameters. Expected syntax of the form '${get_env(\"env\", \"default\")}', but got '%s'", string(err))
 }
 
-type InvalidStringParam string
+type InvalidStringParams string
 
-func (err InvalidStringParam) Error() string {
-	return fmt.Sprintf("Invalid parameters. Expected a single string parameter (e.g. ${foo(\"...\")}) or no parameters (e.g., ${foo()}) but got '%s'.", string(err))
+func (err InvalidStringParams) Error() string {
+	return fmt.Sprintf("Invalid parameters. Expected one string parameter (e.g., ${foo(\"xxx\")}), two string parameters (e.g. ${foo(\"xxx\", \"yyy\")}), or no parameters (e.g., ${foo()}) but got '%s'.", string(err))
 }
 
 type EmptyStringNotAllowed string

@@ -189,6 +189,12 @@ func TestFindInParentFolders(t *testing.T) {
 			"",
 			ParentFileNotFound{},
 		},
+		{
+			`"foo.txt", "fallback.txt"`,
+			options.TerragruntOptions{TerragruntConfigPath: "/fake/path", NonInteractive: true},
+			"fallback.txt",
+			nil,
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -206,46 +212,55 @@ func TestFindInParentFolders(t *testing.T) {
 	}
 }
 
-func TestParseOptionalQuotedParamHappyPath(t *testing.T) {
+func TestParseOptionalQuotedParamsHappyPath(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		params   string
-		hasParam bool
-		expected string
+		params              string
+		expectedNumParams   int
+		expectedFirstParam  string
+		expectedSecondParam string
 	}{
-		{``, false, ""},
-		{`   `, false, ""},
-		{`""`, true, ""},
-		{`"foo.txt"`, true, "foo.txt"},
-		{`"foo bar baz"`, true, "foo bar baz"},
+		{``, 0, "", ""},
+		{`   `, 0, "", ""},
+		{`""`, 1, "", ""},
+		{`"foo.txt"`, 1, "foo.txt", ""},
+		{`"foo bar baz"`, 1, "foo bar baz", ""},
+		{`"",""`, 2, "", ""},
+		{`"" ,     ""`, 2, "", ""},
+		{`"foo","bar"`, 2, "foo", "bar"},
+		{`"foo",     "bar"`, 2, "foo", "bar"},
+		{`"","bar"`, 2, "", "bar"},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.params, func(t *testing.T) {
-			actual, hasParam, err := parseOptionalQuotedParam(testCase.params)
+			actualFirstParam, actualSecondParam, actualNumParams, err := parseOptionalQuotedParam(testCase.params)
 			assert.NoError(t, err)
-			assert.Equal(t, testCase.hasParam, hasParam)
-			assert.Equal(t, testCase.expected, actual)
+			assert.Equal(t, testCase.expectedNumParams, actualNumParams)
+			assert.Equal(t, testCase.expectedFirstParam, actualFirstParam)
+			assert.Equal(t, testCase.expectedSecondParam, actualSecondParam)
 		})
 	}
 }
 
-func TestParseOptionalQuotedParamErrors(t *testing.T) {
+func TestParseOptionalQuotedParamsErrors(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		params   string
 		expected error
 	}{
-		{`abc`, InvalidStringParam(`abc`)},
-		{`"`, InvalidStringParam(`"`)},
-		{`"foo", "bar"`, InvalidStringParam(`"foo", "bar"`)},
+		{`abc`, InvalidStringParams(`abc`)},
+		{`"`, InvalidStringParams(`"`)},
+		{`"foo", "`, InvalidStringParams(`"foo", "`)},
+		{`"foo" "bar"`, InvalidStringParams(`"foo" "bar"`)},
+		{`"foo", "bar", "baz"`, InvalidStringParams(`"foo", "bar", "baz"`)},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.params, func(t *testing.T) {
-			_, _, err := parseOptionalQuotedParam(testCase.params)
+			_, _, _, err := parseOptionalQuotedParam(testCase.params)
 			if assert.Error(t, err) {
 				assert.IsType(t, testCase.expected, errors.Unwrap(err))
 			}
