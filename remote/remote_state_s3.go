@@ -20,6 +20,7 @@ type RemoteStateConfigS3 struct {
 	Key           string `mapstructure:"key"`
 	Region        string `mapstructure:"region"`
 	Profile       string `mapstructure:"profile"`
+	RoleArn       string `mapstructure:"role_arn"`
 	LockTable     string `mapstructure:"lock_table"`
 	DynamoDBTable string `mapstructure:"dynamodb_table"`
 }
@@ -45,7 +46,7 @@ func (s3Initializer S3Initializer) NeedsInitialization(config map[string]interfa
 		return false, err
 	}
 
-	s3Client, err := CreateS3Client(s3Config.Region, s3Config.Profile)
+	s3Client, err := CreateS3Client(s3Config.Region, s3Config.Profile, s3Config.RoleArn)
 	if err != nil {
 		return false, err
 	}
@@ -55,7 +56,7 @@ func (s3Initializer S3Initializer) NeedsInitialization(config map[string]interfa
 	}
 
 	if s3Config.GetLockTableName() != "" {
-		dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.Region, s3Config.Profile)
+		dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.Region, s3Config.Profile, s3Config.RoleArn)
 		if err != nil {
 			return false, err
 		}
@@ -84,7 +85,7 @@ func (s3Initializer S3Initializer) Initialize(config map[string]interface{}, ter
 		return err
 	}
 
-	s3Client, err := CreateS3Client(s3Config.Region, s3Config.Profile)
+	s3Client, err := CreateS3Client(s3Config.Region, s3Config.Profile, s3Config.RoleArn)
 	if err != nil {
 		return err
 	}
@@ -233,7 +234,7 @@ func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, terragruntOptions
 		return nil
 	}
 
-	dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.Region, s3Config.Profile)
+	dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.Region, s3Config.Profile, s3Config.RoleArn)
 	if err != nil {
 		return err
 	}
@@ -242,8 +243,8 @@ func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, terragruntOptions
 }
 
 // Create an authenticated client for DynamoDB
-func CreateS3Client(awsRegion, awsProfile string) (*s3.S3, error) {
-	session, err := aws_helper.CreateAwsSession(awsRegion, awsProfile)
+func CreateS3Client(awsRegion, awsProfile string, iamRoleArn string) (*s3.S3, error) {
+	session, err := aws_helper.CreateAwsSession(awsRegion, awsProfile, iamRoleArn)
 	if err != nil {
 		return nil, err
 	}
