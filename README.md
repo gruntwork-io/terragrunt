@@ -1092,6 +1092,17 @@ terragrunt = {
 }
 ```
 
+You can also pass an optional second `fallback` parameter which causes the function to return the fallback value 
+(instead of exiting with an error) if the file in the `name` parameter cannot be found:
+
+```hcl
+terragrunt = {
+  include {
+    path = "${find_in_parent_folders("some-other-file-name.tfvars", "fallback.tfvars")}"
+  }
+}
+```
+
 
 #### path_relative_to_include
 
