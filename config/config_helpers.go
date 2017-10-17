@@ -345,12 +345,12 @@ func pathRelativeFromInclude(include *IncludeConfig, terragruntOptions *options.
 
 // Return the AWS account id associated to the current set of credentials
 func getAWSAccountID() (string, error) {
-	session, err := session.NewSession()
+	sess, err := session.NewSession()
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
 
-	identity, err := sts.New(session).GetCallerIdentity(nil)
+	identity, err := sts.New(sess).GetCallerIdentity(nil)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
