@@ -168,6 +168,7 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 
 	terragruntOptions := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	terragruntOptions.SourceUpdate = sourceUpdate
+	terragruntOptions.Env = parseEnvironmentVariables(os.Environ())
 
 	terragruntConfig := &config.TerragruntConfig{
 		Terraform: &config.TerraformConfig{
