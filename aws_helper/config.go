@@ -7,6 +7,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"fmt"
+	"time"
 )
 
 // Returns an AWS session object for the given region (required), profile name (optional), and IAM role to assume
@@ -49,7 +51,12 @@ func AssumeIamRole(iamRoleArn string) (*sts.Credentials, error) {
 
 	stsClient := sts.New(sess)
 
-	output, err := stsClient.AssumeRole(&sts.AssumeRoleInput{RoleArn: aws.String(iamRoleArn)})
+	input := sts.AssumeRoleInput{
+		RoleArn: aws.String(iamRoleArn),
+		RoleSessionName: aws.String(fmt.Sprintf("terragrunt-%d", time.Now().UTC().UnixNano())),
+	}
+
+	output, err := stsClient.AssumeRole(&input)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
