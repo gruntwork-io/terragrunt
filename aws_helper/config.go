@@ -1,13 +1,13 @@
 package aws_helper
 
 import (
+	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"fmt"
 	"time"
 )
 
@@ -52,7 +52,7 @@ func AssumeIamRole(iamRoleArn string) (*sts.Credentials, error) {
 	stsClient := sts.New(sess)
 
 	input := sts.AssumeRoleInput{
-		RoleArn: aws.String(iamRoleArn),
+		RoleArn:         aws.String(iamRoleArn),
 		RoleSessionName: aws.String(fmt.Sprintf("terragrunt-%d", time.Now().UTC().UnixNano())),
 	}
 
