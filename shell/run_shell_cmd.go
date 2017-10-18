@@ -11,6 +11,7 @@ import (
 
 	"bytes"
 
+	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -36,6 +37,7 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = terragruntOptions.Writer
 	cmd.Stderr = terragruntOptions.ErrWriter
+	cmd.Env = toEnvVarsList(terragruntOptions.Env)
 
 	// Terragrunt can run some commands (such as terraform remote config) before running the actual terraform
 	// command requested by the user. The output of these other commands should not end up on stdout as this
@@ -54,6 +56,14 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 	cmdChannel <- err
 
 	return errors.WithStackTrace(err)
+}
+
+func toEnvVarsList(envVarsAsMap map[string]string) []string {
+	envVarsAsList := []string{}
+	for key, value := range envVarsAsMap {
+		envVarsAsList = append(envVarsAsList, fmt.Sprintf("%s=%s", key, value))
+	}
+	return envVarsAsList
 }
 
 // Run the specified shell command with the specified arguments. Capture the command's stdout and return it as a

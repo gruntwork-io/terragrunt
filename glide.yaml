@@ -19,3 +19,4 @@ import:
   - aws/awserr
   - aws/service/dynamodb
   - aws/service/s3
+  - service/sts

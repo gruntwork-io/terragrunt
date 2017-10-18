@@ -58,6 +58,9 @@ type TerragruntOptions struct {
 	// Download Terraform configurations specified in the Source parameter into this folder
 	DownloadDir string
 
+	// The ARN of an IAM Role to assume before running Terraform
+	IamRole string
+
 	// If set to true, continue running *-all commands even if a dependency has errors. This is mostly useful for 'output-all <some_variable>'. See https://github.com/gruntwork-io/terragrunt/issues/193
 	IgnoreDependencyErrors bool
 
@@ -136,6 +139,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		Source:                 terragruntOptions.Source,
 		SourceUpdate:           terragruntOptions.SourceUpdate,
 		DownloadDir:            terragruntOptions.DownloadDir,
+		IamRole:                terragruntOptions.IamRole,
 		IgnoreDependencyErrors: terragruntOptions.IgnoreDependencyErrors,
 		Writer:                 terragruntOptions.Writer,
 		ErrWriter:              terragruntOptions.ErrWriter,

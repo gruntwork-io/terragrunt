@@ -1,86 +1,86 @@
-hash: 00b02dc4909284a30b3510930e41851bf67a35e1bd72dc45d5ebff80ef506f10
-updated: 2017-04-23T16:27:54.825537907+01:00
+hash: 3ec23ed9524b96844ab5cef37f5be2323a36cf7aed4a06fdc9b102b39c899d1e
+updated: 2017-10-18T17:02:01.636409203+01:00
 imports:
 - name: github.com/aws/aws-sdk-go
-  version: 00fb2125993965df739fa3398b03bef3eb2e198f
+  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
   subpackages:
   - aws
-  - aws/awserr
-  - aws/awsutil
-  - aws/client
-  - aws/client/metadata
-  - aws/corehandlers
-  - aws/credentials
-  - aws/credentials/ec2rolecreds
-  - aws/credentials/endpointcreds
-  - aws/credentials/stscreds
   - aws/defaults
-  - aws/ec2metadata
-  - aws/endpoints
-  - aws/request
+  - aws/session
+  - aws/awserr
   - aws/service/dynamodb
   - aws/service/s3
-  - aws/session
-  - aws/signer/v4
-  - private/protocol
-  - private/protocol/json/jsonutil
-  - private/protocol/jsonrpc
-  - private/protocol/query
-  - private/protocol/query/queryutil
-  - private/protocol/rest
-  - private/protocol/restxml
-  - private/protocol/xml/xmlutil
-  - private/waiter
+  - service/sts
+  - aws/credentials/stscreds
   - service/dynamodb
   - service/s3
-  - service/sts
+  - aws/credentials
+  - aws/endpoints
+  - aws/client
+  - aws/corehandlers
+  - aws/request
+  - aws/awsutil
+  - aws/client/metadata
+  - aws/signer/v4
+  - private/protocol/query
+  - private/protocol
+  - private/protocol/jsonrpc
+  - private/waiter
+  - private/protocol/restxml
+  - aws/credentials/ec2rolecreds
+  - aws/ec2metadata
+  - aws/credentials/endpointcreds
+  - private/protocol/rest
+  - private/protocol/query/queryutil
+  - private/protocol/xml/xmlutil
+  - private/protocol/json/jsonutil
 - name: github.com/bgentry/go-netrc
-  version: 9fd32a8b3d3d3f9d43c341bfe098430e07609480
+  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
   subpackages:
   - netrc
 - name: github.com/davecgh/go-spew
-  version: 04cdfd42973bb9c8589fd6a731800cf222fde1a9
+  version: ""
   subpackages:
   - spew
 - name: github.com/go-errors/errors
-  version: 8fa88b06e5974e97fbf9899a7f86a344bfd1f105
+  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
 - name: github.com/go-ini/ini
-  version: e7fea39b01aea8d5671f6858f0532f56e8bff3a5
+  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
 - name: github.com/hashicorp/go-getter
-  version: e48f67b534e614bf7fbd978fd0020f61a17b7527
+  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
   subpackages:
   - helper/url
 - name: github.com/hashicorp/go-version
-  version: 03c5bf6be031b6dd45afec16b1cf94fc8938bc77
+  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
 - name: github.com/hashicorp/hcl
-  version: 7fa7fff964d035e8a162cce3a164b3ad02ad651b
+  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
   subpackages:
   - hcl/ast
   - hcl/parser
-  - hcl/scanner
-  - hcl/strconv
   - hcl/token
   - json/parser
+  - hcl/scanner
+  - hcl/strconv
   - json/scanner
   - json/token
 - name: github.com/jmespath/go-jmespath
-  version: bd40a432e4c76585ef6b72d3fd96fb9b6dc7b68d
+  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
 - name: github.com/mattn/go-zglob
-  version: 95345c4e1c0ebc9d16a3284177f09360f4d20fab
+  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
   subpackages:
   - fastwalk
 - name: github.com/mitchellh/go-homedir
-  version: b8bc1bf767474819792c23f32d8286a45736f1c6
+  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
 - name: github.com/mitchellh/mapstructure
-  version: cc8532a8e9a55ea36402aa21efdf403a60d34096
+  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
 - name: github.com/pmezard/go-difflib
-  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  version: ""
   subpackages:
   - difflib
 - name: github.com/stretchr/testify
-  version: 4d4bfba8f1d1027c4fdbe371823030df51419987
+  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
   subpackages:
   - assert
 - name: github.com/urfave/cli
-  version: 8ba6f23b6e36d03666a14bd9421f5e3efcb59aca
+  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
 testImports: []

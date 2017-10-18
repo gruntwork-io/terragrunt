@@ -39,7 +39,7 @@ func uniqueId() string {
 
 // Create a DynamoDB client we can use at test time. If there are any errors creating the client, fail the test.
 func createDynamoDbClientForTest(t *testing.T) *dynamodb.DynamoDB {
-	client, err := CreateDynamoDbClient(DEFAULT_TEST_REGION, "", "")
+	client, err := CreateDynamoDbClient(DEFAULT_TEST_REGION, "", "", mockOptions)
 	if err != nil {
 		t.Fatal(err)
 	}
