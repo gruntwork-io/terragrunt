@@ -70,6 +70,11 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 
 	ignoreDependencyErrors := parseBooleanArg(args, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, false)
 
+	iamRole, err := parseStringArg(args, OPT_TERRAGRUNT_IAM_ROLE, os.Getenv("TERRAGRUNT_IAM_ROLE"))
+	if err != nil {
+		return nil, err
+	}
+
 	opts := options.NewTerragruntOptions(filepath.ToSlash(terragruntConfigPath))
 
 	opts.TerraformPath = filepath.ToSlash(terraformPath)
@@ -85,6 +90,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 	opts.Writer = writer
 	opts.ErrWriter = errWriter
 	opts.Env = parseEnvironmentVariables(os.Environ())
+	opts.IamRole = iamRole
 
 	return opts, nil
 }

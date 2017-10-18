@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	terragruntDynamoDb "github.com/gruntwork-io/terragrunt/dynamodb"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -55,6 +56,8 @@ const (
 	TERRAFORM_STATE                                     = "terraform.tfstate"
 	TERRAFORM_STATE_BACKUP                              = "terraform.tfstate.backup"
 )
+
+var mockOptions = options.NewTerragruntOptionsForTest("integration_test")
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
@@ -605,7 +608,7 @@ func uniqueId() string {
 
 // Check that the S3 Bucket of the given name and region exists. Terragrunt should create this bucket during the test.
 func validateS3BucketExists(t *testing.T, awsRegion string, bucketName string) {
-	s3Client, err := remote.CreateS3Client(awsRegion, "", "")
+	s3Client, err := remote.CreateS3Client(awsRegion, "", "", mockOptions)
 	if err != nil {
 		t.Fatalf("Error creating S3 client: %v", err)
 	}
@@ -616,7 +619,7 @@ func validateS3BucketExists(t *testing.T, awsRegion string, bucketName string) {
 
 // Delete the specified S3 bucket to clean up after a test
 func deleteS3Bucket(t *testing.T, awsRegion string, bucketName string) {
-	s3Client, err := remote.CreateS3Client(awsRegion, "", "")
+	s3Client, err := remote.CreateS3Client(awsRegion, "", "", mockOptions)
 	if err != nil {
 		t.Fatalf("Error creating S3 client: %v", err)
 	}
@@ -653,7 +656,7 @@ func deleteS3Bucket(t *testing.T, awsRegion string, bucketName string) {
 
 // Create an authenticated client for DynamoDB
 func createDynamoDbClient(awsRegion, awsProfile string, iamRoleArn string) (*dynamodb.DynamoDB, error) {
-	session, err := aws_helper.CreateAwsSession(awsRegion, awsProfile, iamRoleArn)
+	session, err := aws_helper.CreateAwsSession(awsRegion, awsProfile, iamRoleArn, mockOptions)
 	if err != nil {
 		return nil, err
 	}
