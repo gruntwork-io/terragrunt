@@ -1,8 +1,8 @@
 hash: 3ec23ed9524b96844ab5cef37f5be2323a36cf7aed4a06fdc9b102b39c899d1e
-updated: 2017-10-18T17:02:01.636409203+01:00
+updated: 2017-10-18T17:27:13.819640718+01:00
 imports:
 - name: github.com/aws/aws-sdk-go
-  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
+  version: 507c74a8d37ffe25e5f3e395a7dda3a6844836b2
   subpackages:
   - aws
   - aws/defaults
@@ -16,71 +16,73 @@ imports:
   - service/s3
   - aws/credentials
   - aws/endpoints
-  - aws/client
-  - aws/corehandlers
-  - aws/request
-  - aws/awsutil
   - aws/client/metadata
-  - aws/signer/v4
+  - aws/request
+  - aws/ec2metadata
+  - private/protocol/rest
   - private/protocol/query
   - private/protocol
   - private/protocol/jsonrpc
   - private/waiter
   - private/protocol/restxml
-  - aws/credentials/ec2rolecreds
-  - aws/ec2metadata
-  - aws/credentials/endpointcreds
-  - private/protocol/rest
+  - service/kms
+  - service/kms/kmsiface
+  - service/s3/s3iface
   - private/protocol/query/queryutil
   - private/protocol/xml/xmlutil
-  - private/protocol/json/jsonutil
 - name: github.com/bgentry/go-netrc
-  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
+  version: 507c74a8d37ffe25e5f3e395a7dda3a6844836b2
   subpackages:
   - netrc
+- name: github.com/BurntSushi/toml
+  version: a368813c5e648fee92e5f6c30e3944ff9d5e8895
 - name: github.com/davecgh/go-spew
   version: ""
   subpackages:
   - spew
 - name: github.com/go-errors/errors
-  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
+  version: 507c74a8d37ffe25e5f3e395a7dda3a6844836b2
 - name: github.com/go-ini/ini
-  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
+  version: 507c74a8d37ffe25e5f3e395a7dda3a6844836b2
 - name: github.com/hashicorp/go-getter
-  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
+  version: 507c74a8d37ffe25e5f3e395a7dda3a6844836b2
   subpackages:
   - helper/url
 - name: github.com/hashicorp/go-version
-  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
+  version: 507c74a8d37ffe25e5f3e395a7dda3a6844836b2
 - name: github.com/hashicorp/hcl
-  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
+  version: 507c74a8d37ffe25e5f3e395a7dda3a6844836b2
   subpackages:
   - hcl/ast
   - hcl/parser
   - hcl/token
   - json/parser
+  - hcl/printer
   - hcl/scanner
-  - hcl/strconv
   - json/scanner
   - json/token
 - name: github.com/jmespath/go-jmespath
-  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
+  version: 507c74a8d37ffe25e5f3e395a7dda3a6844836b2
 - name: github.com/mattn/go-zglob
-  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
+  version: 507c74a8d37ffe25e5f3e395a7dda3a6844836b2
   subpackages:
   - fastwalk
 - name: github.com/mitchellh/go-homedir
-  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
+  version: 507c74a8d37ffe25e5f3e395a7dda3a6844836b2
 - name: github.com/mitchellh/mapstructure
-  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
+  version: 507c74a8d37ffe25e5f3e395a7dda3a6844836b2
 - name: github.com/pmezard/go-difflib
   version: ""
   subpackages:
   - difflib
 - name: github.com/stretchr/testify
-  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
+  version: 507c74a8d37ffe25e5f3e395a7dda3a6844836b2
   subpackages:
   - assert
 - name: github.com/urfave/cli
-  version: 3b3391cf648ca0ddf7f4f2e08abcbf3d3f19adac
+  version: 507c74a8d37ffe25e5f3e395a7dda3a6844836b2
+- name: gopkg.in/urfave/cli.v1
+  version: cfb38830724cc34fedffe9a2a29fb54fa9169cd1
+- name: gopkg.in/yaml.v2
+  version: eb3733d160e74a9c7e442f435eb3bea458e1d19f
 testImports: []
