@@ -823,6 +823,7 @@ terraform apply -var bucket=example.bucket.name
 * [Motivation](#motivation-3)
 * [The apply-all, destroy-all, output-all and plan-all commands](#the-apply-all-destroy-all-output-all-and-plan-all-commands)
 * [Dependencies between modules](#dependencies-between-modules)
+* [Testing multiple modules locally](#testing-multiple-modules-locally)
 
 
 #### Motivation
@@ -990,6 +991,39 @@ no-op for the modules that already deployed successfully, and should only affect
 time around.
 
 To check all of your dependencies and validate the code in them, you can use the `validate-all` command.
+
+
+#### Testing multiple modules locally 
+
+If you are using Terragrunt to configure [remote Terraform configurations](#remote-terraform-configurations) and all
+of your modules have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, 
+you can use the `--terragrunt-source` parameter:
+
+
+```
+cd root
+terragrunt plan-all --terragrunt-source /source/modules
+```
+
+If you set the `--terragrunt-source` parameter, the `xxx-all` commands will assume that parameter is pointing to a 
+folder on your local file system that has a local checkout of all of your Terraform modules. For each module that is 
+being processed via a `xxx-all` command, Terragrunt will read in the `source` parameter in that module's `.tfvars` 
+file, parse out the path (the portion after the double-slash), and append the path to the `--terragrunt-source` 
+parameter to create the final local path for that module.
+
+For example, consider the following `.tfvars` file:
+
+```hcl
+terragrunt = {
+  terraform {
+    source = "git::git@github.com:acme/infrastructure-modules.git//networking/vpc?ref=v0.0.1"
+  }
+}
+```
+
+If you run `terragrunt apply-all --terragrunt-source: /source/infrastructure-modules`, then the local path Terragrunt
+will compute for the module above will be `/source/infrastructure-modules//networking/vpc`.
+
 
 
 
@@ -1598,8 +1632,10 @@ start with the prefix `--terragrunt-`. The currently available options are:
 * `--terragrunt-source`: Download Terraform configurations from the specified source into a temporary folder, and run
   Terraform in that temporary folder. May also be specified via the `TERRAGRUNT_SOURCE` environment variable. The
   source should use the same syntax as the [Terraform module source](https://www.terraform.io/docs/modules/sources.html)
-  parameter. This argument is not used with the `apply-all`, `destroy-all`, `output-all`, `validate-all`, and `plan-all` 
-  commands.
+  parameter. If you specify this argument for the `apply-all`, `destroy-all`, `output-all`, `validate-all`, or `plan-all` 
+  commands, Terragrunt will assume this is the local file path for all of your Terraform modules, and for each module
+  processed by the `xxx-all` command, Terragrunt will automatically append the path of `source` parameter in each 
+  module to the `--terragrunt-source` parameter you passed in.
 
 * `--terragrunt-source-update`: Delete the contents of the temporary folder before downloading Terraform source code
   into it.
