@@ -32,13 +32,13 @@ func (module *TerraformModule) String() string {
 
 // Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents
 // into a TerraformModule struct. Return the list of these TerraformModule structs.
-func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions) ([]*TerraformModule, error) {
+func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions, howThesePathsWereFound string) ([]*TerraformModule, error) {
 	canonicalTerragruntConfigPaths, err := util.CanonicalPaths(terragruntConfigPaths, ".")
 	if err != nil {
 		return []*TerraformModule{}, err
 	}
 
-	modules, err := resolveModules(canonicalTerragruntConfigPaths, terragruntOptions)
+	modules, err := resolveModules(canonicalTerragruntConfigPaths, terragruntOptions, howThesePathsWereFound)
 	if err != nil {
 		return []*TerraformModule{}, err
 	}
@@ -53,11 +53,11 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 // Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents
 // into a TerraformModule struct. Note that this method will NOT fill in the Dependencies field of the TerraformModule
 // struct (see the crosslinkDependencies method for that). Return a map from module path to TerraformModule struct.
-func resolveModules(canonicalTerragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions) (map[string]*TerraformModule, error) {
+func resolveModules(canonicalTerragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions, howTheseModulesWereFound string) (map[string]*TerraformModule, error) {
 	moduleMap := map[string]*TerraformModule{}
 
 	for _, terragruntConfigPath := range canonicalTerragruntConfigPaths {
-		module, err := resolveTerraformModule(terragruntConfigPath, terragruntOptions)
+		module, err := resolveTerraformModule(terragruntConfigPath, terragruntOptions, howTheseModulesWereFound)
 		if err != nil {
 			return moduleMap, err
 		}
@@ -72,7 +72,7 @@ func resolveModules(canonicalTerragruntConfigPaths []string, terragruntOptions *
 // Create a TerraformModule struct for the Terraform module specified by the given Terragrunt configuration file path.
 // Note that this method will NOT fill in the Dependencies field of the TerraformModule struct (see the
 // crosslinkDependencies method for that).
-func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *options.TerragruntOptions) (*TerraformModule, error) {
+func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *options.TerragruntOptions, howThisModuleWasFound string) (*TerraformModule, error) {
 	modulePath, err := util.CanonicalPath(filepath.Dir(terragruntConfigPath), ".")
 	if err != nil {
 		return nil, err
@@ -81,7 +81,7 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 	opts := terragruntOptions.Clone(terragruntConfigPath)
 	terragruntConfig, err := config.ParseConfigFile(terragruntConfigPath, opts, nil)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStackTrace(ErrorProcessingModule{UnderlyingError: err, HowThisModuleWasFound: howThisModuleWasFound, ModulePath: terragruntConfigPath})
 	}
 
 	// Fix for https://github.com/gruntwork-io/terragrunt/issues/208
@@ -153,7 +153,8 @@ func resolveExternalDependenciesForModule(module *TerraformModule, canonicalTerr
 		}
 	}
 
-	return resolveModules(externalTerragruntConfigPaths, terragruntOptions)
+	howThesePathsWereFound := fmt.Sprintf("dependency of module at '%s'", module.Path)
+	return resolveModules(externalTerragruntConfigPaths, terragruntOptions, howThesePathsWereFound)
 }
 
 // Confirm with the user whether they want Terragrunt to assume the given dependency of the given module is already
@@ -236,4 +237,14 @@ type UnrecognizedDependency struct {
 
 func (err UnrecognizedDependency) Error() string {
 	return fmt.Sprintf("Module %s specifies %s as a dependency, but that dependency was not one of the ones found while scanning subfolders: %v", err.ModulePath, err.DependencyPath, err.TerragruntConfigPaths)
+}
+
+type ErrorProcessingModule struct {
+	UnderlyingError       error
+	ModulePath            string
+	HowThisModuleWasFound string
+}
+
+func (err ErrorProcessingModule) Error() string {
+	return fmt.Sprintf("Error processing module at '%s'. How this module was found: %s. Underlying error: %v", err.ModulePath, err.HowThisModuleWasFound, err.UnderlyingError)
 }

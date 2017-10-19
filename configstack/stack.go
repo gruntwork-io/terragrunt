@@ -104,7 +104,8 @@ func FindStackInSubfolders(terragruntOptions *options.TerragruntOptions) (*Stack
 		return nil, err
 	}
 
-	return createStackForTerragruntConfigPaths(terragruntOptions.WorkingDir, terragruntConfigFiles, terragruntOptions)
+	howThesePathsWereFound := fmt.Sprintf("Terragrunt config file found in a subdirectory of %s", terragruntOptions.WorkingDir)
+	return createStackForTerragruntConfigPaths(terragruntOptions.WorkingDir, terragruntConfigFiles, terragruntOptions, howThesePathsWereFound)
 }
 
 // Set the command in the TerragruntOptions object of each module in this stack to the given command.
@@ -116,12 +117,12 @@ func (stack *Stack) setTerraformCommand(command []string) {
 
 // Find all the Terraform modules in the folders that contain the given Terragrunt config files and assemble those
 // modules into a Stack object that can be applied or destroyed in a single command
-func createStackForTerragruntConfigPaths(path string, terragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions) (*Stack, error) {
+func createStackForTerragruntConfigPaths(path string, terragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions, howThesePathsWereFound string) (*Stack, error) {
 	if len(terragruntConfigPaths) == 0 {
 		return nil, errors.WithStackTrace(NoTerraformModulesFound)
 	}
 
-	modules, err := ResolveTerraformModules(terragruntConfigPaths, terragruntOptions)
+	modules, err := ResolveTerraformModules(terragruntConfigPaths, terragruntOptions, howThesePathsWereFound)
 	if err != nil {
 		return nil, err
 	}
