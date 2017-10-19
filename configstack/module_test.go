@@ -1,13 +1,13 @@
 package configstack
 
 import (
+	"fmt"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
-	"github.com/gruntwork-io/terragrunt/options"
-	"fmt"
 )
 
 var mockHowThesePathsWereFound = "mock-values-for-test"
@@ -309,8 +309,8 @@ func TestGetTerragruntSourceForModuleErrors(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		config   *config.TerragruntConfig
-		opts     *options.TerragruntOptions
+		config *config.TerragruntConfig
+		opts   *options.TerragruntOptions
 	}{
 		{mockConfigWithSource("git::git@github.com:acme/modules.git/foo/bar"), mockOptionsWithSource("/source/modules")},
 		{mockConfigWithSource("/foo/bar"), mockOptionsWithSource("/source/modules")},

@@ -7,9 +7,9 @@ import (
 	"regexp"
 	"strings"
 
+	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/mattn/go-zglob"
-	"fmt"
 )
 
 // Return true if the given file exists

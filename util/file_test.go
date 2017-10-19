@@ -4,9 +4,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"fmt"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
-	"fmt"
 )
 
 func TestGetPathRelativeTo(t *testing.T) {

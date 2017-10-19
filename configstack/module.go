@@ -8,8 +8,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"path/filepath"
-	"strings"
 	"regexp"
+	"strings"
 )
 
 // Represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
@@ -285,7 +285,6 @@ type ErrorProcessingModule struct {
 func (err ErrorProcessingModule) Error() string {
 	return fmt.Sprintf("Error processing module at '%s'. How this module was found: %s. Underlying error: %v", err.ModulePath, err.HowThisModuleWasFound, err.UnderlyingError)
 }
-
 
 type InvalidSourceUrl struct {
 	ModulePath       string
