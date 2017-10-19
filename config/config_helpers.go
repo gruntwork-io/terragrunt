@@ -42,6 +42,7 @@ var TERRAFORM_COMMANDS_NEED_VARS = []string{
 	"plan",
 	"push",
 	"refresh",
+	"validate",
 }
 
 // List of terraform commands that accept -input=

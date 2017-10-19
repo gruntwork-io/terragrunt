@@ -989,6 +989,8 @@ you've fixed the error, it's usually safe to re-run the `apply-all` or `destroy-
 no-op for the modules that already deployed successfully, and should only affect the ones that had an error the last
 time around.
 
+To check all of your dependencies and validate the code in them, you can use the `validate-all` command.
+
 
 
 ### Work with multiple AWS accounts
@@ -1573,7 +1575,7 @@ start with the prefix `--terragrunt-`. The currently available options are:
 * `--terragrunt-config`: A custom path to the `terraform.tfvars` file. May also be specified via the `TERRAGRUNT_CONFIG`
   environment variable. The default path is `terraform.tfvars` in the current directory (see
   [Configuration](#configuration) for a slightly more nuanced explanation). This argument is not
-  used with the `apply-all`, `destroy-all`, `output-all` and `plan-all` commands.
+  used with the `apply-all`, `destroy-all`, `output-all`, `validate-all`, and `plan-all` commands.
 
 * `--terragrunt-tfpath`: A custom path to the Terraform binary. May also be specified via the `TERRAGRUNT_TFPATH`
   environment variable. The default is `terraform` in a directory on your PATH.
@@ -1589,14 +1591,15 @@ start with the prefix `--terragrunt-`. The currently available options are:
   'yes'. Useful if you need to run Terragrunt in an automated setting (e.g. from a script).
 
 * `--terragrunt-working-dir`: Set the directory where Terragrunt should execute the `terraform` command. Default is the
-  current working directory. Note that for the `apply-all` and `destroy-all` directories, this parameter has a different
-  meaning: Terragrunt will apply or destroy all the Terraform modules in the subfolders of the
-  `terragrunt-working-dir`, running `terraform` in the root of each module it finds.
+  current working directory. Note that for the `apply-all`, `destroy-all`, `output-all`, `validate-all`, and `plan-all`
+  commands, this parameter has a different meaning: Terragrunt will apply or destroy all the Terraform modules in the 
+  subfolders of the `terragrunt-working-dir`, running `terraform` in the root of each module it finds.
 
 * `--terragrunt-source`: Download Terraform configurations from the specified source into a temporary folder, and run
   Terraform in that temporary folder. May also be specified via the `TERRAGRUNT_SOURCE` environment variable. The
   source should use the same syntax as the [Terraform module source](https://www.terraform.io/docs/modules/sources.html)
-  parameter. This argument is not used with the `apply-all`, `destroy-all`, `output-all` and `plan-all` commands.
+  parameter. This argument is not used with the `apply-all`, `destroy-all`, `output-all`, `validate-all`, and `plan-all` 
+  commands.
 
 * `--terragrunt-source-update`: Delete the contents of the temporary folder before downloading Terraform source code
   into it.
