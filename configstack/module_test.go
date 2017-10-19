@@ -261,8 +261,11 @@ func TestResolveTerraformModulesInvalidPaths(t *testing.T) {
 
 	_, actualErr := ResolveTerraformModules(configPaths, mockOptions, mockHowThesePathsWereFound)
 	if assert.NotNil(t, actualErr, "Unexpected error: %v", actualErr) {
-		unwrapped := errors.Unwrap(actualErr)
-		assert.True(t, os.IsNotExist(unwrapped), "Expected a file not exists error but got %v", unwrapped)
+		underlying, ok := errors.Unwrap(actualErr).(ErrorProcessingModule)
+		if assert.True(t, ok) {
+			unwrapped := errors.Unwrap(underlying.UnderlyingError)
+			assert.True(t, os.IsNotExist(unwrapped), "Expected a file not exists error but got %v", underlying.UnderlyingError)
+		}
 	}
 }
 
