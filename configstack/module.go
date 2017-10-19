@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -84,6 +85,12 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 		return nil, errors.WithStackTrace(ErrorProcessingModule{UnderlyingError: err, HowThisModuleWasFound: howThisModuleWasFound, ModulePath: terragruntConfigPath})
 	}
 
+	terragruntSource, err := getTerragruntSourceForModule(modulePath, terragruntConfig, terragruntOptions)
+	if err != nil {
+		return nil, err
+	}
+	opts.Source = terragruntSource
+
 	// Fix for https://github.com/gruntwork-io/terragrunt/issues/208
 	matches, err := filepath.Glob(filepath.Join(filepath.Dir(terragruntConfigPath), "*.tf"))
 	if err != nil {
@@ -95,6 +102,36 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 	}
 
 	return &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil
+}
+
+var moduleUrlRegexp = regexp.MustCompile(`.+//(.+?)(?:$|\?.+$)`)
+
+// If one of the xxx-all commands is called with the --terragrunt-source parameter, then for each module, we need to
+// build its own --terragrunt-source parameter by doing the following:
+//
+// 1. Read the source URL from the Terragrunt configuration of each module
+// 2. Extract the path from that URL (the part after a double-slash)
+// 3. Append the path to the --terragrunt-source parameter
+//
+// Example:
+//
+// --terragrunt-source: /source/infrastructure-modules
+// source param in module's terraform.tfvars: git::git@github.com:acme/infrastructure-modules.git//networking/vpc?ref=v0.0.1
+//
+// This method will return: /source/infrastructure-modules//networking/vpc
+//
+func getTerragruntSourceForModule(modulePath string, moduleTerragruntConfig *config.TerragruntConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	if terragruntOptions.Source == "" || moduleTerragruntConfig.Terraform == nil || moduleTerragruntConfig.Terraform.Source == "" {
+		return "", nil
+	}
+
+	matches := moduleUrlRegexp.FindStringSubmatch(moduleTerragruntConfig.Terraform.Source)
+	if len(matches) != 2 {
+		return "", errors.WithStackTrace(InvalidSourceUrl{ModulePath: modulePath, ModuleSourceUrl: moduleTerragruntConfig.Terraform.Source, TerragruntSource: terragruntOptions.Source})
+	}
+
+	moduleRelativePath := matches[1]
+	return util.JoinTerraformModulePath(terragruntOptions.Source, moduleRelativePath), nil
 }
 
 // Look through the dependencies of the modules in the given map and resolve the "external" dependency paths listed in
@@ -247,4 +284,14 @@ type ErrorProcessingModule struct {
 
 func (err ErrorProcessingModule) Error() string {
 	return fmt.Sprintf("Error processing module at '%s'. How this module was found: %s. Underlying error: %v", err.ModulePath, err.HowThisModuleWasFound, err.UnderlyingError)
+}
+
+type InvalidSourceUrl struct {
+	ModulePath       string
+	ModuleSourceUrl  string
+	TerragruntSource string
+}
+
+func (err InvalidSourceUrl) Error() string {
+	return fmt.Sprintf("The --terragrunt-source parameter is set to '%s', but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!", err.TerragruntSource, err.ModulePath, err.ModuleSourceUrl)
 }

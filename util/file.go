@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/mattn/go-zglob"
 )
@@ -202,4 +203,13 @@ func JoinPath(elem ...string) string {
 // Use this function when cleaning paths to ensure the returned path uses / as the path separator to improve cross-platform compatibility
 func CleanPath(path string) string {
 	return filepath.ToSlash(filepath.Clean(path))
+}
+
+// Join two paths together with a double-slash between them, as this is what Terraform uses to identify where a "repo"
+// ends and a path within the repo begins. Note: The Terraform docs only mention two forward-slashes, so it's not clear
+// if on Windows those should be two back-slashes? https://www.terraform.io/docs/modules/sources.html
+func JoinTerraformModulePath(modulesFolder string, path string) string {
+	cleanModulesFolder := strings.TrimRight(modulesFolder, `/\`)
+	cleanPath := strings.TrimLeft(path, `/\`)
+	return fmt.Sprintf("%s//%s", cleanModulesFolder, cleanPath)
 }

@@ -1,8 +1,10 @@
 package configstack
 
 import (
+	"fmt"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
@@ -278,4 +280,58 @@ func TestResolveTerraformModuleNoTerraformConfig(t *testing.T) {
 	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestGetTerragruntSourceForModuleHappyPath(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		config   *config.TerragruntConfig
+		opts     *options.TerragruntOptions
+		expected string
+	}{
+		{mockConfigWithSource(""), mockOptionsWithSource(""), ""},
+		{mockConfigWithSource(""), mockOptionsWithSource("/source/modules"), ""},
+		{mockConfigWithSource("git::git@github.com:acme/modules.git//foo/bar"), mockOptionsWithSource("/source/modules"), "/source/modules//foo/bar"},
+		{mockConfigWithSource("git::git@github.com:acme/modules.git//foo/bar?ref=v0.0.1"), mockOptionsWithSource("/source/modules"), "/source/modules//foo/bar"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(fmt.Sprintf("%s-%s", testCase.config.Terraform.Source, testCase.opts.Source), func(t *testing.T) {
+			actual, err := getTerragruntSourceForModule("mock-for-test", testCase.config, testCase.opts)
+			assert.NoError(t, err)
+			assert.Equal(t, testCase.expected, actual)
+		})
+	}
+}
+
+func TestGetTerragruntSourceForModuleErrors(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		config *config.TerragruntConfig
+		opts   *options.TerragruntOptions
+	}{
+		{mockConfigWithSource("git::git@github.com:acme/modules.git/foo/bar"), mockOptionsWithSource("/source/modules")},
+		{mockConfigWithSource("/foo/bar"), mockOptionsWithSource("/source/modules")},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(fmt.Sprintf("%s-%s", testCase.config.Terraform.Source, testCase.opts.Source), func(t *testing.T) {
+			_, err := getTerragruntSourceForModule("mock-for-test", testCase.config, testCase.opts)
+			assert.Error(t, err)
+		})
+	}
+}
+
+func mockOptionsWithSource(sourceUrl string) *options.TerragruntOptions {
+	opts := options.NewTerragruntOptionsForTest("mock-for-test.tfvars")
+	opts.Source = sourceUrl
+	return opts
+}
+
+func mockConfigWithSource(sourceUrl string) *config.TerragruntConfig {
+	cfg := config.TerragruntConfig{}
+	cfg.Terraform = &config.TerraformConfig{Source: sourceUrl}
+	return &cfg
 }

@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"fmt"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 )
@@ -63,6 +64,8 @@ func TestCanonicalPath(t *testing.T) {
 }
 
 func TestPathContainsHiddenFileOrFolder(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		path     string
 		expected bool
@@ -87,5 +90,31 @@ func TestPathContainsHiddenFileOrFolder(t *testing.T) {
 		path := filepath.FromSlash(testCase.path)
 		actual := PathContainsHiddenFileOrFolder(path)
 		assert.Equal(t, testCase.expected, actual, "For path %s", path)
+	}
+}
+
+func TestJoinTerraformModulePath(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		modulesFolder string
+		path          string
+		expected      string
+	}{
+		{"foo", "bar", "foo//bar"},
+		{"foo/", "bar", "foo//bar"},
+		{"foo", "/bar", "foo//bar"},
+		{"foo/", "/bar", "foo//bar"},
+		{"foo//", "/bar", "foo//bar"},
+		{"foo//", "//bar", "foo//bar"},
+		{"/foo/bar/baz", "/a/b/c", "/foo/bar/baz//a/b/c"},
+		{"/foo/bar/baz/", "//a/b/c", "/foo/bar/baz//a/b/c"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(fmt.Sprintf("%s-%s", testCase.modulesFolder, testCase.path), func(t *testing.T) {
+			actual := JoinTerraformModulePath(testCase.modulesFolder, testCase.path)
+			assert.Equal(t, testCase.expected, actual)
+		})
 	}
 }
