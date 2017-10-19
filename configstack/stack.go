@@ -85,6 +85,12 @@ func (stack *Stack) Output(terragruntOptions *options.TerragruntOptions) error {
 	return RunModules(stack.Modules)
 }
 
+// Validate runs terraform validate on each module
+func (stack *Stack) Validate(terragruntOptions *options.TerragruntOptions) error {
+	stack.setTerraformCommand([]string{"validate"})
+	return RunModules(stack.Modules)
+}
+
 // Return an error if there is a dependency cycle in the modules of this stack.
 func (stack *Stack) CheckForCycles() error {
 	return CheckForCycles(stack.Modules)

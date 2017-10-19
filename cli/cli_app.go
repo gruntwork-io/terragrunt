@@ -37,6 +37,7 @@ const CMD_PLAN_ALL = "plan-all"
 const CMD_APPLY_ALL = "apply-all"
 const CMD_DESTROY_ALL = "destroy-all"
 const CMD_OUTPUT_ALL = "output-all"
+const CMD_VALIDATE_ALL = "validate-all"
 
 const CMD_INIT = "init"
 
@@ -46,7 +47,7 @@ const CMD_SPIN_UP = "spin-up"
 // CMD_TEAR_DOWN is deprecated.
 const CMD_TEAR_DOWN = "tear-down"
 
-var MULTI_MODULE_COMMANDS = []string{CMD_APPLY_ALL, CMD_DESTROY_ALL, CMD_OUTPUT_ALL, CMD_PLAN_ALL}
+var MULTI_MODULE_COMMANDS = []string{CMD_APPLY_ALL, CMD_DESTROY_ALL, CMD_OUTPUT_ALL, CMD_PLAN_ALL, CMD_VALIDATE_ALL}
 
 // DEPRECATED_COMMANDS is a map of deprecated commands to the commands that replace them.
 var DEPRECATED_COMMANDS = map[string]string{
@@ -95,6 +96,7 @@ COMMANDS:
    apply-all            Apply a 'stack' by running 'terragrunt apply' in each subfolder
    output-all           Display the outputs of a 'stack' by running 'terragrunt output' in each subfolder
    destroy-all          Destroy a 'stack' by running 'terragrunt destroy' in each subfolder
+   validate-all         Validate 'stack' by running 'terragrunt validate' in each subfolder
    *                    Terragrunt forwards all other commands directly to Terraform
 
 GLOBAL OPTIONS:
@@ -440,6 +442,8 @@ func runMultiModuleCommand(command string, terragruntOptions *options.Terragrunt
 		return destroyAll(terragruntOptions)
 	case CMD_OUTPUT_ALL:
 		return outputAll(terragruntOptions)
+	case CMD_VALIDATE_ALL:
+		return validateAll(terragruntOptions)
 	default:
 		return errors.WithStackTrace(UnrecognizedCommand(command))
 	}
@@ -534,6 +538,17 @@ func outputAll(terragruntOptions *options.TerragruntOptions) error {
 
 	terragruntOptions.Logger.Printf("%s", stack.String())
 	return stack.Output(terragruntOptions)
+}
+
+// validateAll validates runs terraform validate on all the modules
+func validateAll(terragruntOptions *options.TerragruntOptions) error {
+	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
+	if err != nil {
+		return err
+	}
+
+	terragruntOptions.Logger.Printf("%s", stack.String())
+	return stack.Validate(terragruntOptions)
 }
 
 // Custom error types
