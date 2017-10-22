@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"sort"
 )
 
 // Represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or
@@ -23,6 +24,7 @@ func (stack *Stack) String() string {
 	for _, module := range stack.Modules {
 		modules = append(modules, fmt.Sprintf("  => %s", module.String()))
 	}
+	sort.Strings(modules)
 	return fmt.Sprintf("Stack at %s:\n%s", stack.Path, strings.Join(modules, "\n"))
 }
 
