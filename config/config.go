@@ -155,16 +155,21 @@ func isNewTerragruntConfig(path string) (bool, error) {
 		return false, err
 	}
 
-	return containsTerragruntBlock(configContents), nil
+	containsBlock, err := containsTerragruntBlock(configContents)
+	if err != nil {
+		return false, errors.WithStackTrace(ErrorParsingTerragruntConfig{ConfigPath: path, Underlying: err})
+	}
+
+	return containsBlock, nil
 }
 
 // Returns true if the given string contains valid HCL with a terragrunt = { ... } block
-func containsTerragruntBlock(configString string) bool {
+func containsTerragruntBlock(configString string) (bool, error) {
 	terragruntConfig := &tfvarsFileWithTerragruntConfig{}
 	if err := hcl.Decode(terragruntConfig, configString); err != nil {
-		return false
+		return false, errors.WithStackTrace(err)
 	}
-	return terragruntConfig.Terragrunt != nil
+	return terragruntConfig.Terragrunt != nil, nil
 }
 
 // Read the Terragrunt config file from its default location
@@ -382,4 +387,12 @@ type CouldNotResolveTerragruntConfigInFile string
 
 func (err CouldNotResolveTerragruntConfigInFile) Error() string {
 	return fmt.Sprintf("Could not find Terragrunt configuration settings in %s", string(err))
+}
+
+type ErrorParsingTerragruntConfig struct {
+	ConfigPath string
+	Underlying error
+}
+func (err ErrorParsingTerragruntConfig) Error() string {
+	return fmt.Sprintf("Error parsing Terragrunt config at %s: %v", err.ConfigPath, err.Underlying)
 }
