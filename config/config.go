@@ -393,6 +393,7 @@ type ErrorParsingTerragruntConfig struct {
 	ConfigPath string
 	Underlying error
 }
+
 func (err ErrorParsingTerragruntConfig) Error() string {
 	return fmt.Sprintf("Error parsing Terragrunt config at %s: %v", err.ConfigPath, err.Underlying)
 }
