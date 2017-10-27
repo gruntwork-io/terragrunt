@@ -12,6 +12,8 @@ import (
 	"strings"
 )
 
+const maxLevelsOfRecursion = 20
+
 // Represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
 // module and the list of other modules that this module depends on
 type TerraformModule struct {
@@ -44,10 +46,11 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 		return []*TerraformModule{}, err
 	}
 
-	externalDependencies, err := resolveExternalDependenciesForModules(canonicalTerragruntConfigPaths, modules, terragruntOptions)
+	externalDependencies, err := resolveExternalDependenciesForModules(modules, map[string]*TerraformModule{}, 0, terragruntOptions)
 	if err != nil {
 		return []*TerraformModule{}, err
 	}
+
 	return crosslinkDependencies(mergeMaps(modules, externalDependencies), canonicalTerragruntConfigPaths)
 }
 
@@ -140,17 +143,23 @@ func getTerragruntSourceForModule(modulePath string, moduleTerragruntConfig *con
 // environment the user is trying to apply-all or destroy-all. Therefore, this method also confirms whether the user wants
 // to actually apply those dependencies or just assume they are already applied. Note that this method will NOT fill in
 // the Dependencies field of the TerraformModule struct (see the crosslinkDependencies method for that).
-func resolveExternalDependenciesForModules(canonicalTerragruntConfigPaths []string, moduleMap map[string]*TerraformModule, terragruntOptions *options.TerragruntOptions) (map[string]*TerraformModule, error) {
+func resolveExternalDependenciesForModules(moduleMap map[string]*TerraformModule, modulesAlreadyProcessed map[string]*TerraformModule, recursionLevel int, terragruntOptions *options.TerragruntOptions) (map[string]*TerraformModule, error) {
 	allExternalDependencies := map[string]*TerraformModule{}
+	modulesToSkip := mergeMaps(moduleMap, modulesAlreadyProcessed)
+
+	// Simple protection from circular dependencies causing a Stack Overflow due to infinite recursion
+	if recursionLevel > maxLevelsOfRecursion {
+		return allExternalDependencies, errors.WithStackTrace(InfiniteRecursion{RecursionLevel: maxLevelsOfRecursion, Modules: modulesToSkip})
+	}
 
 	for _, module := range moduleMap {
-		externalDependencies, err := resolveExternalDependenciesForModule(module, canonicalTerragruntConfigPaths, terragruntOptions)
+		externalDependencies, err := resolveExternalDependenciesForModule(module, modulesToSkip, terragruntOptions)
 		if err != nil {
 			return externalDependencies, err
 		}
 
 		for _, externalDependency := range externalDependencies {
-			if _, alreadyFound := moduleMap[externalDependency.Path]; alreadyFound {
+			if _, alreadyFound := modulesToSkip[externalDependency.Path]; alreadyFound {
 				continue
 			}
 
@@ -164,6 +173,14 @@ func resolveExternalDependenciesForModules(canonicalTerragruntConfigPaths []stri
 		}
 	}
 
+	if len(allExternalDependencies) > 0 {
+		recursiveDependencies, err := resolveExternalDependenciesForModules(allExternalDependencies, moduleMap, recursionLevel + 1, terragruntOptions)
+		if err != nil {
+			return allExternalDependencies, err
+		}
+		return mergeMaps(allExternalDependencies, recursiveDependencies), nil
+	}
+
 	return allExternalDependencies, nil
 }
 
@@ -172,7 +189,7 @@ func resolveExternalDependenciesForModules(canonicalTerragruntConfigPaths []stri
 // dependencies are outside of the current working directory, which means they may not be part of the environment the
 // user is trying to apply-all or destroy-all. Note that this method will NOT fill in the Dependencies field of the
 // TerraformModule struct (see the crosslinkDependencies method for that).
-func resolveExternalDependenciesForModule(module *TerraformModule, canonicalTerragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions) (map[string]*TerraformModule, error) {
+func resolveExternalDependenciesForModule(module *TerraformModule, moduleMap map[string]*TerraformModule, terragruntOptions *options.TerragruntOptions) (map[string]*TerraformModule, error) {
 	if module.Config.Dependencies == nil || len(module.Config.Dependencies.Paths) == 0 {
 		return map[string]*TerraformModule{}, nil
 	}
@@ -185,7 +202,7 @@ func resolveExternalDependenciesForModule(module *TerraformModule, canonicalTerr
 		}
 
 		terragruntConfigPath := config.DefaultConfigPath(dependencyPath)
-		if !util.ListContainsElement(canonicalTerragruntConfigPaths, terragruntConfigPath) {
+		if _, alreadyContainsModule := moduleMap[dependencyPath]; !alreadyContainsModule {
 			externalTerragruntConfigPaths = append(externalTerragruntConfigPaths, terragruntConfigPath)
 		}
 	}
@@ -294,4 +311,13 @@ type InvalidSourceUrl struct {
 
 func (err InvalidSourceUrl) Error() string {
 	return fmt.Sprintf("The --terragrunt-source parameter is set to '%s', but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!", err.TerragruntSource, err.ModulePath, err.ModuleSourceUrl)
+}
+
+type InfiniteRecursion struct {
+	RecursionLevel	int
+	Modules			map[string]*TerraformModule
+}
+
+func (err InfiniteRecursion) Error() string {
+	return fmt.Sprintf("Hit what seems to be an infinite recursion after going %d levels deep. Please check for a circular dependency! Modules involved: %v", err.RecursionLevel, err.Modules)
 }
