@@ -174,7 +174,7 @@ func resolveExternalDependenciesForModules(moduleMap map[string]*TerraformModule
 	}
 
 	if len(allExternalDependencies) > 0 {
-		recursiveDependencies, err := resolveExternalDependenciesForModules(allExternalDependencies, moduleMap, recursionLevel + 1, terragruntOptions)
+		recursiveDependencies, err := resolveExternalDependenciesForModules(allExternalDependencies, moduleMap, recursionLevel+1, terragruntOptions)
 		if err != nil {
 			return allExternalDependencies, err
 		}
@@ -314,8 +314,8 @@ func (err InvalidSourceUrl) Error() string {
 }
 
 type InfiniteRecursion struct {
-	RecursionLevel	int
-	Modules			map[string]*TerraformModule
+	RecursionLevel int
+	Modules        map[string]*TerraformModule
 }
 
 func (err InfiniteRecursion) Error() string {

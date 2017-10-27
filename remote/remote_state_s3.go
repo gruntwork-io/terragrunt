@@ -3,6 +3,7 @@ package remote
 import (
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/dynamodb"
@@ -11,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/mitchellh/mapstructure"
 	"time"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 )
 
 // A representation of the configuration options available for S3 remote state
