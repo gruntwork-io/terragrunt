@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/mitchellh/mapstructure"
 	"time"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 )
 
 // A representation of the configuration options available for S3 remote state
@@ -207,7 +208,24 @@ func WaitUntilS3BucketExists(s3Client *s3.S3, config *RemoteStateConfigS3, terra
 func CreateS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Creating S3 bucket %s", config.Bucket)
 	_, err := s3Client.CreateBucket(&s3.CreateBucketInput{Bucket: aws.String(config.Bucket)})
-	return errors.WithStackTrace(err)
+
+	if err != nil {
+		if isBucketAlreadyOwnedByYourError(err) {
+			terragruntOptions.Logger.Printf("Looks like someone created bucket %s at the same time. Will wait for it to be in active state.", config.Bucket)
+			return nil
+		} else {
+			return errors.WithStackTrace(err)
+		}
+	}
+
+	return nil
+}
+
+// Determine if this is an error that implies you've already made a request to create the S3 bucket and it succeeded
+// or is in progress. This usually happens when running many tests in parallel or xxx-all commands.
+func isBucketAlreadyOwnedByYourError(err error) bool {
+	awsErr, isAwsErr := err.(awserr.Error)
+	return isAwsErr && (awsErr.Code() == "BucketAlreadyOwnedByYou" || awsErr.Code() == "OperationAborted")
 }
 
 // Enable versioning for the S3 bucket specified in the given config
