@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -15,7 +16,6 @@ import (
 	"github.com/hashicorp/go-getter"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 	"github.com/mattn/go-zglob"
-	"path/filepath"
 )
 
 // This struct represents information about Terraform source code that needs to be downloaded

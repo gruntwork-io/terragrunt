@@ -1,13 +1,13 @@
 package util
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
-	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/mattn/go-zglob"
 )
@@ -146,6 +146,11 @@ func CopyFolderContents(source string, destination string) error {
 		if PathContainsHiddenFileOrFolder(src) {
 			continue
 		} else if file.IsDir() {
+			// Permission and stale cache problems otherwise; see
+			// https://github.com/gruntwork-io/terragrunt/issues/337
+			if err := os.RemoveAll(dest); err != nil {
+				return errors.WithStackTrace(err)
+			}
 			if err := os.MkdirAll(dest, file.Mode()); err != nil {
 				return errors.WithStackTrace(err)
 			}
