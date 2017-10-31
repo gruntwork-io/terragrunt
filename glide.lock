@@ -1,41 +1,43 @@
 hash: 3ec23ed9524b96844ab5cef37f5be2323a36cf7aed4a06fdc9b102b39c899d1e
-updated: 2017-10-18T17:34:37.848019211+01:00
+updated: 2017-10-31T12:33:55.087706-07:00
 imports:
 - name: github.com/aws/aws-sdk-go
   version: a28db88bdcd87b7023011ebc987b155d6d52411b
   subpackages:
   - aws
-  - aws/defaults
-  - aws/session
   - aws/awserr
+  - aws/awsutil
+  - aws/client
+  - aws/client/metadata
+  - aws/corehandlers
+  - aws/credentials
+  - aws/credentials/ec2rolecreds
+  - aws/credentials/endpointcreds
+  - aws/credentials/stscreds
+  - aws/defaults
+  - aws/ec2metadata
+  - aws/endpoints
+  - aws/request
   - aws/service/dynamodb
   - aws/service/s3
-  - service/sts
-  - aws/credentials/stscreds
+  - aws/session
+  - aws/signer/v4
+  - internal/shareddefaults
+  - private/protocol
+  - private/protocol/json/jsonutil
+  - private/protocol/jsonrpc
+  - private/protocol/query
+  - private/protocol/query/queryutil
+  - private/protocol/rest
+  - private/protocol/restxml
+  - private/protocol/xml/xmlutil
   - service/dynamodb
   - service/s3
-  - aws/credentials
-  - aws/endpoints
-  - aws/client/metadata
-  - aws/request
-  - internal/shareddefaults
-  - aws/ec2metadata
-  - private/protocol/rest
-  - private/protocol/query
-  - private/protocol
-  - private/protocol/jsonrpc
-  - private/protocol/restxml
-  - service/kms
-  - service/kms/kmsiface
-  - service/s3/s3iface
-  - private/protocol/query/queryutil
-  - private/protocol/xml/xmlutil
+  - service/sts
 - name: github.com/bgentry/go-netrc
   version: 9fd32a8b3d3d3f9d43c341bfe098430e07609480
   subpackages:
   - netrc
-- name: github.com/BurntSushi/toml
-  version: a368813c5e648fee92e5f6c30e3944ff9d5e8895
 - name: github.com/davecgh/go-spew
   version: 04cdfd42973bb9c8589fd6a731800cf222fde1a9
   subpackages:
@@ -57,10 +59,10 @@ imports:
   subpackages:
   - hcl/ast
   - hcl/parser
+  - hcl/scanner
+  - hcl/strconv
   - hcl/token
   - json/parser
-  - hcl/printer
-  - hcl/scanner
   - json/scanner
   - json/token
 - name: github.com/jmespath/go-jmespath
@@ -86,14 +88,9 @@ imports:
 - name: github.com/ulikunitz/xz
   version: 0c6b41e72360850ca4f98dc341fd999726ea007f
   subpackages:
+  - internal/hash
   - internal/xlog
   - lzma
-  - internal/gflag
-  - internal/term
 - name: github.com/urfave/cli
   version: 7bc6a0acffa589f415f88aca16cc1de5ffd66f9c
-- name: gopkg.in/urfave/cli.v1
-  version: cfb38830724cc34fedffe9a2a29fb54fa9169cd1
-- name: gopkg.in/yaml.v2
-  version: eb3733d160e74a9c7e442f435eb3bea458e1d19f
 testImports: []
