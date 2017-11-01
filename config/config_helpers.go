@@ -241,12 +241,15 @@ func findInParentFolders(parameters string, terragruntOptions *options.Terragrun
 		return "", errors.WithStackTrace(err)
 	}
 
+	configDir := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+
 	// To avoid getting into an accidental infinite loop (e.g. do to cyclical symlinks), set a max on the number of
 	// parent folders we'll check
 	for i := 0; i < MAX_PARENT_FOLDERS_TO_CHECK; i++ {
 		currentDir := filepath.ToSlash(filepath.Dir(previousDir))
 		if currentDir == previousDir {
 			if numParams == 2 {
+				terragruntOptions.LastIncludedParentFolder, _ = util.GetPathRelativeTo(filepath.Dir(fallbackParam), configDir)
 				return fallbackParam, nil
 			}
 			file := fmt.Sprintf("%s or %s", DefaultTerragruntConfigPath, OldTerragruntConfigPath)
@@ -262,7 +265,11 @@ func findInParentFolders(parameters string, terragruntOptions *options.Terragrun
 		}
 
 		if util.FileExists(fileToFind) {
-			return util.GetPathRelativeTo(fileToFind, filepath.Dir(terragruntOptions.TerragruntConfigPath))
+			result, err := util.GetPathRelativeTo(fileToFind, configDir)
+			if err == nil {
+				terragruntOptions.LastIncludedParentFolder, _ = util.GetPathRelativeTo(currentDir, configDir)
+			}
+			return result, err
 		}
 
 		previousDir = currentDir
@@ -305,6 +312,11 @@ func parseOptionalQuotedParam(parameters string) (string, string, int, error) {
 // file
 func pathRelativeToInclude(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	if include == nil {
+		// If there is no include file, we must be in the leaf folder. So we return the last found parent folder.
+		if terragruntOptions.LastIncludedParentFolder != "" {
+			configDir := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+			return util.GetPathRelativeTo(configDir, filepath.Join(configDir, terragruntOptions.LastIncludedParentFolder))
+		}
 		return ".", nil
 	}
 
@@ -326,6 +338,10 @@ func pathRelativeToInclude(include *IncludeConfig, terragruntOptions *options.Te
 // Return the relative path from the current Terragrunt configuration to the included Terragrunt configuration file
 func pathRelativeFromInclude(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	if include == nil {
+		// If there is no include file, we must be in the leaf folder. So we return the last found parent folder.
+		if terragruntOptions.LastIncludedParentFolder != "" {
+			return terragruntOptions.LastIncludedParentFolder, nil
+		}
 		return ".", nil
 	}
 
@@ -340,7 +356,6 @@ func pathRelativeFromInclude(include *IncludeConfig, terragruntOptions *options.
 	if !filepath.IsAbs(includePath) {
 		includePath = util.JoinPath(currentPath, includePath)
 	}
-
 	return util.GetPathRelativeTo(includePath, currentPath)
 }
 

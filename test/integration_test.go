@@ -1,6 +1,7 @@
 package test
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -52,6 +53,7 @@ const (
 	TEST_FIXTURE_OLD_CONFIG_STACK_PATH                  = "fixture-old-terragrunt-config/stack"
 	TEST_FIXTURE_OLD_CONFIG_DOWNLOAD_PATH               = "fixture-old-terragrunt-config/download"
 	TEST_FIXTURE_FAILED_TERRAFORM                       = "fixture-failure"
+	TEST_FIXTURE_PARENT_VS_CHILD                        = "fixture-parent-folders/parent-vs-child/children/child-1"
 	TERRAFORM_FOLDER                                    = ".terraform"
 	TERRAFORM_STATE                                     = "terraform.tfstate"
 	TERRAFORM_STATE_BACKUP                              = "terraform.tfstate.backup"
@@ -475,6 +477,20 @@ func TestPriorityOrderOfArgument(t *testing.T) {
 	// And the result value for test should be the injected variable since the injected arguments are injected before the suplied parameters,
 	// so our override of extra_var should be the last argument.
 	assert.Contains(t, out.String(), fmt.Sprintf("test = %s", injectedValue))
+}
+
+func TestParentVsChild(t *testing.T) {
+	t.Parallel()
+	var stdout bytes.Buffer
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_PARENT_VS_CHILD))
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output -json --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_PARENT_VS_CHILD), &stdout, os.Stderr)
+
+	output := stdout.String()
+	result := make(map[string]interface{})
+	json.Unmarshal([]byte(output), &result)
+
+	// Result from parent must be equal to those of child
+	assert.Equal(t, result["parent"], result["child"])
 }
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {

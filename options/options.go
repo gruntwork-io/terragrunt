@@ -76,6 +76,9 @@ type TerragruntOptions struct {
 	// packages can use the command without a direct reference back to the cli package (which would create a
 	// circular dependency).
 	RunTerragrunt func(*TerragruntOptions) error
+
+	// Keep the last found parent folder to be able to return it when get_parent_tfvars() is called from within the child
+	LastIncludedParentFolder string
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage
