@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime"
 
@@ -84,7 +85,8 @@ func NewTerragruntOptions(terragruntConfigPath string) *TerragruntOptions {
 
 	user, err := user.Current()
 	if err != nil {
-		return err
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
 	}
 
 	downloadDir := filepath.Join(user.HomeDir, ".terragrunt")
