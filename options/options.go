@@ -2,12 +2,12 @@ package options
 
 import (
 	"fmt"
+	"github.com/mitchellh/go-homedir"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"runtime"
-	"github.com/mitchellh/go-homedir"
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
