@@ -82,7 +82,12 @@ type TerragruntOptions struct {
 func NewTerragruntOptions(terragruntConfigPath string) *TerragruntOptions {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
-	downloadDir := filepath.Join(os.TempDir(), "terragrunt")
+	user, err := user.Current()
+	if err != nil {
+        return err
+    }
+
+	downloadDir := filepath.Join(user.HomeDir, "terragrunt")
 	// On some versions of Windows, the default temp dir is a fairly long path (e.g. C:/Users/JONDOE~1/AppData/Local/Temp/2/).
 	// This is a problem because Windows also limits path lengths to 260 characters, and with nested folders and hashed folder names
 	// (e.g. from running terraform get), you can hit that limit pretty quickly. Therefore, we try to set the temporary download
