@@ -1,8 +1,8 @@
 hash: 3ec23ed9524b96844ab5cef37f5be2323a36cf7aed4a06fdc9b102b39c899d1e
-updated: 2017-10-31T23:56:12.659155168-04:00
+updated: 2017-10-31T12:33:55.087706-07:00
 imports:
 - name: github.com/aws/aws-sdk-go
-  version: 00fb2125993965df739fa3398b03bef3eb2e198f
+  version: a28db88bdcd87b7023011ebc987b155d6d52411b
   subpackages:
   - aws
   - aws/awserr
@@ -22,6 +22,7 @@ imports:
   - aws/service/s3
   - aws/session
   - aws/signer/v4
+  - internal/shareddefaults
   - private/protocol
   - private/protocol/json/jsonutil
   - private/protocol/jsonrpc
@@ -30,7 +31,6 @@ imports:
   - private/protocol/rest
   - private/protocol/restxml
   - private/protocol/xml/xmlutil
-  - private/waiter
   - service/dynamodb
   - service/s3
   - service/sts
@@ -39,13 +39,13 @@ imports:
   subpackages:
   - netrc
 - name: github.com/davecgh/go-spew
-  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
+  version: 04cdfd42973bb9c8589fd6a731800cf222fde1a9
   subpackages:
   - spew
 - name: github.com/go-errors/errors
   version: 8fa88b06e5974e97fbf9899a7f86a344bfd1f105
 - name: github.com/go-ini/ini
-  version: c787282c39ac1fc618827141a1f762240def08a3
+  version: 5b3e00af70a9484542169a976dcab8d03e601a17
 - name: github.com/hashicorp/go-cleanhttp
   version: 3573b8b52aa7b37b9358d966a898feb387f62437
 - name: github.com/hashicorp/go-getter
@@ -68,7 +68,9 @@ imports:
 - name: github.com/jmespath/go-jmespath
   version: bd40a432e4c76585ef6b72d3fd96fb9b6dc7b68d
 - name: github.com/mattn/go-zglob
-  version: 2dbd7f37a45e993d5180a251b4bdd314d6333b70
+  version: 4ecb59231939b2e499b1f2fd8f075565977d2452
+  subpackages:
+  - fastwalk
 - name: github.com/mitchellh/go-homedir
   version: b8bc1bf767474819792c23f32d8286a45736f1c6
 - name: github.com/mitchellh/go-testing-interface
@@ -80,7 +82,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/stretchr/testify
-  version: d77da356e56a7428ad25149ca77381849a6a5232
+  version: 2aa2c176b9dab406a6970f6a55f513e8a8c8b18f
   subpackages:
   - assert
 - name: github.com/ulikunitz/xz
@@ -90,5 +92,5 @@ imports:
   - internal/xlog
   - lzma
 - name: github.com/urfave/cli
-  version: f017f86fccc5a039a98f23311f34fdf78b014f78
+  version: 7bc6a0acffa589f415f88aca16cc1de5ffd66f9c
 testImports: []
