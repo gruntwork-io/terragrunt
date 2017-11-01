@@ -5,13 +5,13 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/user"
 	"path/filepath"
 	"runtime"
+	"github.com/mitchellh/go-homedir"
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
-	version "github.com/hashicorp/go-version"
+	"github.com/hashicorp/go-version"
 )
 
 var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
@@ -80,16 +80,18 @@ type TerragruntOptions struct {
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage
-func NewTerragruntOptions(terragruntConfigPath string) *TerragruntOptions {
+func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, error) {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
-	user, err := user.Current()
+	logger := util.CreateLogger("")
+
+	homedir, err := homedir.Dir()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+		logger.Panicf("error: %v\n", err)
+		return nil, err
 	}
 
-	downloadDir := filepath.Join(user.HomeDir, ".terragrunt")
+	downloadDir := filepath.Join(homedir, ".terragrunt")
 	// On some versions of Windows, the default temp dir is a fairly long path (e.g. C:/Users/JONDOE~1/AppData/Local/Temp/2/).
 	// This is a problem because Windows also limits path lengths to 260 characters, and with nested folders and hashed folder names
 	// (e.g. from running terraform get), you can hit that limit pretty quickly. Therefore, we try to set the temporary download
@@ -105,7 +107,7 @@ func NewTerragruntOptions(terragruntConfigPath string) *TerragruntOptions {
 		NonInteractive:         false,
 		TerraformCliArgs:       []string{},
 		WorkingDir:             workingDir,
-		Logger:                 util.CreateLogger(""),
+		Logger:                 logger,
 		Env:                    map[string]string{},
 		Source:                 "",
 		SourceUpdate:           false,
@@ -116,12 +118,17 @@ func NewTerragruntOptions(terragruntConfigPath string) *TerragruntOptions {
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
-	}
+	}, nil
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for test usage
 func NewTerragruntOptionsForTest(terragruntConfigPath string) *TerragruntOptions {
-	opts := NewTerragruntOptions(terragruntConfigPath)
+	logger := util.CreateLogger("")
+
+	opts, err := NewTerragruntOptions(terragruntConfigPath)
+	if err != nil {
+		logger.Panicf("error: %v\n", err)
+	}
 
 	opts.NonInteractive = true
 

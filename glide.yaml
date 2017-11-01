@@ -7,7 +7,9 @@ import:
 - package: github.com/hashicorp/hcl
 - package: github.com/hashicorp/go-getter
 - package: github.com/hashicorp/go-version
-- package: github.com/stretchr/testify/assert
+- package: github.com/stretchr/testify
+  subpackages:
+  - assert
 - package: github.com/go-errors/errors
 - package: github.com/mitchellh/mapstructure
 - package: github.com/mattn/go-zglob
@@ -20,3 +22,4 @@ import:
   - aws/service/dynamodb
   - aws/service/s3
   - service/sts
+- package: github.com/mitchellh/go-homedir
