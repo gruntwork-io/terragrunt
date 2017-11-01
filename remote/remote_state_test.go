@@ -36,7 +36,8 @@ func TestToTerraformInitArgsNoBackendConfigs(t *testing.T) {
 func TestDiffersFrom(t *testing.T) {
 	t.Parallel()
 
-	terragruntOptions := options.NewTerragruntOptionsForTest("remote_state_test")
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("remote_state_test")
+	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	testCases := []struct {
 		existingBackend TerraformBackend

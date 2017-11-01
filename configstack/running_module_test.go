@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-var mockOptions = options.NewTerragruntOptionsForTest("running_module_test")
+var mockOptions, _ = options.NewTerragruntOptionsForTest("running_module_test")
 
 func TestToRunningModulesNoModules(t *testing.T) {
 	t.Parallel()

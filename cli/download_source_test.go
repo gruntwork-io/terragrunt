@@ -166,7 +166,9 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 		VersionFile:        util.JoinPath(downloadDir, "version-file.txt"),
 	}
 
-	terragruntOptions := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+
 	terragruntOptions.SourceUpdate = sourceUpdate
 	terragruntOptions.Env = parseEnvironmentVariables(os.Environ())
 
@@ -198,7 +200,10 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalUrl string, downloadDir st
 		VersionFile:        util.JoinPath(downloadDir, "version-file.txt"),
 	}
 
-	actual, err := alreadyHaveLatestCode(terraformSource, options.NewTerragruntOptionsForTest("./should-not-be-used"))
+	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+
+	actual, err := alreadyHaveLatestCode(terraformSource, opts)
 	assert.Nil(t, err, "Unexpected error for terraform source %v: %v", terraformSource, err)
 	assert.Equal(t, expected, actual, "For terraform source %v", terraformSource)
 }

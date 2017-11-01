@@ -44,7 +44,9 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 
 	expectedWait := 5
 
-	terragruntOptions := options.NewTerragruntOptionsForTest("")
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
+	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+
 	cmd := exec.Command("../testdata/test_sigint_wait.sh", strconv.Itoa(expectedWait))
 
 	cmdChannel := make(chan error)
@@ -76,7 +78,9 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 	t.Parallel()
 
 	expectedInterrupts := 10
-	terragruntOptions := options.NewTerragruntOptionsForTest("")
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
+	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+
 	cmd := exec.Command("../testdata/test_sigint_multiple.sh", strconv.Itoa(expectedInterrupts))
 
 	cmdChannel := make(chan error)

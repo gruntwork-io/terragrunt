@@ -147,7 +147,11 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 }
 
 func mockOptions(terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool) *options.TerragruntOptions {
-	opts := options.NewTerragruntOptionsForTest(terragruntConfigPath)
+	logger := util.CreateLogger("")
+	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
+	if err != nil {
+		logger.Panicf("error: %v\n", errors.WithStackTrace(err))
+	}
 
 	opts.WorkingDir = workingDir
 	opts.TerraformCliArgs = terraformCliArgs
@@ -161,6 +165,7 @@ func mockOptions(terragruntConfigPath string, workingDir string, terraformCliArg
 func mockOptionsWithIamRole(terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, iamRole string) *options.TerragruntOptions {
 	opts := mockOptions(terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors)
 	opts.IamRole = iamRole
+
 	return opts
 }
 

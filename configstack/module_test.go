@@ -325,7 +325,7 @@ func TestGetTerragruntSourceForModuleErrors(t *testing.T) {
 }
 
 func mockOptionsWithSource(sourceUrl string) *options.TerragruntOptions {
-	opts := options.NewTerragruntOptionsForTest("mock-for-test.tfvars")
+	opts, _ := options.NewTerragruntOptionsForTest("mock-for-test.tfvars")
 	opts.Source = sourceUrl
 	return opts
 }

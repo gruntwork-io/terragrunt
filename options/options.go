@@ -122,17 +122,18 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for test usage
-func NewTerragruntOptionsForTest(terragruntConfigPath string) *TerragruntOptions {
+func NewTerragruntOptionsForTest(terragruntConfigPath string) (*TerragruntOptions, error) {
 	logger := util.CreateLogger("")
 
 	opts, err := NewTerragruntOptions(terragruntConfigPath)
 	if err != nil {
-		logger.Panicf("error: %v\n", err)
+		logger.Fatal("error: %v\n", errors.WithStackTrace(err))
+		return nil, err
 	}
 
 	opts.NonInteractive = true
 
-	return opts
+	return opts, nil
 }
 
 // Create a copy of this TerragruntOptions, but with different values for the given variables. This is useful for

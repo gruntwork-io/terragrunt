@@ -57,7 +57,7 @@ const (
 	TERRAFORM_STATE_BACKUP                              = "terraform.tfstate.backup"
 )
 
-var mockOptions = options.NewTerragruntOptionsForTest("integration_test")
+var mockOptions, _ = options.NewTerragruntOptionsForTest("integration_test")
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
