@@ -753,7 +753,7 @@ func TestGetTfVarsDirRelPath(t *testing.T) {
 }
 
 func testGetTfVarsDir(t *testing.T, configPath string, expectedPath string) {
-	terragruntOptions,err := options.NewTerragruntOptionsForTest(configPath)
+	terragruntOptions, err := options.NewTerragruntOptionsForTest(configPath)
 	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	actualPath, err := getTfVarsDir(terragruntOptions)
