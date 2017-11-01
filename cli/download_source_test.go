@@ -179,7 +179,7 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 		},
 	}
 
-	err := PopulateTerraformVersion(terragruntOptions)
+	err = PopulateTerraformVersion(terragruntOptions)
 	assert.Nil(t, err, "For terraform source %v: %v", terraformSource, err)
 
 	err = downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions, terragruntConfig)

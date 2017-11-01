@@ -62,7 +62,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	time.Sleep(1000 * time.Millisecond)
 	start := time.Now()
 	cmd.Process.Signal(os.Interrupt)
-	err := <-runChannel
+	err = <-runChannel
 	cmdChannel <- err
 	assert.Error(t, err)
 	retCode, err := GetExitCode(err)
