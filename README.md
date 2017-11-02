@@ -228,7 +228,8 @@ instance_type = "t2.micro"
 ```
 
 *(Note: the double slash (`//`) is intentional and required. It's part of Terraform's Git syntax for [module
-sources](https://www.terraform.io/docs/modules/sources.html).)*
+sources](https://www.terraform.io/docs/modules/sources.html). Terraform may display a "Terraform initialized in an empty 
+directory" warning, but you can safely ignore it.)*
 
 And `prod/app/terraform.tfvars` may look like this:
 
@@ -306,8 +307,24 @@ terragrunt apply --terragrunt-source ../../../modules//app
 ```
 
 *(Note: the double slash (`//`) here too is intentional and required. Terragrunt downloads all the code in the folder
-before the double-slash into the temporary folder so that relative paths between modules work correctly.)*
+before the double-slash into the temporary folder so that relative paths between modules work correctly. Terraform may
+display a "Terraform initialized in an empty directory" warning, but you can safely ignore it.)*
 
+
+#### Important gotcha: Terragrunt caching
+
+The first time you set the `source` parameter to a remote URL, Terragrunt will download the code from that URL into a tmp folder. 
+It will *NOT* download it again afterwords unless you change that URL. That's because downloading code—and more importantly,
+reinitializing remote state, redownloading provider plugins, and redownloading modules—can take a long time. To avoid adding 10-90
+seconds of overhead to every Terragrunt command, Terragrunt assumes all remote URLs are immutable, and only downloads them once.
+
+Therefore, when working locally, you should use the `--terragrunt-source` parameter and point it at a local file path as described 
+in the previous section. Terragrunt will copy the local files every time you run it, which is nearly instantaneous, and doesn't
+require reinitializing everything, so you'll be able to iterate quickly.
+
+If you need to force Terragrunt to redownload something from a remote URL, run Terragrunt with the `--terragrunt-source-update` flag
+and it'll delete the tmp folder, download the files from scratch, and reinitialize everything. This can take a while, so avoid it
+and use `--terragrunt-source` when you can!
 
 #### Important gotcha: working with relative file paths
 
