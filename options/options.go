@@ -127,7 +127,7 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string) (*TerragruntOption
 
 	opts, err := NewTerragruntOptions(terragruntConfigPath)
 	if err != nil {
-		logger.Fatal("error: %v\n", errors.WithStackTrace(err))
+		logger.Printf("error: %v\n", errors.WithStackTrace(err))
 		return nil, err
 	}
 
