@@ -290,10 +290,10 @@ func TestGetTerragruntSourceForModuleHappyPath(t *testing.T) {
 		opts     *options.TerragruntOptions
 		expected string
 	}{
-		{mockConfigWithSource(""), mockOptionsWithSource(""), ""},
-		{mockConfigWithSource(""), mockOptionsWithSource("/source/modules"), ""},
-		{mockConfigWithSource("git::git@github.com:acme/modules.git//foo/bar"), mockOptionsWithSource("/source/modules"), "/source/modules//foo/bar"},
-		{mockConfigWithSource("git::git@github.com:acme/modules.git//foo/bar?ref=v0.0.1"), mockOptionsWithSource("/source/modules"), "/source/modules//foo/bar"},
+		{mockConfigWithSource(""), mockOptionsWithSource(t, ""), ""},
+		{mockConfigWithSource(""), mockOptionsWithSource(t, "/source/modules"), ""},
+		{mockConfigWithSource("git::git@github.com:acme/modules.git//foo/bar"), mockOptionsWithSource(t, "/source/modules"), "/source/modules//foo/bar"},
+		{mockConfigWithSource("git::git@github.com:acme/modules.git//foo/bar?ref=v0.0.1"), mockOptionsWithSource(t, "/source/modules"), "/source/modules//foo/bar"},
 	}
 
 	for _, testCase := range testCases {
@@ -312,8 +312,8 @@ func TestGetTerragruntSourceForModuleErrors(t *testing.T) {
 		config *config.TerragruntConfig
 		opts   *options.TerragruntOptions
 	}{
-		{mockConfigWithSource("git::git@github.com:acme/modules.git/foo/bar"), mockOptionsWithSource("/source/modules")},
-		{mockConfigWithSource("/foo/bar"), mockOptionsWithSource("/source/modules")},
+		{mockConfigWithSource("git::git@github.com:acme/modules.git/foo/bar"), mockOptionsWithSource(t, "/source/modules")},
+		{mockConfigWithSource("/foo/bar"), mockOptionsWithSource(t, "/source/modules")},
 	}
 
 	for _, testCase := range testCases {
@@ -324,8 +324,11 @@ func TestGetTerragruntSourceForModuleErrors(t *testing.T) {
 	}
 }
 
-func mockOptionsWithSource(sourceUrl string) *options.TerragruntOptions {
-	opts, _ := options.NewTerragruntOptionsForTest("mock-for-test.tfvars")
+func mockOptionsWithSource(t *testing.T, sourceUrl string) *options.TerragruntOptions {
+	opts, err := options.NewTerragruntOptionsForTest("mock-for-test.tfvars")
+	if err != nil {
+		t.Fatalf("Error creating terragrunt options for test %v", err)
+	}
 	opts.Source = sourceUrl
 	return opts
 }
