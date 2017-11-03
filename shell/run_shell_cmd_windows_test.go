@@ -44,7 +44,9 @@ func TestNewSignalsForwarderWaitWindows(t *testing.T) {
 
 	expectedWait := 5
 
-	terragruntOptions := options.NewTerragruntOptionsForTest("")
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
+	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+
 	cmd := exec.Command(`..\testdata\test_sigint_wait.bat`, strconv.Itoa(expectedWait))
 
 	cmdChannel := make(chan error)

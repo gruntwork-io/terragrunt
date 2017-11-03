@@ -75,7 +75,10 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 		return nil, err
 	}
 
-	opts := options.NewTerragruntOptions(filepath.ToSlash(terragruntConfigPath))
+	opts, err := options.NewTerragruntOptions(filepath.ToSlash(terragruntConfigPath))
+	if err != nil {
+		return nil, err
+	}
 
 	opts.TerraformPath = filepath.ToSlash(terraformPath)
 	opts.AutoInit = !parseBooleanArg(args, OPT_TERRAGRUNT_NO_AUTO_INIT, os.Getenv("TERRAGRUNT_AUTO_INIT") == "false")

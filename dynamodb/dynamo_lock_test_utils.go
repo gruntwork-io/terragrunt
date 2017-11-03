@@ -19,8 +19,6 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-var mockOptions = options.NewTerragruntOptionsForTest("dynamo_lock_test_utils")
-
 // Returns a unique (ish) id we can use to name resources so they don't conflict with each other. Uses base 62 to
 // generate a 6 character string that's unlikely to collide with the handful of tests we run in parallel. Based on code
 // here: http://stackoverflow.com/a/9543797/483528
@@ -39,6 +37,11 @@ func uniqueId() string {
 
 // Create a DynamoDB client we can use at test time. If there are any errors creating the client, fail the test.
 func createDynamoDbClientForTest(t *testing.T) *dynamodb.DynamoDB {
+	mockOptions, err := options.NewTerragruntOptionsForTest("dynamo_lock_test_utils")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	client, err := CreateDynamoDbClient(DEFAULT_TEST_REGION, "", "", mockOptions)
 	if err != nil {
 		t.Fatal(err)
@@ -70,7 +73,12 @@ func withLockTable(t *testing.T, action func(tableName string, client *dynamodb.
 	client := createDynamoDbClientForTest(t)
 	tableName := uniqueTableNameForTest()
 
-	err := CreateLockTableIfNecessary(tableName, client, mockOptions)
+	mockOptions, err := options.NewTerragruntOptionsForTest("dynamo_lock_test_utils")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = CreateLockTableIfNecessary(tableName, client, mockOptions)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	defer cleanupTableForTest(t, tableName, client)
 
