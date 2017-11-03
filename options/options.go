@@ -87,7 +87,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 
 	homedir, err := homedir.Dir()
 	if err != nil {
-		logger.Fatalf("error: %v\n", err)
+		logger.Printf("error: %v\n", err)
 		return nil, err
 	}
 
