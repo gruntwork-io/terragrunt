@@ -1,0 +1,263 @@
+main:
+  - title: "Use Cases"
+    url: /use_cases
+  - title: "Terragrunt Details"
+    url: /terragrunt_details
+
+docs:
+  - title: Quick Start
+    children:
+      - title: "Quick Start"
+        url: /index#quick-start
+      - title: "Basic Usage"
+        url: /index#basic-usage
+      - title: "Installation"
+        url: /index#install-terragrunt
+
+  - title: Use Cases
+    children:
+      - title: "DRY Terraform Code"
+        url: /use_cases/keep-your-terraform-code-dry
+      - title: "DRY Remote State Configuration"
+        url: /use_cases/keep-your-remote-state-configuration-dry
+      - title: "DRY CLI Flags"
+        url: /use_cases/keep-your-cli-flags-dry
+      - title: "Working With Multiple Modules"
+        url: /use_cases/execute-terraform-commands-on-multiple-modules-at-once
+      - title: "Working With Multiple AWS Accounts"
+        url: /use_cases/work-with-multiple-aws-accounts
+
+  - title: Terragrunt Details
+    children:
+      - title: "AWS Credentials"
+        url: /terragrunt_details/aws-credentials
+      - title: "AWS IAM Policies"
+        url: /terragrunt_details/aws-iam-policies
+      - title: "Configuration"
+        url: /terragrunt_details/configuration
+      - title: "Interpolation Syntax"
+        url: /terragrunt_details/interpolation-syntax
+      - title: "Auto-Init"
+        url: /terragrunt_details/auto-init
+      - title: "CLI Options"
+        url: /terragrunt_details/cli-options
+      - title: "Upgrading to 0.12.x"
+        url: /terragrunt_details/upgrading-to-terragrunt-0.12.x
+      - title: "Contributing"
+        url: /terragrunt_details/developing-terragrunt
+      - title: "License"
+        url: /terragrunt_details/license
+
+keep-your-terraform-code-dry:
+  - title: Use Cases
+    children:
+      - title: "DRY Terraform code"
+        url: /use_cases/keep-your-terraform-code-dry
+      - title: "DRY Remote State Configuration"
+        url: /use_cases/keep-your-remote-state-configuration-dry
+      - title: "DRY CLI Flags"
+        url: /use_cases/keep-your-cli-flags-dry
+      - title: "Working With Multiple Modules"
+        url: /use_cases/execute-terraform-commands-on-multiple-modules-at-once
+      - title: "Working With Multiple AWS accounts"
+        url: /use_cases/work-with-multiple-aws-accounts
+
+  - title: DRY Terraform Code
+    children:
+      - title: "Motivation"
+        url: /use_cases/keep-your-terraform-code-dry#motivation
+      - title: "Remote Configuration"
+        url: /use_cases/keep-your-terraform-code-dry#remote-terraform-configurations
+      - title: "How To Use Remote Configurations"
+        url: /use_cases/keep-your-terraform-code-dry#how-to-use-remote-configurations
+      - title: "DRY Code & Immutable Infrastructure"
+        url: /use_cases/keep-your-terraform-code-dry#achieve-dry-terraform-code-and-immutable-infrastructure
+      - title: "Working Locally"
+        url: /use_cases/keep-your-terraform-code-dry#working-locally
+      - title: "Working With Relative File Paths"
+        url: /use_cases/keep-your-terraform-code-dry#important-gotcha-working-with-relative-file-paths
+      - title: "Working With Private Git Repos"
+        url: /use_cases/keep-your-terraform-code-dry#using-terragrunt-with-private-git-repos
+
+
+keep-your-remote-configuration-code-dry:
+  - title: Use Cases
+    children:
+      - title: "DRY Terraform Code"
+        url: /use_cases/keep-your-terraform-code-dry
+      - title: "DRY Remote State Configuration"
+        url: /use_cases/keep-your-remote-state-configuration-dry
+      - title: "DRY CLI Flags"
+        url: /use_cases/keep-your-cli-flags-dry
+      - title: "Working With Multiple Modules"
+        url: /use_cases/execute-terraform-commands-on-multiple-modules-at-once
+      - title: "Working With Multiple AWS Accounts"
+        url: /use_cases/work-with-multiple-aws-accounts
+
+  - title: DRY Remote Configuration
+    children:
+      - title: "Motivation"
+        url: /use_cases/keep-your-remote-state-configuration-dry#motivation
+      - title: "How to Use"
+        url: /use_cases/keep-your-remote-state-configuration-dry#filling-in-remote-state-settings-with-terragrunt
+      - title: "How to Create Automatically"
+        url: /use_cases/keep-your-remote-state-configuration-dry#create-remote-state-and-locking-resources-automatically
+
+
+keep-your-cli-flags-dry:
+  - title: Use Cases
+    children:
+      - title: "DRY Terraform Code"
+        url: /use_cases/keep-your-terraform-code-dry
+      - title: "DRY Remote State Configuration"
+        url: /use_cases/keep-your-remote-state-configuration-dry
+      - title: "DRY CLI Flags"
+        url: /use_cases/keep-your-cli-flags-dry
+      - title: "Working With Multiple Modules"
+        url: /use_cases/execute-terraform-commands-on-multiple-modules-at-once
+      - title: "Working With Multiple AWS Accounts"
+        url: /use_cases/work-with-multiple-aws-accounts
+
+  - title: DRY CLI Flags
+    children:
+      - title: "Motivation"
+        url: /use_cases/keep-your-cli-flags-dry#motivation
+      - title: "Multiple extra_arguments Blocks"
+        url: /use_cases/keep-your-cli-flags-dry#multiple-extra_arguments-blocks
+      - title: "extra_arguments For init"
+        url: /use_cases/keep-your-cli-flags-dry#extra_arguments-for-init
+      - title: "Required & Optional var-files"
+        url: /use_cases/keep-your-cli-flags-dry#required-and-optional-var-files
+      - title: "Handling Whitespace"
+        url: /use_cases/keep-your-cli-flags-dry#handling-whitespace
+
+
+working-with-multiple-modules-at-once:
+  - title: Use Cases
+    children:
+      - title: "DRY Terraform code"
+        url: /use_cases/keep-your-terraform-code-dry
+      - title: "DRY Remote State Configuration"
+        url: /use_cases/keep-your-remote-state-configuration-dry
+      - title: "DRY CLI flags"
+        url: /use_cases/keep-your-cli-flags-dry
+      - title: "Working With Multiple Modules"
+        url: /use_cases/execute-terraform-commands-on-multiple-modules-at-once
+      - title: "Working With Multiple AWS accounts"
+        url: /use_cases/work-with-multiple-aws-accounts
+
+  - title: Working With Multiple Modules
+    children:
+      - title: "Motivation"
+        url: /use_cases/execute-terraform-commands-on-multiple-modules-at-once#motivation
+      - title: "Commands"
+        url: /use_cases/execute-terraform-commands-on-multiple-modules-at-once#the-apply-all-destroy-all-output-all-and-plan-all-commands
+      - title: "Dependencies Between Modules"
+        url: /use_cases/execute-terraform-commands-on-multiple-modules-at-once#dependencies-between-modules
+      - title: "Testing Locally"
+        url: /use_cases/execute-terraform-commands-on-multiple-modules-at-once#testing-multiple-modules-locally
+
+
+multiple-aws-accounts:
+  - title: Use Cases
+    children:
+      - title: "DRY Terraform Code"
+        url: /use_cases/keep-your-terraform-code-dry
+      - title: "DRY Remote State Configuration"
+        url: /use_cases/keep-your-remote-state-configuration-dry
+      - title: "DRY CLI Flags"
+        url: /use_cases/keep-your-cli-flags-dry
+      - title: "Working With Multiple Modules"
+        url: /use_cases/execute-terraform-commands-on-multiple-modules-at-once
+      - title: "Working With Multiple AWS Accounts"
+        url: /use_cases/work-with-multiple-aws-accounts
+
+  - title: Working With Multiple Modules
+    children:
+      - title: "Motivation"
+        url: /use_cases/work-with-multiple-aws-accounts#motivation
+      - title: "Configuring Multiple Accounts"
+
+
+
+interpolation-syntax:
+  - title: Terragrunt Details
+    children:
+      - title: "AWS Credentials"
+        url: /terragrunt_details/aws-credentials
+      - title: "AWS IAM Policies"
+        url: /terragrunt_details/aws-iam-policies
+      - title: "Configuration"
+        url: /terragrunt_details/configuration
+      - title: "Interpolation Syntax"
+        url: /terragrunt_details/interpolation-syntax
+      - title: "Auto-Init"
+        url: /terragrunt_details/auto-init
+      - title: "CLI Options"
+        url: /terragrunt_details/cli-options
+      - title: "Upgrading to 0.12.x"
+        url: /terragrunt_details/upgrading-to-terragrunt-0.12.x
+      - title: "Contributing"
+        url: /terragrunt_details/developing-terragrunt
+      - title: "License"
+        url: /terragrunt_details/license
+
+  - title: Interpolation Syntax
+    children:
+      - title: "find_in_parent_folders()"
+        url: /terragrunt_details/interpolation-syntax#find_in_parent_folders
+      - title: "path_relative_to_include()"
+        url: /terragrunt_details/interpolation-syntax#path_relative_to_include
+      - title: "path_relative_from_include()"
+        url: /terragrunt_details/interpolation-syntax#path_relative_from_include
+      - title: "get_env(NAME, DEFAULT)"
+        url: /terragrunt_details/interpolation-syntax#get_env
+      - title: "get_tfvars_dir()"
+        url: /terragrunt_details/interpolation-syntax#get_tfvars_dir
+      - title: "get_parent_tfvars_dir()"
+        url: /terragrunt_details/interpolation-syntax#get_parent_tfvars_dir
+      - title: "get_terraform_commands_that_need_vars()"
+        url: /terragrunt_details/interpolation-syntax#get_terraform_commands_that_need_vars
+      - title: "get_terraform_commands_that_need_input()"
+        url: /terragrunt_details/interpolation-syntax#get_terraform_commands_that_need_input
+      - title: "get_terraform_commands_that_need_locking()"
+        url: /terragrunt_details/interpolation-syntax#get_terraform_commands_that_need_locking
+      - title: "get_aws_account_id()"
+        url: /terragrunt_details/interpolation-syntax#get_aws_account_id
+
+
+
+upgrading-to-terragrunt-0.12.x:
+  - title: Terragrunt Details
+    children:
+      - title: "AWS Credentials"
+        url: /terragrunt_details/aws-credentials
+      - title: "AWS IAM Policies"
+        url: /terragrunt_details/aws-iam-policies
+      - title: "Configuration"
+        url: /terragrunt_details/configuration
+      - title: "Interpolation Syntax"
+        url: /terragrunt_details/interpolation-syntax
+      - title: "Auto-Init"
+        url: /terragrunt_details/auto-init
+      - title: "CLI options"
+        url: /terragrunt_details/cli-options
+      - title: "Upgrading to Terragrunt 0.12.x"
+        url: /terragrunt_details/upgrading-to-terragrunt-0.12.x
+      - title: "Contributing"
+        url: /terragrunt_details/developing-terragrunt
+      - title: "License"
+        url: /terragrunt_details/license
+
+  - title: Upgrading Terragrunt
+    children:
+      - title: "Background"
+        url: /terragrunt_details/upgrading-to-terragrunt-0.12.x#background
+      - title: "Migration Guide"
+        url: /terragrunt_details/upgrading-to-terragrunt-0.12.x#migration-guide
+      - title: "Define the Backend"
+        url: /terragrunt_details/upgrading-to-terragrunt-0.12.x#define-a-backend-in-your-terraform-files
+      - title: "Update the Locking"
+        url: /terragrunt_details/upgrading-to-terragrunt-0.12.x#switch-from-terragrunt-locking-to-terraform-locking
+      - title: "Migrate from .terragrunt"
+        url: /terragrunt_details/upgrading-to-terragrunt-0.12.x#terragrunt-to-terraform

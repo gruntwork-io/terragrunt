@@ -5,3 +5,7 @@ vendor
 .vscode
 *.tfstate
 *.tfstate.backup
+.sass-cache
+docs/_site
+docs/_site/*
+.DS_Store

@@ -1,0 +1,19 @@
+title: Terragrunt
+title_separator: "•"
+theme: minimal-mistakes-jekyll
+remote_theme: "mmistakes/minimal-mistakes"
+repository: "davidbegin/terragrunt"
+plugins:
+    - jekyll-remote-theme
+
+defaults:
+  # _pages
+  - scope:
+      path: ""
+      type: pages
+    values:
+      layout: single
+      header:
+        overlay_color: "#5c4ee5"
+
+minimal_mistakes_skin: "air"
