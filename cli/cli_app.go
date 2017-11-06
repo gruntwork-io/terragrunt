@@ -107,6 +107,7 @@ GLOBAL OPTIONS:
    terragrunt-working-dir               The path to the Terraform templates. Default is current directory.
    terragrunt-source                    Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.
    terragrunt-source-update             Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it.
+   terragrunt-iam-role             		Assume the specified IAM role before executing Terraform. Can also be set via the TERRAGRUNT_IAM_ROLE environment variable.
    terragrunt-ignore-dependency-errors  *-all commands continue processing components even if a dependency fails.
 
 VERSION:
