@@ -21,16 +21,18 @@ type TerragruntConfig struct {
 	Terraform    *TerraformConfig
 	RemoteState  *remote.RemoteState
 	Dependencies *ModuleDependencies
+	Variables    map[string]interface{}
 }
 
 func (conf *TerragruntConfig) String() string {
-	return fmt.Sprintf("TerragruntConfig{Terraform = %v, RemoteState = %v, Dependencies = %v}", conf.Terraform, conf.RemoteState, conf.Dependencies)
+	return fmt.Sprintf("TerragruntConfig{Terraform = %v, RemoteState = %v, Dependencies = %v, Variables: %v}", conf.Terraform, conf.RemoteState, conf.Dependencies, conf.Variables)
 }
 
 // terragruntConfigFile represents the configuration supported in a Terragrunt configuration file (i.e.
 // terraform.tfvars or .terragrunt)
 type terragruntConfigFile struct {
 	Terraform    *TerraformConfig    `hcl:"terraform,omitempty"`
+	VarFiles     []string            `hcl:"terragrunt_var_files,omitempty"`
 	Include      *IncludeConfig      `hcl:"include,omitempty"`
 	Lock         *LockConfig         `hcl:"lock,omitempty"`
 	RemoteState  *remote.RemoteState `hcl:"remote_state,omitempty"`
@@ -84,6 +86,11 @@ type TerraformExtraArguments struct {
 
 func (conf *TerraformExtraArguments) String() string {
 	return fmt.Sprintf("TerraformArguments{Name = %s, Arguments = %v, Commands = %v}", conf.Name, conf.Arguments, conf.Commands)
+}
+
+type Variable struct {
+	Name  string
+	Value string
 }
 
 // Return the default path to use for the Terragrunt configuration file. The reason this is a method rather than a
@@ -278,6 +285,11 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 		includedConfig.Dependencies = config.Dependencies
 	}
 
+	// merge variables here
+	for k, v := range config.Variables {
+		includedConfig.Variables[k] = v
+	}
+
 	return includedConfig, nil
 }
 
@@ -359,10 +371,38 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 		terragruntConfig.RemoteState = terragruntConfigFromFile.RemoteState
 	}
 
+	if len(terragruntConfigFromFile.VarFiles) > 0 {
+		variables, err := loadVarsFromFiles(terragruntConfigFromFile.VarFiles)
+		if err != nil {
+			return nil, err
+		}
+		terragruntConfig.Variables = variables
+	}
+
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
 
 	return terragruntConfig, nil
+}
+
+func loadVarsFromFiles(files []string) (map[string]interface{}, error) {
+	retval := map[string]interface{}{}
+
+	for _, f := range files {
+		var out map[string]interface{}
+
+		configString, err := util.ReadFileAsString(f)
+		if err != nil {
+			return nil, err
+		}
+		if err = hcl.Decode(&out, configString); err != nil {
+			return nil, err
+		}
+		for k, v := range out {
+			retval[k] = v
+		}
+	}
+	return retval, nil
 }
 
 // Custom error types

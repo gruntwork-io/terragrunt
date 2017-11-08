@@ -275,7 +275,7 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 		str               string
 		include           *IncludeConfig
 		terragruntOptions options.TerragruntOptions
-		expectedOut       string
+		expectedOut       interface{}
 		expectedErr       error
 	}{
 		{
@@ -333,6 +333,32 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 			options.TerragruntOptions{TerragruntConfigPath: "/root/child/" + DefaultTerragruntConfigPath, NonInteractive: true},
 			"",
 			InvalidInterpolationSyntax("find_in_parent_folders()"),
+		},
+		{
+			`${import_parent_tree("*.tfvars")}`,
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/tfvar-tree/child/sub-child", NonInteractive: true},
+			[]string{
+				"-var-file=/Users/simas/go/src/github.com/gruntwork-io/terragrunt/test/fixture-parent-folders/tfvar-tree/terraform.tfvars",
+				"-var-file=/Users/simas/go/src/github.com/gruntwork-io/terragrunt/test/fixture-parent-folders/tfvar-tree/variables.tfvars",
+			},
+			nil,
+		},
+		{
+			`${import_parent_tree()}`,
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/tfvar-tree/child/sub-child", NonInteractive: true},
+			[]string{},
+			nil,
+		},
+		{
+			`${import_parent_tree("versions.tfvars")}`,
+			nil,
+			options.TerragruntOptions{TerragruntConfigPath: "../test/fixture-parent-folders/tfvar-tree/child/sub-child", NonInteractive: true},
+			[]string{
+				"-var-file=/Users/simas/go/src/github.com/gruntwork-io/terragrunt/test/fixture-parent-folders/tfvar-tree/terraform.tfvars",
+				"-var-file=/Users/simas/go/src/github.com/gruntwork-io/terragrunt/test/fixture-parent-folders/tfvar-tree/variables.tfvars",
+			},
 		},
 	}
 

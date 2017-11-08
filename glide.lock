@@ -1,8 +1,8 @@
 hash: 3ec23ed9524b96844ab5cef37f5be2323a36cf7aed4a06fdc9b102b39c899d1e
-updated: 2017-10-31T12:33:55.087706-07:00
+updated: 2017-11-07T15:56:05.750934Z
 imports:
 - name: github.com/aws/aws-sdk-go
-  version: a28db88bdcd87b7023011ebc987b155d6d52411b
+  version: 262fa7531bccfe21fc41b25bde81dad7e8ea3320
   subpackages:
   - aws
   - aws/awserr
@@ -43,9 +43,9 @@ imports:
   subpackages:
   - spew
 - name: github.com/go-errors/errors
-  version: 8fa88b06e5974e97fbf9899a7f86a344bfd1f105
+  version: 3afebba5a48dbc89b574d890b6b34d9ee10b4785
 - name: github.com/go-ini/ini
-  version: 5b3e00af70a9484542169a976dcab8d03e601a17
+  version: f280b3ba517bf5fc98922624f21fb0e7a92adaec
 - name: github.com/hashicorp/go-cleanhttp
   version: 3573b8b52aa7b37b9358d966a898feb387f62437
 - name: github.com/hashicorp/go-getter
@@ -68,7 +68,7 @@ imports:
 - name: github.com/jmespath/go-jmespath
   version: bd40a432e4c76585ef6b72d3fd96fb9b6dc7b68d
 - name: github.com/mattn/go-zglob
-  version: 4ecb59231939b2e499b1f2fd8f075565977d2452
+  version: 4b74c24375b3b1ee226867156e01996f4e19a8d6
   subpackages:
   - fastwalk
 - name: github.com/mitchellh/go-homedir
@@ -92,5 +92,5 @@ imports:
   - internal/xlog
   - lzma
 - name: github.com/urfave/cli
-  version: 7bc6a0acffa589f415f88aca16cc1de5ffd66f9c
+  version: 44cb242eeb4d76cc813fdc69ba5c4b224677e799
 testImports: []

@@ -63,3 +63,12 @@ func CommaSeparatedStrings(list []string) string {
 	}
 	return strings.Join(values, ", ")
 }
+
+// PrefixListItems prefixes each list element with a given prefix and returns a new list
+func PrefixListItems(prefix string, list []string) []string {
+	values := make([]string, 0, len(list))
+	for _, value := range list {
+		values = append(values, prefix+value)
+	}
+	return values
+}
