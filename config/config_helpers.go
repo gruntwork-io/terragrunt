@@ -62,24 +62,22 @@ type EnvVar struct {
 }
 
 type TerragruntInterpolation struct {
-	include      *IncludeConfig
-	options      *options.TerragruntOptions
-	configString string
-	params       string
+	include *IncludeConfig
+	options *options.TerragruntOptions
 }
 
 // Given a string value from a Terragrunt configuration, parse the string, resolve any calls to helper functions using
 // the syntax ${...}, and return the final value.
 func ResolveTerragruntConfigString(terragruntConfigString string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	interpolation := &TerragruntInterpolation{include: include, options: terragruntOptions, configString: terragruntConfigString}
+	interpolation := &TerragruntInterpolation{include: include, options: terragruntOptions}
 
 	// First, we replace all single interpolation syntax (i.e. function directly enclosed within quotes "${function()}")
-	terragruntConfigString, err := interpolation.processSingle()
+	terragruntConfigString, err := interpolation.processSingle(terragruntConfigString)
 	if err != nil {
 		return terragruntConfigString, err
 	}
 	// Then, we replace all other interpolation functions (i.e. functions not directly enclosed within quotes)
-	return interpolation.processMultiple()
+	return interpolation.processMultiple(terragruntConfigString)
 }
 
 // Execute a single Terragrunt helper function and return the result
@@ -118,9 +116,9 @@ func (ti *TerragruntInterpolation) executeTerragruntHelperFunction(functionName 
 // For all interpolation functions that are called using the syntax "${function_name()}" (i.e. single interpolation function within string,
 // functions that return a non-string value we have to get rid of the surrounding quotes and convert the output to HCL syntax. For example,
 // for an array, we need to return "v1", "v2", "v3".
-func (ti *TerragruntInterpolation) processSingle() (resolved string, finalErr error) {
+func (ti *TerragruntInterpolation) processSingle(configStr string) (resolved string, finalErr error) {
 	// The function we pass to ReplaceAllStringFunc cannot return an error, so we have to use named error parameters to capture such errors.
-	resolved = INTERPOLATION_SYNTAX_REGEX_SINGLE.ReplaceAllStringFunc(ti.configString, func(str string) string {
+	resolved = INTERPOLATION_SYNTAX_REGEX_SINGLE.ReplaceAllStringFunc(configStr, func(str string) string {
 		matches := INTERPOLATION_SYNTAX_REGEX_SINGLE.FindStringSubmatch(str)
 
 		out, err := ti.resolveValue(matches[1])
@@ -144,9 +142,9 @@ func (ti *TerragruntInterpolation) processSingle() (resolved string, finalErr er
 // For all interpolation functions that are called using the syntax "${function_a()}-${function_b()}" (i.e. multiple interpolation function
 // within the same string) or "Some text ${function_name()}" (i.e. string composition), we just replace the interpolation function call
 // by the string representation of its return.
-func (ti *TerragruntInterpolation) processMultiple() (resolved string, finalErr error) {
+func (ti *TerragruntInterpolation) processMultiple(configStr string) (resolved string, finalErr error) {
 	// The function we pass to ReplaceAllStringFunc cannot return an error, so we have to use named error parameters to capture such errors.
-	resolved = INTERPOLATION_SYNTAX_REGEX.ReplaceAllStringFunc(ti.configString, func(str string) string {
+	resolved = INTERPOLATION_SYNTAX_REGEX.ReplaceAllStringFunc(configStr, func(str string) string {
 		out, err := ti.resolveValue(str)
 		if err != nil {
 			finalErr = err
