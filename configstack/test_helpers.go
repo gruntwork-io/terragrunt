@@ -1,13 +1,14 @@
 package configstack
 
 import (
+	"sort"
+	"testing"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
-	"sort"
-	"testing"
 )
 
 type TerraformModuleByPath []*TerraformModule
@@ -59,7 +60,7 @@ func assertModulesEqual(t *testing.T, expected *TerraformModule, actual *Terrafo
 // contains some fields (e.g. TerragruntOptions) that cannot be compared directly
 func assertRunningModuleMapsEqual(t *testing.T, expectedModules map[string]*runningModule, actualModules map[string]*runningModule, doDeepCheck bool, messageAndArgs ...interface{}) {
 	if !assert.Equal(t, len(expectedModules), len(actualModules), messageAndArgs...) {
-		t.Logf("%s != %s", expectedModules, actualModules)
+		t.Logf("%v != %v", expectedModules, actualModules)
 		return
 	}
 
@@ -75,7 +76,7 @@ func assertRunningModuleMapsEqual(t *testing.T, expectedModules map[string]*runn
 // contains some fields (e.g. TerragruntOptions) that cannot be compared directly
 func assertRunningModuleListsEqual(t *testing.T, expectedModules []*runningModule, actualModules []*runningModule, doDeepCheck bool, messageAndArgs ...interface{}) {
 	if !assert.Equal(t, len(expectedModules), len(actualModules), messageAndArgs...) {
-		t.Logf("%s != %s", expectedModules, actualModules)
+		t.Logf("%v != %v", expectedModules, actualModules)
 		return
 	}
 
