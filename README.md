@@ -33,7 +33,7 @@ Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that pro
 
    Terragrunt forwards almost all commands, arguments, and options directly to Terraform, using whatever version of
    Terraform you already have installed. However, based on the settings in your `terraform.tfvars` file, Terragrunt can
-   configure remote state, locking, extra arguments, and lots more.
+   configure remote state, extra arguments, and lots more.
 
 1. Terragrunt is a direct implementation of the ideas expressed in 
    [Terraform: Up & Running](http://www.terraformupandrunning.com). Additional background reading that will help
@@ -404,7 +404,7 @@ $ ssh -T -oStrictHostKeyChecking=no git@github.com || true
 
 * [Motivation](#motivation-1)
 * [Filling in remote state settings with Terragrunt](#filling-in-remote-state-settings-with-terragrunt)
-* [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically)
+* [Create remote state automatically](#create-remote-state-automatically)
 
 
 #### Motivation
@@ -419,7 +419,6 @@ terraform {
     key            = "frontend-app/terraform.tfstate"
     region         = "us-east-1"
     encrypt        = true
-    dynamodb_table = "my-lock-table"
   }
 }
 ```
@@ -490,7 +489,6 @@ terragrunt = {
       key            = "${path_relative_to_include()}/terraform.tfstate"
       region         = "us-east-1"
       encrypt        = true
-      dynamodb_table = "my-lock-table"
     }
   }
 }
@@ -554,7 +552,7 @@ repos for fully-working sample code that demonstrates how to use Terragrunt to m
 
 
 
-#### Create remote state and locking resources automatically
+#### Create remote state automatically
 
 When you run `terragrunt` with `remote_state` configuration, it will automatically create the following resources if
 they don't already exist:
@@ -562,11 +560,6 @@ they don't already exist:
 * **S3 bucket**: If you are using the [S3 backend](https://www.terraform.io/docs/backends/types/s3.html) for remote
   state storage and the `bucket` you specify in `remote_state.config` doesn't already exist, Terragrunt will create it
   automatically, with [versioning enabled](http://docs.aws.amazon.com/AmazonS3/latest/dev/Versioning.html).
-
-* **DynamoDB table**: If you are using the [S3 backend](https://www.terraform.io/docs/backends/types/s3.html) for
-  remote state storage and you specify a `dynamodb_table` (a [DynamoDB table used for
-  locking](https://www.terraform.io/docs/backends/types/s3.html#dynamodb_table)) in `remote_state.config`, if that table
-  doesn't already exist, Terragrunt will create it automatically, including a primary key called `LockID`.
 
 **Note**: If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile
 when creating the S3 bucket or DynamoDB table.
@@ -582,94 +575,16 @@ when creating the S3 bucket or DynamoDB table.
 
 #### Motivation
 
-Sometimes you may need to pass extra CLI arguments every time you run certain `terraform` commands. For example, you
-may want to set the `lock-timeout` setting to 20 minutes for all commands that may modify remote state so that
-Terraform will keep trying to acquire a lock for up to 20 minutes if someone else already has the lock rather than
-immediately exiting with an error.
-
-You can configure Terragrunt to pass specific CLI arguments for specific commands using an `extra_arguments` block
-in your `terraform.tfvars` file:
-
-```hcl
-terragrunt = {
-  terraform {
-    # Force Terraform to keep trying to acquire a lock for
-    # up to 20 minutes if someone else already has the lock
-    extra_arguments "retry_lock" {
-      commands = [
-        "init",
-        "apply",
-        "refresh",
-        "import",
-        "plan",
-        "taint",
-        "untaint"
-      ]
-
-      arguments = [
-        "-lock-timeout=20m"
-      ]
-    }
-  }
-}
-```
-
-Each `extra_arguments` block includes an arbitrary name (in the example above, `retry_lock`), a list of `commands` to
-which the extra arguments should be add, a list of `arguments` or `required_var_files` or `optional_var_files` to add.
-With the configuration above, when you run `terragrunt apply`, Terragrunt will call Terraform as follows:
-
-When available, it is preferable to use interpolation functions such as
-[get_terraform_commands_that_need_locking](#get_terraform_commands_that_need_locking) and
-[get_terraform_commands_that_need_vars](#get_terraform_commands_that_need_vars)
-since they provide the complete list of terraform commands that make use of the desired parameter:
-
-```hcl
-terragrunt = {
-  terraform {
-    # Force Terraform to keep trying to acquire a lock for up to 20 minutes if someone else already has the lock
-    extra_arguments "retry_lock" {
-      commands  = ["${get_terraform_commands_that_need_locking()}"]
-      arguments = ["-lock-timeout=20m"]
-    }
-  }
-}
-```
-
-```
-> terragrunt apply
-
-terraform apply -lock-timeout=20m
-```
-
 
 #### Multiple extra_arguments blocks
 
 You can specify one or more `extra_arguments` blocks. The `arguments` in each block will be applied any time you call
 `terragrunt` with one of the commands in the `commands` list. If more than one `extra_arguments` block matches a
-command, the arguments will be added in the order of of appearance in the configuration. For example, in addition to
-lock settings, you may also want to pass custom `-var-file` arguments to several commands:
+command, the arguments will be added in the order of of appearance in the configuration. For example you may also want to pass custom `-var-file` arguments to several commands:
 
 ```hcl
 terragrunt = {
   terraform {
-    # Force Terraform to keep trying to acquire a lock for
-    # up to 20 minutes if someone else already has the lock
-    extra_arguments "retry_lock" {
-      commands = [
-        "init",
-        "apply",
-        "refresh",
-        "import",
-        "plan",
-        "taint",
-        "untaint"
-      ]
-
-      arguments = [
-        "-lock-timeout=20m"
-      ]
-    }
-
     # Pass custom var files to Terraform
     extra_arguments "custom_vars" {
       commands = [
@@ -694,7 +609,7 @@ With the configuration above, when you run `terragrunt apply`, Terragrunt will c
 ```
 > terragrunt apply
 
-terraform apply -lock-timeout=20m -var foo=bar -var region=us-west-1
+terraform apply -var foo=bar -var region=us-west-1
 ```
 
 #### `extra_arguments` for `init`
@@ -1184,7 +1099,6 @@ Terragrunt allows you to use [Terraform interpolation syntax](https://www.terraf
 * [get_parent_tfvars_dir()](#get_parent_tfvars_dir)
 * [get_terraform_commands_that_need_vars()](#get_terraform_commands_that_need_vars)
 * [get_terraform_commands_that_need_input()](#get_terraform_commands_that_need_input)
-* [get_terraform_commands_that_need_locking()](#get_terraform_commands_that_need_locking)
 * [get_aws_account_id()](#get_aws_account_id)
 
 
@@ -1525,24 +1439,6 @@ terragrunt = {
 }
 ```
 
-#### get_terraform_commands_that_need_locking
-
-`get_terraform_commands_that_need_locking()`
-
-Returns the list of terraform commands that accept -lock-timeout parameter. This function is used when defining [extra_arguments](#keep-your-cli-flags-dry).
-
-```hcl
-terragrunt = {
-  terraform {
-    # Force Terraform to keep trying to acquire a lock for up to 20 minutes if someone else already has the lock
-    extra_arguments "retry_lock" {
-      commands  = ["${get_terraform_commands_that_need_locking()}"]
-      arguments = ["-lock-timeout=20m"]
-    }
-  }
-}
-```
-
 _Note: Functions that return a list of values must be used in a single declaration like:_
 
 ```hcl
@@ -1550,9 +1446,6 @@ commands = ["${get_terraform_commands_that_need_vars()}"]
 
 # which result in:
 commands = ["apply", "console", "destroy", "import", "plan", "push", "refresh"]
-
-# We do not recommend using them in string composition like:
-commands = "Some text ${get_terraform_commands_that_need_locking()}"
 
 # which result in something useless like:
 commands = "Some text [apply destroy import init plan refresh taint untaint]"
