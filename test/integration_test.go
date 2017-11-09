@@ -1,16 +1,15 @@
 package test
 
 import (
-	"fmt"
-	"strings"
-	"testing"
-
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
+	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -152,7 +151,7 @@ func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 	)
 	// Call runTerragruntCommand directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
 	if err := runTerragruntCommand(t, cmd, &stdout, &stderr); err == nil {
-		t.Fatalf("Failed to properly fail command.  The terraform should be bad", cmd)
+		t.Fatalf("Failed to properly fail command: %v. The terraform should be bad", cmd)
 	}
 	output := stdout.String()
 	errOutput := stderr.String()
