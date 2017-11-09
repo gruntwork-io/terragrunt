@@ -27,7 +27,11 @@ func TestFindStackInSubfolders(t *testing.T) {
 	writeDummyTerragruntConfigs(t, tempFolder, filePaths)
 
 	envFolder := filepath.ToSlash(util.JoinPath(tempFolder + "/stage"))
-	terragruntOptions := options.NewTerragruntOptions(envFolder)
+	terragruntOptions, err := options.NewTerragruntOptions(envFolder)
+	if err != nil {
+		t.Fatalf("Failed when calling method under test: %s\n", err.Error())
+	}
+
 	terragruntOptions.WorkingDir = envFolder
 
 	stack, err := FindStackInSubfolders(terragruntOptions)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,6 +22,11 @@ func TestCreateLockTableIfNecessaryTableDoesntAlreadyExist(t *testing.T) {
 
 func TestCreateLockTableConcurrency(t *testing.T) {
 	t.Parallel()
+
+	mockOptions, err := options.NewTerragruntOptionsForTest("dynamo_lock_test_utils")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	client := createDynamoDbClientForTest(t)
 	tableName := uniqueTableNameForTest()
@@ -48,17 +54,27 @@ func TestCreateLockTableConcurrency(t *testing.T) {
 func TestWaitForTableToBeActiveTableDoesNotExist(t *testing.T) {
 	t.Parallel()
 
+	mockOptions, err := options.NewTerragruntOptionsForTest("dynamo_lock_test_utils")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	client := createDynamoDbClientForTest(t)
 	tableName := "terragrunt-table-does-not-exist"
 	retries := 5
 
-	err := waitForTableToBeActiveWithRandomSleep(tableName, client, retries, 1*time.Millisecond, 500*time.Millisecond, mockOptions)
+	err = waitForTableToBeActiveWithRandomSleep(tableName, client, retries, 1*time.Millisecond, 500*time.Millisecond, mockOptions)
 
 	assert.True(t, errors.IsError(err, TableActiveRetriesExceeded{TableName: tableName, Retries: retries}), "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 }
 
 func TestCreateLockTableIfNecessaryTableAlreadyExists(t *testing.T) {
 	t.Parallel()
+
+	mockOptions, err := options.NewTerragruntOptionsForTest("dynamo_lock_test_utils")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Create the table the first time
 	withLockTable(t, func(tableName string, client *dynamodb.DynamoDB) {
