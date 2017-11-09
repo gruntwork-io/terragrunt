@@ -2,6 +2,7 @@
 
 Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that provides extra tools for keeping your Terraform configurations DRY, working with multiple Terraform modules, and managing remote state.
 
+If you have questions or comments on Terragrunt, feel free to discuss it in the [Gruntwork Community Forum](https://community.gruntwork.io/).
 
 ## Quick start
 
@@ -64,6 +65,7 @@ Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that pro
    1. [Configuration](#configuration)
    1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
    1. [Developing Terragrunt](#developing-terragrunt)
+   1. [Community Forum](#community-forum)
    1. [License](#license)
 
 
@@ -1812,6 +1814,11 @@ create a new release. The CircleCI job for this repo has been configured to:
 1. Upload the binaries to the release in GitHub.
 
 See `circle.yml` and `_ci/build-and-push-release-asset.sh` for details.
+
+
+### Community Forum
+
+If you have questions or comments on Terragrunt, feel free to discuss it in the [Gruntwork Community Forum](https://community.gruntwork.io/).
 
 
 ### License
