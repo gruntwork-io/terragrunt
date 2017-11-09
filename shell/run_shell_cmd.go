@@ -1,6 +1,8 @@
 package shell
 
 import (
+	"bytes"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -9,9 +11,6 @@ import (
 	"strings"
 	"syscall"
 
-	"bytes"
-
-	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -48,11 +47,15 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 
 	cmd.Dir = terragruntOptions.WorkingDir
 
+	if err := cmd.Start(); err != nil {
+		// bad path, binary not executable, &c
+		return errors.WithStackTrace(err)
+	}
 	cmdChannel := make(chan error)
 	signalChannel := NewSignalsForwarder(forwardSignals, cmd, terragruntOptions.Logger, cmdChannel)
 	defer signalChannel.Close()
 
-	err := cmd.Run()
+	err := cmd.Wait()
 	cmdChannel <- err
 
 	return errors.WithStackTrace(err)
