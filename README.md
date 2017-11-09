@@ -552,7 +552,7 @@ repos for fully-working sample code that demonstrates how to use Terragrunt to m
 
 
 
-#### Create remote state
+#### Create remote state automatically
 
 When you run `terragrunt` with `remote_state` configuration, it will automatically create the following resources if
 they don't already exist:
