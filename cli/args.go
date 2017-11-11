@@ -82,7 +82,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 
 	opts.TerraformPath = filepath.ToSlash(terraformPath)
 	opts.AutoInit = !parseBooleanArg(args, OPT_TERRAGRUNT_NO_AUTO_INIT, os.Getenv("TERRAGRUNT_AUTO_INIT") == "false")
-	opts.NonInteractive = parseBooleanArg(args, OPT_NON_INTERACTIVE, false)
+	opts.NonInteractive = parseBooleanArg(args, OPT_NON_INTERACTIVE, os.Getenv("TF_INPUT") == "true")
 	opts.TerraformCliArgs = filterTerragruntArgs(args)
 	opts.WorkingDir = filepath.ToSlash(workingDir)
 	opts.Logger = util.CreateLoggerWithWriter(errWriter, "")
