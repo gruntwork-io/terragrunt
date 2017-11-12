@@ -121,7 +121,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		IgnoreDependencyErrors: false,
 		Writer:                 os.Stdout,
 		ErrWriter:              os.Stderr,
-		MaxFoldersToCheck:		DEFAULT_MAX_FOLDERS_TO_CHECK,
+		MaxFoldersToCheck:      DEFAULT_MAX_FOLDERS_TO_CHECK,
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
