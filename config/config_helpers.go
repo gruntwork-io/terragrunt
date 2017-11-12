@@ -19,7 +19,6 @@ var INTERPOLATION_SYNTAX_REGEX_SINGLE = regexp.MustCompile(fmt.Sprintf(`"(%s)"`,
 var INTERPOLATION_SYNTAX_REGEX_REMAINING = regexp.MustCompile(`\$\{.*?\}`)
 var HELPER_FUNCTION_SYNTAX_REGEX = regexp.MustCompile(`^\$\{\s*(.*?)\((.*?)\)\s*\}$`)
 var HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX = regexp.MustCompile(`^\s*"(?P<env>[^=]+?)"\s*\,\s*"(?P<default>.*?)"\s*$`)
-var MAX_PARENT_FOLDERS_TO_CHECK = 100
 
 // List of terraform commands that accept -lock-timeout
 var TERRAFORM_COMMANDS_NEED_LOCKING = []string{
@@ -241,19 +240,20 @@ func findInParentFolders(parameters string, terragruntOptions *options.Terragrun
 		return "", errors.WithStackTrace(err)
 	}
 
+	fileToFindStr := fmt.Sprintf("%s or %s", DefaultTerragruntConfigPath, OldTerragruntConfigPath)
+	if fileToFindParam != "" {
+		fileToFindStr = fileToFindParam
+	}
+
 	// To avoid getting into an accidental infinite loop (e.g. do to cyclical symlinks), set a max on the number of
 	// parent folders we'll check
-	for i := 0; i < MAX_PARENT_FOLDERS_TO_CHECK; i++ {
+	for i := 0; i < terragruntOptions.MaxFoldersToCheck; i++ {
 		currentDir := filepath.ToSlash(filepath.Dir(previousDir))
 		if currentDir == previousDir {
 			if numParams == 2 {
 				return fallbackParam, nil
 			}
-			file := fmt.Sprintf("%s or %s", DefaultTerragruntConfigPath, OldTerragruntConfigPath)
-			if fileToFindParam != "" {
-				file = fileToFindParam
-			}
-			return "", errors.WithStackTrace(ParentFileNotFound{Path: terragruntOptions.TerragruntConfigPath, File: file})
+			return "", errors.WithStackTrace(ParentFileNotFound{Path: terragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: "Traversed all the way to the root"})
 		}
 
 		fileToFind := DefaultConfigPath(currentDir)
@@ -268,7 +268,7 @@ func findInParentFolders(parameters string, terragruntOptions *options.Terragrun
 		previousDir = currentDir
 	}
 
-	return "", errors.WithStackTrace(CheckedTooManyParentFolders(terragruntOptions.TerragruntConfigPath))
+	return "", errors.WithStackTrace(ParentFileNotFound{Path: terragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", terragruntOptions.MaxFoldersToCheck)})
 }
 
 var oneQuotedParamRegex = regexp.MustCompile(`^"([^"]*?)"$`)
@@ -374,18 +374,13 @@ func (err UnknownHelperFunction) Error() string {
 }
 
 type ParentFileNotFound struct {
-	Path string
-	File string
+	Path  string
+	File  string
+	Cause string
 }
 
 func (err ParentFileNotFound) Error() string {
-	return fmt.Sprintf("Could not find a %s in any of the parent folders of %s", err.File, err.Path)
-}
-
-type CheckedTooManyParentFolders string
-
-func (err CheckedTooManyParentFolders) Error() string {
-	return fmt.Sprintf("Could not find a Terragrunt config file in a parent folder of %s after checking %d parent folders", string(err), MAX_PARENT_FOLDERS_TO_CHECK)
+	return fmt.Sprintf("Could not find a %s in any of the parent folders of %s. Cause: %s.", err.File, err.Path, err.Cause)
 }
 
 type InvalidGetEnvParams string
