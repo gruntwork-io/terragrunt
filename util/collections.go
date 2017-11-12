@@ -63,3 +63,21 @@ func CommaSeparatedStrings(list []string) string {
 	}
 	return strings.Join(values, ", ")
 }
+
+// Make a copy of the given list of strings
+func CloneStringList(listToClone []string) []string {
+	out := []string{}
+	for _, item := range listToClone {
+		out = append(out, item)
+	}
+	return out
+}
+
+// Make a copy of the given map of strings
+func CloneStringMap(mapToClone map[string]string) map[string]string {
+	out := map[string]string{}
+	for key, value := range mapToClone {
+		out[key] = value
+	}
+	return out
+}
