@@ -148,16 +148,19 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string) (*TerragruntOption
 func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOptions {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
+	// Note that we clone lists and maps below as TerragruntOptions may be used and modified concurrently in the code
+	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367
+	// for more info.
 	return &TerragruntOptions{
 		TerragruntConfigPath:   terragruntConfigPath,
 		TerraformPath:          terragruntOptions.TerraformPath,
 		TerraformVersion:       terragruntOptions.TerraformVersion,
 		AutoInit:               terragruntOptions.AutoInit,
 		NonInteractive:         terragruntOptions.NonInteractive,
-		TerraformCliArgs:       terragruntOptions.TerraformCliArgs,
+		TerraformCliArgs:       util.CloneStringList(terragruntOptions.TerraformCliArgs),
 		WorkingDir:             workingDir,
 		Logger:                 util.CreateLoggerWithWriter(terragruntOptions.ErrWriter, workingDir),
-		Env:                    terragruntOptions.Env,
+		Env:                    util.CloneStringMap(terragruntOptions.Env),
 		Source:                 terragruntOptions.Source,
 		SourceUpdate:           terragruntOptions.SourceUpdate,
 		DownloadDir:            terragruntOptions.DownloadDir,
