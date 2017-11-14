@@ -6,14 +6,14 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
-	hilast "github.com/hashicorp/hil/ast"
+	"github.com/hashicorp/hil/ast"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
-func (ti *TerragruntInterpolation) Funcs() map[string]hilast.Function {
-	return map[string]hilast.Function{
+func (ti *TerragruntInterpolation) Funcs() map[string]ast.Function {
+	return map[string]ast.Function{
 		"find_in_parent_folders":                ti.interpolateFindInParentFolders(),
 		"path_relative_to_include":              ti.interpolatePathRelativeToInclude(),
 		"path_relative_from_include":            ti.interpolatePathRelativeFromInclude(),
@@ -21,19 +21,19 @@ func (ti *TerragruntInterpolation) Funcs() map[string]hilast.Function {
 		"get_tfvars_dir":                        ti.interpolateGetTfVarsDir(),
 		"get_parent_tfvars_dir":                 ti.interpolateGetParentTfVarsDir(),
 		"get_aws_account_id":                    ti.interpolateGetAWSAccountID(),
-		"prepend":                               ti.interpolatePrepend(),
+		"prepend_list":                          ti.interpolatePrependList(),
 		"import_parent_tree":                    ti.interpolateImportParentTree(),
 		"find_all_in_parent_folders":            ti.interpolateFindAllInParentFolders(),
 		"get_terraform_commands_that_need_vars": ti.interpolateGetTerraformCommandsThatNeedVars(),
 	}
 }
 
-func (ti *TerragruntInterpolation) interpolateFindInParentFolders() hilast.Function {
-	return hilast.Function{
-		ArgTypes:     []hilast.Type{},
-		ReturnType:   hilast.TypeString,
+func (ti *TerragruntInterpolation) interpolateFindInParentFolders() ast.Function {
+	return ast.Function{
+		ArgTypes:     []ast.Type{},
+		ReturnType:   ast.TypeString,
 		Variadic:     true,
-		VariadicType: hilast.TypeString,
+		VariadicType: ast.TypeString,
 		Callback: func(args []interface{}) (interface{}, error) {
 			fileToFindParam := DefaultTerragruntConfigPath
 			fallbackParam := ""
@@ -73,10 +73,10 @@ func (ti *TerragruntInterpolation) interpolateFindInParentFolders() hilast.Funct
 
 // Return the relative path between the included Terragrunt configuration file and the current Terragrunt configuration
 // file
-func (ti *TerragruntInterpolation) interpolatePathRelativeToInclude() hilast.Function {
-	return hilast.Function{
-		ArgTypes:   []hilast.Type{},
-		ReturnType: hilast.TypeString,
+func (ti *TerragruntInterpolation) interpolatePathRelativeToInclude() ast.Function {
+	return ast.Function{
+		ArgTypes:   []ast.Type{},
+		ReturnType: ast.TypeString,
 		Variadic:   false,
 		Callback: func(args []interface{}) (interface{}, error) {
 
@@ -101,10 +101,10 @@ func (ti *TerragruntInterpolation) interpolatePathRelativeToInclude() hilast.Fun
 	}
 }
 
-func (ti *TerragruntInterpolation) interpolateGetTerraformCommandsThatNeedVars() hilast.Function {
-	return hilast.Function{
-		ArgTypes:   []hilast.Type{},
-		ReturnType: hilast.TypeList,
+func (ti *TerragruntInterpolation) interpolateGetTerraformCommandsThatNeedVars() ast.Function {
+	return ast.Function{
+		ArgTypes:   []ast.Type{},
+		ReturnType: ast.TypeList,
 		Variadic:   false,
 		Callback: func(args []interface{}) (interface{}, error) {
 			return stringSliceToVariableValue(TERRAFORM_COMMANDS_NEED_VARS), nil
@@ -112,10 +112,10 @@ func (ti *TerragruntInterpolation) interpolateGetTerraformCommandsThatNeedVars()
 	}
 }
 
-func (ti *TerragruntInterpolation) interpolateImportParentTree() hilast.Function {
-	return hilast.Function{
-		ArgTypes:   []hilast.Type{hilast.TypeString},
-		ReturnType: hilast.TypeList,
+func (ti *TerragruntInterpolation) interpolateImportParentTree() ast.Function {
+	return ast.Function{
+		ArgTypes:   []ast.Type{ast.TypeString},
+		ReturnType: ast.TypeList,
 		Variadic:   false,
 		Callback: func(args []interface{}) (interface{}, error) {
 			fileglob := args[0].(string)
@@ -156,10 +156,10 @@ func (ti *TerragruntInterpolation) interpolateImportParentTree() hilast.Function
 	}
 }
 
-func (ti *TerragruntInterpolation) interpolateFindAllInParentFolders() hilast.Function {
-	return hilast.Function{
-		ArgTypes:   []hilast.Type{hilast.TypeString},
-		ReturnType: hilast.TypeList,
+func (ti *TerragruntInterpolation) interpolateFindAllInParentFolders() ast.Function {
+	return ast.Function{
+		ArgTypes:   []ast.Type{ast.TypeString},
+		ReturnType: ast.TypeList,
 		Variadic:   false,
 		Callback: func(args []interface{}) (interface{}, error) {
 			fileglob := args[0].(string)
@@ -198,12 +198,12 @@ func (ti *TerragruntInterpolation) interpolateFindAllInParentFolders() hilast.Fu
 	}
 }
 
-func (ti *TerragruntInterpolation) interpolatePathRelativeFromInclude() hilast.Function {
-	return hilast.Function{
-		ArgTypes:     []hilast.Type{},
-		ReturnType:   hilast.TypeString,
+func (ti *TerragruntInterpolation) interpolatePathRelativeFromInclude() ast.Function {
+	return ast.Function{
+		ArgTypes:     []ast.Type{},
+		ReturnType:   ast.TypeString,
 		Variadic:     true,
-		VariadicType: hilast.TypeString,
+		VariadicType: ast.TypeString,
 		Callback: func(args []interface{}) (interface{}, error) {
 			if ti.include == nil {
 				return ".", nil
@@ -226,12 +226,12 @@ func (ti *TerragruntInterpolation) interpolatePathRelativeFromInclude() hilast.F
 	}
 }
 
-func (ti *TerragruntInterpolation) interpolateGetEnv() hilast.Function {
-	return hilast.Function{
-		ArgTypes:     []hilast.Type{hilast.TypeString},
-		ReturnType:   hilast.TypeString,
+func (ti *TerragruntInterpolation) interpolateGetEnv() ast.Function {
+	return ast.Function{
+		ArgTypes:     []ast.Type{ast.TypeString},
+		ReturnType:   ast.TypeString,
 		Variadic:     true,
-		VariadicType: hilast.TypeString,
+		VariadicType: ast.TypeString,
 		Callback: func(args []interface{}) (interface{}, error) {
 			envParam := args[0].(string)
 			result := os.Getenv(envParam)
@@ -243,12 +243,12 @@ func (ti *TerragruntInterpolation) interpolateGetEnv() hilast.Function {
 	}
 }
 
-func (ti *TerragruntInterpolation) interpolateGetTfVarsDir() hilast.Function {
-	return hilast.Function{
-		ArgTypes:     []hilast.Type{},
-		ReturnType:   hilast.TypeString,
+func (ti *TerragruntInterpolation) interpolateGetTfVarsDir() ast.Function {
+	return ast.Function{
+		ArgTypes:     []ast.Type{},
+		ReturnType:   ast.TypeString,
 		Variadic:     false,
-		VariadicType: hilast.TypeString,
+		VariadicType: ast.TypeString,
 		Callback: func(args []interface{}) (interface{}, error) {
 			if ti.Options == nil {
 				return "", fmt.Errorf("terragrunt options not set")
@@ -262,10 +262,10 @@ func (ti *TerragruntInterpolation) interpolateGetTfVarsDir() hilast.Function {
 	}
 }
 
-func (ti *TerragruntInterpolation) interpolateGetParentTfVarsDir() hilast.Function {
-	return hilast.Function{
-		ArgTypes:   []hilast.Type{},
-		ReturnType: hilast.TypeString,
+func (ti *TerragruntInterpolation) interpolateGetParentTfVarsDir() ast.Function {
+	return ast.Function{
+		ArgTypes:   []ast.Type{},
+		ReturnType: ast.TypeString,
 		Variadic:   false,
 		Callback: func(args []interface{}) (interface{}, error) {
 			parentPath, err := ti.pathRelativeFromInclude()
@@ -283,12 +283,12 @@ func (ti *TerragruntInterpolation) interpolateGetParentTfVarsDir() hilast.Functi
 	}
 }
 
-func (ti *TerragruntInterpolation) interpolateGetAWSAccountID() hilast.Function {
-	return hilast.Function{
-		ArgTypes:     []hilast.Type{},
-		ReturnType:   hilast.TypeString,
+func (ti *TerragruntInterpolation) interpolateGetAWSAccountID() ast.Function {
+	return ast.Function{
+		ArgTypes:     []ast.Type{},
+		ReturnType:   ast.TypeString,
 		Variadic:     true,
-		VariadicType: hilast.TypeString,
+		VariadicType: ast.TypeString,
 		Callback: func(args []interface{}) (interface{}, error) {
 			sess, err := session.NewSession()
 			if err != nil {
@@ -305,12 +305,12 @@ func (ti *TerragruntInterpolation) interpolateGetAWSAccountID() hilast.Function 
 	}
 }
 
-func (ti *TerragruntInterpolation) interpolatePrepend() hilast.Function {
-	return hilast.Function{
-		ArgTypes:     []hilast.Type{hilast.TypeString, hilast.TypeList},
-		ReturnType:   hilast.TypeString,
+func (ti *TerragruntInterpolation) interpolatePrependList() ast.Function {
+	return ast.Function{
+		ArgTypes:     []ast.Type{ast.TypeString, ast.TypeList},
+		ReturnType:   ast.TypeString,
 		Variadic:     true,
-		VariadicType: hilast.TypeList,
+		VariadicType: ast.TypeList,
 		Callback: func(args []interface{}) (interface{}, error) {
 			var retval []string
 			prefix := args[0].(string)
@@ -327,11 +327,11 @@ func (ti *TerragruntInterpolation) interpolatePrepend() hilast.Function {
 // stringSliceToVariableValue converts a string slice into the value
 // required to be returned from interpolation functions which return
 // TypeList. Borrowed from hashicorp/terraform
-func stringSliceToVariableValue(values []string) []hilast.Variable {
-	output := make([]hilast.Variable, len(values))
+func stringSliceToVariableValue(values []string) []ast.Variable {
+	output := make([]ast.Variable, len(values))
 	for index, value := range values {
-		output[index] = hilast.Variable{
-			Type:  hilast.TypeString,
+		output[index] = ast.Variable{
+			Type:  ast.TypeString,
 			Value: value,
 		}
 	}
