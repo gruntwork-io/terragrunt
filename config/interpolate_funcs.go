@@ -25,6 +25,8 @@ func (ti *TerragruntInterpolation) Funcs() map[string]ast.Function {
 		"import_parent_tree":                    ti.interpolateImportParentTree(),
 		"find_all_in_parent_folders":            ti.interpolateFindAllInParentFolders(),
 		"get_terraform_commands_that_need_vars": ti.interpolateGetTerraformCommandsThatNeedVars(),
+		"get_terraform_commands_that_need_locking": ti.interpolateGetTerraformCommandsThatNeedLocking(),
+		"get_terraform_commands_that_need_input": ti.interpolateGetTerraformCommandsThatNeedInput(),
 	}
 }
 
@@ -112,46 +114,38 @@ func (ti *TerragruntInterpolation) interpolateGetTerraformCommandsThatNeedVars()
 	}
 }
 
+func (ti *TerragruntInterpolation) interpolateGetTerraformCommandsThatNeedLocking() ast.Function {
+	return ast.Function{
+		ArgTypes:   []ast.Type{},
+		ReturnType: ast.TypeList,
+		Variadic:   false,
+		Callback: func(args []interface{}) (interface{}, error) {
+			return stringSliceToVariableValue(TERRAFORM_COMMANDS_NEED_LOCKING), nil
+		},
+	}
+}
+
+func (ti *TerragruntInterpolation) interpolateGetTerraformCommandsThatNeedInput() ast.Function {
+	return ast.Function{
+		ArgTypes:   []ast.Type{},
+		ReturnType: ast.TypeList,
+		Variadic:   false,
+		Callback: func(args []interface{}) (interface{}, error) {
+			return stringSliceToVariableValue(TERRAFORM_COMMANDS_NEED_INPUT), nil
+		},
+	}
+}
+
 func (ti *TerragruntInterpolation) interpolateImportParentTree() ast.Function {
 	return ast.Function{
 		ArgTypes:   []ast.Type{ast.TypeString},
 		ReturnType: ast.TypeList,
 		Variadic:   false,
 		Callback: func(args []interface{}) (interface{}, error) {
-			fileglob := args[0].(string)
-			retval := []string{}
-
-			if fileglob == "" {
-				return stringSliceToVariableValue(retval), errors.WithStackTrace(EmptyStringNotAllowed("import_parent_tree"))
-			}
-
-			if ti.Options == nil {
-				return stringSliceToVariableValue(retval), errors.WithStackTrace(EmptyStringNotAllowed("import_parent_tree"))
-			}
-
-			previousDir, err := filepath.Abs(filepath.Dir(ti.Options.TerragruntConfigPath))
-			previousDir = filepath.ToSlash(previousDir)
-
-			if err != nil {
-				return stringSliceToVariableValue(retval), errors.WithStackTrace(err)
-			}
-
-			for i := 0; i < ti.Options.MaxFoldersToCheck; i++ {
-				currentDir := filepath.ToSlash(filepath.Dir(previousDir))
-				if currentDir == previousDir {
-					return stringSliceToVariableValue(retval), nil
-				}
-				pathglob := filepath.Join(currentDir, fileglob)
-				matches, _ := filepath.Glob(pathglob)
-
-				if len(matches) > 0 {
-					prefixed := util.PrefixListItems("-var-file=", matches)
-					// Variables imported from higher level directories have lower precedence
-					retval = append(prefixed, retval...)
-				}
-				previousDir = currentDir
-			}
-			return stringSliceToVariableValue(retval), nil
+			msg := fmt.Errorf(
+				`DEPRECATED. Use ${prepend_list("-var-file=", "${find_all_in_parent_folders("*.tfvars")}")}`,
+			)
+			return []string{}, msg
 		},
 	}
 }
@@ -166,11 +160,11 @@ func (ti *TerragruntInterpolation) interpolateFindAllInParentFolders() ast.Funct
 			retval := []string{}
 
 			if fileglob == "" {
-				return stringSliceToVariableValue(retval), errors.WithStackTrace(EmptyStringNotAllowed("import_parent_tree"))
+				return stringSliceToVariableValue(retval), errors.WithStackTrace(EmptyStringNotAllowed("arg0"))
 			}
 
 			if ti.Options == nil {
-				return stringSliceToVariableValue(retval), errors.WithStackTrace(EmptyStringNotAllowed("import_parent_tree"))
+				return stringSliceToVariableValue(retval), errors.WithStackTrace(EmptyStringNotAllowed("arg0"))
 			}
 
 			previousDir, err := filepath.Abs(filepath.Dir(ti.Options.TerragruntConfigPath))
@@ -308,16 +302,18 @@ func (ti *TerragruntInterpolation) interpolateGetAWSAccountID() ast.Function {
 func (ti *TerragruntInterpolation) interpolatePrependList() ast.Function {
 	return ast.Function{
 		ArgTypes:     []ast.Type{ast.TypeString, ast.TypeList},
-		ReturnType:   ast.TypeString,
+		ReturnType:   ast.TypeList,
 		Variadic:     true,
 		VariadicType: ast.TypeList,
 		Callback: func(args []interface{}) (interface{}, error) {
 			var retval []string
 			prefix := args[0].(string)
-			list := args[1].([]string)
+			list := args[1].([]ast.Variable)
 
 			for _, i := range list {
-				retval = append(retval, prefix+string(i[1]))
+				if str, ok := i.Value.(string); ok {
+					retval = append(retval, prefix+str)
+				}
 			}
 			return stringSliceToVariableValue(retval), nil
 		},

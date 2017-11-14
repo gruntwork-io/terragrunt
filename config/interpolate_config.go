@@ -12,7 +12,7 @@ func (ti *TerragruntInterpolation) ResolveTerragruntConfig(configStr string) (*t
 	config := &tfvarsFileWithTerragruntConfig{}
 
 	if err := hcl.Decode(&config, configStr); err != nil {
-		return config, fmt.Errorf( "Error reading config: %v", err)
+		return config, fmt.Errorf( "error reading config: %v", err)
     }
 	w := &Walker{Callback: ti.EvalNode, Replace: true}
 	err := reflectwalk.Walk(config, w)
@@ -22,7 +22,7 @@ func (ti *TerragruntInterpolation) ResolveTerragruntConfig(configStr string) (*t
 func (ti *TerragruntInterpolation)EvalNode(node ast.Node) (interface{}, error) {
 	result, err := hil.Eval(node, ti.EvalConfig())
 	if err != nil {
-		return "", fmt.Errorf("eval error: %v", err)
+		return "", err
 	}
 	return result.Value, nil
 }
