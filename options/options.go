@@ -20,6 +20,8 @@ var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
 	"state",
 }
 
+const DEFAULT_MAX_FOLDERS_TO_CHECK = 100
+
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
 	// Location of the Terragrunt config file
@@ -71,6 +73,10 @@ type TerragruntOptions struct {
 	// If you want stderr to go somewhere other than os.stderr
 	ErrWriter io.Writer
 
+	// When searching the directory tree, this is the max folders to check before exiting with an error. This is
+	// exposed here primarily so we can set it to a low value at test time.
+	MaxFoldersToCheck int
+
 	// A command that can be used to run Terragrunt with the given options. This is useful for running Terragrunt
 	// multiple times (e.g. when spinning up a stack of Terraform modules). The actual command is normally defined
 	// in the cli package, which depends on almost all other packages, so we declare it here so that other
@@ -115,6 +121,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		IgnoreDependencyErrors: false,
 		Writer:                 os.Stdout,
 		ErrWriter:              os.Stderr,
+		MaxFoldersToCheck:      DEFAULT_MAX_FOLDERS_TO_CHECK,
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
@@ -123,10 +130,10 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 
 // Create a new TerragruntOptions object with reasonable defaults for test usage
 func NewTerragruntOptionsForTest(terragruntConfigPath string) (*TerragruntOptions, error) {
-	logger := util.CreateLogger("")
-
 	opts, err := NewTerragruntOptions(terragruntConfigPath)
+
 	if err != nil {
+		logger := util.CreateLogger("")
 		logger.Printf("error: %v\n", errors.WithStackTrace(err))
 		return nil, err
 	}
@@ -141,16 +148,19 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string) (*TerragruntOption
 func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOptions {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
+	// Note that we clone lists and maps below as TerragruntOptions may be used and modified concurrently in the code
+	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367
+	// for more info.
 	return &TerragruntOptions{
 		TerragruntConfigPath:   terragruntConfigPath,
 		TerraformPath:          terragruntOptions.TerraformPath,
 		TerraformVersion:       terragruntOptions.TerraformVersion,
 		AutoInit:               terragruntOptions.AutoInit,
 		NonInteractive:         terragruntOptions.NonInteractive,
-		TerraformCliArgs:       terragruntOptions.TerraformCliArgs,
+		TerraformCliArgs:       util.CloneStringList(terragruntOptions.TerraformCliArgs),
 		WorkingDir:             workingDir,
 		Logger:                 util.CreateLoggerWithWriter(terragruntOptions.ErrWriter, workingDir),
-		Env:                    terragruntOptions.Env,
+		Env:                    util.CloneStringMap(terragruntOptions.Env),
 		Source:                 terragruntOptions.Source,
 		SourceUpdate:           terragruntOptions.SourceUpdate,
 		DownloadDir:            terragruntOptions.DownloadDir,
@@ -158,6 +168,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		IgnoreDependencyErrors: terragruntOptions.IgnoreDependencyErrors,
 		Writer:                 terragruntOptions.Writer,
 		ErrWriter:              terragruntOptions.ErrWriter,
+		MaxFoldersToCheck:      terragruntOptions.MaxFoldersToCheck,
 		RunTerragrunt:          terragruntOptions.RunTerragrunt,
 	}
 }

@@ -1,26 +1,29 @@
 package config
 
 import (
-	"path/filepath"
-	"strings"
+	"fmt"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 	hilast "github.com/hashicorp/hil/ast"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
 func (ti *TerragruntInterpolation) Funcs() map[string]hilast.Function {
 	return map[string]hilast.Function{
-		"find_in_parent_folders":   ti.interpolateFindInParentFolders(),
-		"path_relative_to_include": ti.interpolatePathRelativeToInclude(),
-		/*	"path_relative_from_include": pathRelativeFromInclude(),
-			"get_env":                    getEnv(),
-			"get_tfvars_dir":             getTfVarsDir(),
-			"get_parent_tfvars_dir":      getParentTfVarsDir(),
-			"get_aws_account_id":         getAWSAccountID(),
-			"import_parent_tree":         importParentTree(),
-			"prepend":                    prepend(),*/
+		"find_in_parent_folders":                ti.interpolateFindInParentFolders(),
+		"path_relative_to_include":              ti.interpolatePathRelativeToInclude(),
+		"path_relative_from_include":            ti.interpolatePathRelativeFromInclude(),
+		"get_env":                               ti.interpolateGetEnv(),
+		"get_tfvars_dir":                        ti.interpolateGetTfVarsDir(),
+		"get_parent_tfvars_dir":                 ti.interpolateGetParentTfVarsDir(),
+		"get_aws_account_id":                    ti.interpolateGetAWSAccountID(),
+		"prepend":                               ti.interpolatePrepend(),
 		"import_parent_tree":                    ti.interpolateImportParentTree(),
-		"find_all_in_parent_folders": ti.interpolateFindAllInParentFolders(),
+		"find_all_in_parent_folders":            ti.interpolateFindAllInParentFolders(),
 		"get_terraform_commands_that_need_vars": ti.interpolateGetTerraformCommandsThatNeedVars(),
 	}
 }
@@ -133,7 +136,7 @@ func (ti *TerragruntInterpolation) interpolateImportParentTree() hilast.Function
 				return stringSliceToVariableValue(retval), errors.WithStackTrace(err)
 			}
 
-			for i := 0; i < MAX_PARENT_FOLDERS_TO_CHECK; i++ {
+			for i := 0; i < ti.Options.MaxFoldersToCheck; i++ {
 				currentDir := filepath.ToSlash(filepath.Dir(previousDir))
 				if currentDir == previousDir {
 					return stringSliceToVariableValue(retval), nil
@@ -177,7 +180,7 @@ func (ti *TerragruntInterpolation) interpolateFindAllInParentFolders() hilast.Fu
 				return stringSliceToVariableValue(retval), errors.WithStackTrace(err)
 			}
 
-			for i := 0; i < MAX_PARENT_FOLDERS_TO_CHECK; i++ {
+			for i := 0; i < ti.Options.MaxFoldersToCheck; i++ {
 				currentDir := filepath.ToSlash(filepath.Dir(previousDir))
 				if currentDir == previousDir {
 					return stringSliceToVariableValue(retval), nil
@@ -189,6 +192,132 @@ func (ti *TerragruntInterpolation) interpolateFindAllInParentFolders() hilast.Fu
 					retval = append(matches, retval...)
 				}
 				previousDir = currentDir
+			}
+			return stringSliceToVariableValue(retval), nil
+		},
+	}
+}
+
+func (ti *TerragruntInterpolation) interpolatePathRelativeFromInclude() hilast.Function {
+	return hilast.Function{
+		ArgTypes:     []hilast.Type{},
+		ReturnType:   hilast.TypeString,
+		Variadic:     true,
+		VariadicType: hilast.TypeString,
+		Callback: func(args []interface{}) (interface{}, error) {
+			if ti.include == nil {
+				return ".", nil
+			}
+
+			includedConfigPath, err := ResolveTerragruntConfigString(ti.include.Path, ti.include, ti.Options)
+			if err != nil {
+				return "", errors.WithStackTrace(err)
+			}
+
+			includePath := filepath.Dir(includedConfigPath)
+			currentPath := filepath.Dir(ti.Options.TerragruntConfigPath)
+
+			if !filepath.IsAbs(includePath) {
+				includePath = util.JoinPath(currentPath, includePath)
+			}
+
+			return util.GetPathRelativeTo(includePath, currentPath)
+		},
+	}
+}
+
+func (ti *TerragruntInterpolation) interpolateGetEnv() hilast.Function {
+	return hilast.Function{
+		ArgTypes:     []hilast.Type{hilast.TypeString},
+		ReturnType:   hilast.TypeString,
+		Variadic:     true,
+		VariadicType: hilast.TypeString,
+		Callback: func(args []interface{}) (interface{}, error) {
+			envParam := args[0].(string)
+			result := os.Getenv(envParam)
+			if result == "" {
+				return "", fmt.Errorf("environment variable %s not set", envParam)
+			}
+			return envParam, nil
+		},
+	}
+}
+
+func (ti *TerragruntInterpolation) interpolateGetTfVarsDir() hilast.Function {
+	return hilast.Function{
+		ArgTypes:     []hilast.Type{},
+		ReturnType:   hilast.TypeString,
+		Variadic:     false,
+		VariadicType: hilast.TypeString,
+		Callback: func(args []interface{}) (interface{}, error) {
+			if ti.Options == nil {
+				return "", fmt.Errorf("terragrunt options not set")
+			}
+			terragruntConfigFileAbsPath, err := filepath.Abs(ti.Options.TerragruntConfigPath)
+			if err != nil {
+				return "", errors.WithStackTrace(err)
+			}
+			return filepath.ToSlash(filepath.Dir(terragruntConfigFileAbsPath)), nil
+		},
+	}
+}
+
+func (ti *TerragruntInterpolation) interpolateGetParentTfVarsDir() hilast.Function {
+	return hilast.Function{
+		ArgTypes:   []hilast.Type{},
+		ReturnType: hilast.TypeString,
+		Variadic:   false,
+		Callback: func(args []interface{}) (interface{}, error) {
+			parentPath, err := ti.pathRelativeFromInclude()
+			if err != nil {
+				return "", errors.WithStackTrace(err)
+			}
+
+			currentPath := filepath.Dir(ti.Options.TerragruntConfigPath)
+			parentPath, err = filepath.Abs(filepath.Join(currentPath, parentPath))
+			if err != nil {
+				return "", errors.WithStackTrace(err)
+			}
+			return filepath.ToSlash(parentPath), nil
+		},
+	}
+}
+
+func (ti *TerragruntInterpolation) interpolateGetAWSAccountID() hilast.Function {
+	return hilast.Function{
+		ArgTypes:     []hilast.Type{},
+		ReturnType:   hilast.TypeString,
+		Variadic:     true,
+		VariadicType: hilast.TypeString,
+		Callback: func(args []interface{}) (interface{}, error) {
+			sess, err := session.NewSession()
+			if err != nil {
+				return "", errors.WithStackTrace(err)
+			}
+
+			identity, err := sts.New(sess).GetCallerIdentity(nil)
+			if err != nil {
+				return "", errors.WithStackTrace(err)
+			}
+
+			return *identity.Account, nil
+		},
+	}
+}
+
+func (ti *TerragruntInterpolation) interpolatePrepend() hilast.Function {
+	return hilast.Function{
+		ArgTypes:     []hilast.Type{hilast.TypeString, hilast.TypeList},
+		ReturnType:   hilast.TypeString,
+		Variadic:     true,
+		VariadicType: hilast.TypeList,
+		Callback: func(args []interface{}) (interface{}, error) {
+			var retval []string
+			prefix := args[0].(string)
+			list := args[1].([]string)
+
+			for _, i := range list {
+				retval = append(retval, prefix+string(i[1]))
 			}
 			return stringSliceToVariableValue(retval), nil
 		},
