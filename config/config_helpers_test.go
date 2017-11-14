@@ -63,7 +63,8 @@ func TestPathRelativeToInclude(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		actualPath, actualErr := pathRelativeToInclude(testCase.include, &testCase.terragruntOptions)
+		ti := TerragruntInterpolation{Options: &testCase.terragruntOptions, include: testCase.include}
+		actualPath, actualErr := ti.pathRelativeToInclude()
 		assert.Nil(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
 		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
 	}
@@ -120,7 +121,8 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		actualPath, actualErr := pathRelativeFromInclude(testCase.include, &testCase.terragruntOptions)
+		ti := TerragruntInterpolation{include: testCase.include, Options: &testCase.terragruntOptions}
+		actualPath, actualErr := ti.pathRelativeFromInclude()
 		assert.Nil(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
 		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
 	}
@@ -199,7 +201,8 @@ func TestFindInParentFolders(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.terragruntOptions.TerragruntConfigPath, func(t *testing.T) {
-			actualPath, actualErr := findInParentFolders(testCase.params, &testCase.terragruntOptions)
+			ti := TerragruntInterpolation{Options: &testCase.terragruntOptions }
+			actualPath, actualErr := ti.findInParentFolders(testCase.params)
 			if testCase.expectedErr != nil {
 				if assert.Error(t, actualErr) {
 					assert.IsType(t, testCase.expectedErr, errors.Unwrap(actualErr))
@@ -359,12 +362,14 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 				"-var-file=/Users/simas/go/src/github.com/gruntwork-io/terragrunt/test/fixture-parent-folders/tfvar-tree/terraform.tfvars",
 				"-var-file=/Users/simas/go/src/github.com/gruntwork-io/terragrunt/test/fixture-parent-folders/tfvar-tree/variables.tfvars",
 			},
+			nil,
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.str, func(t *testing.T) {
-			actualOut, actualErr := resolveTerragruntInterpolation(testCase.str, testCase.include, &testCase.terragruntOptions)
+			ti := TerragruntInterpolation{include: testCase.include, Options: &testCase.terragruntOptions}
+			actualOut, actualErr := ti.resolveValue(testCase.str)
 			if testCase.expectedErr != nil {
 				if assert.Error(t, actualErr) {
 					assert.IsType(t, testCase.expectedErr, errors.Unwrap(actualErr))
@@ -782,7 +787,8 @@ func testGetTfVarsDir(t *testing.T, configPath string, expectedPath string) {
 	terragruntOptions, err := options.NewTerragruntOptionsForTest(configPath)
 	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
-	actualPath, err := getTfVarsDir(terragruntOptions)
+	ti := TerragruntInterpolation{Options: terragruntOptions}
+	actualPath, err := ti.getTfVarsDir()
 
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, expectedPath, actualPath)
@@ -843,7 +849,8 @@ func TestGetParentTfVarsDir(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		actualPath, actualErr := getParentTfVarsDir(testCase.include, &testCase.terragruntOptions)
+		ti := TerragruntInterpolation{include: testCase.include, Options: &testCase.terragruntOptions}
+		actualPath, actualErr := ti.getParentTfVarsDir()
 		assert.Nil(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
 		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
 	}

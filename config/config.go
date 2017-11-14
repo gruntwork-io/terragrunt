@@ -32,7 +32,6 @@ func (conf *TerragruntConfig) String() string {
 // terraform.tfvars or .terragrunt)
 type terragruntConfigFile struct {
 	Terraform    *TerraformConfig    `hcl:"terraform,omitempty"`
-	VarFiles     []string            `hcl:"terragrunt_var_files,omitempty"`
 	Include      *IncludeConfig      `hcl:"include,omitempty"`
 	Lock         *LockConfig         `hcl:"lock,omitempty"`
 	RemoteState  *remote.RemoteState `hcl:"remote_state,omitempty"`
@@ -47,6 +46,7 @@ type LockConfig map[interface{}]interface{}
 // tfvarsFileWithTerragruntConfig represents a .tfvars file that contains a terragrunt = { ... } block
 type tfvarsFileWithTerragruntConfig struct {
 	Terragrunt *terragruntConfigFile `hcl:"terragrunt,omitempty"`
+	VarFiles     []string            `hcl:"terragrunt_var_files,omitempty"`
 }
 
 // IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
@@ -207,15 +207,37 @@ func ParseConfigFile(configPath string, terragruntOptions *options.TerragruntOpt
 
 // Parse the Terragrunt config contained in the given string.
 func parseConfigString(configString string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig, configPath string) (*TerragruntConfig, error) {
-	resolvedConfigString, err := ResolveTerragruntConfigString(configString, include, terragruntOptions)
+	// pass one: resolveTerragruntVariables
+	ti := TerragruntInterpolation{Options: terragruntOptions, include: include }
+	variables, err := ti.ResolveTerragruntVariables(configString)
 	if err != nil {
 		return nil, err
 	}
+	// we can assign variables here
 
-	terragruntConfigFile, err := parseConfigStringAsTerragruntConfigFile(resolvedConfigString, configPath)
+	// pass two: resolveTerraformConfig
+	ti = TerragruntInterpolation{
+		Options:   terragruntOptions,
+		Variables: variables,
+		include: include,
+	}
+	// we ignore errors for now -- unknown functions pass later
+	tfconfig, err := ti.ResolveTerragruntConfig(configString)
 	if err != nil {
 		return nil, err
 	}
+	terragruntConfigFile := tfconfig.Terragrunt
+
+	// pass three: add all the regexp stuff
+	//resolvedConfigString, err := ResolveTerragruntConfigString(tfconfig, include, terragruntOptions)
+	//if err != nil {
+	//	return nil, err
+	//}
+
+	//terragruntConfigFile, err := parseConfigStringAsTerragruntConfigFile(resolvedConfigString, configPath)
+	//if err != nil {
+	//	return nil, err
+	//}
 	if terragruntConfigFile == nil {
 		return nil, errors.WithStackTrace(CouldNotResolveTerragruntConfigInFile(configPath))
 	}
@@ -371,38 +393,20 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 		terragruntConfig.RemoteState = terragruntConfigFromFile.RemoteState
 	}
 
-	if len(terragruntConfigFromFile.VarFiles) > 0 {
-		variables, err := loadVarsFromFiles(terragruntConfigFromFile.VarFiles)
-		if err != nil {
-			return nil, err
+	/*
+		if len(terragruntConfigFromFile.VarFiles) > 0 {
+			variables, err := loadVarsFromFiles(terragruntConfigFromFile.VarFiles)
+			if err != nil {
+				return nil, err
+			}
+			terragruntConfig.Variables = variables
 		}
-		terragruntConfig.Variables = variables
-	}
+	*/
 
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
 
 	return terragruntConfig, nil
-}
-
-func loadVarsFromFiles(files []string) (map[string]interface{}, error) {
-	retval := map[string]interface{}{}
-
-	for _, f := range files {
-		var out map[string]interface{}
-
-		configString, err := util.ReadFileAsString(f)
-		if err != nil {
-			return nil, err
-		}
-		if err = hcl.Decode(&out, configString); err != nil {
-			return nil, err
-		}
-		for k, v := range out {
-			retval[k] = v
-		}
-	}
-	return retval, nil
 }
 
 // Custom error types

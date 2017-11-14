@@ -192,6 +192,9 @@ func parseStringArg(args []string, argName string, defaultValue string) (string,
 			}
 		}
 	}
+
+	// read .tgproject value
+
 	return defaultValue, nil
 }
 

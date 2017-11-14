@@ -11,7 +11,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/hil/ast"
 )
+
+// hcl2 "github.com/hashicorp/hcl2/hcl"
 
 var INTERPOLATION_PARAMETERS = `(\s*"[^"]*?"\s*,?\s*)*`
 var INTERPOLATION_SYNTAX_REGEX = regexp.MustCompile(fmt.Sprintf(`\$\{\s*[\w|\.]+(\(%s\))*\s*\}`, INTERPOLATION_PARAMETERS))
@@ -63,13 +66,14 @@ type EnvVar struct {
 
 type TerragruntInterpolation struct {
 	include *IncludeConfig
-	options *options.TerragruntOptions
+	Options *options.TerragruntOptions
+	Variables map[string]ast.Variable
 }
 
 // Given a string value from a Terragrunt configuration, parse the string, resolve any calls to helper functions using
 // the syntax ${...}, and return the final value.
 func ResolveTerragruntConfigString(terragruntConfigString string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	interpolation := &TerragruntInterpolation{include: include, options: terragruntOptions}
+	interpolation := &TerragruntInterpolation{include: include, Options: terragruntOptions}
 
 	// First, we replace all single interpolation syntax (i.e. function directly enclosed within quotes "${function()}")
 	terragruntConfigString, err := interpolation.processSingle(terragruntConfigString)
@@ -200,7 +204,7 @@ func extractVariable(str string) (bool, string) {
 
 // Return the directory where the Terragrunt configuration file lives
 func (ti *TerragruntInterpolation) getTfVarsDir() (string, error) {
-	terragruntConfigFileAbsPath, err := filepath.Abs(ti.options.TerragruntConfigPath)
+	terragruntConfigFileAbsPath, err := filepath.Abs(ti.Options.TerragruntConfigPath)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
@@ -215,7 +219,7 @@ func (ti *TerragruntInterpolation) getParentTfVarsDir() (string, error) {
 		return "", errors.WithStackTrace(err)
 	}
 
-	currentPath := filepath.Dir(ti.options.TerragruntConfigPath)
+	currentPath := filepath.Dir(ti.Options.TerragruntConfigPath)
 	parentPath, err = filepath.Abs(filepath.Join(currentPath, parentPath))
 	if err != nil {
 		return "", errors.WithStackTrace(err)
@@ -249,7 +253,7 @@ func (ti *TerragruntInterpolation) getEnvironmentVariable(parameters string) (st
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
-	envValue, exists := ti.options.Env[parameterMap.Name]
+	envValue, exists := ti.Options.Env[parameterMap.Name]
 
 	if !exists {
 		envValue = parameterMap.DefaultValue
@@ -269,7 +273,7 @@ func (ti *TerragruntInterpolation) findInParentFolders(parameters string) (strin
 		return "", errors.WithStackTrace(EmptyStringNotAllowed("parameter to the find_in_parent_folders_function"))
 	}
 
-	previousDir, err := filepath.Abs(filepath.Dir(ti.options.TerragruntConfigPath))
+	previousDir, err := filepath.Abs(filepath.Dir(ti.Options.TerragruntConfigPath))
 	previousDir = filepath.ToSlash(previousDir)
 
 	if err != nil {
@@ -288,7 +292,7 @@ func (ti *TerragruntInterpolation) findInParentFolders(parameters string) (strin
 			if fileToFindParam != "" {
 				file = fileToFindParam
 			}
-			return "", errors.WithStackTrace(ParentFileNotFound{Path: ti.options.TerragruntConfigPath, File: file})
+			return "", errors.WithStackTrace(ParentFileNotFound{Path: ti.Options.TerragruntConfigPath, File: file})
 		}
 
 		fileToFind := DefaultConfigPath(currentDir)
@@ -297,13 +301,13 @@ func (ti *TerragruntInterpolation) findInParentFolders(parameters string) (strin
 		}
 
 		if util.FileExists(fileToFind) {
-			return util.GetPathRelativeTo(fileToFind, filepath.Dir(ti.options.TerragruntConfigPath))
+			return util.GetPathRelativeTo(fileToFind, filepath.Dir(ti.Options.TerragruntConfigPath))
 		}
 
 		previousDir = currentDir
 	}
 
-	return "", errors.WithStackTrace(CheckedTooManyParentFolders(ti.options.TerragruntConfigPath))
+	return "", errors.WithStackTrace(CheckedTooManyParentFolders(ti.Options.TerragruntConfigPath))
 }
 
 var oneQuotedParamRegex = regexp.MustCompile(`^"([^"]*?)"$`)
@@ -343,13 +347,13 @@ func (ti *TerragruntInterpolation) pathRelativeToInclude() (string, error) {
 		return ".", nil
 	}
 
-	includedConfigPath, err := ResolveTerragruntConfigString(ti.include.Path, ti.include, ti.options)
+	includedConfigPath, err := ResolveTerragruntConfigString(ti.include.Path, ti.include, ti.Options)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
 
 	includePath := filepath.Dir(includedConfigPath)
-	currentPath := filepath.Dir(ti.options.TerragruntConfigPath)
+	currentPath := filepath.Dir(ti.Options.TerragruntConfigPath)
 
 	if !filepath.IsAbs(includePath) {
 		includePath = util.JoinPath(currentPath, includePath)
@@ -364,13 +368,13 @@ func (ti *TerragruntInterpolation) pathRelativeFromInclude() (string, error) {
 		return ".", nil
 	}
 
-	includedConfigPath, err := ResolveTerragruntConfigString(ti.include.Path, ti.include, ti.options)
+	includedConfigPath, err := ResolveTerragruntConfigString(ti.include.Path, ti.include, ti.Options)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
 
 	includePath := filepath.Dir(includedConfigPath)
-	currentPath := filepath.Dir(ti.options.TerragruntConfigPath)
+	currentPath := filepath.Dir(ti.Options.TerragruntConfigPath)
 
 	if !filepath.IsAbs(includePath) {
 		includePath = util.JoinPath(currentPath, includePath)
@@ -383,7 +387,7 @@ func (ti *TerragruntInterpolation) importParentTree(parameters string) ([]string
 	var fileglob string
 	retval := []string{}
 
-	previousDir, err := filepath.Abs(filepath.Dir(ti.options.TerragruntConfigPath))
+	previousDir, err := filepath.Abs(filepath.Dir(ti.Options.TerragruntConfigPath))
 	previousDir = filepath.ToSlash(previousDir)
 
 	if err != nil {
@@ -494,4 +498,10 @@ type EmptyStringNotAllowed string
 
 func (err EmptyStringNotAllowed) Error() string {
 	return fmt.Sprintf("Empty string value is not allowed for %s", string(err))
+}
+
+type MissingRequiredParams string
+
+func (err MissingRequiredParams) Error() string {
+	return fmt.Sprintf("Missing required parameters for %s", string(err))
 }
