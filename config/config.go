@@ -46,7 +46,7 @@ type LockConfig map[interface{}]interface{}
 // tfvarsFileWithTerragruntConfig represents a .tfvars file that contains a terragrunt = { ... } block
 type tfvarsFileWithTerragruntConfig struct {
 	Terragrunt *terragruntConfigFile `hcl:"terragrunt,omitempty"`
-	VarFiles     []string            `hcl:"terragrunt_var_files,omitempty"`
+	VarFiles   []string              `hcl:"terragrunt_var_files,omitempty"`
 }
 
 // IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
@@ -208,7 +208,7 @@ func ParseConfigFile(configPath string, terragruntOptions *options.TerragruntOpt
 // Parse the Terragrunt config contained in the given string.
 func parseConfigString(configString string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig, configPath string) (*TerragruntConfig, error) {
 	// pass one: resolveTerragruntVariables
-	ti := TerragruntInterpolation{Options: terragruntOptions, include: include }
+	ti := TerragruntInterpolation{Options: terragruntOptions, include: include}
 	variables, err := ti.ResolveTerragruntVariables(configString)
 	if err != nil {
 		return nil, err
@@ -219,7 +219,7 @@ func parseConfigString(configString string, terragruntOptions *options.Terragrun
 	ti = TerragruntInterpolation{
 		Options:   terragruntOptions,
 		Variables: variables,
-		include: include,
+		include:   include,
 	}
 	// we ignore errors for now -- unknown functions pass later
 	tfconfig, err := ti.ResolveTerragruntConfig(configString)
@@ -392,16 +392,6 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 
 		terragruntConfig.RemoteState = terragruntConfigFromFile.RemoteState
 	}
-
-	/*
-		if len(terragruntConfigFromFile.VarFiles) > 0 {
-			variables, err := loadVarsFromFiles(terragruntConfigFromFile.VarFiles)
-			if err != nil {
-				return nil, err
-			}
-			terragruntConfig.Variables = variables
-		}
-	*/
 
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
