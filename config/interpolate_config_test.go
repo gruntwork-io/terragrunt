@@ -2,7 +2,6 @@ package config
 
 import (
 	"testing"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -15,7 +14,7 @@ func TestResolveTerragruntConfig(t *testing.T) {
 		extra_arguments "custom_vars" {
 		  commands = ["${get_terraform_commands_that_need_vars()}"]
 		  arguments = [
-			"${import_parent_tree("*.tfvars")}",
+			"${prepend_list("-var-file=", "${find_all_in_parent_folders("*.tfvars")}")}",
 			"-var-file=secrets.tfvars",
 			"-var-file=terraform.tfvars",
 		  ]
@@ -33,9 +32,8 @@ func TestResolveTerragruntConfig(t *testing.T) {
 	ti := TerragruntInterpolation{
 		Options: &opts,
 	}
-	v,err := ti.ResolveTerragruntConfig(str)
+	_,err = ti.ResolveTerragruntConfig(str)
 	if err != nil{
 		t.Error(err)
 	}
-	spew.Dump(v.Terragrunt.Terraform.ExtraArgs)
 }
