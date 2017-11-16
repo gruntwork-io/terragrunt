@@ -514,7 +514,7 @@ terragrunt = {
 
 The `include` block tells Terragrunt to use the exact same Terragrunt configuration from the `terraform.tfvars` file
 specified via the `path` parameter. It behaves exactly as if you had copy/pasted the Terraform configuration from 
-the root `terraform.tfvars` file into `mysql/terraform.tfvars`, but this approach is much easier to maintain!
+the included file's terragrunt = { ... } configuration into `mysql/terraform.tfvars`, but this approach is much easier to maintain! Including variables defined outside of the terragrunt block is discussed in #132.
 
 The child `.tfvars` file's `terragrunt.terraform` settings will be merged into the parent file's `terragrunt.terraform`
 settings as follows:
