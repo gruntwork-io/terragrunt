@@ -1639,7 +1639,7 @@ start with the prefix `--terragrunt-`. The currently available options are:
   See [Auto-Init](#auto-init)
 
 * `--terragrunt-non-interactive`: Don't show interactive user prompts. This will default the answer for all prompts to
-  'yes'. Useful if you need to run Terragrunt in an automated setting (e.g. from a script).
+  'yes'. Useful if you need to run Terragrunt in an automated setting (e.g. from a script).  May also be specified with the [TF_INPUT](https://www.terraform.io/docs/configuration/environment-variables.html#tf_input) environment variable.
 
 * `--terragrunt-working-dir`: Set the directory where Terragrunt should execute the `terraform` command. Default is the
   current working directory. Note that for the `apply-all`, `destroy-all`, `output-all`, `validate-all`, and `plan-all`
