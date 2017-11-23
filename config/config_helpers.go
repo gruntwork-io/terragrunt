@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 )
 
 var INTERPOLATION_PARAMETERS = `(\s*"[^"]*?"\s*,?\s*)*`
@@ -86,7 +87,7 @@ func executeTerragruntHelperFunction(functionName string, parameters string, inc
 	case "get_parent_tfvars_dir":
 		return getParentTfVarsDir(include, terragruntOptions)
 	case "get_aws_account_id":
-		return getAWSAccountID()
+		return getAWSAccountID(terragruntOptions)
 	case "get_terraform_commands_that_need_vars":
 		return TERRAFORM_COMMANDS_NEED_VARS, nil
 	case "get_terraform_commands_that_need_locking":
@@ -345,10 +346,14 @@ func pathRelativeFromInclude(include *IncludeConfig, terragruntOptions *options.
 }
 
 // Return the AWS account id associated to the current set of credentials
-func getAWSAccountID() (string, error) {
+func getAWSAccountID(terragruntOptions *options.TerragruntOptions) (string, error) {
 	sess, err := session.NewSession()
 	if err != nil {
 		return "", errors.WithStackTrace(err)
+	}
+
+	if terragruntOptions.IamRole != "" {
+		sess.Config.Credentials = stscreds.NewCredentials(sess, terragruntOptions.IamRole)
 	}
 
 	identity, err := sts.New(sess).GetCallerIdentity(nil)
