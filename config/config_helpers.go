@@ -6,12 +6,12 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 )
 
 var INTERPOLATION_PARAMETERS = `(\s*"[^"]*?"\s*,?\s*)*`
