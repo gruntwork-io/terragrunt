@@ -76,7 +76,7 @@ func (remoteState *RemoteState) NeedsInit(terragruntOptions *options.TerragruntO
 	}
 
 	// Remote state configured, but with a different configuration
-	if remoteState.differsFrom(state.Backend, terragruntOptions) {
+	if state.IsRemote() && remoteState.differsFrom(state.Backend, terragruntOptions) {
 		return true, nil
 	}
 
