@@ -1655,7 +1655,7 @@ start with the prefix `--terragrunt-`. The currently available options are:
   module to the `--terragrunt-source` parameter you passed in.
 
 * `--terragrunt-source-update`: Delete the contents of the temporary folder before downloading Terraform source code
-  into it.
+  into it. Can also be enabled by setting the `TERRAGRUNT_SOURCE_UPDATE` environment variable to `true`.
 
 * `--terragrunt-ignore-dependency-errors`: `*-all` commands continue processing components even if a dependency fails
 
