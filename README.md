@@ -514,7 +514,7 @@ terragrunt = {
 
 The `include` block tells Terragrunt to use the exact same Terragrunt configuration from the `terraform.tfvars` file
 specified via the `path` parameter. It behaves exactly as if you had copy/pasted the Terraform configuration from 
-the root `terraform.tfvars` file into `mysql/terraform.tfvars`, but this approach is much easier to maintain!
+the included file's terragrunt = { ... } configuration into `mysql/terraform.tfvars`, but this approach is much easier to maintain! Including variables defined outside of the terragrunt block is discussed in #132.
 
 The child `.tfvars` file's `terragrunt.terraform` settings will be merged into the parent file's `terragrunt.terraform`
 settings as follows:
@@ -1639,7 +1639,7 @@ start with the prefix `--terragrunt-`. The currently available options are:
   See [Auto-Init](#auto-init)
 
 * `--terragrunt-non-interactive`: Don't show interactive user prompts. This will default the answer for all prompts to
-  'yes'. Useful if you need to run Terragrunt in an automated setting (e.g. from a script).
+  'yes'. Useful if you need to run Terragrunt in an automated setting (e.g. from a script).  May also be specified with the [TF_INPUT](https://www.terraform.io/docs/configuration/environment-variables.html#tf_input) environment variable.
 
 * `--terragrunt-working-dir`: Set the directory where Terragrunt should execute the `terraform` command. Default is the
   current working directory. Note that for the `apply-all`, `destroy-all`, `output-all`, `validate-all`, and `plan-all`
@@ -1655,7 +1655,7 @@ start with the prefix `--terragrunt-`. The currently available options are:
   module to the `--terragrunt-source` parameter you passed in.
 
 * `--terragrunt-source-update`: Delete the contents of the temporary folder before downloading Terraform source code
-  into it.
+  into it. Can also be enabled by setting the `TERRAGRUNT_SOURCE_UPDATE` environment variable to `true`.
 
 * `--terragrunt-ignore-dependency-errors`: `*-all` commands continue processing components even if a dependency fails
 

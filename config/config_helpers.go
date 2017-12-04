@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -99,11 +100,15 @@ func (ti *TerragruntInterpolation) executeTerragruntHelperFunction(functionName 
 	case "get_parent_tfvars_dir":
 		return ti.getParentTfVarsDir()
 	case "get_aws_account_id":
+<<<<<<< HEAD
 		return ti.getAWSAccountID()
 	case "import_parent_tree":
 		return ti.importParentTree(parameters)
 	case "prepend":
 		return ti.prepend(parameters)
+=======
+		return getAWSAccountID(terragruntOptions)
+>>>>>>> f4fc5d8017c78ee91788c1ce7bafeb266356f4c2
 	case "get_terraform_commands_that_need_vars":
 		return TERRAFORM_COMMANDS_NEED_VARS, nil
 	case "get_terraform_commands_that_need_locking":
@@ -443,10 +448,18 @@ func (ti *TerragruntInterpolation) prepend(parameters string) ([]string, error) 
 }
 
 // Return the AWS account id associated to the current set of credentials
+<<<<<<< HEAD
 func (ti *TerragruntInterpolation) getAWSAccountID() (string, error) {
+=======
+func getAWSAccountID(terragruntOptions *options.TerragruntOptions) (string, error) {
+>>>>>>> f4fc5d8017c78ee91788c1ce7bafeb266356f4c2
 	sess, err := session.NewSession()
 	if err != nil {
 		return "", errors.WithStackTrace(err)
+	}
+
+	if terragruntOptions.IamRole != "" {
+		sess.Config.Credentials = stscreds.NewCredentials(sess, terragruntOptions.IamRole)
 	}
 
 	identity, err := sts.New(sess).GetCallerIdentity(nil)
