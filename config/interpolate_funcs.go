@@ -14,19 +14,19 @@ import (
 
 func (ti *TerragruntInterpolation) Funcs() map[string]ast.Function {
 	return map[string]ast.Function{
-		"find_in_parent_folders":                ti.interpolateFindInParentFolders(),
-		"path_relative_to_include":              ti.interpolatePathRelativeToInclude(),
-		"path_relative_from_include":            ti.interpolatePathRelativeFromInclude(),
-		"get_env":                               ti.interpolateGetEnv(),
-		"get_tfvars_dir":                        ti.interpolateGetTfVarsDir(),
-		"get_parent_tfvars_dir":                 ti.interpolateGetParentTfVarsDir(),
-		"get_aws_account_id":                    ti.interpolateGetAWSAccountID(),
-		"prepend_list":                          ti.interpolatePrependList(),
-		"import_parent_tree":                    ti.interpolateImportParentTree(),
-		"find_all_in_parent_folders":            ti.interpolateFindAllInParentFolders(),
-		"get_terraform_commands_that_need_vars": ti.interpolateGetTerraformCommandsThatNeedVars(),
+		"find_in_parent_folders":                   ti.interpolateFindInParentFolders(),
+		"path_relative_to_include":                 ti.interpolatePathRelativeToInclude(),
+		"path_relative_from_include":               ti.interpolatePathRelativeFromInclude(),
+		"get_env":                                  ti.interpolateGetEnv(),
+		"get_tfvars_dir":                           ti.interpolateGetTfVarsDir(),
+		"get_parent_tfvars_dir":                    ti.interpolateGetParentTfVarsDir(),
+		"get_aws_account_id":                       ti.interpolateGetAWSAccountID(),
+		"prepend_list":                             ti.interpolatePrependList(),
+		"import_parent_tree":                       ti.interpolateImportParentTree(),
+		"find_all_in_parent_folders":               ti.interpolateFindAllInParentFolders(),
+		"get_terraform_commands_that_need_vars":    ti.interpolateGetTerraformCommandsThatNeedVars(),
 		"get_terraform_commands_that_need_locking": ti.interpolateGetTerraformCommandsThatNeedLocking(),
-		"get_terraform_commands_that_need_input": ti.interpolateGetTerraformCommandsThatNeedInput(),
+		"get_terraform_commands_that_need_input":   ti.interpolateGetTerraformCommandsThatNeedInput(),
 	}
 }
 
@@ -232,7 +232,7 @@ func (ti *TerragruntInterpolation) interpolateGetEnv() ast.Function {
 			if result == "" {
 				return "", fmt.Errorf("environment variable %s not set", envParam)
 			}
-			return envParam, nil
+			return result, nil
 		},
 	}
 }
@@ -310,9 +310,11 @@ func (ti *TerragruntInterpolation) interpolatePrependList() ast.Function {
 			prefix := args[0].(string)
 			list := args[1].([]ast.Variable)
 
-			for _, i := range list {
-				if str, ok := i.Value.(string); ok {
-					retval = append(retval, prefix+str)
+			retval = make([]string, len(list))
+
+			for idx, val := range list {
+				if str, ok := val.Value.(string); ok {
+					retval[idx] = prefix + str
 				}
 			}
 			return stringSliceToVariableValue(retval), nil

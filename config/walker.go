@@ -1,11 +1,11 @@
 package config
 
 import (
+	"fmt"
+	"github.com/hashicorp/hil"
 	"github.com/hashicorp/hil/ast"
 	"github.com/mitchellh/reflectwalk"
 	"reflect"
-	"fmt"
-	"github.com/hashicorp/hil"
 	"strings"
 )
 
@@ -14,17 +14,17 @@ const UnknownVariableValue = "74D93920-ED26-11E3-AC10-0800200C9A66"
 // Walker implements reflectwalk package
 // to walk hil structures
 type Walker struct {
-	Callback WalkerFunc
+	Callback            WalkerFunc
 	CallbackWithContext WalkerContextFunc
-	Context reflectwalk.Location
-	key         []string
-	lastValue   reflect.Value
-	cs          []reflect.Value
-	csKey       []reflect.Value
-	csData      interface{}
-	sliceIndex  []int
-	unknownKeys []string
-	Replace bool
+	Context             reflectwalk.Location
+	key                 []string
+	lastValue           reflect.Value
+	cs                  []reflect.Value
+	csKey               []reflect.Value
+	csData              interface{}
+	sliceIndex          []int
+	unknownKeys         []string
+	Replace             bool
 }
 
 type WalkerFunc func(ast.Node) (interface{}, error)
@@ -173,7 +173,6 @@ func (w *Walker) Primitive(v reflect.Value) error {
 			mk := w.csData.(reflect.Value)
 			m.SetMapIndex(mk, resultVal)
 		case reflectwalk.SliceElem:
-			//m := w.cs[len(w.cs)-1]
 			switch resultVal.Interface().(type) {
 			case string:
 				setV.Set(resultVal)
@@ -185,18 +184,19 @@ func (w *Walker) Primitive(v reflect.Value) error {
 				origSlice := m.Interface().([]string)
 				newSlice := []string{}
 				foundIndex := 0
-				for i,sliceElem := range origSlice {
+				for i, sliceElem := range origSlice {
 					if sliceElem == setV.String() {
 						foundIndex = i
 						break
 					}
 				}
 				newSlice = append(newSlice, origSlice[:foundIndex]...)
-				for _,st := range iface {
+				for _, st := range iface {
 					// only append strings
-					if str,ok := st.(string); ok {
+					if str, ok := st.(string); ok {
 						newSlice = append(newSlice, str)
 					}
+					// probably need to error if value.type != firstValue.type
 				}
 				if len(origSlice) > foundIndex {
 					newSlice = append(newSlice, origSlice[(foundIndex+1):]...)
