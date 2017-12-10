@@ -19,7 +19,7 @@ var INTERPOLATION_SYNTAX_REGEX = regexp.MustCompile(fmt.Sprintf(`\$\{\s*\w+\(%s\
 var INTERPOLATION_SYNTAX_REGEX_SINGLE = regexp.MustCompile(fmt.Sprintf(`"(%s)"`, INTERPOLATION_SYNTAX_REGEX))
 var INTERPOLATION_SYNTAX_REGEX_REMAINING = regexp.MustCompile(`\$\{.*?\}`)
 var HELPER_FUNCTION_SYNTAX_REGEX = regexp.MustCompile(`^\$\{\s*(.*?)\((.*?)\)\s*\}$`)
-var HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX = regexp.MustCompile(`^\s*"(?P<env>[^=]+?)"\s*\,\s*"(?P<default>.*?)"\s*$`)
+var HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX = regexp.MustCompile(`^\s*"(?P<env>[\w\s]+?)"\s*\,?\s*(?:"(?P<default>.*?)")?\s*$`)
 
 // List of terraform commands that accept -lock-timeout
 var TERRAFORM_COMMANDS_NEED_LOCKING = []string{
@@ -192,7 +192,7 @@ func getParentTfVarsDir(include *IncludeConfig, terragruntOptions *options.Terra
 func parseGetEnvParameters(parameters string) (EnvVar, error) {
 	envVariable := EnvVar{}
 	matches := HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX.FindStringSubmatch(parameters)
-	if len(matches) < 2 {
+	if len(matches) < 1 {
 		return envVariable, errors.WithStackTrace(InvalidGetEnvParams(parameters))
 	}
 
@@ -391,7 +391,7 @@ func (err ParentFileNotFound) Error() string {
 type InvalidGetEnvParams string
 
 func (err InvalidGetEnvParams) Error() string {
-	return fmt.Sprintf("Invalid parameters. Expected syntax of the form '${get_env(\"env\", \"default\")}', but got '%s'", string(err))
+	return fmt.Sprintf("Invalid parameters. Expected syntax of the form '${get_env(\"env\" [, \"default\")]}', but got '%s'", string(err))
 }
 
 type InvalidStringParams string

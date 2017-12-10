@@ -1179,7 +1179,7 @@ Terragrunt allows you to use [Terraform interpolation syntax](https://www.terraf
 * [find_in_parent_folders()](#find_in_parent_folders)
 * [path_relative_to_include()](#path_relative_to_include)
 * [path_relative_from_include()](#path_relative_from_include)
-* [get_env(NAME, DEFAULT)](#get_env)
+* [get_env(NAME [, DEFAULT])](#get_env)
 * [get_tfvars_dir()](#get_tfvars_dir)
 * [get_parent_tfvars_dir()](#get_parent_tfvars_dir)
 * [get_terraform_commands_that_need_vars()](#get_terraform_commands_that_need_vars)
@@ -1345,7 +1345,7 @@ This allows proper retrieval of the `common.tfvars` from whatever the level of s
 
 #### get_env
 
-`get_env(NAME, DEFAULT)` returns the value of the environment variable named `NAME` or `DEFAULT` if that environment
+`get_env(NAME [, DEFAULT])` returns the value of the environment variable named `NAME` or the value `DEFAULT` when provided if that environment
 variable is not set. Example:
 
 ```hcl
