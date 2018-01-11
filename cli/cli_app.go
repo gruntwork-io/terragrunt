@@ -307,12 +307,24 @@ func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptio
 	if err != nil {
 		return err
 	}
-
-	if !definesBackend {
-		return errors.WithStackTrace(BackendNotDefined{Opts: terragruntOptions, BackendType: backendType})
+	if definesBackend {
+		return nil
 	}
 
-	return nil
+	terraformJSONBackendRegexp, err := regexp.Compile(fmt.Sprintf(`(?m)"backend":[[:space:]]*{[[:space:]]*"%s"`, backendType))
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	definesJSONBackend, err := util.Grep(terraformJSONBackendRegexp, fmt.Sprintf("%s/**/*.tf.json", terragruntOptions.WorkingDir))
+	if err != nil {
+		return err
+	}
+	if definesJSONBackend {
+		return nil
+	}
+
+	return errors.WithStackTrace(BackendNotDefined{Opts: terragruntOptions, BackendType: backendType})
 }
 
 // Prepare for running any command other than 'terraform init' by
