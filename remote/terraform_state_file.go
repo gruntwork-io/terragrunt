@@ -46,7 +46,13 @@ func (state *TerraformState) IsRemote() bool {
 
 // Parse the Terraform .tfstate file from the location specified by workingDir. If no location is specified,
 // search the current directory. If the file doesn't exist at any of the default locations, return nil.
-func ParseTerraformStateFileFromLocation(workingDir string) (*TerraformState, error) {
+func ParseTerraformStateFileFromLocation(backend string, config map[string]interface{}, workingDir string) (*TerraformState, error) {
+	stateFile, ok := config["path"].(string)
+	if backend == "local" && ok {
+		if util.FileExists(stateFile) {
+			return ParseTerraformStateFile(stateFile)
+		}
+	}
 	if util.FileExists(util.JoinPath(workingDir, DEFAULT_PATH_TO_LOCAL_STATE_FILE)) {
 		return ParseTerraformStateFile(util.JoinPath(workingDir, DEFAULT_PATH_TO_LOCAL_STATE_FILE))
 	} else if util.FileExists(util.JoinPath(workingDir, DEFAULT_PATH_TO_REMOTE_STATE_FILE)) {
