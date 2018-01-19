@@ -65,7 +65,7 @@ func (remoteState *RemoteState) Initialize(terragruntOptions *options.Terragrunt
 // 2. Remote state has been configured, but with a different configuration
 // 3. The remote state initializer for this backend type, if there is one, says initialization is necessary
 func (remoteState *RemoteState) NeedsInit(terragruntOptions *options.TerragruntOptions) (bool, error) {
-	state, err := ParseTerraformStateFileFromLocation(terragruntOptions.WorkingDir)
+	state, err := ParseTerraformStateFileFromLocation(remoteState.Backend, remoteState.Config, terragruntOptions.WorkingDir)
 	if err != nil {
 		return false, err
 	}
