@@ -82,6 +82,21 @@ You can install Terragrunt on OSX using [Homebrew](https://brew.sh/): `brew inst
 
 You can install Terragrunt on Linux systems using [snap](https://snapcraft.io/docs/core/install): `snap install terragrunt`.
 
+### asdf
+[asdf version manager](https://github.com/asdf-vm/asdf) can install tools such as Terragrunt and Terraform. It will manage tool versions per project with a '.tools-versions' file in the project folder. Once asdf is installed:
+
+```sh
+$ asdf plugin-add terraform
+$ asdf plugin-add terragrunt https://gitlab.com/td7x/asdf/terragrunt
+$ asdf install terraform 0.11.2
+$ asdf install terragrunt 0.13.25
+$ asdf local terraform 0.11.2
+$ asdf local terragrunt 0.13.25
+$ cat .tool-versions
+terraform 0.11.2
+terragrunt 0.13.25
+```
+
 ### Manual
 You can install Terragrunt manually by going to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases),
 downloading the binary for your OS, renaming it to `terragrunt`, and adding it to your PATH.
