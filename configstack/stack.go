@@ -70,7 +70,7 @@ func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.Terragrunt
 // Apply all the modules in the given stack, making sure to apply the dependencies of each module in the stack in the
 // proper order.
 func (stack *Stack) Apply(terragruntOptions *options.TerragruntOptions) error {
-	stack.setTerraformCommand([]string{"apply", "-input=false"})
+	stack.setTerraformCommand([]string{"apply", "-input=false", "-auto-approve"})
 	return RunModules(stack.Modules)
 }
 
