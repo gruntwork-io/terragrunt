@@ -178,7 +178,9 @@ func (terragruntOptions *TerragruntOptions) InsertTerraformCliArgs(argsToInsert 
 
 	commandLength := 1
 	if util.ListContainsElement(TERRAFORM_COMMANDS_WITH_SUBCOMMAND, terragruntOptions.TerraformCliArgs[0]) {
-		commandLength = util.Min(2, cap(terragruntOptions.TerraformCliArgs))
+		// Since these terraform commands require subcommands which may not always be supplied by the user,
+		// using util.Min to return the minimum to avoid potential out of bounds slice errors.
+		commandLength = util.Min(2, len(terragruntOptions.TerraformCliArgs))
 	}
 
 	// Options must be inserted after command but before the other args
