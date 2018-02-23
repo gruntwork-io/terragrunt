@@ -133,6 +133,74 @@ func TestTerragruntWorksWithIncludesParentUpdatedAndOldConfig(t *testing.T) {
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
 }
 
+func TestTerragruntReportsTerraformErrorWithSubcommandMissing(t *testing.T) {
+	t.Parallel()
+
+	cmd := fmt.Sprintf("terragrunt debug --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_EXTRA_ARGS_PATH)
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	// Call runTerragruntCommand directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
+	if err := runTerragruntCommand(t, cmd, &stdout, &stderr); err == nil {
+		t.Fatalf("Failed to properly fail command: %v.", cmd)
+	}
+	output := stdout.String()
+	errOutput := stderr.String()
+	assert.True(t, strings.Contains(errOutput, "terraform debug") || strings.Contains(output, "terraform debug"))
+}
+
+func TestTerragruntReportsTerraformErrorWithSubcommandMissingArg(t *testing.T) {
+	t.Parallel()
+
+	cmd := fmt.Sprintf("terragrunt debug json2dot --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_EXTRA_ARGS_PATH)
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	// Call runTerragruntCommand directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
+	if err := runTerragruntCommand(t, cmd, &stdout, &stderr); err == nil {
+		t.Fatalf("Failed to properly fail command: %v.", cmd)
+	}
+	output := stdout.String()
+	errOutput := stderr.String()
+	assert.True(t, strings.Contains(errOutput, "terraform debug json2dot") || strings.Contains(output, "terraform debug json2dot"))
+}
+
+func TestTerragruntReportsTerraformErrorWithSubcommandBadArg(t *testing.T) {
+	t.Parallel()
+
+	cmd := fmt.Sprintf("terragrunt debug json2dot input.json --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_EXTRA_ARGS_PATH)
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	// Call runTerragruntCommand directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
+	if err := runTerragruntCommand(t, cmd, &stdout, &stderr); err == nil {
+		t.Fatalf("Failed to properly fail command: %v.", cmd)
+	}
+	output := stdout.String()
+	errOutput := stderr.String()
+	assert.True(t, strings.Contains(errOutput, "no such file") || strings.Contains(output, "no such file"))
+}
+
+func TestTerragruntReportsTerraformErrorWithSubcommandExtraArg(t *testing.T) {
+	t.Parallel()
+
+	cmd := fmt.Sprintf("terragrunt debug json2dot input.json foo --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_EXTRA_ARGS_PATH)
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	// Call runTerragruntCommand directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
+	if err := runTerragruntCommand(t, cmd, &stdout, &stderr); err == nil {
+		t.Fatalf("Failed to properly fail command: %v.", cmd)
+	}
+	output := stdout.String()
+	errOutput := stderr.String()
+	assert.True(t, strings.Contains(errOutput, "no such file") || strings.Contains(output, "no such file"))
+}
+
 func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_FAILED_TERRAFORM)
