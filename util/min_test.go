@@ -10,8 +10,8 @@ func TestMin(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		x int
-		y int
+		x        int
+		y        int
 		expected int
 	}{
 		{1, 2, 1},

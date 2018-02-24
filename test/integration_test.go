@@ -474,7 +474,7 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		command	[]string
+		command  []string
 		expected string
 	}{
 		{
@@ -516,7 +516,7 @@ func TestTerraformSubcommandCliArgs(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		command	[]string
+		command  []string
 		expected string
 	}{
 		{
