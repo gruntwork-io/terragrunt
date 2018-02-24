@@ -20,6 +20,9 @@ type RemoteStateConfigS3 struct {
 	Bucket        string `mapstructure:"bucket"`
 	Key           string `mapstructure:"key"`
 	Region        string `mapstructure:"region"`
+	Endpoint      string `mapstructure:"endpoint"`
+	AccessKey     string `mapstructure:"access_key"`
+	SecretKey     string `mapstructure:"secret_key"`
 	Profile       string `mapstructure:"profile"`
 	RoleArn       string `mapstructure:"role_arn"`
 	LockTable     string `mapstructure:"lock_table"`
@@ -47,7 +50,7 @@ func (s3Initializer S3Initializer) NeedsInitialization(config map[string]interfa
 		return false, err
 	}
 
-	s3Client, err := CreateS3Client(s3Config.Region, s3Config.Profile, s3Config.RoleArn, terragruntOptions)
+	s3Client, err := CreateS3Client(s3Config.Region, s3Config.Endpoint, s3Config.AccessKey, s3Config.SecretKey, s3Config.Profile, s3Config.RoleArn, terragruntOptions)
 	if err != nil {
 		return false, err
 	}
@@ -86,7 +89,7 @@ func (s3Initializer S3Initializer) Initialize(config map[string]interface{}, ter
 		return err
 	}
 
-	s3Client, err := CreateS3Client(s3Config.Region, s3Config.Profile, s3Config.RoleArn, terragruntOptions)
+	s3Client, err := CreateS3Client(s3Config.Region, s3Config.Endpoint, s3Config.AccessKey, s3Config.SecretKey, s3Config.Profile, s3Config.RoleArn, terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -261,8 +264,8 @@ func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, terragruntOptions
 }
 
 // Create an authenticated client for DynamoDB
-func CreateS3Client(awsRegion, awsProfile string, iamRoleArn string, terragruntOptions *options.TerragruntOptions) (*s3.S3, error) {
-	session, err := aws_helper.CreateAwsSession(awsRegion, awsProfile, iamRoleArn, terragruntOptions)
+func CreateS3Client(awsRegion, awsEndpoint string, awsAccessKey string, awsSecretKey string, awsProfile string, iamRoleArn string, terragruntOptions *options.TerragruntOptions) (*s3.S3, error) {
+	session, err := aws_helper.CreateAwsSession(awsRegion, awsEndpoint, awsAccessKey, awsSecretKey, awsProfile, iamRoleArn, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}

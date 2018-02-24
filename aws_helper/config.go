@@ -3,6 +3,7 @@ package aws_helper
 import (
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
@@ -13,9 +14,13 @@ import (
 
 // Returns an AWS session object for the given region (required), profile name (optional), and IAM role to assume
 // (optional), ensuring that the credentials are available
-func CreateAwsSession(awsRegion, awsProfile string, iamRoleArn string, terragruntOptions *options.TerragruntOptions) (*session.Session, error) {
+func CreateAwsSession(awsRegion, awsEndpoint string, awsAccessKey string, awsSecretKey string, awsProfile string, iamRoleArn string, terragruntOptions *options.TerragruntOptions) (*session.Session, error) {
 	sess, err := session.NewSessionWithOptions(session.Options{
-		Config:            aws.Config{Region: aws.String(awsRegion)},
+		Config: aws.Config{
+			Region:      aws.String(awsRegion),
+			Endpoint:    aws.String(awsEndpoint),
+			Credentials: credentials.NewStaticCredentials(awsAccessKey, awsSecretKey, ""),
+		},
 		Profile:           awsProfile,
 		SharedConfigState: session.SharedConfigEnable,
 	})
