@@ -469,6 +469,98 @@ func TestPriorityOrderOfArgument(t *testing.T) {
 	assert.Contains(t, out.String(), fmt.Sprintf("test = %s", injectedValue))
 }
 
+func TestTerraformCommandCliArgs(t *testing.T) {
+	//t.Parallel()
+
+	testCases := []struct {
+		command	[]string
+		expected string
+	}{
+		{
+			[]string{"version"},
+			"Terraform",
+		},
+		{
+			[]string{"version", "foo"},
+			"Terraform",
+		},
+		{
+			[]string{"version", "foo", "bar", "baz"},
+			"Terraform",
+		},
+		{
+			[]string{"version", "foo", "bar", "baz", "foo"},
+			"Terraform",
+		},
+	}
+
+	for _, testCase := range testCases {
+		cmd := fmt.Sprintf("terragrunt %s --terragrunt-non-interactive --terragrunt-working-dir %s", strings.Join(testCase.command, " "), TEST_FIXTURE_EXTRA_ARGS_PATH)
+
+		var (
+			stdout bytes.Buffer
+			stderr bytes.Buffer
+		)
+		// Call runTerragruntCommand directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
+		//if err := runTerragruntCommand(t, cmd, &stdout, &stderr); err == nil {
+//			t.Fatalf("Failed to properly fail command: %v.", cmd)
+//		}
+
+		runTerragruntRedirectOutput(t, cmd, &stdout, &stderr)
+		output := stdout.String()
+		errOutput := stderr.String()
+
+		//fmt.Printf("STDERR is %s.\n STDOUT is %s", errOutput, output)
+
+		assert.True(t, strings.Contains(errOutput, testCase.expected) || strings.Contains(output, testCase.expected))
+	}
+}
+
+func TestTerraformSubcommandCliArgs(t *testing.T) {
+	//t.Parallel()
+
+	testCases := []struct {
+		command	[]string
+		expected string
+	}{
+		{
+			[]string{"force-unlock"},
+			"terraform force-unlock",
+		},
+		{
+			[]string{"force-unlock", "foo"},
+			"terraform force-unlock",
+		},
+		{
+			[]string{"force-unlock", "foo", "bar", "baz"},
+			"terraform force-unlock",
+		},
+		{
+			[]string{"force-unlock", "foo", "bar", "baz", "foo"},
+			"terraform force-unlock",
+		},
+	}
+
+	for _, testCase := range testCases {
+		cmd := fmt.Sprintf("terragrunt %s --terragrunt-non-interactive --terragrunt-working-dir %s", strings.Join(testCase.command, " "), TEST_FIXTURE_EXTRA_ARGS_PATH)
+
+		var (
+			stdout bytes.Buffer
+			stderr bytes.Buffer
+		)
+		// Call runTerragruntCommand directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
+		if err := runTerragruntCommand(t, cmd, &stdout, &stderr); err == nil {
+			t.Fatalf("Failed to properly fail command: %v.", cmd)
+		}
+		output := stdout.String()
+		errOutput := stderr.String()
+
+		//fmt.Printf("STDERR is %s.\n STDOUT is %s", errOutput, output)
+
+		assert.True(t, strings.Contains(errOutput, testCase.expected) || strings.Contains(output, testCase.expected))
+	}
+}
+
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE))
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE_BACKUP))
