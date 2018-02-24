@@ -19,6 +19,7 @@ func TestMin(t *testing.T) {
 		{0, 25, 0},
 		{-1, 1, -1},
 		{0, -1, -1},
+		{1, 1, 1},
 	}
 
 	for _, testCase := range testCases {
