@@ -509,9 +509,6 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 		runTerragruntRedirectOutput(t, cmd, &stdout, &stderr)
 		output := stdout.String()
 		errOutput := stderr.String()
-
-		//fmt.Printf("STDERR is %s.\n STDOUT is %s", errOutput, output)
-
 		assert.True(t, strings.Contains(errOutput, testCase.expected) || strings.Contains(output, testCase.expected))
 	}
 }
@@ -554,9 +551,6 @@ func TestTerraformSubcommandCliArgs(t *testing.T) {
 		}
 		output := stdout.String()
 		errOutput := stderr.String()
-
-		//fmt.Printf("STDERR is %s.\n STDOUT is %s", errOutput, output)
-
 		assert.True(t, strings.Contains(errOutput, testCase.expected) || strings.Contains(output, testCase.expected))
 	}
 }
