@@ -60,7 +60,7 @@ func (s3Initializer S3Initializer) NeedsInitialization(config map[string]interfa
 	}
 
 	if s3Config.GetLockTableName() != "" {
-		dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.Region, s3Config.Profile, s3Config.RoleArn, terragruntOptions)
+		dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.Region, s3Config.AccessKey, s3Config.SecretKey, s3Config.Profile, s3Config.RoleArn, terragruntOptions)
 		if err != nil {
 			return false, err
 		}
@@ -255,7 +255,7 @@ func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, terragruntOptions
 		return nil
 	}
 
-	dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.Region, s3Config.Profile, s3Config.RoleArn, terragruntOptions)
+	dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.Region, s3Config.AccessKey, s3Config.SecretKey, s3Config.Profile, s3Config.RoleArn, terragruntOptions)
 	if err != nil {
 		return err
 	}
