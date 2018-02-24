@@ -469,8 +469,9 @@ func TestPriorityOrderOfArgument(t *testing.T) {
 	assert.Contains(t, out.String(), fmt.Sprintf("test = %s", injectedValue))
 }
 
+// This tests terragrunt properly passes through terraform commands and any number of specified args
 func TestTerraformCommandCliArgs(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 
 	testCases := []struct {
 		command	[]string
@@ -489,7 +490,7 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 			"Terraform",
 		},
 		{
-			[]string{"version", "foo", "bar", "baz", "foo"},
+			[]string{"version", "foo", "bar", "baz", "foobar"},
 			"Terraform",
 		},
 	}
@@ -501,10 +502,6 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 			stdout bytes.Buffer
 			stderr bytes.Buffer
 		)
-		// Call runTerragruntCommand directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
-		//if err := runTerragruntCommand(t, cmd, &stdout, &stderr); err == nil {
-//			t.Fatalf("Failed to properly fail command: %v.", cmd)
-//		}
 
 		runTerragruntRedirectOutput(t, cmd, &stdout, &stderr)
 		output := stdout.String()
@@ -513,8 +510,10 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 	}
 }
 
+// This tests terragrunt properly passes through terraform commands with sub commands
+// and any number of specified args
 func TestTerraformSubcommandCliArgs(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 
 	testCases := []struct {
 		command	[]string
