@@ -15,12 +15,22 @@ import (
 // Returns an AWS session object for the given region (required), profile name (optional), and IAM role to assume
 // (optional), ensuring that the credentials are available
 func CreateAwsSession(awsRegion, awsEndpoint string, awsAccessKey string, awsSecretKey string, awsProfile string, iamRoleArn string, terragruntOptions *options.TerragruntOptions) (*session.Session, error) {
-	sess, err := session.NewSessionWithOptions(session.Options{
-		Config: aws.Config{
+	var awsConfig aws.Config
+	if awsAccessKey != "" && awsSecretKey != "" {
+		awsConfig = aws.Config{
 			Region:      aws.String(awsRegion),
 			Endpoint:    aws.String(awsEndpoint),
 			Credentials: credentials.NewStaticCredentials(awsAccessKey, awsSecretKey, ""),
-		},
+		}
+	} else {
+		awsConfig = aws.Config{
+			Region:   aws.String(awsRegion),
+			Endpoint: aws.String(awsEndpoint),
+		}
+	}
+
+	sess, err := session.NewSessionWithOptions(session.Options{
+		Config:            awsConfig,
 		Profile:           awsProfile,
 		SharedConfigState: session.SharedConfigEnable,
 	})
