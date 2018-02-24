@@ -479,19 +479,19 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 	}{
 		{
 			[]string{"version"},
-			"Terraform",
+			"terraform version",
 		},
 		{
 			[]string{"version", "foo"},
-			"Terraform",
+			"terraform version foo",
 		},
 		{
 			[]string{"version", "foo", "bar", "baz"},
-			"Terraform",
+			"terraform version foo bar baz",
 		},
 		{
 			[]string{"version", "foo", "bar", "baz", "foobar"},
-			"Terraform",
+			"terraform version foo bar baz foobar",
 		},
 	}
 
@@ -525,15 +525,15 @@ func TestTerraformSubcommandCliArgs(t *testing.T) {
 		},
 		{
 			[]string{"force-unlock", "foo"},
-			"terraform force-unlock",
+			"terraform force-unlock foo",
 		},
 		{
 			[]string{"force-unlock", "foo", "bar", "baz"},
-			"terraform force-unlock",
+			"terraform force-unlock foo bar baz",
 		},
 		{
-			[]string{"force-unlock", "foo", "bar", "baz", "foo"},
-			"terraform force-unlock",
+			[]string{"force-unlock", "foo", "bar", "baz", "foobar"},
+			"terraform force-unlock foo bar baz foobar",
 		},
 	}
 
