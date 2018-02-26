@@ -5,6 +5,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -15,17 +16,29 @@ import (
 // Returns an AWS session object for the given region (required), profile name (optional), and IAM role to assume
 // (optional), ensuring that the credentials are available
 func CreateAwsSession(awsRegion, awsEndpoint string, awsAccessKey string, awsSecretKey string, awsProfile string, iamRoleArn string, terragruntOptions *options.TerragruntOptions) (*session.Session, error) {
+	defaultResolver := endpoints.DefaultResolver()
+	s3CustResolverFn := func(service, region string, optFns ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
+		if service == "s3" {
+			return endpoints.ResolvedEndpoint{
+				URL:           awsEndpoint,
+				SigningRegion: "custom-signing-region",
+			}, nil
+		}
+
+		return defaultResolver.EndpointFor(service, region, optFns...)
+	}
+
 	var awsConfig aws.Config
 	if awsAccessKey != "" && awsSecretKey != "" {
 		awsConfig = aws.Config{
-			Region:      aws.String(awsRegion),
-			Endpoint:    aws.String(awsEndpoint),
-			Credentials: credentials.NewStaticCredentials(awsAccessKey, awsSecretKey, ""),
+			Region:           aws.String(awsRegion),
+			EndpointResolver: endpoints.ResolverFunc(s3CustResolverFn),
+			Credentials:      credentials.NewStaticCredentials(awsAccessKey, awsSecretKey, ""),
 		}
 	} else {
 		awsConfig = aws.Config{
-			Region:   aws.String(awsRegion),
-			Endpoint: aws.String(awsEndpoint),
+			Region:           aws.String(awsRegion),
+			EndpointResolver: endpoints.ResolverFunc(s3CustResolverFn),
 		}
 	}
 
