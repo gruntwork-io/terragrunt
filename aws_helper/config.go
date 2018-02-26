@@ -21,7 +21,7 @@ func CreateAwsSession(awsRegion, awsEndpoint string, awsAccessKey string, awsSec
 		if service == "s3" {
 			return endpoints.ResolvedEndpoint{
 				URL:           awsEndpoint,
-				SigningRegion: "custom-signing-region",
+				SigningRegion: awsRegion,
 			}, nil
 		}
 
