@@ -17,7 +17,7 @@ import (
 func CreateAwsSession(awsRegion, awsEndpoint string, awsProfile string, iamRoleArn string, terragruntOptions *options.TerragruntOptions) (*session.Session, error) {
 	defaultResolver := endpoints.DefaultResolver()
 	s3CustResolverFn := func(service, region string, optFns ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
-		if service == "s3" {
+		if service == "s3" && awsEndpoint != "" {
 			return endpoints.ResolvedEndpoint{
 				URL:           awsEndpoint,
 				SigningRegion: awsRegion,
