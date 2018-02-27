@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -13,9 +14,26 @@ import (
 
 // Returns an AWS session object for the given region (required), profile name (optional), and IAM role to assume
 // (optional), ensuring that the credentials are available
-func CreateAwsSession(awsRegion, awsProfile string, iamRoleArn string, terragruntOptions *options.TerragruntOptions) (*session.Session, error) {
+func CreateAwsSession(awsRegion, awsEndpoint string, awsProfile string, iamRoleArn string, terragruntOptions *options.TerragruntOptions) (*session.Session, error) {
+	defaultResolver := endpoints.DefaultResolver()
+	s3CustResolverFn := func(service, region string, optFns ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
+		if service == "s3" {
+			return endpoints.ResolvedEndpoint{
+				URL:           awsEndpoint,
+				SigningRegion: awsRegion,
+			}, nil
+		}
+
+		return defaultResolver.EndpointFor(service, region, optFns...)
+	}
+
+	var awsConfig = aws.Config{
+		Region:           aws.String(awsRegion),
+		EndpointResolver: endpoints.ResolverFunc(s3CustResolverFn),
+	}
+
 	sess, err := session.NewSessionWithOptions(session.Options{
-		Config:            aws.Config{Region: aws.String(awsRegion)},
+		Config:            awsConfig,
 		Profile:           awsProfile,
 		SharedConfigState: session.SharedConfigEnable,
 	})

@@ -28,7 +28,7 @@ const DEFAULT_WRITE_CAPACITY_UNITS = 1
 
 // Create an authenticated client for DynamoDB
 func CreateDynamoDbClient(awsRegion, awsProfile string, iamRoleArn string, terragruntOptions *options.TerragruntOptions) (*dynamodb.DynamoDB, error) {
-	session, err := aws_helper.CreateAwsSession(awsRegion, awsProfile, iamRoleArn, terragruntOptions)
+	session, err := aws_helper.CreateAwsSession(awsRegion, "", awsProfile, iamRoleArn, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}
