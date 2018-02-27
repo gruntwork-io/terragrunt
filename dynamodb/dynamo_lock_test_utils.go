@@ -42,7 +42,7 @@ func createDynamoDbClientForTest(t *testing.T) *dynamodb.DynamoDB {
 		t.Fatal(err)
 	}
 
-	client, err := CreateDynamoDbClient(DEFAULT_TEST_REGION, "", "", "", "", mockOptions)
+	client, err := CreateDynamoDbClient(DEFAULT_TEST_REGION, "", "", mockOptions)
 	if err != nil {
 		t.Fatal(err)
 	}
