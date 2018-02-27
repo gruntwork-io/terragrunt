@@ -14,12 +14,12 @@ import (
 
 // Returns an AWS session object for the given region (required), profile name (optional), and IAM role to assume
 // (optional), ensuring that the credentials are available
-func CreateAwsSession(awsRegion, awsEndpoint string, awsProfile string, iamRoleArn string, terragruntOptions *options.TerragruntOptions) (*session.Session, error) {
+func CreateAwsSession(awsRegion, customS3Endpoint string, awsProfile string, iamRoleArn string, terragruntOptions *options.TerragruntOptions) (*session.Session, error) {
 	defaultResolver := endpoints.DefaultResolver()
 	s3CustResolverFn := func(service, region string, optFns ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
-		if service == "s3" {
+		if service == "s3" && customS3Endpoint != "" {
 			return endpoints.ResolvedEndpoint{
-				URL:           awsEndpoint,
+				URL:           customS3Endpoint,
 				SigningRegion: awsRegion,
 			}, nil
 		}
