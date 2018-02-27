@@ -262,8 +262,8 @@ func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, terragruntOptions
 }
 
 // Create an authenticated client for DynamoDB
-func CreateS3Client(awsRegion, awsEndpoint string, awsProfile string, iamRoleArn string, terragruntOptions *options.TerragruntOptions) (*s3.S3, error) {
-	session, err := aws_helper.CreateAwsSession(awsRegion, awsEndpoint, awsProfile, iamRoleArn, terragruntOptions)
+func CreateS3Client(awsRegion, customS3Endpoint string, awsProfile string, iamRoleArn string, terragruntOptions *options.TerragruntOptions) (*s3.S3, error) {
+	session, err := aws_helper.CreateAwsSession(awsRegion, customS3Endpoint, awsProfile, iamRoleArn, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}
