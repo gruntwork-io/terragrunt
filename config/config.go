@@ -218,7 +218,7 @@ func parseConfigString(configString string, terragruntOptions *options.Terragrun
 		return nil, err
 	}
 
-	terragruntConfigFile, err := parseConfigStringAsTerragruntConfigFile(resolvedConfigString, configPath, terragruntOptions)
+	terragruntConfigFile, err := parseConfigStringAsTerragruntConfigFile(resolvedConfigString, configPath)
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +249,7 @@ func parseConfigString(configString string, terragruntOptions *options.Terragrun
 
 // Parse the given config string, read from the given config file, as a terragruntConfigFile struct. This method solely
 // converts the HCL syntax in the string to the terragruntConfigFile struct; it does not process any interpolations.
-func parseConfigStringAsTerragruntConfigFile(configString string, configPath string, terragruntOptions *options.TerragruntOptions) (*terragruntConfigFile, error) {
+func parseConfigStringAsTerragruntConfigFile(configString string, configPath string) (*terragruntConfigFile, error) {
 	if isOldTerragruntConfig(configPath) {
 		terragruntConfig := &terragruntConfigFile{}
 		if err := hcl.Decode(terragruntConfig, configString); err != nil {
@@ -262,7 +262,6 @@ func parseConfigStringAsTerragruntConfigFile(configString string, configPath str
 			return nil, errors.WithStackTrace(err)
 		}
 
-		//terragruntOptions.Logger.Printf("Config--> %s", tfvarsConfig.Terragrunt.Terraform.BeforeHook)
 		return tfvarsConfig.Terragrunt, nil
 	}
 }
