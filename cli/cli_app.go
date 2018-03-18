@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 
+	"os"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -17,7 +19,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	version "github.com/hashicorp/go-version"
 	"github.com/urfave/cli"
-	"os"
 )
 
 const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
@@ -223,6 +224,31 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	return runTerragruntWithConfig(terragruntOptions, terragruntConfig, false)
 }
 
+func processBeforeAfterHookActions(beforeAfterHoook []config.BeforeAfterHook, terragruntConfig *config.TerragruntConfig, terragruntOptions *options.TerragruntOptions) {
+
+	terraformCommand := terragruntOptions.TerraformCliArgs[0]
+
+	for i := 0; i < len(beforeAfterHoook); i++ {
+		applicableCommands := beforeAfterHoook[i].Commands
+
+		if contains(applicableCommands, terraformCommand) {
+			terragruntOptions.Logger.Printf("Executing hook: %s", beforeAfterHoook[i].Name)
+			actionToExecute := beforeAfterHoook[i].Execute[0]
+			actionParams := beforeAfterHoook[i].Execute[1:]
+			shell.RunShellCommand(terragruntOptions, actionToExecute, actionParams...)
+		}
+	}
+}
+
+func contains(arr []string, str string) bool {
+	for _, a := range arr {
+		if a == str {
+			return true
+		}
+	}
+	return false
+}
+
 // Assume an IAM role, if one is specified, by making API calls to Amazon STS and setting the environment variables
 // we get back inside of terragruntOptions.Env
 func assumeRoleIfNecessary(terragruntOptions *options.TerragruntOptions) error {
@@ -261,7 +287,21 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 			return err
 		}
 	}
-	return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
+
+	terragruntOptions.Logger.Println("Running terraform with: %s", terragruntOptions)
+
+	if len(terragruntConfig.Terraform.BeforeHook) > 0 {
+		terragruntOptions.Logger.Printf("Detected %d Before Hooks", len(terragruntConfig.Terraform.BeforeHook))
+		processBeforeAfterHookActions(terragruntConfig.Terraform.BeforeHook, terragruntConfig, terragruntOptions)
+	}
+
+	possibleError := shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
+
+	if len(terragruntConfig.Terraform.AfterHook) > 0 {
+		terragruntOptions.Logger.Printf("Detected %d After Hooks", len(terragruntConfig.Terraform.AfterHook))
+		processBeforeAfterHookActions(terragruntConfig.Terraform.AfterHook, terragruntConfig, terragruntOptions)
+	}
+	return possibleError
 }
 
 // Prepare for running 'terraform init' by
