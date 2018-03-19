@@ -228,7 +228,7 @@ func processHooks(hooks []config.Hook, terragruntConfig *config.TerragruntConfig
 
 	terraformCommand := terragruntOptions.TerraformCliArgs[0]
 
-	errorOccurred := []error{}
+	errorsOccurred := []error{}
 
 	if len(hooks) > 0 {
 		terragruntOptions.Logger.Printf("Detected %d Hooks", len(hooks))
@@ -249,14 +249,14 @@ func processHooks(hooks []config.Hook, terragruntConfig *config.TerragruntConfig
 
 					if possibleError != nil {
 						terragruntOptions.Logger.Printf("Error running hook %s with message: %s", hooks[i].Name, possibleError.Error())
-						errorOccurred = append(errorOccurred, possibleError)
+						errorsOccurred = append(errorsOccurred, possibleError)
 					}
 				}
 			}
 		}
 	}
 
-	return errors.NewMultiError(errorOccurred...)
+	return errors.NewMultiError(errorsOccurred...)
 }
 
 // Assume an IAM role, if one is specified, by making API calls to Amazon STS and setting the environment variables
