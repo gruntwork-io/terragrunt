@@ -63,24 +63,24 @@ func (deps *ModuleDependencies) String() string {
 	return fmt.Sprintf("ModuleDependencies{Paths = %v}", deps.Paths)
 }
 
-// BeforeAfterHook specifies terraform commands (apply/plan) and array of os commands to execute
-type BeforeAfterHook struct {
+// Hook specifies terraform commands (apply/plan) and array of os commands to execute
+type Hook struct {
 	Name       string   `hcl:",key"`
 	Commands   []string `hcl:"commands,omitempty"`
 	Execute    []string `hcl:"execute,omitempty"`
 	RunOnError bool     `hcl:"run_on_error,omitempty"`
 }
 
-func (conf *BeforeAfterHook) String() string {
-	return fmt.Sprintf("BeforeAfterHook{Name = %s, Commands = %v}", conf.Name, len(conf.Commands))
+func (conf *Hook) String() string {
+	return fmt.Sprintf("Hook{Name = %s, Commands = %v}", conf.Name, len(conf.Commands))
 }
 
 // TerraformConfig specifies where to find the Terraform configuration files
 type TerraformConfig struct {
-	ExtraArgs  []TerraformExtraArguments `hcl:"extra_arguments"`
-	Source     string                    `hcl:"source"`
-	BeforeHook []BeforeAfterHook         `hcl:"before_hook"`
-	AfterHook  []BeforeAfterHook         `hcl:"after_hook"`
+	ExtraArgs   []TerraformExtraArguments `hcl:"extra_arguments"`
+	Source      string                    `hcl:"source"`
+	BeforeHooks []Hook                    `hcl:"before_hook"`
+	AfterHooks  []Hook                    `hcl:"after_hook"`
 }
 
 func (conf *TerraformConfig) String() string {
