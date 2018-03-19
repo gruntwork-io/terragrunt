@@ -224,35 +224,39 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	return runTerragruntWithConfig(terragruntOptions, terragruntConfig, false)
 }
 
-func processHooks(beforeAfterHoook []config.Hook, terragruntConfig *config.TerragruntConfig, terragruntOptions *options.TerragruntOptions, previousExecError bool) bool {
+func processHooks(hooks []config.Hook, terragruntConfig *config.TerragruntConfig, terragruntOptions *options.TerragruntOptions, previousExecError ...error) error {
 
 	terraformCommand := terragruntOptions.TerraformCliArgs[0]
 
-	errorOccurred := previousExecError
+	errorOccurred := []error{}
 
-	for i := 0; i < len(beforeAfterHoook); i++ {
-		applicableCommands := beforeAfterHoook[i].Commands
+	if len(hooks) > 0 {
+		terragruntOptions.Logger.Printf("Detected %d Hooks", len(hooks))
 
-		if util.ListContainsElement(applicableCommands, terraformCommand) {
-			//if there's no previous error, execute command
-			//OR if a previos error DID happen AND we want to run anyways
-			//then execute.
-			//Skip execution if there was an error AND we care about errors
-			if !errorOccurred || beforeAfterHoook[i].RunOnError {
-				terragruntOptions.Logger.Printf("Executing hook: %s", beforeAfterHoook[i].Name)
-				actionToExecute := beforeAfterHoook[i].Execute[0]
-				actionParams := beforeAfterHoook[i].Execute[1:]
-				possibleError := shell.RunShellCommand(terragruntOptions, actionToExecute, actionParams...)
+		for i := 0; i < len(hooks); i++ {
+			applicableCommands := hooks[i].Commands
 
-				if possibleError != nil {
-					terragruntOptions.Logger.Printf("Error running hook %s with message: %s", beforeAfterHoook[i].Name, possibleError.Error())
-					errorOccurred = true
+			if util.ListContainsElement(applicableCommands, terraformCommand) {
+				//if there's no previous error, execute command
+				//OR if a previos error DID happen AND we want to run anyways
+				//then execute.
+				//Skip execution if there was an error AND we care about errors
+				if len(previousExecError) == 0 || hooks[i].RunOnError {
+					terragruntOptions.Logger.Printf("Executing hook: %s", hooks[i].Name)
+					actionToExecute := hooks[i].Execute[0]
+					actionParams := hooks[i].Execute[1:]
+					possibleError := shell.RunShellCommand(terragruntOptions, actionToExecute, actionParams...)
+
+					if possibleError != nil {
+						terragruntOptions.Logger.Printf("Error running hook %s with message: %s", hooks[i].Name, possibleError.Error())
+						errorOccurred = append(errorOccurred, possibleError)
+					}
 				}
 			}
 		}
 	}
 
-	return errorOccurred
+	return errors.NewMultiError(errorOccurred...)
 }
 
 // Assume an IAM role, if one is specified, by making API calls to Amazon STS and setting the environment variables
@@ -296,34 +300,21 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 
 	terragruntOptions.Logger.Println("Running terraform with: %s", terragruntOptions)
 
-	beforeHooksErr := true
+	beforeHookErrors := processHooks(terragruntConfig.Terraform.BeforeHooks, terragruntConfig, terragruntOptions)
+	terraformError := runTerraformCommandIfNoErrors(beforeHookErrors, terragruntOptions)
+	postHookErrors := processHooks(terragruntConfig.Terraform.AfterHooks, terragruntConfig, terragruntOptions, beforeHookErrors, terraformError)
 
-	if len(terragruntConfig.Terraform.BeforeHooks) > 0 {
-		terragruntOptions.Logger.Printf("Detected %d Before Hooks", len(terragruntConfig.Terraform.BeforeHooks))
-		beforeHooksErr = processHooks(terragruntConfig.Terraform.BeforeHooks, terragruntConfig, terragruntOptions, false)
+	terragruntOptions.Logger.Println("Finished running before_hooks, terraform and after_hooks")
+	return errors.NewMultiError(beforeHookErrors, terraformError, postHookErrors)
+}
+
+func runTerraformCommandIfNoErrors(possibleErrors error, terragruntOptions *options.TerragruntOptions) error {
+	if possibleErrors == nil {
+		return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
 	}
 
-	var possibleError error
-
-	if !beforeHooksErr {
-		possibleError = shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
-	} else {
-		terragruntOptions.Logger.Printf("Previous error detected. Not running terragrunt")
-	}
-
-	if len(terragruntConfig.Terraform.AfterHooks) > 0 {
-		terragruntOptions.Logger.Printf("Detected %d After Hooks", len(terragruntConfig.Terraform.AfterHooks))
-
-		if beforeHooksErr || possibleError != nil {
-			//if there was an error during before hook run
-			//or if there was an error during terraform execution
-			//make sure to pass that knowledge on to after hook execution
-			processHooks(terragruntConfig.Terraform.AfterHooks, terragruntConfig, terragruntOptions, true)
-		} else {
-			processHooks(terragruntConfig.Terraform.AfterHooks, terragruntConfig, terragruntOptions, false)
-		}
-	}
-	return possibleError
+	terragruntOptions.Logger.Println("Errors encountered running before_hooks. Not running terraform.")
+	return nil
 }
 
 // Prepare for running 'terraform init' by
