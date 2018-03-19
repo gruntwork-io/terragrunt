@@ -65,9 +65,10 @@ func (deps *ModuleDependencies) String() string {
 
 // BeforeAfterHook specifies terraform commands (apply/plan) and array of os commands to execute
 type BeforeAfterHook struct {
-	Name     string   `hcl:",key"`
-	Commands []string `hcl:"commands,omitempty"`
-	Execute  []string `hcl:"execute,omitempty"`
+	Name       string   `hcl:",key"`
+	Commands   []string `hcl:"commands,omitempty"`
+	Execute    []string `hcl:"execute,omitempty"`
+	RunOnError bool     `hcl:"run_on_error,omitempty"`
 }
 
 func (conf *BeforeAfterHook) String() string {
