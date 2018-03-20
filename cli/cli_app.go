@@ -234,7 +234,8 @@ func processHooks(hooks []config.Hook, terragruntConfig *config.TerragruntConfig
 	terragruntOptions.Logger.Printf("Detected %d Hooks", len(hooks))
 
 	for _, curHook := range hooks {
-		if shouldRunHook(curHook, terragruntOptions, previousExecError...) {
+		allPreviousErrors := append(previousExecError, errorsOccurred...)
+		if shouldRunHook(curHook, terragruntOptions, allPreviousErrors...) {
 			terragruntOptions.Logger.Printf("Executing hook: %s", curHook.Name)
 			actionToExecute := curHook.Execute[0]
 			actionParams := curHook.Execute[1:]

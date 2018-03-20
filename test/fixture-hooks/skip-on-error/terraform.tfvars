@@ -11,14 +11,14 @@ terragrunt = {
 
     before_hook "before_hook_2" {
       commands = ["apply", "plan"]
-      execute = ["echo","NODISPLAY"]
+      execute = ["echo","BEFORE_NODISPLAY"]
       run_on_error = false
     }
 
     before_hook "before_hook_3" {
       commands = ["apply", "plan"]
       execute = ["echo","BEFORE_SHOULD_DISPLAY"]
-      run_on_error = false
+      run_on_error = true
     }
     # This hook configures Terragrunt to do a simple echo statement after executing any Terraform command
     after_hook "after_hook_1" {

@@ -53,7 +53,7 @@ const (
 	TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH                 = "fixture-hooks/before-only"
 	TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH                  = "fixture-hooks/after-only"
 	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH            = "fixture-hooks/before-and-after"
-	TEST_FIXTURE_HOOKS_BEFORE_ERROR_PATH                = "fixture-hooks/before-error"
+	TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH               = "fixture-hooks/skip-on-error"
 	TEST_FIXTURE_FAILED_TERRAFORM                       = "fixture-failure"
 	TERRAFORM_FOLDER                                    = ".terraform"
 	TERRAFORM_STATE                                     = "terraform.tfstate"
@@ -97,15 +97,22 @@ func TestTerragruntBeforeAndAfterHook(t *testing.T) {
 }
 
 func TestTerragruntSkipOnError(t *testing.T) {
-	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH))
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
 
-	_, beforeException := ioutil.ReadFile(TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH + "/before.out")
-	_, afterException := ioutil.ReadFile(TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH + "/after.out")
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH), &stdout, &stderr)
 
-	assert.NoError(t, beforeException)
-	assert.NoError(t, afterException)
+	output := stderr.String()
+	if err != nil {
+		assert.Contains(t, output, "BEFORE_SHOULD_DISPLAY")
+		assert.NotContains(t, output, "BEFORE_NODISPLAY")
+	} else {
+		t.Error("Expected NO terragrunt execution due to previous errors but it did run.")
+	}
 }
 func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
 	t.Parallel()
