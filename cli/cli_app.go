@@ -396,9 +396,12 @@ func prepareNonInitCommand(terragruntOptions *options.TerragruntOptions, terragr
 
 // Determines if 'terraform init' needs to be executed
 func needsInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (bool, error) {
-
 	if util.ListContainsElement(TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT, firstArg(terragruntOptions.TerraformCliArgs)) {
 		return false, nil
+	}
+
+	if providersNeedInit(terragruntOptions) {
+		return true, nil
 	}
 
 	modulesNeedsInit, err := modulesNeedInit(terragruntOptions)
@@ -410,6 +413,12 @@ func needsInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *c
 	}
 
 	return remoteStateNeedsInit(terragruntConfig.RemoteState, terragruntOptions)
+}
+
+// Returns true if we need to run `terraform init` to download providers
+func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
+	providersPath := util.JoinPath(terragruntOptions.WorkingDir, ".terraform/plugins")
+	return !util.FileExists(providersPath)
 }
 
 // Runs the terraform init command to perform what is referred to as Auto-Init in the README.md.
