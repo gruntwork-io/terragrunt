@@ -10,11 +10,18 @@ type MultiError struct {
 }
 
 func NewMultiError(errs ...error) error {
-	if len(errs) == 0 {
+	nilsRemoved := make([]error, 0, len(errs))
+	for _, item := range errs {
+		if item != nil {
+			nilsRemoved = append(nilsRemoved, item)
+		}
+	}
+
+	if len(nilsRemoved) == 0 {
 		return nil
 	}
 
-	return MultiError{Errors: errs}
+	return MultiError{Errors: nilsRemoved}
 }
 
 func (errs MultiError) Error() string {
