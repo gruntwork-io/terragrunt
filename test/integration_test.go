@@ -67,7 +67,6 @@ func init() {
 func TestTerragruntBeforeHook(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt init --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH))
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH))
 
 	_, exception := ioutil.ReadFile(TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH + "/file.out")
@@ -78,7 +77,6 @@ func TestTerragruntBeforeHook(t *testing.T) {
 func TestTerragruntAfterHook(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt init --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH))
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH))
 
 	_, exception := ioutil.ReadFile(TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH + "/file.out")
@@ -89,7 +87,6 @@ func TestTerragruntAfterHook(t *testing.T) {
 func TestTerragruntBeforeAndAfterHook(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt init --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH))
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH))
 
 	_, beforeException := ioutil.ReadFile(TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH + "/before.out")
@@ -102,7 +99,6 @@ func TestTerragruntBeforeAndAfterHook(t *testing.T) {
 func TestTerragruntSkipOnError(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt init --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH))
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH))
 
 	_, beforeException := ioutil.ReadFile(TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH + "/before.out")
