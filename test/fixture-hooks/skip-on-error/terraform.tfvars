@@ -1,0 +1,37 @@
+terragrunt = {
+  terraform {
+    // source = "test"
+
+    # This hook purposely causes an error
+    before_hook "before_hook_1" {
+      commands = ["apply", "plan"]
+      execute = ["cd","garbageFolder"]
+      run_on_error = true
+    }
+
+    before_hook "before_hook_2" {
+      commands = ["apply", "plan"]
+      execute = ["echo","NODISPLAY"]
+      run_on_error = false
+    }
+
+    before_hook "before_hook_3" {
+      commands = ["apply", "plan"]
+      execute = ["echo","BEFORE_SHOULD_DISPLAY"]
+      run_on_error = false
+    }
+    # This hook configures Terragrunt to do a simple echo statement after executing any Terraform command
+    after_hook "after_hook_1" {
+      commands = ["apply", "plan"]
+      execute = ["echo","AFTER_NODISPLAY"]
+      run_on_error = false
+    }
+
+    after_hook "after_hook_1" {
+      commands = ["apply", "plan"]
+      execute = ["echo","AFTER_SHOULD_DISPLAY"]
+      run_on_error = true
+    }
+
+  }
+}
