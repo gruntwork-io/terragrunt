@@ -54,6 +54,8 @@ const (
 	TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH                  = "fixture-hooks/after-only"
 	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH            = "fixture-hooks/before-and-after"
 	TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH               = "fixture-hooks/skip-on-error"
+	TEST_FIXTURE_HOOKS_ONE_ARG_ACTION_PATH              = "fixture-hooks/one-arg-action"
+	TEST_FIXTURE_HOOKS_BAD_ARG_ACTION_PATH              = "fixture-hooks/bad-arg-action"
 	TEST_FIXTURE_FAILED_TERRAFORM                       = "fixture-failure"
 	TERRAFORM_FOLDER                                    = ".terraform"
 	TERRAFORM_STATE                                     = "terraform.tfstate"
@@ -117,6 +119,44 @@ func TestTerragruntSkipOnError(t *testing.T) {
 		t.Error("Expected NO terragrunt execution due to previous errors but it did run.")
 	}
 }
+
+func TestTerragruntBeforeOneArgAction(t *testing.T) {
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_ONE_ARG_ACTION_PATH)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_HOOKS_ONE_ARG_ACTION_PATH), &stdout, &stderr)
+	output := stderr.String()
+
+	if err != nil {
+		t.Error("Expected successful execution of terragrunt with 1 before hook execution.")
+	} else {
+		assert.Contains(t, output, "Running command: date")
+	}
+}
+
+func TestTerragruntBeforeBadAction(t *testing.T) {
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_BAD_ARG_ACTION_PATH)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_HOOKS_BAD_ARG_ACTION_PATH), &stdout, &stderr)
+	output := stderr.String()
+
+	if err != nil {
+		fmt.Printf(output)
+		assert.Contains(t, output, "Error running hook before_hook_1. Need at least one argument")
+	} else {
+		t.Error("Expected an Error with message: 'Need at least one argument'")
+	}
+}
+
 func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
 	t.Parallel()
 

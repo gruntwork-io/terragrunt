@@ -238,12 +238,18 @@ func processHooks(hooks []config.Hook, terragruntConfig *config.TerragruntConfig
 		if shouldRunHook(curHook, terragruntOptions, allPreviousErrors...) {
 			terragruntOptions.Logger.Printf("Executing hook: %s", curHook.Name)
 			actionToExecute := curHook.Execute[0]
-			actionParams := curHook.Execute[1:]
-			possibleError := shell.RunShellCommand(terragruntOptions, actionToExecute, actionParams...)
+			if actionToExecute != "" {
+				actionParams := curHook.Execute[1:]
+				possibleError := shell.RunShellCommand(terragruntOptions, actionToExecute, actionParams...)
 
-			if possibleError != nil {
-				terragruntOptions.Logger.Printf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
-				errorsOccurred = append(errorsOccurred, possibleError)
+				if possibleError != nil {
+					terragruntOptions.Logger.Printf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
+					errorsOccurred = append(errorsOccurred, possibleError)
+				}
+			} else {
+				errorMsg := fmt.Sprintf("Error running hook %s. Need at least one argument", curHook.Name)
+				terragruntOptions.Logger.Printf(errorMsg)
+				errorsOccurred = append(errorsOccurred, errors.NewInvalidArgError(errorMsg))
 			}
 		}
 	}
