@@ -56,6 +56,7 @@ const (
 	TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH               = "fixture-hooks/skip-on-error"
 	TEST_FIXTURE_HOOKS_ONE_ARG_ACTION_PATH              = "fixture-hooks/one-arg-action"
 	TEST_FIXTURE_HOOKS_BAD_ARG_ACTION_PATH              = "fixture-hooks/bad-arg-action"
+	TEST_FIXTURE_HOOKS_INTERPOLATIONS_PATH              = "fixture-hooks/interpolations"
 	TEST_FIXTURE_FAILED_TERRAFORM                       = "fixture-failure"
 	TERRAFORM_FOLDER                                    = ".terraform"
 	TERRAFORM_STATE                                     = "terraform.tfstate"
@@ -155,6 +156,30 @@ func TestTerragruntBeforeBadAction(t *testing.T) {
 	} else {
 		t.Error("Expected an Error with message: 'Need at least one argument'")
 	}
+}
+
+func TestTerragruntHookInterpolation(t *testing.T) {
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INTERPOLATIONS_PATH)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_HOOKS_INTERPOLATIONS_PATH), &stdout, &stderr)
+	erroutput := stderr.String()
+
+	homePath := os.Getenv("HOME")
+	if homePath == "" {
+		homePath = "HelloWorld"
+	}
+
+	if err != nil {
+		t.Errorf("Did not expect to get error: %s", err.Error())
+	}
+
+	assert.Contains(t, erroutput, homePath)
+
 }
 
 func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {

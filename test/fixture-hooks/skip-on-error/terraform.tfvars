@@ -5,7 +5,7 @@ terragrunt = {
     # This hook purposely causes an error
     before_hook "before_hook_1" {
       commands = ["apply", "plan"]
-      execute = ["cd","garbageFolder"]
+      execute = ["exit","1"]
       run_on_error = true
     }
 
@@ -20,7 +20,7 @@ terragrunt = {
       execute = ["echo","BEFORE_SHOULD_DISPLAY"]
       run_on_error = true
     }
-    # This hook configures Terragrunt to do a simple echo statement after executing any Terraform command
+
     after_hook "after_hook_1" {
       commands = ["apply", "plan"]
       execute = ["echo","AFTER_NODISPLAY"]

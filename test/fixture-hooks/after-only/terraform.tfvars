@@ -2,7 +2,8 @@ terragrunt = {
   terraform {
     // source = "test"
 
-    # This hook configures Terragrunt to do a simple echo statement after executing any Terraform command
+    # This hook configures Terragrunt to create an empty file called file.out
+    # after execution of terragrunt
     after_hook "after_hook_1" {
       commands = ["apply", "plan"]
       execute = ["touch","file.out"]
