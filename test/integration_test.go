@@ -68,46 +68,62 @@ func init() {
 }
 
 func TestTerragruntBeforeHook(t *testing.T) {
+	t.Parallel()
+
 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
-	_, exception := ioutil.ReadFile(TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH + "/file.out")
+	_, exception := ioutil.ReadFile(rootPath + "/file.out")
 
 	assert.NoError(t, exception)
 }
 
 func TestTerragruntAfterHook(t *testing.T) {
+	t.Parallel()
+
 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
-	_, exception := ioutil.ReadFile(TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH + "/file.out")
+	_, exception := ioutil.ReadFile(rootPath + "/file.out")
 
 	assert.NoError(t, exception)
 }
 
 func TestTerragruntBeforeAndAfterHook(t *testing.T) {
+	t.Parallel()
+
 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
-	_, beforeException := ioutil.ReadFile(TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH + "/before.out")
-	_, afterException := ioutil.ReadFile(TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH + "/after.out")
+	_, beforeException := ioutil.ReadFile(rootPath + "/before.out")
+	_, afterException := ioutil.ReadFile(rootPath + "/after.out")
 
 	assert.NoError(t, beforeException)
 	assert.NoError(t, afterException)
 }
 
 func TestTerragruntSkipOnError(t *testing.T) {
+	t.Parallel()
+
 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH)
 
 	var (
 		stdout bytes.Buffer
 		stderr bytes.Buffer
 	)
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 
 	output := stderr.String()
 	if err != nil {
@@ -122,14 +138,18 @@ func TestTerragruntSkipOnError(t *testing.T) {
 }
 
 func TestTerragruntBeforeOneArgAction(t *testing.T) {
+	t.Parallel()
+
 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_ONE_ARG_ACTION_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_ONE_ARG_ACTION_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_ONE_ARG_ACTION_PATH)
 
 	var (
 		stdout bytes.Buffer
 		stderr bytes.Buffer
 	)
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_HOOKS_ONE_ARG_ACTION_PATH), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 	output := stderr.String()
 
 	if err != nil {
@@ -140,14 +160,18 @@ func TestTerragruntBeforeOneArgAction(t *testing.T) {
 }
 
 func TestTerragruntBeforeBadAction(t *testing.T) {
+	t.Parallel()
+
 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_BAD_ARG_ACTION_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_BAD_ARG_ACTION_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_BAD_ARG_ACTION_PATH)
 
 	var (
 		stdout bytes.Buffer
 		stderr bytes.Buffer
 	)
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_HOOKS_BAD_ARG_ACTION_PATH), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 	output := stderr.String()
 
 	if err != nil {
@@ -159,14 +183,18 @@ func TestTerragruntBeforeBadAction(t *testing.T) {
 }
 
 func TestTerragruntHookInterpolation(t *testing.T) {
+	t.Parallel()
+
 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INTERPOLATIONS_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_INTERPOLATIONS_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INTERPOLATIONS_PATH)
 
 	var (
 		stdout bytes.Buffer
 		stderr bytes.Buffer
 	)
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_HOOKS_INTERPOLATIONS_PATH), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 	erroutput := stderr.String()
 
 	homePath := os.Getenv("HOME")
