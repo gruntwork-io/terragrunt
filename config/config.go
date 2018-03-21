@@ -374,6 +374,15 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 		terragruntConfig.RemoteState = terragruntConfigFromFile.RemoteState
 	}
 
+	//Validate before and after hooks to make sure that they are properly configured
+	allHooks := append(terragruntConfigFromFile.Terraform.BeforeHooks, terragruntConfigFromFile.Terraform.AfterHooks...)
+
+	for _, curHook := range allHooks {
+		if curHook.Execute[0] == "" {
+			return nil, errors.NewInvalidArgError(fmt.Sprintf("Error running hook %s. Need at least one argument", curHook.Name))
+		}
+	}
+
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
 

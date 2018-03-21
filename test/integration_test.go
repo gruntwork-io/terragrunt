@@ -172,11 +172,9 @@ func TestTerragruntBeforeBadAction(t *testing.T) {
 	)
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
-	output := stderr.String()
 
 	if err != nil {
-		fmt.Printf(output)
-		assert.Contains(t, output, "Error running hook before_hook_1. Need at least one argument")
+		assert.Contains(t, err.Error(), "Error running hook before_hook_1. Need at least one argument")
 	} else {
 		t.Error("Expected an Error with message: 'Need at least one argument'")
 	}
