@@ -55,7 +55,8 @@ const (
 	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH            = "fixture-hooks/before-and-after"
 	TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH               = "fixture-hooks/skip-on-error"
 	TEST_FIXTURE_HOOKS_ONE_ARG_ACTION_PATH              = "fixture-hooks/one-arg-action"
-	TEST_FIXTURE_HOOKS_BAD_ARG_ACTION_PATH              = "fixture-hooks/bad-arg-action"
+	TEST_FIXTURE_HOOKS_EMPTY_STRING_COMMAND_PATH        = "fixture-hooks/bad-arg-action/empty-string-command"
+	TEST_FIXTURE_HOOKS_EMPTY_COMMAND_LIST_PATH          = "fixture-hooks/bad-arg-action/empty-command-list"
 	TEST_FIXTURE_HOOKS_INTERPOLATIONS_PATH              = "fixture-hooks/interpolations"
 	TEST_FIXTURE_FAILED_TERRAFORM                       = "fixture-failure"
 	TERRAFORM_FOLDER                                    = ".terraform"
@@ -159,12 +160,33 @@ func TestTerragruntBeforeOneArgAction(t *testing.T) {
 	}
 }
 
-func TestTerragruntBeforeBadAction(t *testing.T) {
+func TestTerragruntEmptyStringCommandHook(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_BAD_ARG_ACTION_PATH)
-	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_BAD_ARG_ACTION_PATH)
-	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_BAD_ARG_ACTION_PATH)
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_EMPTY_STRING_COMMAND_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_EMPTY_STRING_COMMAND_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_EMPTY_STRING_COMMAND_PATH)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+
+	if err != nil {
+		assert.Contains(t, err.Error(), "Error running hook before_hook_1. Need at least one argument")
+	} else {
+		t.Error("Expected an Error with message: 'Need at least one argument'")
+	}
+}
+
+func TestTerragruntEmptyCommandListHook(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_EMPTY_COMMAND_LIST_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_EMPTY_COMMAND_LIST_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_EMPTY_COMMAND_LIST_PATH)
 
 	var (
 		stdout bytes.Buffer

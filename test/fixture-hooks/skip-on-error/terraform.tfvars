@@ -1,7 +1,5 @@
 terragrunt = {
   terraform {
-    // source = "test"
-
     # This hook purposely causes an error
     before_hook "before_hook_1" {
       commands = ["apply", "plan"]

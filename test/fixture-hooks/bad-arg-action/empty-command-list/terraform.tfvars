@@ -1,9 +1,9 @@
 terragrunt = {
   terraform {
-    # This hook tests execution of agrgs that take no parameters
+    # This hook is purposely misconfigured to trigger an error
     before_hook "before_hook_1" {
       commands = ["apply", "plan"]
-      execute = ["date"]
+      execute = []
       run_on_error = true
     }
   }

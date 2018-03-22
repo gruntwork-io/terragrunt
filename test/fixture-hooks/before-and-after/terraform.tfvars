@@ -1,7 +1,5 @@
 terragrunt = {
   terraform {
-    // source = "test"
-
     # This hook configures Terragrunt to create an empty file called before.out
     # before execution of terragrunt
     before_hook "before_hook_1" {

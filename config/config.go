@@ -378,7 +378,7 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 	allHooks := append(terragruntConfigFromFile.Terraform.BeforeHooks, terragruntConfigFromFile.Terraform.AfterHooks...)
 
 	for _, curHook := range allHooks {
-		if curHook.Execute[0] == "" {
+		if len(curHook.Execute) < 1 || curHook.Execute[0] == "" {
 			return nil, errors.NewInvalidArgError(fmt.Sprintf("Error running hook %s. Need at least one argument", curHook.Name))
 		}
 	}
