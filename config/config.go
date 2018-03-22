@@ -379,7 +379,7 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 
 	for _, curHook := range allHooks {
 		if len(curHook.Execute) < 1 || curHook.Execute[0] == "" {
-			return nil, errors.NewInvalidArgError(fmt.Sprintf("Error running hook %s. Need at least one argument", curHook.Name))
+			return nil, InvalidArgError(fmt.Sprintf("Error running hook %s. Need at least one argument", curHook.Name))
 		}
 	}
 
@@ -390,6 +390,12 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 }
 
 // Custom error types
+
+type InvalidArgError string
+
+func (e InvalidArgError) Error() string {
+	return string(e)
+}
 
 type IncludedConfigMissingPath string
 
