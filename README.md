@@ -59,6 +59,7 @@ Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that pro
    1. [AWS credentials](#aws-credentials)
    1. [AWS IAM policies](#aws-iam-policies)
    1. [Interpolation Syntax](#interpolation-syntax)
+   1. [Before and After Hooks](#before-and-after-hooks)
    1. [Auto-Init](#auto-init)
    1. [CLI options](#cli-options)
    1. [Configuration](#configuration)
@@ -1109,6 +1110,7 @@ This section contains detailed documentation for the following aspects of Terrag
 1. [AWS credentials](#aws-credentials)
 1. [AWS IAM policies](#aws-iam-policies)
 1. [Interpolation Syntax](#interpolation-syntax)
+1. [Before & After Hooks](#before-and-after-hooks)
 1. [Auto-Init](#auto-init)
 1. [CLI options](#cli-options)
 1. [Configuration](#configuration)
@@ -1580,6 +1582,50 @@ terragrunt = {
     extra_arguments "common_var" {
       commands = ["${get_terraform_commands_that_need_vars()}"]
       arguments = ["-var-file=${get_aws_account_id()}.tfvars"]
+    }
+  }
+}
+```
+
+### Before and After Hooks
+
+_Before Hooks_ or _After Hooks_ are a feature of terragrunt that make it possible to define custom actions
+that will be called either before or after execution of the `terraform` command.
+
+The `commands` array specifies the `terraform` commands that will trigger the execution of the hook.
+
+It is possible to use the [interpolation syntax](#interpolation-syntax) defined above in the `execute` array of the hooks.
+
+The `run_on_error` parameter allows you to specify whether you still want this hook to execute if an error has been encountered with the earlier execution of another hook OR with the execution of the `terraform` command iteself.  
+
+#### Example Syntax
+```
+terragrunt = {
+  terraform {
+    ...
+
+    before_hook "before_hook_1" {
+      commands = ["apply", "plan"]
+      execute = ["echo", "Foo"]
+      run_on_error = true
+    }
+
+    before_hook "before_hook_2" {
+      commands = ["apply"]
+      execute = ["echo", "Bar"]
+      run_on_error = false
+    }
+
+    before_hook "interpolation_hook_1" {
+      commands = ["apply", "plan"]
+      execute = ["echo", "${get_env("HOME", "HelloWorld")}"]
+      run_on_error = false
+    }
+
+    after_hook "after_hook_1" {
+      commands = ["apply", "plan"]
+      execute = ["echo", "Baz"]
+      run_on_error = true
     }
   }
 }

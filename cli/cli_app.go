@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 
+	"os"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -17,7 +19,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	version "github.com/hashicorp/go-version"
 	"github.com/urfave/cli"
-	"os"
 )
 
 const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
@@ -223,6 +224,42 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	return runTerragruntWithConfig(terragruntOptions, terragruntConfig, false)
 }
 
+func processHooks(hooks []config.Hook, terragruntConfig *config.TerragruntConfig, terragruntOptions *options.TerragruntOptions, previousExecError ...error) error {
+	if len(hooks) == 0 {
+		return nil
+	}
+
+	errorsOccurred := []error{}
+
+	terragruntOptions.Logger.Printf("Detected %d Hooks", len(hooks))
+
+	for _, curHook := range hooks {
+		allPreviousErrors := append(previousExecError, errorsOccurred...)
+		if shouldRunHook(curHook, terragruntOptions, allPreviousErrors...) {
+			terragruntOptions.Logger.Printf("Executing hook: %s", curHook.Name)
+			actionToExecute := curHook.Execute[0]
+			actionParams := curHook.Execute[1:]
+			possibleError := shell.RunShellCommand(terragruntOptions, actionToExecute, actionParams...)
+
+			if possibleError != nil {
+				terragruntOptions.Logger.Printf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
+				errorsOccurred = append(errorsOccurred, possibleError)
+			}
+
+		}
+	}
+
+	return errors.NewMultiError(errorsOccurred...)
+}
+
+func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOptions, previousExecErrors ...error) bool {
+	//if there's no previous error, execute command
+	//OR if a previos error DID happen AND we want to run anyways
+	//then execute.
+	//Skip execution if there was an error AND we care about errors
+	return util.ListContainsElement(hook.Commands, terragruntOptions.TerraformCliArgs[0]) && (len(previousExecErrors) == 0 || hook.RunOnError)
+}
+
 // Assume an IAM role, if one is specified, by making API calls to Amazon STS and setting the environment variables
 // we get back inside of terragruntOptions.Env
 func assumeRoleIfNecessary(terragruntOptions *options.TerragruntOptions) error {
@@ -261,7 +298,23 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 			return err
 		}
 	}
-	return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
+
+	terragruntOptions.Logger.Println("Running terraform with: %s", terragruntOptions)
+
+	beforeHookErrors := processHooks(terragruntConfig.Terraform.BeforeHooks, terragruntConfig, terragruntOptions)
+	terraformError := runTerraformCommandIfNoErrors(beforeHookErrors, terragruntOptions)
+	postHookErrors := processHooks(terragruntConfig.Terraform.AfterHooks, terragruntConfig, terragruntOptions, beforeHookErrors, terraformError)
+
+	return errors.NewMultiError(beforeHookErrors, terraformError, postHookErrors)
+}
+
+func runTerraformCommandIfNoErrors(possibleErrors error, terragruntOptions *options.TerragruntOptions) error {
+	if possibleErrors == nil {
+		return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
+	}
+
+	terragruntOptions.Logger.Println("Errors encountered running before_hooks. Not running terraform.")
+	return nil
 }
 
 // Prepare for running 'terraform init' by

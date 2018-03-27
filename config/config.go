@@ -63,10 +63,24 @@ func (deps *ModuleDependencies) String() string {
 	return fmt.Sprintf("ModuleDependencies{Paths = %v}", deps.Paths)
 }
 
+// Hook specifies terraform commands (apply/plan) and array of os commands to execute
+type Hook struct {
+	Name       string   `hcl:",key"`
+	Commands   []string `hcl:"commands,omitempty"`
+	Execute    []string `hcl:"execute,omitempty"`
+	RunOnError bool     `hcl:"run_on_error,omitempty"`
+}
+
+func (conf *Hook) String() string {
+	return fmt.Sprintf("Hook{Name = %s, Commands = %v}", conf.Name, len(conf.Commands))
+}
+
 // TerraformConfig specifies where to find the Terraform configuration files
 type TerraformConfig struct {
-	ExtraArgs []TerraformExtraArguments `hcl:"extra_arguments"`
-	Source    string                    `hcl:"source"`
+	ExtraArgs   []TerraformExtraArguments `hcl:"extra_arguments"`
+	Source      string                    `hcl:"source"`
+	BeforeHooks []Hook                    `hcl:"before_hook"`
+	AfterHooks  []Hook                    `hcl:"after_hook"`
 }
 
 func (conf *TerraformConfig) String() string {
@@ -248,6 +262,7 @@ func parseConfigStringAsTerragruntConfigFile(configString string, configPath str
 		if err := hcl.Decode(tfvarsConfig, configString); err != nil {
 			return nil, errors.WithStackTrace(err)
 		}
+
 		return tfvarsConfig.Terragrunt, nil
 	}
 }
@@ -359,6 +374,15 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 		terragruntConfig.RemoteState = terragruntConfigFromFile.RemoteState
 	}
 
+	//Validate before and after hooks to make sure that they are properly configured
+	allHooks := append(terragruntConfigFromFile.Terraform.BeforeHooks, terragruntConfigFromFile.Terraform.AfterHooks...)
+
+	for _, curHook := range allHooks {
+		if len(curHook.Execute) < 1 || curHook.Execute[0] == "" {
+			return nil, InvalidArgError(fmt.Sprintf("Error running hook %s. Need at least one argument", curHook.Name))
+		}
+	}
+
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
 
@@ -366,6 +390,12 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 }
 
 // Custom error types
+
+type InvalidArgError string
+
+func (e InvalidArgError) Error() string {
+	return string(e)
+}
 
 type IncludedConfigMissingPath string
 
