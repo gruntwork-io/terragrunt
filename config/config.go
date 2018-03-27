@@ -374,19 +374,30 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 		terragruntConfig.RemoteState = terragruntConfigFromFile.RemoteState
 	}
 
-	//Validate before and after hooks to make sure that they are properly configured
-	allHooks := append(terragruntConfigFromFile.Terraform.BeforeHooks, terragruntConfigFromFile.Terraform.AfterHooks...)
-
-	for _, curHook := range allHooks {
-		if len(curHook.Execute) < 1 || curHook.Execute[0] == "" {
-			return nil, InvalidArgError(fmt.Sprintf("Error running hook %s. Need at least one argument", curHook.Name))
-		}
+	if err := validateHooks(terragruntConfigFromFile); err != nil {
+		return nil, err
 	}
 
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
 
 	return terragruntConfig, nil
+}
+
+func validateHooks(terragruntConfigFromFile *terragruntConfigFile) error {
+	if terragruntConfigFromFile.Terraform == nil {
+		return nil
+	}
+
+	allHooks := append(terragruntConfigFromFile.Terraform.BeforeHooks, terragruntConfigFromFile.Terraform.AfterHooks...)
+
+	for _, curHook := range allHooks {
+		if len(curHook.Execute) < 1 || curHook.Execute[0] == "" {
+			return InvalidArgError(fmt.Sprintf("Error with hook %s. Need at least one non-empty argument in 'execute'.", curHook.Name))
+		}
+	}
+
+	return nil
 }
 
 // Custom error types
