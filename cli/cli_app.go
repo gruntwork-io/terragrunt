@@ -224,7 +224,7 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	return runTerragruntWithConfig(terragruntOptions, terragruntConfig, false)
 }
 
-func processHooks(hooks []config.Hook, terragruntConfig *config.TerragruntConfig, terragruntOptions *options.TerragruntOptions, previousExecError ...error) error {
+func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOptions, previousExecError ...error) error {
 	if len(hooks) == 0 {
 		return nil
 	}
@@ -301,9 +301,9 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 
 	terragruntOptions.Logger.Println("Running terraform with: %s", terragruntOptions)
 
-	beforeHookErrors := processHooks(terragruntConfig.Terraform.BeforeHooks, terragruntConfig, terragruntOptions)
+	beforeHookErrors := processHooks(terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions)
 	terraformError := runTerraformCommandIfNoErrors(beforeHookErrors, terragruntOptions)
-	postHookErrors := processHooks(terragruntConfig.Terraform.AfterHooks, terragruntConfig, terragruntOptions, beforeHookErrors, terraformError)
+	postHookErrors := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, beforeHookErrors, terraformError)
 
 	return errors.NewMultiError(beforeHookErrors, terraformError, postHookErrors)
 }
