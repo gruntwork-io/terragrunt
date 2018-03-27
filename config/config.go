@@ -87,6 +87,34 @@ func (conf *TerraformConfig) String() string {
 	return fmt.Sprintf("TerraformConfig{Source = %v}", conf.Source)
 }
 
+func (conf *TerraformConfig) GetBeforeHooks() []Hook {
+	if conf == nil {
+		return nil
+	}
+
+	return conf.BeforeHooks
+}
+
+func (conf *TerraformConfig) GetAfterHooks() []Hook {
+	if conf == nil {
+		return nil
+	}
+
+	return conf.AfterHooks
+}
+
+func (conf *TerraformConfig) ValidateHooks() error {
+	allHooks := append(conf.GetBeforeHooks(), conf.GetAfterHooks()...)
+
+	for _, curHook := range allHooks {
+		if len(curHook.Execute) < 1 || curHook.Execute[0] == "" {
+			return InvalidArgError(fmt.Sprintf("Error with hook %s. Need at least one non-empty argument in 'execute'.", curHook.Name))
+		}
+	}
+
+	return nil
+}
+
 // TerraformExtraArguments sets a list of arguments to pass to Terraform if command fits any in the `Commands` list
 type TerraformExtraArguments struct {
 	Name             string   `hcl:",key"`
@@ -374,13 +402,8 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 		terragruntConfig.RemoteState = terragruntConfigFromFile.RemoteState
 	}
 
-	//Validate before and after hooks to make sure that they are properly configured
-	allHooks := append(terragruntConfigFromFile.Terraform.BeforeHooks, terragruntConfigFromFile.Terraform.AfterHooks...)
-
-	for _, curHook := range allHooks {
-		if len(curHook.Execute) < 1 || curHook.Execute[0] == "" {
-			return nil, InvalidArgError(fmt.Sprintf("Error running hook %s. Need at least one argument", curHook.Name))
-		}
+	if err := terragruntConfigFromFile.Terraform.ValidateHooks(); err != nil {
+		return nil, err
 	}
 
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
