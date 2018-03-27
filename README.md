@@ -59,6 +59,7 @@ Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that pro
    1. [AWS credentials](#aws-credentials)
    1. [AWS IAM policies](#aws-iam-policies)
    1. [Interpolation Syntax](#interpolation-syntax)
+   1. [Before and After Hooks](#before-and-after-hooks)
    1. [Auto-Init](#auto-init)
    1. [CLI options](#cli-options)
    1. [Configuration](#configuration)
