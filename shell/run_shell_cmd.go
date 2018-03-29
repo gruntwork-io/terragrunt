@@ -82,8 +82,8 @@ func RunShellCommandAndCaptureOutput(terragruntOptions *options.TerragruntOption
 	return stdout.String(), err
 }
 
-// Return the exit code of a command. If the error does not implement errors.IErrorCode or is not an exec.ExitError type,
-// the error is returned.
+// Return the exit code of a command. If the error does not implement errors.IErrorCode or is not an exec.ExitError
+// or errors.MultiError type, the error is returned.
 func GetExitCode(err error) (int, error) {
 	if exiterr, ok := errors.Unwrap(err).(errors.IErrorCode); ok {
 		return exiterr.ExitStatus()
@@ -93,6 +93,16 @@ func GetExitCode(err error) (int, error) {
 		status := exiterr.Sys().(syscall.WaitStatus)
 		return status.ExitStatus(), nil
 	}
+
+	if exiterr, ok := errors.Unwrap(err).(errors.MultiError); ok {
+		for _, err := range exiterr.Errors {
+			exitCode, exitCodeErr := GetExitCode(err)
+			if exitCodeErr == nil {
+				return exitCode, nil
+			}
+		}
+	}
+
 	return 0, err
 }
 
