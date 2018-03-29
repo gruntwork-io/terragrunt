@@ -22,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 )
@@ -59,6 +60,7 @@ const (
 	TEST_FIXTURE_HOOKS_EMPTY_COMMAND_LIST_PATH          = "fixture-hooks/bad-arg-action/empty-command-list"
 	TEST_FIXTURE_HOOKS_INTERPOLATIONS_PATH              = "fixture-hooks/interpolations"
 	TEST_FIXTURE_FAILED_TERRAFORM                       = "fixture-failure"
+	TEST_FIXTURE_EXIT_CODE                              = "fixture-exit-code"
 	TERRAFORM_FOLDER                                    = ".terraform"
 	TERRAFORM_STATE                                     = "terraform.tfstate"
 	TERRAFORM_STATE_BACKUP                              = "terraform.tfstate.backup"
@@ -598,6 +600,20 @@ func TestRemoteWithBackend(t *testing.T) {
 
 	// Run a second time to make sure the temporary folder can be reused without errors
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+}
+
+// Run terragrunt plan -detailed-exitcode on a folder with some uncreated resources and make sure that you get an exit
+// code of "2", which means there are changes to apply.
+func TestExitCode(t *testing.T) {
+	t.Parallel()
+
+	rootPath := copyEnvironment(t, TEST_FIXTURE_EXIT_CODE)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_EXIT_CODE)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan -detailed-exitcode --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), os.Stdout, os.Stderr)
+
+	exitCode, exitCodeErr := shell.GetExitCode(err)
+	assert.Nil(t, exitCodeErr)
+	assert.Equal(t, 2, exitCode)
 }
 
 func TestExtraArguments(t *testing.T) {
