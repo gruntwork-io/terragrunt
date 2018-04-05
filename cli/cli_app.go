@@ -224,7 +224,8 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	return runTerragruntWithConfig(terragruntOptions, terragruntConfig, false)
 }
 
-func processHooks(hooks []config.Hook, terragruntConfig *config.TerragruntConfig, terragruntOptions *options.TerragruntOptions, previousExecErrors errors.MultiError) error {
+func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOptions, previousExecErrors errors.MultiError) error {
+
 	if len(hooks) == 0 {
 		return nil
 	}
@@ -307,9 +308,9 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 
 	terragruntOptions.Logger.Println("Running terraform with: %s", terragruntOptions)
 
-	beforeHookErrors := processHooks(terragruntConfig.Terraform.BeforeHooks, terragruntConfig, terragruntOptions, errors.MultiError{})
+	beforeHookErrors := processHooks(terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions, errors.MultiError{})
 	terraformError := runTerraformCommandIfNoErrors(beforeHookErrors, terragruntOptions)
-	postHookErrors := processHooks(terragruntConfig.Terraform.AfterHooks, terragruntConfig, terragruntOptions, errors.NewMultiError(beforeHookErrors, terraformError).(errors.MultiError))
+	postHookErrors := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, errors.NewMultiError(beforeHookErrors, terraformError).(errors.MultiError))
 
 	if err := errors.NewMultiError(beforeHookErrors, terraformError, postHookErrors).(errors.MultiError); err.HasErrors() {
 		return err
