@@ -18,10 +18,22 @@ func NewMultiError(errs ...error) error {
 	}
 
 	if len(nilsRemoved) == 0 {
-		return nil
+		return MultiError{}
 	}
 
 	return MultiError{Errors: nilsRemoved}
+}
+
+func (errs MultiError) HasErrors() bool {
+	if len(errs.Errors) > 0 {
+		return true
+	}
+
+	return false
+}
+
+func (errs *MultiError) AppendError(newError error) {
+	errs.Errors = append(errs.Errors, newError)
 }
 
 func (errs MultiError) Error() string {

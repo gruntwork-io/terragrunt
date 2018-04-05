@@ -224,18 +224,17 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	return runTerragruntWithConfig(terragruntOptions, terragruntConfig, false)
 }
 
-func processHooks(hooks []config.Hook, terragruntConfig *config.TerragruntConfig, terragruntOptions *options.TerragruntOptions, previousExecError ...error) error {
+func processHooks(hooks []config.Hook, terragruntConfig *config.TerragruntConfig, terragruntOptions *options.TerragruntOptions, previousExecErrors errors.MultiError) error {
 	if len(hooks) == 0 {
 		return nil
 	}
 
-	errorsOccurred := []error{}
+	allPreviousErrors := errors.NewMultiError(previousExecErrors.Errors...).(errors.MultiError)
 
 	terragruntOptions.Logger.Printf("Detected %d Hooks", len(hooks))
 
 	for _, curHook := range hooks {
-		allPreviousErrors := append(previousExecError, errorsOccurred...)
-		if shouldRunHook(curHook, terragruntOptions, allPreviousErrors...) {
+		if shouldRunHook(curHook, terragruntOptions, allPreviousErrors) {
 			terragruntOptions.Logger.Printf("Executing hook: %s", curHook.Name)
 			actionToExecute := curHook.Execute[0]
 			actionParams := curHook.Execute[1:]
@@ -243,21 +242,28 @@ func processHooks(hooks []config.Hook, terragruntConfig *config.TerragruntConfig
 
 			if possibleError != nil {
 				terragruntOptions.Logger.Printf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
-				errorsOccurred = append(errorsOccurred, possibleError)
+				allPreviousErrors.AppendError(possibleError)
 			}
 
 		}
 	}
 
-	return errors.NewMultiError(errorsOccurred...)
+	if allPreviousErrors.HasErrors() {
+		return allPreviousErrors
+	}
+
+	return nil
 }
 
-func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOptions, previousExecErrors ...error) bool {
+func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOptions, previousExecErrors errors.MultiError) bool {
 	//if there's no previous error, execute command
 	//OR if a previos error DID happen AND we want to run anyways
 	//then execute.
 	//Skip execution if there was an error AND we care about errors
-	return util.ListContainsElement(hook.Commands, terragruntOptions.TerraformCliArgs[0]) && (len(previousExecErrors) == 0 || hook.RunOnError)
+	firstPart := util.ListContainsElement(hook.Commands, terragruntOptions.TerraformCliArgs[0])
+	prevHasErrors := previousExecErrors.HasErrors()
+	secondPart := !prevHasErrors || hook.RunOnError
+	return firstPart && secondPart
 }
 
 // Assume an IAM role, if one is specified, by making API calls to Amazon STS and setting the environment variables
@@ -301,11 +307,14 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 
 	terragruntOptions.Logger.Println("Running terraform with: %s", terragruntOptions)
 
-	beforeHookErrors := processHooks(terragruntConfig.Terraform.BeforeHooks, terragruntConfig, terragruntOptions)
+	beforeHookErrors := processHooks(terragruntConfig.Terraform.BeforeHooks, terragruntConfig, terragruntOptions, errors.MultiError{})
 	terraformError := runTerraformCommandIfNoErrors(beforeHookErrors, terragruntOptions)
-	postHookErrors := processHooks(terragruntConfig.Terraform.AfterHooks, terragruntConfig, terragruntOptions, beforeHookErrors, terraformError)
+	postHookErrors := processHooks(terragruntConfig.Terraform.AfterHooks, terragruntConfig, terragruntOptions, errors.NewMultiError(beforeHookErrors, terraformError).(errors.MultiError))
 
-	return errors.NewMultiError(beforeHookErrors, terraformError, postHookErrors)
+	if err := errors.NewMultiError(beforeHookErrors, terraformError, postHookErrors).(errors.MultiError); err.HasErrors() {
+		return err
+	}
+	return nil
 }
 
 func runTerraformCommandIfNoErrors(possibleErrors error, terragruntOptions *options.TerragruntOptions) error {
