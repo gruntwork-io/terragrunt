@@ -257,7 +257,13 @@ func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOption
 	//OR if a previos error DID happen AND we want to run anyways
 	//then execute.
 	//Skip execution if there was an error AND we care about errors
-	return util.ListContainsElement(hook.Commands, terragruntOptions.TerraformCliArgs[0]) && (len(previousExecErrors) == 0 || hook.RunOnError)
+
+	//resolves: https://github.com/gruntwork-io/terragrunt/issues/459
+	//by helping to filter out nil errors that were acting as false positives
+	//for the len(previousExecErrors) == 0 check that used to be here
+	multiError := errors.NewMultiError(previousExecErrors...)
+
+	return util.ListContainsElement(hook.Commands, terragruntOptions.TerraformCliArgs[0]) && (multiError == nil || hook.RunOnError)
 }
 
 // Assume an IAM role, if one is specified, by making API calls to Amazon STS and setting the environment variables
