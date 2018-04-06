@@ -225,7 +225,6 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 }
 
 func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOptions, previousExecError ...error) error {
-
 	if len(hooks) == 0 {
 		return nil
 	}
@@ -258,6 +257,10 @@ func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOption
 	//OR if a previos error DID happen AND we want to run anyways
 	//then execute.
 	//Skip execution if there was an error AND we care about errors
+
+	//resolves: https://github.com/gruntwork-io/terragrunt/issues/459
+	//by helping to filter out nil errors that were acting as false positives
+	//for the len(previousExecErrors) == 0 check that used to be here
 	multiError := errors.NewMultiError(previousExecErrors...)
 
 	return util.ListContainsElement(hook.Commands, terragruntOptions.TerraformCliArgs[0]) && (multiError == nil || hook.RunOnError)
@@ -301,8 +304,6 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 			return err
 		}
 	}
-
-	terragruntOptions.Logger.Println("Running terraform with: %s", terragruntOptions)
 
 	beforeHookErrors := processHooks(terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions)
 	terraformError := runTerraformCommandIfNoErrors(beforeHookErrors, terragruntOptions)
