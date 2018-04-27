@@ -314,6 +314,9 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 				includedConfig.Terraform.Source = config.Terraform.Source
 			}
 			mergeExtraArgs(terragruntOptions, config.Terraform.ExtraArgs, &includedConfig.Terraform.ExtraArgs)
+
+			mergeHooks(terragruntOptions, config.Terraform.BeforeHooks, &includedConfig.Terraform.BeforeHooks)
+			mergeHooks(terragruntOptions, config.Terraform.AfterHooks, &includedConfig.Terraform.AfterHooks)
 		}
 	}
 
@@ -322,6 +325,42 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 	}
 
 	return includedConfig, nil
+}
+
+// Merge the hooks (before_hook and after_hook).
+//
+// If a child's hook (before_hook or after_hook) has the same name a parent's hook,
+// then the child's hook will be selected (and the parent's ignored)
+// If a child's hook has a different name from all of the parent's hooks,
+// then the child's hook will be added to the end of the parent's.
+// Therefore, the child with the same name overrides the parent
+func mergeHooks(terragruntOptions *options.TerragruntOptions, childHooks []Hook, parentHooks *[]Hook) {
+	result := *parentHooks
+	for _, child := range childHooks {
+		parentHookWithSameName := getIndexOfHookWithName(result, child.Name)
+		if parentHookWithSameName != -1 {
+			// If the parent contains a hook with the same name as the child,
+			// then override the parent's hook with the child's.
+			terragruntOptions.Logger.Printf("hook '%v' from child overriding parent", child.Name)
+			result[parentHookWithSameName] = child
+		} else {
+			// If the parent does not contain a hook with the same name as the child
+			// then add the child to the end.
+			result = append(result, child)
+		}
+	}
+	*parentHooks = result
+}
+
+// Returns the index of the Hook with the given name,
+// or -1 if no Hook have the given name.
+func getIndexOfHookWithName(hooks []Hook, name string) int {
+	for i, hook := range hooks {
+		if hook.Name == name {
+			return i
+		}
+	}
+	return -1
 }
 
 // Merge the extra arguments.

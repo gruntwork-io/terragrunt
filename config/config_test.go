@@ -504,6 +504,36 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 			&TerragruntConfig{Terraform: &TerraformConfig{ExtraArgs: []TerraformExtraArguments{TerraformExtraArguments{Name: "overrideArgs", Arguments: []string{"-parent"}}}}},
 			&TerragruntConfig{Terraform: &TerraformConfig{ExtraArgs: []TerraformExtraArguments{TerraformExtraArguments{Name: "overrideArgs", Arguments: []string{"-child"}}}}},
 		},
+		{
+			&TerragruntConfig{Terraform: &TerraformConfig{BeforeHooks: []Hook{Hook{Name: "childArgs"}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{}},
+			&TerragruntConfig{Terraform: &TerraformConfig{BeforeHooks: []Hook{Hook{Name: "childArgs"}}}},
+		},
+		{
+			&TerragruntConfig{Terraform: &TerraformConfig{BeforeHooks: []Hook{Hook{Name: "childArgs"}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{BeforeHooks: []Hook{Hook{Name: "parentArgs"}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{BeforeHooks: []Hook{Hook{Name: "parentArgs"}, Hook{Name: "childArgs"}}}},
+		},
+		{
+			&TerragruntConfig{Terraform: &TerraformConfig{BeforeHooks: []Hook{Hook{Name: "overrideArgs", Commands: []string{"child-apply"}}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{BeforeHooks: []Hook{Hook{Name: "overrideArgs", Commands: []string{"parent-apply"}}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{BeforeHooks: []Hook{Hook{Name: "overrideArgs", Commands: []string{"child-apply"}}}}},
+		},
+		{
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "childArgs"}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{}},
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "childArgs"}}}},
+		},
+		{
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "childArgs"}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "parentArgs"}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "parentArgs"}, Hook{Name: "childArgs"}}}},
+		},
+		{
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "overrideArgs", Commands: []string{"child-apply"}}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "overrideArgs", Commands: []string{"parent-apply"}}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "overrideArgs", Commands: []string{"child-apply"}}}}},
+		},
 	}
 
 	for _, testCase := range testCases {
