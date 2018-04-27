@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/go-getter"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -107,7 +108,7 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 	return &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil
 }
 
-var moduleUrlRegexp = regexp.MustCompile(`.+//(.+?)(?:$|\?.+$)`)
+var moduleUrlRegexp = regexp.MustCompile(`(?:.+/)(.+?)(?:\?.+|\.)|(?:.+/)(.+)`)
 
 // If one of the xxx-all commands is called with the --terragrunt-source parameter, then for each module, we need to
 // build its own --terragrunt-source parameter by doing the following:
@@ -128,12 +129,30 @@ func getTerragruntSourceForModule(modulePath string, moduleTerragruntConfig *con
 		return "", nil
 	}
 
-	matches := moduleUrlRegexp.FindStringSubmatch(moduleTerragruntConfig.Terraform.Source)
-	if len(matches) != 2 {
+	var moduleRelativePath string
+
+	// use go-getter to split the module source string into a valid URL and subdirectory (if // is present)
+	moduleURL, moduleSubdir := getter.SourceDirSubdir(moduleTerragruntConfig.Terraform.Source)
+
+	// if both URL and subdir are missing, something went terribly wrong
+	if moduleURL == "" && moduleSubdir == "" {
 		return "", errors.WithStackTrace(InvalidSourceUrl{ModulePath: modulePath, ModuleSourceUrl: moduleTerragruntConfig.Terraform.Source, TerragruntSource: terragruntOptions.Source})
 	}
+	// if only subdir is missing, check if we can obtain a valid module name from the URL portion
+	if moduleURL != "" && moduleSubdir == "" {
 
-	moduleRelativePath := matches[1]
+		matches := moduleUrlRegexp.FindStringSubmatch(moduleURL)
+		// if result is more than the full match + 2 capture groups, then something went wrong with regex (invalid source string)
+		if len(matches) != 3 {
+			return "", errors.WithStackTrace(InvalidSourceUrl{ModulePath: modulePath, ModuleSourceUrl: moduleTerragruntConfig.Terraform.Source, TerragruntSource: terragruntOptions.Source})
+		} else {
+			moduleRelativePath = strings.TrimSpace(fmt.Sprintf("%s%s", matches[1], matches[2]))
+		}
+	} else {
+		// if both URL and subdir are returned by go-getter, use that as the module path
+		moduleRelativePath = moduleSubdir
+	}
+
 	return util.JoinTerraformModulePath(terragruntOptions.Source, moduleRelativePath), nil
 }
 

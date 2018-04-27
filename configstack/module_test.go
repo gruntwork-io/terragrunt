@@ -294,6 +294,12 @@ func TestGetTerragruntSourceForModuleHappyPath(t *testing.T) {
 		{mockConfigWithSource(""), mockOptionsWithSource(t, "/source/modules"), ""},
 		{mockConfigWithSource("git::git@github.com:acme/modules.git//foo/bar"), mockOptionsWithSource(t, "/source/modules"), "/source/modules//foo/bar"},
 		{mockConfigWithSource("git::git@github.com:acme/modules.git//foo/bar?ref=v0.0.1"), mockOptionsWithSource(t, "/source/modules"), "/source/modules//foo/bar"},
+		{mockConfigWithSource("git::git@github.com:acme/emr_cluster.git?ref=feature/fix_bugs"), mockOptionsWithSource(t, "/source/modules"), "/source/modules//emr_cluster"},
+		{mockConfigWithSource("git::ssh://git@ghe.ourcorp.com/OurOrg/some-module.git"), mockOptionsWithSource(t, "/source/modules"), "/source/modules//some-module"},
+		{mockConfigWithSource("github.com/hashicorp/example"), mockOptionsWithSource(t, "/source/modules"), "/source/modules//example"},
+		{mockConfigWithSource("github.com/hashicorp/example//subdir"), mockOptionsWithSource(t, "/source/modules"), "/source/modules//subdir"},
+		{mockConfigWithSource("git@github.com:hashicorp/example.git//subdir"), mockOptionsWithSource(t, "/source/modules"), "/source/modules//subdir"},
+		{mockConfigWithSource("./some/path//to/modulename"), mockOptionsWithSource(t, "/source/modules"), "/source/modules//to/modulename"},
 	}
 
 	for _, testCase := range testCases {
@@ -301,25 +307,6 @@ func TestGetTerragruntSourceForModuleHappyPath(t *testing.T) {
 			actual, err := getTerragruntSourceForModule("mock-for-test", testCase.config, testCase.opts)
 			assert.NoError(t, err)
 			assert.Equal(t, testCase.expected, actual)
-		})
-	}
-}
-
-func TestGetTerragruntSourceForModuleErrors(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		config *config.TerragruntConfig
-		opts   *options.TerragruntOptions
-	}{
-		{mockConfigWithSource("git::git@github.com:acme/modules.git/foo/bar"), mockOptionsWithSource(t, "/source/modules")},
-		{mockConfigWithSource("/foo/bar"), mockOptionsWithSource(t, "/source/modules")},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(fmt.Sprintf("%s-%s", testCase.config.Terraform.Source, testCase.opts.Source), func(t *testing.T) {
-			_, err := getTerragruntSourceForModule("mock-for-test", testCase.config, testCase.opts)
-			assert.Error(t, err)
 		})
 	}
 }
