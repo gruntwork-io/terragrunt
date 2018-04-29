@@ -5,3 +5,4 @@ vendor
 .vscode
 *.tfstate
 *.tfstate.backup
+*.out
