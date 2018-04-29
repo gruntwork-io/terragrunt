@@ -54,6 +54,7 @@ const (
 	TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH                 = "fixture-hooks/before-only"
 	TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH                  = "fixture-hooks/after-only"
 	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH            = "fixture-hooks/before-and-after"
+	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_MERGE_PATH      = "fixture-hooks/before-and-after-merge"
 	TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH               = "fixture-hooks/skip-on-error"
 	TEST_FIXTURE_HOOKS_ONE_ARG_ACTION_PATH              = "fixture-hooks/one-arg-action"
 	TEST_FIXTURE_HOOKS_EMPTY_STRING_COMMAND_PATH        = "fixture-hooks/bad-arg-action/empty-string-command"
@@ -112,6 +113,35 @@ func TestTerragruntBeforeAndAfterHook(t *testing.T) {
 
 	assert.NoError(t, beforeException)
 	assert.NoError(t, afterException)
+}
+
+func TestTerragruntBeforeAndAfterMergeHook(t *testing.T) {
+	t.Parallel()
+
+	childPath := util.JoinPath(TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_MERGE_PATH, TEST_FIXTURE_INCLUDE_CHILD_REL_PATH)
+	cleanupTerraformFolder(t, childPath)
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	t.Logf("bucketName: %s", s3BucketName)
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+
+	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_MERGE_PATH, TEST_FIXTURE_INCLUDE_CHILD_REL_PATH, s3BucketName, config.DefaultTerragruntConfigPath, config.DefaultTerragruntConfigPath)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
+
+	_, beforeException := ioutil.ReadFile(childPath + "/before.out")
+	_, beforeChildException := ioutil.ReadFile(childPath + "/before-child.out")
+	_, beforeOverriddenParentException := ioutil.ReadFile(childPath + "/before-parent.out")
+	_, afterException := ioutil.ReadFile(childPath + "/after.out")
+	_, afterParentException := ioutil.ReadFile(childPath + "/after-parent.out")
+
+	assert.NoError(t, beforeException)
+	assert.NoError(t, beforeChildException)
+	assert.NoError(t, afterException)
+	assert.NoError(t, afterParentException)
+
+	// PathError because no file found
+	assert.Error(t, beforeOverriddenParentException)
 }
 
 func TestTerragruntSkipOnError(t *testing.T) {

@@ -522,6 +522,11 @@ settings as follows:
   * The child's `extra_arguments` will be placed _after_ the parent's `extra_arguments` on the terraform command line.
   * Therefore, if a child's and parent's `extra_arguments` include `.tfvars` files with the same variable defined,
     the value from the `.tfvars` file from the child's `extra_arguments` will be used by terraform.
+* If a `before_hook` or `after_hook` block in the child has the same name as the hook block in the parent,
+  then the child's block will override the parent's.
+  * Specifying an empty hook block in a child with the same name will effectively remove the parent's block.
+* If a `before_hook` or `after_hook` block in the child has a different name than hook blocks in the parent,
+  then both the parent and child's hook blocks will be effective.
 * The `source` field in the child will override `source` field in the parent
 
 Other settings in the child `.tfvars` file's `terragrunt` block (e.g. `remote_state`) override the respective
