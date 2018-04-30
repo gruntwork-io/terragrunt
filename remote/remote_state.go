@@ -109,9 +109,18 @@ func (remoteState *RemoteState) differsFrom(existingBackend *TerraformBackend, t
 		}
 	}
 
-	if !reflect.DeepEqual(existingBackend.Config, remoteState.Config) {
-		terragruntOptions.Logger.Printf("Backend config has changed from %s to %s", existingBackend.Config, remoteState.Config)
-		return true
+	// Compare the states by looping through the map, assume it is different if either a key doesn't exist in the `existingBackend` or a value
+	// is different
+	for key, value := range remoteState.Config {
+		if existingValue, found := existingBackend.Config[key]; found {
+			if existingValue != value {
+				terragruntOptions.Logger.Printf("Backend config has changed from %s to %s", existingBackend.Config, remoteState.Config)
+				return true
+			}
+		} else {
+			terragruntOptions.Logger.Printf("Backend config has new key from %s to %s", existingBackend.Config, remoteState.Config)
+			return true
+		}
 	}
 
 	terragruntOptions.Logger.Printf("Backend %s has not changed.", existingBackend.Type)

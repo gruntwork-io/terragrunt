@@ -2,6 +2,8 @@ package remote
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -11,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/mitchellh/mapstructure"
-	"time"
 )
 
 // A representation of the configuration options available for S3 remote state
@@ -125,10 +126,6 @@ func validateS3Config(config *RemoteStateConfigS3, terragruntOptions *options.Te
 
 	if config.Bucket == "" {
 		return errors.WithStackTrace(MissingRequiredS3RemoteStateConfig("bucket"))
-	}
-
-	if config.Key == "" {
-		return errors.WithStackTrace(MissingRequiredS3RemoteStateConfig("key"))
 	}
 
 	if !config.Encrypt {
