@@ -128,18 +128,19 @@ func getTerragruntSourceForModule(modulePath string, moduleTerragruntConfig *con
 	}
 
 	// use go-getter to split the module source string into a valid URL and subdirectory (if // is present)
-	moduleURL, moduleSubdir := getter.SourceDirSubdir(moduleTerragruntConfig.Terraform.Source)
+	moduleUrl, moduleSubdir := getter.SourceDirSubdir(moduleTerragruntConfig.Terraform.Source)
 
 	// if both URL and subdir are missing, something went terribly wrong
-	if moduleURL == "" && moduleSubdir == "" {
+	if moduleUrl == "" && moduleSubdir == "" {
 		return "", errors.WithStackTrace(InvalidSourceUrl{ModulePath: modulePath, ModuleSourceUrl: moduleTerragruntConfig.Terraform.Source, TerragruntSource: terragruntOptions.Source})
 	}
 	// if only subdir is missing, check if we can obtain a valid module name from the URL portion
-	if moduleURL != "" && moduleSubdir == "" {
-		moduleSubdir, err := getModulePathFromSourceUrl(moduleURL)
+	if moduleUrl != "" && moduleSubdir == "" {
+		moduleSubdirFromUrl, err := getModulePathFromSourceUrl(moduleUrl)
 		if err != nil {
-			return moduleSubdir, err
+			return moduleSubdirFromUrl, err
 		}
+		return util.JoinTerraformModulePath(terragruntOptions.Source, moduleSubdirFromUrl), nil
 	}
 
 	return util.JoinTerraformModulePath(terragruntOptions.Source, moduleSubdir), nil
