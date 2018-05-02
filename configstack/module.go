@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/go-getter"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -107,8 +108,6 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 	return &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil
 }
 
-var moduleUrlRegexp = regexp.MustCompile(`.+//(.+?)(?:$|\?.+$)`)
-
 // If one of the xxx-all commands is called with the --terragrunt-source parameter, then for each module, we need to
 // build its own --terragrunt-source parameter by doing the following:
 //
@@ -128,13 +127,48 @@ func getTerragruntSourceForModule(modulePath string, moduleTerragruntConfig *con
 		return "", nil
 	}
 
-	matches := moduleUrlRegexp.FindStringSubmatch(moduleTerragruntConfig.Terraform.Source)
-	if len(matches) != 2 {
+	// use go-getter to split the module source string into a valid URL and subdirectory (if // is present)
+	moduleUrl, moduleSubdir := getter.SourceDirSubdir(moduleTerragruntConfig.Terraform.Source)
+
+	// if both URL and subdir are missing, something went terribly wrong
+	if moduleUrl == "" && moduleSubdir == "" {
 		return "", errors.WithStackTrace(InvalidSourceUrl{ModulePath: modulePath, ModuleSourceUrl: moduleTerragruntConfig.Terraform.Source, TerragruntSource: terragruntOptions.Source})
 	}
+	// if only subdir is missing, check if we can obtain a valid module name from the URL portion
+	if moduleUrl != "" && moduleSubdir == "" {
+		moduleSubdirFromUrl, err := getModulePathFromSourceUrl(moduleUrl)
+		if err != nil {
+			return moduleSubdirFromUrl, err
+		}
+		return util.JoinTerraformModulePath(terragruntOptions.Source, moduleSubdirFromUrl), nil
+	}
 
-	moduleRelativePath := matches[1]
-	return util.JoinTerraformModulePath(terragruntOptions.Source, moduleRelativePath), nil
+	return util.JoinTerraformModulePath(terragruntOptions.Source, moduleSubdir), nil
+}
+
+// Parse sourceUrl not containing '//', and attempt to obtain a module path.
+// Example:
+//
+// sourceUrl = "git::ssh://git@ghe.ourcorp.com/OurOrg/module-name.git"
+// will return "module-name".
+
+func getModulePathFromSourceUrl(sourceUrl string) (string, error) {
+
+	// Regexp for module name extraction. It assumes that the query string has already been stripped off.
+	// Then we simply capture anything after the last slash, and before `.` or end of string.
+	var moduleNameRegexp = regexp.MustCompile(`(?:.+/)(.+?)(?:\.|$)`)
+
+	// strip off the query string if present
+	sourceUrl = strings.Split(sourceUrl, "?")[0]
+
+	matches := moduleNameRegexp.FindStringSubmatch(sourceUrl)
+
+	// if regexp returns less/more than the full match + 1 capture group, then something went wrong with regex (invalid source string)
+	if len(matches) != 2 {
+		return "", errors.WithStackTrace(ErrorParsingModulePath{ModuleSourceUrl: sourceUrl})
+	}
+
+	return matches[1], nil
 }
 
 // Look through the dependencies of the modules in the given map and resolve the "external" dependency paths listed in
@@ -311,6 +345,14 @@ type InvalidSourceUrl struct {
 
 func (err InvalidSourceUrl) Error() string {
 	return fmt.Sprintf("The --terragrunt-source parameter is set to '%s', but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!", err.TerragruntSource, err.ModulePath, err.ModuleSourceUrl)
+}
+
+type ErrorParsingModulePath struct {
+	ModuleSourceUrl string
+}
+
+func (err ErrorParsingModulePath) Error() string {
+	return fmt.Sprintf("Unable to obtain the module path from the source URL '%s'. Ensure that the URL is in a supported format.", err.ModuleSourceUrl)
 }
 
 type InfiniteRecursion struct {
