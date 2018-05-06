@@ -126,6 +126,13 @@ const DEFAULT_TERRAFORM_VERSION_CONSTRAINT = ">= v0.9.3"
 
 const TERRAFORM_EXTENSION_GLOB = "*.tf"
 
+// The supported flags to show help of terraform commands
+var TERRAFORM_HELP_FLAGS = []string{
+	"--help",
+	"-help",
+	"-h",
+}
+
 // Create the Terragrunt CLI App
 func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) *cli.App {
 	cli.OsExiter = func(exitCode int) {
@@ -200,6 +207,10 @@ func runCommand(command string, terragruntOptions *options.TerragruntOptions) (f
 // Downloads terraform source if necessary, then runs terraform with the given options and CLI args.
 // This will forward all the args and extra_arguments directly to Terraform.
 func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
+	if shouldPrintTerraformHelp(terragruntOptions) {
+		return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
+	}
+
 	terragruntConfig, err := config.ReadTerragruntConfig(terragruntOptions)
 	if err != nil {
 		return err
@@ -222,6 +233,15 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	return runTerragruntWithConfig(terragruntOptions, terragruntConfig, false)
+}
+
+func shouldPrintTerraformHelp(terragruntOptions *options.TerragruntOptions) bool {
+	for _, tfHelpFlag := range TERRAFORM_HELP_FLAGS {
+		if util.ListContainsElement(terragruntOptions.TerraformCliArgs, tfHelpFlag) {
+			return true
+		}
+	}
+	return false
 }
 
 func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOptions, previousExecError ...error) error {
