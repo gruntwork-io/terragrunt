@@ -55,7 +55,7 @@ func removeDuplicatesFromList(list []string, keepLast bool) []string {
 	return out
 }
 
-// CommaSeparatedStrings returns an HCL compliant formated list of strings (each string within double quote)
+// CommaSeparatedStrings returns an HCL compliant formatted list of strings (each string within double quote)
 func CommaSeparatedStrings(list []string) string {
 	values := make([]string, 0, len(list))
 	for _, value := range list {
