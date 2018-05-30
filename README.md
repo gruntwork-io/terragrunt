@@ -391,7 +391,7 @@ Git repository prior to calling `terragrunt` to ensure that the ssh host is regi
 locally, e.g.:
 
 ```
-$ ssh -T -oStrictHostKeyChecking=no git@github.com || true
+$ ssh -T -oStrictHostKeyChecking=accept-new git@github.com || true
 ```
 
 
