@@ -217,11 +217,11 @@ func CreateS3BucketWithVersioning(s3Client *s3.S3, config *ExtendedRemoteStateCo
 		return err
 	}
 
-	if err := TagS3Bucket(s3Client, config, terragruntOptions); err != nil {
+	if err := WaitUntilS3BucketExists(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
 		return err
 	}
 
-	if err := WaitUntilS3BucketExists(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
+	if err := TagS3Bucket(s3Client, config, terragruntOptions); err != nil {
 		return err
 	}
 
