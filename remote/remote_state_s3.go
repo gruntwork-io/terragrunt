@@ -18,8 +18,8 @@ import (
 type ExtendedRemoteStateConfigS3 struct {
 	remoteStateConfigS3 RemoteStateConfigS3
 
-	S3BucketTags    [] map[string]string `mapstructure:"s3_bucket_tags"`
-	DynamotableTags [] map[string]string `mapstructure:"dynamotable_tags"`
+	S3BucketTags    []map[string]string `mapstructure:"s3_bucket_tags"`
+	DynamotableTags []map[string]string `mapstructure:"dynamotable_tags"`
 }
 
 type RemoteStateConfigS3 struct {
@@ -109,7 +109,7 @@ func (s3Initializer S3Initializer) Initialize(config map[string]interface{}, ter
 		return err
 	}
 
-	if err := createLockTableIfNecessary(&s3Config, terragruntOptions); err != nil {
+	if err := createLockTableIfNecessary(&s3Config, s3ConfigExtended.DynamotableTags, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -165,7 +165,12 @@ func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3, terragruntOpt
 	}
 
 	if len(extendedConfig.S3BucketTags) > 1 {
-		return errors.WithStackTrace(MissingRequiredS3RemoteStateConfig("key"))
+		return errors.WithStackTrace(MultipleTagsDeclarations("S3 bucket"))
+
+	}
+
+	if len(extendedConfig.DynamotableTags) > 1 {
+		return errors.WithStackTrace(MultipleTagsDeclarations("DynamoDB table"))
 
 	}
 
@@ -212,7 +217,7 @@ func CreateS3BucketWithVersioning(s3Client *s3.S3, config *ExtendedRemoteStateCo
 		return err
 	}
 
-	if err := TagS3Bucket(s3Client, config); err != nil {
+	if err := TagS3Bucket(s3Client, config, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -227,15 +232,23 @@ func CreateS3BucketWithVersioning(s3Client *s3.S3, config *ExtendedRemoteStateCo
 	return nil
 }
 
-func TagS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3) error {
+func TagS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+
+	if len(config.S3BucketTags) == 0 {
+		terragruntOptions.Logger.Print("No tags for S3 bucket given.")
+		return nil
+	}
+
+	// There must be one entry in the list
+	var tags = config.S3BucketTags[0]
+	var tagsConverted = convertTags(tags)
+
+	terragruntOptions.Logger.Printf("Tagging S3 bucket with %s", tags)
 
 	putBucketTaggingInput := s3.PutBucketTaggingInput{
 		Bucket: aws.String(config.remoteStateConfigS3.Bucket),
 		Tagging: &s3.Tagging{
-			TagSet: []*s3.Tag{
-				{
-					Key:   aws.String("owner"),
-					Value: aws.String("team name")}}}}
+			TagSet: tagsConverted}}
 
 	_, err := s3Client.PutBucketTagging(&putBucketTaggingInput)
 
@@ -245,6 +258,25 @@ func TagS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3) error {
 
 	return nil
 
+}
+
+func convertTags(tags map[string]string) []*s3.Tag {
+
+	var tagsConverted []*s3.Tag
+
+	var i = 0
+
+	for k, v := range tags {
+		var tag = s3.Tag{
+			Key:   aws.String(k),
+			Value: aws.String(v)}
+
+		tagsConverted = append(tagsConverted, &tag)
+
+		i++
+	}
+
+	return tagsConverted
 }
 
 // AWS is eventually consistent, so after creating an S3 bucket, this method can be used to wait until the information
@@ -306,7 +338,8 @@ func DoesS3BucketExist(s3Client *s3.S3, config *RemoteStateConfigS3) bool {
 }
 
 // Create a table for locks in DynamoDB if the user has configured a lock table and the table doesn't already exist
-func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, tagsDeclarations []map[string]string, terragruntOptions *options.TerragruntOptions) error {
+
 	if s3Config.GetLockTableName() == "" {
 		return nil
 	}
@@ -316,7 +349,12 @@ func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, terragruntOptions
 		return err
 	}
 
-	return dynamodb.CreateLockTableIfNecessary(s3Config.GetLockTableName(), dynamodbClient, terragruntOptions)
+	var tags map[string]string = nil
+	if len(tagsDeclarations) == 1 {
+		tags = tagsDeclarations[0]
+	}
+
+	return dynamodb.CreateLockTableIfNecessary(s3Config.GetLockTableName(), tags, dynamodbClient, terragruntOptions)
 }
 
 // Create an authenticated client for DynamoDB
@@ -340,7 +378,7 @@ func (configName MissingRequiredS3RemoteStateConfig) Error() string {
 type MultipleTagsDeclarations string
 
 func (target MultipleTagsDeclarations) Error() string {
-	return fmt.Sprintf("Tags for %s got declared multiple times. Please do only declare in one block.", target)
+	return fmt.Sprintf("Tags for %s got declared multiple times. Please do only declare in one block.", string(target))
 }
 
 type MaxRetriesWaitingForS3BucketExceeded string

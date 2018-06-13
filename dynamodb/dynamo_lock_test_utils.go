@@ -78,7 +78,7 @@ func withLockTable(t *testing.T, action func(tableName string, client *dynamodb.
 		t.Fatal(err)
 	}
 
-	err = CreateLockTableIfNecessary(tableName, client, mockOptions)
+	err = CreateLockTableIfNecessary(tableName, nil, client, mockOptions)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	defer cleanupTableForTest(t, tableName, client)
 

@@ -122,6 +122,11 @@ func (remoteState *RemoteState) differsFrom(existingBackend *TerraformBackend, t
 func (remoteState RemoteState) ToTerraformInitArgs() []string {
 	backendConfigArgs := []string{}
 	for key, value := range remoteState.Config {
+
+		if key == "s3_bucket_tags" || key == "dynamotable_tags" {
+			continue
+		}
+
 		arg := fmt.Sprintf("-backend-config=%s=%v", key, value)
 		backendConfigArgs = append(backendConfigArgs, arg)
 	}
