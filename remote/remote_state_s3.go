@@ -15,6 +15,13 @@ import (
 )
 
 // A representation of the configuration options available for S3 remote state
+type ExtendedRemoteStateConfigS3 struct {
+	remoteStateConfigS3 RemoteStateConfigS3
+
+	S3BucketTags    [] map[string]string `mapstructure:"s3_bucket_tags"`
+	DynamotableTags [] map[string]string `mapstructure:"dynamotable_tags"`
+}
+
 type RemoteStateConfigS3 struct {
 	Encrypt       bool   `mapstructure:"encrypt"`
 	Bucket        string `mapstructure:"bucket"`
@@ -78,29 +85,31 @@ func (s3Initializer S3Initializer) NeedsInitialization(config map[string]interfa
 // Initialize the remote state S3 bucket specified in the given config. This function will validate the config
 // parameters, create the S3 bucket if it doesn't already exist, and check that versioning is enabled.
 func (s3Initializer S3Initializer) Initialize(config map[string]interface{}, terragruntOptions *options.TerragruntOptions) error {
-	s3Config, err := parseS3Config(config)
+	s3ConfigExtended, err := parseExtendedS3Config(config)
 	if err != nil {
 		return err
 	}
 
-	if err := validateS3Config(s3Config, terragruntOptions); err != nil {
+	if err := validateS3Config(s3ConfigExtended, terragruntOptions); err != nil {
 		return err
 	}
+
+	var s3Config = s3ConfigExtended.remoteStateConfigS3
 
 	s3Client, err := CreateS3Client(s3Config.Region, s3Config.Endpoint, s3Config.Profile, s3Config.RoleArn, terragruntOptions)
 	if err != nil {
 		return err
 	}
 
-	if err := createS3BucketIfNecessary(s3Client, s3Config, terragruntOptions); err != nil {
+	if err := createS3BucketIfNecessary(s3Client, s3ConfigExtended, terragruntOptions); err != nil {
 		return err
 	}
 
-	if err := checkIfVersioningEnabled(s3Client, s3Config, terragruntOptions); err != nil {
+	if err := checkIfVersioningEnabled(s3Client, &s3Config, terragruntOptions); err != nil {
 		return err
 	}
 
-	if err := createLockTableIfNecessary(s3Config, terragruntOptions); err != nil {
+	if err := createLockTableIfNecessary(&s3Config, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -117,8 +126,28 @@ func parseS3Config(config map[string]interface{}) (*RemoteStateConfigS3, error) 
 	return &s3Config, nil
 }
 
+// Parse the given map into an extended S3 config
+func parseExtendedS3Config(config map[string]interface{}) (*ExtendedRemoteStateConfigS3, error) {
+	var s3Config RemoteStateConfigS3
+	var extendedConfig ExtendedRemoteStateConfigS3
+
+	if err := mapstructure.Decode(config, &s3Config); err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
+	if err := mapstructure.Decode(config, &extendedConfig); err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
+	extendedConfig.remoteStateConfigS3 = s3Config
+
+	return &extendedConfig, nil
+}
+
 // Validate all the parameters of the given S3 remote state configuration
-func validateS3Config(config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	var config = extendedConfig.remoteStateConfigS3
+
 	if config.Region == "" {
 		return errors.WithStackTrace(MissingRequiredS3RemoteStateConfig("region"))
 	}
@@ -135,14 +164,19 @@ func validateS3Config(config *RemoteStateConfigS3, terragruntOptions *options.Te
 		terragruntOptions.Logger.Printf("WARNING: encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enabling encryption!", config.Bucket)
 	}
 
+	if len(extendedConfig.S3BucketTags) > 1 {
+		return errors.WithStackTrace(MissingRequiredS3RemoteStateConfig("key"))
+
+	}
+
 	return nil
 }
 
 // If the bucket specified in the given config doesn't already exist, prompt the user to create it, and if the user
 // confirms, create the bucket and enable versioning for it.
-func createS3BucketIfNecessary(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	if !DoesS3BucketExist(s3Client, config) {
-		prompt := fmt.Sprintf("Remote state S3 bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", config.Bucket)
+func createS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	if !DoesS3BucketExist(s3Client, &config.remoteStateConfigS3) {
+		prompt := fmt.Sprintf("Remote state S3 bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", config.remoteStateConfigS3.Bucket)
 		shouldCreateBucket, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
 		if err != nil {
 			return err
@@ -173,20 +207,44 @@ func checkIfVersioningEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 }
 
 // Create the given S3 bucket and enable versioning for it
-func CreateS3BucketWithVersioning(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	if err := CreateS3Bucket(s3Client, config, terragruntOptions); err != nil {
+func CreateS3BucketWithVersioning(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	if err := CreateS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
 		return err
 	}
 
-	if err := WaitUntilS3BucketExists(s3Client, config, terragruntOptions); err != nil {
+	if err := TagS3Bucket(s3Client, config); err != nil {
 		return err
 	}
 
-	if err := EnableVersioningForS3Bucket(s3Client, config, terragruntOptions); err != nil {
+	if err := WaitUntilS3BucketExists(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
+		return err
+	}
+
+	if err := EnableVersioningForS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func TagS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3) error {
+
+	putBucketTaggingInput := s3.PutBucketTaggingInput{
+		Bucket: aws.String(config.remoteStateConfigS3.Bucket),
+		Tagging: &s3.Tagging{
+			TagSet: []*s3.Tag{
+				{
+					Key:   aws.String("owner"),
+					Value: aws.String("team name")}}}}
+
+	_, err := s3Client.PutBucketTagging(&putBucketTaggingInput)
+
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	return nil
+
 }
 
 // AWS is eventually consistent, so after creating an S3 bucket, this method can be used to wait until the information
@@ -277,6 +335,12 @@ type MissingRequiredS3RemoteStateConfig string
 
 func (configName MissingRequiredS3RemoteStateConfig) Error() string {
 	return fmt.Sprintf("Missing required S3 remote state configuration %s", string(configName))
+}
+
+type MultipleTagsDeclarations string
+
+func (target MultipleTagsDeclarations) Error() string {
+	return fmt.Sprintf("Tags for %s got declared multiple times. Please do only declare in one block.", target)
 }
 
 type MaxRetriesWaitingForS3BucketExceeded string
