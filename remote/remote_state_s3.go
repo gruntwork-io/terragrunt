@@ -14,7 +14,11 @@ import (
 	"time"
 )
 
-// A representation of the configuration options available for S3 remote state
+/*
+ * We use this construct to separate the two config keys 's3_bucket_tags' and 'dynamotable_tags'
+ * from the others, as they are specific to the s3 backend, but only used by terragrunt to tag
+ * the s3 bucket and the dynamo db, in case it has to create them.
+ */
 type ExtendedRemoteStateConfigS3 struct {
 	remoteStateConfigS3 RemoteStateConfigS3
 
@@ -22,6 +26,7 @@ type ExtendedRemoteStateConfigS3 struct {
 	DynamotableTags []map[string]string `mapstructure:"dynamotable_tags"`
 }
 
+// A representation of the configuration options available for S3 remote state
 type RemoteStateConfigS3 struct {
 	Encrypt       bool   `mapstructure:"encrypt"`
 	Bucket        string `mapstructure:"bucket"`
@@ -234,8 +239,8 @@ func CreateS3BucketWithVersioning(s3Client *s3.S3, config *ExtendedRemoteStateCo
 
 func TagS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 
-	if len(config.S3BucketTags) == 0 {
-		terragruntOptions.Logger.Print("No tags for S3 bucket given.")
+	if config.S3BucketTags == nil || len(config.S3BucketTags) == 0 {
+		terragruntOptions.Logger.Println("No tags for S3 bucket given.")
 		return nil
 	}
 
@@ -264,16 +269,12 @@ func convertTags(tags map[string]string) []*s3.Tag {
 
 	var tagsConverted []*s3.Tag
 
-	var i = 0
-
 	for k, v := range tags {
 		var tag = s3.Tag{
 			Key:   aws.String(k),
 			Value: aws.String(v)}
 
 		tagsConverted = append(tagsConverted, &tag)
-
-		i++
 	}
 
 	return tagsConverted
