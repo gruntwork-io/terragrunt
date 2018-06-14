@@ -26,6 +26,8 @@ type RemoteStateInitializer interface {
 
 	// Initialize the remote state
 	Initialize(config map[string]interface{}, terragruntOptions *options.TerragruntOptions) error
+
+	GetTerraformInitArgs(config map[string]interface{}) map[string]interface{}
 }
 
 // TODO: initialization actions for other remote state backends can be added here
@@ -121,12 +123,16 @@ func (remoteState *RemoteState) differsFrom(existingBackend *TerraformBackend, t
 // Convert the RemoteState config into the format used by the terraform init command
 func (remoteState RemoteState) ToTerraformInitArgs() []string {
 	backendConfigArgs := []string{}
-	for key, value := range remoteState.Config {
 
-		if key == "s3_bucket_tags" || key == "dynamotable_tags" {
-			continue
-		}
+	initializer, hasInitializer := remoteStateInitializers[remoteState.Backend]
+	if !hasInitializer {
+		// return empty array
+		return backendConfigArgs
+	}
 
+	var config = initializer.GetTerraformInitArgs(remoteState.Config)
+
+	for key, value := range config {
 		arg := fmt.Sprintf("-backend-config=%s=%v", key, value)
 		backendConfigArgs = append(backendConfigArgs, arg)
 	}

@@ -121,6 +121,21 @@ func (s3Initializer S3Initializer) Initialize(config map[string]interface{}, ter
 	return nil
 }
 
+func (s3Initializer S3Initializer) GetTerraformInitArgs(config map[string]interface{}) map[string]interface{} {
+	var filteredConfig = make(map[string]interface{})
+
+	for key, val := range config {
+
+		if key == "s3_bucket_tags" || key == "dynamotable_tags" {
+			continue
+		}
+
+		filteredConfig[key] = val
+	}
+
+	return filteredConfig
+}
+
 // Parse the given map into an S3 config
 func parseS3Config(config map[string]interface{}) (*RemoteStateConfigS3, error) {
 	var s3Config RemoteStateConfigS3
