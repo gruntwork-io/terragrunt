@@ -38,6 +38,23 @@ func TestToTerraformInitArgs(t *testing.T) {
 	assertTerraformInitArgsEqual(t, args, "-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1")
 }
 
+func TestToTerraformInitArgsUnknownBackend(t *testing.T) {
+	t.Parallel()
+
+	remoteState := RemoteState{
+		Backend: "s4",
+		Config: map[string]interface{}{
+			"encrypt": true,
+			"bucket":  "my-bucket",
+			"key":     "terraform.tfstate",
+			"region":  "us-east-1"},
+	}
+	args := remoteState.ToTerraformInitArgs()
+
+	// no Backend initializer available, but command line args should still be passed on
+	assertTerraformInitArgsEqual(t, args, "-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1")
+}
+
 func TestToTerraformInitArgsNoBackendConfigs(t *testing.T) {
 	t.Parallel()
 

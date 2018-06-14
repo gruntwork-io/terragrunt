@@ -27,6 +27,8 @@ type RemoteStateInitializer interface {
 	// Initialize the remote state
 	Initialize(config map[string]interface{}, terragruntOptions *options.TerragruntOptions) error
 
+	// Return the config that should be passed on to terraform via -backend-config cmd line param
+	// Allows the Backends to filter and/or modify the configuration given from the user
 	GetTerraformInitArgs(config map[string]interface{}) map[string]interface{}
 }
 
@@ -122,15 +124,16 @@ func (remoteState *RemoteState) differsFrom(existingBackend *TerraformBackend, t
 
 // Convert the RemoteState config into the format used by the terraform init command
 func (remoteState RemoteState) ToTerraformInitArgs() []string {
-	backendConfigArgs := []string{}
+
+	config := remoteState.Config
 
 	initializer, hasInitializer := remoteStateInitializers[remoteState.Backend]
-	if !hasInitializer {
-		// return empty array
-		return backendConfigArgs
+	if hasInitializer {
+		// get modified config from backend, if backend exists
+		config = initializer.GetTerraformInitArgs(remoteState.Config)
 	}
 
-	var config = initializer.GetTerraformInitArgs(remoteState.Config)
+	var backendConfigArgs []string = nil
 
 	for key, value := range config {
 		arg := fmt.Sprintf("-backend-config=%s=%v", key, value)

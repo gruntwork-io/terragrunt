@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -94,8 +95,7 @@ func TestTableTagging(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var tags = make(map[string]string)
-	tags["team"] = "team A"
+	tags := map[string]string{"team": "team A"}
 
 	// Create the table the first time
 	withLockTableTagged(t, tags, func(tableName string, client *dynamodb.DynamoDB) {
@@ -110,7 +110,7 @@ func TestTableTagging(t *testing.T) {
 }
 
 func assertTags(expectedTags map[string]string, tableName string, client *dynamodb.DynamoDB, t *testing.T) {
-	var description, err = client.DescribeTable(&dynamodb.DescribeTableInput{TableName: &tableName})
+	var description, err = client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
 
 	if err != nil {
 		t.Fatal(err)
