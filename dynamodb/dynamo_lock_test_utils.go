@@ -70,6 +70,10 @@ func assertCanWriteToTable(t *testing.T, tableName string, client *dynamodb.Dyna
 }
 
 func withLockTable(t *testing.T, action func(tableName string, client *dynamodb.DynamoDB)) {
+	withLockTableTagged(t, nil, action)
+}
+
+func withLockTableTagged(t *testing.T, tags map[string]string, action func(tableName string, client *dynamodb.DynamoDB)) {
 	client := createDynamoDbClientForTest(t)
 	tableName := uniqueTableNameForTest()
 
@@ -78,7 +82,7 @@ func withLockTable(t *testing.T, action func(tableName string, client *dynamodb.
 		t.Fatal(err)
 	}
 
-	err = CreateLockTableIfNecessary(tableName, nil, client, mockOptions)
+	err = CreateLockTableIfNecessary(tableName, tags, client, mockOptions)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	defer cleanupTableForTest(t, tableName, client)
 

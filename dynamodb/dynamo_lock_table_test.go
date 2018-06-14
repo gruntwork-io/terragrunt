@@ -43,7 +43,7 @@ func TestCreateLockTableConcurrency(t *testing.T) {
 		waitGroup.Add(1)
 		go func() {
 			defer waitGroup.Done()
-			err := CreateLockTableIfNecessary(tableName, client, mockOptions)
+			err := CreateLockTableIfNecessary(tableName, nil, client, mockOptions)
 			assert.Nil(t, err, "Unexpected error: %v", err)
 		}()
 	}
@@ -81,7 +81,52 @@ func TestCreateLockTableIfNecessaryTableAlreadyExists(t *testing.T) {
 		assertCanWriteToTable(t, tableName, client)
 
 		// Try to create the table the second time and make sure you get no errors
-		err := CreateLockTableIfNecessary(tableName, client, mockOptions)
+		err = CreateLockTableIfNecessary(tableName, nil, client, mockOptions)
 		assert.Nil(t, err, "Unexpected error: %v", err)
 	})
+}
+
+func TestTableTagging(t *testing.T) {
+	t.Parallel()
+
+	mockOptions, err := options.NewTerragruntOptionsForTest("dynamo_lock_test_utils")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var tags = make(map[string]string)
+	tags["team"] = "team A"
+
+	// Create the table the first time
+	withLockTableTagged(t, tags, func(tableName string, client *dynamodb.DynamoDB) {
+		assertCanWriteToTable(t, tableName, client)
+
+		assertTags(tags, tableName, client, t)
+
+		// Try to create the table the second time and make sure you get no errors
+		err = CreateLockTableIfNecessary(tableName, nil, client, mockOptions)
+		assert.Nil(t, err, "Unexpected error: %v", err)
+	})
+}
+
+func assertTags(expectedTags map[string]string, tableName string, client *dynamodb.DynamoDB, t *testing.T) {
+	var description, err = client.DescribeTable(&dynamodb.DescribeTableInput{TableName: &tableName})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var tags, err2 = client.ListTagsOfResource(&dynamodb.ListTagsOfResourceInput{ResourceArn: description.Table.TableArn})
+
+	if err2 != nil {
+		t.Fatal(err2)
+	}
+
+	var actualTags = make(map[string]string)
+
+	for _, element := range tags.Tags {
+		actualTags[*element.Key] = *element.Value
+	}
+
+	assert.Equal(t, expectedTags, actualTags, "Did not find expected tags on dynamo table.")
 }

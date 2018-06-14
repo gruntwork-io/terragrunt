@@ -8,6 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+/**
+ * Test for s3, also tests that the terragrunt-specific options are not passed on to terraform
+ */
 func TestToTerraformInitArgs(t *testing.T) {
 	t.Parallel()
 
@@ -18,10 +21,20 @@ func TestToTerraformInitArgs(t *testing.T) {
 			"bucket":  "my-bucket",
 			"key":     "terraform.tfstate",
 			"region":  "us-east-1",
-		},
+
+			"s3_bucket_tags": map[string]interface{}{
+				"team":    "team name",
+				"name":    "Terraform state storage",
+				"service": "Terraform"},
+
+			"dynamotable_tags": map[string]interface{}{
+				"team":    "team name",
+				"name":    "Terraform state storage",
+				"service": "Terraform"}},
 	}
 	args := remoteState.ToTerraformInitArgs()
 
+	// must not contain s3_bucket_tags or dynamotable_tags
 	assertTerraformInitArgsEqual(t, args, "-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1")
 }
 
