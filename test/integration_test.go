@@ -276,7 +276,16 @@ func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
 	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, TEST_FIXTURE_PATH, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, TEST_FIXTURE_PATH))
-	validateS3BucketExists(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+
+	var expectedS3Tags = map[string]string{
+		"owner": "terragrunt integration test",
+		"name":  "Terraform state storage"}
+	validateS3BucketExistsAndIsTagged(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName, expectedS3Tags)
+
+	var expectedDynamoDBTableTags = map[string]string{
+		"owner": "terragrunt integration test",
+		"name":  "Terraform lock table"}
+	validateDynamoDBTableExistsAndIsTagged(t, TERRAFORM_REMOTE_STATE_S3_REGION, lockTableName, expectedDynamoDBTableTags)
 }
 
 func TestTerragruntWorksWithIncludes(t *testing.T) {
@@ -918,7 +927,8 @@ func uniqueId() string {
 }
 
 // Check that the S3 Bucket of the given name and region exists. Terragrunt should create this bucket during the test.
-func validateS3BucketExists(t *testing.T, awsRegion string, bucketName string) {
+// Also check if bucket got tagged properly
+func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketName string, expectedTags map[string]string) {
 	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
 	if err != nil {
 		t.Fatalf("Error creating mockOptions: %v", err)
@@ -931,6 +941,57 @@ func validateS3BucketExists(t *testing.T, awsRegion string, bucketName string) {
 
 	remoteStateConfig := remote.RemoteStateConfigS3{Bucket: bucketName, Region: awsRegion}
 	assert.True(t, remote.DoesS3BucketExist(s3Client, &remoteStateConfig), "Terragrunt failed to create remote state S3 bucket %s", bucketName)
+
+	if expectedTags != nil {
+		assertS3Tags(expectedTags, bucketName, s3Client, t)
+	}
+}
+
+// Check that the DynamoDB table of the given name and region exists. Terragrunt should create this table during the test.
+// Also check if table got tagged properly
+func validateDynamoDBTableExistsAndIsTagged(t *testing.T, awsRegion string, tableName string, expectedTags map[string]string) {
+	client := createDynamoDbClientForTest(t, awsRegion)
+
+	var description, err = client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
+
+	if err != nil {
+		// This is a ResourceNotFoundException in case the table does not exist
+		t.Fatal(err)
+	}
+
+	var tags, err2 = client.ListTagsOfResource(&dynamodb.ListTagsOfResourceInput{ResourceArn: description.Table.TableArn})
+
+	if err2 != nil {
+		t.Fatal(err2)
+	}
+
+	var actualTags = make(map[string]string)
+
+	for _, element := range tags.Tags {
+		actualTags[*element.Key] = *element.Value
+	}
+
+	assert.Equal(t, expectedTags, actualTags, "Did not find expected tags on dynamo table.")
+}
+
+func assertS3Tags(expectedTags map[string]string, bucketName string, client *s3.S3, t *testing.T) {
+
+	var in = s3.GetBucketTaggingInput{}
+	in.SetBucket(bucketName)
+
+	var tags, err2 = client.GetBucketTagging(&in)
+
+	if err2 != nil {
+		t.Fatal(err2)
+	}
+
+	var actualTags = make(map[string]string)
+
+	for _, element := range tags.TagSet {
+		actualTags[*element.Key] = *element.Value
+	}
+
+	assert.Equal(t, expectedTags, actualTags, "Did not find expected tags on s3 bucket.")
 }
 
 // Delete the specified S3 bucket to clean up after a test
