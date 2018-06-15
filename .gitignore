@@ -1,5 +1,6 @@
 .*.sw?
 .idea
+terragrunt.iml
 vendor
 .terraform
 .vscode

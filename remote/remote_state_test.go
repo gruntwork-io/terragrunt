@@ -8,6 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+/**
+ * Test for s3, also tests that the terragrunt-specific options are not passed on to terraform
+ */
 func TestToTerraformInitArgs(t *testing.T) {
 	t.Parallel()
 
@@ -18,10 +21,37 @@ func TestToTerraformInitArgs(t *testing.T) {
 			"bucket":  "my-bucket",
 			"key":     "terraform.tfstate",
 			"region":  "us-east-1",
-		},
+
+			"s3_bucket_tags": map[string]interface{}{
+				"team":    "team name",
+				"name":    "Terraform state storage",
+				"service": "Terraform"},
+
+			"dynamodb_table_tags": map[string]interface{}{
+				"team":    "team name",
+				"name":    "Terraform state storage",
+				"service": "Terraform"}},
 	}
 	args := remoteState.ToTerraformInitArgs()
 
+	// must not contain s3_bucket_tags or dynamodb_table_tags
+	assertTerraformInitArgsEqual(t, args, "-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1")
+}
+
+func TestToTerraformInitArgsUnknownBackend(t *testing.T) {
+	t.Parallel()
+
+	remoteState := RemoteState{
+		Backend: "s4",
+		Config: map[string]interface{}{
+			"encrypt": true,
+			"bucket":  "my-bucket",
+			"key":     "terraform.tfstate",
+			"region":  "us-east-1"},
+	}
+	args := remoteState.ToTerraformInitArgs()
+
+	// no Backend initializer available, but command line args should still be passed on
 	assertTerraformInitArgsEqual(t, args, "-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1")
 }
 

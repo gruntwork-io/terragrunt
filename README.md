@@ -486,6 +486,16 @@ terragrunt = {
       region         = "us-east-1"
       encrypt        = true
       dynamodb_table = "my-lock-table"
+      
+      s3_bucket_tags {
+        owner = "terragrunt integration test"
+        name  = "Terraform state storage"
+      }
+
+      dynamodb_table_tags {
+        owner = "terragrunt integration test"
+        name  = "Terraform lock table"
+      }
     }
   }
 }
@@ -494,7 +504,9 @@ terragrunt = {
 The `remote_state` block supports all the same [backend types](https://www.terraform.io/docs/backends/types/index.html)
 as Terraform. The next time you run `terragrunt`, it will automatically configure all the settings in the
 `remote_state.config` block, if they aren't configured already, by calling [terraform
-init](https://www.terraform.io/docs/commands/init.html).
+init](https://www.terraform.io/docs/commands/init.html). The config options `s3_bucket_tags` and 
+`dynamodb_table_tags` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to 
+terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).
 
 In each of the **child** `terraform.tfvars` files, such as `mysql/terraform.tfvars`, you can tell Terragrunt to
 automatically include all the settings from the root `terraform.tfvars` file as follows:
@@ -562,11 +574,19 @@ they don't already exist:
 * **S3 bucket**: If you are using the [S3 backend](https://www.terraform.io/docs/backends/types/s3.html) for remote
   state storage and the `bucket` you specify in `remote_state.config` doesn't already exist, Terragrunt will create it
   automatically, with [versioning enabled](http://docs.aws.amazon.com/AmazonS3/latest/dev/Versioning.html).
+  
+  In addition, you can let terragrunt tag the bucket with custom tags that you specify in 
+  `remote_state.config.s3_bucket_tags`. See sample configuration in section 
+  [Filling in remote state settings with Terragrunt](#filling-in-remote-state-settings-with-terragrunt).
 
 * **DynamoDB table**: If you are using the [S3 backend](https://www.terraform.io/docs/backends/types/s3.html) for
   remote state storage and you specify a `dynamodb_table` (a [DynamoDB table used for
   locking](https://www.terraform.io/docs/backends/types/s3.html#dynamodb_table)) in `remote_state.config`, if that table
   doesn't already exist, Terragrunt will create it automatically, including a primary key called `LockID`.
+  
+  In addition, you can let terragrunt tag the DynamoDB table with custom tags that you specify in
+  `remote_state.config.dynamodb_table_tags`. See sample configuration in section 
+  [Filling in remote state settings with Terragrunt](#filling-in-remote-state-settings-with-terragrunt).
 
 **Note**: If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile
 when creating the S3 bucket or DynamoDB table.
