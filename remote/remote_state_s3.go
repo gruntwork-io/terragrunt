@@ -15,7 +15,7 @@ import (
 )
 
 /*
- * We use this construct to separate the two config keys 's3_bucket_tags' and 'dynamotable_tags'
+ * We use this construct to separate the two config keys 's3_bucket_tags' and 'dynamodb_table_tags'
  * from the others, as they are specific to the s3 backend, but only used by terragrunt to tag
  * the s3 bucket and the dynamo db, in case it has to create them.
  */
@@ -23,7 +23,7 @@ type ExtendedRemoteStateConfigS3 struct {
 	remoteStateConfigS3 RemoteStateConfigS3
 
 	S3BucketTags    []map[string]string `mapstructure:"s3_bucket_tags"`
-	DynamotableTags []map[string]string `mapstructure:"dynamotable_tags"`
+	DynamotableTags []map[string]string `mapstructure:"dynamodb_table_tags"`
 }
 
 // A representation of the configuration options available for S3 remote state
@@ -126,7 +126,7 @@ func (s3Initializer S3Initializer) GetTerraformInitArgs(config map[string]interf
 
 	for key, val := range config {
 
-		if key == "s3_bucket_tags" || key == "dynamotable_tags" {
+		if key == "s3_bucket_tags" || key == "dynamodb_table_tags" {
 			continue
 		}
 

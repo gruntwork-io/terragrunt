@@ -27,14 +27,14 @@ func TestToTerraformInitArgs(t *testing.T) {
 				"name":    "Terraform state storage",
 				"service": "Terraform"},
 
-			"dynamotable_tags": map[string]interface{}{
+			"dynamodb_table_tags": map[string]interface{}{
 				"team":    "team name",
 				"name":    "Terraform state storage",
 				"service": "Terraform"}},
 	}
 	args := remoteState.ToTerraformInitArgs()
 
-	// must not contain s3_bucket_tags or dynamotable_tags
+	// must not contain s3_bucket_tags or dynamodb_table_tags
 	assertTerraformInitArgsEqual(t, args, "-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1")
 }
 

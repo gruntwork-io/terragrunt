@@ -492,7 +492,7 @@ terragrunt = {
         name = "Terraform state storage"
       }
 
-      dynamotable_tags {
+      dynamodb_table_tags {
         owner = "terragrunt integration test"
         name = "Terraform lock table"
       }
@@ -505,7 +505,7 @@ The `remote_state` block supports all the same [backend types](https://www.terra
 as Terraform. The next time you run `terragrunt`, it will automatically configure all the settings in the
 `remote_state.config` block, if they aren't configured already, by calling [terraform
 init](https://www.terraform.io/docs/commands/init.html). The config options `s3_bucket_tags` and 
-`dynamotable_tags` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to 
+`dynamodb_table_tags` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to 
 terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).
 
 In each of the **child** `terraform.tfvars` files, such as `mysql/terraform.tfvars`, you can tell Terragrunt to
@@ -585,7 +585,7 @@ they don't already exist:
   doesn't already exist, Terragrunt will create it automatically, including a primary key called `LockID`.
   
   In addition, you can let terragrunt tag the DynamoDB table with custom tags that you specify in
-  `remote_state.config.dynamotable_tags`. See sample configuration in section 
+  `remote_state.config.dynamodb_table_tags`. See sample configuration in section 
   [Filling in remote state settings with Terragrunt](#filling-in-remote-state-settings-with-terragrunt).
 
 **Note**: If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile
