@@ -489,12 +489,12 @@ terragrunt = {
       
       s3_bucket_tags {
         owner = "terragrunt integration test"
-        name = "Terraform state storage"
+        name  = "Terraform state storage"
       }
 
       dynamodb_table_tags {
         owner = "terragrunt integration test"
-        name = "Terraform lock table"
+        name  = "Terraform lock table"
       }
     }
   }
