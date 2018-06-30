@@ -197,12 +197,12 @@ func resolveExternalDependenciesForModules(moduleMap map[string]*TerraformModule
 				continue
 			}
 
-			alreadyApplied, err := confirmExternalDependencyAlreadyApplied(module, externalDependency, terragruntOptions)
+			shouldApply, err := confirmShouldApplyExternalDependency(module, externalDependency, terragruntOptions)
 			if err != nil {
 				return externalDependencies, err
 			}
 
-			externalDependency.AssumeAlreadyApplied = alreadyApplied
+			externalDependency.AssumeAlreadyApplied = !shouldApply
 			allExternalDependencies[externalDependency.Path] = externalDependency
 		}
 	}
@@ -247,8 +247,8 @@ func resolveExternalDependenciesForModule(module *TerraformModule, moduleMap map
 
 // Confirm with the user whether they want Terragrunt to assume the given dependency of the given module is already
 // applied. If the user selects "no", then Terragrunt will apply that module as well.
-func confirmExternalDependencyAlreadyApplied(module *TerraformModule, dependency *TerraformModule, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	prompt := fmt.Sprintf("Module %s depends on module %s, which is an external dependency outside of the current working directory. Should Terragrunt skip over this external dependency? Warning, if you say 'no', Terragrunt will make changes in %s as well!", module.Path, dependency.Path, dependency.Path)
+func confirmShouldApplyExternalDependency(module *TerraformModule, dependency *TerraformModule, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	prompt := fmt.Sprintf("Module %s depends on module %s, which is an external dependency outside of the current working directory. Should Terragrunt run this external dependency? Warning, if you say 'yes', Terragrunt will make changes in %s as well!", module.Path, dependency.Path, dependency.Path)
 	return shell.PromptUserForYesNo(prompt, terragruntOptions)
 }
 
