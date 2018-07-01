@@ -1191,6 +1191,54 @@ your organization's naming convention for AWS resources for Terraform remote sta
 }
 ```
 
+For a more minimal policy, for example when using a single bucket and DynamoDB table for multiple Terragrunt
+users, you can use the following. Be sure to replace `BUCKET_NAME` and `TABLE_NAME` with the S3 bucket name
+and DynamoDB table name respectively.
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllowCreateAndListS3ActionsOnSpecifiedTerragruntBucket",
+            "Effect": "Allow",
+            "Action": [
+                "s3:ListBucket",
+                "s3:GetBucketVersioning",
+                "s3:CreateBucket"
+            ],
+            "Resource": "arn:aws:s3:::BUCKET_NAME"
+        },
+        {
+            "Sid": "AllowGetAndPutS3ActionsOnSpecifiedTerragruntBucketPath",
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject",
+                "s3:GetObject"
+            ],
+            "Resource": "arn:aws:s3:::BUCKET_NAME/some/path/here"
+        },
+        {
+            "Sid": "",
+            "Sid": "AllowCreateAndUpdateDynamoDBActionsOnSpecifiedTerragruntTable",
+            "Effect": "Allow",
+            "Action": [
+                "dynamodb:PutItem",
+                "dynamodb:GetItem",
+                "dynamodb:DescribeTable",
+                "dynamodb:DeleteItem",
+                "dynamodb:CreateTable"
+            ],
+            "Resource": "arn:aws:dynamodb:*:*:table/TABLE_NAME"
+        }
+    ]
+}
+```
+
+When the above is applied to an IAM user it will restrict them to creating the DynamoDB table if it doesn't
+already exist and allow updating records for state locking, and for the S3 bucket will allow creating the
+bucket if it doesn't already exist and only write files to the specified path.
+
 ### Interpolation syntax
 
 Terragrunt allows you to use [Terraform interpolation syntax](https://www.terraform.io/docs/configuration/interpolation.html)
