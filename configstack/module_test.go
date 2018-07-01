@@ -186,7 +186,7 @@ func TestResolveTerraformModulesMultipleModulesWithExternalDependencies(t *testi
 		Dependencies:         []*TerraformModule{},
 		Config:               config.TerragruntConfig{},
 		TerragruntOptions:    mockOptions.Clone(canonical(t, "../test/fixture-modules/module-f/"+config.DefaultTerragruntConfigPath)),
-		AssumeAlreadyApplied: true,
+		AssumeAlreadyApplied: false,
 	}
 
 	moduleG := &TerraformModule{
@@ -215,7 +215,7 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 		Dependencies:         []*TerraformModule{},
 		Config:               config.TerragruntConfig{},
 		TerragruntOptions:    mockOptions.Clone(canonical(t, "../test/fixture-modules/module-h/"+config.DefaultTerragruntConfigPath)),
-		AssumeAlreadyApplied: true,
+		AssumeAlreadyApplied: false,
 	}
 
 	moduleI := &TerraformModule{
@@ -225,7 +225,7 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 			Dependencies: &config.ModuleDependencies{Paths: []string{"../module-h"}},
 		},
 		TerragruntOptions:    mockOptions.Clone(canonical(t, "../test/fixture-modules/module-i/"+config.DefaultTerragruntConfigPath)),
-		AssumeAlreadyApplied: true,
+		AssumeAlreadyApplied: false,
 	}
 
 	moduleJ := &TerraformModule{
