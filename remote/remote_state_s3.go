@@ -240,7 +240,7 @@ func CreateS3BucketWithVersioning(s3Client *s3.S3, config *ExtendedRemoteStateCo
 			terragruntOptions.Logger.Printf("Looks like someone is creating bucket %s at the same time. Will not attempt to create it again.", config.remoteStateConfigS3.Bucket)
 			return WaitUntilS3BucketExists(s3Client, &config.remoteStateConfigS3, terragruntOptions)
 		}
-		
+
 		return err
 	}
 
