@@ -328,7 +328,7 @@ func CreateS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOpti
 // Determine if this is an error that implies you've already made a request to create the S3 bucket and it succeeded
 // or is in progress. This usually happens when running many tests in parallel or xxx-all commands.
 func isBucketAlreadyOwnedByYourError(err error) bool {
-	awsErr, isAwsErr := err.(awserr.Error)
+	awsErr, isAwsErr := errors.Unwrap(err).(awserr.Error)
 	return isAwsErr && (awsErr.Code() == "BucketAlreadyOwnedByYou" || awsErr.Code() == "OperationAborted")
 }
 
