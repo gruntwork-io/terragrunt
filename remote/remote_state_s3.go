@@ -233,7 +233,14 @@ func checkIfVersioningEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 
 // Create the given S3 bucket and enable versioning for it
 func CreateS3BucketWithVersioning(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	if err := CreateS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
+	err := CreateS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions)
+
+	if err != nil {
+		if isBucketAlreadyOwnedByYourError(err) {
+			terragruntOptions.Logger.Printf("Looks like someone is creating bucket %s at the same time. Will not attempt to create it again.", config.remoteStateConfigS3.Bucket)
+			return WaitUntilS3BucketExists(s3Client, &config.remoteStateConfigS3, terragruntOptions)
+		}
+		
 		return err
 	}
 
@@ -315,17 +322,7 @@ func WaitUntilS3BucketExists(s3Client *s3.S3, config *RemoteStateConfigS3, terra
 func CreateS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Creating S3 bucket %s", config.Bucket)
 	_, err := s3Client.CreateBucket(&s3.CreateBucketInput{Bucket: aws.String(config.Bucket)})
-
-	if err != nil {
-		if isBucketAlreadyOwnedByYourError(err) {
-			terragruntOptions.Logger.Printf("Looks like someone created bucket %s at the same time. Will wait for it to be in active state.", config.Bucket)
-			return nil
-		} else {
-			return errors.WithStackTrace(err)
-		}
-	}
-
-	return nil
+	return errors.WithStackTrace(err)
 }
 
 // Determine if this is an error that implies you've already made a request to create the S3 bucket and it succeeded
