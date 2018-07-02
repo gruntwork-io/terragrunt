@@ -77,8 +77,11 @@ type TerragruntOptions struct {
 	// exposed here primarily so we can set it to a low value at test time.
 	MaxFoldersToCheck int
 
-	// Maximum number of times to retry errors matching RetryableTerraformErrors
+	// Maximum number of times to retry errors matching RetryableErrors
 	MaxRetries int
+
+	// If Terraform apply fails with one of these (transient) errors, retry. The keys are text to look for in the error and the message is what to display to a user if that error is found.
+	RetryableErrors map[string]string
 
 	// A command that can be used to run Terragrunt with the given options. This is useful for running Terragrunt
 	// multiple times (e.g. when spinning up a stack of Terraform modules). The actual command is normally defined
