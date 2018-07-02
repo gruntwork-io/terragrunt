@@ -100,7 +100,7 @@ func (s3Initializer S3Initializer) NeedsInitialization(config map[string]interfa
 // Return true if the given config is in any way different than what is configured for the backend
 func configValuesEqual(config map[string]interface{}, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) bool {
 	if existingBackend == nil {
-		return len(config) > 0
+		return len(config) == 0
 	}
 
 	if existingBackend.Type != "s3" {
