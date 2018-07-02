@@ -16,61 +16,73 @@ func TestConfigValuesEqual(t *testing.T) {
 	testCases := []struct {
 		name          string
 		config        map[string]interface{}
-		backend       TerraformBackend
+		backend       *TerraformBackend
 		shouldBeEqual bool
 	}{
 		{
 			"equal-both-empty",
 			map[string]interface{}{},
-			TerraformBackend{Type: "s3", Config: map[string]interface{}{}},
+			&TerraformBackend{Type: "s3", Config: map[string]interface{}{}},
 			true,
 		},
 		{
 			"equal-empty-and-nil",
 			map[string]interface{}{},
-			TerraformBackend{Type: "s3"},
+			nil,
+			true,
+		},
+		{
+			"equal-empty-and-nil-backend-config",
+			map[string]interface{}{},
+			&TerraformBackend{Type: "s3"},
 			true,
 		},
 		{
 			"equal-one-key",
 			map[string]interface{}{"foo": "bar"},
-			TerraformBackend{Type: "s3", Config: map[string]interface{}{"foo": "bar"}},
+			&TerraformBackend{Type: "s3", Config: map[string]interface{}{"foo": "bar"}},
 			true,
 		},
 		{
 			"equal-multiple-keys",
 			map[string]interface{}{"foo": "bar", "baz": []string{"a", "b", "c"}, "blah": 123, "bool": true},
-			TerraformBackend{Type: "s3", Config: map[string]interface{}{"foo": "bar", "baz": []string{"a", "b", "c"}, "blah": 123, "bool": true}},
+			&TerraformBackend{Type: "s3", Config: map[string]interface{}{"foo": "bar", "baz": []string{"a", "b", "c"}, "blah": 123, "bool": true}},
 			true,
 		},
 		{
 			"equal-encrypt-bool-handling",
 			map[string]interface{}{"encrypt": true},
-			TerraformBackend{Type: "s3", Config: map[string]interface{}{"encrypt": "true"}},
+			&TerraformBackend{Type: "s3", Config: map[string]interface{}{"encrypt": "true"}},
 			true,
 		},
 		{
 			"equal-ignore-s3-tags",
 			map[string]interface{}{"foo": "bar", "s3_bucket_tags": []map[string]string{{"foo": "bar"}}},
-			TerraformBackend{Type: "s3", Config: map[string]interface{}{"foo": "bar"}},
+			&TerraformBackend{Type: "s3", Config: map[string]interface{}{"foo": "bar"}},
 			true,
 		},
 		{
 			"equal-ignore-dynamodb-tags",
 			map[string]interface{}{"dynamodb_table_tags": []map[string]string{{"foo": "bar"}}},
-			TerraformBackend{Type: "s3", Config: map[string]interface{}{}},
+			&TerraformBackend{Type: "s3", Config: map[string]interface{}{}},
 			true,
 		},
 		{
 			"unequal-wrong-backend",
 			map[string]interface{}{"foo": "bar"},
-			TerraformBackend{Type: "wrong", Config: map[string]interface{}{"foo": "bar"}},
+			&TerraformBackend{Type: "wrong", Config: map[string]interface{}{"foo": "bar"}},
 			false,
 		},
 		{
 			"unequal-values",
 			map[string]interface{}{"foo": "bar"},
-			TerraformBackend{Type: "s3", Config: map[string]interface{}{"foo": "different"}},
+			&TerraformBackend{Type: "s3", Config: map[string]interface{}{"foo": "different"}},
+			false,
+		},
+		{
+			"unequal-non-empty-config-nil",
+			map[string]interface{}{"foo": "bar"},
+			nil,
 			false,
 		},
 	}
@@ -81,7 +93,7 @@ func TestConfigValuesEqual(t *testing.T) {
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			actual := configValuesEqual(testCase.config, &testCase.backend, terragruntOptions)
+			actual := configValuesEqual(testCase.config, testCase.backend, terragruntOptions)
 			assert.Equal(t, testCase.shouldBeEqual, actual)
 		})
 	}
