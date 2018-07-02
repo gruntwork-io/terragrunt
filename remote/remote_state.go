@@ -2,12 +2,9 @@ package remote
 
 import (
 	"fmt"
-	"reflect"
-	"strconv"
-
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/util"
+	"reflect"
 )
 
 // Configuration for Terraform remote state
@@ -22,7 +19,7 @@ func (remoteState *RemoteState) String() string {
 
 type RemoteStateInitializer interface {
 	// Return true if remote state needs to be initialized
-	NeedsInitialization(config map[string]interface{}, terragruntOptions *options.TerragruntOptions) (bool, error)
+	NeedsInitialization(config map[string]interface{}, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error)
 
 	// Initialize the remote state
 	Initialize(config map[string]interface{}, terragruntOptions *options.TerragruntOptions) error
@@ -79,15 +76,12 @@ func (remoteState *RemoteState) NeedsInit(terragruntOptions *options.TerragruntO
 		return true, nil
 	}
 
-	// Remote state configured, but with a different configuration
-	if state.IsRemote() && remoteState.differsFrom(state.Backend, terragruntOptions) {
+	if initializer, hasInitializer := remoteStateInitializers[remoteState.Backend]; hasInitializer {
+		// Remote state initializer says initialization is necessary
+		return initializer.NeedsInitialization(remoteState.Config, state.Backend, terragruntOptions)
+	} else if state.IsRemote() && remoteState.differsFrom(state.Backend, terragruntOptions) {
+		// If there's no remote state initializer, then just compare the the config values
 		return true, nil
-	}
-
-	// Remote state initializer says initialization is necessary
-	initializer, hasInitializer := remoteStateInitializers[remoteState.Backend]
-	if hasInitializer {
-		return initializer.NeedsInitialization(remoteState.Config, terragruntOptions)
 	}
 
 	return false, nil
@@ -98,19 +92,6 @@ func (remoteState *RemoteState) differsFrom(existingBackend *TerraformBackend, t
 	if existingBackend.Type != remoteState.Backend {
 		terragruntOptions.Logger.Printf("Backend type has changed from %s to %s", existingBackend.Type, remoteState.Backend)
 		return true
-	}
-
-	// Terraform's `backend` configuration uses a boolean for the `encrypt` parameter. However, perhaps for backwards compatibility reasons,
-	// Terraform stores that parameter as a string in the `terraform.tfstate` file. Therefore, we have to convert it accordingly, or `DeepEqual`
-	// will fail.
-	if util.KindOf(existingBackend.Config["encrypt"]) == reflect.String && util.KindOf(remoteState.Config["encrypt"]) == reflect.Bool {
-		// If encrypt in remoteState is a bool and a string in existingBackend, DeepEqual will consider the maps to be different.
-		// So we convert the value from string to bool to make them equivalent.
-		if value, err := strconv.ParseBool(existingBackend.Config["encrypt"].(string)); err == nil {
-			existingBackend.Config["encrypt"] = value
-		} else {
-			terragruntOptions.Logger.Printf("Remote state configuration encrypt contains invalid value %v, should be boolean.", existingBackend.Config["encrypt"])
-		}
 	}
 
 	if !reflect.DeepEqual(existingBackend.Config, remoteState.Config) {

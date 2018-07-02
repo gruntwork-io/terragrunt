@@ -10,7 +10,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/mitchellh/mapstructure"
+	"reflect"
+	"strconv"
 	"time"
 )
 
@@ -53,8 +56,15 @@ const SLEEP_BETWEEN_RETRIES_WAITING_FOR_S3_BUCKET = 5 * time.Second
 
 type S3Initializer struct{}
 
-// Returns true if the S3 bucket or DynamoDB table does not exist
-func (s3Initializer S3Initializer) NeedsInitialization(config map[string]interface{}, terragruntOptions *options.TerragruntOptions) (bool, error) {
+// Returns true if:
+//
+// 1. Any of the existing backend settings are different than the current config
+// 2. The configured S3 bucket or DynamoDB table does not exist
+func (s3Initializer S3Initializer) NeedsInitialization(config map[string]interface{}, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	if !configValuesEqual(config, existingBackend, terragruntOptions) {
+		return true, nil
+	}
+
 	s3Config, err := parseS3Config(config)
 	if err != nil {
 		return false, err
@@ -85,6 +95,42 @@ func (s3Initializer S3Initializer) NeedsInitialization(config map[string]interfa
 	}
 
 	return false, nil
+}
+
+// Return true if the given config is in any way different than what is configured for the backend
+func configValuesEqual(config map[string]interface{}, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) bool {
+	if existingBackend.Type != "s3" {
+		terragruntOptions.Logger.Printf("Backend type has changed from s3 to %s", existingBackend.Type)
+		return false
+	}
+
+	if len(config) == 0 && len(existingBackend.Config) == 0 {
+		return true
+	}
+
+	// Terraform's `backend` configuration uses a boolean for the `encrypt` parameter. However, perhaps for backwards compatibility reasons,
+	// Terraform stores that parameter as a string in the `terraform.tfstate` file. Therefore, we have to convert it accordingly, or `DeepEqual`
+	// will fail.
+	if util.KindOf(existingBackend.Config["encrypt"]) == reflect.String && util.KindOf(config["encrypt"]) == reflect.Bool {
+		// If encrypt in remoteState is a bool and a string in existingBackend, DeepEqual will consider the maps to be different.
+		// So we convert the value from string to bool to make them equivalent.
+		if value, err := strconv.ParseBool(existingBackend.Config["encrypt"].(string)); err == nil {
+			existingBackend.Config["encrypt"] = value
+		} else {
+			terragruntOptions.Logger.Printf("Remote state configuration encrypt contains invalid value %v, should be boolean.", existingBackend.Config["encrypt"])
+		}
+	}
+
+	// Delete S3 and DynamoDB tags, as these are only stored in Terragrunt config and not in Terraform's backend
+	delete(config, "s3_bucket_tags")
+	delete(config, "dynamodb_table_tags")
+
+	if !reflect.DeepEqual(existingBackend.Config, config) {
+		terragruntOptions.Logger.Printf("Backend config has changed from %s to %s", existingBackend.Config, config)
+		return false
+	}
+
+	return true
 }
 
 // Initialize the remote state S3 bucket specified in the given config. This function will validate the config
