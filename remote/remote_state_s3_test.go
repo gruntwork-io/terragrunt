@@ -3,7 +3,7 @@ package remote
 import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/go-playground/assert.v1"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
