@@ -326,15 +326,25 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 	}
 
 	beforeHookErrors := processHooks(terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions)
-	terraformError := runTerraformCommandIfNoErrors(beforeHookErrors, terragruntOptions)
+	terraformError := runTerraformCommandIfNoErrors(beforeHookErrors, terragruntOptions, terragruntConfig)
 	postHookErrors := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, beforeHookErrors, terraformError)
 
 	return errors.NewMultiError(beforeHookErrors, terraformError, postHookErrors)
 }
 
-func runTerraformCommandIfNoErrors(possibleErrors error, terragruntOptions *options.TerragruntOptions) error {
+func runTerraformCommandIfNoErrors(possibleErrors error, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	if possibleErrors == nil {
-		return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
+		output, err := shell.RunTerraformCommandAndCaptureOutput(terragruntOptions, terragruntOptions.TerraformCliArgs...)
+
+		// show the output we captured
+		terragruntOptions.Logger.Println(output)
+		if err != nil {
+			if strings.Contains(output,"may need to run 'terraform init'") {
+				return autorunTerrafromInit(terragruntOptions, terragruntConfig, output)
+			}
+			return err
+		}
+		return err
 	}
 
 	terragruntOptions.Logger.Println("Errors encountered running before_hooks. Not running terraform.")
@@ -498,6 +508,16 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 	}
 
 	return runTerragruntWithConfig(initOptions, terragruntConfig, downloadSource)
+}
+
+// automatically run `init` for us when terraform says we should and continues to run the original command from terrgruntConfig
+// returns error if unable to run init (possibly because auto-init is false), or if the underlying command fails
+func autorunTerrafromInit (terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, tfoutput string) error {
+	terragruntOptions.Logger.Printf("terraform returned %s, running init to fix it\n\n", tfoutput)
+	if err := runTerraformInit(terragruntOptions, terragruntConfig, nil); err != nil {
+			return err
+	}
+	return runTerragruntWithConfig(terragruntOptions, terragruntConfig, false)
 }
 
 // Returns an error if allowSourceDownload is false, and terragruntOptions.TerraformCliArgs contains source download related arguments
