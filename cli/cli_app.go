@@ -338,11 +338,8 @@ func runTerraformCommandIfNoErrors(possibleErrors error, terragruntOptions *opti
 
 		// show the output we captured
 		terragruntOptions.Logger.Println(output)
-		if err != nil {
-			if strings.Contains(output,"may need to run 'terraform init'") {
-				return autorunTerrafromInit(terragruntOptions, terragruntConfig, output)
-			}
-			return err
+		if isRetryableInitError(output, err) {
+			return autorunTerrafromInit(terragruntOptions, terragruntConfig, output)
 		}
 		return err
 	}
@@ -668,6 +665,11 @@ func validateAll(terragruntOptions *options.TerragruntOptions) error {
 
 	terragruntOptions.Logger.Printf("%s", stack.String())
 	return stack.Validate(terragruntOptions)
+}
+
+// test terraform output to see if we should force a call to init
+func isRetryableInitError(tfoutput string, tferr error) bool {
+	return tferr != nil && strings.Contains(tfoutput,"may need to run 'terraform init'")
 }
 
 // Custom error types
