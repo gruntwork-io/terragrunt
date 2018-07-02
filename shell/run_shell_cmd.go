@@ -77,6 +77,7 @@ func RunShellCommandAndCaptureOutput(terragruntOptions *options.TerragruntOption
 	terragruntOptionsCopy := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	terragruntOptionsCopy.Writer = stdout
 	terragruntOptionsCopy.ErrWriter = stdout
+	terragruntOptionsCopy.WorkingDir = terragruntOptions.WorkingDir
 
 	err := RunShellCommand(terragruntOptionsCopy, command, args...)
 	return stdout.String(), err
