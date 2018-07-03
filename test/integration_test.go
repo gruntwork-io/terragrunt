@@ -790,7 +790,7 @@ func TestInitRetry(t *testing.T) {
 
 	assert.Nil(t, err)
 	// t.Log(out)
-	assert.Contains(t, out.String(), "may need to run terraform init")
+	assert.NotContains(t, out.String(), "may need to run 'terraform init'")
 }
 
 
