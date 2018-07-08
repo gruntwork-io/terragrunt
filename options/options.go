@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"runtime"
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -98,13 +97,6 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 	}
 
 	downloadDir := filepath.Join(homedir, ".terragrunt")
-	// On some versions of Windows, the default temp dir is a fairly long path (e.g. C:/Users/JONDOE~1/AppData/Local/Temp/2/).
-	// This is a problem because Windows also limits path lengths to 260 characters, and with nested folders and hashed folder names
-	// (e.g. from running terraform get), you can hit that limit pretty quickly. Therefore, we try to set the temporary download
-	// folder to something slightly shorter, but still reasonable.
-	if runtime.GOOS == "windows" {
-		downloadDir = `C:\\Windows\\Temp\\terragrunt`
-	}
 
 	return &TerragruntOptions{
 		TerragruntConfigPath:   terragruntConfigPath,
