@@ -263,12 +263,13 @@ terragrunt apply
 
 When Terragrunt finds the `terraform` block with a `source` parameter in `live/qa/app/terraform.tfvars` file, it will:
 
-1. Download the configurations specified via the `source` parameter into a temporary folder. This downloading is done
-   by using the [terraform init command](https://www.terraform.io/docs/commands/init.html), so the `source` parameter
-   supports the exact same syntax as the [module source](https://www.terraform.io/docs/modules/sources.html) parameter,
-   including local file paths, Git URLs, and Git URLs with `ref` parameters (useful for checking out a specific tag,
-   commit, or branch of Git repo). Terragrunt will download all the code in the repo (i.e. the part before the
-   double-slash `//`) so that relative paths work correctly between modules in that repo.
+1. Download the configurations specified via the `source` parameter into the `--terragrunt-download-dir` folder (by
+   default, `.terragrunt-cache` in the working directory, which we recommend adding to `.gitignore`). This downloading
+   is done by using the [terraform init command](https://www.terraform.io/docs/commands/init.html), so the `source`
+   parameter supports the exact same syntax as the [module source](https://www.terraform.io/docs/modules/sources.html)
+   parameter, including local file paths, Git URLs, and Git URLs with `ref` parameters (useful for checking out a
+   specific tag, commit, or branch of Git repo). Terragrunt will download all the code in the repo (i.e. the part
+   before the double-slash `//`) so that relative paths work correctly between modules in that repo.
 
 1. Copy all files from the current working directory into the temporary folder. This way, Terraform will automatically
    read in the variables defined in the `terraform.tfvars` file.
@@ -1758,6 +1759,10 @@ start with the prefix `--terragrunt-`. The currently available options are:
   current working directory. Note that for the `apply-all`, `destroy-all`, `output-all`, `validate-all`, and `plan-all`
   commands, this parameter has a different meaning: Terragrunt will apply or destroy all the Terraform modules in the 
   subfolders of the `terragrunt-working-dir`, running `terraform` in the root of each module it finds.
+
+* `--terragrunt-download-dir`: The path where to download Terraform code when using [remote Terraform
+  configurations](#keep-your-terraform-code-dry). Default is `.terragrunt-cache` in the working directory. We recommend
+  adding this folder to your `.gitignore`.
 
 * `--terragrunt-source`: Download Terraform configurations from the specified source into a temporary folder, and run
   Terraform in that temporary folder. May also be specified via the `TERRAGRUNT_SOURCE` environment variable. The

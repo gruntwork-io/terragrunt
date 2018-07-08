@@ -2,7 +2,6 @@ package options
 
 import (
 	"fmt"
-	"github.com/mitchellh/go-homedir"
 	"io"
 	"log"
 	"os"
@@ -90,13 +89,10 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 
 	logger := util.CreateLogger("")
 
-	homedir, err := homedir.Dir()
+	downloadDir, err := filepath.Abs(filepath.Join(workingDir, ".terragrunt-cache"))
 	if err != nil {
-		logger.Printf("error: %v\n", err)
-		return nil, err
+		return nil, errors.WithStackTrace(err)
 	}
-
-	downloadDir := filepath.Join(homedir, ".terragrunt")
 
 	return &TerragruntOptions{
 		TerragruntConfigPath:   terragruntConfigPath,

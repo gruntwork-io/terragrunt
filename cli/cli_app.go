@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	version "github.com/hashicorp/go-version"
+	"github.com/mattn/go-zglob"
 	"github.com/urfave/cli"
 )
 
@@ -26,13 +27,14 @@ const OPT_TERRAGRUNT_TFPATH = "terragrunt-tfpath"
 const OPT_TERRAGRUNT_NO_AUTO_INIT = "terragrunt-no-auto-init"
 const OPT_NON_INTERACTIVE = "terragrunt-non-interactive"
 const OPT_WORKING_DIR = "terragrunt-working-dir"
+const OPT_DOWNLOAD_DIR = "terragrunt-download-dir"
 const OPT_TERRAGRUNT_SOURCE = "terragrunt-source"
 const OPT_TERRAGRUNT_SOURCE_UPDATE = "terragrunt-source-update"
 const OPT_TERRAGRUNT_IAM_ROLE = "terragrunt-iam-role"
 const OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS = "terragrunt-ignore-dependency-errors"
 
 var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, OPT_TERRAGRUNT_NO_AUTO_INIT}
-var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_TFPATH, OPT_WORKING_DIR, OPT_TERRAGRUNT_SOURCE, OPT_TERRAGRUNT_IAM_ROLE}
+var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_TFPATH, OPT_WORKING_DIR, OPT_DOWNLOAD_DIR, OPT_TERRAGRUNT_SOURCE, OPT_TERRAGRUNT_IAM_ROLE}
 
 const CMD_PLAN_ALL = "plan-all"
 const CMD_APPLY_ALL = "apply-all"
@@ -106,6 +108,7 @@ GLOBAL OPTIONS:
    terragrunt-no-auto-init              Don't automatically run 'terraform init' during other terragrunt commands. You must run 'terragrunt init' manually.
    terragrunt-non-interactive           Assume "yes" for all prompts.
    terragrunt-working-dir               The path to the Terraform templates. Default is current directory.
+   terragrunt-download-dir              The path where to download Terraform code. Default is .terragrunt-cache in the working directory.
    terragrunt-source                    Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.
    terragrunt-source-update             Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it.
    terragrunt-iam-role             		Assume the specified IAM role before executing Terraform. Can also be set via the TERRAGRUNT_IAM_ROLE environment variable.
@@ -224,6 +227,10 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		if err := downloadTerraformSource(sourceUrl, terragruntOptions, terragruntConfig); err != nil {
 			return err
 		}
+	}
+
+	if err := checkFolderContainsTerraformCode(terragruntOptions); err != nil {
+		return err
 	}
 
 	if terragruntConfig.RemoteState != nil {
@@ -373,6 +380,19 @@ func prepareInitCommand(terragruntOptions *options.TerragruntOptions, terragrunt
 	return nil
 }
 
+func checkFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptions) error {
+	files, err := zglob.Glob(fmt.Sprintf("%s/**/*.tf", terragruntOptions.WorkingDir))
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	if len(files) == 0 {
+		return errors.WithStackTrace(NoTerraformFilesFound(terragruntOptions.WorkingDir))
+	}
+
+	return nil
+}
+
 // Check that the specified Terraform code defines a backend { ... } block and return an error if doesn't
 func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptions, backendType string) error {
 	terraformBackendRegexp, err := regexp.Compile(fmt.Sprintf(`backend[[:blank:]]+"%s"`, backendType))
@@ -477,10 +497,15 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 	if downloadSource {
 		initOptions.WorkingDir = terraformSource.WorkingDir
 		if !util.FileExists(terraformSource.WorkingDir) {
-			if err := os.MkdirAll(terraformSource.WorkingDir, 0777); err != nil {
+			if err := os.MkdirAll(terraformSource.WorkingDir, 0700); err != nil {
 				return errors.WithStackTrace(err)
 			}
 		}
+
+		// We will run init separately to download modules, plugins, backend state, etc, so don't run it at this point
+		initOptions.AppendTerraformCliArgs("-get=false")
+		initOptions.AppendTerraformCliArgs("-get-plugins=false")
+		initOptions.AppendTerraformCliArgs("-backend=false")
 
 		v0_10_0, err := version.NewVersion("v0.10.0")
 		if err != nil {
@@ -680,4 +705,10 @@ type BackendNotDefined struct {
 
 func (err BackendNotDefined) Error() string {
 	return fmt.Sprintf("Found remote_state settings in %s but no backend block in the Terraform code in %s. You must define a backend block (it can be empty!) in your Terraform code or your remote state settings will have no effect! It should look something like this:\n\nterraform {\n  backend \"%s\" {}\n}\n\n", err.Opts.TerragruntConfigPath, err.Opts.WorkingDir, err.BackendType)
+}
+
+type NoTerraformFilesFound string
+
+func (path NoTerraformFilesFound) Error() string {
+	return fmt.Sprintf("Did not find any Terraform files (*.tf) in %s", string(path))
 }
