@@ -266,7 +266,7 @@ func getForcedGetter(sourceUrl string) (string, string) {
 // Splits a source URL into the root repo and the path. The root repo is the part of the URL before the double-slash
 // (//), which typically represents the root of a modules repo (e.g. github.com/foo/infrastructure-modules) and the
 // path is everything after the double slash. If there is no double-slash in the URL, the root repo is the entire
-// sourceUrl and the path is an empty string.
+// sourceUrl before the final slash and the path is everything after the final slash.
 func splitSourceUrl(sourceUrl *url.URL, terragruntOptions *options.TerragruntOptions) (*url.URL, string, error) {
 	sourceUrlModifiedPath, err := parseSourceUrl(strings.TrimSuffix(sourceUrl.String(), string(filepath.Separator)))
 	if err != nil {
@@ -288,9 +288,18 @@ func splitSourceUrl(sourceUrl *url.URL, terragruntOptions *options.TerragruntOpt
 		terragruntOptions.Logger.Printf("WARNING: no double-slash (//) found in source URL %s. Will insert one, but note that relative paths in downloaded Terraform code may not work.", sourceUrl.Path)
 
 		parts := strings.SplitAfter(sourceUrlModifiedPath.Path, string(filepath.Separator))
-		sourceUrlModifiedPath.Path = strings.Join(parts[0:len(parts)-1], "")
 
-		return sourceUrlModifiedPath, parts[len(parts)-1], nil
+		everythingBeforeFinalSlash := parts[0:len(parts)-1]
+		everythingAfterFinalSlash := parts[len(parts)-1]
+
+		sourceUrlModifiedPath.Path = strings.Join(everythingBeforeFinalSlash, "")
+
+		// Remove trailing slashes, so long as the path isn't just a single slash
+		if len(sourceUrlModifiedPath.Path) > 1 {
+			sourceUrlModifiedPath.Path = strings.TrimSuffix(sourceUrlModifiedPath.Path, string(filepath.Separator))
+		}
+
+		return sourceUrlModifiedPath, everythingAfterFinalSlash, nil
 	}
 }
 
