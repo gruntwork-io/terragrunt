@@ -45,6 +45,11 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 		return nil, err
 	}
 
+	downloadDir, err := parseStringArg(args, OPT_DOWNLOAD_DIR, util.JoinPath(workingDir, ".terragrunt"))
+	if err != nil {
+		return nil, err
+	}
+
 	terragruntConfigPath, err := parseStringArg(args, OPT_TERRAGRUNT_CONFIG, os.Getenv("TERRAGRUNT_CONFIG"))
 	if err != nil {
 		return nil, err
@@ -85,6 +90,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 	opts.NonInteractive = parseBooleanArg(args, OPT_NON_INTERACTIVE, os.Getenv("TF_INPUT") == "false" || os.Getenv("TF_INPUT") == "0")
 	opts.TerraformCliArgs = filterTerragruntArgs(args)
 	opts.WorkingDir = filepath.ToSlash(workingDir)
+	opts.DownloadDir = filepath.ToSlash(downloadDir)
 	opts.Logger = util.CreateLoggerWithWriter(errWriter, "")
 	opts.RunTerragrunt = runTerragrunt
 	opts.Source = terraformSource

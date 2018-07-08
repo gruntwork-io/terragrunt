@@ -1759,6 +1759,9 @@ start with the prefix `--terragrunt-`. The currently available options are:
   commands, this parameter has a different meaning: Terragrunt will apply or destroy all the Terraform modules in the 
   subfolders of the `terragrunt-working-dir`, running `terraform` in the root of each module it finds.
 
+* `--terragrunt-download-dir`: The path where to download Terraform code when using [remote Terraform
+  configurations](#keep-your-terraform-code-dry). Default is `.terragrunt` in the working directory.
+
 * `--terragrunt-source`: Download Terraform configurations from the specified source into a temporary folder, and run
   Terraform in that temporary folder. May also be specified via the `TERRAGRUNT_SOURCE` environment variable. The
   source should use the same syntax as the [Terraform module source](https://www.terraform.io/docs/modules/sources.html)
