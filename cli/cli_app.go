@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	version "github.com/hashicorp/go-version"
+	"github.com/mattn/go-zglob"
 	"github.com/urfave/cli"
 )
 
@@ -228,6 +229,10 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
+	if err := checkFolderContainsTerraformCode(terragruntOptions); err != nil {
+		return err
+	}
+
 	if terragruntConfig.RemoteState != nil {
 		if err := checkTerraformCodeDefinesBackend(terragruntOptions, terragruntConfig.RemoteState.Backend); err != nil {
 			return err
@@ -372,6 +377,19 @@ func prepareInitCommand(terragruntOptions *options.TerragruntOptions, terragrunt
 		// Add backend config arguments to the command
 		terragruntOptions.InsertTerraformCliArgs(terragruntConfig.RemoteState.ToTerraformInitArgs()...)
 	}
+	return nil
+}
+
+func checkFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptions) error {
+	files, err := zglob.Glob(fmt.Sprintf("%s/**/*.tf", terragruntOptions.WorkingDir))
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	if len(files) == 0 {
+		return errors.WithStackTrace(NoTerraformFilesFound(terragruntOptions.WorkingDir))
+	}
+
 	return nil
 }
 
@@ -682,4 +700,10 @@ type BackendNotDefined struct {
 
 func (err BackendNotDefined) Error() string {
 	return fmt.Sprintf("Found remote_state settings in %s but no backend block in the Terraform code in %s. You must define a backend block (it can be empty!) in your Terraform code or your remote state settings will have no effect! It should look something like this:\n\nterraform {\n  backend \"%s\" {}\n}\n\n", err.Opts.TerragruntConfigPath, err.Opts.WorkingDir, err.BackendType)
+}
+
+type NoTerraformFilesFound string
+
+func (path NoTerraformFilesFound) Error() string {
+	return fmt.Sprintf("Did not find any Terraform files (*.tf) in %s", string(path))
 }
