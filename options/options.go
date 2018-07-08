@@ -89,7 +89,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 
 	logger := util.CreateLogger("")
 
-	downloadDir := filepath.Join(workingDir, ".terragrunt")
+	downloadDir := filepath.Join(workingDir, ".terragrunt-cache")
 
 	return &TerragruntOptions{
 		TerragruntConfigPath:   terragruntConfigPath,
