@@ -289,7 +289,7 @@ func splitSourceUrl(sourceUrl *url.URL, terragruntOptions *options.TerragruntOpt
 
 		parts := strings.SplitAfter(sourceUrlModifiedPath.Path, string(filepath.Separator))
 
-		everythingBeforeFinalSlash := parts[0:len(parts)-1]
+		everythingBeforeFinalSlash := parts[0 : len(parts)-1]
 		everythingAfterFinalSlash := parts[len(parts)-1]
 
 		sourceUrlModifiedPath.Path = strings.Join(everythingBeforeFinalSlash, "")
