@@ -7,3 +7,4 @@ vendor
 *.tfstate
 *.tfstate.backup
 *.out
+.terragrunt-cache
