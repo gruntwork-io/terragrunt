@@ -1,0 +1,4 @@
+# Intentionally empty
+terragrunt = {
+
+}

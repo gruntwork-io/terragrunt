@@ -761,6 +761,18 @@ func TestFindConfigFilesInPathMultipleConfigs(t *testing.T) {
 	assert.Equal(t, expected, actual)
 }
 
+func TestFindConfigFilesIgnoresTerragruntCache(t *testing.T) {
+	t.Parallel()
+
+	expected := []string{
+		"../test/fixture-config-files/ignore-cached-config/terraform.tfvars",
+	}
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/ignore-cached-config")
+
+	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.Equal(t, expected, actual)
+}
+
 func mockOptionsForTestWithConfigPath(t *testing.T, configPath string) *options.TerragruntOptions {
 	opts, err := options.NewTerragruntOptionsForTest(configPath)
 	if err != nil {
