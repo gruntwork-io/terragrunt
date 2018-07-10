@@ -20,6 +20,8 @@ var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
 
 const DEFAULT_MAX_FOLDERS_TO_CHECK = 100
 
+const TerragruntCacheDir = ".terragrunt-cache"
+
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
 	// Location of the Terragrunt config file
@@ -89,7 +91,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 
 	logger := util.CreateLogger("")
 
-	downloadDir, err := filepath.Abs(filepath.Join(workingDir, ".terragrunt-cache"))
+	downloadDir, err := filepath.Abs(filepath.Join(workingDir, TerragruntCacheDir))
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
