@@ -142,7 +142,7 @@ func DefaultConfigPath(workingDir string) string {
 // Returns a list of all Terragrunt config files in the given path or any subfolder of the path. A file is a Terragrunt
 // config file if it has a name as returned by the DefaultConfigPath method and contains Terragrunt config contents
 // as returned by the IsTerragruntConfigFile method.
-func FindConfigFilesInPath(rootPath string) ([]string, error) {
+func FindConfigFilesInPath(rootPath string, terragruntOptions *options.TerragruntOptions) ([]string, error) {
 	configFiles := []string{}
 
 	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
@@ -150,25 +150,50 @@ func FindConfigFilesInPath(rootPath string) ([]string, error) {
 			return err
 		}
 
-		if info.IsDir() {
-			if strings.Contains(info.Name(), options.TerragruntCacheDir) {
-				return nil
-			}
+		isTerragruntModule, err := containsTerragruntModule(path, info, terragruntOptions)
+		if err != nil {
+			return err
+		}
 
-			configPath := DefaultConfigPath(path)
-			isTerragruntConfig, err := IsTerragruntConfigFile(configPath)
-			if err != nil {
-				return err
-			}
-			if isTerragruntConfig {
-				configFiles = append(configFiles, configPath)
-			}
+		if isTerragruntModule {
+			configFiles = append(configFiles, DefaultConfigPath(path))
 		}
 
 		return nil
 	})
 
 	return configFiles, err
+}
+
+// Returns true if the given path with the given FileInfo contains a Terragrunt module and false otherwise. A path
+// contains a Terragrunt module if it contains a Terragrunt configuration file (terraform.tfvars) and is not a cache
+// or download dir.
+func containsTerragruntModule(path string, info os.FileInfo, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	if !info.IsDir() {
+		return false, nil
+	}
+
+	// Skip the Terragrunt cache dir
+	if strings.Contains(path, options.TerragruntCacheDir) {
+		return false, nil
+	}
+
+	canonicalPath, err := util.CanonicalPath(path, "")
+	if err != nil {
+		return false, err
+	}
+
+	canonicalDownloadPath, err := util.CanonicalPath(terragruntOptions.DownloadDir, "")
+	if err != nil {
+		return false, err
+	}
+
+	// Skip any custom download dir specified by the user
+	if strings.Contains(canonicalPath, canonicalDownloadPath) {
+		return false, err
+	}
+
+	return IsTerragruntConfigFile(DefaultConfigPath(path))
 }
 
 // Returns true if the given path corresponds to file that could be a Terragrunt config file. A file could be a

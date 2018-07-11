@@ -95,6 +95,22 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 	}
 	opts.Source = terragruntSource
 
+	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(terragruntOptions.TerragruntConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// If we're using the default download directory, put it into the same folder as the Terragrunt configuration file.
+	// If we're not using the default, then the user has specified a custom download directory, and we leave it as-is.
+	if terragruntOptions.DownloadDir == defaultDownloadDir {
+		_, downloadDir, err := options.DefaultWorkingAndDownloadDirs(terragruntConfigPath)
+		if err != nil {
+			return nil, err
+		}
+		terragruntOptions.Logger.Printf("Setting download directory for module %s to %s", modulePath, downloadDir)
+		opts.DownloadDir = downloadDir
+	}
+
 	// Fix for https://github.com/gruntwork-io/terragrunt/issues/208
 	matches, err := filepath.Glob(filepath.Join(filepath.Dir(terragruntConfigPath), "*.tf"))
 	if err != nil {
