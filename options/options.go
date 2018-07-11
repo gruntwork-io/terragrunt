@@ -87,11 +87,9 @@ type TerragruntOptions struct {
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage
 func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, error) {
-	workingDir := filepath.Dir(terragruntConfigPath)
-
 	logger := util.CreateLogger("")
 
-	downloadDir, err := filepath.Abs(filepath.Join(workingDir, TerragruntCacheDir))
+	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(terragruntConfigPath)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
@@ -116,6 +114,18 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
 	}, nil
+}
+
+// Get the default working and download directories for the given Terragrunt config path
+func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string, error) {
+	workingDir := filepath.Dir(terragruntConfigPath)
+
+	downloadDir, err := filepath.Abs(filepath.Join(workingDir, TerragruntCacheDir))
+	if err != nil {
+		return "", "", errors.WithStackTrace(err)
+	}
+
+	return workingDir, downloadDir, nil
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for test usage
