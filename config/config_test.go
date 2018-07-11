@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
@@ -721,7 +722,10 @@ func TestFindConfigFilesInPathNone(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{}
-	actual, err := FindConfigFilesInPath("../test/fixture-config-files/none")
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
+	require.NoError(t, err)
+
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/none", terragruntOptions)
 
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, expected, actual)
@@ -731,7 +735,10 @@ func TestFindConfigFilesInPathOneNewConfig(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{"../test/fixture-config-files/one-new-config/subdir/terraform.tfvars"}
-	actual, err := FindConfigFilesInPath("../test/fixture-config-files/one-new-config")
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
+	require.NoError(t, err)
+
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/one-new-config", terragruntOptions)
 
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, expected, actual)
@@ -741,7 +748,10 @@ func TestFindConfigFilesInPathOneOldConfig(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{"../test/fixture-config-files/one-old-config/subdir/.terragrunt"}
-	actual, err := FindConfigFilesInPath("../test/fixture-config-files/one-old-config")
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
+	require.NoError(t, err)
+
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/one-old-config", terragruntOptions)
 
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, expected, actual)
@@ -755,7 +765,10 @@ func TestFindConfigFilesInPathMultipleConfigs(t *testing.T) {
 		"../test/fixture-config-files/multiple-configs/subdir-2/subdir/.terragrunt",
 		"../test/fixture-config-files/multiple-configs/subdir-3/terraform.tfvars",
 	}
-	actual, err := FindConfigFilesInPath("../test/fixture-config-files/multiple-configs")
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
+	require.NoError(t, err)
+
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/multiple-configs", terragruntOptions)
 
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, expected, actual)
@@ -767,7 +780,27 @@ func TestFindConfigFilesIgnoresTerragruntCache(t *testing.T) {
 	expected := []string{
 		"../test/fixture-config-files/ignore-cached-config/terraform.tfvars",
 	}
-	actual, err := FindConfigFilesInPath("../test/fixture-config-files/ignore-cached-config")
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
+	require.NoError(t, err)
+
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/ignore-cached-config", terragruntOptions)
+
+	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.Equal(t, expected, actual)
+}
+
+func TestFindConfigFilesIgnoresDownloadDir(t *testing.T) {
+	t.Parallel()
+
+	expected := []string{
+		"../test/fixture-config-files/multiple-configs/terraform.tfvars",
+		"../test/fixture-config-files/multiple-configs/subdir-3/terraform.tfvars",
+	}
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
+	require.NoError(t, err)
+	terragruntOptions.DownloadDir = "../test/fixture-config-files/multiple-configs/subdir-2"
+
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/multiple-configs", terragruntOptions)
 
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, expected, actual)
