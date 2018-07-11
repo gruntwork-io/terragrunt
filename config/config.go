@@ -151,7 +151,7 @@ func FindConfigFilesInPath(rootPath string) ([]string, error) {
 		}
 
 		if info.IsDir() {
-			if strings.Contains(info.Name(), options.TerragruntCacheDir) {
+			if strings.Contains(path, options.TerragruntCacheDir) {
 				return nil
 			}
 
