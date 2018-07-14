@@ -266,40 +266,21 @@ func getForcedGetter(sourceUrl string) (string, string) {
 // Splits a source URL into the root repo and the path. The root repo is the part of the URL before the double-slash
 // (//), which typically represents the root of a modules repo (e.g. github.com/foo/infrastructure-modules) and the
 // path is everything after the double slash. If there is no double-slash in the URL, the root repo is the entire
-// sourceUrl before the final slash and the path is everything after the final slash.
+// sourceUrl and the path is an empty string.
 func splitSourceUrl(sourceUrl *url.URL, terragruntOptions *options.TerragruntOptions) (*url.URL, string, error) {
-	sourceUrlModifiedPath, err := parseSourceUrl(strings.TrimSuffix(sourceUrl.String(), string(filepath.Separator)))
-	if err != nil {
-		return nil, "", errors.WithStackTrace(err)
-	}
-
 	pathSplitOnDoubleSlash := strings.SplitN(sourceUrl.Path, "//", 2)
 
 	if len(pathSplitOnDoubleSlash) > 1 {
+		sourceUrlModifiedPath, err := parseSourceUrl(sourceUrl.String())
+		if err != nil {
+			return nil, "", errors.WithStackTrace(err)
+		}
+
 		sourceUrlModifiedPath.Path = pathSplitOnDoubleSlash[0]
 		return sourceUrlModifiedPath, pathSplitOnDoubleSlash[1], nil
 	} else {
-		// We use terragrunt init -from-module=XXX to download remote Terraform configurations from XXX. If you don't
-		// have a double slash in XXX, the -from-module code tries to do some sort of validation on your code right
-		// after downloading, which will fail if you're running it with -get=false, -backend=false, etc (we run it this
-		// way as we call init shortly after and don't want to do all these steps twice). Therefore, we inject a double
-		// slash here to avoid this validation failure.
-
-		terragruntOptions.Logger.Printf("WARNING: no double-slash (//) found in source URL %s. Will insert one, but note that relative paths in downloaded Terraform code may not work.", sourceUrl.Path)
-
-		parts := strings.SplitAfter(sourceUrlModifiedPath.Path, string(filepath.Separator))
-
-		everythingBeforeFinalSlash := parts[0 : len(parts)-1]
-		everythingAfterFinalSlash := parts[len(parts)-1]
-
-		sourceUrlModifiedPath.Path = strings.Join(everythingBeforeFinalSlash, "")
-
-		// Remove trailing slashes, so long as the path isn't just a single slash
-		if len(sourceUrlModifiedPath.Path) > 1 {
-			sourceUrlModifiedPath.Path = strings.TrimSuffix(sourceUrlModifiedPath.Path, string(filepath.Separator))
-		}
-
-		return sourceUrlModifiedPath, everythingAfterFinalSlash, nil
+		terragruntOptions.Logger.Printf("WARNING: no double-slash (//) found in source URL %s. Relative paths in downloaded Terraform code may not work.", sourceUrl.Path)
+		return sourceUrl, "", nil
 	}
 }
 
