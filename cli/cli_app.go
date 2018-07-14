@@ -502,11 +502,6 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 			}
 		}
 
-		// We will run init separately to download modules, plugins, backend state, etc, so don't run it at this point
-		initOptions.AppendTerraformCliArgs("-get=false")
-		initOptions.AppendTerraformCliArgs("-get-plugins=false")
-		initOptions.AppendTerraformCliArgs("-backend=false")
-
 		v0_10_0, err := version.NewVersion("v0.10.0")
 		if err != nil {
 			return err

@@ -44,6 +44,7 @@ const (
 	TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH          = "fixture-download/remote-relative"
 	TEST_FIXTURE_LOCAL_WITH_BACKEND                     = "fixture-download/local-with-backend"
 	TEST_FIXTURE_REMOTE_WITH_BACKEND                    = "fixture-download/remote-with-backend"
+	TEST_FIXTURE_REMOTE_MODULE_IN_ROOT                  = "fixture-download/remote-module-in-root"
 	TEST_FIXTURE_LOCAL_MISSING_BACKEND                  = "fixture-download/local-with-missing-backend"
 	TEST_FIXTURE_LOCAL_WITH_HIDDEN_FOLDER               = "fixture-download/local-with-hidden-folder"
 	TEST_FIXTURE_OLD_CONFIG_INCLUDE_PATH                = "fixture-old-terragrunt-config/include"
@@ -634,6 +635,18 @@ func TestRemoteWithBackend(t *testing.T) {
 
 	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// Run a second time to make sure the temporary folder can be reused without errors
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+}
+
+func TestRemoteWithModuleInRoot(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_REMOTE_MODULE_IN_ROOT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_REMOTE_MODULE_IN_ROOT)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
