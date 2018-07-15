@@ -18,23 +18,25 @@ const OldTerragruntConfigPath = ".terragrunt"
 
 // TerragruntConfig represents a parsed and expanded configuration
 type TerragruntConfig struct {
-	Terraform    *TerraformConfig
-	RemoteState  *remote.RemoteState
-	Dependencies *ModuleDependencies
+	Terraform      *TerraformConfig
+	RemoteState    *remote.RemoteState
+	Dependencies   *ModuleDependencies
+	PreventDestroy bool
 }
 
 func (conf *TerragruntConfig) String() string {
-	return fmt.Sprintf("TerragruntConfig{Terraform = %v, RemoteState = %v, Dependencies = %v}", conf.Terraform, conf.RemoteState, conf.Dependencies)
+	return fmt.Sprintf("TerragruntConfig{Terraform = %v, RemoteState = %v, Dependencies = %v, PreventDestroy = %v}", conf.Terraform, conf.RemoteState, conf.Dependencies, conf.PreventDestroy)
 }
 
 // terragruntConfigFile represents the configuration supported in a Terragrunt configuration file (i.e.
 // terraform.tfvars or .terragrunt)
 type terragruntConfigFile struct {
-	Terraform    *TerraformConfig    `hcl:"terraform,omitempty"`
-	Include      *IncludeConfig      `hcl:"include,omitempty"`
-	Lock         *LockConfig         `hcl:"lock,omitempty"`
-	RemoteState  *remote.RemoteState `hcl:"remote_state,omitempty"`
-	Dependencies *ModuleDependencies `hcl:"dependencies,omitempty"`
+	Terraform      *TerraformConfig    `hcl:"terraform,omitempty"`
+	Include        *IncludeConfig      `hcl:"include,omitempty"`
+	Lock           *LockConfig         `hcl:"lock,omitempty"`
+	RemoteState    *remote.RemoteState `hcl:"remote_state,omitempty"`
+	Dependencies   *ModuleDependencies `hcl:"dependencies,omitempty"`
+	PreventDestroy bool                `hcl:"prevent_destroy,omitempty"`
 }
 
 // Older versions of Terraform did not support locking, so Terragrunt offered locking as a feature. As of version 0.9.0,
@@ -476,6 +478,7 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
+	terragruntConfig.PreventDestroy = terragruntConfigFromFile.PreventDestroy
 
 	return terragruntConfig, nil
 }

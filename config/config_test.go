@@ -817,3 +817,43 @@ func mockOptionsForTestWithConfigPath(t *testing.T, configPath string) *options.
 func mockOptionsForTest(t *testing.T) *options.TerragruntOptions {
 	return mockOptionsForTestWithConfigPath(t, "test-time-mock")
 }
+
+func TestParseTerragruntConfigPreventDestroyTrue(t *testing.T) {
+	t.Parallel()
+
+	config := `
+terragrunt = {
+  prevent_destroy = true
+}
+`
+
+	terragruntConfig, err := parseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Nil(t, terragruntConfig.Terraform)
+	assert.Nil(t, terragruntConfig.RemoteState)
+	assert.Nil(t, terragruntConfig.Dependencies)
+	assert.Equal(t, true, terragruntConfig.PreventDestroy)
+}
+
+func TestParseTerragruntConfigPreventDestroyFalse(t *testing.T) {
+	t.Parallel()
+
+	config := `
+terragrunt = {
+  prevent_destroy = false
+}
+`
+
+	terragruntConfig, err := parseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Nil(t, terragruntConfig.Terraform)
+	assert.Nil(t, terragruntConfig.RemoteState)
+	assert.Nil(t, terragruntConfig.Dependencies)
+	assert.Equal(t, false, terragruntConfig.PreventDestroy)
+}
