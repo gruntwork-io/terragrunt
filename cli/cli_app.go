@@ -332,6 +332,10 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 		}
 	}
 
+	if err := checkProtectedModule(terragruntOptions, terragruntConfig); err != nil {
+		return err
+	}
+
 	beforeHookErrors := processHooks(terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions)
 	terraformError := runTerraformCommandIfNoErrors(beforeHookErrors, terragruntOptions)
 	postHookErrors := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, beforeHookErrors, terraformError)
@@ -670,6 +674,17 @@ func validateAll(terragruntOptions *options.TerragruntOptions) error {
 	return stack.Validate(terragruntOptions)
 }
 
+// checkProtectedModule checks if module is protected via the "prevent_destroy" flag
+func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+	if firstArg(terragruntOptions.TerraformCliArgs) != "destroy" {
+		return nil
+	}
+	if terragruntConfig.PreventDestroy {
+		return errors.WithStackTrace(ModuleIsProtected("Module is protected, set prevent_destroy to false or delete this flag to allow destroying of the module."))
+	}
+	return nil
+}
+
 // Custom error types
 
 type UnrecognizedCommand string
@@ -706,4 +721,10 @@ type NoTerraformFilesFound string
 
 func (path NoTerraformFilesFound) Error() string {
 	return fmt.Sprintf("Did not find any Terraform files (*.tf) in %s", string(path))
+}
+
+type ModuleIsProtected string
+
+func (err ModuleIsProtected) Error() string {
+	return string(err)
 }
