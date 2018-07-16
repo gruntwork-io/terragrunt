@@ -66,6 +66,7 @@ const (
 	TERRAFORM_FOLDER                                    = ".terraform"
 	TERRAFORM_STATE                                     = "terraform.tfstate"
 	TERRAFORM_STATE_BACKUP                              = "terraform.tfstate.backup"
+	TEST_FIXTURE_INIT_ERROR                             = "fixture-retryableerrors/retry-init"
 )
 
 func init() {
@@ -791,6 +792,20 @@ func TestTerraformSubcommandCliArgs(t *testing.T) {
 		assert.True(t, strings.Contains(errOutput, testCase.expected) || strings.Contains(output, testCase.expected))
 	}
 }
+
+func TestInitRetry(t *testing.T) {
+	t.Parallel()
+
+	out := new(bytes.Buffer)
+	rootPath := copyEnvironment(t, TEST_FIXTURE_INIT_ERROR)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_INIT_ERROR)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
+
+	assert.Nil(t, err)
+	// t.Log(out)
+	assert.NotContains(t, out.String(), "may need to run 'terraform init'")
+}
+
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE))

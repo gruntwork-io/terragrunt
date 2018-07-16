@@ -1138,6 +1138,7 @@ This section contains detailed documentation for the following aspects of Terrag
 1. [Interpolation Syntax](#interpolation-syntax)
 1. [Before & After Hooks](#before-and-after-hooks)
 1. [Auto-Init](#auto-init)
+1. [Auto-Retry](#auto-retry)
 1. [CLI options](#cli-options)
 1. [Configuration](#configuration)
 1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
@@ -1719,9 +1720,7 @@ As mentioned [above](#extra_arguments-for-init), `extra_arguments` can be config
 to allow customization of the `terraform init` command.
 
 Note that there might be cases where terragrunt does not properly detect that `terraform init` needs be called.
-In this case, terraform would fail.  Just run `terragrunt init` to correct this situation.
-
-
+In this case, terraform would fail.  Running `terragrunt init` again corrects this situation. See [Auto-Retry](#auto-retry).
 
 For some use cases, it might be desirable to disable Auto-Init.
 For example, if each user wants to specify a different `-plugin-dir` option to `terraform init` (and therefore it cannot be put in `extra_arguments`).
@@ -1731,6 +1730,48 @@ To disable Auto-Init, use the `--terragrunt-no-auto-init` command line option or
 Disabling Auto-Init means that you _must_ explicitly call `terragrunt init` prior to any other terragrunt commands for a particular configuration.
 
 If Auto-Init is disabled, and terragrunt detects that `terraform init` needs to be called, then terragrunt will fail.
+
+### Auto-Retry
+
+_Auto-Retry_ is a feature of `terragrunt` that will automatically address situations where a `terraform` command needs to be re-run.
+
+Terraform can fail with transient errors which can be addressed by simply retrying the command again. In the event `terragrunt` finds one of these errors, the command will be re-run again automatically.
+
+In the event of a module or provider update, `terraform` commands such as `plan` or `apply` will fail with a message to run `terraform init`. In this case `terragrunt` will re-run the `init` command and then retry the command. 
+
+For example:
+
+**Case 1**
+
+```
+$ terragrunt plan
+
+...
+
+Error: Error loading modules: module consul: not found, may need to run 'terraform init'
+
+```
+In this case, as terraform knows it needs to re-run `init` auto-retry will rerun `init` and then call `plan` again.
+
+**Case 2**
+```
+$ terragrunt apply
+
+...
+
+Initializing provider plugins...
+- Checking for available provider plugins on https://releases.hashicorp.com...
+
+Error installing provider "template": error fetching checksums: Get https://releases.hashicorp.com/terraform-provider-template/1.0.0/terraform-provider-template_1.0.0_SHA256SUMS: net/http: TLS handshake timeout.
+```
+Terragrunt sees this error, and knows it is a transient error that can addressed by re-running the `apply` command.
+
+`auto-retry` will try a maximum of three times to re-run the command, at which point it will deem the error as not transient, and accept the terraform failure. Retries will occur when the error is encountered, pausing for 5 seconds between retries.
+
+Known errors that auto-retry will rerun, are maintained in the `TerragruntOptions.RetryableErrors` map. Future upgrades to terragrunt may include the ability to pass in additional error strings via the terragrunt config.
+
+The flag `--terragrunt-no-auto-retry` can be sent to tell `terragrunt` to not retry these commands.
+
 
 ### CLI Options
 
@@ -1751,6 +1792,9 @@ start with the prefix `--terragrunt-`. The currently available options are:
   You must run `terragrunt init` yourself in this case if needed.
   `terragrunt` will fail if it detects that `init` is needed, but auto init is disabled.
   See [Auto-Init](#auto-init)
+
+* `--terragrunt-no-auto-retry`: Don't automatically retry commands which fail with transient errors
+  See [Auto-Retry](#auto-retry)
 
 * `--terragrunt-non-interactive`: Don't show interactive user prompts. This will default the answer for all prompts to
   'yes'. Useful if you need to run Terragrunt in an automated setting (e.g. from a script).  May also be specified with the [TF_INPUT](https://www.terraform.io/docs/configuration/environment-variables.html#tf_input) environment variable.
