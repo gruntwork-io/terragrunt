@@ -680,7 +680,7 @@ func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragru
 		return nil
 	}
 	if terragruntConfig.PreventDestroy {
-		return errors.WithStackTrace(ModuleIsProtected("Module is protected, set prevent_destroy to false or delete this flag to allow destroying of the module."))
+		return errors.WithStackTrace(ModuleIsProtected{Opts: terragruntOptions})
 	}
 	return nil
 }
@@ -723,8 +723,10 @@ func (path NoTerraformFilesFound) Error() string {
 	return fmt.Sprintf("Did not find any Terraform files (*.tf) in %s", string(path))
 }
 
-type ModuleIsProtected string
+type ModuleIsProtected struct {
+	Opts *options.TerragruntOptions
+}
 
 func (err ModuleIsProtected) Error() string {
-	return string(err)
+	return fmt.Sprintf("Module is protected by the prevent_destroy flag in %s. Set it to false or delete it to allow destroying of the module.", err.Opts.TerragruntConfigPath)
 }
