@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/configstack"
 	terragruntDynamoDb "github.com/gruntwork-io/terragrunt/dynamodb"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -47,6 +48,8 @@ const (
 	TEST_FIXTURE_REMOTE_MODULE_IN_ROOT                  = "fixture-download/remote-module-in-root"
 	TEST_FIXTURE_LOCAL_MISSING_BACKEND                  = "fixture-download/local-with-missing-backend"
 	TEST_FIXTURE_LOCAL_WITH_HIDDEN_FOLDER               = "fixture-download/local-with-hidden-folder"
+	TEST_FIXTURE_LOCAL_PREVENT_DESTROY                  = "fixture-download/local-with-prevent-destroy"
+	TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES     = "fixture-download/local-with-prevent-destroy-dependencies"
 	TEST_FIXTURE_OLD_CONFIG_INCLUDE_PATH                = "fixture-old-terragrunt-config/include"
 	TEST_FIXTURE_OLD_CONFIG_INCLUDE_CHILD_UPDATED_PATH  = "fixture-old-terragrunt-config/include-child-updated"
 	TEST_FIXTURE_OLD_CONFIG_INCLUDE_PARENT_UPDATED_PATH = "fixture-old-terragrunt-config/include-parent-updated"
@@ -789,6 +792,76 @@ func TestTerraformSubcommandCliArgs(t *testing.T) {
 		output := stdout.String()
 		errOutput := stderr.String()
 		assert.True(t, strings.Contains(errOutput, testCase.expected) || strings.Contains(output, testCase.expected))
+	}
+}
+
+func TestPreventDestroy(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_PREVENT_DESTROY)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_PREVENT_DESTROY))
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_PREVENT_DESTROY), os.Stdout, os.Stderr)
+
+	if assert.Error(t, err) {
+		underlying := errors.Unwrap(err)
+		assert.IsType(t, cli.ModuleIsProtected{}, underlying)
+	}
+}
+
+func TestPreventDestroyDependencies(t *testing.T) {
+	t.Parallel()
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	// Populate module paths.
+	moduleNames := []string{
+		"module-a",
+		"module-b",
+		"module-c",
+		"module-d",
+		"module-e",
+	}
+	modulePaths := make(map[string]string, len(moduleNames))
+	for _, moduleName := range moduleNames {
+		modulePaths[moduleName] = util.JoinPath(TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES, moduleName)
+	}
+
+	// Cleanup all modules directories.
+	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES)
+	for _, modulePath := range modulePaths {
+		cleanupTerraformFolder(t, modulePath)
+	}
+
+	// Apply and destroy all modules.
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES))
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy-all --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES), &stdout, &stderr)
+	if assert.Error(t, err) {
+		underlying := errors.Unwrap(err)
+		assert.IsType(t, configstack.MultiError{}, underlying)
+	}
+
+	// Check that modules C, D and E were deleted and modules A and B weren't.
+	for moduleName, modulePath := range modulePaths {
+		err = runTerragruntCommand(t, fmt.Sprintf("terragrunt show --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), &stdout, &stderr)
+		assert.NoError(t, err)
+		output := stdout.String()
+		switch moduleName {
+		case "module-a":
+			assert.True(t, strings.Contains(output, "Hello, Module A"))
+		case "module-b":
+			assert.True(t, strings.Contains(output, "Hello, Module B"))
+		case "module-c":
+			assert.True(t, !strings.Contains(output, "Hello, Module C"))
+		case "module-d":
+			assert.True(t, !strings.Contains(output, "Hello, Module D"))
+		case "module-e":
+			assert.True(t, !strings.Contains(output, "Hello, Module E"))
+		}
 	}
 }
 
