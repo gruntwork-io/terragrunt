@@ -813,11 +813,6 @@ func TestPreventDestroy(t *testing.T) {
 func TestPreventDestroyDependencies(t *testing.T) {
 	t.Parallel()
 
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-
 	// Populate module paths.
 	moduleNames := []string{
 		"module-a",
@@ -837,9 +832,29 @@ func TestPreventDestroyDependencies(t *testing.T) {
 		cleanupTerraformFolder(t, modulePath)
 	}
 
+	var (
+		applyAllStdout bytes.Buffer
+		applyAllStderr bytes.Buffer
+	)
+
 	// Apply and destroy all modules.
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES))
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy-all --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES), &applyAllStdout, &applyAllStderr)
+	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
+	logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
+
+	if err != nil {
+		t.Fatalf("apply-all in TestPreventDestroyDependencies failed with error: %v. Full std", err)
+	}
+
+	var (
+		destroyAllStdout bytes.Buffer
+		destroyAllStderr bytes.Buffer
+	)
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy-all --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES), &destroyAllStdout, &destroyAllStderr)
+	logBufferContentsLineByLine(t, destroyAllStdout, "destroy-all stdout")
+	logBufferContentsLineByLine(t, destroyAllStderr, "destroy-all stderr")
+
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
 		assert.IsType(t, configstack.MultiError{}, underlying)
@@ -847,21 +862,37 @@ func TestPreventDestroyDependencies(t *testing.T) {
 
 	// Check that modules C, D and E were deleted and modules A and B weren't.
 	for moduleName, modulePath := range modulePaths {
-		err = runTerragruntCommand(t, fmt.Sprintf("terragrunt show --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), &stdout, &stderr)
+		var (
+			showStdout bytes.Buffer
+			showStderr bytes.Buffer
+		)
+
+		err = runTerragruntCommand(t, fmt.Sprintf("terragrunt show --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), &showStdout, &showStderr)
+		logBufferContentsLineByLine(t, showStdout, fmt.Sprintf("show stdout for %s", modulePath))
+		logBufferContentsLineByLine(t, showStderr, fmt.Sprintf("show stderr for %s", modulePath))
+
 		assert.NoError(t, err)
-		output := stdout.String()
+		output := showStdout.String()
 		switch moduleName {
 		case "module-a":
-			assert.True(t, strings.Contains(output, "Hello, Module A"))
+			assert.Contains(t, output, "Hello, Module A")
 		case "module-b":
-			assert.True(t, strings.Contains(output, "Hello, Module B"))
+			assert.Contains(t, output, "Hello, Module B")
 		case "module-c":
-			assert.True(t, !strings.Contains(output, "Hello, Module C"))
+			assert.NotContains(t, output, "Hello, Module C")
 		case "module-d":
-			assert.True(t, !strings.Contains(output, "Hello, Module D"))
+			assert.NotContains(t, output, "Hello, Module D")
 		case "module-e":
-			assert.True(t, !strings.Contains(output, "Hello, Module E"))
+			assert.NotContains(t, output, "Hello, Module E")
 		}
+	}
+}
+
+func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
+	t.Logf("[%s] Full contents of %s:", t.Name(), label)
+	lines := strings.Split(out.String(), "\n")
+	for _, line := range lines {
+		t.Logf("[%s] %s", t.Name(), line)
 	}
 }
 
