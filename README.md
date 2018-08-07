@@ -64,6 +64,7 @@ Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that pro
    1. [CLI options](#cli-options)
    1. [Configuration](#configuration)
    1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
+   1. [Clearing the Terragrunt cache](#clearing-the-terragrunt-cache)
    1. [Developing Terragrunt](#developing-terragrunt)
    1. [License](#license)
 
@@ -1141,6 +1142,7 @@ This section contains detailed documentation for the following aspects of Terrag
 1. [CLI options](#cli-options)
 1. [Configuration](#configuration)
 1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
+1. [Clearing the Terragrunt cache](#clearing-the-terragrunt-cache)
 1. [Developing Terragrunt](#developing-terragrunt)
 1. [License](#license)
 
@@ -1832,6 +1834,32 @@ terragrunt = {
   prevent_destroy = true
 }
 ```
+
+### Clearing the Terragrunt cache
+
+Terragrunt creates a `.terragrunt-cache` folder in the current working directory as its scratch directory. It downloads
+your remote Terraform configurations into this folder, runs your Terraform commands in this folder, and any modules and
+providers those commands download also get stored in this folder. You can safely delete this folder any time and
+Terragrunt will recreate it as necessary.
+
+If you need to clean up a lot of these folders (e.g., after `terragrunt apply-all`), you can use the following commands
+on Mac and Linux:
+
+Recursively find all the `.terragrunt-cache` folders that are children of the current folder:
+
+```bash
+find . -type d -name ".terragrunt-cache"
+```
+
+If you are ABSOLUTELY SURE you want to delete all the folders that come up in the previous command, you can recursively
+delete all of them as follows:
+
+```bash
+find . -type d -name ".terragrunt-cache" -prune -exec rm -rf {} \;
+```
+
+
+
 
 ##### Previous Versions of Terragrunt
 
