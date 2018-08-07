@@ -45,9 +45,12 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 		return nil, err
 	}
 
-	downloadDirRaw, err := parseStringArg(args, OPT_DOWNLOAD_DIR, util.JoinPath(workingDir, options.TerragruntCacheDir))
+	downloadDirRaw, err := parseStringArg(args, OPT_DOWNLOAD_DIR, os.Getenv("TERRAGRUNT_DOWNLOAD"))
 	if err != nil {
 		return nil, err
+	}
+	if downloadDirRaw == "" {
+		downloadDirRaw = util.JoinPath(workingDir, options.TerragruntCacheDir)
 	}
 	downloadDir, err := filepath.Abs(downloadDirRaw)
 	if err != nil {
