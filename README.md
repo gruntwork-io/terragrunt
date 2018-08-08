@@ -1763,8 +1763,8 @@ start with the prefix `--terragrunt-`. The currently available options are:
   subfolders of the `terragrunt-working-dir`, running `terraform` in the root of each module it finds.
 
 * `--terragrunt-download-dir`: The path where to download Terraform code when using [remote Terraform
-  configurations](#keep-your-terraform-code-dry). Default is `.terragrunt-cache` in the working directory. We recommend
-  adding this folder to your `.gitignore`.
+  configurations](#keep-your-terraform-code-dry). May also be specified via the `TERRAGRUNT_DOWNLOAD` environment
+  variable. Default is `.terragrunt-cache` in the working directory. We recommend adding this folder to your `.gitignore`.
 
 * `--terragrunt-source`: Download Terraform configurations from the specified source into a temporary folder, and run
   Terraform in that temporary folder. May also be specified via the `TERRAGRUNT_SOURCE` environment variable. The
@@ -1857,6 +1857,9 @@ delete all of them as follows:
 ```bash
 find . -type d -name ".terragrunt-cache" -prune -exec rm -rf {} \;
 ```
+
+Also consider setting the `TERRAGRUNT_DOWNLOAD` environment variable if you wish to place the cache directories
+somewhere else.
 
 
 
