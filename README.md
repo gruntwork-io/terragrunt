@@ -1670,6 +1670,11 @@ that will be called either before or after execution of the `terraform` command.
 
 The `commands` array specifies the `terraform` commands that will trigger the execution of the hook.
 
+Because Terragrunt uses `terraform init` in two different ways, use the special command `init-from-module`
+to execute hooks only when retrieving the terraform source. The command `init` will execute hooks only when
+executing Terragrunt's [Auto-Init](#auto-init) capability, which includes configuring the backend, retrieving
+provider plugins, and remote modules specified within the root module.
+
 It is possible to use the [interpolation syntax](#interpolation-syntax) defined above in the `execute` array of the hooks.
 
 The `run_on_error` parameter allows you to specify whether you still want this hook to execute if an error has been encountered with the earlier execution of another hook OR with the execution of the `terraform` command iteself.  
@@ -1702,6 +1707,11 @@ terragrunt = {
       commands = ["apply", "plan"]
       execute = ["echo", "Baz"]
       run_on_error = true
+    }
+
+    after_hook "init_from_module" {
+      commands = ["init-from-module"]
+      execute = ["cp", "${get_parent_tfvars_dir()}/foo.tf", "."]
     }
   }
 }
