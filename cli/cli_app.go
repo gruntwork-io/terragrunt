@@ -323,7 +323,7 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 		terragruntOptions.InsertTerraformCliArgs(filterTerraformExtraArgs(terragruntOptions, terragruntConfig)...)
 	}
 
-	if firstArg(terragruntOptions.TerraformCliArgs) == CMD_INIT {
+	if util.FirstArg(terragruntOptions.TerraformCliArgs) == CMD_INIT {
 		if err := prepareInitCommand(terragruntOptions, terragruntConfig, allowSourceDownload); err != nil {
 			return err
 		}
@@ -469,7 +469,7 @@ func prepareNonInitCommand(terragruntOptions *options.TerragruntOptions, terragr
 
 // Determines if 'terraform init' needs to be executed
 func needsInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (bool, error) {
-	if util.ListContainsElement(TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT, firstArg(terragruntOptions.TerraformCliArgs)) {
+	if util.ListContainsElement(TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT, util.FirstArg(terragruntOptions.TerraformCliArgs)) {
 		return false, nil
 	}
 
@@ -507,7 +507,7 @@ func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, terraformSource *TerraformSource) error {
 
 	// Prevent Auto-Init if the user has disabled it
-	if firstArg(terragruntOptions.TerraformCliArgs) != CMD_INIT && !terragruntOptions.AutoInit {
+	if util.FirstArg(terragruntOptions.TerraformCliArgs) != CMD_INIT && !terragruntOptions.AutoInit {
 		return errors.WithStackTrace(InitNeededButDisabled("Cannot continue because init is needed, but Auto-Init is disabled.  You must run 'terragrunt init' manually."))
 	}
 
@@ -624,7 +624,7 @@ func remoteStateNeedsInit(remoteState *remote.RemoteState, terragruntOptions *op
 
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
-	if remoteState != nil && util.ListContainsElement(TERRAFORM_COMMANDS_THAT_USE_STATE, firstArg(terragruntOptions.TerraformCliArgs)) {
+	if remoteState != nil && util.ListContainsElement(TERRAFORM_COMMANDS_THAT_USE_STATE, util.FirstArg(terragruntOptions.TerraformCliArgs)) {
 		return remoteState.NeedsInit(terragruntOptions)
 	}
 	return false, nil
@@ -709,7 +709,7 @@ func validateAll(terragruntOptions *options.TerragruntOptions) error {
 
 // checkProtectedModule checks if module is protected via the "prevent_destroy" flag
 func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	if firstArg(terragruntOptions.TerraformCliArgs) != "destroy" {
+	if util.FirstArg(terragruntOptions.TerraformCliArgs) != "destroy" {
 		return nil
 	}
 	if terragruntConfig.PreventDestroy {
