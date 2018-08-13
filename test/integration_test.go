@@ -30,49 +30,167 @@ import (
 
 // hard-code this to match the test fixture for now
 const (
-	TERRAFORM_REMOTE_STATE_S3_REGION                    = "us-west-2"
-	TEST_FIXTURE_PATH                                   = "fixture/"
-	TEST_FIXTURE_INCLUDE_PATH                           = "fixture-include/"
-	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH                 = "qa/my-app"
-	TEST_FIXTURE_STACK                                  = "fixture-stack/"
-	TEST_FIXTURE_OUTPUT_ALL                             = "fixture-output-all"
-	TEST_FIXTURE_STDOUT                                 = "fixture-download/stdout-test"
-	TEST_FIXTURE_EXTRA_ARGS_PATH                        = "fixture-extra-args/"
-	TEST_FIXTURE_LOCAL_DOWNLOAD_PATH                    = "fixture-download/local"
-	TEST_FIXTURE_REMOTE_DOWNLOAD_PATH                   = "fixture-download/remote"
-	TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH                 = "fixture-download/override"
-	TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH           = "fixture-download/local-relative"
-	TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH          = "fixture-download/remote-relative"
-	TEST_FIXTURE_LOCAL_WITH_BACKEND                     = "fixture-download/local-with-backend"
-	TEST_FIXTURE_REMOTE_WITH_BACKEND                    = "fixture-download/remote-with-backend"
-	TEST_FIXTURE_REMOTE_MODULE_IN_ROOT                  = "fixture-download/remote-module-in-root"
-	TEST_FIXTURE_LOCAL_MISSING_BACKEND                  = "fixture-download/local-with-missing-backend"
-	TEST_FIXTURE_LOCAL_WITH_HIDDEN_FOLDER               = "fixture-download/local-with-hidden-folder"
-	TEST_FIXTURE_LOCAL_PREVENT_DESTROY                  = "fixture-download/local-with-prevent-destroy"
-	TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES     = "fixture-download/local-with-prevent-destroy-dependencies"
-	TEST_FIXTURE_OLD_CONFIG_INCLUDE_PATH                = "fixture-old-terragrunt-config/include"
-	TEST_FIXTURE_OLD_CONFIG_INCLUDE_CHILD_UPDATED_PATH  = "fixture-old-terragrunt-config/include-child-updated"
-	TEST_FIXTURE_OLD_CONFIG_INCLUDE_PARENT_UPDATED_PATH = "fixture-old-terragrunt-config/include-parent-updated"
-	TEST_FIXTURE_OLD_CONFIG_STACK_PATH                  = "fixture-old-terragrunt-config/stack"
-	TEST_FIXTURE_OLD_CONFIG_DOWNLOAD_PATH               = "fixture-old-terragrunt-config/download"
-	TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH                 = "fixture-hooks/before-only"
-	TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH                  = "fixture-hooks/after-only"
-	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH            = "fixture-hooks/before-and-after"
-	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_MERGE_PATH      = "fixture-hooks/before-and-after-merge"
-	TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH               = "fixture-hooks/skip-on-error"
-	TEST_FIXTURE_HOOKS_ONE_ARG_ACTION_PATH              = "fixture-hooks/one-arg-action"
-	TEST_FIXTURE_HOOKS_EMPTY_STRING_COMMAND_PATH        = "fixture-hooks/bad-arg-action/empty-string-command"
-	TEST_FIXTURE_HOOKS_EMPTY_COMMAND_LIST_PATH          = "fixture-hooks/bad-arg-action/empty-command-list"
-	TEST_FIXTURE_HOOKS_INTERPOLATIONS_PATH              = "fixture-hooks/interpolations"
-	TEST_FIXTURE_FAILED_TERRAFORM                       = "fixture-failure"
-	TEST_FIXTURE_EXIT_CODE                              = "fixture-exit-code"
-	TERRAFORM_FOLDER                                    = ".terraform"
-	TERRAFORM_STATE                                     = "terraform.tfstate"
-	TERRAFORM_STATE_BACKUP                              = "terraform.tfstate.backup"
+	TERRAFORM_REMOTE_STATE_S3_REGION                      = "us-west-2"
+	TEST_FIXTURE_PATH                                     = "fixture/"
+	TEST_FIXTURE_INCLUDE_PATH                             = "fixture-include/"
+	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH                   = "qa/my-app"
+	TEST_FIXTURE_STACK                                    = "fixture-stack/"
+	TEST_FIXTURE_OUTPUT_ALL                               = "fixture-output-all"
+	TEST_FIXTURE_STDOUT                                   = "fixture-download/stdout-test"
+	TEST_FIXTURE_EXTRA_ARGS_PATH                          = "fixture-extra-args/"
+	TEST_FIXTURE_LOCAL_DOWNLOAD_PATH                      = "fixture-download/local"
+	TEST_FIXTURE_REMOTE_DOWNLOAD_PATH                     = "fixture-download/remote"
+	TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH                   = "fixture-download/override"
+	TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH             = "fixture-download/local-relative"
+	TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH            = "fixture-download/remote-relative"
+	TEST_FIXTURE_LOCAL_WITH_BACKEND                       = "fixture-download/local-with-backend"
+	TEST_FIXTURE_REMOTE_WITH_BACKEND                      = "fixture-download/remote-with-backend"
+	TEST_FIXTURE_REMOTE_MODULE_IN_ROOT                    = "fixture-download/remote-module-in-root"
+	TEST_FIXTURE_LOCAL_MISSING_BACKEND                    = "fixture-download/local-with-missing-backend"
+	TEST_FIXTURE_LOCAL_WITH_HIDDEN_FOLDER                 = "fixture-download/local-with-hidden-folder"
+	TEST_FIXTURE_LOCAL_PREVENT_DESTROY                    = "fixture-download/local-with-prevent-destroy"
+	TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES       = "fixture-download/local-with-prevent-destroy-dependencies"
+	TEST_FIXTURE_OLD_CONFIG_INCLUDE_PATH                  = "fixture-old-terragrunt-config/include"
+	TEST_FIXTURE_OLD_CONFIG_INCLUDE_CHILD_UPDATED_PATH    = "fixture-old-terragrunt-config/include-child-updated"
+	TEST_FIXTURE_OLD_CONFIG_INCLUDE_PARENT_UPDATED_PATH   = "fixture-old-terragrunt-config/include-parent-updated"
+	TEST_FIXTURE_OLD_CONFIG_STACK_PATH                    = "fixture-old-terragrunt-config/stack"
+	TEST_FIXTURE_OLD_CONFIG_DOWNLOAD_PATH                 = "fixture-old-terragrunt-config/download"
+	TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH                   = "fixture-hooks/before-only"
+	TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH                    = "fixture-hooks/after-only"
+	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH              = "fixture-hooks/before-and-after"
+	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_MERGE_PATH        = "fixture-hooks/before-and-after-merge"
+	TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH                 = "fixture-hooks/skip-on-error"
+	TEST_FIXTURE_HOOKS_ONE_ARG_ACTION_PATH                = "fixture-hooks/one-arg-action"
+	TEST_FIXTURE_HOOKS_EMPTY_STRING_COMMAND_PATH          = "fixture-hooks/bad-arg-action/empty-string-command"
+	TEST_FIXTURE_HOOKS_EMPTY_COMMAND_LIST_PATH            = "fixture-hooks/bad-arg-action/empty-command-list"
+	TEST_FIXTURE_HOOKS_INTERPOLATIONS_PATH                = "fixture-hooks/interpolations"
+	TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_NO_BACKEND     = "fixture-hooks/init-once/no-source-no-backend"
+	TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_WITH_BACKEND   = "fixture-hooks/init-once/no-source-with-backend"
+	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND   = "fixture-hooks/init-once/with-source-no-backend"
+	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_WITH_BACKEND = "fixture-hooks/init-once/with-source-with-backend"
+	TEST_FIXTURE_FAILED_TERRAFORM                         = "fixture-failure"
+	TEST_FIXTURE_EXIT_CODE                                = "fixture-exit-code"
+	TERRAFORM_FOLDER                                      = ".terraform"
+	TERRAFORM_STATE                                       = "terraform.tfstate"
+	TERRAFORM_STATE_BACKUP                                = "terraform.tfstate.backup"
 )
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
+}
+
+func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_NO_BACKEND)
+	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_NO_BACKEND)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	output := stderr.String()
+
+	if err != nil {
+		t.Errorf("Did not expect to get error: %s", err.Error())
+	}
+
+	// `init` hook should execute only once (2 occurrences due to the echo and its output)
+	assert.Equal(t, 2, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
+	// With no source, `init-from-module` should not execute
+	assert.NotContains(t, output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE", "Hooks on init-from-module command executed when no source was specified")
+}
+
+func TestTerragruntInitHookNoSourceWithBackend(t *testing.T) {
+	t.Parallel()
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_WITH_BACKEND)
+	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_WITH_BACKEND)
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+
+	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", TERRAFORM_REMOTE_STATE_S3_REGION)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	output := stderr.String()
+
+	if err != nil {
+		t.Errorf("Did not expect to get error: %s", err.Error())
+	}
+
+	// `init` hook should execute only once (2 occurrences due to the echo and its output)
+	assert.Equal(t, 2, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
+	// With no source, `init-from-module` should not execute
+	assert.NotContains(t, output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE", "Hooks on init-from-module command executed when no source was specified")
+}
+
+func TestTerragruntInitHookWithSourceNoBackend(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
+	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	output := stderr.String()
+
+	if err != nil {
+		t.Errorf("Did not expect to get error: %s", err.Error())
+	}
+
+	// `init` hook should execute only once (2 occurrences due to the echo and its output)
+	assert.Equal(t, 2, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
+	// `init-from-module` hook should execute only once (2 occurrences due to the echo and its output)
+	assert.Equal(t, 2, strings.Count(output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE"), "Hooks on init-from-module command executed more than once")
+}
+
+func TestTerragruntInitHookWithSourceWithBackend(t *testing.T) {
+	t.Parallel()
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_WITH_BACKEND)
+	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_WITH_BACKEND)
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+
+	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", TERRAFORM_REMOTE_STATE_S3_REGION)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	output := stderr.String()
+
+	if err != nil {
+		t.Errorf("Did not expect to get error: %s", err.Error())
+	}
+
+	// `init` hook should execute only once (2 occurrences due to the echo and its output)
+	assert.Equal(t, 2, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
+	// `init-from-module` hook should execute only once (2 occurrences due to the echo and its output)
+	assert.Equal(t, 2, strings.Count(output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE"), "Hooks on init-from-module command executed more than once")
 }
 
 func TestTerragruntBeforeHook(t *testing.T) {
@@ -380,7 +498,7 @@ func TestTerragruntOutputAllCommand(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUTPUT_ALL)
 
 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used")
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL)
 
@@ -409,7 +527,7 @@ func TestTerragruntValidateAllCommand(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUTPUT_ALL)
 
 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used")
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL)
 
@@ -441,7 +559,7 @@ func TestTerragruntOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *tes
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUTPUT_ALL)
 
 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used")
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL)
 
@@ -471,7 +589,7 @@ func TestTerragruntStackCommands(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_STACK)
 
 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, "fixture-stack", config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
 
 	mgmtEnvironmentPath := fmt.Sprintf("%s/fixture-stack/mgmt", tmpEnvPath)
 	stageEnvironmentPath := fmt.Sprintf("%s/fixture-stack/stage", tmpEnvPath)
@@ -497,7 +615,7 @@ func TestTerragruntStackCommandsWithOldConfig(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, "fixture-old-terragrunt-config/stack")
 	stagePath := util.JoinPath(rootPath, "stage")
 	rootTerragruntConfigPath := util.JoinPath(rootPath, config.OldTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used")
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s -var terraform_remote_state_s3_bucket=\"%s\"", stagePath, s3BucketName))
 	runTerragrunt(t, fmt.Sprintf("terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir %s", stagePath))
@@ -594,7 +712,7 @@ func TestLocalWithBackend(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_LOCAL_WITH_BACKEND)
 
 	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
@@ -615,7 +733,7 @@ func TestLocalWithMissingBackend(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_LOCAL_MISSING_BACKEND)
 
 	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), os.Stdout, os.Stderr)
 	if assert.Error(t, err) {
@@ -637,7 +755,7 @@ func TestRemoteWithBackend(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_REMOTE_WITH_BACKEND)
 
 	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
@@ -993,11 +1111,11 @@ func createTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string
 
 	parentTerragruntSrcPath := util.JoinPath(parentPath, parentConfigFileName)
 	parentTerragruntDestPath := util.JoinPath(tmpDir, parentConfigFileName)
-	copyTerragruntConfigAndFillPlaceholders(t, parentTerragruntSrcPath, parentTerragruntDestPath, s3BucketName, "not-used")
+	copyTerragruntConfigAndFillPlaceholders(t, parentTerragruntSrcPath, parentTerragruntDestPath, s3BucketName, "not-used", "not-used")
 
 	childTerragruntSrcPath := util.JoinPath(util.JoinPath(parentPath, childRelPath), childConfigFileName)
 	childTerragruntDestPath := util.JoinPath(childDestPath, childConfigFileName)
-	copyTerragruntConfigAndFillPlaceholders(t, childTerragruntSrcPath, childTerragruntDestPath, s3BucketName, "not-used")
+	copyTerragruntConfigAndFillPlaceholders(t, childTerragruntSrcPath, childTerragruntDestPath, s3BucketName, "not-used", "not-used")
 
 	return childTerragruntDestPath
 }
@@ -1010,12 +1128,12 @@ func createTmpTerragruntConfig(t *testing.T, templatesPath string, s3BucketName 
 
 	tmpTerragruntConfigFile := util.JoinPath(tmpFolder, configFileName)
 	originalTerragruntConfigPath := util.JoinPath(templatesPath, configFileName)
-	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName)
+	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "not-used")
 
 	return tmpTerragruntConfigFile
 }
 
-func copyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string, configDestPath string, s3BucketName string, lockTableName string) {
+func copyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string, configDestPath string, s3BucketName string, lockTableName string, region string) {
 	contents, err := util.ReadFileAsString(configSrcPath)
 	if err != nil {
 		t.Fatalf("Error reading Terragrunt config at %s: %v", configSrcPath, err)
@@ -1023,6 +1141,7 @@ func copyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string,
 
 	contents = strings.Replace(contents, "__FILL_IN_BUCKET_NAME__", s3BucketName, -1)
 	contents = strings.Replace(contents, "__FILL_IN_LOCK_TABLE_NAME__", lockTableName, -1)
+	contents = strings.Replace(contents, "__FILL_IN_REGION__", region, -1)
 
 	if err := ioutil.WriteFile(configDestPath, []byte(contents), 0444); err != nil {
 		t.Fatalf("Error writing temp Terragrunt config to %s: %v", configDestPath, err)
