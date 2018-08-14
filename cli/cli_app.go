@@ -343,7 +343,7 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 	return errors.NewMultiError(beforeHookErrors, terraformError, postHookErrors)
 }
 
-var moduleNotFoundErr = regexp.MustCompile(`Error: Error loading modules: module .+?: not found, may need to run 'terraform init'`)
+var moduleNotFoundErr = regexp.MustCompile(`Error loading modules: module .+?: not found, may need to run 'terraform init'`)
 
 func runTerraformCommandIfNoErrors(possibleErrors error, terragruntOptions *options.TerragruntOptions) error {
 	if possibleErrors != nil {
