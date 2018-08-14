@@ -351,16 +351,19 @@ func runTerraformCommandIfNoErrors(possibleErrors error, terragruntOptions *opti
 		return nil
 	}
 
-	// Workaround for https://github.com/hashicorp/terraform/issues/18460. Calling 'terraform init -get=false'
+	// Workaround for https://github.com/hashicorp/terraform/issues/18460. Calling 'terraform init -get=false '
 	// sometimes results in Terraform trying to download/validate modules anyway, so we need to ignore that error.
-	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, "init") && util.ListContainsElement(terragruntOptions.TerraformCliArgs, "-get=false") {
+	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, "init") &&
+		util.ListContainsElement(terragruntOptions.TerraformCliArgs, "-get=false") &&
+		util.ListContainsElement(terragruntOptions.TerraformCliArgs, "-get-plugins=false") &&
+		util.ListContainsElement(terragruntOptions.TerraformCliArgs, "-backend=false") {
 		out, err := shell.RunTerraformCommandAndCaptureOutput(terragruntOptions, terragruntOptions.TerraformCliArgs...)
 
 		// Write the log output to stderr to make sure we don't pollute stdout
 		terragruntOptions.ErrWriter.Write([]byte(out))
 
 		// If we got an error and the error output included this error message, ignore the error and keep going
-		if err != nil && len(moduleNotFoundErr.FindStringSubmatch(out)) > 0 {
+		if err != nil && (len(moduleNotFoundErr.FindStringSubmatch(out)) > 0 || strings.Contains(out, "Missing required providers.")) {
 			terragruntOptions.Logger.Println("Ignoring error from call to init, as this is a known Terraform bug: https://github.com/hashicorp/terraform/issues/18460")
 			return nil
 		}

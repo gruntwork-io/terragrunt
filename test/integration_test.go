@@ -948,7 +948,9 @@ func copyEnvironment(t *testing.T, environmentPath string) string {
 			return err
 		}
 
-		if info.IsDir() {
+		// The info.Mode() check is to catch symlinks to directories:
+		// https://stackoverflow.com/questions/32908277/fileinfo-isdir-isnt-detecting-directory
+		if info.IsDir() || (info.Mode()&os.ModeSymlink) == os.ModeSymlink {
 			return nil
 		}
 
