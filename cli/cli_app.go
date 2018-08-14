@@ -343,13 +343,30 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 	return errors.NewMultiError(beforeHookErrors, terraformError, postHookErrors)
 }
 
+var moduleNotFoundErr = regexp.MustCompile(`Error: Error loading modules: module .+?: not found, may need to run 'terraform init'`)
+
 func runTerraformCommandIfNoErrors(possibleErrors error, terragruntOptions *options.TerragruntOptions) error {
-	if possibleErrors == nil {
-		return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
+	if possibleErrors != nil {
+		terragruntOptions.Logger.Println("Errors encountered running before_hooks. Not running terraform.")
+		return nil
 	}
 
-	terragruntOptions.Logger.Println("Errors encountered running before_hooks. Not running terraform.")
-	return nil
+	// Workaround for https://github.com/hashicorp/terraform/issues/18460. Calling 'terraform init -get=false'
+	// sometimes results in Terraform trying to download/validate modules anyway, so we need to ignore that error.
+	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, "init") && util.ListContainsElement(terragruntOptions.TerraformCliArgs, "-get=false") {
+		out, err := shell.RunTerraformCommandAndCaptureOutput(terragruntOptions, terragruntOptions.TerraformCliArgs...)
+		terragruntOptions.Logger.Println(out)
+
+		// If we got an error and the error output included this error message, ignore the error and keep going
+		if err != nil && len(moduleNotFoundErr.FindStringSubmatch(out)) > 0 {
+			terragruntOptions.Logger.Println("Ignoring error from call to init, as this is a known Terraform bug: https://github.com/hashicorp/terraform/issues/18460")
+			return nil
+		}
+
+		return err
+	}
+
+	return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
 }
 
 // Prepare for running 'terraform init' by
@@ -506,6 +523,11 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 			}
 		}
 
+		// We will run init separately to download modules, plugins, backend state, etc, so don't run it at this point
+		initOptions.AppendTerraformCliArgs("-get=false")
+		initOptions.AppendTerraformCliArgs("-get-plugins=false")
+		initOptions.AppendTerraformCliArgs("-backend=false")
+
 		v0_10_0, err := version.NewVersion("v0.10.0")
 		if err != nil {
 			return err
@@ -513,10 +535,10 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 
 		if terragruntOptions.TerraformVersion.LessThan(v0_10_0) {
 			// Terraform versions < 0.10.0 specified the module source as an argument (rather than the -from-module option)
-			initOptions.AppendTerraformCliArgs(terraformSource.CanonicalSourceURL.String())
+			initOptions.AppendTerraformCliArgs(terraformSource.CanonicalSourceURL.String(), "-no-color")
 		} else {
 			// Terraform versions >= 0.10.0 specify the module source using the -from-module option
-			initOptions.AppendTerraformCliArgs("-from-module=" + terraformSource.CanonicalSourceURL.String())
+			initOptions.AppendTerraformCliArgs("-from-module="+terraformSource.CanonicalSourceURL.String(), "-no-color")
 		}
 		initOptions.AppendTerraformCliArgs(terraformSource.DownloadDir)
 	}
