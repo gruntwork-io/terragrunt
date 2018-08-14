@@ -355,7 +355,9 @@ func runTerraformCommandIfNoErrors(possibleErrors error, terragruntOptions *opti
 	// sometimes results in Terraform trying to download/validate modules anyway, so we need to ignore that error.
 	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, "init") && util.ListContainsElement(terragruntOptions.TerraformCliArgs, "-get=false") {
 		out, err := shell.RunTerraformCommandAndCaptureOutput(terragruntOptions, terragruntOptions.TerraformCliArgs...)
-		terragruntOptions.Logger.Println(out)
+
+		// Write the log output to stderr to make sure we don't pollute stdout
+		terragruntOptions.ErrWriter.Write([]byte(out))
 
 		// If we got an error and the error output included this error message, ignore the error and keep going
 		if err != nil && len(moduleNotFoundErr.FindStringSubmatch(out)) > 0 {
