@@ -43,6 +43,7 @@ const CMD_OUTPUT_ALL = "output-all"
 const CMD_VALIDATE_ALL = "validate-all"
 
 const CMD_INIT = "init"
+const CMD_INIT_FROM_MODULE = "init-from-module"
 
 // CMD_SPIN_UP is deprecated.
 const CMD_SPIN_UP = "spin-up"
@@ -290,7 +291,7 @@ func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOption
 	//for the len(previousExecErrors) == 0 check that used to be here
 	multiError := errors.NewMultiError(previousExecErrors...)
 
-	return util.ListContainsElement(hook.Commands, terragruntOptions.TerraformCliArgs[0]) && (multiError == nil || hook.RunOnError)
+	return util.ListContainsElement(hook.Commands, terragruntOptions.TerraformCommand) && (multiError == nil || hook.RunOnError)
 }
 
 // Assume an IAM role, if one is specified, by making API calls to Amazon STS and setting the environment variables
@@ -322,7 +323,7 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 		terragruntOptions.InsertTerraformCliArgs(filterTerraformExtraArgs(terragruntOptions, terragruntConfig)...)
 	}
 
-	if firstArg(terragruntOptions.TerraformCliArgs) == CMD_INIT {
+	if util.FirstArg(terragruntOptions.TerraformCliArgs) == CMD_INIT {
 		if err := prepareInitCommand(terragruntOptions, terragruntConfig, allowSourceDownload); err != nil {
 			return err
 		}
@@ -468,7 +469,7 @@ func prepareNonInitCommand(terragruntOptions *options.TerragruntOptions, terragr
 
 // Determines if 'terraform init' needs to be executed
 func needsInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (bool, error) {
-	if util.ListContainsElement(TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT, firstArg(terragruntOptions.TerraformCliArgs)) {
+	if util.ListContainsElement(TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT, util.FirstArg(terragruntOptions.TerraformCliArgs)) {
 		return false, nil
 	}
 
@@ -506,7 +507,7 @@ func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, terraformSource *TerraformSource) error {
 
 	// Prevent Auto-Init if the user has disabled it
-	if firstArg(terragruntOptions.TerraformCliArgs) != CMD_INIT && !terragruntOptions.AutoInit {
+	if util.FirstArg(terragruntOptions.TerraformCliArgs) != CMD_INIT && !terragruntOptions.AutoInit {
 		return errors.WithStackTrace(InitNeededButDisabled("Cannot continue because init is needed, but Auto-Init is disabled.  You must run 'terragrunt init' manually."))
 	}
 
@@ -514,6 +515,7 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 	initOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	initOptions.TerraformCliArgs = []string{CMD_INIT}
 	initOptions.WorkingDir = terragruntOptions.WorkingDir
+	initOptions.TerraformCommand = CMD_INIT
 
 	// Don't pollute stdout with the stdout from Aoto Init
 	initOptions.Writer = initOptions.ErrWriter
@@ -533,6 +535,9 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 		initOptions.AppendTerraformCliArgs("-get-plugins=false")
 		initOptions.AppendTerraformCliArgs("-backend=false")
 
+		// Set the TerraformCommand attribute to match hooks on `init-from-module`
+		initOptions.TerraformCommand = CMD_INIT_FROM_MODULE
+
 		v0_10_0, err := version.NewVersion("v0.10.0")
 		if err != nil {
 			return err
@@ -545,6 +550,7 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 			// Terraform versions >= 0.10.0 specify the module source using the -from-module option
 			initOptions.AppendTerraformCliArgs("-from-module="+terraformSource.CanonicalSourceURL.String(), "-no-color")
 		}
+
 		initOptions.AppendTerraformCliArgs(terraformSource.DownloadDir)
 	}
 
@@ -618,7 +624,7 @@ func remoteStateNeedsInit(remoteState *remote.RemoteState, terragruntOptions *op
 
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
-	if remoteState != nil && util.ListContainsElement(TERRAFORM_COMMANDS_THAT_USE_STATE, firstArg(terragruntOptions.TerraformCliArgs)) {
+	if remoteState != nil && util.ListContainsElement(TERRAFORM_COMMANDS_THAT_USE_STATE, util.FirstArg(terragruntOptions.TerraformCliArgs)) {
 		return remoteState.NeedsInit(terragruntOptions)
 	}
 	return false, nil
@@ -703,7 +709,7 @@ func validateAll(terragruntOptions *options.TerragruntOptions) error {
 
 // checkProtectedModule checks if module is protected via the "prevent_destroy" flag
 func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	if firstArg(terragruntOptions.TerraformCliArgs) != "destroy" {
+	if util.FirstArg(terragruntOptions.TerraformCliArgs) != "destroy" {
 		return nil
 	}
 	if terragruntConfig.PreventDestroy {

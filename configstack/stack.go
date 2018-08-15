@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
 	"sort"
 )
 
@@ -114,6 +115,7 @@ func FindStackInSubfolders(terragruntOptions *options.TerragruntOptions) (*Stack
 func (stack *Stack) setTerraformCommand(command []string) {
 	for _, module := range stack.Modules {
 		module.TerragruntOptions.TerraformCliArgs = append(command, module.TerragruntOptions.TerraformCliArgs...)
+		module.TerragruntOptions.TerraformCommand = util.FirstArg(command)
 	}
 }
 

@@ -30,6 +30,9 @@ type TerragruntOptions struct {
 	// Location of the terraform binary
 	TerraformPath string
 
+	// Current Terraform command being executed by Terragrunt
+	TerraformCommand string
+
 	// Version of terraform (obtained by running 'terraform version')
 	TerraformVersion *version.Version
 
@@ -97,6 +100,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 	return &TerragruntOptions{
 		TerragruntConfigPath:   terragruntConfigPath,
 		TerraformPath:          "terraform",
+		TerraformCommand:       "",
 		AutoInit:               true,
 		NonInteractive:         false,
 		TerraformCliArgs:       []string{},
@@ -154,6 +158,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 	return &TerragruntOptions{
 		TerragruntConfigPath:   terragruntConfigPath,
 		TerraformPath:          terragruntOptions.TerraformPath,
+		TerraformCommand:       terragruntOptions.TerraformCommand,
 		TerraformVersion:       terragruntOptions.TerraformVersion,
 		AutoInit:               terragruntOptions.AutoInit,
 		NonInteractive:         terragruntOptions.NonInteractive,
