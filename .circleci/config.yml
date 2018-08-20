@@ -32,7 +32,7 @@ jobs:
     - checkout
     - attach_workspace:
         at: *workspace_root
-    - run: ./run-tests.sh
+    - run:  run-go-tests --circle-ci-2 --path test
 
   build:
     <<: *defaults
