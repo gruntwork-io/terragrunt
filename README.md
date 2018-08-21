@@ -1898,8 +1898,8 @@ go run main.go plan
 
 #### Dependencies
 
-* Terragrunt uses `glide`, a vendor package management tool for golang. See the glide repo for
-  [installation instructions](https://github.com/Masterminds/glide#install).
+* Terragrunt uses `dep`, a vendor package management tool for golang. See the dep repo for
+  [installation instructions](https://github.com/golang/dep).
 
 #### Running tests
 
@@ -1912,7 +1912,7 @@ Before running the tests, you must configure your [AWS credentials](#aws-credent
 To run all the tests:
 
 ```bash
-go test -v -parallel 128 $(glide novendor)
+go test -v -parallel 128 ./...
 ```
 
 To run only the tests in a specific package, such as the package `remote`:
