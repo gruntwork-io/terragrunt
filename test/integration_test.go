@@ -38,6 +38,7 @@ const (
 	TEST_FIXTURE_OUTPUT_ALL                               = "fixture-output-all"
 	TEST_FIXTURE_STDOUT                                   = "fixture-download/stdout-test"
 	TEST_FIXTURE_EXTRA_ARGS_PATH                          = "fixture-extra-args/"
+	TEST_FIXTURE_ENV_VARS_BLOCK_PATH                      = "fixture-env-vars-block/"
 	TEST_FIXTURE_LOCAL_DOWNLOAD_PATH                      = "fixture-download/local"
 	TEST_FIXTURE_REMOTE_DOWNLOAD_PATH                     = "fixture-download/remote"
 	TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH                   = "fixture-download/override"
@@ -805,6 +806,13 @@ func TestExtraArgumentsWithEnv(t *testing.T) {
 	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_EXTRA_ARGS_PATH), out, os.Stderr)
 	t.Log(out.String())
 	assert.Contains(t, out.String(), "Hello, World!")
+}
+
+func TestExtraArgumentsWithEnvVarBlock(t *testing.T) {
+	out := new(bytes.Buffer)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_ENV_VARS_BLOCK_PATH), out, os.Stderr)
+	t.Log(out.String())
+	assert.Contains(t, out.String(), "I'm set in extra_arguments env_vars")
 }
 
 func TestExtraArgumentsWithRegion(t *testing.T) {
