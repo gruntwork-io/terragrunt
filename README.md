@@ -642,7 +642,7 @@ terragrunt = {
 
 Each `extra_arguments` block includes an arbitrary name (in the example above, `retry_lock`), a list of `commands` to
 which the extra arguments should be add, a list of `arguments` or `required_var_files` or `optional_var_files` to add.
-You can also pass custom variables using `env_vars` block, which stores environment variables in key value pairs.With
+You can also pass custom variables using `env_vars` block, which stores environment variables in key value pairs. With
 the configuration above, when you run `terragrunt apply`, Terragrunt will call Terraform as follows:
 
 When available, it is preferable to use interpolation functions such as
