@@ -119,15 +119,21 @@ func (conf *TerraformConfig) ValidateHooks() error {
 
 // TerraformExtraArguments sets a list of arguments to pass to Terraform if command fits any in the `Commands` list
 type TerraformExtraArguments struct {
-	Name             string   `hcl:",key"`
-	Arguments        []string `hcl:"arguments,omitempty"`
-	RequiredVarFiles []string `hcl:"required_var_files,omitempty"`
-	OptionalVarFiles []string `hcl:"optional_var_files,omitempty"`
-	Commands         []string `hcl:"commands,omitempty"`
+	Name             string            `hcl:",key"`
+	Arguments        []string          `hcl:"arguments,omitempty"`
+	RequiredVarFiles []string          `hcl:"required_var_files,omitempty"`
+	OptionalVarFiles []string          `hcl:"optional_var_files,omitempty"`
+	Commands         []string          `hcl:"commands,omitempty"`
+	EnvVars          map[string]string `hcl:"env_vars,omitempty"`
 }
 
 func (conf *TerraformExtraArguments) String() string {
-	return fmt.Sprintf("TerraformArguments{Name = %s, Arguments = %v, Commands = %v}", conf.Name, conf.Arguments, conf.Commands)
+	return fmt.Sprintf(
+		"TerraformArguments{Name = %s, Arguments = %v, Commands = %v, EnvVars = %v}",
+		conf.Name,
+		conf.Arguments,
+		conf.Commands,
+		conf.EnvVars)
 }
 
 // Return the default path to use for the Terragrunt configuration file. The reason this is a method rather than a
