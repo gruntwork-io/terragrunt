@@ -78,6 +78,9 @@ Please check your version against the latest available on the
 ### OSX
 You can install Terragrunt on OSX using [Homebrew](https://brew.sh/): `brew install terragrunt`.
 
+### Linux
+You can install Terragrunt on Linux using [Linuxbrew](https://linuxbrew.sh/): `brew install terragrunt`.
+
 ### Manual
 You can install Terragrunt manually by going to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases),
 downloading the binary for your OS, renaming it to `terragrunt`, and adding it to your PATH.
