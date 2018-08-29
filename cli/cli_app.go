@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io"
+	"os"
 	"regexp"
 	"strings"
 
@@ -17,7 +18,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	version "github.com/hashicorp/go-version"
 	"github.com/urfave/cli"
-	"os"
 )
 
 const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
@@ -250,6 +250,9 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 	// Add extra_arguments to the command
 	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExtraArgs != nil && len(terragruntConfig.Terraform.ExtraArgs) > 0 {
 		terragruntOptions.InsertTerraformCliArgs(filterTerraformExtraArgs(terragruntOptions, terragruntConfig)...)
+		for k, v := range filterTerraformEnvVars(terragruntOptions, terragruntConfig) {
+			terragruntOptions.Env[k] = v
+		}
 	}
 
 	if firstArg(terragruntOptions.TerraformCliArgs) == CMD_INIT {

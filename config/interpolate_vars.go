@@ -6,10 +6,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/util"
 
-//	"github.com/hashicorp/hil"
-	hilast "github.com/hashicorp/hil/ast"
+	//	"github.com/hashicorp/hil"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
+	hilast "github.com/hashicorp/hil/ast"
 	"github.com/mitchellh/reflectwalk"
 )
 
@@ -51,19 +51,20 @@ func (ti *TerragruntInterpolation) resolveTerragruntVarFiles(configStr string) (
 
 // interpolateVarFiles returns terragrunt_var_files after all functions inside of the block
 // were applied
-func (ti *TerragruntInterpolation)interpolateVarFiles(item *ast.ObjectItem) ([]string, error){
+func (ti *TerragruntInterpolation) interpolateVarFiles(item *ast.ObjectItem) ([]string, error) {
 	type terragruntVarFileConfig struct {
 		TerragruntVarFiles []string `hcl:terragrunt_var_files,omitempty`
 	}
 	var config terragruntVarFileConfig
 	var varFiles []string
 	if err := hcl.DecodeObject(&varFiles, item.Val); err != nil {
-	   return []string{}, fmt.Errorf("Error reading terraform_var_files: %s", err)
+		return []string{}, fmt.Errorf("Error reading terraform_var_files: %s", err)
 	}
 	config.TerragruntVarFiles = varFiles
 	// we have uninterpolated config here. Now we walk it
 	w := &Walker{Callback: ti.EvalNode, Replace: true}
 	err := reflectwalk.Walk(&config, w)
+	fmt.Printf("varfiles: %v", config.TerragruntVarFiles)
 	return config.TerragruntVarFiles, err
 }
 
