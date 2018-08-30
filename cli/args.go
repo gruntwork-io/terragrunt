@@ -142,6 +142,23 @@ func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 	return out
 }
 
+func filterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) map[string]string {
+	out := map[string]string{}
+	cmd := util.FirstArg(terragruntOptions.TerraformCliArgs)
+
+	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
+		for _, argcmd := range arg.Commands {
+			if cmd == argcmd {
+				for k, v := range arg.EnvVars {
+					out[k] = v
+				}
+			}
+		}
+	}
+
+	return out
+}
+
 func parseEnvironmentVariables(environment []string) map[string]string {
 	environmentMap := make(map[string]string)
 

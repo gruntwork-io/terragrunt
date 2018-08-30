@@ -623,7 +623,10 @@ terragrunt = {
         "-var-file=terraform.tfvars",
         "-var-file=terraform-secret.tfvars"
       ]
-      commands = ["${get_terraform_commands_that_need_vars()}"]
+			commands = ["${get_terraform_commands_that_need_vars()}"]
+			env_vars = {
+				TEST_VAR = "value"
+			}
     }
   }
 }
@@ -648,6 +651,10 @@ terragrunt = {
 		assert.Equal(t,
 			TERRAFORM_COMMANDS_NEED_VARS,
 			terragruntConfig.Terraform.ExtraArgs[0].Commands)
+
+		assert.Equal(t,
+			map[string]string{"TEST_VAR": "value"},
+			terragruntConfig.Terraform.ExtraArgs[0].EnvVars)
 	}
 }
 
