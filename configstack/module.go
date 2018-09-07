@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	zglob "github.com/mattn/go-zglob"
 )
 
 const maxLevelsOfRecursion = 20
@@ -52,7 +53,68 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 		return []*TerraformModule{}, err
 	}
 
-	return crosslinkDependencies(mergeMaps(modules, externalDependencies), canonicalTerragruntConfigPaths)
+	crossLinkedModules, err := crosslinkDependencies(mergeMaps(modules, externalDependencies), canonicalTerragruntConfigPaths)
+	if err != nil {
+		return []*TerraformModule{}, err
+	}
+
+	finalModules := removeExcludedDirs(crossLinkedModules, terragruntOptions)
+
+	return finalModules, nil
+}
+
+// removeExcludedDirs iterates over a module slice and removes all entries, which should be ignored via the terragrunt-exclude-dir CLI flag.
+// Modules are also removed if one of its dependencies are to be excluded. Returns the cleaned-up slice of modules.
+func removeExcludedDirs(modules []*TerraformModule, terragruntOptions *options.TerragruntOptions) []*TerraformModule {
+
+	// If no excludeDir is specified return the modules list instantly
+	if terragruntOptions.ExcludeDir == "" {
+		return modules
+	}
+
+	excludeGlobMatches := []string{}
+
+	// If possible, expand the glob to get all excluded filepaths
+	excludeGlobMatches, err := zglob.Glob(terragruntOptions.ExcludeDir)
+
+	if err != nil {
+		// Glob can not be expanded, using literal value
+		excludeGlobMatches = []string{terragruntOptions.ExcludeDir}
+	}
+
+	// If the expanded glob paths are relative, generate absolute paths
+	absoluteExludeDir := []string{}
+	for _, m := range excludeGlobMatches {
+		if strings.HasPrefix(m, "/") {
+			absoluteExludeDir = append(absoluteExludeDir, m)
+		} else {
+			absoluteExludeDir = append(absoluteExludeDir, fmt.Sprintf("%s/%s", terragruntOptions.WorkingDir, m))
+		}
+	}
+
+	// Create a slice of finalModules to store all modules, which should not be excluded
+	finalModules := modules[:0]
+
+	for _, e := range absoluteExludeDir {
+		for _, m := range modules {
+
+			// Check if none of the current modules dependencies are located under the excluded directory
+			dependencyExcluded := false
+			for _, d := range m.Dependencies {
+				if strings.Contains(d.Path, e) {
+					dependencyExcluded = true
+					continue
+				}
+			}
+
+			// Append module to finalModules if is not located under the excluded directory and none of its dependencies were excluded
+			if !strings.Contains(m.Path, e) && !dependencyExcluded {
+				finalModules = append(finalModules, m)
+			}
+		}
+	}
+
+	return finalModules
 }
 
 // Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents

@@ -87,6 +87,11 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 		return nil, err
 	}
 
+	excludeDir, err := parseStringArg(args, OPT_TERRAGRUNT_EXCLUDE_DIR, os.Getenv("TERRAGRUNT_EXCLUDE_DIR"))
+	if err != nil {
+		return nil, err
+	}
+
 	opts, err := options.NewTerragruntOptions(filepath.ToSlash(terragruntConfigPath))
 	if err != nil {
 		return nil, err
@@ -108,6 +113,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 	opts.ErrWriter = errWriter
 	opts.Env = parseEnvironmentVariables(os.Environ())
 	opts.IamRole = iamRole
+	opts.ExcludeDir = excludeDir
 
 	return opts, nil
 }

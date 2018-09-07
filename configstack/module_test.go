@@ -92,6 +92,80 @@ func TestResolveTerraformModulesTwoModulesWithDependencies(t *testing.T) {
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
+func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDependency(t *testing.T) {
+	t.Parallel()
+
+	opts, _ := options.NewTerragruntOptionsForTest("running_module_test")
+	opts.WorkingDir, _ = os.Getwd()
+	opts.ExcludeDir = canonical(t, "../test/fixture-modules/module-a")
+
+	moduleA := &TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-a"),
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{
+			Terraform: &config.TerraformConfig{Source: "test"},
+		},
+		TerragruntOptions: opts.Clone(canonical(t, "../test/fixture-modules/module-a/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleC := &TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-c"),
+		Dependencies: []*TerraformModule{moduleA},
+		Config: config.TerragruntConfig{
+			Dependencies: &config.ModuleDependencies{Paths: []string{"../module-a"}},
+			Terraform:    &config.TerraformConfig{Source: "temp"},
+		},
+		TerragruntOptions: opts.Clone(canonical(t, "../test/fixture-modules/module-c/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath}
+	expected := []*TerraformModule{}
+
+	t.Logf("The following modules should be ignored because of dependencies: %v %v", moduleA, moduleC)
+
+	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, mockHowThesePathsWereFound)
+
+	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithNoDependency(t *testing.T) {
+	t.Parallel()
+
+	opts, _ := options.NewTerragruntOptionsForTest("running_module_test")
+	opts.WorkingDir, _ = os.Getwd()
+	opts.ExcludeDir = canonical(t, "../test/fixture-modules/module-c")
+
+	moduleA := &TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-a"),
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{
+			Terraform: &config.TerraformConfig{Source: "test"},
+		},
+		TerragruntOptions: opts.Clone(canonical(t, "../test/fixture-modules/module-a/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleC := &TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-c"),
+		Dependencies: []*TerraformModule{moduleA},
+		Config: config.TerragruntConfig{
+			Dependencies: &config.ModuleDependencies{Paths: []string{"../module-a"}},
+			Terraform:    &config.TerraformConfig{Source: "temp"},
+		},
+		TerragruntOptions: opts.Clone(canonical(t, "../test/fixture-modules/module-c/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath}
+	expected := []*TerraformModule{moduleA}
+
+	t.Logf("The following module should be excluded: %v", moduleC)
+
+	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, mockHowThesePathsWereFound)
+
+	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
 func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 	t.Parallel()
 
