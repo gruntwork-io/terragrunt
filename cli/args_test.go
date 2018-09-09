@@ -7,13 +7,14 @@ import (
 	"path/filepath"
 	"testing"
 
+	"strings"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"strings"
 )
 
 func TestParseTerragruntOptionsFromArgs(t *testing.T) {
@@ -188,6 +189,27 @@ func TestFilterTerragruntArgs(t *testing.T) {
 
 	for _, testCase := range testCases {
 		actual := filterTerragruntArgs(testCase.args)
+		assert.Equal(t, testCase.expected, actual, "For args %v", testCase.args)
+	}
+}
+
+func TestParseMultiStringArg(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		args         []string
+		argName      string
+		defaultValue []string
+		expected     []string
+	}{
+		{[]string{"apply-all", "--foo", "bar"}, "foo", []string{"default_bar"}, []string{"bar"}},
+		{[]string{"apply-all", "--test", "bar"}, "foo", []string{"default_bar"}, []string{"default_bar"}},
+		{[]string{"plan-all", "--test", "--foo", "bar1", "--foo", "bar2"}, "foo", []string{"default_bar"}, []string{"bar1", "bar2"}},
+		{[]string{"plan-all", "--test", "value", "--foo", "bar1", "--foo"}, "foo", []string{"default_bar"}, nil},
+	}
+
+	for _, testCase := range testCases {
+		actual, _ := parseMultiStringArg(testCase.args, testCase.argName, testCase.defaultValue)
 		assert.Equal(t, testCase.expected, actual, "For args %v", testCase.args)
 	}
 }
