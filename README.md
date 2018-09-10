@@ -1801,6 +1801,7 @@ start with the prefix `--terragrunt-`. The currently available options are:
   specified via the `TERRAGRUNT_IAM_ROLE` environment variable. This is a convenient way to use Terragrunt and 
   Terraform with multiple AWS accounts.
 
+* `--terragrunt-exclude-dir`: Unix-style glob of directories to exclude when running `*-all` commands. Modules under these direcotires will be excluded during execution of the commands. Flag can be specified multiple times.
 
 ### Configuration
 
