@@ -2,15 +2,16 @@ package configstack
 
 import (
 	"fmt"
+	"path/filepath"
+	"regexp"
+	"strings"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-getter"
-	"path/filepath"
-	"regexp"
-	"strings"
 	zglob "github.com/mattn/go-zglob"
 )
 
@@ -58,63 +59,77 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 		return []*TerraformModule{}, err
 	}
 
-	finalModules := removeExcludedDirs(crossLinkedModules, terragruntOptions)
+	finalModules, err := removeExcludedDirs(crossLinkedModules, terragruntOptions)
+	if err != nil {
+		return []*TerraformModule{}, err
+	}
 
 	return finalModules, nil
 }
 
 // removeExcludedDirs iterates over a module slice and removes all entries, which should be ignored via the terragrunt-exclude-dir CLI flag.
 // Modules are also removed if one of its dependencies are to be excluded. Returns the cleaned-up slice of modules.
-func removeExcludedDirs(modules []*TerraformModule, terragruntOptions *options.TerragruntOptions) []*TerraformModule {
+func removeExcludedDirs(modules []*TerraformModule, terragruntOptions *options.TerragruntOptions) ([]*TerraformModule, error) {
 
-	// If no excludeDir is specified return the modules list instantly
-	if terragruntOptions.ExcludeDir == "" {
-		return modules
+	// If no ExcludeDirs is specified return the modules list instantly
+	if len(terragruntOptions.ExcludeDirs) == 0 {
+		return modules, nil
 	}
 
 	excludeGlobMatches := []string{}
 
 	// If possible, expand the glob to get all excluded filepaths
-	excludeGlobMatches, err := zglob.Glob(terragruntOptions.ExcludeDir)
+	for _, dir := range terragruntOptions.ExcludeDirs {
+		matches, err := zglob.Glob(dir)
 
-	if err != nil {
-		// Glob can not be expanded, using literal value
-		excludeGlobMatches = []string{terragruntOptions.ExcludeDir}
+		if err != nil {
+			// Glob can not be expanded, using literal value
+			excludeGlobMatches = append(excludeGlobMatches, dir)
+		} else {
+			excludeGlobMatches = append(excludeGlobMatches, matches...)
+		}
 	}
 
-	// If the expanded glob paths are relative, generate absolute paths
-	absoluteExludeDir := []string{}
-	for _, m := range excludeGlobMatches {
-		if strings.HasPrefix(m, "/") {
-			absoluteExludeDir = append(absoluteExludeDir, m)
-		} else {
-			absoluteExludeDir = append(absoluteExludeDir, fmt.Sprintf("%s/%s", terragruntOptions.WorkingDir, m))
+	// make sure all paths are canonical
+	canonicalExcludeDir := []string{}
+	for _, module := range excludeGlobMatches {
+		canonicalPath, err := util.CanonicalPath(module, terragruntOptions.WorkingDir)
+		if err != nil {
+			return nil, err
 		}
+		canonicalExcludeDir = append(canonicalExcludeDir, canonicalPath)
 	}
 
 	// Create a slice of finalModules to store all modules, which should not be excluded
-	finalModules := modules[:0]
+	finalModules := []*TerraformModule{}
 
-	for _, e := range absoluteExludeDir {
-		for _, m := range modules {
-
-			// Check if none of the current modules dependencies are located under the excluded directory
-			dependencyExcluded := false
-			for _, d := range m.Dependencies {
-				if strings.Contains(d.Path, e) {
-					dependencyExcluded = true
-					continue
-				}
-			}
-
-			// Append module to finalModules if is not located under the excluded directory and none of its dependencies were excluded
-			if !strings.Contains(m.Path, e) && !dependencyExcluded {
-				finalModules = append(finalModules, m)
+	for _, excludeDir := range canonicalExcludeDir {
+		for _, module := range modules {
+			if !shouldExcludeModuleBecauseOfPath(module, excludeDir) && !shouldExcludeModuleBecauseOfDependency(module, excludeDir) {
+				finalModules = append(finalModules, module)
 			}
 		}
 	}
 
-	return finalModules
+	return finalModules, nil
+}
+
+// Returns true if a module is located under one of the excluded directories
+func shouldExcludeModuleBecauseOfPath(module *TerraformModule, excludeDir string) bool {
+	if strings.Contains(module.Path, excludeDir) {
+		return true
+	}
+	return false
+}
+
+// Returns true if a module should be excluded, because one of its dependencies matches one of the excluded directories
+func shouldExcludeModuleBecauseOfDependency(module *TerraformModule, excludeDir string) bool {
+	for _, dependencyModule := range module.Dependencies {
+		if strings.Contains(dependencyModule.Path, excludeDir) {
+			return true
+		}
+	}
+	return false
 }
 
 // Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents

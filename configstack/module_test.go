@@ -2,12 +2,13 @@ package configstack
 
 import (
 	"fmt"
+	"os"
+	"testing"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
-	"os"
-	"testing"
 )
 
 var mockHowThesePathsWereFound = "mock-values-for-test"
@@ -97,7 +98,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 
 	opts, _ := options.NewTerragruntOptionsForTest("running_module_test")
 	opts.WorkingDir, _ = os.Getwd()
-	opts.ExcludeDir = canonical(t, "../test/fixture-modules/module-a")
+	opts.ExcludeDirs = []string{canonical(t, "../test/fixture-modules/module-a")}
 
 	moduleA := &TerraformModule{
 		Path:         canonical(t, "../test/fixture-modules/module-a"),
@@ -134,7 +135,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithNoDepe
 
 	opts, _ := options.NewTerragruntOptionsForTest("running_module_test")
 	opts.WorkingDir, _ = os.Getwd()
-	opts.ExcludeDir = canonical(t, "../test/fixture-modules/module-c")
+	opts.ExcludeDirs = []string{canonical(t, "../test/fixture-modules/module-c")}
 
 	moduleA := &TerraformModule{
 		Path:         canonical(t, "../test/fixture-modules/module-a"),

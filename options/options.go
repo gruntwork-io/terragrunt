@@ -81,7 +81,7 @@ type TerragruntOptions struct {
 	MaxFoldersToCheck int
 
 	// Unix-style glob of directories to exclude when running *-all commands
-	ExcludeDir string
+	ExcludeDirs []string
 
 	// A command that can be used to run Terragrunt with the given options. This is useful for running Terragrunt
 	// multiple times (e.g. when spinning up a stack of Terraform modules). The actual command is normally defined
@@ -117,7 +117,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		Writer:                 os.Stdout,
 		ErrWriter:              os.Stderr,
 		MaxFoldersToCheck:      DEFAULT_MAX_FOLDERS_TO_CHECK,
-		ExcludeDir:             "",
+		ExcludeDirs:            []string{},
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
@@ -178,7 +178,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		Writer:                 terragruntOptions.Writer,
 		ErrWriter:              terragruntOptions.ErrWriter,
 		MaxFoldersToCheck:      terragruntOptions.MaxFoldersToCheck,
-		ExcludeDir:             terragruntOptions.ExcludeDir,
+		ExcludeDirs:            terragruntOptions.ExcludeDirs,
 		RunTerragrunt:          terragruntOptions.RunTerragrunt,
 	}
 }
