@@ -31,15 +31,16 @@ type ExtendedRemoteStateConfigS3 struct {
 
 // A representation of the configuration options available for S3 remote state
 type RemoteStateConfigS3 struct {
-	Encrypt       bool   `mapstructure:"encrypt"`
-	Bucket        string `mapstructure:"bucket"`
-	Key           string `mapstructure:"key"`
-	Region        string `mapstructure:"region"`
-	Endpoint      string `mapstructure:"endpoint"`
-	Profile       string `mapstructure:"profile"`
-	RoleArn       string `mapstructure:"role_arn"`
-	LockTable     string `mapstructure:"lock_table"`
-	DynamoDBTable string `mapstructure:"dynamodb_table"`
+	Encrypt          bool   `mapstructure:"encrypt"`
+	Bucket           string `mapstructure:"bucket"`
+	Key              string `mapstructure:"key"`
+	Region           string `mapstructure:"region"`
+	Endpoint         string `mapstructure:"endpoint"`
+	Profile          string `mapstructure:"profile"`
+	RoleArn          string `mapstructure:"role_arn"`
+	LockTable        string `mapstructure:"lock_table"`
+	DynamoDBTable    string `mapstructure:"dynamodb_table"`
+	S3ForcePathStyle bool   `mapstructure:"force_path_style"`
 }
 
 // The DynamoDB lock table name used to be called lock_table, but has since been renamed to dynamodb_table, and the old
@@ -70,7 +71,7 @@ func (s3Initializer S3Initializer) NeedsInitialization(config map[string]interfa
 		return false, err
 	}
 
-	s3Client, err := CreateS3Client(s3Config.Region, s3Config.Endpoint, s3Config.Profile, s3Config.RoleArn, terragruntOptions)
+	s3Client, err := CreateS3Client(s3Config.Region, s3Config.Endpoint, s3Config.Profile, s3Config.RoleArn, s3Config.S3ForcePathStyle, terragruntOptions)
 	if err != nil {
 		return false, err
 	}
@@ -123,6 +124,17 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 		} else {
 			terragruntOptions.Logger.Printf("Remote state configuration encrypt contains invalid value %v, should be boolean.", existingBackend.Config["encrypt"])
 		}
+
+		// If other keys are bools, DeepEqual also will consider the maps to be different.
+		for key, value := range existingBackend.Config {
+			if _, isBool := value.(bool); isBool {
+				continue // We know this is already converted to a bool, e.g. encrypt
+			}
+
+			if convertedValue, err := strconv.ParseBool(value.(string)); err == nil {
+				existingBackend.Config[key] = convertedValue
+			}
+		}
 	}
 
 	// Delete S3 and DynamoDB tags, as these are only stored in Terragrunt config and not in Terraform's backend
@@ -151,7 +163,7 @@ func (s3Initializer S3Initializer) Initialize(config map[string]interface{}, ter
 
 	var s3Config = s3ConfigExtended.remoteStateConfigS3
 
-	s3Client, err := CreateS3Client(s3Config.Region, s3Config.Endpoint, s3Config.Profile, s3Config.RoleArn, terragruntOptions)
+	s3Client, err := CreateS3Client(s3Config.Region, s3Config.Endpoint, s3Config.Profile, s3Config.RoleArn, s3Config.S3ForcePathStyle, terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -390,6 +402,12 @@ func EnableVersioningForS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, t
 		VersioningConfiguration: &s3.VersioningConfiguration{Status: aws.String(s3.BucketVersioningStatusEnabled)},
 	}
 	_, err := s3Client.PutBucketVersioning(&input)
+	if config.S3ForcePathStyle && err != nil {
+		terragruntOptions.Logger.Printf("Versioning not supported for bucket %s", config.Bucket)
+
+		return nil
+	}
+
 	return errors.WithStackTrace(err)
 }
 
@@ -421,8 +439,8 @@ func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, tagsDeclarations 
 }
 
 // Create an authenticated client for DynamoDB
-func CreateS3Client(awsRegion, customS3Endpoint string, awsProfile string, iamRoleArn string, terragruntOptions *options.TerragruntOptions) (*s3.S3, error) {
-	session, err := aws_helper.CreateAwsSession(awsRegion, customS3Endpoint, awsProfile, iamRoleArn, terragruntOptions)
+func CreateS3Client(awsRegion, customS3Endpoint string, awsProfile string, iamRoleArn string, s3ForcePathStyle bool, terragruntOptions *options.TerragruntOptions) (*s3.S3, error) {
+	session, err := aws_helper.CreateAwsSession(awsRegion, customS3Endpoint, awsProfile, iamRoleArn, s3ForcePathStyle, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}
