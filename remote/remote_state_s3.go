@@ -25,8 +25,9 @@ import (
 type ExtendedRemoteStateConfigS3 struct {
 	remoteStateConfigS3 RemoteStateConfigS3
 
-	S3BucketTags    []map[string]string `mapstructure:"s3_bucket_tags"`
-	DynamotableTags []map[string]string `mapstructure:"dynamodb_table_tags"`
+	S3BucketTags         []map[string]string `mapstructure:"s3_bucket_tags"`
+	DynamotableTags      []map[string]string `mapstructure:"dynamodb_table_tags"`
+	SkipBucketVersioning bool                `mapstructure:"skip_bucket_versioning"`
 }
 
 // A representation of the configuration options available for S3 remote state
@@ -135,9 +136,10 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 		}
 	}
 
-	// Delete S3 and DynamoDB tags, as these are only stored in Terragrunt config and not in Terraform's backend
+	// Delete S3 and DynamoDB and Bucket Versioning tags, as these are only stored in Terragrunt config and not in Terraform's backend
 	delete(config, "s3_bucket_tags")
 	delete(config, "dynamodb_table_tags")
+	delete(config, "skip_bucket_versioning")
 
 	if !reflect.DeepEqual(existingBackend.Config, config) {
 		terragruntOptions.Logger.Printf("Backend config has changed from %s to %s", existingBackend.Config, config)
@@ -186,7 +188,7 @@ func (s3Initializer S3Initializer) GetTerraformInitArgs(config map[string]interf
 
 	for key, val := range config {
 
-		if key == "s3_bucket_tags" || key == "dynamodb_table_tags" {
+		if key == "s3_bucket_tags" || key == "dynamodb_table_tags" || key == "skip_bucket_versioning" {
 			continue
 		}
 
@@ -312,7 +314,9 @@ func CreateS3BucketWithVersioning(s3Client *s3.S3, config *ExtendedRemoteStateCo
 		return err
 	}
 
-	if err := EnableVersioningForS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
+	if config.SkipBucketVersioning {
+		terragruntOptions.Logger.Printf("Versioning is disabled for the remote state S3 bucket %s using 'skip_bucket_versioning' config.", config.remoteStateConfigS3.Bucket)
+	} else if err := EnableVersioningForS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -399,13 +403,8 @@ func EnableVersioningForS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, t
 		Bucket:                  aws.String(config.Bucket),
 		VersioningConfiguration: &s3.VersioningConfiguration{Status: aws.String(s3.BucketVersioningStatusEnabled)},
 	}
+
 	_, err := s3Client.PutBucketVersioning(&input)
-	if config.S3ForcePathStyle && err != nil {
-		terragruntOptions.Logger.Printf("Versioning not supported for bucket %s", config.Bucket)
-
-		return nil
-	}
-
 	return errors.WithStackTrace(err)
 }
 
