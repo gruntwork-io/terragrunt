@@ -1,6 +1,7 @@
 package remote
 
 import (
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,6 +57,12 @@ func TestConfigValuesEqual(t *testing.T) {
 			true,
 		},
 		{
+			"equal-general-bool-handling",
+			map[string]interface{}{"something": true, "encrypt": true},
+			&TerraformBackend{Type: "s3", Config: map[string]interface{}{"something": "true", "encrypt": "true"}},
+			true,
+		},
+		{
 			"equal-ignore-s3-tags",
 			map[string]interface{}{"foo": "bar", "s3_bucket_tags": []map[string]string{{"foo": "bar"}}},
 			&TerraformBackend{Type: "s3", Config: map[string]interface{}{"foo": "bar"}},
@@ -85,6 +92,12 @@ func TestConfigValuesEqual(t *testing.T) {
 			nil,
 			false,
 		},
+		{
+			"unequal-general-bool-handling",
+			map[string]interface{}{"something": true},
+			&TerraformBackend{Type: "s3", Config: map[string]interface{}{"something": "false"}},
+			false,
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -95,6 +108,52 @@ func TestConfigValuesEqual(t *testing.T) {
 			t.Parallel()
 			actual := configValuesEqual(testCase.config, testCase.backend, terragruntOptions)
 			assert.Equal(t, testCase.shouldBeEqual, actual)
+		})
+	}
+}
+
+func TestForcePathStyleClientSession(t *testing.T) {
+	t.Parallel()
+
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("s3_client_test")
+	require.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+
+	testCases := []struct {
+		name     string
+		config   map[string]interface{}
+		expected bool
+	}{
+		{
+			"path-style-true",
+			map[string]interface{}{"force_path_style": true},
+			true,
+		},
+		{
+			"path-style-false",
+			map[string]interface{}{"force_path_style": false},
+			false,
+		},
+		{
+			"path-style-non-existent",
+			map[string]interface{}{},
+			false,
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			s3Config, err := parseS3Config(testCase.config)
+			require.Nil(t, err, "Unexpected error parsing config for test: %v", err)
+
+			s3Client, err := CreateS3Client(s3Config.Region, s3Config.Endpoint, s3Config.Profile, s3Config.RoleArn, s3Config.S3ForcePathStyle, terragruntOptions)
+			require.Nil(t, err, "Unexpected error creating client for test: %v", err)
+
+			actual := aws.BoolValue(s3Client.Config.S3ForcePathStyle)
+			assert.Equal(t, testCase.expected, actual)
 		})
 	}
 }

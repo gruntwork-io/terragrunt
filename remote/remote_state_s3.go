@@ -124,13 +124,11 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 		} else {
 			terragruntOptions.Logger.Printf("Remote state configuration encrypt contains invalid value %v, should be boolean.", existingBackend.Config["encrypt"])
 		}
+	}
 
-		// If other keys are bools, DeepEqual also will consider the maps to be different.
-		for key, value := range existingBackend.Config {
-			if _, isBool := value.(bool); isBool {
-				continue // We know this is already converted to a bool, e.g. encrypt
-			}
-
+	// If other keys in config are bools, DeepEqual also will consider the maps to be different.
+	for key, value := range existingBackend.Config {
+		if util.KindOf(existingBackend.Config[key]) == reflect.String && util.KindOf(config[key]) == reflect.Bool {
 			if convertedValue, err := strconv.ParseBool(value.(string)); err == nil {
 				existingBackend.Config[key] = convertedValue
 			}
