@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 	"math/rand"
@@ -42,7 +43,11 @@ func createDynamoDbClientForTest(t *testing.T) *dynamodb.DynamoDB {
 		t.Fatal(err)
 	}
 
-	client, err := CreateDynamoDbClient(DEFAULT_TEST_REGION, "", "", mockOptions)
+	sessionConfig := &aws_helper.AwsSessionConfig{
+		Region: DEFAULT_TEST_REGION,
+	}
+
+	client, err := CreateDynamoDbClient(sessionConfig, mockOptions)
 	if err != nil {
 		t.Fatal(err)
 	}

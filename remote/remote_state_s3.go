@@ -44,6 +44,17 @@ type RemoteStateConfigS3 struct {
 	S3ForcePathStyle bool   `mapstructure:"force_path_style"`
 }
 
+// Builds a session config for AWS related requests from the RemoteStateConfigS3 configuration
+func (c *RemoteStateConfigS3) GetAwsSessionConfig() *aws_helper.AwsSessionConfig {
+	return &aws_helper.AwsSessionConfig{
+		Region:           c.Region,
+		CustomS3Endpoint: c.Endpoint,
+		Profile:          c.Profile,
+		RoleArn:          c.RoleArn,
+		S3ForcePathStyle: c.S3ForcePathStyle,
+	}
+}
+
 // The DynamoDB lock table name used to be called lock_table, but has since been renamed to dynamodb_table, and the old
 // name deprecated. To maintain backwards compatibility, we support both names.
 func (s3Config *RemoteStateConfigS3) GetLockTableName() string {
@@ -72,7 +83,9 @@ func (s3Initializer S3Initializer) NeedsInitialization(config map[string]interfa
 		return false, err
 	}
 
-	s3Client, err := CreateS3Client(s3Config.Region, s3Config.Endpoint, s3Config.Profile, s3Config.RoleArn, s3Config.S3ForcePathStyle, terragruntOptions)
+	sessionConfig := s3Config.GetAwsSessionConfig()
+
+	s3Client, err := CreateS3Client(sessionConfig, terragruntOptions)
 	if err != nil {
 		return false, err
 	}
@@ -82,7 +95,7 @@ func (s3Initializer S3Initializer) NeedsInitialization(config map[string]interfa
 	}
 
 	if s3Config.GetLockTableName() != "" {
-		dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.Region, s3Config.Profile, s3Config.RoleArn, terragruntOptions)
+		dynamodbClient, err := dynamodb.CreateDynamoDbClient(sessionConfig, terragruntOptions)
 		if err != nil {
 			return false, err
 		}
@@ -163,7 +176,7 @@ func (s3Initializer S3Initializer) Initialize(config map[string]interface{}, ter
 
 	var s3Config = s3ConfigExtended.remoteStateConfigS3
 
-	s3Client, err := CreateS3Client(s3Config.Region, s3Config.Endpoint, s3Config.Profile, s3Config.RoleArn, s3Config.S3ForcePathStyle, terragruntOptions)
+	s3Client, err := CreateS3Client(s3Config.GetAwsSessionConfig(), terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -422,7 +435,7 @@ func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, tagsDeclarations 
 		return nil
 	}
 
-	dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.Region, s3Config.Profile, s3Config.RoleArn, terragruntOptions)
+	dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.GetAwsSessionConfig(), terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -436,8 +449,8 @@ func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, tagsDeclarations 
 }
 
 // Create an authenticated client for DynamoDB
-func CreateS3Client(awsRegion, customS3Endpoint string, awsProfile string, iamRoleArn string, s3ForcePathStyle bool, terragruntOptions *options.TerragruntOptions) (*s3.S3, error) {
-	session, err := aws_helper.CreateAwsSession(awsRegion, customS3Endpoint, awsProfile, iamRoleArn, s3ForcePathStyle, terragruntOptions)
+func CreateS3Client(config *aws_helper.AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*s3.S3, error) {
+	session, err := aws_helper.CreateAwsSession(config, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}

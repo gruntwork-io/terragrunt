@@ -2,6 +2,7 @@ package remote
 
 import (
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -149,11 +150,55 @@ func TestForcePathStyleClientSession(t *testing.T) {
 			s3Config, err := parseS3Config(testCase.config)
 			require.Nil(t, err, "Unexpected error parsing config for test: %v", err)
 
-			s3Client, err := CreateS3Client(s3Config.Region, s3Config.Endpoint, s3Config.Profile, s3Config.RoleArn, s3Config.S3ForcePathStyle, terragruntOptions)
+			s3Client, err := CreateS3Client(s3Config.GetAwsSessionConfig(), terragruntOptions)
 			require.Nil(t, err, "Unexpected error creating client for test: %v", err)
 
 			actual := aws.BoolValue(s3Client.Config.S3ForcePathStyle)
 			assert.Equal(t, testCase.expected, actual)
+		})
+	}
+}
+
+func TestGetAwsSessionConfig(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		config map[string]interface{}
+	}{
+		{
+			"all-values",
+			map[string]interface{}{"region": "foo", "endpoint": "bar", "profile": "baz", "role_arn": "arn::it", "force_path_style": true},
+		},
+		{
+			"no-values",
+			map[string]interface{}{},
+		},
+		{
+			"extra-values",
+			map[string]interface{}{"something": "unexpected", "region": "foo", "endpoint": "bar", "profile": "baz", "role_arn": "arn::it", "force_path_style": false},
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			s3Config, err := parseS3Config(testCase.config)
+			require.Nil(t, err, "Unexpected error parsing config for test: %v", err)
+
+			expected := &aws_helper.AwsSessionConfig{
+				Region:           s3Config.Region,
+				CustomS3Endpoint: s3Config.Endpoint,
+				Profile:          s3Config.Profile,
+				RoleArn:          s3Config.RoleArn,
+				S3ForcePathStyle: s3Config.S3ForcePathStyle,
+			}
+
+			actual := s3Config.GetAwsSessionConfig()
+			assert.Equal(t, expected, actual)
 		})
 	}
 }
