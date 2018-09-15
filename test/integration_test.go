@@ -1180,7 +1180,11 @@ func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketNam
 		t.Fatalf("Error creating mockOptions: %v", err)
 	}
 
-	s3Client, err := remote.CreateS3Client(awsRegion, "", "", "", mockOptions)
+	sessionConfig := &aws_helper.AwsSessionConfig{
+		Region: awsRegion,
+	}
+
+	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
 	if err != nil {
 		t.Fatalf("Error creating S3 client: %v", err)
 	}
@@ -1247,7 +1251,11 @@ func deleteS3Bucket(t *testing.T, awsRegion string, bucketName string) {
 		t.Fatalf("Error creating mockOptions: %v", err)
 	}
 
-	s3Client, err := remote.CreateS3Client(awsRegion, "", "", "", mockOptions)
+	sessionConfig := &aws_helper.AwsSessionConfig{
+		Region: awsRegion,
+	}
+
+	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
 	if err != nil {
 		t.Fatalf("Error creating S3 client: %v", err)
 	}
@@ -1289,7 +1297,13 @@ func createDynamoDbClient(awsRegion, awsProfile string, iamRoleArn string) (*dyn
 		return nil, err
 	}
 
-	session, err := aws_helper.CreateAwsSession(awsRegion, "", awsProfile, iamRoleArn, mockOptions)
+	sessionConfig := &aws_helper.AwsSessionConfig{
+		Region:  awsRegion,
+		Profile: awsProfile,
+		RoleArn: iamRoleArn,
+	}
+
+	session, err := aws_helper.CreateAwsSession(sessionConfig, mockOptions)
 	if err != nil {
 		return nil, err
 	}

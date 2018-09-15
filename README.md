@@ -509,8 +509,29 @@ terragrunt = {
 The `remote_state` block supports all the same [backend types](https://www.terraform.io/docs/backends/types/index.html)
 as Terraform. The next time you run `terragrunt`, it will automatically configure all the settings in the
 `remote_state.config` block, if they aren't configured already, by calling [terraform
-init](https://www.terraform.io/docs/commands/init.html). The config options `s3_bucket_tags` and 
-`dynamodb_table_tags` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to 
+init](https://www.terraform.io/docs/commands/init.html). 
+
+For backend `s3`, the following config options can be used for S3-compatible object stores, as necessary:
+
+```hcl
+remote_state {
+  # ...
+
+  skip_bucket_versioning = true # use only if the object store does not support versioning
+
+  skip_region_validation      = true
+  skip_credentials_validation = true
+  skip_requesting_account_id  = true
+  skip_get_ec2_platforms      = true
+  skip_metadata_api_check     = true
+  force_path_style            = true
+}
+```
+
+If you experience an error for any of these configurations, confirm you are using Terraform v0.11.2 or greater.
+
+Further, the config options `s3_bucket_tags`, 
+`dynamodb_table_tags`, and `skip_bucket_versioning` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to 
 terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).
 
 In each of the **child** `terraform.tfvars` files, such as `mysql/terraform.tfvars`, you can tell Terragrunt to

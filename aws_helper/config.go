@@ -12,15 +12,24 @@ import (
 	"time"
 )
 
-// Returns an AWS session object for the given region (required), profile name (optional), and IAM role to assume
+// A representation of the configuration options for an AWS Session
+type AwsSessionConfig struct {
+	Region           string
+	CustomS3Endpoint string
+	Profile          string
+	RoleArn          string
+	S3ForcePathStyle bool
+}
+
+// Returns an AWS session object for the given config region (required), profile name (optional), and IAM role to assume
 // (optional), ensuring that the credentials are available
-func CreateAwsSession(awsRegion, customS3Endpoint string, awsProfile string, iamRoleArn string, terragruntOptions *options.TerragruntOptions) (*session.Session, error) {
+func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*session.Session, error) {
 	defaultResolver := endpoints.DefaultResolver()
 	s3CustResolverFn := func(service, region string, optFns ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
-		if service == "s3" && customS3Endpoint != "" {
+		if service == "s3" && config.CustomS3Endpoint != "" {
 			return endpoints.ResolvedEndpoint{
-				URL:           customS3Endpoint,
-				SigningRegion: awsRegion,
+				URL:           config.CustomS3Endpoint,
+				SigningRegion: config.Region,
 			}, nil
 		}
 
@@ -28,21 +37,22 @@ func CreateAwsSession(awsRegion, customS3Endpoint string, awsProfile string, iam
 	}
 
 	var awsConfig = aws.Config{
-		Region:           aws.String(awsRegion),
+		Region:           aws.String(config.Region),
 		EndpointResolver: endpoints.ResolverFunc(s3CustResolverFn),
+		S3ForcePathStyle: aws.Bool(config.S3ForcePathStyle),
 	}
 
 	sess, err := session.NewSessionWithOptions(session.Options{
 		Config:            awsConfig,
-		Profile:           awsProfile,
+		Profile:           config.Profile,
 		SharedConfigState: session.SharedConfigEnable,
 	})
 	if err != nil {
 		return nil, errors.WithStackTraceAndPrefix(err, "Error initializing session")
 	}
 
-	if iamRoleArn != "" {
-		sess.Config.Credentials = stscreds.NewCredentials(sess, iamRoleArn)
+	if config.RoleArn != "" {
+		sess.Config.Credentials = stscreds.NewCredentials(sess, config.RoleArn)
 	} else if terragruntOptions.IamRole != "" {
 		sess.Config.Credentials = stscreds.NewCredentials(sess, terragruntOptions.IamRole)
 	}

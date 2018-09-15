@@ -25,21 +25,34 @@ import (
 type ExtendedRemoteStateConfigS3 struct {
 	remoteStateConfigS3 RemoteStateConfigS3
 
-	S3BucketTags    []map[string]string `mapstructure:"s3_bucket_tags"`
-	DynamotableTags []map[string]string `mapstructure:"dynamodb_table_tags"`
+	S3BucketTags         []map[string]string `mapstructure:"s3_bucket_tags"`
+	DynamotableTags      []map[string]string `mapstructure:"dynamodb_table_tags"`
+	SkipBucketVersioning bool                `mapstructure:"skip_bucket_versioning"`
 }
 
 // A representation of the configuration options available for S3 remote state
 type RemoteStateConfigS3 struct {
-	Encrypt       bool   `mapstructure:"encrypt"`
-	Bucket        string `mapstructure:"bucket"`
-	Key           string `mapstructure:"key"`
-	Region        string `mapstructure:"region"`
-	Endpoint      string `mapstructure:"endpoint"`
-	Profile       string `mapstructure:"profile"`
-	RoleArn       string `mapstructure:"role_arn"`
-	LockTable     string `mapstructure:"lock_table"`
-	DynamoDBTable string `mapstructure:"dynamodb_table"`
+	Encrypt          bool   `mapstructure:"encrypt"`
+	Bucket           string `mapstructure:"bucket"`
+	Key              string `mapstructure:"key"`
+	Region           string `mapstructure:"region"`
+	Endpoint         string `mapstructure:"endpoint"`
+	Profile          string `mapstructure:"profile"`
+	RoleArn          string `mapstructure:"role_arn"`
+	LockTable        string `mapstructure:"lock_table"`
+	DynamoDBTable    string `mapstructure:"dynamodb_table"`
+	S3ForcePathStyle bool   `mapstructure:"force_path_style"`
+}
+
+// Builds a session config for AWS related requests from the RemoteStateConfigS3 configuration
+func (c *RemoteStateConfigS3) GetAwsSessionConfig() *aws_helper.AwsSessionConfig {
+	return &aws_helper.AwsSessionConfig{
+		Region:           c.Region,
+		CustomS3Endpoint: c.Endpoint,
+		Profile:          c.Profile,
+		RoleArn:          c.RoleArn,
+		S3ForcePathStyle: c.S3ForcePathStyle,
+	}
 }
 
 // The DynamoDB lock table name used to be called lock_table, but has since been renamed to dynamodb_table, and the old
@@ -70,7 +83,9 @@ func (s3Initializer S3Initializer) NeedsInitialization(config map[string]interfa
 		return false, err
 	}
 
-	s3Client, err := CreateS3Client(s3Config.Region, s3Config.Endpoint, s3Config.Profile, s3Config.RoleArn, terragruntOptions)
+	sessionConfig := s3Config.GetAwsSessionConfig()
+
+	s3Client, err := CreateS3Client(sessionConfig, terragruntOptions)
 	if err != nil {
 		return false, err
 	}
@@ -80,7 +95,7 @@ func (s3Initializer S3Initializer) NeedsInitialization(config map[string]interfa
 	}
 
 	if s3Config.GetLockTableName() != "" {
-		dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.Region, s3Config.Profile, s3Config.RoleArn, terragruntOptions)
+		dynamodbClient, err := dynamodb.CreateDynamoDbClient(sessionConfig, terragruntOptions)
 		if err != nil {
 			return false, err
 		}
@@ -125,9 +140,19 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 		}
 	}
 
-	// Delete S3 and DynamoDB tags, as these are only stored in Terragrunt config and not in Terraform's backend
+	// If other keys in config are bools, DeepEqual also will consider the maps to be different.
+	for key, value := range existingBackend.Config {
+		if util.KindOf(existingBackend.Config[key]) == reflect.String && util.KindOf(config[key]) == reflect.Bool {
+			if convertedValue, err := strconv.ParseBool(value.(string)); err == nil {
+				existingBackend.Config[key] = convertedValue
+			}
+		}
+	}
+
+	// Delete S3 and DynamoDB and Bucket Versioning tags, as these are only stored in Terragrunt config and not in Terraform's backend
 	delete(config, "s3_bucket_tags")
 	delete(config, "dynamodb_table_tags")
+	delete(config, "skip_bucket_versioning")
 
 	if !reflect.DeepEqual(existingBackend.Config, config) {
 		terragruntOptions.Logger.Printf("Backend config has changed from %s to %s", existingBackend.Config, config)
@@ -151,7 +176,7 @@ func (s3Initializer S3Initializer) Initialize(config map[string]interface{}, ter
 
 	var s3Config = s3ConfigExtended.remoteStateConfigS3
 
-	s3Client, err := CreateS3Client(s3Config.Region, s3Config.Endpoint, s3Config.Profile, s3Config.RoleArn, terragruntOptions)
+	s3Client, err := CreateS3Client(s3Config.GetAwsSessionConfig(), terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -176,7 +201,7 @@ func (s3Initializer S3Initializer) GetTerraformInitArgs(config map[string]interf
 
 	for key, val := range config {
 
-		if key == "s3_bucket_tags" || key == "dynamodb_table_tags" {
+		if key == "s3_bucket_tags" || key == "dynamodb_table_tags" || key == "skip_bucket_versioning" {
 			continue
 		}
 
@@ -302,7 +327,9 @@ func CreateS3BucketWithVersioning(s3Client *s3.S3, config *ExtendedRemoteStateCo
 		return err
 	}
 
-	if err := EnableVersioningForS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
+	if config.SkipBucketVersioning {
+		terragruntOptions.Logger.Printf("Versioning is disabled for the remote state S3 bucket %s using 'skip_bucket_versioning' config.", config.remoteStateConfigS3.Bucket)
+	} else if err := EnableVersioningForS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -389,6 +416,7 @@ func EnableVersioningForS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, t
 		Bucket:                  aws.String(config.Bucket),
 		VersioningConfiguration: &s3.VersioningConfiguration{Status: aws.String(s3.BucketVersioningStatusEnabled)},
 	}
+
 	_, err := s3Client.PutBucketVersioning(&input)
 	return errors.WithStackTrace(err)
 }
@@ -407,7 +435,7 @@ func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, tagsDeclarations 
 		return nil
 	}
 
-	dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.Region, s3Config.Profile, s3Config.RoleArn, terragruntOptions)
+	dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.GetAwsSessionConfig(), terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -421,8 +449,8 @@ func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, tagsDeclarations 
 }
 
 // Create an authenticated client for DynamoDB
-func CreateS3Client(awsRegion, customS3Endpoint string, awsProfile string, iamRoleArn string, terragruntOptions *options.TerragruntOptions) (*s3.S3, error) {
-	session, err := aws_helper.CreateAwsSession(awsRegion, customS3Endpoint, awsProfile, iamRoleArn, terragruntOptions)
+func CreateS3Client(config *aws_helper.AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*s3.S3, error) {
+	session, err := aws_helper.CreateAwsSession(config, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}
