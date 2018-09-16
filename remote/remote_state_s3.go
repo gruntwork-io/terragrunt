@@ -41,6 +41,7 @@ type RemoteStateConfigS3 struct {
 	RoleArn          string `mapstructure:"role_arn"`
 	LockTable        string `mapstructure:"lock_table"`
 	DynamoDBTable    string `mapstructure:"dynamodb_table"`
+	CredsFilename    string `mapstructure:"shared_credentials_file"`
 	S3ForcePathStyle bool   `mapstructure:"force_path_style"`
 }
 
@@ -51,6 +52,7 @@ func (c *RemoteStateConfigS3) GetAwsSessionConfig() *aws_helper.AwsSessionConfig
 		CustomS3Endpoint: c.Endpoint,
 		Profile:          c.Profile,
 		RoleArn:          c.RoleArn,
+		CredsFilename:    c.CredsFilename,
 		S3ForcePathStyle: c.S3ForcePathStyle,
 	}
 }

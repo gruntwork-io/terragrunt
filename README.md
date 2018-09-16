@@ -519,6 +519,7 @@ remote_state {
 
   skip_bucket_versioning = true # use only if the object store does not support versioning
 
+  shared_credentials_file     = "/path/to/credentials/file"
   skip_region_validation      = true
   skip_credentials_validation = true
   skip_requesting_account_id  = true
