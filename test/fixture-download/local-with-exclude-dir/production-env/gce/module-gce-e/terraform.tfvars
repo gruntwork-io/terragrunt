@@ -2,7 +2,7 @@ name = "Module GCE E"
 
 terragrunt = {
   terraform {
-    source = "../../../../hello-world"
+    source = "../../../..//hello-world-no-remote"
   }
 
   dependencies {

@@ -120,11 +120,12 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	}
 
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath}
-	expected := []*TerraformModule{}
-
-	t.Logf("The following modules should be ignored because of dependencies: %v %v", moduleA, moduleC)
 
 	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, mockHowThesePathsWereFound)
+
+	// construct the expected list
+	moduleA.FlagExcluded = true
+	expected := []*TerraformModule{moduleA, moduleC}
 
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
@@ -157,11 +158,12 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithNoDepe
 	}
 
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath}
-	expected := []*TerraformModule{moduleA}
-
-	t.Logf("The following module should be excluded: %v", moduleC)
 
 	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, mockHowThesePathsWereFound)
+
+	// construct the expected list
+	moduleC.FlagExcluded = true
+	expected := []*TerraformModule{moduleA, moduleC}
 
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)

@@ -2,10 +2,11 @@ package configstack
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/shell"
 	"strings"
 	"sync"
+
+	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/shell"
 )
 
 // Represents the status of a module that we are trying to apply as part of the apply-all or destroy-all command
@@ -104,7 +105,25 @@ func crossLinkDependencies(modules map[string]*runningModule, dependencyOrder De
 		}
 	}
 
+	removeFlagExcluded(modules)
+
 	return modules, nil
+}
+
+// Removes all the modules from the map, which have been flagged as excluded in flagExcludedDirs()
+func removeFlagExcluded(modules map[string]*runningModule) {
+	for key, module := range modules {
+		if module.Module.FlagExcluded {
+			delete(modules, key)
+		} else {
+			// Remove dependencies that are flagged as excluded
+			for _, dependency := range module.Module.Dependencies {
+				if dependency.FlagExcluded {
+					delete(module.Dependencies, dependency.Path)
+				}
+			}
+		}
+	}
 }
 
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its

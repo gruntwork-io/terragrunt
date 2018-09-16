@@ -87,7 +87,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 		return nil, err
 	}
 
-	excludeDirs, err := parseMultiStringArg(args, OPT_TERRAGRUNT_EXCLUDE_DIR, []string{os.Getenv("TERRAGRUNT_EXCLUDE_DIR")})
+	excludeDirs, err := parseMultiStringArg(args, OPT_TERRAGRUNT_EXCLUDE_DIR, []string{})
 	if err != nil {
 		return nil, err
 	}
@@ -236,6 +236,7 @@ func parseStringArg(args []string, argName string, defaultValue string) (string,
 // return a list of all values. If there are any present, but one of them has no value, return an error. If there aren't any present, return defaultValue.
 func parseMultiStringArg(args []string, argName string, defaultValue []string) ([]string, error) {
 	stringArgs := []string{}
+	fmt.Println(args)
 	for i, arg := range args {
 		if arg == fmt.Sprintf("--%s", argName) {
 			if (i + 1) < len(args) {
@@ -248,6 +249,9 @@ func parseMultiStringArg(args []string, argName string, defaultValue []string) (
 	if len(stringArgs) == 0 {
 		return defaultValue, nil
 	}
+
+	fmt.Printf("STRING ARGS: %s \n", stringArgs)
+
 	return stringArgs, nil
 }
 

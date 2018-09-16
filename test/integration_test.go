@@ -75,6 +75,7 @@ const (
 	TERRAFORM_FOLDER                                      = ".terraform"
 	TERRAFORM_STATE                                       = "terraform.tfstate"
 	TERRAFORM_STATE_BACKUP                                = "terraform.tfstate.backup"
+	TERRAGRUNT_CACHE                                      = ".terragrunt-cache"
 )
 
 func init() {
@@ -1016,7 +1017,7 @@ func TestPreventDestroyDependencies(t *testing.T) {
 }
 
 func TestExcludeDirs(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	// Populate module paths.
 	moduleNames := []string{
@@ -1032,8 +1033,9 @@ func TestExcludeDirs(t *testing.T) {
 		excludeArgs           string
 		excludedModuleOutputs []string
 	}{
-		{TEST_FIXTURE_LOCAL_WITH_EXCLUDE_DIR, "--terragrunt-exclude-dir '*/gce'", []string{"Module GCE B", "Module AWS A", "Module GCE C", "Module GCE E"}},
-		//{TEST_FIXTURE_LOCAL_WITH_EXCLUDE_DIR, "--terragrunt-exclude-dir 'production-env' --terragrunt-exclude-dir '**/module-gce-c', []string{"Module GCE C"}},
+		{TEST_FIXTURE_LOCAL_WITH_EXCLUDE_DIR, "--terragrunt-exclude-dir */gce", []string{"Module GCE B", "Module GCE C", "Module GCE E"}},
+		{TEST_FIXTURE_LOCAL_WITH_EXCLUDE_DIR, "--terragrunt-exclude-dir production-env --terragrunt-exclude-dir **/module-gce-c", []string{"Module GCE C", "Module AWS D", "Module GCE E"}},
+		{TEST_FIXTURE_LOCAL_WITH_EXCLUDE_DIR, "--terragrunt-exclude-dir integration-env/gce/module-gce-b --terragrunt-exclude-dir integration-env/gce/module-gce-c --terragrunt-exclude-dir **/module-aws*", []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"}},
 	}
 
 	modulePaths := make(map[string]string, len(moduleNames))
@@ -1041,22 +1043,19 @@ func TestExcludeDirs(t *testing.T) {
 		modulePaths[moduleName] = util.JoinPath(TEST_FIXTURE_LOCAL_WITH_EXCLUDE_DIR, moduleName)
 	}
 
-	var (
-		applyAllStdout bytes.Buffer
-		applyAllStderr bytes.Buffer
-		showStdout     bytes.Buffer
-		showStderr     bytes.Buffer
-	)
-
 	for _, testCase := range testCases {
+		applyAllStdout := bytes.Buffer{}
+		applyAllStderr := bytes.Buffer{}
+
 		// Cleanup all modules directories.
-		cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_WITH_EXCLUDE_DIR)
+		cleanupTerragruntFolder(t, TEST_FIXTURE_LOCAL_WITH_EXCLUDE_DIR)
 		for _, modulePath := range modulePaths {
-			cleanupTerraformFolder(t, modulePath)
+			cleanupTerragruntFolder(t, modulePath)
 		}
 
 		// Apply modules according to test cases
 		err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s %s", testCase.workingDir, testCase.excludeArgs), &applyAllStdout, &applyAllStderr)
+
 		logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
 		logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
 
@@ -1066,16 +1065,19 @@ func TestExcludeDirs(t *testing.T) {
 
 		// Check that the excluded module output is not present
 		for _, modulePath := range modulePaths {
+			showStdout := bytes.Buffer{}
+			showStderr := bytes.Buffer{}
+
 			err = runTerragruntCommand(t, fmt.Sprintf("terragrunt show --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), &showStdout, &showStderr)
 			logBufferContentsLineByLine(t, showStdout, fmt.Sprintf("show stdout for %s", modulePath))
 			logBufferContentsLineByLine(t, showStderr, fmt.Sprintf("show stderr for %s", modulePath))
 
 			assert.NoError(t, err)
 			output := showStdout.String()
-
 			for _, excludedModuleOutput := range testCase.excludedModuleOutputs {
 				assert.NotContains(t, output, excludedModuleOutput)
 			}
+
 		}
 	}
 }
@@ -1092,6 +1094,10 @@ func cleanupTerraformFolder(t *testing.T, templatesPath string) {
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE))
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE_BACKUP))
 	removeFolder(t, util.JoinPath(templatesPath, TERRAFORM_FOLDER))
+}
+
+func cleanupTerragruntFolder(t *testing.T, templatesPath string) {
+	removeFolder(t, util.JoinPath(templatesPath, TERRAGRUNT_CACHE))
 }
 
 func removeFile(t *testing.T, path string) {

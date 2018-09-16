@@ -50,6 +50,7 @@ func assertModulesEqual(t *testing.T, expected *TerraformModule, actual *Terrafo
 		assert.Equal(t, expected.Config, actual.Config, messageAndArgs...)
 		assert.Equal(t, expected.Path, actual.Path, messageAndArgs...)
 		assert.Equal(t, expected.AssumeAlreadyApplied, actual.AssumeAlreadyApplied, messageAndArgs...)
+		assert.Equal(t, expected.FlagExcluded, actual.FlagExcluded, messageAndArgs...)
 
 		assertOptionsEqual(t, *expected.TerragruntOptions, *actual.TerragruntOptions, messageAndArgs...)
 		assertModuleListsEqual(t, expected.Dependencies, actual.Dependencies, messageAndArgs...)

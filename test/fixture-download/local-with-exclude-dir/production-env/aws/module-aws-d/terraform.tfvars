@@ -2,6 +2,6 @@ name = "Module AWS D"
 
 terragrunt = {
   terraform {
-    source = "../../../../hello-world"
+    source = "../../../..//hello-world-no-remote"
   }
 }

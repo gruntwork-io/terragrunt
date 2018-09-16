@@ -39,7 +39,6 @@ func (stack *Stack) Plan(terragruntOptions *options.TerragruntOptions) error {
 		module.TerragruntOptions.ErrWriter = &errorStreams[n]
 	}
 	defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
-
 	return RunModules(stack.Modules)
 }
 
