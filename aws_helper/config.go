@@ -18,6 +18,7 @@ type AwsSessionConfig struct {
 	CustomS3Endpoint string
 	Profile          string
 	RoleArn          string
+	CredsFilename    string
 	S3ForcePathStyle bool
 }
 
@@ -42,11 +43,17 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 		S3ForcePathStyle: aws.Bool(config.S3ForcePathStyle),
 	}
 
-	sess, err := session.NewSessionWithOptions(session.Options{
+	var sessionOptions = session.Options{
 		Config:            awsConfig,
 		Profile:           config.Profile,
 		SharedConfigState: session.SharedConfigEnable,
-	})
+	}
+
+	if len(config.CredsFilename) > 0 {
+		sessionOptions.SharedConfigFiles = []string{config.CredsFilename}
+	}
+
+	sess, err := session.NewSessionWithOptions(sessionOptions)
 	if err != nil {
 		return nil, errors.WithStackTraceAndPrefix(err, "Error initializing session")
 	}
@@ -57,9 +64,13 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 		sess.Config.Credentials = stscreds.NewCredentials(sess, terragruntOptions.IamRole)
 	}
 
-	_, err = sess.Config.Credentials.Get()
-	if err != nil {
-		return nil, errors.WithStackTraceAndPrefix(err, "Error finding AWS credentials (did you set the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables?)")
+	if _, err = sess.Config.Credentials.Get(); err != nil {
+		msg := "Error finding AWS credentials (did you set the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables?)"
+		if len(config.CredsFilename) > 0 {
+			msg = fmt.Sprintf("Error finding AWS credentials in file '%s' (did you set the correct file name and/or profile?)", config.CredsFilename)
+		}
+
+		return nil, errors.WithStackTraceAndPrefix(err, msg)
 	}
 
 	return sess, nil

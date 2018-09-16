@@ -168,7 +168,7 @@ func TestGetAwsSessionConfig(t *testing.T) {
 	}{
 		{
 			"all-values",
-			map[string]interface{}{"region": "foo", "endpoint": "bar", "profile": "baz", "role_arn": "arn::it", "force_path_style": true},
+			map[string]interface{}{"region": "foo", "endpoint": "bar", "profile": "baz", "role_arn": "arn::it", "shared_credentials_file": "my-file", "force_path_style": true},
 		},
 		{
 			"no-values",
@@ -176,7 +176,7 @@ func TestGetAwsSessionConfig(t *testing.T) {
 		},
 		{
 			"extra-values",
-			map[string]interface{}{"something": "unexpected", "region": "foo", "endpoint": "bar", "profile": "baz", "role_arn": "arn::it", "force_path_style": false},
+			map[string]interface{}{"something": "unexpected", "region": "foo", "endpoint": "bar", "profile": "baz", "role_arn": "arn::it", "shared_credentials_file": "my-file", "force_path_style": false},
 		},
 	}
 
@@ -194,6 +194,7 @@ func TestGetAwsSessionConfig(t *testing.T) {
 				CustomS3Endpoint: s3Config.Endpoint,
 				Profile:          s3Config.Profile,
 				RoleArn:          s3Config.RoleArn,
+				CredsFilename:    s3Config.CredsFilename,
 				S3ForcePathStyle: s3Config.S3ForcePathStyle,
 			}
 

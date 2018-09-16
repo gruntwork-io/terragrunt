@@ -34,13 +34,14 @@ func TestToTerraformInitArgs(t *testing.T) {
 
 			"skip_bucket_versioning": true,
 
-			"force_path_style": true,
+			"shared_credentials_file": "my-file",
+			"force_path_style":        true,
 		},
 	}
 	args := remoteState.ToTerraformInitArgs()
 
 	// must not contain s3_bucket_tags or dynamodb_table_tags or skip_bucket_versioning
-	assertTerraformInitArgsEqual(t, args, "-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1 -backend-config=force_path_style=true")
+	assertTerraformInitArgsEqual(t, args, "-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1 -backend-config=force_path_style=true -backend-config=shared_credentials_file=my-file")
 }
 
 func TestToTerraformInitArgsUnknownBackend(t *testing.T) {
