@@ -80,7 +80,13 @@ func toRunningModules(modules []*TerraformModule, dependencyOrder DependencyOrde
 		runningModules[module.Path] = newRunningModule(module)
 	}
 
-	return crossLinkDependencies(runningModules, dependencyOrder)
+	crossLinkedModules, err := crossLinkDependencies(runningModules, dependencyOrder)
+	if err != nil {
+		return crossLinkedModules, err
+	}
+
+	finalModules := removeFlagExcluded(crossLinkedModules)
+	return finalModules, nil
 }
 
 // Loop through the map of runningModules and for each module M:
@@ -105,25 +111,33 @@ func crossLinkDependencies(modules map[string]*runningModule, dependencyOrder De
 		}
 	}
 
-	removeFlagExcluded(modules)
-
 	return modules, nil
 }
 
-// Removes all the modules from the map, which have been flagged as excluded in flagExcludedDirs()
-func removeFlagExcluded(modules map[string]*runningModule) {
+// Return a cleaned-up map that only contains modules and dependencies that should not be excluded
+func removeFlagExcluded(modules map[string]*runningModule) map[string]*runningModule {
+
+	var finalModules = make(map[string]*runningModule)
+
 	for key, module := range modules {
-		if module.Module.FlagExcluded {
-			delete(modules, key)
-		} else {
-			// Remove dependencies that are flagged as excluded
+
+		// Only add modules that should not be excluded
+		if !module.Module.FlagExcluded {
+			finalModules[key] = module
+
+			var finalDependencies = make(map[string]*runningModule)
+			finalModules[key].Dependencies = finalDependencies
+
+			// Only add dependencies that should not be excluded
 			for _, dependency := range module.Module.Dependencies {
-				if dependency.FlagExcluded {
-					delete(module.Dependencies, dependency.Path)
+				if !dependency.FlagExcluded {
+					finalModules[key].Dependencies[dependency.Path] = module.Dependencies[dependency.Path]
 				}
 			}
 		}
 	}
+
+	return finalModules
 }
 
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
