@@ -200,17 +200,24 @@ func TestParseMultiStringArg(t *testing.T) {
 		args         []string
 		argName      string
 		defaultValue []string
-		expected     []string
+		expectedVals []string
+		expectedErr  error
 	}{
-		{[]string{"apply-all", "--foo", "bar"}, "foo", []string{"default_bar"}, []string{"bar"}},
-		{[]string{"apply-all", "--test", "bar"}, "foo", []string{"default_bar"}, []string{"default_bar"}},
-		{[]string{"plan-all", "--test", "--foo", "bar1", "--foo", "bar2"}, "foo", []string{"default_bar"}, []string{"bar1", "bar2"}},
-		{[]string{"plan-all", "--test", "value", "--foo", "bar1", "--foo"}, "foo", []string{"default_bar"}, nil},
+		{[]string{"apply-all", "--foo", "bar"}, "foo", []string{"default_bar"}, []string{"bar"}, nil},
+		{[]string{"apply-all", "--test", "bar"}, "foo", []string{"default_bar"}, []string{"default_bar"}, nil},
+		{[]string{"plan-all", "--test", "--foo", "bar1", "--foo", "bar2"}, "foo", []string{"default_bar"}, []string{"bar1", "bar2"}, nil},
+		{[]string{"plan-all", "--test", "value", "--foo", "bar1", "--foo"}, "foo", []string{"default_bar"}, nil, ArgMissingValue("foo")},
 	}
 
 	for _, testCase := range testCases {
-		actual, _ := parseMultiStringArg(testCase.args, testCase.argName, testCase.defaultValue)
-		assert.Equal(t, testCase.expected, actual, "For args %v", testCase.args)
+		actual, actualErr := parseMultiStringArg(testCase.args, testCase.argName, testCase.defaultValue)
+
+		if testCase.expectedErr != nil {
+			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "Expected error %v but got error %v", testCase.expectedErr, actualErr)
+		} else {
+			assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+			assert.Equal(t, testCase.expectedVals, actual, "For args %v", testCase.args)
+		}
 	}
 }
 
