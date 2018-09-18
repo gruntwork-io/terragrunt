@@ -2,7 +2,6 @@ package configstack
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -72,34 +71,37 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 //flagExcludedDirs iterates over a module slice and flags all entries as excluded, which should be ignored via the terragrunt-exclude-dir CLI flag.
 func flagExcludedDirs(modules []*TerraformModule, terragruntOptions *options.TerragruntOptions) ([]*TerraformModule, error) {
 
-	// Save original working directory
-	workingDir, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-
 	// If no ExcludeDirs is specified return the modules list instantly
 	if len(terragruntOptions.ExcludeDirs) == 0 {
 		return modules, nil
 	}
 
+	canonicalWorkingDir, err := util.CanonicalPath("", terragruntOptions.WorkingDir)
+	if err != nil {
+		return nil, err
+	}
+
 	excludeGlobMatches := []string{}
 
 	// If possible, expand the glob to get all excluded filepaths
-	// Change to the actual working dir to make glob expansion work correctly
-	os.Chdir(terragruntOptions.WorkingDir)
-
 	for _, dir := range terragruntOptions.ExcludeDirs {
-		matches, err := zglob.Glob(dir)
+
+		absoluteDir := ""
+
+		// Ensure excludedDirs are absolute
+		if filepath.IsAbs(dir) {
+			absoluteDir = dir
+		} else {
+			absoluteDir = filepath.Join(canonicalWorkingDir, dir)
+		}
+
+		matches, err := zglob.Glob(absoluteDir)
 
 		// Skip globs that can not be expanded
 		if err == nil {
 			excludeGlobMatches = append(excludeGlobMatches, matches...)
 		}
 	}
-
-	// Change back to the original working directory
-	os.Chdir(workingDir)
 
 	// Make sure all paths are canonical
 	canonicalExcludeDirs := []string{}
