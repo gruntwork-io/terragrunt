@@ -117,12 +117,12 @@ func flagExcludedDirs(modules []*TerraformModule, terragruntOptions *options.Ter
 		if shouldExcludeModuleBecauseOfPath(module, canonicalExcludeDirs) {
 			// Mark module itself as excluded
 			module.FlagExcluded = true
-		} else {
-			// Mark all affected dependencies as excluded
-			for _, dependency := range module.Dependencies {
-				if shouldExcludeModuleBecauseOfPath(dependency, canonicalExcludeDirs) {
-					dependency.FlagExcluded = true
-				}
+		}
+
+		// Mark all affected dependencies as excluded
+		for _, dependency := range module.Dependencies {
+			if shouldExcludeModuleBecauseOfPath(dependency, canonicalExcludeDirs) {
+				dependency.FlagExcluded = true
 			}
 		}
 	}

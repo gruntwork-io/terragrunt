@@ -85,8 +85,7 @@ func toRunningModules(modules []*TerraformModule, dependencyOrder DependencyOrde
 		return crossLinkedModules, err
 	}
 
-	finalModules := removeFlagExcluded(crossLinkedModules)
-	return finalModules, nil
+	return removeFlagExcluded(crossLinkedModules), nil
 }
 
 // Loop through the map of runningModules and for each module M:
@@ -116,17 +115,20 @@ func crossLinkDependencies(modules map[string]*runningModule, dependencyOrder De
 
 // Return a cleaned-up map that only contains modules and dependencies that should not be excluded
 func removeFlagExcluded(modules map[string]*runningModule) map[string]*runningModule {
-
 	var finalModules = make(map[string]*runningModule)
 
 	for key, module := range modules {
 
 		// Only add modules that should not be excluded
 		if !module.Module.FlagExcluded {
-			finalModules[key] = module
-
-			var finalDependencies = make(map[string]*runningModule)
-			finalModules[key].Dependencies = finalDependencies
+			finalModules[key] = &runningModule{
+				Module:         module.Module,
+				Dependencies:   make(map[string]*runningModule),
+				DependencyDone: module.DependencyDone,
+				Err:            module.Err,
+				NotifyWhenDone: module.NotifyWhenDone,
+				Status:         module.Status,
+			}
 
 			// Only add dependencies that should not be excluded
 			for _, dependency := range module.Module.Dependencies {
