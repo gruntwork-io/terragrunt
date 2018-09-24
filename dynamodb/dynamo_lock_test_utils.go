@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 	"math/rand"
@@ -42,7 +43,11 @@ func createDynamoDbClientForTest(t *testing.T) *dynamodb.DynamoDB {
 		t.Fatal(err)
 	}
 
-	client, err := CreateDynamoDbClient(DEFAULT_TEST_REGION, "", "", mockOptions)
+	sessionConfig := &aws_helper.AwsSessionConfig{
+		Region: DEFAULT_TEST_REGION,
+	}
+
+	client, err := CreateDynamoDbClient(sessionConfig, mockOptions)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,6 +75,10 @@ func assertCanWriteToTable(t *testing.T, tableName string, client *dynamodb.Dyna
 }
 
 func withLockTable(t *testing.T, action func(tableName string, client *dynamodb.DynamoDB)) {
+	withLockTableTagged(t, nil, action)
+}
+
+func withLockTableTagged(t *testing.T, tags map[string]string, action func(tableName string, client *dynamodb.DynamoDB)) {
 	client := createDynamoDbClientForTest(t)
 	tableName := uniqueTableNameForTest()
 
@@ -78,7 +87,7 @@ func withLockTable(t *testing.T, action func(tableName string, client *dynamodb.
 		t.Fatal(err)
 	}
 
-	err = CreateLockTableIfNecessary(tableName, client, mockOptions)
+	err = CreateLockTableIfNecessary(tableName, tags, client, mockOptions)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	defer cleanupTableForTest(t, tableName, client)
 

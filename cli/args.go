@@ -45,6 +45,18 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 		return nil, err
 	}
 
+	downloadDirRaw, err := parseStringArg(args, OPT_DOWNLOAD_DIR, os.Getenv("TERRAGRUNT_DOWNLOAD"))
+	if err != nil {
+		return nil, err
+	}
+	if downloadDirRaw == "" {
+		downloadDirRaw = util.JoinPath(workingDir, options.TerragruntCacheDir)
+	}
+	downloadDir, err := filepath.Abs(downloadDirRaw)
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
 	terragruntConfigPath, err := parseStringArg(args, OPT_TERRAGRUNT_CONFIG, os.Getenv("TERRAGRUNT_CONFIG"))
 	if err != nil {
 		return nil, err
@@ -84,7 +96,9 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 	opts.AutoInit = !parseBooleanArg(args, OPT_TERRAGRUNT_NO_AUTO_INIT, os.Getenv("TERRAGRUNT_AUTO_INIT") == "false")
 	opts.NonInteractive = parseBooleanArg(args, OPT_NON_INTERACTIVE, os.Getenv("TF_INPUT") == "false" || os.Getenv("TF_INPUT") == "0")
 	opts.TerraformCliArgs = filterTerragruntArgs(args)
+	opts.TerraformCommand = util.FirstArg(opts.TerraformCliArgs)
 	opts.WorkingDir = filepath.ToSlash(workingDir)
+	opts.DownloadDir = filepath.ToSlash(downloadDir)
 	opts.Logger = util.CreateLoggerWithWriter(errWriter, "")
 	opts.RunTerragrunt = runTerragrunt
 	opts.Source = terraformSource
@@ -100,7 +114,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 
 func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
 	out := []string{}
-	cmd := firstArg(terragruntOptions.TerraformCliArgs)
+	cmd := util.FirstArg(terragruntOptions.TerraformCliArgs)
 
 	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
 		for _, arg_cmd := range arg.Commands {
@@ -128,6 +142,7 @@ func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 	return out
 }
 
+<<<<<<< HEAD
 func filterTerraformEnvVars(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) map[string]string {
 	out := map[string]string{}
 
@@ -137,6 +152,21 @@ func filterTerraformEnvVars(terragruntOptions *options.TerragruntOptions, terrag
 		}
 	}
 	terragruntOptions.Logger.Printf("[DEBUG] FUUUUCK filterTerraformEnvVars: %+v", terragruntConfig.Terraform.ExtraArgs)
+=======
+func filterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) map[string]string {
+	out := map[string]string{}
+	cmd := util.FirstArg(terragruntOptions.TerraformCliArgs)
+
+	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
+		for _, argcmd := range arg.Commands {
+			if cmd == argcmd {
+				for k, v := range arg.EnvVars {
+					out[k] = v
+				}
+			}
+		}
+	}
+>>>>>>> 9f07db38036dc4091d619a78537f30554ba3884b
 
 	return out
 }
@@ -209,24 +239,6 @@ func parseStringArg(args []string, argName string, defaultValue string) (string,
 	// read .tgproject value
 
 	return defaultValue, nil
-}
-
-// A convenience method that returns the first item (0th index) in the given list or an empty string if this is an
-// empty list
-func firstArg(args []string) string {
-	if len(args) > 0 {
-		return args[0]
-	}
-	return ""
-}
-
-// A convenience method that returns the second item (1st index) in the given list or an empty string if this is a
-// list that has less than 2 items in it
-func secondArg(args []string) string {
-	if len(args) > 1 {
-		return args[1]
-	}
-	return ""
 }
 
 // Custom error types

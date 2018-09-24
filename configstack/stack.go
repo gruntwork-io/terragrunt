@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
 	"sort"
 )
 
@@ -70,7 +71,7 @@ func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.Terragrunt
 // Apply all the modules in the given stack, making sure to apply the dependencies of each module in the stack in the
 // proper order.
 func (stack *Stack) Apply(terragruntOptions *options.TerragruntOptions) error {
-	stack.setTerraformCommand([]string{"apply", "-input=false"})
+	stack.setTerraformCommand([]string{"apply", "-input=false", "-auto-approve"})
 	return RunModules(stack.Modules)
 }
 
@@ -101,7 +102,7 @@ func (stack *Stack) CheckForCycles() error {
 // Find all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
 // assemble them into a Stack object that can be applied or destroyed in a single command
 func FindStackInSubfolders(terragruntOptions *options.TerragruntOptions) (*Stack, error) {
-	terragruntConfigFiles, err := config.FindConfigFilesInPath(terragruntOptions.WorkingDir)
+	terragruntConfigFiles, err := config.FindConfigFilesInPath(terragruntOptions.WorkingDir, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +115,7 @@ func FindStackInSubfolders(terragruntOptions *options.TerragruntOptions) (*Stack
 func (stack *Stack) setTerraformCommand(command []string) {
 	for _, module := range stack.Modules {
 		module.TerragruntOptions.TerraformCliArgs = append(command, module.TerragruntOptions.TerraformCliArgs...)
+		module.TerragruntOptions.TerraformCommand = util.FirstArg(command)
 	}
 }
 

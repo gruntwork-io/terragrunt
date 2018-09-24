@@ -12,6 +12,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"strings"
 )
 
 func TestParseTerragruntOptionsFromArgs(t *testing.T) {
@@ -229,4 +231,64 @@ func TestParseEnvironmentVariables(t *testing.T) {
 		actualVariables := parseEnvironmentVariables(testCase.environmentVariables)
 		assert.Equal(t, testCase.expectedVariables, actualVariables)
 	}
+}
+
+func TestTerragruntHelp(t *testing.T) {
+	app := CreateTerragruntCli("0.0", os.Stdout, os.Stderr)
+	output := &bytes.Buffer{}
+	app.Writer = output
+
+	testCases := []struct {
+		args     []string
+		expected string
+	}{
+		{[]string{"terragrunt", "--help"}, app.UsageText},
+		{[]string{"terragrunt", "-help"}, app.UsageText},
+		{[]string{"terragrunt", "-h"}, app.UsageText},
+		// TODO no support for showing command help texts
+		//{[]string{"terragrunt", "plan-all", "--help"}, app.UsageText},
+	}
+
+	for _, testCase := range testCases {
+		err := app.Run(testCase.args)
+
+		require.NoError(t, err)
+		if !strings.Contains(output.String(), testCase.expected) {
+			t.Errorf("expected output to include help text; got: %q", output.String())
+		}
+	}
+}
+
+func TestTerraformHelp(t *testing.T) {
+	app := CreateTerragruntCli("0.0", os.Stdout, os.Stderr)
+	output := &bytes.Buffer{}
+	app.Writer = output
+
+	testCases := []struct {
+		args     []string
+		expected string
+	}{
+		{[]string{"terragrunt", "plan", "--help"}, "Usage: terraform plan"},
+		{[]string{"terragrunt", "apply", "-help"}, "Usage: terraform apply"},
+		{[]string{"terragrunt", "apply", "-h"}, "Usage: terraform apply"},
+	}
+
+	for _, testCase := range testCases {
+		err := app.Run(testCase.args)
+
+		require.NoError(t, err)
+		if !strings.Contains(output.String(), testCase.expected) {
+			t.Errorf("expected output to include help text; got: %q", err)
+		}
+	}
+}
+
+func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
+	app := CreateTerragruntCli("0.0", os.Stdout, os.Stderr)
+
+	output := &bytes.Buffer{}
+	app.Writer = output
+
+	err := app.Run([]string{"terragrunt", "plan", "help"})
+	require.Error(t, err)
 }

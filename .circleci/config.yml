@@ -1,0 +1,97 @@
+workspace_root: &workspace_root
+  /go/src/github.com/gruntwork-io/terragrunt
+
+defaults: &defaults
+  working_directory: *workspace_root
+  docker:
+  - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:latest
+
+version: 2
+jobs:
+  install_dependencies:
+    <<: *defaults
+    steps:
+    - checkout
+    - attach_workspace:
+        at: *workspace_root
+    - restore_cache:
+        keys:
+        - dep-{{ checksum "Gopkg.lock" }}
+    - run: dep ensure
+    - save_cache:
+        key: dep-{{ checksum "Gopkg.lock" }}
+        paths:
+        - /go/src/github.com/gruntwork-io/terragrunt/vendor
+    - persist_to_workspace:
+        root: *workspace_root
+        paths: vendor
+
+  test:
+    <<: *defaults
+    steps:
+    - checkout
+    - attach_workspace:
+        at: *workspace_root
+    - run:  run-go-tests --circle-ci-2 --path test
+
+  build:
+    <<: *defaults
+    steps:
+    - checkout
+    - attach_workspace:
+        at: *workspace_root
+    - run: build-go-binaries --circle-ci-2 --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG"
+    - persist_to_workspace:
+        root: *workspace_root
+        paths: bin
+
+  deploy:
+    <<: *defaults
+    steps:
+    - checkout
+    - attach_workspace:
+        at: *workspace_root
+    - run: upload-github-release-assets bin/*
+
+workflows:
+  version: 2
+  build-and-test:
+    jobs:
+    - install_dependencies:
+        filters:
+          tags:
+            only: /^v.*/
+    - test:
+        requires:
+        - install_dependencies
+        filters:
+          tags:
+            only: /^v.*/
+    - build:
+        requires:
+        - test
+        filters:
+          tags:
+            only: /^v.*/
+
+    - deploy:
+        requires:
+        - build
+        filters:
+          tags:
+            only: /^v.*/
+          branches:
+            ignore: /.*/
+
+  nightly:
+    triggers:
+    - schedule:
+        cron: "0 6 * * *"
+        filters:
+          branches:
+            only: master
+    jobs:
+    - install_dependencies
+    - test:
+        requires:
+        - install_dependencies

@@ -55,7 +55,7 @@ func removeDuplicatesFromList(list []string, keepLast bool) []string {
 	return out
 }
 
-// CommaSeparatedStrings returns an HCL compliant formated list of strings (each string within double quote)
+// CommaSeparatedStrings returns an HCL compliant formatted list of strings (each string within double quote)
 func CommaSeparatedStrings(list []string) string {
 	values := make([]string, 0, len(list))
 	for _, value := range list {
@@ -89,4 +89,22 @@ func CloneStringMap(mapToClone map[string]string) map[string]string {
 		out[key] = value
 	}
 	return out
+}
+
+// A convenience method that returns the first item (0th index) in the given list or an empty string if this is an
+// empty list
+func FirstArg(args []string) string {
+	if len(args) > 0 {
+		return args[0]
+	}
+	return ""
+}
+
+// A convenience method that returns the second item (1st index) in the given list or an empty string if this is a
+// list that has less than 2 items in it
+func SecondArg(args []string) string {
+	if len(args) > 1 {
+		return args[1]
+	}
+	return ""
 }

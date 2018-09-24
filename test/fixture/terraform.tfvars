@@ -8,6 +8,16 @@ terragrunt = {
       key = "terraform.tfstate"
       region = "us-west-2"
       dynamodb_table = "__FILL_IN_LOCK_TABLE_NAME__"
+
+      s3_bucket_tags {
+        owner = "terragrunt integration test"
+        name = "Terraform state storage"
+      }
+
+      dynamodb_table_tags {
+        owner = "terragrunt integration test"
+        name = "Terraform lock table"
+      }
     }
   }
 }

@@ -27,8 +27,8 @@ const DEFAULT_READ_CAPACITY_UNITS = 1
 const DEFAULT_WRITE_CAPACITY_UNITS = 1
 
 // Create an authenticated client for DynamoDB
-func CreateDynamoDbClient(awsRegion, awsProfile string, iamRoleArn string, terragruntOptions *options.TerragruntOptions) (*dynamodb.DynamoDB, error) {
-	session, err := aws_helper.CreateAwsSession(awsRegion, awsProfile, iamRoleArn, terragruntOptions)
+func CreateDynamoDbClient(config *aws_helper.AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*dynamodb.DynamoDB, error) {
+	session, err := aws_helper.CreateAwsSession(config, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +37,7 @@ func CreateDynamoDbClient(awsRegion, awsProfile string, iamRoleArn string, terra
 }
 
 // Create the lock table in DynamoDB if it doesn't already exist
-func CreateLockTableIfNecessary(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
+func CreateLockTableIfNecessary(tableName string, tags map[string]string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
 	tableExists, err := LockTableExistsAndIsActive(tableName, client)
 	if err != nil {
 		return err
@@ -45,7 +45,7 @@ func CreateLockTableIfNecessary(tableName string, client *dynamodb.DynamoDB, ter
 
 	if !tableExists {
 		terragruntOptions.Logger.Printf("Lock table %s does not exist in DynamoDB. Will need to create it just this first time.", tableName)
-		return CreateLockTable(tableName, DEFAULT_READ_CAPACITY_UNITS, DEFAULT_WRITE_CAPACITY_UNITS, client, terragruntOptions)
+		return CreateLockTable(tableName, tags, DEFAULT_READ_CAPACITY_UNITS, DEFAULT_WRITE_CAPACITY_UNITS, client, terragruntOptions)
 	}
 
 	return nil
@@ -67,7 +67,7 @@ func LockTableExistsAndIsActive(tableName string, client *dynamodb.DynamoDB) (bo
 
 // Create a lock table in DynamoDB and wait until it is in "active" state. If the table already exists, merely wait
 // until it is in "active" state.
-func CreateLockTable(tableName string, readCapacityUnits int, writeCapacityUnits int, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
+func CreateLockTable(tableName string, tags map[string]string, readCapacityUnits int, writeCapacityUnits int, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
 	tableCreateDeleteSemaphore.Acquire()
 	defer tableCreateDeleteSemaphore.Release()
 
@@ -81,7 +81,7 @@ func CreateLockTable(tableName string, readCapacityUnits int, writeCapacityUnits
 		&dynamodb.KeySchemaElement{AttributeName: aws.String(ATTR_LOCK_ID), KeyType: aws.String(dynamodb.KeyTypeHash)},
 	}
 
-	_, err := client.CreateTable(&dynamodb.CreateTableInput{
+	createTableOutput, err := client.CreateTable(&dynamodb.CreateTableInput{
 		TableName:            aws.String(tableName),
 		AttributeDefinitions: attributeDefinitions,
 		KeySchema:            keySchema,
@@ -99,7 +99,48 @@ func CreateLockTable(tableName string, readCapacityUnits int, writeCapacityUnits
 		}
 	}
 
-	return waitForTableToBeActive(tableName, client, MAX_RETRIES_WAITING_FOR_TABLE_TO_BE_ACTIVE, SLEEP_BETWEEN_TABLE_STATUS_CHECKS, terragruntOptions)
+	err = waitForTableToBeActive(tableName, client, MAX_RETRIES_WAITING_FOR_TABLE_TO_BE_ACTIVE, SLEEP_BETWEEN_TABLE_STATUS_CHECKS, terragruntOptions)
+
+	if err != nil {
+		return err
+	}
+
+	if createTableOutput != nil && createTableOutput.TableDescription != nil && createTableOutput.TableDescription.TableArn != nil {
+		// Do not tag in case somebody else had created the table
+
+		err = tagTableIfTagsGiven(tags, createTableOutput.TableDescription.TableArn, client, terragruntOptions)
+
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+	}
+
+	return nil
+}
+
+func tagTableIfTagsGiven(tags map[string]string, tableArn *string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
+
+	if tags == nil || len(tags) == 0 {
+		terragruntOptions.Logger.Printf("No tags for lock table given.")
+		return nil
+	}
+
+	// we were able to create the table successfully, now add tags
+	terragruntOptions.Logger.Printf("Adding tags to lock table: %s", tags)
+
+	var tagsConverted []*dynamodb.Tag
+
+	for k, v := range tags {
+		tagsConverted = append(tagsConverted, &dynamodb.Tag{Key: aws.String(k), Value: aws.String(v)})
+	}
+
+	var input = dynamodb.TagResourceInput{
+		ResourceArn: tableArn,
+		Tags:        tagsConverted}
+
+	_, err := client.TagResource(&input)
+
+	return err
 }
 
 // Delete the given table in DynamoDB

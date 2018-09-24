@@ -59,10 +59,12 @@ Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that pro
    1. [AWS credentials](#aws-credentials)
    1. [AWS IAM policies](#aws-iam-policies)
    1. [Interpolation Syntax](#interpolation-syntax)
+   1. [Before and After Hooks](#before-and-after-hooks)
    1. [Auto-Init](#auto-init)
    1. [CLI options](#cli-options)
    1. [Configuration](#configuration)
    1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
+   1. [Clearing the Terragrunt cache](#clearing-the-terragrunt-cache)
    1. [Developing Terragrunt](#developing-terragrunt)
    1. [License](#license)
 
@@ -77,10 +79,7 @@ Please check your version against the latest available on the
 You can install Terragrunt on OSX using [Homebrew](https://brew.sh/): `brew install terragrunt`.
 
 ### Linux
-
-**WARNING**: the snap installer seems to have a bug where it does not allow Terragrunt to work with Terraform and Git dependencies, so we currently do not recommend using it. See the manual install instructions below, instead.
-
-You can install Terragrunt on Linux systems using [snap](https://snapcraft.io/docs/core/install): `snap install terragrunt`.
+You can install Terragrunt on Linux using [Linuxbrew](https://linuxbrew.sh/): `brew install terragrunt`.
 
 ### Manual
 You can install Terragrunt manually by going to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases),
@@ -268,12 +267,13 @@ terragrunt apply
 
 When Terragrunt finds the `terraform` block with a `source` parameter in `live/qa/app/terraform.tfvars` file, it will:
 
-1. Download the configurations specified via the `source` parameter into a temporary folder. This downloading is done
-   by using the [terraform init command](https://www.terraform.io/docs/commands/init.html), so the `source` parameter
-   supports the exact same syntax as the [module source](https://www.terraform.io/docs/modules/sources.html) parameter,
-   including local file paths, Git URLs, and Git URLs with `ref` parameters (useful for checking out a specific tag,
-   commit, or branch of Git repo). Terragrunt will download all the code in the repo (i.e. the part before the
-   double-slash `//`) so that relative paths work correctly between modules in that repo.
+1. Download the configurations specified via the `source` parameter into the `--terragrunt-download-dir` folder (by
+   default, `.terragrunt-cache` in the working directory, which we recommend adding to `.gitignore`). This downloading
+   is done by using the [terraform init command](https://www.terraform.io/docs/commands/init.html), so the `source`
+   parameter supports the exact same syntax as the [module source](https://www.terraform.io/docs/modules/sources.html)
+   parameter, including local file paths, Git URLs, and Git URLs with `ref` parameters (useful for checking out a
+   specific tag, commit, or branch of Git repo). Terragrunt will download all the code in the repo (i.e. the part
+   before the double-slash `//`) so that relative paths work correctly between modules in that repo.
 
 1. Copy all files from the current working directory into the temporary folder. This way, Terraform will automatically
    read in the variables defined in the `terraform.tfvars` file.
@@ -396,7 +396,7 @@ Git repository prior to calling `terragrunt` to ensure that the ssh host is regi
 locally, e.g.:
 
 ```
-$ ssh -T -oStrictHostKeyChecking=no git@github.com || true
+$ ssh -T -oStrictHostKeyChecking=accept-new git@github.com || true
 ```
 
 
@@ -491,6 +491,16 @@ terragrunt = {
       region         = "us-east-1"
       encrypt        = true
       dynamodb_table = "my-lock-table"
+      
+      s3_bucket_tags {
+        owner = "terragrunt integration test"
+        name  = "Terraform state storage"
+      }
+
+      dynamodb_table_tags {
+        owner = "terragrunt integration test"
+        name  = "Terraform lock table"
+      }
     }
   }
 }
@@ -499,7 +509,31 @@ terragrunt = {
 The `remote_state` block supports all the same [backend types](https://www.terraform.io/docs/backends/types/index.html)
 as Terraform. The next time you run `terragrunt`, it will automatically configure all the settings in the
 `remote_state.config` block, if they aren't configured already, by calling [terraform
-init](https://www.terraform.io/docs/commands/init.html).
+init](https://www.terraform.io/docs/commands/init.html). 
+
+For backend `s3`, the following config options can be used for S3-compatible object stores, as necessary:
+
+```hcl
+remote_state {
+  # ...
+
+  skip_bucket_versioning = true # use only if the object store does not support versioning
+
+  shared_credentials_file     = "/path/to/credentials/file"
+  skip_region_validation      = true
+  skip_credentials_validation = true
+  skip_requesting_account_id  = true
+  skip_get_ec2_platforms      = true
+  skip_metadata_api_check     = true
+  force_path_style            = true
+}
+```
+
+If you experience an error for any of these configurations, confirm you are using Terraform v0.11.2 or greater.
+
+Further, the config options `s3_bucket_tags`, 
+`dynamodb_table_tags`, and `skip_bucket_versioning` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to 
+terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).
 
 In each of the **child** `terraform.tfvars` files, such as `mysql/terraform.tfvars`, you can tell Terragrunt to
 automatically include all the settings from the root `terraform.tfvars` file as follows:
@@ -527,6 +561,11 @@ settings as follows:
   * The child's `extra_arguments` will be placed _after_ the parent's `extra_arguments` on the terraform command line.
   * Therefore, if a child's and parent's `extra_arguments` include `.tfvars` files with the same variable defined,
     the value from the `.tfvars` file from the child's `extra_arguments` will be used by terraform.
+* If a `before_hook` or `after_hook` block in the child has the same name as the hook block in the parent,
+  then the child's block will override the parent's.
+  * Specifying an empty hook block in a child with the same name will effectively remove the parent's block.
+* If a `before_hook` or `after_hook` block in the child has a different name than hook blocks in the parent,
+  then both the parent and child's hook blocks will be effective.
 * The `source` field in the child will override `source` field in the parent
 
 Other settings in the child `.tfvars` file's `terragrunt` block (e.g. `remote_state`) override the respective
@@ -562,11 +601,19 @@ they don't already exist:
 * **S3 bucket**: If you are using the [S3 backend](https://www.terraform.io/docs/backends/types/s3.html) for remote
   state storage and the `bucket` you specify in `remote_state.config` doesn't already exist, Terragrunt will create it
   automatically, with [versioning enabled](http://docs.aws.amazon.com/AmazonS3/latest/dev/Versioning.html).
+  
+  In addition, you can let terragrunt tag the bucket with custom tags that you specify in 
+  `remote_state.config.s3_bucket_tags`. See sample configuration in section 
+  [Filling in remote state settings with Terragrunt](#filling-in-remote-state-settings-with-terragrunt).
 
 * **DynamoDB table**: If you are using the [S3 backend](https://www.terraform.io/docs/backends/types/s3.html) for
   remote state storage and you specify a `dynamodb_table` (a [DynamoDB table used for
   locking](https://www.terraform.io/docs/backends/types/s3.html#dynamodb_table)) in `remote_state.config`, if that table
   doesn't already exist, Terragrunt will create it automatically, including a primary key called `LockID`.
+  
+  In addition, you can let terragrunt tag the DynamoDB table with custom tags that you specify in
+  `remote_state.config.dynamodb_table_tags`. See sample configuration in section 
+  [Filling in remote state settings with Terragrunt](#filling-in-remote-state-settings-with-terragrunt).
 
 **Note**: If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile
 when creating the S3 bucket or DynamoDB table.
@@ -609,6 +656,10 @@ terragrunt = {
       arguments = [
         "-lock-timeout=20m"
       ]
+
+      env_vars = {
+        TF_VAR_var_from_environment = "value"            
+      }
     }
   }
 }
@@ -616,7 +667,8 @@ terragrunt = {
 
 Each `extra_arguments` block includes an arbitrary name (in the example above, `retry_lock`), a list of `commands` to
 which the extra arguments should be add, a list of `arguments` or `required_var_files` or `optional_var_files` to add.
-With the configuration above, when you run `terragrunt apply`, Terragrunt will call Terraform as follows:
+You can also pass custom variables using `env_vars` block, which stores environment variables in key value pairs. With
+the configuration above, when you run `terragrunt apply`, Terragrunt will call Terraform as follows:
 
 When available, it is preferable to use interpolation functions such as
 [get_terraform_commands_that_need_locking](#get_terraform_commands_that_need_locking) and
@@ -1089,7 +1141,7 @@ To avoid these frustrating trade-offs, you can configure Terragrunt to assume an
 To tell Terragrunt to assume an IAM role, just set the `--terragrunt-iam-role` command line argument:
 
 ```bash
-terragrunt --terragrunt-iam-role "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME" apply
+terragrunt apply --terragrunt-iam-role "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 ```
 
 Alternatively, you can set the `TERRAGRUNT_IAM_ROLE` environment variable:
@@ -1115,10 +1167,12 @@ This section contains detailed documentation for the following aspects of Terrag
 1. [AWS credentials](#aws-credentials)
 1. [AWS IAM policies](#aws-iam-policies)
 1. [Interpolation Syntax](#interpolation-syntax)
+1. [Before & After Hooks](#before-and-after-hooks)
 1. [Auto-Init](#auto-init)
 1. [CLI options](#cli-options)
 1. [Configuration](#configuration)
 1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
+1. [Clearing the Terragrunt cache](#clearing-the-terragrunt-cache)
 1. [Developing Terragrunt](#developing-terragrunt)
 1. [License](#license)
 
@@ -1169,6 +1223,54 @@ your organization's naming convention for AWS resources for Terraform remote sta
     ]
 }
 ```
+
+For a more minimal policy, for example when using a single bucket and DynamoDB table for multiple Terragrunt
+users, you can use the following. Be sure to replace `BUCKET_NAME` and `TABLE_NAME` with the S3 bucket name
+and DynamoDB table name respectively.
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllowCreateAndListS3ActionsOnSpecifiedTerragruntBucket",
+            "Effect": "Allow",
+            "Action": [
+                "s3:ListBucket",
+                "s3:GetBucketVersioning",
+                "s3:CreateBucket"
+            ],
+            "Resource": "arn:aws:s3:::BUCKET_NAME"
+        },
+        {
+            "Sid": "AllowGetAndPutS3ActionsOnSpecifiedTerragruntBucketPath",
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject",
+                "s3:GetObject"
+            ],
+            "Resource": "arn:aws:s3:::BUCKET_NAME/some/path/here"
+        },
+        {
+            "Sid": "",
+            "Sid": "AllowCreateAndUpdateDynamoDBActionsOnSpecifiedTerragruntTable",
+            "Effect": "Allow",
+            "Action": [
+                "dynamodb:PutItem",
+                "dynamodb:GetItem",
+                "dynamodb:DescribeTable",
+                "dynamodb:DeleteItem",
+                "dynamodb:CreateTable"
+            ],
+            "Resource": "arn:aws:dynamodb:*:*:table/TABLE_NAME"
+        }
+    ]
+}
+```
+
+When the above is applied to an IAM user it will restrict them to creating the DynamoDB table if it doesn't
+already exist and allow updating records for state locking, and for the S3 bucket will allow creating the
+bucket if it doesn't already exist and only write files to the specified path.
 
 ### Interpolation syntax
 
@@ -1591,6 +1693,60 @@ terragrunt = {
 }
 ```
 
+### Before and After Hooks
+
+_Before Hooks_ or _After Hooks_ are a feature of terragrunt that make it possible to define custom actions
+that will be called either before or after execution of the `terraform` command.
+
+The `commands` array specifies the `terraform` commands that will trigger the execution of the hook.
+
+Because Terragrunt uses `terraform init` in two different ways, use the special command `init-from-module`
+to execute hooks only when retrieving the terraform source. The command `init` will execute hooks only when
+executing Terragrunt's [Auto-Init](#auto-init) capability, which includes configuring the backend, retrieving
+provider plugins, and remote modules specified within the root module.
+
+It is possible to use the [interpolation syntax](#interpolation-syntax) defined above in the `execute` array of the hooks.
+
+The `run_on_error` parameter allows you to specify whether you still want this hook to execute if an error has been encountered with the earlier execution of another hook OR with the execution of the `terraform` command iteself.  
+
+#### Example Syntax
+```
+terragrunt = {
+  terraform {
+    ...
+
+    before_hook "before_hook_1" {
+      commands = ["apply", "plan"]
+      execute = ["echo", "Foo"]
+      run_on_error = true
+    }
+
+    before_hook "before_hook_2" {
+      commands = ["apply"]
+      execute = ["echo", "Bar"]
+      run_on_error = false
+    }
+
+    before_hook "interpolation_hook_1" {
+      commands = ["apply", "plan"]
+      execute = ["echo", "${get_env("HOME", "HelloWorld")}"]
+      run_on_error = false
+    }
+
+    after_hook "after_hook_1" {
+      commands = ["apply", "plan"]
+      execute = ["echo", "Baz"]
+      run_on_error = true
+    }
+
+    after_hook "init_from_module" {
+      commands = ["init-from-module"]
+      execute = ["cp", "${get_parent_tfvars_dir()}/foo.tf", "."]
+    }
+  }
+}
+```
+
 ### Auto-Init
 
 _Auto-Init_ is a feature of terragrunt that makes it so that `terragrunt init` does not need to be called explicitly before other terragrunt commands.
@@ -1646,6 +1802,10 @@ start with the prefix `--terragrunt-`. The currently available options are:
   commands, this parameter has a different meaning: Terragrunt will apply or destroy all the Terraform modules in the 
   subfolders of the `terragrunt-working-dir`, running `terraform` in the root of each module it finds.
 
+* `--terragrunt-download-dir`: The path where to download Terraform code when using [remote Terraform
+  configurations](#keep-your-terraform-code-dry). May also be specified via the `TERRAGRUNT_DOWNLOAD` environment
+  variable. Default is `.terragrunt-cache` in the working directory. We recommend adding this folder to your `.gitignore`.
+
 * `--terragrunt-source`: Download Terraform configurations from the specified source into a temporary folder, and run
   Terraform in that temporary folder. May also be specified via the `TERRAGRUNT_SOURCE` environment variable. The
   source should use the same syntax as the [Terraform module source](https://www.terraform.io/docs/modules/sources.html)
@@ -1697,6 +1857,52 @@ Terragrunt figures out the path to its config file according to the following ru
   terragrunt plan --terragrunt-config example.tfvars --var-file example.tfvars		
  ```
 
+#### prevent_destroy
+
+Terragrunt `prevent_destroy` boolean flag allows you to protect selected Terraform module. It will prevent `destroy`
+or `destroy-all` command to actually destroy resources of the protected module. This is useful for modules you want
+to carefully protect, such as a database, or a module that provides auth.
+
+Example:
+
+```hcl
+terragrunt = {
+  terraform {
+    source = "git::git@github.com:foo/modules.git//app?ref=v0.0.3"
+  }
+
+  prevent_destroy = true
+}
+```
+
+### Clearing the Terragrunt cache
+
+Terragrunt creates a `.terragrunt-cache` folder in the current working directory as its scratch directory. It downloads
+your remote Terraform configurations into this folder, runs your Terraform commands in this folder, and any modules and
+providers those commands download also get stored in this folder. You can safely delete this folder any time and
+Terragrunt will recreate it as necessary.
+
+If you need to clean up a lot of these folders (e.g., after `terragrunt apply-all`), you can use the following commands
+on Mac and Linux:
+
+Recursively find all the `.terragrunt-cache` folders that are children of the current folder:
+
+```bash
+find . -type d -name ".terragrunt-cache"
+```
+
+If you are ABSOLUTELY SURE you want to delete all the folders that come up in the previous command, you can recursively
+delete all of them as follows:
+
+```bash
+find . -type d -name ".terragrunt-cache" -prune -exec rm -rf {} \;
+```
+
+Also consider setting the `TERRAGRUNT_DOWNLOAD` environment variable if you wish to place the cache directories
+somewhere else.
+
+
+
 
 ##### Previous Versions of Terragrunt
 
@@ -1722,8 +1928,8 @@ go run main.go plan
 
 #### Dependencies
 
-* Terragrunt uses `glide`, a vendor package management tool for golang. See the glide repo for
-  [installation instructions](https://github.com/Masterminds/glide#install).
+* Terragrunt uses `dep`, a vendor package management tool for golang. See the dep repo for
+  [installation instructions](https://github.com/golang/dep).
 
 #### Running tests
 
@@ -1736,7 +1942,7 @@ Before running the tests, you must configure your [AWS credentials](#aws-credent
 To run all the tests:
 
 ```bash
-go test -v -parallel 128 $(glide novendor)
+go test -v -parallel 128 ./...
 ```
 
 To run only the tests in a specific package, such as the package `remote`:

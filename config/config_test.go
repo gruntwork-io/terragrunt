@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
@@ -504,6 +505,56 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 			&TerragruntConfig{Terraform: &TerraformConfig{ExtraArgs: []TerraformExtraArguments{TerraformExtraArguments{Name: "overrideArgs", Arguments: []string{"-parent"}}}}},
 			&TerragruntConfig{Terraform: &TerraformConfig{ExtraArgs: []TerraformExtraArguments{TerraformExtraArguments{Name: "overrideArgs", Arguments: []string{"-child"}}}}},
 		},
+		{
+			&TerragruntConfig{Terraform: &TerraformConfig{BeforeHooks: []Hook{Hook{Name: "childHooks"}}}},
+			&TerragruntConfig{Terraform: nil},
+			&TerragruntConfig{Terraform: &TerraformConfig{BeforeHooks: []Hook{Hook{Name: "childHooks"}}}},
+		},
+		{
+			&TerragruntConfig{Terraform: nil},
+			&TerragruntConfig{Terraform: &TerraformConfig{BeforeHooks: []Hook{Hook{Name: "parentHooks"}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{BeforeHooks: []Hook{Hook{Name: "parentHooks"}}}},
+		},
+		{
+			&TerragruntConfig{Terraform: &TerraformConfig{BeforeHooks: []Hook{Hook{Name: "childHooks"}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{}},
+			&TerragruntConfig{Terraform: &TerraformConfig{BeforeHooks: []Hook{Hook{Name: "childHooks"}}}},
+		},
+		{
+			&TerragruntConfig{Terraform: &TerraformConfig{BeforeHooks: []Hook{Hook{Name: "childHooks"}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{BeforeHooks: []Hook{Hook{Name: "parentHooks"}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{BeforeHooks: []Hook{Hook{Name: "parentHooks"}, Hook{Name: "childHooks"}}}},
+		},
+		{
+			&TerragruntConfig{Terraform: &TerraformConfig{BeforeHooks: []Hook{Hook{Name: "overrideHooks", Commands: []string{"child-apply"}}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{BeforeHooks: []Hook{Hook{Name: "overrideHooks", Commands: []string{"parent-apply"}}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{BeforeHooks: []Hook{Hook{Name: "overrideHooks", Commands: []string{"child-apply"}}}}},
+		},
+		{
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "childHooks"}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{}},
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "childHooks"}}}},
+		},
+		{
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "childHooks"}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "parentHooks"}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "parentHooks"}, Hook{Name: "childHooks"}}}},
+		},
+		{
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "overrideHooks", Commands: []string{"child-apply"}}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "overrideHooks", Commands: []string{"parent-apply"}}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "overrideHooks", Commands: []string{"child-apply"}}}}},
+		},
+		{
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "overrideHooksPlusMore", Commands: []string{"child-apply"}}, Hook{Name: "childHooks"}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "overrideHooksPlusMore", Commands: []string{"parent-apply"}}, Hook{Name: "parentHooks"}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "overrideHooksPlusMore", Commands: []string{"child-apply"}}, Hook{Name: "parentHooks"}, Hook{Name: "childHooks"}}}},
+		},
+		{
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "overrideWithEmptyHooks"}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "overrideWithEmptyHooks", Commands: []string{"parent-apply"}}}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "overrideWithEmptyHooks"}}}},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -572,7 +623,10 @@ terragrunt = {
         "-var-file=terraform.tfvars",
         "-var-file=terraform-secret.tfvars"
       ]
-      commands = ["${get_terraform_commands_that_need_vars()}"]
+			commands = ["${get_terraform_commands_that_need_vars()}"]
+			env_vars = {
+				TEST_VAR = "value"
+			}
     }
   }
 }
@@ -597,6 +651,10 @@ terragrunt = {
 		assert.Equal(t,
 			TERRAFORM_COMMANDS_NEED_VARS,
 			terragruntConfig.Terraform.ExtraArgs[0].Commands)
+
+		assert.Equal(t,
+			map[string]string{"TEST_VAR": "value"},
+			terragruntConfig.Terraform.ExtraArgs[0].EnvVars)
 	}
 }
 
@@ -671,7 +729,10 @@ func TestFindConfigFilesInPathNone(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{}
-	actual, err := FindConfigFilesInPath("../test/fixture-config-files/none")
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
+	require.NoError(t, err)
+
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/none", terragruntOptions)
 
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, expected, actual)
@@ -681,7 +742,10 @@ func TestFindConfigFilesInPathOneNewConfig(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{"../test/fixture-config-files/one-new-config/subdir/terraform.tfvars"}
-	actual, err := FindConfigFilesInPath("../test/fixture-config-files/one-new-config")
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
+	require.NoError(t, err)
+
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/one-new-config", terragruntOptions)
 
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, expected, actual)
@@ -691,7 +755,10 @@ func TestFindConfigFilesInPathOneOldConfig(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{"../test/fixture-config-files/one-old-config/subdir/.terragrunt"}
-	actual, err := FindConfigFilesInPath("../test/fixture-config-files/one-old-config")
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
+	require.NoError(t, err)
+
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/one-old-config", terragruntOptions)
 
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, expected, actual)
@@ -705,7 +772,42 @@ func TestFindConfigFilesInPathMultipleConfigs(t *testing.T) {
 		"../test/fixture-config-files/multiple-configs/subdir-2/subdir/.terragrunt",
 		"../test/fixture-config-files/multiple-configs/subdir-3/terraform.tfvars",
 	}
-	actual, err := FindConfigFilesInPath("../test/fixture-config-files/multiple-configs")
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
+	require.NoError(t, err)
+
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/multiple-configs", terragruntOptions)
+
+	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.Equal(t, expected, actual)
+}
+
+func TestFindConfigFilesIgnoresTerragruntCache(t *testing.T) {
+	t.Parallel()
+
+	expected := []string{
+		"../test/fixture-config-files/ignore-cached-config/terraform.tfvars",
+	}
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
+	require.NoError(t, err)
+
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/ignore-cached-config", terragruntOptions)
+
+	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.Equal(t, expected, actual)
+}
+
+func TestFindConfigFilesIgnoresDownloadDir(t *testing.T) {
+	t.Parallel()
+
+	expected := []string{
+		"../test/fixture-config-files/multiple-configs/terraform.tfvars",
+		"../test/fixture-config-files/multiple-configs/subdir-3/terraform.tfvars",
+	}
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
+	require.NoError(t, err)
+	terragruntOptions.DownloadDir = "../test/fixture-config-files/multiple-configs/subdir-2"
+
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/multiple-configs", terragruntOptions)
 
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, expected, actual)
@@ -721,4 +823,44 @@ func mockOptionsForTestWithConfigPath(t *testing.T, configPath string) *options.
 
 func mockOptionsForTest(t *testing.T) *options.TerragruntOptions {
 	return mockOptionsForTestWithConfigPath(t, "test-time-mock")
+}
+
+func TestParseTerragruntConfigPreventDestroyTrue(t *testing.T) {
+	t.Parallel()
+
+	config := `
+terragrunt = {
+  prevent_destroy = true
+}
+`
+
+	terragruntConfig, err := parseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Nil(t, terragruntConfig.Terraform)
+	assert.Nil(t, terragruntConfig.RemoteState)
+	assert.Nil(t, terragruntConfig.Dependencies)
+	assert.Equal(t, true, terragruntConfig.PreventDestroy)
+}
+
+func TestParseTerragruntConfigPreventDestroyFalse(t *testing.T) {
+	t.Parallel()
+
+	config := `
+terragrunt = {
+  prevent_destroy = false
+}
+`
+
+	terragruntConfig, err := parseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Nil(t, terragruntConfig.Terraform)
+	assert.Nil(t, terragruntConfig.RemoteState)
+	assert.Nil(t, terragruntConfig.Dependencies)
+	assert.Equal(t, false, terragruntConfig.PreventDestroy)
 }

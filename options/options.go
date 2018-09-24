@@ -2,12 +2,10 @@ package options
 
 import (
 	"fmt"
-	"github.com/mitchellh/go-homedir"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
-	"runtime"
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -22,6 +20,8 @@ var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
 
 const DEFAULT_MAX_FOLDERS_TO_CHECK = 100
 
+const TerragruntCacheDir = ".terragrunt-cache"
+
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
 	// Location of the Terragrunt config file
@@ -29,6 +29,9 @@ type TerragruntOptions struct {
 
 	// Location of the terraform binary
 	TerraformPath string
+
+	// Current Terraform command being executed by Terragrunt
+	TerraformCommand string
 
 	// Version of terraform (obtained by running 'terraform version')
 	TerraformVersion *version.Version
@@ -87,28 +90,17 @@ type TerragruntOptions struct {
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage
 func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, error) {
-	workingDir := filepath.Dir(terragruntConfigPath)
-
 	logger := util.CreateLogger("")
 
-	homedir, err := homedir.Dir()
+	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(terragruntConfigPath)
 	if err != nil {
-		logger.Printf("error: %v\n", err)
-		return nil, err
-	}
-
-	downloadDir := filepath.Join(homedir, ".terragrunt")
-	// On some versions of Windows, the default temp dir is a fairly long path (e.g. C:/Users/JONDOE~1/AppData/Local/Temp/2/).
-	// This is a problem because Windows also limits path lengths to 260 characters, and with nested folders and hashed folder names
-	// (e.g. from running terraform get), you can hit that limit pretty quickly. Therefore, we try to set the temporary download
-	// folder to something slightly shorter, but still reasonable.
-	if runtime.GOOS == "windows" {
-		downloadDir = `C:\\Windows\\Temp\\terragrunt`
+		return nil, errors.WithStackTrace(err)
 	}
 
 	return &TerragruntOptions{
 		TerragruntConfigPath:   terragruntConfigPath,
 		TerraformPath:          "terraform",
+		TerraformCommand:       "",
 		AutoInit:               true,
 		NonInteractive:         false,
 		TerraformCliArgs:       []string{},
@@ -126,6 +118,18 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
 	}, nil
+}
+
+// Get the default working and download directories for the given Terragrunt config path
+func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string, error) {
+	workingDir := filepath.Dir(terragruntConfigPath)
+
+	downloadDir, err := filepath.Abs(filepath.Join(workingDir, TerragruntCacheDir))
+	if err != nil {
+		return "", "", errors.WithStackTrace(err)
+	}
+
+	return workingDir, downloadDir, nil
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for test usage
@@ -154,6 +158,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 	return &TerragruntOptions{
 		TerragruntConfigPath:   terragruntConfigPath,
 		TerraformPath:          terragruntOptions.TerraformPath,
+		TerraformCommand:       terragruntOptions.TerraformCommand,
 		TerraformVersion:       terragruntOptions.TerraformVersion,
 		AutoInit:               terragruntOptions.AutoInit,
 		NonInteractive:         terragruntOptions.NonInteractive,
@@ -178,7 +183,9 @@ func (terragruntOptions *TerragruntOptions) InsertTerraformCliArgs(argsToInsert 
 
 	commandLength := 1
 	if util.ListContainsElement(TERRAFORM_COMMANDS_WITH_SUBCOMMAND, terragruntOptions.TerraformCliArgs[0]) {
-		commandLength = 2
+		// Since these terraform commands require subcommands which may not always be properly passed by the user,
+		// using util.Min to return the minimum to avoid potential out of bounds slice errors.
+		commandLength = util.Min(2, len(terragruntOptions.TerraformCliArgs))
 	}
 
 	// Options must be inserted after command but before the other args
