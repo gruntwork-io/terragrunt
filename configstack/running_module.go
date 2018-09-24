@@ -26,6 +26,7 @@ type runningModule struct {
 	DependencyDone chan *runningModule
 	Dependencies   map[string]*runningModule
 	NotifyWhenDone []*runningModule
+	FlagExcluded   bool
 }
 
 // This controls in what order dependencies should be enforced between modules
@@ -46,6 +47,7 @@ func newRunningModule(module *TerraformModule) *runningModule {
 		DependencyDone: make(chan *runningModule, 1000), // Use a huge buffer to ensure senders are never blocked
 		Dependencies:   map[string]*runningModule{},
 		NotifyWhenDone: []*runningModule{},
+		FlagExcluded:   module.FlagExcluded,
 	}
 }
 
@@ -120,7 +122,7 @@ func removeFlagExcluded(modules map[string]*runningModule) map[string]*runningMo
 	for key, module := range modules {
 
 		// Only add modules that should not be excluded
-		if !module.Module.FlagExcluded {
+		if !module.FlagExcluded {
 			finalModules[key] = &runningModule{
 				Module:         module.Module,
 				Dependencies:   make(map[string]*runningModule),
@@ -131,9 +133,9 @@ func removeFlagExcluded(modules map[string]*runningModule) map[string]*runningMo
 			}
 
 			// Only add dependencies that should not be excluded
-			for _, dependency := range module.Module.Dependencies {
+			for path, dependency := range module.Dependencies {
 				if !dependency.FlagExcluded {
-					finalModules[key].Dependencies[dependency.Path] = module.Dependencies[dependency.Path]
+					finalModules[key].Dependencies[path] = dependency
 				}
 			}
 		}

@@ -1017,7 +1017,7 @@ func TestPreventDestroyDependencies(t *testing.T) {
 }
 
 func TestExcludeDirs(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 
 	// Populate module paths.
 	moduleNames := []string{
