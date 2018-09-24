@@ -2,14 +2,15 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
-	"os"
-	"path/filepath"
-	"testing"
 )
 
 func TestPathRelativeToInclude(t *testing.T) {
@@ -63,7 +64,8 @@ func TestPathRelativeToInclude(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		actualPath, actualErr := pathRelativeToInclude(testCase.include, testCase.terragruntOptions)
+		ti := TerragruntInterpolation{Options: testCase.terragruntOptions, include: testCase.include}
+		actualPath, actualErr := ti.pathRelativeToInclude()
 		assert.Nil(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
 		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
 	}
@@ -120,7 +122,8 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		actualPath, actualErr := pathRelativeFromInclude(testCase.include, testCase.terragruntOptions)
+		ti := TerragruntInterpolation{include: testCase.include, Options: testCase.terragruntOptions}
+		actualPath, actualErr := ti.pathRelativeFromInclude()
 		assert.Nil(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
 		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
 	}
@@ -199,7 +202,8 @@ func TestFindInParentFolders(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.terragruntOptions.TerragruntConfigPath, func(t *testing.T) {
-			actualPath, actualErr := findInParentFolders(testCase.params, testCase.terragruntOptions)
+			ti := TerragruntInterpolation{Options: testCase.terragruntOptions}
+			actualPath, actualErr := ti.findInParentFolders(testCase.params)
 			if testCase.expectedErr != nil {
 				if assert.Error(t, actualErr) {
 					assert.IsType(t, testCase.expectedErr, errors.Unwrap(actualErr))
@@ -275,7 +279,7 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 		str               string
 		include           *IncludeConfig
 		terragruntOptions *options.TerragruntOptions
-		expectedOut       string
+		expectedOut       interface{}
 		expectedErr       error
 	}{
 		{
@@ -345,7 +349,8 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(fmt.Sprintf("%s--%s", testCase.str, testCase.terragruntOptions.TerragruntConfigPath), func(t *testing.T) {
-			actualOut, actualErr := resolveTerragruntInterpolation(testCase.str, testCase.include, testCase.terragruntOptions)
+			ti := TerragruntInterpolation{include: testCase.include, Options: testCase.terragruntOptions}
+			actualOut, actualErr := ti.resolveValue(testCase.str)
 			if testCase.expectedErr != nil {
 				if assert.Error(t, actualErr) {
 					assert.IsType(t, testCase.expectedErr, errors.Unwrap(actualErr))
@@ -739,30 +744,11 @@ func testGetTfVarsDir(t *testing.T, configPath string, expectedPath string) {
 	terragruntOptions, err := options.NewTerragruntOptionsForTest(configPath)
 	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
-	actualPath, err := getTfVarsDir(terragruntOptions)
+	ti := TerragruntInterpolation{Options: terragruntOptions}
+	actualPath, err := ti.getTfVarsDir()
 
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, expectedPath, actualPath)
-}
-
-func terragruntOptionsForTest(t *testing.T, configPath string) *options.TerragruntOptions {
-	opts, err := options.NewTerragruntOptionsForTest(configPath)
-	if err != nil {
-		t.Fatalf("Failed to create TerragruntOptions: %v", err)
-	}
-	return opts
-}
-
-func terragruntOptionsForTestWithMaxFolders(t *testing.T, configPath string, maxFoldersToCheck int) *options.TerragruntOptions {
-	opts := terragruntOptionsForTest(t, configPath)
-	opts.MaxFoldersToCheck = maxFoldersToCheck
-	return opts
-}
-
-func terragruntOptionsForTestWithEnv(t *testing.T, configPath string, env map[string]string) *options.TerragruntOptions {
-	opts := terragruntOptionsForTest(t, configPath)
-	opts.Env = env
-	return opts
 }
 
 func TestGetParentTfVarsDir(t *testing.T) {
@@ -820,8 +806,29 @@ func TestGetParentTfVarsDir(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		actualPath, actualErr := getParentTfVarsDir(testCase.include, testCase.terragruntOptions)
+		ti := TerragruntInterpolation{include: testCase.include, Options: testCase.terragruntOptions}
+		actualPath, actualErr := ti.getParentTfVarsDir()
 		assert.Nil(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
 		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
 	}
+}
+
+func terragruntOptionsForTest(t *testing.T, configPath string) *options.TerragruntOptions {
+	opts, err := options.NewTerragruntOptionsForTest(configPath)
+	if err != nil {
+		t.Fatalf("Failed to create TerragruntOptions: %v", err)
+	}
+	return opts
+}
+
+func terragruntOptionsForTestWithMaxFolders(t *testing.T, configPath string, maxFoldersToCheck int) *options.TerragruntOptions {
+	opts := terragruntOptionsForTest(t, configPath)
+	opts.MaxFoldersToCheck = maxFoldersToCheck
+	return opts
+}
+
+func terragruntOptionsForTestWithEnv(t *testing.T, configPath string, env map[string]string) *options.TerragruntOptions {
+	opts := terragruntOptionsForTest(t, configPath)
+	opts.Env = env
+	return opts
 }

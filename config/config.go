@@ -21,11 +21,8 @@ type TerragruntConfig struct {
 	Terraform      *TerraformConfig
 	RemoteState    *remote.RemoteState
 	Dependencies   *ModuleDependencies
+	Variables    map[string]interface{}
 	PreventDestroy bool
-}
-
-func (conf *TerragruntConfig) String() string {
-	return fmt.Sprintf("TerragruntConfig{Terraform = %v, RemoteState = %v, Dependencies = %v, PreventDestroy = %v}", conf.Terraform, conf.RemoteState, conf.Dependencies, conf.PreventDestroy)
 }
 
 // terragruntConfigFile represents the configuration supported in a Terragrunt configuration file (i.e.
@@ -47,6 +44,7 @@ type LockConfig map[interface{}]interface{}
 // tfvarsFileWithTerragruntConfig represents a .tfvars file that contains a terragrunt = { ... } block
 type tfvarsFileWithTerragruntConfig struct {
 	Terragrunt *terragruntConfigFile `hcl:"terragrunt,omitempty"`
+	VarFiles   []string              `hcl:"terragrunt_var_files,omitempty"`
 }
 
 // IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
@@ -134,6 +132,11 @@ func (conf *TerraformExtraArguments) String() string {
 		conf.Arguments,
 		conf.Commands,
 		conf.EnvVars)
+}
+
+type Variable struct {
+	Name  string
+	Value string
 }
 
 // Return the default path to use for the Terragrunt configuration file. The reason this is a method rather than a
@@ -279,15 +282,36 @@ func ParseConfigFile(configPath string, terragruntOptions *options.TerragruntOpt
 
 // Parse the Terragrunt config contained in the given string.
 func parseConfigString(configString string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig, configPath string) (*TerragruntConfig, error) {
-	resolvedConfigString, err := ResolveTerragruntConfigString(configString, include, terragruntOptions)
-	if err != nil {
-		return nil, err
+	terragruntConfigFile := &terragruntConfigFile{}
+
+	if isOldTerragruntConfig(configPath) {
+		if err := hcl.Decode(terragruntConfigFile, configString); err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
+	} else {
+
+		// pass one: resolveTerragruntVariables
+		ti := TerragruntInterpolation{Options: terragruntOptions, include: include}
+		variables, err := ti.ResolveTerragruntVariables(configString)
+		if err != nil {
+			return nil, err
+		}
+		// we can assign variables here
+
+		// pass two: resolveTerraformConfig
+		ti = TerragruntInterpolation{
+			Options:   terragruntOptions,
+			Variables: variables,
+			include:   include,
+		}
+		// we ignore errors for now -- unknown functions pass later
+		tfconfig, err := ti.ResolveTerragruntConfig(configString)
+		if err != nil {
+			return nil, err
+		}
+		terragruntConfigFile = tfconfig.Terragrunt
 	}
 
-	terragruntConfigFile, err := parseConfigStringAsTerragruntConfigFile(resolvedConfigString, configPath)
-	if err != nil {
-		return nil, err
-	}
 	if terragruntConfigFile == nil {
 		return nil, errors.WithStackTrace(CouldNotResolveTerragruntConfigInFile(configPath))
 	}
@@ -359,6 +383,11 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 
 	if config.Dependencies != nil {
 		includedConfig.Dependencies = config.Dependencies
+	}
+
+	// merge variables here
+	for k, v := range config.Variables {
+		includedConfig.Variables[k] = v
 	}
 
 	return includedConfig, nil
