@@ -142,17 +142,6 @@ func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 	return out
 }
 
-<<<<<<< HEAD
-func filterTerraformEnvVars(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) map[string]string {
-	out := map[string]string{}
-
-	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
-		for k, v := range arg.EnvVars {
-			out[k] = v
-		}
-	}
-	terragruntOptions.Logger.Printf("[DEBUG] FUUUUCK filterTerraformEnvVars: %+v", terragruntConfig.Terraform.ExtraArgs)
-=======
 func filterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) map[string]string {
 	out := map[string]string{}
 	cmd := util.FirstArg(terragruntOptions.TerraformCliArgs)
@@ -166,7 +155,6 @@ func filterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOp
 			}
 		}
 	}
->>>>>>> 9f07db38036dc4091d619a78537f30554ba3884b
 
 	return out
 }
