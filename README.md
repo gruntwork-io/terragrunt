@@ -1090,7 +1090,7 @@ terragrunt = {
 }
 ```
 
-If you run `terragrunt apply-all --terragrunt-source: /source/infrastructure-modules`, then the local path Terragrunt
+If you run `terragrunt apply-all --terragrunt-source /source/infrastructure-modules`, then the local path Terragrunt
 will compute for the module above will be `/source/infrastructure-modules//networking/vpc`.
 
 
