@@ -127,18 +127,24 @@ func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 			if cmd == arg_cmd {
 				out = append(out, arg.Arguments...)
 
-				// If RequiredVarFiles is specified, add -var-file=<file> for each specified files
-				for _, file := range util.RemoveDuplicatesFromListKeepLast(arg.RequiredVarFiles) {
-					out = append(out, fmt.Sprintf("-var-file=%s", file))
-				}
-
-				// If OptionalVarFiles is specified, check for each file if it exists and if so, add -var-file=<file>
-				// It is possible that many files resolve to the same path, so we remove duplicates.
-				for _, file := range util.RemoveDuplicatesFromListKeepLast(arg.OptionalVarFiles) {
-					if util.FileExists(file) {
+				// The following is a fix for GH-493.
+				// If the first argument is "apply" and the second argument is a file (plan),
+				// we don't add any -var-file to the command.
+				secondArg := secondArg(terragruntOptions.TerraformCliArgs)
+				if !(cmd == "apply" && util.IsFile(secondArg)) {
+					// If RequiredVarFiles is specified, add -var-file=<file> for each specified files
+					for _, file := range util.RemoveDuplicatesFromListKeepLast(arg.RequiredVarFiles) {
 						out = append(out, fmt.Sprintf("-var-file=%s", file))
-					} else {
-						terragruntOptions.Logger.Printf("Skipping var-file %s as it does not exist", file)
+					}
+
+					// If OptionalVarFiles is specified, check for each file if it exists and if so, add -var-file=<file>
+					// It is possible that many files resolve to the same path, so we remove duplicates.
+					for _, file := range util.RemoveDuplicatesFromListKeepLast(arg.OptionalVarFiles) {
+						if util.FileExists(file) {
+							out = append(out, fmt.Sprintf("-var-file=%s", file))
+						} else {
+							terragruntOptions.Logger.Printf("Skipping var-file %s as it does not exist", file)
+						}
 					}
 				}
 			}
