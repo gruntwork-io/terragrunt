@@ -130,7 +130,7 @@ func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 				// The following is a fix for GH-493.
 				// If the first argument is "apply" and the second argument is a file (plan),
 				// we don't add any -var-file to the command.
-				secondArg := secondArg(terragruntOptions.TerraformCliArgs)
+				secondArg := util.SecondArg(terragruntOptions.TerraformCliArgs)
 				if !(cmd == "apply" && util.IsFile(secondArg)) {
 					// If RequiredVarFiles is specified, add -var-file=<file> for each specified files
 					for _, file := range util.RemoveDuplicatesFromListKeepLast(arg.RequiredVarFiles) {
