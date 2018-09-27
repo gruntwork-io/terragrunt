@@ -45,6 +45,7 @@ const (
 	TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH             = "fixture-download/local-relative"
 	TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH            = "fixture-download/remote-relative"
 	TEST_FIXTURE_LOCAL_WITH_BACKEND                       = "fixture-download/local-with-backend"
+	TEST_FIXTURE_LOCAL_WITH_EXCLUDE_DIR                   = "fixture-download/local-with-exclude-dir"
 	TEST_FIXTURE_REMOTE_WITH_BACKEND                      = "fixture-download/remote-with-backend"
 	TEST_FIXTURE_REMOTE_MODULE_IN_ROOT                    = "fixture-download/remote-module-in-root"
 	TEST_FIXTURE_LOCAL_MISSING_BACKEND                    = "fixture-download/local-with-missing-backend"
@@ -74,6 +75,7 @@ const (
 	TERRAFORM_FOLDER                                      = ".terraform"
 	TERRAFORM_STATE                                       = "terraform.tfstate"
 	TERRAFORM_STATE_BACKUP                                = "terraform.tfstate.backup"
+	TERRAGRUNT_CACHE                                      = ".terragrunt-cache"
 )
 
 func init() {
@@ -1014,6 +1016,72 @@ func TestPreventDestroyDependencies(t *testing.T) {
 	}
 }
 
+func TestExcludeDirs(t *testing.T) {
+	t.Parallel()
+
+	// Populate module paths.
+	moduleNames := []string{
+		"integration-env/aws/module-aws-a",
+		"integration-env/gce/module-gce-b",
+		"integration-env/gce/module-gce-c",
+		"production-env/aws/module-aws-d",
+		"production-env/gce/module-gce-e",
+	}
+
+	testCases := []struct {
+		workingDir            string
+		excludeArgs           string
+		excludedModuleOutputs []string
+	}{
+		{TEST_FIXTURE_LOCAL_WITH_EXCLUDE_DIR, "--terragrunt-exclude-dir */gce", []string{"Module GCE B", "Module GCE C", "Module GCE E"}},
+		{TEST_FIXTURE_LOCAL_WITH_EXCLUDE_DIR, "--terragrunt-exclude-dir production-env --terragrunt-exclude-dir **/module-gce-c", []string{"Module GCE C", "Module AWS D", "Module GCE E"}},
+		{TEST_FIXTURE_LOCAL_WITH_EXCLUDE_DIR, "--terragrunt-exclude-dir integration-env/gce/module-gce-b --terragrunt-exclude-dir integration-env/gce/module-gce-c --terragrunt-exclude-dir **/module-aws*", []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"}},
+	}
+
+	modulePaths := make(map[string]string, len(moduleNames))
+	for _, moduleName := range moduleNames {
+		modulePaths[moduleName] = util.JoinPath(TEST_FIXTURE_LOCAL_WITH_EXCLUDE_DIR, moduleName)
+	}
+
+	for _, testCase := range testCases {
+		applyAllStdout := bytes.Buffer{}
+		applyAllStderr := bytes.Buffer{}
+
+		// Cleanup all modules directories.
+		cleanupTerragruntFolder(t, TEST_FIXTURE_LOCAL_WITH_EXCLUDE_DIR)
+		for _, modulePath := range modulePaths {
+			cleanupTerragruntFolder(t, modulePath)
+		}
+
+		// Apply modules according to test cases
+		err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s %s", testCase.workingDir, testCase.excludeArgs), &applyAllStdout, &applyAllStderr)
+
+		logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
+		logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
+
+		if err != nil {
+			t.Fatalf("apply-all in TestExcludeDirs failed with error: %v. Full std", err)
+		}
+
+		// Check that the excluded module output is not present
+		for _, modulePath := range modulePaths {
+			showStdout := bytes.Buffer{}
+			showStderr := bytes.Buffer{}
+
+			err = runTerragruntCommand(t, fmt.Sprintf("terragrunt show --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), &showStdout, &showStderr)
+			logBufferContentsLineByLine(t, showStdout, fmt.Sprintf("show stdout for %s", modulePath))
+			logBufferContentsLineByLine(t, showStderr, fmt.Sprintf("show stderr for %s", modulePath))
+
+			assert.NoError(t, err)
+			output := showStdout.String()
+			for _, excludedModuleOutput := range testCase.excludedModuleOutputs {
+				assert.NotContains(t, output, excludedModuleOutput)
+			}
+
+		}
+	}
+}
+
 func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
 	t.Logf("[%s] Full contents of %s:", t.Name(), label)
 	lines := strings.Split(out.String(), "\n")
@@ -1026,6 +1094,10 @@ func cleanupTerraformFolder(t *testing.T, templatesPath string) {
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE))
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE_BACKUP))
 	removeFolder(t, util.JoinPath(templatesPath, TERRAFORM_FOLDER))
+}
+
+func cleanupTerragruntFolder(t *testing.T, templatesPath string) {
+	removeFolder(t, util.JoinPath(templatesPath, TERRAGRUNT_CACHE))
 }
 
 func removeFile(t *testing.T, path string) {

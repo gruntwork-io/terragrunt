@@ -87,6 +87,11 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 		return nil, err
 	}
 
+	excludeDirs, err := parseMultiStringArg(args, OPT_TERRAGRUNT_EXCLUDE_DIR, []string{})
+	if err != nil {
+		return nil, err
+	}
+
 	opts, err := options.NewTerragruntOptions(filepath.ToSlash(terragruntConfigPath))
 	if err != nil {
 		return nil, err
@@ -108,6 +113,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 	opts.ErrWriter = errWriter
 	opts.Env = parseEnvironmentVariables(os.Environ())
 	opts.IamRole = iamRole
+	opts.ExcludeDirs = excludeDirs
 
 	return opts, nil
 }
@@ -224,6 +230,27 @@ func parseStringArg(args []string, argName string, defaultValue string) (string,
 		}
 	}
 	return defaultValue, nil
+}
+
+// Find multiple string arguments of the same type (e.g. --foo "VALUE_A" --foo "VALUE_B") of the given name in the given list of arguments. If there are any present,
+// return a list of all values. If there are any present, but one of them has no value, return an error. If there aren't any present, return defaultValue.
+func parseMultiStringArg(args []string, argName string, defaultValue []string) ([]string, error) {
+	stringArgs := []string{}
+
+	for i, arg := range args {
+		if arg == fmt.Sprintf("--%s", argName) {
+			if (i + 1) < len(args) {
+				stringArgs = append(stringArgs, args[i+1])
+			} else {
+				return nil, errors.WithStackTrace(ArgMissingValue(argName))
+			}
+		}
+	}
+	if len(stringArgs) == 0 {
+		return defaultValue, nil
+	}
+
+	return stringArgs, nil
 }
 
 // Custom error types

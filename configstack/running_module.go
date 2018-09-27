@@ -2,10 +2,11 @@ package configstack
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/shell"
 	"strings"
 	"sync"
+
+	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/shell"
 )
 
 // Represents the status of a module that we are trying to apply as part of the apply-all or destroy-all command
@@ -25,6 +26,7 @@ type runningModule struct {
 	DependencyDone chan *runningModule
 	Dependencies   map[string]*runningModule
 	NotifyWhenDone []*runningModule
+	FlagExcluded   bool
 }
 
 // This controls in what order dependencies should be enforced between modules
@@ -45,6 +47,7 @@ func newRunningModule(module *TerraformModule) *runningModule {
 		DependencyDone: make(chan *runningModule, 1000), // Use a huge buffer to ensure senders are never blocked
 		Dependencies:   map[string]*runningModule{},
 		NotifyWhenDone: []*runningModule{},
+		FlagExcluded:   module.FlagExcluded,
 	}
 }
 
@@ -79,7 +82,12 @@ func toRunningModules(modules []*TerraformModule, dependencyOrder DependencyOrde
 		runningModules[module.Path] = newRunningModule(module)
 	}
 
-	return crossLinkDependencies(runningModules, dependencyOrder)
+	crossLinkedModules, err := crossLinkDependencies(runningModules, dependencyOrder)
+	if err != nil {
+		return crossLinkedModules, err
+	}
+
+	return removeFlagExcluded(crossLinkedModules), nil
 }
 
 // Loop through the map of runningModules and for each module M:
@@ -105,6 +113,35 @@ func crossLinkDependencies(modules map[string]*runningModule, dependencyOrder De
 	}
 
 	return modules, nil
+}
+
+// Return a cleaned-up map that only contains modules and dependencies that should not be excluded
+func removeFlagExcluded(modules map[string]*runningModule) map[string]*runningModule {
+	var finalModules = make(map[string]*runningModule)
+
+	for key, module := range modules {
+
+		// Only add modules that should not be excluded
+		if !module.FlagExcluded {
+			finalModules[key] = &runningModule{
+				Module:         module.Module,
+				Dependencies:   make(map[string]*runningModule),
+				DependencyDone: module.DependencyDone,
+				Err:            module.Err,
+				NotifyWhenDone: module.NotifyWhenDone,
+				Status:         module.Status,
+			}
+
+			// Only add dependencies that should not be excluded
+			for path, dependency := range module.Dependencies {
+				if !dependency.FlagExcluded {
+					finalModules[key].Dependencies[path] = dependency
+				}
+			}
+		}
+	}
+
+	return finalModules
 }
 
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
