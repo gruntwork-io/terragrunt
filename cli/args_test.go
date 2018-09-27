@@ -324,8 +324,6 @@ func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
 }
 
 func TestFilterTerraformExtraArgs(t *testing.T) {
-	t.Parallel()
-
 	workingDir, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
@@ -373,14 +371,14 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 		// apply providing a folder, var files should stay included
 		{
 			mockCmdOptions(t, workingDir, []string{"apply", workingDir}),
-			mockExtraArgs([]string{"--foo", "bar"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
-			[]string{"--foo", "bar", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "-var='key=value'"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			[]string{"--foo", "-var-file=test.tfvars", "-var='key=value'", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
 		},
 		// apply providing a file, no var files included
 		{
 			mockCmdOptions(t, workingDir, []string{"apply", temporaryFile}),
-			mockExtraArgs([]string{"--foo", "bar"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
-			[]string{"--foo", "bar"},
+			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			[]string{"--foo", "bar", "foo"},
 		},
 
 		// Command not included in commands list

@@ -125,13 +125,26 @@ func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
 		for _, arg_cmd := range arg.Commands {
 			if cmd == arg_cmd {
-				out = append(out, arg.Arguments...)
+				secondArg := util.SecondArg(terragruntOptions.TerraformCliArgs)
+				skipVars := cmd == "apply" && util.IsFile(secondArg)
+
 
 				// The following is a fix for GH-493.
 				// If the first argument is "apply" and the second argument is a file (plan),
 				// we don't add any -var-file to the command.
-				secondArg := util.SecondArg(terragruntOptions.TerraformCliArgs)
-				if !(cmd == "apply" && util.IsFile(secondArg)) {
+				if skipVars {
+					// If we have to skip vars, we need to iterate over all elements of array...
+					for _, a := range arg.Arguments {
+						if (!strings.HasPrefix(a, "-var")) {
+							out = append(out, a)
+						}
+					}
+				} else {
+					// ... Otherwise, let's add all the arguments
+					out = append(out, arg.Arguments...)
+				}
+
+				if !skipVars {
 					// If RequiredVarFiles is specified, add -var-file=<file> for each specified files
 					for _, file := range util.RemoveDuplicatesFromListKeepLast(arg.RequiredVarFiles) {
 						out = append(out, fmt.Sprintf("-var-file=%s", file))
