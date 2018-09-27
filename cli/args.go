@@ -128,14 +128,13 @@ func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 				secondArg := util.SecondArg(terragruntOptions.TerraformCliArgs)
 				skipVars := cmd == "apply" && util.IsFile(secondArg)
 
-
 				// The following is a fix for GH-493.
 				// If the first argument is "apply" and the second argument is a file (plan),
 				// we don't add any -var-file to the command.
 				if skipVars {
 					// If we have to skip vars, we need to iterate over all elements of array...
 					for _, a := range arg.Arguments {
-						if (!strings.HasPrefix(a, "-var")) {
+						if !strings.HasPrefix(a, "-var") {
 							out = append(out, a)
 						}
 					}

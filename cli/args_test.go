@@ -393,7 +393,7 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 			Terraform: &config.TerraformConfig{ExtraArgs: []config.TerraformExtraArguments{testCase.extraArgs}},
 		}
 
-		out := filterTerraformExtraArgs(testCase.options, &config);
+		out := filterTerraformExtraArgs(testCase.options, &config)
 
 		assert.Equal(t, testCase.expectedArgs, out)
 	}
@@ -416,9 +416,9 @@ func mockCmdOptions(t *testing.T, workingDir string, terraformCliArgs []string) 
 
 func mockExtraArgs(arguments, commands, requiredVarFiles, optionalVarFiles []string) config.TerraformExtraArguments {
 	a := config.TerraformExtraArguments{
-		Name: "test",
-		Arguments: arguments,
-		Commands: commands,
+		Name:             "test",
+		Arguments:        arguments,
+		Commands:         commands,
 		RequiredVarFiles: requiredVarFiles,
 		OptionalVarFiles: optionalVarFiles,
 	}
