@@ -555,6 +555,11 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "overrideWithEmptyHooks", Commands: []string{"parent-apply"}}}}},
 			&TerragruntConfig{Terraform: &TerraformConfig{AfterHooks: []Hook{Hook{Name: "overrideWithEmptyHooks"}}}},
 		},
+		{
+			&TerragruntConfig{PreventDestroy: true},
+			nil,
+			&TerragruntConfig{PreventDestroy: true},
+		},
 	}
 
 	for _, testCase := range testCases {
