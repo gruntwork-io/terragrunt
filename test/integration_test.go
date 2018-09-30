@@ -30,52 +30,53 @@ import (
 
 // hard-code this to match the test fixture for now
 const (
-	TERRAFORM_REMOTE_STATE_S3_REGION                      = "us-west-2"
-	TEST_FIXTURE_PATH                                     = "fixture/"
-	TEST_FIXTURE_INCLUDE_PATH                             = "fixture-include/"
-	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH                   = "qa/my-app"
-	TEST_FIXTURE_STACK                                    = "fixture-stack/"
-	TEST_FIXTURE_OUTPUT_ALL                               = "fixture-output-all"
-	TEST_FIXTURE_STDOUT                                   = "fixture-download/stdout-test"
-	TEST_FIXTURE_EXTRA_ARGS_PATH                          = "fixture-extra-args/"
-	TEST_FIXTURE_ENV_VARS_BLOCK_PATH                      = "fixture-env-vars-block/"
-	TEST_FIXTURE_LOCAL_DOWNLOAD_PATH                      = "fixture-download/local"
-	TEST_FIXTURE_REMOTE_DOWNLOAD_PATH                     = "fixture-download/remote"
-	TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH                   = "fixture-download/override"
-	TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH             = "fixture-download/local-relative"
-	TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH            = "fixture-download/remote-relative"
-	TEST_FIXTURE_LOCAL_WITH_BACKEND                       = "fixture-download/local-with-backend"
-	TEST_FIXTURE_LOCAL_WITH_EXCLUDE_DIR                   = "fixture-download/local-with-exclude-dir"
-	TEST_FIXTURE_REMOTE_WITH_BACKEND                      = "fixture-download/remote-with-backend"
-	TEST_FIXTURE_REMOTE_MODULE_IN_ROOT                    = "fixture-download/remote-module-in-root"
-	TEST_FIXTURE_LOCAL_MISSING_BACKEND                    = "fixture-download/local-with-missing-backend"
-	TEST_FIXTURE_LOCAL_WITH_HIDDEN_FOLDER                 = "fixture-download/local-with-hidden-folder"
-	TEST_FIXTURE_LOCAL_PREVENT_DESTROY                    = "fixture-download/local-with-prevent-destroy"
-	TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES       = "fixture-download/local-with-prevent-destroy-dependencies"
-	TEST_FIXTURE_OLD_CONFIG_INCLUDE_PATH                  = "fixture-old-terragrunt-config/include"
-	TEST_FIXTURE_OLD_CONFIG_INCLUDE_CHILD_UPDATED_PATH    = "fixture-old-terragrunt-config/include-child-updated"
-	TEST_FIXTURE_OLD_CONFIG_INCLUDE_PARENT_UPDATED_PATH   = "fixture-old-terragrunt-config/include-parent-updated"
-	TEST_FIXTURE_OLD_CONFIG_STACK_PATH                    = "fixture-old-terragrunt-config/stack"
-	TEST_FIXTURE_OLD_CONFIG_DOWNLOAD_PATH                 = "fixture-old-terragrunt-config/download"
-	TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH                   = "fixture-hooks/before-only"
-	TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH                    = "fixture-hooks/after-only"
-	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH              = "fixture-hooks/before-and-after"
-	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_MERGE_PATH        = "fixture-hooks/before-and-after-merge"
-	TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH                 = "fixture-hooks/skip-on-error"
-	TEST_FIXTURE_HOOKS_ONE_ARG_ACTION_PATH                = "fixture-hooks/one-arg-action"
-	TEST_FIXTURE_HOOKS_EMPTY_STRING_COMMAND_PATH          = "fixture-hooks/bad-arg-action/empty-string-command"
-	TEST_FIXTURE_HOOKS_EMPTY_COMMAND_LIST_PATH            = "fixture-hooks/bad-arg-action/empty-command-list"
-	TEST_FIXTURE_HOOKS_INTERPOLATIONS_PATH                = "fixture-hooks/interpolations"
-	TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_NO_BACKEND     = "fixture-hooks/init-once/no-source-no-backend"
-	TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_WITH_BACKEND   = "fixture-hooks/init-once/no-source-with-backend"
-	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND   = "fixture-hooks/init-once/with-source-no-backend"
-	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_WITH_BACKEND = "fixture-hooks/init-once/with-source-with-backend"
-	TEST_FIXTURE_FAILED_TERRAFORM                         = "fixture-failure"
-	TEST_FIXTURE_EXIT_CODE                                = "fixture-exit-code"
-	TERRAFORM_FOLDER                                      = ".terraform"
-	TERRAFORM_STATE                                       = "terraform.tfstate"
-	TERRAFORM_STATE_BACKUP                                = "terraform.tfstate.backup"
-	TERRAGRUNT_CACHE                                      = ".terragrunt-cache"
+	TERRAFORM_REMOTE_STATE_S3_REGION                        = "us-west-2"
+	TEST_FIXTURE_PATH                                       = "fixture/"
+	TEST_FIXTURE_INCLUDE_PATH                               = "fixture-include/"
+	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH                     = "qa/my-app"
+	TEST_FIXTURE_STACK                                      = "fixture-stack/"
+	TEST_FIXTURE_OUTPUT_ALL                                 = "fixture-output-all"
+	TEST_FIXTURE_STDOUT                                     = "fixture-download/stdout-test"
+	TEST_FIXTURE_EXTRA_ARGS_PATH                            = "fixture-extra-args/"
+	TEST_FIXTURE_ENV_VARS_BLOCK_PATH                        = "fixture-env-vars-block/"
+	TEST_FIXTURE_LOCAL_DOWNLOAD_PATH                        = "fixture-download/local"
+	TEST_FIXTURE_REMOTE_DOWNLOAD_PATH                       = "fixture-download/remote"
+	TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH                     = "fixture-download/override"
+	TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH               = "fixture-download/local-relative"
+	TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH              = "fixture-download/remote-relative"
+	TEST_FIXTURE_LOCAL_WITH_BACKEND                         = "fixture-download/local-with-backend"
+	TEST_FIXTURE_LOCAL_WITH_EXCLUDE_DIR                     = "fixture-download/local-with-exclude-dir"
+	TEST_FIXTURE_REMOTE_WITH_BACKEND                        = "fixture-download/remote-with-backend"
+	TEST_FIXTURE_REMOTE_MODULE_IN_ROOT                      = "fixture-download/remote-module-in-root"
+	TEST_FIXTURE_LOCAL_MISSING_BACKEND                      = "fixture-download/local-with-missing-backend"
+	TEST_FIXTURE_LOCAL_WITH_HIDDEN_FOLDER                   = "fixture-download/local-with-hidden-folder"
+	TEST_FIXTURE_LOCAL_PREVENT_DESTROY                      = "fixture-download/local-with-prevent-destroy"
+	TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES         = "fixture-download/local-with-prevent-destroy-dependencies"
+	TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES = "fixture-download/local-include-with-prevent-destroy-dependencies"
+	TEST_FIXTURE_OLD_CONFIG_INCLUDE_PATH                    = "fixture-old-terragrunt-config/include"
+	TEST_FIXTURE_OLD_CONFIG_INCLUDE_CHILD_UPDATED_PATH      = "fixture-old-terragrunt-config/include-child-updated"
+	TEST_FIXTURE_OLD_CONFIG_INCLUDE_PARENT_UPDATED_PATH     = "fixture-old-terragrunt-config/include-parent-updated"
+	TEST_FIXTURE_OLD_CONFIG_STACK_PATH                      = "fixture-old-terragrunt-config/stack"
+	TEST_FIXTURE_OLD_CONFIG_DOWNLOAD_PATH                   = "fixture-old-terragrunt-config/download"
+	TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH                     = "fixture-hooks/before-only"
+	TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH                      = "fixture-hooks/after-only"
+	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH                = "fixture-hooks/before-and-after"
+	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_MERGE_PATH          = "fixture-hooks/before-and-after-merge"
+	TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH                   = "fixture-hooks/skip-on-error"
+	TEST_FIXTURE_HOOKS_ONE_ARG_ACTION_PATH                  = "fixture-hooks/one-arg-action"
+	TEST_FIXTURE_HOOKS_EMPTY_STRING_COMMAND_PATH            = "fixture-hooks/bad-arg-action/empty-string-command"
+	TEST_FIXTURE_HOOKS_EMPTY_COMMAND_LIST_PATH              = "fixture-hooks/bad-arg-action/empty-command-list"
+	TEST_FIXTURE_HOOKS_INTERPOLATIONS_PATH                  = "fixture-hooks/interpolations"
+	TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_NO_BACKEND       = "fixture-hooks/init-once/no-source-no-backend"
+	TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_WITH_BACKEND     = "fixture-hooks/init-once/no-source-with-backend"
+	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND     = "fixture-hooks/init-once/with-source-no-backend"
+	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_WITH_BACKEND   = "fixture-hooks/init-once/with-source-with-backend"
+	TEST_FIXTURE_FAILED_TERRAFORM                           = "fixture-failure"
+	TEST_FIXTURE_EXIT_CODE                                  = "fixture-exit-code"
+	TERRAFORM_FOLDER                                        = ".terraform"
+	TERRAFORM_STATE                                         = "terraform.tfstate"
+	TERRAFORM_STATE_BACKUP                                  = "terraform.tfstate.backup"
+	TERRAGRUNT_CACHE                                        = ".terragrunt-cache"
 )
 
 func init() {
@@ -1012,6 +1013,78 @@ func TestPreventDestroyDependencies(t *testing.T) {
 			assert.NotContains(t, output, "Hello, Module D")
 		case "module-e":
 			assert.NotContains(t, output, "Hello, Module E")
+		}
+	}
+}
+
+func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
+	t.Parallel()
+
+	// Populate module paths.
+	moduleNames := []string{
+		"module-a",
+		"module-b",
+		"module-c",
+	}
+	modulePaths := make(map[string]string, len(moduleNames))
+	for _, moduleName := range moduleNames {
+		modulePaths[moduleName] = util.JoinPath(TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES, moduleName)
+	}
+
+	// Cleanup all modules directories.
+	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES)
+	for _, modulePath := range modulePaths {
+		cleanupTerraformFolder(t, modulePath)
+	}
+
+	var (
+		applyAllStdout bytes.Buffer
+		applyAllStderr bytes.Buffer
+	)
+
+	// Apply and destroy all modules.
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES), &applyAllStdout, &applyAllStderr)
+	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
+	logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
+
+	if err != nil {
+		t.Fatalf("apply-all in TestPreventDestroyDependenciesIncludedConfig failed with error: %v. Full std", err)
+	}
+
+	var (
+		destroyAllStdout bytes.Buffer
+		destroyAllStderr bytes.Buffer
+	)
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy-all --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES), &destroyAllStdout, &destroyAllStderr)
+	logBufferContentsLineByLine(t, destroyAllStdout, "destroy-all stdout")
+	logBufferContentsLineByLine(t, destroyAllStderr, "destroy-all stderr")
+
+	if assert.Error(t, err) {
+		underlying := errors.Unwrap(err)
+		assert.IsType(t, configstack.MultiError{}, underlying)
+	}
+
+	// Check that modules C, D and E were deleted and modules A and B weren't.
+	for moduleName, modulePath := range modulePaths {
+		var (
+			showStdout bytes.Buffer
+			showStderr bytes.Buffer
+		)
+
+		err = runTerragruntCommand(t, fmt.Sprintf("terragrunt show --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), &showStdout, &showStderr)
+		logBufferContentsLineByLine(t, showStdout, fmt.Sprintf("show stdout for %s", modulePath))
+		logBufferContentsLineByLine(t, showStderr, fmt.Sprintf("show stderr for %s", modulePath))
+
+		assert.NoError(t, err)
+		output := showStdout.String()
+		switch moduleName {
+		case "module-a":
+			assert.Contains(t, output, "Hello, Module A")
+		case "module-b":
+			assert.Contains(t, output, "Hello, Module B")
+		case "module-c":
+			assert.NotContains(t, output, "Hello, Module C")
 		}
 	}
 }

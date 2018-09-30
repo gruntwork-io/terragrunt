@@ -342,6 +342,9 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 	if config.RemoteState != nil {
 		includedConfig.RemoteState = config.RemoteState
 	}
+	if config.PreventDestroy {
+		includedConfig.PreventDestroy = config.PreventDestroy
+	}
 
 	if config.Terraform != nil {
 		if includedConfig.Terraform == nil {
