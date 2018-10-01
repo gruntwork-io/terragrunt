@@ -125,8 +125,8 @@ func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
 		for _, arg_cmd := range arg.Commands {
 			if cmd == arg_cmd {
-				secondArg := util.SecondArg(terragruntOptions.TerraformCliArgs)
-				skipVars := cmd == "apply" && util.IsFile(secondArg)
+				lastArg := util.LastArg(terragruntOptions.TerraformCliArgs)
+				skipVars := cmd == "apply" && util.IsFile(lastArg)
 
 				// The following is a fix for GH-493.
 				// If the first argument is "apply" and the second argument is a file (plan),

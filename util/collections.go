@@ -99,3 +99,11 @@ func SecondArg(args []string) string {
 	}
 	return ""
 }
+
+// A convenience method that returns the last item in the given list or an empty string if this is an empty list
+func LastArg(args []string) string {
+	if len(args) > 0 {
+		return args[len(args) - 1]
+	}
+	return ""
+}
