@@ -381,6 +381,19 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 			[]string{"--foo", "bar", "foo"},
 		},
 
+		// apply providing no params, var files should stay included
+		{
+			mockCmdOptions(t, workingDir, []string{"apply"}),
+			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			[]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+		},
+		// apply with some parameters, providing a file => no var files included
+		{
+			mockCmdOptions(t, workingDir, []string{"apply", "-no-color", "-foo", temporaryFile}),
+			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			[]string{"--foo", "bar", "foo"},
+		},
+
 		// Command not included in commands list
 		{
 			mockCmdOptions(t, workingDir, []string{"apply"}),
