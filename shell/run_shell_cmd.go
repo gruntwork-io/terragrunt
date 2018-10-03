@@ -182,18 +182,16 @@ func readStdoutAndStderr(stdout io.ReadCloser, stderr io.ReadCloser, terragruntO
 	stdoutScanner := bufio.NewScanner(stdout)
 	stderrScanner := bufio.NewScanner(stderr)
 
-	for {
-		if stdoutScanner.Scan() {
-			text := stdoutScanner.Text()
-			fmt.Fprintln(outWriter, text)
-			allOutput = append(allOutput, text)
-		} else if stderrScanner.Scan() {
-			text := stderrScanner.Text()
-			fmt.Fprintln(errWriter, text)
-			allOutput = append(allOutput, text)
-		} else {
-			break
-		}
+	for stdoutScanner.Scan() {
+		text := stdoutScanner.Text()
+		fmt.Fprintln(outWriter, text)
+		allOutput = append(allOutput, text)
+	}
+
+	for stderrScanner.Scan() {
+		text := stderrScanner.Text()
+		fmt.Fprintln(errWriter, text)
+		allOutput = append(allOutput, text)
 	}
 
 	if err := stdoutScanner.Err(); err != nil {
