@@ -13,6 +13,7 @@ func TestMatchesAny(t *testing.T) {
 		element  string
 		expected bool
 	}{
+		{nil, "", false},
 		{[]string{}, "", false},
 		{[]string{}, "foo", false},
 		{[]string{"foo"}, "kafoot", true},

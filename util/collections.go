@@ -7,11 +7,9 @@ import (
 )
 
 func MatchesAny(regExps []string, s string) bool {
-	if nil != regExps {
-		for i := 0; i < len(regExps); i++ {
-			if matched, _ := regexp.MatchString(regExps[i], s); matched {
-				return true
-			}
+	for _, item := range regExps {
+		if matched, _ := regexp.MatchString(item, s); matched {
+			return true
 		}
 	}
 	return false
