@@ -61,6 +61,7 @@ Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that pro
    1. [Interpolation Syntax](#interpolation-syntax)
    1. [Before and After Hooks](#before-and-after-hooks)
    1. [Auto-Init](#auto-init)
+   1. [Auto-Retry](#auto-retry)
    1. [CLI options](#cli-options)
    1. [Configuration](#configuration)
    1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
