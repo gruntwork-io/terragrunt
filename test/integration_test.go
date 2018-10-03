@@ -73,6 +73,7 @@ const (
 	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_WITH_BACKEND   = "fixture-hooks/init-once/with-source-with-backend"
 	TEST_FIXTURE_FAILED_TERRAFORM                           = "fixture-failure"
 	TEST_FIXTURE_EXIT_CODE                                  = "fixture-exit-code"
+	TEST_FIXTURE_AUTO_RETRY_RERUN                           = "fixture-auto-retry/re-run"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
 	TERRAFORM_STATE_BACKUP                                  = "terraform.tfstate.backup"
@@ -838,6 +839,19 @@ func TestPriorityOrderOfArgument(t *testing.T) {
 	// so our override of extra_var should be the last argument.
 	assert.Contains(t, out.String(), fmt.Sprintf("test = %s", injectedValue))
 }
+
+//func TestAutoRetryRerun(t *testing.T) {
+//	t.Parallel()
+//
+//	out := new(bytes.Buffer)
+//	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_RERUN)
+//	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_RERUN)
+//	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
+//
+//	assert.Nil(t, err)
+//	// t.Log(out)
+//	assert.NotContains(t, out.String(), "may need to run 'terraform init'")
+//}
 
 // This tests terragrunt properly passes through terraform commands and any number of specified args
 func TestTerraformCommandCliArgs(t *testing.T) {
