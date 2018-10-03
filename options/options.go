@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -87,7 +88,7 @@ type TerragruntOptions struct {
 	MaxRetryAttempts int
 
 	// Sleep is the duration in seconds to wait before retrying
-	Sleep int
+	Sleep time.Duration
 
 	// RetryableErrors is an array of regular expressions with RE2 syntax (https://github.com/google/re2/wiki/Syntax) that qualify for retrying
 	RetryableErrors []string
@@ -134,7 +135,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		MaxFoldersToCheck:      DEFAULT_MAX_FOLDERS_TO_CHECK,
 		AutoRetry:              true,
 		MaxRetryAttempts:       DEFAULT_MAX_RETRY_ATTEMPTS,
-		Sleep:                  DEFAULT_SLEEP,
+		Sleep:                  DEFAULT_SLEEP * time.Second,
 		RetryableErrors:        util.CloneStringList(RETRYABLE_ERRORS),
 		ErrorsRequiringInit:    util.CloneStringList(ERRORS_REQUIRING_INIT),
 		ExcludeDirs:            []string{},

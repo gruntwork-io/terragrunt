@@ -2,9 +2,9 @@ package shell
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -19,7 +19,19 @@ import (
 
 // Run the given Terraform command
 func RunTerraformCommand(terragruntOptions *options.TerragruntOptions, args ...string) error {
-	return RunShellCommand(terragruntOptions, terragruntOptions.TerraformPath, args...)
+	_, err := RunShellCommandWithOutput(terragruntOptions, terragruntOptions.TerraformPath, args...)
+	return err
+}
+
+// Run the given shell command
+func RunShellCommand(terragruntOptions *options.TerragruntOptions, command string, args ...string) error {
+	_, err := RunShellCommandWithOutput(terragruntOptions, command, args...)
+	return err
+}
+
+// Run the given Terraform command
+func RunTerraformCommandWithOutput(terragruntOptions *options.TerragruntOptions, args ...string) (string, error) {
+	return RunShellCommandWithOutput(terragruntOptions, terragruntOptions.TerraformPath, args...)
 }
 
 // Run the given Terraform command and return the stdout as a string
@@ -29,7 +41,7 @@ func RunTerraformCommandAndCaptureOutput(terragruntOptions *options.TerragruntOp
 
 // Run the specified shell command with the specified arguments. Connect the command's stdin, stdout, and stderr to
 // the currently running app.
-func RunShellCommand(terragruntOptions *options.TerragruntOptions, command string, args ...string) error {
+func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, command string, args ...string) (string, error) {
 	terragruntOptions.Logger.Printf("Running command: %s %s", command, strings.Join(args, " "))
 
 	var outToErr bool = false
@@ -38,18 +50,16 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 
 	stdoutIn, err := cmd.StdoutPipe()
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return "", errors.WithStackTrace(err)
 	}
 
 	stderrIn, err := cmd.StderrPipe()
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return "", errors.WithStackTrace(err)
 	}
 
 	// TODO: consider adding prefix from terragruntOptions logger to stdout and stderr
 	cmd.Stdin = os.Stdin
-	//cmd.Stdout = terragruntOptions.Writer
-	//cmd.Stderr = terragruntOptions.ErrWriter
 	cmd.Env = toEnvVarsList(terragruntOptions.Env)
 
 	// Terragrunt can run some commands (such as terraform remote config) before running the actual terraform
@@ -63,12 +73,12 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 
 	if err := cmd.Start(); err != nil {
 		// bad path, binary not executable, &c
-		return errors.WithStackTrace(err)
+		return "", errors.WithStackTrace(err)
 	}
 
 	output, err := readStdoutAndStderr(stdoutIn, stderrIn, terragruntOptions, outToErr)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return "", errors.WithStackTrace(err)
 	}
 
 	cmdChannel := make(chan error)
@@ -80,7 +90,7 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 
 	terragruntOptions.Logger.Println(fmt.Sprintf("And the output is: %v", output))
 
-	return errors.WithStackTrace(err)
+	return output, errors.WithStackTrace(err)
 }
 
 func toEnvVarsList(envVarsAsMap map[string]string) []string {
@@ -94,14 +104,13 @@ func toEnvVarsList(envVarsAsMap map[string]string) []string {
 // Run the specified shell command with the specified arguments. Capture the command's stdout and return it as a
 // string.
 func RunShellCommandAndCaptureOutput(terragruntOptions *options.TerragruntOptions, command string, args ...string) (string, error) {
-	stdout := new(bytes.Buffer)
+	stdout := ioutil.Discard
 
 	terragruntOptionsCopy := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	terragruntOptionsCopy.Writer = stdout
 	terragruntOptionsCopy.ErrWriter = stdout
 
-	err := RunShellCommand(terragruntOptionsCopy, command, args...)
-	return stdout.String(), err
+	return RunShellCommandWithOutput(terragruntOptionsCopy, command, args...)
 }
 
 // Return the exit code of a command. If the error does not implement errors.IErrorCode or is not an exec.ExitError
