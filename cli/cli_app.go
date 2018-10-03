@@ -725,6 +725,22 @@ func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragru
 	return nil
 }
 
+// isRetryable checks whether there was an error and we should attempt again
+func isRetryable(tfoutput string, tferr error, terragruntOptions *options.TerragruntOptions) bool {
+	if !terragruntOptions.AutoRetry || tferr == nil {
+		return false
+	}
+	return util.MatchesAny(terragruntOptions.RetryableErrors, tfoutput)
+}
+
+// isErrorRequiringInit checks whether there was an error and we should attempt to re-run init
+func isErrorRequiringInit(tfoutput string, tferr error, terragruntOptions *options.TerragruntOptions) bool {
+	if !terragruntOptions.AutoRetry || !terragruntOptions.AutoInit || tferr == nil {
+		return false
+	}
+	return util.MatchesAny(terragruntOptions.ErrorsRequiringInit, tfoutput)
+}
+
 // Custom error types
 
 type UnrecognizedCommand string

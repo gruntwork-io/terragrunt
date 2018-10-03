@@ -5,6 +5,27 @@ import (
 	"testing"
 )
 
+func TestMatchesAny(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		list     []string
+		element  string
+		expected bool
+	}{
+		{[]string{}, "", false},
+		{[]string{}, "foo", false},
+		{[]string{"foo"}, "kafoot", true},
+		{[]string{"bar", "foo", ".*Failed to load backend.*TLS handshake timeout.*"}, "Failed to load backend: Error...:...  TLS handshake timeout", true},
+		{[]string{"bar", "foo", ".*Failed to load backend.*TLS handshake timeout.*"}, "Failed to load backend: Error...:...  TLxS handshake timeout", false},
+	}
+
+	for _, testCase := range testCases {
+		actual := MatchesAny(testCase.list, testCase.element)
+		assert.Equal(t, testCase.expected, actual, "For list %v and element %s", testCase.list, testCase.element)
+	}
+}
+
 func TestListContainsElement(t *testing.T) {
 	t.Parallel()
 

@@ -2,8 +2,20 @@ package util
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
+
+func MatchesAny(regExps []string, s string) bool {
+	if nil != regExps {
+		for i := 0; i < len(regExps); i++ {
+			if matched, _ := regexp.MatchString(regExps[i], s); matched {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 // Return true if the given list contains the given element
 func ListContainsElement(list []string, element string) bool {
@@ -103,7 +115,7 @@ func SecondArg(args []string) string {
 // A convenience method that returns the last item in the given list or an empty string if this is an empty list
 func LastArg(args []string) string {
 	if len(args) > 0 {
-		return args[len(args) - 1]
+		return args[len(args)-1]
 	}
 	return ""
 }
