@@ -88,8 +88,6 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, com
 	err = cmd.Wait()
 	cmdChannel <- err
 
-	terragruntOptions.Logger.Println(fmt.Sprintf("And the output is: %v", output))
-
 	return output, errors.WithStackTrace(err)
 }
 
