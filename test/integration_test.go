@@ -840,18 +840,29 @@ func TestPriorityOrderOfArgument(t *testing.T) {
 	assert.Contains(t, out.String(), fmt.Sprintf("test = %s", injectedValue))
 }
 
-//func TestAutoRetryRerun(t *testing.T) {
-//	t.Parallel()
-//
-//	out := new(bytes.Buffer)
-//	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_RERUN)
-//	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_RERUN)
-//	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
-//
-//	assert.Nil(t, err)
-//	// t.Log(out)
-//	assert.NotContains(t, out.String(), "may need to run 'terraform init'")
-//}
+func TestAutoRetryBasicRerun(t *testing.T) {
+	t.Parallel()
+
+	out := new(bytes.Buffer)
+	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_RERUN)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_RERUN)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
+
+	assert.Nil(t, err)
+	assert.Contains(t, out.String(), "Apply complete!")
+}
+
+func TestAutoRetrySkip(t *testing.T) {
+	t.Parallel()
+
+	out := new(bytes.Buffer)
+	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_RERUN)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_RERUN)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
+
+	assert.NotNil(t, err)
+	assert.NotContains(t, out.String(), "Apply complete!")
+}
 
 // This tests terragrunt properly passes through terraform commands and any number of specified args
 func TestTerraformCommandCliArgs(t *testing.T) {

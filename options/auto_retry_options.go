@@ -8,6 +8,7 @@ var RETRYABLE_ERRORS = []string{
 	".*Failed to load backend.*TLS handshake timeout.*",
 	".*Creating metric alarm failed.*request to update this alarm is in progress.*",
 	".*Error installing provider.*TLS handshake timeout.*",
+	"(?s).*Error configuring the backend.*TLS handshake timeout.*",
 }
 
 var ERRORS_REQUIRING_INIT = []string{

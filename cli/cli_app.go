@@ -3,10 +3,10 @@ package cli
 import (
 	"fmt"
 	"io"
+	"os"
 	"regexp"
 	"strings"
-
-	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
@@ -17,7 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
-	version "github.com/hashicorp/go-version"
+	"github.com/hashicorp/go-version"
 	"github.com/mattn/go-zglob"
 	"github.com/urfave/cli"
 )
@@ -361,10 +361,7 @@ func runTerraformCommandIfNoErrors(possibleErrors error, terragruntOptions *opti
 
 	// Workaround for https://github.com/hashicorp/terraform/issues/18460. Calling 'terraform init -get=false '
 	// sometimes results in Terraform trying to download/validate modules anyway, so we need to ignore that error.
-	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, "init") &&
-		util.ListContainsElement(terragruntOptions.TerraformCliArgs, "-get=false") &&
-		util.ListContainsElement(terragruntOptions.TerraformCliArgs, "-get-plugins=false") &&
-		util.ListContainsElement(terragruntOptions.TerraformCliArgs, "-backend=false") {
+	if terragruntOptions.TerraformCommand == CMD_INIT_FROM_MODULE {
 		out, err := shell.RunTerraformCommandAndCaptureOutput(terragruntOptions, terragruntOptions.TerraformCliArgs...)
 
 		// Write the log output to stderr to make sure we don't pollute stdout
@@ -379,7 +376,25 @@ func runTerraformCommandIfNoErrors(possibleErrors error, terragruntOptions *opti
 		return err
 	}
 
-	return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
+	var err error = nil
+
+	// Retry the command configurable time with sleep in between
+	for i := 0; i < terragruntOptions.MaxRetryAttempts; i++ {
+		if out, tferr := shell.RunTerraformCommandWithOutput(terragruntOptions, terragruntOptions.TerraformCliArgs...); tferr != nil {
+			err = tferr
+			if isRetryable(out, tferr, terragruntOptions) {
+				err = tferr
+				time.Sleep(terragruntOptions.Sleep)
+			} else {
+				break
+			}
+		} else {
+			err = nil
+			break
+		}
+	}
+
+	return err
 }
 
 // Prepare for running 'terraform init' by
