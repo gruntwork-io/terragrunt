@@ -19,6 +19,8 @@ var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
 }
 
 const DEFAULT_MAX_FOLDERS_TO_CHECK = 100
+const DEFAULT_MAX_RETRY_ATTEMPTS = 3
+const DEFAULT_SLEEP = 5
 
 const TerragruntCacheDir = ".terragrunt-cache"
 
@@ -80,6 +82,15 @@ type TerragruntOptions struct {
 	// exposed here primarily so we can set it to a low value at test time.
 	MaxFoldersToCheck int
 
+	// Whether we should automatically run terraform init if necessary when executing other commands
+	AutoRetry bool
+
+	// Maximum number of times to retry errors matching RetryableErrors
+	MaxRetryAttempts int
+
+	// Sleep is the duration in seconds to wait before retrying
+	Sleep int
+
 	// Unix-style glob of directories to exclude when running *-all commands
 	ExcludeDirs []string
 
@@ -117,6 +128,9 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		Writer:                 os.Stdout,
 		ErrWriter:              os.Stderr,
 		MaxFoldersToCheck:      DEFAULT_MAX_FOLDERS_TO_CHECK,
+		AutoRetry:              true,
+		MaxRetryAttempts:       DEFAULT_MAX_RETRY_ATTEMPTS,
+		Sleep:                  DEFAULT_SLEEP,
 		ExcludeDirs:            []string{},
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
@@ -178,6 +192,9 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		Writer:                 terragruntOptions.Writer,
 		ErrWriter:              terragruntOptions.ErrWriter,
 		MaxFoldersToCheck:      terragruntOptions.MaxFoldersToCheck,
+		AutoRetry:              terragruntOptions.AutoRetry,
+		MaxRetryAttempts:       terragruntOptions.MaxRetryAttempts,
+		Sleep:                  terragruntOptions.Sleep,
 		ExcludeDirs:            terragruntOptions.ExcludeDirs,
 		RunTerragrunt:          terragruntOptions.RunTerragrunt,
 	}

@@ -25,6 +25,7 @@ import (
 const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
 const OPT_TERRAGRUNT_TFPATH = "terragrunt-tfpath"
 const OPT_TERRAGRUNT_NO_AUTO_INIT = "terragrunt-no-auto-init"
+const OPT_TERRAGRUNT_NO_AUTO_RETRY = "terragrunt-no-auto-retry"
 const OPT_NON_INTERACTIVE = "terragrunt-non-interactive"
 const OPT_WORKING_DIR = "terragrunt-working-dir"
 const OPT_DOWNLOAD_DIR = "terragrunt-download-dir"
@@ -34,7 +35,7 @@ const OPT_TERRAGRUNT_IAM_ROLE = "terragrunt-iam-role"
 const OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS = "terragrunt-ignore-dependency-errors"
 const OPT_TERRAGRUNT_EXCLUDE_DIR = "terragrunt-exclude-dir"
 
-var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, OPT_TERRAGRUNT_NO_AUTO_INIT}
+var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, OPT_TERRAGRUNT_NO_AUTO_INIT, OPT_TERRAGRUNT_NO_AUTO_RETRY}
 var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_TFPATH, OPT_WORKING_DIR, OPT_DOWNLOAD_DIR, OPT_TERRAGRUNT_SOURCE, OPT_TERRAGRUNT_IAM_ROLE, OPT_TERRAGRUNT_EXCLUDE_DIR}
 
 const CMD_PLAN_ALL = "plan-all"
@@ -108,6 +109,7 @@ GLOBAL OPTIONS:
    terragrunt-config                    Path to the Terragrunt config file. Default is terraform.tfvars.
    terragrunt-tfpath                    Path to the Terraform binary. Default is terraform (on PATH).
    terragrunt-no-auto-init              Don't automatically run 'terraform init' during other terragrunt commands. You must run 'terragrunt init' manually.
+   terragrunt-no-auto-retry             Don't automatically re-run command or in case of transient errors.
    terragrunt-non-interactive           Assume "yes" for all prompts.
    terragrunt-working-dir               The path to the Terraform templates. Default is current directory.
    terragrunt-download-dir              The path where to download Terraform code. Default is .terragrunt-cache in the working directory.
