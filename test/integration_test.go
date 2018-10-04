@@ -74,6 +74,7 @@ const (
 	TEST_FIXTURE_FAILED_TERRAFORM                           = "fixture-failure"
 	TEST_FIXTURE_EXIT_CODE                                  = "fixture-exit-code"
 	TEST_FIXTURE_AUTO_RETRY_RERUN                           = "fixture-auto-retry/re-run"
+	TEST_FIXTURE_AUTO_RETRY_APPLY_ALL_RETRIES               = "fixture-auto-retry/apply-all"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
 	TERRAFORM_STATE_BACKUP                                  = "terraform.tfstate.backup"
@@ -862,6 +863,23 @@ func TestAutoRetrySkip(t *testing.T) {
 
 	assert.NotNil(t, err)
 	assert.NotContains(t, out.String(), "Apply complete!")
+}
+
+func TestAutoRetryApplyAllDependentModuleRetries(t *testing.T) {
+	t.Parallel()
+
+	out := new(bytes.Buffer)
+	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_APPLY_ALL_RETRIES)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_APPLY_ALL_RETRIES)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
+
+	assert.Nil(t, err)
+	s := out.String()
+	assert.Contains(t, s, "app1 output")
+	assert.Contains(t, s, "app2 output")
+	assert.Contains(t, s, "app3 output")
+	assert.Contains(t, s, "Apply complete!")
+
 }
 
 // This tests terragrunt properly passes through terraform commands and any number of specified args
