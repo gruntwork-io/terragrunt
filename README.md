@@ -1762,7 +1762,7 @@ As mentioned [above](#extra_arguments-for-init), `extra_arguments` can be config
 to allow customization of the `terraform init` command.
 
 Note that there might be cases where terragrunt does not properly detect that `terraform init` needs be called.
-In this case, terraform would fail.  Running `terragrunt init` again corrects this situation. See [Auto-Retry](#auto-retry).
+In this case, terraform would fail.  Running `terragrunt init` again corrects this situation.
 
 For some use cases, it might be desirable to disable Auto-Init.
 For example, if each user wants to specify a different `-plugin-dir` option to `terraform init` (and therefore it cannot be put in `extra_arguments`).
@@ -1779,19 +1779,7 @@ _Auto-Retry_ is a feature of `terragrunt` that will automatically address situat
 
 Terraform can fail with transient errors which can be addressed by simply retrying the command again. In the event `terragrunt` finds one of these errors, the command will be re-run again automatically.
  
-In the event of a module or provider update, `terraform` commands such as `plan` or `apply` will fail with a message to run `terraform init`. In this case `terragrunt` will re-run the `init` command and then retry the command. 
-
-**Example 1**
-
-```
-$ terragrunt plan
-...
-Error: Error loading modules: module consul: not found, may need to run 'terraform init'
-```
-
-In this case, as terraform knows it needs to re-run `init` auto-retry will rerun `init` and then call `plan` again.
-
-**Example 2**
+**Example**
 
 ```
 $ terragrunt apply
@@ -1805,7 +1793,7 @@ Terragrunt sees this error, and knows it is a transient error that can addressed
 
 `auto-retry` will try a maximum of three times to re-run the command, at which point it will deem the error as not transient, and accept the terraform failure. Retries will occur when the error is encountered, pausing for 5 seconds between retries.
 
-Known errors that `auto-retry` will rerun, are maintained in the `TerragruntOptions.RetryableErrors` map. Future upgrades to `terragrunt` may include the ability to configure `auto-retry` - pass in additional error strings, configure max retries and set retry interval - via the `terragrunt` config.
+Known errors that `auto-retry` will rerun, are maintained in the `TerragruntOptions.RetryableErrors` array. Future upgrades to `terragrunt` may include the ability to configure `auto-retry` - pass in additional error strings, configure max retries and set retry interval - via the `terragrunt` config.
 
 To disable `auto-retry`, use the `--terragrunt-no-auto-retry` command line option or set the `TERRAGRUNT_AUTO_RETRY` environment variable to `false`.
 
