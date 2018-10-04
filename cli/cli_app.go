@@ -376,26 +376,25 @@ func runTerraformCommandIfNoErrors(possibleErrors error, terragruntOptions *opti
 		return err
 	}
 
-	var err error = nil
+	return runTerraformWithRetry(terragruntOptions)
+}
 
+func runTerraformWithRetry(terragruntOptions *options.TerragruntOptions) error {
 	// Retry the command configurable time with sleep in between
 	for i := 0; i < terragruntOptions.MaxRetryAttempts; i++ {
 		if out, tferr := shell.RunTerraformCommandWithOutput(terragruntOptions, terragruntOptions.TerraformCliArgs...); tferr != nil {
-			err = tferr
 			if isRetryable(out, tferr, terragruntOptions) {
 				terragruntOptions.Logger.Printf("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.Sleep)
-				err = tferr
 				time.Sleep(terragruntOptions.Sleep)
 			} else {
-				break
+				return tferr
 			}
 		} else {
-			err = nil
-			break
+			return nil
 		}
 	}
 
-	return err
+	return errors.WithStackTrace(MaxRetriesExceeded{terragruntOptions})
 }
 
 // Prepare for running 'terraform init' by
@@ -536,7 +535,7 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 
 	initOptions, err := prepareInitOptions(terragruntOptions, terraformSource)
 
-	if nil != err {
+	if err != nil {
 		return err
 	}
 
@@ -758,14 +757,6 @@ func isRetryable(tfoutput string, tferr error, terragruntOptions *options.Terrag
 	return util.MatchesAny(terragruntOptions.RetryableErrors, tfoutput)
 }
 
-// isErrorRequiringInit checks whether there was an error and we should attempt to re-run init
-func isErrorRequiringInit(tfoutput string, tferr error, terragruntOptions *options.TerragruntOptions) bool {
-	if !terragruntOptions.AutoRetry || !terragruntOptions.AutoInit || tferr == nil {
-		return false
-	}
-	return util.MatchesAny(terragruntOptions.ErrorsRequiringInit, tfoutput)
-}
-
 // Custom error types
 
 type UnrecognizedCommand string
@@ -810,4 +801,12 @@ type ModuleIsProtected struct {
 
 func (err ModuleIsProtected) Error() string {
 	return fmt.Sprintf("Module is protected by the prevent_destroy flag in %s. Set it to false or delete it to allow destroying of the module.", err.Opts.TerragruntConfigPath)
+}
+
+type MaxRetriesExceeded struct {
+	Opts *options.TerragruntOptions
+}
+
+func (err MaxRetriesExceeded) Error() string {
+	return fmt.Sprintf("Exhausted retries (%v) for command %v %v", err.Opts.MaxRetryAttempts, err.Opts.TerraformPath, strings.Join(err.Opts.TerraformCliArgs, " "))
 }

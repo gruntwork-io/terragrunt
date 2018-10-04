@@ -74,6 +74,7 @@ const (
 	TEST_FIXTURE_FAILED_TERRAFORM                           = "fixture-failure"
 	TEST_FIXTURE_EXIT_CODE                                  = "fixture-exit-code"
 	TEST_FIXTURE_AUTO_RETRY_RERUN                           = "fixture-auto-retry/re-run"
+	TEST_FIXTURE_AUTO_RETRY_EXHAUST                         = "fixture-auto-retry/exhaust"
 	TEST_FIXTURE_AUTO_RETRY_APPLY_ALL_RETRIES               = "fixture-auto-retry/apply-all"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -854,6 +855,31 @@ func TestAutoRetryBasicRerun(t *testing.T) {
 }
 
 func TestAutoRetrySkip(t *testing.T) {
+	t.Parallel()
+
+	out := new(bytes.Buffer)
+	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_RERUN)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_RERUN)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
+
+	assert.NotNil(t, err)
+	assert.NotContains(t, out.String(), "Apply complete!")
+}
+
+func TestAutoRetryExhaust(t *testing.T) {
+	t.Parallel()
+
+	out := new(bytes.Buffer)
+	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_EXHAUST)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_EXHAUST)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
+
+	assert.NotNil(t, err)
+	assert.Contains(t, out.String(), "Failed to load backend")
+	assert.NotContains(t, out.String(), "Apply complete!")
+}
+
+func TestAutoRetryExhaustedRetries(t *testing.T) {
 	t.Parallel()
 
 	out := new(bytes.Buffer)
