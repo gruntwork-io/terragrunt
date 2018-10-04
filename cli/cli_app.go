@@ -109,7 +109,7 @@ GLOBAL OPTIONS:
    terragrunt-config                    Path to the Terragrunt config file. Default is terraform.tfvars.
    terragrunt-tfpath                    Path to the Terraform binary. Default is terraform (on PATH).
    terragrunt-no-auto-init              Don't automatically run 'terraform init' during other terragrunt commands. You must run 'terragrunt init' manually.
-   terragrunt-no-auto-retry             Don't automatically re-run command or in case of transient errors.
+   terragrunt-no-auto-retry             Don't automatically re-run command in case of transient errors.
    terragrunt-non-interactive           Assume "yes" for all prompts.
    terragrunt-working-dir               The path to the Terraform templates. Default is current directory.
    terragrunt-download-dir              The path where to download Terraform code. Default is .terragrunt-cache in the working directory.
@@ -383,6 +383,7 @@ func runTerraformCommandIfNoErrors(possibleErrors error, terragruntOptions *opti
 		if out, tferr := shell.RunTerraformCommandWithOutput(terragruntOptions, terragruntOptions.TerraformCliArgs...); tferr != nil {
 			err = tferr
 			if isRetryable(out, tferr, terragruntOptions) {
+				terragruntOptions.Logger.Printf("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.Sleep)
 				err = tferr
 				time.Sleep(terragruntOptions.Sleep)
 			} else {
@@ -533,6 +534,16 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 		return errors.WithStackTrace(InitNeededButDisabled("Cannot continue because init is needed, but Auto-Init is disabled.  You must run 'terragrunt init' manually."))
 	}
 
+	initOptions, err := prepareInitOptions(terragruntOptions, terraformSource)
+
+	if nil != err {
+		return err
+	}
+
+	return runTerragruntWithConfig(initOptions, terragruntConfig, terraformSource != nil)
+}
+
+func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformSource *TerraformSource) (*options.TerragruntOptions, error) {
 	// Need to clone the terragruntOptions, so the TerraformCliArgs can be configured to run the init command
 	initOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	initOptions.TerraformCliArgs = []string{CMD_INIT}
@@ -548,7 +559,7 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 		initOptions.WorkingDir = terraformSource.WorkingDir
 		if !util.FileExists(terraformSource.WorkingDir) {
 			if err := os.MkdirAll(terraformSource.WorkingDir, 0700); err != nil {
-				return errors.WithStackTrace(err)
+				return nil, errors.WithStackTrace(err)
 			}
 		}
 
@@ -562,7 +573,7 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 
 		v0_10_0, err := version.NewVersion("v0.10.0")
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		if terragruntOptions.TerraformVersion.LessThan(v0_10_0) {
@@ -575,8 +586,7 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 
 		initOptions.AppendTerraformCliArgs(terraformSource.DownloadDir)
 	}
-
-	return runTerragruntWithConfig(initOptions, terragruntConfig, downloadSource)
+	return initOptions, nil
 }
 
 // Returns an error if allowSourceDownload is false, and terragruntOptions.TerraformCliArgs contains source download related arguments
