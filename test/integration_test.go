@@ -866,7 +866,7 @@ func TestAutoRetrySkip(t *testing.T) {
 	assert.NotContains(t, out.String(), "Apply complete!")
 }
 
-func TestAutoRetryExhaust(t *testing.T) {
+func TestAutoRetryExhaustRetries(t *testing.T) {
 	t.Parallel()
 
 	out := new(bytes.Buffer)
@@ -879,13 +879,26 @@ func TestAutoRetryExhaust(t *testing.T) {
 	assert.NotContains(t, out.String(), "Apply complete!")
 }
 
-func TestAutoRetryExhaustedRetries(t *testing.T) {
+func TestAutoRetryFlagWithRecoverableError(t *testing.T) {
 	t.Parallel()
 
 	out := new(bytes.Buffer)
 	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_RERUN)
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_RERUN)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
+
+	assert.NotNil(t, err)
+	assert.NotContains(t, out.String(), "Apply complete!")
+}
+
+func TestAutoRetryEnvVarWithRecoverableError(t *testing.T) {
+	t.Parallel()
+	os.Setenv("TERRAGRUNT_AUTO_RETRY", "false")
+	defer os.Unsetenv("TERRAGRUNT_AUTO_RETRY")
+	out := new(bytes.Buffer)
+	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_RERUN)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_RERUN)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
 	assert.NotNil(t, err)
 	assert.NotContains(t, out.String(), "Apply complete!")
