@@ -2,6 +2,7 @@ package shell
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -11,6 +12,7 @@ import (
 	"os/signal"
 	"reflect"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -167,13 +169,25 @@ func (signalChannel *SignalsForwarder) Close() error {
 	return nil
 }
 
+// Scans a Scanner for text lines and appends them to a buffer
+func scanScanner(wg *sync.WaitGroup, scanner *bufio.Scanner, writer io.Writer, buffer *bytes.Buffer) {
+	defer wg.Done()
+	for scanner.Scan() {
+		text := scanner.Text()
+		fmt.Fprintln(writer, text)
+		fmt.Fprintln(buffer, text)
+	}
+}
+
 // This function captures stdout and stderr while still printing it to the stdout and stderr of this Go program
 // outToErr flips std out to std err
 func readStdoutAndStderr(stdout io.ReadCloser, stderr io.ReadCloser, terragruntOptions *options.TerragruntOptions, outToErr bool) (string, error) {
-	allOutput := []string{}
+
+	output := new(bytes.Buffer)
 
 	var errWriter = terragruntOptions.ErrWriter
 	var outWriter = terragruntOptions.Writer
+	var wg sync.WaitGroup
 
 	if outToErr {
 		outWriter = terragruntOptions.ErrWriter
@@ -182,17 +196,12 @@ func readStdoutAndStderr(stdout io.ReadCloser, stderr io.ReadCloser, terragruntO
 	stdoutScanner := bufio.NewScanner(stdout)
 	stderrScanner := bufio.NewScanner(stderr)
 
-	for stdoutScanner.Scan() {
-		text := stdoutScanner.Text()
-		fmt.Fprintln(outWriter, text)
-		allOutput = append(allOutput, text)
-	}
+	wg.Add(2)
 
-	for stderrScanner.Scan() {
-		text := stderrScanner.Text()
-		fmt.Fprintln(errWriter, text)
-		allOutput = append(allOutput, text)
-	}
+	go scanScanner(&wg, stdoutScanner, outWriter, output)
+	go scanScanner(&wg, stderrScanner, errWriter, output)
+
+	wg.Wait()
 
 	if err := stdoutScanner.Err(); err != nil {
 		return "", err
@@ -202,5 +211,5 @@ func readStdoutAndStderr(stdout io.ReadCloser, stderr io.ReadCloser, terragruntO
 		return "", err
 	}
 
-	return strings.Join(allOutput, "\n"), nil
+	return output.String(), nil
 }
