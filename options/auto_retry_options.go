@@ -13,4 +13,5 @@ var RETRYABLE_ERRORS = []string{
 	"(?s).*Creating metric alarm failed.*request to update this alarm is in progress.*",
 	"(?s).*Error installing provider.*TLS handshake timeout.*",
 	"(?s).*Error configuring the backend.*TLS handshake timeout.*",
+	"(?s).*Error installing provider.*tcp.*timeout.*",
 }
