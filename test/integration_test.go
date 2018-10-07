@@ -892,7 +892,6 @@ func TestAutoRetryFlagWithRecoverableError(t *testing.T) {
 }
 
 func TestAutoRetryEnvVarWithRecoverableError(t *testing.T) {
-	t.Parallel()
 	os.Setenv("TERRAGRUNT_AUTO_RETRY", "false")
 	defer os.Unsetenv("TERRAGRUNT_AUTO_RETRY")
 	out := new(bytes.Buffer)
