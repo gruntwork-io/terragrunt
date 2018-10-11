@@ -46,6 +46,7 @@ const CMD_VALIDATE_ALL = "validate-all"
 
 const CMD_INIT = "init"
 const CMD_INIT_FROM_MODULE = "init-from-module"
+const CMD_SHOW_WORKINGDIR = "show-workingdir"
 
 // CMD_SPIN_UP is deprecated.
 const CMD_SPIN_UP = "spin-up"
@@ -82,6 +83,7 @@ var TERRAFORM_COMMANDS_THAT_USE_STATE = []string{
 
 var TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT = []string{
 	"version",
+	"show-workingdir",
 }
 
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
@@ -218,7 +220,6 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	if shouldPrintTerraformHelp(terragruntOptions) {
 		return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
 	}
-
 	terragruntConfig, err := config.ReadTerragruntConfig(terragruntOptions)
 	if err != nil {
 		return err
@@ -232,6 +233,11 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		if err := downloadTerraformSource(sourceUrl, terragruntOptions, terragruntConfig); err != nil {
 			return err
 		}
+	}
+
+	if shouldPrintTerragruntWorkingDir(terragruntOptions) {
+		terragruntOptions.Logger.Printf("workingdir: %s\n", terragruntOptions.WorkingDir)
+		return nil
 	}
 
 	if err := checkFolderContainsTerraformCode(terragruntOptions); err != nil {
@@ -252,6 +258,13 @@ func shouldPrintTerraformHelp(terragruntOptions *options.TerragruntOptions) bool
 		if util.ListContainsElement(terragruntOptions.TerraformCliArgs, tfHelpFlag) {
 			return true
 		}
+	}
+	return false
+}
+
+func shouldPrintTerragruntWorkingDir(terragruntOptions *options.TerragruntOptions) bool {
+	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_SHOW_WORKINGDIR) {
+		return true
 	}
 	return false
 }
