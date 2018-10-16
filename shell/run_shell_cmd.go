@@ -78,7 +78,7 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, com
 	err := cmd.Wait()
 	cmdChannel <- err
 
-	return string(outBuf.Bytes()), errors.WithStackTrace(err)
+	return outBuf.String(), errors.WithStackTrace(err)
 }
 
 func toEnvVarsList(envVarsAsMap map[string]string) []string {
