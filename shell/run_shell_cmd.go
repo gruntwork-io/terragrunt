@@ -61,12 +61,10 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, com
 		outWriter = terragruntOptions.ErrWriter
 	}
 
-	stdout := io.MultiWriter(outWriter, &outBuf)
-	stderr := io.MultiWriter(errWriter, &outBuf)
-
 	cmd.Dir = terragruntOptions.WorkingDir
-	cmd.Stderr = stderr
-	cmd.Stdout = stdout
+	// Inspired by https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
+	cmd.Stderr = io.MultiWriter(errWriter, &outBuf)
+	cmd.Stdout = io.MultiWriter(outWriter, &outBuf)
 
 	if err := cmd.Start(); err != nil {
 		// bad path, binary not executable, &c
@@ -80,8 +78,7 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, com
 	err := cmd.Wait()
 	cmdChannel <- err
 
-	combinedOutput := string(outBuf.Bytes())
-	return combinedOutput, errors.WithStackTrace(err)
+	return string(outBuf.Bytes()), errors.WithStackTrace(err)
 }
 
 func toEnvVarsList(envVarsAsMap map[string]string) []string {
