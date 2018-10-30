@@ -282,7 +282,7 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 
 func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOptions, previousExecErrors ...error) bool {
 	//if there's no previous error, execute command
-	//OR if a previos error DID happen AND we want to run anyways
+	//OR if a previous error DID happen AND we want to run anyways
 	//then execute.
 	//Skip execution if there was an error AND we care about errors
 
@@ -514,7 +514,7 @@ func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 
 // Runs the terraform init command to perform what is referred to as Auto-Init in the README.md.
 // This is intended to be run when the user runs another terragrunt command (e.g. 'terragrunt apply'),
-// but terragrunt determines that 'terraform init' needs to be called pror to runing
+// but terragrunt determines that 'terraform init' needs to be called prior to running
 // the respective terraform command (e.g. 'terraform apply')
 //
 // The terragruntOptions are assumed to be the options for running the original terragrunt command.
