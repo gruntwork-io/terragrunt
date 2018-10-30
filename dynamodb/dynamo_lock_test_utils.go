@@ -96,6 +96,6 @@ func withLockTableTagged(t *testing.T, tags map[string]string, action func(table
 
 func createKeyFromItemId(itemId string) map[string]*dynamodb.AttributeValue {
 	return map[string]*dynamodb.AttributeValue{
-		ATTR_LOCK_ID: &dynamodb.AttributeValue{S: aws.String(itemId)},
+		ATTR_LOCK_ID: {S: aws.String(itemId)},
 	}
 }
