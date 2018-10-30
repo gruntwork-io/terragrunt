@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	cliErrors "github.com/gruntwork-io/gruntwork-cli/errors"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
@@ -143,11 +144,6 @@ var TERRAFORM_HELP_FLAGS = []string{
 
 // Create the Terragrunt CLI App
 func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) *cli.App {
-	cli.OsExiter = func(exitCode int) {
-		// Do nothing. We just need to override this function, as the default value calls os.Exit, which
-		// kills the app (or any automated test) dead in its tracks.
-	}
-
 	cli.AppHelpTemplate = CUSTOM_USAGE_TEXT
 
 	app := cli.NewApp()
@@ -155,7 +151,7 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 	app.Name = "terragrunt"
 	app.Author = "Gruntwork <www.gruntwork.io>"
 	app.Version = version
-	app.Action = runApp
+	app.Action = cliErrors.WithPanicHandling(runApp)
 	app.Usage = "terragrunt <COMMAND>"
 	app.Writer = writer
 	app.ErrWriter = errwriter
