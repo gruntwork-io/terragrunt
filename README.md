@@ -1152,6 +1152,16 @@ export TERRAGRUNT_IAM_ROLE="arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 terragrunt apply
 ```
 
+Additionally, you can specify an `iam_role` property in the terragrunt config:
+```hcl
+terragrunt = {
+    iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+}
+```
+
+Terragrunt will resolve the value of the option by first looking for the cli argument, then looking for the environment
+variable, then defaulting to the value specified in the config file.
+
 Terragrunt will call the `sts assume-role` API on your behalf and expose the credentials it gets back as environment 
 variables when running Terraform. The advantage of this approach is that you can store your AWS credentials in a secret 
 store and never write them to disk in plaintext, you get fresh credentials on every run of Terragrunt, without the 
