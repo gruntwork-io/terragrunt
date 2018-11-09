@@ -33,8 +33,11 @@ jobs:
     - checkout
     - attach_workspace:
         at: *workspace_root
-    - run: run-go-tests --circle-ci-2 | tee all.log
-    - run: terratest_log_parser --testlog all.log --outputdir logs
+    - run:
+        command: |
+          mkdir -p logs
+          run-go-tests --circle-ci-2 | tee logs/all.log
+          terratest_log_parser --testlog logs/all.log --outputdir logs
     - store_artifacts:
         path: logs
     - store_test_results:
