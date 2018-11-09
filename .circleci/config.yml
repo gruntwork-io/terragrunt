@@ -18,6 +18,7 @@ jobs:
         keys:
         - dep-{{ checksum "Gopkg.lock" }}
     - run: dep ensure
+    - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.13.8' --download-dir .
     - save_cache:
         key: dep-{{ checksum "Gopkg.lock" }}
         paths:
@@ -32,7 +33,15 @@ jobs:
     - checkout
     - attach_workspace:
         at: *workspace_root
-    - run:  run-go-tests --circle-ci-2
+    - run:
+        command: |
+          mkdir -p logs
+          run-go-tests --circle-ci-2 | tee logs/all.log
+          terratest_log_parser --testlog logs/all.log --outputdir logs
+    - store_artifacts:
+        path: logs
+    - store_test_results:
+        path: logs
 
   build:
     <<: *defaults
