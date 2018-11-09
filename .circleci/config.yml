@@ -18,7 +18,7 @@ jobs:
         keys:
         - dep-{{ checksum "Gopkg.lock" }}
     - run: dep ensure
-    - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.13.8'
+    - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.13.8' --download-dir .
     - save_cache:
         key: dep-{{ checksum "Gopkg.lock" }}
         paths:
