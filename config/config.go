@@ -22,6 +22,7 @@ type TerragruntConfig struct {
 	RemoteState    *remote.RemoteState
 	Dependencies   *ModuleDependencies
 	PreventDestroy bool
+	IamRole        string
 }
 
 func (conf *TerragruntConfig) String() string {
@@ -37,6 +38,7 @@ type terragruntConfigFile struct {
 	RemoteState    *remote.RemoteState `hcl:"remote_state,omitempty"`
 	Dependencies   *ModuleDependencies `hcl:"dependencies,omitempty"`
 	PreventDestroy bool                `hcl:"prevent_destroy,omitempty"`
+	IamRole        string              `hcl:"iam_role"`
 }
 
 // Older versions of Terraform did not support locking, so Terragrunt offered locking as a feature. As of version 0.9.0,
@@ -364,6 +366,10 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 		includedConfig.Dependencies = config.Dependencies
 	}
 
+	if config.IamRole != "" {
+		includedConfig.IamRole = config.IamRole
+	}
+
 	return includedConfig, nil
 }
 
@@ -488,6 +494,7 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
 	terragruntConfig.PreventDestroy = terragruntConfigFromFile.PreventDestroy
+	terragruntConfig.IamRole = terragruntConfigFromFile.IamRole
 
 	return terragruntConfig, nil
 }

@@ -31,6 +31,8 @@ terragrunt = {
 
 	assert.Nil(t, terragruntConfig.Terraform)
 
+	assert.Empty(t, terragruntConfig.IamRole)
+
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
 		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
 		assert.Empty(t, terragruntConfig.RemoteState.Config)
@@ -75,6 +77,8 @@ terragrunt = {
 
 	assert.Nil(t, terragruntConfig.Terraform)
 
+	assert.Empty(t, terragruntConfig.IamRole)
+
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
 		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
 		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
@@ -83,6 +87,26 @@ terragrunt = {
 		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
 		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
 	}
+}
+
+func TestParseIamRole(t *testing.T) {
+	t.Parallel()
+
+	config := `
+terragrunt = {
+	iam_role = "terragrunt-iam-role"
+}`
+
+	terragruntConfig, err := parseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Nil(t, terragruntConfig.RemoteState)
+	assert.Nil(t, terragruntConfig.Terraform)
+	assert.Nil(t, terragruntConfig.Dependencies)
+
+	assert.Equal(t, "terragrunt-iam-role", terragruntConfig.IamRole)
 }
 
 func TestParseTerragruntConfigDependenciesOnePath(t *testing.T) {
@@ -103,6 +127,8 @@ terragrunt = {
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
+
+	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.Dependencies) {
 		assert.Equal(t, []string{"../vpc"}, terragruntConfig.Dependencies.Paths)
@@ -127,6 +153,8 @@ terragrunt = {
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
+
+	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.Dependencies) {
 		assert.Equal(t, []string{"../vpc", "../mysql", "../backend-app"}, terragruntConfig.Dependencies.Paths)
@@ -166,6 +194,8 @@ terragrunt = {
 	if assert.NotNil(t, terragruntConfig.Terraform) {
 		assert.Equal(t, "foo", terragruntConfig.Terraform.Source)
 	}
+
+	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
 		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
@@ -212,6 +242,8 @@ dependencies {
 	if assert.NotNil(t, terragruntConfig.Terraform) {
 		assert.Equal(t, "foo", terragruntConfig.Terraform.Source)
 	}
+
+	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
 		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
@@ -559,6 +591,16 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 			&TerragruntConfig{PreventDestroy: true},
 			nil,
 			&TerragruntConfig{PreventDestroy: true},
+		},
+		{
+			&TerragruntConfig{IamRole: "role1"},
+			nil,
+			&TerragruntConfig{IamRole: "role1"},
+		},
+		{
+			&TerragruntConfig{IamRole: "role2"},
+			&TerragruntConfig{IamRole: "role1"},
+			&TerragruntConfig{IamRole: "role2"},
 		},
 	}
 

@@ -224,6 +224,10 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
+	if terragruntOptions.IamRole == "" {
+		terragruntOptions.IamRole = terragruntConfig.IamRole
+	}
+
 	if err := assumeRoleIfNecessary(terragruntOptions); err != nil {
 		return err
 	}
