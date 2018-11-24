@@ -366,13 +366,14 @@ func runTerraformCommandIfNoErrors(possibleErrors error, terragruntOptions *opti
 	// Workaround for https://github.com/hashicorp/terraform/issues/18460. Calling 'terraform init -get=false '
 	// sometimes results in Terraform trying to download/validate modules anyway, so we need to ignore that error.
 	if terragruntOptions.TerraformCommand == CMD_INIT_FROM_MODULE {
-		out, err := shell.RunTerraformCommandAndCaptureOutput(terragruntOptions, terragruntOptions.TerraformCliArgs...)
+		// Redirect all log output to stderr to make sure we don't pollute stdout with this extra call to 'init'
+		terragruntOptionsCopy := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+		terragruntOptionsCopy.Writer = terragruntOptionsCopy.ErrWriter
 
-		// Write the log output to stderr to make sure we don't pollute stdout
-		terragruntOptions.ErrWriter.Write([]byte(out))
+		out, err := shell.RunTerraformCommandWithOutput(terragruntOptionsCopy, terragruntOptionsCopy.TerraformCliArgs...)
 
 		// If we got an error and the error output included this error message, ignore the error and keep going
-		if err != nil && (len(moduleNotFoundErr.FindStringSubmatch(out)) > 0 || strings.Contains(out, "Missing required providers.")) {
+		if err != nil && (len(moduleNotFoundErr.FindStringSubmatch(out.Stderr)) > 0 || strings.Contains(out.Stderr, "Missing required providers.")) {
 			terragruntOptions.Logger.Println("Ignoring error from call to init, as this is a known Terraform bug: https://github.com/hashicorp/terraform/issues/18460")
 			return nil
 		}
@@ -387,7 +388,7 @@ func runTerraformWithRetry(terragruntOptions *options.TerragruntOptions) error {
 	// Retry the command configurable time with sleep in between
 	for i := 0; i < terragruntOptions.MaxRetryAttempts; i++ {
 		if out, tferr := shell.RunTerraformCommandWithOutput(terragruntOptions, terragruntOptions.TerraformCliArgs...); tferr != nil {
-			if isRetryable(out, tferr, terragruntOptions) {
+			if isRetryable(out.Stderr, tferr, terragruntOptions) {
 				terragruntOptions.Logger.Printf("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.Sleep)
 				time.Sleep(terragruntOptions.Sleep)
 			} else {

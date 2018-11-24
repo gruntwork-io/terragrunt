@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -29,22 +28,19 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 	return err
 }
 
-// Run the given Terraform command
-func RunTerraformCommandWithOutput(terragruntOptions *options.TerragruntOptions, args ...string) (string, error) {
+// Run the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
+// method's caller
+func RunTerraformCommandWithOutput(terragruntOptions *options.TerragruntOptions, args ...string) (*CmdOutput, error) {
 	return RunShellCommandWithOutput(terragruntOptions, terragruntOptions.TerraformPath, args...)
-}
-
-// Run the given Terraform command and return the stdout as a string
-func RunTerraformCommandAndCaptureOutput(terragruntOptions *options.TerragruntOptions, args ...string) (string, error) {
-	return RunShellCommandAndCaptureOutput(terragruntOptions, terragruntOptions.TerraformPath, args...)
 }
 
 // Run the specified shell command with the specified arguments. Connect the command's stdin, stdout, and stderr to
 // the currently running app.
-func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, command string, args ...string) (string, error) {
+func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, command string, args ...string) (*CmdOutput, error) {
 	terragruntOptions.Logger.Printf("Running command: %s %s", command, strings.Join(args, " "))
 
-	var outBuf bytes.Buffer
+	var stdoutBuf bytes.Buffer
+	var stderrBuf bytes.Buffer
 
 	cmd := exec.Command(command, args...)
 
@@ -63,12 +59,12 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, com
 
 	cmd.Dir = terragruntOptions.WorkingDir
 	// Inspired by https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
-	cmd.Stderr = io.MultiWriter(errWriter, &outBuf)
-	cmd.Stdout = io.MultiWriter(outWriter, &outBuf)
+	cmd.Stderr = io.MultiWriter(errWriter, &stderrBuf)
+	cmd.Stdout = io.MultiWriter(outWriter, &stdoutBuf)
 
 	if err := cmd.Start(); err != nil {
 		// bad path, binary not executable, &c
-		return "", errors.WithStackTrace(err)
+		return nil, errors.WithStackTrace(err)
 	}
 
 	cmdChannel := make(chan error)
@@ -78,7 +74,12 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, com
 	err := cmd.Wait()
 	cmdChannel <- err
 
-	return outBuf.String(), errors.WithStackTrace(err)
+	cmdOutput := CmdOutput{
+		Stdout: stdoutBuf.String(),
+		Stderr: stderrBuf.String(),
+	}
+
+	return &cmdOutput, errors.WithStackTrace(err)
 }
 
 func toEnvVarsList(envVarsAsMap map[string]string) []string {
@@ -87,18 +88,6 @@ func toEnvVarsList(envVarsAsMap map[string]string) []string {
 		envVarsAsList = append(envVarsAsList, fmt.Sprintf("%s=%s", key, value))
 	}
 	return envVarsAsList
-}
-
-// Run the specified shell command with the specified arguments. Capture the command's stdout and return it as a
-// string.
-func RunShellCommandAndCaptureOutput(terragruntOptions *options.TerragruntOptions, command string, args ...string) (string, error) {
-	stdout := ioutil.Discard
-
-	terragruntOptionsCopy := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
-	terragruntOptionsCopy.Writer = stdout
-	terragruntOptionsCopy.ErrWriter = stdout
-
-	return RunShellCommandWithOutput(terragruntOptionsCopy, command, args...)
 }
 
 // Return the exit code of a command. If the error does not implement errors.IErrorCode or is not an exec.ExitError
@@ -155,4 +144,9 @@ func (signalChannel *SignalsForwarder) Close() error {
 	*signalChannel <- nil
 	close(*signalChannel)
 	return nil
+}
+
+type CmdOutput struct {
+	Stdout string
+	Stderr string
 }
