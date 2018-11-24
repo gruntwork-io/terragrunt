@@ -308,7 +308,7 @@ func TestTerraformHelp(t *testing.T) {
 
 		require.NoError(t, err)
 		if !strings.Contains(output.String(), testCase.expected) {
-			t.Errorf("expected output to include help text; got: %q", err)
+			t.Errorf("expected output to include help text; got stdout: %v.", output.String())
 		}
 	}
 }
