@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io/ioutil"
 	"regexp"
 
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -16,17 +17,22 @@ var TERRAFORM_VERSION_REGEX = regexp.MustCompile("Terraform (v?[\\d\\.]+)(?:-dev
 
 // Populate the currently installed version of Terraform into the given terragruntOptions
 func PopulateTerraformVersion(terragruntOptions *options.TerragruntOptions) error {
-	output, err := shell.RunTerraformCommandAndCaptureOutput(terragruntOptions, "--version")
+	// Discard all log output to make sure we don't pollute stdout or stderr with this extra call to '--version'
+	terragruntOptionsCopy := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	terragruntOptions.Writer = ioutil.Discard
+	terragruntOptions.ErrWriter = ioutil.Discard
+
+	output, err := shell.RunTerraformCommandWithOutput(terragruntOptionsCopy, "--version")
 	if err != nil {
 		return err
 	}
 
-	version, err := parseTerraformVersion(output)
+	terraformVersion, err := parseTerraformVersion(output.Stdout)
 	if err != nil {
 		return err
 	}
 
-	terragruntOptions.TerraformVersion = version
+	terragruntOptions.TerraformVersion = terraformVersion
 	return nil
 }
 
