@@ -19,8 +19,8 @@ var TERRAFORM_VERSION_REGEX = regexp.MustCompile("Terraform (v?[\\d\\.]+)(?:-dev
 func PopulateTerraformVersion(terragruntOptions *options.TerragruntOptions) error {
 	// Discard all log output to make sure we don't pollute stdout or stderr with this extra call to '--version'
 	terragruntOptionsCopy := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
-	terragruntOptions.Writer = ioutil.Discard
-	terragruntOptions.ErrWriter = ioutil.Discard
+	terragruntOptionsCopy.Writer = ioutil.Discard
+	terragruntOptionsCopy.ErrWriter = ioutil.Discard
 
 	output, err := shell.RunTerraformCommandWithOutput(terragruntOptionsCopy, "--version")
 	if err != nil {
