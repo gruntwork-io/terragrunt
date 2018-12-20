@@ -60,7 +60,12 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 		return []*TerraformModule{}, err
 	}
 
-	finalModules, err := flagExcludedDirs(crossLinkedModules, terragruntOptions)
+	includedModules, err := flagIncludedDirs(crossLinkedModules, terragruntOptions)
+	if err != nil {
+		return []*TerraformModule{}, err
+	}
+
+	finalModules, err := flagExcludedDirs(includedModules, terragruntOptions)
 	if err != nil {
 		return []*TerraformModule{}, err
 	}
@@ -124,6 +129,67 @@ func flagExcludedDirs(modules []*TerraformModule, terragruntOptions *options.Ter
 			if shouldExcludeModuleBecauseOfPath(dependency, canonicalExcludeDirs) {
 				dependency.FlagExcluded = true
 			}
+		}
+	}
+
+	return modules, nil
+}
+
+//flagIncludedDirs iterates over a module slice and flags all entries not in the list specified via the terragrunt-include-dir CLI flag  as excluded.
+func flagIncludedDirs(modules []*TerraformModule, terragruntOptions *options.TerragruntOptions) ([]*TerraformModule, error) {
+
+	// If no IncludeDirs is specified return the modules list instantly
+	if len(terragruntOptions.IncludeDirs) == 0 {
+		return modules, nil
+	}
+
+	canonicalWorkingDir, err := util.CanonicalPath("", terragruntOptions.WorkingDir)
+	if err != nil {
+		return nil, err
+	}
+
+	includeGlobMatches := []string{}
+
+	// If possible, expand the glob to get all excluded filepaths
+	for _, dir := range terragruntOptions.IncludeDirs {
+
+		absoluteDir := ""
+
+		// Ensure excludedDirs are absolute
+		if filepath.IsAbs(dir) {
+			absoluteDir = dir
+		} else {
+			absoluteDir = filepath.Join(canonicalWorkingDir, dir)
+		}
+
+		matches, err := zglob.Glob(absoluteDir)
+
+		// Skip globs that can not be expanded
+		if err == nil {
+			includeGlobMatches = append(includeGlobMatches, matches...)
+		}
+	}
+
+	// Make sure all paths are canonical
+	canonicalIncludeDirs := []string{}
+	for _, module := range includeGlobMatches {
+		canonicalPath, err := util.CanonicalPath(module, terragruntOptions.WorkingDir)
+		if err != nil {
+			return nil, err
+		}
+		canonicalIncludeDirs = append(canonicalIncludeDirs, canonicalPath)
+	}
+
+	for _, module := range modules {
+		if shouldExcludeModuleBecauseOfPath(module, canonicalIncludeDirs) {
+			// Mark module itself as excluded
+			module.FlagExcluded = false
+			// Mark all affected dependencies as excluded
+			for _, dependency := range module.Dependencies {
+				dependency.FlagExcluded = false
+			}
+		} else {
+			module.FlagExcluded = true
 		}
 	}
 

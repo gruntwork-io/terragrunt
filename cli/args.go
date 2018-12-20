@@ -92,6 +92,11 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 		return nil, err
 	}
 
+	includeDirs, err := parseMultiStringArg(args, OPT_TERRAGRUNT_INCLUDE_DIR, []string{})
+	if err != nil {
+		return nil, err
+	}
+
 	opts, err := options.NewTerragruntOptions(filepath.ToSlash(terragruntConfigPath))
 	if err != nil {
 		return nil, err
@@ -115,6 +120,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 	opts.Env = parseEnvironmentVariables(os.Environ())
 	opts.IamRole = iamRole
 	opts.ExcludeDirs = excludeDirs
+	opts.IncludeDirs = includeDirs
 
 	return opts, nil
 }

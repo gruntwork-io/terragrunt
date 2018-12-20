@@ -96,6 +96,9 @@ type TerragruntOptions struct {
 	// Unix-style glob of directories to exclude when running *-all commands
 	ExcludeDirs []string
 
+	// Unix-style glob of directories to include when running *-all commands
+	IncludeDirs []string
+
 	// A command that can be used to run Terragrunt with the given options. This is useful for running Terragrunt
 	// multiple times (e.g. when spinning up a stack of Terraform modules). The actual command is normally defined
 	// in the cli package, which depends on almost all other packages, so we declare it here so that other
@@ -135,6 +138,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		Sleep:                  DEFAULT_SLEEP,
 		RetryableErrors:        util.CloneStringList(RETRYABLE_ERRORS),
 		ExcludeDirs:            []string{},
+		IncludeDirs:            []string{},
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},

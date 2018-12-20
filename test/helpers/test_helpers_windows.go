@@ -10,7 +10,7 @@ import (
 var RootFolder = retrieveRootFolder()
 
 func retrieveRootFolder() string {
-	cwd, _ := os.Getwd();
+	cwd, _ := os.Getwd()
 
 	return fmt.Sprintf("%s:/", cwd[0:1])
 }
