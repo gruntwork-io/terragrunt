@@ -60,7 +60,12 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 		return []*TerraformModule{}, err
 	}
 
-	finalModules, err := flagExcludedDirs(crossLinkedModules, terragruntOptions)
+	includedModules, err := flagIncludedDirs(crossLinkedModules, terragruntOptions)
+	if err != nil {
+		return []*TerraformModule{}, err
+	}
+
+	finalModules, err := flagExcludedDirs(includedModules, terragruntOptions)
 	if err != nil {
 		return []*TerraformModule{}, err
 	}
@@ -114,14 +119,14 @@ func flagExcludedDirs(modules []*TerraformModule, terragruntOptions *options.Ter
 	}
 
 	for _, module := range modules {
-		if shouldExcludeModuleBecauseOfPath(module, canonicalExcludeDirs) {
+		if findModuleinPath(module, canonicalExcludeDirs) {
 			// Mark module itself as excluded
 			module.FlagExcluded = true
 		}
 
 		// Mark all affected dependencies as excluded
 		for _, dependency := range module.Dependencies {
-			if shouldExcludeModuleBecauseOfPath(dependency, canonicalExcludeDirs) {
+			if findModuleinPath(dependency, canonicalExcludeDirs) {
 				dependency.FlagExcluded = true
 			}
 		}
@@ -130,10 +135,69 @@ func flagExcludedDirs(modules []*TerraformModule, terragruntOptions *options.Ter
 	return modules, nil
 }
 
-// Returns true if a module is located under one of the excluded directories
-func shouldExcludeModuleBecauseOfPath(module *TerraformModule, excludeDirs []string) bool {
-	for _, excludeDir := range excludeDirs {
-		if strings.Contains(module.Path, excludeDir) {
+//flagIncludedDirs iterates over a module slice and flags all entries not in the list specified via the terragrunt-include-dir CLI flag  as excluded.
+func flagIncludedDirs(modules []*TerraformModule, terragruntOptions *options.TerragruntOptions) ([]*TerraformModule, error) {
+
+	// If no IncludeDirs is specified return the modules list instantly
+	if len(terragruntOptions.IncludeDirs) == 0 {
+		return modules, nil
+	}
+
+	canonicalWorkingDir, err := util.CanonicalPath("", terragruntOptions.WorkingDir)
+	if err != nil {
+		return nil, err
+	}
+
+	includeGlobMatches := []string{}
+
+	// If possible, expand the glob to get all included filepaths
+	for _, dir := range terragruntOptions.IncludeDirs {
+
+		absoluteDir := dir
+
+		// Ensure includedDirs are absolute
+		if !filepath.IsAbs(dir) {
+			absoluteDir = filepath.Join(canonicalWorkingDir, dir)
+		}
+
+		matches, err := zglob.Glob(absoluteDir)
+
+		// Skip globs that can not be expanded
+		if err == nil {
+			includeGlobMatches = append(includeGlobMatches, matches...)
+		}
+	}
+
+	// Make sure all paths are canonical
+	canonicalIncludeDirs := []string{}
+	for _, module := range includeGlobMatches {
+		canonicalPath, err := util.CanonicalPath(module, terragruntOptions.WorkingDir)
+		if err != nil {
+			return nil, err
+		}
+		canonicalIncludeDirs = append(canonicalIncludeDirs, canonicalPath)
+	}
+
+	for _, module := range modules {
+		if findModuleinPath(module, canonicalIncludeDirs) {
+			// Mark module itself as included
+			module.FlagExcluded = false
+			// Mark all affected dependencies as included
+			for _, dependency := range module.Dependencies {
+				dependency.FlagExcluded = false
+			}
+		} else {
+			module.FlagExcluded = true
+		}
+	}
+
+	return modules, nil
+}
+
+// Returns true if a module is located under one of the target directories
+func findModuleinPath(module *TerraformModule, targetDirs []string) bool {
+	for _, targetDir := range targetDirs {
+		if strings.Contains(module.Path, targetDir) {
 			return true
 		}
 	}
