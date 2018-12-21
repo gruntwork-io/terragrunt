@@ -204,6 +204,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		Sleep:                  terragruntOptions.Sleep,
 		RetryableErrors:        util.CloneStringList(terragruntOptions.RetryableErrors),
 		ExcludeDirs:            terragruntOptions.ExcludeDirs,
+		IncludeDirs:            terragruntOptions.IncludeDirs,
 		RunTerragrunt:          terragruntOptions.RunTerragrunt,
 	}
 }

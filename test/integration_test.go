@@ -46,6 +46,7 @@ const (
 	TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH              = "fixture-download/remote-relative"
 	TEST_FIXTURE_LOCAL_WITH_BACKEND                         = "fixture-download/local-with-backend"
 	TEST_FIXTURE_LOCAL_WITH_EXCLUDE_DIR                     = "fixture-download/local-with-exclude-dir"
+	TEST_FIXTURE_LOCAL_WITH_INCLUDE_DIR                     = "fixture-download/local-with-include-dir"
 	TEST_FIXTURE_REMOTE_WITH_BACKEND                        = "fixture-download/remote-with-backend"
 	TEST_FIXTURE_REMOTE_MODULE_IN_ROOT                      = "fixture-download/remote-module-in-root"
 	TEST_FIXTURE_LOCAL_MISSING_BACKEND                      = "fixture-download/local-with-missing-backend"
@@ -1253,12 +1254,14 @@ func TestIncludeDirs(t *testing.T) {
 		includeArgs           string
 		includedModuleOutputs []string
 	}{
-		{TEST_FIXTURE_LOCAL_WITH_EXCLUDE_DIR, "--terragrunt-include-dir */aws", []string{"Module GCE B", "Module GCE C", "Module GCE E"}},
+		{TEST_FIXTURE_LOCAL_WITH_INCLUDE_DIR, "--terragrunt-include-dir */aws", []string{"Module GCE B", "Module GCE C", "Module GCE E"}},
+		{TEST_FIXTURE_LOCAL_WITH_INCLUDE_DIR, "--terragrunt-include-dir production-env --terragrunt-include-dir **/module-gce-c", []string{"Module GCE B", "Module AWS A"}},
+		{TEST_FIXTURE_LOCAL_WITH_INCLUDE_DIR, "--terragrunt-include-dir integration-env/gce/module-gce-b --terragrunt-include-dir integration-env/gce/module-gce-c --terragrunt-include-dir **/module-aws*", []string{"Module GCE E"}},
 	}
 
 	modulePaths := make(map[string]string, len(moduleNames))
 	for _, moduleName := range moduleNames {
-		modulePaths[moduleName] = util.JoinPath(TEST_FIXTURE_LOCAL_WITH_EXCLUDE_DIR, moduleName)
+		modulePaths[moduleName] = util.JoinPath(TEST_FIXTURE_LOCAL_WITH_INCLUDE_DIR, moduleName)
 	}
 
 	for _, testCase := range testCases {
@@ -1266,7 +1269,7 @@ func TestIncludeDirs(t *testing.T) {
 		applyAllStderr := bytes.Buffer{}
 
 		// Cleanup all modules directories.
-		cleanupTerragruntFolder(t, TEST_FIXTURE_LOCAL_WITH_EXCLUDE_DIR)
+		cleanupTerragruntFolder(t, TEST_FIXTURE_LOCAL_WITH_INCLUDE_DIR)
 		for _, modulePath := range modulePaths {
 			cleanupTerragruntFolder(t, modulePath)
 		}

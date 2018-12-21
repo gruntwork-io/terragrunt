@@ -119,14 +119,14 @@ func flagExcludedDirs(modules []*TerraformModule, terragruntOptions *options.Ter
 	}
 
 	for _, module := range modules {
-		if shouldExcludeModuleBecauseOfPath(module, canonicalExcludeDirs) {
+		if findModuleinPath(module, canonicalExcludeDirs) {
 			// Mark module itself as excluded
 			module.FlagExcluded = true
 		}
 
 		// Mark all affected dependencies as excluded
 		for _, dependency := range module.Dependencies {
-			if shouldExcludeModuleBecauseOfPath(dependency, canonicalExcludeDirs) {
+			if findModuleinPath(dependency, canonicalExcludeDirs) {
 				dependency.FlagExcluded = true
 			}
 		}
@@ -150,15 +150,13 @@ func flagIncludedDirs(modules []*TerraformModule, terragruntOptions *options.Ter
 
 	includeGlobMatches := []string{}
 
-	// If possible, expand the glob to get all excluded filepaths
+	// If possible, expand the glob to get all included filepaths
 	for _, dir := range terragruntOptions.IncludeDirs {
 
-		absoluteDir := ""
+		absoluteDir := dir
 
-		// Ensure excludedDirs are absolute
-		if filepath.IsAbs(dir) {
-			absoluteDir = dir
-		} else {
+		// Ensure includedDirs are absolute
+		if !filepath.IsAbs(dir) {
 			absoluteDir = filepath.Join(canonicalWorkingDir, dir)
 		}
 
@@ -181,10 +179,10 @@ func flagIncludedDirs(modules []*TerraformModule, terragruntOptions *options.Ter
 	}
 
 	for _, module := range modules {
-		if shouldExcludeModuleBecauseOfPath(module, canonicalIncludeDirs) {
-			// Mark module itself as excluded
+		if findModuleinPath(module, canonicalIncludeDirs) {
+			// Mark module itself as included
 			module.FlagExcluded = false
-			// Mark all affected dependencies as excluded
+			// Mark all affected dependencies as included
 			for _, dependency := range module.Dependencies {
 				dependency.FlagExcluded = false
 			}
@@ -196,10 +194,10 @@ func flagIncludedDirs(modules []*TerraformModule, terragruntOptions *options.Ter
 	return modules, nil
 }
 
-// Returns true if a module is located under one of the excluded directories
-func shouldExcludeModuleBecauseOfPath(module *TerraformModule, excludeDirs []string) bool {
-	for _, excludeDir := range excludeDirs {
-		if strings.Contains(module.Path, excludeDir) {
+// Returns true if a module is located under one of the target directories
+func findModuleinPath(module *TerraformModule, targetDirs []string) bool {
+	for _, targetDir := range targetDirs {
+		if strings.Contains(module.Path, targetDir) {
 			return true
 		}
 	}
