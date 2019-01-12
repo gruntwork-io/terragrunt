@@ -54,23 +54,23 @@ func newRunningModule(module *TerraformModule) *runningModule {
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func RunModules(modules []*TerraformModule) error {
+func RunModules(modules []*TerraformModule, concurrency int) error {
 	runningModules, err := toRunningModules(modules, NormalOrder)
 	if err != nil {
 		return err
 	}
-	return runModules(runningModules)
+	return runModules(runningModules, concurrency)
 }
 
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in the reverse order of their inter-dependencies, using
 // as much concurrency as possible.
-func RunModulesReverseOrder(modules []*TerraformModule) error {
+func RunModulesReverseOrder(modules []*TerraformModule, concurrency int) error {
 	runningModules, err := toRunningModules(modules, ReverseOrder)
 	if err != nil {
 		return err
 	}
-	return runModules(runningModules)
+	return runModules(runningModules, concurrency)
 }
 
 // Convert the list of modules to a map from module path to a runningModule struct. This struct contains information
@@ -147,14 +147,15 @@ func removeFlagExcluded(modules map[string]*runningModule) map[string]*runningMo
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func runModules(modules map[string]*runningModule) error {
+func runModules(modules map[string]*runningModule, concurrency int) error {
 	var waitGroup sync.WaitGroup
+	var s = make(chan struct{}, concurrency)
 
 	for _, module := range modules {
 		waitGroup.Add(1)
 		go func(module *runningModule) {
 			defer waitGroup.Done()
-			module.runModuleWhenReady()
+			module.runModuleWhenReady(s)
 		}(module)
 	}
 
@@ -181,8 +182,12 @@ func collectErrors(modules map[string]*runningModule) error {
 }
 
 // Run a module once all of its dependencies have finished executing.
-func (module *runningModule) runModuleWhenReady() {
+func (module *runningModule) runModuleWhenReady(s chan struct{}) {
 	err := module.waitForDependencies()
+	s <- struct{}{} // Lock
+	defer func() {
+		<-s // Unlock
+	}()
 	if err == nil {
 		err = module.runNow()
 	}

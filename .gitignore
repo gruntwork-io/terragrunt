@@ -1,3 +1,4 @@
+terragrunt
 .*.sw?
 .idea
 terragrunt.iml

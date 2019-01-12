@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -102,6 +103,15 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 		return nil, err
 	}
 
+	concurrency, err := parseStringArg(args, OPT_TERRAGRUNT_CONCURRENCY, os.Getenv("TERRAGRUNT_CONCURRENCY"))
+	if err != nil {
+		return nil, err
+	}
+	concurrencyInt, err := strconv.Atoi(concurrency)
+	if err != nil {
+		return nil, err
+	}
+
 	opts.TerraformPath = filepath.ToSlash(terraformPath)
 	opts.AutoInit = !parseBooleanArg(args, OPT_TERRAGRUNT_NO_AUTO_INIT, os.Getenv("TERRAGRUNT_AUTO_INIT") == "false")
 	opts.AutoRetry = !parseBooleanArg(args, OPT_TERRAGRUNT_NO_AUTO_RETRY, os.Getenv("TERRAGRUNT_AUTO_RETRY") == "false")
@@ -121,6 +131,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 	opts.IamRole = iamRole
 	opts.ExcludeDirs = excludeDirs
 	opts.IncludeDirs = includeDirs
+	opts.Concurrency = concurrencyInt
 
 	return opts, nil
 }
