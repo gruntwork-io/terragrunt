@@ -103,11 +103,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 		return nil, err
 	}
 
-	concurrency, err := parseStringArg(args, OPT_TERRAGRUNT_CONCURRENCY, os.Getenv("TERRAGRUNT_CONCURRENCY"))
-	if err != nil {
-		return nil, err
-	}
-	concurrencyInt, err := strconv.Atoi(concurrency)
+	concurrency, err := parseIntArg(args, OPT_TERRAGRUNT_CONCURRENCY, os.Getenv("TERRAGRUNT_CONCURRENCY"))
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +127,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 	opts.IamRole = iamRole
 	opts.ExcludeDirs = excludeDirs
 	opts.IncludeDirs = includeDirs
-	opts.Concurrency = concurrencyInt
+	opts.Concurrency = concurrency
 
 	return opts, nil
 }
@@ -266,6 +262,21 @@ func parseStringArg(args []string, argName string, defaultValue string) (string,
 		}
 	}
 	return defaultValue, nil
+}
+
+// Find a int argument (e.g. --foo 1) of the given name in the given list of arguments. If it's present,
+// return its value. If it is present, but has no value, return an error. If it isn't present, return defaultValue.
+func parseIntArg(args []string, argName string, defaultValue string) (int, error) {
+	for i, arg := range args {
+		if arg == fmt.Sprintf("--%i", argName) {
+			if (i + 1) < len(args) {
+				return strconv.Atoi(args[i+1])
+			} else {
+				return 0, errors.WithStackTrace(ArgMissingValue(argName))
+			}
+		}
+	}
+	return strconv.Atoi(defaultValue)
 }
 
 // Find multiple string arguments of the same type (e.g. --foo "VALUE_A" --foo "VALUE_B") of the given name in the given list of arguments. If there are any present,
