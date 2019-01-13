@@ -149,13 +149,13 @@ func removeFlagExcluded(modules map[string]*runningModule) map[string]*runningMo
 // as much concurrency as possible.
 func runModules(modules map[string]*runningModule, concurrency int) error {
 	var waitGroup sync.WaitGroup
-	var s = make(chan struct{}, concurrency)
+	var semaphore = make(chan struct{}, concurrency) // Make a semaphore from a buffered channel
 
 	for _, module := range modules {
 		waitGroup.Add(1)
 		go func(module *runningModule) {
 			defer waitGroup.Done()
-			module.runModuleWhenReady(s)
+			module.runModuleWhenReady(semaphore)
 		}(module)
 	}
 
@@ -182,11 +182,11 @@ func collectErrors(modules map[string]*runningModule) error {
 }
 
 // Run a module once all of its dependencies have finished executing.
-func (module *runningModule) runModuleWhenReady(s chan struct{}) {
+func (module *runningModule) runModuleWhenReady(semaphore chan struct{}) {
 	err := module.waitForDependencies()
-	s <- struct{}{} // Lock
+	semaphore <- struct{}{} // Add one to the buffered channel. Will block in concurrency limit is met
 	defer func() {
-		<-s // Unlock
+		<-semaphore // Remove one from the buffered channel
 	}()
 	if err == nil {
 		err = module.runNow()
