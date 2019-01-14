@@ -21,7 +21,7 @@ var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
 
 const DEFAULT_MAX_FOLDERS_TO_CHECK = 100
 
-const DEFAULT_PARALLELISM = 50
+const DEFAULT_PARALLELISM = 10
 
 const TerragruntCacheDir = ".terragrunt-cache"
 
