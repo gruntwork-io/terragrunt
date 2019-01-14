@@ -21,7 +21,7 @@ var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
 
 const DEFAULT_MAX_FOLDERS_TO_CHECK = 100
 
-const DEFAULT_CONCURRENCY = 50
+const DEFAULT_PARALLELISM = 50
 
 const TerragruntCacheDir = ".terragrunt-cache"
 
@@ -101,8 +101,8 @@ type TerragruntOptions struct {
 	// Unix-style glob of directories to include when running *-all commands
 	IncludeDirs []string
 
-	// Concurrency limits the number of commands to run concurrently during *-all commands
-	Concurrency int
+	// Parallelism limits the number of commands to run concurrently during *-all commands
+	Parallelism int
 
 	// A command that can be used to run Terragrunt with the given options. This is useful for running Terragrunt
 	// multiple times (e.g. when spinning up a stack of Terraform modules). The actual command is normally defined
@@ -144,7 +144,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		RetryableErrors:        util.CloneStringList(RETRYABLE_ERRORS),
 		ExcludeDirs:            []string{},
 		IncludeDirs:            []string{},
-		Concurrency:            DEFAULT_CONCURRENCY,
+		Parallelism:            DEFAULT_PARALLELISM,
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
@@ -211,7 +211,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		RetryableErrors:        util.CloneStringList(terragruntOptions.RetryableErrors),
 		ExcludeDirs:            terragruntOptions.ExcludeDirs,
 		IncludeDirs:            terragruntOptions.IncludeDirs,
-		Concurrency:            terragruntOptions.Concurrency,
+		Parallelism:            terragruntOptions.Parallelism,
 		RunTerragrunt:          terragruntOptions.RunTerragrunt,
 	}
 }

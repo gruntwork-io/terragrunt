@@ -103,7 +103,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 		return nil, err
 	}
 
-	concurrency, err := parseIntArg(args, OPT_TERRAGRUNT_CONCURRENCY, os.Getenv("TERRAGRUNT_CONCURRENCY"))
+	parallelism, err := parseIntArg(args, OPT_TERRAGRUNT_PARALLELISM, os.Getenv("TERRAGRUNT_PARALLELISM"))
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 	opts.IamRole = iamRole
 	opts.ExcludeDirs = excludeDirs
 	opts.IncludeDirs = includeDirs
-	opts.Concurrency = concurrency
+	opts.Parallelism = parallelism
 
 	return opts, nil
 }

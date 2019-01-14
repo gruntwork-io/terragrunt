@@ -39,7 +39,7 @@ func (stack *Stack) Plan(terragruntOptions *options.TerragruntOptions) error {
 		module.TerragruntOptions.ErrWriter = &errorStreams[n]
 	}
 	defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
-	return RunModules(stack.Modules, terragruntOptions.Concurrency)
+	return RunModules(stack.Modules, terragruntOptions.Parallelism)
 }
 
 // We inspect the error streams to give an explicit message if the plan failed because there were references to
@@ -71,26 +71,26 @@ func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.Terragrunt
 // proper order.
 func (stack *Stack) Apply(terragruntOptions *options.TerragruntOptions) error {
 	stack.setTerraformCommand([]string{"apply", "-input=false", "-auto-approve"})
-	return RunModules(stack.Modules, terragruntOptions.Concurrency)
+	return RunModules(stack.Modules, terragruntOptions.Parallelism)
 }
 
 // Destroy all the modules in the given stack, making sure to destroy the dependencies of each module in the stack in
 // the proper order.
 func (stack *Stack) Destroy(terragruntOptions *options.TerragruntOptions) error {
 	stack.setTerraformCommand([]string{"destroy", "-force", "-input=false"})
-	return RunModulesReverseOrder(stack.Modules, terragruntOptions.Concurrency)
+	return RunModulesReverseOrder(stack.Modules, terragruntOptions.Parallelism)
 }
 
 // Output prints the outputs of all the modules in the given stack in their specified order.
 func (stack *Stack) Output(terragruntOptions *options.TerragruntOptions) error {
 	stack.setTerraformCommand([]string{"output"})
-	return RunModules(stack.Modules, terragruntOptions.Concurrency)
+	return RunModules(stack.Modules, terragruntOptions.Parallelism)
 }
 
 // Validate runs terraform validate on each module
 func (stack *Stack) Validate(terragruntOptions *options.TerragruntOptions) error {
 	stack.setTerraformCommand([]string{"validate"})
-	return RunModules(stack.Modules, terragruntOptions.Concurrency)
+	return RunModules(stack.Modules, terragruntOptions.Parallelism)
 }
 
 // Return an error if there is a dependency cycle in the modules of this stack.

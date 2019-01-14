@@ -54,23 +54,23 @@ func newRunningModule(module *TerraformModule) *runningModule {
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func RunModules(modules []*TerraformModule, concurrency int) error {
+func RunModules(modules []*TerraformModule, parallelism int) error {
 	runningModules, err := toRunningModules(modules, NormalOrder)
 	if err != nil {
 		return err
 	}
-	return runModules(runningModules, concurrency)
+	return runModules(runningModules, parallelism)
 }
 
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in the reverse order of their inter-dependencies, using
 // as much concurrency as possible.
-func RunModulesReverseOrder(modules []*TerraformModule, concurrency int) error {
+func RunModulesReverseOrder(modules []*TerraformModule, parallelism int) error {
 	runningModules, err := toRunningModules(modules, ReverseOrder)
 	if err != nil {
 		return err
 	}
-	return runModules(runningModules, concurrency)
+	return runModules(runningModules, parallelism)
 }
 
 // Convert the list of modules to a map from module path to a runningModule struct. This struct contains information
@@ -147,9 +147,9 @@ func removeFlagExcluded(modules map[string]*runningModule) map[string]*runningMo
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func runModules(modules map[string]*runningModule, concurrency int) error {
+func runModules(modules map[string]*runningModule, parallelism int) error {
 	var waitGroup sync.WaitGroup
-	var semaphore = make(chan struct{}, concurrency) // Make a semaphore from a buffered channel
+	var semaphore = make(chan struct{}, parallelism) // Make a semaphore from a buffered channel
 
 	for _, module := range modules {
 		waitGroup.Add(1)
@@ -184,7 +184,7 @@ func collectErrors(modules map[string]*runningModule) error {
 // Run a module once all of its dependencies have finished executing.
 func (module *runningModule) runModuleWhenReady(semaphore chan struct{}) {
 	err := module.waitForDependencies()
-	semaphore <- struct{}{} // Add one to the buffered channel. Will block in concurrency limit is met
+	semaphore <- struct{}{} // Add one to the buffered channel. Will block in parallelism limit is met
 	defer func() {
 		<-semaphore // Remove one from the buffered channel
 	}()
