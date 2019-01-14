@@ -184,7 +184,7 @@ func collectErrors(modules map[string]*runningModule) error {
 // Run a module once all of its dependencies have finished executing.
 func (module *runningModule) runModuleWhenReady(semaphore chan struct{}) {
 	err := module.waitForDependencies()
-	semaphore <- struct{}{} // Add one to the buffered channel. Will block in parallelism limit is met
+	semaphore <- struct{}{} // Add one to the buffered channel. Will block if parallelism limit is met
 	defer func() {
 		<-semaphore // Remove one from the buffered channel
 	}()
