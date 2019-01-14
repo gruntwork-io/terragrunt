@@ -268,7 +268,7 @@ func parseStringArg(args []string, argName string, defaultValue string) (string,
 // return its value. If it is present, but has no value, return an error. If it isn't present, return defaultValue.
 func parseIntArg(args []string, argName string, defaultValue string) (int, error) {
 	for i, arg := range args {
-		if arg == fmt.Sprintf("--%i", argName) {
+		if arg == fmt.Sprintf("--%s", argName) {
 			if (i + 1) < len(args) {
 				return strconv.Atoi(args[i+1])
 			} else {
