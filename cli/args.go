@@ -103,7 +103,8 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 		return nil, err
 	}
 
-	parallelism, err := parseIntArg(args, OPT_TERRAGRUNT_PARALLELISM, os.Getenv("TERRAGRUNT_PARALLELISM"))
+	envValue, envProvided := os.LookupEnv("TERRAGRUNT_PARALLELISM")
+	parallelism, err := parseIntArg(args, OPT_TERRAGRUNT_PARALLELISM, envValue, envProvided, options.DEFAULT_PARALLELISM)
 	if err != nil {
 		return nil, err
 	}
@@ -265,8 +266,8 @@ func parseStringArg(args []string, argName string, defaultValue string) (string,
 }
 
 // Find a int argument (e.g. --foo 1) of the given name in the given list of arguments. If it's present,
-// return its value. If it is present, but has no value, return an error. If it isn't present, return defaultValue.
-func parseIntArg(args []string, argName string, defaultValue string) (int, error) {
+// return its value. If it is present, but has no value, return an error. If it isn't present, return envValue if provided. If not provided, return defaultValue.
+func parseIntArg(args []string, argName string, envValue string, envProvided bool, defaultValue int) (int, error) {
 	for i, arg := range args {
 		if arg == fmt.Sprintf("--%s", argName) {
 			if (i + 1) < len(args) {
@@ -276,7 +277,11 @@ func parseIntArg(args []string, argName string, defaultValue string) (int, error
 			}
 		}
 	}
-	return strconv.Atoi(defaultValue)
+	if envProvided {
+		return strconv.Atoi(envValue)
+	} else {
+		return defaultValue, nil
+	}
 }
 
 // Find multiple string arguments of the same type (e.g. --foo "VALUE_A" --foo "VALUE_B") of the given name in the given list of arguments. If there are any present,
