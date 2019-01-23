@@ -27,21 +27,37 @@ jobs:
         root: *workspace_root
         paths: vendor
 
-  test:
+  unit_test:
     <<: *defaults
     steps:
-    - checkout
-    - attach_workspace:
-        at: *workspace_root
-    - run:
-        command: |
-          mkdir -p logs
-          run-go-tests --circle-ci-2 | tee logs/all.log
-          terratest_log_parser --testlog logs/all.log --outputdir logs
-    - store_artifacts:
-        path: logs
-    - store_test_results:
-        path: logs
+      - checkout
+      - attach_workspace:
+          at: *workspace_root
+      - run:
+          command: |
+            mkdir -p logs
+            run-go-tests --circle-ci-2 --parallelism 1 --packages "$(go list ./... | grep -v /test | tr '\n' ' ')"  | tee logs/unit.log
+            terratest_log_parser --testlog logs/unit.log --outputdir logs
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
+  integration_test:
+    <<: *defaults
+    steps:
+      - checkout
+      - attach_workspace:
+          at: *workspace_root
+      - run:
+          command: |
+            mkdir -p logs
+            run-go-tests --circle-ci-2 --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
+            terratest_log_parser --testlog logs/integration.log --outputdir logs
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
 
   build:
     <<: *defaults
@@ -70,15 +86,21 @@ workflows:
         filters:
           tags:
             only: /^v.*/
-    - test:
+    - unit_test:
         requires:
-        - install_dependencies
+          - install_dependencies
+        filters:
+          tags:
+            only: /^v.*/
+    - integration_test:
+        requires:
+          - unit_test
         filters:
           tags:
             only: /^v.*/
     - build:
         requires:
-        - test
+        - integration_test
         filters:
           tags:
             only: /^v.*/
@@ -101,6 +123,9 @@ workflows:
             only: master
     jobs:
     - install_dependencies
-    - test:
+    - unit_test:
         requires:
-        - install_dependencies
+          - install_dependencies
+    - integration_test:
+        requires:
+          - unit_test
