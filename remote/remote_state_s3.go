@@ -456,7 +456,7 @@ func EnableSSEForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 
 // Enable bucket-wide Access Logging for the AWS S3 bucket specified in the given config
 func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Printf("Enabling bucket-wide Access Logging on AWS S3 bucket \"%s\" - using as TargetBucket \"%s\"", config.Bucket)
+	terragruntOptions.Logger.Printf("Enabling bucket-wide Access Logging on AWS S3 bucket \"%s\" - using as TargetBucket \"%s\"", config.Bucket, config.Bucket)
 	input := s3.PutBucketLoggingInput{
 		Bucket: aws.String(config.Bucket),
 		BucketLoggingStatus: &s3.BucketLoggingStatus{
