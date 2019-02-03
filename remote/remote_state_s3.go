@@ -25,11 +25,11 @@ import (
 type ExtendedRemoteStateConfigS3 struct {
 	remoteStateConfigS3 RemoteStateConfigS3
 
-	S3BucketTags						[]map[string]string `mapstructure:"s3_bucket_tags"`
+	S3BucketTags						[]map[string]string	`mapstructure:"s3_bucket_tags"`
 	DynamotableTags					[]map[string]string `mapstructure:"dynamodb_table_tags"`
 	SkipBucketVersioning		bool                `mapstructure:"skip_bucket_versioning"`
 	SkipBucketSSEncryption	bool                `mapstructure:"skip_bucket_ssencryption"`
-	SkipBucketAccessLogging bool                `mapstructure:"skip_bucket_accesslogging"`
+	SkipBucketAccessLogging	bool                `mapstructure:"skip_bucket_accesslogging"`
 }
 
 // A representation of the configuration options available for S3 remote state
