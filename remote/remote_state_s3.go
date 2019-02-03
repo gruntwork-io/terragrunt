@@ -2,6 +2,10 @@ package remote
 
 import (
 	"fmt"
+	"reflect"
+	"strconv"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -12,9 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/mitchellh/mapstructure"
-	"reflect"
-	"strconv"
-	"time"
 )
 
 /*
@@ -25,11 +26,11 @@ import (
 type ExtendedRemoteStateConfigS3 struct {
 	remoteStateConfigS3 RemoteStateConfigS3
 
-	S3BucketTags		[]map[string]string `mapstructure:"s3_bucket_tags"`
-	DynamotableTags		[]map[string]string `mapstructure:"dynamodb_table_tags"`
-	SkipBucketVersioning	bool                `mapstructure:"skip_bucket_versioning"`
-	SkipBucketSSEncryption	bool                `mapstructure:"skip_bucket_ssencryption"`
-	SkipBucketAccessLogging	bool                `mapstructure:"skip_bucket_accesslogging"`
+	S3BucketTags            []map[string]string `mapstructure:"s3_bucket_tags"`
+	DynamotableTags         []map[string]string `mapstructure:"dynamodb_table_tags"`
+	SkipBucketVersioning    bool                `mapstructure:"skip_bucket_versioning"`
+	SkipBucketSSEncryption  bool                `mapstructure:"skip_bucket_ssencryption"`
+	SkipBucketAccessLogging bool                `mapstructure:"skip_bucket_accesslogging"`
 }
 
 // A representation of the configuration options available for S3 remote state
@@ -443,10 +444,10 @@ func EnableVersioningForS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, t
 func EnableSSEForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Enabling bucket-wide SSE on AWS S3 bucket %s", config.Bucket)
 	input := s3.PutBucketEncryptionInput{
-		Bucket:                  aws.String(config.Bucket),
+		Bucket: aws.String(config.Bucket),
 		ServerSideEncryptionConfiguration: &s3.ServerSideEncryptionConfiguration{
 			ServerSideEncryption: aws.String("aws:kms"),
-			SSEKMSKeyId: aws.String("aws/s3"),
+			SSEKMSKeyId:          aws.String("aws/s3"),
 		},
 	}
 
@@ -458,11 +459,11 @@ func EnableSSEForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Enabling bucket-wide Access Logging on AWS S3 bucket %s", config.Bucket)
 	input := s3.PutBucketLoggingInput{
-		Bucket:                  aws.String(config.Bucket),
+		Bucket: aws.String(config.Bucket),
 		BucketLoggingStatus: &s3.BucketLoggingStatus{
-		LoggingEnabled: &s3.LoggingEnabled{
-			TargetBucket: aws.String(config.Bucket),
-			TargetPrefix: aws.String("TFStateLogs/"),
+			LoggingEnabled: &s3.LoggingEnabled{
+				TargetBucket: aws.String(config.Bucket),
+				TargetPrefix: aws.String("TFStateLogs/"),
 			},
 		},
 	}
