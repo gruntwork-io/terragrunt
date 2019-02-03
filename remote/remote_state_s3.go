@@ -443,21 +443,20 @@ func EnableVersioningForS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, t
 // Enable bucket-wide Server-Side Encryption for the AWS S3 bucket specified in the given config
 func EnableSSEForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Enabling bucket-wide SSE on AWS S3 bucket %s", config.Bucket)
-	input := s3.PutBucketEncryptionInput{
-		Bucket: aws.String(config.Bucket),
-		ServerSideEncryptionConfiguration: &s3.ServerSideEncryptionConfiguration{
-			ServerSideEncryption: aws.String("aws:kms"),
-			SSEKMSKeyId:          aws.String("aws/s3"),
-		},
-	}
+	// Encrypt with KMS by default
+	defEnc := &s3.ServerSideEncryptionByDefault{KMSMasterKeyID: aws.String("aws/s3"), SSEAlgorithm: aws.String(s3.ServerSideEncryptionAwsKms)}
+	rule := &s3.ServerSideEncryptionRule{ApplyServerSideEncryptionByDefault: defEnc}
+	rules := []*s3.ServerSideEncryptionRule{rule}
+	serverConfig := &s3.ServerSideEncryptionConfiguration{Rules: rules}
+	input := &s3.PutBucketEncryptionInput{Bucket: aws.String(config.Bucket), ServerSideEncryptionConfiguration: serverConfig}
 
-	_, err := s3Client.PutBucketEncryption(&input)
+	_, err := s3Client.PutBucketEncryption(input)
 	return errors.WithStackTrace(err)
 }
 
 // Enable bucket-wide Access Logging for the AWS S3 bucket specified in the given config
 func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Printf("Enabling bucket-wide Access Logging on AWS S3 bucket %s", config.Bucket)
+	terragruntOptions.Logger.Printf("Enabling bucket-wide Access Logging on AWS S3 bucket \"%s\" - using as TargetBucket \"%s\"", config.Bucket)
 	input := s3.PutBucketLoggingInput{
 		Bucket: aws.String(config.Bucket),
 		BucketLoggingStatus: &s3.BucketLoggingStatus{
