@@ -25,10 +25,11 @@ import (
 type ExtendedRemoteStateConfigS3 struct {
 	remoteStateConfigS3 RemoteStateConfigS3
 
-	S3BucketTags         	 []map[string]string `mapstructure:"s3_bucket_tags"`
-	DynamotableTags      	 []map[string]string `mapstructure:"dynamodb_table_tags"`
-	SkipBucketVersioning 	 bool                `mapstructure:"skip_bucket_versioning"`
-	SkipBucketSSEncryption bool                `mapstructure:"skip_bucket_ssencryption"`
+	S3BucketTags						[]map[string]string `mapstructure:"s3_bucket_tags"`
+	DynamotableTags					[]map[string]string `mapstructure:"dynamodb_table_tags"`
+	SkipBucketVersioning		bool                `mapstructure:"skip_bucket_versioning"`
+	SkipBucketSSEncryption	bool                `mapstructure:"skip_bucket_ssencryption"`
+	SkipBucketAccessLogging bool                `mapstructure:"skip_bucket_accesslogging"`
 }
 
 // A representation of the configuration options available for S3 remote state
@@ -157,6 +158,7 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 	delete(config, "dynamodb_table_tags")
 	delete(config, "skip_bucket_versioning")
 	delete(config, "skip_bucket_ssencryption")
+	delete(config, "skip_bucket_accesslogging")
 
 	if !reflect.DeepEqual(existingBackend.Config, config) {
 		terragruntOptions.Logger.Printf("Backend config has changed from %s to %s", existingBackend.Config, config)
@@ -205,7 +207,7 @@ func (s3Initializer S3Initializer) GetTerraformInitArgs(config map[string]interf
 
 	for key, val := range config {
 
-		if key == "s3_bucket_tags" || key == "dynamodb_table_tags" || key == "skip_bucket_versioning" || key == "skip_bucket_ssencryption" {
+		if key == "s3_bucket_tags" || key == "dynamodb_table_tags" || key == "skip_bucket_versioning" || key == "skip_bucket_ssencryption" || key == "skip_bucket_accesslogging" {
 			continue
 		}
 
@@ -287,7 +289,7 @@ func createS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 		}
 
 		if shouldCreateBucket {
-			return CreateS3BucketWithVersioningAndSSEcryption(s3Client, config, terragruntOptions)
+			return CreateS3BucketWithVersioningSSEcryptionAndAccessLogging(s3Client, config, terragruntOptions)
 		}
 	}
 
@@ -311,7 +313,7 @@ func checkIfVersioningEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 }
 
 // Create the given S3 bucket and enable versioning for it
-func CreateS3BucketWithVersioningAndSSEcryption(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+func CreateS3BucketWithVersioningSSEcryptionAndAccessLogging(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	err := CreateS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions)
 
 	if err != nil {
@@ -340,6 +342,12 @@ func CreateS3BucketWithVersioningAndSSEcryption(s3Client *s3.S3, config *Extende
 	if config.SkipBucketSSEncryption {
 		terragruntOptions.Logger.Printf("Server-Side Encryption is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", config.remoteStateConfigS3.Bucket)
 	} else if err := EnableSSEForS3BucketWide(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
+		return err
+	}
+
+	if config.SkipBucketAccessLogging {
+		terragruntOptions.Logger.Printf("Access Logging is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_accesslogging' config.", config.remoteStateConfigS3.Bucket)
+	} else if err := EnableAccessLoggingForS3BucketWide(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -443,6 +451,23 @@ func EnableSSEForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 	}
 
 	_, err := s3Client.PutBucketEncryption(&input)
+	return errors.WithStackTrace(err)
+}
+
+// Enable bucket-wide Access Logging for the AWS S3 bucket specified in the given config
+func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Printf("Enabling bucket-wide Access Logging on AWS S3 bucket %s", config.Bucket)
+	input := s3.PutBucketLoggingInput{
+		Bucket:                  aws.String(config.Bucket),
+		BucketLoggingStatus: &s3.BucketLoggingStatus{
+		LoggingEnabled: &s3.LoggingEnabled{
+			TargetBucket: aws.String(config.Bucket),
+			TargetPrefix: aws.String("TFStateLogs/"),
+			},
+		},
+	}
+
+	_, err := s3Client.PutBucketLogging(&input)
 	return errors.WithStackTrace(err)
 }
 
