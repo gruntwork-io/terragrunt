@@ -206,11 +206,13 @@ func (err TableDoesNotExist) Error() string {
 	return fmt.Sprintf("Table %s does not exist in DynamoDB! Original error from AWS: %v", err.TableName, err.Underlying)
 }
 
-// To modify a table's server-side encryption (SEE)
+// Set server-side encryption (SEE) on the TFState Lock table
 //
-func UpdateTableSSEncryption(tableName string, client *dynamodb.DynamoDB) error {
+func UpdateTableSetSSEncryption(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
 	tableCreateDeleteSemaphore.Acquire()
 	defer tableCreateDeleteSemaphore.Release()
+
+	terragruntOptions.Logger.Printf("Setting server-side encryption on table %s in DynamoDB", tableName)
 
 	input := &dynamodb.UpdateTableInput{
 		SSESpecification: &dynamodb.SSESpecification{
