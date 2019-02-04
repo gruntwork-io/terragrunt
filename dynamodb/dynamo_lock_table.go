@@ -2,6 +2,8 @@ package dynamodb
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -9,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
-	"time"
 )
 
 // DynamoDB only allows 10 table creates/deletes simultaneously. To ensure we don't hit this error, especially when
@@ -203,4 +204,44 @@ type TableDoesNotExist struct {
 
 func (err TableDoesNotExist) Error() string {
 	return fmt.Sprintf("Table %s does not exist in DynamoDB! Original error from AWS: %v", err.TableName, err.Underlying)
+}
+
+// To modify a table's server-side encryption (SEE)
+//
+func UpdateTableSSEncryption(tableName string, client *dynamodb.DynamoDB) error {
+	tableCreateDeleteSemaphore.Acquire()
+	defer tableCreateDeleteSemaphore.Release()
+
+	input := &dynamodb.UpdateTableInput{
+		SSESpecification: &dynamodb.SSESpecification{
+			Enabled: aws.bool(true),
+			SSEType: aws.String("KMS"),
+		},
+		TableName: aws.String(tableName),
+	}
+
+	result, err := client.UpdateTable(input)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case dynamodb.ErrCodeResourceInUseException:
+				fmt.Println(dynamodb.ErrCodeResourceInUseException, aerr.Error())
+			case dynamodb.ErrCodeResourceNotFoundException:
+				fmt.Println(dynamodb.ErrCodeResourceNotFoundException, aerr.Error())
+			case dynamodb.ErrCodeLimitExceededException:
+				fmt.Println(dynamodb.ErrCodeLimitExceededException, aerr.Error())
+			case dynamodb.ErrCodeInternalServerError:
+				fmt.Println(dynamodb.ErrCodeInternalServerError, aerr.Error())
+			default:
+				fmt.Println(aerr.Error())
+			}
+		} else {
+			// Print the error, cast err to awserr.Error to get the Code and
+			// Message from an error.
+			fmt.Println(err.Error())
+		}
+		return
+	}
+
+	fmt.Println(result)
 }
