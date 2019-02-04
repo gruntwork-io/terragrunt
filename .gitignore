@@ -8,3 +8,4 @@ vendor
 *.tfstate.backup
 *.out
 .terragrunt-cache
+terragrunt_*

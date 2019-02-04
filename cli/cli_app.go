@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -276,7 +277,55 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 	for _, curHook := range hooks {
 		allPreviousErrors := append(previousExecError, errorsOccurred...)
 		if shouldRunHook(curHook, terragruntOptions, allPreviousErrors...) {
+			var oldEnvMap map[string]string
+
 			terragruntOptions.Logger.Printf("Executing hook: %s", curHook.Name)
+			if curHook.LoadEnvVars != nil  {
+				terragruntOptions.Logger.Printf("Loading environment for hook: %s", curHook.Name)
+
+				actionToExecute := curHook.LoadEnvVars.Execute[0]
+				actionParams := curHook.LoadEnvVars.Execute[1:]
+				out, err := shell.RunShellCommandWithOutput(terragruntOptions, actionToExecute, actionParams...)
+				if err != nil {
+					terragruntOptions.Logger.Printf("Error running hook %s while loading environment variables with message: %s", curHook.Name, err.Error())
+					errorsOccurred = append(errorsOccurred, err)
+					continue
+				}
+				// parse out from script to map
+				m := make(map[string]string)
+				scanner := bufio.NewScanner(strings.NewReader(out.Stdout))
+				for scanner.Scan() {
+					txt := scanner.Text()
+					idx := strings.Index(txt, "=")
+					if idx > 0 {
+						key := strings.TrimSpace(txt[0:idx])
+						value := txt[idx+1:len(txt)]
+						terragruntOptions.Logger.Printf("Found key = [%s]; value = [%s]\n", key, value)
+						m[key] = value
+					} else {
+						terragruntOptions.Logger.Printf("Invalid key,value pair [%s]", txt)
+					}
+				}
+				targetEnvMap := terragruntOptions.Env
+				if curHook.LoadEnvVars.Transient {
+					terragruntOptions.Logger.Printf("Making changes to Terragrunt environment variables transient")
+					oldEnvMap = terragruntOptions.Env
+					targetEnvMap := make(map[string]string)
+					for key, value := range terragruntOptions.Env {
+						targetEnvMap[key] = value
+					}
+					terragruntOptions.Env = targetEnvMap
+				}
+				if curHook.LoadEnvVars.Overwrite {
+					terragruntOptions.Logger.Printf("Overwriting Terragrunt environment variables")
+					targetEnvMap = make(map[string]string)
+					terragruntOptions.Env = targetEnvMap
+				}
+				for key, value := range m {
+					targetEnvMap[key] = value
+				}
+			}
+
 			actionToExecute := curHook.Execute[0]
 			actionParams := curHook.Execute[1:]
 			possibleError := shell.RunShellCommand(terragruntOptions, actionToExecute, actionParams...)
@@ -286,6 +335,9 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 				errorsOccurred = append(errorsOccurred, possibleError)
 			}
 
+			if oldEnvMap != nil {
+				terragruntOptions.Env = oldEnvMap
+			}
 		}
 	}
 
