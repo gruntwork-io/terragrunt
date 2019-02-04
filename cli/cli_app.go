@@ -322,21 +322,27 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 					terragruntOptions.Env = targetEnvMap
 				}
 				for key, value := range m {
+					terragruntOptions.Logger.Printf("[%s] == [%s]", key, value)
 					targetEnvMap[key] = value
+				}
+				terragruntOptions.Logger.Printf("Terragrunt environment variables: [%v]", terragruntOptions.Env)
+			}
+
+			if len(curHook.Execute) > 0 {
+				actionToExecute := curHook.Execute[0]
+				actionParams := curHook.Execute[1:]
+				possibleError := shell.RunShellCommand(terragruntOptions, actionToExecute, actionParams...)
+
+				if possibleError != nil {
+					terragruntOptions.Logger.Printf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
+					errorsOccurred = append(errorsOccurred, possibleError)
 				}
 			}
 
-			actionToExecute := curHook.Execute[0]
-			actionParams := curHook.Execute[1:]
-			possibleError := shell.RunShellCommand(terragruntOptions, actionToExecute, actionParams...)
-
-			if possibleError != nil {
-				terragruntOptions.Logger.Printf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
-				errorsOccurred = append(errorsOccurred, possibleError)
-			}
-
 			if oldEnvMap != nil {
+				terragruntOptions.Logger.Printf("Restting Terragrunt environment variables to original values")
 				terragruntOptions.Env = oldEnvMap
+				terragruntOptions.Logger.Printf("Terragrunt environment variables: [%v]", terragruntOptions.Env)
 			}
 		}
 	}

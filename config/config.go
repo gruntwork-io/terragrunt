@@ -71,7 +71,7 @@ type LoadEnvironmentVariables struct {
     Execute   []string `hcl:"execute,omitempty"`
     Format	  string   `hcl:"fomat,omitempty"`
     Transient bool     `hcl:"transient,omitempty"`
-    Overwrite bool     `hcl:"transient,omitempty"`
+    Overwrite bool     `hcl:"overwrite,omitempty"`
 }
 
 // Hook specifies terraform commands (apply/plan) and array of os commands to execute
@@ -119,13 +119,15 @@ func (conf *TerraformConfig) ValidateHooks() error {
     allHooks := append(conf.GetBeforeHooks(), conf.GetAfterHooks()...)
 
     for _, curHook := range allHooks {
-        if len(curHook.Execute) < 1 || curHook.Execute[0] == "" {
-            return InvalidArgError(fmt.Sprintf("Error with hook %s. Need at least one non-empty argument in 'execute'.", curHook.Name))
-        }
+        hasLoadEnvVars := false
         if curHook.LoadEnvVars != nil  {
             if len(curHook.LoadEnvVars.Execute) < 1 || curHook.LoadEnvVars.Execute[0] == "" {
                 return InvalidArgError(fmt.Sprintf("Error with hook %s. Need at least one non-empty argument in 'execute' for 'load_env_vars'.", curHook.Name))
             }
+            hasLoadEnvVars = true
+        }
+        if hasLoadEnvVars || (len(curHook.Execute) < 1 || curHook.Execute[0] == "") {
+            return InvalidArgError(fmt.Sprintf("Error with hook %s. Need at least one non-empty argument in 'execute'.", curHook.Name))
         }
     }
 
