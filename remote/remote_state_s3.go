@@ -314,7 +314,7 @@ func checkIfVersioningEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 }
 
 // Create the given S3 bucket and enable versioning for it
-func CreateS3BucketWithVersioningSSEcryptionAndAccessLogging(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	err := CreateS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions)
 
 	if err != nil {
