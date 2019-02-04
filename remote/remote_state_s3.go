@@ -290,7 +290,7 @@ func createS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 		}
 
 		if shouldCreateBucket {
-			return CreateS3BucketWithVersioningSSEcryptionAndAccessLogging(s3Client, config, terragruntOptions)
+			return CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client, config, terragruntOptions)
 		}
 	}
 
