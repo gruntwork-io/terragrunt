@@ -214,7 +214,7 @@ func UpdateTableSSEncryption(tableName string, client *dynamodb.DynamoDB) error 
 
 	input := &dynamodb.UpdateTableInput{
 		SSESpecification: &dynamodb.SSESpecification{
-			Enabled: aws.bool(true),
+			Enabled: aws.Bool(true),
 			SSEType: aws.String("KMS"),
 		},
 		TableName: aws.String(tableName),
@@ -240,8 +240,9 @@ func UpdateTableSSEncryption(tableName string, client *dynamodb.DynamoDB) error 
 			// Message from an error.
 			fmt.Println(err.Error())
 		}
-		return
+		return errors.WithStackTrace(err)
 	}
 
 	fmt.Println(result)
+	return errors.WithStackTrace(err)
 }
