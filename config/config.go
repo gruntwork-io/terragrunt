@@ -126,7 +126,7 @@ func (conf *TerraformConfig) ValidateHooks() error {
             }
             hasLoadEnvVars = true
         }
-        if hasLoadEnvVars || (len(curHook.Execute) < 1 || curHook.Execute[0] == "") {
+        if !hasLoadEnvVars || (len(curHook.Execute) < 1 || curHook.Execute[0] == "") {
             return InvalidArgError(fmt.Sprintf("Error with hook %s. Need at least one non-empty argument in 'execute'.", curHook.Name))
         }
     }
