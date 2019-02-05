@@ -2,7 +2,7 @@
 
 
 [[projects]]
-  digest = "1:66f515c7762a02073f279d8fd9a36a9147860d612d811705cc63838762669798"
+  digest = "1:fd4666db511d77a745ffe0cb5a1230cf6709d9ab34b2851849744eb557dfedcd"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -14,15 +14,25 @@
     "aws/credentials",
     "aws/credentials/ec2rolecreds",
     "aws/credentials/endpointcreds",
+    "aws/credentials/processcreds",
     "aws/credentials/stscreds",
+    "aws/crr",
+    "aws/csm",
     "aws/defaults",
     "aws/ec2metadata",
     "aws/endpoints",
     "aws/request",
     "aws/session",
     "aws/signer/v4",
+    "internal/ini",
+    "internal/s3err",
+    "internal/sdkio",
+    "internal/sdkrand",
+    "internal/sdkuri",
     "internal/shareddefaults",
     "private/protocol",
+    "private/protocol/eventstream",
+    "private/protocol/eventstream/eventstreamapi",
     "private/protocol/json/jsonutil",
     "private/protocol/jsonrpc",
     "private/protocol/query",
@@ -35,7 +45,8 @@
     "service/sts",
   ]
   pruneopts = "UT"
-  revision = "a28db88bdcd87b7023011ebc987b155d6d52411b"
+  revision = "949cbce4e4443b72f6da12adbeb5d416dd506fbe"
+  version = "v1.16.27"
 
 [[projects]]
   branch = "master"
@@ -58,14 +69,6 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "8fa88b06e5974e97fbf9899a7f86a344bfd1f105"
-
-[[projects]]
-  digest = "1:a45a0da7e6debef32e16b9ffcf2593e980fbe8d2ee26942a806c32ffdcd45d69"
-  name = "github.com/go-ini/ini"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "5b3e00af70a9484542169a976dcab8d03e601a17"
-  version = "v1.30.0"
 
 [[projects]]
   digest = "1:ae263e6b149fb7aadfc0f2284a8891cc3b9d2700e58b9a613fecf70fcc6e495d"
@@ -109,11 +112,11 @@
   revision = "23c074d0eceb2b8a5bfdbb271ab780cde70f05a8"
 
 [[projects]]
-  digest = "1:e22af8c7518e1eab6f2eab2b7d7558927f816262586cd6ed9f349c97a6c285c4"
+  digest = "1:bb81097a5b62634f3e9fec1014657855610c82d19b9a40c17612e32651e35dca"
   name = "github.com/jmespath/go-jmespath"
   packages = ["."]
   pruneopts = "UT"
-  revision = "0b12d6b5"
+  revision = "c2b33e84"
 
 [[projects]]
   digest = "1:cf31637c5b44a0b7e9aa64fdd7194c22cfdb75ddb2a58e5fc5cbf003c86c4dba"
