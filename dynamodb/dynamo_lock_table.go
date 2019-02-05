@@ -218,42 +218,50 @@ func (err TableDoesNotExist) Error() string {
 
 // Encrypt the TFState Lock table - If Necessary
 func UpdateLockTableSetSSEncryptionOnIfNecessary(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
-	tableCreateDeleteSemaphore.Acquire()
-	defer tableCreateDeleteSemaphore.Release()
-
-	terragruntOptions.Logger.Printf("Setting server-side encryption on table %s in DynamoDB", tableName)
-
-	input := &dynamodb.UpdateTableInput{
-		SSESpecification: &dynamodb.SSESpecification{
-			Enabled: aws.Bool(true),
-			SSEType: aws.String("KMS"),
-		},
-		TableName: aws.String(tableName),
+	tableSSEncrypted, err := LockTableCheckSSEncryptionIsOn(tableName, client)
+	if err != nil {
+		return err
 	}
 
-	result, err := client.UpdateTable(input)
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case dynamodb.ErrCodeResourceInUseException:
-				fmt.Println(dynamodb.ErrCodeResourceInUseException, aerr.Error())
-			case dynamodb.ErrCodeResourceNotFoundException:
-				fmt.Println(dynamodb.ErrCodeResourceNotFoundException, aerr.Error())
-			case dynamodb.ErrCodeLimitExceededException:
-				fmt.Println(dynamodb.ErrCodeLimitExceededException, aerr.Error())
-			case dynamodb.ErrCodeInternalServerError:
-				fmt.Println(dynamodb.ErrCodeInternalServerError, aerr.Error())
-			default:
-				fmt.Println(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			fmt.Println(err.Error())
+	if !tableSSEncrypted {
+		tableCreateDeleteSemaphore.Acquire()
+		defer tableCreateDeleteSemaphore.Release()
+
+		terragruntOptions.Logger.Printf("Setting server-side encryption on table %s in DynamoDB", tableName)
+
+		input := &dynamodb.UpdateTableInput{
+			SSESpecification: &dynamodb.SSESpecification{
+				Enabled: aws.Bool(true),
+				SSEType: aws.String("KMS"),
+			},
+			TableName: aws.String(tableName),
 		}
+
+		result, err := client.UpdateTable(input)
+		if err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				switch aerr.Code() {
+				case dynamodb.ErrCodeResourceInUseException:
+					fmt.Println(dynamodb.ErrCodeResourceInUseException, aerr.Error())
+				case dynamodb.ErrCodeResourceNotFoundException:
+					fmt.Println(dynamodb.ErrCodeResourceNotFoundException, aerr.Error())
+				case dynamodb.ErrCodeLimitExceededException:
+					fmt.Println(dynamodb.ErrCodeLimitExceededException, aerr.Error())
+				case dynamodb.ErrCodeInternalServerError:
+					fmt.Println(dynamodb.ErrCodeInternalServerError, aerr.Error())
+				default:
+					fmt.Println(aerr.Error())
+				}
+			} else {
+				// Print the error, cast err to awserr.Error to get the Code and
+				// Message from an error.
+				fmt.Println(err.Error())
+			}
+			return errors.WithStackTrace(err)
+		}
+
+		fmt.Println(result)
 		return errors.WithStackTrace(err)
 	}
-
-	fmt.Println(result)
 	return errors.WithStackTrace(err)
 }
