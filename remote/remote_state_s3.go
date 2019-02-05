@@ -2,6 +2,10 @@ package remote
 
 import (
 	"fmt"
+	"reflect"
+	"strconv"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -12,9 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/mitchellh/mapstructure"
-	"reflect"
-	"strconv"
-	"time"
 )
 
 /*
@@ -192,6 +193,10 @@ func (s3Initializer S3Initializer) Initialize(config map[string]interface{}, ter
 	}
 
 	if err := createLockTableIfNecessary(&s3Config, s3ConfigExtended.DynamotableTags, terragruntOptions); err != nil {
+		return err
+	}
+
+	if err := UpdateLockTableSetSSEncryptionOnIfNecessary(&s3Config, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -448,6 +453,21 @@ func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, tagsDeclarations 
 	}
 
 	return dynamodb.CreateLockTableIfNecessary(s3Config.GetLockTableName(), tags, dynamodbClient, terragruntOptions)
+}
+
+// Update a table for locks in DynamoDB if the user has configured a lock table and the table's server-side encryption isn't turned on
+func UpdateLockTableSetSSEncryptionOnIfNecessary(s3Config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+
+	if s3Config.GetLockTableName() == "" {
+		return nil
+	}
+
+	dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.GetAwsSessionConfig(), terragruntOptions)
+	if err != nil {
+		return err
+	}
+
+	return dynamodb.UpdateLockTableSetSSEncryptionOnIfNecessary(s3Config.GetLockTableName(), dynamodbClient, terragruntOptions)
 }
 
 // Create an authenticated client for DynamoDB

@@ -66,6 +66,20 @@ func LockTableExistsAndIsActive(tableName string, client *dynamodb.DynamoDB) (bo
 	return *output.Table.TableStatus == dynamodb.TableStatusActive, nil
 }
 
+// Return true if the lock table's SSEncryption is turned on
+func LockTableCheckSSEncryptionIsOn(tableName string, client *dynamodb.DynamoDB) (bool, error) {
+	output, err := client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
+	if err != nil {
+		if awsErr, isAwsErr := err.(awserr.Error); isAwsErr && awsErr.Code() == "ResourceNotFoundException" {
+			return false, nil
+		} else {
+			return false, errors.WithStackTrace(err)
+		}
+	}
+
+	return *output.Table.SSEDescription.Status == dynamodb.TableStatusActive, nil
+}
+
 // Create a lock table in DynamoDB and wait until it is in "active" state. If the table already exists, merely wait
 // until it is in "active" state.
 func CreateLockTable(tableName string, tags map[string]string, readCapacityUnits int, writeCapacityUnits int, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
@@ -206,9 +220,8 @@ func (err TableDoesNotExist) Error() string {
 	return fmt.Sprintf("Table %s does not exist in DynamoDB! Original error from AWS: %v", err.TableName, err.Underlying)
 }
 
-// Set server-side encryption (SEE) on the TFState Lock table
-//
-func UpdateTableSetSSEncryption(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
+// Encrypt the TFState Lock table - If Necessary
+func UpdateLockTableSetSSEncryptionOnIfNecessary(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
 	tableCreateDeleteSemaphore.Acquire()
 	defer tableCreateDeleteSemaphore.Release()
 
