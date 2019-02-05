@@ -607,7 +607,7 @@ they don't already exist:
 
 * **S3 bucket**: If you are using the [S3 backend](https://www.terraform.io/docs/backends/types/s3.html) for remote
   state storage and the `bucket` you specify in `remote_state.config` doesn't already exist, Terragrunt will create it
-  automatically, with [versioning, server-side encryption and access logging enabled](https://docs.aws.amazon.com/AmazonS3/latest/dev/Versioning.html, https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html, and https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerLogs.html).
+  automatically, with [versioning](https://docs.aws.amazon.com/AmazonS3/latest/dev/Versioning.html), [server-side encryption](https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html), and [access logging](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerLogs.html) enabled.
 
   In addition, you can let terragrunt tag the bucket with custom tags that you specify in
   `remote_state.config.s3_bucket_tags`. See sample configuration in section
