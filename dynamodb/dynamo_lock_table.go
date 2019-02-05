@@ -70,14 +70,10 @@ func LockTableExistsAndIsActive(tableName string, client *dynamodb.DynamoDB) (bo
 func LockTableCheckSSEncryptionIsOn(tableName string, client *dynamodb.DynamoDB) (bool, error) {
 	output, err := client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
 	if err != nil {
-		if awsErr, isAwsErr := err.(awserr.Error); isAwsErr && awsErr.Code() == "ResourceNotFoundException" {
-			return false, nil
-		} else {
-			return false, errors.WithStackTrace(err)
-		}
+		return false, errors.WithStackTrace(err)
 	}
 
-	return *output.Table.SSEDescription.Status == dynamodb.TableStatusActive, nil
+	return *output.Table.SSEDescription.Status == dynamodb.SSEStatusEnabled, nil
 }
 
 // Create a lock table in DynamoDB and wait until it is in "active" state. If the table already exists, merely wait
