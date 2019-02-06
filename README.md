@@ -617,7 +617,7 @@ they don't already exist:
 * **DynamoDB table**: If you are using the [S3 backend](https://www.terraform.io/docs/backends/types/s3.html) for
   remote state storage and you specify a `dynamodb_table` (a [DynamoDB table used for
   locking](https://www.terraform.io/docs/backends/types/s3.html#dynamodb_table)) in `remote_state.config`, if that table
-  doesn't already exist, Terragrunt will create it automatically, with [server-side encryption] (https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/EncryptionAtRest.html) enabled, including a primary key called `LockID`.
+  doesn't already exist, Terragrunt will create it automatically, with [server-side encryption](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/EncryptionAtRest.html) enabled, including a primary key called `LockID`.
 
   In addition, you can let terragrunt tag the DynamoDB table with custom tags that you specify in
   `remote_state.config.dynamodb_table_tags`. See sample configuration in section
