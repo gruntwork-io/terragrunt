@@ -525,7 +525,7 @@ remote_state {
   skip_bucket_versioning        = true # use only if the object store does not support versioning
   skip_bucket_ssencryption      = true # use only if non-encrypted Terraform State is required and/or the object store does not support server-side encryption
   skip_bucket_accesslogging     = true # use only if the cost for the extra object space is undesirable or the object store does not support access logging
-  skip_lock_table_ssencryption  = true # use only if non-encrypted DynamoDB Lock Table for the Terraform State is required and/or the object store does not support server-side encryption
+  skip_lock_table_ssencryption  = true # use only if non-encrypted DynamoDB Lock Table for the Terraform State is required and/or the NoSQL database service does not support server-side encryption
 
   shared_credentials_file     = "/path/to/credentials/file"
   skip_region_validation      = true
