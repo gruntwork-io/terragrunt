@@ -522,7 +522,9 @@ For backend `s3`, the following config options can be used for S3-compatible obj
 remote_state {
   # ...
 
-  skip_bucket_versioning = true # use only if the object store does not support versioning
+  skip_bucket_versioning    = true # use only if the object store does not support versioning
+  skip_bucket_ssencryption  = true # use only if non-encrypted Terraform State is required and/or the object store does not support server-side encryption
+  skip_bucket_accesslogging = true # use only if the cost for the extra object space is undesirable or the object store does not support access logging
 
   shared_credentials_file     = "/path/to/credentials/file"
   skip_region_validation      = true
@@ -537,7 +539,7 @@ remote_state {
 If you experience an error for any of these configurations, confirm you are using Terraform v0.11.2 or greater.
 
 Further, the config options `s3_bucket_tags`,
-`dynamodb_table_tags`, and `skip_bucket_versioning` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to
+`dynamodb_table_tags`, `skip_bucket_versioning`, `skip_bucket_ssencryption`, and `skip_bucket_accesslogging` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to
 terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).
 
 In each of the **child** `terraform.tfvars` files, such as `mysql/terraform.tfvars`, you can tell Terragrunt to
@@ -605,7 +607,7 @@ they don't already exist:
 
 * **S3 bucket**: If you are using the [S3 backend](https://www.terraform.io/docs/backends/types/s3.html) for remote
   state storage and the `bucket` you specify in `remote_state.config` doesn't already exist, Terragrunt will create it
-  automatically, with [versioning enabled](http://docs.aws.amazon.com/AmazonS3/latest/dev/Versioning.html).
+  automatically, with [versioning](https://docs.aws.amazon.com/AmazonS3/latest/dev/Versioning.html), [server-side encryption](https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html), and [access logging](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerLogs.html) enabled.
 
   In addition, you can let terragrunt tag the bucket with custom tags that you specify in
   `remote_state.config.s3_bucket_tags`. See sample configuration in section
