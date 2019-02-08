@@ -47,9 +47,12 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, wor
 	 * perform Interpolation on arguments, copy the result to new array and pass this
 	 * to exec.Commnand
 	 */
+	include := &config.IncludeConfig{
+		Path: terragruntOptions.Context.Include,
+	}
 	argsParsed := make([]string, len(args))
 	for i := 0; i < len(args); i++ {
-		value, err := config.ResolveTerragruntConfigString(args[i], nil, terragruntOptions)
+		value, err := config.ResolveTerragruntConfigString(args[i], include, terragruntOptions)
 		if err != nil {
 			return nil, errors.WithStackTrace(err)
 		}
@@ -107,8 +110,11 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, wor
 
 func toEnvVarsList(envVarsAsMap map[string]string, terragruntOptions *options.TerragruntOptions) ([]string, error) {
 	envVarsAsList := []string{}
+	include := &config.IncludeConfig{
+		Path: terragruntOptions.Context.Include,
+	}
 	for key, value := range envVarsAsMap {
-		pvalue, err := config.ResolveTerragruntConfigString(value, nil, terragruntOptions)
+		pvalue, err := config.ResolveTerragruntConfigString(value, include, terragruntOptions)
 		if err != nil {
 			return nil, err
 		}

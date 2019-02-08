@@ -302,7 +302,7 @@ func parseConfigString(configString string, terragruntOptions *options.Terragrun
 	       return nil, err
 	   }
 	*/
-    resolvedConfigString := configString;
+	resolvedConfigString := configString
 	terragruntConfigFile, err := parseConfigStringAsTerragruntConfigFile(resolvedConfigString, configPath)
 	if err != nil {
 		return nil, err
@@ -318,32 +318,32 @@ func parseConfigString(configString string, terragruntOptions *options.Terragrun
 
 	// Perform early binding Interpolations
 	/*
-        config.Terraform
-            ExtraArgs
-                Name
-                Arguments
-                RequiredVarFiles
-                OptionalVarFiles
-                EnvVars
-            Source
-            BeforeHooks
-                Execute (late)
-                LoadEnvVars
-                    Execute (late)
-                    Format
-            AfterHooks
-                Execute (late)
-                LoadEnvVars
-                    Execute (late)
-                    Format
-        config.Include
-            Path
-        config.RemoteState
-            Backend (late)
-            Config (late)
-        config.Dependencies
-            Paths
-        config.IamRole
+	   config.Terraform
+	       ExtraArgs
+	           Name
+	           Arguments
+	           RequiredVarFiles
+	           OptionalVarFiles
+	           EnvVars
+	       Source
+	       BeforeHooks
+	           Execute (late)
+	           LoadEnvVars
+	               Execute (late)
+	               Format
+	       AfterHooks
+	           Execute (late)
+	           LoadEnvVars
+	               Execute (late)
+	               Format
+	   config.Include
+	       Path
+	   config.RemoteState
+	       Backend (late)
+	       Config (late)
+	   config.Dependencies
+	       Paths
+	   config.IamRole
 	*/
 
 	if include != nil && terragruntConfigFile.Include != nil {
@@ -514,6 +514,7 @@ func parseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *optio
 		resolvedIncludePath = util.JoinPath(filepath.Dir(terragruntOptions.TerragruntConfigPath), resolvedIncludePath)
 	}
 
+	terragruntOptions.Context.Include = resolvedIncludePath
 	return ParseConfigFile(resolvedIncludePath, terragruntOptions, includedConfig)
 }
 

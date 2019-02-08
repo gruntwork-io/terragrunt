@@ -108,6 +108,12 @@ type TerragruntOptions struct {
 	// packages can use the command without a direct reference back to the cli package (which would create a
 	// circular dependency).
 	RunTerragrunt func(*TerragruntOptions) error
+
+	Context TerragruntContext
+}
+
+type TerragruntContext struct {
+	Include string
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage
