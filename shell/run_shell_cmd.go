@@ -49,17 +49,19 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, wor
 	 */
 	argsParsed := make([]string, len(args))
 	for i := 0; i < len(args); i++ {
-		value, err := config.ResolveTerragruntConfigString(args[i], nil, nil)
+		value, err := config.ResolveTerragruntConfigString(args[i], nil, terragruntOptions)
 		if err != nil {
 			return nil, errors.WithStackTrace(err)
 		}
+		terragruntOptions.Logger.Printf("value: %s parsed: %s", args[i], value)
 		argsParsed[i] = value
 	}
 	cmd := exec.Command(command, argsParsed...)
+	terragruntOptions.Logger.Printf("Running command: %s %s", command, strings.Join(argsParsed, " "))
 
 	// TODO: consider adding prefix from terragruntOptions logger to stdout and stderr
 	cmd.Stdin = os.Stdin
-	pEnvVars, errEnv := toEnvVarsList(terragruntOptions.Env)
+	pEnvVars, errEnv := toEnvVarsList(terragruntOptions.Env, terragruntOptions)
 	if errEnv != nil {
 		return nil, errors.WithStackTrace(errEnv)
 	}
@@ -103,14 +105,15 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, wor
 	return &cmdOutput, errors.WithStackTrace(err)
 }
 
-func toEnvVarsList(envVarsAsMap map[string]string) ([]string, error) {
+func toEnvVarsList(envVarsAsMap map[string]string, terragruntOptions *options.TerragruntOptions) ([]string, error) {
 	envVarsAsList := []string{}
 	for key, value := range envVarsAsMap {
-		pvalue, err := config.ResolveTerragruntConfigString(value, nil, nil)
+		pvalue, err := config.ResolveTerragruntConfigString(value, nil, terragruntOptions)
 		if err != nil {
 			return nil, err
 		}
 		envVarsAsList = append(envVarsAsList, fmt.Sprintf("%s=%s", key, pvalue))
+		//terragruntOptions.Logger.Printf("value: %s parsed: %s", value, pvalue)
 	}
 	return envVarsAsList, nil
 }
