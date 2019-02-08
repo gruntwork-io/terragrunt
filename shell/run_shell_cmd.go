@@ -12,23 +12,24 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-// Run the given Terraform command
+// RunTerraformCommand Run the given Terraform command
 func RunTerraformCommand(terragruntOptions *options.TerragruntOptions, args ...string) error {
 	_, err := RunShellCommandWithOutput(terragruntOptions, "", terragruntOptions.TerraformPath, args...)
 	return err
 }
 
-// Run the given shell command
+// RunShellCommand Run the given shell command
 func RunShellCommand(terragruntOptions *options.TerragruntOptions, command string, args ...string) error {
 	_, err := RunShellCommandWithOutput(terragruntOptions, "", command, args...)
 	return err
 }
 
-// Run the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
+// RunTerraformCommandWithOutput Run the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
 // method's caller
 func RunTerraformCommandWithOutput(terragruntOptions *options.TerragruntOptions, args ...string) (*CmdOutput, error) {
 	return RunShellCommandWithOutput(terragruntOptions, "", terragruntOptions.TerraformPath, args...)
@@ -42,11 +43,27 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, wor
 	var stdoutBuf bytes.Buffer
 	var stderrBuf bytes.Buffer
 
-	cmd := exec.Command(command, args...)
+	/**
+	 * perform Interpolation on arguments, copy the result to new array and pass this
+	 * to exec.Commnand
+	 */
+	argsParsed := make([]string, len(args))
+	for i := 0; i < len(args); i++ {
+		value, err := config.ResolveTerragruntConfigString(args[i], nil, nil)
+		if err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
+		argsParsed[i] = value
+	}
+	cmd := exec.Command(command, argsParsed...)
 
 	// TODO: consider adding prefix from terragruntOptions logger to stdout and stderr
 	cmd.Stdin = os.Stdin
-	cmd.Env = toEnvVarsList(terragruntOptions.Env)
+	pEnvVars, errEnv := toEnvVarsList(terragruntOptions.Env)
+	if errEnv != nil {
+		return nil, errors.WithStackTrace(errEnv)
+	}
+	cmd.Env = pEnvVars
 
 	var errWriter = terragruntOptions.ErrWriter
 	var outWriter = terragruntOptions.Writer
@@ -86,12 +103,16 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, wor
 	return &cmdOutput, errors.WithStackTrace(err)
 }
 
-func toEnvVarsList(envVarsAsMap map[string]string) []string {
+func toEnvVarsList(envVarsAsMap map[string]string) ([]string, error) {
 	envVarsAsList := []string{}
 	for key, value := range envVarsAsMap {
-		envVarsAsList = append(envVarsAsList, fmt.Sprintf("%s=%s", key, value))
+		pvalue, err := config.ResolveTerragruntConfigString(value, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+		envVarsAsList = append(envVarsAsList, fmt.Sprintf("%s=%s", key, pvalue))
 	}
-	return envVarsAsList
+	return envVarsAsList, nil
 }
 
 // Return the exit code of a command. If the error does not implement errors.IErrorCode or is not an exec.ExitError

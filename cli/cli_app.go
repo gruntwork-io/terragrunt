@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/interactive"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -280,7 +281,7 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 			var oldEnvMap map[string]string
 
 			terragruntOptions.Logger.Printf("Executing hook: %s", curHook.Name)
-			if curHook.LoadEnvVars != nil  {
+			if curHook.LoadEnvVars != nil {
 				terragruntOptions.Logger.Printf("Loading environment for hook: %s", curHook.Name)
 
 				actionToExecute := curHook.LoadEnvVars.Execute[0]
@@ -299,7 +300,7 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 					idx := strings.Index(txt, "=")
 					if idx > 0 {
 						key := strings.TrimSpace(txt[0:idx])
-						value := txt[idx+1:len(txt)]
+						value := txt[idx+1 : len(txt)]
 						terragruntOptions.Logger.Printf("Found key = [%s]; value = [%s]\n", key, value)
 						m[key] = value
 					} else {
@@ -749,7 +750,7 @@ func applyAll(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	terragruntOptions.Logger.Printf("%s", stack.String())
-	shouldApplyAll, err := shell.PromptUserForYesNo("Are you sure you want to run 'terragrunt apply' in each folder of the stack described above?", terragruntOptions)
+	shouldApplyAll, err := interactive.PromptUserForYesNo("Are you sure you want to run 'terragrunt apply' in each folder of the stack described above?", terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -770,7 +771,7 @@ func destroyAll(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	terragruntOptions.Logger.Printf("%s", stack.String())
-	shouldDestroyAll, err := shell.PromptUserForYesNo("WARNING: Are you sure you want to run `terragrunt destroy` in each folder of the stack described above? There is no undo!", terragruntOptions)
+	shouldDestroyAll, err := interactive.PromptUserForYesNo("WARNING: Are you sure you want to run `terragrunt destroy` in each folder of the stack described above? There is no undo!", terragruntOptions)
 	if err != nil {
 		return err
 	}

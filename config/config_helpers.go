@@ -61,6 +61,7 @@ type EnvVar struct {
 	DefaultValue string
 }
 
+// ResolveTerragruntConfigString
 // Given a string value from a Terragrunt configuration, parse the string, resolve any calls to helper functions using
 // the syntax ${...}, and return the final value.
 func ResolveTerragruntConfigString(terragruntConfigString string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {

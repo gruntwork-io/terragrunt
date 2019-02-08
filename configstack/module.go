@@ -9,8 +9,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/interactive"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-getter"
 	zglob "github.com/mattn/go-zglob"
@@ -420,7 +420,7 @@ func resolveExternalDependenciesForModule(module *TerraformModule, moduleMap map
 // applied. If the user selects "no", then Terragrunt will apply that module as well.
 func confirmShouldApplyExternalDependency(module *TerraformModule, dependency *TerraformModule, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	prompt := fmt.Sprintf("Module %s depends on module %s, which is an external dependency outside of the current working directory. Should Terragrunt run this external dependency? Warning, if you say 'yes', Terragrunt will make changes in %s as well!", module.Path, dependency.Path, dependency.Path)
-	return shell.PromptUserForYesNo(prompt, terragruntOptions)
+	return interactive.PromptUserForYesNo(prompt, terragruntOptions)
 }
 
 // Merge the given external dependencies into the given map of modules if those dependencies aren't already in the

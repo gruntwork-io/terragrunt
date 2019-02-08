@@ -12,8 +12,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/dynamodb"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/interactive"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/mitchellh/mapstructure"
 )
@@ -302,7 +302,7 @@ func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3, terragruntOpt
 func createS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	if !DoesS3BucketExist(s3Client, &config.remoteStateConfigS3) {
 		prompt := fmt.Sprintf("Remote state S3 bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", config.remoteStateConfigS3.Bucket)
-		shouldCreateBucket, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
+		shouldCreateBucket, err := interactive.PromptUserForYesNo(prompt, terragruntOptions)
 		if err != nil {
 			return err
 		}
