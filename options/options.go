@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/models"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
 )
@@ -242,6 +243,17 @@ func (terragruntOptions *TerragruntOptions) InsertTerraformCliArgs(argsToInsert 
 // Appends the given argsToAppend after the current TerraformCliArgs
 func (terragruntOptions *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
 	terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, argsToAppend...)
+}
+
+func (terragruntOptions *TerragruntOptions) GetIncludeConfig() *models.IncludeConfig {
+	var ret *models.IncludeConfig
+	ret = nil
+	if len(terragruntOptions.Context.Include) > 0 {
+		ret = &models.IncludeConfig{
+			Path: terragruntOptions.Context.Include,
+		}
+	}
+	return ret
 }
 
 // Custom error types

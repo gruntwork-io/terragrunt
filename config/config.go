@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/errors"
+	. "github.com/gruntwork-io/terragrunt/models"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -49,12 +50,6 @@ type LockConfig map[interface{}]interface{}
 // tfvarsFileWithTerragruntConfig represents a .tfvars file that contains a terragrunt = { ... } block
 type tfvarsFileWithTerragruntConfig struct {
 	Terragrunt *terragruntConfigFile `hcl:"terragrunt,omitempty"`
-}
-
-// IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
-// "include" in a child Terragrunt configuration file
-type IncludeConfig struct {
-	Path string `hcl:"path"`
 }
 
 // ModuleDependencies represents the paths to other Terraform modules that must be applied before the current module

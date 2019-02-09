@@ -9,3 +9,4 @@ vendor
 *.out
 .terragrunt-cache
 terragrunt_*
+terragrunt.exe
