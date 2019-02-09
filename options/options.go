@@ -114,7 +114,7 @@ type TerragruntOptions struct {
 }
 
 type TerragruntContext struct {
-	Include string
+	Includes []*models.IncludeConfig
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage
@@ -248,12 +248,16 @@ func (terragruntOptions *TerragruntOptions) AppendTerraformCliArgs(argsToAppend 
 func (terragruntOptions *TerragruntOptions) GetIncludeConfig() *models.IncludeConfig {
 	var ret *models.IncludeConfig
 	ret = nil
-	if len(terragruntOptions.Context.Include) > 0 {
-		ret = &models.IncludeConfig{
-			Path: terragruntOptions.Context.Include,
-		}
+	if len(terragruntOptions.Context.Includes) > 0 {
+		ret = terragruntOptions.Context.Includes[0]
 	}
 	return ret
+}
+
+func (terragruntOptions *TerragruntOptions) AddIncludeConfig(includedConfig *models.IncludeConfig) {
+	if nil != includedConfig {
+		terragruntOptions.Context.Includes = append(terragruntOptions.Context.Includes, includedConfig)
+	}
 }
 
 // Custom error types

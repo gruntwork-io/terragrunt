@@ -499,7 +499,7 @@ func parseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *optio
 	if includedConfig.Path == "" {
 		return nil, errors.WithStackTrace(IncludedConfigMissingPath(terragruntOptions.TerragruntConfigPath))
 	}
-
+	terragruntOptions.AddIncludeConfig(includedConfig)
 	resolvedIncludePath, err := ResolveTerragruntConfigString(includedConfig.Path, nil, terragruntOptions)
 	if err != nil {
 		return nil, err
@@ -509,7 +509,6 @@ func parseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *optio
 		resolvedIncludePath = util.JoinPath(filepath.Dir(terragruntOptions.TerragruntConfigPath), resolvedIncludePath)
 	}
 
-	terragruntOptions.Context.Include = resolvedIncludePath
 	return ParseConfigFile(resolvedIncludePath, terragruntOptions, includedConfig)
 }
 
