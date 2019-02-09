@@ -73,6 +73,7 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, wor
 	// Terragrunt can run some commands (such as terraform remote config) before running the actual terraform
 	// command requested by the user. The output of these other commands should not end up on stdout as this
 	// breaks scripts relying on terraform's output.
+	// FIXME: do we have to inetrpolate TerraformCliArgs and compare with argsParsed from above?
 	if !reflect.DeepEqual(terragruntOptions.TerraformCliArgs, args) {
 		outWriter = terragruntOptions.ErrWriter
 	}
