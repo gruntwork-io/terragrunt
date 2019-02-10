@@ -72,6 +72,11 @@ func (s3Config *RemoteStateConfigS3) GetLockTableName() string {
 const MAX_RETRIES_WAITING_FOR_S3_BUCKET = 12
 const SLEEP_BETWEEN_RETRIES_WAITING_FOR_S3_BUCKET = 5 * time.Second
 
+// To enable access logging in an S3 bucket, you must grant WRITE and READ_ACP permissions to the Log Delivery Group,
+// which is represented by the following URI. For more info, see:
+// https://docs.aws.amazon.com/AmazonS3/latest/dev/enable-logging-programming.html
+const s3LogDeliveryGranteeUri = "http://acs.amazonaws.com/groups/s3/LogDelivery"
+
 type S3Initializer struct{}
 
 // Returns true if:
@@ -457,7 +462,21 @@ func EnableSSEForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 // Enable bucket-wide Access Logging for the AWS S3 bucket specified in the given config
 func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Enabling bucket-wide Access Logging on AWS S3 bucket \"%s\" - using as TargetBucket \"%s\"", config.Bucket, config.Bucket)
-	input := s3.PutBucketLoggingInput{
+
+	// To enable access logging in an S3 bucket, you must grant WRITE and READ_ACP permissions to the Log Delivery
+	// Group. For more info, see:
+	// https://docs.aws.amazon.com/AmazonS3/latest/dev/enable-logging-programming.html
+	uri := fmt.Sprintf("uri=%s", s3LogDeliveryGranteeUri)
+	aclInput := s3.PutBucketAclInput{
+		Bucket:       aws.String(config.Bucket),
+		GrantWrite:   aws.String(uri),
+		GrantReadACP: aws.String(uri),
+	}
+	if _, err := s3Client.PutBucketAcl(&aclInput); err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	loggingInput := s3.PutBucketLoggingInput{
 		Bucket: aws.String(config.Bucket),
 		BucketLoggingStatus: &s3.BucketLoggingStatus{
 			LoggingEnabled: &s3.LoggingEnabled{
@@ -467,8 +486,11 @@ func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConf
 		},
 	}
 
-	_, err := s3Client.PutBucketLogging(&input)
-	return errors.WithStackTrace(err)
+	if _, err := s3Client.PutBucketLogging(&loggingInput); err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	return nil
 }
 
 // Returns true if the S3 bucket specified in the given config exists and the current user has the ability to access
