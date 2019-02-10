@@ -227,7 +227,7 @@ func UpdateLockTableSetSSEncryptionOnIfNecessary(tableName string, client *dynam
 		tableCreateDeleteSemaphore.Acquire()
 		defer tableCreateDeleteSemaphore.Release()
 
-		terragruntOptions.Logger.Printf("Setting server-side encryption on table %s in DynamoDB", tableName)
+		terragruntOptions.Logger.Printf("Enabling server-side encryption on table %s in DynamoDB", tableName)
 
 		input := &dynamodb.UpdateTableInput{
 			SSESpecification: &dynamodb.SSESpecification{
