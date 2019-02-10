@@ -463,13 +463,14 @@ func EnableSSEForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Enabling bucket-wide Access Logging on AWS S3 bucket \"%s\" - using as TargetBucket \"%s\"", config.Bucket, config.Bucket)
 
-	// To enable access logging in an S3 bucket, you must grant WRITE and READ_ACP permissions to the Log Delivery Group,
-	// which is represented by the following URI. For more info, see:
+	// To enable access logging in an S3 bucket, you must grant WRITE and READ_ACP permissions to the Log Delivery
+	// Group. For more info, see:
 	// https://docs.aws.amazon.com/AmazonS3/latest/dev/enable-logging-programming.html
+	uri := fmt.Sprintf("uri=%s", s3LogDeliveryGranteeUri)
 	aclInput := s3.PutBucketAclInput{
 		Bucket:       aws.String(config.Bucket),
-		GrantWrite:   aws.String(s3LogDeliveryGranteeUri),
-		GrantReadACP: aws.String(s3LogDeliveryGranteeUri),
+		GrantWrite:   aws.String(uri),
+		GrantReadACP: aws.String(uri),
 	}
 	if _, err := s3Client.PutBucketAcl(&aclInput); err != nil {
 		return errors.WithStackTrace(err)
