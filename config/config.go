@@ -7,15 +7,13 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/interpolation"
 	. "github.com/gruntwork-io/terragrunt/models"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl"
 )
-
-const DefaultTerragruntConfigPath = "terraform.tfvars"
-const OldTerragruntConfigPath = ".terragrunt"
 
 // TerragruntConfig represents a parsed and expanded configuration
 type TerragruntConfig struct {
@@ -148,17 +146,6 @@ func (conf *TerraformExtraArguments) String() string {
 		conf.EnvVars)
 }
 
-// Return the default path to use for the Terragrunt configuration file. The reason this is a method rather than a
-// constant is that older versions of Terragrunt stored configuration in a different file. This method returns the
-// path to the old configuration format if such a file exists and the new format otherwise.
-func DefaultConfigPath(workingDir string) string {
-	path := util.JoinPath(workingDir, OldTerragruntConfigPath)
-	if util.FileExists(path) {
-		return path
-	}
-	return util.JoinPath(workingDir, DefaultTerragruntConfigPath)
-}
-
 // Returns a list of all Terragrunt config files in the given path or any subfolder of the path. A file is a Terragrunt
 // config file if it has a name as returned by the DefaultConfigPath method and contains Terragrunt config contents
 // as returned by the IsTerragruntConfigFile method.
@@ -176,7 +163,7 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 		}
 
 		if isTerragruntModule {
-			configFiles = append(configFiles, DefaultConfigPath(path))
+			configFiles = append(configFiles, util.DefaultConfigPath(path))
 		}
 
 		return nil
@@ -213,7 +200,7 @@ func containsTerragruntModule(path string, info os.FileInfo, terragruntOptions *
 		return false, err
 	}
 
-	return IsTerragruntConfigFile(DefaultConfigPath(path))
+	return IsTerragruntConfigFile(util.DefaultConfigPath(path))
 }
 
 // Returns true if the given path corresponds to file that could be a Terragrunt config file. A file could be a
@@ -236,7 +223,7 @@ func IsTerragruntConfigFile(path string) (bool, error) {
 
 // Returns true if the given path points to an old Terragrunt config file
 func isOldTerragruntConfig(path string) bool {
-	return strings.HasSuffix(path, OldTerragruntConfigPath)
+	return strings.HasSuffix(path, util.OldTerragruntConfigPath)
 }
 
 // Retrusn true if the given path points to a new (current) Terragrunt config file
@@ -273,7 +260,7 @@ func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*Terrag
 // included in some other config file when resolving relative paths.
 func ParseConfigFile(configPath string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) (*TerragruntConfig, error) {
 	if isOldTerragruntConfig(configPath) {
-		terragruntOptions.Logger.Printf("DEPRECATION WARNING: Found deprecated config file format %s. This old config format will not be supported in the future. Please move your config files into a %s file.", configPath, DefaultTerragruntConfigPath)
+		terragruntOptions.Logger.Printf("DEPRECATION WARNING: Found deprecated config file format %s. This old config format will not be supported in the future. Please move your config files into a %s file.", configPath, util.DefaultTerragruntConfigPath)
 	}
 
 	configString, err := util.ReadFileAsString(configPath)
@@ -500,7 +487,7 @@ func parseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *optio
 		return nil, errors.WithStackTrace(IncludedConfigMissingPath(terragruntOptions.TerragruntConfigPath))
 	}
 	terragruntOptions.AddIncludeConfig(includedConfig)
-	resolvedIncludePath, err := ResolveTerragruntConfigString(includedConfig.Path, nil, terragruntOptions)
+	resolvedIncludePath, err := interpolation.ResolveTerragruntConfigString(includedConfig.Path, nil, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}

@@ -2,9 +2,11 @@ package remote
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/options"
 	"reflect"
+
+	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/interpolation"
+	"github.com/gruntwork-io/terragrunt/options"
 )
 
 // Configuration for Terraform remote state
@@ -79,28 +81,46 @@ func (remoteState *RemoteState) NeedsInit(terragruntOptions *options.TerragruntO
 	if initializer, hasInitializer := remoteStateInitializers[remoteState.Backend]; hasInitializer {
 		// Remote state initializer says initialization is necessary
 		return initializer.NeedsInitialization(remoteState.Config, state.Backend, terragruntOptions)
-	} else if state.IsRemote() && remoteState.differsFrom(state.Backend, terragruntOptions) {
+	} else if state.IsRemote() {
+		needsInit, err := remoteState.differsFrom(state.Backend, terragruntOptions)
+		if nil != err {
+			return false, err
+		}
 		// If there's no remote state initializer, then just compare the the config values
-		return true, nil
+		return needsInit, nil
 	}
 
 	return false, nil
 }
 
 // Returns true if this remote state is different than the given remote state that is currently being used by terraform.
-func (remoteState *RemoteState) differsFrom(existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) bool {
+func (remoteState *RemoteState) differsFrom(existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	if existingBackend.Type != remoteState.Backend {
 		terragruntOptions.Logger.Printf("Backend type has changed from %s to %s", existingBackend.Type, remoteState.Backend)
-		return true
+		return true, nil
 	}
 
-	if !reflect.DeepEqual(existingBackend.Config, remoteState.Config) {
-		terragruntOptions.Logger.Printf("Backend config has changed from %s to %s", existingBackend.Config, remoteState.Config)
-		return true
+	var pConfig = make(map[string]interface{}, len(remoteState.Config))
+	include := terragruntOptions.GetIncludeConfig()
+	for key, val := range remoteState.Config {
+		if szval, ok := val.(string); ok {
+			pVal, err := interpolation.ResolveTerragruntConfigString(szval, include, terragruntOptions)
+			if nil != err {
+				return false, err
+			}
+			pConfig[key] = pVal
+		} else {
+			pConfig[key] = val
+		}
+	}
+
+	if !reflect.DeepEqual(existingBackend.Config, pConfig) {
+		terragruntOptions.Logger.Printf("Backend config has changed from %s to %s", existingBackend.Config, pConfig)
+		return true, nil
 	}
 
 	terragruntOptions.Logger.Printf("Backend %s has not changed.", existingBackend.Type)
-	return false
+	return false, nil
 }
 
 // Convert the RemoteState config into the format used by the terraform init command

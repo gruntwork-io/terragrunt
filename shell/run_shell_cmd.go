@@ -12,8 +12,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/interpolation"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -50,7 +50,7 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, wor
 	include := terragruntOptions.GetIncludeConfig()
 	argsParsed := make([]string, len(args))
 	for i := 0; i < len(args); i++ {
-		value, err := config.ResolveTerragruntConfigString(args[i], include, terragruntOptions)
+		value, err := interpolation.ResolveTerragruntConfigString(args[i], include, terragruntOptions)
 		if err != nil {
 			return nil, errors.WithStackTrace(err)
 		}
@@ -111,7 +111,7 @@ func toEnvVarsList(envVarsAsMap map[string]string, terragruntOptions *options.Te
 	envVarsAsList := []string{}
 	include := terragruntOptions.GetIncludeConfig()
 	for key, value := range envVarsAsMap {
-		pvalue, err := config.ResolveTerragruntConfigString(value, include, terragruntOptions)
+		pvalue, err := interpolation.ResolveTerragruntConfigString(value, include, terragruntOptions)
 		if err != nil {
 			return nil, err
 		}

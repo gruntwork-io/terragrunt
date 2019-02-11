@@ -1,4 +1,4 @@
-package config
+package interpolation
 
 import (
 	"fmt"
@@ -267,7 +267,7 @@ func findInParentFolders(parameters string, terragruntOptions *options.Terragrun
 		return "", errors.WithStackTrace(err)
 	}
 
-	fileToFindStr := fmt.Sprintf("%s or %s", DefaultTerragruntConfigPath, OldTerragruntConfigPath)
+	fileToFindStr := fmt.Sprintf("%s or %s", util.DefaultTerragruntConfigPath, util.OldTerragruntConfigPath)
 	if fileToFindParam != "" {
 		fileToFindStr = fileToFindParam
 	}
@@ -283,7 +283,7 @@ func findInParentFolders(parameters string, terragruntOptions *options.Terragrun
 			return "", errors.WithStackTrace(ParentFileNotFound{Path: terragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: "Traversed all the way to the root"})
 		}
 
-		fileToFind := DefaultConfigPath(currentDir)
+		fileToFind := util.DefaultConfigPath(currentDir)
 		if fileToFindParam != "" {
 			fileToFind = util.JoinPath(currentDir, fileToFindParam)
 		}

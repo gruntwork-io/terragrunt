@@ -117,6 +117,20 @@ type TerragruntContext struct {
 	Includes []*models.IncludeConfig
 }
 
+func (terragruntContext *TerragruntContext) Clone() TerragruntContext {
+	ret := TerragruntContext{
+		Includes: nil,
+	}
+
+	if terragruntContext.Includes != nil {
+		ret.Includes = make([]*models.IncludeConfig, len(terragruntContext.Includes))
+		for i := 0; i < len(ret.Includes); i++ {
+			ret.Includes[i] = terragruntContext.Includes[i].Clone()
+		}
+	}
+	return ret
+}
+
 // Create a new TerragruntOptions object with reasonable defaults for real usage
 func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, error) {
 	logger := util.CreateLogger("")
@@ -218,6 +232,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		ExcludeDirs:                terragruntOptions.ExcludeDirs,
 		IncludeDirs:                terragruntOptions.IncludeDirs,
 		RunTerragrunt:              terragruntOptions.RunTerragrunt,
+		Context:                    terragruntOptions.Context.Clone(),
 	}
 }
 

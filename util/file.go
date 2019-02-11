@@ -8,9 +8,21 @@ import (
 	"strings"
 
 	"fmt"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/mattn/go-zglob"
 )
+
+// Return the default path to use for the Terragrunt configuration file. The reason this is a method rather than a
+// constant is that older versions of Terragrunt stored configuration in a different file. This method returns the
+// path to the old configuration format if such a file exists and the new format otherwise.
+func DefaultConfigPath(workingDir string) string {
+	path := JoinPath(workingDir, OldTerragruntConfigPath)
+	if FileExists(path) {
+		return path
+	}
+	return JoinPath(workingDir, DefaultTerragruntConfigPath)
+}
 
 // Return true if the given file exists
 func FileExists(path string) bool {

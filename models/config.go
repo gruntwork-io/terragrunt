@@ -5,3 +5,10 @@ package models
 type IncludeConfig struct {
 	Path string `hcl:"path"`
 }
+
+func (includeConfig *IncludeConfig) Clone() *IncludeConfig {
+	ret := &IncludeConfig{
+		Path: includeConfig.Path,
+	}
+	return ret
+}
