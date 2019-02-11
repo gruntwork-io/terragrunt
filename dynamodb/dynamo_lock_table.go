@@ -103,7 +103,7 @@ func CreateLockTable(tableName string, tags map[string]string, readCapacityUnits
 	})
 
 	if err != nil {
-		if isTableAlreadyBeingCreatedError(err) {
+		if isTableAlreadyBeingCreatedOrUpdatedError(err) {
 			terragruntOptions.Logger.Printf("Looks like someone created table %s at the same time. Will wait for it to be in active state.", tableName)
 		} else {
 			return errors.WithStackTrace(err)
@@ -163,8 +163,9 @@ func DeleteTable(tableName string, client *dynamodb.DynamoDB) error {
 	return err
 }
 
-// Return true if the given error is the error message returned by AWS when the resource already exists
-func isTableAlreadyBeingCreatedError(err error) bool {
+// Return true if the given error is the error message returned by AWS when the resource already exists and is being
+// updated by someone else
+func isTableAlreadyBeingCreatedOrUpdatedError(err error) bool {
 	awsErr, isAwsErr := err.(awserr.Error)
 	return isAwsErr && awsErr.Code() == "ResourceInUseException"
 }
@@ -224,7 +225,11 @@ func UpdateLockTableSetSSEncryptionOnIfNecessary(tableName string, client *dynam
 	}
 
 	if _, err := client.UpdateTable(input); err != nil {
-		return errors.WithStackTrace(err)
+		if isTableAlreadyBeingCreatedOrUpdatedError(err) {
+			terragruntOptions.Logger.Printf("Looks like someone is already updating table %s at the same time. Will wait for that update to complete.", tableName)
+		} else {
+			return errors.WithStackTrace(err)
+		}
 	}
 
 	if err := waitForEncryptionToBeEnabled(tableName, client, terragruntOptions); err != nil {
@@ -234,7 +239,7 @@ func UpdateLockTableSetSSEncryptionOnIfNecessary(tableName string, client *dynam
 	return waitForTableToBeActive(tableName, client, MAX_RETRIES_WAITING_FOR_TABLE_TO_BE_ACTIVE, SLEEP_BETWEEN_TABLE_STATUS_CHECKS, terragruntOptions)
 }
 
-// Wait until encryption is enabled for the given table and the table is in ACTIVE status
+// Wait until encryption is enabled for the given table
 func waitForEncryptionToBeEnabled(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
 	maxRetries := 15
 	sleepBetweenRetries := 20 * time.Second
