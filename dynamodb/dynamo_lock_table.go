@@ -241,9 +241,6 @@ func UpdateLockTableSetSSEncryptionOnIfNecessary(tableName string, client *dynam
 		}
 
 		_, err := client.UpdateTable(input)
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
 		return errors.WithStackTrace(err)
 	}
 }
