@@ -8,6 +8,7 @@ terragrunt = {
       key = "terraform.tfstate"
       region = "us-west-2"
       dynamodb_table = "__FILL_IN_LOCK_TABLE_NAME__"
+      enable_lock_table_ssencryption = true
 
       s3_bucket_tags {
         owner = "terragrunt integration test"

@@ -522,10 +522,10 @@ For backend `s3`, the following config options can be used for S3-compatible obj
 remote_state {
   # ...
 
-  skip_bucket_versioning        = true # use only if the object store does not support versioning
-  skip_bucket_ssencryption      = true # use only if non-encrypted Terraform State is required and/or the object store does not support server-side encryption
-  skip_bucket_accesslogging     = true # use only if the cost for the extra object space is undesirable or the object store does not support access logging
-  skip_lock_table_ssencryption  = true # use only if non-encrypted DynamoDB Lock Table for the Terraform State is required and/or the NoSQL database service does not support server-side encryption
+  skip_bucket_versioning         = true # use only if the object store does not support versioning
+  skip_bucket_ssencryption       = true # use only if non-encrypted Terraform State is required and/or the object store does not support server-side encryption
+  skip_bucket_accesslogging      = true # use only if the cost for the extra object space is undesirable or the object store does not support access logging
+  enable_lock_table_ssencryption = true # use only if non-encrypted DynamoDB Lock Table for the Terraform State is required and/or the NoSQL database service does not support server-side encryption
 
   shared_credentials_file     = "/path/to/credentials/file"
   skip_region_validation      = true
@@ -540,7 +540,7 @@ remote_state {
 If you experience an error for any of these configurations, confirm you are using Terraform v0.11.2 or greater.
 
 Further, the config options `s3_bucket_tags`,
-`dynamodb_table_tags`, `skip_bucket_versioning`, `skip_bucket_ssencryption`, `skip_bucket_accesslogging`, and `skip_lock_table_ssencryption` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to
+`dynamodb_table_tags`, `skip_bucket_versioning`, `skip_bucket_ssencryption`, `skip_bucket_accesslogging`, and `enable_lock_table_ssencryption` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to
 terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).
 
 In each of the **child** `terraform.tfvars` files, such as `mysql/terraform.tfvars`, you can tell Terragrunt to
