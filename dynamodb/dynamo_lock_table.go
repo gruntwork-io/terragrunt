@@ -2,6 +2,8 @@ package dynamodb
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -9,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
-	"time"
 )
 
 // DynamoDB only allows 10 table creates/deletes simultaneously. To ensure we don't hit this error, especially when
@@ -63,6 +64,16 @@ func LockTableExistsAndIsActive(tableName string, client *dynamodb.DynamoDB) (bo
 	}
 
 	return *output.Table.TableStatus == dynamodb.TableStatusActive, nil
+}
+
+// Return true if the lock table's SSEncryption is turned on
+func LockTableCheckSSEncryptionIsOn(tableName string, client *dynamodb.DynamoDB) (bool, error) {
+	output, err := client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
+	if err != nil {
+		return false, errors.WithStackTrace(err)
+	}
+
+	return *output.Table.SSEDescription.Status == dynamodb.SSEStatusEnabled, nil
 }
 
 // Create a lock table in DynamoDB and wait until it is in "active" state. If the table already exists, merely wait
@@ -203,4 +214,33 @@ type TableDoesNotExist struct {
 
 func (err TableDoesNotExist) Error() string {
 	return fmt.Sprintf("Table %s does not exist in DynamoDB! Original error from AWS: %v", err.TableName, err.Underlying)
+}
+
+// Encrypt the TFState Lock table - If Necessary
+func UpdateLockTableSetSSEncryptionOnIfNecessary(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
+	tableSSEncrypted, err := LockTableCheckSSEncryptionIsOn(tableName, client)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	if tableSSEncrypted {
+		terragruntOptions.Logger.Printf("Table %s already has encryption enabled", tableName)
+		return nil
+	} else {
+		tableCreateDeleteSemaphore.Acquire()
+		defer tableCreateDeleteSemaphore.Release()
+
+		terragruntOptions.Logger.Printf("Enabling server-side encryption on table %s in AWS DynamoDB", tableName)
+
+		input := &dynamodb.UpdateTableInput{
+			SSESpecification: &dynamodb.SSESpecification{
+				Enabled: aws.Bool(true),
+				SSEType: aws.String("KMS"),
+			},
+			TableName: aws.String(tableName),
+		}
+
+		_, err := client.UpdateTable(input)
+		return errors.WithStackTrace(err)
+	}
 }

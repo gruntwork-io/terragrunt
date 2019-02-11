@@ -26,11 +26,12 @@ import (
 type ExtendedRemoteStateConfigS3 struct {
 	remoteStateConfigS3 RemoteStateConfigS3
 
-	S3BucketTags            []map[string]string `mapstructure:"s3_bucket_tags"`
-	DynamotableTags         []map[string]string `mapstructure:"dynamodb_table_tags"`
-	SkipBucketVersioning    bool                `mapstructure:"skip_bucket_versioning"`
-	SkipBucketSSEncryption  bool                `mapstructure:"skip_bucket_ssencryption"`
-	SkipBucketAccessLogging bool                `mapstructure:"skip_bucket_accesslogging"`
+	S3BucketTags              []map[string]string `mapstructure:"s3_bucket_tags"`
+	DynamotableTags           []map[string]string `mapstructure:"dynamodb_table_tags"`
+	SkipBucketVersioning      bool                `mapstructure:"skip_bucket_versioning"`
+	SkipBucketSSEncryption    bool                `mapstructure:"skip_bucket_ssencryption"`
+	SkipBucketAccessLogging   bool                `mapstructure:"skip_bucket_accesslogging"`
+	SkipLockTableSSEncryption bool                `mapstructure:"skip_lock_table_ssencryption"`
 }
 
 // A representation of the configuration options available for S3 remote state
@@ -165,6 +166,7 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 	delete(config, "skip_bucket_versioning")
 	delete(config, "skip_bucket_ssencryption")
 	delete(config, "skip_bucket_accesslogging")
+	delete(config, "skip_lock_table_ssencryption")
 
 	if !reflect.DeepEqual(existingBackend.Config, config) {
 		terragruntOptions.Logger.Printf("Backend config has changed from %s to %s", existingBackend.Config, config)
@@ -205,6 +207,10 @@ func (s3Initializer S3Initializer) Initialize(config map[string]interface{}, ter
 		return err
 	}
 
+	if err := UpdateLockTableSetSSEncryptionOnIfNecessary(&s3Config, s3ConfigExtended, terragruntOptions); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -212,8 +218,7 @@ func (s3Initializer S3Initializer) GetTerraformInitArgs(config map[string]interf
 	var filteredConfig = make(map[string]interface{})
 
 	for key, val := range config {
-
-		if key == "s3_bucket_tags" || key == "dynamodb_table_tags" || key == "skip_bucket_versioning" || key == "skip_bucket_ssencryption" || key == "skip_bucket_accesslogging" {
+		if key == "s3_bucket_tags" || key == "dynamodb_table_tags" || key == "skip_bucket_versioning" || key == "skip_bucket_ssencryption" || key == "skip_bucket_accesslogging" || key == "skip_lock_table_ssencryption" {
 			continue
 		}
 
@@ -518,6 +523,24 @@ func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, tagsDeclarations 
 	}
 
 	return dynamodb.CreateLockTableIfNecessary(s3Config.GetLockTableName(), tags, dynamodbClient, terragruntOptions)
+}
+
+// Update a table for locks in DynamoDB if the user has configured a lock table and the table's server-side encryption isn't turned on
+func UpdateLockTableSetSSEncryptionOnIfNecessary(s3Config *RemoteStateConfigS3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	if config.SkipLockTableSSEncryption {
+		return nil
+	}
+
+	if s3Config.GetLockTableName() == "" {
+		return nil
+	}
+
+	dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.GetAwsSessionConfig(), terragruntOptions)
+	if err != nil {
+		return err
+	}
+
+	return dynamodb.UpdateLockTableSetSSEncryptionOnIfNecessary(s3Config.GetLockTableName(), dynamodbClient, terragruntOptions)
 }
 
 // Create an authenticated client for DynamoDB
