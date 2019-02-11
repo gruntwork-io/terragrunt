@@ -73,7 +73,7 @@ func LockTableCheckSSEncryptionIsOn(tableName string, client *dynamodb.DynamoDB)
 		return false, errors.WithStackTrace(err)
 	}
 
-	return *output.Table.SSEDescription.Status == dynamodb.SSEStatusEnabled, nil
+	return output.Table.SSEDescription != nil && aws.StringValue(output.Table.SSEDescription.Status) == dynamodb.SSEStatusEnabled, nil
 }
 
 // Create a lock table in DynamoDB and wait until it is in "active" state. If the table already exists, merely wait
@@ -198,6 +198,64 @@ func waitForTableToBeActiveWithRandomSleep(tableName string, client *dynamodb.Dy
 	return errors.WithStackTrace(TableActiveRetriesExceeded{TableName: tableName, Retries: maxRetries})
 }
 
+// Encrypt the TFState Lock table - If Necessary
+func UpdateLockTableSetSSEncryptionOnIfNecessary(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
+	tableSSEncrypted, err := LockTableCheckSSEncryptionIsOn(tableName, client)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	if tableSSEncrypted {
+		terragruntOptions.Logger.Printf("Table %s already has encryption enabled", tableName)
+		return nil
+	}
+
+	tableCreateDeleteSemaphore.Acquire()
+	defer tableCreateDeleteSemaphore.Release()
+
+	terragruntOptions.Logger.Printf("Enabling server-side encryption on table %s in AWS DynamoDB", tableName)
+
+	input := &dynamodb.UpdateTableInput{
+		SSESpecification: &dynamodb.SSESpecification{
+			Enabled: aws.Bool(true),
+			SSEType: aws.String("KMS"),
+		},
+		TableName: aws.String(tableName),
+	}
+
+	if _, err := client.UpdateTable(input); err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	return waitForEncryptionToBeEnabled(tableName, client, terragruntOptions)
+}
+
+func waitForEncryptionToBeEnabled(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
+	maxRetries := 15
+	sleepBetweenRetries := 20 * time.Second
+
+	terragruntOptions.Logger.Printf("Waiting for encryption to be enabled on table %s", tableName)
+
+	for i := 0; i < maxRetries; i++ {
+		tableSSEncrypted, err := LockTableCheckSSEncryptionIsOn(tableName, client)
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+
+		if tableSSEncrypted {
+			terragruntOptions.Logger.Printf("Encryption is now enabled for table %s!", tableName)
+			return nil
+		}
+
+		terragruntOptions.Logger.Printf("Encryption is still not enabled for table %s. Will sleep for %v and try again.", tableName, sleepBetweenRetries)
+		time.Sleep(sleepBetweenRetries)
+	}
+
+	return errors.WithStackTrace(TableEncryptedRetriesExceeded{TableName: tableName, Retries: maxRetries})
+}
+
+// Custom error types
+
 type TableActiveRetriesExceeded struct {
 	TableName string
 	Retries   int
@@ -216,31 +274,11 @@ func (err TableDoesNotExist) Error() string {
 	return fmt.Sprintf("Table %s does not exist in DynamoDB! Original error from AWS: %v", err.TableName, err.Underlying)
 }
 
-// Encrypt the TFState Lock table - If Necessary
-func UpdateLockTableSetSSEncryptionOnIfNecessary(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
-	tableSSEncrypted, err := LockTableCheckSSEncryptionIsOn(tableName, client)
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
+type TableEncryptedRetriesExceeded struct {
+	TableName string
+	Retries   int
+}
 
-	if tableSSEncrypted {
-		terragruntOptions.Logger.Printf("Table %s already has encryption enabled", tableName)
-		return nil
-	} else {
-		tableCreateDeleteSemaphore.Acquire()
-		defer tableCreateDeleteSemaphore.Release()
-
-		terragruntOptions.Logger.Printf("Enabling server-side encryption on table %s in AWS DynamoDB", tableName)
-
-		input := &dynamodb.UpdateTableInput{
-			SSESpecification: &dynamodb.SSESpecification{
-				Enabled: aws.Bool(true),
-				SSEType: aws.String("KMS"),
-			},
-			TableName: aws.String(tableName),
-		}
-
-		_, err := client.UpdateTable(input)
-		return errors.WithStackTrace(err)
-	}
+func (err TableEncryptedRetriesExceeded) Error() string {
+	return fmt.Sprintf("Table %s still does not have encryption enabled after %d retries.", err.TableName, err.Retries)
 }
