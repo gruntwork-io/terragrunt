@@ -227,9 +227,14 @@ func UpdateLockTableSetSSEncryptionOnIfNecessary(tableName string, client *dynam
 		return errors.WithStackTrace(err)
 	}
 
-	return waitForEncryptionToBeEnabled(tableName, client, terragruntOptions)
+	if err := waitForEncryptionToBeEnabled(tableName, client, terragruntOptions); err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	return waitForTableToBeActive(tableName, client, MAX_RETRIES_WAITING_FOR_TABLE_TO_BE_ACTIVE, SLEEP_BETWEEN_TABLE_STATUS_CHECKS, terragruntOptions)
 }
 
+// Wait until encryption is enabled for the given table and the table is in ACTIVE status
 func waitForEncryptionToBeEnabled(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
 	maxRetries := 15
 	sleepBetweenRetries := 20 * time.Second
