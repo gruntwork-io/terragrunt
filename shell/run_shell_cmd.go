@@ -54,7 +54,6 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, wor
 		if err != nil {
 			return nil, errors.WithStackTrace(err)
 		}
-		terragruntOptions.Logger.Printf("value: %s parsed: %s", args[i], value)
 		argsParsed[i] = value
 	}
 	cmd := exec.Command(command, argsParsed...)
