@@ -115,7 +115,6 @@ func toEnvVarsList(envVarsAsMap map[string]string, terragruntOptions *options.Te
 			return nil, err
 		}
 		envVarsAsList = append(envVarsAsList, fmt.Sprintf("%s=%s", key, pvalue))
-		//terragruntOptions.Logger.Printf("value: %s parsed: %s", value, pvalue)
 	}
 	return envVarsAsList, nil
 }

@@ -301,7 +301,6 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 					if idx > 0 {
 						key := strings.TrimSpace(txt[0:idx])
 						value := txt[idx+1 : len(txt)]
-						terragruntOptions.Logger.Printf("Found key = [%s]; value = [%s]\n", key, value)
 						m[key] = value
 					} else {
 						terragruntOptions.Logger.Printf("Invalid key,value pair [%s]", txt)
@@ -309,7 +308,6 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 				}
 				targetEnvMap := terragruntOptions.Env
 				if curHook.LoadEnvVars.Transient {
-					terragruntOptions.Logger.Printf("Making changes to Terragrunt environment variables transient")
 					oldEnvMap = terragruntOptions.Env
 					targetEnvMap := make(map[string]string)
 					for key, value := range terragruntOptions.Env {
@@ -318,7 +316,6 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 					terragruntOptions.Env = targetEnvMap
 				}
 				if curHook.LoadEnvVars.Overwrite {
-					terragruntOptions.Logger.Printf("Overwriting Terragrunt environment variables")
 					targetEnvMap = make(map[string]string)
 					terragruntOptions.Env = targetEnvMap
 				}
@@ -326,7 +323,6 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 					terragruntOptions.Logger.Printf("[%s] == [%s]", key, value)
 					targetEnvMap[key] = value
 				}
-				terragruntOptions.Logger.Printf("Terragrunt environment variables: [%v]", terragruntOptions.Env)
 			}
 
 			if len(curHook.Execute) > 0 {
@@ -341,9 +337,7 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 			}
 
 			if oldEnvMap != nil {
-				terragruntOptions.Logger.Printf("Restting Terragrunt environment variables to original values")
 				terragruntOptions.Env = oldEnvMap
-				terragruntOptions.Logger.Printf("Terragrunt environment variables: [%v]", terragruntOptions.Env)
 			}
 		}
 	}
