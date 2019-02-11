@@ -26,12 +26,23 @@ import (
 type ExtendedRemoteStateConfigS3 struct {
 	remoteStateConfigS3 RemoteStateConfigS3
 
-	S3BucketTags              []map[string]string `mapstructure:"s3_bucket_tags"`
-	DynamotableTags           []map[string]string `mapstructure:"dynamodb_table_tags"`
-	SkipBucketVersioning      bool                `mapstructure:"skip_bucket_versioning"`
-	SkipBucketSSEncryption    bool                `mapstructure:"skip_bucket_ssencryption"`
-	SkipBucketAccessLogging   bool                `mapstructure:"skip_bucket_accesslogging"`
-	SkipLockTableSSEncryption bool                `mapstructure:"skip_lock_table_ssencryption"`
+	S3BucketTags                []map[string]string `mapstructure:"s3_bucket_tags"`
+	DynamotableTags             []map[string]string `mapstructure:"dynamodb_table_tags"`
+	SkipBucketVersioning        bool                `mapstructure:"skip_bucket_versioning"`
+	SkipBucketSSEncryption      bool                `mapstructure:"skip_bucket_ssencryption"`
+	SkipBucketAccessLogging     bool                `mapstructure:"skip_bucket_accesslogging"`
+	EnableLockTableSSEncryption bool                `mapstructure:"enable_lock_table_ssencryption"`
+}
+
+// These are settings that can appear in the remote_state config that are ONLY used by Terragrunt and NOT forwarded
+// to the underlying Terraform backend configuration
+var terragruntOnlyConfigs = []string{
+	"s3_bucket_tags",
+	"dynamodb_table_tags",
+	"skip_bucket_versioning",
+	"skip_bucket_ssencryption",
+	"skip_bucket_accesslogging",
+	"enable_lock_table_ssencryption",
 }
 
 // A representation of the configuration options available for S3 remote state
@@ -160,13 +171,10 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 		}
 	}
 
-	// Delete S3 and DynamoDB and Bucket Versioning tags, as these are only stored in Terragrunt config and not in Terraform's backend
-	delete(config, "s3_bucket_tags")
-	delete(config, "dynamodb_table_tags")
-	delete(config, "skip_bucket_versioning")
-	delete(config, "skip_bucket_ssencryption")
-	delete(config, "skip_bucket_accesslogging")
-	delete(config, "skip_lock_table_ssencryption")
+	// Delete custom S3 and DynamoDB tags that are only used in Terragrunt config and not in Terraform's backend
+	for _, key := range terragruntOnlyConfigs {
+		delete(config, key)
+	}
 
 	if !reflect.DeepEqual(existingBackend.Config, config) {
 		terragruntOptions.Logger.Printf("Backend config has changed from %s to %s", existingBackend.Config, config)
@@ -218,7 +226,7 @@ func (s3Initializer S3Initializer) GetTerraformInitArgs(config map[string]interf
 	var filteredConfig = make(map[string]interface{})
 
 	for key, val := range config {
-		if key == "s3_bucket_tags" || key == "dynamodb_table_tags" || key == "skip_bucket_versioning" || key == "skip_bucket_ssencryption" || key == "skip_bucket_accesslogging" || key == "skip_lock_table_ssencryption" {
+		if util.ListContainsElement(terragruntOnlyConfigs, key) {
 			continue
 		}
 
@@ -527,7 +535,7 @@ func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, tagsDeclarations 
 
 // Update a table for locks in DynamoDB if the user has configured a lock table and the table's server-side encryption isn't turned on
 func UpdateLockTableSetSSEncryptionOnIfNecessary(s3Config *RemoteStateConfigS3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	if config.SkipLockTableSSEncryption {
+	if !config.EnableLockTableSSEncryption {
 		return nil
 	}
 
