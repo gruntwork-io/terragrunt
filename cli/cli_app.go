@@ -320,7 +320,6 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 					terragruntOptions.Env = targetEnvMap
 				}
 				for key, value := range m {
-					terragruntOptions.Logger.Printf("[%s] == [%s]", key, value)
 					targetEnvMap[key] = value
 				}
 			}
