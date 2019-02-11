@@ -474,20 +474,11 @@ func EnableSSEForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 
 // Enable bucket-wide Access Logging for the AWS S3 bucket specified in the given config
 func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Printf("Enabling bucket-wide Access Logging on AWS S3 bucket \"%s\" - using as TargetBucket \"%s\"", config.Bucket, config.Bucket)
-
-	// To enable access logging in an S3 bucket, you must grant WRITE and READ_ACP permissions to the Log Delivery
-	// Group. For more info, see:
-	// https://docs.aws.amazon.com/AmazonS3/latest/dev/enable-logging-programming.html
-	uri := fmt.Sprintf("uri=%s", s3LogDeliveryGranteeUri)
-	aclInput := s3.PutBucketAclInput{
-		Bucket:       aws.String(config.Bucket),
-		GrantWrite:   aws.String(uri),
-		GrantReadACP: aws.String(uri),
-	}
-	if _, err := s3Client.PutBucketAcl(&aclInput); err != nil {
+	if err := configureBucketAccessLoggingAcl(s3Client, config, terragruntOptions); err != nil {
 		return errors.WithStackTrace(err)
 	}
+
+	terragruntOptions.Logger.Printf("Enabling bucket-wide Access Logging on AWS S3 bucket \"%s\" - using as TargetBucket \"%s\"", config.Bucket, config.Bucket)
 
 	loggingInput := s3.PutBucketLoggingInput{
 		Bucket: aws.String(config.Bucket),
@@ -504,6 +495,65 @@ func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConf
 	}
 
 	return nil
+}
+
+// To enable access logging in an S3 bucket, you must grant WRITE and READ_ACP permissions to the Log Delivery
+// Group. For more info, see:
+// https://docs.aws.amazon.com/AmazonS3/latest/dev/enable-logging-programming.html
+func configureBucketAccessLoggingAcl(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Printf("Granting WRITE and READ_ACP permissions to S3 Log Delivery (%s) for bucket %s. This is required for access logging.", s3LogDeliveryGranteeUri, config.Bucket)
+
+	uri := fmt.Sprintf("uri=%s", s3LogDeliveryGranteeUri)
+	aclInput := s3.PutBucketAclInput{
+		Bucket:       aws.String(config.Bucket),
+		GrantWrite:   aws.String(uri),
+		GrantReadACP: aws.String(uri),
+	}
+
+	if _, err := s3Client.PutBucketAcl(&aclInput); err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	return waitUntilBucketHasAccessLoggingAcl(s3Client, config, terragruntOptions)
+}
+
+
+func waitUntilBucketHasAccessLoggingAcl(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Printf("Waiting for ACL bucket %s to have the updated ACL for access logging.", config.Bucket)
+
+	maxRetries := 10
+	timeBetweenRetries := 5 * time.Second
+
+	for i := 0; i < maxRetries; i++ {
+		out, err := s3Client.GetBucketAcl(&s3.GetBucketAclInput{Bucket: aws.String(config.Bucket)})
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+
+		hasReadAcp := false
+		hasWrite := false
+
+		for _, grant := range out.Grants {
+			if aws.StringValue(grant.Grantee.URI) == s3LogDeliveryGranteeUri {
+				if aws.StringValue(grant.Permission) == s3.PermissionReadAcp {
+					hasReadAcp = true
+				}
+				if aws.StringValue(grant.Permission) == s3.PermissionWrite {
+					hasWrite = true
+				}
+			}
+		}
+
+		if hasReadAcp && hasWrite {
+			terragruntOptions.Logger.Printf("Bucket %s now has the proper ACL permissions for access logging!", config.Bucket)
+			return nil
+		}
+
+		terragruntOptions.Logger.Printf("Bucket %s still does not have the ACL permissions for access logging. Will sleep for %v and check again.", config.Bucket, timeBetweenRetries)
+		time.Sleep(timeBetweenRetries)
+	}
+
+	return errors.WithStackTrace(MaxRetriesWaitingForS3ACLExceeded(config.Bucket))
 }
 
 // Returns true if the S3 bucket specified in the given config exists and the current user has the ability to access
@@ -580,3 +630,10 @@ type MaxRetriesWaitingForS3BucketExceeded string
 func (err MaxRetriesWaitingForS3BucketExceeded) Error() string {
 	return fmt.Sprintf("Exceeded max retries (%d) waiting for bucket S3 bucket %s", MAX_RETRIES_WAITING_FOR_S3_BUCKET, string(err))
 }
+
+type MaxRetriesWaitingForS3ACLExceeded string
+
+func (err MaxRetriesWaitingForS3ACLExceeded) Error() string {
+	return fmt.Sprintf("Exceeded max retries waiting for bucket S3 bucket %s to have proper ACL for access logging", string(err))
+}
+
