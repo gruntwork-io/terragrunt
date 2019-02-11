@@ -278,12 +278,6 @@ func ParseConfigFile(configPath string, terragruntOptions *options.TerragruntOpt
 
 // Parse the Terragrunt config contained in the given string.
 func parseConfigString(configString string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig, configPath string) (*TerragruntConfig, error) {
-	/*
-	   resolvedConfigString, err := ResolveTerragruntConfigString(configString, include, terragruntOptions)
-	   if err != nil {
-	       return nil, err
-	   }
-	*/
 	resolvedConfigString := configString
 	terragruntConfigFile, err := parseConfigStringAsTerragruntConfigFile(resolvedConfigString, configPath)
 	if err != nil {
@@ -297,36 +291,6 @@ func parseConfigString(configString string, terragruntOptions *options.Terragrun
 	if err != nil {
 		return nil, err
 	}
-
-	// Perform early binding Interpolations
-	/*
-	   config.Terraform
-	       ExtraArgs
-	           Name
-	           Arguments
-	           RequiredVarFiles
-	           OptionalVarFiles
-	           EnvVars
-	       Source
-	       BeforeHooks
-	           Execute (late)
-	           LoadEnvVars
-	               Execute (late)
-	               Format
-	       AfterHooks
-	           Execute (late)
-	           LoadEnvVars
-	               Execute (late)
-	               Format
-	   config.Include
-	       Path
-	   config.RemoteState
-	       Backend (late)
-	       Config (late)
-	   config.Dependencies
-	       Paths
-	   config.IamRole
-	*/
 
 	if include != nil && terragruntConfigFile.Include != nil {
 		return nil, errors.WithStackTrace(TooManyLevelsOfInheritance{
