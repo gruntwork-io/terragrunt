@@ -1270,7 +1270,6 @@ and DynamoDB table name respectively.
             "Resource": "arn:aws:s3:::BUCKET_NAME/some/path/here"
         },
         {
-            "Sid": "",
             "Sid": "AllowCreateAndUpdateDynamoDBActionsOnSpecifiedTerragruntTable",
             "Effect": "Allow",
             "Action": [
