@@ -228,6 +228,12 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
+	if terragruntConfig.Skip {
+		terragruntOptions.Logger.Printf("Skipping terragrunt module %s due to skip = true.",
+			terragruntOptions.TerragruntConfigPath)
+		return nil
+	}
+
 	if terragruntOptions.IamRole == "" {
 		terragruntOptions.IamRole = terragruntConfig.IamRole
 	}

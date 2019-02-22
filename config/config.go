@@ -22,6 +22,7 @@ type TerragruntConfig struct {
 	RemoteState    *remote.RemoteState
 	Dependencies   *ModuleDependencies
 	PreventDestroy bool
+	Skip           bool
 	IamRole        string
 }
 
@@ -38,6 +39,7 @@ type terragruntConfigFile struct {
 	RemoteState    *remote.RemoteState `hcl:"remote_state,omitempty"`
 	Dependencies   *ModuleDependencies `hcl:"dependencies,omitempty"`
 	PreventDestroy bool                `hcl:"prevent_destroy,omitempty"`
+	Skip           bool                `hcl:"skip,omitempty"`
 	IamRole        string              `hcl:"iam_role"`
 }
 
@@ -348,6 +350,9 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 		includedConfig.PreventDestroy = config.PreventDestroy
 	}
 
+	// Skip has to be set specifically in each file that should be skipped
+	includedConfig.Skip = config.Skip
+
 	if config.Terraform != nil {
 		if includedConfig.Terraform == nil {
 			includedConfig.Terraform = config.Terraform
@@ -494,6 +499,7 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
 	terragruntConfig.PreventDestroy = terragruntConfigFromFile.PreventDestroy
+	terragruntConfig.Skip = terragruntConfigFromFile.Skip
 	terragruntConfig.IamRole = terragruntConfigFromFile.IamRole
 
 	return terragruntConfig, nil
