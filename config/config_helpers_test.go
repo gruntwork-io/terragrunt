@@ -2,14 +2,15 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
-	"os"
-	"path/filepath"
-	"testing"
 )
 
 func TestPathRelativeToInclude(t *testing.T) {
@@ -126,6 +127,43 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	}
 }
 
+func TestRunCommand(t *testing.T) {
+	t.Parallel()
+
+	homeDir := os.Getenv("HOME")
+	testCases := []struct {
+		params            string
+		terragruntOptions *options.TerragruntOptions
+		expectedOutput    string
+		expectedErr       error
+	}{
+		{
+			`"/bin/bash", "-c", ""echo -n foo""`,
+			terragruntOptionsForTest(t, homeDir),
+			"foo",
+			nil,
+		},
+		{
+			"",
+			terragruntOptionsForTest(t, homeDir),
+			"",
+			EmptyStringNotAllowed("{run_cmd()}"),
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.terragruntOptions.TerragruntConfigPath, func(t *testing.T) {
+			actualOutput, actualErr := runCommand(testCase.params, testCase.terragruntOptions)
+			if testCase.expectedErr != nil {
+				if assert.Error(t, actualErr) {
+					assert.IsType(t, testCase.expectedErr, errors.Unwrap(actualErr))
+				}
+			} else {
+				assert.Nil(t, actualErr)
+				assert.Equal(t, testCase.expectedOutput, actualOutput)
+			}
+		})
+	}
+}
 func TestFindInParentFolders(t *testing.T) {
 	t.Parallel()
 
@@ -240,6 +278,30 @@ func TestParseOptionalQuotedParamsHappyPath(t *testing.T) {
 			assert.Equal(t, testCase.expectedNumParams, actualNumParams)
 			assert.Equal(t, testCase.expectedFirstParam, actualFirstParam)
 			assert.Equal(t, testCase.expectedSecondParam, actualSecondParam)
+		})
+	}
+}
+
+func TestParseParamList(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		params       string
+		expectedList []string
+	}{
+		{`"foo"`, []string{"foo"}},
+		{`"foo", "bar"`, []string{"foo", "bar"}},
+		{`"foo", "bar", "biz"`, []string{"foo", "bar", "biz"}},
+		{`"foo, bar"`, []string{"foo, bar"}},
+		{``, []string{}},
+		{`"foo`, []string{}},
+		{`"foo, bar`, []string{}},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.params, func(t *testing.T) {
+			actualList := parseParamList(testCase.params)
+			assert.Equal(t, testCase.expectedList, actualList)
 		})
 	}
 }

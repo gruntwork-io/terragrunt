@@ -1305,6 +1305,7 @@ Terragrunt allows you to use [Terraform interpolation syntax](https://www.terraf
 * [get_terraform_commands_that_need_input()](#get_terraform_commands_that_need_input)
 * [get_terraform_commands_that_need_locking()](#get_terraform_commands_that_need_locking)
 * [get_aws_account_id()](#get_aws_account_id)
+* [run_cmd()](#run_cmd)
 
 
 #### find_in_parent_folders
@@ -1709,6 +1710,25 @@ terragrunt = {
   }
 }
 ```
+
+#### run_cmd
+
+`run_cmd(command, arg1, arg2...)` runs a shell command and returns the stdout as the result of the interpolation.
+
+This is useful when you want to have a generic `terraform.tfvars` for all accounts and use a script to determine
+information that changes from account to account, like the bucket name and the DynamoDB table:
+
+```
+terragrunt = {
+  remote_state {
+    backend = "s3"
+    config {
+      bucket = "${run_cmd("./get_names.sh", "bucket")}"
+      dynamodb_table "${run_cmd("./get_names.sh", "dynamodb")}"
+    }
+  }
+}
+````
 
 ### Before and After Hooks
 
