@@ -79,6 +79,7 @@ jobs:
     - checkout
     - attach_workspace:
         at: *workspace_root
+    - run: cd bin && sha256sum * > SHA256SUMS
     - run: upload-github-release-assets bin/*
 
 workflows:
