@@ -1713,10 +1713,11 @@ terragrunt = {
 
 #### run_cmd
 
-`run_cmd(command, arg1, arg2...)` runs a shell command and returns the stdout as the result of the interpolation.
+`run_cmd(command, arg1, arg2...)` runs a shell command and returns the stdout as the result of the interpolation. The command is executed at the same folder of the interpolated `terraform.tfvars` file.
 
-This is useful when you want to have a generic `terraform.tfvars` for all accounts and use a script to determine
-information that changes from account to account, like the bucket name and the DynamoDB table:
+This is useful whenever you want to dynamically fill in arbitrary information in your Terragrunt configuration.
+
+As an example, you could write a script that determines the bucket and DynamoDB table name based on the AWS account, instead of hardcoding the name of every account:
 
 ```
 terragrunt = {
@@ -1728,7 +1729,7 @@ terragrunt = {
     }
   }
 }
-````
+```
 
 ### Before and After Hooks
 
