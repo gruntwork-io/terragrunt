@@ -2,10 +2,11 @@ package config
 
 import (
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/shell"
 
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -222,17 +223,13 @@ func runCommand(parameters string, terragruntOptions *options.TerragruntOptions)
 
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 
-	command := &exec.Cmd{
-		Path: args[0],
-		Args: args,
-		Dir:  currentPath,
-	}
-	stdout, err := command.Output()
-
+	cmdOutput, err := shell.RunShellCommandWithOutput(terragruntOptions, currentPath, args[0], args[1:]...)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
-	return string(stdout), nil
+
+	terragruntOptions.Logger.Printf("run_cmd output: [%s]", cmdOutput.Stdout)
+	return cmdOutput.Stdout, nil
 }
 
 func getEnvironmentVariable(parameters string, terragruntOptions *options.TerragruntOptions) (string, error) {
