@@ -55,7 +55,7 @@ const CMD_SPIN_UP = "spin-up"
 // CMD_TEAR_DOWN is deprecated.
 const CMD_TEAR_DOWN = "tear-down"
 
-var MULTI_MODULE_COMMANDS = []string{CMD_APPLY_ALL, CMD_DESTROY_ALL, CMD_OUTPUT_ALL, CMD_PLAN_ALL, CMD_VALIDATE_ALL}
+var MULTI_MODULE_COMMANDS = []string{CMD_APPLY_ALL, CMD_DESTROY_ALL, CMD_OUTPUT_ALL, CMD_PLAN_ALL, CMD_VALIDATE_ALL, CMD_SHOW_ALL}
 
 // DEPRECATED_COMMANDS is a map of deprecated commands to the commands that replace them.
 var DEPRECATED_COMMANDS = map[string]string{
