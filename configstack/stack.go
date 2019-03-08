@@ -87,6 +87,12 @@ func (stack *Stack) Output(terragruntOptions *options.TerragruntOptions) error {
 	return RunModules(stack.Modules)
 }
 
+// Show runs terraform show on each module
+func (stack *Stack) Show(terragruntOptions *options.TerragruntOptions) error {
+	stack.setTerraformCommand([]string{"show"})
+	return RunModules(stack.Modules)
+}
+
 // Validate runs terraform validate on each module
 func (stack *Stack) Validate(terragruntOptions *options.TerragruntOptions) error {
 	stack.setTerraformCommand([]string{"validate"})

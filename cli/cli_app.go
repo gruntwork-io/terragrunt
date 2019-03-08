@@ -11,7 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
@@ -19,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
 	"github.com/mattn/go-zglob"
+	"github.com/troylar/terragrunt/configstack"
 	"github.com/urfave/cli"
 )
 
@@ -44,6 +44,7 @@ const CMD_APPLY_ALL = "apply-all"
 const CMD_DESTROY_ALL = "destroy-all"
 const CMD_OUTPUT_ALL = "output-all"
 const CMD_VALIDATE_ALL = "validate-all"
+const CMD_SHOW_ALL = "show-all"
 
 const CMD_INIT = "init"
 const CMD_INIT_FROM_MODULE = "init-from-module"
@@ -103,6 +104,7 @@ COMMANDS:
    apply-all            Apply a 'stack' by running 'terragrunt apply' in each subfolder
    output-all           Display the outputs of a 'stack' by running 'terragrunt output' in each subfolder
    destroy-all          Destroy a 'stack' by running 'terragrunt destroy' in each subfolder
+   show-all             Show state by running 'terragrunt show' in each subfolder
    validate-all         Validate 'stack' by running 'terragrunt validate' in each subfolder
    *                    Terragrunt forwards all other commands directly to Terraform
 
@@ -732,6 +734,17 @@ func outputAll(terragruntOptions *options.TerragruntOptions) error {
 
 	terragruntOptions.Logger.Printf("%s", stack.String())
 	return stack.Output(terragruntOptions)
+}
+
+// showAll shows all state in all modules
+func showAll(terragruntOptions *options.TerragruntOptions) error {
+	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
+	if err != nil {
+		return err
+	}
+
+	terragruntOptions.Logger.Printf("%s", stack.String())
+	return stack.Show(terragruntOptions)
 }
 
 // validateAll validates runs terraform validate on all the modules
