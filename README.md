@@ -1305,6 +1305,7 @@ Terragrunt allows you to use [Terraform interpolation syntax](https://www.terraf
 * [get_terraform_commands_that_need_input()](#get_terraform_commands_that_need_input)
 * [get_terraform_commands_that_need_locking()](#get_terraform_commands_that_need_locking)
 * [get_aws_account_id()](#get_aws_account_id)
+* [run_cmd()](#run_cmd)
 
 
 #### find_in_parent_folders
@@ -1705,6 +1706,26 @@ terragrunt = {
     extra_arguments "common_var" {
       commands = ["${get_terraform_commands_that_need_vars()}"]
       arguments = ["-var-file=${get_aws_account_id()}.tfvars"]
+    }
+  }
+}
+```
+
+#### run_cmd
+
+`run_cmd(command, arg1, arg2...)` runs a shell command and returns the stdout as the result of the interpolation. The command is executed at the same folder of the interpolated `terraform.tfvars` file.
+
+This is useful whenever you want to dynamically fill in arbitrary information in your Terragrunt configuration.
+
+As an example, you could write a script that determines the bucket and DynamoDB table name based on the AWS account, instead of hardcoding the name of every account:
+
+```
+terragrunt = {
+  remote_state {
+    backend = "s3"
+    config {
+      bucket = "${run_cmd("./get_names.sh", "bucket")}"
+      dynamodb_table "${run_cmd("./get_names.sh", "dynamodb")}"
     }
   }
 }

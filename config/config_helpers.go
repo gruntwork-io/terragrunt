@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/shell"
+
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
@@ -82,6 +84,8 @@ func executeTerragruntHelperFunction(functionName string, parameters string, inc
 		return pathRelativeFromInclude(include, terragruntOptions)
 	case "get_env":
 		return getEnvironmentVariable(parameters, terragruntOptions)
+	case "run_cmd":
+		return runCommand(parameters, terragruntOptions)
 	case "get_tfvars_dir":
 		return getTfVarsDir(terragruntOptions)
 	case "get_parent_tfvars_dir":
@@ -208,6 +212,26 @@ func parseGetEnvParameters(parameters string) (EnvVar, error) {
 	return envVariable, nil
 }
 
+// runCommand is a helper function that runs a command and returns the stdout as the interporation
+// result
+func runCommand(parameters string, terragruntOptions *options.TerragruntOptions) (string, error) {
+	args := parseParamList(parameters)
+
+	if len(args) == 0 {
+		return "", errors.WithStackTrace(EmptyStringNotAllowed("parameter to the run_cmd function"))
+	}
+
+	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+
+	cmdOutput, err := shell.RunShellCommandWithOutput(terragruntOptions, currentPath, args[0], args[1:]...)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	terragruntOptions.Logger.Printf("run_cmd output: [%s]", cmdOutput.Stdout)
+	return cmdOutput.Stdout, nil
+}
+
 func getEnvironmentVariable(parameters string, terragruntOptions *options.TerragruntOptions) (string, error) {
 	parameterMap, err := parseGetEnvParameters(parameters)
 
@@ -274,6 +298,7 @@ func findInParentFolders(parameters string, terragruntOptions *options.Terragrun
 
 var oneQuotedParamRegex = regexp.MustCompile(`^"([^"]*?)"$`)
 var twoQuotedParamsRegex = regexp.MustCompile(`^"([^"]*?)"\s*,\s*"([^"]*?)"$`)
+var listQuotedParamRegex = regexp.MustCompile(`^"([^"]*?)"\s*,\s*(.*)$`)
 
 // Parse two optional parameters, wrapped in quotes, passed to a function, and return the parameter values and how many
 // of the parameters were actually set. For example, if you have a function foo(bar, baz), where bar and baz are
@@ -300,6 +325,44 @@ func parseOptionalQuotedParam(parameters string) (string, string, int, error) {
 	}
 
 	return "", "", 0, errors.WithStackTrace(InvalidStringParams(parameters))
+}
+
+// parseParamList parses a string of comma separated parameters wrapped in quote and
+// return them as a list of strings. For example:
+// foo() -> return []string{""}, nil
+// foo("a") -> return []string{"foo"}, nil
+// foo("a", "b", "c", "d") -> return []string{"a", "b", "c", "d"}, nil
+func parseParamList(parameters string) []string {
+	trimmedParameters := strings.TrimSpace(parameters)
+	if trimmedParameters == "" {
+		return []string{}
+	}
+
+	matches := oneQuotedParamRegex.FindStringSubmatch(trimmedParameters)
+	if len(matches) > 0 {
+		return matches[1:]
+	}
+
+	matches = listQuotedParamRegex.FindStringSubmatch(trimmedParameters)
+	if len(matches) != 3 {
+		return []string{}
+	}
+	var trimmedArgs []string
+	trimmedArgs = append(trimmedArgs, matches[1])
+
+	args := matches[2]
+	args = strings.Replace(args, `"`, "", -1)
+
+	parsedArgs := strings.Split(args, ",")
+
+	for _, arg := range parsedArgs {
+		trimmedArg := strings.TrimSpace(arg)
+		if trimmedArg != "" {
+			trimmedArgs = append(trimmedArgs, trimmedArg)
+		}
+	}
+
+	return trimmedArgs
 }
 
 // Return the relative path between the included Terragrunt configuration file and the current Terragrunt configuration
