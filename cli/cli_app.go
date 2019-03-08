@@ -640,6 +640,8 @@ func runMultiModuleCommand(command string, terragruntOptions *options.Terragrunt
 		return outputAll(terragruntOptions)
 	case CMD_VALIDATE_ALL:
 		return validateAll(terragruntOptions)
+	case CMD_SHOW_ALL:
+		return showAll(terragruntOptions)
 	default:
 		return errors.WithStackTrace(UnrecognizedCommand(command))
 	}
