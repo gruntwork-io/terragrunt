@@ -1,12 +1,10 @@
-package interpolation
+package shell
 
 import (
 	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
-
-	"github.com/gruntwork-io/terragrunt/shell"
 
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -225,7 +223,7 @@ func runCommand(parameters string, terragruntOptions *options.TerragruntOptions)
 
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 
-	cmdOutput, err := shell.RunShellCommandWithOutput(terragruntOptions, currentPath, args[0], args[1:]...)
+	cmdOutput, err := RunShellCommandWithOutput(terragruntOptions, currentPath, args[0], args[1:]...)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}

@@ -286,7 +286,7 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 
 				actionToExecute := curHook.LoadEnvVars.Execute[0]
 				actionParams := curHook.LoadEnvVars.Execute[1:]
-				out, err := shell.RunShellCommandWithOutput(terragruntOptions, actionToExecute, actionParams...)
+				out, err := shell.RunShellCommandWithOutput(terragruntOptions, "", actionToExecute, actionParams...)
 				if err != nil {
 					terragruntOptions.Logger.Printf("Error running hook %s while loading environment variables with message: %s", curHook.Name, err.Error())
 					errorsOccurred = append(errorsOccurred, err)

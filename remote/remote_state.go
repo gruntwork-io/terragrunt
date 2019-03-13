@@ -5,8 +5,8 @@ import (
 	"reflect"
 
 	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/interpolation"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/shell"
 )
 
 // Configuration for Terraform remote state
@@ -104,7 +104,7 @@ func (remoteState *RemoteState) differsFrom(existingBackend *TerraformBackend, t
 	include := terragruntOptions.GetIncludeConfig()
 	for key, val := range remoteState.Config {
 		if szval, ok := val.(string); ok {
-			pVal, err := interpolation.ResolveTerragruntConfigString(szval, include, terragruntOptions)
+			pVal, err := shell.ResolveTerragruntConfigString(szval, include, terragruntOptions)
 			if nil != err {
 				return false, err
 			}

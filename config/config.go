@@ -7,10 +7,10 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/interpolation"
 	. "github.com/gruntwork-io/terragrunt/models"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl"
 )
@@ -451,7 +451,7 @@ func parseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *optio
 		return nil, errors.WithStackTrace(IncludedConfigMissingPath(terragruntOptions.TerragruntConfigPath))
 	}
 	terragruntOptions.AddIncludeConfig(includedConfig)
-	resolvedIncludePath, err := interpolation.ResolveTerragruntConfigString(includedConfig.Path, nil, terragruntOptions)
+	resolvedIncludePath, err := shell.ResolveTerragruntConfigString(includedConfig.Path, nil, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}
