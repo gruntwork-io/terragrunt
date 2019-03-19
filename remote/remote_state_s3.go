@@ -517,7 +517,6 @@ func configureBucketAccessLoggingAcl(s3Client *s3.S3, config *RemoteStateConfigS
 	return waitUntilBucketHasAccessLoggingAcl(s3Client, config, terragruntOptions)
 }
 
-
 func waitUntilBucketHasAccessLoggingAcl(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Waiting for ACL bucket %s to have the updated ACL for access logging.", config.Bucket)
 
@@ -636,4 +635,3 @@ type MaxRetriesWaitingForS3ACLExceeded string
 func (err MaxRetriesWaitingForS3ACLExceeded) Error() string {
 	return fmt.Sprintf("Exceeded max retries waiting for bucket S3 bucket %s to have proper ACL for access logging", string(err))
 }
-

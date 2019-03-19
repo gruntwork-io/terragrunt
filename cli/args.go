@@ -82,7 +82,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 
 	ignoreDependencyErrors := parseBooleanArg(args, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, false)
 
-	ignoreExternalDependencies := parseBooleanArg(args, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, false)
+	ignoreExternalDependencies := parseBooleanArg(args, OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES, false)
 
 	iamRole, err := parseStringArg(args, OPT_TERRAGRUNT_IAM_ROLE, os.Getenv("TERRAGRUNT_IAM_ROLE"))
 	if err != nil {
