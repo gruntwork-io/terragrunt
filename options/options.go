@@ -71,6 +71,9 @@ type TerragruntOptions struct {
 	// If set to true, continue running *-all commands even if a dependency has errors. This is mostly useful for 'output-all <some_variable>'. See https://github.com/gruntwork-io/terragrunt/issues/193
 	IgnoreDependencyErrors bool
 
+	// If set to true, skip any external dependencies when running *-all commands
+	IgnoreExternalDependencies bool
+
 	// If you want stdout to go somewhere other than os.stdout
 	Writer io.Writer
 
@@ -117,28 +120,29 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 	}
 
 	return &TerragruntOptions{
-		TerragruntConfigPath:   terragruntConfigPath,
-		TerraformPath:          "terraform",
-		TerraformCommand:       "",
-		AutoInit:               true,
-		NonInteractive:         false,
-		TerraformCliArgs:       []string{},
-		WorkingDir:             workingDir,
-		Logger:                 logger,
-		Env:                    map[string]string{},
-		Source:                 "",
-		SourceUpdate:           false,
-		DownloadDir:            downloadDir,
-		IgnoreDependencyErrors: false,
-		Writer:                 os.Stdout,
-		ErrWriter:              os.Stderr,
-		MaxFoldersToCheck:      DEFAULT_MAX_FOLDERS_TO_CHECK,
-		AutoRetry:              true,
-		MaxRetryAttempts:       DEFAULT_MAX_RETRY_ATTEMPTS,
-		Sleep:                  DEFAULT_SLEEP,
-		RetryableErrors:        util.CloneStringList(RETRYABLE_ERRORS),
-		ExcludeDirs:            []string{},
-		IncludeDirs:            []string{},
+		TerragruntConfigPath:       terragruntConfigPath,
+		TerraformPath:              "terraform",
+		TerraformCommand:           "",
+		AutoInit:                   true,
+		NonInteractive:             false,
+		TerraformCliArgs:           []string{},
+		WorkingDir:                 workingDir,
+		Logger:                     logger,
+		Env:                        map[string]string{},
+		Source:                     "",
+		SourceUpdate:               false,
+		DownloadDir:                downloadDir,
+		IgnoreDependencyErrors:     false,
+		IgnoreExternalDependencies: false,
+		Writer:                     os.Stdout,
+		ErrWriter:                  os.Stderr,
+		MaxFoldersToCheck:          DEFAULT_MAX_FOLDERS_TO_CHECK,
+		AutoRetry:                  true,
+		MaxRetryAttempts:           DEFAULT_MAX_RETRY_ATTEMPTS,
+		Sleep:                      DEFAULT_SLEEP,
+		RetryableErrors:            util.CloneStringList(RETRYABLE_ERRORS),
+		ExcludeDirs:                []string{},
+		IncludeDirs:                []string{},
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
