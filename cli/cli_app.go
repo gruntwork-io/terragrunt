@@ -266,6 +266,57 @@ func shouldPrintTerraformHelp(terragruntOptions *options.TerragruntOptions) bool
 	return false
 }
 
+// loadEnvVars loads environment variable definitions from a shell command.
+// Currently the function expects KEY=value output to STDOUT
+// the method returns the old evironment variables map (dictionary) if the
+// changes should be transient.
+func loadEnvVars(terragruntOptions *options.TerragruntOptions, curHook config.Hook) (map[string]string, error) {
+	var oldEnvMap map[string]string
+
+	if curHook.LoadEnvVars != nil {
+		terragruntOptions.Logger.Printf("Loading environment for hook: %s", curHook.Name)
+
+		actionToExecute := curHook.LoadEnvVars.Execute[0]
+		actionParams := curHook.LoadEnvVars.Execute[1:]
+		out, err := shell.RunShellCommandWithOutput(terragruntOptions, "", actionToExecute, actionParams...)
+		if err != nil {
+			terragruntOptions.Logger.Printf("Error running hook %s while loading environment variables with message: %s", curHook.Name, err.Error())
+			return nil, err
+		}
+		// parse out from script to map
+		m := make(map[string]string)
+		scanner := bufio.NewScanner(strings.NewReader(out.Stdout))
+		for scanner.Scan() {
+			txt := scanner.Text()
+			idx := strings.Index(txt, "=")
+			if idx > 0 {
+				key := strings.TrimSpace(txt[0:idx])
+				value := txt[idx+1 : len(txt)]
+				m[key] = value
+			} else {
+				terragruntOptions.Logger.Printf("Invalid key,value pair [%s]", txt)
+			}
+		}
+		targetEnvMap := terragruntOptions.Env
+		if curHook.LoadEnvVars.Transient {
+			oldEnvMap = terragruntOptions.Env
+			targetEnvMap := make(map[string]string)
+			for key, value := range terragruntOptions.Env {
+				targetEnvMap[key] = value
+			}
+			terragruntOptions.Env = targetEnvMap
+		}
+		if curHook.LoadEnvVars.Overwrite {
+			targetEnvMap = make(map[string]string)
+			terragruntOptions.Env = targetEnvMap
+		}
+		for key, value := range m {
+			targetEnvMap[key] = value
+		}
+	}
+	return oldEnvMap, nil
+}
+
 func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOptions, previousExecError ...error) error {
 	if len(hooks) == 0 {
 		return nil
@@ -278,52 +329,12 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 	for _, curHook := range hooks {
 		allPreviousErrors := append(previousExecError, errorsOccurred...)
 		if shouldRunHook(curHook, terragruntOptions, allPreviousErrors...) {
-			var oldEnvMap map[string]string
-
 			terragruntOptions.Logger.Printf("Executing hook: %s", curHook.Name)
-			if curHook.LoadEnvVars != nil {
-				terragruntOptions.Logger.Printf("Loading environment for hook: %s", curHook.Name)
-
-				actionToExecute := curHook.LoadEnvVars.Execute[0]
-				actionParams := curHook.LoadEnvVars.Execute[1:]
-				out, err := shell.RunShellCommandWithOutput(terragruntOptions, "", actionToExecute, actionParams...)
-				if err != nil {
-					terragruntOptions.Logger.Printf("Error running hook %s while loading environment variables with message: %s", curHook.Name, err.Error())
-					errorsOccurred = append(errorsOccurred, err)
-					continue
-				}
-				// parse out from script to map
-				m := make(map[string]string)
-				scanner := bufio.NewScanner(strings.NewReader(out.Stdout))
-				for scanner.Scan() {
-					txt := scanner.Text()
-					idx := strings.Index(txt, "=")
-					if idx > 0 {
-						key := strings.TrimSpace(txt[0:idx])
-						value := txt[idx+1 : len(txt)]
-						m[key] = value
-					} else {
-						terragruntOptions.Logger.Printf("Invalid key,value pair [%s]", txt)
-					}
-				}
-				targetEnvMap := terragruntOptions.Env
-				if curHook.LoadEnvVars.Transient {
-					oldEnvMap = terragruntOptions.Env
-					targetEnvMap := make(map[string]string)
-					for key, value := range terragruntOptions.Env {
-						targetEnvMap[key] = value
-					}
-					terragruntOptions.Env = targetEnvMap
-				}
-				if curHook.LoadEnvVars.Overwrite {
-					targetEnvMap = make(map[string]string)
-					terragruntOptions.Env = targetEnvMap
-				}
-				for key, value := range m {
-					targetEnvMap[key] = value
-				}
+			oldEnvMap, err := loadEnvVars(terragruntOptions, curHook)
+			if nil != err {
+				errorsOccurred = append(errorsOccurred, err)
+				continue
 			}
-
 			if len(curHook.Execute) > 0 {
 				actionToExecute := curHook.Execute[0]
 				actionParams := curHook.Execute[1:]

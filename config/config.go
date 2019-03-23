@@ -278,8 +278,7 @@ func ParseConfigFile(configPath string, terragruntOptions *options.TerragruntOpt
 
 // Parse the Terragrunt config contained in the given string.
 func parseConfigString(configString string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig, configPath string) (*TerragruntConfig, error) {
-	resolvedConfigString := configString
-	terragruntConfigFile, err := parseConfigStringAsTerragruntConfigFile(resolvedConfigString, configPath)
+	terragruntConfigFile, err := parseConfigStringAsTerragruntConfigFile(configString, configPath)
 	if err != nil {
 		return nil, err
 	}
