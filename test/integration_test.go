@@ -1317,19 +1317,26 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 		cleanupTerraformFolder(t, util.JoinPath(TEST_FIXTURE_EXTERNAL_DEPENDENCIE, module))
 	}
 
+	var (
+		applyAllStdout bytes.Buffer
+		applyAllStderr bytes.Buffer
+	)
+
 	out := new(bytes.Buffer)
 	rootPath := copyEnvironment(t, TEST_FIXTURE_EXTERNAL_DEPENDENCIE)
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_EXTERNAL_DEPENDENCIE, "module-b")
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
-	stdoutput := out.String()
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), &applyAllStdout, &applyAllStderr)
+	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
+	logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
+	applyAllStdoutString := out.String()
 
 	if err != nil {
 		t.Errorf("Did not expect to get error: %s", err.Error())
 	}
 
 	for _, module := range modules {
-		assert.Contains(t, stdoutput, fmt.Sprintf("Hello World, %s", module))
+		assert.Contains(t, applyAllStdoutString, fmt.Sprintf("Hello World, %s", module))
 	}
 }
 
@@ -1349,19 +1356,25 @@ func TestTerragruntExcludeExternalDependencies(t *testing.T) {
 		cleanupTerraformFolder(t, util.JoinPath(TEST_FIXTURE_EXTERNAL_DEPENDENCIE, module))
 	}
 
-	out := new(bytes.Buffer)
+	var (
+		applyAllStdout bytes.Buffer
+		applyAllStderr bytes.Buffer
+	)
+
 	rootPath := copyEnvironment(t, TEST_FIXTURE_EXTERNAL_DEPENDENCIE)
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_EXTERNAL_DEPENDENCIE, includedModule)
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-ignore-external-dependencies --terragrunt-working-dir %s", modulePath), out, os.Stderr)
-	stdoutput := out.String()
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-ignore-external-dependencies --terragrunt-working-dir %s", modulePath), &applyAllStdout, &applyAllStderr)
+	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
+	logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
+	applyAllStdoutString := out.String()
 
 	if err != nil {
 		t.Errorf("Did not expect to get error: %s", err.Error())
 	}
 
-	assert.Contains(t, stdoutput, fmt.Sprintf("Hello World, %s", includedModule))
-	assert.NotContains(t, stdoutput, fmt.Sprintf("Hello World, %s", excludedModule))
+	assert.Contains(t, applyAllStdoutString, fmt.Sprintf("Hello World, %s", includedModule))
+	assert.NotContains(t, applyAllStdoutString, fmt.Sprintf("Hello World, %s", excludedModule))
 }
 
 func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
