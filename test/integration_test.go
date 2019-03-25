@@ -1322,14 +1322,13 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 		applyAllStderr bytes.Buffer
 	)
 
-	out := new(bytes.Buffer)
 	rootPath := copyEnvironment(t, TEST_FIXTURE_EXTERNAL_DEPENDENCIE)
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_EXTERNAL_DEPENDENCIE, "module-b")
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), &applyAllStdout, &applyAllStderr)
 	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
 	logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
-	applyAllStdoutString := out.String()
+	applyAllStdoutString := applyAllStdout.String()
 
 	if err != nil {
 		t.Errorf("Did not expect to get error: %s", err.Error())
@@ -1367,7 +1366,7 @@ func TestTerragruntExcludeExternalDependencies(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-ignore-external-dependencies --terragrunt-working-dir %s", modulePath), &applyAllStdout, &applyAllStderr)
 	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
 	logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
-	applyAllStdoutString := out.String()
+	applyAllStdoutString := applyAllStdout.String()
 
 	if err != nil {
 		t.Errorf("Did not expect to get error: %s", err.Error())
