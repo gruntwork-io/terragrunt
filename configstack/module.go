@@ -365,9 +365,12 @@ func resolveExternalDependenciesForModules(moduleMap map[string]*TerraformModule
 				continue
 			}
 
-			shouldApply, err := confirmShouldApplyExternalDependency(module, externalDependency, terragruntOptions)
-			if err != nil {
-				return externalDependencies, err
+			shouldApply := false
+			if !terragruntOptions.IgnoreExternalDependencies {
+				shouldApply, err = confirmShouldApplyExternalDependency(module, externalDependency, terragruntOptions)
+				if err != nil {
+					return externalDependencies, err
+				}
 			}
 
 			externalDependency.AssumeAlreadyApplied = !shouldApply
