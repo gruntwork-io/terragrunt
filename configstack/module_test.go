@@ -97,7 +97,6 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	t.Parallel()
 
 	opts, _ := options.NewTerragruntOptionsForTest("running_module_test")
-	opts.WorkingDir, _ = os.Getwd()
 	opts.ExcludeDirs = []string{canonical(t, "../test/fixture-modules/module-a")}
 
 	moduleA := &TerraformModule{
@@ -135,7 +134,6 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithNoDepe
 	t.Parallel()
 
 	opts, _ := options.NewTerragruntOptionsForTest("running_module_test")
-	opts.WorkingDir, _ = os.Getwd()
 	opts.ExcludeDirs = []string{canonical(t, "../test/fixture-modules/module-c")}
 
 	moduleA := &TerraformModule{
@@ -173,7 +171,6 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 	t.Parallel()
 
 	opts, _ := options.NewTerragruntOptionsForTest("running_module_test")
-	opts.WorkingDir, _ = os.Getwd()
 	opts.IncludeDirs = []string{canonical(t, "../test/fixture-modules/module-c")}
 
 	moduleA := &TerraformModule{
@@ -211,7 +208,6 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithNoDepe
 	t.Parallel()
 
 	opts, _ := options.NewTerragruntOptionsForTest("running_module_test")
-	opts.WorkingDir, _ = os.Getwd()
 	opts.IncludeDirs = []string{canonical(t, "../test/fixture-modules/module-a")}
 
 	moduleA := &TerraformModule{
@@ -249,7 +245,6 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 	t.Parallel()
 
 	opts, _ := options.NewTerragruntOptionsForTest("running_module_test")
-	opts.WorkingDir, _ = os.Getwd()
 	opts.IncludeDirs = []string{canonical(t, "../test/fixture-modules/module-c"), canonical(t, "../test/fixture-modules/module-f")}
 	opts.ExcludeDirs = []string{canonical(t, "../test/fixture-modules/module-f")}
 

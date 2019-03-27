@@ -4,10 +4,11 @@ package shell
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/require"
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +27,7 @@ func TestCommandOutputOrder(t *testing.T) {
 	terragruntOptions.ErrWriter = &allOutputBuffer
 
 	terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, "same")
-	out, err := RunShellCommandWithOutput(terragruntOptions, "../testdata/test_outputs.sh", "same")
+	out, err := RunShellCommandWithOutput(terragruntOptions, "", "../testdata/test_outputs.sh", "same")
 
 	require.NotNil(t, out, "Should get output")
 	assert.Nil(t, err, "Should have no error")

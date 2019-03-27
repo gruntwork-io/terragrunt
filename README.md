@@ -522,7 +522,10 @@ For backend `s3`, the following config options can be used for S3-compatible obj
 remote_state {
   # ...
 
-  skip_bucket_versioning = true # use only if the object store does not support versioning
+  skip_bucket_versioning         = true # use only if the object store does not support versioning
+  skip_bucket_ssencryption       = true # use only if non-encrypted Terraform State is required and/or the object store does not support server-side encryption
+  skip_bucket_accesslogging      = true # use only if the cost for the extra object space is undesirable or the object store does not support access logging
+  enable_lock_table_ssencryption = true # use only if non-encrypted DynamoDB Lock Table for the Terraform State is required and/or the NoSQL database service does not support server-side encryption
 
   shared_credentials_file     = "/path/to/credentials/file"
   skip_region_validation      = true
@@ -537,7 +540,7 @@ remote_state {
 If you experience an error for any of these configurations, confirm you are using Terraform v0.11.2 or greater.
 
 Further, the config options `s3_bucket_tags`,
-`dynamodb_table_tags`, and `skip_bucket_versioning` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to
+`dynamodb_table_tags`, `skip_bucket_versioning`, `skip_bucket_ssencryption`, `skip_bucket_accesslogging`, and `enable_lock_table_ssencryption` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to
 terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).
 
 In each of the **child** `terraform.tfvars` files, such as `mysql/terraform.tfvars`, you can tell Terragrunt to
@@ -605,7 +608,7 @@ they don't already exist:
 
 * **S3 bucket**: If you are using the [S3 backend](https://www.terraform.io/docs/backends/types/s3.html) for remote
   state storage and the `bucket` you specify in `remote_state.config` doesn't already exist, Terragrunt will create it
-  automatically, with [versioning enabled](http://docs.aws.amazon.com/AmazonS3/latest/dev/Versioning.html).
+  automatically, with [versioning](https://docs.aws.amazon.com/AmazonS3/latest/dev/Versioning.html), [server-side encryption](https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html), and [access logging](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerLogs.html) enabled.
 
   In addition, you can let terragrunt tag the bucket with custom tags that you specify in
   `remote_state.config.s3_bucket_tags`. See sample configuration in section
@@ -614,7 +617,7 @@ they don't already exist:
 * **DynamoDB table**: If you are using the [S3 backend](https://www.terraform.io/docs/backends/types/s3.html) for
   remote state storage and you specify a `dynamodb_table` (a [DynamoDB table used for
   locking](https://www.terraform.io/docs/backends/types/s3.html#dynamodb_table)) in `remote_state.config`, if that table
-  doesn't already exist, Terragrunt will create it automatically, including a primary key called `LockID`.
+  doesn't already exist, Terragrunt will create it automatically, with [server-side encryption](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/EncryptionAtRest.html) enabled, including a primary key called `LockID`.
 
   In addition, you can let terragrunt tag the DynamoDB table with custom tags that you specify in
   `remote_state.config.dynamodb_table_tags`. See sample configuration in section
@@ -1267,7 +1270,6 @@ and DynamoDB table name respectively.
             "Resource": "arn:aws:s3:::BUCKET_NAME/some/path/here"
         },
         {
-            "Sid": "",
             "Sid": "AllowCreateAndUpdateDynamoDBActionsOnSpecifiedTerragruntTable",
             "Effect": "Allow",
             "Action": [
@@ -1303,6 +1305,7 @@ Terragrunt allows you to use [Terraform interpolation syntax](https://www.terraf
 * [get_terraform_commands_that_need_input()](#get_terraform_commands_that_need_input)
 * [get_terraform_commands_that_need_locking()](#get_terraform_commands_that_need_locking)
 * [get_aws_account_id()](#get_aws_account_id)
+* [run_cmd()](#run_cmd)
 
 
 #### find_in_parent_folders
@@ -1708,6 +1711,26 @@ terragrunt = {
 }
 ```
 
+#### run_cmd
+
+`run_cmd(command, arg1, arg2...)` runs a shell command and returns the stdout as the result of the interpolation. The command is executed at the same folder of the interpolated `terraform.tfvars` file.
+
+This is useful whenever you want to dynamically fill in arbitrary information in your Terragrunt configuration.
+
+As an example, you could write a script that determines the bucket and DynamoDB table name based on the AWS account, instead of hardcoding the name of every account:
+
+```
+terragrunt = {
+  remote_state {
+    backend = "s3"
+    config {
+      bucket = "${run_cmd("./get_names.sh", "bucket")}"
+      dynamodb_table "${run_cmd("./get_names.sh", "dynamodb")}"
+    }
+  }
+}
+```
+
 ### Before and After Hooks
 
 _Before Hooks_ or _After Hooks_ are a feature of terragrunt that make it possible to define custom actions
@@ -1870,6 +1893,7 @@ start with the prefix `--terragrunt-`. The currently available options are:
 
 * `--terragrunt-include-dir`: Unix-style glob of directories to include when running `*-all` commands. Only modules under these directories (and all dependent modules) will be included during execution of the commands. If a relative path is specified, it should be relative from `--terragrunt-working-dir`. Flag can be specified multiple times.
 
+* `--terragrunt-ignore-external-dependencies`: Dont attempt to include any external dependencies when running `*-all` commands
 
 ### Configuration
 

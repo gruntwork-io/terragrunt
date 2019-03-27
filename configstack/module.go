@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -34,7 +35,7 @@ func (module *TerraformModule) String() string {
 	for _, dependency := range module.Dependencies {
 		dependencies = append(dependencies, dependency.Path)
 	}
-	return fmt.Sprintf("Module %s (dependencies: [%s])", module.Path, strings.Join(dependencies, ", "))
+	return fmt.Sprintf("Module %s (excluded: %v, dependencies: [%s])", module.Path, module.FlagExcluded, strings.Join(dependencies, ", "))
 }
 
 // Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents
@@ -351,7 +352,9 @@ func resolveExternalDependenciesForModules(moduleMap map[string]*TerraformModule
 		return allExternalDependencies, errors.WithStackTrace(InfiniteRecursion{RecursionLevel: maxLevelsOfRecursion, Modules: modulesToSkip})
 	}
 
-	for _, module := range moduleMap {
+	sortedKeys := getSortedKeys(moduleMap)
+	for _, key := range sortedKeys {
+		module := moduleMap[key]
 		externalDependencies, err := resolveExternalDependenciesForModule(module, modulesToSkip, terragruntOptions)
 		if err != nil {
 			return externalDependencies, err
@@ -362,9 +365,12 @@ func resolveExternalDependenciesForModules(moduleMap map[string]*TerraformModule
 				continue
 			}
 
-			shouldApply, err := confirmShouldApplyExternalDependency(module, externalDependency, terragruntOptions)
-			if err != nil {
-				return externalDependencies, err
+			shouldApply := false
+			if !terragruntOptions.IgnoreExternalDependencies {
+				shouldApply, err = confirmShouldApplyExternalDependency(module, externalDependency, terragruntOptions)
+				if err != nil {
+					return externalDependencies, err
+				}
 			}
 
 			externalDependency.AssumeAlreadyApplied = !shouldApply
@@ -438,7 +444,9 @@ func mergeMaps(modules map[string]*TerraformModule, externalDependencies map[str
 func crosslinkDependencies(moduleMap map[string]*TerraformModule, canonicalTerragruntConfigPaths []string) ([]*TerraformModule, error) {
 	modules := []*TerraformModule{}
 
-	for _, module := range moduleMap {
+	keys := getSortedKeys(moduleMap)
+	for _, key := range keys {
+		module := moduleMap[key]
 		dependencies, err := getDependenciesForModule(module, moduleMap, canonicalTerragruntConfigPaths)
 		if err != nil {
 			return modules, err
@@ -478,6 +486,19 @@ func getDependenciesForModule(module *TerraformModule, moduleMap map[string]*Ter
 	}
 
 	return dependencies, nil
+}
+
+// Return the keys for the given map in sorted order. This is used to ensure we always iterate over maps of modules
+// in a consistent order (Go does not guarantee iteration order for maps, and usually makes it random)
+func getSortedKeys(modules map[string]*TerraformModule) []string {
+	keys := []string{}
+	for key, _ := range modules {
+		keys = append(keys, key)
+	}
+
+	sort.Strings(keys)
+
+	return keys
 }
 
 // Custom error types

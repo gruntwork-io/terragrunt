@@ -2,6 +2,8 @@ package dynamodb
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -9,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
-	"time"
 )
 
 // DynamoDB only allows 10 table creates/deletes simultaneously. To ensure we don't hit this error, especially when
@@ -65,6 +66,16 @@ func LockTableExistsAndIsActive(tableName string, client *dynamodb.DynamoDB) (bo
 	return *output.Table.TableStatus == dynamodb.TableStatusActive, nil
 }
 
+// Return true if the lock table's SSEncryption is turned on
+func LockTableCheckSSEncryptionIsOn(tableName string, client *dynamodb.DynamoDB) (bool, error) {
+	output, err := client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
+	if err != nil {
+		return false, errors.WithStackTrace(err)
+	}
+
+	return output.Table.SSEDescription != nil && aws.StringValue(output.Table.SSEDescription.Status) == dynamodb.SSEStatusEnabled, nil
+}
+
 // Create a lock table in DynamoDB and wait until it is in "active" state. If the table already exists, merely wait
 // until it is in "active" state.
 func CreateLockTable(tableName string, tags map[string]string, readCapacityUnits int, writeCapacityUnits int, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
@@ -92,7 +103,7 @@ func CreateLockTable(tableName string, tags map[string]string, readCapacityUnits
 	})
 
 	if err != nil {
-		if isTableAlreadyBeingCreatedError(err) {
+		if isTableAlreadyBeingCreatedOrUpdatedError(err) {
 			terragruntOptions.Logger.Printf("Looks like someone created table %s at the same time. Will wait for it to be in active state.", tableName)
 		} else {
 			return errors.WithStackTrace(err)
@@ -152,8 +163,9 @@ func DeleteTable(tableName string, client *dynamodb.DynamoDB) error {
 	return err
 }
 
-// Return true if the given error is the error message returned by AWS when the resource already exists
-func isTableAlreadyBeingCreatedError(err error) bool {
+// Return true if the given error is the error message returned by AWS when the resource already exists and is being
+// updated by someone else
+func isTableAlreadyBeingCreatedOrUpdatedError(err error) bool {
 	awsErr, isAwsErr := err.(awserr.Error)
 	return isAwsErr && awsErr.Code() == "ResourceInUseException"
 }
@@ -187,6 +199,73 @@ func waitForTableToBeActiveWithRandomSleep(tableName string, client *dynamodb.Dy
 	return errors.WithStackTrace(TableActiveRetriesExceeded{TableName: tableName, Retries: maxRetries})
 }
 
+// Encrypt the TFState Lock table - If Necessary
+func UpdateLockTableSetSSEncryptionOnIfNecessary(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
+	tableSSEncrypted, err := LockTableCheckSSEncryptionIsOn(tableName, client)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	if tableSSEncrypted {
+		terragruntOptions.Logger.Printf("Table %s already has encryption enabled", tableName)
+		return nil
+	}
+
+	tableCreateDeleteSemaphore.Acquire()
+	defer tableCreateDeleteSemaphore.Release()
+
+	terragruntOptions.Logger.Printf("Enabling server-side encryption on table %s in AWS DynamoDB", tableName)
+
+	input := &dynamodb.UpdateTableInput{
+		SSESpecification: &dynamodb.SSESpecification{
+			Enabled: aws.Bool(true),
+			SSEType: aws.String("KMS"),
+		},
+		TableName: aws.String(tableName),
+	}
+
+	if _, err := client.UpdateTable(input); err != nil {
+		if isTableAlreadyBeingCreatedOrUpdatedError(err) {
+			terragruntOptions.Logger.Printf("Looks like someone is already updating table %s at the same time. Will wait for that update to complete.", tableName)
+		} else {
+			return errors.WithStackTrace(err)
+		}
+	}
+
+	if err := waitForEncryptionToBeEnabled(tableName, client, terragruntOptions); err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	return waitForTableToBeActive(tableName, client, MAX_RETRIES_WAITING_FOR_TABLE_TO_BE_ACTIVE, SLEEP_BETWEEN_TABLE_STATUS_CHECKS, terragruntOptions)
+}
+
+// Wait until encryption is enabled for the given table
+func waitForEncryptionToBeEnabled(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
+	maxRetries := 15
+	sleepBetweenRetries := 20 * time.Second
+
+	terragruntOptions.Logger.Printf("Waiting for encryption to be enabled on table %s", tableName)
+
+	for i := 0; i < maxRetries; i++ {
+		tableSSEncrypted, err := LockTableCheckSSEncryptionIsOn(tableName, client)
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+
+		if tableSSEncrypted {
+			terragruntOptions.Logger.Printf("Encryption is now enabled for table %s!", tableName)
+			return nil
+		}
+
+		terragruntOptions.Logger.Printf("Encryption is still not enabled for table %s. Will sleep for %v and try again.", tableName, sleepBetweenRetries)
+		time.Sleep(sleepBetweenRetries)
+	}
+
+	return errors.WithStackTrace(TableEncryptedRetriesExceeded{TableName: tableName, Retries: maxRetries})
+}
+
+// Custom error types
+
 type TableActiveRetriesExceeded struct {
 	TableName string
 	Retries   int
@@ -203,4 +282,13 @@ type TableDoesNotExist struct {
 
 func (err TableDoesNotExist) Error() string {
 	return fmt.Sprintf("Table %s does not exist in DynamoDB! Original error from AWS: %v", err.TableName, err.Underlying)
+}
+
+type TableEncryptedRetriesExceeded struct {
+	TableName string
+	Retries   int
+}
+
+func (err TableEncryptedRetriesExceeded) Error() string {
+	return fmt.Sprintf("Table %s still does not have encryption enabled after %d retries.", err.TableName, err.Retries)
 }

@@ -88,6 +88,12 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
+			[]string{"--terragrunt-ignore-external-dependencies"},
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false),
+			nil,
+		},
+
+		{
 			[]string{"--terragrunt-iam-role", "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"},
 			mockOptionsWithIamRole(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"),
 			nil,
