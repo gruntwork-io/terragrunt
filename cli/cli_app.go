@@ -294,7 +294,7 @@ func loadEnvVars(terragruntOptions *options.TerragruntOptions, curHook config.Ho
 				value := txt[idx+1 : len(txt)]
 				m[key] = value
 			} else {
-				terragruntOptions.Logger.Printf("Invalid key,value pair [%s]", txt)
+				terragruntOptions.Logger.Print("Invalid key,value pair")
 			}
 		}
 		targetEnvMap := terragruntOptions.Env
