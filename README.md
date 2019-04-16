@@ -2088,7 +2088,7 @@ create a new release. The CircleCI job for this repo has been configured to:
 1. Build binaries for every OS using that tag as a version number.
 1. Upload the binaries to the release in GitHub.
 
-See `circle.yml` and `_ci/build-and-push-release-asset.sh` for details.
+See `.circleci/config.yml` for details.
 
 
 ### License
