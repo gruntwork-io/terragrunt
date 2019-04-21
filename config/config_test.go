@@ -593,6 +593,31 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 			&TerragruntConfig{PreventDestroy: true},
 		},
 		{
+			&TerragruntConfig{},
+			nil,
+			&TerragruntConfig{Skip: false},
+		},
+		{
+			&TerragruntConfig{Skip: true},
+			nil,
+			&TerragruntConfig{Skip: true},
+		},
+		{
+			&TerragruntConfig{},
+			&TerragruntConfig{Skip: true},
+			&TerragruntConfig{Skip: false},
+		},
+		{
+			&TerragruntConfig{Skip: false},
+			&TerragruntConfig{Skip: true},
+			&TerragruntConfig{Skip: false},
+		},
+		{
+			&TerragruntConfig{Skip: true},
+			&TerragruntConfig{Skip: true},
+			&TerragruntConfig{Skip: true},
+		},
+		{
 			&TerragruntConfig{IamRole: "role1"},
 			nil,
 			&TerragruntConfig{IamRole: "role1"},
@@ -910,4 +935,44 @@ terragrunt = {
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Dependencies)
 	assert.Equal(t, false, terragruntConfig.PreventDestroy)
+}
+
+func TestParseTerragruntConfigSkipTrue(t *testing.T) {
+	t.Parallel()
+
+	config := `
+terragrunt = {
+  skip = true
+}
+`
+
+	terragruntConfig, err := parseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Nil(t, terragruntConfig.Terraform)
+	assert.Nil(t, terragruntConfig.RemoteState)
+	assert.Nil(t, terragruntConfig.Dependencies)
+	assert.Equal(t, true, terragruntConfig.Skip)
+}
+
+func TestParseTerragruntConfigSkipFalse(t *testing.T) {
+	t.Parallel()
+
+	config := `
+terragrunt = {
+  skip = false
+}
+`
+
+	terragruntConfig, err := parseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Nil(t, terragruntConfig.Terraform)
+	assert.Nil(t, terragruntConfig.RemoteState)
+	assert.Nil(t, terragruntConfig.Dependencies)
+	assert.Equal(t, false, terragruntConfig.Skip)
 }

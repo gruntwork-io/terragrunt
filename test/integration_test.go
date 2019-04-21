@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -39,6 +40,7 @@ const (
 	TEST_FIXTURE_STDOUT                                     = "fixture-download/stdout-test"
 	TEST_FIXTURE_EXTRA_ARGS_PATH                            = "fixture-extra-args/"
 	TEST_FIXTURE_ENV_VARS_BLOCK_PATH                        = "fixture-env-vars-block/"
+	TEST_FIXTURE_SKIP                                       = "fixture-skip/"
 	TEST_FIXTURE_LOCAL_DOWNLOAD_PATH                        = "fixture-download/local"
 	TEST_FIXTURE_REMOTE_DOWNLOAD_PATH                       = "fixture-download/remote"
 	TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH                     = "fixture-download/override"
@@ -1374,6 +1376,93 @@ func TestTerragruntExcludeExternalDependencies(t *testing.T) {
 
 	assert.Contains(t, applyAllStdoutString, fmt.Sprintf("Hello World, %s", includedModule))
 	assert.NotContains(t, applyAllStdoutString, fmt.Sprintf("Hello World, %s", excludedModule))
+}
+
+func TestApplySkipTrue(t *testing.T) {
+	t.Parallel()
+
+	rootPath := copyEnvironment(t, TEST_FIXTURE_SKIP)
+	rootPath = util.JoinPath(rootPath, TEST_FIXTURE_SKIP, "skip-true")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s --var person=Hobbs", rootPath), &showStdout, &showStderr)
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	stdout := showStdout.String()
+	stderr := showStderr.String()
+
+	assert.Nil(t, err)
+	assert.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixture-skip/skip-true/terraform.tfvars due to skip = true."), stderr)
+	assert.NotContains(t, stdout, "hello, Hobbs")
+}
+
+func TestApplySkipFalse(t *testing.T) {
+	t.Parallel()
+
+	rootPath := copyEnvironment(t, TEST_FIXTURE_SKIP)
+	rootPath = util.JoinPath(rootPath, TEST_FIXTURE_SKIP, "skip-false")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	stderr := showStderr.String()
+	stdout := showStdout.String()
+
+	assert.Nil(t, err)
+	assert.Contains(t, stdout, "hello, Hobbs")
+	assert.NotContains(t, stderr, "Skipping terragrunt module")
+}
+
+func TestApplyAllSkipTrue(t *testing.T) {
+	t.Parallel()
+
+	rootPath := copyEnvironment(t, TEST_FIXTURE_SKIP)
+	rootPath = util.JoinPath(rootPath, TEST_FIXTURE_SKIP, "skip-true")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	stdout := showStdout.String()
+	stderr := showStderr.String()
+
+	assert.Nil(t, err)
+	assert.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixture-skip/skip-true/terraform.tfvars due to skip = true."), stderr)
+	assert.Contains(t, stdout, "hello, Ernie")
+	assert.Contains(t, stdout, "hello, Bert")
+}
+
+func TestApplyAllSkipFalse(t *testing.T) {
+	t.Parallel()
+
+	rootPath := copyEnvironment(t, TEST_FIXTURE_SKIP)
+	rootPath = util.JoinPath(rootPath, TEST_FIXTURE_SKIP, "skip-false")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	stdout := showStdout.String()
+	stderr := showStderr.String()
+
+	assert.Nil(t, err)
+	assert.Contains(t, stdout, "hello, Hobbs")
+	assert.Contains(t, stdout, "hello, Ernie")
+	assert.Contains(t, stdout, "hello, Bert")
+	assert.NotContains(t, stderr, "Skipping terragrunt module")
 }
 
 func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {

@@ -1946,6 +1946,43 @@ terragrunt = {
 }
 ```
 
+#### skip
+
+The terragrunt `skip` boolean flag can be used to protect modules you don't want any changes to or just to skip modules
+that don't define any infrastructure by themselves. When set to true, all terragrunt commands will skip the selected module.
+
+Consider the following file structure:
+
+```
+root
+├── terraform.tfvars
+├── prod
+│   └── terraform.tfvars
+├── dev
+│   └── terraform.tfvars
+└── qa
+    └── terraform.tfvars
+```
+
+In some cases, the root level terraform.tfvars is simply used to DRY up your terraform configuration and is simply
+included by the other terraform.tfvars files. In this case, you do not want the `xxx-all` commands to process the root
+level terraform.tfvars since it does not define any infrastructure by itself. To make the `xxx-all` commands skip the
+root level terraform.tfvars file, you can set skip = true in the terragrunt { ... } block as shown in this example:
+
+```hcl
+terragrunt = {
+  skip = true
+
+  remote-state {
+    ...
+  }
+}
+```
+
+The `skip` flag must be set explicitly in terragrunt modules that should be skipped. If you set `skip = true` in a
+terraform.tfvars file that is included by another terraform.tfvars file, only the terraform.tfvars file that explicitly
+set `skip = true` will be skipped.
+
 ### Clearing the Terragrunt cache
 
 Terragrunt creates a `.terragrunt-cache` folder in the current working directory as its scratch directory. It downloads
