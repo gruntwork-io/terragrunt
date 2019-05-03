@@ -18,6 +18,7 @@ jobs:
         keys:
         - dep-{{ checksum "Gopkg.lock" }}
     - run: dep ensure
+    - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.13.8' --download-dir .
     - save_cache:
         key: dep-{{ checksum "Gopkg.lock" }}
         paths:
@@ -25,14 +26,41 @@ jobs:
     - persist_to_workspace:
         root: *workspace_root
         paths: vendor
-
-  test:
+# We're running unit tests separately from integration tests - with no parallelization.
+# With heavy parallelization coupled with re-use of test fixtures we've witnessed slight
+# instability with the tests. The unit tests are fast to execute, so there is negligible
+# performance penalty.
+  unit_test:
     <<: *defaults
     steps:
-    - checkout
-    - attach_workspace:
-        at: *workspace_root
-    - run:  run-go-tests --circle-ci-2
+      - checkout
+      - attach_workspace:
+          at: *workspace_root
+      - run:
+          command: |
+            mkdir -p logs
+            run-go-tests --circle-ci-2 --parallelism 1 --packages "$(go list ./... | grep -v /test | tr '\n' ' ')"  | tee logs/unit.log
+            terratest_log_parser --testlog logs/unit.log --outputdir logs
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
+  integration_test:
+    <<: *defaults
+    steps:
+      - checkout
+      - attach_workspace:
+          at: *workspace_root
+      - run:
+          command: |
+            mkdir -p logs
+            run-go-tests --circle-ci-2 --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
+            terratest_log_parser --testlog logs/integration.log --outputdir logs
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
 
   build:
     <<: *defaults
@@ -51,6 +79,7 @@ jobs:
     - checkout
     - attach_workspace:
         at: *workspace_root
+    - run: cd bin && sha256sum * > SHA256SUMS
     - run: upload-github-release-assets bin/*
 
 workflows:
@@ -61,15 +90,21 @@ workflows:
         filters:
           tags:
             only: /^v.*/
-    - test:
+    - unit_test:
         requires:
-        - install_dependencies
+          - install_dependencies
+        filters:
+          tags:
+            only: /^v.*/
+    - integration_test:
+        requires:
+          - unit_test
         filters:
           tags:
             only: /^v.*/
     - build:
         requires:
-        - test
+        - integration_test
         filters:
           tags:
             only: /^v.*/
@@ -92,6 +127,9 @@ workflows:
             only: master
     jobs:
     - install_dependencies
-    - test:
+    - unit_test:
         requires:
-        - install_dependencies
+          - install_dependencies
+    - integration_test:
+        requires:
+          - unit_test

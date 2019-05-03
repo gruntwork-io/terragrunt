@@ -1,18 +1,15 @@
 package shell
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"os/signal"
 	"reflect"
 	"strings"
-	"sync"
 	"syscall"
 
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -21,76 +18,72 @@ import (
 
 // Run the given Terraform command
 func RunTerraformCommand(terragruntOptions *options.TerragruntOptions, args ...string) error {
-	_, err := RunShellCommandWithOutput(terragruntOptions, terragruntOptions.TerraformPath, args...)
+	_, err := RunShellCommandWithOutput(terragruntOptions, "", terragruntOptions.TerraformPath, args...)
 	return err
 }
 
 // Run the given shell command
 func RunShellCommand(terragruntOptions *options.TerragruntOptions, command string, args ...string) error {
-	_, err := RunShellCommandWithOutput(terragruntOptions, command, args...)
+	_, err := RunShellCommandWithOutput(terragruntOptions, "", command, args...)
 	return err
 }
 
-// Run the given Terraform command
-func RunTerraformCommandWithOutput(terragruntOptions *options.TerragruntOptions, args ...string) (string, error) {
-	return RunShellCommandWithOutput(terragruntOptions, terragruntOptions.TerraformPath, args...)
-}
-
-// Run the given Terraform command and return the stdout as a string
-func RunTerraformCommandAndCaptureOutput(terragruntOptions *options.TerragruntOptions, args ...string) (string, error) {
-	return RunShellCommandAndCaptureOutput(terragruntOptions, terragruntOptions.TerraformPath, args...)
+// Run the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
+// method's caller
+func RunTerraformCommandWithOutput(terragruntOptions *options.TerragruntOptions, args ...string) (*CmdOutput, error) {
+	return RunShellCommandWithOutput(terragruntOptions, "", terragruntOptions.TerraformPath, args...)
 }
 
 // Run the specified shell command with the specified arguments. Connect the command's stdin, stdout, and stderr to
-// the currently running app.
-func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, command string, args ...string) (string, error) {
+// the currently running app. The command can be executed in a custom working directory by using the parameter `workingDir`. Terragrunt working directory will be assumed if empty empty.
+func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, workingDir string, command string, args ...string) (*CmdOutput, error) {
 	terragruntOptions.Logger.Printf("Running command: %s %s", command, strings.Join(args, " "))
 
-	var outToErr bool = false
+	var stdoutBuf bytes.Buffer
+	var stderrBuf bytes.Buffer
 
 	cmd := exec.Command(command, args...)
-
-	stdoutIn, err := cmd.StdoutPipe()
-	if err != nil {
-		return "", errors.WithStackTrace(err)
-	}
-
-	stderrIn, err := cmd.StderrPipe()
-	if err != nil {
-		return "", errors.WithStackTrace(err)
-	}
 
 	// TODO: consider adding prefix from terragruntOptions logger to stdout and stderr
 	cmd.Stdin = os.Stdin
 	cmd.Env = toEnvVarsList(terragruntOptions.Env)
 
+	var errWriter = terragruntOptions.ErrWriter
+	var outWriter = terragruntOptions.Writer
 	// Terragrunt can run some commands (such as terraform remote config) before running the actual terraform
 	// command requested by the user. The output of these other commands should not end up on stdout as this
 	// breaks scripts relying on terraform's output.
 	if !reflect.DeepEqual(terragruntOptions.TerraformCliArgs, args) {
-		outToErr = true
+		outWriter = terragruntOptions.ErrWriter
 	}
 
-	cmd.Dir = terragruntOptions.WorkingDir
+	if workingDir == "" {
+		cmd.Dir = terragruntOptions.WorkingDir
+	} else {
+		cmd.Dir = workingDir
+	}
+	// Inspired by https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
+	cmd.Stderr = io.MultiWriter(errWriter, &stderrBuf)
+	cmd.Stdout = io.MultiWriter(outWriter, &stdoutBuf)
 
 	if err := cmd.Start(); err != nil {
 		// bad path, binary not executable, &c
-		return "", errors.WithStackTrace(err)
-	}
-
-	output, err := readStdoutAndStderr(stdoutIn, stderrIn, terragruntOptions, outToErr)
-	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return nil, errors.WithStackTrace(err)
 	}
 
 	cmdChannel := make(chan error)
 	signalChannel := NewSignalsForwarder(forwardSignals, cmd, terragruntOptions.Logger, cmdChannel)
 	defer signalChannel.Close()
 
-	err = cmd.Wait()
+	err := cmd.Wait()
 	cmdChannel <- err
 
-	return output, errors.WithStackTrace(err)
+	cmdOutput := CmdOutput{
+		Stdout: stdoutBuf.String(),
+		Stderr: stderrBuf.String(),
+	}
+
+	return &cmdOutput, errors.WithStackTrace(err)
 }
 
 func toEnvVarsList(envVarsAsMap map[string]string) []string {
@@ -99,18 +92,6 @@ func toEnvVarsList(envVarsAsMap map[string]string) []string {
 		envVarsAsList = append(envVarsAsList, fmt.Sprintf("%s=%s", key, value))
 	}
 	return envVarsAsList
-}
-
-// Run the specified shell command with the specified arguments. Capture the command's stdout and return it as a
-// string.
-func RunShellCommandAndCaptureOutput(terragruntOptions *options.TerragruntOptions, command string, args ...string) (string, error) {
-	stdout := ioutil.Discard
-
-	terragruntOptionsCopy := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
-	terragruntOptionsCopy.Writer = stdout
-	terragruntOptionsCopy.ErrWriter = stdout
-
-	return RunShellCommandWithOutput(terragruntOptionsCopy, command, args...)
 }
 
 // Return the exit code of a command. If the error does not implement errors.IErrorCode or is not an exec.ExitError
@@ -169,47 +150,7 @@ func (signalChannel *SignalsForwarder) Close() error {
 	return nil
 }
 
-// Scans a Scanner for text lines and appends them to a buffer
-func scanScanner(wg *sync.WaitGroup, scanner *bufio.Scanner, writer io.Writer, buffer *bytes.Buffer) {
-	defer wg.Done()
-	for scanner.Scan() {
-		text := scanner.Text()
-		fmt.Fprintln(writer, text)
-		fmt.Fprintln(buffer, text)
-	}
-}
-
-// This function captures stdout and stderr while still printing it to the stdout and stderr of this Go program
-// outToErr flips std out to std err
-func readStdoutAndStderr(stdout io.ReadCloser, stderr io.ReadCloser, terragruntOptions *options.TerragruntOptions, outToErr bool) (string, error) {
-
-	output := new(bytes.Buffer)
-
-	var errWriter = terragruntOptions.ErrWriter
-	var outWriter = terragruntOptions.Writer
-	var wg sync.WaitGroup
-
-	if outToErr {
-		outWriter = terragruntOptions.ErrWriter
-	}
-
-	stdoutScanner := bufio.NewScanner(stdout)
-	stderrScanner := bufio.NewScanner(stderr)
-
-	wg.Add(2)
-
-	go scanScanner(&wg, stdoutScanner, outWriter, output)
-	go scanScanner(&wg, stderrScanner, errWriter, output)
-
-	wg.Wait()
-
-	if err := stdoutScanner.Err(); err != nil {
-		return "", err
-	}
-
-	if err := stderrScanner.Err(); err != nil {
-		return "", err
-	}
-
-	return output.String(), nil
+type CmdOutput struct {
+	Stdout string
+	Stderr string
 }

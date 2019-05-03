@@ -2,6 +2,7 @@
 
 
 [[projects]]
+  digest = "1:fd4666db511d77a745ffe0cb5a1230cf6709d9ab34b2851849744eb557dfedcd"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -13,15 +14,25 @@
     "aws/credentials",
     "aws/credentials/ec2rolecreds",
     "aws/credentials/endpointcreds",
+    "aws/credentials/processcreds",
     "aws/credentials/stscreds",
+    "aws/crr",
+    "aws/csm",
     "aws/defaults",
     "aws/ec2metadata",
     "aws/endpoints",
     "aws/request",
     "aws/session",
     "aws/signer/v4",
+    "internal/ini",
+    "internal/s3err",
+    "internal/sdkio",
+    "internal/sdkrand",
+    "internal/sdkuri",
     "internal/shareddefaults",
     "private/protocol",
+    "private/protocol/eventstream",
+    "private/protocol/eventstream/eventstreamapi",
     "private/protocol/json/jsonutil",
     "private/protocol/jsonrpc",
     "private/protocol/query",
@@ -31,51 +42,60 @@
     "private/protocol/xml/xmlutil",
     "service/dynamodb",
     "service/s3",
-    "service/sts"
+    "service/sts",
   ]
-  revision = "a28db88bdcd87b7023011ebc987b155d6d52411b"
+  pruneopts = "UT"
+  revision = "949cbce4e4443b72f6da12adbeb5d416dd506fbe"
+  version = "v1.16.27"
 
 [[projects]]
   branch = "master"
+  digest = "1:37011b20a70e205b93ebea5287e1afa5618db54bf3998c36ff5a8e4b146a170a"
   name = "github.com/bgentry/go-netrc"
   packages = ["netrc"]
+  pruneopts = "UT"
   revision = "9fd32a8b3d3d3f9d43c341bfe098430e07609480"
 
 [[projects]]
+  digest = "1:511f7e1ca840c3b8c5761870d8606aa8bdf95f5d422a74fbe0ef3cf210cfe2c9"
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
+  pruneopts = "UT"
   revision = "04cdfd42973bb9c8589fd6a731800cf222fde1a9"
 
 [[projects]]
+  digest = "1:b8f33acf2b17bbb180b70c72572af8ec88839a0bd0864d2665ce6e328cd0660a"
   name = "github.com/go-errors/errors"
   packages = ["."]
+  pruneopts = "UT"
   revision = "8fa88b06e5974e97fbf9899a7f86a344bfd1f105"
 
 [[projects]]
-  name = "github.com/go-ini/ini"
-  packages = ["."]
-  revision = "5b3e00af70a9484542169a976dcab8d03e601a17"
-  version = "v1.30.0"
-
-[[projects]]
+  digest = "1:ae263e6b149fb7aadfc0f2284a8891cc3b9d2700e58b9a613fecf70fcc6e495d"
   name = "github.com/hashicorp/go-cleanhttp"
   packages = ["."]
+  pruneopts = "UT"
   revision = "3573b8b52aa7b37b9358d966a898feb387f62437"
 
 [[projects]]
+  digest = "1:e552a7d3d8156dac33fb7ed47fc16f432a8d18ead42cfad71536f584e5923fbe"
   name = "github.com/hashicorp/go-getter"
   packages = [
     ".",
-    "helper/url"
+    "helper/url",
   ]
+  pruneopts = "UT"
   revision = "2f449c791e6af9e532bc1aca36d1d3865b8537f9"
 
 [[projects]]
+  digest = "1:ada37ea3db98b606d2b61577fbd87c0aabaa95e03b409033ebf58c6e5420b033"
   name = "github.com/hashicorp/go-version"
   packages = ["."]
+  pruneopts = "UT"
   revision = "fc61389e27c71d120f87031ca8c88a3428f372dd"
 
 [[projects]]
+  digest = "1:145eff5207977eb95c3649a27cdc2e467d8a1c104810bc12b6a53745a91d823a"
   name = "github.com/hashicorp/hcl"
   packages = [
     ".",
@@ -86,71 +106,109 @@
     "hcl/token",
     "json/parser",
     "json/scanner",
-    "json/token"
+    "json/token",
   ]
+  pruneopts = "UT"
   revision = "23c074d0eceb2b8a5bfdbb271ab780cde70f05a8"
 
 [[projects]]
+  digest = "1:bb81097a5b62634f3e9fec1014657855610c82d19b9a40c17612e32651e35dca"
   name = "github.com/jmespath/go-jmespath"
   packages = ["."]
-  revision = "0b12d6b5"
+  pruneopts = "UT"
+  revision = "c2b33e84"
 
 [[projects]]
+  digest = "1:cf31637c5b44a0b7e9aa64fdd7194c22cfdb75ddb2a58e5fc5cbf003c86c4dba"
   name = "github.com/mattn/go-zglob"
   packages = [
     ".",
-    "fastwalk"
+    "fastwalk",
   ]
+  pruneopts = "UT"
   revision = "4ecb59231939b2e499b1f2fd8f075565977d2452"
 
 [[projects]]
+  digest = "1:12ae6210bdbdad658a9a67fd95cd9c99f7fdbf12f6d36eaf0af704e69dacf4f5"
   name = "github.com/mitchellh/go-homedir"
   packages = ["."]
+  pruneopts = "UT"
   revision = "b8bc1bf767474819792c23f32d8286a45736f1c6"
 
 [[projects]]
   branch = "master"
+  digest = "1:cae1afe858922bd10e9573b87130f730a6e4183a00eba79920d6656629468bfa"
   name = "github.com/mitchellh/go-testing-interface"
   packages = ["."]
+  pruneopts = "UT"
   revision = "a61a99592b77c9ba629d254a693acffaeb4b7e28"
 
 [[projects]]
+  digest = "1:56a0bd1a1f3809171d1abe0bfd389558be0cd672e858e1f831b88f806aa8764f"
   name = "github.com/mitchellh/mapstructure"
   packages = ["."]
+  pruneopts = "UT"
   revision = "06020f85339e21b2478f756a78e295255ffa4d6a"
 
 [[projects]]
+  digest = "1:08413c4235cad94a96c39e1e2f697789733c4a87d1fdf06b412d2cf2ba49826a"
   name = "github.com/pmezard/go-difflib"
   packages = ["difflib"]
+  pruneopts = "UT"
   revision = "d8ed2627bdf02c080bf22230dbb337003b7aba2d"
 
 [[projects]]
+  digest = "1:498565cf249f70c3008005cf92a90ef6c04fd0f310c4fcbf384cef62645bdf71"
   name = "github.com/stretchr/testify"
   packages = [
     "assert",
-    "require"
+    "require",
   ]
+  pruneopts = "UT"
   revision = "2aa2c176b9dab406a6970f6a55f513e8a8c8b18f"
 
 [[projects]]
+  digest = "1:4aeb3860275fa1fd60cccfb5a6ef85da438bf17402e1e84412ade4d4b55066a0"
   name = "github.com/ulikunitz/xz"
   packages = [
     ".",
     "internal/hash",
     "internal/xlog",
-    "lzma"
+    "lzma",
   ]
+  pruneopts = "UT"
   revision = "0c6b41e72360850ca4f98dc341fd999726ea007f"
   version = "v0.5.4"
 
 [[projects]]
+  digest = "1:312f66cdea01bc34c72762385569faa2efc0cd57310ad6e4525854f96207efba"
   name = "github.com/urfave/cli"
   packages = ["."]
+  pruneopts = "UT"
   revision = "7bc6a0acffa589f415f88aca16cc1de5ffd66f9c"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "d6b707c9054d2434f6c6bf00541a55015edc87c3e7da4d4375c95c8ba55f08e7"
+  input-imports = [
+    "github.com/aws/aws-sdk-go/aws",
+    "github.com/aws/aws-sdk-go/aws/awserr",
+    "github.com/aws/aws-sdk-go/aws/credentials/stscreds",
+    "github.com/aws/aws-sdk-go/aws/endpoints",
+    "github.com/aws/aws-sdk-go/aws/session",
+    "github.com/aws/aws-sdk-go/service/dynamodb",
+    "github.com/aws/aws-sdk-go/service/s3",
+    "github.com/aws/aws-sdk-go/service/sts",
+    "github.com/go-errors/errors",
+    "github.com/hashicorp/go-getter",
+    "github.com/hashicorp/go-getter/helper/url",
+    "github.com/hashicorp/go-version",
+    "github.com/hashicorp/hcl",
+    "github.com/mattn/go-zglob",
+    "github.com/mitchellh/mapstructure",
+    "github.com/stretchr/testify/assert",
+    "github.com/stretchr/testify/require",
+    "github.com/urfave/cli",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1

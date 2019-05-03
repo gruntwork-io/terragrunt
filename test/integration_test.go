@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -39,6 +40,7 @@ const (
 	TEST_FIXTURE_STDOUT                                     = "fixture-download/stdout-test"
 	TEST_FIXTURE_EXTRA_ARGS_PATH                            = "fixture-extra-args/"
 	TEST_FIXTURE_ENV_VARS_BLOCK_PATH                        = "fixture-env-vars-block/"
+	TEST_FIXTURE_SKIP                                       = "fixture-skip/"
 	TEST_FIXTURE_LOCAL_DOWNLOAD_PATH                        = "fixture-download/local"
 	TEST_FIXTURE_REMOTE_DOWNLOAD_PATH                       = "fixture-download/remote"
 	TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH                     = "fixture-download/override"
@@ -46,6 +48,7 @@ const (
 	TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH              = "fixture-download/remote-relative"
 	TEST_FIXTURE_LOCAL_WITH_BACKEND                         = "fixture-download/local-with-backend"
 	TEST_FIXTURE_LOCAL_WITH_EXCLUDE_DIR                     = "fixture-download/local-with-exclude-dir"
+	TEST_FIXTURE_LOCAL_WITH_INCLUDE_DIR                     = "fixture-download/local-with-include-dir"
 	TEST_FIXTURE_REMOTE_WITH_BACKEND                        = "fixture-download/remote-with-backend"
 	TEST_FIXTURE_REMOTE_MODULE_IN_ROOT                      = "fixture-download/remote-module-in-root"
 	TEST_FIXTURE_LOCAL_MISSING_BACKEND                      = "fixture-download/local-with-missing-backend"
@@ -53,6 +56,7 @@ const (
 	TEST_FIXTURE_LOCAL_PREVENT_DESTROY                      = "fixture-download/local-with-prevent-destroy"
 	TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES         = "fixture-download/local-with-prevent-destroy-dependencies"
 	TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES = "fixture-download/local-include-with-prevent-destroy-dependencies"
+	TEST_FIXTURE_EXTERNAL_DEPENDENCIE                       = "fixture-external-dependencies"
 	TEST_FIXTURE_OLD_CONFIG_INCLUDE_PATH                    = "fixture-old-terragrunt-config/include"
 	TEST_FIXTURE_OLD_CONFIG_INCLUDE_CHILD_UPDATED_PATH      = "fixture-old-terragrunt-config/include-child-updated"
 	TEST_FIXTURE_OLD_CONFIG_INCLUDE_PARENT_UPDATED_PATH     = "fixture-old-terragrunt-config/include-parent-updated"
@@ -1234,6 +1238,231 @@ func TestExcludeDirs(t *testing.T) {
 
 		}
 	}
+}
+
+func TestIncludeDirs(t *testing.T) {
+	t.Parallel()
+
+	// Populate module paths.
+	moduleNames := []string{
+		"integration-env/aws/module-aws-a",
+		"integration-env/gce/module-gce-b",
+		"integration-env/gce/module-gce-c",
+		"production-env/aws/module-aws-d",
+		"production-env/gce/module-gce-e",
+	}
+
+	testCases := []struct {
+		workingDir            string
+		includeArgs           string
+		includedModuleOutputs []string
+	}{
+		{TEST_FIXTURE_LOCAL_WITH_INCLUDE_DIR, "--terragrunt-include-dir */aws", []string{"Module GCE B", "Module GCE C", "Module GCE E"}},
+		{TEST_FIXTURE_LOCAL_WITH_INCLUDE_DIR, "--terragrunt-include-dir production-env --terragrunt-include-dir **/module-gce-c", []string{"Module GCE B", "Module AWS A"}},
+		{TEST_FIXTURE_LOCAL_WITH_INCLUDE_DIR, "--terragrunt-include-dir integration-env/gce/module-gce-b --terragrunt-include-dir integration-env/gce/module-gce-c --terragrunt-include-dir **/module-aws*", []string{"Module GCE E"}},
+	}
+
+	modulePaths := make(map[string]string, len(moduleNames))
+	for _, moduleName := range moduleNames {
+		modulePaths[moduleName] = util.JoinPath(TEST_FIXTURE_LOCAL_WITH_INCLUDE_DIR, moduleName)
+	}
+
+	for _, testCase := range testCases {
+		applyAllStdout := bytes.Buffer{}
+		applyAllStderr := bytes.Buffer{}
+
+		// Cleanup all modules directories.
+		cleanupTerragruntFolder(t, TEST_FIXTURE_LOCAL_WITH_INCLUDE_DIR)
+		for _, modulePath := range modulePaths {
+			cleanupTerragruntFolder(t, modulePath)
+		}
+
+		// Apply modules according to test cases
+		err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s %s", testCase.workingDir, testCase.includeArgs), &applyAllStdout, &applyAllStderr)
+
+		logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
+		logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
+
+		if err != nil {
+			t.Fatalf("apply-all in TestExcludeDirs failed with error: %v. Full std", err)
+		}
+
+		// Check that the included module output is present
+		for _, modulePath := range modulePaths {
+			showStdout := bytes.Buffer{}
+			showStderr := bytes.Buffer{}
+
+			err = runTerragruntCommand(t, fmt.Sprintf("terragrunt show --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), &showStdout, &showStderr)
+			logBufferContentsLineByLine(t, showStdout, fmt.Sprintf("show stdout for %s", modulePath))
+			logBufferContentsLineByLine(t, showStderr, fmt.Sprintf("show stderr for %s", modulePath))
+
+			assert.NoError(t, err)
+			output := showStdout.String()
+			for _, includedModuleOutput := range testCase.includedModuleOutputs {
+				assert.NotContains(t, output, includedModuleOutput)
+			}
+
+		}
+	}
+}
+
+func TestTerragruntExternalDependencies(t *testing.T) {
+	t.Parallel()
+
+	modules := []string{
+		"module-a",
+		"module-b",
+	}
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_EXTERNAL_DEPENDENCIE)
+	for _, module := range modules {
+		cleanupTerraformFolder(t, util.JoinPath(TEST_FIXTURE_EXTERNAL_DEPENDENCIE, module))
+	}
+
+	var (
+		applyAllStdout bytes.Buffer
+		applyAllStderr bytes.Buffer
+	)
+
+	rootPath := copyEnvironment(t, TEST_FIXTURE_EXTERNAL_DEPENDENCIE)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_EXTERNAL_DEPENDENCIE, "module-b")
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), &applyAllStdout, &applyAllStderr)
+	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
+	logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
+	applyAllStdoutString := applyAllStdout.String()
+
+	if err != nil {
+		t.Errorf("Did not expect to get error: %s", err.Error())
+	}
+
+	for _, module := range modules {
+		assert.Contains(t, applyAllStdoutString, fmt.Sprintf("Hello World, %s", module))
+	}
+}
+
+func TestTerragruntExcludeExternalDependencies(t *testing.T) {
+	t.Parallel()
+
+	excludedModule := "module-a"
+	includedModule := "module-b"
+
+	modules := []string{
+		excludedModule,
+		includedModule,
+	}
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_EXTERNAL_DEPENDENCIE)
+	for _, module := range modules {
+		cleanupTerraformFolder(t, util.JoinPath(TEST_FIXTURE_EXTERNAL_DEPENDENCIE, module))
+	}
+
+	var (
+		applyAllStdout bytes.Buffer
+		applyAllStderr bytes.Buffer
+	)
+
+	rootPath := copyEnvironment(t, TEST_FIXTURE_EXTERNAL_DEPENDENCIE)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_EXTERNAL_DEPENDENCIE, includedModule)
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-ignore-external-dependencies --terragrunt-working-dir %s", modulePath), &applyAllStdout, &applyAllStderr)
+	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
+	logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
+	applyAllStdoutString := applyAllStdout.String()
+
+	if err != nil {
+		t.Errorf("Did not expect to get error: %s", err.Error())
+	}
+
+	assert.Contains(t, applyAllStdoutString, fmt.Sprintf("Hello World, %s", includedModule))
+	assert.NotContains(t, applyAllStdoutString, fmt.Sprintf("Hello World, %s", excludedModule))
+}
+
+func TestApplySkipTrue(t *testing.T) {
+	t.Parallel()
+
+	rootPath := copyEnvironment(t, TEST_FIXTURE_SKIP)
+	rootPath = util.JoinPath(rootPath, TEST_FIXTURE_SKIP, "skip-true")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s --var person=Hobbs", rootPath), &showStdout, &showStderr)
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	stdout := showStdout.String()
+	stderr := showStderr.String()
+
+	assert.Nil(t, err)
+	assert.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixture-skip/skip-true/terraform.tfvars due to skip = true."), stderr)
+	assert.NotContains(t, stdout, "hello, Hobbs")
+}
+
+func TestApplySkipFalse(t *testing.T) {
+	t.Parallel()
+
+	rootPath := copyEnvironment(t, TEST_FIXTURE_SKIP)
+	rootPath = util.JoinPath(rootPath, TEST_FIXTURE_SKIP, "skip-false")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	stderr := showStderr.String()
+	stdout := showStdout.String()
+
+	assert.Nil(t, err)
+	assert.Contains(t, stdout, "hello, Hobbs")
+	assert.NotContains(t, stderr, "Skipping terragrunt module")
+}
+
+func TestApplyAllSkipTrue(t *testing.T) {
+	t.Parallel()
+
+	rootPath := copyEnvironment(t, TEST_FIXTURE_SKIP)
+	rootPath = util.JoinPath(rootPath, TEST_FIXTURE_SKIP, "skip-true")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	stdout := showStdout.String()
+	stderr := showStderr.String()
+
+	assert.Nil(t, err)
+	assert.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixture-skip/skip-true/terraform.tfvars due to skip = true."), stderr)
+	assert.Contains(t, stdout, "hello, Ernie")
+	assert.Contains(t, stdout, "hello, Bert")
+}
+
+func TestApplyAllSkipFalse(t *testing.T) {
+	t.Parallel()
+
+	rootPath := copyEnvironment(t, TEST_FIXTURE_SKIP)
+	rootPath = util.JoinPath(rootPath, TEST_FIXTURE_SKIP, "skip-false")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	stdout := showStdout.String()
+	stderr := showStderr.String()
+
+	assert.Nil(t, err)
+	assert.Contains(t, stdout, "hello, Hobbs")
+	assert.Contains(t, stdout, "hello, Ernie")
+	assert.Contains(t, stdout, "hello, Bert")
+	assert.NotContains(t, stderr, "Skipping terragrunt module")
 }
 
 func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
