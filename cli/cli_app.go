@@ -251,10 +251,18 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
-	terragruntOptions.Logger.Printf("xxxxxxxxxxxx workingdir: %s\n", terragruntOptions.WorkingDir)
-
 	if shouldPrintTerragruntInfo(terragruntOptions) {
-		terragruntOptions.Logger.Printf("workingdir: %s\n", terragruntOptions.WorkingDir)
+		terragruntOptions.Logger.Printf("\n\n" +
+			"terragrunt workingdir: %s\n" +
+			"terragrunt config path: %s\n" +
+			"terraform binary: %s\n" +
+			"terraform command: %s\n" +
+			"DownloadDir: %s\n",
+			terragruntOptions.WorkingDir,
+			terragruntOptions.TerragruntConfigPath,
+			terragruntOptions.TerraformPath,
+			terragruntOptions.TerraformCommand,
+		        terragruntOptions.DownloadDir)
 		return nil
 	}
 
@@ -523,8 +531,6 @@ func prepareNonInitCommand(terragruntOptions *options.TerragruntOptions, terragr
 
 // Determines if 'terraform init' needs to be executed
 func needsInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (bool, error) {
-	terragruntOptions.Logger.Printf("xxxxxxxxxxxx enter runTerragrunt\n")
-
 	if util.ListContainsElement(TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT, util.FirstArg(terragruntOptions.TerraformCliArgs)) {
 		return false, nil
 	}
