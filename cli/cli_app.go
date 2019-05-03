@@ -252,17 +252,17 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	if shouldPrintTerragruntInfo(terragruntOptions) {
-		terragruntOptions.Logger.Printf("\n\n" +
-			"terragrunt workingdir: %s\n" +
-			"terragrunt config path: %s\n" +
-			"terraform binary: %s\n" +
-			"terraform command: %s\n" +
+		terragruntOptions.Logger.Printf("\n\n"+
+			"terragrunt workingdir: %s\n"+
+			"terragrunt config path: %s\n"+
+			"terraform binary: %s\n"+
+			"terraform command: %s\n"+
 			"DownloadDir: %s\n",
 			terragruntOptions.WorkingDir,
 			terragruntOptions.TerragruntConfigPath,
 			terragruntOptions.TerraformPath,
 			terragruntOptions.TerraformCommand,
-		        terragruntOptions.DownloadDir)
+			terragruntOptions.DownloadDir)
 		return nil
 	}
 
