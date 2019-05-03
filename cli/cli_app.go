@@ -48,7 +48,7 @@ const CMD_VALIDATE_ALL = "validate-all"
 
 const CMD_INIT = "init"
 const CMD_INIT_FROM_MODULE = "init-from-module"
-const CMD_SHOW_WORKINGDIR = "show-workingdir"
+const CMD_TERRAGRUNT_INFO = "terragrunt-info"
 
 // CMD_SPIN_UP is deprecated.
 const CMD_SPIN_UP = "spin-up"
@@ -85,7 +85,7 @@ var TERRAFORM_COMMANDS_THAT_USE_STATE = []string{
 
 var TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT = []string{
 	"version",
-	"show-workingdir",
+	"terragrunt-info",
 }
 
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
@@ -107,6 +107,7 @@ COMMANDS:
    output-all           Display the outputs of a 'stack' by running 'terragrunt output' in each subfolder
    destroy-all          Destroy a 'stack' by running 'terragrunt destroy' in each subfolder
    validate-all         Validate 'stack' by running 'terragrunt validate' in each subfolder
+   terragrunt-info      Emits internal terragrunt information on stdout
    *                    Terragrunt forwards all other commands directly to Terraform
 
 GLOBAL OPTIONS:
@@ -250,7 +251,9 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
-	if shouldPrintTerragruntWorkingDir(terragruntOptions) {
+	terragruntOptions.Logger.Printf("xxxxxxxxxxxx workingdir: %s\n", terragruntOptions.WorkingDir)
+
+	if shouldPrintTerragruntInfo(terragruntOptions) {
 		terragruntOptions.Logger.Printf("workingdir: %s\n", terragruntOptions.WorkingDir)
 		return nil
 	}
@@ -277,8 +280,8 @@ func shouldPrintTerraformHelp(terragruntOptions *options.TerragruntOptions) bool
 	return false
 }
 
-func shouldPrintTerragruntWorkingDir(terragruntOptions *options.TerragruntOptions) bool {
-	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_SHOW_WORKINGDIR) {
+func shouldPrintTerragruntInfo(terragruntOptions *options.TerragruntOptions) bool {
+	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_TERRAGRUNT_INFO) {
 		return true
 	}
 	return false
@@ -520,6 +523,8 @@ func prepareNonInitCommand(terragruntOptions *options.TerragruntOptions, terragr
 
 // Determines if 'terraform init' needs to be executed
 func needsInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (bool, error) {
+	terragruntOptions.Logger.Printf("xxxxxxxxxxxx enter runTerragrunt\n")
+
 	if util.ListContainsElement(TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT, util.FirstArg(terragruntOptions.TerraformCliArgs)) {
 		return false, nil
 	}
