@@ -1839,7 +1839,7 @@ If [Auto-Init](#auto-init) is disabled, `terragrunt` will not attempt to re-run 
 
 ### CLI Options
 
-Terragrunt forwards all arguments and options to Terraform. The only exceptions are `--version` and arguments that
+Terragrunt forwards all arguments and options to Terraform. The only exceptions are `--version`, `terragrunt-info` and arguments that
 start with the prefix `--terragrunt-`. The currently available options are:
 
 * `--terragrunt-config`: A custom path to the `terraform.tfvars` file. May also be specified via the `TERRAGRUNT_CONFIG`
