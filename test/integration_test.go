@@ -1475,14 +1475,14 @@ func TestTerragruntInfo(t *testing.T) {
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-download-dir %s", rootPath, rootPath+"/__TEST_DOWNLOAD_DIR__"), &showStdout, &showStderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
 
 	stdout := showStdout.String()
 
 	assert.Nil(t, err)
 	assert.Contains(t, stdout, "{")
-	assert.Contains(t, stdout, fmt.Sprintf(`"DownloadDir": "%s/__TEST_DOWNLOAD_DIR__"`, rootPath))
+	assert.Contains(t, stdout, fmt.Sprintf(`"DownloadDir": "%s/%s"`, rootPath, TERRAGRUNT_CACHE))
 	assert.Contains(t, stdout, `"TerraformCommand": "terragrunt-info",`)
 	assert.Contains(t, stdout, "}")
 }
