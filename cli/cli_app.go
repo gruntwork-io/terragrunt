@@ -254,20 +254,20 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 
 	if shouldPrintTerragruntInfo(terragruntOptions) {
 		type TerragruntInfoGroup struct {
-			ConfigPath string
-			DownloadDir string
-			IamRole string
-			TerraformBinary string
+			ConfigPath       string
+			DownloadDir      string
+			IamRole          string
+			TerraformBinary  string
 			TerraformCommand string
-			WorkingDir string
+			WorkingDir       string
 		}
 		group := TerragruntInfoGroup{
-			ConfigPath: terragruntOptions.TerragruntConfigPath,
-			DownloadDir: terragruntOptions.DownloadDir,
-			IamRole: terragruntOptions.IamRole,
-			TerraformBinary: terragruntOptions.TerraformPath,
+			ConfigPath:       terragruntOptions.TerragruntConfigPath,
+			DownloadDir:      terragruntOptions.DownloadDir,
+			IamRole:          terragruntOptions.IamRole,
+			TerraformBinary:  terragruntOptions.TerraformPath,
 			TerraformCommand: terragruntOptions.TerraformCommand,
-			WorkingDir: terragruntOptions.WorkingDir,
+			WorkingDir:       terragruntOptions.WorkingDir,
 		}
 		b, err := json.MarshalIndent(group, "", "  ")
 		if err != nil {
