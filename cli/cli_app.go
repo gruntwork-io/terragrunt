@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -107,7 +108,7 @@ COMMANDS:
    output-all           Display the outputs of a 'stack' by running 'terragrunt output' in each subfolder
    destroy-all          Destroy a 'stack' by running 'terragrunt destroy' in each subfolder
    validate-all         Validate 'stack' by running 'terragrunt validate' in each subfolder
-   terragrunt-info      Emits internal terragrunt information on stdout
+   terragrunt-info      Emits limited terragrunt state on stdout and exits
    *                    Terragrunt forwards all other commands directly to Terraform
 
 GLOBAL OPTIONS:
@@ -252,17 +253,26 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	if shouldPrintTerragruntInfo(terragruntOptions) {
-		terragruntOptions.Logger.Printf("\n\n"+
-			"terragrunt workingdir: %s\n"+
-			"terragrunt config path: %s\n"+
-			"terraform binary: %s\n"+
-			"terraform command: %s\n"+
-			"DownloadDir: %s\n",
-			terragruntOptions.WorkingDir,
-			terragruntOptions.TerragruntConfigPath,
-			terragruntOptions.TerraformPath,
-			terragruntOptions.TerraformCommand,
-			terragruntOptions.DownloadDir)
+		type TerragruntInfoGroup struct {
+			WorkingDir string
+			ConfigPath string
+			TerraformBinary string
+			TerraformCommand string
+			DownloadDir string
+		}
+		group := TerragruntInfoGroup{
+			WorkingDir: terragruntOptions.WorkingDir,
+			ConfigPath: terragruntOptions.TerragruntConfigPath,
+			TerraformBinary: terragruntOptions.TerraformPath,
+			TerraformCommand: terragruntOptions.TerraformCommand,
+			DownloadDir: terragruntOptions.DownloadDir,
+		}
+		b, err := json.MarshalIndent(group, "", "  ")
+		if err != nil {
+			terragruntOptions.Logger.Printf("JSON error marshalling terragrunt-info")
+			return err
+		}
+		fmt.Fprintf(terragruntOptions.Writer, "%s\n", b)
 		return nil
 	}
 
