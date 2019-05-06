@@ -12,7 +12,7 @@ func CreateLogger(prefix string) *log.Logger {
 	return CreateLoggerWithWriter(os.Stderr, prefix)
 }
 
-// CreateLoggerWithWriter Create a lgogger around the given output stream and prefix
+// CreateLoggerWithWriter Create a logger around the given output stream and prefix
 func CreateLoggerWithWriter(writer io.Writer, prefix string) *log.Logger {
 	if prefix != "" {
 		prefix = fmt.Sprintf("[%s] ", prefix)
