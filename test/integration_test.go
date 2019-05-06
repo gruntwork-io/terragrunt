@@ -1465,6 +1465,31 @@ func TestApplyAllSkipFalse(t *testing.T) {
 	assert.NotContains(t, stderr, "Skipping terragrunt module")
 }
 
+
+func TestTerragruntInfo(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
+	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	stdout := showStdout.String()
+	stderr := showStderr.String()
+
+	assert.Nil(t, err)
+	assert.Contains(t, stdout, "DownloadDir")
+	// assert.Contains(t, stdout, "hello, Ernie")
+	// assert.Contains(t, stdout, "hello, Bert")
+	// assert.NotContains(t, stderr, "Skipping terragrunt module")
+}
+
 func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
 	t.Logf("[%s] Full contents of %s:", t.Name(), label)
 	lines := strings.Split(out.String(), "\n")
