@@ -1465,7 +1465,6 @@ func TestApplyAllSkipFalse(t *testing.T) {
 	assert.NotContains(t, stderr, "Skipping terragrunt module")
 }
 
-
 func TestTerragruntInfo(t *testing.T) {
 	t.Parallel()
 
@@ -1478,16 +1477,12 @@ func TestTerragruntInfo(t *testing.T) {
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
-	logBufferContentsLineByLine(t, showStderr, "show stderr")
 
 	stdout := showStdout.String()
-	stderr := showStderr.String()
 
 	assert.Nil(t, err)
 	assert.Contains(t, stdout, "DownloadDir")
-	// assert.Contains(t, stdout, "hello, Ernie")
-	// assert.Contains(t, stdout, "hello, Bert")
-	// assert.NotContains(t, stderr, "Skipping terragrunt module")
+	assert.Contains(t, stdout, "TerraformBinary")
 }
 
 func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
