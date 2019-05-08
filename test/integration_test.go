@@ -2,6 +2,7 @@ package test
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -80,6 +81,7 @@ const (
 	TEST_FIXTURE_AUTO_RETRY_RERUN                           = "fixture-auto-retry/re-run"
 	TEST_FIXTURE_AUTO_RETRY_EXHAUST                         = "fixture-auto-retry/exhaust"
 	TEST_FIXTURE_AUTO_RETRY_APPLY_ALL_RETRIES               = "fixture-auto-retry/apply-all"
+	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
 	TERRAFORM_STATE_BACKUP                                  = "terraform.tfstate.backup"
@@ -1476,15 +1478,17 @@ func TestTerragruntInfo(t *testing.T) {
 	showStderr := bytes.Buffer{}
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	assert.Nil(t, err)
+
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
 
-	stdout := showStdout.String()
+	var dat cli.TerragruntInfoGroup
+	err_unmarshal := json.Unmarshal(showStdout.Bytes(), &dat)
+	assert.Nil(t, err_unmarshal)
 
-	assert.Nil(t, err)
-	assert.Contains(t, stdout, "{")
-	assert.Contains(t, stdout, fmt.Sprintf(`"DownloadDir": "%s/%s"`, rootPath, TERRAGRUNT_CACHE))
-	assert.Contains(t, stdout, `"TerraformCommand": "terragrunt-info",`)
-	assert.Contains(t, stdout, "}")
+	assert.Equal(t, dat.DownloadDir, fmt.Sprintf("%s/%s", rootPath, TERRAGRUNT_CACHE))
+	assert.Equal(t, dat.TerraformBinary, TERRAFORM_BINARY)
+	assert.Equal(t, dat.IamRole, "")
 }
 
 func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {

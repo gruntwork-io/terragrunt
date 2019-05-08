@@ -89,6 +89,16 @@ var TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT = []string{
 	"terragrunt-info",
 }
 
+// Struct is output as JSON by 'terragrunt-info':
+type TerragruntInfoGroup struct {
+	ConfigPath       string
+	DownloadDir      string
+	IamRole          string
+	TerraformBinary  string
+	TerraformCommand string
+	WorkingDir       string
+}
+
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
 // in its definition, we don't quite fit into the model of any Go CLI library. Fortunately, urfave/cli allows us to
 // override the whole template used for the Usage Text.
@@ -253,14 +263,6 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	if shouldPrintTerragruntInfo(terragruntOptions) {
-		type TerragruntInfoGroup struct {
-			ConfigPath       string
-			DownloadDir      string
-			IamRole          string
-			TerraformBinary  string
-			TerraformCommand string
-			WorkingDir       string
-		}
 		group := TerragruntInfoGroup{
 			ConfigPath:       terragruntOptions.TerragruntConfigPath,
 			DownloadDir:      terragruntOptions.DownloadDir,
