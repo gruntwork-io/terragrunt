@@ -1,40 +1,43 @@
-jobs:
+strategy:
+  matrix:
+    UnitTest:
+      TESTKIND: "unit"
+    IntegrationTest:
+      TESTKIND: "integration"
 
-- job: InstallDependencies
-  pool:
-    vmImage: 'vs2017-win2016'
+pool:
+  vmImage: 'vs2017-win2016'
 
-  variables:
-    GOBIN:  '$(GOPATH)/bin' # Go binaries path
-    GOROOT: '$(GOROOT_1_11_X64)' # Go installation path
-    GOPATH: '$(system.defaultWorkingDirectory)\gopath' # Go workspace path
-    modulePath: '$(GOPATH)\src\github.com\$(build.repository.name)' # Path to the module's code
+variables:
+  GOBIN:  '$(GOPATH)/bin' # Go binaries path
+  GOROOT: '$(GOROOT_1_11_X64)' # Go installation path
+  GOPATH: '$(system.defaultWorkingDirectory)\gopath' # Go workspace path
+  modulePath: '$(GOPATH)\src\github.com\$(build.repository.name)' # Path to the module's code
 
-  steps:
-  - pwsh: |
-      New-Item -ItemType "directory" -Path $(GOBIN)
-      New-Item -ItemType "directory" -Path $(GOPATH)\pkg
-      New-Item -ItemType "directory" -Path $(modulePath)\pkg
-      Move-Item -Path $(system.defaultWorkingDirectory)\*.* -Destination $(modulePath)
-      echo '##vso[task.prependpath]$(GOBIN)'
-      echo '##vso[task.prependpath]$(GOROOT)\bin'
-    displayName: 'Set up the Go workspace'
+steps:
+- pwsh: |
+    New-Item -ItemType "directory" -Path $(GOBIN)
+    New-Item -ItemType "directory" -Path $(GOPATH)\pkg
+    New-Item -ItemType "directory" -Path $(modulePath)\pkg
+    Move-Item -Path $(system.defaultWorkingDirectory)\*.* -Destination $(modulePath)
+    echo '##vso[task.prependpath]$(GOBIN)'
+    echo '##vso[task.prependpath]$(GOROOT)\bin'
+  displayName: 'Set up the Go workspace'
 
-  - script: choco install dep
-    displayName: 'Install dep'
+- script: choco install dep
+  displayName: 'Install dep'
 
-  - script: dep ensure
-    workingDirectory: '$(modulePath)'
-    displayName: 'Run `dep ensure`'
+- script: dep ensure
+  workingDirectory: '$(modulePath)'
+  displayName: 'Run `dep ensure`'
 
-- job: UnitTest
-  dependsOn: InstallDependencies
-  steps:
-  - pwsh: go test -v -parallel 1 $(go list ./... | where-object { $_ -notlike "*/test" })
-    displayName: 'Run unit tests'
+- pwsh: |
+    if ($(TESTKIND) -eq "unit") {
+      go test -v -parallel 1 $(go list ./... | where-object { $_ -notlike "*/test" })
+    }
 
-- job: IntegrationTest
-  dependsOn: InstallDependencies
-  steps:
-  - pwsh: go test -v $(go list ./... | where-object { $_ -like "*/test" })
-    displayName: 'Run integration tests'
+    if ($(TESTKIND) -eq "integration") {
+      go test -v $(go list ./... | where-object { $_ -like "*/test" })
+    }
+  workingDirectory: '$(modulePath)'
+  displayName: 'Run tests'
