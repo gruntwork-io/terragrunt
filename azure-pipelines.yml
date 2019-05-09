@@ -9,10 +9,10 @@ variables:
 
 steps:
 - pwsh: |
-    New-Item -ItemType "directory" -Path $env:GOBIN
-    New-Item -ItemType "directory" -Path $env:GOPATH/pkg
-    New-Item -ItemType "directory" -Path $env:modulePath/pkg
-    Move-Item -Path $(system.defaultWorkingDirectory)\*.* -Destination $env:modulePath
-    Write-Host '##vso[task.prependpath]$env:GOBIN'
-    Write-Host '##vso[task.prependpath]$env:GOROOT/bin'
+    New-Item -ItemType "directory" -Path $(GOBIN)
+    New-Item -ItemType "directory" -Path $(GOPATH)/pkg
+    New-Item -ItemType "directory" -Path $(modulePath)/pkg
+    Move-Item -Path $(system.defaultWorkingDirectory)\*.* -Destination $(modulePath)
+    echo '##vso[task.prependpath]$(GOBIN)'
+    echo '##vso[task.prependpath]$(GOROOT)/bin'
   displayName: 'Set up the Go workspace'
