@@ -32,11 +32,11 @@ steps:
   displayName: 'Run `dep ensure`'
 
 - pwsh: |
-    if ($(TESTKIND) -eq "unit") {
+    if ("$(TESTKIND)" -eq "unit") {
       go test -v -parallel 1 $(go list ./... | where-object { $_ -notlike "*/test" })
     }
 
-    if ($(TESTKIND) -eq "integration") {
+    if ("$(TESTKIND)" -eq "integration") {
       go test -v $(go list ./... | where-object { $_ -like "*/test" })
     }
   workingDirectory: '$(modulePath)'
