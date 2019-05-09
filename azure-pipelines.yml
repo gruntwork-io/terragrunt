@@ -13,12 +13,12 @@ steps:
     New-Item -ItemType "directory" -Path $(GOPATH)\pkg
     New-Item -ItemType "directory" -Path $(modulePath)\pkg
     Move-Item -Path $(system.defaultWorkingDirectory)\*.* -Destination $(modulePath)
-    $env:Path += ";$(GOBIN)"
-    $env:Path += ";$(GOROOT)\bin"
+    echo '##vso[task.prependpath]$(GOBIN)'
+    echo '##vso[task.prependpath]$(GOROOT)\bin'
   displayName: 'Set up the Go workspace'
 
 - pwsh: |
-  choco install dep
-  dep ensure
+    choco install dep
+    dep ensure
   workingDirectory: '$(modulePath)'
   displayName: 'Install and run dep'
