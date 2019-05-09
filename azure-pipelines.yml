@@ -1,25 +1,40 @@
-pool:
-  vmImage: 'vs2017-win2016'
+jobs:
 
-variables:
-  GOBIN:  '$(GOPATH)/bin' # Go binaries path
-  GOROOT: '$(GOROOT_1_11_X64)' # Go installation path
-  GOPATH: '$(system.defaultWorkingDirectory)\gopath' # Go workspace path
-  modulePath: '$(GOPATH)\src\github.com\$(build.repository.name)' # Path to the module's code
+- job: Install Dependencies
+  pool:
+    vmImage: 'vs2017-win2016'
 
-steps:
-- pwsh: |
-    New-Item -ItemType "directory" -Path $(GOBIN)
-    New-Item -ItemType "directory" -Path $(GOPATH)\pkg
-    New-Item -ItemType "directory" -Path $(modulePath)\pkg
-    Move-Item -Path $(system.defaultWorkingDirectory)\*.* -Destination $(modulePath)
-    echo '##vso[task.prependpath]$(GOBIN)'
-    echo '##vso[task.prependpath]$(GOROOT)\bin'
-  displayName: 'Set up the Go workspace'
+  variables:
+    GOBIN:  '$(GOPATH)/bin' # Go binaries path
+    GOROOT: '$(GOROOT_1_11_X64)' # Go installation path
+    GOPATH: '$(system.defaultWorkingDirectory)\gopath' # Go workspace path
+    modulePath: '$(GOPATH)\src\github.com\$(build.repository.name)' # Path to the module's code
 
-- script: choco install dep
-  displayName: 'Install dep'
+  steps:
+  - pwsh: |
+      New-Item -ItemType "directory" -Path $(GOBIN)
+      New-Item -ItemType "directory" -Path $(GOPATH)\pkg
+      New-Item -ItemType "directory" -Path $(modulePath)\pkg
+      Move-Item -Path $(system.defaultWorkingDirectory)\*.* -Destination $(modulePath)
+      echo '##vso[task.prependpath]$(GOBIN)'
+      echo '##vso[task.prependpath]$(GOROOT)\bin'
+    displayName: 'Set up the Go workspace'
 
-- script: dep ensure
-  workingDirectory: '$(modulePath)'
-  displayName: 'Run `dep ensure`'
+  - script: choco install dep
+    displayName: 'Install dep'
+
+  - script: dep ensure
+    workingDirectory: '$(modulePath)'
+    displayName: 'Run `dep ensure`'
+
+- job: Unit Tests
+  dependsOn: Install Dependencies
+  steps:
+  - pwsh: go test -v -parallel 1 $(go list ./... | where-object { $_ -notlike "*/test" })
+    displayName: 'Run unit tests'
+
+- job: Integration Test
+  dependsOn: Install Dependencies
+  steps:
+  - pwsh: go test -v $(go list ./... | where-object { $_ -like "*/test" })
+    displayName: 'Run integration tests'
