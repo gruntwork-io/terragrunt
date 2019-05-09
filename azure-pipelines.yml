@@ -17,8 +17,9 @@ steps:
     echo '##vso[task.prependpath]$(GOROOT)\bin'
   displayName: 'Set up the Go workspace'
 
-- pwsh: |
-    choco install dep
-    dep ensure
+- script: choco install dep
+  displayName: 'Install dep'
+
+- script: dep ensure
   workingDirectory: '$(modulePath)'
-  displayName: 'Install and run dep'
+  displayName: 'Run `dep ensure`'
