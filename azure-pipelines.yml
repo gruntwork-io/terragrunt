@@ -9,8 +9,7 @@ pool:
   vmImage: 'vs2017-win2016'
 
 variables:
-  GOBIN:  '$(GOPATH)/bin' # Go binaries path
-  GOROOT: '$(GOROOT_1_11_X64)' # Go installation path
+  GOBIN:  '$(GOPATH)\bin' # Go binaries path
   GOPATH: '$(system.defaultWorkingDirectory)\gopath' # Go workspace path
   modulePath: '$(GOPATH)\src\github.com\$(build.repository.name)' # Path to the module's code
 
@@ -21,7 +20,7 @@ steps:
     New-Item -ItemType "directory" -Path $(modulePath)\pkg
     Move-Item -Path $(system.defaultWorkingDirectory)\*.* -Destination $(modulePath)
     echo '##vso[task.prependpath]$(GOBIN)'
-    echo '##vso[task.prependpath]$(GOROOT)\bin'
+    echo '##vso[task.prependpath]$env:GOROOT\bin'
   displayName: 'Set up the Go workspace'
 
 - script: choco install dep
