@@ -1,6 +1,6 @@
 jobs:
 
-- job: Install Dependencies
+- job: InstallDependencies
   pool:
     vmImage: 'vs2017-win2016'
 
@@ -27,14 +27,14 @@ jobs:
     workingDirectory: '$(modulePath)'
     displayName: 'Run `dep ensure`'
 
-- job: Unit Tests
-  dependsOn: Install Dependencies
+- job: UnitTest
+  dependsOn: InstallDependencies
   steps:
   - pwsh: go test -v -parallel 1 $(go list ./... | where-object { $_ -notlike "*/test" })
     displayName: 'Run unit tests'
 
-- job: Integration Test
-  dependsOn: Install Dependencies
+- job: IntegrationTest
+  dependsOn: InstallDependencies
   steps:
   - pwsh: go test -v $(go list ./... | where-object { $_ -like "*/test" })
     displayName: 'Run integration tests'
