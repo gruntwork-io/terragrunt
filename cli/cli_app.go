@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -48,6 +49,7 @@ const CMD_VALIDATE_ALL = "validate-all"
 
 const CMD_INIT = "init"
 const CMD_INIT_FROM_MODULE = "init-from-module"
+const CMD_TERRAGRUNT_INFO = "terragrunt-info"
 
 // CMD_SPIN_UP is deprecated.
 const CMD_SPIN_UP = "spin-up"
@@ -84,6 +86,17 @@ var TERRAFORM_COMMANDS_THAT_USE_STATE = []string{
 
 var TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT = []string{
 	"version",
+	"terragrunt-info",
+}
+
+// Struct is output as JSON by 'terragrunt-info':
+type TerragruntInfoGroup struct {
+	ConfigPath       string
+	DownloadDir      string
+	IamRole          string
+	TerraformBinary  string
+	TerraformCommand string
+	WorkingDir       string
 }
 
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
@@ -105,6 +118,7 @@ COMMANDS:
    output-all           Display the outputs of a 'stack' by running 'terragrunt output' in each subfolder
    destroy-all          Destroy a 'stack' by running 'terragrunt destroy' in each subfolder
    validate-all         Validate 'stack' by running 'terragrunt validate' in each subfolder
+   terragrunt-info      Emits limited terragrunt state on stdout and exits
    *                    Terragrunt forwards all other commands directly to Terraform
 
 GLOBAL OPTIONS:
@@ -248,6 +262,24 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
+	if shouldPrintTerragruntInfo(terragruntOptions) {
+		group := TerragruntInfoGroup{
+			ConfigPath:       terragruntOptions.TerragruntConfigPath,
+			DownloadDir:      terragruntOptions.DownloadDir,
+			IamRole:          terragruntOptions.IamRole,
+			TerraformBinary:  terragruntOptions.TerraformPath,
+			TerraformCommand: terragruntOptions.TerraformCommand,
+			WorkingDir:       terragruntOptions.WorkingDir,
+		}
+		b, err := json.MarshalIndent(group, "", "  ")
+		if err != nil {
+			terragruntOptions.Logger.Printf("JSON error marshalling terragrunt-info")
+			return err
+		}
+		fmt.Fprintf(terragruntOptions.Writer, "%s\n", b)
+		return nil
+	}
+
 	if err := checkFolderContainsTerraformCode(terragruntOptions); err != nil {
 		return err
 	}
@@ -266,6 +298,13 @@ func shouldPrintTerraformHelp(terragruntOptions *options.TerragruntOptions) bool
 		if util.ListContainsElement(terragruntOptions.TerraformCliArgs, tfHelpFlag) {
 			return true
 		}
+	}
+	return false
+}
+
+func shouldPrintTerragruntInfo(terragruntOptions *options.TerragruntOptions) bool {
+	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_TERRAGRUNT_INFO) {
+		return true
 	}
 	return false
 }
