@@ -40,3 +40,7 @@ steps:
     }
   workingDirectory: '$(modulePath)'
   displayName: 'Run tests'
+  env:
+    AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+    AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+    GITHUB_OAUTH_TOKEN: $(GITHUB_OAUTH_TOKEN)
