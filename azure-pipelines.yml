@@ -12,6 +12,7 @@ variables:
   GOPATH: '$(system.defaultWorkingDirectory)\gopath' # Go workspace path
   modulePath: '$(GOPATH)\src\github.com\$(build.repository.name)' # Path to the module's code
   TERRAFORMVERSION: 0.11.13
+  LOGPARSERVERSION: v0.13.8
 
 steps:
 - pwsh: |
@@ -32,11 +33,11 @@ steps:
 
 - pwsh: |
     if ("$(TESTKIND)" -eq "unit") {
-      go test -v -parallel 1 $(go list ./... | where-object { $_ -notlike "*/test" })
+      go test -v -parallel 1 $(go list ./... | where-object { $_ -notlike "*/test" }) | Tee-Object -FilePath 'logs/unit.log'
     }
 
     if ("$(TESTKIND)" -eq "integration") {
-      go test -v $(go list ./... | where-object { $_ -like "*/test" })
+      go test -v $(go list ./... | where-object { $_ -like "*/test" }) | Tee-Object -FilePath 'logs/integration.log'
     }
   workingDirectory: '$(modulePath)'
   displayName: 'Run tests'
@@ -44,3 +45,27 @@ steps:
     AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
     AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
     GITHUB_OAUTH_TOKEN: $(GITHUB_OAUTH_TOKEN)
+
+- pwsh: Invoke-WebRequest -Method Get -Uri "https://github.com/gruntwork-io/terratest/releases/download/$(LOGPARSERVERSION)/terratest_log_parser_windows_amd64.exe" -OutFile "terratest_log_parser.exe"
+  workingDirectory: '$(system.defaultWorkingDirectory)'
+  displayName: 'Download Terraform Log Parser'
+
+- pwsh: |
+    if ("$(TESTKIND)" -eq "unit") {
+      $(system.defaultWorkingDirectory)\terratest_log_parser.exe --testlog logs/unit.log --outputdir ./logs/unit/
+    }
+
+    if ("$(TESTKIND)" -eq "integration") {
+      $(system.defaultWorkingDirectory)\terratest_log_parser.exe --testlog logs/integration.log --outputdir ./logs/integration/
+    }
+  workingDirectory: '$(modulePath)'
+  displayName: 'Generate Test Report'
+
+- task: PublishTestResults@2
+  inputs:
+    testResultsFormat: 'JUnit'
+    testResultsFiles: 'report.xml'
+    searchFolder: '$(modulePath)\logs\$(TESTKIND)'
+    mergeTestResults: true
+    failTaskOnFailedTests: true
+    testRunTitle: 'Upload test results'
