@@ -16,7 +16,7 @@ steps:
 - pwsh: |
     New-Item -ItemType "directory" -Path $(GOPATH)\pkg
     New-Item -ItemType "directory" -Path $(modulePath)
-    Move-Item -Path $(system.defaultWorkingDirectory)\*.* -Destination $(modulePath)
+    Get-ChildItem -Path $(system.defaultWorkingDirectory) -Exclude gopath | Move-Item -Destination $(modulePath)
     Get-ChildItem -Path $(modulePath)
   displayName: 'Set up the Go workspace'
 
