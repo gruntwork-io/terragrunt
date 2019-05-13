@@ -17,6 +17,7 @@ steps:
     New-Item -ItemType "directory" -Path $(GOPATH)\pkg
     New-Item -ItemType "directory" -Path $(modulePath)
     Move-Item -Path $(system.defaultWorkingDirectory)\*.* -Destination $(modulePath)
+    Get-ChildItem -Path $(modulePath)
   displayName: 'Set up the Go workspace'
 
 - script: choco install dep
