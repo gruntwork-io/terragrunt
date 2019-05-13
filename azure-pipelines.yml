@@ -69,5 +69,4 @@ steps:
     testResultsFiles: 'report.xml'
     searchFolder: '$(modulePath)\logs\$(TESTKIND)'
     mergeTestResults: true
-    failTaskOnFailedTests: true
-    testRunTitle: 'Upload test results'
+    failTaskOnFailedTests: false
