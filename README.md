@@ -1304,6 +1304,7 @@ Terragrunt allows you to use [Terraform interpolation syntax](https://www.terraf
 * [get_terraform_commands_that_need_vars()](#get_terraform_commands_that_need_vars)
 * [get_terraform_commands_that_need_input()](#get_terraform_commands_that_need_input)
 * [get_terraform_commands_that_need_locking()](#get_terraform_commands_that_need_locking)
+* [get_terraform_commands_that_need_parallelism()](#get_terraform_commands_that_need_parallelism)
 * [get_aws_account_id()](#get_aws_account_id)
 * [run_cmd()](#run_cmd)
 
@@ -1678,6 +1679,23 @@ commands = "Some text ${get_terraform_commands_that_need_locking()}"
 commands = "Some text [apply destroy import init plan refresh taint untaint]"
 ```
 
+#### get_terraform_commands_that_need_parallelism
+
+`get_terraform_commands_that_need_parallelism()`
+
+Returns the list of terraform commands that accept -parallelism parameter. This function is used when defining [extra_arguments](#keep-your-cli-flags-dry).
+
+```hcl
+terragrunt = {
+  terraform {
+    # Force Terraform to run with reduced parallelism
+    extra_arguments "parallelism" {
+      commands  = ["${get_terraform_commands_that_need_parallelism()}"]
+      arguments = ["-parallelism=5"]
+    }
+  }
+}
+```
 
 #### get_aws_account_id
 
