@@ -708,6 +708,13 @@ func TestResolveCommandsInterpolationConfigString(t *testing.T) {
 			fmt.Sprintf(`commands = "test-%v"`, TERRAFORM_COMMANDS_NEED_VARS),
 			nil,
 		},
+		{
+			`"${get_terraform_commands_that_need_parallelism()}"`,
+			nil,
+			terragruntOptionsForTest(t, DefaultTerragruntConfigPath),
+			util.CommaSeparatedStrings(TERRAFORM_COMMANDS_NEED_PARALLELISM),
+			nil,
+		},
 	}
 
 	for _, testCase := range testCases {
