@@ -269,11 +269,9 @@ func findInParentFolders(parameters string, include *IncludeConfig, terragruntOp
 
 	previousDir := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 	if include != nil {
-		previousDir, err = filepath.Abs(filepath.Join(previousDir, filepath.Dir(include.Path)))
-		if err != nil {
-			return "", errors.WithStackTrace(err)
-		}
+		previousDir = filepath.Join(previousDir, filepath.Dir(include.Path))
 	}
+	previousDir, err = filepath.Abs(previousDir)
 	previousDir = filepath.ToSlash(previousDir)
 
 	if err != nil {

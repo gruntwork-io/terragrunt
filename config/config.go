@@ -307,10 +307,17 @@ func parseConfigString(configString string, terragruntOptions *options.Terragrun
 	}
 
 	merged, err := mergeConfigWithIncludedConfig(config, includedConfig, terragruntOptions)
+	if err != nil {
+		return nil, err
+	}
+
 	if includedConfig == nil {
 		err = validateTerragruntConfig(merged)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return merged, err
+	return merged, nil
 }
 
 // Parse the given config string, read from the given config file, as a terragruntConfigFile struct. This method solely
