@@ -362,6 +362,46 @@ terragrunt = {
 
 }
 
+func TestParseTerragruntConfigIncludeMergeRemote(t *testing.T) {
+	t.Parallel()
+
+	config :=
+		fmt.Sprintf(`
+terragrunt = {
+  include {
+    path = "../../../%s"
+  }
+
+  # Configure Terragrunt to automatically store tfstate files in an S3 bucket
+  remote_state {
+    backend = "s3"
+    config {
+      encrypt = false
+      profile = "new"
+    }
+  }
+}
+`, DefaultTerragruntConfigPath)
+
+	opts := mockOptionsForTestWithConfigPath(t, "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath)
+
+	terragruntConfig, err := parseConfigString(config, opts, nil, opts.TerragruntConfigPath)
+	if assert.Nil(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err)) {
+		assert.Nil(t, terragruntConfig.Terraform)
+
+		if assert.NotNil(t, terragruntConfig.RemoteState) {
+			assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
+			assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
+			assert.Equal(t, false, terragruntConfig.RemoteState.Config["encrypt"])
+			assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
+			assert.Equal(t, "child/sub-child/sub-sub-child/terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
+			assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+			assert.Equal(t, "new", terragruntConfig.RemoteState.Config["profile"])
+		}
+	}
+
+}
+
 func TestParseTerragruntConfigIncludeOverrideAll(t *testing.T) {
 	t.Parallel()
 
@@ -427,13 +467,21 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 
 	opts := mockOptionsForTestWithConfigPath(t, configPath)
 
-	_, actualErr := parseConfigString(config, opts, nil, configPath)
-	expectedErr := TooManyLevelsOfInheritance{
-		ConfigPath:             configPath,
-		FirstLevelIncludePath:  "../" + DefaultTerragruntConfigPath,
-		SecondLevelIncludePath: "../" + DefaultTerragruntConfigPath,
+	terragruntConfig, err := parseConfigString(config, opts, nil, opts.TerragruntConfigPath)
+	if assert.Nil(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err)) {
+		if assert.NotNil(t, terragruntConfig.RemoteState) {
+			assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
+			assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
+			assert.Equal(t, true, terragruntConfig.RemoteState.Config["encrypt"])
+			assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
+			assert.Equal(t, "child/sub-child/terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
+			assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+			assert.Equal(t, "child/sub-child", terragruntConfig.Terraform.ExtraArgs[0].EnvVars["TF_VAR_root_to"])
+			assert.Equal(t, "../..", terragruntConfig.Terraform.ExtraArgs[0].EnvVars["TF_VAR_root_from"])
+			assert.Equal(t, "sub-child", terragruntConfig.Terraform.ExtraArgs[1].EnvVars["TF_VAR_child_to"])
+			assert.Equal(t, "..", terragruntConfig.Terraform.ExtraArgs[1].EnvVars["TF_VAR_child_from"])
+		}
 	}
-	assert.True(t, errors.IsError(actualErr, expectedErr), "Expected error %v but got %v", expectedErr, actualErr)
 }
 
 func TestParseTerragruntConfigThreeLevels(t *testing.T) {
@@ -448,13 +496,23 @@ func TestParseTerragruntConfigThreeLevels(t *testing.T) {
 
 	opts := mockOptionsForTestWithConfigPath(t, configPath)
 
-	_, actualErr := parseConfigString(config, opts, nil, configPath)
-	expectedErr := TooManyLevelsOfInheritance{
-		ConfigPath:             configPath,
-		FirstLevelIncludePath:  "../" + DefaultTerragruntConfigPath,
-		SecondLevelIncludePath: "../" + DefaultTerragruntConfigPath,
+	terragruntConfig, err := parseConfigString(config, opts, nil, opts.TerragruntConfigPath)
+	if assert.Nil(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err)) {
+		if assert.NotNil(t, terragruntConfig.RemoteState) {
+			assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
+			assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
+			assert.Equal(t, true, terragruntConfig.RemoteState.Config["encrypt"])
+			assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
+			assert.Equal(t, "child/sub-child/sub-sub-child/terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
+			assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+			assert.Equal(t, "child/sub-child/sub-sub-child", terragruntConfig.Terraform.ExtraArgs[0].EnvVars["TF_VAR_root_to"])
+			assert.Equal(t, "../../..", terragruntConfig.Terraform.ExtraArgs[0].EnvVars["TF_VAR_root_from"])
+			assert.Equal(t, "sub-child/sub-sub-child", terragruntConfig.Terraform.ExtraArgs[1].EnvVars["TF_VAR_child_to"])
+			assert.Equal(t, "../..", terragruntConfig.Terraform.ExtraArgs[1].EnvVars["TF_VAR_child_from"])
+			assert.Equal(t, "sub-sub-child", terragruntConfig.Terraform.ExtraArgs[2].EnvVars["TF_VAR_sub_child_to"])
+			assert.Equal(t, "..", terragruntConfig.Terraform.ExtraArgs[2].EnvVars["TF_VAR_sub_child_from"])
+		}
 	}
-	assert.True(t, errors.IsError(actualErr, expectedErr), "Expected error %v but got %v", expectedErr, actualErr)
 }
 
 func TestParseTerragruntConfigEmptyConfig(t *testing.T) {

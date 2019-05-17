@@ -84,7 +84,7 @@ func ResolveTerragruntConfigString(terragruntConfigString string, include *Inclu
 func executeTerragruntHelperFunction(functionName string, parameters string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (interface{}, error) {
 	switch functionName {
 	case "find_in_parent_folders":
-		return findInParentFolders(parameters, terragruntOptions)
+		return findInParentFolders(parameters, include, terragruntOptions)
 	case "path_relative_to_include":
 		return pathRelativeToInclude(include, terragruntOptions)
 	case "path_relative_from_include":
@@ -258,7 +258,7 @@ func getEnvironmentVariable(parameters string, terragruntOptions *options.Terrag
 
 // Find a parent Terragrunt configuration file in the parent folders above the current Terragrunt configuration file
 // and return its path
-func findInParentFolders(parameters string, terragruntOptions *options.TerragruntOptions) (string, error) {
+func findInParentFolders(parameters string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	fileToFindParam, fallbackParam, numParams, err := parseOptionalQuotedParam(parameters)
 	if err != nil {
 		return "", err
@@ -267,7 +267,13 @@ func findInParentFolders(parameters string, terragruntOptions *options.Terragrun
 		return "", errors.WithStackTrace(EmptyStringNotAllowed("parameter to the find_in_parent_folders_function"))
 	}
 
-	previousDir, err := filepath.Abs(filepath.Dir(terragruntOptions.TerragruntConfigPath))
+	previousDir := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+	if include != nil {
+		previousDir, err = filepath.Abs(filepath.Join(previousDir, filepath.Dir(include.Path)))
+		if err != nil {
+			return "", errors.WithStackTrace(err)
+		}
+	}
 	previousDir = filepath.ToSlash(previousDir)
 
 	if err != nil {
