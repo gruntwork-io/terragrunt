@@ -149,9 +149,14 @@ func CopyFolderContents(source string, destination string) error {
 		src := filepath.Join(source, file.Name())
 		dest := filepath.Join(destination, file.Name())
 
+		fileInfo, err := os.Stat(src)
+		if err != nil {
+			return err
+		}
+
 		if PathContainsHiddenFileOrFolder(file.Name()) {
 			continue
-		} else if file.IsDir() {
+		} else if fileInfo.IsDir() {
 			if err := os.MkdirAll(dest, file.Mode()); err != nil {
 				return errors.WithStackTrace(err)
 			}
