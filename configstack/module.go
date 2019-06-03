@@ -27,7 +27,6 @@ type TerraformModule struct {
 	TerragruntOptions    *options.TerragruntOptions
 	AssumeAlreadyApplied bool
 	FlagExcluded         bool
-	ErrorChan            chan map[string]error
 }
 
 // Render this module as a human-readable string

@@ -29,7 +29,6 @@ type runningModule struct {
 	Dependencies   map[string]*runningModule
 	NotifyWhenDone []*runningModule
 	FlagExcluded   bool
-	ErrorChan      chan map[string]error
 	OutStream      bytes.Buffer
 	Writer         io.Writer
 }
@@ -53,7 +52,6 @@ func newRunningModule(module *TerraformModule) *runningModule {
 		Dependencies:   map[string]*runningModule{},
 		NotifyWhenDone: []*runningModule{},
 		FlagExcluded:   module.FlagExcluded,
-		ErrorChan:      module.ErrorChan,
 		Writer:         module.TerragruntOptions.Writer,
 	}
 }
@@ -137,7 +135,6 @@ func removeFlagExcluded(modules map[string]*runningModule) map[string]*runningMo
 				Err:            module.Err,
 				NotifyWhenDone: module.NotifyWhenDone,
 				Status:         module.Status,
-				ErrorChan:      module.ErrorChan,
 				Writer:         module.Module.TerragruntOptions.Writer,
 			}
 
@@ -181,12 +178,16 @@ func collectErrors(modules map[string]*runningModule) error {
 	for _, module := range modules {
 		if module.Err != nil {
 			errs = append(errs, module.Err)
-			fmt.Printf("----- ERRROR TYPE %T ----- \n", module.Err)
+
+			// send all non dependency errors to the DetailedErrorChan
 			if _, isDepErr := module.Err.(DependencyFinishedWithError); !isDepErr {
-				module.ErrorChan <- map[string]error{module.Module.Path: fmt.Errorf("%s", module.OutStream.String())}
+				DetailedErrorChan <- map[string]string{module.Module.Path: module.OutStream.String()}
 			}
 		}
 	}
+
+	// close the DetailedErrorChan after all errors have been sent
+	close(DetailedErrorChan)
 
 	if len(errs) == 0 {
 		return nil
@@ -241,8 +242,6 @@ func (module *runningModule) runNow() error {
 
 }
 
-var separator = strings.Repeat("-", 132)
-
 // Record that a module has finished executing and notify all of this module's dependencies
 func (module *runningModule) moduleFinished(moduleErr error) {
 	if moduleErr == nil {
@@ -251,7 +250,8 @@ func (module *runningModule) moduleFinished(moduleErr error) {
 		module.Module.TerragruntOptions.Logger.Printf("Module %s has finished with an error: %v", module.Module.Path, moduleErr)
 	}
 
-	fmt.Fprintf(module.Writer, "%s\n%v\n\n%v\n", separator, module.Module.Path, module.OutStream.String())
+	// print the separated module output
+	fmt.Fprintf(module.Writer, "%s\n%v\n\n%v\n", OutputMessageSeparator, module.Module.Path, module.OutStream.String())
 
 	module.Status = Finished
 	module.Err = moduleErr
