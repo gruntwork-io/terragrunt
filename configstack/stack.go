@@ -5,18 +5,21 @@ import (
 	"fmt"
 	"strings"
 
+	"sort"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
-	"sort"
 )
 
 // Represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or
 // "spin down" in a single command
 type Stack struct {
-	Path    string
-	Modules []*TerraformModule
+	Path      string
+	Modules   []*TerraformModule
+	ErrorMap  map[string][]error
+	ErrorChan chan map[string]error
 }
 
 // Render this stack as a human-readable string
@@ -113,8 +116,22 @@ func FindStackInSubfolders(terragruntOptions *options.TerragruntOptions) (*Stack
 // Set the command in the TerragruntOptions object of each module in this stack to the given command.
 func (stack *Stack) setTerraformCommand(command []string) {
 	for _, module := range stack.Modules {
+		module.ErrorChan = stack.ErrorChan
 		module.TerragruntOptions.TerraformCliArgs = append(command, module.TerragruntOptions.TerraformCliArgs...)
 		module.TerragruntOptions.TerraformCommand = util.FirstArg(command)
+	}
+}
+
+func (stack *Stack) SetupErrorChannel() {
+	stack.ErrorMap = make(map[string][]error)
+	stack.ErrorChan = make(chan map[string]error)
+}
+
+func (stack *Stack) CollectModuleErrors() {
+	for errorMap := range stack.ErrorChan {
+		for module, err := range errorMap {
+			stack.ErrorMap[module] = append(stack.ErrorMap[module], err)
+		}
 	}
 }
 

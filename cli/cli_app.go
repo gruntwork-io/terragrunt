@@ -685,7 +685,20 @@ func applyAll(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	if shouldApplyAll {
-		return stack.Apply(terragruntOptions)
+		stack.SetupErrorChannel()
+		go stack.CollectModuleErrors()
+		err := stack.Apply(terragruntOptions)
+		close(stack.ErrorChan)
+
+		terragruntOptions.Logger.Printf("Encountered the following root-causes: \n")
+		for module, errList := range stack.ErrorMap {
+			terragruntOptions.Logger.Printf("Module: %s \n", module)
+			for _, err := range errList {
+				terragruntOptions.Logger.Printf("- %s \n", err)
+			}
+		}
+
+		return err
 	}
 
 	return nil

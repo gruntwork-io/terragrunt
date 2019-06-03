@@ -28,6 +28,12 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 	return err
 }
 
+func RunTerraformCommandAndRedirectOutputToLogger(terragruntOptions *options.TerragruntOptions, args ...string) error {
+	output, err := RunShellCommandWithOutput(terragruntOptions, "", terragruntOptions.TerraformPath, args...)
+	terragruntOptions.Logger.Println(output)
+	return err
+}
+
 // Run the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
 // method's caller
 func RunTerraformCommandWithOutput(terragruntOptions *options.TerragruntOptions, args ...string) (*CmdOutput, error) {

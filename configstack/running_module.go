@@ -1,7 +1,9 @@
 package configstack
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 
@@ -27,6 +29,9 @@ type runningModule struct {
 	Dependencies   map[string]*runningModule
 	NotifyWhenDone []*runningModule
 	FlagExcluded   bool
+	ErrorChan      chan map[string]error
+	OutStream      bytes.Buffer
+	Writer         io.Writer
 }
 
 // This controls in what order dependencies should be enforced between modules
@@ -48,6 +53,8 @@ func newRunningModule(module *TerraformModule) *runningModule {
 		Dependencies:   map[string]*runningModule{},
 		NotifyWhenDone: []*runningModule{},
 		FlagExcluded:   module.FlagExcluded,
+		ErrorChan:      module.ErrorChan,
+		Writer:         module.TerragruntOptions.Writer,
 	}
 }
 
@@ -130,6 +137,8 @@ func removeFlagExcluded(modules map[string]*runningModule) map[string]*runningMo
 				Err:            module.Err,
 				NotifyWhenDone: module.NotifyWhenDone,
 				Status:         module.Status,
+				ErrorChan:      module.ErrorChan,
+				Writer:         module.Module.TerragruntOptions.Writer,
 			}
 
 			// Only add dependencies that should not be excluded
@@ -154,6 +163,8 @@ func runModules(modules map[string]*runningModule) error {
 		waitGroup.Add(1)
 		go func(module *runningModule) {
 			defer waitGroup.Done()
+			module.Module.TerragruntOptions.Writer = &module.OutStream
+			module.Module.TerragruntOptions.ErrWriter = &module.OutStream
 			module.runModuleWhenReady()
 		}(module)
 	}
@@ -170,6 +181,10 @@ func collectErrors(modules map[string]*runningModule) error {
 	for _, module := range modules {
 		if module.Err != nil {
 			errs = append(errs, module.Err)
+			fmt.Printf("----- ERRROR TYPE %T ----- \n", module.Err)
+			if _, isDepErr := module.Err.(DependencyFinishedWithError); !isDepErr {
+				module.ErrorChan <- map[string]error{module.Module.Path: fmt.Errorf("%s", module.OutStream.String())}
+			}
 		}
 	}
 
@@ -223,7 +238,10 @@ func (module *runningModule) runNow() error {
 		module.Module.TerragruntOptions.Logger.Printf("Running module %s now", module.Module.Path)
 		return module.Module.TerragruntOptions.RunTerragrunt(module.Module.TerragruntOptions)
 	}
+
 }
+
+var separator = strings.Repeat("-", 132)
 
 // Record that a module has finished executing and notify all of this module's dependencies
 func (module *runningModule) moduleFinished(moduleErr error) {
@@ -232,6 +250,8 @@ func (module *runningModule) moduleFinished(moduleErr error) {
 	} else {
 		module.Module.TerragruntOptions.Logger.Printf("Module %s has finished with an error: %v", module.Module.Path, moduleErr)
 	}
+
+	fmt.Fprintf(module.Writer, "%s\n%v\n\n%v\n", separator, module.Module.Path, module.OutStream.String())
 
 	module.Status = Finished
 	module.Err = moduleErr
