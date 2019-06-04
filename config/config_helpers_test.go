@@ -237,7 +237,7 @@ func TestFindInParentFolders(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.terragruntOptions.TerragruntConfigPath, func(t *testing.T) {
-			actualPath, actualErr := findInParentFolders(testCase.params, testCase.terragruntOptions)
+			actualPath, actualErr := findInParentFolders(testCase.params, nil, testCase.terragruntOptions)
 			if testCase.expectedErr != nil {
 				if assert.Error(t, actualErr) {
 					assert.IsType(t, testCase.expectedErr, errors.Unwrap(actualErr))

@@ -301,20 +301,23 @@ func parseConfigString(configString string, terragruntOptions *options.Terragrun
 		return nil, err
 	}
 
-	if include != nil && terragruntConfigFile.Include != nil {
-		return nil, errors.WithStackTrace(TooManyLevelsOfInheritance{
-			ConfigPath:             terragruntOptions.TerragruntConfigPath,
-			FirstLevelIncludePath:  include.Path,
-			SecondLevelIncludePath: terragruntConfigFile.Include.Path,
-		})
-	}
-
 	includedConfig, err := parseIncludedConfig(terragruntConfigFile.Include, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	return mergeConfigWithIncludedConfig(config, includedConfig, terragruntOptions)
+	merged, err := mergeConfigWithIncludedConfig(config, includedConfig, terragruntOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	if includedConfig == nil {
+		err = validateTerragruntConfig(merged)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return merged, nil
 }
 
 // Parse the given config string, read from the given config file, as a terragruntConfigFile struct. This method solely
@@ -344,7 +347,16 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 	}
 
 	if config.RemoteState != nil {
-		includedConfig.RemoteState = config.RemoteState
+		if includedConfig.RemoteState == nil {
+			includedConfig.RemoteState = config.RemoteState
+		} else {
+			if config.RemoteState.Backend != "" {
+				includedConfig.RemoteState.Backend = config.RemoteState.Backend
+			}
+			for k, v := range config.RemoteState.Config {
+				includedConfig.RemoteState.Config[k] = v
+			}
+		}
 	}
 	if config.PreventDestroy {
 		includedConfig.PreventDestroy = config.PreventDestroy
@@ -463,7 +475,7 @@ func parseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *optio
 		return nil, errors.WithStackTrace(IncludedConfigMissingPath(terragruntOptions.TerragruntConfigPath))
 	}
 
-	resolvedIncludePath, err := ResolveTerragruntConfigString(includedConfig.Path, nil, terragruntOptions)
+	resolvedIncludePath, err := ResolveTerragruntConfigString(includedConfig.Path, includedConfig, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -485,10 +497,6 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 
 	if terragruntConfigFromFile.RemoteState != nil {
 		terragruntConfigFromFile.RemoteState.FillDefaults()
-		if err := terragruntConfigFromFile.RemoteState.Validate(); err != nil {
-			return nil, err
-		}
-
 		terragruntConfig.RemoteState = terragruntConfigFromFile.RemoteState
 	}
 
@@ -505,6 +513,13 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 	return terragruntConfig, nil
 }
 
+func validateTerragruntConfig(config *TerragruntConfig) error {
+	if config.RemoteState != nil {
+		return config.RemoteState.Validate()
+	}
+	return nil
+}
+
 // Custom error types
 
 type InvalidArgError string
@@ -517,16 +532,6 @@ type IncludedConfigMissingPath string
 
 func (err IncludedConfigMissingPath) Error() string {
 	return fmt.Sprintf("The include configuration in %s must specify a 'path' parameter", string(err))
-}
-
-type TooManyLevelsOfInheritance struct {
-	ConfigPath             string
-	FirstLevelIncludePath  string
-	SecondLevelIncludePath string
-}
-
-func (err TooManyLevelsOfInheritance) Error() string {
-	return fmt.Sprintf("%s includes %s, which itself includes %s. Only one level of includes is allowed.", err.ConfigPath, err.FirstLevelIncludePath, err.SecondLevelIncludePath)
 }
 
 type CouldNotResolveTerragruntConfigInFile string
