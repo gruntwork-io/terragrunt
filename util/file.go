@@ -151,7 +151,7 @@ func CopyFolderContents(source string, destination string) error {
 
 		if PathContainsHiddenFileOrFolder(file.Name()) {
 			continue
-		} else if file.IsDir() {
+		} else if IsDir(src) {
 			if err := os.MkdirAll(dest, file.Mode()); err != nil {
 				return errors.WithStackTrace(err)
 			}
