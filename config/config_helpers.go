@@ -237,8 +237,10 @@ func runCommand(parameters string, terragruntOptions *options.TerragruntOptions)
 		return "", errors.WithStackTrace(err)
 	}
 
-	terragruntOptions.Logger.Printf("run_cmd output: [%s]", cmdOutput.Stdout)
-	return cmdOutput.Stdout, nil
+	value := strings.TrimSuffix(cmdOutput.Stdout, "\n")
+
+	terragruntOptions.Logger.Printf("run_cmd output: [%s]", value)
+	return value, nil
 }
 
 func getEnvironmentVariable(parameters string, terragruntOptions *options.TerragruntOptions) (string, error) {

@@ -144,6 +144,12 @@ func TestRunCommand(t *testing.T) {
 			nil,
 		},
 		{
+			`"/bin/bash", "-c", ""echo foo""`,
+			terragruntOptionsForTest(t, homeDir),
+			"foo",
+			nil,
+		},
+		{
 			"",
 			terragruntOptionsForTest(t, homeDir),
 			"",
