@@ -65,17 +65,17 @@ type EnvVar struct {
 func CreateTerragruntEvalContext(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) *hcl.EvalContext {
 	return &hcl.EvalContext{
 		Functions: map[string]function.Function{
-			"find_in_parent_folders": wrapStringSliceToStringAsFuncImpl(findInParentFolders, include, terragruntOptions),
-			"path_relative_to_include": wrapVoidToStringAsFuncImpl(pathRelativeToInclude, include, terragruntOptions),
-			"path_relative_from_include": wrapVoidToStringAsFuncImpl(pathRelativeFromInclude, include, terragruntOptions),
-			"get_env": wrapStringSliceToStringAsFuncImpl(getEnvironmentVariable, include, terragruntOptions),
-			"run_cmd": wrapStringSliceToStringAsFuncImpl(runCommand, include, terragruntOptions),
-			"get_tfvars_dir": wrapVoidToStringAsFuncImpl(getTfVarsDir, include, terragruntOptions),
-			"get_parent_tfvars_dir": wrapVoidToStringAsFuncImpl(getParentTfVarsDir, include, terragruntOptions),
-			"get_aws_account_id": wrapVoidToStringAsFuncImpl(getAWSAccountID, include, terragruntOptions),
-			"get_terraform_commands_that_need_vars": wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_VARS),
-			"get_terraform_commands_that_need_locking": wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_LOCKING),
-			"get_terraform_commands_that_need_input": wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_INPUT),
+			"find_in_parent_folders":                       wrapStringSliceToStringAsFuncImpl(findInParentFolders, include, terragruntOptions),
+			"path_relative_to_include":                     wrapVoidToStringAsFuncImpl(pathRelativeToInclude, include, terragruntOptions),
+			"path_relative_from_include":                   wrapVoidToStringAsFuncImpl(pathRelativeFromInclude, include, terragruntOptions),
+			"get_env":                                      wrapStringSliceToStringAsFuncImpl(getEnvironmentVariable, include, terragruntOptions),
+			"run_cmd":                                      wrapStringSliceToStringAsFuncImpl(runCommand, include, terragruntOptions),
+			"get_tfvars_dir":                               wrapVoidToStringAsFuncImpl(getTfVarsDir, include, terragruntOptions),
+			"get_parent_tfvars_dir":                        wrapVoidToStringAsFuncImpl(getParentTfVarsDir, include, terragruntOptions),
+			"get_aws_account_id":                           wrapVoidToStringAsFuncImpl(getAWSAccountID, include, terragruntOptions),
+			"get_terraform_commands_that_need_vars":        wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_VARS),
+			"get_terraform_commands_that_need_locking":     wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_LOCKING),
+			"get_terraform_commands_that_need_input":       wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_INPUT),
 			"get_terraform_commands_that_need_parallelism": wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_PARALLELISM),
 		},
 	}
