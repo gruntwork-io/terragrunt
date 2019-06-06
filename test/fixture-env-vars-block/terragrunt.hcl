@@ -1,4 +1,4 @@
-terraform = {
+terraform {
   extra_arguments "test" {
     commands = ["apply"]
     env_vars = {

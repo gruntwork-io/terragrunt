@@ -1,18 +1,4 @@
-terraform = {
-  extra_arguments "test" {
-    arguments = [
-      "-var-file=terraform.tfvars",
-    ]
-
-    commands = [
-      "apply",
-      "plan",
-      "import",
-      "push",
-      "refresh",
-    ]
-  }
-
+terraform {
   extra_arguments "var-files" {
     required_var_files = [
       "extra.tfvars",
