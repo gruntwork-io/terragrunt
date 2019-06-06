@@ -289,7 +289,7 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 // This method will return: /source/infrastructure-modules//networking/vpc
 //
 func getTerragruntSourceForModule(modulePath string, moduleTerragruntConfig *config.TerragruntConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	if terragruntOptions.Source == "" || moduleTerragruntConfig.Terraform == nil || moduleTerragruntConfig.Terraform.Source == nil {
+	if terragruntOptions.Source == "" || moduleTerragruntConfig.Terraform == nil || moduleTerragruntConfig.Terraform.Source == nil || *moduleTerragruntConfig.Terraform.Source == "" {
 		return "", nil
 	}
 

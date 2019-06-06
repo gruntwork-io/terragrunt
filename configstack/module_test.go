@@ -499,9 +499,10 @@ func TestGetTerragruntSourceForModuleHappyPath(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		t.Run(fmt.Sprintf("%v-%s", testCase.config.Terraform.Source, testCase.opts.Source), func(t *testing.T) {
+		testCase := testCase
+		t.Run(fmt.Sprintf("%v-%s", *testCase.config.Terraform.Source, testCase.opts.Source), func(t *testing.T) {
 			actual, err := getTerragruntSourceForModule("mock-for-test", testCase.config, testCase.opts)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, testCase.expected, actual)
 		})
 	}
