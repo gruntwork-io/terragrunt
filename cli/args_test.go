@@ -435,7 +435,7 @@ func TestToTerraformEnvVars(t *testing.T) {
 		{
 			"string value",
 			map[string]interface{}{"foo": "bar"},
-			map[string]string{"TF_VAR_foo": `"bar"`},
+			map[string]string{"TF_VAR_foo": `bar`},
 		},
 		{
 			"int value",
@@ -465,7 +465,7 @@ func TestToTerraformEnvVars(t *testing.T) {
 		{
 			"multiple values",
 			map[string]interface{}{"str": "bar", "int": 42, "bool": false, "list": []int{1, 2, 3}, "map": map[string]interface{}{"a": "b"}},
-			map[string]string{"TF_VAR_str": `"bar"`, "TF_VAR_int": `42`, "TF_VAR_bool": `false`, "TF_VAR_list": `[1,2,3]`, "TF_VAR_map": `{"a":"b"}`},
+			map[string]string{"TF_VAR_str": `bar`, "TF_VAR_int": `42`, "TF_VAR_bool": `false`, "TF_VAR_list": `[1,2,3]`, "TF_VAR_map": `{"a":"b"}`},
 		},
 	}
 
