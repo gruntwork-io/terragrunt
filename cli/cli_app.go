@@ -348,7 +348,7 @@ func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOption
 	//for the len(previousExecErrors) == 0 check that used to be here
 	multiError := errors.NewMultiError(previousExecErrors...)
 
-	return util.ListContainsElement(hook.Commands, terragruntOptions.TerraformCommand) && (multiError == nil || hook.RunOnError)
+	return util.ListContainsElement(hook.Commands, terragruntOptions.TerraformCommand) && (multiError == nil || (hook.RunOnError != nil && *hook.RunOnError))
 }
 
 // Assume an IAM role, if one is specified, by making API calls to Amazon STS and setting the environment variables
