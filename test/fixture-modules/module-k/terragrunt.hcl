@@ -1,4 +1,4 @@
-dependencies = {
+dependencies {
   paths = ["../module-h"]
 }
 

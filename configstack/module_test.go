@@ -448,7 +448,7 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 	expected := []*TerraformModule{moduleH, moduleI, moduleJ, moduleK}
 
 	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, mockHowThesePathsWereFound)
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
