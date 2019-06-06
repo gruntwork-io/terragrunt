@@ -266,7 +266,7 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 	if err != nil {
 		return nil, err
 	}
-	if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil) && matches == nil {
+	if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil|| *terragruntConfig.Terraform.Source == "") && matches == nil {
 		terragruntOptions.Logger.Printf("Module %s does not have an associated terraform configuration and will be skipped.", filepath.Dir(terragruntConfigPath))
 		return nil, nil
 	}

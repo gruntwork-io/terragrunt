@@ -2,6 +2,7 @@ package configstack
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
 
@@ -457,13 +458,13 @@ func TestResolveTerraformModulesInvalidPaths(t *testing.T) {
 	configPaths := []string{"../test/fixture-modules/module-missing-dependency/" + config.DefaultTerragruntConfigPath}
 
 	_, actualErr := ResolveTerraformModules(configPaths, mockOptions, mockHowThesePathsWereFound)
-	if assert.NotNil(t, actualErr, "Unexpected error: %v", actualErr) {
-		underlying, ok := errors.Unwrap(actualErr).(ErrorProcessingModule)
-		if assert.True(t, ok) {
-			unwrapped := errors.Unwrap(underlying.UnderlyingError)
-			assert.True(t, os.IsNotExist(unwrapped), "Expected a file not exists error but got %v", underlying.UnderlyingError)
-		}
-	}
+	require.Error(t, actualErr)
+
+	underlying, ok := errors.Unwrap(actualErr).(ErrorProcessingModule)
+	require.True(t, ok)
+
+	unwrapped := errors.Unwrap(underlying.UnderlyingError)
+	assert.True(t, os.IsNotExist(unwrapped), "Expected a file not exists error but got %v", underlying.UnderlyingError)
 }
 
 func TestResolveTerraformModuleNoTerraformConfig(t *testing.T) {
