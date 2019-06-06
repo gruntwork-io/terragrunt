@@ -63,6 +63,7 @@ Terraform configurations DRY, working with multiple Terraform modules, and manag
 ## Table of Contents
 
 1. [Install Terragrunt](#install-terragrunt)
+1. [Migrating to Terraform 0.12 and Terragrunt 0.19.x](#migrating-to-terraform-012-and-terragrunt-019x)
 1. [Use cases](#use-cases)
    1. [Keep your Terraform code DRY](#keep-your-terraform-code-dry)
    1. [Keep your remote state configuration DRY](#keep-your-remote-state-configuration-dry)
@@ -79,7 +80,6 @@ Terraform configurations DRY, working with multiple Terraform modules, and manag
    1. [Auto-Retry](#auto-retry)
    1. [CLI options](#cli-options)
    1. [Configuration](#configuration)
-   1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
    1. [Clearing the Terragrunt cache](#clearing-the-terragrunt-cache)
    1. [Developing Terragrunt](#developing-terragrunt)
    1. [License](#license)
@@ -100,6 +100,19 @@ You can install Terragrunt on Linux using [Linuxbrew](https://linuxbrew.sh/): `b
 ### Manual
 You can install Terragrunt manually by going to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases),
 downloading the binary for your OS, renaming it to `terragrunt`, and adding it to your PATH.
+
+
+
+
+
+## Migrating to Terraform 0.12 and Terragrunt 0.19.x 
+
+If you were using Terraform <= 0.11.x with Terragrunt <= 0.18.x, and you wish to upgrade to Terraform 0.12.x newer, 
+you'll need to upgrade to Terragrunt 0.19.x or newer. Due to some changes in Terraform 0.12.x, this is a backwards
+incompatible upgrade that requires some manual migration steps. Check out our [Upgrading to Terragrunt 0.19.x 
+Guide](/_docs/migration_guides/upgrading_to_terragrunt_0.19.x.md) for instructions.
+
+
 
 
 ## Use cases
@@ -577,8 +590,7 @@ they don't already exist:
   [access logging](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerLogs.html) enabled.
 
   In addition, you can let terragrunt tag the bucket with custom tags that you specify in
-  `remote_state.config.s3_bucket_tags`. See sample configuration in section
-  [Filling in remote state settings with Terragrunt](#filling-in-remote-state-settings-with-terragrunt).
+  `remote_state.config.s3_bucket_tags`.
 
 * **DynamoDB table**: If you are using the [S3 backend](https://www.terraform.io/docs/backends/types/s3.html) for
   remote state storage and you specify a `dynamodb_table` (a [DynamoDB table used for
@@ -588,8 +600,7 @@ they don't already exist:
   enabled, including a primary key called `LockID`.
 
   In addition, you can let terragrunt tag the DynamoDB table with custom tags that you specify in
-  `remote_state.config.dynamodb_table_tags`. See sample configuration in section
-  [Filling in remote state settings with Terragrunt](#filling-in-remote-state-settings-with-terragrunt).
+  `remote_state.config.dynamodb_table_tags`.
 
 **Note**: If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile
 when creating the S3 bucket or DynamoDB table.
