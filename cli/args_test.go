@@ -436,10 +436,10 @@ func mockCmdOptions(t *testing.T, workingDir string, terraformCliArgs []string) 
 func mockExtraArgs(arguments, commands, requiredVarFiles, optionalVarFiles []string) config.TerraformExtraArguments {
 	a := config.TerraformExtraArguments{
 		Name:             "test",
-		Arguments:        arguments,
+		Arguments:        &arguments,
 		Commands:         commands,
-		RequiredVarFiles: requiredVarFiles,
-		OptionalVarFiles: optionalVarFiles,
+		RequiredVarFiles: &requiredVarFiles,
+		OptionalVarFiles: &optionalVarFiles,
 	}
 
 	return a

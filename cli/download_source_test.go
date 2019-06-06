@@ -224,7 +224,7 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 	terragruntConfig := &config.TerragruntConfig{
 		Terraform: &config.TerraformConfig{
 			ExtraArgs: []config.TerraformExtraArguments{},
-			Source:    "",
+			Source:    nil,
 		},
 	}
 
