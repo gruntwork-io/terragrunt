@@ -11,8 +11,7 @@ terraform {
     ]
 
     arguments = [
-      "-var-file=${get_tfvars_dir()}\\..\\extra-args\\common.tfvars",
-      "-var-file=terraform.tfvars"
+      "-var-file=${get_tfvars_dir()}\\..\\extra-args\\common.tfvars"
     ]
   }
 }
