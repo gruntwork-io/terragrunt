@@ -1,4 +1,4 @@
-input {
+inputs = {
   name = "Module A"
 }
 
