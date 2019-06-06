@@ -349,8 +349,8 @@ func cleanupTerraformFiles(path string, terragruntOptions *options.TerragruntOpt
 func getTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) string {
 	if terragruntOptions.Source != "" {
 		return terragruntOptions.Source
-	} else if terragruntConfig.Terraform != nil {
-		return terragruntConfig.Terraform.Source
+	} else if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.Source != nil {
+		return *terragruntConfig.Terraform.Source
 	} else {
 		return ""
 	}

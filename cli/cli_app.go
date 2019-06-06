@@ -122,7 +122,7 @@ COMMANDS:
    *                    Terragrunt forwards all other commands directly to Terraform
 
 GLOBAL OPTIONS:
-   terragrunt-config                        Path to the Terragrunt config file. Default is terraform.tfvars.
+   terragrunt-config                        Path to the Terragrunt config file. Default is terragrunt.hcl.
    terragrunt-tfpath                        Path to the Terraform binary. Default is terraform (on PATH).
    terragrunt-no-auto-init                  Don't automatically run 'terraform init' during other terragrunt commands. You must run 'terragrunt init' manually.
    terragrunt-no-auto-retry                 Don't automatically re-run command in case of transient errors.

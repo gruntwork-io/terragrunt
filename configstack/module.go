@@ -266,7 +266,7 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 	if err != nil {
 		return nil, err
 	}
-	if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == "") && matches == nil {
+	if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil) && matches == nil {
 		terragruntOptions.Logger.Printf("Module %s does not have an associated terraform configuration and will be skipped.", filepath.Dir(terragruntConfigPath))
 		return nil, nil
 	}
@@ -284,21 +284,21 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 // Example:
 //
 // --terragrunt-source: /source/infrastructure-modules
-// source param in module's terraform.tfvars: git::git@github.com:acme/infrastructure-modules.git//networking/vpc?ref=v0.0.1
+// source param in module's terragrunt.hcl: git::git@github.com:acme/infrastructure-modules.git//networking/vpc?ref=v0.0.1
 //
 // This method will return: /source/infrastructure-modules//networking/vpc
 //
 func getTerragruntSourceForModule(modulePath string, moduleTerragruntConfig *config.TerragruntConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	if terragruntOptions.Source == "" || moduleTerragruntConfig.Terraform == nil || moduleTerragruntConfig.Terraform.Source == "" {
+	if terragruntOptions.Source == "" || moduleTerragruntConfig.Terraform == nil || moduleTerragruntConfig.Terraform.Source == nil {
 		return "", nil
 	}
 
 	// use go-getter to split the module source string into a valid URL and subdirectory (if // is present)
-	moduleUrl, moduleSubdir := getter.SourceDirSubdir(moduleTerragruntConfig.Terraform.Source)
+	moduleUrl, moduleSubdir := getter.SourceDirSubdir(*moduleTerragruntConfig.Terraform.Source)
 
 	// if both URL and subdir are missing, something went terribly wrong
 	if moduleUrl == "" && moduleSubdir == "" {
-		return "", errors.WithStackTrace(InvalidSourceUrl{ModulePath: modulePath, ModuleSourceUrl: moduleTerragruntConfig.Terraform.Source, TerragruntSource: terragruntOptions.Source})
+		return "", errors.WithStackTrace(InvalidSourceUrl{ModulePath: modulePath, ModuleSourceUrl: *moduleTerragruntConfig.Terraform.Source, TerragruntSource: terragruntOptions.Source})
 	}
 	// if only subdir is missing, check if we can obtain a valid module name from the URL portion
 	if moduleUrl != "" && moduleSubdir == "" {

@@ -141,31 +141,37 @@ func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 				// The following is a fix for GH-493.
 				// If the first argument is "apply" and the second argument is a file (plan),
 				// we don't add any -var-file to the command.
-				if skipVars {
-					// If we have to skip vars, we need to iterate over all elements of array...
-					for _, a := range arg.Arguments {
-						if !strings.HasPrefix(a, "-var") {
-							out = append(out, a)
+				if arg.Arguments != nil {
+					if skipVars {
+						// If we have to skip vars, we need to iterate over all elements of array...
+						for _, a := range *arg.Arguments {
+							if !strings.HasPrefix(a, "-var") {
+								out = append(out, a)
+							}
 						}
+					} else {
+						// ... Otherwise, let's add all the arguments
+						out = append(out, *arg.Arguments...)
 					}
-				} else {
-					// ... Otherwise, let's add all the arguments
-					out = append(out, arg.Arguments...)
 				}
 
 				if !skipVars {
 					// If RequiredVarFiles is specified, add -var-file=<file> for each specified files
-					for _, file := range util.RemoveDuplicatesFromListKeepLast(arg.RequiredVarFiles) {
-						out = append(out, fmt.Sprintf("-var-file=%s", file))
+					if arg.RequiredVarFiles != nil {
+						for _, file := range util.RemoveDuplicatesFromListKeepLast(*arg.RequiredVarFiles) {
+							out = append(out, fmt.Sprintf("-var-file=%s", file))
+						}
 					}
 
 					// If OptionalVarFiles is specified, check for each file if it exists and if so, add -var-file=<file>
 					// It is possible that many files resolve to the same path, so we remove duplicates.
-					for _, file := range util.RemoveDuplicatesFromListKeepLast(arg.OptionalVarFiles) {
-						if util.FileExists(file) {
-							out = append(out, fmt.Sprintf("-var-file=%s", file))
-						} else {
-							terragruntOptions.Logger.Printf("Skipping var-file %s as it does not exist", file)
+					if arg.OptionalVarFiles != nil {
+						for _, file := range util.RemoveDuplicatesFromListKeepLast(*arg.OptionalVarFiles) {
+							if util.FileExists(file) {
+								out = append(out, fmt.Sprintf("-var-file=%s", file))
+							} else {
+								terragruntOptions.Logger.Printf("Skipping var-file %s as it does not exist", file)
+							}
 						}
 					}
 				}
@@ -181,9 +187,12 @@ func filterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOp
 	cmd := util.FirstArg(terragruntOptions.TerraformCliArgs)
 
 	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
+		if arg.EnvVars == nil {
+			continue
+		}
 		for _, argcmd := range arg.Commands {
 			if cmd == argcmd {
-				for k, v := range arg.EnvVars {
+				for k, v := range *arg.EnvVars {
 					out[k] = v
 				}
 			}
