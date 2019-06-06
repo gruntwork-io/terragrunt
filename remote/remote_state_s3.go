@@ -26,12 +26,12 @@ import (
 type ExtendedRemoteStateConfigS3 struct {
 	remoteStateConfigS3 RemoteStateConfigS3
 
-	S3BucketTags                []map[string]string `mapstructure:"s3_bucket_tags"`
-	DynamotableTags             []map[string]string `mapstructure:"dynamodb_table_tags"`
-	SkipBucketVersioning        bool                `mapstructure:"skip_bucket_versioning"`
-	SkipBucketSSEncryption      bool                `mapstructure:"skip_bucket_ssencryption"`
-	SkipBucketAccessLogging     bool                `mapstructure:"skip_bucket_accesslogging"`
-	EnableLockTableSSEncryption bool                `mapstructure:"enable_lock_table_ssencryption"`
+	S3BucketTags                map[string]string `mapstructure:"s3_bucket_tags"`
+	DynamotableTags             map[string]string `mapstructure:"dynamodb_table_tags"`
+	SkipBucketVersioning        bool              `mapstructure:"skip_bucket_versioning"`
+	SkipBucketSSEncryption      bool              `mapstructure:"skip_bucket_ssencryption"`
+	SkipBucketAccessLogging     bool              `mapstructure:"skip_bucket_accesslogging"`
+	EnableLockTableSSEncryption bool              `mapstructure:"enable_lock_table_ssencryption"`
 }
 
 // These are settings that can appear in the remote_state config that are ONLY used by Terragrunt and NOT forwarded
@@ -283,17 +283,7 @@ func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3, terragruntOpt
 	if !config.Encrypt {
 		terragruntOptions.Logger.Printf("WARNING: encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enabling encryption!", config.Bucket)
 	}
-
-	if len(extendedConfig.S3BucketTags) > 1 {
-		return errors.WithStackTrace(MultipleTagsDeclarations("S3 bucket"))
-
-	}
-
-	if len(extendedConfig.DynamotableTags) > 1 {
-		return errors.WithStackTrace(MultipleTagsDeclarations("DynamoDB table"))
-
-	}
-
+	
 	return nil
 }
 
@@ -381,10 +371,9 @@ func TagS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragrun
 	}
 
 	// There must be one entry in the list
-	var tags = config.S3BucketTags[0]
-	var tagsConverted = convertTags(tags)
+	var tagsConverted = convertTags(config.S3BucketTags)
 
-	terragruntOptions.Logger.Printf("Tagging S3 bucket with %s", tags)
+	terragruntOptions.Logger.Printf("Tagging S3 bucket with %s", config.S3BucketTags)
 
 	putBucketTaggingInput := s3.PutBucketTaggingInput{
 		Bucket: aws.String(config.remoteStateConfigS3.Bucket),
@@ -563,7 +552,7 @@ func DoesS3BucketExist(s3Client *s3.S3, config *RemoteStateConfigS3) bool {
 }
 
 // Create a table for locks in DynamoDB if the user has configured a lock table and the table doesn't already exist
-func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, tagsDeclarations []map[string]string, terragruntOptions *options.TerragruntOptions) error {
+func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, tags map[string]string, terragruntOptions *options.TerragruntOptions) error {
 
 	if s3Config.GetLockTableName() == "" {
 		return nil
@@ -572,11 +561,6 @@ func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, tagsDeclarations 
 	dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.GetAwsSessionConfig(), terragruntOptions)
 	if err != nil {
 		return err
-	}
-
-	var tags map[string]string = nil
-	if len(tagsDeclarations) == 1 {
-		tags = tagsDeclarations[0]
 	}
 
 	return dynamodb.CreateLockTableIfNecessary(s3Config.GetLockTableName(), tags, dynamodbClient, terragruntOptions)

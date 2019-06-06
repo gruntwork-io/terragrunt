@@ -9,12 +9,12 @@ remote_state {
     dynamodb_table = "__FILL_IN_LOCK_TABLE_NAME__"
     enable_lock_table_ssencryption = true
 
-    s3_bucket_tags {
+    s3_bucket_tags = {
       owner = "terragrunt integration test"
       name = "Terraform state storage"
     }
 
-    dynamodb_table_tags {
+    dynamodb_table_tags = {
       owner = "terragrunt integration test"
       name = "Terraform lock table"
     }
