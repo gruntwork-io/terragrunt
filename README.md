@@ -70,6 +70,7 @@ Terraform configurations DRY, working with multiple Terraform modules, and manag
    1. [Execute Terraform commands on multiple modules at once](#execute-terraform-commands-on-multiple-modules-at-once)
    1. [Work with multiple AWS accounts](#work-with-multiple-aws-accounts)
 1. [Terragrunt details](#terragrunt-details)
+   1. [Inputs](#inputs)
    1. [AWS credentials](#aws-credentials)
    1. [AWS IAM policies](#aws-iam-policies)
    1. [Built-in Functions](#built-in-functions)
@@ -232,6 +233,7 @@ environment-specific values for the input variables in that Terraform code. For 
 
 ```hcl
 terraform {
+  # Deploy version v0.0.3 in stage
   source = "git::git@github.com:foo/modules.git//app?ref=v0.0.3"
 }
 
@@ -249,6 +251,7 @@ And `prod/app/terragrunt.hcl` may look like this:
 
 ```hcl
 terraform {
+  # Deploy version v0.0.1 in prod
   source = "git::git@github.com:foo/modules.git//app?ref=v0.0.1"
 }
 
@@ -258,29 +261,15 @@ inputs = {
 }
 ```
 
-Notice how the two `terragrunt.hcl` files set the `source` URL to the same `app` module, but at different
-versions (i.e. `stage` is testing out a newer version of the module). They also set the parameters for the
-`app` module to different values that are appropriate for the environment: smaller/fewer servers in `stage`
-to save money, larger/more instances in `prod` for scalability and high availability.
-
-Check out the [terragrunt-infrastructure-modules-example](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example)
-and [terragrunt-infrastructure-live-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example)
-repos for fully-working sample code that demonstrates this new folder structure.
-
-
-
-
-#### How to use remote configurations
-
-Once you've set up your `live` and `modules` repositories, to deploy infrastructure, you run `terragrunt` commands in 
-the `live` repository. For example, to deploy the `app` module in qa, you would do the following:
+You can now deploy the modules in your `live` repo. For example, to deploy the `app` module in stage, you would do the 
+following:
 
 ```
-cd live/qa/app
+cd live/stage/app
 terragrunt apply
 ```
 
-When Terragrunt finds the `terraform` block with a `source` parameter in `live/qa/app/terragrunt.hcl` file, it will:
+When Terragrunt finds the `terraform` block with a `source` parameter in `live/stage/app/terragrunt.hcl` file, it will:
 
 1. Download the configurations specified via the `source` parameter into the `--terragrunt-download-dir` folder (by
    default `.terragrunt-cache` in the working directory, which we recommend adding to `.gitignore`). This downloading
@@ -294,13 +283,23 @@ When Terragrunt finds the `terraform` block with a `source` parameter in `live/q
 
 1. Execute whatever Terraform command you specified in that temporary folder.
 
+1. Pass any variables defined in the `inputs = { ... }` block as environment variables (prefixed with `TF_VAR_` to your 
+   Terraform code. Notice how the `inputs` block in `stage/app/terragrunt.hcl` deploys fewer and smaller instances than
+   prod.  
+
+
+Check out the [terragrunt-infrastructure-modules-example](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example)
+and [terragrunt-infrastructure-live-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example)
+repos for fully-working sample code that demonstrates this new folder structure.
+
+
 
 #### Achieve DRY Terraform code and immutable infrastructure
 
 With this new approach, copy/paste between environments is minimized. The `terragrunt.hcl` files contain solely the 
-variables that are different between environments. To create a new environment, you copy an old one and update just the
-environment-specific values in the `terragrunt.hcl` files, which is about as close to the "essential complexity" of the
-problem as you can get.
+`source` URL of the module to deploy and the `inputs` to set for that module in the current environment. To create a 
+new environment, you copy an old one and update just the environment-specific `inputs` in the `terragrunt.hcl` files, 
+which is about as close to the "essential complexity" of the problem as you can get.
 
 Just as importantly, since the Terraform module code is now defined in a single repo, you can version it (e.g., using Git
 tags and referencing them using the `ref` parameter in the `source` URL, as in the `stage/app/terragrunt.hcl` and
@@ -1144,6 +1143,7 @@ at all.
 
 This section contains detailed documentation for the following aspects of Terragrunt:
 
+1. [Inputs](#inputs)
 1. [AWS credentials](#aws-credentials)
 1. [AWS IAM policies](#aws-iam-policies)
 1. [Built-in Functions](#built-in-functions)
@@ -1155,6 +1155,36 @@ This section contains detailed documentation for the following aspects of Terrag
 1. [Clearing the Terragrunt cache](#clearing-the-terragrunt-cache)
 1. [Developing Terragrunt](#developing-terragrunt)
 1. [License](#license)
+
+
+### Inputs
+
+You can set values for your module's input parameters by specifying an `inputs` block in `terragrunt.hcl`:
+
+```hcl
+inputs = {
+  instance_type  = "t2.micro"
+  instance_count = 10
+  
+  tags = {
+    Name = "example-app"
+  }
+}
+```
+
+Whenever you run a Terragrunt command, Terragrunt will set any inputs you pass in as environment variables. For example,
+with the `terragrunt.hcl` file above, running `terragrunt apply` is roughly equivalent to:
+
+```
+$ terragrunt apply
+
+# Roughly equivalent to:
+
+TF_VAR_instance_type="t2.micro" \
+TF_VAR_instance_count=10 \
+TF_VAR_tags='{"Name":"example-app"}' \
+terraform apply
+```
 
 
 ### AWS credentials
