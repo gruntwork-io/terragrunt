@@ -1,4 +1,0 @@
-# Intentionally empty
-terragrunt = {
-
-}
