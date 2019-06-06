@@ -13,7 +13,7 @@ terraform {
 
   after_hook "backend" {
     commands = ["init-from-module"]
-    execute  = ["cp", "${get_tfvars_dir()}/../backend.tf", "."]
+    execute  = ["cp", "${get_terragrunt_dir()}/../backend.tf", "."]
   }
 
   # SHOULD execute.

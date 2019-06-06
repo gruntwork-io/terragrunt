@@ -358,7 +358,7 @@ In particular:
 
 * **Terragrunt configuration**: When using file paths directly in your Terragrunt configuration (`terragrunt.hcl`),
   such as in an `extra_arguments` block, you can't use hard-coded absolute file paths, or it won't work on your
-  teammates' computers. Therefore, you should utilize the Terragrunt built-in function `get_tfvars_dir()` to use
+  teammates' computers. Therefore, you should utilize the Terragrunt built-in function `get_terragrunt_dir()` to use
   a relative file path:
 
     ```hcl
@@ -374,16 +374,16 @@ In particular:
           "refresh"
         ]
 
-        # With the get_tfvars_dir() function, you can use relative paths!
+        # With the get_terragrunt_dir() function, you can use relative paths!
         arguments = [
-          "-var-file=${get_tfvars_dir()}/../common.tfvars",
+          "-var-file=${get_terragrunt_dir()}/../common.tfvars",
           "-var-file=example.tfvars"
         ]
       }
     }
     ```
 
-  See the [get_tfvars_dir()](#get_tfvars_dir) documentation for more details.
+  See the [get_terragrunt_dir()](#get_terragrunt_dir) documentation for more details.
 
 
 #### Using Terragrunt with private Git repos
@@ -808,20 +808,20 @@ terraform {
     ]
 
     required_var_files = [
-      "${get_parent_tfvars_dir()}/terraform.tfvars"
+      "${get_parent_terragrunt_dir()}/terraform.tfvars"
     ]
 
     optional_var_files = [
-      "${get_parent_tfvars_dir()}/${get_env("TF_VAR_env", "dev")}.tfvars",
-      "${get_parent_tfvars_dir()}/${get_env("TF_VAR_region", "us-east-1")}.tfvars",
-      "${get_tfvars_dir()}/${get_env("TF_VAR_env", "dev")}.tfvars",
-      "${get_tfvars_dir()}/${get_env("TF_VAR_region", "us-east-1")}.tfvars"
+      "${get_parent_terragrunt_dir()}/${get_env("TF_VAR_env", "dev")}.tfvars",
+      "${get_parent_terragrunt_dir()}/${get_env("TF_VAR_region", "us-east-1")}.tfvars",
+      "${get_terragrunt_dir()}/${get_env("TF_VAR_env", "dev")}.tfvars",
+      "${get_terragrunt_dir()}/${get_env("TF_VAR_region", "us-east-1")}.tfvars"
     ]
   }
 ```
 
-See the [get_tfvars_dir()](#get_tfvars_dir) and [get_parent_tfvars_dir()](#get_parent_tfvars_dir) documentation for 
-more details.
+See the [get_terragrunt_dir()](#get_terragrunt_dir) and [get_parent_terragrunt_dir()](#get_parent_terragrunt_dir) documentation 
+for more details.
 
 With the configuration above, when you run `terragrunt apply-all`, Terragrunt will call Terraform as follows:
 
@@ -1291,8 +1291,8 @@ currently available are:
 * [path_relative_to_include()](#path_relative_to_include)
 * [path_relative_from_include()](#path_relative_from_include)
 * [get_env(NAME, DEFAULT)](#get_env)
-* [get_tfvars_dir()](#get_tfvars_dir)
-* [get_parent_tfvars_dir()](#get_parent_tfvars_dir)
+* [get_terragrunt_dir()](#get_terragrunt_dir)
+* [get_parent_terragrunt_dir()](#get_parent_terragrunt_dir)
 * [get_terraform_commands_that_need_vars()](#get_terraform_commands_that_need_vars)
 * [get_terraform_commands_that_need_input()](#get_terraform_commands_that_need_input)
 * [get_terraform_commands_that_need_locking()](#get_terraform_commands_that_need_locking)
@@ -1431,7 +1431,7 @@ Another use case would be to add extra argument to include the `common.tfvars` f
       ]
 
       arguments = [
-        "-var-file=${get_tfvars_dir()}/${path_relative_from_include()}/common.tfvars",
+        "-var-file=${get_terragrunt_dir()}/${path_relative_from_include()}/common.tfvars",
       ]
     }
   }
@@ -1460,9 +1460,9 @@ prefix `TF_VAR_`, so one way to share a variable named `foo` between Terraform a
 as the environment variable `TF_VAR_foo` and to read that value in using this `get_env()` built-in function.
 
 
-#### get_tfvars_dir
+#### get_terragrunt_dir
 
-`get_tfvars_dir()` returns the directory where the Terragrunt configuration file (by default `terragrunt.hcl`) lives.
+`get_terragrunt_dir()` returns the directory where the Terragrunt configuration file (by default `terragrunt.hcl`) lives.
 This is useful when you need to use relative paths with [remote Terraform
 configurations](#remote-terraform-configurations) and you want those paths relative to your Terragrunt configuration
 file and not relative to the temporary directory where Terragrunt downloads the code.
@@ -1504,7 +1504,7 @@ block that is trying to allow the `frontend-app` to read some shared variables f
 Unfortunately, the relative path (`../common.tfvars`) won't work, as it will be relative to the temporary folder!
 Moreover, you can't use an absolute path, or the code won't work on any of your teammates' computers.
 
-To make the relative path work, you need to use `get_tfvars_dir()` to combine the path with the folder where
+To make the relative path work, you need to use `get_terragrunt_dir()` to combine the path with the folder where
 the `terragrunt.hcl` file lives:
 
 ```hcl
@@ -1520,9 +1520,9 @@ terraform {
       "refresh"
     ]
 
-    # With the get_tfvars_dir() function, you can use relative paths!
+    # With the get_terragrunt_dir() function, you can use relative paths!
     arguments = [
-      "-var-file=${get_tfvars_dir()}/../common.tfvars"
+      "-var-file=${get_terragrunt_dir()}/../common.tfvars"
     ]
   }
 }
@@ -1532,15 +1532,15 @@ For the example above, this path will resolve to `/terraform-code/frontend-app/.
 what you want.
 
 
-#### get_parent_tfvars_dir
+#### get_parent_terragrunt_dir
 
-`get_parent_tfvars_dir()` returns the absolute directory where the Terragrunt parent configuration file (by default 
+`get_parent_terragrunt_dir()` returns the absolute directory where the Terragrunt parent configuration file (by default 
 `terragrunt.hcl`) lives. This is useful when you need to use relative paths with [remote Terraform 
 configurations](#remote-terraform-configurations) and you want those paths relative to your parent Terragrunt 
 configuration file and not relative to the temporary directory where Terragrunt downloads the code.
 
-This function is very similar to [get_tfvars_dir()](#get_tfvars_dir) except it returns the root instead of the leaf of 
-your terragrunt configuration folder.
+This function is very similar to [get_terragrunt_dir()](#get_terragrunt_dir) except it returns the root instead of the 
+leaf of your terragrunt configuration folder.
 
 ```
 /terraform-code
@@ -1567,7 +1567,7 @@ terraform {
     ]
 
     arguments = [
-      "-var-file=${get_parent_tfvars_dir()}/common.tfvars"
+      "-var-file=${get_parent_terragrunt_dir()}/common.tfvars"
     ]
   }
 }
@@ -1714,7 +1714,7 @@ terraform {
 
   after_hook "init_from_module" {
     commands = ["init-from-module"]
-    execute  = ["cp", "${get_parent_tfvars_dir()}/foo.tf", "."]
+    execute  = ["cp", "${get_parent_terragrunt_dir()}/foo.tf", "."]
   }
 }
 ```

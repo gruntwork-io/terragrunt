@@ -432,27 +432,27 @@ func toStringSlice(t *testing.T, value interface{}) []string {
 	return out
 }
 
-func TestGetTfVarsDirAbsPath(t *testing.T) {
+func TestGetTerragruntDirAbsPath(t *testing.T) {
 	t.Parallel()
 	workingDir, err := os.Getwd()
 	assert.Nil(t, err, "Could not get current working dir: %v", err)
-	testGetTfVarsDir(t, "/foo/bar/terragrunt.hcl", fmt.Sprintf("%s/foo/bar", filepath.VolumeName(workingDir)))
+	testGetTerragruntDir(t, "/foo/bar/terragrunt.hcl", fmt.Sprintf("%s/foo/bar", filepath.VolumeName(workingDir)))
 }
 
-func TestGetTfVarsDirRelPath(t *testing.T) {
+func TestGetTerragruntDirRelPath(t *testing.T) {
 	t.Parallel()
 	workingDir, err := os.Getwd()
 	assert.Nil(t, err, "Could not get current working dir: %v", err)
 	workingDir = filepath.ToSlash(workingDir)
 
-	testGetTfVarsDir(t, "foo/bar/terragrunt.hcl", fmt.Sprintf("%s/foo/bar", workingDir))
+	testGetTerragruntDir(t, "foo/bar/terragrunt.hcl", fmt.Sprintf("%s/foo/bar", workingDir))
 }
 
-func testGetTfVarsDir(t *testing.T, configPath string, expectedPath string) {
+func testGetTerragruntDir(t *testing.T, configPath string, expectedPath string) {
 	terragruntOptions, err := options.NewTerragruntOptionsForTest(configPath)
 	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
-	actualPath, err := getTfVarsDir(nil, terragruntOptions)
+	actualPath, err := getTerragruntDir(nil, terragruntOptions)
 
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, expectedPath, actualPath)
@@ -478,7 +478,7 @@ func terragruntOptionsForTestWithEnv(t *testing.T, configPath string, env map[st
 	return opts
 }
 
-func TestGetParentTfVarsDir(t *testing.T) {
+func TestGetParentTerragruntDir(t *testing.T) {
 	t.Parallel()
 
 	currentDir, err := os.Getwd()
@@ -528,7 +528,7 @@ func TestGetParentTfVarsDir(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		actualPath, actualErr := getParentTfVarsDir(testCase.include, testCase.terragruntOptions)
+		actualPath, actualErr := getParentTerragruntDir(testCase.include, testCase.terragruntOptions)
 		assert.Nil(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
 		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
 	}

@@ -70,8 +70,8 @@ func CreateTerragruntEvalContext(include *IncludeConfig, terragruntOptions *opti
 			"path_relative_from_include":                   wrapVoidToStringAsFuncImpl(pathRelativeFromInclude, include, terragruntOptions),
 			"get_env":                                      wrapStringSliceToStringAsFuncImpl(getEnvironmentVariable, include, terragruntOptions),
 			"run_cmd":                                      wrapStringSliceToStringAsFuncImpl(runCommand, include, terragruntOptions),
-			"get_tfvars_dir":                               wrapVoidToStringAsFuncImpl(getTfVarsDir, include, terragruntOptions),
-			"get_parent_tfvars_dir":                        wrapVoidToStringAsFuncImpl(getParentTfVarsDir, include, terragruntOptions),
+			"get_terragrunt_dir":                           wrapVoidToStringAsFuncImpl(getTerragruntDir, include, terragruntOptions),
+			"get_parent_terragrunt_dir":                    wrapVoidToStringAsFuncImpl(getParentTerragruntDir, include, terragruntOptions),
 			"get_aws_account_id":                           wrapVoidToStringAsFuncImpl(getAWSAccountID, include, terragruntOptions),
 			"get_terraform_commands_that_need_vars":        wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_VARS),
 			"get_terraform_commands_that_need_locking":     wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_LOCKING),
@@ -82,7 +82,7 @@ func CreateTerragruntEvalContext(include *IncludeConfig, terragruntOptions *opti
 }
 
 // Return the directory where the Terragrunt configuration file lives
-func getTfVarsDir(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+func getTerragruntDir(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	terragruntConfigFileAbsPath, err := filepath.Abs(terragruntOptions.TerragruntConfigPath)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
@@ -92,7 +92,7 @@ func getTfVarsDir(include *IncludeConfig, terragruntOptions *options.TerragruntO
 }
 
 // Return the parent directory where the Terragrunt configuration file lives
-func getParentTfVarsDir(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+func getParentTerragruntDir(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	parentPath, err := pathRelativeFromInclude(include, terragruntOptions)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
