@@ -148,7 +148,8 @@ AUTHOR(S):
 var MODULE_REGEX = regexp.MustCompile(`module[[:blank:]]+".+"`)
 
 // This uses the constraint syntax from https://github.com/hashicorp/go-version
-const DEFAULT_TERRAFORM_VERSION_CONSTRAINT = ">= v0.9.3"
+// This version of Terragrunt only works with Terraform 0.12.0 and above
+const DEFAULT_TERRAFORM_VERSION_CONSTRAINT = ">= v0.12.0"
 
 const TERRAFORM_EXTENSION_GLOB = "*.tf"
 
