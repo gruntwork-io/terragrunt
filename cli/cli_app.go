@@ -383,6 +383,10 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 		}
 	}
 
+	if err := setTerragruntInputsAsEnvVars(terragruntOptions, terragruntConfig); err != nil {
+		return err
+	}
+
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) == CMD_INIT {
 		if err := prepareInitCommand(terragruntOptions, terragruntConfig, allowSourceDownload); err != nil {
 			return err
@@ -402,6 +406,21 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 	postHookErrors := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, beforeHookErrors, terraformError)
 
 	return errors.NewMultiError(beforeHookErrors, terraformError, postHookErrors)
+}
+
+// The Terragrunt configuration can contain a set of inputs to pass to Terraform as environment variables. This method
+// sets these environment variables in the given terragruntOptions.
+func setTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+	asEnvVars, err := toTerraformEnvVars(terragruntConfig.Inputs)
+	if err != nil {
+		return err
+	}
+
+	for key, value := range asEnvVars {
+		terragruntOptions.Env[key] = value
+	}
+
+	return nil
 }
 
 var moduleNotFoundErr = regexp.MustCompile(`Error loading modules: module .+?: not found, may need to run 'terraform init'`)

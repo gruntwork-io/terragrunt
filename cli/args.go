@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -288,6 +289,25 @@ func parseMultiStringArg(args []string, argName string, defaultValue []string) (
 	}
 
 	return stringArgs, nil
+}
+
+// Convert the given variables to a map of environment variables that will expose those variables to Terraform. The
+// keys will be of the format TF_VAR_xxx and the values will be converted to JSON, which Terraform knows how to read
+// natively.
+func toTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) {
+	out := map[string]string{}
+
+	for varName, varValue := range vars {
+		envVarName := fmt.Sprintf("TF_VAR_%s", varName)
+		envVarValue, err := json.Marshal(varValue)
+		if err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
+
+		out[envVarName] = string(envVarValue)
+	}
+
+	return out, nil
 }
 
 // Custom error types

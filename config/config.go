@@ -337,6 +337,10 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 		includedConfig.IamRole = config.IamRole
 	}
 
+	if config.Inputs != nil {
+		includedConfig.Inputs = mergeInputs(config.Inputs, includedConfig.Inputs)
+	}
+
 	return includedConfig, nil
 }
 
@@ -432,6 +436,20 @@ func parseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *optio
 	}
 
 	return ParseConfigFile(includePath, terragruntOptions, includedConfig)
+}
+
+func mergeInputs(childInputs map[string]interface{}, parentInputs map[string]interface{}) map[string]interface{} {
+	out := map[string]interface{}{}
+
+	for key, value := range parentInputs {
+		out[key] = value
+	}
+
+	for key, value := range childInputs {
+		out[key] = value
+	}
+
+	return out
 }
 
 // Convert the contents of a fully resolved Terragrunt configuration to a TerragruntConfig object
