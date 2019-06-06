@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -16,12 +17,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-var INTERPOLATION_PARAMETERS = `(\s*"[^"]*?"\s*,?\s*)*`
-var INTERPOLATION_SYNTAX_REGEX = regexp.MustCompile(fmt.Sprintf(`\$\{\s*\w+\(%s\)\s*\}`, INTERPOLATION_PARAMETERS))
+var INTERPOLATION_QUOTED_STRING = `"(?:\\.|[^\\"])*?"`
+var INTERPOLATION_QUOTED_REGEX = regexp.MustCompile(INTERPOLATION_QUOTED_STRING)
+var INTERPOLATION_PARAMETERS = fmt.Sprintf(`\s*(?:%s(?:\s*,\s*%s)*)?\s*`, INTERPOLATION_QUOTED_STRING, INTERPOLATION_QUOTED_STRING)
+var INTERPOLATION_PARAMETERS_REGEX = regexp.MustCompile(fmt.Sprintf(`^%s$`, INTERPOLATION_PARAMETERS))
+var INTERPOLATION_SYNTAX_REGEX = regexp.MustCompile(fmt.Sprintf(`\$\{\s*(\w+)\((%s)\)\s*\}`, INTERPOLATION_PARAMETERS))
 var INTERPOLATION_SYNTAX_REGEX_SINGLE = regexp.MustCompile(fmt.Sprintf(`"(%s)"`, INTERPOLATION_SYNTAX_REGEX))
 var INTERPOLATION_SYNTAX_REGEX_REMAINING = regexp.MustCompile(`\$\{.*?\}`)
-var HELPER_FUNCTION_SYNTAX_REGEX = regexp.MustCompile(`^\$\{\s*(.*?)\((.*?)\)\s*\}$`)
-var HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX = regexp.MustCompile(`^\s*"(?P<env>[^=]+?)"\s*\,\s*"(?P<default>.*?)"\s*$`)
 
 // List of terraform commands that accept -lock-timeout
 var TERRAFORM_COMMANDS_NEED_LOCKING = []string{
@@ -168,7 +170,7 @@ func processMultipleInterpolationsInString(terragruntConfigString string, includ
 // Given a string value from a Terragrunt configuration, parse the string, resolve any calls to helper functions using
 // Resolve a single call to an interpolation function of the format ${some_function()} in a Terragrunt configuration
 func resolveTerragruntInterpolation(str string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (interface{}, error) {
-	matches := HELPER_FUNCTION_SYNTAX_REGEX.FindStringSubmatch(str)
+	matches := INTERPOLATION_SYNTAX_REGEX.FindStringSubmatch(str)
 	if len(matches) == 3 {
 		return executeTerragruntHelperFunction(matches[1], matches[2], include, terragruntOptions)
 	} else {
@@ -204,20 +206,14 @@ func getParentTfVarsDir(include *IncludeConfig, terragruntOptions *options.Terra
 
 func parseGetEnvParameters(parameters string) (EnvVar, error) {
 	envVariable := EnvVar{}
-	matches := HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX.FindStringSubmatch(parameters)
-	if len(matches) < 2 {
+	parsed := parseParamList(parameters)
+
+	if len(parsed) != 2 || len(parsed[0]) == 0 {
 		return envVariable, errors.WithStackTrace(InvalidGetEnvParams(parameters))
 	}
 
-	for index, name := range HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX.SubexpNames() {
-		if name == "env" {
-			envVariable.Name = strings.TrimSpace(matches[index])
-		}
-		if name == "default" {
-			envVariable.DefaultValue = strings.TrimSpace(matches[index])
-		}
-	}
-
+	envVariable.Name = parsed[0]
+	envVariable.DefaultValue = parsed[1]
 	return envVariable, nil
 }
 
@@ -305,10 +301,6 @@ func findInParentFolders(parameters string, terragruntOptions *options.Terragrun
 	return "", errors.WithStackTrace(ParentFileNotFound{Path: terragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", terragruntOptions.MaxFoldersToCheck)})
 }
 
-var oneQuotedParamRegex = regexp.MustCompile(`^"([^"]*?)"$`)
-var twoQuotedParamsRegex = regexp.MustCompile(`^"([^"]*?)"\s*,\s*"([^"]*?)"$`)
-var listQuotedParamRegex = regexp.MustCompile(`^"([^"]*?)"\s*,\s*(.*)$`)
-
 // Parse two optional parameters, wrapped in quotes, passed to a function, and return the parameter values and how many
 // of the parameters were actually set. For example, if you have a function foo(bar, baz), where bar and baz are
 // optional string parameters, this function will behave as follows:
@@ -318,22 +310,43 @@ var listQuotedParamRegex = regexp.MustCompile(`^"([^"]*?)"\s*,\s*(.*)$`)
 // foo("a", "b") -> return "a", "b", 2, nil
 //
 func parseOptionalQuotedParam(parameters string) (string, string, int, error) {
+	parsed, err := splitParamList(parameters)
+
+	if err != nil {
+		return "", "", 0, err
+	}
+
+	if len(parsed) == 0 {
+		return "", "", 0, nil
+	} else if len(parsed) == 1 {
+		return parsed[0], "", 1, nil
+	} else if len(parsed) == 2 {
+		return parsed[0], parsed[1], 2, nil
+	}
+	return "", "", 0, errors.WithStackTrace(InvalidStringParams(parameters))
+}
+
+func splitParamList(parameters string) ([]string, error) {
 	trimmedParameters := strings.TrimSpace(parameters)
 	if trimmedParameters == "" {
-		return "", "", 0, nil
+		return []string{}, nil
 	}
 
-	matches := oneQuotedParamRegex.FindStringSubmatch(trimmedParameters)
-	if len(matches) == 2 {
-		return matches[1], "", 1, nil
+	if !INTERPOLATION_PARAMETERS_REGEX.MatchString(trimmedParameters) {
+		return []string{}, errors.WithStackTrace(InvalidStringParams(parameters))
 	}
 
-	matches = twoQuotedParamsRegex.FindStringSubmatch(trimmedParameters)
-	if len(matches) == 3 {
-		return matches[1], matches[2], 2, nil
+	matches := INTERPOLATION_QUOTED_REGEX.FindAllString(trimmedParameters, -1)
+	var trimmedArgs []string
+	for _, match := range matches {
+		v, err := strconv.Unquote(match)
+		if err != nil {
+			return []string{}, errors.WithStackTrace(InvalidStringParams(parameters))
+		}
+		trimmedArgs = append(trimmedArgs, strings.TrimSpace(v))
 	}
 
-	return "", "", 0, errors.WithStackTrace(InvalidStringParams(parameters))
+	return trimmedArgs, nil
 }
 
 // parseParamList parses a string of comma separated parameters wrapped in quote and
@@ -342,36 +355,11 @@ func parseOptionalQuotedParam(parameters string) (string, string, int, error) {
 // foo("a") -> return []string{"foo"}, nil
 // foo("a", "b", "c", "d") -> return []string{"a", "b", "c", "d"}, nil
 func parseParamList(parameters string) []string {
-	trimmedParameters := strings.TrimSpace(parameters)
-	if trimmedParameters == "" {
+	parsed, err := splitParamList(parameters)
+	if err != nil {
 		return []string{}
 	}
-
-	matches := oneQuotedParamRegex.FindStringSubmatch(trimmedParameters)
-	if len(matches) > 0 {
-		return matches[1:]
-	}
-
-	matches = listQuotedParamRegex.FindStringSubmatch(trimmedParameters)
-	if len(matches) != 3 {
-		return []string{}
-	}
-	var trimmedArgs []string
-	trimmedArgs = append(trimmedArgs, matches[1])
-
-	args := matches[2]
-	args = strings.Replace(args, `"`, "", -1)
-
-	parsedArgs := strings.Split(args, ",")
-
-	for _, arg := range parsedArgs {
-		trimmedArg := strings.TrimSpace(arg)
-		if trimmedArg != "" {
-			trimmedArgs = append(trimmedArgs, trimmedArg)
-		}
-	}
-
-	return trimmedArgs
+	return parsed
 }
 
 // Return the relative path between the included Terragrunt configuration file and the current Terragrunt configuration
