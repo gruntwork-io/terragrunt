@@ -138,9 +138,15 @@ func TestRunCommand(t *testing.T) {
 		expectedErr       error
 	}{
 		{
-			`"/bin/bash", "-c", ""echo -n foo""`,
+			`"/bin/bash", "-c", "echo -n foo"`,
 			terragruntOptionsForTest(t, homeDir),
 			"foo",
+			nil,
+		},
+		{
+			`"/bin/bash", "-c", "FOO=\"a test\"; echo -n $FOO"`,
+			terragruntOptionsForTest(t, homeDir),
+			`a test`,
 			nil,
 		},
 		{
@@ -535,6 +541,13 @@ func TestResolveTerragruntConfigString(t *testing.T) {
 			"",
 			InvalidInterpolationSyntax("${unknown}"),
 		},
+		{
+			`foo/${run_cmd("/bin/bash", "-c", "A=\"1 2\"; B=3; echo -n $A,$B")}/bar`,
+			nil,
+			terragruntOptionsForTest(t, "/"+DefaultTerragruntConfigPath),
+			"foo/1 2,3/bar",
+			nil,
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -624,8 +637,8 @@ TERRAGRUNT_HIT","")}/bar`,
 			nil,
 			terragruntOptionsForTestWithEnv(t, "/root/child/"+DefaultTerragruntConfigPath, map[string]string{"TEST_ENV_TERRAGRUNT_OTHER": "SOMETHING"}),
 			"",
-			InvalidInterpolationSyntax(`${get_env("TEST_ENV_
-TERRAGRUNT_HIT","")}`),
+			InvalidGetEnvParams(`"TEST_ENV_
+TERRAGRUNT_HIT",""`),
 		},
 		{
 			`foo/${get_env("TEST_ENV_TERRAGRUNT_HIT","DEFAULT")}/bar`,
