@@ -17,8 +17,8 @@ func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
 
 	config := `
 remote_state {
-	backend = "s3"
-	config = {}
+  backend = "s3"
+  config  = {}
 }
 `
 
