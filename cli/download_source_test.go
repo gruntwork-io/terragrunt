@@ -232,7 +232,7 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 	assert.Nil(t, err, "For terraform source %v: %v", terraformSource, err)
 
 	err = downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions, terragruntConfig)
-	assert.Nil(t, err, "For terraform source %v: %v", terraformSource, err)
+	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
 
 	expectedFilePath := util.JoinPath(downloadDir, "main.tf")
 	if assert.True(t, util.FileExists(expectedFilePath), "For terraform source %v", terraformSource) {

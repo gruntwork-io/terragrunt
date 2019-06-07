@@ -641,15 +641,17 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformS
 			}
 		}
 
-		// terraform init -from-module will only work if the destination folder is empty, so we have to
+		// terraform init -from-module will only work if the destination folder is empty, so we have to delete any
+		// existing folder
 		if util.FileExists(terraformSource.DownloadDir) {
 			terragruntOptions.Logger.Printf("Download dir %s already exists, so deleting it before downloading into it.", terraformSource.DownloadDir)
 			if err := os.RemoveAll(terraformSource.DownloadDir); err != nil {
 				return nil, errors.WithStackTrace(err)
 			}
-			if err := os.MkdirAll(terraformSource.DownloadDir, 0700); err != nil {
-				return nil, errors.WithStackTrace(err)
-			}
+		}
+
+		if err := os.MkdirAll(terraformSource.DownloadDir, 0700); err != nil {
+			return nil, errors.WithStackTrace(err)
 		}
 
 		// We will run init separately to download modules, plugins, backend state, etc, so don't run it at this point
