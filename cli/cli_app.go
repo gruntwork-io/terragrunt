@@ -431,6 +431,7 @@ func setTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, 
 }
 
 var moduleNotFoundErr = regexp.MustCompile(`Error loading modules: module .+?: not found, may need to run 'terraform init'`)
+var moduleNotInstalledErr = regexp.MustCompile(`Error: Module not installed`)
 
 func runTerraformCommandIfNoErrors(possibleErrors error, terragruntOptions *options.TerragruntOptions) error {
 	if possibleErrors != nil {
@@ -438,8 +439,8 @@ func runTerraformCommandIfNoErrors(possibleErrors error, terragruntOptions *opti
 		return nil
 	}
 
-	// Workaround for https://github.com/hashicorp/terraform/issues/18460. Calling 'terraform init -get=false '
-	// sometimes results in Terraform trying to download/validate modules anyway, so we need to ignore that error.
+	// Workaround for https://github.com/hashicorp/terraform/issues/18460. Calling 'terraform init -get=false'
+	// sometimes results in Terraform trying to download/validate modules anyway, so we need to ignore those error.
 	if terragruntOptions.TerraformCommand == CMD_INIT_FROM_MODULE {
 		// Redirect all log output to stderr to make sure we don't pollute stdout with this extra call to 'init'
 		terragruntOptionsCopy := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
@@ -448,7 +449,7 @@ func runTerraformCommandIfNoErrors(possibleErrors error, terragruntOptions *opti
 		out, err := shell.RunTerraformCommandWithOutput(terragruntOptionsCopy, terragruntOptionsCopy.TerraformCliArgs...)
 
 		// If we got an error and the error output included this error message, ignore the error and keep going
-		if err != nil && (len(moduleNotFoundErr.FindStringSubmatch(out.Stderr)) > 0 || strings.Contains(out.Stderr, "Missing required providers.")) {
+		if err != nil && (len(moduleNotFoundErr.FindStringSubmatch(out.Stderr)) > 0 || len(moduleNotInstalledErr.FindStringSubmatch(out.Stderr)) > 0 || strings.Contains(out.Stderr, "Missing required providers.")) {
 			terragruntOptions.Logger.Println("Ignoring error from call to init, as this is a known Terraform bug: https://github.com/hashicorp/terraform/issues/18460")
 			return nil
 		}
