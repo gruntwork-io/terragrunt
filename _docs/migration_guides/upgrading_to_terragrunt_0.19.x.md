@@ -178,8 +178,10 @@ terraform {
   }
 }
 
-# This now works with Terragrunt 0.19.x and newer!
-foo = get_env("FOO", "default")
+inputs = {
+  # This now works with Terragrunt 0.19.x and newer!
+  foo = get_env("FOO", "default")
+}
 ```
 
 ### Check attributes vs blocks usage
