@@ -499,6 +499,8 @@ func TestGetTerragruntSourceForModuleHappyPath(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
+		// The following is necessary to make sure testCase's values don't
+		// get updated due to concurrency within the scope of t.Run(..) below
 		testCase := testCase
 		t.Run(fmt.Sprintf("%v-%s", *testCase.config.Terraform.Source, testCase.opts.Source), func(t *testing.T) {
 			actual, err := getTerragruntSourceForModule("mock-for-test", testCase.config, testCase.opts)

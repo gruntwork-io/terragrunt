@@ -142,6 +142,8 @@ func TestForcePathStyleClientSession(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
+		// The following is necessary to make sure testCase's values don't
+		// get updated due to concurrency within the scope of t.Run(..) below
 		testCase := testCase
 
 		t.Run(testCase.name, func(t *testing.T) {
@@ -181,6 +183,8 @@ func TestGetAwsSessionConfig(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
+		// The following is necessary to make sure testCase's values don't
+		// get updated due to concurrency within the scope of t.Run(..) below
 		testCase := testCase
 
 		t.Run(testCase.name, func(t *testing.T) {
