@@ -11,7 +11,7 @@ Terraform 0.12 was released in May, 2019, and it included a few major changes:
    
 Before version 0.19.0, Terragrunt had you define its configuration in a `terragrunt = { ... }` variable in 
 a `terraform.tfvars` file, but due to item (1) this no longer works with Terraform 0.12 and newer. That means we had to 
-move to a new file format. This requires a migration, which is unfortunate, but as a nice benefit, item (2) allows us 
+move to a new file format. This requires a migration, which is unfortunate, but as a nice benefit, item (2)
 gives us a nicer syntax and new functionality!
 
 

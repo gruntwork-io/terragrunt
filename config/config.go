@@ -271,7 +271,7 @@ func parseConfigStringAsTerragruntConfigFile(configString string, configPath str
 	return &terragruntConfig, nil
 }
 
-// parseHcl uses the HCL2 parser to parse the given string into the strict specified by out.
+// parseHcl uses the HCL2 parser to parse the given string into the struct specified by out.
 func parseHcl(hcl string, filename string, out interface{}, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (err error) {
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
 	// those panics here and convert them to normal errors
