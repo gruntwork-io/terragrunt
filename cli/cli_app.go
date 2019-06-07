@@ -18,7 +18,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/hashicorp/go-version"
 	"github.com/mattn/go-zglob"
 	"github.com/urfave/cli"
 )
@@ -634,11 +633,21 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformS
 	initOptions.Writer = initOptions.ErrWriter
 
 	// Only add the arguments to download source if terraformSource was specified
-	downloadSource := terraformSource != nil
-	if downloadSource {
+	if terraformSource != nil {
 		initOptions.WorkingDir = terraformSource.WorkingDir
-		if !util.FileExists(terraformSource.WorkingDir) {
+		if util.FileExists(terraformSource.WorkingDir) {
 			if err := os.MkdirAll(terraformSource.WorkingDir, 0700); err != nil {
+				return nil, errors.WithStackTrace(err)
+			}
+		}
+
+		// terraform init -from-module will only work if the destination folder is empty, so we have to
+		if util.FileExists(terraformSource.DownloadDir) {
+			terragruntOptions.Logger.Printf("Download dir %s already exists, so deleting it before downloading into it.", terraformSource.DownloadDir)
+			if err := os.RemoveAll(terraformSource.DownloadDir); err != nil {
+				return nil, errors.WithStackTrace(err)
+			}
+			if err := os.MkdirAll(terraformSource.DownloadDir, 0700); err != nil {
 				return nil, errors.WithStackTrace(err)
 			}
 		}
@@ -651,18 +660,8 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformS
 		// Set the TerraformCommand attribute to match hooks on `init-from-module`
 		initOptions.TerraformCommand = CMD_INIT_FROM_MODULE
 
-		v0_10_0, err := version.NewVersion("v0.10.0")
-		if err != nil {
-			return nil, err
-		}
-
-		if terragruntOptions.TerraformVersion.LessThan(v0_10_0) {
-			// Terraform versions < 0.10.0 specified the module source as an argument (rather than the -from-module option)
-			initOptions.AppendTerraformCliArgs(terraformSource.CanonicalSourceURL.String(), "-no-color")
-		} else {
-			// Terraform versions >= 0.10.0 specify the module source using the -from-module option
-			initOptions.AppendTerraformCliArgs("-from-module="+terraformSource.CanonicalSourceURL.String(), "-no-color")
-		}
+		// Use the -from-module parameter to tell Terraform to download the module for us
+		initOptions.AppendTerraformCliArgs("-from-module="+terraformSource.CanonicalSourceURL.String(), "-no-color")
 
 		initOptions.AppendTerraformCliArgs(terraformSource.DownloadDir)
 	}
