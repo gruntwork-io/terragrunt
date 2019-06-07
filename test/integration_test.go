@@ -1056,6 +1056,7 @@ func TestInputsPassedThroughCorrectly(t *testing.T) {
 	assert.Equal(t, outputs["number"].Value, 42.0)
 	assert.Equal(t, outputs["object"].Value, map[string]interface{}{"list": []interface{}{1.0, 2.0, 3.0}, "map": map[string]interface{}{"foo": "bar"}, "num": 42.0, "str": "string"})
 	assert.Equal(t, outputs["string"].Value, "string")
+	assert.Equal(t, outputs["from_env"].Value, "default")
 }
 
 type TerraformOutput struct {

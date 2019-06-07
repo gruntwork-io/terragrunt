@@ -82,3 +82,11 @@ variable "object" {
 output "object" {
   value = var.object
 }
+
+variable "from_env" {
+  type = string
+}
+
+output "from_env" {
+  value = var.from_env
+}

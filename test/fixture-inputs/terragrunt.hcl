@@ -30,4 +30,6 @@ inputs = {
       foo = "bar"
     }
   }
+
+  from_env = get_env("FROM_ENV", "default")
 }
