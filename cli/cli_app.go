@@ -417,6 +417,10 @@ func setTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, 
 		return err
 	}
 
+	if terragruntOptions.Env == nil {
+		terragruntOptions.Env = map[string]string{}
+	}
+
 	for key, value := range asEnvVars {
 		// Don't override any env vars the user has already set
 		if _, envVarAlreadySet := terragruntOptions.Env[key]; !envVarAlreadySet {
