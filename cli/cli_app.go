@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -430,31 +429,10 @@ func setTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, 
 	return nil
 }
 
-var moduleNotFoundErr = regexp.MustCompile(`Error loading modules: module .+?: not found, may need to run 'terraform init'`)
-var moduleNotInstalledErr = regexp.MustCompile(`Error: Module not installed`)
-
 func runTerraformCommandIfNoErrors(possibleErrors error, terragruntOptions *options.TerragruntOptions) error {
 	if possibleErrors != nil {
 		terragruntOptions.Logger.Println("Errors encountered running before_hooks. Not running terraform.")
 		return nil
-	}
-
-	// Workaround for https://github.com/hashicorp/terraform/issues/18460. Calling 'terraform init -get=false'
-	// sometimes results in Terraform trying to download/validate modules anyway, so we need to ignore those error.
-	if terragruntOptions.TerraformCommand == CMD_INIT_FROM_MODULE {
-		// Redirect all log output to stderr to make sure we don't pollute stdout with this extra call to 'init'
-		terragruntOptionsCopy := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
-		terragruntOptionsCopy.Writer = terragruntOptionsCopy.ErrWriter
-
-		out, err := shell.RunTerraformCommandWithOutput(terragruntOptionsCopy, terragruntOptionsCopy.TerraformCliArgs...)
-
-		// If we got an error and the error output included this error message, ignore the error and keep going
-		if err != nil && (len(moduleNotFoundErr.FindStringSubmatch(out.Stderr)) > 0 || len(moduleNotInstalledErr.FindStringSubmatch(out.Stderr)) > 0 || strings.Contains(out.Stderr, "Missing required providers.")) {
-			terragruntOptions.Logger.Println("Ignoring error from call to init, as this is a known Terraform bug: https://github.com/hashicorp/terraform/issues/18460")
-			return nil
-		}
-
-		return err
 	}
 
 	return runTerraformWithRetry(terragruntOptions)
@@ -630,46 +608,8 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformS
 	initOptions.WorkingDir = terragruntOptions.WorkingDir
 	initOptions.TerraformCommand = CMD_INIT
 
-	// Don't pollute stdout with the stdout from Aoto Init
+	// Don't pollute stdout with the stdout from Auto Init
 	initOptions.Writer = initOptions.ErrWriter
-
-	// Only add the arguments to download source if terraformSource was specified
-	if terraformSource != nil {
-		initOptions.WorkingDir = terraformSource.WorkingDir
-		if util.FileExists(terraformSource.WorkingDir) {
-			if err := os.MkdirAll(terraformSource.WorkingDir, 0700); err != nil {
-				return nil, errors.WithStackTrace(err)
-			}
-		}
-
-		// terraform init -from-module will only work if the destination folder is empty, so we have to delete any
-		// existing folder
-		if util.FileExists(terraformSource.DownloadDir) {
-			terragruntOptions.Logger.Printf("Download dir %s already exists, so deleting it before downloading into it.", terraformSource.DownloadDir)
-			if err := os.RemoveAll(terraformSource.DownloadDir); err != nil {
-				return nil, errors.WithStackTrace(err)
-			}
-		}
-
-		if err := os.MkdirAll(terraformSource.DownloadDir, 0700); err != nil {
-			return nil, errors.WithStackTrace(err)
-		}
-
-		// Set the TerraformCommand attribute to match hooks on `init-from-module`
-		initOptions.TerraformCommand = CMD_INIT_FROM_MODULE
-
-		initOptions.AppendTerraformCliArgs("-no-color")
-
-		// We will run init separately to download modules, plugins, backend state, etc, so don't run it at this point
-		initOptions.AppendTerraformCliArgs("-get=false")
-		initOptions.AppendTerraformCliArgs("-get-plugins=false")
-		initOptions.AppendTerraformCliArgs("-backend=false")
-
-		// Use the -from-module parameter to tell Terraform to download the module for us
-		initOptions.AppendTerraformCliArgs("-from-module="+terraformSource.CanonicalSourceURL.String())
-
-		initOptions.AppendTerraformCliArgs(terraformSource.DownloadDir)
-	}
 
 	return initOptions, nil
 }

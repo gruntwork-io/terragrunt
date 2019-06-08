@@ -665,9 +665,6 @@ func TestLocalWithMissingBackend(t *testing.T) {
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 	lockTableName := fmt.Sprintf("terragrunt-lock-table-%s", strings.ToLower(uniqueId()))
 
-	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
-
 	tmpEnvPath := copyEnvironment(t, "fixture-download")
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_LOCAL_MISSING_BACKEND)
 
