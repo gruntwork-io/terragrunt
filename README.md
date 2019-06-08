@@ -288,7 +288,7 @@ When Terragrunt finds the `terraform` block with a `source` parameter in `live/s
 
 1. Download the configurations specified via the `source` parameter into the `--terragrunt-download-dir` folder (by
    default `.terragrunt-cache` in the working directory, which we recommend adding to `.gitignore`). This downloading
-   is done by using the [terraform init command](https://www.terraform.io/docs/commands/init.html), so the `source`
+   is done by using the same [go-getter library](https://github.com/hashicorp/go-getter) Terraform uses, so the `source`
    parameter supports the exact same syntax as the [module source](https://www.terraform.io/docs/modules/sources.html)
    parameter, including local file paths, Git URLs, and Git URLs with `ref` parameters (useful for checking out a
    specific tag, commit, or branch of Git repo). Terragrunt will download all the code in the repo (i.e. the part
@@ -1741,13 +1741,12 @@ Hooks support the following arguments:
 * `execute` (required): the shell command to execute. 
 * `run_on_error` (optional): if set to true, this hook will run even if a previous hook hit an error, or in the case of
   "after" hooks, if the Terraform command hit an error. Default is false.
-* `init_from_module` vs `init`: This is not an argument, but a special name for a hook that runs on `terraform init`. 
-  Terragrunt uses `terraform init` in two different ways: one is to download
-  [remote configurations](#keep-your-terraform-code-dry) using `terraform init -from-module`; the other is to as part 
-  of [Auto-Init](#auto-init), which includes configuring the backend, retrieving provider plugins, and remote modules 
-  specified within the root module. If you wish to execute a hook when Terragrunt is using `terraform init` to download
-  remote configurations, name the hook `init_from_module`. If you wish to execute a hook when Terragrunt is using
-  `terraform init` for Auto-Init, name the hook `init`.   
+* `init_from_module` and `init`: This is not an argument, but a special name you can use for hooks that run during
+  initialization. There are two stages of initialization: one is to download 
+  [remote configurations](#keep-your-terraform-code-dry) using `go-getter`; the other is [Auto-Init](#auto-init), which 
+  configures the backend and downloads provider plugins and modules. If you wish to execute a hook when Terragrunt is 
+  using `go-getter` to download remote configurations, name the hook `init_from_module`. If you wish to execute a hook 
+  when Terragrunt is using `terraform init` for Auto-Init, name the hook `init`.   
 
 
 
