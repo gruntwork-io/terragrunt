@@ -12,3 +12,6 @@ remote_state {
   }
 }
 
+inputs = {
+  terraform_remote_state_s3_bucket = "__FILL_IN_BUCKET_NAME__"
+}
