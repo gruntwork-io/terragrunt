@@ -140,6 +140,14 @@ func ReadFileAsString(path string) (string, error) {
 // Copy the files and folders within the source folder into the destination folder. Note that hidden files and folders
 // (those starting with a dot) will be skipped.
 func CopyFolderContents(source string, destination string) error {
+	return CopyFolderContentsWithFilter(source, destination, func(path string) bool {
+		return !PathContainsHiddenFileOrFolder(path)
+	})
+}
+
+// Copy the files and folders within the source folder into the destination folder. Pass each file and folder through
+// the given filter function and only copy it if the filter returns true.
+func CopyFolderContentsWithFilter(source string, destination string, filter func(path string) bool) error {
 	files, err := ioutil.ReadDir(source)
 	if err != nil {
 		return errors.WithStackTrace(err)
@@ -149,14 +157,14 @@ func CopyFolderContents(source string, destination string) error {
 		src := filepath.Join(source, file.Name())
 		dest := filepath.Join(destination, file.Name())
 
-		if PathContainsHiddenFileOrFolder(file.Name()) {
+		if !filter(file.Name()) {
 			continue
 		} else if IsDir(src) {
 			if err := os.MkdirAll(dest, file.Mode()); err != nil {
 				return errors.WithStackTrace(err)
 			}
 
-			if err := CopyFolderContents(src, dest); err != nil {
+			if err := CopyFolderContentsWithFilter(src, dest, filter); err != nil {
 				return err
 			}
 		} else {
