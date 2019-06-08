@@ -76,14 +76,16 @@ func TestDiffersFrom(t *testing.T) {
 	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	testCases := []struct {
+		name            string
 		existingBackend TerraformBackend
 		stateFromConfig RemoteState
 		shouldOverride  bool
 	}{
-		{TerraformBackend{}, RemoteState{}, false},
-		{TerraformBackend{Type: "s3"}, RemoteState{Backend: "s3"}, false},
-		{TerraformBackend{Type: "s3"}, RemoteState{Backend: "atlas"}, true},
+		{"both empty", TerraformBackend{}, RemoteState{}, false},
+		{"same backend type value", TerraformBackend{Type: "s3"}, RemoteState{Backend: "s3"}, false},
+		{"different backend type values", TerraformBackend{Type: "s3"}, RemoteState{Backend: "atlas"}, true},
 		{
+			"identical S3 configs",
 			TerraformBackend{
 				Type:   "s3",
 				Config: map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
@@ -94,6 +96,7 @@ func TestDiffersFrom(t *testing.T) {
 			},
 			false,
 		}, {
+			"different bucket values",
 			TerraformBackend{
 				Type:   "s3",
 				Config: map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
@@ -104,6 +107,7 @@ func TestDiffersFrom(t *testing.T) {
 			},
 			true,
 		}, {
+			"different key values",
 			TerraformBackend{
 				Type:   "s3",
 				Config: map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
@@ -114,6 +118,7 @@ func TestDiffersFrom(t *testing.T) {
 			},
 			true,
 		}, {
+			"different region values",
 			TerraformBackend{
 				Type:   "s3",
 				Config: map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
@@ -125,6 +130,7 @@ func TestDiffersFrom(t *testing.T) {
 			true,
 		},
 		{
+			"different boolean values and boolean conversion",
 			TerraformBackend{
 				Type:   "s3",
 				Config: map[string]interface{}{"something": "true"},
@@ -135,11 +141,28 @@ func TestDiffersFrom(t *testing.T) {
 			},
 			true,
 		},
+		{
+			"nul values ignored",
+			TerraformBackend{
+				Type:   "s3",
+				Config: map[string]interface{}{"something": "foo", "set-to-nil-should-be-ignored": nil},
+			},
+			RemoteState{
+				Backend: "s3",
+				Config:  map[string]interface{}{"something": "foo"},
+			},
+			false,
+		},
 	}
 
 	for _, testCase := range testCases {
-		shouldOverride := testCase.stateFromConfig.differsFrom(&testCase.existingBackend, terragruntOptions)
-		assert.Equal(t, testCase.shouldOverride, shouldOverride, "Expect differsFrom to return %t but got %t for existingRemoteState %v and remoteStateFromTerragruntConfig %v", testCase.shouldOverride, shouldOverride, testCase.existingBackend, testCase.stateFromConfig)
+		// Save the testCase in local scope so all the t.Run calls don't end up with the last item in the list
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			shouldOverride := testCase.stateFromConfig.differsFrom(&testCase.existingBackend, terragruntOptions)
+			assert.Equal(t, testCase.shouldOverride, shouldOverride, "Expect differsFrom to return %t but got %t for existingRemoteState %v and remoteStateFromTerragruntConfig %v", testCase.shouldOverride, shouldOverride, testCase.existingBackend, testCase.stateFromConfig)
+		})
 	}
 }
 

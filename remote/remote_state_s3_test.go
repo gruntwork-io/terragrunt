@@ -99,6 +99,12 @@ func TestConfigValuesEqual(t *testing.T) {
 			&TerraformBackend{Type: "s3", Config: map[string]interface{}{"something": "false"}},
 			false,
 		},
+		{
+			"equal-null-ignored",
+			map[string]interface{}{"something": "foo"},
+			&TerraformBackend{Type: "s3", Config: map[string]interface{}{"something": "foo", "ignored-because-null": nil}},
+			true,
+		},
 	}
 
 	for _, testCase := range testCases {

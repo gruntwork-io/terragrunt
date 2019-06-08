@@ -94,13 +94,35 @@ func (remoteState *RemoteState) differsFrom(existingBackend *TerraformBackend, t
 		return true
 	}
 
-	if !reflect.DeepEqual(existingBackend.Config, remoteState.Config) {
+	if !terraformStateConfigEqual(existingBackend.Config, remoteState.Config) {
 		terragruntOptions.Logger.Printf("Backend config has changed from %s to %s", existingBackend.Config, remoteState.Config)
 		return true
 	}
 
 	terragruntOptions.Logger.Printf("Backend %s has not changed.", existingBackend.Type)
 	return false
+}
+
+// Return true if the existing config from a .tfstate file is equal to the new config from the user's backend
+// configuration. Under the hood, this method does a reflect.DeepEqual check, but with one twist: we strip out any
+// null values in the existing config. This is because Terraform >= 0.12 stores ALL possible keys for a given backend
+// in the .tfstate file, even if the user hasn't configured that key, in which case the value will be null, and cause
+// reflect.DeepEqual to fail.
+func terraformStateConfigEqual(existingConfig map[string]interface{}, newConfig map[string]interface{}) bool {
+	if existingConfig == nil {
+		return newConfig == nil
+	}
+
+	existingConfigNonNil := map[string]interface{}{}
+	for existingKey, existingValue := range existingConfig {
+		_, newValueIsSet := newConfig[existingKey]
+		if existingValue == nil && !newValueIsSet {
+			continue
+		}
+		existingConfigNonNil[existingKey] = existingValue
+	}
+
+	return reflect.DeepEqual(existingConfigNonNil, newConfig)
 }
 
 // Convert the RemoteState config into the format used by the terraform init command

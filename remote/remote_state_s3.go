@@ -176,7 +176,7 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 		delete(config, key)
 	}
 
-	if !reflect.DeepEqual(existingBackend.Config, config) {
+	if !terraformStateConfigEqual(existingBackend.Config, config) {
 		terragruntOptions.Logger.Printf("Backend config has changed from %s to %s", existingBackend.Config, config)
 		return false
 	}
