@@ -89,8 +89,17 @@ func downloadTerraformSourceIfNecessary(terraformSource *TerraformSource, terrag
 		return err
 	}
 
-	if err := downloadSource(terraformSource, terragruntOptions, terragruntConfig); err != nil {
-		return err
+	// When downloading source, we need to process any hooks waiting on `init-from-module`. Therefore, we clone the
+	// options struct, set the command to the value the hooks are expecting, and run the download action surrounded by
+	// before and after hooks (if any).
+	terragruntOptionsForDownload := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	terragruntOptionsForDownload.TerraformCommand = CMD_INIT_FROM_MODULE
+	downloadErr := runActionWithHooks("download source", terragruntOptionsForDownload, terragruntConfig, func() error {
+		return downloadSource(terraformSource, terragruntOptions, terragruntConfig)
+	})
+
+	if downloadErr != nil {
+		return downloadErr
 	}
 
 	if err := writeVersionFile(terraformSource); err != nil {

@@ -400,11 +400,26 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 		return err
 	}
 
-	beforeHookErrors := processHooks(terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions)
-	terraformError := runTerraformCommandIfNoErrors(beforeHookErrors, terragruntOptions)
-	postHookErrors := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, beforeHookErrors, terraformError)
+	return runActionWithHooks("terraform", terragruntOptions, terragruntConfig, func() error {
+		return runTerraformWithRetry(terragruntOptions)
+	})
+}
 
-	return errors.NewMultiError(beforeHookErrors, terraformError, postHookErrors)
+// Run the given action function surrounded by hooks. That is, run the before hooks first, then, if there were no
+// errors, run the action, and finally, run the after hooks. Return any errors hit from the hooks or action.
+func runActionWithHooks(description string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, action func() error) error {
+	beforeHookErrors := processHooks(terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions)
+
+	var actionErrors error
+	if beforeHookErrors == nil {
+		actionErrors = action()
+	} else {
+		terragruntOptions.Logger.Printf("Errors encountered running before_hooks. Not running '%s'.", description)
+	}
+
+	postHookErrors := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, beforeHookErrors, actionErrors)
+
+	return errors.NewMultiError(beforeHookErrors, actionErrors, postHookErrors)
 }
 
 // The Terragrunt configuration can contain a set of inputs to pass to Terraform as environment variables. This method
@@ -429,15 +444,6 @@ func setTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, 
 	return nil
 }
 
-func runTerraformCommandIfNoErrors(possibleErrors error, terragruntOptions *options.TerragruntOptions) error {
-	if possibleErrors != nil {
-		terragruntOptions.Logger.Println("Errors encountered running before_hooks. Not running terraform.")
-		return nil
-	}
-
-	return runTerraformWithRetry(terragruntOptions)
-}
-
 func runTerraformWithRetry(terragruntOptions *options.TerragruntOptions) error {
 	// Retry the command configurable time with sleep in between
 	for i := 0; i < terragruntOptions.MaxRetryAttempts; i++ {
@@ -456,20 +462,9 @@ func runTerraformWithRetry(terragruntOptions *options.TerragruntOptions) error {
 	return errors.WithStackTrace(MaxRetriesExceeded{terragruntOptions})
 }
 
-// Prepare for running 'terraform init' by
-// preventing users from passing source download arguments,
-// initializing remote state storage, and
-// adding backend configuration arguments to the TerraformCliArgs
+// Prepare for running 'terraform init' by initializing remote state storage and adding backend configuration arguments
+// to the TerraformCliArgs
 func prepareInitCommand(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, allowSourceDownload bool) error {
-
-	// Do not allow the user to specify the source or DIR arguments
-	// on the command line or as part of extra_arguments
-	//
-	// However, allow download_source.go to specify the source and DIR arguments.
-	if err := verifySourceDownloadArguments(allowSourceDownload, terragruntOptions); err != nil {
-		return err
-	}
-
 	if terragruntConfig.RemoteState != nil {
 		// Initialize the remote state if necessary  (e.g. create S3 bucket and DynamoDB table)
 		remoteStateNeedsInit, err := remoteStateNeedsInit(terragruntConfig.RemoteState, terragruntOptions)
@@ -612,30 +607,6 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformS
 	initOptions.Writer = initOptions.ErrWriter
 
 	return initOptions, nil
-}
-
-// Returns an error if allowSourceDownload is false, and terragruntOptions.TerraformCliArgs contains source download related arguments
-func verifySourceDownloadArguments(allowSourceDownload bool, terragruntOptions *options.TerragruntOptions) error {
-	if allowSourceDownload || len(terragruntOptions.TerraformCliArgs) <= 1 {
-		return nil
-	}
-	for _, arg := range terragruntOptions.TerraformCliArgs[1:] {
-		// Enforce that the user did not specify -from-module
-		if strings.Contains(arg, "-from-module") {
-			return errors.WithStackTrace(ArgumentNotAllowed{
-				Argument: arg,
-				Message:  "Option not allowed: %s.  Terragrunt will handle setting -from-module automatically.",
-			})
-		}
-		// The user is not allowed to pass non-option arguments (such as DIR)
-		if !strings.HasPrefix(arg, "-") {
-			return errors.WithStackTrace(ArgumentNotAllowed{
-				Argument: arg,
-				Message:  "Argument not allowed: %s.  Terragrunt will handle setting the module source and DIR arguments automatically.",
-			})
-		}
-	}
-	return nil
 }
 
 // Returns true if the command the user wants to execute is supposed to affect multiple Terraform modules, such as the
