@@ -655,19 +655,22 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformS
 			return nil, errors.WithStackTrace(err)
 		}
 
+		// Set the TerraformCommand attribute to match hooks on `init-from-module`
+		initOptions.TerraformCommand = CMD_INIT_FROM_MODULE
+
+		initOptions.AppendTerraformCliArgs("-no-color")
+
 		// We will run init separately to download modules, plugins, backend state, etc, so don't run it at this point
 		initOptions.AppendTerraformCliArgs("-get=false")
 		initOptions.AppendTerraformCliArgs("-get-plugins=false")
 		initOptions.AppendTerraformCliArgs("-backend=false")
 
-		// Set the TerraformCommand attribute to match hooks on `init-from-module`
-		initOptions.TerraformCommand = CMD_INIT_FROM_MODULE
-
 		// Use the -from-module parameter to tell Terraform to download the module for us
-		initOptions.AppendTerraformCliArgs("-from-module="+terraformSource.CanonicalSourceURL.String(), "-no-color")
+		initOptions.AppendTerraformCliArgs("-from-module="+terraformSource.CanonicalSourceURL.String())
 
 		initOptions.AppendTerraformCliArgs(terraformSource.DownloadDir)
 	}
+
 	return initOptions, nil
 }
 
