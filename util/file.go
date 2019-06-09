@@ -182,6 +182,10 @@ func CopyFolderContentsWithFilter(source string, destination string, filter func
 				return err
 			}
 		} else {
+			parentDir := filepath.Dir(dest)
+			if err := os.MkdirAll(parentDir, 0700); err != nil {
+				return errors.WithStackTrace(err)
+			}
 			if err := CopyFile(file, dest); err != nil {
 				return err
 			}
