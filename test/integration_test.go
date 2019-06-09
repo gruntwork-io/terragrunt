@@ -1509,11 +1509,7 @@ func copyEnvironment(t *testing.T, environmentPath string) string {
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 
-	err = util.CopyFolderContentsWithFilter(environmentPath, tmpDir, func(path string) bool {
-		return !util.IsDir(path)
-	})
-
-	require.NoError(t, err)
+	require.NoError(t, util.CopyFolderContents(environmentPath, util.JoinPath(tmpDir, environmentPath)))
 
 	return tmpDir
 }
