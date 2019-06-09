@@ -416,8 +416,8 @@ func WaitUntilS3BucketExists(s3Client *s3.S3, config *RemoteStateConfigS3, terra
 			// DoesS3BucketExist method, and it returns without error), but a subsequent call to any S3 API returns
 			// a "NoSuchBucket: The specified bucket does not exist" error. This must be something to do with eventual
 			// consistency. I don't see any way to avoid this frustrating issue, so we add an ugly workaround of an
-			// extra second of sleep here to minimize these eventual consistency issues.
-			time.Sleep(1 * time.Second)
+			// extra few seconds of sleep here to minimize these eventual consistency issues.
+			time.Sleep(5 * time.Second)
 
 			return nil
 		} else if retries < MAX_RETRIES_WAITING_FOR_S3_BUCKET-1 {
