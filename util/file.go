@@ -148,27 +148,41 @@ func CopyFolderContents(source string, destination string) error {
 // Copy the files and folders within the source folder into the destination folder. Pass each file and folder through
 // the given filter function and only copy it if the filter returns true.
 func CopyFolderContentsWithFilter(source string, destination string, filter func(path string) bool) error {
-	files, err := ioutil.ReadDir(source)
+	// Why use filepath.Glob here? The original implementation used ioutil.ReadDir, but that method calls lstat on all
+	// the files/folders in the directory, including files/folders you may want to explicitly skip. The next attempt
+	// was to use filepath.Walk, but that doesn't work because it ignores symlinks. So, now we turn to filepath.Glob.
+	files, err := filepath.Glob(fmt.Sprintf("%s/*", source))
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 
 	for _, file := range files {
-		src := filepath.Join(source, file.Name())
-		dest := filepath.Join(destination, file.Name())
+		fileRelativePath, err := GetPathRelativeTo(file, source)
+		if err != nil {
+			return err
+		}
 
-		if !filter(file.Name()) {
+		if !filter(fileRelativePath) {
 			continue
-		} else if IsDir(src) {
-			if err := os.MkdirAll(dest, file.Mode()); err != nil {
+		}
+
+		dest := filepath.Join(destination, fileRelativePath)
+
+		if IsDir(file) {
+			info, err := os.Lstat(file)
+			if err != nil {
 				return errors.WithStackTrace(err)
 			}
 
-			if err := CopyFolderContentsWithFilter(src, dest, filter); err != nil {
+			if err := os.MkdirAll(dest, info.Mode()); err != nil {
+				return errors.WithStackTrace(err)
+			}
+
+			if err := CopyFolderContentsWithFilter(file, dest, filter); err != nil {
 				return err
 			}
 		} else {
-			if err := CopyFile(src, dest); err != nil {
+			if err := CopyFile(file, dest); err != nil {
 				return err
 			}
 		}
