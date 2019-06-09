@@ -369,18 +369,16 @@ func getTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragr
 func downloadSource(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	terragruntOptions.Logger.Printf("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
 
-	// go-getter will not download into folders that already exist, so initially, we download into a brand new temp
-	// folder
+	// Create the destination dir if it doesn't exist already
 	if err := os.MkdirAll(terragruntOptions.DownloadDir, 0700); err != nil {
 		return errors.WithStackTrace(err)
 	}
-	tmpDownloadDir, err := ioutil.TempDir(terragruntOptions.DownloadDir, "terragrunt-download-temp")
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-	if err := os.RemoveAll(tmpDownloadDir); err != nil {
-		return errors.WithStackTrace(err)
-	}
+
+	// go-getter will not download into folders that already exist, so initially, we download into a brand new temp
+	// folder. Here, we create a new, unique temp folder, schedule it for deletion at the end of this method, and call
+	// go-getter to download into that temp folder.
+	tmpDownloadDir := util.JoinPath(terragruntOptions.DownloadDir, fmt.Sprintf("tmp-download-%s", util.UniqueId()))
+	defer os.RemoveAll(tmpDownloadDir)
 	if err := getter.GetAny(tmpDownloadDir, terraformSource.CanonicalSourceURL.String()); err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -391,11 +389,6 @@ func downloadSource(terraformSource *TerraformSource, terragruntOptions *options
 	}
 	if err := util.CopyFolderContents(tmpDownloadDir, terraformSource.DownloadDir); err != nil {
 		return err
-	}
-
-	// Clean up the tmp folder
-	if err := os.RemoveAll(tmpDownloadDir); err != nil {
-		return errors.WithStackTrace(err)
 	}
 
 	return nil
