@@ -411,6 +411,14 @@ func WaitUntilS3BucketExists(s3Client *s3.S3, config *RemoteStateConfigS3, terra
 	for retries := 0; retries < MAX_RETRIES_WAITING_FOR_S3_BUCKET; retries++ {
 		if DoesS3BucketExist(s3Client, config) {
 			terragruntOptions.Logger.Printf("S3 bucket %s created.", config.Bucket)
+
+			// Every now and then, S3 can report that a bucket exists (e.g., if you call HeadBucket, as in the
+			// DoesS3BucketExist method, and it returns without error), but a subsequent call to any S3 API returns
+			// a "NoSuchBucket: The specified bucket does not exist" error. This must be something to do with eventual
+			// consistency. I don't see any way to avoid this frustrating issue, so we add an ugly workaround of an
+			// extra second of sleep here to minimize these eventual consistency issues.
+			time.Sleep(1 * time.Second)
+
 			return nil
 		} else if retries < MAX_RETRIES_WAITING_FOR_S3_BUCKET-1 {
 			terragruntOptions.Logger.Printf("S3 bucket %s has not been created yet. Sleeping for %s and will check again.", config.Bucket, SLEEP_BETWEEN_RETRIES_WAITING_FOR_S3_BUCKET)
