@@ -365,15 +365,19 @@ func getTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragr
 	}
 }
 
-const tmpDownloadDirName = "terragrunt-download-temp"
-
 // Download the code from the Canonical Source URL into the Download Folder using the go-getter library
 func downloadSource(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	terragruntOptions.Logger.Printf("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
 
 	// go-getter will not download into folders that already exist, so initially, we download into a brand new temp
 	// folder
-	tmpDownloadDir := util.JoinPath(terraformSource.DownloadDir, tmpDownloadDirName)
+	if err := os.MkdirAll(terragruntOptions.DownloadDir, 0700); err != nil {
+		return errors.WithStackTrace(err)
+	}
+	tmpDownloadDir, err := ioutil.TempDir(terragruntOptions.DownloadDir, "terragrunt-download-temp")
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
 	if err := os.RemoveAll(tmpDownloadDir); err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -385,8 +389,7 @@ func downloadSource(terraformSource *TerraformSource, terragruntOptions *options
 	if err := os.MkdirAll(terraformSource.DownloadDir, 0700); err != nil {
 		return errors.WithStackTrace(err)
 	}
-	copyAllButDownloadDir := func(path string) bool { return path != tmpDownloadDirName }
-	if err := util.CopyFolderContentsWithFilter(tmpDownloadDir, terraformSource.DownloadDir, copyAllButDownloadDir); err != nil {
+	if err := util.CopyFolderContents(tmpDownloadDir, terraformSource.DownloadDir); err != nil {
 		return err
 	}
 
