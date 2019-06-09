@@ -9,7 +9,6 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -1510,30 +1509,11 @@ func copyEnvironment(t *testing.T, environmentPath string) string {
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 
-	err = filepath.Walk(environmentPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// The info.Mode() check is to catch symlinks to directories:
-		// https://stackoverflow.com/questions/32908277/fileinfo-isdir-isnt-detecting-directory
-		if info.IsDir() || (info.Mode()&os.ModeSymlink) == os.ModeSymlink {
-			return nil
-		}
-
-		destPath := util.JoinPath(tmpDir, path)
-
-		destPathDir := filepath.Dir(destPath)
-		if err := os.MkdirAll(destPathDir, 0777); err != nil {
-			return err
-		}
-
-		return copyFile(path, destPath)
+	err = util.CopyFolderContentsWithFilter(environmentPath, tmpDir, func(path string) bool {
+		return !util.IsDir(path)
 	})
 
-	if err != nil {
-		t.Fatalf("Error walking file path %s due to error: %v", environmentPath, err)
-	}
+	require.NoError(t, err)
 
 	return tmpDir
 }
