@@ -89,8 +89,17 @@ func downloadTerraformSourceIfNecessary(terraformSource *TerraformSource, terrag
 		return err
 	}
 
-	if err := terraformInit(terraformSource, terragruntOptions, terragruntConfig); err != nil {
-		return err
+	// When downloading source, we need to process any hooks waiting on `init-from-module`. Therefore, we clone the
+	// options struct, set the command to the value the hooks are expecting, and run the download action surrounded by
+	// before and after hooks (if any).
+	terragruntOptionsForDownload := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	terragruntOptionsForDownload.TerraformCommand = CMD_INIT_FROM_MODULE
+	downloadErr := runActionWithHooks("download source", terragruntOptionsForDownload, terragruntConfig, func() error {
+		return downloadSource(terraformSource, terragruntOptions, terragruntConfig)
+	})
+
+	if downloadErr != nil {
+		return downloadErr
 	}
 
 	if err := writeVersionFile(terraformSource); err != nil {
@@ -349,16 +358,38 @@ func cleanupTerraformFiles(path string, terragruntOptions *options.TerragruntOpt
 func getTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) string {
 	if terragruntOptions.Source != "" {
 		return terragruntOptions.Source
-	} else if terragruntConfig.Terraform != nil {
-		return terragruntConfig.Terraform.Source
+	} else if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.Source != nil {
+		return *terragruntConfig.Terraform.Source
 	} else {
 		return ""
 	}
 }
 
-// Download the code from the Canonical Source URL into the Download Folder using the terraform init command
-func terraformInit(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	terragruntOptions.Logger.Printf("Downloading Terraform configurations from %s into %s using terraform init", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
+// Download the code from the Canonical Source URL into the Download Folder using the go-getter library
+func downloadSource(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+	terragruntOptions.Logger.Printf("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
 
-	return runTerraformInit(terragruntOptions, terragruntConfig, terraformSource)
+	// Create the destination dir if it doesn't exist already
+	if err := os.MkdirAll(terragruntOptions.DownloadDir, 0700); err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	// go-getter will not download into folders that already exist, so initially, we download into a brand new temp
+	// folder. Here, we create a new, unique temp folder, schedule it for deletion at the end of this method, and call
+	// go-getter to download into that temp folder.
+	tmpDownloadDir := util.JoinPath(terragruntOptions.DownloadDir, fmt.Sprintf("tmp-download-%s", util.UniqueId()))
+	defer os.RemoveAll(tmpDownloadDir)
+	if err := getter.GetAny(tmpDownloadDir, terraformSource.CanonicalSourceURL.String()); err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	// Now copy all the contents of the tmp folder into the original download dir
+	if err := os.MkdirAll(terraformSource.DownloadDir, 0700); err != nil {
+		return errors.WithStackTrace(err)
+	}
+	if err := util.CopyFolderContents(tmpDownloadDir, terraformSource.DownloadDir); err != nil {
+		return err
+	}
+
+	return nil
 }

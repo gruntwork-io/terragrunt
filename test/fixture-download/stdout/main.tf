@@ -3,5 +3,5 @@ data "template_file" "foo" {
 }
 
 output "foo" {
-  value = "${data.template_file.foo.rendered}"
+  value = data.template_file.foo.rendered
 }

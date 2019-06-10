@@ -3,5 +3,5 @@ variable "custom_var" {
 }
 
 output "test" {
-  value = "${var.custom_var}"
+  value = var.custom_var
 }

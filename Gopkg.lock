@@ -2,6 +2,22 @@
 
 
 [[projects]]
+  digest = "1:90afd0cfdffcc3df7855160ee2954cbca286e23c4eb9cb3d075536c9e4e1b04f"
+  name = "github.com/agext/levenshtein"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "0ded9c86537917af2ff89bc9c78de6bd58477894"
+  version = "v1.2.2"
+
+[[projects]]
+  digest = "1:2bf7da77216264bb61bd8cb5f3380a03ab509e8a826fe359008d4a6ba0789b13"
+  name = "github.com/apparentlymart/go-textseg"
+  packages = ["textseg"]
+  pruneopts = "UT"
+  revision = "fb01f485ebef760e5ee06d55e1b07534dda2d295"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:fd4666db511d77a745ffe0cb5a1230cf6709d9ab34b2851849744eb557dfedcd"
   name = "github.com/aws/aws-sdk-go"
   packages = [
@@ -71,6 +87,20 @@
   revision = "8fa88b06e5974e97fbf9899a7f86a344bfd1f105"
 
 [[projects]]
+  digest = "1:bf40199583e5143d1472fc34d10d6f4b69d97572142acf343b3e43136da40823"
+  name = "github.com/google/go-cmp"
+  packages = [
+    "cmp",
+    "cmp/internal/diff",
+    "cmp/internal/flags",
+    "cmp/internal/function",
+    "cmp/internal/value",
+  ]
+  pruneopts = "UT"
+  revision = "6f77996f0c42f7b84e5a2b252227263f93432e9b"
+  version = "v0.3.0"
+
+[[projects]]
   digest = "1:ae263e6b149fb7aadfc0f2284a8891cc3b9d2700e58b9a613fecf70fcc6e495d"
   name = "github.com/hashicorp/go-cleanhttp"
   packages = ["."]
@@ -112,6 +142,22 @@
   revision = "23c074d0eceb2b8a5bfdbb271ab780cde70f05a8"
 
 [[projects]]
+  branch = "master"
+  digest = "1:fcf2a2da62c4d31251aa37a61fe03eb3527f621d6566a73fc69e0ecbdde3fef2"
+  name = "github.com/hashicorp/hcl2"
+  packages = [
+    "gohcl",
+    "hcl",
+    "hcl/hclsyntax",
+    "hcl/json",
+    "hcldec",
+    "hclparse",
+    "hclwrite",
+  ]
+  pruneopts = "UT"
+  revision = "4b22149b7cef7272799ac85dca150e553d667971"
+
+[[projects]]
   digest = "1:bb81097a5b62634f3e9fec1014657855610c82d19b9a40c17612e32651e35dca"
   name = "github.com/jmespath/go-jmespath"
   packages = ["."]
@@ -142,6 +188,14 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "a61a99592b77c9ba629d254a693acffaeb4b7e28"
+
+[[projects]]
+  digest = "1:abf08734a6527df70ed361d7c369fb580e6840d8f7a6012e5f609fdfd93b4e48"
+  name = "github.com/mitchellh/go-wordwrap"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "9e67c67572bc5dd02aef930e2b0ae3c02a4b5a5c"
+  version = "v1.0.0"
 
 [[projects]]
   digest = "1:56a0bd1a1f3809171d1abe0bfd389558be0cd672e858e1f831b88f806aa8764f"
@@ -187,6 +241,37 @@
   pruneopts = "UT"
   revision = "7bc6a0acffa589f415f88aca16cc1de5ffd66f9c"
 
+[[projects]]
+  branch = "master"
+  digest = "1:02d9d3d26ba39e42d06613a6a81688490d0a4dfc3e9cda0c674698b46fa0d92c"
+  name = "github.com/zclconf/go-cty"
+  packages = [
+    "cty",
+    "cty/convert",
+    "cty/function",
+    "cty/function/stdlib",
+    "cty/gocty",
+    "cty/json",
+    "cty/set",
+  ]
+  pruneopts = "UT"
+  revision = "4fecf87372ec204b46eb9e8ff264cdc3cafdccfe"
+
+[[projects]]
+  digest = "1:1093f2eb4b344996604f7d8b29a16c5b22ab9e1b25652140d3fede39f640d5cd"
+  name = "golang.org/x/text"
+  packages = [
+    "internal/gen",
+    "internal/triegen",
+    "internal/ucd",
+    "transform",
+    "unicode/cldr",
+    "unicode/norm",
+  ]
+  pruneopts = "UT"
+  revision = "342b2e1fbaa52c93f31447ad2c6abc048c63e475"
+  version = "v0.3.2"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
@@ -204,11 +289,18 @@
     "github.com/hashicorp/go-getter/helper/url",
     "github.com/hashicorp/go-version",
     "github.com/hashicorp/hcl",
+    "github.com/hashicorp/hcl2/gohcl",
+    "github.com/hashicorp/hcl2/hcl",
+    "github.com/hashicorp/hcl2/hcldec",
+    "github.com/hashicorp/hcl2/hclparse",
     "github.com/mattn/go-zglob",
     "github.com/mitchellh/mapstructure",
     "github.com/stretchr/testify/assert",
     "github.com/stretchr/testify/require",
     "github.com/urfave/cli",
+    "github.com/zclconf/go-cty/cty",
+    "github.com/zclconf/go-cty/cty/function",
+    "github.com/zclconf/go-cty/cty/gocty",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1
