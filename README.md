@@ -5,7 +5,10 @@
 # Terragrunt
 
 Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that provides extra tools for keeping your 
-Terraform configurations DRY, working with multiple Terraform modules, and managing remote state.
+Terraform configurations DRY, working with multiple Terraform modules, and managing remote state. Check out
+[Terragrunt: how to keep your Terraform code DRY and 
+maintainable](https://blog.gruntwork.io/terragrunt-how-to-keep-your-terraform-code-dry-and-maintainable-f61ae06959d8) 
+for a quick introduction to Terragrunt. 
 
 
 
@@ -53,7 +56,9 @@ Terraform configurations DRY, working with multiple Terraform modules, and manag
 
 1. Terragrunt is a direct implementation of the ideas expressed in
    [Terraform: Up & Running](http://www.terraformupandrunning.com). Additional background reading that will help
-   explain the motivation for Terragrunt includes the Gruntwork.io blog posts
+   explain the motivation for Terragrunt include 
+   [Terragrunt: how to keep your Terraform code DRY and 
+   maintainable](https://blog.gruntwork.io/terragrunt-how-to-keep-your-terraform-code-dry-and-maintainable-f61ae06959d8),
    [How to create reusable infrastructure with Terraform modules](https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d)
    and [How to use Terraform as a team](https://blog.gruntwork.io/how-to-use-terraform-as-a-team-251bc1104973).
 
