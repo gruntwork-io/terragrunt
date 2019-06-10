@@ -366,7 +366,7 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 func TagS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 
 	if config.S3BucketTags == nil || len(config.S3BucketTags) == 0 {
-		terragruntOptions.Logger.Println("No tags for S3 bucket given.")
+		terragruntOptions.Logger.Printf("No tags specified for bucket %s.", config.remoteStateConfigS3.Bucket)
 		return nil
 	}
 
@@ -408,17 +408,10 @@ func convertTags(tags map[string]string) []*s3.Tag {
 // AWS is eventually consistent, so after creating an S3 bucket, this method can be used to wait until the information
 // about that S3 bucket has propagated everywhere
 func WaitUntilS3BucketExists(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Printf("Waiting for bucket %s to be created", config.Bucket)
 	for retries := 0; retries < MAX_RETRIES_WAITING_FOR_S3_BUCKET; retries++ {
 		if DoesS3BucketExist(s3Client, config) {
 			terragruntOptions.Logger.Printf("S3 bucket %s created.", config.Bucket)
-
-			// Every now and then, S3 can report that a bucket exists (e.g., if you call HeadBucket, as in the
-			// DoesS3BucketExist method, and it returns without error), but a subsequent call to any S3 API returns
-			// a "NoSuchBucket: The specified bucket does not exist" error. This must be something to do with eventual
-			// consistency. I don't see any way to avoid this frustrating issue, so we add an ugly workaround of an
-			// extra few seconds of sleep here to minimize these eventual consistency issues.
-			time.Sleep(5 * time.Second)
-
 			return nil
 		} else if retries < MAX_RETRIES_WAITING_FOR_S3_BUCKET-1 {
 			terragruntOptions.Logger.Printf("S3 bucket %s has not been created yet. Sleeping for %s and will check again.", config.Bucket, SLEEP_BETWEEN_RETRIES_WAITING_FOR_S3_BUCKET)
