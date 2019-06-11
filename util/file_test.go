@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"fmt"
+
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 )
@@ -114,6 +115,35 @@ func TestJoinTerraformModulePath(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(fmt.Sprintf("%s-%s", testCase.modulesFolder, testCase.path), func(t *testing.T) {
 			actual := JoinTerraformModulePath(testCase.modulesFolder, testCase.path)
+			assert.Equal(t, testCase.expected, actual)
+		})
+	}
+}
+
+func TestPathContains(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		description string
+		path        string
+		folderName  string
+		expected    bool
+	}{
+		{"both empty", "", "", true},
+		{"path empty, folder name not empty", "", "foo", false},
+		{"path non empty, folder name empty", "/foo", "", true},
+		{"path contains one part that matches folder name", "foo", "foo", true},
+		{"path contains one part that doesn't match folder name", "foo", "bar", false},
+		{"path contains multiple parts, one of which matches folder name", "/foo/bar/baz", "bar", true},
+		{"path contains multiple parts, none of which match folder name", "/foo/bar/baz", "will-not-match", false},
+	}
+
+	for _, testCase := range testCases {
+		// The following is necessary to make sure testCase's values don't
+		// get updated due to concurrency within the scope of t.Run(..) below
+		testCase := testCase
+		t.Run(testCase.description, func(t *testing.T) {
+			actual := PathContains(testCase.path, testCase.folderName)
 			assert.Equal(t, testCase.expected, actual)
 		})
 	}

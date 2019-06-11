@@ -1497,7 +1497,17 @@ func runTerragrunt(t *testing.T, command string) {
 
 func runTerragruntRedirectOutput(t *testing.T, command string, writer io.Writer, errwriter io.Writer) {
 	if err := runTerragruntCommand(t, command, writer, errwriter); err != nil {
-		t.Fatalf("Failed to run Terragrunt command '%s' due to error: %s", command, err)
+		stdout := "(see log output above)"
+		if stdoutAsBuffer, stdoutIsBuffer := writer.(*bytes.Buffer); stdoutIsBuffer {
+			stdout = stdoutAsBuffer.String()
+		}
+
+		stderr := "(see log output above)"
+		if stderrAsBuffer, stderrIsBuffer := errwriter.(*bytes.Buffer); stderrIsBuffer {
+			stderr = stderrAsBuffer.String()
+		}
+
+		t.Fatalf("Failed to run Terragrunt command '%s' due to error: %s\n\nStdout: %s\n\nStderr: %s", command, err, stdout, stderr)
 	}
 }
 

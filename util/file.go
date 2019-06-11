@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"fmt"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/mattn/go-zglob"
 )
@@ -50,11 +51,10 @@ func CanonicalPaths(paths []string, basePath string) ([]string, error) {
 	return canonicalPaths, nil
 }
 
-// Delete the given list of files. Note: this function ONLY deletes files and will return an error if you pass in a
-// folder path.
-func DeleteFiles(files []string) error {
+// Delete the given list of files and folders
+func DeleteFilesAndFolders(files []string) error {
 	for _, file := range files {
-		if err := os.Remove(file); err != nil {
+		if err := os.RemoveAll(file); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
@@ -162,7 +162,7 @@ func CopyFolderContentsWithFilter(source string, destination string, filter func
 			return err
 		}
 
-		if !filter(fileRelativePath) || IsSymLink(file) {
+		if !filter(fileRelativePath) {
 			continue
 		}
 
@@ -251,4 +251,22 @@ func JoinTerraformModulePath(modulesFolder string, path string) string {
 	cleanModulesFolder := strings.TrimRight(modulesFolder, `/\`)
 	cleanPath := strings.TrimLeft(path, `/\`)
 	return fmt.Sprintf("%s//%s", cleanModulesFolder, cleanPath)
+}
+
+// Returns true if the given path contains the given folder name.
+//
+// Examples:
+//
+// PathContains("/foo/bar", "foo") => returns true
+// PathContains("/foo/bar", "baz") => returns false
+func PathContains(path string, folderName string) bool {
+	pathParts := strings.Split(path, string(filepath.Separator))
+
+	for _, pathPart := range pathParts {
+		if pathPart == folderName {
+			return true
+		}
+	}
+
+	return false
 }
