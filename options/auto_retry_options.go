@@ -14,4 +14,6 @@ var RETRYABLE_ERRORS = []string{
 	"(?s).*Error installing provider.*TLS handshake timeout.*",
 	"(?s).*Error configuring the backend.*TLS handshake timeout.*",
 	"(?s).*Error installing provider.*tcp.*timeout.*",
+	"(?s).*Error installing provider.*tcp.*timeout.*",
+	"NoSuchBucket: The specified bucket does not exist",
 }
