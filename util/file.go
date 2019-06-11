@@ -161,7 +161,7 @@ func CopyFolderContentsWithFilter(source string, destination string, filter func
 			return err
 		}
 
-		if !filter(fileRelativePath) || IsSymLink(file) {
+		if !filter(fileRelativePath) {
 			continue
 		}
 
