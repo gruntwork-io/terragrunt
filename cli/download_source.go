@@ -326,8 +326,8 @@ func isLocalSource(sourceUrl *url.URL) bool {
 }
 
 // If this download dir already exists, delete its contents to ensure that we don't have any old files from previous
-// runs. Leave only the .terraform folder in the working dir, as that may contain terraform state we don't want to
-// lose / reconfigure as well as module and provider code we don't want to redownload.
+// runs. Leave only the non-Terraform files in the working dir, as that dir may contain terraform state we don't want
+// to lose / reconfigure as well as module and provider code we don't want to re-download.
 func cleanupDownloadDir(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions) error {
 	if !util.FileExists(terraformSource.DownloadDir) {
 		return nil
@@ -335,11 +335,10 @@ func cleanupDownloadDir(terraformSource *TerraformSource, terragruntOptions *opt
 
 	terragruntOptions.Logger.Printf("Cleaning up contents of download folder %s", terraformSource.DownloadDir)
 
-	// Backup the .terraform dir if it exists
-	workingDirTerraformFolder := util.JoinPath(terraformSource.WorkingDir, ".terraform")
-	backupWorkingDirTerraformFolder := util.JoinPath(terragruntOptions.DownloadDir, ".terraform-tmp-backup")
-	if util.FileExists(workingDirTerraformFolder) {
-		if err := os.Rename(workingDirTerraformFolder, backupWorkingDirTerraformFolder); err != nil {
+	// Backup the working dir if it exists
+	backupWorkingDirFolder := util.JoinPath(terragruntOptions.DownloadDir, ".working-dir-backup")
+	if util.FileExists(terraformSource.WorkingDir) {
+		if err := os.Rename(terraformSource.WorkingDir, backupWorkingDirFolder); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
@@ -349,20 +348,38 @@ func cleanupDownloadDir(terraformSource *TerraformSource, terragruntOptions *opt
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
-	for _, file := range files {
-		if err := os.RemoveAll(file); err != nil {
-			return errors.WithStackTrace(err)
-		}
+	if err := util.DeleteFilesAndFolders(files); err != nil {
+		return err
 	}
 
-	// Restore the backup .terraform dir
-	if util.FileExists(backupWorkingDirTerraformFolder) {
-		if err := os.MkdirAll(terraformSource.WorkingDir, 0700); err != nil {
+	// Restore the working dir and delete any Terraform code in it
+	if util.FileExists(backupWorkingDirFolder) {
+		if err := os.MkdirAll(filepath.Dir(terraformSource.WorkingDir), 0700); err != nil {
 			return errors.WithStackTrace(err)
 		}
 
-		if err := os.Rename(backupWorkingDirTerraformFolder, workingDirTerraformFolder); err != nil {
+		if err := os.Rename(backupWorkingDirFolder, terraformSource.WorkingDir); err != nil {
 			return errors.WithStackTrace(err)
+		}
+
+		// Find any Terraform files in the working dir
+		terraformFiles, err := zglob.Glob(util.JoinPath(terraformSource.WorkingDir, "**/*.tf"))
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+		filteredTerraformFiles := []string{}
+
+		// Filter out files in .terraform folders, since those are from modules downloaded via a call to terraform init,
+		// and we don't want to re-download them.
+		for _, terraformFile := range terraformFiles {
+			if !strings.Contains(terraformFile, ".terraform") {
+				filteredTerraformFiles = append(filteredTerraformFiles, terraformFile)
+			}
+		}
+
+		// Delete the filtered files
+		if err := util.DeleteFilesAndFolders(filteredTerraformFiles); err != nil {
+			return err
 		}
 	}
 

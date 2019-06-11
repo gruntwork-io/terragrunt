@@ -50,11 +50,10 @@ func CanonicalPaths(paths []string, basePath string) ([]string, error) {
 	return canonicalPaths, nil
 }
 
-// Delete the given list of files. Note: this function ONLY deletes files and will return an error if you pass in a
-// folder path.
-func DeleteFiles(files []string) error {
+// Delete the given list of files and folders
+func DeleteFilesAndFolders(files []string) error {
 	for _, file := range files {
-		if err := os.Remove(file); err != nil {
+		if err := os.RemoveAll(file); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
