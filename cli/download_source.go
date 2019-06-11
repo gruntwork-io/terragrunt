@@ -85,7 +85,7 @@ func downloadTerraformSourceIfNecessary(terraformSource *TerraformSource, terrag
 		return nil
 	}
 
-	if err := cleanupTerraformFiles(terraformSource.DownloadDir, terragruntOptions); err != nil {
+	if err := cleanupDownloadDir(terraformSource, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -325,31 +325,48 @@ func isLocalSource(sourceUrl *url.URL) bool {
 	return sourceUrl.Scheme == "file"
 }
 
-// If this temp folder already exists, simply delete all the Terraform configurations (*.tf) within it
-// (the terraform init command will redownload the latest ones), but leave all the other files, such
-// as the .terraform folder with the downloaded modules and remote state settings.
-func cleanupTerraformFiles(path string, terragruntOptions *options.TerragruntOptions) error {
-	if !util.FileExists(path) {
+// If this download dir already exists, delete its contents to ensure that we don't have any old files from previous
+// runs. Leave only the .terraform folder in the working dir, as that may contain terraform state we don't want to
+// lose / reconfigure as well as module and provider code we don't want to redownload.
+func cleanupDownloadDir(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions) error {
+	if !util.FileExists(terraformSource.DownloadDir) {
 		return nil
 	}
 
-	terragruntOptions.Logger.Printf("Cleaning up existing *.tf files in %s", path)
+	terragruntOptions.Logger.Printf("Cleaning up contents of download folder %s", terraformSource.DownloadDir)
 
-	files, err := zglob.Glob(util.JoinPath(path, "**/*.tf"))
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-
-	// Filter out files in .terraform folders, since those are from modules downloaded via a call to terraform get,
-	// and we don't want to re-download them.
-	filteredFiles := []string{}
-	for _, file := range files {
-		if !strings.Contains(file, ".terraform") {
-			filteredFiles = append(filteredFiles, file)
+	// Backup the .terraform dir if it exists
+	workingDirTerraformFolder := util.JoinPath(terraformSource.WorkingDir, ".terraform")
+	backupWorkingDirTerraformFolder := util.JoinPath(terragruntOptions.DownloadDir, ".terraform-tmp-backup")
+	if util.FileExists(workingDirTerraformFolder) {
+		if err := os.Rename(workingDirTerraformFolder, backupWorkingDirTerraformFolder); err != nil {
+			return errors.WithStackTrace(err)
 		}
 	}
 
-	return util.DeleteFiles(filteredFiles)
+	// Delete everything in the DownloadDir
+	files, err := zglob.Glob(util.JoinPath(terraformSource.DownloadDir, "*"))
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	for _, file := range files {
+		if err := os.RemoveAll(file); err != nil {
+			return errors.WithStackTrace(err)
+		}
+	}
+
+	// Restore the backup .terraform dir
+	if util.FileExists(backupWorkingDirTerraformFolder) {
+		if err := os.MkdirAll(terraformSource.WorkingDir, 0700); err != nil {
+			return errors.WithStackTrace(err)
+		}
+
+		if err := os.Rename(backupWorkingDirTerraformFolder, workingDirTerraformFolder); err != nil {
+			return errors.WithStackTrace(err)
+		}
+	}
+
+	return nil
 }
 
 // There are two ways a user can tell Terragrunt that it needs to download Terraform configurations from a specific
@@ -365,30 +382,19 @@ func getTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragr
 	}
 }
 
+// We use this code to force go-getter to copy files instead of creating symlinks.
+var copyFiles = func(client *getter.Client) error {
+	client.Getters = getter.Getters
+	client.Getters["file"] = &FileCopyGetter{}
+	return nil
+}
+
 // Download the code from the Canonical Source URL into the Download Folder using the go-getter library
 func downloadSource(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	terragruntOptions.Logger.Printf("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
 
-	// Create the destination dir if it doesn't exist already
-	if err := os.MkdirAll(terragruntOptions.DownloadDir, 0700); err != nil {
+	if err := getter.GetAny(terraformSource.DownloadDir, terraformSource.CanonicalSourceURL.String(), copyFiles); err != nil {
 		return errors.WithStackTrace(err)
-	}
-
-	// go-getter will not download into folders that already exist, so initially, we download into a brand new temp
-	// folder. Here, we create a new, unique temp folder, schedule it for deletion at the end of this method, and call
-	// go-getter to download into that temp folder.
-	tmpDownloadDir := util.JoinPath(terragruntOptions.DownloadDir, fmt.Sprintf("tmp-download-%s", util.UniqueId()))
-	defer os.RemoveAll(tmpDownloadDir)
-	if err := getter.GetAny(tmpDownloadDir, terraformSource.CanonicalSourceURL.String()); err != nil {
-		return errors.WithStackTrace(err)
-	}
-
-	// Now copy all the contents of the tmp folder into the original download dir
-	if err := os.MkdirAll(terraformSource.DownloadDir, 0700); err != nil {
-		return errors.WithStackTrace(err)
-	}
-	if err := util.CopyFolderContents(tmpDownloadDir, terraformSource.DownloadDir); err != nil {
-		return err
 	}
 
 	return nil
