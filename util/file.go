@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"fmt"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/mattn/go-zglob"
 )
@@ -250,4 +251,22 @@ func JoinTerraformModulePath(modulesFolder string, path string) string {
 	cleanModulesFolder := strings.TrimRight(modulesFolder, `/\`)
 	cleanPath := strings.TrimLeft(path, `/\`)
 	return fmt.Sprintf("%s//%s", cleanModulesFolder, cleanPath)
+}
+
+// Returns true if the given path contains the given folder name.
+//
+// Examples:
+//
+// PathContains("/foo/bar", "foo") => returns true
+// PathContains("/foo/bar", "baz") => returns false
+func PathContains(path string, folderName string) bool {
+	pathParts := strings.Split(path, string(filepath.Separator))
+
+	for _, pathPart := range pathParts {
+		if pathPart == folderName {
+			return true
+		}
+	}
+
+	return false
 }

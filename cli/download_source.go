@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 
+	"path/filepath"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -15,7 +17,6 @@ import (
 	"github.com/hashicorp/go-getter"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 	"github.com/mattn/go-zglob"
-	"path/filepath"
 )
 
 // This struct represents information about Terraform source code that needs to be downloaded
@@ -375,7 +376,7 @@ func cleanupDownloadDir(terraformSource *TerraformSource, terragruntOptions *opt
 		// Filter out files in .terraform folders, since those are from modules downloaded via a call to terraform init,
 		// and we don't want to re-download them.
 		for _, terraformFile := range terraformFiles {
-			if !strings.Contains(terraformFile, ".terraform") {
+			if !util.PathContains(terraformFile, ".terraform") {
 				filteredTerraformFiles = append(filteredTerraformFiles, terraformFile)
 			}
 		}
