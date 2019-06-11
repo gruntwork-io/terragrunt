@@ -338,12 +338,15 @@ func cleanupDownloadDir(terraformSource *TerraformSource, terragruntOptions *opt
 	// Backup the working dir if it exists
 	backupWorkingDirFolder := util.JoinPath(terragruntOptions.DownloadDir, ".working-dir-backup")
 	if util.FileExists(terraformSource.WorkingDir) {
+		if err := os.MkdirAll(terragruntOptions.DownloadDir, 0700); err != nil {
+			return errors.WithStackTrace(err)
+		}
 		if err := os.Rename(terraformSource.WorkingDir, backupWorkingDirFolder); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
 
-	// Delete everything in the DownloadDir
+	// Delete everything that was in the download dir
 	files, err := zglob.Glob(util.JoinPath(terraformSource.DownloadDir, "*"))
 	if err != nil {
 		return errors.WithStackTrace(err)
