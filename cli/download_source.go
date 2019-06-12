@@ -405,8 +405,20 @@ func getTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragr
 
 // We use this code to force go-getter to copy files instead of creating symlinks.
 var copyFiles = func(client *getter.Client) error {
-	client.Getters = getter.Getters
-	client.Getters["file"] = &FileCopyGetter{}
+
+	// We copy all the default getters from the go-getter library, but replace the "file" getter. We shallow clone the
+	// getter map here rather than using getter.Getters directly because (a) we shouldn't change the original,
+	// globally-shared getter.Getters map and (b) Terragrunt may run this code from many goroutines concurrently during
+	// xxx-all calls, so creating a new map each time ensures we don't a "concurrent map writes" error.
+	client.Getters = map[string]getter.Getter{}
+	for getterName, getterValue := range getter.Getters {
+		if getterName == "file" {
+			client.Getters[getterName] = &FileCopyGetter{}
+		} else {
+			client.Getters[getterName] = getterValue
+		}
+	}
+
 	return nil
 }
 
