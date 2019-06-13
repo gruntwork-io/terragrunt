@@ -371,6 +371,11 @@ func cleanupDownloadDir(terraformSource *TerraformSource, terragruntOptions *opt
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
+		terraformJsonFiles, err := zglob.Glob("**/*.tf.json")
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+		terraformFiles = append(terraformFiles, terraformJsonFiles...)
 		filteredTerraformFiles := []string{}
 
 		// Filter out files in .terraform folders, since those are from modules downloaded via a call to terraform init,
