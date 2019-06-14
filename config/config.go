@@ -288,7 +288,7 @@ func parseHcl(hcl string, filename string, out interface{}, include *IncludeConf
 		return parseDiagnostics
 	}
 
-	evalContext := CreateTerragruntEvalContext(include, terragruntOptions)
+	evalContext := CreateTerragruntEvalContext(filename, include, terragruntOptions)
 
 	decodeDiagnostics := gohcl.DecodeBody(file.Body, evalContext, out)
 	if decodeDiagnostics != nil && decodeDiagnostics.HasErrors() {
