@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 	"os"
 	"path/filepath"
 	"testing"
@@ -537,5 +538,69 @@ func TestGetParentTerragruntDir(t *testing.T) {
 		actualPath, actualErr := getParentTerragruntDir(testCase.include, testCase.terragruntOptions)
 		assert.Nil(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
 		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
+	}
+}
+
+func TestTerraformBuiltInFunctions(t *testing.T) {
+	functions := CreateTerragruntEvalContext("../test/fixture-config-terraform-functions/"+DefaultTerragruntConfigPath, &IncludeConfig{}, &options.TerragruntOptions{}).Functions
+
+	testCases := []struct {
+		function string
+		args     []cty.Value
+		expected cty.Value
+	}{
+		{
+			"abs",
+			[]cty.Value { cty.NumberIntVal(-1) },
+			cty.NumberIntVal(1),
+		},
+		{
+			"element",
+			[]cty.Value { cty.ListVal([]cty.Value { cty.StringVal("one"), cty.StringVal("two"), cty.StringVal("three") }), cty.NumberIntVal(1) },
+			cty.StringVal("two"),
+		},
+		{
+			"file",
+			[]cty.Value { cty.StringVal("./other-file.txt") },
+			cty.StringVal("This is a test file\n"),
+		},
+		{
+			"sha1",
+			[]cty.Value { cty.StringVal("input") },
+			cty.StringVal("140f86aae51ab9e1cda9b4254fe98a74eb54c1a1"),
+		},
+		{
+			"split",
+			[]cty.Value { cty.StringVal("|"), cty.StringVal("one|two|three") },
+			cty.ListVal([]cty.Value { cty.StringVal("one"), cty.StringVal("two"), cty.StringVal("three") }),
+		},
+		{
+			"tobool",
+			[]cty.Value { cty.StringVal("false") },
+			cty.BoolVal(false),
+		},
+		{
+			"trimspace",
+			[]cty.Value { cty.StringVal("     content     ") },
+			cty.StringVal("content"),
+		},
+		{
+			"zipmap",
+			[]cty.Value {
+				cty.ListVal([]cty.Value { cty.StringVal("one"), cty.StringVal("two"), cty.StringVal("three") }),
+				cty.ListVal([]cty.Value { cty.NumberIntVal(1), cty.NumberIntVal(2), cty.NumberIntVal(3) }),
+			},
+			cty.MapVal(map[string]cty.Value{
+				"one": cty.NumberIntVal(1),
+				"two": cty.NumberIntVal(2),
+				"three": cty.NumberIntVal(3),
+			}),
+		},
+	}
+
+	for _, testCase := range testCases {
+		actual, err := functions[testCase.function].Call(testCase.args)
+		assert.Nil(t, err, "While running terraform built-in function '%v', unexpected error: %v", testCase.function, err)
+		assert.Equal(t, testCase.expected, actual, "While running terraform built-in function '%v', unexpected error: %v")
 	}
 }
