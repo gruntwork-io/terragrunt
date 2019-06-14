@@ -1302,10 +1302,9 @@ bucket if it doesn't already exist and only write files to the specified path.
 
 ### Built-in Functions
 
-Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like Terraform!  All of the
-[built-in functions from Terraform](https://www.terraform.io/docs/configuration/functions.html) are available, as well
-as the following Terragrunt-specific functions:
-
+Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like Terraform! The functions 
+currently available are: 
+* [All Terraform built-in functions](#terraform-built-in-functions)
 * [find_in_parent_folders()](#find_in_parent_folders)
 * [path_relative_to_include()](#path_relative_to_include)
 * [path_relative_from_include()](#path_relative_from_include)
@@ -1318,6 +1317,45 @@ as the following Terragrunt-specific functions:
 * [get_terraform_commands_that_need_parallelism()](#get_terraform_commands_that_need_parallelism)
 * [get_aws_account_id()](#get_aws_account_id)
 * [run_cmd()](#run_cmd)
+
+
+#### Terraform built-in functions
+
+All [Terraform built-in functions](https://www.terraform.io/docs/configuration/functions.html) are supported in
+Terragrunt config files:
+
+```hcl
+terraform {
+  source = "../modules/${basename(get_terragrunt_dir())}"
+}
+
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = trimspace("   my-terraform-bucket     ")
+    region = join("-", ["us", "east", "1"])
+    key    = format("%s/terraform.tfstate", path_relative_to_include())
+  }
+}
+```
+
+Note: Any `file*` functions (`file`, `fileexists`, `filebase64`, etc) are relative to the directory containing the
+`terragrunt.hcl` file by they're used in.
+
+Given the following structure:
+```
+└── terragrunt
+  └── common.tfvars
+  ├── assets
+  |  └── mysql
+  |     └── assets.txt
+  └── terragrunt.hcl
+```
+
+Then `assets.txt` could be read with the following function call:
+```hcl
+file("assets/mysql/assets.txt")
+```
 
 
 #### find_in_parent_folders
