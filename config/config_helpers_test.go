@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"github.com/stretchr/testify/require"
-	"github.com/zclconf/go-cty/cty"
 	"os"
 	"path/filepath"
 	"testing"
@@ -542,65 +541,63 @@ func TestGetParentTerragruntDir(t *testing.T) {
 }
 
 func TestTerraformBuiltInFunctions(t *testing.T) {
-	functions := CreateTerragruntEvalContext("../test/fixture-config-terraform-functions/"+DefaultTerragruntConfigPath, &IncludeConfig{}, &options.TerragruntOptions{}).Functions
+	t.Parallel()
 
 	testCases := []struct {
-		function string
-		args     []cty.Value
-		expected cty.Value
+		input    string
+		expected interface{}
 	}{
 		{
-			"abs",
-			[]cty.Value { cty.NumberIntVal(-1) },
-			cty.NumberIntVal(1),
+			"abs(-1)",
+			1.,
 		},
 		{
-			"element",
-			[]cty.Value { cty.ListVal([]cty.Value { cty.StringVal("one"), cty.StringVal("two"), cty.StringVal("three") }), cty.NumberIntVal(1) },
-			cty.StringVal("two"),
+			`element(["one", "two", "three"], 1)`,
+			"two",
 		},
 		{
-			"file",
-			[]cty.Value { cty.StringVal("./other-file.txt") },
-			cty.StringVal("This is a test file\n"),
+			`chomp(file("other-file.txt"))`,
+			"This is a test file",
 		},
 		{
-			"sha1",
-			[]cty.Value { cty.StringVal("input") },
-			cty.StringVal("140f86aae51ab9e1cda9b4254fe98a74eb54c1a1"),
+			`sha1("input")`,
+			"140f86aae51ab9e1cda9b4254fe98a74eb54c1a1",
 		},
 		{
-			"split",
-			[]cty.Value { cty.StringVal("|"), cty.StringVal("one|two|three") },
-			cty.ListVal([]cty.Value { cty.StringVal("one"), cty.StringVal("two"), cty.StringVal("three") }),
+			`split("|", "one|two|three")`,
+			[]interface{}{"one", "two", "three"},
 		},
 		{
-			"tobool",
-			[]cty.Value { cty.StringVal("false") },
-			cty.BoolVal(false),
+			`!tobool("false")`,
+			true,
 		},
 		{
-			"trimspace",
-			[]cty.Value { cty.StringVal("     content     ") },
-			cty.StringVal("content"),
+			`trimspace("     content     ")`,
+			"content",
 		},
 		{
-			"zipmap",
-			[]cty.Value {
-				cty.ListVal([]cty.Value { cty.StringVal("one"), cty.StringVal("two"), cty.StringVal("three") }),
-				cty.ListVal([]cty.Value { cty.NumberIntVal(1), cty.NumberIntVal(2), cty.NumberIntVal(3) }),
-			},
-			cty.MapVal(map[string]cty.Value{
-				"one": cty.NumberIntVal(1),
-				"two": cty.NumberIntVal(2),
-				"three": cty.NumberIntVal(3),
-			}),
+			`zipmap(["one", "two", "three"], [1, 2, 3])`,
+			map[string]interface{}{"one": 1., "two": 2., "three": 3.},
 		},
 	}
 
+
 	for _, testCase := range testCases {
-		actual, err := functions[testCase.function].Call(testCase.args)
-		assert.Nil(t, err, "While running terraform built-in function '%v', unexpected error: %v", testCase.function, err)
-		assert.Equal(t, testCase.expected, actual, "While running terraform built-in function '%v', unexpected error: %v")
+		t.Run(testCase.input, func(t *testing.T) {
+
+			terragruntOptions := terragruntOptionsForTest(t, "../test/fixture-config-terraform-functions/"+DefaultTerragruntConfigPath)
+			actual, err := ParseConfigString(fmt.Sprintf("inputs = { test = %s }", testCase.input), terragruntOptions, nil, terragruntOptions.TerragruntConfigPath)
+			require.NoError(t, err, "For hcl '%s' include %v and options %v, unexpected error: %v", testCase.input, nil, terragruntOptions, err)
+
+			require.NotNil(t, actual)
+
+			inputs := actual.Inputs
+			require.NotNil(t, inputs)
+
+			test, containsTest := inputs["test"]
+			assert.True(t, containsTest)
+
+			assert.EqualValues(t, testCase.expected, test, "For hcl '%s' include %v and options %v", testCase.input, nil, terragruntOptions)
+		})
 	}
 }
