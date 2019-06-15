@@ -1341,7 +1341,7 @@ remote_state {
 ```
 
 Note: Any `file*` functions (`file`, `fileexists`, `filebase64`, etc) are relative to the directory containing the
-`terragrunt.hcl` file by they're used in.
+`terragrunt.hcl` file they're used in.
 
 Given the following structure:
 ```
