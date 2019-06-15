@@ -1304,6 +1304,7 @@ bucket if it doesn't already exist and only write files to the specified path.
 
 Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like Terraform! The functions 
 currently available are: 
+
 * [All Terraform built-in functions](#terraform-built-in-functions)
 * [find_in_parent_folders()](#find_in_parent_folders)
 * [path_relative_to_include()](#path_relative_to_include)
