@@ -69,7 +69,6 @@ func CreateTerragruntEvalContext(filename string, include *IncludeConfig, terrag
 	}
 
 	terragruntFunctions := map[string]function.Function{
-		// Terragrunt
 		"find_in_parent_folders":                       wrapStringSliceToStringAsFuncImpl(findInParentFolders, include, terragruntOptions),
 		"path_relative_to_include":                     wrapVoidToStringAsFuncImpl(pathRelativeToInclude, include, terragruntOptions),
 		"path_relative_from_include":                   wrapVoidToStringAsFuncImpl(pathRelativeFromInclude, include, terragruntOptions),
