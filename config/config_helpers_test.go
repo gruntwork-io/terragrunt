@@ -539,3 +539,65 @@ func TestGetParentTerragruntDir(t *testing.T) {
 		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
 	}
 }
+
+func TestTerraformBuiltInFunctions(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		input    string
+		expected interface{}
+	}{
+		{
+			"abs(-1)",
+			1.,
+		},
+		{
+			`element(["one", "two", "three"], 1)`,
+			"two",
+		},
+		{
+			`chomp(file("other-file.txt"))`,
+			"This is a test file",
+		},
+		{
+			`sha1("input")`,
+			"140f86aae51ab9e1cda9b4254fe98a74eb54c1a1",
+		},
+		{
+			`split("|", "one|two|three")`,
+			[]interface{}{"one", "two", "three"},
+		},
+		{
+			`!tobool("false")`,
+			true,
+		},
+		{
+			`trimspace("     content     ")`,
+			"content",
+		},
+		{
+			`zipmap(["one", "two", "three"], [1, 2, 3])`,
+			map[string]interface{}{"one": 1., "two": 2., "three": 3.},
+		},
+	}
+
+
+	for _, testCase := range testCases {
+		t.Run(testCase.input, func(t *testing.T) {
+
+			terragruntOptions := terragruntOptionsForTest(t, "../test/fixture-config-terraform-functions/"+DefaultTerragruntConfigPath)
+			actual, err := ParseConfigString(fmt.Sprintf("inputs = { test = %s }", testCase.input), terragruntOptions, nil, terragruntOptions.TerragruntConfigPath)
+			require.NoError(t, err, "For hcl '%s' include %v and options %v, unexpected error: %v", testCase.input, nil, terragruntOptions, err)
+
+			require.NotNil(t, actual)
+
+			inputs := actual.Inputs
+			require.NotNil(t, inputs)
+
+			test, containsTest := inputs["test"]
+			assert.True(t, containsTest)
+
+			assert.EqualValues(t, testCase.expected, test, "For hcl '%s' include %v and options %v", testCase.input, nil, terragruntOptions)
+		})
+	}
+}

@@ -68,3 +68,7 @@
 [prune]
   go-tests = true
   unused-packages = true
+
+[[constraint]]
+  name = "github.com/hashicorp/terraform"
+  version = "0.12.2"

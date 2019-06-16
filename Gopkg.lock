@@ -26,6 +26,14 @@
   version = "v1.2.2"
 
 [[projects]]
+  digest = "1:1929b21a34400d463a99336f8e2908d2a154dc525c52411a8d99bb519942dc4c"
+  name = "github.com/apparentlymart/go-cidr"
+  packages = ["cidr"]
+  pruneopts = "UT"
+  revision = "b1115bf8e14a60131a196f908223e4506b0ddc35"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:2bf7da77216264bb61bd8cb5f3380a03ab509e8a826fe359008d4a6ba0789b13"
   name = "github.com/apparentlymart/go-textseg"
   packages = ["textseg"]
@@ -142,6 +150,14 @@
   version = "v2.0.4"
 
 [[projects]]
+  digest = "1:0ade334594e69404d80d9d323445d2297ff8161637f9b2d347cc6973d2d6f05b"
+  name = "github.com/hashicorp/errwrap"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "8a6fb523712970c966eefc6b39ed2c5e74880354"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:af105c7c5dc0b4ae41991f122cae860b9600f7d226072c2a83127048c991660c"
   name = "github.com/hashicorp/go-cleanhttp"
   packages = ["."]
@@ -161,12 +177,28 @@
   version = "v1.3.0"
 
 [[projects]]
+  digest = "1:f668349b83f7d779567c880550534addeca7ebadfdcf44b0b9c39be61864b4b7"
+  name = "github.com/hashicorp/go-multierror"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "886a7fbe3eb1c874d46f623bfa70af45f425b3d1"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:605c47454db9040e30b20dc1b29e3e9d42d6ee742545729cdef74afb1b898ad0"
   name = "github.com/hashicorp/go-safetemp"
   packages = ["."]
   pruneopts = "UT"
   revision = "c9a55de4fe06c920a71964b53cfe3dd293a3c743"
   version = "v1.0.0"
+
+[[projects]]
+  digest = "1:f14364057165381ea296e49f8870a9ffce2b8a95e34d6ae06c759106aaef428c"
+  name = "github.com/hashicorp/go-uuid"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "4f571afc59f3043a65f8fe6bf46d887b10a01d43"
+  version = "v1.0.1"
 
 [[projects]]
   digest = "1:88e0b0baeb9072f0a4afbcf12dda615fc8be001d1802357538591155998da21b"
@@ -186,18 +218,36 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:c617804ff4d0adbed51b6409672dd1a1a15c88bf53331bd11bf41da146eb8c18"
+  digest = "1:816ed86a80b35f4d906f57ada56d18e5007d7e0a0450a0efa69c52902815e154"
   name = "github.com/hashicorp/hcl2"
   packages = [
+    "ext/dynblock",
     "gohcl",
     "hcl",
     "hcl/hclsyntax",
     "hcl/json",
+    "hcldec",
     "hclparse",
     "hclwrite",
   ]
   pruneopts = "UT"
   revision = "318e80eefe28c3aa01b434c61bcf4c83a0cc6b25"
+
+[[projects]]
+  digest = "1:93a7a26ca378c3e071b5f1477b98aea19e4e038da6e3baad91225b76bf4cce7e"
+  name = "github.com/hashicorp/terraform"
+  packages = [
+    "addrs",
+    "configs/configschema",
+    "helper/didyoumean",
+    "lang",
+    "lang/blocktoattr",
+    "lang/funcs",
+    "tfdiags",
+  ]
+  pruneopts = "UT"
+  revision = "a5fb573be1e8b5564f3fd879852a6681c55d6e8f"
+  version = "v0.12.2"
 
 [[projects]]
   digest = "1:bb81097a5b62634f3e9fec1014657855610c82d19b9a40c17612e32651e35dca"
@@ -258,6 +308,14 @@
   version = "v1.0.0"
 
 [[projects]]
+  digest = "1:274f67cb6fed9588ea2521ecdac05a6d62a8c51c074c1fccc6a49a40ba80e925"
+  name = "github.com/satori/go.uuid"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "f58768cc1a7a7e77a3bd49e98cdd21419399b6a3"
+  version = "v1.2.0"
+
+[[projects]]
   digest = "1:5da8ce674952566deae4dbc23d07c85caafc6cfa815b0b3e03e41979cedb8750"
   name = "github.com/stretchr/testify"
   packages = [
@@ -306,6 +364,14 @@
   version = "v1.0.0"
 
 [[projects]]
+  digest = "1:7922171eda409496bd43979d690c2ba5d58912d9bc5cafdc0509e7cd5a6f8314"
+  name = "github.com/zclconf/go-cty-yaml"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "fbabe99bb1c897a56ed70103a40aa94fc50a7104"
+  version = "v0.1.0"
+
+[[projects]]
   digest = "1:74055050ea547bb04600be79cc501965cb3de8988018262f2ca430f0a0b48ec3"
   name = "go.opencensus.io"
   packages = [
@@ -329,6 +395,17 @@
   pruneopts = "UT"
   revision = "9c377598961b706d1542bd2d84d538b5094d596e"
   version = "v0.22.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:9d5b5d543996dd584da1db1e0de1926f3e4c3a8dba0fa2f8db70f3ebee2342e0"
+  name = "golang.org/x/crypto"
+  packages = [
+    "bcrypt",
+    "blowfish",
+  ]
+  pruneopts = "UT"
+  revision = "5c40567a22f818bd14a1ea7245dad9f8ef0691aa"
 
 [[projects]]
   branch = "master"
@@ -506,6 +583,7 @@
     "github.com/hashicorp/hcl2/gohcl",
     "github.com/hashicorp/hcl2/hcl",
     "github.com/hashicorp/hcl2/hclparse",
+    "github.com/hashicorp/terraform/lang",
     "github.com/mattn/go-zglob",
     "github.com/mitchellh/mapstructure",
     "github.com/stretchr/testify/assert",
