@@ -839,6 +839,29 @@ skip = false
 	assert.Equal(t, false, terragruntConfig.Skip)
 }
 
+func TestIncludeFunctionsWorkInChildConfig(t *testing.T) {
+	config := `
+include {
+	path = find_in_parent_folders()
+}
+terraform {
+	source = path_relative_to_include()
+}
+`
+	opts := options.TerragruntOptions{
+		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/"+DefaultTerragruntConfigPath,
+		NonInteractive:       true,
+		MaxFoldersToCheck:    5,
+	}
+
+	terragruntConfig, err := ParseConfigString(config, &opts, nil, DefaultTerragruntConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, "child", *terragruntConfig.Terraform.Source)
+}
+
 func ptr(str string) *string {
 	return &str
 }
