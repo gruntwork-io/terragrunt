@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"github.com/hashicorp/hcl2/gohcl"
+	"github.com/hashicorp/hcl2/hcl"
 	"github.com/hashicorp/hcl2/hclparse"
 	"github.com/zclconf/go-cty/cty"
 	"os"
@@ -44,6 +45,11 @@ type terragruntConfigFile struct {
 	PreventDestroy *bool                  `hcl:"prevent_destroy,attr"`
 	Skip           *bool                  `hcl:"skip,attr"`
 	IamRole        *string                `hcl:"iam_role,attr"`
+}
+
+type terragruntInclude struct {
+	Include *IncludeConfig `hcl:"include,block"`
+	Remain  hcl.Body       `hcl:",remain"`
 }
 
 // Configuration for Terraform remote state as parsed from a terragrunt.hcl config file
@@ -216,13 +222,13 @@ func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*Terrag
 
 // Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
-func ParseConfigFile(configPath string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) (*TerragruntConfig, error) {
-	configString, err := util.ReadFileAsString(configPath)
+func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) (*TerragruntConfig, error) {
+	configString, err := util.ReadFileAsString(filename)
 	if err != nil {
 		return nil, err
 	}
 
-	config, err := ParseConfigString(configString, terragruntOptions, include, configPath)
+	config, err := ParseConfigString(configString, terragruntOptions, include, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -231,48 +237,99 @@ func ParseConfigFile(configPath string, terragruntOptions *options.TerragruntOpt
 }
 
 // Parse the Terragrunt config contained in the given string and merge it with the given include config (if any)
-func ParseConfigString(configString string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig, configPath string) (*TerragruntConfig, error) {
-	terragruntConfigFile, err := parseConfigStringAsTerragruntConfigFile(configString, configPath, terragruntOptions, include)
+func ParseConfigString(configString string, terragruntOptions *options.TerragruntOptions, includeFromChild *IncludeConfig, filename string) (*TerragruntConfig, error) {
+	file, err := parseHcl(configString, filename)
+	if err != nil {
+		return nil, err
+	}
+
+	terragruntInclude, err := decodeAsTerragruntInclude(file, filename, terragruntOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	var includeForDecode *IncludeConfig = nil
+	if terragruntInclude.Include != nil && includeFromChild != nil {
+		return nil, errors.WithStackTrace(TooManyLevelsOfInheritance{
+			ConfigPath:             terragruntOptions.TerragruntConfigPath,
+			FirstLevelIncludePath:  includeFromChild.Path,
+			SecondLevelIncludePath: terragruntInclude.Include.Path,
+		})
+	} else if terragruntInclude.Include != nil {
+		includeForDecode = terragruntInclude.Include
+	} else if includeFromChild != nil {
+		includeForDecode = includeFromChild
+	}
+
+	terragruntConfigFile, err := decodeAsTerragruntConfigFile(file, filename, terragruntOptions, includeForDecode)
 	if err != nil {
 		return nil, err
 	}
 	if terragruntConfigFile == nil {
-		return nil, errors.WithStackTrace(CouldNotResolveTerragruntConfigInFile(configPath))
+		return nil, errors.WithStackTrace(CouldNotResolveTerragruntConfigInFile(filename))
 	}
 
-	config, err := convertToTerragruntConfig(terragruntConfigFile, configPath, terragruntOptions)
+	config, err := convertToTerragruntConfig(terragruntConfigFile, filename, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	if include != nil && terragruntConfigFile.Include != nil {
-		return nil, errors.WithStackTrace(TooManyLevelsOfInheritance{
-			ConfigPath:             terragruntOptions.TerragruntConfigPath,
-			FirstLevelIncludePath:  include.Path,
-			SecondLevelIncludePath: terragruntConfigFile.Include.Path,
-		})
-	}
+	// If this file includes another, parse and merge it.  Otherwise just return this config.
+	if terragruntInclude.Include != nil {
+		includedConfig, err := parseIncludedConfig(terragruntInclude.Include, terragruntOptions)
+		if err != nil {
+			return nil, err
+		}
 
-	includedConfig, err := parseIncludedConfig(terragruntConfigFile.Include, terragruntOptions)
-	if err != nil {
-		return nil, err
+		return mergeConfigWithIncludedConfig(config, includedConfig, terragruntOptions)
+	} else {
+		return config, nil
 	}
-
-	return mergeConfigWithIncludedConfig(config, includedConfig, terragruntOptions)
 }
 
-// Parse the given config string using the HCL2 parser
-func parseConfigStringAsTerragruntConfigFile(configString string, configPath string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) (*terragruntConfigFile, error) {
+// For consistency, `include` is always assumed to be nil.
+// Either it really is nil (parsing the child config), or it shouldn't be used anyway (the parent config shouldn't have
+// an include block)
+func decodeAsTerragruntInclude(file *hcl.File, filename string, terragruntOptions *options.TerragruntOptions) (*terragruntInclude, error) {
+	terragruntInclude := terragruntInclude{}
+	err := decodeHcl(file, filename, &terragruntInclude, terragruntOptions, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &terragruntInclude, nil
+}
+
+func decodeAsTerragruntConfigFile(file *hcl.File, filename string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) (*terragruntConfigFile, error) {
 	terragruntConfig := terragruntConfigFile{}
-	err := parseHcl(configString, configPath, &terragruntConfig, include, terragruntOptions)
+	err := decodeHcl(file, filename, &terragruntConfig, terragruntOptions, include)
 	if err != nil {
 		return nil, err
 	}
 	return &terragruntConfig, nil
 }
 
-// parseHcl uses the HCL2 parser to parse the given string into the struct specified by out.
-func parseHcl(hcl string, filename string, out interface{}, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (err error) {
+// decodeHcl uses the HCL2 parser to decode the parsed HCL into the struct specified by out.
+func decodeHcl(file *hcl.File, filename string, out interface{}, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) (err error) {
+	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
+	// those panics here and convert them to normal errors
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = errors.WithStackTrace(PanicWhileParsingConfig{RecoveredValue: recovered, ConfigFile: filename})
+		}
+	}()
+
+	evalContext := CreateTerragruntEvalContext(filename, terragruntOptions, include)
+
+	decodeDiagnostics := gohcl.DecodeBody(file.Body, evalContext, out)
+	if decodeDiagnostics != nil && decodeDiagnostics.HasErrors() {
+		return decodeDiagnostics
+	}
+
+	return nil
+}
+
+// parseHcl uses the HCL2 parser to parse the given string into an HCL file body.
+func parseHcl(hcl string, filename string) (file *hcl.File, err error) {
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
 	// those panics here and convert them to normal errors
 	defer func() {
@@ -285,26 +342,15 @@ func parseHcl(hcl string, filename string, out interface{}, include *IncludeConf
 
 	file, parseDiagnostics := parser.ParseHCL([]byte(hcl), filename)
 	if parseDiagnostics != nil && parseDiagnostics.HasErrors() {
-		return parseDiagnostics
+		return nil, parseDiagnostics
 	}
 
-	evalContext := CreateTerragruntEvalContext(filename, include, terragruntOptions)
-
-	decodeDiagnostics := gohcl.DecodeBody(file.Body, evalContext, out)
-	if decodeDiagnostics != nil && decodeDiagnostics.HasErrors() {
-		return decodeDiagnostics
-	}
-
-	return nil
+	return file, nil
 }
 
 // Merge the given config with an included config. Anything specified in the current config will override the contents
 // of the included config. If the included config is nil, just return the current config.
 func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *TerragruntConfig, terragruntOptions *options.TerragruntOptions) (*TerragruntConfig, error) {
-	if includedConfig == nil {
-		return config, nil
-	}
-
 	if config.RemoteState != nil {
 		includedConfig.RemoteState = config.RemoteState
 	}
@@ -422,9 +468,6 @@ func getIndexOfExtraArgsWithName(extraArgs []TerraformExtraArguments, name strin
 
 // Parse the config of the given include, if one is specified
 func parseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *options.TerragruntOptions) (*TerragruntConfig, error) {
-	if includedConfig == nil {
-		return nil, nil
-	}
 	if includedConfig.Path == "" {
 		return nil, errors.WithStackTrace(IncludedConfigMissingPath(terragruntOptions.TerragruntConfigPath))
 	}
