@@ -238,11 +238,13 @@ func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptio
 
 // Parse the Terragrunt config contained in the given string and merge it with the given include config (if any)
 func ParseConfigString(configString string, terragruntOptions *options.TerragruntOptions, includeFromChild *IncludeConfig, filename string) (*TerragruntConfig, error) {
+	// Parse the HCL string into an AST body that can be decoded multiple times later without having to re-parse
 	file, err := parseHcl(configString, filename)
 	if err != nil {
 		return nil, err
 	}
 
+	// Decode just the `include` block, and verify that it's allowed here
 	terragruntInclude, err := decodeAsTerragruntInclude(file, filename, terragruntOptions)
 	if err != nil {
 		return nil, err
@@ -261,6 +263,8 @@ func ParseConfigString(configString string, terragruntOptions *options.Terragrun
 		includeForDecode = includeFromChild
 	}
 
+	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
+	// is appropriate
 	terragruntConfigFile, err := decodeAsTerragruntConfigFile(file, filename, terragruntOptions, includeForDecode)
 	if err != nil {
 		return nil, err
@@ -287,7 +291,9 @@ func ParseConfigString(configString string, terragruntOptions *options.Terragrun
 	}
 }
 
-// For consistency, `include` is always assumed to be nil.
+// This decodes only the `include` block of a terragrunt config, so its value can be used while decoding the rest of the
+// config.
+// For consistency, `include` in the call to `decodeHcl` is always assumed to be nil.
 // Either it really is nil (parsing the child config), or it shouldn't be used anyway (the parent config shouldn't have
 // an include block)
 func decodeAsTerragruntInclude(file *hcl.File, filename string, terragruntOptions *options.TerragruntOptions) (*terragruntInclude, error) {
