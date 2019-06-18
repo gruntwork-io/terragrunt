@@ -30,6 +30,10 @@
   version = "1.19.47"
 
 [[constraint]]
+  name = "cloud.google.com/go"
+  version = "0.35.1"
+
+[[constraint]]
   name = "github.com/go-errors/errors"
   version = "1.0.1"
 
