@@ -32,6 +32,7 @@ type RemoteStateInitializer interface {
 // TODO: initialization actions for other remote state backends can be added here
 var remoteStateInitializers = map[string]RemoteStateInitializer{
 	"s3": S3Initializer{},
+	"gcs": GCSInitializer{},
 }
 
 // Fill in any default configuration for remote state
