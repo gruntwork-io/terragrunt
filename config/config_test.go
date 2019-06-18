@@ -849,7 +849,7 @@ terraform {
 }
 `
 	opts := options.TerragruntOptions{
-		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/"+DefaultTerragruntConfigPath,
+		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/" + DefaultTerragruntConfigPath,
 		NonInteractive:       true,
 		MaxFoldersToCheck:    5,
 	}
