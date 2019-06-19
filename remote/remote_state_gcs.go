@@ -3,7 +3,6 @@ package remote
 import (
 	"context"
 	"fmt"
-	"os"
 	"reflect"
 	"strconv"
 	"time"
@@ -24,6 +23,8 @@ import (
 type ExtendedRemoteStateConfigGCS struct {
 	remoteStateConfigGCS RemoteStateConfigGCS
 
+	Project                string            `mapstructure:"project"`
+	Location               string            `mapstructure:"location"`
 	GCSBucketLabels        map[string]string `mapstructure:"gcs_bucket_labels"`
 	SkipBucketVersioning   bool              `mapstructure:"skip_bucket_versioning"`
 	SkipBucketAuditLogging bool              `mapstructure:"skip_bucket_auditlogging"`
@@ -32,6 +33,8 @@ type ExtendedRemoteStateConfigGCS struct {
 // These are settings that can appear in the remote_state config that are ONLY used by Terragrunt and NOT forwarded
 // to the underlying Terraform backend configuration.
 var terragruntGCSOnlyConfigs = []string{
+	"project",
+	"location",
 	"gcs_bucket_labels",
 	"skip_bucket_versioning",
 	"skip_bucket_auditlogging",
@@ -201,6 +204,11 @@ func parseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteState
 
 // Validate all the parameters of the given GCS remote state configuration
 func validateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS, terragruntOptions *options.TerragruntOptions) error {
+	// A project must be specified in order for terragrunt to automatically create a storage bucket.
+	if extendedConfig.Project == "" {
+		return errors.WithStackTrace(MissingRequiredGCSRemoteStateConfig("project"))
+	}
+
 	var config = extendedConfig.remoteStateConfigGCS
 
 	if config.Bucket == "" {
@@ -316,17 +324,20 @@ func EnableAuditLoggingForGCSBucketWide(gcsClient *storage.Client, config *Remot
 
 // Create the GCS bucket specified in the given config
 func CreateGCSBucket(gcsClient *storage.Client, config *ExtendedRemoteStateConfigGCS, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Printf("Creating GCS bucket %s", config.remoteStateConfigGCS.Bucket)
+	terragruntOptions.Logger.Printf("Creating GCS bucket %s in project %s", config.remoteStateConfigGCS.Bucket, config.Project)
 
-	// TODO - should the Project ID be passed in the Terragrunt config object or read from terragrunt.hcl?
-	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	// The project ID to which the bucket belongs. This is only used when creating a new bucket during initialization.
+	// Since buckets have globally unique names, the project ID is not required to access the bucket during normal
+	// operation.
+	projectID := config.Project
 
 	ctx := context.Background()
 	bucket := gcsClient.Bucket(config.remoteStateConfigGCS.Bucket)
 
-	bucketAttrs := &storage.BucketAttrs{
-		//Location:     "asia-east1",
-		//StorageClass: "REGIONAL",
+	bucketAttrs := &storage.BucketAttrs{}
+
+	if config.Location != "" {
+		terragruntOptions.Logger.Printf("Creating GCS bucket in location %s.", config.Location)
 	}
 
 	if config.SkipBucketVersioning {
@@ -337,7 +348,7 @@ func CreateGCSBucket(gcsClient *storage.Client, config *ExtendedRemoteStateConfi
 	}
 
 	if len(config.GCSBucketLabels) > 0 {
-		terragruntOptions.Logger.Printf("Tagging GCS bucket with %s", config.GCSBucketLabels)
+		terragruntOptions.Logger.Printf("Adding Labels to GCS bucket %s", config.GCSBucketLabels)
 		bucketAttrs.Labels = config.GCSBucketLabels
 	} else {
 		terragruntOptions.Logger.Printf("No labels specified for bucket %s.", config.remoteStateConfigGCS.Bucket)
