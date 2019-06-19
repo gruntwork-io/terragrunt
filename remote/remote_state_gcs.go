@@ -34,7 +34,7 @@ type ExtendedRemoteStateConfigGCS struct {
 var terragruntGCSOnlyConfigs = []string{
 	"gcs_bucket_labels",
 	"skip_bucket_versioning",
-	"skip_bucket_auditogging",
+	"skip_bucket_auditlogging",
 }
 
 // A representation of the configuration options available for GCS remote state
@@ -259,7 +259,7 @@ func checkIfGCSVersioningEnabled(gcsClient *storage.Client, config *RemoteStateC
 
 // CreateGCSBucketWithVersioningAndAuditLogging creates the given GCS bucket and enables versioning for it.
 func CreateGCSBucketWithVersioningAndAuditLogging(gcsClient *storage.Client, config *ExtendedRemoteStateConfigGCS, terragruntOptions *options.TerragruntOptions) error {
-	err := CreateGCSBucket(gcsClient, &config.remoteStateConfigGCS, terragruntOptions)
+	err := CreateGCSBucket(gcsClient, config, terragruntOptions)
 
 	if err != nil {
 		if isBucketAlreadyOwnedByYourError(err) {
@@ -274,16 +274,6 @@ func CreateGCSBucketWithVersioningAndAuditLogging(gcsClient *storage.Client, con
 		return err
 	}
 
-	if err := AddLabelsToGCSBucket(gcsClient, config, terragruntOptions); err != nil {
-		return err
-	}
-
-	if config.SkipBucketVersioning {
-		terragruntOptions.Logger.Printf("Versioning is disabled for the remote state GCS bucket %s using 'skip_bucket_versioning' config.", config.remoteStateConfigGCS.Bucket)
-	} else if err := EnableVersioningForGCSBucket(gcsClient, &config.remoteStateConfigGCS, terragruntOptions); err != nil {
-		return err
-	}
-
 	// TODO - enable audit logging
 	//if config.SkipBucketAuditLogging {
 	//	terragruntOptions.Logger.Printf("Audit Logging is disabled for the remote state GCS bucket %s using 'skip_bucket_auditlogging' config.", config.remoteStateConfigGCS.Bucket)
@@ -291,21 +281,6 @@ func CreateGCSBucketWithVersioningAndAuditLogging(gcsClient *storage.Client, con
 	//	return err
 	//}
 
-	return nil
-}
-
-// Enable versioning for the S3 bucket specified in the given config
-func EnableVersioningForGCSBucket(gcsClient *storage.Client, config *RemoteStateConfigGCS, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Printf("Enabling versioning on GCS bucket %s", config.Bucket)
-	/* TODO
-	input := s3.PutBucketVersioningInput{
-		Bucket:                  aws.String(config.Bucket),
-		VersioningConfiguration: &s3.VersioningConfiguration{Status: aws.String(s3.BucketVersioningStatusEnabled)},
-	}
-
-	_, err := s3Client.PutBucketVersioning(&input)
-	return errors.WithStackTrace(err)
-	*/
 	return nil
 }
 
@@ -340,45 +315,36 @@ func EnableAuditLoggingForGCSBucketWide(gcsClient *storage.Client, config *Remot
 }
 
 // Create the GCS bucket specified in the given config
-func CreateGCSBucket(gcsClient *storage.Client, config *RemoteStateConfigGCS, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Printf("Creating GCS bucket %s", config.Bucket)
+func CreateGCSBucket(gcsClient *storage.Client, config *ExtendedRemoteStateConfigGCS, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Printf("Creating GCS bucket %s", config.remoteStateConfigGCS.Bucket)
 
 	// TODO - should the Project ID be passed in the Terragrunt config object or read from terragrunt.hcl?
 	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
 
 	ctx := context.Background()
-	bucket := gcsClient.Bucket(config.Bucket)
-	// TODO - consider using the attrs to set versioning etc
-	// would avoid separate requests
-	err := bucket.Create(ctx, projectID, nil)
-	return errors.WithStackTrace(err)
-}
+	bucket := gcsClient.Bucket(config.remoteStateConfigGCS.Bucket)
 
-func AddLabelsToGCSBucket(gcsClient *storage.Client, config *ExtendedRemoteStateConfigGCS, terragruntOptions *options.TerragruntOptions) error {
-	if config.GCSBucketLabels == nil || len(config.GCSBucketLabels) == 0 {
+	bucketAttrs := &storage.BucketAttrs{
+		//Location:     "asia-east1",
+		//StorageClass: "REGIONAL",
+	}
+
+	if config.SkipBucketVersioning {
+		terragruntOptions.Logger.Printf("Versioning is disabled for the remote state GCS bucket %s using 'skip_bucket_versioning' config.", config.remoteStateConfigGCS.Bucket)
+	} else {
+		terragruntOptions.Logger.Printf("Enabling versioning on GCS bucket %s", config.remoteStateConfigGCS.Bucket)
+		bucketAttrs.VersioningEnabled = true
+	}
+
+	if len(config.GCSBucketLabels) > 0 {
+		terragruntOptions.Logger.Printf("Tagging GCS bucket with %s", config.GCSBucketLabels)
+		bucketAttrs.Labels = config.GCSBucketLabels
+	} else {
 		terragruntOptions.Logger.Printf("No labels specified for bucket %s.", config.remoteStateConfigGCS.Bucket)
-		return nil
 	}
 
-	/* TODO
-	// There must be one entry in the list
-	var tagsConverted = convertTags(config.S3BucketTags)
-
-	terragruntOptions.Logger.Printf("Tagging S3 bucket with %s", config.S3BucketTags)
-
-	putBucketTaggingInput := s3.PutBucketTaggingInput{
-		Bucket: aws.String(config.remoteStateConfigS3.Bucket),
-		Tagging: &s3.Tagging{
-			TagSet: tagsConverted}}
-
-	_, err := s3Client.PutBucketTagging(&putBucketTaggingInput)
-
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-	*/
-
-	return nil
+	err := bucket.Create(ctx, projectID, bucketAttrs)
+	return errors.WithStackTrace(err)
 }
 
 // GCP is eventually consistent, so after creating a GCS bucket, this method can be used to wait until the information
