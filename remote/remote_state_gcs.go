@@ -30,7 +30,7 @@ type ExtendedRemoteStateConfigGCS struct {
 }
 
 // These are settings that can appear in the remote_state config that are ONLY used by Terragrunt and NOT forwarded
-// to the underlying Terraform backend configuration
+// to the underlying Terraform backend configuration.
 var terragruntGCSOnlyConfigs = []string{
 	"gcs_bucket_labels",
 	"skip_bucket_versioning",
@@ -161,7 +161,7 @@ func (gcsInitializer GCSInitializer) GetTerraformInitArgs(config map[string]inte
 	var filteredConfig = make(map[string]interface{})
 
 	for key, val := range config {
-		if util.ListContainsElement(terragruntOnlyConfigs, key) {
+		if util.ListContainsElement(terragruntGCSOnlyConfigs, key) {
 			continue
 		}
 
