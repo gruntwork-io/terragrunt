@@ -282,6 +282,10 @@ func CreateGCSBucketWithVersioningAndAuditLogging(gcsClient *storage.Client, con
 		return err
 	}
 
+	if err := AddLabelsToGCSBucket(gcsClient, config, terragruntOptions); err != nil {
+		return err
+	}
+
 	// TODO - enable audit logging
 	//if config.SkipBucketAuditLogging {
 	//	terragruntOptions.Logger.Printf("Audit Logging is disabled for the remote state GCS bucket %s using 'skip_bucket_auditlogging' config.", config.remoteStateConfigGCS.Bucket)
@@ -290,6 +294,33 @@ func CreateGCSBucketWithVersioningAndAuditLogging(gcsClient *storage.Client, con
 	//}
 
 	return nil
+}
+
+func AddLabelsToGCSBucket(gcsClient *storage.Client, config *ExtendedRemoteStateConfigGCS, terragruntOptions *options.TerragruntOptions) error {
+	if config.GCSBucketLabels == nil || len(config.GCSBucketLabels) == 0 {
+		terragruntOptions.Logger.Printf("No labels specified for bucket %s.", config.remoteStateConfigGCS.Bucket)
+		return nil
+	}
+
+	terragruntOptions.Logger.Printf("Adding labels to GCS bucket with %s", config.GCSBucketLabels)
+
+	ctx := context.Background()
+	bucket := gcsClient.Bucket(config.remoteStateConfigGCS.Bucket)
+
+	bucketAttrs := *&storage.BucketAttrsToUpdate{}
+
+	for key, value := range config.GCSBucketLabels {
+		bucketAttrs.SetLabel(key, value)
+	}
+
+	_, err := bucket.Update(ctx, bucketAttrs)
+
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	return nil
+
 }
 
 // Enable bucket-wide Audit Logging for the GCS bucket specified in the given config
@@ -345,13 +376,6 @@ func CreateGCSBucket(gcsClient *storage.Client, config *ExtendedRemoteStateConfi
 	} else {
 		terragruntOptions.Logger.Printf("Enabling versioning on GCS bucket %s", config.remoteStateConfigGCS.Bucket)
 		bucketAttrs.VersioningEnabled = true
-	}
-
-	if len(config.GCSBucketLabels) > 0 {
-		terragruntOptions.Logger.Printf("Adding Labels to GCS bucket %s", config.GCSBucketLabels)
-		bucketAttrs.Labels = config.GCSBucketLabels
-	} else {
-		terragruntOptions.Logger.Printf("No labels specified for bucket %s.", config.remoteStateConfigGCS.Bucket)
 	}
 
 	err := bucket.Create(ctx, projectID, bucketAttrs)
