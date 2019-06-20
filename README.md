@@ -608,6 +608,18 @@ they don't already exist:
 
   In addition, you can let terragrunt tag the DynamoDB table with custom tags that you specify in
   `remote_state.config.dynamodb_table_tags`.
+  
+* **GCS bucket**: If you are using the [GCS backend](https://www.terraform.io/docs/backends/types/gcs.html) for remote
+  state storage and the `bucket` you specify in `remote_state.config` doesn't already exist, Terragrunt will create it
+  automatically, with [versioning](https://cloud.google.com/storage/docs/object-versioning) enabled. For this to work
+  correctly you must also specify `project` and `location` keys in `remote_state.config`, so terragrunt knows where to
+  create the bucket.
+
+  We also strongly recommend you enable [Cloud Audit Logs](https://cloud.google.com/storage/docs/access-logs) to audit
+  and track API operations performed against the state bucket.
+
+  In addition, you can let terragrunt label the bucket with custom labels that you specify in
+  `remote_state.config.gcs_bucket_labels`.
 
 **Note**: If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile
 when creating the S3 bucket or DynamoDB table.
@@ -641,6 +653,24 @@ backend `s3`. They are used by terragrunt and are **not** passed on to
 terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).
 
 
+#### GCS-specific remote state settings
+
+For the `gcs` backend, the following config options can be used for GCS-compatible object stores, as necessary:
+
+```hcl
+remote_state {
+ # ...
+
+ skip_bucket_versioning = true # use only if the object store does not support versioning
+
+ encryption_key = "GOOGLE_ENCRYPTION_KEY"
+}
+```
+
+If you experience an error for any of these configurations, confirm you are using Terraform v0.12.0 or greater.
+
+Further, the config options `gcs_bucket_labels` and `skip_bucket_versioning` are only valid for the backend `gcs`. They are used by
+terragrunt and are **not** passed on to terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).
 
 ### Keep your CLI flags DRY
 
