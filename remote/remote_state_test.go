@@ -91,9 +91,15 @@ func TestToTerraformInitArgsUnknownBackend(t *testing.T) {
 func TestToTerraformInitArgsNoBackendConfigs(t *testing.T) {
 	t.Parallel()
 
-	remoteState := RemoteState{Backend: "s3"}
-	args := remoteState.ToTerraformInitArgs()
-	assert.Empty(t, args)
+	remoteStates := []RemoteState{
+		RemoteState{Backend: "s3"},
+		RemoteState{Backend: "gcs"},
+	}
+
+	for _, state := range remoteStates {
+		args := state.ToTerraformInitArgs()
+		assert.Empty(t, args)
+	}
 }
 
 func TestDiffersFrom(t *testing.T) {
@@ -123,7 +129,18 @@ func TestDiffersFrom(t *testing.T) {
 			},
 			false,
 		}, {
-			"different bucket values",
+			"identical GCS configs",
+			TerraformBackend{
+				Type:   "gcs",
+				Config: map[string]interface{}{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "bar"},
+			},
+			RemoteState{
+				Backend: "gcs",
+				Config:  map[string]interface{}{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "bar"},
+			},
+			false,
+		}, {
+			"different s3 bucket values",
 			TerraformBackend{
 				Type:   "s3",
 				Config: map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
@@ -134,7 +151,18 @@ func TestDiffersFrom(t *testing.T) {
 			},
 			true,
 		}, {
-			"different key values",
+			"different gcs bucket values",
+			TerraformBackend{
+				Type:   "gcs",
+				Config: map[string]interface{}{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "bar"},
+			},
+			RemoteState{
+				Backend: "gcs",
+				Config:  map[string]interface{}{"project": "foo-123456", "location": "europe-west3", "bucket": "different", "prefix": "bar"},
+			},
+			true,
+		}, {
+			"different s3 key values",
 			TerraformBackend{
 				Type:   "s3",
 				Config: map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
@@ -145,7 +173,18 @@ func TestDiffersFrom(t *testing.T) {
 			},
 			true,
 		}, {
-			"different region values",
+			"different gcs prefix values",
+			TerraformBackend{
+				Type:   "gcs",
+				Config: map[string]interface{}{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "bar"},
+			},
+			RemoteState{
+				Backend: "gcs",
+				Config:  map[string]interface{}{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "different"},
+			},
+			true,
+		}, {
+			"different s3 region values",
 			TerraformBackend{
 				Type:   "s3",
 				Config: map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
@@ -153,6 +192,17 @@ func TestDiffersFrom(t *testing.T) {
 			RemoteState{
 				Backend: "s3",
 				Config:  map[string]interface{}{"bucket": "foo", "key": "bar", "region": "different"},
+			},
+			true,
+		}, {
+			"different gcs location values",
+			TerraformBackend{
+				Type:   "gcs",
+				Config: map[string]interface{}{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "bar"},
+			},
+			RemoteState{
+				Backend: "gcs",
+				Config:  map[string]interface{}{"project": "foo-123456", "location": "different", "bucket": "foo", "prefix": "bar"},
 			},
 			true,
 		},
@@ -169,13 +219,37 @@ func TestDiffersFrom(t *testing.T) {
 			true,
 		},
 		{
-			"nul values ignored",
+			"different gcs boolean values and boolean conversion",
+			TerraformBackend{
+				Type:   "gcs",
+				Config: map[string]interface{}{"something": "true"},
+			},
+			RemoteState{
+				Backend: "gcs",
+				Config:  map[string]interface{}{"something": false},
+			},
+			true,
+		},
+		{
+			"null values ignored",
 			TerraformBackend{
 				Type:   "s3",
 				Config: map[string]interface{}{"something": "foo", "set-to-nil-should-be-ignored": nil},
 			},
 			RemoteState{
 				Backend: "s3",
+				Config:  map[string]interface{}{"something": "foo"},
+			},
+			false,
+		},
+		{
+			"gcs null values ignored",
+			TerraformBackend{
+				Type:   "gcs",
+				Config: map[string]interface{}{"something": "foo", "set-to-nil-should-be-ignored": nil},
+			},
+			RemoteState{
+				Backend: "gcs",
 				Config:  map[string]interface{}{"something": "foo"},
 			},
 			false,
