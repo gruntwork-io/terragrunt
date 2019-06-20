@@ -44,6 +44,33 @@ func TestToTerraformInitArgs(t *testing.T) {
 	assertTerraformInitArgsEqual(t, args, "-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1 -backend-config=force_path_style=true -backend-config=shared_credentials_file=my-file")
 }
 
+func TestToTerraformInitArgsForGCS(t *testing.T) {
+	t.Parallel()
+
+	remoteState := RemoteState{
+		Backend: "gcs",
+		Config: map[string]interface{}{
+			"project":  "my-project-123456",
+			"location": "US",
+			"bucket":   "my-bucket",
+			"prefix":   "terraform.tfstate",
+
+			"gcs_bucket_labels": map[string]interface{}{
+				"team":    "team name",
+				"name":    "Terraform state storage",
+				"service": "Terraform"},
+
+			"skip_bucket_versioning": true,
+
+			"credentials": "my-file",
+		},
+	}
+	args := remoteState.ToTerraformInitArgs()
+
+	// must not contain project, location gcs_bucket_labels or skip_bucket_versioning
+	assertTerraformInitArgsEqual(t, args, "-backend-config=bucket=my-bucket -backend-config=prefix=terraform.tfstate -backend-config=credentials=my-file")
+}
+
 func TestToTerraformInitArgsUnknownBackend(t *testing.T) {
 	t.Parallel()
 
