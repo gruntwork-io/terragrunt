@@ -23,11 +23,10 @@ import (
 type ExtendedRemoteStateConfigGCS struct {
 	remoteStateConfigGCS RemoteStateConfigGCS
 
-	Project                string            `mapstructure:"project"`
-	Location               string            `mapstructure:"location"`
-	GCSBucketLabels        map[string]string `mapstructure:"gcs_bucket_labels"`
-	SkipBucketVersioning   bool              `mapstructure:"skip_bucket_versioning"`
-	SkipBucketAuditLogging bool              `mapstructure:"skip_bucket_auditlogging"`
+	Project              string            `mapstructure:"project"`
+	Location             string            `mapstructure:"location"`
+	GCSBucketLabels      map[string]string `mapstructure:"gcs_bucket_labels"`
+	SkipBucketVersioning bool              `mapstructure:"skip_bucket_versioning"`
 }
 
 // These are settings that can appear in the remote_state config that are ONLY used by Terragrunt and NOT forwarded
@@ -37,7 +36,6 @@ var terragruntGCSOnlyConfigs = []string{
 	"location",
 	"gcs_bucket_labels",
 	"skip_bucket_versioning",
-	"skip_bucket_auditlogging",
 }
 
 // A representation of the configuration options available for GCS remote state
@@ -94,19 +92,6 @@ func gcsConfigValuesEqual(config map[string]interface{}, existingBackend *Terraf
 	if len(config) == 0 && len(existingBackend.Config) == 0 {
 		return true
 	}
-
-	// Terraform's `backend` configuration uses a boolean for the `encrypt` parameter. However, perhaps for backwards compatibility reasons,
-	// Terraform stores that parameter as a string in the `terraform.tfstate` file. Therefore, we have to convert it accordingly, or `DeepEqual`
-	// will fail.
-	//if util.KindOf(existingBackend.Config["encrypt"]) == reflect.String && util.KindOf(config["encrypt"]) == reflect.Bool {
-	// If encrypt in remoteState is a bool and a string in existingBackend, DeepEqual will consider the maps to be different.
-	// So we convert the value from string to bool to make them equivalent.
-	//	if value, err := strconv.ParseBool(existingBackend.Config["encrypt"].(string)); err == nil {
-	//		existingBackend.Config["encrypt"] = value
-	//	} else {
-	//		terragruntOptions.Logger.Printf("Remote state configuration encrypt contains invalid value %v, should be boolean.", existingBackend.Config["encrypt"])
-	//	}
-	//}
 
 	// If other keys in config are bools, DeepEqual also will consider the maps to be different.
 	for key, value := range existingBackend.Config {
@@ -239,7 +224,7 @@ func createGCSBucketIfNecessary(gcsClient *storage.Client, config *ExtendedRemot
 			sleepBetweenRetries := 10 * time.Second
 
 			return util.DoWithRetry(description, maxRetries, sleepBetweenRetries, terragruntOptions.Logger, func() error {
-				return CreateGCSBucketWithVersioningAndAuditLogging(gcsClient, config, terragruntOptions)
+				return CreateGCSBucketWithVersioning(gcsClient, config, terragruntOptions)
 			})
 		}
 	}
@@ -265,8 +250,8 @@ func checkIfGCSVersioningEnabled(gcsClient *storage.Client, config *RemoteStateC
 	return nil
 }
 
-// CreateGCSBucketWithVersioningAndAuditLogging creates the given GCS bucket and enables versioning for it.
-func CreateGCSBucketWithVersioningAndAuditLogging(gcsClient *storage.Client, config *ExtendedRemoteStateConfigGCS, terragruntOptions *options.TerragruntOptions) error {
+// CreateGCSBucketWithVersioning creates the given GCS bucket and enables versioning for it.
+func CreateGCSBucketWithVersioning(gcsClient *storage.Client, config *ExtendedRemoteStateConfigGCS, terragruntOptions *options.TerragruntOptions) error {
 	err := CreateGCSBucket(gcsClient, config, terragruntOptions)
 
 	if err != nil {
@@ -285,13 +270,6 @@ func CreateGCSBucketWithVersioningAndAuditLogging(gcsClient *storage.Client, con
 	if err := AddLabelsToGCSBucket(gcsClient, config, terragruntOptions); err != nil {
 		return err
 	}
-
-	// TODO - enable audit logging
-	//if config.SkipBucketAuditLogging {
-	//	terragruntOptions.Logger.Printf("Audit Logging is disabled for the remote state GCS bucket %s using 'skip_bucket_auditlogging' config.", config.remoteStateConfigGCS.Bucket)
-	//} else if err := EnableAuditLoggingForGCSBucketWide(gcsClient, &config.remoteStateConfigGCS, terragruntOptions); err != nil {
-	//	return err
-	//}
 
 	return nil
 }
@@ -321,36 +299,6 @@ func AddLabelsToGCSBucket(gcsClient *storage.Client, config *ExtendedRemoteState
 
 	return nil
 
-}
-
-// Enable bucket-wide Audit Logging for the GCS bucket specified in the given config
-func EnableAuditLoggingForGCSBucketWide(gcsClient *storage.Client, config *RemoteStateConfigGCS, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Printf("Enabling bucket-wide Access Logging on GCS bucket \"%s\" - using as TargetBucket \"%s\"", config.Bucket, config.Bucket)
-
-	/*
-		if err := configureBucketAccessLoggingAcl(s3Client, config, terragruntOptions); err != nil {
-			return errors.WithStackTrace(err)
-		}
-
-		terragruntOptions.Logger.Printf("Enabling bucket-wide Access Logging on AWS S3 bucket \"%s\" - using as TargetBucket \"%s\"", config.Bucket, config.Bucket)
-
-		loggingInput := s3.PutBucketLoggingInput{
-			Bucket: aws.String(config.Bucket),
-			BucketLoggingStatus: &s3.BucketLoggingStatus{
-				LoggingEnabled: &s3.LoggingEnabled{
-					TargetBucket: aws.String(config.Bucket),
-					TargetPrefix: aws.String("TFStateLogs/"),
-				},
-			},
-		}
-
-		if _, err := s3Client.PutBucketLogging(&loggingInput); err != nil {
-			return errors.WithStackTrace(err)
-		}
-	*/
-	// TODO - implement
-
-	return nil
 }
 
 // Create the GCS bucket specified in the given config
