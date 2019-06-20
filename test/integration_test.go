@@ -2,9 +2,9 @@ package test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -14,6 +14,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
+	"cloud.google.com/go/storage"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -28,12 +31,15 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/api/iterator"
 )
 
 // hard-code this to match the test fixture for now
 const (
 	TERRAFORM_REMOTE_STATE_S3_REGION                        = "us-west-2"
+	TERRAFORM_REMOTE_STATE_GCP_REGION                       = "us"
 	TEST_FIXTURE_PATH                                       = "fixture/"
+	TEST_FIXTURE_GCS_PATH                                   = "fixture-gcs/"
 	TEST_FIXTURE_INCLUDE_PATH                               = "fixture-include/"
 	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH                     = "qa/my-app"
 	TEST_FIXTURE_STACK                                      = "fixture-stack/"
@@ -417,6 +423,27 @@ func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
 		"owner": "terragrunt integration test",
 		"name":  "Terraform lock table"}
 	validateDynamoDBTableExistsAndIsTagged(t, TERRAFORM_REMOTE_STATE_S3_REGION, lockTableName, expectedDynamoDBTableTags)
+}
+
+func TestTerragruntWorksWithGCSBackend(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GCS_PATH)
+
+	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
+	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	gcsBucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	defer deleteGCSBucket(t, gcsBucketName)
+
+	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_PATH, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, TEST_FIXTURE_GCS_PATH))
+
+	var expectedGCSLabels = map[string]string{
+		"owner": "terragrunt_test",
+		"name":  "terraform_state_storage"}
+	validateGCSBucketExistsAndIsLabeled(t, TERRAFORM_REMOTE_STATE_S3_REGION, gcsBucketName, expectedGCSLabels)
 }
 
 func TestTerragruntWorksWithIncludes(t *testing.T) {
@@ -1568,6 +1595,19 @@ func createTmpTerragruntConfig(t *testing.T, templatesPath string, s3BucketName 
 	return tmpTerragruntConfigFile
 }
 
+func createTmpTerragruntGCSConfig(t *testing.T, templatesPath string, project string, location string, gcsBucketName string, configFileName string) string {
+	tmpFolder, err := ioutil.TempDir("", "terragrunt-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp folder due to error: %v", err)
+	}
+
+	tmpTerragruntConfigFile := util.JoinPath(tmpFolder, configFileName)
+	originalTerragruntConfigPath := util.JoinPath(templatesPath, configFileName)
+	copyTerragruntGCSConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, project, location, gcsBucketName)
+
+	return tmpTerragruntConfigFile
+}
+
 func copyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string, configDestPath string, s3BucketName string, lockTableName string, region string) {
 	contents, err := util.ReadFileAsString(configSrcPath)
 	if err != nil {
@@ -1577,6 +1617,21 @@ func copyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string,
 	contents = strings.Replace(contents, "__FILL_IN_BUCKET_NAME__", s3BucketName, -1)
 	contents = strings.Replace(contents, "__FILL_IN_LOCK_TABLE_NAME__", lockTableName, -1)
 	contents = strings.Replace(contents, "__FILL_IN_REGION__", region, -1)
+
+	if err := ioutil.WriteFile(configDestPath, []byte(contents), 0444); err != nil {
+		t.Fatalf("Error writing temp Terragrunt config to %s: %v", configDestPath, err)
+	}
+}
+
+func copyTerragruntGCSConfigAndFillPlaceholders(t *testing.T, configSrcPath string, configDestPath string, project string, location string, gcsBucketName string) {
+	contents, err := util.ReadFileAsString(configSrcPath)
+	if err != nil {
+		t.Fatalf("Error reading Terragrunt config at %s: %v", configSrcPath, err)
+	}
+
+	contents = strings.Replace(contents, "__FILL_IN_PROJECT__", project, -1)
+	contents = strings.Replace(contents, "__FILL_IN_LOCATION__", location, -1)
+	contents = strings.Replace(contents, "__FILL_IN_BUCKET_NAME__", gcsBucketName, -1)
 
 	if err := ioutil.WriteFile(configDestPath, []byte(contents), 0444); err != nil {
 		t.Fatalf("Error writing temp Terragrunt config to %s: %v", configDestPath, err)
@@ -1750,4 +1805,78 @@ func cleanupTableForTest(t *testing.T, tableName string, awsRegion string) {
 	client := createDynamoDbClientForTest(t, awsRegion)
 	err := terragruntDynamoDb.DeleteTable(tableName, client)
 	assert.Nil(t, err, "Unexpected error: %v", err)
+}
+
+// Check that the GCS Bucket of the given name and location exists. Terragrunt should create this bucket during the test.
+// Also check if bucket got labeled properly.
+func validateGCSBucketExistsAndIsLabeled(t *testing.T, gcpLocation string, bucketName string, expectedLabels map[string]string) {
+	gcsClient, err := remote.CreateGCSClient()
+	if err != nil {
+		t.Fatalf("Error creating GCS client: %v", err)
+	}
+
+	remoteStateConfig := remote.RemoteStateConfigGCS{Bucket: bucketName}
+	assert.True(t, remote.DoesGCSBucketExist(gcsClient, &remoteStateConfig), "Terragrunt failed to create remote state GCS bucket %s", bucketName)
+
+	if expectedLabels != nil {
+		assertGCSLabels(t, expectedLabels, bucketName, gcsClient)
+	}
+}
+
+func assertGCSLabels(t *testing.T, expectedLabels map[string]string, bucketName string, client *storage.Client) {
+	ctx := context.Background()
+	bucket := client.Bucket(bucketName)
+
+	attrs, err := bucket.Attrs(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var actualLabels = make(map[string]string)
+
+	for key, value := range attrs.Labels {
+		actualLabels[key] = value
+	}
+
+	assert.Equal(t, expectedLabels, actualLabels, "Did not find expected labels on GCS bucket.")
+}
+
+// Delete the specified GCS bucket to clean up after a test
+func deleteGCSBucket(t *testing.T, bucketName string) {
+	gcsClient, err := remote.CreateGCSClient()
+	if err != nil {
+		t.Fatalf("Error creating GCS client: %v", err)
+	}
+
+	t.Logf("Deleting test GCS bucket %s", bucketName)
+
+	ctx := context.Background()
+
+	// List all objects including their versions in the bucket
+	bucket := gcsClient.Bucket(bucketName)
+	q := &storage.Query{
+		Versions: true,
+	}
+	it := bucket.Objects(ctx, q)
+	for {
+		objectAttrs, err := it.Next()
+
+		if err == iterator.Done {
+			break
+		}
+
+		if err != nil {
+			t.Fatalf("Failed to list objects and versions in GCS bucket %s: %v", bucketName, err)
+		}
+
+		// purge the object version
+		if err := bucket.Object(objectAttrs.Name).Generation(objectAttrs.Generation).Delete(ctx); err != nil {
+			t.Fatalf("Failed to delete GCS bucket object %s: %v", objectAttrs.Name, err)
+		}
+	}
+
+	// remote empty bucket
+	if err := bucket.Delete(ctx); err != nil {
+		t.Fatalf("Failed to delete GCS bucket %s: %v", bucketName, err)
+	}
 }
