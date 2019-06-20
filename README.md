@@ -663,7 +663,6 @@ remote_state {
 
  skip_bucket_versioning = true # use only if the object store does not support versioning
 
-
  encryption_key = "GOOGLE_ENCRYPTION_KEY"
 }
 ```
