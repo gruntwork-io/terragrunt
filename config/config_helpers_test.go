@@ -581,7 +581,6 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 		},
 	}
 
-
 	for _, testCase := range testCases {
 		t.Run(testCase.input, func(t *testing.T) {
 
