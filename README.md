@@ -2152,6 +2152,12 @@ If you run `terragrunt hclfmt` at the `root`, this will update:
 Additionally, there's a flag `--terragrunt-check`. It allows to validating if files are properly formatted. It does not
 rewrite files and in case of invalid format, it will return an error with exit status 0.
 
+#### terraform_binary
+
+The terragrunt `terraform_binary` string option can be used to override the default terraform binary path (which is `terraform`).
+
+The precedence is as follows: `--terragrunt-tfpath` command line option -> `TERRAGRUNT_TFPATH` env variable -> `terragrunt.hcl` in the module directory -> included `terragrunt.hcl`
+
 ### Clearing the Terragrunt cache
 
 Terragrunt creates a `.terragrunt-cache` folder in the current working directory as its scratch directory. It downloads

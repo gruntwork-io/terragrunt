@@ -22,14 +22,15 @@ const DefaultTerragruntConfigPath = "terragrunt.hcl"
 
 // TerragruntConfig represents a parsed and expanded configuration
 type TerragruntConfig struct {
-	Terraform      *TerraformConfig
-	RemoteState    *remote.RemoteState
-	Dependencies   *ModuleDependencies
-	PreventDestroy bool
-	Skip           bool
-	IamRole        string
-	Inputs         map[string]interface{}
-	Locals         map[string]interface{}
+	Terraform       *TerraformConfig
+	TerraformBinary string
+	RemoteState     *remote.RemoteState
+	Dependencies    *ModuleDependencies
+	PreventDestroy  bool
+	Skip            bool
+	IamRole         string
+	Inputs          map[string]interface{}
+	Locals          map[string]interface{}
 }
 
 func (conf *TerragruntConfig) String() string {
@@ -39,14 +40,15 @@ func (conf *TerragruntConfig) String() string {
 // terragruntConfigFile represents the configuration supported in a Terragrunt configuration file (i.e.
 // terragrunt.hcl)
 type terragruntConfigFile struct {
-	Terraform      *TerraformConfig       `hcl:"terraform,block"`
-	Inputs         *cty.Value             `hcl:"inputs,attr"`
-	Include        *IncludeConfig         `hcl:"include,block"`
-	RemoteState    *remoteStateConfigFile `hcl:"remote_state,block"`
-	Dependencies   *ModuleDependencies    `hcl:"dependencies,block"`
-	PreventDestroy *bool                  `hcl:"prevent_destroy,attr"`
-	Skip           *bool                  `hcl:"skip,attr"`
-	IamRole        *string                `hcl:"iam_role,attr"`
+	Terraform       *TerraformConfig       `hcl:"terraform,block"`
+	TerraformBinary *string                `hcl:"terraform_binary,attr"`
+	Inputs          *cty.Value             `hcl:"inputs,attr"`
+	Include         *IncludeConfig         `hcl:"include,block"`
+	RemoteState     *remoteStateConfigFile `hcl:"remote_state,block"`
+	Dependencies    *ModuleDependencies    `hcl:"dependencies,block"`
+	PreventDestroy  *bool                  `hcl:"prevent_destroy,attr"`
+	Skip            *bool                  `hcl:"skip,attr"`
+	IamRole         *string                `hcl:"iam_role,attr"`
 
 	// This struct is used for validating and parsing the entire terragrunt config. Since locals are evaluated in a
 	// completely separate cycle, it should not be evaluated here. Otherwise, we can't support self referencing other
@@ -433,6 +435,10 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 		includedConfig.IamRole = config.IamRole
 	}
 
+	if config.TerraformBinary != "" {
+		includedConfig.TerraformBinary = config.TerraformBinary
+	}
+
 	if config.Inputs != nil {
 		includedConfig.Inputs = mergeInputs(config.Inputs, includedConfig.Inputs)
 	}
@@ -585,6 +591,10 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, c
 
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
+
+	if terragruntConfigFromFile.TerraformBinary != nil {
+		terragruntConfig.TerraformBinary = *terragruntConfigFromFile.TerraformBinary
+	}
 
 	if terragruntConfigFromFile.PreventDestroy != nil {
 		terragruntConfig.PreventDestroy = *terragruntConfigFromFile.PreventDestroy

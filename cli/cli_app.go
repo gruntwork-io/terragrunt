@@ -150,7 +150,7 @@ AUTHOR(S):
 var MODULE_REGEX = regexp.MustCompile(`module[[:blank:]]+".+"`)
 
 // This uses the constraint syntax from https://github.com/hashicorp/go-version
-// This version of Terragrunt only works with Terraform 0.12.0 and above
+// This version of Terragrunt was tested to work with Terraform 0.12.0 and above only
 const DEFAULT_TERRAFORM_VERSION_CONSTRAINT = ">= v0.12.0"
 
 const TERRAFORM_EXTENSION_GLOB = "*.tf"
@@ -241,8 +241,15 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	terragruntConfig, err := config.ReadTerragruntConfig(terragruntOptions)
+
 	if err != nil {
 		return err
+	}
+
+	if terragruntOptions.TerraformPath == options.TERRAFORM_DEFAULT_PATH { // not changed from default
+		if terragruntConfig.TerraformBinary != "" {
+			terragruntOptions.TerraformPath = terragruntConfig.TerraformBinary
+		}
 	}
 
 	if terragruntConfig.Skip {
