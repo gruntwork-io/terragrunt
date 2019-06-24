@@ -95,12 +95,16 @@ type S3Initializer struct{}
 //
 // 1. Any of the existing backend settings are different than the current config
 // 2. The configured S3 bucket or DynamoDB table does not exist
-func (s3Initializer S3Initializer) NeedsInitialization(config map[string]interface{}, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	if !configValuesEqual(config, existingBackend, terragruntOptions) {
+func (s3Initializer S3Initializer) NeedsInitialization(remoteState *RemoteState, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	if !remoteState.Enabled {
+		return false, nil
+	}
+
+	if !configValuesEqual(remoteState.Config, existingBackend, terragruntOptions) {
 		return true, nil
 	}
 
-	s3Config, err := parseS3Config(config)
+	s3Config, err := parseS3Config(remoteState.Config)
 	if err != nil {
 		return false, err
 	}
@@ -186,8 +190,8 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 
 // Initialize the remote state S3 bucket specified in the given config. This function will validate the config
 // parameters, create the S3 bucket if it doesn't already exist, and check that versioning is enabled.
-func (s3Initializer S3Initializer) Initialize(config map[string]interface{}, terragruntOptions *options.TerragruntOptions) error {
-	s3ConfigExtended, err := parseExtendedS3Config(config)
+func (s3Initializer S3Initializer) Initialize(remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error {
+	s3ConfigExtended, err := parseExtendedS3Config(remoteState.Config)
 	if err != nil {
 		return err
 	}
