@@ -255,11 +255,6 @@ func CreateGCSBucketWithVersioning(gcsClient *storage.Client, config *ExtendedRe
 	err := CreateGCSBucket(gcsClient, config, terragruntOptions)
 
 	if err != nil {
-		if isBucketAlreadyOwnedByYourError(err) {
-			terragruntOptions.Logger.Printf("Looks like someone is creating bucket %s at the same time. Will not attempt to create it again.", config.remoteStateConfigGCS.Bucket)
-			return WaitUntilGCSBucketExists(gcsClient, &config.remoteStateConfigGCS, terragruntOptions)
-		}
-
 		return err
 	}
 
