@@ -63,7 +63,7 @@ type EnvVar struct {
 
 // Create an EvalContext for the HCL2 parser. We can define functions and variables in this context that the HCL2 parser
 // will make available to the Terragrunt configuration during parsing.
-func CreateTerragruntEvalContext(filename string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) *hcl.EvalContext {
+func CreateTerragruntEvalContext(filename string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) *hcl.EvalContext {
 	tfscope := tflang.Scope{
 		BaseDir: filepath.Dir(filename),
 	}
