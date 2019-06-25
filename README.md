@@ -88,6 +88,7 @@ for a quick introduction to Terragrunt.
    1. [CLI options](#cli-options)
    1. [Configuration](#configuration)
    1. [Clearing the Terragrunt cache](#clearing-the-terragrunt-cache)
+   1. [Contributing](#contributing)
    1. [Developing Terragrunt](#developing-terragrunt)
    1. [License](#license)
 
@@ -1198,6 +1199,7 @@ This section contains detailed documentation for the following aspects of Terrag
 1. [Configuration](#configuration)
 1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
 1. [Clearing the Terragrunt cache](#clearing-the-terragrunt-cache)
+1. [Contributing](#contributing)
 1. [Developing Terragrunt](#developing-terragrunt)
 1. [License](#license)
 
@@ -2047,7 +2049,16 @@ somewhere else.
 
 
 
-### Developing terragrunt
+### Contributing
+
+Terragrunt is an open source project, and contributions from the community are very welcome! Please check out the
+[Contribution Guidelines](CONTRIBUTING.md) and [Developing Terragrunt](#developing-terragrunt) for instructions. 
+
+
+
+
+
+### Developing Terragrunt
 
 #### Running locally
 
