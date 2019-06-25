@@ -9,13 +9,13 @@ import (
 
 // Configuration for Terraform remote state
 type RemoteState struct {
-	Backend string
-	Enabled bool
-	Config  map[string]interface{}
+	Backend     string
+	DisableInit bool
+	Config      map[string]interface{}
 }
 
 func (remoteState *RemoteState) String() string {
-	return fmt.Sprintf("RemoteState{Backend = %v, Enabled = %v, Config = %v}", remoteState.Backend, remoteState.Enabled, remoteState.Config)
+	return fmt.Sprintf("RemoteState{Backend = %v, DisableInit = %v, Config = %v}", remoteState.Backend, remoteState.DisableInit, remoteState.Config)
 }
 
 type RemoteStateInitializer interface {
@@ -37,7 +37,7 @@ var remoteStateInitializers = map[string]RemoteStateInitializer{
 
 // Fill in any default configuration for remote state
 func (remoteState *RemoteState) FillDefaults() {
-	remoteState.Enabled = true
+	// Nothing to do
 }
 
 // Validate that the remote state is configured correctly
@@ -72,7 +72,7 @@ func (remoteState *RemoteState) NeedsInit(terragruntOptions *options.TerragruntO
 		return false, err
 	}
 
-	if !remoteState.Enabled {
+	if remoteState.DisableInit {
 		return false, nil
 	}
 
@@ -133,7 +133,7 @@ func terraformStateConfigEqual(existingConfig map[string]interface{}, newConfig 
 // Convert the RemoteState config into the format used by the terraform init command
 func (remoteState RemoteState) ToTerraformInitArgs() []string {
 	config := remoteState.Config
-	if !remoteState.Enabled {
+	if remoteState.DisableInit {
 		return []string{"-backend=false"}
 	}
 

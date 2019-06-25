@@ -96,7 +96,7 @@ type S3Initializer struct{}
 // 1. Any of the existing backend settings are different than the current config
 // 2. The configured S3 bucket or DynamoDB table does not exist
 func (s3Initializer S3Initializer) NeedsInitialization(remoteState *RemoteState, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	if !remoteState.Enabled {
+	if remoteState.DisableInit {
 		return false, nil
 	}
 
