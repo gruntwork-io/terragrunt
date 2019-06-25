@@ -2,9 +2,10 @@ package remote
 
 import (
 	"fmt"
+	"reflect"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"reflect"
 )
 
 // Configuration for Terraform remote state
@@ -31,7 +32,8 @@ type RemoteStateInitializer interface {
 
 // TODO: initialization actions for other remote state backends can be added here
 var remoteStateInitializers = map[string]RemoteStateInitializer{
-	"s3": S3Initializer{},
+	"s3":  S3Initializer{},
+	"gcs": GCSInitializer{},
 }
 
 // Fill in any default configuration for remote state
@@ -49,7 +51,7 @@ func (remoteState *RemoteState) Validate() error {
 }
 
 // Perform any actions necessary to initialize the remote state before it's used for storage. For example, if you're
-// using S3 for remote state storage, this may create the S3 bucket if it doesn't exist already.
+// using S3 or GCS for remote state storage, this may create the bucket if it doesn't exist already.
 func (remoteState *RemoteState) Initialize(terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Initializing remote state for the %s backend", remoteState.Backend)
 	initializer, hasInitializer := remoteStateInitializers[remoteState.Backend]
