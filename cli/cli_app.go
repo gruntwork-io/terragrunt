@@ -224,9 +224,7 @@ func checkDeprecated(command string, terragruntOptions *options.TerragruntOption
 // terragrunt command
 func runCommand(command string, terragruntOptions *options.TerragruntOptions) (finalEff error) {
 	if isMultiModuleCommand(command) {
-		err := runMultiModuleCommand(command, terragruntOptions)
-
-		return err
+		return runMultiModuleCommand(command, terragruntOptions)
 	}
 	return runTerragrunt(terragruntOptions)
 }
