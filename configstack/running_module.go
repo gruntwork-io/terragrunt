@@ -3,6 +3,7 @@ package configstack
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 
@@ -28,7 +29,9 @@ type runningModule struct {
 	Dependencies   map[string]*runningModule
 	NotifyWhenDone []*runningModule
 	FlagExcluded   bool
+	OutStream      bytes.Buffer
 	ErrStream      bytes.Buffer
+	Writer         io.Writer
 }
 
 // This controls in what order dependencies should be enforced between modules
@@ -37,6 +40,11 @@ type DependencyOrder int
 const (
 	NormalOrder DependencyOrder = iota
 	ReverseOrder
+)
+
+var (
+	// OutputMessageSeparator is the string used for separating the different module outputs
+	OutputMessageSeparator = strings.Repeat("-", 132)
 )
 
 // Create a new RunningModule struct for the given module. This will initialize all fields to reasonable defaults,
@@ -50,6 +58,7 @@ func newRunningModule(module *TerraformModule) *runningModule {
 		Dependencies:   map[string]*runningModule{},
 		NotifyWhenDone: []*runningModule{},
 		FlagExcluded:   module.FlagExcluded,
+		Writer:         module.TerragruntOptions.Writer,
 	}
 }
 
@@ -132,6 +141,7 @@ func removeFlagExcluded(modules map[string]*runningModule) map[string]*runningMo
 				Err:            module.Err,
 				NotifyWhenDone: module.NotifyWhenDone,
 				Status:         module.Status,
+				Writer:         module.Module.TerragruntOptions.Writer,
 			}
 
 			// Only add dependencies that should not be excluded
@@ -156,7 +166,8 @@ func runModules(modules map[string]*runningModule) error {
 		waitGroup.Add(1)
 		go func(module *runningModule) {
 			defer waitGroup.Done()
-			module.Module.TerragruntOptions.ErrWriter = &module.ErrStream
+			module.Module.TerragruntOptions.ErrWriter = io.MultiWriter(&module.OutStream, &module.ErrStream)
+			module.Module.TerragruntOptions.Writer = &module.OutStream
 			module.runModuleWhenReady()
 		}(module)
 	}
@@ -236,6 +247,8 @@ func (module *runningModule) moduleFinished(moduleErr error) {
 	} else {
 		module.Module.TerragruntOptions.Logger.Printf("Module %s has finished with an error: %v", module.Module.Path, moduleErr)
 	}
+
+	fmt.Fprintf(module.Writer, "%s\n%v\n\n%v\n", OutputMessageSeparator, module.Module.Path, module.OutStream.String())
 
 	module.Status = Finished
 	module.Err = moduleErr

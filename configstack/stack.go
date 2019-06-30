@@ -20,11 +20,6 @@ type Stack struct {
 	Modules []*TerraformModule
 }
 
-var (
-	// OutputMessageSeparator is the string used for separating the different module outputs
-	OutputMessageSeparator = strings.Repeat("-", 132)
-)
-
 // Render this stack as a human-readable string
 func (stack *Stack) String() string {
 	modules := []string{}
