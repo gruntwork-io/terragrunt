@@ -3,7 +3,6 @@ package configstack
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"strings"
 	"sync"
 
@@ -29,8 +28,7 @@ type runningModule struct {
 	Dependencies   map[string]*runningModule
 	NotifyWhenDone []*runningModule
 	FlagExcluded   bool
-	OutStream      bytes.Buffer
-	Writer         io.Writer
+	ErrStream      bytes.Buffer
 }
 
 // This controls in what order dependencies should be enforced between modules
@@ -52,7 +50,6 @@ func newRunningModule(module *TerraformModule) *runningModule {
 		Dependencies:   map[string]*runningModule{},
 		NotifyWhenDone: []*runningModule{},
 		FlagExcluded:   module.FlagExcluded,
-		Writer:         module.TerragruntOptions.Writer,
 	}
 }
 
@@ -135,7 +132,6 @@ func removeFlagExcluded(modules map[string]*runningModule) map[string]*runningMo
 				Err:            module.Err,
 				NotifyWhenDone: module.NotifyWhenDone,
 				Status:         module.Status,
-				Writer:         module.Module.TerragruntOptions.Writer,
 			}
 
 			// Only add dependencies that should not be excluded
@@ -160,8 +156,7 @@ func runModules(modules map[string]*runningModule) error {
 		waitGroup.Add(1)
 		go func(module *runningModule) {
 			defer waitGroup.Done()
-			module.Module.TerragruntOptions.Writer = &module.OutStream
-			module.Module.TerragruntOptions.ErrWriter = &module.OutStream
+			module.Module.TerragruntOptions.ErrWriter = &module.ErrStream
 			module.runModuleWhenReady()
 		}(module)
 	}
@@ -177,17 +172,9 @@ func collectErrors(modules map[string]*runningModule) error {
 	errs := []error{}
 	for _, module := range modules {
 		if module.Err != nil {
-			errs = append(errs, module.Err)
-
-			// send all non dependency errors to the DetailedErrorChan
-			if _, isDepErr := module.Err.(DependencyFinishedWithError); !isDepErr {
-				DetailedErrorChan <- map[string]string{module.Module.Path: module.OutStream.String()}
-			}
+			errs = append(errs, fmt.Errorf("%s\n%s: \n%s \n%s", OutputMessageSeparator, module.Module.Path, module.Err, module.ErrStream.String()))
 		}
 	}
-
-	// close the DetailedErrorChan after all errors have been sent
-	close(DetailedErrorChan)
 
 	if len(errs) == 0 {
 		return nil
@@ -249,9 +236,6 @@ func (module *runningModule) moduleFinished(moduleErr error) {
 	} else {
 		module.Module.TerragruntOptions.Logger.Printf("Module %s has finished with an error: %v", module.Module.Path, moduleErr)
 	}
-
-	// print the separated module output
-	fmt.Fprintf(module.Writer, "%s\n%v\n\n%v\n", OutputMessageSeparator, module.Module.Path, module.OutStream.String())
 
 	module.Status = Finished
 	module.Err = moduleErr

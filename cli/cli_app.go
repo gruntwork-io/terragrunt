@@ -226,8 +226,6 @@ func runCommand(command string, terragruntOptions *options.TerragruntOptions) (f
 	if isMultiModuleCommand(command) {
 		err := runMultiModuleCommand(command, terragruntOptions)
 
-		// wait until all detailed errors have been printed
-		<-configstack.DonePrintingDetailedError
 		return err
 	}
 	return runTerragrunt(terragruntOptions)

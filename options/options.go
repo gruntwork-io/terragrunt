@@ -193,7 +193,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		NonInteractive:             terragruntOptions.NonInteractive,
 		TerraformCliArgs:           util.CloneStringList(terragruntOptions.TerraformCliArgs),
 		WorkingDir:                 workingDir,
-		Logger:                     util.CreateLoggerWithWriter(terragruntOptions.ErrWriter, workingDir),
+		Logger:                     util.CreateLoggerWithWriter(terragruntOptions.Writer, workingDir),
 		Env:                        util.CloneStringMap(terragruntOptions.Env),
 		Source:                     terragruntOptions.Source,
 		SourceUpdate:               terragruntOptions.SourceUpdate,

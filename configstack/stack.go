@@ -21,12 +21,6 @@ type Stack struct {
 }
 
 var (
-	// DetailedErrorMap is a map which contains the module name and matching detailed error messages
-	DetailedErrorMap map[string][]string
-	// DetailedErrorChan is the channel which processes all detailed error messages
-	DetailedErrorChan chan map[string]string
-	// DonePrintingDetailedError is a channel which blocks the go routine until all detailed errors have been displayed
-	DonePrintingDetailedError chan bool
 	// OutputMessageSeparator is the string used for separating the different module outputs
 	OutputMessageSeparator = strings.Repeat("-", 132)
 )
@@ -137,9 +131,6 @@ func createStackForTerragruntConfigPaths(path string, terragruntConfigPaths []st
 		return nil, errors.WithStackTrace(NoTerraformModulesFound)
 	}
 
-	// configure the channels for collecting detailed error messages
-	setupDetailedErrorChannel(terragruntOptions)
-
 	modules, err := ResolveTerraformModules(terragruntConfigPaths, terragruntOptions, howThesePathsWereFound)
 	if err != nil {
 		return nil, err
@@ -151,47 +142,6 @@ func createStackForTerragruntConfigPaths(path string, terragruntConfigPaths []st
 	}
 
 	return stack, nil
-}
-
-// setupDetailedErrorChannel configures the channels responsible for storing detailed error messages
-func setupDetailedErrorChannel(terragruntOptions *options.TerragruntOptions) {
-	DetailedErrorMap = make(map[string][]string)
-	DetailedErrorChan = make(chan map[string]string)
-	DonePrintingDetailedError = make(chan bool)
-
-	// process all detailed error messages
-	go collectModuleErrors(terragruntOptions)
-}
-
-// collectModuleErrors listens on the DetailedErrorChan and maps errors to their matching modules
-func collectModuleErrors(terragruntOptions *options.TerragruntOptions) {
-	for {
-		errorMap, more := <-DetailedErrorChan
-		if more {
-			for module, err := range errorMap {
-				DetailedErrorMap[module] = append(DetailedErrorMap[module], err)
-			}
-		} else {
-			printDetailedErrorSummary(terragruntOptions)
-			DonePrintingDetailedError <- true
-			return
-		}
-	}
-}
-
-// printDetailedErrorSummary logs the detailed error messages
-func printDetailedErrorSummary(terragruntOptions *options.TerragruntOptions) {
-	summaryMessage := []string{}
-	summaryMessage = append(summaryMessage, "Encountered the following root-causes:")
-	for module, errSlice := range DetailedErrorMap {
-		summaryMessage = append(summaryMessage, OutputMessageSeparator)
-		summaryMessage = append(summaryMessage, fmt.Sprintf("Module %s:", module))
-		for _, err := range errSlice {
-			summaryMessage = append(summaryMessage, err)
-		}
-	}
-
-	terragruntOptions.Logger.Printf("%s \n", strings.Join(summaryMessage, "\n"))
 }
 
 // Custom error types
