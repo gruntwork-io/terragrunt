@@ -10,20 +10,21 @@ import (
 
 // Configuration for Terraform remote state
 type RemoteState struct {
-	Backend string
-	Config  map[string]interface{}
+	Backend     string
+	DisableInit bool
+	Config      map[string]interface{}
 }
 
 func (remoteState *RemoteState) String() string {
-	return fmt.Sprintf("RemoteState{Backend = %v, Config = %v}", remoteState.Backend, remoteState.Config)
+	return fmt.Sprintf("RemoteState{Backend = %v, DisableInit = %v, Config = %v}", remoteState.Backend, remoteState.DisableInit, remoteState.Config)
 }
 
 type RemoteStateInitializer interface {
 	// Return true if remote state needs to be initialized
-	NeedsInitialization(config map[string]interface{}, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error)
+	NeedsInitialization(remoteState *RemoteState, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error)
 
 	// Initialize the remote state
-	Initialize(config map[string]interface{}, terragruntOptions *options.TerragruntOptions) error
+	Initialize(remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error
 
 	// Return the config that should be passed on to terraform via -backend-config cmd line param
 	// Allows the Backends to filter and/or modify the configuration given from the user
@@ -56,7 +57,7 @@ func (remoteState *RemoteState) Initialize(terragruntOptions *options.Terragrunt
 	terragruntOptions.Logger.Printf("Initializing remote state for the %s backend", remoteState.Backend)
 	initializer, hasInitializer := remoteStateInitializers[remoteState.Backend]
 	if hasInitializer {
-		return initializer.Initialize(remoteState.Config, terragruntOptions)
+		return initializer.Initialize(remoteState, terragruntOptions)
 	}
 
 	return nil
@@ -73,6 +74,10 @@ func (remoteState *RemoteState) NeedsInit(terragruntOptions *options.TerragruntO
 		return false, err
 	}
 
+	if remoteState.DisableInit {
+		return false, nil
+	}
+
 	// Remote state not configured
 	if state == nil {
 		return true, nil
@@ -80,7 +85,7 @@ func (remoteState *RemoteState) NeedsInit(terragruntOptions *options.TerragruntO
 
 	if initializer, hasInitializer := remoteStateInitializers[remoteState.Backend]; hasInitializer {
 		// Remote state initializer says initialization is necessary
-		return initializer.NeedsInitialization(remoteState.Config, state.Backend, terragruntOptions)
+		return initializer.NeedsInitialization(remoteState, state.Backend, terragruntOptions)
 	} else if state.IsRemote() && remoteState.differsFrom(state.Backend, terragruntOptions) {
 		// If there's no remote state initializer, then just compare the the config values
 		return true, nil
@@ -129,8 +134,10 @@ func terraformStateConfigEqual(existingConfig map[string]interface{}, newConfig 
 
 // Convert the RemoteState config into the format used by the terraform init command
 func (remoteState RemoteState) ToTerraformInitArgs() []string {
-
 	config := remoteState.Config
+	if remoteState.DisableInit {
+		return []string{"-backend=false"}
+	}
 
 	initializer, hasInitializer := remoteStateInitializers[remoteState.Backend]
 	if hasInitializer {

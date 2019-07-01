@@ -88,6 +88,23 @@ func TestToTerraformInitArgsUnknownBackend(t *testing.T) {
 	assertTerraformInitArgsEqual(t, args, "-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1")
 }
 
+func TestToTerraformInitArgsInitDisabled(t *testing.T) {
+	t.Parallel()
+
+	remoteState := RemoteState{
+		Backend:     "s3",
+		DisableInit: true,
+		Config: map[string]interface{}{
+			"encrypt": true,
+			"bucket":  "my-bucket",
+			"key":     "terraform.tfstate",
+			"region":  "us-east-1"},
+	}
+	args := remoteState.ToTerraformInitArgs()
+
+	assertTerraformInitArgsEqual(t, args, "-backend=false")
+}
+
 func TestToTerraformInitArgsNoBackendConfigs(t *testing.T) {
 	t.Parallel()
 

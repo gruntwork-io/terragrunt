@@ -54,8 +54,9 @@ type terragruntInclude struct {
 
 // Configuration for Terraform remote state as parsed from a terragrunt.hcl config file
 type remoteStateConfigFile struct {
-	Backend string    `hcl:"backend,attr"`
-	Config  cty.Value `hcl:"config,attr"`
+	Backend     string    `hcl:"backend,attr"`
+	DisableInit *bool     `hcl:"disable_init,attr"`
+	Config      cty.Value `hcl:"config,attr"`
 }
 
 func (remoteState *remoteStateConfigFile) String() string {
@@ -522,6 +523,10 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, c
 		remoteState := &remote.RemoteState{}
 		remoteState.Backend = terragruntConfigFromFile.RemoteState.Backend
 		remoteState.Config = remoteStateConfig
+
+		if terragruntConfigFromFile.RemoteState.DisableInit != nil {
+			remoteState.DisableInit = *terragruntConfigFromFile.RemoteState.DisableInit
+		}
 
 		remoteState.FillDefaults()
 		if err := remoteState.Validate(); err != nil {
