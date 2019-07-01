@@ -56,12 +56,16 @@ type GCSInitializer struct{}
 //
 // 1. Any of the existing backend settings are different than the current config
 // 2. The configured GCS bucket does not exist
-func (gcsInitializer GCSInitializer) NeedsInitialization(config map[string]interface{}, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	if !gcsConfigValuesEqual(config, existingBackend, terragruntOptions) {
+func (gcsInitializer GCSInitializer) NeedsInitialization(remoteState *RemoteState, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	if remoteState.DisableInit {
+		return false, nil
+	}
+
+	if !gcsConfigValuesEqual(remoteState.Config, existingBackend, terragruntOptions) {
 		return true, nil
 	}
 
-	gcsConfig, err := parseGCSConfig(config)
+	gcsConfig, err := parseGCSConfig(remoteState.Config)
 	if err != nil {
 		return false, err
 	}
@@ -117,8 +121,8 @@ func gcsConfigValuesEqual(config map[string]interface{}, existingBackend *Terraf
 
 // Initialize the remote state GCS bucket specified in the given config. This function will validate the config
 // parameters, create the GCS bucket if it doesn't already exist, and check that versioning is enabled.
-func (gcsInitializer GCSInitializer) Initialize(config map[string]interface{}, terragruntOptions *options.TerragruntOptions) error {
-	gcsConfigExtended, err := parseExtendedGCSConfig(config)
+func (gcsInitializer GCSInitializer) Initialize(remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error {
+	gcsConfigExtended, err := parseExtendedGCSConfig(remoteState.Config)
 	if err != nil {
 		return err
 	}
