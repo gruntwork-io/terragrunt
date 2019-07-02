@@ -603,6 +603,9 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformS
 	initOptions.WorkingDir = terragruntOptions.WorkingDir
 	initOptions.TerraformCommand = CMD_INIT
 
+	// Don't pollute stdout with the stdout from Auto Init
+	initOptions.Writer = initOptions.ErrWriter
+
 	return initOptions, nil
 }
 
