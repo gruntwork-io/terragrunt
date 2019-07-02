@@ -193,11 +193,6 @@ func parseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteState
 
 // Validate all the parameters of the given GCS remote state configuration
 func validateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS, terragruntOptions *options.TerragruntOptions) error {
-	// A project must be specified in order for terragrunt to automatically create a storage bucket.
-	if extendedConfig.Project == "" {
-		return errors.WithStackTrace(MissingRequiredGCSRemoteStateConfig("project"))
-	}
-
 	var config = extendedConfig.remoteStateConfigGCS
 
 	if config.Bucket == "" {
@@ -215,6 +210,19 @@ func validateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS, terragruntO
 // confirms, create the bucket and enable versioning for it.
 func createGCSBucketIfNecessary(gcsClient *storage.Client, config *ExtendedRemoteStateConfigGCS, terragruntOptions *options.TerragruntOptions) error {
 	if !DoesGCSBucketExist(gcsClient, &config.remoteStateConfigGCS) {
+		terragruntOptions.Logger.Printf("Remote state GCS bucket %s does not exist. Attempting to create it", config.remoteStateConfigGCS.Bucket)
+
+		terragruntOptions.Logger.Printf("%v", config.Project)
+		// A project must be specified in order for terragrunt to automatically create a storage bucket.
+		if config.Project == "" {
+			return errors.WithStackTrace(MissingRequiredGCSRemoteStateConfig("project"))
+		}
+
+		// A location must be specified in order for terragrunt to automatically create a storage bucket.
+		if config.Location == "" {
+			return errors.WithStackTrace(MissingRequiredGCSRemoteStateConfig("location"))
+		}
+
 		prompt := fmt.Sprintf("Remote state GCS bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", config.remoteStateConfigGCS.Bucket)
 		shouldCreateBucket, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
 		if err != nil {
@@ -316,6 +324,7 @@ func CreateGCSBucket(gcsClient *storage.Client, config *ExtendedRemoteStateConfi
 
 	if config.Location != "" {
 		terragruntOptions.Logger.Printf("Creating GCS bucket in location %s.", config.Location)
+		bucketAttrs.Location = config.Location
 	}
 
 	if config.SkipBucketVersioning {
@@ -389,16 +398,4 @@ type MissingRequiredGCSRemoteStateConfig string
 
 func (configName MissingRequiredGCSRemoteStateConfig) Error() string {
 	return fmt.Sprintf("Missing required GCS remote state configuration %s", string(configName))
-}
-
-type MaxRetriesWaitingForGCSBucketExceeded string
-
-func (err MaxRetriesWaitingForGCSBucketExceeded) Error() string {
-	return fmt.Sprintf("Exceeded max retries (%d) waiting for GCS bucket %s", MAX_RETRIES_WAITING_FOR_GCS_BUCKET, string(err))
-}
-
-type MaxRetriesWaitingForGCSACLExceeded string
-
-func (err MaxRetriesWaitingForGCSACLExceeded) Error() string {
-	return fmt.Sprintf("Exceeded max retries waiting for GCS bucket %s to have proper ACL for access logging", string(err))
 }
