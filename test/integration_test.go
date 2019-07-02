@@ -37,9 +37,10 @@ import (
 // hard-code this to match the test fixture for now
 const (
 	TERRAFORM_REMOTE_STATE_S3_REGION                        = "us-west-2"
-	TERRAFORM_REMOTE_STATE_GCP_REGION                       = "us"
+	TERRAFORM_REMOTE_STATE_GCP_REGION                       = "eu"
 	TEST_FIXTURE_PATH                                       = "fixture/"
 	TEST_FIXTURE_GCS_PATH                                   = "fixture-gcs/"
+	TEST_FIXTURE_GCS_BYO_BUCKET_PATH                        = "fixture-gcs-byo-bucket/"
 	TEST_FIXTURE_INCLUDE_PATH                               = "fixture-include/"
 	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH                     = "qa/my-app"
 	TEST_FIXTURE_STACK                                      = "fixture-stack/"
@@ -437,13 +438,33 @@ func TestTerragruntWorksWithGCSBackend(t *testing.T) {
 	defer deleteGCSBucket(t, gcsBucketName)
 
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_PATH, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
-
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, TEST_FIXTURE_GCS_PATH))
 
 	var expectedGCSLabels = map[string]string{
 		"owner": "terragrunt_test",
 		"name":  "terraform_state_storage"}
-	validateGCSBucketExistsAndIsLabeled(t, TERRAFORM_REMOTE_STATE_S3_REGION, gcsBucketName, expectedGCSLabels)
+	validateGCSBucketExistsAndIsLabeled(t, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, expectedGCSLabels)
+}
+
+func TestTerragruntWorksWithExistingGCSBucket(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GCS_BYO_BUCKET_PATH)
+
+	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
+	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	gcsBucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	defer deleteGCSBucket(t, gcsBucketName)
+
+	// manually create the GCS bucket outside the US (default) to test Terragrunt works correctly with an existing bucket.
+	location := TERRAFORM_REMOTE_STATE_GCP_REGION
+	createGCSBucket(t, project, location, gcsBucketName)
+
+	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_BYO_BUCKET_PATH, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, TEST_FIXTURE_GCS_BYO_BUCKET_PATH))
+
+	validateGCSBucketExistsAndIsLabeled(t, location, gcsBucketName, nil)
 }
 
 func TestTerragruntWorksWithIncludes(t *testing.T) {
@@ -1809,7 +1830,7 @@ func cleanupTableForTest(t *testing.T, tableName string, awsRegion string) {
 
 // Check that the GCS Bucket of the given name and location exists. Terragrunt should create this bucket during the test.
 // Also check if bucket got labeled properly.
-func validateGCSBucketExistsAndIsLabeled(t *testing.T, gcpLocation string, bucketName string, expectedLabels map[string]string) {
+func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketName string, expectedLabels map[string]string) {
 	gcsClient, err := remote.CreateGCSClient()
 	if err != nil {
 		t.Fatalf("Error creating GCS client: %v", err)
@@ -1817,6 +1838,17 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, gcpLocation string, bucke
 
 	remoteStateConfig := remote.RemoteStateConfigGCS{Bucket: bucketName}
 	assert.True(t, remote.DoesGCSBucketExist(gcsClient, &remoteStateConfig), "Terragrunt failed to create remote state GCS bucket %s", bucketName)
+
+	// verify the bucket location
+	ctx := context.Background()
+	bucket := gcsClient.Bucket(bucketName)
+
+	attrs, err := bucket.Attrs(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, strings.ToUpper(location), attrs.Location, "Did not find GCS bucket in expected location.")
 
 	if expectedLabels != nil {
 		assertGCSLabels(t, expectedLabels, bucketName, gcsClient)
@@ -1839,6 +1871,28 @@ func assertGCSLabels(t *testing.T, expectedLabels map[string]string, bucketName 
 	}
 
 	assert.Equal(t, expectedLabels, actualLabels, "Did not find expected labels on GCS bucket.")
+}
+
+// Create the specified GCS bucket
+func createGCSBucket(t *testing.T, projectID string, location string, bucketName string) {
+	gcsClient, err := remote.CreateGCSClient()
+	if err != nil {
+		t.Fatalf("Error creating GCS client: %v", err)
+	}
+
+	t.Logf("Creating test GCS bucket %s in project %s, location %s", bucketName, projectID, location)
+
+	ctx := context.Background()
+	bucket := gcsClient.Bucket(bucketName)
+
+	bucketAttrs := &storage.BucketAttrs{
+		Location:          location,
+		VersioningEnabled: true,
+	}
+
+	if err := bucket.Create(ctx, projectID, bucketAttrs); err != nil {
+		t.Fatalf("Failed to create GCS bucket %s: %v", bucketName, err)
+	}
 }
 
 // Delete the specified GCS bucket to clean up after a test
