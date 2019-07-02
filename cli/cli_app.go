@@ -604,7 +604,7 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformS
 	initOptions.TerraformCommand = CMD_INIT
 
 	// Don't pollute stdout with the stdout from Auto Init
-	initOptions.Writer = initOptions.ErrWriter
+	initOptions.Writer = io.MultiWriter(initOptions.ErrWriter, &terragruntOptions.InitStream)
 
 	return initOptions, nil
 }

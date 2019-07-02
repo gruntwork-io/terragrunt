@@ -45,6 +45,8 @@ const (
 var (
 	// OutputMessageSeparator is the string used for separating the different module outputs
 	OutputMessageSeparator = strings.Repeat("-", 132)
+	// DetailedErrorMessageDivider is the string used for diving the detailed error output at the end of the execution from the rest of the output
+	DetailedErrorMessageDivider = strings.Repeat("=", 132)
 )
 
 // Create a new RunningModule struct for the given module. This will initialize all fields to reasonable defaults,
@@ -181,17 +183,38 @@ func runModules(modules map[string]*runningModule) error {
 // occurred
 func collectErrors(modules map[string]*runningModule) error {
 	errs := []error{}
+
+	// append the divider for the final error output
+	errs = append(errs, fmt.Errorf("%s", DetailedErrorMessageDivider))
+
 	for _, module := range modules {
 		if module.Err != nil {
-			errs = append(errs, fmt.Errorf("%s\n%s: \n%s \n%s", OutputMessageSeparator, module.Module.Path, module.Err, module.ErrStream.String()))
+			errs = append(errs, generateDetailedErrorMessage(module))
 		}
 	}
 
 	if len(errs) == 0 {
 		return nil
-	} else {
-		return errors.WithStackTrace(MultiError{Errors: errs})
 	}
+
+	return errors.WithStackTrace(MultiError{Errors: errs})
+}
+
+// generateDetailedErrorMessage extracts the clean stderr from a module and formats it for printing
+func generateDetailedErrorMessage(module *runningModule) error {
+	// remove the auto-init pollution from the error stream
+	cleanErrorOutput := strings.Replace(module.ErrStream.String(), module.Module.TerragruntOptions.InitStream.String(), "", -1)
+
+	// determine whether the error is a dependency error
+	var errorType string
+
+	if _, isDepErr := module.Err.(DependencyFinishedWithError); isDepErr {
+		errorType = "(dependency error)"
+	} else {
+		errorType = "(root error)"
+	}
+
+	return fmt.Errorf("%s %s: \n\n%s \n\n%s\n%s", module.Module.Path, errorType, module.Err, cleanErrorOutput, OutputMessageSeparator)
 }
 
 // Run a module once all of its dependencies have finished executing.

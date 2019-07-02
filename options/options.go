@@ -1,6 +1,7 @@
 package options
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -79,6 +80,9 @@ type TerragruntOptions struct {
 
 	// If you want stderr to go somewhere other than os.stderr
 	ErrWriter io.Writer
+
+	// Stores output of auto-init so it can be removed later form other streams
+	InitStream bytes.Buffer
 
 	// When searching the directory tree, this is the max folders to check before exiting with an error. This is
 	// exposed here primarily so we can set it to a low value at test time.
