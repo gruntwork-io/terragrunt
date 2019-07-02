@@ -316,6 +316,7 @@ func CreateGCSBucket(gcsClient *storage.Client, config *ExtendedRemoteStateConfi
 
 	if config.Location != "" {
 		terragruntOptions.Logger.Printf("Creating GCS bucket in location %s.", config.Location)
+		bucketAttrs.Location = config.Location
 	}
 
 	if config.SkipBucketVersioning {
