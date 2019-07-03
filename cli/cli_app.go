@@ -367,6 +367,9 @@ func assumeRoleIfNecessary(terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Env["AWS_ACCESS_KEY_ID"] = aws.StringValue(creds.AccessKeyId)
 	terragruntOptions.Env["AWS_SECRET_ACCESS_KEY"] = aws.StringValue(creds.SecretAccessKey)
 	terragruntOptions.Env["AWS_SESSION_TOKEN"] = aws.StringValue(creds.SessionToken)
+
+	// Workaround for https://github.com/hashicorp/go-getter/issues/191
+	// Set these directly as environment variables so that go-getter can download artifacts from S3
 	os.Setenv("AWS_ACCESS_KEY_ID", aws.StringValue(creds.AccessKeyId))
 	os.Setenv("AWS_SECRET_ACCESS_KEY", aws.StringValue(creds.SecretAccessKey))
 	os.Setenv("AWS_SESSION_TOKEN", aws.StringValue(creds.SessionToken))
