@@ -293,7 +293,7 @@ func readFile(t *testing.T, path string) string {
 }
 
 func copyFolder(t *testing.T, src string, dest string) {
-	err := util.CopyFolderContents(filepath.FromSlash(src), filepath.FromSlash(dest))
+	err := util.CopyFolderContents(filepath.FromSlash(src), filepath.FromSlash(dest), ".terragrunt-test")
 	if err != nil {
 		t.Fatal(err)
 	}

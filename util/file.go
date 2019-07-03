@@ -1,6 +1,8 @@
 package util
 
 import (
+	"encoding/gob"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -49,16 +51,6 @@ func CanonicalPaths(paths []string, basePath string) ([]string, error) {
 	}
 
 	return canonicalPaths, nil
-}
-
-// Delete the given list of files and folders
-func DeleteFilesAndFolders(files []string) error {
-	for _, file := range files {
-		if err := os.RemoveAll(file); err != nil {
-			return errors.WithStackTrace(err)
-		}
-	}
-	return nil
 }
 
 // Returns true if the given regex can be found in any of the files matched by the given glob
@@ -139,18 +131,26 @@ func ReadFileAsString(path string) (string, error) {
 
 // Copy the files and folders within the source folder into the destination folder. Note that hidden files and folders
 // (those starting with a dot) will be skipped.
-func CopyFolderContents(source string, destination string) error {
-	return CopyFolderContentsWithFilter(source, destination, func(path string) bool {
+func CopyFolderContents(source, destination, manifestFile string) error {
+	return CopyFolderContentsWithFilter(source, destination, manifestFile, func(path string) bool {
 		return !PathContainsHiddenFileOrFolder(path)
 	})
 }
 
 // Copy the files and folders within the source folder into the destination folder. Pass each file and folder through
 // the given filter function and only copy it if the filter returns true.
-func CopyFolderContentsWithFilter(source string, destination string, filter func(path string) bool) error {
+func CopyFolderContentsWithFilter(source, destination, manifestFile string, filter func(path string) bool) error {
 	// Why use filepath.Glob here? The original implementation used ioutil.ReadDir, but that method calls lstat on all
 	// the files/folders in the directory, including files/folders you may want to explicitly skip. The next attempt
 	// was to use filepath.Walk, but that doesn't work because it ignores symlinks. So, now we turn to filepath.Glob.
+	manifest := newFileManifest(filepath.Join(destination, manifestFile))
+	if err := manifest.Clean(); err != nil {
+		return errors.WithStackTrace(err)
+	}
+	if err := manifest.Create(); err != nil {
+		return errors.WithStackTrace(err)
+	}
+
 	files, err := filepath.Glob(fmt.Sprintf("%s/*", source))
 	if err != nil {
 		return errors.WithStackTrace(err)
@@ -178,7 +178,7 @@ func CopyFolderContentsWithFilter(source string, destination string, filter func
 				return errors.WithStackTrace(err)
 			}
 
-			if err := CopyFolderContentsWithFilter(file, dest, filter); err != nil {
+			if err := CopyFolderContentsWithFilter(file, dest, manifestFile, filter); err != nil {
 				return err
 			}
 		} else {
@@ -189,10 +189,13 @@ func CopyFolderContentsWithFilter(source string, destination string, filter func
 			if err := CopyFile(file, dest); err != nil {
 				return err
 			}
+			if err := manifest.AddFile(dest); err != nil {
+				return err
+			}
 		}
 	}
 
-	return nil
+	return manifest.Close()
 }
 
 // IsSymLink returns true if the given file is a symbolic link
@@ -253,20 +256,68 @@ func JoinTerraformModulePath(modulesFolder string, path string) string {
 	return fmt.Sprintf("%s//%s", cleanModulesFolder, cleanPath)
 }
 
-// Returns true if the given path contains the given folder name.
-//
-// Examples:
-//
-// PathContains("/foo/bar", "foo") => returns true
-// PathContains("/foo/bar", "baz") => returns false
-func PathContains(path string, folderName string) bool {
-	pathParts := strings.Split(path, string(filepath.Separator))
+type fileManifest struct {
+	Path       string
+	encoder    *gob.Encoder
+	fileHandle *os.File
+}
 
-	for _, pathPart := range pathParts {
-		if pathPart == folderName {
-			return true
+// Clean will remove all files specified in the manifest
+func (f *fileManifest) Clean() error {
+	var path string
+
+	// if manifest file doesn't exist, just exit
+	if !FileExists(f.Path) {
+		return nil
+	}
+	file, err := os.Open(f.Path)
+	if err != nil {
+		return err
+	}
+	decoder := gob.NewDecoder(file)
+	// decode paths one by one
+	for {
+		err = decoder.Decode(&path)
+		if err != nil {
+			if err == io.EOF {
+				break
+			} else {
+				return err
+			}
+		}
+		if err := os.RemoveAll(path); err != nil {
+			return errors.WithStackTrace(err)
 		}
 	}
+	if err := file.Close(); err != nil {
+		return errors.WithStackTrace(err)
+	}
+	// remove the manifest itself
+	if err := os.RemoveAll(f.Path); err != nil {
+		return errors.WithStackTrace(err)
+	}
 
-	return false
+	return nil
+}
+
+func (f *fileManifest) Create() error {
+	var err error
+	f.fileHandle, err = os.OpenFile(f.Path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	f.encoder = gob.NewEncoder(f.fileHandle)
+
+	return nil
+}
+func (f *fileManifest) AddFile(file string) error {
+	return f.encoder.Encode(file)
+}
+
+func (f *fileManifest) Close() error {
+	return f.fileHandle.Close()
+}
+
+func newFileManifest(path string) *fileManifest {
+	return &fileManifest{Path: path}
 }

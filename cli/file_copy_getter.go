@@ -2,10 +2,11 @@ package cli
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/hashicorp/go-getter"
 	"net/url"
 	"os"
+
+	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/go-getter"
 )
 
 // A custom getter.Getter implementation that uses file copying instead of symlinks. Symlinks are
@@ -30,7 +31,7 @@ func (g *FileCopyGetter) Get(dst string, u *url.URL) error {
 		return fmt.Errorf("source path must be a directory")
 	}
 
-	return util.CopyFolderContents(path, dst)
+	return util.CopyFolderContents(path, dst, ".terragrunt-source-manifest")
 }
 
 // The original FileGetter already knows how to do file copying so long as we set the Copy flag to true, so just

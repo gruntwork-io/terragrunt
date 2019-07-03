@@ -1,6 +1,7 @@
 package util
 
 import (
+	"io/ioutil"
 	"path/filepath"
 	"testing"
 
@@ -120,31 +121,27 @@ func TestJoinTerraformModulePath(t *testing.T) {
 	}
 }
 
-func TestPathContains(t *testing.T) {
+func TestFileManifest(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		description string
-		path        string
-		folderName  string
-		expected    bool
-	}{
-		{"both empty", "", "", true},
-		{"path empty, folder name not empty", "", "foo", false},
-		{"path non empty, folder name empty", "/foo", "", true},
-		{"path contains one part that matches folder name", "foo", "foo", true},
-		{"path contains one part that doesn't match folder name", "foo", "bar", false},
-		{"path contains multiple parts, one of which matches folder name", "/foo/bar/baz", "bar", true},
-		{"path contains multiple parts, none of which match folder name", "/foo/bar/baz", "will-not-match", false},
+	var testfiles = []string{"file1", "file2"}
+
+	for _, file := range testfiles {
+		f, err := ioutil.TempFile("", file)
+		assert.Nil(t, err, f.Close())
 	}
 
-	for _, testCase := range testCases {
-		// The following is necessary to make sure testCase's values don't
-		// get updated due to concurrency within the scope of t.Run(..) below
-		testCase := testCase
-		t.Run(testCase.description, func(t *testing.T) {
-			actual := PathContains(testCase.path, testCase.folderName)
-			assert.Equal(t, testCase.expected, actual)
-		})
+	manifest := newFileManifest(".terragrunt-test-manifest")
+	assert.Nil(t, manifest.Create())
+	assert.FileExists(t, manifest.Path)
+	for _, file := range testfiles {
+		assert.Nil(t, manifest.AddFile(file))
 	}
+
+	assert.Nil(t, manifest.Clean())
+	// test if the files have been deleted
+	for _, file := range testfiles {
+		assert.Equal(t, FileExists(file), false)
+	}
+
 }
