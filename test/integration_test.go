@@ -456,6 +456,36 @@ func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 	assert.True(t, strings.Contains(errOutput, "missingvar2") || strings.Contains(output, "missingvar2"))
 }
 
+func TestTerragruntReportsDetailedErrorsWithPlanAll(t *testing.T) {
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_FAILED_TERRAFORM)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_FAILED_TERRAFORM)
+
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, "fixture-failure")
+
+	cmd := fmt.Sprintf("terragrunt plan-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootTerragruntConfigPath)
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	// Call runTerragruntCommand directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
+
+	detailedErr := runTerragruntCommand(t, cmd, &stdout, &stderr)
+
+	if detailedErr == nil {
+		t.Fatalf("Failed to properly fail command: %v. The terraform should be bad", cmd)
+	}
+
+	fmt.Printf("DETAILED ERR is %s", detailedErr)
+
+	assert.Contains(t, detailedErr.Error(), "missingvar1")
+	assert.Contains(t, detailedErr.Error(), "missingvar2")
+	assert.Contains(t, detailedErr.Error(), configstack.DetailedErrorMessageDivider)
+
+	// ensure terraform init output is removed from detailed error messages
+	assert.NotContains(t, detailedErr.Error(), "Terraform has been successfully initialized!")
+}
+
 func TestTerragruntOutputAllCommand(t *testing.T) {
 	t.Parallel()
 

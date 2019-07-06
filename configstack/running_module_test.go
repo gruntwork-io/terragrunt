@@ -1,6 +1,7 @@
 package configstack
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 
@@ -1072,4 +1073,42 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 	assert.True(t, dRan)
 	assert.True(t, eRan)
 	assert.True(t, fRan)
+}
+
+func TestGenerateDetailedErrorMessage(t *testing.T) {
+
+	const (
+		initText      = "Terraform has been successfully initialized!"
+		argMissingErr = "Error: Missing required argument"
+		exitCodeErr   = "Hit multiple errors:\nexit status 1"
+		modulePath    = "a"
+	)
+
+	var initBuffer bytes.Buffer
+	initBuffer.WriteString(initText)
+
+	module := &TerraformModule{
+		Path:              modulePath,
+		Dependencies:      []*TerraformModule{},
+		Config:            config.TerragruntConfig{},
+		TerragruntOptions: &options.TerragruntOptions{InitStream: initBuffer, ExcludeDirs: []string{}},
+	}
+
+	runningModule, err := toRunningModules([]*TerraformModule{module}, NormalOrder)
+	assert.Nil(t, err)
+
+	var errBuffer bytes.Buffer
+	errBuffer.WriteString(fmt.Sprintf("%s\n%s", initText, argMissingErr))
+
+	runningModule[modulePath].Err = fmt.Errorf(exitCodeErr)
+	runningModule[modulePath].ErrStream = errBuffer
+
+	detailedErrorMessage := generateDetailedErrorMessage(runningModule[modulePath])
+	fmt.Printf("DETAILED ERROR:\n%s\n", detailedErrorMessage)
+
+	// ensure terraform init output is removed from detailed error messages
+	assert.NotContains(t, detailedErrorMessage.Error(), initText)
+	assert.Contains(t, detailedErrorMessage.Error(), fmt.Sprintf("%s (root error)", modulePath))
+	assert.Contains(t, detailedErrorMessage.Error(), exitCodeErr)
+	assert.Contains(t, detailedErrorMessage.Error(), argMissingErr)
 }
