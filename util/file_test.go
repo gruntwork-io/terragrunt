@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetPathRelativeTo(t *testing.T) {
@@ -124,21 +125,28 @@ func TestJoinTerraformModulePath(t *testing.T) {
 func TestFileManifest(t *testing.T) {
 	t.Parallel()
 
-	var testfiles = []string{"file1", "file2"}
+	var testfiles []string
 
-	for _, file := range testfiles {
-		f, err := ioutil.TempFile("", file)
-		assert.Nil(t, err, f.Close())
+	// create temp dir
+	dir, err := ioutil.TempDir("", ".terragrunt-test-dir")
+	require.NoError(t, err)
+	for _, file := range []string{"file1", "file2"} {
+		// create temp files in the dir
+		f, err := ioutil.TempFile(dir, file)
+		assert.NoError(t, err, f.Close())
+		testfiles = append(testfiles, f.Name())
 	}
 
-	manifest := newFileManifest(".terragrunt-test-manifest")
-	assert.Nil(t, manifest.Create())
-	assert.FileExists(t, manifest.Path)
+	// create a manifest
+	manifest := newFileManifest(dir, ".terragrunt-test-manifest")
+	require.Nil(t, manifest.Create())
+	// check the file manifest has been created
+	require.FileExists(t, filepath.Join(manifest.Path, manifest.ManifestFile))
 	for _, file := range testfiles {
-		assert.Nil(t, manifest.AddFile(file))
+		assert.NoError(t, manifest.AddFile(file))
 	}
 
-	assert.Nil(t, manifest.Clean())
+	require.NoError(t, manifest.Clean())
 	// test if the files have been deleted
 	for _, file := range testfiles {
 		assert.Equal(t, FileExists(file), false)

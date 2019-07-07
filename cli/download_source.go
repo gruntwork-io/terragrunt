@@ -18,6 +18,9 @@ import (
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 )
 
+// manifest for files coped from terragrunt module folder
+const MODULE_MANIFEST_NAME = ".terragrunt-module-manifest"
+
 // This struct represents information about Terraform source code that needs to be downloaded
 type TerraformSource struct {
 	// A canonical version of RawSource, in URL format
@@ -56,7 +59,7 @@ func downloadTerraformSource(source string, terragruntOptions *options.Terragrun
 	}
 
 	terragruntOptions.Logger.Printf("Copying files from %s into %s", terragruntOptions.WorkingDir, terraformSource.WorkingDir)
-	if err := util.CopyFolderContents(terragruntOptions.WorkingDir, terraformSource.WorkingDir, ".terragrunt-module-manifest"); err != nil {
+	if err := util.CopyFolderContents(terragruntOptions.WorkingDir, terraformSource.WorkingDir, MODULE_MANIFEST_NAME); err != nil {
 		return err
 	}
 

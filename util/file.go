@@ -130,7 +130,7 @@ func ReadFileAsString(path string) (string, error) {
 }
 
 // Copy the files and folders within the source folder into the destination folder. Note that hidden files and folders
-// (those starting with a dot) will be skipped.
+// (those starting with a dot) will be skipped. Will create a specified manifest file that contains paths of all copied files.
 func CopyFolderContents(source, destination, manifestFile string) error {
 	return CopyFolderContentsWithFilter(source, destination, manifestFile, func(path string) bool {
 		return !PathContainsHiddenFileOrFolder(path)
@@ -138,19 +138,21 @@ func CopyFolderContents(source, destination, manifestFile string) error {
 }
 
 // Copy the files and folders within the source folder into the destination folder. Pass each file and folder through
-// the given filter function and only copy it if the filter returns true.
+// the given filter function and only copy it if the filter returns true. Will create a specified manifest file
+// that contains paths of all copied files.
 func CopyFolderContentsWithFilter(source, destination, manifestFile string, filter func(path string) bool) error {
-	// Why use filepath.Glob here? The original implementation used ioutil.ReadDir, but that method calls lstat on all
-	// the files/folders in the directory, including files/folders you may want to explicitly skip. The next attempt
-	// was to use filepath.Walk, but that doesn't work because it ignores symlinks. So, now we turn to filepath.Glob.
-	manifest := newFileManifest(filepath.Join(destination, manifestFile))
+	manifest := newFileManifest(destination, manifestFile)
 	if err := manifest.Clean(); err != nil {
 		return errors.WithStackTrace(err)
 	}
 	if err := manifest.Create(); err != nil {
 		return errors.WithStackTrace(err)
 	}
+	defer manifest.Close()
 
+	// Why use filepath.Glob here? The original implementation used ioutil.ReadDir, but that method calls lstat on all
+	// the files/folders in the directory, including files/folders you may want to explicitly skip. The next attempt
+	// was to use filepath.Walk, but that doesn't work because it ignores symlinks. So, now we turn to filepath.Glob.
 	files, err := filepath.Glob(fmt.Sprintf("%s/*", source))
 	if err != nil {
 		return errors.WithStackTrace(err)
@@ -181,6 +183,9 @@ func CopyFolderContentsWithFilter(source, destination, manifestFile string, filt
 			if err := CopyFolderContentsWithFilter(file, dest, manifestFile, filter); err != nil {
 				return err
 			}
+			if err := manifest.AddDirectory(dest); err != nil {
+				return err
+			}
 		} else {
 			parentDir := filepath.Dir(dest)
 			if err := os.MkdirAll(parentDir, 0700); err != nil {
@@ -195,7 +200,7 @@ func CopyFolderContentsWithFilter(source, destination, manifestFile string, filt
 		}
 	}
 
-	return manifest.Close()
+	return nil
 }
 
 // IsSymLink returns true if the given file is a symbolic link
@@ -256,28 +261,52 @@ func JoinTerraformModulePath(modulesFolder string, path string) string {
 	return fmt.Sprintf("%s//%s", cleanModulesFolder, cleanPath)
 }
 
+// fileManifest represents a manifest with paths of all files copied by terragrunt.
+// This allows to clean those files on subsequent runs.
+// The problem is as follows: terragrunt copies the terraform source code first to "working directory" using go-getter,
+// and then copies all files from the directory it runs from to the above dir.
+// It works fine on the first run, but if we delete a file from the current terragrunt directory, we want it
+// to be cleaned in the "working directory" as well. Since we don't really know what can get copied by go-getter,
+// we have to track all the files we tough in a manifest. This way we know exactly which files we need to clean on
+// subsequent runs.
 type fileManifest struct {
-	Path       string
-	encoder    *gob.Encoder
-	fileHandle *os.File
+	Path         string
+	ManifestFile string
+	encoder      *gob.Encoder
+	fileHandle   *os.File
 }
 
-// Clean will remove all files specified in the manifest
-func (f *fileManifest) Clean() error {
-	var path string
+// fileManifestEntry represents an entry in the fileManifest.
+// It uses a struct with IsDir flag so that we won't have to call Stat on every
+// file to determine if it's a directory or a file
+type fileManifestEntry struct {
+	Path  string
+	IsDir bool
+}
+
+// Clean will recursively remove all files specified in the manifest
+func (manifest *fileManifest) Clean() error {
+	return manifest.clean(manifest.Path)
+}
+
+// clean cleans the files in the manifest. If it has a directory entry, then it recursively calls clean()
+func (manifest *fileManifest) clean(path string) error {
+	manifestPath := filepath.Join(path, manifest.ManifestFile)
 
 	// if manifest file doesn't exist, just exit
-	if !FileExists(f.Path) {
+	if !FileExists(manifestPath) {
 		return nil
 	}
-	file, err := os.Open(f.Path)
+	file, err := os.Open(manifestPath)
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 	decoder := gob.NewDecoder(file)
 	// decode paths one by one
 	for {
-		err = decoder.Decode(&path)
+		var manifestEntry fileManifestEntry
+		err = decoder.Decode(&manifestEntry)
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -285,39 +314,53 @@ func (f *fileManifest) Clean() error {
 				return err
 			}
 		}
-		if err := os.RemoveAll(path); err != nil {
-			return errors.WithStackTrace(err)
+		if manifestEntry.IsDir {
+			if err := manifest.clean(manifestEntry.Path); err != nil {
+				return errors.WithStackTrace(err)
+			}
+		} else {
+			if err := os.RemoveAll(manifestEntry.Path); err != nil {
+				return errors.WithStackTrace(err)
+			}
 		}
 	}
-	if err := file.Close(); err != nil {
+	if err := os.RemoveAll(manifestPath); err != nil {
 		return errors.WithStackTrace(err)
 	}
 	// remove the manifest itself
-	if err := os.RemoveAll(f.Path); err != nil {
-		return errors.WithStackTrace(err)
-	}
+	// it will run after the close defer
+	defer os.RemoveAll(manifestPath)
 
 	return nil
 }
 
-func (f *fileManifest) Create() error {
+// Create will create the manifest file
+func (manifest *fileManifest) Create() error {
 	var err error
-	f.fileHandle, err = os.OpenFile(f.Path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	manifest.fileHandle, err = os.OpenFile(filepath.Join(manifest.Path, manifest.ManifestFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
-	f.encoder = gob.NewEncoder(f.fileHandle)
+	manifest.encoder = gob.NewEncoder(manifest.fileHandle)
 
 	return nil
 }
-func (f *fileManifest) AddFile(file string) error {
-	return f.encoder.Encode(file)
+
+// AddFile will add the file path to the manifest file. Please make sure to run Create() before using this
+func (manifest *fileManifest) AddFile(path string) error {
+	return manifest.encoder.Encode(fileManifestEntry{Path: path, IsDir: false})
 }
 
-func (f *fileManifest) Close() error {
-	return f.fileHandle.Close()
+// AddDirectory will add the directory path to the manifest file. Please make sure to run Create() before using this
+func (manifest *fileManifest) AddDirectory(path string) error {
+	return manifest.encoder.Encode(fileManifestEntry{Path: path, IsDir: true})
 }
 
-func newFileManifest(path string) *fileManifest {
-	return &fileManifest{Path: path}
+// Close closes the manifest file handle
+func (manifest *fileManifest) Close() error {
+	return manifest.fileHandle.Close()
+}
+
+func newFileManifest(path string, manifestFile string) *fileManifest {
+	return &fileManifest{Path: path, ManifestFile: manifestFile}
 }
