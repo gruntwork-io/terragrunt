@@ -183,13 +183,12 @@ func runModules(modules map[string]*runningModule) error {
 // occurred
 func collectErrors(modules map[string]*runningModule) error {
 	errs := []error{}
-
-	// append the divider for the final error output
-	errs = append(errs, fmt.Errorf("%s", DetailedErrorMessageDivider))
+	detailedErrs := []error{}
 
 	for _, module := range modules {
 		if module.Err != nil {
-			errs = append(errs, generateDetailedErrorMessage(module))
+			errs = append(errs, module.Err)
+			detailedErrs = append(detailedErrs, generateDetailedErrorMessage(module))
 		}
 	}
 
@@ -197,7 +196,7 @@ func collectErrors(modules map[string]*runningModule) error {
 		return nil
 	}
 
-	return errors.WithStackTrace(MultiError{Errors: errs})
+	return errors.WithStackTrace(MultiError{Errors: errs, DetailedErrors: detailedErrs})
 }
 
 // generateDetailedErrorMessage extracts the clean stderr from a module and formats it for printing
@@ -301,15 +300,16 @@ func (this DependencyFinishedWithError) ExitStatus() (int, error) {
 }
 
 type MultiError struct {
-	Errors []error
+	Errors         []error
+	DetailedErrors []error
 }
 
 func (err MultiError) Error() string {
 	errorStrings := []string{}
-	for _, err := range err.Errors {
+	for _, err := range err.DetailedErrors {
 		errorStrings = append(errorStrings, err.Error())
 	}
-	return fmt.Sprintf("Encountered the following errors:\n%s", strings.Join(errorStrings, "\n"))
+	return fmt.Sprintf("Encountered the following errors:\n%s\n%s", DetailedErrorMessageDivider, strings.Join(errorStrings, "\n"))
 }
 
 func (this MultiError) ExitStatus() (int, error) {
