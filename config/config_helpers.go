@@ -230,7 +230,6 @@ func runCommand(parameters string, terragruntOptions *options.TerragruntOptions)
 		return "", errors.WithStackTrace(EmptyStringNotAllowed("parameter to the run_cmd function"))
 	}
 
-	logOutput := ""
 	quietOutput := false
 	if args[0] == "--terragrunt-quiet" {
 		quietOutput = true
@@ -239,18 +238,17 @@ func runCommand(parameters string, terragruntOptions *options.TerragruntOptions)
 
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 
-	cmdOutput, err := shell.RunShellCommandWithOutput(terragruntOptions, currentPath, args[0], args[1:]...)
+	cmdOutput, err := shell.RunShellCommandWithOutput(terragruntOptions, currentPath, quietOutput, args[0], args[1:]...)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
 
 	if quietOutput {
-		logOutput = "REDACTED"
+		terragruntOptions.Logger.Printf("run_cmd output: [REDACTED]")
 	} else {
-		logOutput = cmdOutput.Stdout
+		terragruntOptions.Logger.Printf("run_cmd output: [%s]", cmdOutput.Stdout)
 	}
 
-	terragruntOptions.Logger.Printf("run_cmd output: [%s]", logOutput)
 	return cmdOutput.Stdout, nil
 }
 
