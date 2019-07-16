@@ -1790,6 +1790,10 @@ argument to `run_cmd()`:
 super_secret_value = run_cmd("--terragrunt-quiet", "./decrypt_secret.sh", "foo") 
 ```
 
+**Note:** This will prevent terragrunt from displaying the output from the command in its output. 
+However, the value could still be displayed in the Terraform output if Terraform does not treat it as a 
+[sensitive value](https://www.terraform.io/docs/configuration/outputs.html#sensitive-suppressing-values-in-cli-output).
+
 ### Before and After Hooks
 
 _Before Hooks_ or _After Hooks_ are a feature of terragrunt that make it possible to define custom actions
