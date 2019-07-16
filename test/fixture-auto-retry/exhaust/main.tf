@@ -12,5 +12,5 @@ variable "some_var" {
 }
 
 output "test" {
-  value = "${var.some_var}"
+  value = var.some_var
 }

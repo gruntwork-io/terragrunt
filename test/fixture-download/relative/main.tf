@@ -1,6 +1,6 @@
 module "foo" {
   source = "../hello-world"
-  name = "${var.name}"
+  name = var.name
 }
 
 variable "name" {
@@ -8,5 +8,5 @@ variable "name" {
 }
 
 output "test" {
-  value = "${module.foo.test}"
+  value = module.foo.test
 }
