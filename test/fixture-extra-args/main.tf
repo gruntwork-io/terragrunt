@@ -3,5 +3,5 @@ variable "extra_var" {
 }
 
 output "test" {
-  value = "${var.extra_var}"
+  value = var.extra_var
 }

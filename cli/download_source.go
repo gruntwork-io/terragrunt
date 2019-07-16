@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 
+	"path/filepath"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -15,7 +17,6 @@ import (
 	"github.com/hashicorp/go-getter"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 	"github.com/mattn/go-zglob"
-	"path/filepath"
 )
 
 // This struct represents information about Terraform source code that needs to be downloaded
@@ -85,12 +86,21 @@ func downloadTerraformSourceIfNecessary(terraformSource *TerraformSource, terrag
 		return nil
 	}
 
-	if err := cleanupTerraformFiles(terraformSource.DownloadDir, terragruntOptions); err != nil {
+	if err := cleanupDownloadDir(terraformSource, terragruntOptions); err != nil {
 		return err
 	}
 
-	if err := terraformInit(terraformSource, terragruntOptions, terragruntConfig); err != nil {
-		return err
+	// When downloading source, we need to process any hooks waiting on `init-from-module`. Therefore, we clone the
+	// options struct, set the command to the value the hooks are expecting, and run the download action surrounded by
+	// before and after hooks (if any).
+	terragruntOptionsForDownload := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	terragruntOptionsForDownload.TerraformCommand = CMD_INIT_FROM_MODULE
+	downloadErr := runActionWithHooks("download source", terragruntOptionsForDownload, terragruntConfig, func() error {
+		return downloadSource(terraformSource, terragruntOptions, terragruntConfig)
+	})
+
+	if downloadErr != nil {
+		return downloadErr
 	}
 
 	if err := writeVersionFile(terraformSource); err != nil {
@@ -316,31 +326,73 @@ func isLocalSource(sourceUrl *url.URL) bool {
 	return sourceUrl.Scheme == "file"
 }
 
-// If this temp folder already exists, simply delete all the Terraform configurations (*.tf) within it
-// (the terraform init command will redownload the latest ones), but leave all the other files, such
-// as the .terraform folder with the downloaded modules and remote state settings.
-func cleanupTerraformFiles(path string, terragruntOptions *options.TerragruntOptions) error {
-	if !util.FileExists(path) {
+// If this download dir already exists, delete its contents to ensure that we don't have any old files from previous
+// runs. Leave only the non-Terraform files in the working dir, as that dir may contain terraform state we don't want
+// to lose / reconfigure as well as module and provider code we don't want to re-download.
+func cleanupDownloadDir(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions) error {
+	if !util.FileExists(terraformSource.DownloadDir) {
 		return nil
 	}
 
-	terragruntOptions.Logger.Printf("Cleaning up existing *.tf files in %s", path)
+	terragruntOptions.Logger.Printf("Cleaning up contents of download folder %s", terraformSource.DownloadDir)
 
-	files, err := zglob.Glob(util.JoinPath(path, "**/*.tf"))
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-
-	// Filter out files in .terraform folders, since those are from modules downloaded via a call to terraform get,
-	// and we don't want to re-download them.
-	filteredFiles := []string{}
-	for _, file := range files {
-		if !strings.Contains(file, ".terraform") {
-			filteredFiles = append(filteredFiles, file)
+	// Backup the working dir if it exists
+	backupWorkingDirFolder := util.JoinPath(terragruntOptions.DownloadDir, ".working-dir-backup")
+	if util.FileExists(terraformSource.WorkingDir) {
+		if err := os.MkdirAll(terragruntOptions.DownloadDir, 0700); err != nil {
+			return errors.WithStackTrace(err)
+		}
+		if err := os.Rename(terraformSource.WorkingDir, backupWorkingDirFolder); err != nil {
+			return errors.WithStackTrace(err)
 		}
 	}
 
-	return util.DeleteFiles(filteredFiles)
+	// Delete everything that was in the download dir
+	files, err := zglob.Glob(util.JoinPath(terraformSource.DownloadDir, "*"))
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	if err := util.DeleteFilesAndFolders(files); err != nil {
+		return err
+	}
+
+	// Restore the working dir and delete any Terraform code in it
+	if util.FileExists(backupWorkingDirFolder) {
+		if err := os.MkdirAll(filepath.Dir(terraformSource.WorkingDir), 0700); err != nil {
+			return errors.WithStackTrace(err)
+		}
+
+		if err := os.Rename(backupWorkingDirFolder, terraformSource.WorkingDir); err != nil {
+			return errors.WithStackTrace(err)
+		}
+
+		// Find any Terraform files in the working dir
+		terraformFiles, err := zglob.Glob(util.JoinPath(terraformSource.WorkingDir, "**/*.tf"))
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+		terraformJsonFiles, err := zglob.Glob("**/*.tf.json")
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+		terraformFiles = append(terraformFiles, terraformJsonFiles...)
+		filteredTerraformFiles := []string{}
+
+		// Filter out files in .terraform folders, since those are from modules downloaded via a call to terraform init,
+		// and we don't want to re-download them.
+		for _, terraformFile := range terraformFiles {
+			if !util.PathContains(terraformFile, ".terraform") {
+				filteredTerraformFiles = append(filteredTerraformFiles, terraformFile)
+			}
+		}
+
+		// Delete the filtered files
+		if err := util.DeleteFilesAndFolders(filteredTerraformFiles); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // There are two ways a user can tell Terragrunt that it needs to download Terraform configurations from a specific
@@ -349,16 +401,39 @@ func cleanupTerraformFiles(path string, terragruntOptions *options.TerragruntOpt
 func getTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) string {
 	if terragruntOptions.Source != "" {
 		return terragruntOptions.Source
-	} else if terragruntConfig.Terraform != nil {
-		return terragruntConfig.Terraform.Source
+	} else if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.Source != nil {
+		return *terragruntConfig.Terraform.Source
 	} else {
 		return ""
 	}
 }
 
-// Download the code from the Canonical Source URL into the Download Folder using the terraform init command
-func terraformInit(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	terragruntOptions.Logger.Printf("Downloading Terraform configurations from %s into %s using terraform init", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
+// We use this code to force go-getter to copy files instead of creating symlinks.
+var copyFiles = func(client *getter.Client) error {
 
-	return runTerraformInit(terragruntOptions, terragruntConfig, terraformSource)
+	// We copy all the default getters from the go-getter library, but replace the "file" getter. We shallow clone the
+	// getter map here rather than using getter.Getters directly because (a) we shouldn't change the original,
+	// globally-shared getter.Getters map and (b) Terragrunt may run this code from many goroutines concurrently during
+	// xxx-all calls, so creating a new map each time ensures we don't a "concurrent map writes" error.
+	client.Getters = map[string]getter.Getter{}
+	for getterName, getterValue := range getter.Getters {
+		if getterName == "file" {
+			client.Getters[getterName] = &FileCopyGetter{}
+		} else {
+			client.Getters[getterName] = getterValue
+		}
+	}
+
+	return nil
+}
+
+// Download the code from the Canonical Source URL into the Download Folder using the go-getter library
+func downloadSource(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+	terragruntOptions.Logger.Printf("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
+
+	if err := getter.GetAny(terraformSource.DownloadDir, terraformSource.CanonicalSourceURL.String(), copyFiles); err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	return nil
 }

@@ -2,27 +2,29 @@ package remote
 
 import (
 	"fmt"
+	"reflect"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"reflect"
 )
 
 // Configuration for Terraform remote state
 type RemoteState struct {
-	Backend string                 `hcl:"backend"`
-	Config  map[string]interface{} `hcl:"config"`
+	Backend     string
+	DisableInit bool
+	Config      map[string]interface{}
 }
 
 func (remoteState *RemoteState) String() string {
-	return fmt.Sprintf("RemoteState{Backend = %v, Config = %v}", remoteState.Backend, remoteState.Config)
+	return fmt.Sprintf("RemoteState{Backend = %v, DisableInit = %v, Config = %v}", remoteState.Backend, remoteState.DisableInit, remoteState.Config)
 }
 
 type RemoteStateInitializer interface {
 	// Return true if remote state needs to be initialized
-	NeedsInitialization(config map[string]interface{}, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error)
+	NeedsInitialization(remoteState *RemoteState, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error)
 
 	// Initialize the remote state
-	Initialize(config map[string]interface{}, terragruntOptions *options.TerragruntOptions) error
+	Initialize(remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error
 
 	// Return the config that should be passed on to terraform via -backend-config cmd line param
 	// Allows the Backends to filter and/or modify the configuration given from the user
@@ -31,7 +33,8 @@ type RemoteStateInitializer interface {
 
 // TODO: initialization actions for other remote state backends can be added here
 var remoteStateInitializers = map[string]RemoteStateInitializer{
-	"s3": S3Initializer{},
+	"s3":  S3Initializer{},
+	"gcs": GCSInitializer{},
 }
 
 // Fill in any default configuration for remote state
@@ -49,12 +52,12 @@ func (remoteState *RemoteState) Validate() error {
 }
 
 // Perform any actions necessary to initialize the remote state before it's used for storage. For example, if you're
-// using S3 for remote state storage, this may create the S3 bucket if it doesn't exist already.
+// using S3 or GCS for remote state storage, this may create the bucket if it doesn't exist already.
 func (remoteState *RemoteState) Initialize(terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Initializing remote state for the %s backend", remoteState.Backend)
 	initializer, hasInitializer := remoteStateInitializers[remoteState.Backend]
 	if hasInitializer {
-		return initializer.Initialize(remoteState.Config, terragruntOptions)
+		return initializer.Initialize(remoteState, terragruntOptions)
 	}
 
 	return nil
@@ -71,6 +74,10 @@ func (remoteState *RemoteState) NeedsInit(terragruntOptions *options.TerragruntO
 		return false, err
 	}
 
+	if remoteState.DisableInit {
+		return false, nil
+	}
+
 	// Remote state not configured
 	if state == nil {
 		return true, nil
@@ -78,7 +85,7 @@ func (remoteState *RemoteState) NeedsInit(terragruntOptions *options.TerragruntO
 
 	if initializer, hasInitializer := remoteStateInitializers[remoteState.Backend]; hasInitializer {
 		// Remote state initializer says initialization is necessary
-		return initializer.NeedsInitialization(remoteState.Config, state.Backend, terragruntOptions)
+		return initializer.NeedsInitialization(remoteState, state.Backend, terragruntOptions)
 	} else if state.IsRemote() && remoteState.differsFrom(state.Backend, terragruntOptions) {
 		// If there's no remote state initializer, then just compare the the config values
 		return true, nil
@@ -94,7 +101,7 @@ func (remoteState *RemoteState) differsFrom(existingBackend *TerraformBackend, t
 		return true
 	}
 
-	if !reflect.DeepEqual(existingBackend.Config, remoteState.Config) {
+	if !terraformStateConfigEqual(existingBackend.Config, remoteState.Config) {
 		terragruntOptions.Logger.Printf("Backend config has changed from %s to %s", existingBackend.Config, remoteState.Config)
 		return true
 	}
@@ -103,10 +110,34 @@ func (remoteState *RemoteState) differsFrom(existingBackend *TerraformBackend, t
 	return false
 }
 
+// Return true if the existing config from a .tfstate file is equal to the new config from the user's backend
+// configuration. Under the hood, this method does a reflect.DeepEqual check, but with one twist: we strip out any
+// null values in the existing config. This is because Terraform >= 0.12 stores ALL possible keys for a given backend
+// in the .tfstate file, even if the user hasn't configured that key, in which case the value will be null, and cause
+// reflect.DeepEqual to fail.
+func terraformStateConfigEqual(existingConfig map[string]interface{}, newConfig map[string]interface{}) bool {
+	if existingConfig == nil {
+		return newConfig == nil
+	}
+
+	existingConfigNonNil := map[string]interface{}{}
+	for existingKey, existingValue := range existingConfig {
+		_, newValueIsSet := newConfig[existingKey]
+		if existingValue == nil && !newValueIsSet {
+			continue
+		}
+		existingConfigNonNil[existingKey] = existingValue
+	}
+
+	return reflect.DeepEqual(existingConfigNonNil, newConfig)
+}
+
 // Convert the RemoteState config into the format used by the terraform init command
 func (remoteState RemoteState) ToTerraformInitArgs() []string {
-
 	config := remoteState.Config
+	if remoteState.DisableInit {
+		return []string{"-backend=false"}
+	}
 
 	initializer, hasInitializer := remoteStateInitializers[remoteState.Backend]
 	if hasInitializer {
