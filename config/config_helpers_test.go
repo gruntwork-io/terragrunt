@@ -140,7 +140,7 @@ func TestRunCommand(t *testing.T) {
 			nil,
 		},
 		{
-			"",
+			nil,
 			terragruntOptionsForTest(t, homeDir),
 			"",
 			EmptyStringNotAllowed("{run_cmd()}"),
