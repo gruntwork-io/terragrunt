@@ -134,7 +134,7 @@ func TestRunCommand(t *testing.T) {
 			nil,
 		},
 		{
-			`"--terragrunt-quiet", "/bin/bash", "-c", ""echo -n foo""`,
+			[]string{"--terragrunt-quiet", "/bin/bash", "-c", "echo -n foo"},
 			terragruntOptionsForTest(t, homeDir),
 			"foo",
 			nil,
