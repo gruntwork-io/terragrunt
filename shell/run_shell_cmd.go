@@ -39,7 +39,7 @@ func RunTerraformCommandWithOutput(terragruntOptions *options.TerragruntOptions,
 func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, workingDir string, suppressStdout bool, command string, args ...string) (*CmdOutput, error) {
 	terragruntOptions.Logger.Printf("Running command: %s %s", command, strings.Join(args, " "))
 	if suppressStdout {
-		terragruntOptions.Logger.Printf("Suppressing stdout.")
+		terragruntOptions.Logger.Printf("Command output will be suppressed.")
 	}
 
 	var stdoutBuf bytes.Buffer
