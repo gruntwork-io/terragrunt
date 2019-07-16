@@ -141,6 +141,9 @@ func CopyFolderContents(source, destination, manifestFile string) error {
 // the given filter function and only copy it if the filter returns true. Will create a specified manifest file
 // that contains paths of all copied files.
 func CopyFolderContentsWithFilter(source, destination, manifestFile string, filter func(path string) bool) error {
+	if err := os.MkdirAll(destination, 0700); err != nil {
+		return errors.WithStackTrace(err)
+	}
 	manifest := newFileManifest(destination, manifestFile)
 	if err := manifest.Clean(); err != nil {
 		return errors.WithStackTrace(err)
@@ -299,6 +302,10 @@ func (manifest *fileManifest) clean(path string) error {
 	}
 	file, err := os.Open(manifestPath)
 	if err != nil {
+		// the manifest doesn't exist, so there's nothing we can safely clean
+		if err == os.ErrNotExist {
+			return nil
+		}
 		return err
 	}
 	defer file.Close()
