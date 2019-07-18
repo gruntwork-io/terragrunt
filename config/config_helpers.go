@@ -145,14 +145,25 @@ func runCommand(args []string, include *IncludeConfig, terragruntOptions *option
 		return "", errors.WithStackTrace(EmptyStringNotAllowed("parameter to the run_cmd function"))
 	}
 
+	suppressOutput := false
+	if args[0] == "--terragrunt-quiet" {
+		suppressOutput = true
+		args = append(args[:0], args[1:]...)
+	}
+
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 
-	cmdOutput, err := shell.RunShellCommandWithOutput(terragruntOptions, currentPath, args[0], args[1:]...)
+	cmdOutput, err := shell.RunShellCommandWithOutput(terragruntOptions, currentPath, suppressOutput, args[0], args[1:]...)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
 
-	terragruntOptions.Logger.Printf("run_cmd output: [%s]", cmdOutput.Stdout)
+	if suppressOutput {
+		terragruntOptions.Logger.Printf("run_cmd output: [REDACTED]")
+	} else {
+		terragruntOptions.Logger.Printf("run_cmd output: [%s]", cmdOutput.Stdout)
+	}
+
 	return cmdOutput.Stdout, nil
 }
 
