@@ -57,7 +57,8 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, wor
 	// command requested by the user. The output of these other commands should not end up on stdout as this
 	// breaks scripts relying on terraform's output.
 	if !reflect.DeepEqual(terragruntOptions.TerraformCliArgs, args) {
-		outWriter = terragruntOptions.ErrWriter
+		errWriter = os.Stderr
+		outWriter = os.Stdout
 	}
 
 	if workingDir == "" {
