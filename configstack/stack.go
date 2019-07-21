@@ -62,7 +62,7 @@ func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.Terragrunt
 				)
 			}
 		} else if errorStream.Len() > 0 {
-			terragruntOptions.Logger.Printf("Error with plan: %s", output)
+			terragruntOptions.Logger.Printf("Error Summary of plan in %s\n%s", stack.Modules[i].Path, output)
 		}
 	}
 }
