@@ -61,6 +61,10 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, wor
 		outWriter = os.Stdout
 	}
 
+	if terragruntOptions.ErrWriter != os.Stderr {
+		errWriter = io.MultiWriter(terragruntOptions.ErrWriter, os.Stderr)
+	}
+
 	if workingDir == "" {
 		cmd.Dir = terragruntOptions.WorkingDir
 	} else {
