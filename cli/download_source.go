@@ -95,6 +95,7 @@ func downloadTerraformSourceIfNecessary(terraformSource *TerraformSource, terrag
 	// before and after hooks (if any).
 	terragruntOptionsForDownload := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	terragruntOptionsForDownload.TerraformCommand = CMD_INIT_FROM_MODULE
+	terragruntOptionsForDownload.Logger = terragruntOptions.Logger
 	downloadErr := runActionWithHooks("download source", terragruntOptionsForDownload, terragruntConfig, func() error {
 		return downloadSource(terraformSource, terragruntOptions, terragruntConfig)
 	})
