@@ -14,12 +14,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"cloud.google.com/go/storage"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/api/iterator"
+
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -30,8 +32,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/stretchr/testify/assert"
-	"google.golang.org/api/iterator"
 )
 
 // hard-code this to match the test fixture for now
@@ -1676,7 +1676,7 @@ func uniqueId() string {
 }
 
 // Check that the S3 Bucket of the given name and region exists. Terragrunt should create this bucket during the test.
-// Also check if bucket got tagged properly
+// Also check if bucket got tagged properly and that public access is disabled completely.
 func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketName string, expectedTags map[string]string) {
 	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
 	if err != nil {
@@ -1698,6 +1698,8 @@ func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketNam
 	if expectedTags != nil {
 		assertS3Tags(expectedTags, bucketName, s3Client, t)
 	}
+
+	assertS3PublicAccessBlocks(t, s3Client, bucketName)
 }
 
 // Check that the DynamoDB table of the given name and region exists. Terragrunt should create this table during the test.
@@ -1745,6 +1747,19 @@ func assertS3Tags(expectedTags map[string]string, bucketName string, client *s3.
 	}
 
 	assert.Equal(t, expectedTags, actualTags, "Did not find expected tags on s3 bucket.")
+}
+
+func assertS3PublicAccessBlocks(t *testing.T, client *s3.S3, bucketName string) {
+	resp, err := client.GetPublicAccessBlock(
+		&s3.GetPublicAccessBlockInput{Bucket: aws.String(bucketName)},
+	)
+	require.NoError(t, err)
+
+	publicAccessBlockConfig := resp.PublicAccessBlockConfiguration
+	assert.True(t, aws.BoolValue(publicAccessBlockConfig.BlockPublicAcls))
+	assert.True(t, aws.BoolValue(publicAccessBlockConfig.BlockPublicPolicy))
+	assert.True(t, aws.BoolValue(publicAccessBlockConfig.IgnorePublicAcls))
+	assert.True(t, aws.BoolValue(publicAccessBlockConfig.RestrictPublicBuckets))
 }
 
 // Delete the specified S3 bucket to clean up after a test
