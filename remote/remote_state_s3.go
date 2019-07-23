@@ -354,6 +354,10 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 		return err
 	}
 
+	if err := EnablePublicAccessBlockingForS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
+		return err
+	}
+
 	if err := TagS3Bucket(s3Client, config, terragruntOptions); err != nil {
 		return err
 	}
@@ -501,6 +505,25 @@ func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConf
 	}
 
 	return nil
+}
+
+// Block all public access policies on the bucket and objects. These settings ensure that a misconfiguration of the
+// bucket or objects will not accidentally enable public access to those items. See
+// https://docs.aws.amazon.com/AmazonS3/latest/dev/access-control-block-public-access.html for more information.
+func EnablePublicAccessBlockingForS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Printf("Blocking all public access to S3 bucket %s", config.Bucket)
+	_, err := s3Client.PutPublicAccessBlock(
+		&s3.PutPublicAccessBlockInput{
+			Bucket: aws.String(config.Bucket),
+			PublicAccessBlockConfiguration: &s3.PublicAccessBlockConfiguration{
+				BlockPublicAcls:       aws.Bool(true),
+				BlockPublicPolicy:     aws.Bool(true),
+				IgnorePublicAcls:      aws.Bool(true),
+				RestrictPublicBuckets: aws.Bool(true),
+			},
+		},
+	)
+	return errors.WithStackTrace(err)
 }
 
 // To enable access logging in an S3 bucket, you must grant WRITE and READ_ACP permissions to the Log Delivery
