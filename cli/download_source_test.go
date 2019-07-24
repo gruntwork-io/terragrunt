@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -164,6 +165,11 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
+	// used to test if an empty folder gets copied
+	testDir := tmpDir(t)
+	require.NoError(t, os.Mkdir(path.Join(testDir, "sub2"), 0700))
+	defer os.Remove(testDir)
+
 	testCases := []struct {
 		name      string
 		sourceURL string
@@ -194,13 +200,13 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 			},
 		},
 		{
-			"test-empty-folder-gets-copied", "../test/fixture-manifest/version-5-empty-subfolder",
+			"test-empty-folder-gets-copied", testDir,
 			func() bool {
 				return util.FileExists(filepath.Join(downloadDir, "sub2"))
 			},
 		},
 		{
-			"test-empty-folder-gets-populated", "../test/fixture-manifest/version-6-not-empty-subfolder",
+			"test-empty-folder-gets-populated", "../test/fixture-manifest/version-5-not-empty-subfolder",
 			func() bool {
 				return util.FileExists(filepath.Join(downloadDir, "sub2", "main.tf"))
 			},

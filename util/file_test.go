@@ -141,7 +141,7 @@ func TestFileManifest(t *testing.T) {
 	manifest := newFileManifest(dir, ".terragrunt-test-manifest")
 	require.Nil(t, manifest.Create())
 	// check the file manifest has been created
-	require.FileExists(t, filepath.Join(manifest.Path, manifest.ManifestFile))
+	require.FileExists(t, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
 	for _, file := range testfiles {
 		assert.NoError(t, manifest.AddFile(file))
 	}

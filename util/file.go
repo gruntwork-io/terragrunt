@@ -267,16 +267,16 @@ func JoinTerraformModulePath(modulesFolder string, path string) string {
 // fileManifest represents a manifest with paths of all files copied by terragrunt.
 // This allows to clean those files on subsequent runs.
 // The problem is as follows: terragrunt copies the terraform source code first to "working directory" using go-getter,
-// and then copies all files from the directory it runs from to the above dir.
+// and then copies all files from the working directory to the above dir.
 // It works fine on the first run, but if we delete a file from the current terragrunt directory, we want it
 // to be cleaned in the "working directory" as well. Since we don't really know what can get copied by go-getter,
-// we have to track all the files we tough in a manifest. This way we know exactly which files we need to clean on
+// we have to track all the files we touch in a manifest. This way we know exactly which files we need to clean on
 // subsequent runs.
 type fileManifest struct {
-	Path         string
-	ManifestFile string
-	encoder      *gob.Encoder
-	fileHandle   *os.File
+	ManifestFolder string // this is a folder that has the manifest in it
+	ManifestFile   string // this is the manifest file name
+	encoder        *gob.Encoder
+	fileHandle     *os.File
 }
 
 // fileManifestEntry represents an entry in the fileManifest.
@@ -289,23 +289,17 @@ type fileManifestEntry struct {
 
 // Clean will recursively remove all files specified in the manifest
 func (manifest *fileManifest) Clean() error {
-	return manifest.clean(manifest.Path)
+	return manifest.clean(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
 }
 
 // clean cleans the files in the manifest. If it has a directory entry, then it recursively calls clean()
-func (manifest *fileManifest) clean(path string) error {
-	manifestPath := filepath.Join(path, manifest.ManifestFile)
-
+func (manifest *fileManifest) clean(manifestPath string) error {
 	// if manifest file doesn't exist, just exit
 	if !FileExists(manifestPath) {
 		return nil
 	}
 	file, err := os.Open(manifestPath)
 	if err != nil {
-		// the manifest doesn't exist, so there's nothing we can safely clean
-		if err == os.ErrNotExist {
-			return nil
-		}
 		return err
 	}
 	defer file.Close()
@@ -322,32 +316,30 @@ func (manifest *fileManifest) clean(path string) error {
 			}
 		}
 		if manifestEntry.IsDir {
-			if err := manifest.clean(manifestEntry.Path); err != nil {
+			// join the directory entry path with the manifest file name and call clean()
+			if err := manifest.clean(filepath.Join(manifestEntry.Path, manifest.ManifestFile)); err != nil {
 				return errors.WithStackTrace(err)
 			}
 		} else {
-			if err := os.RemoveAll(manifestEntry.Path); err != nil {
+			if err := os.Remove(manifestEntry.Path); err != nil {
 				return errors.WithStackTrace(err)
 			}
 		}
 	}
-	if err := os.RemoveAll(manifestPath); err != nil {
-		return errors.WithStackTrace(err)
-	}
 	// remove the manifest itself
 	// it will run after the close defer
-	defer os.RemoveAll(manifestPath)
+	defer os.Remove(manifestPath)
 
 	return nil
 }
 
 // Create will create the manifest file
 func (manifest *fileManifest) Create() error {
-	var err error
-	manifest.fileHandle, err = os.OpenFile(filepath.Join(manifest.Path, manifest.ManifestFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	fileHandle, err := os.OpenFile(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
+	manifest.fileHandle = fileHandle
 	manifest.encoder = gob.NewEncoder(manifest.fileHandle)
 
 	return nil
@@ -368,6 +360,6 @@ func (manifest *fileManifest) Close() error {
 	return manifest.fileHandle.Close()
 }
 
-func newFileManifest(path string, manifestFile string) *fileManifest {
-	return &fileManifest{Path: path, ManifestFile: manifestFile}
+func newFileManifest(manifestFolder string, manifestFile string) *fileManifest {
+	return &fileManifest{ManifestFolder: manifestFolder, ManifestFile: manifestFile}
 }

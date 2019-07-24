@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/go-getter"
 )
 
-// manifest for files copied from terraform source
+// manifest for files copied from the URL specified in the terraform { source = "<URL>" } config
 const SOURCE_MANIFEST_NAME = ".terragrunt-source-manifest"
 
 // A custom getter.Getter implementation that uses file copying instead of symlinks. Symlinks are

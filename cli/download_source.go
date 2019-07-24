@@ -18,7 +18,7 @@ import (
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 )
 
-// manifest for files coped from terragrunt module folder
+// manifest for files coped from terragrunt module folder (i.e., the folder that contains the current terragrunt.hcl)
 const MODULE_MANIFEST_NAME = ".terragrunt-module-manifest"
 
 // This struct represents information about Terraform source code that needs to be downloaded
