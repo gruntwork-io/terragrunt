@@ -12,6 +12,8 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+// runHCLFmt recursively looks for terragrunt.hcl files in the directory tree starting at workingDir, and formats them
+// based on the language style guides provided by Hashicorp. This is done using the official hcl2 library.
 func runHCLFmt(terragruntOptions *options.TerragruntOptions, workingDir string) error {
 	terragruntOptions.Logger.Printf("Formatting terragrunt.hcl files in the current directory tree.")
 
@@ -32,6 +34,7 @@ func runHCLFmt(terragruntOptions *options.TerragruntOptions, workingDir string) 
 	return nil
 }
 
+// findTerragruntHclFiles will recursively look for terragrunt.hcl files in the directory tree starting at workingDir.
 func findTerragruntHclFiles(terragruntOptions *options.TerragruntOptions, workingDir string) ([]string, error) {
 	tgHclFiles := []string{}
 
@@ -52,6 +55,8 @@ func findTerragruntHclFiles(terragruntOptions *options.TerragruntOptions, workin
 	return tgHclFiles, err
 }
 
+// formatTgHCL uses the hcl2 library to format the terragrunt.hcl file. This will attempt to parse the HCL file first to
+// ensure that there are no syntax errors, before attempting to format it.
 func formatTgHCL(terragruntOptions *options.TerragruntOptions, tgHclFile string) error {
 	terragruntOptions.Logger.Printf("Formatting %s", tgHclFile)
 
@@ -77,6 +82,7 @@ func formatTgHCL(terragruntOptions *options.TerragruntOptions, tgHclFile string)
 	return ioutil.WriteFile(tgHclFile, newContents, info.Mode())
 }
 
+// readAllFromFile will read the contents of the file at the given path.
 func readAllFromFile(path string) ([]byte, error) {
 	f, err := os.Open(path)
 	defer f.Close()
@@ -86,6 +92,7 @@ func readAllFromFile(path string) ([]byte, error) {
 	return ioutil.ReadAll(f)
 }
 
+// getDiagnosticsWriter returns a hcl2 parsing diagnostics emitter for the current terminal.
 func getDiagnosticsWriter(parser *hclparse.Parser) hcl.DiagnosticWriter {
 	termColor := terminal.IsTerminal(int(os.Stderr.Fd()))
 	termWidth, _, err := terminal.GetSize(int(os.Stdout.Fd()))
@@ -95,6 +102,7 @@ func getDiagnosticsWriter(parser *hclparse.Parser) hcl.DiagnosticWriter {
 	return hcl.NewDiagnosticTextWriter(os.Stderr, parser.Files(), uint(termWidth), termColor)
 }
 
+// checkErrors takes in the contents of a terragrunt.hcl file and looks for syntax errors.
 func checkErrors(contents []byte, tgHclFile string) error {
 	parser := hclparse.NewParser()
 	_, diags := parser.ParseHCL(contents, tgHclFile)
