@@ -48,6 +48,7 @@ const CMD_VALIDATE_ALL = "validate-all"
 const CMD_INIT = "init"
 const CMD_INIT_FROM_MODULE = "init-from-module"
 const CMD_TERRAGRUNT_INFO = "terragrunt-info"
+const CMD_HCLFMT = "hclfmt"
 
 // CMD_SPIN_UP is deprecated.
 const CMD_SPIN_UP = "spin-up"
@@ -279,6 +280,10 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return nil
 	}
 
+	if shouldRunHCLFmt(terragruntOptions) {
+		return runHCLFmt(terragruntOptions)
+	}
+
 	if err := checkFolderContainsTerraformCode(terragruntOptions); err != nil {
 		return err
 	}
@@ -303,6 +308,13 @@ func shouldPrintTerraformHelp(terragruntOptions *options.TerragruntOptions) bool
 
 func shouldPrintTerragruntInfo(terragruntOptions *options.TerragruntOptions) bool {
 	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_TERRAGRUNT_INFO) {
+		return true
+	}
+	return false
+}
+
+func shouldRunHCLFmt(terragruntOptions *options.TerragruntOptions) bool {
+	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_HCLFMT) {
 		return true
 	}
 	return false
