@@ -5,4 +5,9 @@ inputs = {
 
   inputs = "disjoint"
   disjoint = true
+
+  listInput = [
+"foo",
+"bar",
+]
 }
