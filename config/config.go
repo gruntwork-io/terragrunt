@@ -28,6 +28,7 @@ type TerragruntConfig struct {
 	Skip           bool
 	IamRole        string
 	Inputs         map[string]interface{}
+	Locals         map[string]interface{}
 }
 
 func (conf *TerragruntConfig) String() string {
@@ -39,6 +40,7 @@ func (conf *TerragruntConfig) String() string {
 type terragruntConfigFile struct {
 	Terraform      *TerraformConfig       `hcl:"terraform,block"`
 	Inputs         *cty.Value             `hcl:"inputs,attr"`
+	Locals         *cty.Value             `hcl:"locals,attr"`
 	Include        *IncludeConfig         `hcl:"include,block"`
 	RemoteState    *remoteStateConfigFile `hcl:"remote_state,block"`
 	Dependencies   *ModuleDependencies    `hcl:"dependencies,block"`
@@ -50,6 +52,11 @@ type terragruntConfigFile struct {
 type terragruntInclude struct {
 	Include *IncludeConfig `hcl:"include,block"`
 	Remain  hcl.Body       `hcl:",remain"`
+}
+
+type terragruntLocals struct {
+	Locals *cty.Value `hcl:"locals,attr"`
+	Remain hcl.Body   `hcl:",remain"`
 }
 
 // Configuration for Terraform remote state as parsed from a terragrunt.hcl config file
@@ -251,6 +258,12 @@ func ParseConfigString(configString string, terragruntOptions *options.Terragrun
 		return nil, err
 	}
 
+	// Decode just the `locals` block, and verify that it's allowed here
+	terragruntLocals, err := decodeAsTerragruntLocals(file, filename, terragruntOptions)
+	if err != nil {
+		return nil, err
+	}
+
 	var includeForDecode *IncludeConfig = nil
 	if terragruntInclude.Include != nil && includeFromChild != nil {
 		return nil, errors.WithStackTrace(TooManyLevelsOfInheritance{
@@ -266,7 +279,7 @@ func ParseConfigString(configString string, terragruntOptions *options.Terragrun
 
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
 	// is appropriate
-	terragruntConfigFile, err := decodeAsTerragruntConfigFile(file, filename, terragruntOptions, includeForDecode)
+	terragruntConfigFile, err := decodeAsTerragruntConfigFile(file, filename, terragruntOptions, includeForDecode, terragruntLocals.Locals)
 	if err != nil {
 		return nil, err
 	}
@@ -299,16 +312,33 @@ func ParseConfigString(configString string, terragruntOptions *options.Terragrun
 // an include block)
 func decodeAsTerragruntInclude(file *hcl.File, filename string, terragruntOptions *options.TerragruntOptions) (*terragruntInclude, error) {
 	terragruntInclude := terragruntInclude{}
-	err := decodeHcl(file, filename, &terragruntInclude, terragruntOptions, nil)
+	err := decodeHcl(file, filename, &terragruntInclude, terragruntOptions, nil, nil)
 	if err != nil {
 		return nil, err
 	}
 	return &terragruntInclude, nil
 }
 
-func decodeAsTerragruntConfigFile(file *hcl.File, filename string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) (*terragruntConfigFile, error) {
+// This decodes only the `locals` attribute of a terragrunt config, so its value can be used while decoding the rest of
+// the config. For consistency, `locals` in the call to `decodeHcl` is always assumed to be nil.
+func decodeAsTerragruntLocals(file *hcl.File, filename string, terragruntOptions *options.TerragruntOptions) (*terragruntLocals, error) {
+	terragruntLocals := terragruntLocals{}
+	err := decodeHcl(file, filename, &terragruntLocals, terragruntOptions, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &terragruntLocals, nil
+}
+
+func decodeAsTerragruntConfigFile(
+	file *hcl.File,
+	filename string,
+	terragruntOptions *options.TerragruntOptions,
+	include *IncludeConfig,
+	locals *cty.Value,
+) (*terragruntConfigFile, error) {
 	terragruntConfig := terragruntConfigFile{}
-	err := decodeHcl(file, filename, &terragruntConfig, terragruntOptions, include)
+	err := decodeHcl(file, filename, &terragruntConfig, terragruntOptions, include, locals)
 	if err != nil {
 		return nil, err
 	}
@@ -316,7 +346,14 @@ func decodeAsTerragruntConfigFile(file *hcl.File, filename string, terragruntOpt
 }
 
 // decodeHcl uses the HCL2 parser to decode the parsed HCL into the struct specified by out.
-func decodeHcl(file *hcl.File, filename string, out interface{}, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) (err error) {
+func decodeHcl(
+	file *hcl.File,
+	filename string,
+	out interface{},
+	terragruntOptions *options.TerragruntOptions,
+	include *IncludeConfig,
+	locals *cty.Value,
+) (err error) {
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
 	// those panics here and convert them to normal errors
 	defer func() {
@@ -325,7 +362,7 @@ func decodeHcl(file *hcl.File, filename string, out interface{}, terragruntOptio
 		}
 	}()
 
-	evalContext := CreateTerragruntEvalContext(filename, terragruntOptions, include)
+	evalContext := CreateTerragruntEvalContext(filename, terragruntOptions, include, locals)
 
 	decodeDiagnostics := gohcl.DecodeBody(file.Body, evalContext, out)
 	if decodeDiagnostics != nil && decodeDiagnostics.HasErrors() {
