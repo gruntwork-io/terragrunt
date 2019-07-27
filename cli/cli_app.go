@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -281,7 +282,12 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	if shouldRunHCLFmt(terragruntOptions) {
-		return runHCLFmt(terragruntOptions)
+		cwd, err := os.Getwd()
+		if err != nil {
+			terragruntOptions.Logger.Printf("Error retrieving current working directory")
+			return err
+		}
+		return runHCLFmt(terragruntOptions, cwd)
 	}
 
 	if err := checkFolderContainsTerraformCode(terragruntOptions); err != nil {

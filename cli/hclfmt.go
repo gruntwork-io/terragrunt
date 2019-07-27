@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -11,10 +12,10 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-func runHCLFmt(terragruntOptions *options.TerragruntOptions) error {
+func runHCLFmt(terragruntOptions *options.TerragruntOptions, workingDir string) error {
 	terragruntOptions.Logger.Printf("Formatting terragrunt.hcl files in the current directory tree.")
 
-	tgHclFiles, err := findTerragruntHclFiles(terragruntOptions)
+	tgHclFiles, err := findTerragruntHclFiles(terragruntOptions, workingDir)
 	if err != nil {
 		return err
 	}
@@ -31,17 +32,13 @@ func runHCLFmt(terragruntOptions *options.TerragruntOptions) error {
 	return nil
 }
 
-func findTerragruntHclFiles(terragruntOptions *options.TerragruntOptions) ([]string, error) {
+func findTerragruntHclFiles(terragruntOptions *options.TerragruntOptions, workingDir string) ([]string, error) {
 	tgHclFiles := []string{}
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		return tgHclFiles, err
-	}
-	terragruntOptions.Logger.Printf("Walking directory tree in %s to look for terragrunt.hcl files", cwd)
+	terragruntOptions.Logger.Printf("Walking directory tree in %s to look for terragrunt.hcl files", workingDir)
 
-	err = filepath.Walk(
-		cwd,
+	err := filepath.Walk(
+		workingDir,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
@@ -60,15 +57,17 @@ func formatTgHCL(terragruntOptions *options.TerragruntOptions, tgHclFile string)
 
 	info, err := os.Stat(tgHclFile)
 	if err != nil {
+		terragruntOptions.Logger.Printf("Error retrieving file info of %s", tgHclFile)
 		return err
 	}
 
 	contents, err := readAllFromFile(tgHclFile)
 	if err != nil {
+		terragruntOptions.Logger.Printf("Error reading %s", tgHclFile)
 		return err
 	}
 
-	err := checkErrors(contents, tgHclFile)
+	err = checkErrors(contents, tgHclFile)
 	if err != nil {
 		terragruntOptions.Logger.Printf("Error parsing %s", tgHclFile)
 		return err
@@ -87,7 +86,7 @@ func readAllFromFile(path string) ([]byte, error) {
 	return ioutil.ReadAll(f)
 }
 
-func getDiagnosticsWriter(parser hclparse.Parser) hcl.DiagnosticWriter {
+func getDiagnosticsWriter(parser *hclparse.Parser) hcl.DiagnosticWriter {
 	termColor := terminal.IsTerminal(int(os.Stderr.Fd()))
 	termWidth, _, err := terminal.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
@@ -96,7 +95,7 @@ func getDiagnosticsWriter(parser hclparse.Parser) hcl.DiagnosticWriter {
 	return hcl.NewDiagnosticTextWriter(os.Stderr, parser.Files(), uint(termWidth), termColor)
 }
 
-func checkErrors(contents string, tgHclFile string) error {
+func checkErrors(contents []byte, tgHclFile string) error {
 	parser := hclparse.NewParser()
 	_, diags := parser.ParseHCL(contents, tgHclFile)
 	diagWriter := getDiagnosticsWriter(parser)

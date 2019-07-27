@@ -150,6 +150,14 @@
   version = "v2.0.4"
 
 [[projects]]
+  digest = "1:91e98ea76af524d88f4eeb4240bcd0ab04a8091954dc845c32b3283c7c4ebf8c"
+  name = "github.com/gruntwork-io/terratest"
+  packages = ["modules/files"]
+  pruneopts = "UT"
+  revision = "a02960d4ef0711ae95ae2651271b4e073f88da4e"
+  version = "v0.18.0"
+
+[[projects]]
   digest = "1:0ade334594e69404d80d9d323445d2297ff8161637f9b2d347cc6973d2d6f05b"
   name = "github.com/hashicorp/errwrap"
   packages = ["."]
@@ -398,11 +406,12 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:9d5b5d543996dd584da1db1e0de1926f3e4c3a8dba0fa2f8db70f3ebee2342e0"
+  digest = "1:b7cda6bf367836ce3675325f6f7aec675af1ff2fde841524800f499a1acf0ee2"
   name = "golang.org/x/crypto"
   packages = [
     "bcrypt",
     "blowfish",
+    "ssh/terminal",
   ]
   pruneopts = "UT"
   revision = "5c40567a22f818bd14a1ea7245dad9f8ef0691aa"
@@ -440,9 +449,12 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:010311506e3917b54487c35a4277e2709678a40c1587d82492c40b78b6a0a01d"
+  digest = "1:2a96b14fed8617c9e499777c03ec21f35dfd5b396f0b05fcdd7eff9e6c67f196"
   name = "golang.org/x/sys"
-  packages = ["unix"]
+  packages = [
+    "unix",
+    "windows",
+  ]
   pruneopts = "UT"
   revision = "93c9922d18aeb82498a065f07aec7ad7fa60dfb7"
 
@@ -578,12 +590,14 @@
     "github.com/aws/aws-sdk-go/service/s3",
     "github.com/aws/aws-sdk-go/service/sts",
     "github.com/go-errors/errors",
+    "github.com/gruntwork-io/terratest/modules/files",
     "github.com/hashicorp/go-getter",
     "github.com/hashicorp/go-getter/helper/url",
     "github.com/hashicorp/go-version",
     "github.com/hashicorp/hcl2/gohcl",
     "github.com/hashicorp/hcl2/hcl",
     "github.com/hashicorp/hcl2/hclparse",
+    "github.com/hashicorp/hcl2/hclwrite",
     "github.com/hashicorp/terraform/lang",
     "github.com/mattn/go-zglob",
     "github.com/mitchellh/mapstructure",
@@ -593,6 +607,7 @@
     "github.com/zclconf/go-cty/cty",
     "github.com/zclconf/go-cty/cty/function",
     "github.com/zclconf/go-cty/cty/json",
+    "golang.org/x/crypto/ssh/terminal",
     "google.golang.org/api/iterator",
   ]
   solver-name = "gps-cdcl"
