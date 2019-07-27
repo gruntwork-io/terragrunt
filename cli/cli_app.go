@@ -119,6 +119,7 @@ COMMANDS:
    destroy-all          Destroy a 'stack' by running 'terragrunt destroy' in each subfolder
    validate-all         Validate 'stack' by running 'terragrunt validate' in each subfolder
    terragrunt-info      Emits limited terragrunt state on stdout and exits
+   hclfmt               Recursively find terragrunt.hcl files and rewrite them into a canonical format.
    *                    Terragrunt forwards all other commands directly to Terraform
 
 GLOBAL OPTIONS:
