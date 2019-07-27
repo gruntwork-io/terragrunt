@@ -1205,6 +1205,7 @@ at all.
 This section contains detailed documentation for the following aspects of Terragrunt:
 
 1. [Inputs](#inputs)
+1. [Locals](#locals)
 1. [AWS credentials](#aws-credentials)
 1. [AWS IAM policies](#aws-iam-policies)
 1. [Built-in Functions](#built-in-functions)
@@ -1228,7 +1229,7 @@ You can set values for your module's input parameters by specifying an `inputs` 
 inputs = {
   instance_type  = "t2.micro"
   instance_count = 10
-  
+
   tags = {
     Name = "example-app"
   }
@@ -1251,6 +1252,26 @@ terraform apply
 
 Note that Terragrunt will respect any `TF_VAR_xxx` variables you've manually set in your environment, ensuring that 
 anything in `inputs` will NOT be override anything you've already set in your environment.  
+
+
+### Locals
+
+You can use locals to bind a name to values and expressions that you would like to create a reference for within your
+config. For example, suppose that you need to use the AWS region in multiple inputs. You can bind the name `aws_region`
+using locals:
+
+```
+locals = {
+  aws_region = "us-east-1"
+}
+
+inputs = {
+  aws_region  = local.aws_region
+  s3_endpoint = "com.amazonaws.${local.aws_region}.s3"
+}
+```
+
+You can use any valid terragrunt expression in the `locals` configuration.
 
 
 ### AWS credentials
