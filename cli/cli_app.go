@@ -314,17 +314,11 @@ func shouldPrintTerraformHelp(terragruntOptions *options.TerragruntOptions) bool
 }
 
 func shouldPrintTerragruntInfo(terragruntOptions *options.TerragruntOptions) bool {
-	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_TERRAGRUNT_INFO) {
-		return true
-	}
-	return false
+	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_TERRAGRUNT_INFO)
 }
 
 func shouldRunHCLFmt(terragruntOptions *options.TerragruntOptions) bool {
-	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_HCLFMT) {
-		return true
-	}
-	return false
+	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_HCLFMT)
 }
 
 func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOptions, previousExecError ...error) error {

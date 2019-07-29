@@ -1,15 +1,18 @@
 package cli
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/hashicorp/hcl2/hcl"
 	"github.com/hashicorp/hcl2/hclparse"
 	"github.com/hashicorp/hcl2/hclwrite"
+	"github.com/mattn/go-zglob"
 	"golang.org/x/crypto/ssh/terminal"
+
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // runHCLFmt recursively looks for terragrunt.hcl files in the directory tree starting at workingDir, and formats them
@@ -17,7 +20,7 @@ import (
 func runHCLFmt(terragruntOptions *options.TerragruntOptions, workingDir string) error {
 	terragruntOptions.Logger.Printf("Formatting terragrunt.hcl files in the current directory tree.")
 
-	tgHclFiles, err := findTerragruntHclFiles(terragruntOptions, workingDir)
+	tgHclFiles, err := zglob.Glob(fmt.Sprintf("%s/**/*.hcl", workingDir))
 	if err != nil {
 		return err
 	}
@@ -34,27 +37,6 @@ func runHCLFmt(terragruntOptions *options.TerragruntOptions, workingDir string) 
 	return nil
 }
 
-// findTerragruntHclFiles will recursively look for terragrunt.hcl files in the directory tree starting at workingDir.
-func findTerragruntHclFiles(terragruntOptions *options.TerragruntOptions, workingDir string) ([]string, error) {
-	tgHclFiles := []string{}
-
-	terragruntOptions.Logger.Printf("Walking directory tree in %s to look for terragrunt.hcl files", workingDir)
-
-	err := filepath.Walk(
-		workingDir,
-		func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if filepath.Base(path) == "terragrunt.hcl" && !info.IsDir() {
-				tgHclFiles = append(tgHclFiles, path)
-			}
-			return nil
-		},
-	)
-	return tgHclFiles, err
-}
-
 // formatTgHCL uses the hcl2 library to format the terragrunt.hcl file. This will attempt to parse the HCL file first to
 // ensure that there are no syntax errors, before attempting to format it.
 func formatTgHCL(terragruntOptions *options.TerragruntOptions, tgHclFile string) error {
@@ -66,11 +48,12 @@ func formatTgHCL(terragruntOptions *options.TerragruntOptions, tgHclFile string)
 		return err
 	}
 
-	contents, err := readAllFromFile(tgHclFile)
+	contentsStr, err := util.ReadFileAsString(tgHclFile)
 	if err != nil {
 		terragruntOptions.Logger.Printf("Error reading %s", tgHclFile)
 		return err
 	}
+	contents := []byte(contentsStr)
 
 	err = checkErrors(contents, tgHclFile)
 	if err != nil {
@@ -80,16 +63,6 @@ func formatTgHCL(terragruntOptions *options.TerragruntOptions, tgHclFile string)
 
 	newContents := hclwrite.Format(contents)
 	return ioutil.WriteFile(tgHclFile, newContents, info.Mode())
-}
-
-// readAllFromFile will read the contents of the file at the given path.
-func readAllFromFile(path string) ([]byte, error) {
-	f, err := os.Open(path)
-	defer f.Close()
-	if err != nil {
-		return nil, err
-	}
-	return ioutil.ReadAll(f)
 }
 
 // getDiagnosticsWriter returns a hcl2 parsing diagnostics emitter for the current terminal.
