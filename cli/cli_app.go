@@ -48,6 +48,7 @@ const CMD_VALIDATE_ALL = "validate-all"
 const CMD_INIT = "init"
 const CMD_INIT_FROM_MODULE = "init-from-module"
 const CMD_TERRAGRUNT_INFO = "terragrunt-info"
+const CMD_HCLFMT = "hclfmt"
 
 // CMD_SPIN_UP is deprecated.
 const CMD_SPIN_UP = "spin-up"
@@ -117,6 +118,7 @@ COMMANDS:
    destroy-all          Destroy a 'stack' by running 'terragrunt destroy' in each subfolder
    validate-all         Validate 'stack' by running 'terragrunt validate' in each subfolder
    terragrunt-info      Emits limited terragrunt state on stdout and exits
+   hclfmt               Recursively find terragrunt.hcl files and rewrite them into a canonical format.
    *                    Terragrunt forwards all other commands directly to Terraform
 
 GLOBAL OPTIONS:
@@ -279,6 +281,10 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return nil
 	}
 
+	if shouldRunHCLFmt(terragruntOptions) {
+		return runHCLFmt(terragruntOptions)
+	}
+
 	if err := checkFolderContainsTerraformCode(terragruntOptions); err != nil {
 		return err
 	}
@@ -302,10 +308,11 @@ func shouldPrintTerraformHelp(terragruntOptions *options.TerragruntOptions) bool
 }
 
 func shouldPrintTerragruntInfo(terragruntOptions *options.TerragruntOptions) bool {
-	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_TERRAGRUNT_INFO) {
-		return true
-	}
-	return false
+	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_TERRAGRUNT_INFO)
+}
+
+func shouldRunHCLFmt(terragruntOptions *options.TerragruntOptions) bool {
+	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_HCLFMT)
 }
 
 func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOptions, previousExecError ...error) error {

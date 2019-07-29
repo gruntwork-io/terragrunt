@@ -88,6 +88,7 @@ for a quick introduction to Terragrunt.
    1. [Auto-Retry](#auto-retry)
    1. [CLI options](#cli-options)
    1. [Configuration](#configuration)
+   1. [Formatting terragrunt.hcl](#formatting-terragrunt-hcl)
    1. [Clearing the Terragrunt cache](#clearing-the-terragrunt-cache)
    1. [Contributing](#contributing)
    1. [Developing Terragrunt](#developing-terragrunt)
@@ -1211,6 +1212,7 @@ This section contains detailed documentation for the following aspects of Terrag
 1. [Auto-Init](#auto-init)
 1. [CLI options](#cli-options)
 1. [Configuration](#configuration)
+1. [Formatting terragrunt.hcl](#formatting-terragrunt-hcl)
 1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
 1. [Clearing the Terragrunt cache](#clearing-the-terragrunt-cache)
 1. [Contributing](#contributing)
@@ -2044,6 +2046,34 @@ skip = true
 The `skip` flag must be set explicitly in terragrunt modules that should be skipped. If you set `skip = true` in a
 `terragrunt.hcl` file that is included by another `terragrunt.hcl` file, only the `terragrunt.hcl` file that explicitly
 set `skip = true` will be skipped.
+
+### Formatting terragrunt.hcl
+
+You can rewrite `terragrunt.hcl` files to a canonical format using the `hclfmt` command built into `terragrunt`. Similar
+to `terraform fmt`, this command applies a subset of [the Terraform language style
+conventions](https://www.terraform.io/docs/configuration/style.html), along with other minor adjustments for
+readability.
+
+This command will recursively search for `terragrunt.hcl` files and format all of them under a given directory tree.
+Consider the following file structure:
+
+```
+root
+├── terragrunt.hcl
+├── prod
+│   └── terragrunt.hcl
+├── dev
+│   └── terragrunt.hcl
+└── qa
+    └── terragrunt.hcl
+```
+
+If you run `terragrunt hclfmt` at the `root`, this will update:
+
+- `root/terragrunt.hcl`
+- `root/prod/terragrunt.hcl`
+- `root/dev/terragrunt.hcl`
+- `root/qa/terragrunt.hcl`
 
 ### Clearing the Terragrunt cache
 
