@@ -283,12 +283,7 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	if shouldRunHCLFmt(terragruntOptions) {
-		cwd, err := os.Getwd()
-		if err != nil {
-			terragruntOptions.Logger.Printf("Error retrieving current working directory")
-			return err
-		}
-		return runHCLFmt(terragruntOptions, cwd)
+		return runHCLFmt(terragruntOptions)
 	}
 
 	if err := checkFolderContainsTerraformCode(terragruntOptions); err != nil {

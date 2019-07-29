@@ -25,8 +25,9 @@ func TestHCLFmt(t *testing.T) {
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
+	tgOptions.WorkingDir = tmpPath
 
-	err = runHCLFmt(tgOptions, tmpPath)
+	err = runHCLFmt(tgOptions)
 	require.NoError(t, err)
 
 	dirs := []string{
@@ -79,7 +80,9 @@ func TestHCLFmtErrors(t *testing.T) {
 				t.Parallel()
 
 				tgHclDir := filepath.Join(tmpPath, dir)
-				err := runHCLFmt(tgOptions, tgHclDir)
+				newTgOptions := tgOptions.Clone(tgOptions.TerragruntConfigPath)
+				newTgOptions.WorkingDir = tgHclDir
+				err := runHCLFmt(tgOptions)
 				require.Error(t, err)
 			})
 		})
