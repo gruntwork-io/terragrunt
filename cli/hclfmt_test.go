@@ -82,7 +82,7 @@ func TestHCLFmtErrors(t *testing.T) {
 				tgHclDir := filepath.Join(tmpPath, dir)
 				newTgOptions := tgOptions.Clone(tgOptions.TerragruntConfigPath)
 				newTgOptions.WorkingDir = tgHclDir
-				err := runHCLFmt(tgOptions)
+				err := runHCLFmt(newTgOptions)
 				require.Error(t, err)
 			})
 		})
