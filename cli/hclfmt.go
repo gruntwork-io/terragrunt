@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 
@@ -20,7 +19,7 @@ import (
 func runHCLFmt(terragruntOptions *options.TerragruntOptions, workingDir string) error {
 	terragruntOptions.Logger.Printf("Formatting terragrunt.hcl files in the current directory tree.")
 
-	tgHclFiles, err := zglob.Glob(fmt.Sprintf("%s/**/*.hcl", workingDir))
+	tgHclFiles, err := zglob.Glob(util.JoinPath(workingDir, "**", "*.hcl"))
 	if err != nil {
 		return err
 	}
