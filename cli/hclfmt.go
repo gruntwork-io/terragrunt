@@ -4,11 +4,9 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/hashicorp/hcl2/hcl"
 	"github.com/hashicorp/hcl2/hclparse"
 	"github.com/hashicorp/hcl2/hclwrite"
 	"github.com/mattn/go-zglob"
-	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
