@@ -15,6 +15,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+// MaxIter is the maximum number of depth we support in recursively evaluating locals.
+const MaxIter = 1000
+
 // A consistent detail message for all "not a valid identifier" diagnostics. This is exactly the same as that returned
 // by terraform.
 const badIdentifierDetail = "A name must start with a letter and may contain only letters, digits, underscores, and dashes."
@@ -48,11 +51,11 @@ func evaluateLocalsBlock(
 	}
 	if localsBlock == nil {
 		// No locals block referenced in the file
-		terragruntOptions.Logger.Printf("Did not find any locals block: skipping evaluation.")
+		util.Debugf(terragruntOptions.Logger, "Did not find any locals block: skipping evaluation.")
 		return nil, nil
 	}
 
-	terragruntOptions.Logger.Printf("Found locals block: evaluating the expressions.")
+	util.Debugf(terragruntOptions.Logger, "Found locals block: evaluating the expressions.")
 
 	locals, diags := decodeLocalsBlock(localsBlock)
 	if diags.HasErrors() {
@@ -65,7 +68,13 @@ func evaluateLocalsBlock(
 	// further.
 	evaluatedLocals := map[string]cty.Value{}
 	evaluated := true
-	for len(locals) > 0 && evaluated {
+	for iterations := 0; len(locals) > 0 && evaluated; iterations++ {
+		if iterations > MaxIter {
+			// Reached maximum supported iterations, which is most likely an infinite loop bug so cut the iteration
+			// short an return an error.
+			return nil, errors.WithStackTrace(MaxIterError{})
+		}
+
 		var err error
 		locals, evaluatedLocals, evaluated, err = attemptEvaluateLocals(terragruntOptions, filename, locals, evaluatedLocals)
 		if err != nil {
@@ -141,8 +150,13 @@ func attemptEvaluateLocals(
 		}
 	}
 
-	terragruntOptions.Logger.Printf(
-		"Evaluated %d locals (remaining %d): %s", len(newlyEvaluatedLocalNames), len(unevaluatedLocals), strings.Join(newlyEvaluatedLocalNames, ", "))
+	util.Debugf(
+		terragruntOptions.Logger,
+		"Evaluated %d locals (remaining %d): %s",
+		len(newlyEvaluatedLocalNames),
+		len(unevaluatedLocals),
+		strings.Join(newlyEvaluatedLocalNames, ", "),
+	)
 	return unevaluatedLocals, newEvaluatedLocals, evaluated, nil
 }
 
@@ -310,4 +324,10 @@ type CouldNotEvaluateAllLocalsError struct{}
 
 func (err CouldNotEvaluateAllLocalsError) Error() string {
 	return "Could not evaluate all locals in block."
+}
+
+type MaxIterError struct{}
+
+func (err MaxIterError) Error() string {
+	return "Maximum iterations reached in attempting to evaluate locals. This is most likely a bug in Terragrunt. Please file an issue on the project: https://github.com/gruntwork-io/terragrunt/issues"
 }

@@ -48,7 +48,9 @@ type terragruntConfigFile struct {
 	Skip           *bool                  `hcl:"skip,attr"`
 	IamRole        *string                `hcl:"iam_role,attr"`
 
-	// This should be ignored
+	// This struct is used for validating and parsing the entire terragrunt config. Since locals are evaluated in a
+	// completely separate cycle, it should not be evaluated here. Otherwise, we can't support self referencing other
+	// elements in the same block.
 	Locals *terragruntLocal `hcl:"locals,block"`
 }
 
@@ -257,15 +259,15 @@ func ParseConfigString(configString string, terragruntOptions *options.Terragrun
 		return nil, err
 	}
 
-	// Decode just the `include` block, and verify that it's allowed here
-	terragruntInclude, err := decodeAsTerragruntInclude(file, filename, terragruntOptions)
+	// Evaluate all the expressions in the locals block separately and generate the variables list to use in the
+	// evaluation context.
+	locals, err := evaluateLocalsBlock(terragruntOptions, parser, file, filename)
 	if err != nil {
 		return nil, err
 	}
 
-	// Evaluate all the expressions in the locals block separately and generate the variables list to use in the
-	// evaluation context.
-	locals, err := evaluateLocalsBlock(terragruntOptions, parser, file, filename)
+	// Decode just the `include` block, and verify that it's allowed here
+	terragruntInclude, err := decodeAsTerragruntInclude(file, filename, terragruntOptions, locals)
 	if err != nil {
 		return nil, err
 	}
@@ -316,9 +318,14 @@ func ParseConfigString(configString string, terragruntOptions *options.Terragrun
 // For consistency, `include` in the call to `decodeHcl` is always assumed to be nil.
 // Either it really is nil (parsing the child config), or it shouldn't be used anyway (the parent config shouldn't have
 // an include block)
-func decodeAsTerragruntInclude(file *hcl.File, filename string, terragruntOptions *options.TerragruntOptions) (*terragruntInclude, error) {
+func decodeAsTerragruntInclude(
+	file *hcl.File,
+	filename string,
+	terragruntOptions *options.TerragruntOptions,
+	locals map[string]cty.Value,
+) (*terragruntInclude, error) {
 	terragruntInclude := terragruntInclude{}
-	err := decodeHcl(file, filename, &terragruntInclude, terragruntOptions, nil, nil)
+	err := decodeHcl(file, filename, &terragruntInclude, terragruntOptions, nil, locals)
 	if err != nil {
 		return nil, err
 	}
