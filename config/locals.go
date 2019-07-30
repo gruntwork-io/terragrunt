@@ -79,7 +79,7 @@ func evaluateLocalsBlock(
 		for _, local := range locals {
 			terragruntOptions.Logger.Printf("\t- %s", local.Name)
 		}
-		return nil, nil
+		return nil, errors.WithStackTrace(CouldNotEvaluateAllLocalsError{})
 	}
 
 	return evaluatedLocals, nil
@@ -300,4 +300,14 @@ func keysOfLocalsMap(m map[string]cty.Value) []string {
 	sort.Strings(out)
 
 	return out
+}
+
+// ------------------------------------------------
+// Custom Errors Returned by Functions in this Code
+// ------------------------------------------------
+
+type CouldNotEvaluateAllLocalsError struct{}
+
+func (err CouldNotEvaluateAllLocalsError) Error() string {
+	return "Could not evaluate all locals in block."
 }
