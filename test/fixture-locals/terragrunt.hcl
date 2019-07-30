@@ -1,6 +1,7 @@
-locals = {
+locals {
+  x = 2
   file_contents     = file("./contents.txt")
-  number_expression = 40+2
+  number_expression = 40+local.x
 }
 
 inputs = {
