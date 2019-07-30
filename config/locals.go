@@ -6,11 +6,13 @@ import (
 
 	"github.com/hashicorp/hcl2/hcl"
 	"github.com/hashicorp/hcl2/hcl/hclsyntax"
+	"github.com/hashicorp/hcl2/hclparse"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // A consistent detail message for all "not a valid identifier" diagnostics. This is exactly the same as that returned
@@ -33,12 +35,15 @@ type Local struct {
 // error if there are remaining unevaluated locals after all references that can be evaluated has been evaluated.
 func evaluateLocalsBlock(
 	terragruntOptions *options.TerragruntOptions,
+	parser *hclparse.Parser,
 	hclFile *hcl.File,
 	filename string,
 ) (map[string]cty.Value, error) {
+	diagsWriter := util.GetDiagnosticsWriter(parser)
+
 	localsBlock, diags := getLocalsBlock(hclFile)
 	if diags.HasErrors() {
-		// TODO: Write out diagnostics
+		diagsWriter.WriteDiagnostics(diags)
 		return nil, errors.WithStackTrace(diags)
 	}
 	if localsBlock == nil {
@@ -52,7 +57,7 @@ func evaluateLocalsBlock(
 	locals, diags := decodeLocalsBlock(localsBlock)
 	if diags.HasErrors() {
 		terragruntOptions.Logger.Printf("Encountered error while decoding locals block into name expression pairs.")
-		// TODO: Write out diagnostics
+		diagsWriter.WriteDiagnostics(diags)
 		return nil, errors.WithStackTrace(diags)
 	}
 
@@ -74,7 +79,6 @@ func evaluateLocalsBlock(
 		for _, local := range locals {
 			terragruntOptions.Logger.Printf("\t- %s", local.Name)
 		}
-		// TODO: create a new error type
 		return nil, nil
 	}
 

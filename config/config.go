@@ -251,7 +251,8 @@ func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptio
 // Parse the Terragrunt config contained in the given string and merge it with the given include config (if any)
 func ParseConfigString(configString string, terragruntOptions *options.TerragruntOptions, includeFromChild *IncludeConfig, filename string) (*TerragruntConfig, error) {
 	// Parse the HCL string into an AST body that can be decoded multiple times later without having to re-parse
-	file, err := parseHcl(configString, filename)
+	parser := hclparse.NewParser()
+	file, err := parseHcl(parser, configString, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -264,7 +265,7 @@ func ParseConfigString(configString string, terragruntOptions *options.Terragrun
 
 	// Evaluate all the expressions in the locals block separately and generate the variables list to use in the
 	// evaluation context.
-	locals, err := evaluateLocalsBlock(terragruntOptions, file, filename)
+	locals, err := evaluateLocalsBlock(terragruntOptions, parser, file, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -373,7 +374,7 @@ func decodeHcl(
 }
 
 // parseHcl uses the HCL2 parser to parse the given string into an HCL file body.
-func parseHcl(hcl string, filename string) (file *hcl.File, err error) {
+func parseHcl(parser *hclparse.Parser, hcl string, filename string) (file *hcl.File, err error) {
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
 	// those panics here and convert them to normal errors
 	defer func() {
@@ -381,8 +382,6 @@ func parseHcl(hcl string, filename string) (file *hcl.File, err error) {
 			err = errors.WithStackTrace(PanicWhileParsingConfig{RecoveredValue: recovered, ConfigFile: filename})
 		}
 	}()
-
-	parser := hclparse.NewParser()
 
 	file, parseDiagnostics := parser.ParseHCL([]byte(hcl), filename)
 	if parseDiagnostics != nil && parseDiagnostics.HasErrors() {

@@ -3,6 +3,7 @@ package config
 import (
 	"testing"
 
+	"github.com/hashicorp/hcl2/hclparse"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty/gocty"
@@ -14,10 +15,11 @@ func TestEvaluateLocalsBlock(t *testing.T) {
 	terragruntOptions := mockOptionsForTest(t)
 	mockFilename := "terragrunt.hcl"
 
-	file, err := parseHcl(LocalsTestConfig, mockFilename)
+	parser := hclparse.NewParser()
+	file, err := parseHcl(parser, LocalsTestConfig, mockFilename)
 	require.NoError(t, err)
 
-	evaluatedLocals, err := evaluateLocalsBlock(terragruntOptions, file, mockFilename)
+	evaluatedLocals, err := evaluateLocalsBlock(terragruntOptions, parser, file, mockFilename)
 	require.NoError(t, err)
 
 	var actualRegion string
