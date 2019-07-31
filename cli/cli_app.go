@@ -201,14 +201,6 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 		return err
 	}
 
-	if err := PopulateTerraformVersion(terragruntOptions); err != nil {
-		return err
-	}
-
-	if err := CheckTerraformVersion(DEFAULT_TERRAFORM_VERSION_CONSTRAINT, terragruntOptions); err != nil {
-		return err
-	}
-
 	givenCommand := cliContext.Args().First()
 	command := checkDeprecated(givenCommand, terragruntOptions)
 	return runCommand(command, terragruntOptions)
@@ -246,10 +238,22 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
-	if terragruntOptions.TerraformPath == options.TERRAFORM_DEFAULT_PATH { // not changed from default
-		if terragruntConfig.TerraformBinary != "" {
-			terragruntOptions.TerraformPath = terragruntConfig.TerraformBinary
-		}
+	// Change the terraform binary path before checking the version
+	// if the path is not changed from default and set in the config.
+	if terragruntOptions.TerraformPath == options.TERRAFORM_DEFAULT_PATH && terragruntConfig.TerraformBinary != "" {
+		terragruntOptions.TerraformPath = terragruntConfig.TerraformBinary
+	}
+
+	if err := PopulateTerraformVersion(terragruntOptions); err != nil {
+		return err
+	}
+
+	versionConstraint := DEFAULT_TERRAFORM_VERSION_CONSTRAINT
+	if terragruntConfig.TerraformVersionConstraint != "" {
+		versionConstraint = terragruntConfig.TerraformVersionConstraint
+	}
+	if err := CheckTerraformVersion(versionConstraint, terragruntOptions); err != nil {
+		return err
 	}
 
 	if terragruntConfig.Skip {

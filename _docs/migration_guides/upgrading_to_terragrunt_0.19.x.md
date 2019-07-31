@@ -276,12 +276,14 @@ Make sure to make the corresponding updates in your `terragrunt.hcl` file!
 
 ### Use older Terraform
 
-Although it is not officiall supported and not tested, it is still possible to use terraform<0.12 with terragrunt >=0.19.
+Although it is not officially supported and not tested, it is still possible to use terraform<0.12 with terragrunt >=0.19.
 
-Just install a different version of terraform into a directory of your choice outside of `PATH` and specify path to the binary in `terragrunt.hcl` as `terraform_binary`:
+Just install a different version of terraform into a directory of your choice outside of `PATH` and specify path to the binary in `terragrunt.hcl` as `terraform_binary`, plus you need to lower the version check constraint:
 
 ```hcl
 
 terraform_binary = "~/bin/terraform-v11/terraform"
+terraform_version_constraint = ">= 0.11"
+
 
 ```
