@@ -18,9 +18,15 @@ import (
 // MaxIter is the maximum number of depth we support in recursively evaluating locals.
 const MaxIter = 1000
 
-// A consistent detail message for all "not a valid identifier" diagnostics. This is exactly the same as that returned
-// by terraform.
-const badIdentifierDetail = "A name must start with a letter and may contain only letters, digits, underscores, and dashes."
+// Detailed error messages in diagnostics returned by parsing locals
+const (
+	// A consistent detail message for all "not a valid identifier" diagnostics. This is exactly the same as that returned
+	// by terraform.
+	badIdentifierDetail = "A name must start with a letter and may contain only letters, digits, underscores, and dashes."
+
+	// A consistent error message for multiple locals block in terragrunt config (which is currently not supported)
+	multipleLocalsBlockDetail = "Terragrunt currently does not support multiple locals blocks in a single config. Consolidate to a single locals block."
+)
 
 // Local represents a single local name binding. This holds the unevaluated expression, extracted from the parsed file
 // (but before decoding) so that we can look for references to other locals before evaluating.
@@ -76,7 +82,13 @@ func evaluateLocalsBlock(
 		}
 
 		var err error
-		locals, evaluatedLocals, evaluated, err = attemptEvaluateLocals(terragruntOptions, filename, locals, evaluatedLocals)
+		locals, evaluatedLocals, evaluated, err = attemptEvaluateLocals(
+			terragruntOptions,
+			filename,
+			locals,
+			evaluatedLocals,
+			diagsWriter,
+		)
 		if err != nil {
 			terragruntOptions.Logger.Printf("Encountered error while evaluating locals.")
 			return nil, err
@@ -105,6 +117,7 @@ func attemptEvaluateLocals(
 	filename string,
 	locals []*Local,
 	evaluatedLocals map[string]cty.Value,
+	diagsWriter hcl.DiagnosticWriter,
 ) (unevaluatedLocals []*Local, newEvaluatedLocals map[string]cty.Value, evaluated bool, err error) {
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
 	// those panics here and convert them to normal errors
@@ -139,7 +152,7 @@ func attemptEvaluateLocals(
 		if canEvaluate(terragruntOptions, local.Expr, evaluatedLocals) {
 			evaluatedVal, diags := local.Expr.Value(evalCtx)
 			if diags.HasErrors() {
-				// TODO Write out diagnostic errors
+				diagsWriter.WriteDiagnostics(diags)
 				return nil, evaluatedLocals, false, errors.WithStackTrace(diags)
 			}
 			newEvaluatedLocals[local.Name] = evaluatedVal
@@ -239,13 +252,26 @@ func getLocalsBlock(hclFile *hcl.File) (*hcl.Block, hcl.Diagnostics) {
 	}
 	// We use PartialContent here, because we are only interested in parsing out the locals block.
 	parsedLocals, _, diags := hclFile.Body.PartialContent(localsSchema)
+	extractedLocalsBlocks := []*hcl.Block{}
 	for _, block := range parsedLocals.Blocks {
 		if block.Type == "locals" {
-			return block, diags
+			extractedLocalsBlocks = append(extractedLocalsBlocks, block)
 		}
 	}
-	// No locals block parsed
-	return nil, diags
+	// We currently only support parsing a single locals block
+	if len(extractedLocalsBlocks) == 1 {
+		return extractedLocalsBlocks[0], diags
+	} else if len(extractedLocalsBlocks) > 1 {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Multiple locals block",
+			Detail:   multipleLocalsBlockDetail,
+		})
+		return nil, diags
+	} else {
+		// No locals block parsed
+		return nil, diags
+	}
 }
 
 // decodeLocalsBlock loads the block into name expression pairs to assist with evaluation of the locals prior to

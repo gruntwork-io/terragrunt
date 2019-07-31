@@ -1,12 +1,15 @@
 package config
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/hashicorp/hcl2/hclparse"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty/gocty"
+
+	"github.com/gruntwork-io/terragrunt/errors"
 )
 
 func TestEvaluateLocalsBlock(t *testing.T) {
@@ -54,6 +57,79 @@ func TestEvaluateLocalsBlock(t *testing.T) {
 	assert.Equal(t, actualBar, "us-east-1")
 }
 
+func TestEvaluateLocalsBlockMultiDeepReference(t *testing.T) {
+	t.Parallel()
+
+	terragruntOptions := mockOptionsForTest(t)
+	mockFilename := "terragrunt.hcl"
+
+	parser := hclparse.NewParser()
+	file, err := parseHcl(parser, LocalsTestMultiDeepReferenceConfig, mockFilename)
+	require.NoError(t, err)
+
+	evaluatedLocals, err := evaluateLocalsBlock(terragruntOptions, parser, file, mockFilename)
+	require.NoError(t, err)
+
+	expected := "a"
+
+	var actualA string
+	require.NoError(t, gocty.FromCtyValue(evaluatedLocals["a"], &actualA))
+	assert.Equal(t, actualA, expected)
+
+	testCases := []string{
+		"b",
+		"c",
+		"d",
+		"e",
+		"f",
+		"g",
+		"h",
+		"i",
+		"j",
+	}
+	for _, testCase := range testCases {
+		expected = fmt.Sprintf("%s/%s", expected, testCase)
+
+		var actual string
+		require.NoError(t, gocty.FromCtyValue(evaluatedLocals[testCase], &actual))
+		assert.Equal(t, actual, expected)
+	}
+}
+
+func TestEvaluateLocalsBlockImpossibleWillFail(t *testing.T) {
+	t.Parallel()
+
+	terragruntOptions := mockOptionsForTest(t)
+	mockFilename := "terragrunt.hcl"
+
+	parser := hclparse.NewParser()
+	file, err := parseHcl(parser, LocalsTestImpossibleConfig, mockFilename)
+	require.NoError(t, err)
+
+	_, err = evaluateLocalsBlock(terragruntOptions, parser, file, mockFilename)
+	require.Error(t, err)
+
+	switch errors.Unwrap(err).(type) {
+	case CouldNotEvaluateAllLocalsError:
+	default:
+		t.Fatalf("Did not get expected error: %s", err)
+	}
+}
+
+func TestEvaluateLocalsBlockMultipleLocalsBlocksWillFail(t *testing.T) {
+	t.Parallel()
+
+	terragruntOptions := mockOptionsForTest(t)
+	mockFilename := "terragrunt.hcl"
+
+	parser := hclparse.NewParser()
+	file, err := parseHcl(parser, MultipleLocalsBlockConfig, mockFilename)
+	require.NoError(t, err)
+
+	_, err = evaluateLocalsBlock(terragruntOptions, parser, file, mockFilename)
+	require.Error(t, err)
+}
+
 type Foo struct {
 	Region string `cty:"region"`
 	Foo    string `cty:"foo"`
@@ -79,5 +155,38 @@ locals {
   x = 1
   y = 2
   z = local.x + local.y
+}
+`
+
+const LocalsTestMultiDeepReferenceConfig = `
+# 10 chains deep
+locals {
+  a = "a"
+  b = "${local.a}/b"
+  c = "${local.b}/c"
+  d = "${local.c}/d"
+  e = "${local.d}/e"
+  f = "${local.e}/f"
+  g = "${local.f}/g"
+  h = "${local.g}/h"
+  i = "${local.h}/i"
+  j = "${local.i}/j"
+}
+`
+
+const LocalsTestImpossibleConfig = `
+locals {
+  a = local.b
+  b = local.a
+}
+`
+
+const MultipleLocalsBlockConfig = `
+locals {
+  a = "a"
+}
+
+locals {
+  b = "b"
 }
 `
