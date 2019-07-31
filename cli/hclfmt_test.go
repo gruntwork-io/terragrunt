@@ -104,3 +104,46 @@ func TestHCLFmtErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestHCLFmtCheck(t *testing.T) {
+	t.Parallel()
+
+	tmpPath, err := files.CopyFolderToTemp("../test/fixture-hclfmt-check", t.Name(), func(path string) bool { return true })
+	defer os.RemoveAll(tmpPath)
+	require.NoError(t, err)
+
+	expected, err := ioutil.ReadFile("../test/fixture-hclfmt-check/expected.hcl")
+	require.NoError(t, err)
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+	tgOptions.Check = true
+	tgOptions.WorkingDir = tmpPath
+
+	err = runHCLFmt(tgOptions)
+	require.Error(t, err)
+
+	dirs := []string{
+		"terragrunt.hcl",
+		"a/terragrunt.hcl",
+		"a/b/c/terragrunt.hcl",
+	}
+
+	for _, dir := range dirs {
+		// Capture range variable into for block so it doesn't change while looping
+		dir := dir
+
+		// Create a synchronous subtest to group the child tests so that they can run in parallel while honoring cleanup
+		// routines in the main test.
+		t.Run("group", func(t *testing.T) {
+			t.Run(dir, func(t *testing.T) {
+				t.Parallel()
+
+				tgHclPath := filepath.Join(tmpPath, dir)
+				actual, err := ioutil.ReadFile(tgHclPath)
+				require.NoError(t, err)
+				assert.Equal(t, expected, actual)
+			})
+		})
+	}
+}

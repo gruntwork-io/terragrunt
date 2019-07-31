@@ -125,6 +125,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 	opts.IamRole = iamRole
 	opts.ExcludeDirs = excludeDirs
 	opts.IncludeDirs = includeDirs
+	opts.Check = parseBooleanArg(args, OPT_TERRAGRUNT_CHECK, os.Getenv("TERRAGRUNT_CHECK") == "false")
 
 	return opts, nil
 }

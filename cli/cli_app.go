@@ -35,8 +35,9 @@ const OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS = "terragrunt-ignore-dependency-er
 const OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES = "terragrunt-ignore-external-dependencies"
 const OPT_TERRAGRUNT_EXCLUDE_DIR = "terragrunt-exclude-dir"
 const OPT_TERRAGRUNT_INCLUDE_DIR = "terragrunt-include-dir"
+const OPT_TERRAGRUNT_CHECK = "terragrunt-check"
 
-var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES, OPT_TERRAGRUNT_NO_AUTO_INIT, OPT_TERRAGRUNT_NO_AUTO_RETRY}
+var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES, OPT_TERRAGRUNT_NO_AUTO_INIT, OPT_TERRAGRUNT_NO_AUTO_RETRY, OPT_TERRAGRUNT_CHECK}
 var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_TFPATH, OPT_WORKING_DIR, OPT_DOWNLOAD_DIR, OPT_TERRAGRUNT_SOURCE, OPT_TERRAGRUNT_IAM_ROLE, OPT_TERRAGRUNT_EXCLUDE_DIR, OPT_TERRAGRUNT_INCLUDE_DIR}
 
 const CMD_PLAN_ALL = "plan-all"
@@ -136,6 +137,7 @@ GLOBAL OPTIONS:
    terragrunt-ignore-external-dependencies  *-all commands will not attempt to include external dependencies
    terragrunt-exclude-dir                   Unix-style glob of directories to exclude when running *-all commands
    terragrunt-include-dir                   Unix-style glob of directories to include when running *-all commands
+   terragrunt-check                         Enable check mode.
 
 VERSION:
    {{.Version}}{{if len .Authors}}
