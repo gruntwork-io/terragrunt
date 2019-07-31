@@ -2,11 +2,15 @@ package cli
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/hashicorp/go-getter"
 	"net/url"
 	"os"
+
+	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/go-getter"
 )
+
+// manifest for files copied from the URL specified in the terraform { source = "<URL>" } config
+const SOURCE_MANIFEST_NAME = ".terragrunt-source-manifest"
 
 // A custom getter.Getter implementation that uses file copying instead of symlinks. Symlinks are
 // faster and use less disk space, but they cause issues in Windows and with infinite loops, so we copy files/folders
@@ -30,7 +34,7 @@ func (g *FileCopyGetter) Get(dst string, u *url.URL) error {
 		return fmt.Errorf("source path must be a directory")
 	}
 
-	return util.CopyFolderContents(path, dst)
+	return util.CopyFolderContents(path, dst, SOURCE_MANIFEST_NAME)
 }
 
 // The original FileGetter already knows how to do file copying so long as we set the Copy flag to true, so just

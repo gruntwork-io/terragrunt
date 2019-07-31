@@ -1567,7 +1567,7 @@ func copyEnvironment(t *testing.T, environmentPath string) string {
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 
-	require.NoError(t, util.CopyFolderContents(environmentPath, util.JoinPath(tmpDir, environmentPath)))
+	require.NoError(t, util.CopyFolderContents(environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test"))
 
 	return tmpDir
 }
