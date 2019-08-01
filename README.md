@@ -88,6 +88,7 @@ for a quick introduction to Terragrunt.
    1. [Auto-Retry](#auto-retry)
    1. [CLI options](#cli-options)
    1. [Configuration](#configuration)
+   1. [Formatting terragrunt.hcl](#formatting-terragrunt-hcl)
    1. [Clearing the Terragrunt cache](#clearing-the-terragrunt-cache)
    1. [Contributing](#contributing)
    1. [Developing Terragrunt](#developing-terragrunt)
@@ -100,11 +101,11 @@ Note that third-party Terragrunt packages may not be updated with the latest ver
 Please check your version against the latest available on the
 [Releases Page](https://github.com/gruntwork-io/terragrunt/releases).
 
-### OSX
-You can install Terragrunt on OSX using [Homebrew](https://brew.sh/): `brew install terragrunt`.
+### macOS
+You can install Terragrunt on macOS using [Homebrew](https://brew.sh/): `brew install terragrunt`.
 
 ### Linux
-You can install Terragrunt on Linux using [Linuxbrew](https://linuxbrew.sh/): `brew install terragrunt`.
+You can install Terragrunt on Linux using [Homebrew](https://docs.brew.sh/Homebrew-on-Linux): `brew install terragrunt`.
 
 ### Manual
 You can install Terragrunt manually by going to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases),
@@ -626,6 +627,19 @@ they don't already exist:
 **Note**: If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile
 when creating the S3 bucket or DynamoDB table.
 
+**Note**: You can disable automatic remote state initialization by setting `remote_state.disable_init`, this will
+skip the automatic creation of remote state resources and will execute `terraform init` passing the `backend=false` option.
+This can be handy when running commands such as `validate-all` as part of a CI process where you do not want to initialize remote state.
+
+The following example demonstrates using an environment variable to configure this option:
+
+```hcl
+remote_state {
+  # ...
+
+  disable_init = tobool(get_env("TERRAGRUNT_DISABLE_INIT", "false"))
+}
+```
 
 #### S3-specific remote state settings
 
@@ -1191,6 +1205,7 @@ at all.
 This section contains detailed documentation for the following aspects of Terragrunt:
 
 1. [Inputs](#inputs)
+1. [Locals](#locals)
 1. [AWS credentials](#aws-credentials)
 1. [AWS IAM policies](#aws-iam-policies)
 1. [Built-in Functions](#built-in-functions)
@@ -1198,6 +1213,7 @@ This section contains detailed documentation for the following aspects of Terrag
 1. [Auto-Init](#auto-init)
 1. [CLI options](#cli-options)
 1. [Configuration](#configuration)
+1. [Formatting terragrunt.hcl](#formatting-terragrunt-hcl)
 1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
 1. [Clearing the Terragrunt cache](#clearing-the-terragrunt-cache)
 1. [Contributing](#contributing)
@@ -1213,7 +1229,7 @@ You can set values for your module's input parameters by specifying an `inputs` 
 inputs = {
   instance_type  = "t2.micro"
   instance_count = 10
-  
+
   tags = {
     Name = "example-app"
   }
@@ -1236,6 +1252,79 @@ terraform apply
 
 Note that Terragrunt will respect any `TF_VAR_xxx` variables you've manually set in your environment, ensuring that 
 anything in `inputs` will NOT be override anything you've already set in your environment.  
+
+
+### Locals
+
+You can use locals to bind a name to an expression, so you can reuse that expression without having to repeat it multiple times (keeping your Terragrunt configuration DRY).
+config. For example, suppose that you need to use the AWS region in multiple inputs. You can bind the name `aws_region`
+using locals:
+
+```
+locals {
+  aws_region = "us-east-1"
+}
+
+inputs = {
+  aws_region  = local.aws_region
+  s3_endpoint = "com.amazonaws.${local.aws_region}.s3"
+}
+```
+
+You can use any valid terragrunt expression in the `locals` configuration. The `locals` block also supports referencing other `locals`:
+
+```
+locals {
+  x = 2
+  y = 40
+  answer = local.x + local.y
+}
+```
+
+##### Including globally defined locals
+
+Currently you can only reference `locals` defined in the same config file. `terragrunt` does not automatically include
+`locals` defined in the parent config of an `include` block into the current context. If you wish to reuse variables
+globally, consider using `yaml` or `json` files that are included and merged using the `terraform` built in functions
+available to `terragrunt`.
+
+For example, suppose you had the following directory tree:
+
+```
+.
+├── terragrunt.hcl
+├── mysql
+│   └── terragrunt.hcl
+└── vpc
+    └── terragrunt.hcl
+```
+
+Instead of adding the `locals` block to the parent `terragrunt.hcl` file, you can define a file `common_vars.yaml`
+that contains the global variables you wish to pull in:
+
+```
+.
+├── terragrunt.hcl
+├── common_vars.yaml
+├── mysql
+│   └── terragrunt.hcl
+└── vpc
+    └── terragrunt.hcl
+```
+
+You can then include them into the `locals` block of the child terragrunt config using `yamldecode` and `file`:
+
+```
+# child terragrunt.hcl
+locals {
+  common_vars = yamldecode(file("${get_terragrunt_dir()}/${find_in_parent_folders("common_vars.yaml")}")),
+  region = "us-east-1"
+}
+```
+
+This configuration will load in the `common_vars.yaml` file and bind it to the attribute `common_vars` so that it is available
+in the current context. Note that because `locals` is a block, there currently is a way to merge the map into the top
+level.
 
 
 ### AWS credentials
@@ -1770,6 +1859,17 @@ remote_state {
 }
 ```
 
+If the command you are running has the potential to output sensitive values, you may wish to redact the output from
+appearing in the terminal. To do so, use the special `--terragrunt-quiet` argument which must be passed as the first 
+argument to `run_cmd()`:
+```hcl
+super_secret_value = run_cmd("--terragrunt-quiet", "./decrypt_secret.sh", "foo") 
+```
+
+**Note:** This will prevent terragrunt from displaying the output from the command in its output. 
+However, the value could still be displayed in the Terraform output if Terraform does not treat it as a 
+[sensitive value](https://www.terraform.io/docs/configuration/outputs.html#sensitive-suppressing-values-in-cli-output).
+
 ### Before and After Hooks
 
 _Before Hooks_ or _After Hooks_ are a feature of terragrunt that make it possible to define custom actions
@@ -2020,6 +2120,34 @@ skip = true
 The `skip` flag must be set explicitly in terragrunt modules that should be skipped. If you set `skip = true` in a
 `terragrunt.hcl` file that is included by another `terragrunt.hcl` file, only the `terragrunt.hcl` file that explicitly
 set `skip = true` will be skipped.
+
+### Formatting terragrunt.hcl
+
+You can rewrite `terragrunt.hcl` files to a canonical format using the `hclfmt` command built into `terragrunt`. Similar
+to `terraform fmt`, this command applies a subset of [the Terraform language style
+conventions](https://www.terraform.io/docs/configuration/style.html), along with other minor adjustments for
+readability.
+
+This command will recursively search for `terragrunt.hcl` files and format all of them under a given directory tree.
+Consider the following file structure:
+
+```
+root
+├── terragrunt.hcl
+├── prod
+│   └── terragrunt.hcl
+├── dev
+│   └── terragrunt.hcl
+└── qa
+    └── terragrunt.hcl
+```
+
+If you run `terragrunt hclfmt` at the `root`, this will update:
+
+- `root/terragrunt.hcl`
+- `root/prod/terragrunt.hcl`
+- `root/dev/terragrunt.hcl`
+- `root/qa/terragrunt.hcl`
 
 ### Clearing the Terragrunt cache
 

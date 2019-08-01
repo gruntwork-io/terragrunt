@@ -2,14 +2,15 @@ package config
 
 import (
 	"fmt"
-	"github.com/hashicorp/hcl2/gohcl"
-	"github.com/hashicorp/hcl2/hcl"
-	"github.com/hashicorp/hcl2/hclparse"
-	"github.com/zclconf/go-cty/cty"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
+
+	"github.com/hashicorp/hcl2/gohcl"
+	"github.com/hashicorp/hcl2/hcl"
+	"github.com/hashicorp/hcl2/hclparse"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -28,6 +29,7 @@ type TerragruntConfig struct {
 	Skip           bool
 	IamRole        string
 	Inputs         map[string]interface{}
+	Locals         map[string]interface{}
 }
 
 func (conf *TerragruntConfig) String() string {
@@ -45,6 +47,17 @@ type terragruntConfigFile struct {
 	PreventDestroy *bool                  `hcl:"prevent_destroy,attr"`
 	Skip           *bool                  `hcl:"skip,attr"`
 	IamRole        *string                `hcl:"iam_role,attr"`
+
+	// This struct is used for validating and parsing the entire terragrunt config. Since locals are evaluated in a
+	// completely separate cycle, it should not be evaluated here. Otherwise, we can't support self referencing other
+	// elements in the same block.
+	Locals *terragruntLocal `hcl:"locals,block"`
+}
+
+// We use a struct designed to not parse the block, as locals are parsed and decoded using a special routine that allows
+// references to the other locals in the same block.
+type terragruntLocal struct {
+	Remain hcl.Body `hcl:",remain"`
 }
 
 type terragruntInclude struct {
@@ -240,13 +253,21 @@ func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptio
 // Parse the Terragrunt config contained in the given string and merge it with the given include config (if any)
 func ParseConfigString(configString string, terragruntOptions *options.TerragruntOptions, includeFromChild *IncludeConfig, filename string) (*TerragruntConfig, error) {
 	// Parse the HCL string into an AST body that can be decoded multiple times later without having to re-parse
-	file, err := parseHcl(configString, filename)
+	parser := hclparse.NewParser()
+	file, err := parseHcl(parser, configString, filename)
+	if err != nil {
+		return nil, err
+	}
+
+	// Evaluate all the expressions in the locals block separately and generate the variables list to use in the
+	// evaluation context.
+	locals, err := evaluateLocalsBlock(terragruntOptions, parser, file, filename)
 	if err != nil {
 		return nil, err
 	}
 
 	// Decode just the `include` block, and verify that it's allowed here
-	terragruntInclude, err := decodeAsTerragruntInclude(file, filename, terragruntOptions)
+	terragruntInclude, err := decodeAsTerragruntInclude(file, filename, terragruntOptions, locals)
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +287,7 @@ func ParseConfigString(configString string, terragruntOptions *options.Terragrun
 
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
 	// is appropriate
-	terragruntConfigFile, err := decodeAsTerragruntConfigFile(file, filename, terragruntOptions, includeForDecode)
+	terragruntConfigFile, err := decodeAsTerragruntConfigFile(file, filename, terragruntOptions, includeForDecode, locals)
 	if err != nil {
 		return nil, err
 	}
@@ -297,18 +318,29 @@ func ParseConfigString(configString string, terragruntOptions *options.Terragrun
 // For consistency, `include` in the call to `decodeHcl` is always assumed to be nil.
 // Either it really is nil (parsing the child config), or it shouldn't be used anyway (the parent config shouldn't have
 // an include block)
-func decodeAsTerragruntInclude(file *hcl.File, filename string, terragruntOptions *options.TerragruntOptions) (*terragruntInclude, error) {
+func decodeAsTerragruntInclude(
+	file *hcl.File,
+	filename string,
+	terragruntOptions *options.TerragruntOptions,
+	locals map[string]cty.Value,
+) (*terragruntInclude, error) {
 	terragruntInclude := terragruntInclude{}
-	err := decodeHcl(file, filename, &terragruntInclude, terragruntOptions, nil)
+	err := decodeHcl(file, filename, &terragruntInclude, terragruntOptions, nil, locals)
 	if err != nil {
 		return nil, err
 	}
 	return &terragruntInclude, nil
 }
 
-func decodeAsTerragruntConfigFile(file *hcl.File, filename string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) (*terragruntConfigFile, error) {
+func decodeAsTerragruntConfigFile(
+	file *hcl.File,
+	filename string,
+	terragruntOptions *options.TerragruntOptions,
+	include *IncludeConfig,
+	locals map[string]cty.Value,
+) (*terragruntConfigFile, error) {
 	terragruntConfig := terragruntConfigFile{}
-	err := decodeHcl(file, filename, &terragruntConfig, terragruntOptions, include)
+	err := decodeHcl(file, filename, &terragruntConfig, terragruntOptions, include, locals)
 	if err != nil {
 		return nil, err
 	}
@@ -316,7 +348,14 @@ func decodeAsTerragruntConfigFile(file *hcl.File, filename string, terragruntOpt
 }
 
 // decodeHcl uses the HCL2 parser to decode the parsed HCL into the struct specified by out.
-func decodeHcl(file *hcl.File, filename string, out interface{}, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) (err error) {
+func decodeHcl(
+	file *hcl.File,
+	filename string,
+	out interface{},
+	terragruntOptions *options.TerragruntOptions,
+	include *IncludeConfig,
+	locals map[string]cty.Value,
+) (err error) {
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
 	// those panics here and convert them to normal errors
 	defer func() {
@@ -325,7 +364,13 @@ func decodeHcl(file *hcl.File, filename string, out interface{}, terragruntOptio
 		}
 	}()
 
-	evalContext := CreateTerragruntEvalContext(filename, terragruntOptions, include)
+	// Convert locals to a cty object for use in the evaluation context. Otherwise, we can't bind the whole map under
+	// the name `local`.
+	localsAsCty, err := convertLocalsMapToCtyVal(locals)
+	if err != nil {
+		return err
+	}
+	evalContext := CreateTerragruntEvalContext(filename, terragruntOptions, include, localsAsCty)
 
 	decodeDiagnostics := gohcl.DecodeBody(file.Body, evalContext, out)
 	if decodeDiagnostics != nil && decodeDiagnostics.HasErrors() {
@@ -336,7 +381,7 @@ func decodeHcl(file *hcl.File, filename string, out interface{}, terragruntOptio
 }
 
 // parseHcl uses the HCL2 parser to parse the given string into an HCL file body.
-func parseHcl(hcl string, filename string) (file *hcl.File, err error) {
+func parseHcl(parser *hclparse.Parser, hcl string, filename string) (file *hcl.File, err error) {
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
 	// those panics here and convert them to normal errors
 	defer func() {
@@ -344,8 +389,6 @@ func parseHcl(hcl string, filename string) (file *hcl.File, err error) {
 			err = errors.WithStackTrace(PanicWhileParsingConfig{RecoveredValue: recovered, ConfigFile: filename})
 		}
 	}()
-
-	parser := hclparse.NewParser()
 
 	file, parseDiagnostics := parser.ParseHCL([]byte(hcl), filename)
 	if parseDiagnostics != nil && parseDiagnostics.HasErrors() {

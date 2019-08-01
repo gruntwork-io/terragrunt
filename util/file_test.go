@@ -1,6 +1,7 @@
 package util
 
 import (
+	"io/ioutil"
 	"path/filepath"
 	"testing"
 
@@ -8,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetPathRelativeTo(t *testing.T) {
@@ -120,31 +122,34 @@ func TestJoinTerraformModulePath(t *testing.T) {
 	}
 }
 
-func TestPathContains(t *testing.T) {
+func TestFileManifest(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		description string
-		path        string
-		folderName  string
-		expected    bool
-	}{
-		{"both empty", "", "", true},
-		{"path empty, folder name not empty", "", "foo", false},
-		{"path non empty, folder name empty", "/foo", "", true},
-		{"path contains one part that matches folder name", "foo", "foo", true},
-		{"path contains one part that doesn't match folder name", "foo", "bar", false},
-		{"path contains multiple parts, one of which matches folder name", "/foo/bar/baz", "bar", true},
-		{"path contains multiple parts, none of which match folder name", "/foo/bar/baz", "will-not-match", false},
+	var testfiles []string
+
+	// create temp dir
+	dir, err := ioutil.TempDir("", ".terragrunt-test-dir")
+	require.NoError(t, err)
+	for _, file := range []string{"file1", "file2"} {
+		// create temp files in the dir
+		f, err := ioutil.TempFile(dir, file)
+		assert.NoError(t, err, f.Close())
+		testfiles = append(testfiles, f.Name())
 	}
 
-	for _, testCase := range testCases {
-		// The following is necessary to make sure testCase's values don't
-		// get updated due to concurrency within the scope of t.Run(..) below
-		testCase := testCase
-		t.Run(testCase.description, func(t *testing.T) {
-			actual := PathContains(testCase.path, testCase.folderName)
-			assert.Equal(t, testCase.expected, actual)
-		})
+	// create a manifest
+	manifest := newFileManifest(dir, ".terragrunt-test-manifest")
+	require.Nil(t, manifest.Create())
+	// check the file manifest has been created
+	require.FileExists(t, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
+	for _, file := range testfiles {
+		assert.NoError(t, manifest.AddFile(file))
 	}
+
+	require.NoError(t, manifest.Clean())
+	// test if the files have been deleted
+	for _, file := range testfiles {
+		assert.Equal(t, FileExists(file), false)
+	}
+
 }

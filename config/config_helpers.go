@@ -2,17 +2,19 @@ package config
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/hashicorp/hcl2/hcl"
-	tflang "github.com/hashicorp/terraform/lang"
-	"github.com/zclconf/go-cty/cty/function"
 	"path/filepath"
 
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/hashicorp/hcl2/hcl"
+	tflang "github.com/hashicorp/terraform/lang"
+	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -63,7 +65,12 @@ type EnvVar struct {
 
 // Create an EvalContext for the HCL2 parser. We can define functions and variables in this context that the HCL2 parser
 // will make available to the Terragrunt configuration during parsing.
-func CreateTerragruntEvalContext(filename string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) *hcl.EvalContext {
+func CreateTerragruntEvalContext(
+	filename string,
+	terragruntOptions *options.TerragruntOptions,
+	include *IncludeConfig,
+	locals *cty.Value,
+) *hcl.EvalContext {
 	tfscope := tflang.Scope{
 		BaseDir: filepath.Dir(filename),
 	}
@@ -91,9 +98,13 @@ func CreateTerragruntEvalContext(filename string, terragruntOptions *options.Ter
 		functions[k] = v
 	}
 
-	return &hcl.EvalContext{
+	ctx := &hcl.EvalContext{
 		Functions: functions,
 	}
+	if locals != nil {
+		ctx.Variables = map[string]cty.Value{"local": *locals}
+	}
+	return ctx
 }
 
 // Return the directory where the Terragrunt configuration file lives
@@ -145,14 +156,25 @@ func runCommand(args []string, include *IncludeConfig, terragruntOptions *option
 		return "", errors.WithStackTrace(EmptyStringNotAllowed("parameter to the run_cmd function"))
 	}
 
+	suppressOutput := false
+	if args[0] == "--terragrunt-quiet" {
+		suppressOutput = true
+		args = append(args[:0], args[1:]...)
+	}
+
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 
-	cmdOutput, err := shell.RunShellCommandWithOutput(terragruntOptions, currentPath, args[0], args[1:]...)
+	cmdOutput, err := shell.RunShellCommandWithOutput(terragruntOptions, currentPath, suppressOutput, args[0], args[1:]...)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
 
-	terragruntOptions.Logger.Printf("run_cmd output: [%s]", cmdOutput.Stdout)
+	if suppressOutput {
+		terragruntOptions.Logger.Printf("run_cmd output: [REDACTED]")
+	} else {
+		terragruntOptions.Logger.Printf("run_cmd output: [%s]", cmdOutput.Stdout)
+	}
+
 	return cmdOutput.Stdout, nil
 }
 
