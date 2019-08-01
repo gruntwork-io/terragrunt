@@ -1205,6 +1205,7 @@ at all.
 This section contains detailed documentation for the following aspects of Terragrunt:
 
 1. [Inputs](#inputs)
+1. [Locals](#locals)
 1. [AWS credentials](#aws-credentials)
 1. [AWS IAM policies](#aws-iam-policies)
 1. [Built-in Functions](#built-in-functions)
@@ -1228,7 +1229,7 @@ You can set values for your module's input parameters by specifying an `inputs` 
 inputs = {
   instance_type  = "t2.micro"
   instance_count = 10
-  
+
   tags = {
     Name = "example-app"
   }
@@ -1251,6 +1252,79 @@ terraform apply
 
 Note that Terragrunt will respect any `TF_VAR_xxx` variables you've manually set in your environment, ensuring that 
 anything in `inputs` will NOT be override anything you've already set in your environment.  
+
+
+### Locals
+
+You can use locals to bind a name to an expression, so you can reuse that expression without having to repeat it multiple times (keeping your Terragrunt configuration DRY).
+config. For example, suppose that you need to use the AWS region in multiple inputs. You can bind the name `aws_region`
+using locals:
+
+```
+locals {
+  aws_region = "us-east-1"
+}
+
+inputs = {
+  aws_region  = local.aws_region
+  s3_endpoint = "com.amazonaws.${local.aws_region}.s3"
+}
+```
+
+You can use any valid terragrunt expression in the `locals` configuration. The `locals` block also supports referencing other `locals`:
+
+```
+locals {
+  x = 2
+  y = 40
+  answer = local.x + local.y
+}
+```
+
+##### Including globally defined locals
+
+Currently you can only reference `locals` defined in the same config file. `terragrunt` does not automatically include
+`locals` defined in the parent config of an `include` block into the current context. If you wish to reuse variables
+globally, consider using `yaml` or `json` files that are included and merged using the `terraform` built in functions
+available to `terragrunt`.
+
+For example, suppose you had the following directory tree:
+
+```
+.
+├── terragrunt.hcl
+├── mysql
+│   └── terragrunt.hcl
+└── vpc
+    └── terragrunt.hcl
+```
+
+Instead of adding the `locals` block to the parent `terragrunt.hcl` file, you can define a file `common_vars.yaml`
+that contains the global variables you wish to pull in:
+
+```
+.
+├── terragrunt.hcl
+├── common_vars.yaml
+├── mysql
+│   └── terragrunt.hcl
+└── vpc
+    └── terragrunt.hcl
+```
+
+You can then include them into the `locals` block of the child terragrunt config using `yamldecode` and `file`:
+
+```
+# child terragrunt.hcl
+locals {
+  common_vars = yamldecode(file("${get_terragrunt_dir()}/${find_in_parent_folders("common_vars.yaml")}")),
+  region = "us-east-1"
+}
+```
+
+This configuration will load in the `common_vars.yaml` file and bind it to the attribute `common_vars` so that it is available
+in the current context. Note that because `locals` is a block, there currently is a way to merge the map into the top
+level.
 
 
 ### AWS credentials

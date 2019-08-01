@@ -2,17 +2,19 @@ package config
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/hashicorp/hcl2/hcl"
-	tflang "github.com/hashicorp/terraform/lang"
-	"github.com/zclconf/go-cty/cty/function"
 	"path/filepath"
 
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/hashicorp/hcl2/hcl"
+	tflang "github.com/hashicorp/terraform/lang"
+	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -63,7 +65,12 @@ type EnvVar struct {
 
 // Create an EvalContext for the HCL2 parser. We can define functions and variables in this context that the HCL2 parser
 // will make available to the Terragrunt configuration during parsing.
-func CreateTerragruntEvalContext(filename string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) *hcl.EvalContext {
+func CreateTerragruntEvalContext(
+	filename string,
+	terragruntOptions *options.TerragruntOptions,
+	include *IncludeConfig,
+	locals *cty.Value,
+) *hcl.EvalContext {
 	tfscope := tflang.Scope{
 		BaseDir: filepath.Dir(filename),
 	}
@@ -91,9 +98,13 @@ func CreateTerragruntEvalContext(filename string, terragruntOptions *options.Ter
 		functions[k] = v
 	}
 
-	return &hcl.EvalContext{
+	ctx := &hcl.EvalContext{
 		Functions: functions,
 	}
+	if locals != nil {
+		ctx.Variables = map[string]cty.Value{"local": *locals}
+	}
+	return ctx
 }
 
 // Return the directory where the Terragrunt configuration file lives

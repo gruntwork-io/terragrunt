@@ -4,11 +4,9 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/hashicorp/hcl2/hcl"
 	"github.com/hashicorp/hcl2/hclparse"
 	"github.com/hashicorp/hcl2/hclwrite"
 	"github.com/mattn/go-zglob"
-	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -65,21 +63,11 @@ func formatTgHCL(terragruntOptions *options.TerragruntOptions, tgHclFile string)
 	return ioutil.WriteFile(tgHclFile, newContents, info.Mode())
 }
 
-// getDiagnosticsWriter returns a hcl2 parsing diagnostics emitter for the current terminal.
-func getDiagnosticsWriter(parser *hclparse.Parser) hcl.DiagnosticWriter {
-	termColor := terminal.IsTerminal(int(os.Stderr.Fd()))
-	termWidth, _, err := terminal.GetSize(int(os.Stdout.Fd()))
-	if err != nil {
-		termWidth = 80
-	}
-	return hcl.NewDiagnosticTextWriter(os.Stderr, parser.Files(), uint(termWidth), termColor)
-}
-
 // checkErrors takes in the contents of a terragrunt.hcl file and looks for syntax errors.
 func checkErrors(contents []byte, tgHclFile string) error {
 	parser := hclparse.NewParser()
 	_, diags := parser.ParseHCL(contents, tgHclFile)
-	diagWriter := getDiagnosticsWriter(parser)
+	diagWriter := util.GetDiagnosticsWriter(parser)
 	diagWriter.WriteDiagnostics(diags)
 	if diags.HasErrors() {
 		return diags
