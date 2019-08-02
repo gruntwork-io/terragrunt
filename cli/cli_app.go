@@ -137,7 +137,7 @@ GLOBAL OPTIONS:
    terragrunt-ignore-external-dependencies  *-all commands will not attempt to include external dependencies
    terragrunt-exclude-dir                   Unix-style glob of directories to exclude when running *-all commands
    terragrunt-include-dir                   Unix-style glob of directories to include when running *-all commands
-   terragrunt-check                         Enable check mode.
+   terragrunt-check                         Enable check mode in the hclfmt command.
 
 VERSION:
    {{.Version}}{{if len .Authors}}
