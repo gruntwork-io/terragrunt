@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
