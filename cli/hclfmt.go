@@ -3,6 +3,7 @@ package cli
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"github.com/hashicorp/hcl2/hclparse"
 	"github.com/hashicorp/hcl2/hclwrite"
@@ -23,9 +24,17 @@ func runHCLFmt(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
-	terragruntOptions.Logger.Printf("Found %d terragrunt.hcl files", len(tgHclFiles))
+	filteredTgHclFiles := []string{}
+	for _, fname := range tgHclFiles {
+		// Ignore any files that are in the .terragrunt-cache
+		if !util.ListContainsElement(filepath.SplitList(fname), ".terragrunt-cache") {
+			filteredTgHclFiles = append(filteredTgHclFiles, fname)
+		}
+	}
 
-	for _, tgHclFile := range tgHclFiles {
+	terragruntOptions.Logger.Printf("Found %d terragrunt.hcl files", len(filteredTgHclFiles))
+
+	for _, tgHclFile := range filteredTgHclFiles {
 		err := formatTgHCL(terragruntOptions, tgHclFile)
 		if err != nil {
 			return err
