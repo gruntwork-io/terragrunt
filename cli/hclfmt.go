@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bytes"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -9,6 +11,7 @@ import (
 	"github.com/hashicorp/hcl2/hclwrite"
 	"github.com/mattn/go-zglob"
 
+	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -36,14 +39,15 @@ func runHCLFmt(terragruntOptions *options.TerragruntOptions) error {
 
 	util.Debugf(terragruntOptions.Logger, "Found %d terragrunt.hcl files", len(filteredTgHclFiles))
 
+	formatErrors := []error{}
 	for _, tgHclFile := range filteredTgHclFiles {
 		err := formatTgHCL(terragruntOptions, tgHclFile)
 		if err != nil {
-			return err
+			formatErrors = append(formatErrors, err)
 		}
 	}
 
-	return nil
+	return errors.NewMultiError(formatErrors...)
 }
 
 // formatTgHCL uses the hcl2 library to format the terragrunt.hcl file. This will attempt to parse the HCL file first to
@@ -71,6 +75,14 @@ func formatTgHCL(terragruntOptions *options.TerragruntOptions, tgHclFile string)
 	}
 
 	newContents := hclwrite.Format(contents)
+
+	if terragruntOptions.Check {
+		if !bytes.Equal(newContents, contents) {
+			return fmt.Errorf("Invalid file format %s", tgHclFile)
+		}
+		return nil
+	}
+
 	return ioutil.WriteFile(tgHclFile, newContents, info.Mode())
 }
 
