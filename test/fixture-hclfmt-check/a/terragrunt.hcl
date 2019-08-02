@@ -1,13 +1,13 @@
 inputs = {
-# comments
-  foo =                               "bar"
-  bar="baz"
+  # comments
+  foo = "bar"
+  bar = "baz"
 
-  inputs = "disjoint"
+  inputs   = "disjoint"
   disjoint = true
 
   listInput = [
-"foo",
-"bar",
-]
+    "foo",
+    "bar",
+  ]
 }
