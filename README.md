@@ -616,7 +616,8 @@ they don't already exist:
   state storage and the `bucket` you specify in `remote_state.config` doesn't already exist, Terragrunt will create it
   automatically, with [versioning](https://cloud.google.com/storage/docs/object-versioning) enabled. For this to work
   correctly you must also specify `project` and `location` keys in `remote_state.config`, so terragrunt knows where to
-  create the bucket.
+  create the bucket. If you don't want to check if bucket already exist you can set `skip_bucket_creation` to `true` and terragrunt will assume that the bucket is already created.
+  If you don't specify `bucket` in `remote_state` then terragrunt will assume that you will pass `bucket` through `-backend-config` in `extra_arguments`.
 
   We also strongly recommend you enable [Cloud Audit Logs](https://cloud.google.com/storage/docs/access-logs) to audit
   and track API operations performed against the state bucket.
