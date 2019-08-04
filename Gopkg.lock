@@ -611,6 +611,7 @@
     "github.com/zclconf/go-cty/cty/json",
     "golang.org/x/crypto/ssh/terminal",
     "google.golang.org/api/iterator",
+    "google.golang.org/api/option",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1
