@@ -88,7 +88,7 @@ for a quick introduction to Terragrunt.
    1. [Auto-Retry](#auto-retry)
    1. [CLI options](#cli-options)
    1. [Configuration](#configuration)
-   1. [Formatting terragrunt.hcl](#formatting-terragrunt-hcl)
+   1. [Formatting terragrunt.hcl](#formatting-terragrunthcl)
    1. [Clearing the Terragrunt cache](#clearing-the-terragrunt-cache)
    1. [Contributing](#contributing)
    1. [Developing Terragrunt](#developing-terragrunt)
