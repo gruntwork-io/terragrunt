@@ -612,17 +612,20 @@ they don't already exist:
   In addition, you can let terragrunt tag the DynamoDB table with custom tags that you specify in
   `remote_state.config.dynamodb_table_tags`.
   
-* **GCS bucket**: If you are using the [GCS backend](https://www.terraform.io/docs/backends/types/gcs.html) for remote
+- **GCS bucket**: If you are using the [GCS backend](https://www.terraform.io/docs/backends/types/gcs.html) for remote
   state storage and the `bucket` you specify in `remote_state.config` doesn't already exist, Terragrunt will create it
   automatically, with [versioning](https://cloud.google.com/storage/docs/object-versioning) enabled. For this to work
   correctly you must also specify `project` and `location` keys in `remote_state.config`, so terragrunt knows where to
-  create the bucket. You will also need to specify either If you don't specify `remote_state.credentials` or set `GOOGLE_APPLICATION_CREDENTIALS`. If you don't want to check if bucket already exist you can set `skip_bucket_creation` to `true` and terragrunt will assume that the bucket is already created.
-  If you don't specify `bucket` in `remote_state` then terragrunt will assume that you will pass `bucket` through `-backend-config` in `extra_arguments`.
+  create the bucket. You will also need to supply valid credentials using either `remote_state.credentials` or by
+  setting the `GOOGLE_APPLICATION_CREDENTIALS` environment variable. If you want to skip creating the bucket entirely,
+  simply set `skip_bucket_creation` to `true` and Terragrunt will assume the bucket has already been created. If you
+  don't specify `bucket` in `remote_state` then terragrunt will assume that you will pass `bucket` through
+  `-backend-config` in `extra_arguments`.
 
   We also strongly recommend you enable [Cloud Audit Logs](https://cloud.google.com/storage/docs/access-logs) to audit
   and track API operations performed against the state bucket.
 
-  In addition, you can let terragrunt label the bucket with custom labels that you specify in
+  In addition, you can let Terragrunt label the bucket with custom labels that you specify in
   `remote_state.config.gcs_bucket_labels`.
 
 **Note**: If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile
