@@ -321,7 +321,7 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 				return errors.WithStackTrace(err)
 			}
 		} else {
-			if err := os.Remove(manifestEntry.Path); err != nil {
+			if err := os.Remove(manifestEntry.Path); err != nil && !os.IsNotExist(err) {
 				return errors.WithStackTrace(err)
 			}
 		}
