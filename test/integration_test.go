@@ -1900,12 +1900,14 @@ func cleanupTableForTest(t *testing.T, tableName string, awsRegion string) {
 // Check that the GCS Bucket of the given name and location exists. Terragrunt should create this bucket during the test.
 // Also check if bucket got labeled properly.
 func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketName string, expectedLabels map[string]string) {
-	gcsClient, err := remote.CreateGCSClient()
+	remoteStateConfig := remote.RemoteStateConfigGCS{Bucket: bucketName}
+
+	gcsClient, err := remote.CreateGCSClient(remoteStateConfig)
 	if err != nil {
 		t.Fatalf("Error creating GCS client: %v", err)
 	}
 
-	remoteStateConfig := remote.RemoteStateConfigGCS{Bucket: bucketName}
+	// verify the bucket exists
 	assert.True(t, remote.DoesGCSBucketExist(gcsClient, &remoteStateConfig), "Terragrunt failed to create remote state GCS bucket %s", bucketName)
 
 	// verify the bucket location
@@ -1944,7 +1946,8 @@ func assertGCSLabels(t *testing.T, expectedLabels map[string]string, bucketName 
 
 // Create the specified GCS bucket
 func createGCSBucket(t *testing.T, projectID string, location string, bucketName string) {
-	gcsClient, err := remote.CreateGCSClient()
+	var gcsConfig remote.RemoteStateConfigGCS
+	gcsClient, err := remote.CreateGCSClient(gcsConfig)
 	if err != nil {
 		t.Fatalf("Error creating GCS client: %v", err)
 	}
@@ -1966,7 +1969,8 @@ func createGCSBucket(t *testing.T, projectID string, location string, bucketName
 
 // Delete the specified GCS bucket to clean up after a test
 func deleteGCSBucket(t *testing.T, bucketName string) {
-	gcsClient, err := remote.CreateGCSClient()
+	var gcsConfig remote.RemoteStateConfigGCS
+	gcsClient, err := remote.CreateGCSClient(gcsConfig)
 	if err != nil {
 		t.Fatalf("Error creating GCS client: %v", err)
 	}
