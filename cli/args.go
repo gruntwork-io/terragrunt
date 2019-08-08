@@ -71,7 +71,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 		return nil, err
 	}
 	if terraformPath == "" {
-		terraformPath = "terraform"
+		terraformPath = options.TERRAFORM_DEFAULT_PATH
 	}
 
 	terraformSource, err := parseStringArg(args, OPT_TERRAGRUNT_SOURCE, os.Getenv("TERRAGRUNT_SOURCE"))

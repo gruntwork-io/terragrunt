@@ -115,15 +115,16 @@ downloading the binary for your OS, renaming it to `terragrunt`, and adding it t
 
 
 
-## Migrating to Terraform 0.12 and Terragrunt 0.19.x 
+## Migrating to Terraform 0.12 and Terragrunt 0.19.x
 
-If you were using Terraform <= 0.11.x with Terragrunt <= 0.18.x, and you wish to upgrade to Terraform 0.12.x newer, 
+If you were using Terraform <= 0.11.x with Terragrunt <= 0.18.x, and you wish to upgrade to Terraform 0.12.x newer,
 you'll need to upgrade to Terragrunt 0.19.x or newer. Due to some changes in Terraform 0.12.x, this is a backwards
 incompatible upgrade that requires some manual migration steps. Check out our [Upgrading to Terragrunt 0.19.x 
 Guide](/_docs/migration_guides/upgrading_to_terragrunt_0.19.x.md) for instructions.
 
+## Required terraform version
 
-
+We only support and test against the latest version of terraform, however older versions might still work.
 
 ## Use cases
 
@@ -661,9 +662,9 @@ remote_state {
 }
 ```
 
-If you experience an error for any of these configurations, confirm you are using Terraform v0.11.2 or greater.
+If you experience an error for any of these configurations, confirm you are using Terraform v0.12.2 or greater.
 
-Further, the config options `s3_bucket_tags`, `dynamodb_table_tags`, `skip_bucket_versioning`, 
+Further, the config options `s3_bucket_tags`, `dynamodb_table_tags`, `skip_bucket_versioning`,
 `skip_bucket_ssencryption`, `skip_bucket_accesslogging`, and `enable_lock_table_ssencryption` are only valid for 
 backend `s3`. They are used by terragrunt and are **not** passed on to
 terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).
@@ -2151,6 +2152,23 @@ If you run `terragrunt hclfmt` at the `root`, this will update:
 
 Additionally, there's a flag `--terragrunt-check`. It allows to validating if files are properly formatted. It does not
 rewrite files and in case of invalid format, it will return an error with exit status 0.
+
+#### terraform_binary
+
+The terragrunt `terraform_binary` string option can be used to override the default terraform binary path (which is `terraform`).
+
+The precedence is as follows: `--terragrunt-tfpath` command line option -> `TERRAGRUNT_TFPATH` env variable -> `terragrunt.hcl` in the module directory -> included `terragrunt.hcl`
+
+#### terraform_version_constraint
+
+The terragrunt `terraform_version_constraint` string overrides the default minimum supported version of terraform.
+Terragrunt only officially supports the latest version of terraform, however in some cases an old terraform is needed.
+
+For example:
+
+```hcl
+terraform_version_constraint = ">= 0.11"
+```
 
 ### Clearing the Terragrunt cache
 
