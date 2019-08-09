@@ -65,6 +65,7 @@ const (
 	TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES         = "fixture-download/local-with-prevent-destroy-dependencies"
 	TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES = "fixture-download/local-include-with-prevent-destroy-dependencies"
 	TEST_FIXTURE_EXTERNAL_DEPENDENCIE                       = "fixture-external-dependencies"
+	TEST_FIXTURE_GET_OUTPUT                                 = "fixture-get-output"
 	TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH                     = "fixture-hooks/before-only"
 	TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH                      = "fixture-hooks/after-only"
 	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH                = "fixture-hooks/before-and-after"
@@ -1550,6 +1551,23 @@ func TestTerragruntInfo(t *testing.T) {
 	assert.Equal(t, dat.DownloadDir, fmt.Sprintf("%s/%s", rootPath, TERRAGRUNT_CACHE))
 	assert.Equal(t, dat.TerraformBinary, TERRAFORM_BINARY)
 	assert.Equal(t, dat.IamRole, "")
+}
+
+func TestGetOutput(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT)
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
 }
 
 func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
