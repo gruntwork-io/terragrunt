@@ -341,7 +341,6 @@ func getTerragruntOutput(params []string, include *IncludeConfig, terragruntOpti
 	targetOptions.Writer = stdoutBufferWriter
 	err := targetOptions.RunTerragrunt(targetOptions)
 	if err != nil {
-		// TODO: return custom error type
 		return nil, errors.WithStackTrace(err)
 	}
 
@@ -354,11 +353,10 @@ func getTerragruntOutput(params []string, include *IncludeConfig, terragruntOpti
 		// When indexing a single output, we can return the value directly after unparsing the json.
 		retType, err := ctyjson.ImpliedType(jsonBytes)
 		if err != nil {
-			// TODO: return custom error type
-			return nil, errors.WithStackTrace(err)
+			return nil, errors.WithStackTrace(TerragruntOutputParsingError{Path: targetConfig, Err: err})
 		}
 		val, err := ctyjson.Unmarshal(jsonBytes, retType)
-		return &val, errors.WithStackTrace(err)
+		return &val, errors.WithStackTrace(TerragruntOutputEncodingError{Path: targetConfig, Err: err})
 	} else {
 		// When getting all outputs, terraform returns a json with the data containing metadata about the types, so we
 		// can't quite return the data directly. Instead, we will need further processing to get the output we want.
@@ -371,25 +369,22 @@ func getTerragruntOutput(params []string, include *IncludeConfig, terragruntOpti
 		var outputs map[string]OutputMeta
 		err := json.Unmarshal(jsonBytes, &outputs)
 		if err != nil {
-			// TODO: return custom error type
-			return nil, errors.WithStackTrace(err)
+			return nil, errors.WithStackTrace(TerragruntOutputParsingError{Path: targetConfig, Err: err})
 		}
 		flattenedOutput := map[string]cty.Value{}
 		for k, v := range outputs {
 			outputType, err := ctyjson.UnmarshalType(v.Type)
 			if err != nil {
-				// TODO: return custom error type
-				return nil, errors.WithStackTrace(err)
+				return nil, errors.WithStackTrace(TerragruntOutputParsingError{Path: targetConfig, Err: err})
 			}
 			outputVal, err := ctyjson.Unmarshal(v.Value, outputType)
 			if err != nil {
-				// TODO: return custom error type
-				return nil, errors.WithStackTrace(err)
+				return nil, errors.WithStackTrace(TerragruntOutputParsingError{Path: targetConfig, Err: err})
 			}
 			flattenedOutput[k] = outputVal
 		}
 		convertedOutput, err := gocty.ToCtyValue(flattenedOutput, generateTypeFromValuesMap(flattenedOutput))
-		return &convertedOutput, errors.WithStackTrace(err)
+		return &convertedOutput, errors.WithStackTrace(TerragruntOutputEncodingError{Path: targetConfig, Err: err})
 	}
 }
 
@@ -446,4 +441,22 @@ type TerragruntOutputConfigNotFound struct {
 
 func (err TerragruntOutputConfigNotFound) Error() string {
 	return fmt.Sprintf("%s does not exist", err.Path)
+}
+
+type TerragruntOutputParsingError struct {
+	Path string
+	Err  error
+}
+
+func (err TerragruntOutputParsingError) Error() string {
+	return fmt.Sprintf("Could not parse output from terragrunt config %s. Underlying error: %s", err.Path, err.Err)
+}
+
+type TerragruntOutputEncodingError struct {
+	Path string
+	Err  error
+}
+
+func (err TerragruntOutputEncodingError) Error() string {
+	return fmt.Sprintf("Could not encode output from terragrunt config %s. Underlying error: %s", err.Path, err.Err)
 }
