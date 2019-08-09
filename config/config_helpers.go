@@ -330,22 +330,10 @@ func getTerragruntOutput(params []string, include *IncludeConfig, terragruntOpti
 		return nil, errors.WithStackTrace(TerragruntOutputConfigNotFound{Path: targetConfig})
 	}
 
-	// use terragrunt running functions to extract the json output from the target config
-	var stdoutBuffer bytes.Buffer
-	stdoutBufferWriter := bufio.NewWriter(&stdoutBuffer)
-	targetOptions := terragruntOptions.Clone(targetConfig)
-	targetOptions.TerraformCliArgs = []string{"output", "-json"}
-	targetOptions.Writer = stdoutBufferWriter
-	err := targetOptions.RunTerragrunt(targetOptions)
+	jsonBytes, err := runTerragruntOutputJson(terragruntOptions, targetConfig)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, err
 	}
-
-	// Extract the json encoding of the terraform outputs from stdout
-	stdoutBufferWriter.Flush()
-	jsonString := stdoutBuffer.String()
-	jsonBytes := []byte(jsonString)
-	util.Debugf(terragruntOptions.Logger, "Retrieved output from %s as json: %s", targetConfig, jsonString)
 
 	outputMap, err := terraformOutputJsonToCtyValueMap(targetConfig, jsonBytes)
 	if err != nil {
@@ -364,6 +352,26 @@ func getTerragruntOutput(params []string, include *IncludeConfig, terragruntOpti
 		}
 		return &convertedOutput, errors.WithStackTrace(err)
 	}
+}
+
+// runTerragruntOutputJson uses terragrunt running functions to extract the json output from the target config. Make a
+// copy of the terragruntOptions so that we can reuse the same execution environment.
+func runTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targetConfig string) ([]byte, error) {
+	var stdoutBuffer bytes.Buffer
+	stdoutBufferWriter := bufio.NewWriter(&stdoutBuffer)
+	targetOptions := terragruntOptions.Clone(targetConfig)
+	targetOptions.TerraformCliArgs = []string{"output", "-json"}
+	targetOptions.Writer = stdoutBufferWriter
+	err := targetOptions.RunTerragrunt(targetOptions)
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
+	stdoutBufferWriter.Flush()
+	jsonString := stdoutBuffer.String()
+	jsonBytes := []byte(jsonString)
+	util.Debugf(terragruntOptions.Logger, "Retrieved output from %s as json: %s", targetConfig, jsonString)
+	return jsonBytes, nil
 }
 
 // terraformOutputJsonToCtyValueMap takes the terraform output json and converts to a mapping between output keys to the
