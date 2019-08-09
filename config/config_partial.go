@@ -95,7 +95,7 @@ func PartialParseConfigString(
 		return nil, err
 	}
 
-	output := TerragruntConfig{isPartial: true}
+	output := TerragruntConfig{IsPartial: true}
 
 	for _, decode := range decodeList {
 		switch decode {

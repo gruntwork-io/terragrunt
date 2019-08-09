@@ -34,7 +34,7 @@ type TerragruntConfig struct {
 	Locals                     map[string]interface{}
 
 	// Indicates whether or not this is the result of a partial evaluation
-	isPartial bool
+	IsPartial bool
 }
 
 func (conf *TerragruntConfig) String() string {
@@ -557,7 +557,7 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, c
 		}
 	}()
 
-	terragruntConfig := &TerragruntConfig{isPartial: false}
+	terragruntConfig := &TerragruntConfig{IsPartial: false}
 
 	if terragruntConfigFromFile.RemoteState != nil {
 		remoteStateConfig, err := parseCtyValueToMap(terragruntConfigFromFile.RemoteState.Config)
