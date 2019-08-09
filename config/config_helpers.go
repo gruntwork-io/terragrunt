@@ -356,7 +356,10 @@ func getTerragruntOutput(params []string, include *IncludeConfig, terragruntOpti
 			return nil, errors.WithStackTrace(TerragruntOutputParsingError{Path: targetConfig, Err: err})
 		}
 		val, err := ctyjson.Unmarshal(jsonBytes, retType)
-		return &val, errors.WithStackTrace(TerragruntOutputEncodingError{Path: targetConfig, Err: err})
+		if err != nil {
+			err = TerragruntOutputEncodingError{Path: targetConfig, Err: err}
+		}
+		return &val, errors.WithStackTrace(err)
 	} else {
 		// When getting all outputs, terraform returns a json with the data containing metadata about the types, so we
 		// can't quite return the data directly. Instead, we will need further processing to get the output we want.
@@ -384,7 +387,10 @@ func getTerragruntOutput(params []string, include *IncludeConfig, terragruntOpti
 			flattenedOutput[k] = outputVal
 		}
 		convertedOutput, err := gocty.ToCtyValue(flattenedOutput, generateTypeFromValuesMap(flattenedOutput))
-		return &convertedOutput, errors.WithStackTrace(TerragruntOutputEncodingError{Path: targetConfig, Err: err})
+		if err != nil {
+			err = TerragruntOutputEncodingError{Path: targetConfig, Err: err}
+		}
+		return &convertedOutput, errors.WithStackTrace(err)
 	}
 }
 
