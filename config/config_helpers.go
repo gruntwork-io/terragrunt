@@ -322,7 +322,11 @@ func getTerragruntOutput(params []string, include *IncludeConfig, terragruntOpti
 	}
 
 	// target config check: make sure the target config exists
+	cwd := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 	targetConfig := params[0]
+	if !filepath.IsAbs(targetConfig) {
+		targetConfig = util.JoinPath(cwd, targetConfig)
+	}
 	if util.IsDir(targetConfig) {
 		targetConfig = util.JoinPath(targetConfig, DefaultTerragruntConfigPath)
 	}

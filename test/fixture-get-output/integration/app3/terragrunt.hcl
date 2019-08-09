@@ -1,6 +1,6 @@
 locals {
-  app1_path = "${get_terragrunt_dir()}/../app1"
-  app2_path = "${get_terragrunt_dir()}/../app2"
+  app1_path = "../app1"
+  app2_path = "../app2"
 }
 
 dependencies {
