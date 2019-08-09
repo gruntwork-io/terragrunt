@@ -58,7 +58,11 @@ func PartialParseConfigFile(
 }
 
 // ParitalParseConfigString partially parses and decodes the provided string. Which blocks/attributes to decode is
-// controlled by the function parameters.
+// controlled by the function parameter decodeList. These blocks/attributes are parsed and set on the output
+// TerragruntConfig. Valid values are:
+// - dependencies : Parses the `dependencies` block in the config
+// - terraform : Parses the `terraform` block in the config
+// - flags : Parses the boolean flags `prevent_destroy` and `skip` in the config
 // Note that the following blocks are always decoded:
 // - locals
 // - include
@@ -97,6 +101,8 @@ func PartialParseConfigString(
 
 	output := TerragruntConfig{IsPartial: true}
 
+	// Now loop through each requested block / component to decode from the terragrunt config, decode them, and merge
+	// them into the output TerragruntConfig struct.
 	for _, decode := range decodeList {
 		switch decode {
 		case "dependencies":

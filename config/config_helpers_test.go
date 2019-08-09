@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,6 +10,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 func TestPathRelativeToInclude(t *testing.T) {
@@ -605,4 +606,77 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 			assert.EqualValues(t, testCase.expected, test, "For hcl '%s' include %v and options %v", testCase.input, nil, terragruntOptions)
 		})
 	}
+}
+
+func TestTerraformOutputJsonToCtyValueMap(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		input    string
+		expected map[string]cty.Value
+	}{
+		{
+			`{"bool": {"sensitive": false, "type": "bool", "value": true}}`,
+			map[string]cty.Value{"bool": cty.True},
+		},
+		{
+			`{"number": {"sensitive": false, "type": "number", "value": 42}}`,
+			map[string]cty.Value{"number": cty.NumberIntVal(42)},
+		},
+		{
+			`{"list_string": {"sensitive": false, "type": ["list", "string"], "value": ["4", "2"]}}`,
+			map[string]cty.Value{"list_string": cty.ListVal([]cty.Value{cty.StringVal("4"), cty.StringVal("2")})},
+		},
+		{
+			`{"map_string": {"sensitive": false, "type": ["map", "string"], "value": {"x": "foo", "y": "bar"}}}`,
+			map[string]cty.Value{"map_string": cty.MapVal(map[string]cty.Value{"x": cty.StringVal("foo"), "y": cty.StringVal("bar")})},
+		},
+		{
+			`{"map_list_number": {"sensitive": false, "type": ["map", ["list", "number"]], "value": {"x": [4, 2]}}}`,
+			map[string]cty.Value{
+				"map_list_number": cty.MapVal(
+					map[string]cty.Value{
+						"x": cty.ListVal([]cty.Value{cty.NumberIntVal(4), cty.NumberIntVal(2)}),
+					},
+				),
+			},
+		},
+		{
+			`{"object": {"sensitive": false, "type": ["object", {"x": "number", "y": "string", "lst": ["list", "string"]}], "value": {"x": 42, "y": "the truth", "lst": ["foo", "bar"]}}}`,
+			map[string]cty.Value{
+				"object": cty.ObjectVal(
+					map[string]cty.Value{
+						"x":   cty.NumberIntVal(42),
+						"y":   cty.StringVal("the truth"),
+						"lst": cty.ListVal([]cty.Value{cty.StringVal("foo"), cty.StringVal("bar")}),
+					},
+				),
+			},
+		},
+		{
+			`{"out1": {"sensitive": false, "type": "number", "value": 42}, "out2": {"sensitive": false, "type": "string", "value": "foo bar"}}`,
+			map[string]cty.Value{
+				"out1": cty.NumberIntVal(42),
+				"out2": cty.StringVal("foo bar"),
+			},
+		},
+	}
+
+	mockTargetConfig := DefaultTerragruntConfigPath
+	for _, testCase := range testCases {
+		converted, err := terraformOutputJsonToCtyValueMap(mockTargetConfig, []byte(testCase.input))
+		assert.NoError(t, err)
+		assert.Equal(t, getKeys(converted), getKeys(testCase.expected))
+		for k, v := range converted {
+			assert.True(t, v.Equals(testCase.expected[k]).True())
+		}
+	}
+}
+
+func getKeys(valueMap map[string]cty.Value) []string {
+	keys := []string{}
+	for k, _ := range valueMap {
+		keys = append(keys, k)
+	}
+	return keys
 }

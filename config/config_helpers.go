@@ -335,63 +335,66 @@ func getTerragruntOutput(params []string, include *IncludeConfig, terragruntOpti
 	stdoutBufferWriter := bufio.NewWriter(&stdoutBuffer)
 	targetOptions := terragruntOptions.Clone(targetConfig)
 	targetOptions.TerraformCliArgs = []string{"output", "-json"}
-	if numParams == 2 {
-		targetOptions.TerraformCliArgs = append(targetOptions.TerraformCliArgs, params[1])
-	}
 	targetOptions.Writer = stdoutBufferWriter
 	err := targetOptions.RunTerragrunt(targetOptions)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
 
+	// Extract the json encoding of the terraform outputs from stdout
 	stdoutBufferWriter.Flush()
 	jsonString := stdoutBuffer.String()
 	jsonBytes := []byte(jsonString)
 	util.Debugf(terragruntOptions.Logger, "Retrieved output from %s as json: %s", targetConfig, jsonString)
 
+	outputMap, err := terraformOutputJsonToCtyValueMap(targetConfig, jsonBytes)
+	if err != nil {
+		return nil, err
+	}
+
 	if numParams == 2 {
-		// When indexing a single output, we can return the value directly after unparsing the json.
-		retType, err := ctyjson.ImpliedType(jsonBytes)
-		if err != nil {
-			return nil, errors.WithStackTrace(TerragruntOutputParsingError{Path: targetConfig, Err: err})
-		}
-		val, err := ctyjson.Unmarshal(jsonBytes, retType)
-		if err != nil {
-			err = TerragruntOutputEncodingError{Path: targetConfig, Err: err}
-		}
-		return &val, errors.WithStackTrace(err)
+		// When indexing a single output, we can return the value directly after parsing the json.
+		tmp := outputMap[params[1]]
+		return &tmp, nil
 	} else {
-		// When getting all outputs, terraform returns a json with the data containing metadata about the types, so we
-		// can't quite return the data directly. Instead, we will need further processing to get the output we want.
-		// To do so, we first Unmarshal the json into a simple go map to a TfOutputValue struct
-		type OutputMeta struct {
-			Sensitive bool            `json:"sensitive"`
-			Type      json.RawMessage `json:"type"`
-			Value     json.RawMessage `json:"value"`
-		}
-		var outputs map[string]OutputMeta
-		err := json.Unmarshal(jsonBytes, &outputs)
-		if err != nil {
-			return nil, errors.WithStackTrace(TerragruntOutputParsingError{Path: targetConfig, Err: err})
-		}
-		flattenedOutput := map[string]cty.Value{}
-		for k, v := range outputs {
-			outputType, err := ctyjson.UnmarshalType(v.Type)
-			if err != nil {
-				return nil, errors.WithStackTrace(TerragruntOutputParsingError{Path: targetConfig, Err: err})
-			}
-			outputVal, err := ctyjson.Unmarshal(v.Value, outputType)
-			if err != nil {
-				return nil, errors.WithStackTrace(TerragruntOutputParsingError{Path: targetConfig, Err: err})
-			}
-			flattenedOutput[k] = outputVal
-		}
-		convertedOutput, err := gocty.ToCtyValue(flattenedOutput, generateTypeFromValuesMap(flattenedOutput))
+		// We need to convert the value map to a single cty.Value at the end for use in the terragrunt config.
+		convertedOutput, err := gocty.ToCtyValue(outputMap, generateTypeFromValuesMap(outputMap))
 		if err != nil {
 			err = TerragruntOutputEncodingError{Path: targetConfig, Err: err}
 		}
 		return &convertedOutput, errors.WithStackTrace(err)
 	}
+}
+
+// terraformOutputJsonToCtyValueMap takes the terraform output json and converts to a mapping between output keys to the
+// parsed cty.Value encoding of the json objects.
+func terraformOutputJsonToCtyValueMap(targetConfig string, jsonBytes []byte) (map[string]cty.Value, error) {
+	// When getting all outputs, terraform returns a json with the data containing metadata about the types, so we
+	// can't quite return the data directly. Instead, we will need further processing to get the output we want.
+	// To do so, we first Unmarshal the json into a simple go map to a OutputMeta struct.
+	type OutputMeta struct {
+		Sensitive bool            `json:"sensitive"`
+		Type      json.RawMessage `json:"type"`
+		Value     json.RawMessage `json:"value"`
+	}
+	var outputs map[string]OutputMeta
+	err := json.Unmarshal(jsonBytes, &outputs)
+	if err != nil {
+		return nil, errors.WithStackTrace(TerragruntOutputParsingError{Path: targetConfig, Err: err})
+	}
+	flattenedOutput := map[string]cty.Value{}
+	for k, v := range outputs {
+		outputType, err := ctyjson.UnmarshalType(v.Type)
+		if err != nil {
+			return nil, errors.WithStackTrace(TerragruntOutputParsingError{Path: targetConfig, Err: err})
+		}
+		outputVal, err := ctyjson.Unmarshal(v.Value, outputType)
+		if err != nil {
+			return nil, errors.WithStackTrace(TerragruntOutputParsingError{Path: targetConfig, Err: err})
+		}
+		flattenedOutput[k] = outputVal
+	}
+	return flattenedOutput, nil
 }
 
 // Custom error types
