@@ -1084,13 +1084,15 @@ func TestInputsPassedThroughCorrectly(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_INPUTS))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_INPUTS), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 	require.NoError(t, err)
 
 	outputs := map[string]TerraformOutput{}
@@ -1558,7 +1560,7 @@ func TestGetOutput(t *testing.T) {
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "integration")
 
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
@@ -1568,6 +1570,33 @@ func TestGetOutput(t *testing.T) {
 
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
 	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	// TODO verify 42
+}
+
+func TestGetOutputTypeConversion(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
+	tmpEnvPath := copyEnvironment(t, ".")
+
+	inputsPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "type-conversion")
+
+	// First apply the inputs module
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", inputsPath))
+
+	// Then apply the outputs module
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	// TODO: check outputs
 }
 
 func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {

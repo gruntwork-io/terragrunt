@@ -1,6 +1,9 @@
 package config
 
 import (
+	"bufio"
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 
@@ -11,6 +14,8 @@ import (
 	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
+	"github.com/zclconf/go-cty/cty/gocty"
+	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -80,6 +85,7 @@ func CreateTerragruntEvalContext(
 		"path_relative_to_include":                     wrapVoidToStringAsFuncImpl(pathRelativeToInclude, include, terragruntOptions),
 		"path_relative_from_include":                   wrapVoidToStringAsFuncImpl(pathRelativeFromInclude, include, terragruntOptions),
 		"get_env":                                      wrapStringSliceToStringAsFuncImpl(getEnvironmentVariable, include, terragruntOptions),
+		"get_output":                                   wrapStringSliceToCtyValueAsFuncImpl(getTerragruntOutput, include, terragruntOptions),
 		"run_cmd":                                      wrapStringSliceToStringAsFuncImpl(runCommand, include, terragruntOptions),
 		"get_terragrunt_dir":                           wrapVoidToStringAsFuncImpl(getTerragruntDir, include, terragruntOptions),
 		"get_parent_terragrunt_dir":                    wrapVoidToStringAsFuncImpl(getParentTerragruntDir, include, terragruntOptions),
@@ -301,6 +307,92 @@ func getAWSAccountID(include *IncludeConfig, terragruntOptions *options.Terragru
 	return *identity.Account, nil
 }
 
+// Return the output from the state of another module, managed by terragrunt. This function will parse the provided
+// terragrunt config and extract the desired output from the remote state. Note that this will error if the targetted
+// module hasn't been applied yet. If you omit the output name, this will return a map of all the outputs from the
+// module.
+func getTerragruntOutput(params []string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
+	// args check: make sure the expected args are passed
+	numParams := len(params)
+	if numParams == 0 {
+		return nil, errors.WithStackTrace(EmptyStringNotAllowed("the target terragrunt config parameter"))
+	}
+	if numParams > 2 {
+		return nil, errors.WithStackTrace(WrongNumberOfParams{Func: "get_output", Expected: "1 or 2", Actual: numParams})
+	}
+
+	// target config check: make sure the target config exists
+	targetConfig := params[0]
+	if util.IsDir(targetConfig) {
+		targetConfig = util.JoinPath(targetConfig, DefaultTerragruntConfigPath)
+	}
+	if !util.FileExists(targetConfig) {
+		return nil, errors.WithStackTrace(TerragruntOutputConfigNotFound{Path: targetConfig})
+	}
+
+	// use terragrunt running functions to extract the json output from the target config
+	var stdoutBuffer bytes.Buffer
+	stdoutBufferWriter := bufio.NewWriter(&stdoutBuffer)
+	targetOptions := terragruntOptions.Clone(targetConfig)
+	targetOptions.TerraformCliArgs = []string{"output", "-json"}
+	if numParams == 2 {
+		targetOptions.TerraformCliArgs = append(targetOptions.TerraformCliArgs, params[1])
+	}
+	targetOptions.Writer = stdoutBufferWriter
+	err := targetOptions.RunTerragrunt(targetOptions)
+	if err != nil {
+		// TODO: return custom error type
+		return nil, errors.WithStackTrace(err)
+	}
+
+	stdoutBufferWriter.Flush()
+	jsonString := stdoutBuffer.String()
+	jsonBytes := []byte(jsonString)
+	util.Debugf(terragruntOptions.Logger, "Retrieved output from %s as json: %s", targetConfig, jsonString)
+
+	if numParams == 2 {
+		// When indexing a single output, we can return the value directly after unparsing the json.
+		retType, err := ctyjson.ImpliedType(jsonBytes)
+		if err != nil {
+			// TODO: return custom error type
+			return nil, errors.WithStackTrace(err)
+		}
+		val, err := ctyjson.Unmarshal(jsonBytes, retType)
+		return &val, errors.WithStackTrace(err)
+	} else {
+		// When getting all outputs, terraform returns a json with the data containing metadata about the types, so we
+		// can't quite return the data directly. Instead, we will need further processing to get the output we want.
+		// To do so, we first Unmarshal the json into a simple go map to a TfOutputValue struct
+		type OutputMeta struct {
+			Sensitive bool            `json:"sensitive"`
+			Type      json.RawMessage `json:"type"`
+			Value     json.RawMessage `json:"value"`
+		}
+		var outputs map[string]OutputMeta
+		err := json.Unmarshal(jsonBytes, &outputs)
+		if err != nil {
+			// TODO: return custom error type
+			return nil, errors.WithStackTrace(err)
+		}
+		flattenedOutput := map[string]cty.Value{}
+		for k, v := range outputs {
+			outputType, err := ctyjson.UnmarshalType(v.Type)
+			if err != nil {
+				// TODO: return custom error type
+				return nil, errors.WithStackTrace(err)
+			}
+			outputVal, err := ctyjson.Unmarshal(v.Value, outputType)
+			if err != nil {
+				// TODO: return custom error type
+				return nil, errors.WithStackTrace(err)
+			}
+			flattenedOutput[k] = outputVal
+		}
+		convertedOutput, err := gocty.ToCtyValue(flattenedOutput, generateTypeFromValuesMap(flattenedOutput))
+		return &convertedOutput, errors.WithStackTrace(err)
+	}
+}
+
 // Custom error types
 
 type WrongNumberOfParams struct {
@@ -346,4 +438,12 @@ type EmptyStringNotAllowed string
 
 func (err EmptyStringNotAllowed) Error() string {
 	return fmt.Sprintf("Empty string value is not allowed for %s", string(err))
+}
+
+type TerragruntOutputConfigNotFound struct {
+	Path string
+}
+
+func (err TerragruntOutputConfigNotFound) Error() string {
+	return fmt.Sprintf("%s does not exist", err.Path)
 }

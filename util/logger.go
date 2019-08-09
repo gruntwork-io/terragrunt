@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/hashicorp/hcl2/hcl"
 	"github.com/hashicorp/hcl2/hclparse"
@@ -28,7 +29,7 @@ func CreateLoggerWithWriter(writer io.Writer, prefix string) *log.Logger {
 // logging solution.
 // Debugf will only print out terragrunt logs if the TG_LOG environment variable is set to DEBUG.
 func Debugf(logger *log.Logger, fmtString string, fmtArgs ...interface{}) {
-	if os.Getenv("TG_LOG") == "DEBUG" {
+	if strings.ToLower(os.Getenv("TG_LOG")) == "debug" {
 		logger.Printf(fmtString, fmtArgs...)
 	}
 }

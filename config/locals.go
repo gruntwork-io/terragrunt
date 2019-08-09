@@ -308,7 +308,7 @@ func convertLocalsMapToCtyVal(locals map[string]cty.Value) (*cty.Value, error) {
 	var localsAsCty *cty.Value
 	localsAsCty = nil
 	if locals != nil && len(locals) > 0 {
-		localsAsCtyRaw, err := gocty.ToCtyValue(locals, generateTypeFromLocalsMap(locals))
+		localsAsCtyRaw, err := gocty.ToCtyValue(locals, generateTypeFromValuesMap(locals))
 		if err != nil {
 			return nil, errors.WithStackTrace(err)
 		}
@@ -317,11 +317,11 @@ func convertLocalsMapToCtyVal(locals map[string]cty.Value) (*cty.Value, error) {
 	return localsAsCty, nil
 }
 
-// generateTypeFromLocalsMap takes the locals map and returns an object type that has the same number of fields, but
+// generateTypeFromValuesMap takes the locals map and returns an object type that has the same number of fields, but
 // bound to each type of the underlying evaluated expression. This is the only way the HCL decoder will be happy, as
 // object type is the only map type that allows different types for each attribute (cty.Map requires all attributes to
 // have the same type.
-func generateTypeFromLocalsMap(locals map[string]cty.Value) cty.Type {
+func generateTypeFromValuesMap(locals map[string]cty.Value) cty.Type {
 	outType := map[string]cty.Type{}
 	for k, v := range locals {
 		outType[k] = v.Type()
