@@ -234,7 +234,15 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 	}
 
 	opts := terragruntOptions.Clone(terragruntConfigPath)
-	terragruntConfig, err := config.ParseConfigFile(terragruntConfigPath, opts, nil)
+	// We only partially parse the config, only using the pieces that we need in this section. This config will be fully
+	// parsed at a later stage right before the action is run. This is to delay interpolation of functions until right
+	// before we call out to terraform.
+	terragruntConfig, err := config.PartialParseConfigFile(
+		terragruntConfigPath,
+		opts,
+		nil,
+		[]string{"terraform", "dependencies"},
+	)
 	if err != nil {
 		return nil, errors.WithStackTrace(ErrorProcessingModule{UnderlyingError: err, HowThisModuleWasFound: howThisModuleWasFound, ModulePath: terragruntConfigPath})
 	}

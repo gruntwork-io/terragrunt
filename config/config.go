@@ -32,6 +32,9 @@ type TerragruntConfig struct {
 	IamRole                    string
 	Inputs                     map[string]interface{}
 	Locals                     map[string]interface{}
+
+	// Indicates whether or not this is the result of a partial evaluation
+	isPartial bool
 }
 
 func (conf *TerragruntConfig) String() string {
@@ -62,11 +65,6 @@ type terragruntConfigFile struct {
 // references to the other locals in the same block.
 type terragruntLocal struct {
 	Remain hcl.Body `hcl:",remain"`
-}
-
-type terragruntInclude struct {
-	Include *IncludeConfig `hcl:"include,block"`
-	Remain  hcl.Body       `hcl:",remain"`
 }
 
 // Configuration for Terraform remote state as parsed from a terragrunt.hcl config file
@@ -276,17 +274,9 @@ func ParseConfigString(configString string, terragruntOptions *options.Terragrun
 		return nil, err
 	}
 
-	var includeForDecode *IncludeConfig = nil
-	if terragruntInclude.Include != nil && includeFromChild != nil {
-		return nil, errors.WithStackTrace(TooManyLevelsOfInheritance{
-			ConfigPath:             terragruntOptions.TerragruntConfigPath,
-			FirstLevelIncludePath:  includeFromChild.Path,
-			SecondLevelIncludePath: terragruntInclude.Include.Path,
-		})
-	} else if terragruntInclude.Include != nil {
-		includeForDecode = terragruntInclude.Include
-	} else if includeFromChild != nil {
-		includeForDecode = includeFromChild
+	includeForDecode, err := getIncludedConfigForDecode(terragruntInclude, terragruntOptions, includeFromChild)
+	if err != nil {
+		return nil, err
 	}
 
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
@@ -317,23 +307,23 @@ func ParseConfigString(configString string, terragruntOptions *options.Terragrun
 	}
 }
 
-// This decodes only the `include` block of a terragrunt config, so its value can be used while decoding the rest of the
-// config.
-// For consistency, `include` in the call to `decodeHcl` is always assumed to be nil.
-// Either it really is nil (parsing the child config), or it shouldn't be used anyway (the parent config shouldn't have
-// an include block)
-func decodeAsTerragruntInclude(
-	file *hcl.File,
-	filename string,
+func getIncludedConfigForDecode(
+	parsedTerragruntInclude *terragruntInclude,
 	terragruntOptions *options.TerragruntOptions,
-	locals map[string]cty.Value,
-) (*terragruntInclude, error) {
-	terragruntInclude := terragruntInclude{}
-	err := decodeHcl(file, filename, &terragruntInclude, terragruntOptions, nil, locals)
-	if err != nil {
-		return nil, err
+	includeFromChild *IncludeConfig,
+) (*IncludeConfig, error) {
+	if parsedTerragruntInclude.Include != nil && includeFromChild != nil {
+		return nil, errors.WithStackTrace(TooManyLevelsOfInheritance{
+			ConfigPath:             terragruntOptions.TerragruntConfigPath,
+			FirstLevelIncludePath:  includeFromChild.Path,
+			SecondLevelIncludePath: parsedTerragruntInclude.Include.Path,
+		})
+	} else if parsedTerragruntInclude.Include != nil {
+		return parsedTerragruntInclude.Include, nil
+	} else if includeFromChild != nil {
+		return includeFromChild, nil
 	}
-	return &terragruntInclude, nil
+	return nil, nil
 }
 
 func decodeAsTerragruntConfigFile(
@@ -567,7 +557,7 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, c
 		}
 	}()
 
-	terragruntConfig := &TerragruntConfig{}
+	terragruntConfig := &TerragruntConfig{isPartial: false}
 
 	if terragruntConfigFromFile.RemoteState != nil {
 		remoteStateConfig, err := parseCtyValueToMap(terragruntConfigFromFile.RemoteState.Config)
