@@ -1688,6 +1688,18 @@ Note that the terragrunt run configuration is inherited from the current session
 with environment variables (such as `TERRAGRUNT_IAM_ROLE`) are automatically passed down to the execution context of
 the target terragrunt config when reading the output data.
 
+**Important**: Because `get_output` depends on the target config having been applied already, you will need to make sure
+that the specified `TARGET_TERRAGRUNT_CONFIG` is listed as a dependency in the `dependencies` block. Otherwise, this
+will fail when you run an `apply-all` since the output will be interpolated before the target config has applied.
+Additionally, during an `apply-all`, the terragrunt configuration has to be partially interpolated in order to build up
+the dependency tree. This means that you will have issues using `apply-all` if `get_output` is used in the following
+blocks, as it will be interpolated prior to any modules being applied:
+
+- `locals`
+- `include`
+- `dependencies`
+- `terraform`
+
 #### get_terragrunt_dir
 
 `get_terragrunt_dir()` returns the directory where the Terragrunt configuration file (by default `terragrunt.hcl`) lives.
