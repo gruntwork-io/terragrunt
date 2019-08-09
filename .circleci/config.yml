@@ -40,7 +40,9 @@ jobs:
           command: |
             mkdir -p logs
             run-go-tests --circle-ci-2 --parallelism 1 --packages "$(go list ./... | grep -v /test | tr '\n' ' ')"  | tee logs/unit.log
-            terratest_log_parser --testlog logs/unit.log --outputdir logs
+      - run:
+          command: terratest_log_parser --testlog logs/unit.log --outputdir logs
+          when: always
       - store_artifacts:
           path: logs
       - store_test_results:
@@ -59,7 +61,9 @@ jobs:
           command: |
             mkdir -p logs
             run-go-tests --circle-ci-2 --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
-            terratest_log_parser --testlog logs/integration.log --outputdir logs
+      - run:
+          command: terratest_log_parser --testlog logs/integration.log --outputdir logs
+          when: always
       - store_artifacts:
           path: logs
       - store_test_results:
