@@ -1437,6 +1437,7 @@ currently available are:
 * [path_relative_to_include()](#path_relative_to_include)
 * [path_relative_from_include()](#path_relative_from_include)
 * [get_env(NAME, DEFAULT)](#get_env)
+* [get_output(TARGET_TERRAGRUNT_CONFIG, [NAME])](#get_output)
 * [get_terragrunt_dir()](#get_terragrunt_dir)
 * [get_parent_terragrunt_dir()](#get_parent_terragrunt_dir)
 * [get_terraform_commands_that_need_vars()](#get_terraform_commands_that_need_vars)
@@ -1644,6 +1645,48 @@ variables](https://www.terraform.io/docs/configuration/environment-variables.htm
 prefix `TF_VAR_`, so one way to share a variable named `foo` between Terraform and Terragrunt is to set its value
 as the environment variable `TF_VAR_foo` and to read that value in using this `get_env()` built-in function.
 
+#### get_output
+
+`get_output(TARGET_TERRAGRUNT_CONFIG, [NAME])` returns the value of the output of the terraform module configured with
+the terragrunt config specified at `TARGET_TERRAGRUNT_CONFIG`. If provided a `NAME`, this function will return just the
+output indexed by `NAME`. Otherwise, this will return the all outputs as a map. The return type is preserved. For
+example, if the output is of type `number`, the returned value of `get_output` will also be of type `number`.
+
+Example:
+
+Suppose you had the following terragrunt live folder structure:
+
+```
+/terraform-code
+├── app1
+│   └── terragrunt.hcl
+├── tests
+│   ├── app2
+│   |   └── terragrunt.hcl
+│   └── app3
+│       └── terragrunt.hcl
+```
+
+Suppose `app1` had the following outputs:
+
+```
+output "instance_id" {}
+output "instance_name" {}
+```
+
+In `app3`, you can get each of these outputs using `get_output` in the following ways:
+
+```hcl
+inputs = {
+  instance_id_directly = get_output("${get_terragrunt_dir()}/../../app1", "instance_id")
+  instance_name_directly = get_output("${get_terragrunt_dir()}/../../app1", "instance_name")
+  instance_id_indirectly = get_output("${get_terragrunt_dir()}/../../app1")["instance_id"]
+}
+```
+
+Note that the terragrunt run configuration is inherited from the current session. What this means is that settings set
+with environment variables (such as `TERRAGRUNT_IAM_ROLE`) are automatically passed down to the execution context of
+the target terragrunt config when reading the output data.
 
 #### get_terragrunt_dir
 
