@@ -241,7 +241,14 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 		terragruntConfigPath,
 		opts,
 		nil,
-		[]config.PartialDecodeSectionType{config.TerraformBlock, config.DependenciesBlock},
+		[]config.PartialDecodeSectionType{
+			// Need for initializing the modules
+			config.TerraformBlock,
+
+			// Need for parsing out the dependencies
+			config.DependenciesBlock,
+			config.TerragruntOutputBlock,
+		},
 	)
 	if err != nil {
 		return nil, errors.WithStackTrace(ErrorProcessingModule{UnderlyingError: err, HowThisModuleWasFound: howThisModuleWasFound, ModulePath: terragruntConfigPath})

@@ -145,3 +145,147 @@ func TestPartialParseOnlyInheritsSelectedBlocksDependencies(t *testing.T) {
 	assert.Nil(t, terragruntConfig.Inputs)
 	assert.Nil(t, terragruntConfig.Locals)
 }
+
+func TestPartialParseTerragruntOutputBlockSetsTerragruntOutputs(t *testing.T) {
+	t.Parallel()
+
+	config := `
+terragrunt_output "vpc" {
+  config_path = "../app1"
+}
+`
+
+	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{TerragruntOutputBlock})
+	require.NoError(t, err)
+	assert.True(t, terragruntConfig.IsPartial)
+
+	require.NotNil(t, terragruntConfig.TerragruntOutputs)
+	assert.Equal(t, len(terragruntConfig.TerragruntOutputs), 1)
+	assert.Equal(t, terragruntConfig.TerragruntOutputs[0].Name, "vpc")
+	assert.Equal(t, terragruntConfig.TerragruntOutputs[0].ConfigPath, "../app1")
+}
+
+func TestPartialParseMultipleTerragruntOutputBlockSetsTerragruntOutputs(t *testing.T) {
+	t.Parallel()
+
+	config := `
+terragrunt_output "vpc" {
+  config_path = "../app1"
+}
+
+terragrunt_output "sql" {
+  config_path = "../db1"
+}
+`
+
+	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{TerragruntOutputBlock})
+	require.NoError(t, err)
+	assert.True(t, terragruntConfig.IsPartial)
+
+	require.NotNil(t, terragruntConfig.TerragruntOutputs)
+	assert.Equal(t, len(terragruntConfig.TerragruntOutputs), 2)
+	assert.Equal(t, terragruntConfig.TerragruntOutputs[0].Name, "vpc")
+	assert.Equal(t, terragruntConfig.TerragruntOutputs[0].ConfigPath, "../app1")
+	assert.Equal(t, terragruntConfig.TerragruntOutputs[1].Name, "sql")
+	assert.Equal(t, terragruntConfig.TerragruntOutputs[1].ConfigPath, "../db1")
+}
+
+func TestPartialParseTerragruntOutputBlockSetsDependencies(t *testing.T) {
+	t.Parallel()
+
+	config := `
+terragrunt_output "vpc" {
+  config_path = "../app1"
+}
+
+terragrunt_output "sql" {
+  config_path = "../db1"
+}
+`
+
+	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{TerragruntOutputBlock})
+	require.NoError(t, err)
+	assert.True(t, terragruntConfig.IsPartial)
+
+	require.NotNil(t, terragruntConfig.Dependencies)
+	assert.Equal(t, len(terragruntConfig.Dependencies.Paths), 2)
+	assert.Equal(t, terragruntConfig.Dependencies.Paths, []string{"../app1", "../db1"})
+}
+
+func TestPartialParseTerragruntOutputBlockMergesDependencies(t *testing.T) {
+	t.Parallel()
+
+	config := `
+terragrunt_output "vpc" {
+  config_path = "../app1"
+}
+
+dependencies {
+  paths = ["../vpc"]
+}
+
+terragrunt_output "sql" {
+  config_path = "../db1"
+}
+`
+
+	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependenciesBlock, TerragruntOutputBlock})
+	require.NoError(t, err)
+	assert.True(t, terragruntConfig.IsPartial)
+
+	require.NotNil(t, terragruntConfig.Dependencies)
+	assert.Equal(t, len(terragruntConfig.Dependencies.Paths), 3)
+	assert.Equal(t, terragruntConfig.Dependencies.Paths, []string{"../vpc", "../app1", "../db1"})
+}
+
+func TestPartialParseTerragruntOutputBlockMergesDependenciesOrdering(t *testing.T) {
+	t.Parallel()
+
+	config := `
+terragrunt_output "vpc" {
+  config_path = "../app1"
+}
+
+dependencies {
+  paths = ["../vpc"]
+}
+
+terragrunt_output "sql" {
+  config_path = "../db1"
+}
+`
+
+	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{TerragruntOutputBlock, DependenciesBlock})
+	require.NoError(t, err)
+	assert.True(t, terragruntConfig.IsPartial)
+
+	require.NotNil(t, terragruntConfig.Dependencies)
+	assert.Equal(t, len(terragruntConfig.Dependencies.Paths), 3)
+	assert.Equal(t, terragruntConfig.Dependencies.Paths, []string{"../app1", "../db1", "../vpc"})
+}
+
+func TestPartialParseTerragruntOutputBlockMergesDependenciesDedup(t *testing.T) {
+	t.Parallel()
+
+	config := `
+terragrunt_output "vpc" {
+  config_path = "../app1"
+}
+
+dependencies {
+  paths = ["../app1"]
+}
+
+terragrunt_output "sql" {
+  config_path = "../db1"
+}
+`
+
+	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{TerragruntOutputBlock, DependenciesBlock})
+	require.NoError(t, err)
+	assert.True(t, terragruntConfig.IsPartial)
+
+	require.NotNil(t, terragruntConfig.Dependencies)
+	assert.Equal(t, len(terragruntConfig.Dependencies.Paths), 2)
+	assert.Equal(t, terragruntConfig.Dependencies.Paths, []string{"../app1", "../db1"})
+}

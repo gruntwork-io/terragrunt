@@ -137,7 +137,7 @@ func attemptEvaluateLocals(
 		terragruntOptions.Logger.Printf("Could not convert evaluated locals to the execution context to evaluate additional locals")
 		return nil, evaluatedLocals, false, err
 	}
-	evalCtx := CreateTerragruntEvalContext(filename, terragruntOptions, nil, evaluatedLocalsAsCty)
+	evalCtx := CreateTerragruntEvalContext(filename, terragruntOptions, EvalContextExtensions{Locals: evaluatedLocalsAsCty})
 
 	// Track the locals that were evaluated for logging purposes
 	newlyEvaluatedLocalNames := []string{}

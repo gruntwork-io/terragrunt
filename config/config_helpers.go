@@ -1,9 +1,6 @@
 package config
 
 import (
-	"bufio"
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 
@@ -14,8 +11,6 @@ import (
 	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
-	"github.com/zclconf/go-cty/cty/gocty"
-	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -68,28 +63,40 @@ type EnvVar struct {
 	DefaultValue string
 }
 
+// EvalContextExtensions provides various extensions to the evaluation context to enhance the parsing capabilities.
+type EvalContextExtensions struct {
+	// Include is used to specify another config that should be imported and merged before the final TerragruntConfig is
+	// returned.
+	Include *IncludeConfig
+
+	// Locals are preevaluated variable bindings that can be used by reference in the code.
+	Locals *cty.Value
+
+	// DecodedTerragruntOutputs are output references of other terragrunt config, obtained by running `terragrunt
+	// output` on that target config.
+	DecodedTerragruntOutputs *cty.Value
+}
+
 // Create an EvalContext for the HCL2 parser. We can define functions and variables in this context that the HCL2 parser
 // will make available to the Terragrunt configuration during parsing.
 func CreateTerragruntEvalContext(
 	filename string,
 	terragruntOptions *options.TerragruntOptions,
-	include *IncludeConfig,
-	locals *cty.Value,
+	extensions EvalContextExtensions,
 ) *hcl.EvalContext {
 	tfscope := tflang.Scope{
 		BaseDir: filepath.Dir(filename),
 	}
 
 	terragruntFunctions := map[string]function.Function{
-		"find_in_parent_folders":                       wrapStringSliceToStringAsFuncImpl(findInParentFolders, include, terragruntOptions),
-		"path_relative_to_include":                     wrapVoidToStringAsFuncImpl(pathRelativeToInclude, include, terragruntOptions),
-		"path_relative_from_include":                   wrapVoidToStringAsFuncImpl(pathRelativeFromInclude, include, terragruntOptions),
-		"get_env":                                      wrapStringSliceToStringAsFuncImpl(getEnvironmentVariable, include, terragruntOptions),
-		"get_output":                                   wrapStringSliceToCtyValueAsFuncImpl(getTerragruntOutput, include, terragruntOptions),
-		"run_cmd":                                      wrapStringSliceToStringAsFuncImpl(runCommand, include, terragruntOptions),
-		"get_terragrunt_dir":                           wrapVoidToStringAsFuncImpl(getTerragruntDir, include, terragruntOptions),
-		"get_parent_terragrunt_dir":                    wrapVoidToStringAsFuncImpl(getParentTerragruntDir, include, terragruntOptions),
-		"get_aws_account_id":                           wrapVoidToStringAsFuncImpl(getAWSAccountID, include, terragruntOptions),
+		"find_in_parent_folders":                       wrapStringSliceToStringAsFuncImpl(findInParentFolders, extensions.Include, terragruntOptions),
+		"path_relative_to_include":                     wrapVoidToStringAsFuncImpl(pathRelativeToInclude, extensions.Include, terragruntOptions),
+		"path_relative_from_include":                   wrapVoidToStringAsFuncImpl(pathRelativeFromInclude, extensions.Include, terragruntOptions),
+		"get_env":                                      wrapStringSliceToStringAsFuncImpl(getEnvironmentVariable, extensions.Include, terragruntOptions),
+		"run_cmd":                                      wrapStringSliceToStringAsFuncImpl(runCommand, extensions.Include, terragruntOptions),
+		"get_terragrunt_dir":                           wrapVoidToStringAsFuncImpl(getTerragruntDir, extensions.Include, terragruntOptions),
+		"get_parent_terragrunt_dir":                    wrapVoidToStringAsFuncImpl(getParentTerragruntDir, extensions.Include, terragruntOptions),
+		"get_aws_account_id":                           wrapVoidToStringAsFuncImpl(getAWSAccountID, extensions.Include, terragruntOptions),
 		"get_terraform_commands_that_need_vars":        wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_VARS),
 		"get_terraform_commands_that_need_locking":     wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_LOCKING),
 		"get_terraform_commands_that_need_input":       wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_INPUT),
@@ -107,8 +114,12 @@ func CreateTerragruntEvalContext(
 	ctx := &hcl.EvalContext{
 		Functions: functions,
 	}
-	if locals != nil {
-		ctx.Variables = map[string]cty.Value{"local": *locals}
+	ctx.Variables = map[string]cty.Value{}
+	if extensions.Locals != nil {
+		ctx.Variables["local"] = *extensions.Locals
+	}
+	if extensions.DecodedTerragruntOutputs != nil {
+		ctx.Variables["terragrunt_output"] = *extensions.DecodedTerragruntOutputs
 	}
 	return ctx
 }
@@ -307,108 +318,6 @@ func getAWSAccountID(include *IncludeConfig, terragruntOptions *options.Terragru
 	return *identity.Account, nil
 }
 
-// Return the output from the state of another module, managed by terragrunt. This function will parse the provided
-// terragrunt config and extract the desired output from the remote state. Note that this will error if the targetted
-// module hasn't been applied yet. If you omit the output name, this will return a map of all the outputs from the
-// module.
-func getTerragruntOutput(params []string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
-	// args check: make sure the expected args are passed
-	numParams := len(params)
-	if numParams == 0 {
-		return nil, errors.WithStackTrace(EmptyStringNotAllowed("the target terragrunt config parameter"))
-	}
-	if numParams > 2 {
-		return nil, errors.WithStackTrace(WrongNumberOfParams{Func: "get_output", Expected: "1 or 2", Actual: numParams})
-	}
-
-	// target config check: make sure the target config exists
-	cwd := filepath.Dir(terragruntOptions.TerragruntConfigPath)
-	targetConfig := params[0]
-	if !filepath.IsAbs(targetConfig) {
-		targetConfig = util.JoinPath(cwd, targetConfig)
-	}
-	if util.IsDir(targetConfig) {
-		targetConfig = util.JoinPath(targetConfig, DefaultTerragruntConfigPath)
-	}
-	if !util.FileExists(targetConfig) {
-		return nil, errors.WithStackTrace(TerragruntOutputConfigNotFound{Path: targetConfig})
-	}
-
-	jsonBytes, err := runTerragruntOutputJson(terragruntOptions, targetConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	outputMap, err := terraformOutputJsonToCtyValueMap(targetConfig, jsonBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	if numParams == 2 {
-		// When indexing a single output, we can return the value directly after parsing the json.
-		tmp := outputMap[params[1]]
-		return &tmp, nil
-	} else {
-		// We need to convert the value map to a single cty.Value at the end for use in the terragrunt config.
-		convertedOutput, err := gocty.ToCtyValue(outputMap, generateTypeFromValuesMap(outputMap))
-		if err != nil {
-			err = TerragruntOutputEncodingError{Path: targetConfig, Err: err}
-		}
-		return &convertedOutput, errors.WithStackTrace(err)
-	}
-}
-
-// runTerragruntOutputJson uses terragrunt running functions to extract the json output from the target config. Make a
-// copy of the terragruntOptions so that we can reuse the same execution environment.
-func runTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targetConfig string) ([]byte, error) {
-	var stdoutBuffer bytes.Buffer
-	stdoutBufferWriter := bufio.NewWriter(&stdoutBuffer)
-	targetOptions := terragruntOptions.Clone(targetConfig)
-	targetOptions.TerraformCliArgs = []string{"output", "-json"}
-	targetOptions.Writer = stdoutBufferWriter
-	err := targetOptions.RunTerragrunt(targetOptions)
-	if err != nil {
-		return nil, errors.WithStackTrace(err)
-	}
-
-	stdoutBufferWriter.Flush()
-	jsonString := stdoutBuffer.String()
-	jsonBytes := []byte(jsonString)
-	util.Debugf(terragruntOptions.Logger, "Retrieved output from %s as json: %s", targetConfig, jsonString)
-	return jsonBytes, nil
-}
-
-// terraformOutputJsonToCtyValueMap takes the terraform output json and converts to a mapping between output keys to the
-// parsed cty.Value encoding of the json objects.
-func terraformOutputJsonToCtyValueMap(targetConfig string, jsonBytes []byte) (map[string]cty.Value, error) {
-	// When getting all outputs, terraform returns a json with the data containing metadata about the types, so we
-	// can't quite return the data directly. Instead, we will need further processing to get the output we want.
-	// To do so, we first Unmarshal the json into a simple go map to a OutputMeta struct.
-	type OutputMeta struct {
-		Sensitive bool            `json:"sensitive"`
-		Type      json.RawMessage `json:"type"`
-		Value     json.RawMessage `json:"value"`
-	}
-	var outputs map[string]OutputMeta
-	err := json.Unmarshal(jsonBytes, &outputs)
-	if err != nil {
-		return nil, errors.WithStackTrace(TerragruntOutputParsingError{Path: targetConfig, Err: err})
-	}
-	flattenedOutput := map[string]cty.Value{}
-	for k, v := range outputs {
-		outputType, err := ctyjson.UnmarshalType(v.Type)
-		if err != nil {
-			return nil, errors.WithStackTrace(TerragruntOutputParsingError{Path: targetConfig, Err: err})
-		}
-		outputVal, err := ctyjson.Unmarshal(v.Value, outputType)
-		if err != nil {
-			return nil, errors.WithStackTrace(TerragruntOutputParsingError{Path: targetConfig, Err: err})
-		}
-		flattenedOutput[k] = outputVal
-	}
-	return flattenedOutput, nil
-}
-
 // Custom error types
 
 type WrongNumberOfParams struct {
@@ -454,30 +363,4 @@ type EmptyStringNotAllowed string
 
 func (err EmptyStringNotAllowed) Error() string {
 	return fmt.Sprintf("Empty string value is not allowed for %s", string(err))
-}
-
-type TerragruntOutputConfigNotFound struct {
-	Path string
-}
-
-func (err TerragruntOutputConfigNotFound) Error() string {
-	return fmt.Sprintf("%s does not exist", err.Path)
-}
-
-type TerragruntOutputParsingError struct {
-	Path string
-	Err  error
-}
-
-func (err TerragruntOutputParsingError) Error() string {
-	return fmt.Sprintf("Could not parse output from terragrunt config %s. Underlying error: %s", err.Path, err.Err)
-}
-
-type TerragruntOutputEncodingError struct {
-	Path string
-	Err  error
-}
-
-func (err TerragruntOutputEncodingError) Error() string {
-	return fmt.Sprintf("Could not encode output from terragrunt config %s. Underlying error: %s", err.Path, err.Err)
 }

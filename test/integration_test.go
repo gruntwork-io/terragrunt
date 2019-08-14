@@ -1565,13 +1565,27 @@ func TestGetOutput(t *testing.T) {
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
-	assert.NoError(t, err)
+	assert.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr),
+	)
 
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
 	logBufferContentsLineByLine(t, showStderr, "show stderr")
 
-	// TODO verify 42
+	// verify expected output 42
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	app3Path := util.JoinPath(rootPath, "app3")
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", app3Path), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	assert.Equal(t, int(outputs["z"].Value.(float64)), 42)
 }
 
 func TestGetOutputTypeConversion(t *testing.T) {
@@ -1590,13 +1604,38 @@ func TestGetOutputTypeConversion(t *testing.T) {
 	// Then apply the outputs module
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
-	assert.NoError(t, err)
+	assert.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr),
+	)
 
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
 	logBufferContentsLineByLine(t, showStderr, "show stderr")
 
-	// TODO: check outputs
+	// Now check the outputs to make sure they are as expected
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	assert.Equal(t, outputs["bool"].Value, true)
+	assert.Equal(t, outputs["list_bool"].Value, []interface{}{true, false})
+	assert.Equal(t, outputs["list_number"].Value, []interface{}{1.0, 2.0, 3.0})
+	assert.Equal(t, outputs["list_string"].Value, []interface{}{"a", "b", "c"})
+	assert.Equal(t, outputs["map_bool"].Value, map[string]interface{}{"foo": true, "bar": false, "baz": true})
+	assert.Equal(t, outputs["map_number"].Value, map[string]interface{}{"foo": 42.0, "bar": 12345.0})
+	assert.Equal(t, outputs["map_string"].Value, map[string]interface{}{"foo": "bar"})
+	assert.Equal(t, outputs["number"].Value, 42.0)
+	assert.Equal(t, outputs["object"].Value, map[string]interface{}{"list": []interface{}{1.0, 2.0, 3.0}, "map": map[string]interface{}{"foo": "bar"}, "num": 42.0, "str": "string"})
+	assert.Equal(t, outputs["string"].Value, "string")
+	assert.Equal(t, outputs["from_env"].Value, "default")
+
 }
 
 func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {

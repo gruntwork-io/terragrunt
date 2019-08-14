@@ -55,6 +55,47 @@ type terragruntOutput struct {
 	Remain           hcl.Body           `hcl:",remain"`
 }
 
+// DecodeBaseBlocks takes in a parsed HCL2 file and decodes the base blocks. Base blocks are blocks that should always
+// be decoded even in partial decoding, because they provide bindings that are necessary for parsing any block in the
+// file. Currently base blocks are:
+// - locals
+// - include
+func DecodeBaseBlocks(
+	terragruntOptions *options.TerragruntOptions,
+	parser *hclparse.Parser,
+	hclFile *hcl.File,
+	filename string,
+	includeFromChild *IncludeConfig,
+) (*cty.Value, *terragruntInclude, *IncludeConfig, error) {
+	// Evaluate all the expressions in the locals block separately and generate the variables list to use in the
+	// evaluation context.
+	locals, err := evaluateLocalsBlock(terragruntOptions, parser, hclFile, filename)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	localsAsCty, err := convertLocalsMapToCtyVal(locals)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	// Decode just the `include` block, and verify that it's allowed here
+	terragruntInclude, err := decodeAsTerragruntInclude(
+		hclFile,
+		filename,
+		terragruntOptions,
+		EvalContextExtensions{Locals: localsAsCty},
+	)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	includeForDecode, err := getIncludedConfigForDecode(terragruntInclude, terragruntOptions, includeFromChild)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return localsAsCty, terragruntInclude, includeForDecode, nil
+}
+
 func PartialParseConfigFile(
 	filename string,
 	terragruntOptions *options.TerragruntOptions,
@@ -100,21 +141,16 @@ func PartialParseConfigString(
 		return nil, err
 	}
 
-	// Evaluate all the expressions in the locals block separately and generate the variables list to use in the
-	// evaluation context.
-	locals, err := evaluateLocalsBlock(terragruntOptions, parser, file, filename)
+	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
+	localsAsCty, terragruntInclude, includeForDecode, err := DecodeBaseBlocks(terragruntOptions, parser, file, filename, includeFromChild)
 	if err != nil {
 		return nil, err
 	}
 
-	// Decode just the `include` block, and verify that it's allowed here
-	terragruntInclude, err := decodeAsTerragruntInclude(file, filename, terragruntOptions, locals)
-	if err != nil {
-		return nil, err
-	}
-	includeForDecode, err := getIncludedConfigForDecode(terragruntInclude, terragruntOptions, includeFromChild)
-	if err != nil {
-		return nil, err
+	// Initialize evaluation context extensions from base blocks.
+	contextExtensions := EvalContextExtensions{
+		Locals:  localsAsCty,
+		Include: includeForDecode,
 	}
 
 	output := TerragruntConfig{IsPartial: true}
@@ -125,28 +161,46 @@ func PartialParseConfigString(
 		switch decode {
 		case DependenciesBlock:
 			decoded := terragruntDependencies{}
-			err := decodeHcl(file, filename, &decoded, terragruntOptions, includeForDecode, locals)
+			err := decodeHcl(file, filename, &decoded, terragruntOptions, contextExtensions)
 			if err != nil {
 				return nil, err
 			}
-			output.Dependencies = decoded.Dependencies
+
+			// If we already decoded some dependencies, merge them in. Otherwise, set as the new list.
+			if output.Dependencies != nil {
+				output.Dependencies.Merge(decoded.Dependencies)
+			} else {
+				output.Dependencies = decoded.Dependencies
+			}
+
 		case TerraformBlock:
 			decoded := terragruntTerraform{}
-			err := decodeHcl(file, filename, &decoded, terragruntOptions, includeForDecode, locals)
+			err := decodeHcl(file, filename, &decoded, terragruntOptions, contextExtensions)
 			if err != nil {
 				return nil, err
 			}
 			output.Terraform = decoded.Terraform
+
 		case TerragruntOutputBlock:
 			decoded := terragruntOutput{}
-			err := decodeHcl(file, filename, &decoded, terragruntOptions, includeForDecode, locals)
+			err := decodeHcl(file, filename, &decoded, terragruntOptions, contextExtensions)
 			if err != nil {
 				return nil, err
 			}
-			// TODO: how to convert TerragruntOutput list into the terragrunt config?
+			output.TerragruntOutputs = decoded.TerragruntOutput
+
+			// Convert terragrunt_output blocks into module depenency lists. If we already decoded some dependencies,
+			// merge them in. Otherwise, set as the new list.
+			dependencies := terragruntOutputsToModuleDependencies(decoded.TerragruntOutput)
+			if output.Dependencies != nil {
+				output.Dependencies.Merge(dependencies)
+			} else {
+				output.Dependencies = dependencies
+			}
+
 		case TerragruntFlags:
 			decoded := terragruntFlags{}
-			err := decodeHcl(file, filename, &decoded, terragruntOptions, includeForDecode, locals)
+			err := decodeHcl(file, filename, &decoded, terragruntOptions, contextExtensions)
 			if err != nil {
 				return nil, err
 			}
@@ -156,6 +210,7 @@ func PartialParseConfigString(
 			if decoded.Skip != nil {
 				output.Skip = *decoded.Skip
 			}
+
 		default:
 			return nil, InvalidPartialBlockName{decode}
 		}
@@ -200,10 +255,10 @@ func decodeAsTerragruntInclude(
 	file *hcl.File,
 	filename string,
 	terragruntOptions *options.TerragruntOptions,
-	locals map[string]cty.Value,
+	extensions EvalContextExtensions,
 ) (*terragruntInclude, error) {
 	terragruntInclude := terragruntInclude{}
-	err := decodeHcl(file, filename, &terragruntInclude, terragruntOptions, nil, locals)
+	err := decodeHcl(file, filename, &terragruntInclude, terragruntOptions, extensions)
 	if err != nil {
 		return nil, err
 	}

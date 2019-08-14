@@ -26,7 +26,7 @@ terragrunt_output "sql" {
 	require.NoError(t, err)
 
 	decoded := terragruntOutput{}
-	require.NoError(t, decodeHcl(file, filename, &decoded, mockOptionsForTest(t), nil, nil))
+	require.NoError(t, decodeHcl(file, filename, &decoded, mockOptionsForTest(t), EvalContextExtensions{}))
 
 	assert.Equal(t, len(decoded.TerragruntOutput), 2)
 	assert.Equal(t, decoded.TerragruntOutput[0].Name, "vpc")
@@ -49,7 +49,7 @@ locals {
 	require.NoError(t, err)
 
 	decoded := terragruntOutput{}
-	require.NoError(t, decodeHcl(file, filename, &decoded, mockOptionsForTest(t), nil, nil))
+	require.NoError(t, decodeHcl(file, filename, &decoded, mockOptionsForTest(t), EvalContextExtensions{}))
 	assert.Equal(t, len(decoded.TerragruntOutput), 0)
 }
 
@@ -67,5 +67,5 @@ terragrunt_output {
 	require.NoError(t, err)
 
 	decoded := terragruntOutput{}
-	require.Error(t, decodeHcl(file, filename, &decoded, mockOptionsForTest(t), nil, nil))
+	require.Error(t, decodeHcl(file, filename, &decoded, mockOptionsForTest(t), EvalContextExtensions{}))
 }
