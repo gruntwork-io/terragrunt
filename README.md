@@ -2217,10 +2217,10 @@ outputs from `terragrunt_output` into `locals`. On the other hand, for the same 
 
 Currently terragrunt parses the config in the following order:
 
-1. `locals` blocks
-1. `include` blocks
-1. `dependencies` blocks
-1. `terragrunt_output` blocks
+1. `locals` block
+1. `include` block
+1. `dependencies` block
+1. `terragrunt_output` blocks, including calling `terragrunt output` on the dependent modules to retrieve the outputs
 1. Everything else
 1. The config referenced by `include`
 1. A merge operation between the config referenced by `include` and the current config.
@@ -2228,6 +2228,22 @@ Currently terragrunt parses the config in the following order:
 Blocks that are parsed earlier in the process will be made available for use in the parsing of later blocks. Similarly,
 you cannot use blocks that are parsed later earlier in the process (e.g you can't reference `terragrunt_output` in
 `locals`, `include`, or `dependencies` blocks).
+
+Note that the parsing order is slightly different when using the `-all` flavors of the command. In the `-all` flavors of
+the command, Terragrunt parses the configuration twice. In the first pass, it follows the following parsing order:
+
+1. `locals` block of all configurations in the tree
+1. `include` block of all configurations in the tree
+1. `terragrunt_output` blocks of all configurations in the tree, but does NOT retrieve the outputs
+1. `terraform` block of all configurations in the tree
+1. `dependencies` block of all configurations in the tree
+
+The results of this pass are then used to build the dependency graph of the modules in the tree. Once the graph is
+constructed, Terragrunt will loop through the modules and run the specified command. It will then revert to the single
+configuration parsing order specified above for each module as it runs the command.
+
+This allows Terragrunt to avoid resolving `terragrunt_output` on modules that haven't been applied yet when doing a
+clean deployment from scratch with `apply-all`.
 
 
 ### Formatting terragrunt.hcl
