@@ -13,6 +13,17 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+// PartialDecodeSectionType is an enum that is used to list out which blocks/sections of the terragrunt config should be
+// decoded in a partial decode.
+type PartialDecodeSectionType int
+
+const (
+	DependenciesBlock PartialDecodeSectionType = iota
+	TerraformBlock
+	TerragruntOutputBlock
+	TerragruntFlags
+)
+
 // terragruntInclude is a struct that can be used to only decode the include block.
 type terragruntInclude struct {
 	Include *IncludeConfig `hcl:"include,block"`
@@ -38,11 +49,17 @@ type terragruntFlags struct {
 	Remain         hcl.Body `hcl:",remain"`
 }
 
+// terragruntOutput is a struct that can be used to only decode the terragrunt_output blocks in the terragrrunt config
+type terragruntOutput struct {
+	TerragruntOutput []TerragruntOutput `hcl:"terragrunt_output,block"`
+	Remain           hcl.Body           `hcl:",remain"`
+}
+
 func PartialParseConfigFile(
 	filename string,
 	terragruntOptions *options.TerragruntOptions,
 	include *IncludeConfig,
-	decodeList []string,
+	decodeList []PartialDecodeSectionType,
 ) (*TerragruntConfig, error) {
 	configString, err := util.ReadFileAsString(filename)
 	if err != nil {
@@ -60,9 +77,10 @@ func PartialParseConfigFile(
 // ParitalParseConfigString partially parses and decodes the provided string. Which blocks/attributes to decode is
 // controlled by the function parameter decodeList. These blocks/attributes are parsed and set on the output
 // TerragruntConfig. Valid values are:
-// - dependencies : Parses the `dependencies` block in the config
-// - terraform : Parses the `terraform` block in the config
-// - flags : Parses the boolean flags `prevent_destroy` and `skip` in the config
+// - DependenciesBlock: Parses the `dependencies` block in the config
+// - TerraformBlock: Parses the `terraform` block in the config
+// - TerragruntOutputBlock: Parses the `terragrunt_output` block in the config
+// - TerragruntFlags: Parses the boolean flags `prevent_destroy` and `skip` in the config
 // Note that the following blocks are always decoded:
 // - locals
 // - include
@@ -73,7 +91,7 @@ func PartialParseConfigString(
 	terragruntOptions *options.TerragruntOptions,
 	includeFromChild *IncludeConfig,
 	filename string,
-	decodeList []string,
+	decodeList []PartialDecodeSectionType,
 ) (*TerragruntConfig, error) {
 	// Parse the HCL string into an AST body that can be decoded multiple times later without having to re-parse
 	parser := hclparse.NewParser()
@@ -105,21 +123,28 @@ func PartialParseConfigString(
 	// them into the output TerragruntConfig struct.
 	for _, decode := range decodeList {
 		switch decode {
-		case "dependencies":
+		case DependenciesBlock:
 			decoded := terragruntDependencies{}
 			err := decodeHcl(file, filename, &decoded, terragruntOptions, includeForDecode, locals)
 			if err != nil {
 				return nil, err
 			}
 			output.Dependencies = decoded.Dependencies
-		case "terraform":
+		case TerraformBlock:
 			decoded := terragruntTerraform{}
 			err := decodeHcl(file, filename, &decoded, terragruntOptions, includeForDecode, locals)
 			if err != nil {
 				return nil, err
 			}
 			output.Terraform = decoded.Terraform
-		case "flags":
+		case TerragruntOutputBlock:
+			decoded := terragruntOutput{}
+			err := decodeHcl(file, filename, &decoded, terragruntOptions, includeForDecode, locals)
+			if err != nil {
+				return nil, err
+			}
+			// TODO: how to convert TerragruntOutput list into the terragrunt config?
+		case TerragruntFlags:
 			decoded := terragruntFlags{}
 			err := decodeHcl(file, filename, &decoded, terragruntOptions, includeForDecode, locals)
 			if err != nil {
@@ -147,7 +172,7 @@ func PartialParseConfigString(
 	return &output, nil
 }
 
-func partialParseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *options.TerragruntOptions, decodeList []string) (*TerragruntConfig, error) {
+func partialParseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *options.TerragruntOptions, decodeList []PartialDecodeSectionType) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
 		return nil, errors.WithStackTrace(IncludedConfigMissingPath(terragruntOptions.TerragruntConfigPath))
 	}
@@ -188,9 +213,9 @@ func decodeAsTerragruntInclude(
 // Custom error types
 
 type InvalidPartialBlockName struct {
-	name string
+	sectionCode PartialDecodeSectionType
 }
 
 func (err InvalidPartialBlockName) Error() string {
-	return fmt.Sprintf("Unrecognized partial block name %s. This is most likely an error in terragrunt. Please file a bug report on the project repository.", err.name)
+	return fmt.Sprintf("Unrecognized partial block code %d. This is most likely an error in terragrunt. Please file a bug report on the project repository.", err.sectionCode)
 }
