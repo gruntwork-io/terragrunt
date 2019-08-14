@@ -1117,7 +1117,7 @@ If any of the modules failed to deploy, then Terragrunt will not attempt to depl
 
 #### Dependencies between modules
 
-You can also specify depdencies explicitly. Consider the following file structure:
+You can also specify dependencies explicitly. Consider the following file structure:
 
 ```
 root
