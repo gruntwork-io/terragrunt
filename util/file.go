@@ -1,6 +1,8 @@
 package util
 
 import (
+	"encoding/gob"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -8,6 +10,7 @@ import (
 	"strings"
 
 	"fmt"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/mattn/go-zglob"
 )
@@ -48,17 +51,6 @@ func CanonicalPaths(paths []string, basePath string) ([]string, error) {
 	}
 
 	return canonicalPaths, nil
-}
-
-// Delete the given list of files. Note: this function ONLY deletes files and will return an error if you pass in a
-// folder path.
-func DeleteFiles(files []string) error {
-	for _, file := range files {
-		if err := os.Remove(file); err != nil {
-			return errors.WithStackTrace(err)
-		}
-	}
-	return nil
 }
 
 // Returns true if the given regex can be found in any of the files matched by the given glob
@@ -138,35 +130,87 @@ func ReadFileAsString(path string) (string, error) {
 }
 
 // Copy the files and folders within the source folder into the destination folder. Note that hidden files and folders
-// (those starting with a dot) will be skipped.
-func CopyFolderContents(source string, destination string) error {
-	files, err := ioutil.ReadDir(source)
+// (those starting with a dot) will be skipped. Will create a specified manifest file that contains paths of all copied files.
+func CopyFolderContents(source, destination, manifestFile string) error {
+	return CopyFolderContentsWithFilter(source, destination, manifestFile, func(path string) bool {
+		return !PathContainsHiddenFileOrFolder(path)
+	})
+}
+
+// Copy the files and folders within the source folder into the destination folder. Pass each file and folder through
+// the given filter function and only copy it if the filter returns true. Will create a specified manifest file
+// that contains paths of all copied files.
+func CopyFolderContentsWithFilter(source, destination, manifestFile string, filter func(path string) bool) error {
+	if err := os.MkdirAll(destination, 0700); err != nil {
+		return errors.WithStackTrace(err)
+	}
+	manifest := newFileManifest(destination, manifestFile)
+	if err := manifest.Clean(); err != nil {
+		return errors.WithStackTrace(err)
+	}
+	if err := manifest.Create(); err != nil {
+		return errors.WithStackTrace(err)
+	}
+	defer manifest.Close()
+
+	// Why use filepath.Glob here? The original implementation used ioutil.ReadDir, but that method calls lstat on all
+	// the files/folders in the directory, including files/folders you may want to explicitly skip. The next attempt
+	// was to use filepath.Walk, but that doesn't work because it ignores symlinks. So, now we turn to filepath.Glob.
+	files, err := filepath.Glob(fmt.Sprintf("%s/*", source))
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 
 	for _, file := range files {
-		src := filepath.Join(source, file.Name())
-		dest := filepath.Join(destination, file.Name())
+		fileRelativePath, err := GetPathRelativeTo(file, source)
+		if err != nil {
+			return err
+		}
 
-		if PathContainsHiddenFileOrFolder(file.Name()) {
+		if !filter(fileRelativePath) {
 			continue
-		} else if file.IsDir() {
-			if err := os.MkdirAll(dest, file.Mode()); err != nil {
+		}
+
+		dest := filepath.Join(destination, fileRelativePath)
+
+		if IsDir(file) {
+			info, err := os.Lstat(file)
+			if err != nil {
 				return errors.WithStackTrace(err)
 			}
 
-			if err := CopyFolderContents(src, dest); err != nil {
+			if err := os.MkdirAll(dest, info.Mode()); err != nil {
+				return errors.WithStackTrace(err)
+			}
+
+			if err := CopyFolderContentsWithFilter(file, dest, manifestFile, filter); err != nil {
+				return err
+			}
+			if err := manifest.AddDirectory(dest); err != nil {
 				return err
 			}
 		} else {
-			if err := CopyFile(src, dest); err != nil {
+			parentDir := filepath.Dir(dest)
+			if err := os.MkdirAll(parentDir, 0700); err != nil {
+				return errors.WithStackTrace(err)
+			}
+			if err := CopyFile(file, dest); err != nil {
+				return err
+			}
+			if err := manifest.AddFile(dest); err != nil {
 				return err
 			}
 		}
 	}
 
 	return nil
+}
+
+// IsSymLink returns true if the given file is a symbolic link
+// Per https://stackoverflow.com/a/18062079/2308858
+func IsSymLink(path string) bool {
+	fileInfo, err := os.Lstat(path)
+	return err == nil && fileInfo.Mode()&os.ModeSymlink != 0
 }
 
 func PathContainsHiddenFileOrFolder(path string) bool {
@@ -218,4 +262,104 @@ func JoinTerraformModulePath(modulesFolder string, path string) string {
 	cleanModulesFolder := strings.TrimRight(modulesFolder, `/\`)
 	cleanPath := strings.TrimLeft(path, `/\`)
 	return fmt.Sprintf("%s//%s", cleanModulesFolder, cleanPath)
+}
+
+// fileManifest represents a manifest with paths of all files copied by terragrunt.
+// This allows to clean those files on subsequent runs.
+// The problem is as follows: terragrunt copies the terraform source code first to "working directory" using go-getter,
+// and then copies all files from the working directory to the above dir.
+// It works fine on the first run, but if we delete a file from the current terragrunt directory, we want it
+// to be cleaned in the "working directory" as well. Since we don't really know what can get copied by go-getter,
+// we have to track all the files we touch in a manifest. This way we know exactly which files we need to clean on
+// subsequent runs.
+type fileManifest struct {
+	ManifestFolder string // this is a folder that has the manifest in it
+	ManifestFile   string // this is the manifest file name
+	encoder        *gob.Encoder
+	fileHandle     *os.File
+}
+
+// fileManifestEntry represents an entry in the fileManifest.
+// It uses a struct with IsDir flag so that we won't have to call Stat on every
+// file to determine if it's a directory or a file
+type fileManifestEntry struct {
+	Path  string
+	IsDir bool
+}
+
+// Clean will recursively remove all files specified in the manifest
+func (manifest *fileManifest) Clean() error {
+	return manifest.clean(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
+}
+
+// clean cleans the files in the manifest. If it has a directory entry, then it recursively calls clean()
+func (manifest *fileManifest) clean(manifestPath string) error {
+	// if manifest file doesn't exist, just exit
+	if !FileExists(manifestPath) {
+		return nil
+	}
+	file, err := os.Open(manifestPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	decoder := gob.NewDecoder(file)
+	// decode paths one by one
+	for {
+		var manifestEntry fileManifestEntry
+		err = decoder.Decode(&manifestEntry)
+		if err != nil {
+			if err == io.EOF {
+				break
+			} else {
+				return err
+			}
+		}
+		if manifestEntry.IsDir {
+			// join the directory entry path with the manifest file name and call clean()
+			if err := manifest.clean(filepath.Join(manifestEntry.Path, manifest.ManifestFile)); err != nil {
+				return errors.WithStackTrace(err)
+			}
+		} else {
+			if err := os.Remove(manifestEntry.Path); err != nil && !os.IsNotExist(err) {
+				return errors.WithStackTrace(err)
+			}
+		}
+	}
+	// remove the manifest itself
+	// it will run after the close defer
+	defer os.Remove(manifestPath)
+
+	return nil
+}
+
+// Create will create the manifest file
+func (manifest *fileManifest) Create() error {
+	fileHandle, err := os.OpenFile(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	manifest.fileHandle = fileHandle
+	manifest.encoder = gob.NewEncoder(manifest.fileHandle)
+
+	return nil
+}
+
+// AddFile will add the file path to the manifest file. Please make sure to run Create() before using this
+func (manifest *fileManifest) AddFile(path string) error {
+	return manifest.encoder.Encode(fileManifestEntry{Path: path, IsDir: false})
+}
+
+// AddDirectory will add the directory path to the manifest file. Please make sure to run Create() before using this
+func (manifest *fileManifest) AddDirectory(path string) error {
+	return manifest.encoder.Encode(fileManifestEntry{Path: path, IsDir: true})
+}
+
+// Close closes the manifest file handle
+func (manifest *fileManifest) Close() error {
+	return manifest.fileHandle.Close()
+}
+
+func newFileManifest(manifestFolder string, manifestFile string) *fileManifest {
+	return &fileManifest{ManifestFolder: manifestFolder, ManifestFile: manifestFile}
 }

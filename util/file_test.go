@@ -1,12 +1,16 @@
 package util
 
 import (
+	"io/ioutil"
+	"path"
 	"path/filepath"
 	"testing"
 
 	"fmt"
+
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetPathRelativeTo(t *testing.T) {
@@ -117,4 +121,40 @@ func TestJoinTerraformModulePath(t *testing.T) {
 			assert.Equal(t, testCase.expected, actual)
 		})
 	}
+}
+
+func TestFileManifest(t *testing.T) {
+	t.Parallel()
+
+	var testfiles []string
+
+	// create temp dir
+	dir, err := ioutil.TempDir("", ".terragrunt-test-dir")
+	require.NoError(t, err)
+	for _, file := range []string{"file1", "file2"} {
+		// create temp files in the dir
+		f, err := ioutil.TempFile(dir, file)
+		assert.NoError(t, err, f.Close())
+		testfiles = append(testfiles, f.Name())
+	}
+	// will later test if the file already doesn't exist
+	testfiles = append(testfiles, path.Join(dir, "ephemeral-file-that-doesnt-exist.txt"))
+
+	// create a manifest
+	manifest := newFileManifest(dir, ".terragrunt-test-manifest")
+	require.Nil(t, manifest.Create())
+	// check the file manifest has been created
+	require.FileExists(t, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
+	for _, file := range testfiles {
+		assert.NoError(t, manifest.AddFile(file))
+	}
+	// check for a non-existent directory as well
+	assert.NoError(t, manifest.AddDirectory(path.Join(dir, "ephemeral-directory-that-doesnt-exist")))
+
+	require.NoError(t, manifest.Clean())
+	// test if the files have been deleted
+	for _, file := range testfiles {
+		assert.Equal(t, FileExists(file), false)
+	}
+
 }

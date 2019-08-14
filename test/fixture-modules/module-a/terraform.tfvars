@@ -1,5 +1,0 @@
-terragrunt = {
-  terraform {
-    source = "test"
-  }
-}

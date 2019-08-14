@@ -5,6 +5,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -35,9 +36,7 @@ func TestFindStackInSubfolders(t *testing.T) {
 	terragruntOptions.WorkingDir = envFolder
 
 	stack, err := FindStackInSubfolders(terragruntOptions)
-	if err != nil {
-		t.Fatalf("Failed when calling method under test: %s\n", err.Error())
-	}
+	require.NoError(t, err)
 
 	var modulePaths []string
 
@@ -66,7 +65,7 @@ func createTempFolder(t *testing.T) string {
 
 // Create a dummy Terragrunt config file at each of the given paths
 func writeDummyTerragruntConfigs(t *testing.T, tmpFolder string, paths []string) {
-	contents := []byte("terragrunt = {\nterraform {\nsource = \"test\"\n}\n}")
+	contents := []byte("terraform {\nsource = \"test\"\n}\n")
 	for _, path := range paths {
 		absPath := util.JoinPath(tmpFolder, path)
 

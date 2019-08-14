@@ -21,7 +21,7 @@ func NewMultiError(errs ...error) error {
 		return nil
 	}
 
-	return MultiError{Errors: nilsRemoved}
+	return WithStackTrace(MultiError{Errors: nilsRemoved})
 }
 
 func (errs MultiError) Error() string {

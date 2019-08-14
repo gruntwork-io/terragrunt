@@ -4,7 +4,7 @@ workspace_root: &workspace_root
 defaults: &defaults
   working_directory: *workspace_root
   docker:
-  - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:latest
+  - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:tf-0.12
 
 version: 2
 jobs:
@@ -52,6 +52,9 @@ jobs:
       - checkout
       - attach_workspace:
           at: *workspace_root
+      # Make GCP Service Account creds available as a file
+      - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
+      - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
       - run:
           command: |
             mkdir -p logs

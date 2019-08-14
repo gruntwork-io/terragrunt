@@ -26,12 +26,12 @@ import (
 type ExtendedRemoteStateConfigS3 struct {
 	remoteStateConfigS3 RemoteStateConfigS3
 
-	S3BucketTags                []map[string]string `mapstructure:"s3_bucket_tags"`
-	DynamotableTags             []map[string]string `mapstructure:"dynamodb_table_tags"`
-	SkipBucketVersioning        bool                `mapstructure:"skip_bucket_versioning"`
-	SkipBucketSSEncryption      bool                `mapstructure:"skip_bucket_ssencryption"`
-	SkipBucketAccessLogging     bool                `mapstructure:"skip_bucket_accesslogging"`
-	EnableLockTableSSEncryption bool                `mapstructure:"enable_lock_table_ssencryption"`
+	S3BucketTags                map[string]string `mapstructure:"s3_bucket_tags"`
+	DynamotableTags             map[string]string `mapstructure:"dynamodb_table_tags"`
+	SkipBucketVersioning        bool              `mapstructure:"skip_bucket_versioning"`
+	SkipBucketSSEncryption      bool              `mapstructure:"skip_bucket_ssencryption"`
+	SkipBucketAccessLogging     bool              `mapstructure:"skip_bucket_accesslogging"`
+	EnableLockTableSSEncryption bool              `mapstructure:"enable_lock_table_ssencryption"`
 }
 
 // These are settings that can appear in the remote_state config that are ONLY used by Terragrunt and NOT forwarded
@@ -95,12 +95,16 @@ type S3Initializer struct{}
 //
 // 1. Any of the existing backend settings are different than the current config
 // 2. The configured S3 bucket or DynamoDB table does not exist
-func (s3Initializer S3Initializer) NeedsInitialization(config map[string]interface{}, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	if !configValuesEqual(config, existingBackend, terragruntOptions) {
+func (s3Initializer S3Initializer) NeedsInitialization(remoteState *RemoteState, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	if remoteState.DisableInit {
+		return false, nil
+	}
+
+	if !configValuesEqual(remoteState.Config, existingBackend, terragruntOptions) {
 		return true, nil
 	}
 
-	s3Config, err := parseS3Config(config)
+	s3Config, err := parseS3Config(remoteState.Config)
 	if err != nil {
 		return false, err
 	}
@@ -176,7 +180,7 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 		delete(config, key)
 	}
 
-	if !reflect.DeepEqual(existingBackend.Config, config) {
+	if !terraformStateConfigEqual(existingBackend.Config, config) {
 		terragruntOptions.Logger.Printf("Backend config has changed from %s to %s", existingBackend.Config, config)
 		return false
 	}
@@ -186,8 +190,8 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 
 // Initialize the remote state S3 bucket specified in the given config. This function will validate the config
 // parameters, create the S3 bucket if it doesn't already exist, and check that versioning is enabled.
-func (s3Initializer S3Initializer) Initialize(config map[string]interface{}, terragruntOptions *options.TerragruntOptions) error {
-	s3ConfigExtended, err := parseExtendedS3Config(config)
+func (s3Initializer S3Initializer) Initialize(remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error {
+	s3ConfigExtended, err := parseExtendedS3Config(remoteState.Config)
 	if err != nil {
 		return err
 	}
@@ -284,16 +288,6 @@ func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3, terragruntOpt
 		terragruntOptions.Logger.Printf("WARNING: encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enabling encryption!", config.Bucket)
 	}
 
-	if len(extendedConfig.S3BucketTags) > 1 {
-		return errors.WithStackTrace(MultipleTagsDeclarations("S3 bucket"))
-
-	}
-
-	if len(extendedConfig.DynamotableTags) > 1 {
-		return errors.WithStackTrace(MultipleTagsDeclarations("DynamoDB table"))
-
-	}
-
 	return nil
 }
 
@@ -308,7 +302,19 @@ func createS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 		}
 
 		if shouldCreateBucket {
-			return CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client, config, terragruntOptions)
+			// Creating the S3 bucket occasionally fails with eventual consistency errors: e.g., the S3 HeadBucket
+			// operation says the bucket exists, but a subsequent call to enable versioning on that bucket fails with
+			// the error "NoSuchBucket: The specified bucket does not exist." Therefore, when creating and configuring
+			// the S3 bucket, we do so in a retry loop with a sleep between retries that will hopefully work around the
+			// eventual consistency issues. Each S3 operation should be idempotent, so redoing steps that have already
+			// been performed should be a no-op.
+			description := fmt.Sprintf("Create S3 bucket %s", config.remoteStateConfigS3.Bucket)
+			maxRetries := 3
+			sleepBetweenRetries := 10 * time.Second
+
+			return util.DoWithRetry(description, maxRetries, sleepBetweenRetries, terragruntOptions.Logger, func() error {
+				return CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client, config, terragruntOptions)
+			})
 		}
 	}
 
@@ -348,6 +354,10 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 		return err
 	}
 
+	if err := EnablePublicAccessBlockingForS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
+		return err
+	}
+
 	if err := TagS3Bucket(s3Client, config, terragruntOptions); err != nil {
 		return err
 	}
@@ -376,15 +386,14 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 func TagS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 
 	if config.S3BucketTags == nil || len(config.S3BucketTags) == 0 {
-		terragruntOptions.Logger.Println("No tags for S3 bucket given.")
+		terragruntOptions.Logger.Printf("No tags specified for bucket %s.", config.remoteStateConfigS3.Bucket)
 		return nil
 	}
 
 	// There must be one entry in the list
-	var tags = config.S3BucketTags[0]
-	var tagsConverted = convertTags(tags)
+	var tagsConverted = convertTags(config.S3BucketTags)
 
-	terragruntOptions.Logger.Printf("Tagging S3 bucket with %s", tags)
+	terragruntOptions.Logger.Printf("Tagging S3 bucket with %s", config.S3BucketTags)
 
 	putBucketTaggingInput := s3.PutBucketTaggingInput{
 		Bucket: aws.String(config.remoteStateConfigS3.Bucket),
@@ -419,6 +428,7 @@ func convertTags(tags map[string]string) []*s3.Tag {
 // AWS is eventually consistent, so after creating an S3 bucket, this method can be used to wait until the information
 // about that S3 bucket has propagated everywhere
 func WaitUntilS3BucketExists(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Printf("Waiting for bucket %s to be created", config.Bucket)
 	for retries := 0; retries < MAX_RETRIES_WAITING_FOR_S3_BUCKET; retries++ {
 		if DoesS3BucketExist(s3Client, config) {
 			terragruntOptions.Logger.Printf("S3 bucket %s created.", config.Bucket)
@@ -497,6 +507,25 @@ func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConf
 	return nil
 }
 
+// Block all public access policies on the bucket and objects. These settings ensure that a misconfiguration of the
+// bucket or objects will not accidentally enable public access to those items. See
+// https://docs.aws.amazon.com/AmazonS3/latest/dev/access-control-block-public-access.html for more information.
+func EnablePublicAccessBlockingForS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Printf("Blocking all public access to S3 bucket %s", config.Bucket)
+	_, err := s3Client.PutPublicAccessBlock(
+		&s3.PutPublicAccessBlockInput{
+			Bucket: aws.String(config.Bucket),
+			PublicAccessBlockConfiguration: &s3.PublicAccessBlockConfiguration{
+				BlockPublicAcls:       aws.Bool(true),
+				BlockPublicPolicy:     aws.Bool(true),
+				IgnorePublicAcls:      aws.Bool(true),
+				RestrictPublicBuckets: aws.Bool(true),
+			},
+		},
+	)
+	return errors.WithStackTrace(err)
+}
+
 // To enable access logging in an S3 bucket, you must grant WRITE and READ_ACP permissions to the Log Delivery
 // Group. For more info, see:
 // https://docs.aws.amazon.com/AmazonS3/latest/dev/enable-logging-programming.html
@@ -563,7 +592,7 @@ func DoesS3BucketExist(s3Client *s3.S3, config *RemoteStateConfigS3) bool {
 }
 
 // Create a table for locks in DynamoDB if the user has configured a lock table and the table doesn't already exist
-func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, tagsDeclarations []map[string]string, terragruntOptions *options.TerragruntOptions) error {
+func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, tags map[string]string, terragruntOptions *options.TerragruntOptions) error {
 
 	if s3Config.GetLockTableName() == "" {
 		return nil
@@ -572,11 +601,6 @@ func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, tagsDeclarations 
 	dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.GetAwsSessionConfig(), terragruntOptions)
 	if err != nil {
 		return err
-	}
-
-	var tags map[string]string = nil
-	if len(tagsDeclarations) == 1 {
-		tags = tagsDeclarations[0]
 	}
 
 	return dynamodb.CreateLockTableIfNecessary(s3Config.GetLockTableName(), tags, dynamodbClient, terragruntOptions)

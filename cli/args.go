@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -71,7 +72,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 		return nil, err
 	}
 	if terraformPath == "" {
-		terraformPath = "terraform"
+		terraformPath = options.TERRAFORM_DEFAULT_PATH
 	}
 
 	terraformSource, err := parseStringArg(args, OPT_TERRAGRUNT_SOURCE, os.Getenv("TERRAGRUNT_SOURCE"))
@@ -132,6 +133,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 	opts.ExcludeDirs = excludeDirs
 	opts.IncludeDirs = includeDirs
 	opts.Parallelism = parallelism
+	opts.Check = parseBooleanArg(args, OPT_TERRAGRUNT_CHECK, os.Getenv("TERRAGRUNT_CHECK") == "false")
 
 	return opts, nil
 }
@@ -149,31 +151,37 @@ func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 				// The following is a fix for GH-493.
 				// If the first argument is "apply" and the second argument is a file (plan),
 				// we don't add any -var-file to the command.
-				if skipVars {
-					// If we have to skip vars, we need to iterate over all elements of array...
-					for _, a := range arg.Arguments {
-						if !strings.HasPrefix(a, "-var") {
-							out = append(out, a)
+				if arg.Arguments != nil {
+					if skipVars {
+						// If we have to skip vars, we need to iterate over all elements of array...
+						for _, a := range *arg.Arguments {
+							if !strings.HasPrefix(a, "-var") {
+								out = append(out, a)
+							}
 						}
+					} else {
+						// ... Otherwise, let's add all the arguments
+						out = append(out, *arg.Arguments...)
 					}
-				} else {
-					// ... Otherwise, let's add all the arguments
-					out = append(out, arg.Arguments...)
 				}
 
 				if !skipVars {
 					// If RequiredVarFiles is specified, add -var-file=<file> for each specified files
-					for _, file := range util.RemoveDuplicatesFromListKeepLast(arg.RequiredVarFiles) {
-						out = append(out, fmt.Sprintf("-var-file=%s", file))
+					if arg.RequiredVarFiles != nil {
+						for _, file := range util.RemoveDuplicatesFromListKeepLast(*arg.RequiredVarFiles) {
+							out = append(out, fmt.Sprintf("-var-file=%s", file))
+						}
 					}
 
 					// If OptionalVarFiles is specified, check for each file if it exists and if so, add -var-file=<file>
 					// It is possible that many files resolve to the same path, so we remove duplicates.
-					for _, file := range util.RemoveDuplicatesFromListKeepLast(arg.OptionalVarFiles) {
-						if util.FileExists(file) {
-							out = append(out, fmt.Sprintf("-var-file=%s", file))
-						} else {
-							terragruntOptions.Logger.Printf("Skipping var-file %s as it does not exist", file)
+					if arg.OptionalVarFiles != nil {
+						for _, file := range util.RemoveDuplicatesFromListKeepLast(*arg.OptionalVarFiles) {
+							if util.FileExists(file) {
+								out = append(out, fmt.Sprintf("-var-file=%s", file))
+							} else {
+								terragruntOptions.Logger.Printf("Skipping var-file %s as it does not exist", file)
+							}
 						}
 					}
 				}
@@ -189,9 +197,12 @@ func filterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOp
 	cmd := util.FirstArg(terragruntOptions.TerraformCliArgs)
 
 	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
+		if arg.EnvVars == nil {
+			continue
+		}
 		for _, argcmd := range arg.Commands {
 			if cmd == argcmd {
-				for k, v := range arg.EnvVars {
+				for k, v := range *arg.EnvVars {
 					out[k] = v
 				}
 			}
@@ -306,6 +317,43 @@ func parseMultiStringArg(args []string, argName string, defaultValue []string) (
 	}
 
 	return stringArgs, nil
+}
+
+// Convert the given variables to a map of environment variables that will expose those variables to Terraform. The
+// keys will be of the format TF_VAR_xxx and the values will be converted to JSON, which Terraform knows how to read
+// natively.
+func toTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) {
+	out := map[string]string{}
+
+	for varName, varValue := range vars {
+		envVarName := fmt.Sprintf("TF_VAR_%s", varName)
+
+		envVarValue, err := asTerraformEnvVarJsonValue(varValue)
+		if err != nil {
+			return nil, err
+		}
+
+		out[envVarName] = string(envVarValue)
+	}
+
+	return out, nil
+}
+
+// Convert the given value to a JSON value that can be passed to Terraform as an environment variable. For the most
+// part, this converts the value directly to JSON using Go's built-in json.Marshal. However, we have special handling
+// for strings, which with normal JSON conversion would be wrapped in quotes, but when passing them to Terraform via
+// env vars, we need to NOT wrap them in quotes, so this method adds special handling for that case.
+func asTerraformEnvVarJsonValue(value interface{}) (string, error) {
+	switch val := value.(type) {
+	case string:
+		return val, nil
+	default:
+		envVarValue, err := json.Marshal(val)
+		if err != nil {
+			return "", errors.WithStackTrace(err)
+		}
+		return string(envVarValue), nil
+	}
 }
 
 // Custom error types
