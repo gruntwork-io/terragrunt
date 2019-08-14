@@ -41,6 +41,10 @@ func decodeAndRetrieveOutputs(
 // Convert the list of parsed TerragruntOutput blocks into a list of module dependencies. Each output block should
 // become a dependency of the current config, since that module has to be applied before we can read the output.
 func terragruntOutputsToModuleDependencies(decodedOutputBlocks []TerragruntOutput) *ModuleDependencies {
+	if len(decodedOutputBlocks) == 0 {
+		return nil
+	}
+
 	paths := []string{}
 	for _, decodedOutputBlock := range decodedOutputBlocks {
 		configPath := decodedOutputBlock.ConfigPath
