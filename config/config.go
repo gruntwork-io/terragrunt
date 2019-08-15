@@ -96,7 +96,7 @@ type ModuleDependencies struct {
 	Paths []string `hcl:"paths,attr"`
 }
 
-// Merge appends the paths in the proided ModuleDependencies object into this ModuleDependencies object.
+// Merge appends the paths in the provided ModuleDependencies object into this ModuleDependencies object.
 func (deps *ModuleDependencies) Merge(source *ModuleDependencies) {
 	if source == nil {
 		return
