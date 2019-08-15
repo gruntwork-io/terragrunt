@@ -88,6 +88,7 @@ for a quick introduction to Terragrunt.
    1. [Auto-Retry](#auto-retry)
    1. [CLI options](#cli-options)
    1. [Configuration](#configuration)
+   1. [Configuration parsing order](#configuration-parsing-order)
    1. [Formatting terragrunt.hcl](#formatting-terragrunthcl)
    1. [Clearing the Terragrunt cache](#clearing-the-terragrunt-cache)
    1. [Contributing](#contributing)
@@ -942,6 +943,7 @@ terraform apply -var bucket=example.bucket.name
 
 * [Motivation](#motivation-3)
 * [The apply-all, destroy-all, output-all and plan-all commands](#the-apply-all-destroy-all-output-all-and-plan-all-commands)
+* [Passing outputs between modules](#passing-outputs-between-modules)
 * [Dependencies between modules](#dependencies-between-modules)
 * [Testing multiple modules locally](#testing-multiple-modules-locally)
 
@@ -1035,9 +1037,87 @@ If your modules have dependencies between them—for example, you can't deploy t
 deployed—you'll need to express those dependencies in your Terragrunt configuration as explained in the next section.
 
 
-#### Dependencies between modules
+#### Passing outputs between modules
 
 Consider the following file structure:
+
+```
+root
+├── backend-app
+│   ├── main.tf
+│   └── terragrunt.hcl
+├── mysql
+│   ├── main.tf
+│   └── terragrunt.hcl
+├── redis
+│   ├── main.tf
+│   └── terragrunt.hcl
+└── vpc
+    ├── main.tf
+    └── terragrunt.hcl
+```
+
+Suppose that you wanted to pass in the VPC ID of the VPC that is created from the `vpc` module in the folder structure
+above to the `mysql` module as an input variable. Or if you wanted to pass in the subnet IDs of the private subnet that
+is allocated as part of the `vpc` module.
+
+You can use the `dependency` block to extract the output variables to access another module's output variables in
+the terragrunt `inputs` attribute.
+
+For example, suppose the `vpc` module outputs the ID under the name `vpc_id`. To access that output, you would specify
+in `mysql/terragrunt.hcl`:
+
+```
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+}
+```
+
+When you apply this module, the output will be read from the `vpc` module and passed in as an input to the `mysql`
+module right before calling `terraform apply`.
+
+You can also specify multiple `dependency` blocks to access multiple different module output variables. For
+example, in the above folder structure, you might want to reference the `domain` output of the `redis` and `mysql`
+modules for use as `inputs` in the `backend-app` module. To access those outputs, you would specify in
+`backend-app/terragrunt.hcl`:
+
+```
+dependency "mysql" {
+  config_path = "../mysql"
+}
+
+dependency "redis" {
+  config_path = "../redis"
+}
+
+inputs = {
+  mysql_url = dependency.mysql.outputs.domain
+  redis_url = dependency.redis.outputs.domain
+}
+```
+
+Note that each `dependency` is automatically considered a dependency in Terragrunt. This means that when you run
+`apply-all` on a config that has `dependency` blocks, Terragrunt will not attempt to deploy the config until all
+the modules referenced in `dependency` blocks have been applied. So for the above example, the order for the
+`apply-all` command would be:
+
+1. Deploy the VPC
+1. Deploy MySQL and Redis in parallel
+1. Deploy the backend-app
+
+If any of the modules failed to deploy, then Terragrunt will not attempt to deploy the modules that depend on them.
+
+**Note**: Not all blocks are able to access outputs passed by `dependency` blocks. See the section on
+[Configuration parsing order](#configuration-parsing-order) in this README for more information.
+
+
+#### Dependencies between modules
+
+You can also specify dependencies explicitly. Consider the following file structure:
 
 ```
 root
@@ -1218,6 +1298,7 @@ This section contains detailed documentation for the following aspects of Terrag
 1. [Auto-Init](#auto-init)
 1. [CLI options](#cli-options)
 1. [Configuration](#configuration)
+1. [Configuration parsing order](#configuration-parsing-order)
 1. [Formatting terragrunt.hcl](#formatting-terragrunt-hcl)
 1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
 1. [Clearing the Terragrunt cache](#clearing-the-terragrunt-cache)
@@ -1643,7 +1724,6 @@ Note that [Terraform will read environment
 variables](https://www.terraform.io/docs/configuration/environment-variables.html#tf_var_name) that start with the
 prefix `TF_VAR_`, so one way to share a variable named `foo` between Terraform and Terragrunt is to set its value
 as the environment variable `TF_VAR_foo` and to read that value in using this `get_env()` built-in function.
-
 
 #### get_terragrunt_dir
 
@@ -2126,6 +2206,46 @@ The `skip` flag must be set explicitly in terragrunt modules that should be skip
 `terragrunt.hcl` file that is included by another `terragrunt.hcl` file, only the `terragrunt.hcl` file that explicitly
 set `skip = true` will be skipped.
 
+
+### Configuration parsing order
+
+It is important to be aware of the terragrunt configuration parsing order when using features like [locals](#locals) and
+[dependency outputs](#passing-outputs-between-modules), where you can reference attributes of other blocks in the config
+in your `inputs`. For example, because `locals` are evaluated before `dependency` blocks, you can not bind outputs
+from `dependency` into `locals`. On the other hand, for the same reason, you can use `locals` in the
+`dependency` blocks.
+
+Currently terragrunt parses the config in the following order:
+
+1. `locals` block
+1. `include` block
+1. `dependencies` block
+1. `dependency` blocks, including calling `terragrunt output` on the dependent modules to retrieve the outputs
+1. Everything else
+1. The config referenced by `include`
+1. A merge operation between the config referenced by `include` and the current config.
+
+Blocks that are parsed earlier in the process will be made available for use in the parsing of later blocks. Similarly,
+you cannot use blocks that are parsed later earlier in the process (e.g you can't reference `dependency` in
+`locals`, `include`, or `dependencies` blocks).
+
+Note that the parsing order is slightly different when using the `-all` flavors of the command. In the `-all` flavors of
+the command, Terragrunt parses the configuration twice. In the first pass, it follows the following parsing order:
+
+1. `locals` block of all configurations in the tree
+1. `include` block of all configurations in the tree
+1. `dependency` blocks of all configurations in the tree, but does NOT retrieve the outputs
+1. `terraform` block of all configurations in the tree
+1. `dependencies` block of all configurations in the tree
+
+The results of this pass are then used to build the dependency graph of the modules in the tree. Once the graph is
+constructed, Terragrunt will loop through the modules and run the specified command. It will then revert to the single
+configuration parsing order specified above for each module as it runs the command.
+
+This allows Terragrunt to avoid resolving `dependency` on modules that haven't been applied yet when doing a
+clean deployment from scratch with `apply-all`.
+
+
 ### Formatting terragrunt.hcl
 
 You can rewrite `terragrunt.hcl` files to a canonical format using the `hclfmt` command built into `terragrunt`. Similar
@@ -2260,6 +2380,9 @@ go test -v -run TestToTerraformRemoteConfigArgsNoBackendConfigs
 
 If you set the `TERRAGRUNT_DEBUG` environment variable to "true", the stack trace for any error will be printed to
 stdout when you run the app.
+
+Additionally, newer features introduced in v0.19.0 (such as `locals` and `dependency` blocks) can output more verbose
+logging if you set the `TG_LOG` environment variable to `debug`.
 
 
 #### Error handling

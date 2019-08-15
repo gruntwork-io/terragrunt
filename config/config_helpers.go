@@ -63,27 +63,42 @@ type EnvVar struct {
 	DefaultValue string
 }
 
+// EvalContextExtensions provides various extensions to the evaluation context to enhance the parsing capabilities.
+type EvalContextExtensions struct {
+	// Include is used to specify another config that should be imported and merged before the final TerragruntConfig is
+	// returned.
+	Include *IncludeConfig
+
+	// Locals are preevaluated variable bindings that can be used by reference in the code.
+	Locals *cty.Value
+
+	// DecodedDependencies are references of other terragrunt config. This contains the following attributes that map to
+	// various fields related to that config:
+	// - outputs: The map of outputs from the terraform state obtained by running `terragrunt output` on that target
+	//            config.
+	DecodedDependencies *cty.Value
+}
+
 // Create an EvalContext for the HCL2 parser. We can define functions and variables in this context that the HCL2 parser
 // will make available to the Terragrunt configuration during parsing.
 func CreateTerragruntEvalContext(
 	filename string,
 	terragruntOptions *options.TerragruntOptions,
-	include *IncludeConfig,
-	locals *cty.Value,
+	extensions EvalContextExtensions,
 ) *hcl.EvalContext {
 	tfscope := tflang.Scope{
 		BaseDir: filepath.Dir(filename),
 	}
 
 	terragruntFunctions := map[string]function.Function{
-		"find_in_parent_folders":                       wrapStringSliceToStringAsFuncImpl(findInParentFolders, include, terragruntOptions),
-		"path_relative_to_include":                     wrapVoidToStringAsFuncImpl(pathRelativeToInclude, include, terragruntOptions),
-		"path_relative_from_include":                   wrapVoidToStringAsFuncImpl(pathRelativeFromInclude, include, terragruntOptions),
-		"get_env":                                      wrapStringSliceToStringAsFuncImpl(getEnvironmentVariable, include, terragruntOptions),
-		"run_cmd":                                      wrapStringSliceToStringAsFuncImpl(runCommand, include, terragruntOptions),
-		"get_terragrunt_dir":                           wrapVoidToStringAsFuncImpl(getTerragruntDir, include, terragruntOptions),
-		"get_parent_terragrunt_dir":                    wrapVoidToStringAsFuncImpl(getParentTerragruntDir, include, terragruntOptions),
-		"get_aws_account_id":                           wrapVoidToStringAsFuncImpl(getAWSAccountID, include, terragruntOptions),
+		"find_in_parent_folders":                       wrapStringSliceToStringAsFuncImpl(findInParentFolders, extensions.Include, terragruntOptions),
+		"path_relative_to_include":                     wrapVoidToStringAsFuncImpl(pathRelativeToInclude, extensions.Include, terragruntOptions),
+		"path_relative_from_include":                   wrapVoidToStringAsFuncImpl(pathRelativeFromInclude, extensions.Include, terragruntOptions),
+		"get_env":                                      wrapStringSliceToStringAsFuncImpl(getEnvironmentVariable, extensions.Include, terragruntOptions),
+		"run_cmd":                                      wrapStringSliceToStringAsFuncImpl(runCommand, extensions.Include, terragruntOptions),
+		"get_terragrunt_dir":                           wrapVoidToStringAsFuncImpl(getTerragruntDir, extensions.Include, terragruntOptions),
+		"get_parent_terragrunt_dir":                    wrapVoidToStringAsFuncImpl(getParentTerragruntDir, extensions.Include, terragruntOptions),
+		"get_aws_account_id":                           wrapVoidToStringAsFuncImpl(getAWSAccountID, extensions.Include, terragruntOptions),
 		"get_terraform_commands_that_need_vars":        wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_VARS),
 		"get_terraform_commands_that_need_locking":     wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_LOCKING),
 		"get_terraform_commands_that_need_input":       wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_INPUT),
@@ -101,8 +116,12 @@ func CreateTerragruntEvalContext(
 	ctx := &hcl.EvalContext{
 		Functions: functions,
 	}
-	if locals != nil {
-		ctx.Variables = map[string]cty.Value{"local": *locals}
+	ctx.Variables = map[string]cty.Value{}
+	if extensions.Locals != nil {
+		ctx.Variables["local"] = *extensions.Locals
+	}
+	if extensions.DecodedDependencies != nil {
+		ctx.Variables["dependency"] = *extensions.DecodedDependencies
 	}
 	return ctx
 }

@@ -864,6 +864,78 @@ terraform {
 	assert.Equal(t, "child", *terragruntConfig.Terraform.Source)
 }
 
+func TestModuleDependenciesMerge(t *testing.T) {
+	testCases := []struct {
+		name     string
+		target   []string
+		source   []string
+		expected []string
+	}{
+		{
+			"MergeNil",
+			[]string{"../vpc", "../sql"},
+			nil,
+			[]string{"../vpc", "../sql"},
+		},
+		{
+			"MergeOne",
+			[]string{"../vpc", "../sql"},
+			[]string{"../services"},
+			[]string{"../vpc", "../sql", "../services"},
+		},
+		{
+			"MergeMany",
+			[]string{"../vpc", "../sql"},
+			[]string{"../services", "../groups"},
+			[]string{"../vpc", "../sql", "../services", "../groups"},
+		},
+		{
+			"MergeEmpty",
+			[]string{"../vpc", "../sql"},
+			[]string{},
+			[]string{"../vpc", "../sql"},
+		},
+		{
+			"MergeOneExisting",
+			[]string{"../vpc", "../sql"},
+			[]string{"../vpc"},
+			[]string{"../vpc", "../sql"},
+		},
+		{
+			"MergeAllExisting",
+			[]string{"../vpc", "../sql"},
+			[]string{"../vpc", "../sql"},
+			[]string{"../vpc", "../sql"},
+		},
+		{
+			"MergeSomeExisting",
+			[]string{"../vpc", "../sql"},
+			[]string{"../vpc", "../services"},
+			[]string{"../vpc", "../sql", "../services"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		// Capture range variable so that it is brought into the scope within the for loop, so that it is stable even
+		// when subtests are run in parallel.
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			target := &ModuleDependencies{Paths: testCase.target}
+
+			var source *ModuleDependencies = nil
+			if testCase.source != nil {
+				source = &ModuleDependencies{Paths: testCase.source}
+			}
+
+			target.Merge(source)
+			assert.Equal(t, target.Paths, testCase.expected)
+		})
+	}
+}
+
 func ptr(str string) *string {
 	return &str
 }
