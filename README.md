@@ -2381,6 +2381,9 @@ go test -v -run TestToTerraformRemoteConfigArgsNoBackendConfigs
 If you set the `TERRAGRUNT_DEBUG` environment variable to "true", the stack trace for any error will be printed to
 stdout when you run the app.
 
+Additionally, newer features introduced in v0.19.0 (such as `locals` and `dependency` blocks) can output more verbose
+logging if you set the `TG_LOG` environment variable to `debug`.
+
 
 #### Error handling
 
