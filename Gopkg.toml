@@ -73,6 +73,10 @@
   name = "github.com/zclconf/go-cty"
   version = "1.0.0"
 
+[[override]]
+  name = "github.com/zclconf/go-cty-yaml"
+  version = "1.0.1"
+
 [prune]
   go-tests = true
   unused-packages = true

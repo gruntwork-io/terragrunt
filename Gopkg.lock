@@ -372,12 +372,12 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:7922171eda409496bd43979d690c2ba5d58912d9bc5cafdc0509e7cd5a6f8314"
+  digest = "1:15fbb37db073777762aa7df4d9109f01de9d9a3fa233f51f5986cada7491562e"
   name = "github.com/zclconf/go-cty-yaml"
   packages = ["."]
   pruneopts = "UT"
-  revision = "fbabe99bb1c897a56ed70103a40aa94fc50a7104"
-  version = "v0.1.0"
+  revision = "bc34c981dadb5ed30af852693e3aba8fb6546f42"
+  version = "v1.0.1"
 
 [[projects]]
   digest = "1:74055050ea547bb04600be79cc501965cb3de8988018262f2ca430f0a0b48ec3"
