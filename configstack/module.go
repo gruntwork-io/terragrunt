@@ -247,7 +247,7 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 
 			// Need for parsing out the dependencies
 			config.DependenciesBlock,
-			config.TerragruntOutputBlock,
+			config.DependencyBlock,
 		},
 	)
 	if err != nil {

@@ -8,15 +8,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDecodeTerragruntOutputBlockMultiple(t *testing.T) {
+func TestDecodeDependencyBlockMultiple(t *testing.T) {
 	t.Parallel()
 
 	config := `
-terragrunt_output "vpc" {
+dependency "vpc" {
   config_path = "../vpc"
 }
 
-terragrunt_output "sql" {
+dependency "sql" {
   config_path = "../sql"
 }
 `
@@ -25,17 +25,17 @@ terragrunt_output "sql" {
 	file, err := parseHcl(parser, config, filename)
 	require.NoError(t, err)
 
-	decoded := terragruntOutput{}
+	decoded := terragruntDependency{}
 	require.NoError(t, decodeHcl(file, filename, &decoded, mockOptionsForTest(t), EvalContextExtensions{}))
 
-	assert.Equal(t, len(decoded.TerragruntOutput), 2)
-	assert.Equal(t, decoded.TerragruntOutput[0].Name, "vpc")
-	assert.Equal(t, decoded.TerragruntOutput[0].ConfigPath, "../vpc")
-	assert.Equal(t, decoded.TerragruntOutput[1].Name, "sql")
-	assert.Equal(t, decoded.TerragruntOutput[1].ConfigPath, "../sql")
+	assert.Equal(t, len(decoded.Dependencies), 2)
+	assert.Equal(t, decoded.Dependencies[0].Name, "vpc")
+	assert.Equal(t, decoded.Dependencies[0].ConfigPath, "../vpc")
+	assert.Equal(t, decoded.Dependencies[1].Name, "sql")
+	assert.Equal(t, decoded.Dependencies[1].ConfigPath, "../sql")
 }
 
-func TestDecodeNoTerragruntOutputBlock(t *testing.T) {
+func TestDecodeNoDependencyBlock(t *testing.T) {
 	t.Parallel()
 
 	config := `
@@ -48,16 +48,16 @@ locals {
 	file, err := parseHcl(parser, config, filename)
 	require.NoError(t, err)
 
-	decoded := terragruntOutput{}
+	decoded := terragruntDependency{}
 	require.NoError(t, decodeHcl(file, filename, &decoded, mockOptionsForTest(t), EvalContextExtensions{}))
-	assert.Equal(t, len(decoded.TerragruntOutput), 0)
+	assert.Equal(t, len(decoded.Dependencies), 0)
 }
 
-func TestDecodeTerragruntOutputNoLabelIsError(t *testing.T) {
+func TestDecodeDependencyNoLabelIsError(t *testing.T) {
 	t.Parallel()
 
 	config := `
-terragrunt_output {
+dependency {
   config_path = "../vpc"
 }
 `
@@ -66,6 +66,6 @@ terragrunt_output {
 	file, err := parseHcl(parser, config, filename)
 	require.NoError(t, err)
 
-	decoded := terragruntOutput{}
+	decoded := terragruntDependency{}
 	require.Error(t, decodeHcl(file, filename, &decoded, mockOptionsForTest(t), EvalContextExtensions{}))
 }

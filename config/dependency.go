@@ -17,12 +17,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-type TerragruntOutput struct {
+type Dependency struct {
 	Name       string `hcl:",label"`
 	ConfigPath string `hcl:"config_path,attr"`
 }
 
-// Decode the terragrunt_output blocks from the file, making sure to merge in those from included parents, and then
+// Decode the dependency blocks from the file, making sure to merge in those from included parents, and then
 // retrieve all the outputs from the remote state. Then encode the resulting map as a cty.Value object.
 func decodeAndRetrieveOutputs(
 	file *hcl.File,
@@ -30,24 +30,24 @@ func decodeAndRetrieveOutputs(
 	terragruntOptions *options.TerragruntOptions,
 	extensions EvalContextExtensions,
 ) (*cty.Value, error) {
-	decodedTerragruntOutput := terragruntOutput{}
-	err := decodeHcl(file, filename, &decodedTerragruntOutput, terragruntOptions, extensions)
+	decodedDependency := terragruntDependency{}
+	err := decodeHcl(file, filename, &decodedDependency, terragruntOptions, extensions)
 	if err != nil {
 		return nil, err
 	}
-	return terragruntOutputsToOutputMapCtyValue(decodedTerragruntOutput.TerragruntOutput, terragruntOptions)
+	return dependencyBlocksToCtyValue(decodedDependency.Dependencies, terragruntOptions)
 }
 
-// Convert the list of parsed TerragruntOutput blocks into a list of module dependencies. Each output block should
+// Convert the list of parsed Dependency blocks into a list of module dependencies. Each output block should
 // become a dependency of the current config, since that module has to be applied before we can read the output.
-func terragruntOutputsToModuleDependencies(decodedOutputBlocks []TerragruntOutput) *ModuleDependencies {
-	if len(decodedOutputBlocks) == 0 {
+func dependencyBlocksToModuleDependencies(decodedDependencyBlocks []Dependency) *ModuleDependencies {
+	if len(decodedDependencyBlocks) == 0 {
 		return nil
 	}
 
 	paths := []string{}
-	for _, decodedOutputBlock := range decodedOutputBlocks {
-		configPath := decodedOutputBlock.ConfigPath
+	for _, decodedDependencyBlock := range decodedDependencyBlocks {
+		configPath := decodedDependencyBlock.ConfigPath
 		if util.IsFile(configPath) && filepath.Base(configPath) == DefaultTerragruntConfigPath {
 			// dependencies system expects the directory containing the terragrunt.hcl file
 			configPath = filepath.Dir(configPath)
@@ -57,26 +57,43 @@ func terragruntOutputsToModuleDependencies(decodedOutputBlocks []TerragruntOutpu
 	return &ModuleDependencies{Paths: paths}
 }
 
-// Retrieve the output from the terraform state of each terragrunt_output block that was parsed. Encode the outputs as a
-// map from the terragrunt_output block label to the corresponding output from the state. Finally, convert the map to
-// cty.Value to a single cty.Value object, which is what is expected by the HCL2 decoder.
-func terragruntOutputsToOutputMapCtyValue(outputConfigs []TerragruntOutput, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
+// Encode the list of dependency blocks into a single cty.Value object that maps the dependency block name to the
+// encoded dependency mapping. The encoded dependency mapping should have the attributes:
+// - outputs: The map of outputs of the corresponding terraform module that lives at the target config of the
+//            dependency.
+// This routine will go through the process of obtaining the outputs using `terragrunt output` from the target config.
+func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
 	paths := []string{}
-	outputMap := map[string]cty.Value{}
+	// dependencyMap is the top level map that maps dependency block names to the encoded version, which includes
+	// various attributes for accessing information about the target config (including the module outputs).
+	dependencyMap := map[string]cty.Value{}
 
-	for _, outputConfig := range outputConfigs {
-		paths = append(paths, outputConfig.ConfigPath)
-		outputVal, err := getTerragruntOutput(outputConfig, terragruntOptions)
+	for _, dependencyConfig := range dependencyConfigs {
+		// Loose struct to hold the attributes of the dependency. This includes:
+		// - outputs: The module outputs of the target config
+		dependencyEncodingMap := map[string]cty.Value{}
+
+		// Encode the outputs and nest under `outputs` attribute
+		paths = append(paths, dependencyConfig.ConfigPath)
+		outputVal, err := getTerragruntOutput(dependencyConfig, terragruntOptions)
 		if err != nil {
 			return nil, err
 		}
-		if outputVal != nil {
-			outputMap[outputConfig.Name] = *outputVal
+		dependencyEncodingMap["outputs"] = *outputVal
+
+		// Once the dependency is encoded into a map, we need to conver to a cty.Value again so that it can be fed to
+		// the higher order dependency map.
+		dependencyEncodingMapEncoded, err := gocty.ToCtyValue(dependencyEncodingMap, generateTypeFromValuesMap(dependencyEncodingMap))
+		if err != nil {
+			err = TerragruntOutputListEncodingError{Paths: paths, Err: err}
 		}
+
+		// Finally, feed the encoded dependency into the higher order map under the block name
+		dependencyMap[dependencyConfig.Name] = dependencyEncodingMapEncoded
 	}
 
 	// We need to convert the value map to a single cty.Value at the end so that it can be used in the execution context
-	convertedOutput, err := gocty.ToCtyValue(outputMap, generateTypeFromValuesMap(outputMap))
+	convertedOutput, err := gocty.ToCtyValue(dependencyMap, generateTypeFromValuesMap(dependencyMap))
 	if err != nil {
 		err = TerragruntOutputListEncodingError{Paths: paths, Err: err}
 	}
@@ -86,10 +103,10 @@ func terragruntOutputsToOutputMapCtyValue(outputConfigs []TerragruntOutput, terr
 // Return the output from the state of another module, managed by terragrunt. This function will parse the provided
 // terragrunt config and extract the desired output from the remote state. Note that this will error if the targetted
 // module hasn't been applied yet.
-func getTerragruntOutput(outputConfig TerragruntOutput, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
+func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
 	// target config check: make sure the target config exists
 	cwd := filepath.Dir(terragruntOptions.TerragruntConfigPath)
-	targetConfig := outputConfig.ConfigPath
+	targetConfig := dependencyConfig.ConfigPath
 	if !filepath.IsAbs(targetConfig) {
 		targetConfig = util.JoinPath(cwd, targetConfig)
 	}
@@ -97,7 +114,7 @@ func getTerragruntOutput(outputConfig TerragruntOutput, terragruntOptions *optio
 		targetConfig = util.JoinPath(targetConfig, DefaultTerragruntConfigPath)
 	}
 	if !util.FileExists(targetConfig) {
-		return nil, errors.WithStackTrace(TerragruntOutputConfigNotFound{Path: targetConfig})
+		return nil, errors.WithStackTrace(DependencyConfigNotFound{Path: targetConfig})
 	}
 
 	jsonBytes, err := runTerragruntOutputJson(terragruntOptions, targetConfig)
@@ -171,11 +188,11 @@ func terraformOutputJsonToCtyValueMap(targetConfig string, jsonBytes []byte) (ma
 
 // Custom error types
 
-type TerragruntOutputConfigNotFound struct {
+type DependencyConfigNotFound struct {
 	Path string
 }
 
-func (err TerragruntOutputConfigNotFound) Error() string {
+func (err DependencyConfigNotFound) Error() string {
 	return fmt.Sprintf("%s does not exist", err.Path)
 }
 

@@ -2,8 +2,8 @@ terraform {
   source = "${get_terragrunt_dir()}/../../fixture-inputs"
 }
 
-terragrunt_output "inputs" {
+dependency "inputs" {
   config_path = "../../fixture-inputs"
 }
 
-inputs = terragrunt_output.inputs
+inputs = dependency.inputs.outputs

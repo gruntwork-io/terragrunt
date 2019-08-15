@@ -3,15 +3,15 @@ locals {
   app2_path = "../app2"
 }
 
-terragrunt_output "app1" {
+dependency "app1" {
   config_path = local.app1_path
 }
 
-terragrunt_output "app2" {
+dependency "app2" {
   config_path = local.app2_path
 }
 
 inputs = {
-  x = terragrunt_output.app1.x
-  y = terragrunt_output.app2.y
+  x = dependency.app1.outputs.x
+  y = dependency.app2.outputs.y
 }

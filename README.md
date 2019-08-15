@@ -1061,48 +1061,48 @@ Suppose that you wanted to pass in the VPC ID of the VPC that is created from th
 above to the `mysql` module as an input variable. Or if you wanted to pass in the subnet IDs of the private subnet that
 is allocated as part of the `vpc` module.
 
-You can use the `terragrunt_output` block to extract the output variables to access another modules output variables in
+You can use the `dependency` block to extract the output variables to access another modules output variables in
 the terragrunt `inputs` attribute.
 
 For example, suppose the `vpc` module outputs the ID under the name `vpc_id`. To access that output, you would specify
 in `mysql/terragrunt.hcl`:
 
 ```
-terragrunt_output "vpc" {
+dependency "vpc" {
   config_path = "../vpc"
 }
 
 inputs = {
-  vpc_id = terragrunt_output.vpc.vpc_id
+  vpc_id = dependency.outputs.vpc.vpc_id
 }
 ```
 
 When you apply this module, the output will be read from the `vpc` module and passed in as an input to the `mysql`
 module right before calling `terraform apply`.
 
-You can also specify multiple `terragrunt_output` blocks to access multiple different module output variables. For
+You can also specify multiple `dependency` blocks to access multiple different module output variables. For
 example, in the above folder structure, you might want to reference the `domain` output of the `redis` and `mysql`
 modules for use as `inputs` in the `backend-app` module. To access those outputs, you would specify in
 `backend-app/terragrunt.hcl`:
 
 ```
-terragrunt_output "mysql" {
+dependency "mysql" {
   config_path = "../mysql"
 }
 
-terragrunt_output "redis" {
+dependency "redis" {
   config_path = "../redis"
 }
 
 inputs = {
-  mysql_url = terragrunt_output.mysql.domain
-  redis_url = terragrunt_output.redis.domain
+  mysql_url = dependency.outputs.mysql.domain
+  redis_url = dependency.outputs.redis.domain
 }
 ```
 
-Note that each `terragrunt_output` is automatically considered a dependency in Terragrunt. This means that when you run
-`apply-all` on a config that has `terragrunt_output` blocks, Terragrunt will not attempt to deploy the config until all
-the modules referenced in `terragrunt_output` blocks have been applied. So for the above example, the order for the
+Note that each `dependency` is automatically considered a dependency in Terragrunt. This means that when you run
+`apply-all` on a config that has `dependency` blocks, Terragrunt will not attempt to deploy the config until all
+the modules referenced in `dependency` blocks have been applied. So for the above example, the order for the
 `apply-all` command would be:
 
 1. Deploy the VPC
@@ -1111,7 +1111,7 @@ the modules referenced in `terragrunt_output` blocks have been applied. So for t
 
 If any of the modules failed to deploy, then Terragrunt will not attempt to deploy the modules that depend on them.
 
-**Note**: Not all blocks are able to access outputs passed by `terragrunt_output` blocks. See the section on
+**Note**: Not all blocks are able to access outputs passed by `dependency` blocks. See the section on
 [Configuration parsing order](#configuration-parsing-order) in this README for more information.
 
 
@@ -2210,23 +2210,23 @@ set `skip = true` will be skipped.
 ### Configuration parsing order
 
 It is important to be aware of the terragrunt configuration parsing order when using features like [locals](#locals) and
-[terragrunt_output](#passing-outputs-between-modules), where you can reference attributes of other blocks in the config
-in your `inputs`. For example, because `locals` are evaluated before `terragrunt_output` blocks, you can not use bind
-outputs from `terragrunt_output` into `locals`. On the other hand, for the same reason, you can use `locals` in the
-`terragrunt_output` blocks.
+[dependency outputs](#passing-outputs-between-modules), where you can reference attributes of other blocks in the config
+in your `inputs`. For example, because `locals` are evaluated before `dependency` blocks, you can not bind outputs
+from `dependency` into `locals`. On the other hand, for the same reason, you can use `locals` in the
+`dependency` blocks.
 
 Currently terragrunt parses the config in the following order:
 
 1. `locals` block
 1. `include` block
 1. `dependencies` block
-1. `terragrunt_output` blocks, including calling `terragrunt output` on the dependent modules to retrieve the outputs
+1. `dependency` blocks, including calling `terragrunt output` on the dependent modules to retrieve the outputs
 1. Everything else
 1. The config referenced by `include`
 1. A merge operation between the config referenced by `include` and the current config.
 
 Blocks that are parsed earlier in the process will be made available for use in the parsing of later blocks. Similarly,
-you cannot use blocks that are parsed later earlier in the process (e.g you can't reference `terragrunt_output` in
+you cannot use blocks that are parsed later earlier in the process (e.g you can't reference `dependency` in
 `locals`, `include`, or `dependencies` blocks).
 
 Note that the parsing order is slightly different when using the `-all` flavors of the command. In the `-all` flavors of
@@ -2234,7 +2234,7 @@ the command, Terragrunt parses the configuration twice. In the first pass, it fo
 
 1. `locals` block of all configurations in the tree
 1. `include` block of all configurations in the tree
-1. `terragrunt_output` blocks of all configurations in the tree, but does NOT retrieve the outputs
+1. `dependency` blocks of all configurations in the tree, but does NOT retrieve the outputs
 1. `terraform` block of all configurations in the tree
 1. `dependencies` block of all configurations in the tree
 
@@ -2242,7 +2242,7 @@ The results of this pass are then used to build the dependency graph of the modu
 constructed, Terragrunt will loop through the modules and run the specified command. It will then revert to the single
 configuration parsing order specified above for each module as it runs the command.
 
-This allows Terragrunt to avoid resolving `terragrunt_output` on modules that haven't been applied yet when doing a
+This allows Terragrunt to avoid resolving `dependency` on modules that haven't been applied yet when doing a
 clean deployment from scratch with `apply-all`.
 
 

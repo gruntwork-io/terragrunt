@@ -19,8 +19,8 @@ type PartialDecodeSectionType int
 
 const (
 	DependenciesBlock PartialDecodeSectionType = iota
+	DependencyBlock
 	TerraformBlock
-	TerragruntOutputBlock
 	TerragruntFlags
 )
 
@@ -49,10 +49,10 @@ type terragruntFlags struct {
 	Remain         hcl.Body `hcl:",remain"`
 }
 
-// terragruntOutput is a struct that can be used to only decode the terragrunt_output blocks in the terragrrunt config
-type terragruntOutput struct {
-	TerragruntOutput []TerragruntOutput `hcl:"terragrunt_output,block"`
-	Remain           hcl.Body           `hcl:",remain"`
+// terragruntDependency is a struct that can be used to only decode the dependency blocks in the terragrrunt config
+type terragruntDependency struct {
+	Dependencies []Dependency `hcl:"dependency,block"`
+	Remain       hcl.Body     `hcl:",remain"`
 }
 
 // DecodeBaseBlocks takes in a parsed HCL2 file and decodes the base blocks. Base blocks are blocks that should always
@@ -119,8 +119,8 @@ func PartialParseConfigFile(
 // controlled by the function parameter decodeList. These blocks/attributes are parsed and set on the output
 // TerragruntConfig. Valid values are:
 // - DependenciesBlock: Parses the `dependencies` block in the config
+// - DependencyBlock: Parses the `dependency` block in the config
 // - TerraformBlock: Parses the `terraform` block in the config
-// - TerragruntOutputBlock: Parses the `terragrunt_output` block in the config
 // - TerragruntFlags: Parses the boolean flags `prevent_destroy` and `skip` in the config
 // Note that the following blocks are always decoded:
 // - locals
@@ -181,17 +181,17 @@ func PartialParseConfigString(
 			}
 			output.Terraform = decoded.Terraform
 
-		case TerragruntOutputBlock:
-			decoded := terragruntOutput{}
+		case DependencyBlock:
+			decoded := terragruntDependency{}
 			err := decodeHcl(file, filename, &decoded, terragruntOptions, contextExtensions)
 			if err != nil {
 				return nil, err
 			}
-			output.TerragruntOutputs = decoded.TerragruntOutput
+			output.TerragruntDependencies = decoded.Dependencies
 
-			// Convert terragrunt_output blocks into module depenency lists. If we already decoded some dependencies,
+			// Convert dependency blocks into module depenency lists. If we already decoded some dependencies,
 			// merge them in. Otherwise, set as the new list.
-			dependencies := terragruntOutputsToModuleDependencies(decoded.TerragruntOutput)
+			dependencies := dependencyBlocksToModuleDependencies(decoded.Dependencies)
 			if output.Dependencies != nil {
 				output.Dependencies.Merge(dependencies)
 			} else {

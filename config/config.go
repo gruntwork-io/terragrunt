@@ -32,7 +32,7 @@ type TerragruntConfig struct {
 	IamRole                    string
 	Inputs                     map[string]interface{}
 	Locals                     map[string]interface{}
-	TerragruntOutputs          []TerragruntOutput
+	TerragruntDependencies     []Dependency
 
 	// Indicates whether or not this is the result of a partial evaluation
 	IsPartial bool
@@ -55,7 +55,7 @@ type terragruntConfigFile struct {
 	PreventDestroy             *bool                  `hcl:"prevent_destroy,attr"`
 	Skip                       *bool                  `hcl:"skip,attr"`
 	IamRole                    *string                `hcl:"iam_role,attr"`
-	TerragruntOutputs          []TerragruntOutput     `hcl:"terragrunt_output,block"`
+	TerragruntDependencies     []Dependency           `hcl:"dependency,block"`
 
 	// This struct is used for validating and parsing the entire terragrunt config. Since locals are evaluated in a
 	// completely separate cycle, it should not be evaluated here. Otherwise, we can't support self referencing other
@@ -278,7 +278,7 @@ func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptio
 //    then merged into the current TerragruntConfig.
 //    Allowed References:
 //      - locals
-// 3. Parse terragrunt_output blocks. This includes running `terragrunt output` to fetch the output data from another
+// 3. Parse dependency blocks. This includes running `terragrunt output` to fetch the output data from another
 //    terragrunt config, so that it is accessible within the config. See PartialParseConfigString for a way to parse the
 //    blocks but avoid decoding.
 //    Allowed References:
@@ -287,7 +287,7 @@ func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptio
 //    available, so parse the rest of the config.
 //    Allowed References:
 //      - locals
-//      - terragrunt_output
+//      - dependency
 // 5. Merge the included config with the parsed config. Note that all the config data is mergable except for `locals`
 //    blocks, which are only scoped to be available within the defining config.
 func ParseConfigString(configString string, terragruntOptions *options.TerragruntOptions, includeFromChild *IncludeConfig, filename string) (*TerragruntConfig, error) {
@@ -310,13 +310,13 @@ func ParseConfigString(configString string, terragruntOptions *options.Terragrun
 		Include: includeForDecode,
 	}
 
-	// Decode just the `terragrunt_output` blocks, retrieving the outputs from the target terragrunt config in the
+	// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
 	// process.
 	retrievedOutputs, err := decodeAndRetrieveOutputs(file, filename, terragruntOptions, contextExtensions)
 	if err != nil {
 		return nil, err
 	}
-	contextExtensions.DecodedTerragruntOutputs = retrievedOutputs
+	contextExtensions.DecodedDependencies = retrievedOutputs
 
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
 	// is appropriate
@@ -617,7 +617,7 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, c
 
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
-	terragruntConfig.TerragruntOutputs = terragruntConfigFromFile.TerragruntOutputs
+	terragruntConfig.TerragruntDependencies = terragruntConfigFromFile.TerragruntDependencies
 
 	if terragruntConfigFromFile.TerraformBinary != nil {
 		terragruntConfig.TerraformBinary = *terragruntConfigFromFile.TerraformBinary

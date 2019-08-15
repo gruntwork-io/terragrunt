@@ -72,9 +72,11 @@ type EvalContextExtensions struct {
 	// Locals are preevaluated variable bindings that can be used by reference in the code.
 	Locals *cty.Value
 
-	// DecodedTerragruntOutputs are output references of other terragrunt config, obtained by running `terragrunt
-	// output` on that target config.
-	DecodedTerragruntOutputs *cty.Value
+	// DecodedDependencies are references of other terragrunt config. This contains the following attributes that map to
+	// various fields related to that config:
+	// - outputs: The map of outputs from the terraform state obtained by running `terragrunt output` on that target
+	//            config.
+	DecodedDependencies *cty.Value
 }
 
 // Create an EvalContext for the HCL2 parser. We can define functions and variables in this context that the HCL2 parser
@@ -118,8 +120,8 @@ func CreateTerragruntEvalContext(
 	if extensions.Locals != nil {
 		ctx.Variables["local"] = *extensions.Locals
 	}
-	if extensions.DecodedTerragruntOutputs != nil {
-		ctx.Variables["terragrunt_output"] = *extensions.DecodedTerragruntOutputs
+	if extensions.DecodedDependencies != nil {
+		ctx.Variables["dependency"] = *extensions.DecodedDependencies
 	}
 	return ctx
 }
