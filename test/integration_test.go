@@ -1555,7 +1555,7 @@ func TestTerragruntInfo(t *testing.T) {
 	assert.Equal(t, dat.IamRole, "")
 }
 
-func TestGetOutput(t *testing.T) {
+func TestDependencyOutput(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
@@ -1588,7 +1588,7 @@ func TestGetOutput(t *testing.T) {
 	assert.Equal(t, int(outputs["z"].Value.(float64)), 42)
 }
 
-func TestGetOutputTypeConversion(t *testing.T) {
+func TestDependencyOutputTypeConversion(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)

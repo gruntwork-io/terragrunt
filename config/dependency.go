@@ -22,8 +22,9 @@ type Dependency struct {
 	ConfigPath string `hcl:"config_path,attr"`
 }
 
-// Decode the dependency blocks from the file, making sure to merge in those from included parents, and then
-// retrieve all the outputs from the remote state. Then encode the resulting map as a cty.Value object.
+// Decode the dependency blocks from the file, and then retrieve all the outputs from the remote state. Then encode the
+// resulting map as a cty.Value object.
+// TODO: In the future, consider allowing importing dependency blocks from included config
 func decodeAndRetrieveOutputs(
 	file *hcl.File,
 	filename string,

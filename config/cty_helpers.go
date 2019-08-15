@@ -30,40 +30,6 @@ func wrapStringSliceToStringAsFuncImpl(toWrap func(params []string, include *Inc
 	})
 }
 
-// Create a cty Function that takes as input parameters a slice of strings (var args, so this slice could be of any
-// length) and returns as output an arbitrary cty Value. The implementation of the function calls the given toWrap
-// function, passing it the input parameters string slice as well as the given include and terragruntOptions.
-func wrapStringSliceToCtyValueAsFuncImpl(
-	toWrap func(params []string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (*cty.Value, error),
-	include *IncludeConfig,
-	terragruntOptions *options.TerragruntOptions,
-) function.Function {
-	// This spec is inspired from the JSONDecodeFunc implemented in the cty stdlib
-	return function.New(&function.Spec{
-		VarParam: &function.Parameter{Type: cty.String},
-		Type: func(args []cty.Value) (cty.Type, error) {
-			// Type is known after function is executed
-			return cty.DynamicPseudoType, nil
-		},
-		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			params, err := ctySliceToStringSlice(args)
-			if err != nil {
-				return cty.NilVal, err
-			}
-			outVal, err := toWrap(params, include, terragruntOptions)
-			if err != nil {
-				return cty.NilVal, err
-			}
-			if outVal == nil {
-				return cty.NilVal, nil
-			} else {
-				return *outVal, nil
-			}
-		},
-	})
-
-}
-
 // Create a cty Function that takes no input parameters and returns as output a string. The implementation of the
 // function calls the given toWrap function, passing it the given include and terragruntOptions.
 func wrapVoidToStringAsFuncImpl(toWrap func(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error), include *IncludeConfig, terragruntOptions *options.TerragruntOptions) function.Function {

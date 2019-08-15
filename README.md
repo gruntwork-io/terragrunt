@@ -1061,7 +1061,7 @@ Suppose that you wanted to pass in the VPC ID of the VPC that is created from th
 above to the `mysql` module as an input variable. Or if you wanted to pass in the subnet IDs of the private subnet that
 is allocated as part of the `vpc` module.
 
-You can use the `dependency` block to extract the output variables to access another modules output variables in
+You can use the `dependency` block to extract the output variables to access another module's output variables in
 the terragrunt `inputs` attribute.
 
 For example, suppose the `vpc` module outputs the ID under the name `vpc_id`. To access that output, you would specify
@@ -1073,7 +1073,7 @@ dependency "vpc" {
 }
 
 inputs = {
-  vpc_id = dependency.outputs.vpc.vpc_id
+  vpc_id = dependency.vpc.outputs.vpc_id
 }
 ```
 
@@ -1095,8 +1095,8 @@ dependency "redis" {
 }
 
 inputs = {
-  mysql_url = dependency.outputs.mysql.domain
-  redis_url = dependency.outputs.redis.domain
+  mysql_url = dependency.mysql.outputs.domain
+  redis_url = dependency.redis.outputs.domain
 }
 ```
 
