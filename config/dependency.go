@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/hashicorp/hcl2/hcl"
 	"github.com/zclconf/go-cty/cty"
@@ -18,8 +19,10 @@ import (
 )
 
 type Dependency struct {
-	Name       string `hcl:",label"`
-	ConfigPath string `hcl:"config_path,attr"`
+	Name                                   string     `hcl:",label"`
+	ConfigPath                             string     `hcl:"config_path,attr"`
+	DefaultOutputs                         *cty.Value `hcl:"default_outputs,attr"`
+	DefaultOutputsAllowedTerraformCommands *[]string  `hcl:"default_outputs_allowed_terraform_commands,attr"`
 }
 
 // Decode the dependency blocks from the file, and then retrieve all the outputs from the remote state. Then encode the
@@ -76,7 +79,7 @@ func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOption
 
 		// Encode the outputs and nest under `outputs` attribute
 		paths = append(paths, dependencyConfig.ConfigPath)
-		outputVal, err := getTerragruntOutput(dependencyConfig, terragruntOptions)
+		outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig, terragruntOptions)
 		if err != nil {
 			return nil, err
 		}
@@ -101,11 +104,9 @@ func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOption
 	return &convertedOutput, errors.WithStackTrace(err)
 }
 
-// Return the output from the state of another module, managed by terragrunt. This function will parse the provided
-// terragrunt config and extract the desired output from the remote state. Note that this will error if the targetted
-// module hasn't been applied yet.
-func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
-	// target config check: make sure the target config exists
+// Returns a cleaned path to the target config (the `terragrunt.hcl` file) encoded in the Dependency, handling relative
+// paths correctly. This will automatically append `terragrunt.hcl` to the path if the target path is a directory.
+func getCleanedTargetConfigPath(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) string {
 	cwd := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 	targetConfig := dependencyConfig.ConfigPath
 	if !filepath.IsAbs(targetConfig) {
@@ -114,6 +115,86 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 	if util.IsDir(targetConfig) {
 		targetConfig = util.JoinPath(targetConfig, DefaultTerragruntConfigPath)
 	}
+	return targetConfig
+}
+
+// This will attempt to get the outputs from the target terragrunt config if it is applied. If it is not applied, the
+// behavior is different depending on the configuration of the dependency:
+// - If the dependency block indicates a default_outputs attribute, this will return that.
+// - If the dependency block does NOT indicate a default_outputs attribute, this will return an error.
+func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
+	isApplied, err := isTerragruntApplied(dependencyConfig, terragruntOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	if isApplied {
+		return getTerragruntOutput(dependencyConfig, terragruntOptions)
+	}
+
+	// When the module is not applied, check if there is a default outputs value to return. If yes, return that. Else,
+	// return error.
+	targetConfig := getCleanedTargetConfigPath(dependencyConfig, terragruntOptions)
+	currentConfig := terragruntOptions.TerragruntConfigPath
+	if shouldReturnDefaultOutputs(dependencyConfig, terragruntOptions) {
+		util.Debugf(
+			terragruntOptions.Logger,
+			"WARNING: config %s is a dependency of %s that hasn't been applied, but default outputs provided and returning those in dependency output.",
+			targetConfig,
+			currentConfig,
+		)
+		return dependencyConfig.DefaultOutputs, nil
+	}
+
+	err = TerragruntOutputTargetNotApplied{
+		targetConfig:  targetConfig,
+		currentConfig: currentConfig,
+	}
+	return nil, err
+}
+
+// We should only return default outputs if the default_outputs attribute is set, and if we are running one of the
+// allowed commands when `default_outputs_allowed_terraform_commands` is set as well.
+func shouldReturnDefaultOutputs(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) bool {
+	defaultOutputsSet := dependencyConfig.DefaultOutputs != nil
+	allowedCommand :=
+		dependencyConfig.DefaultOutputsAllowedTerraformCommands == nil ||
+			len(*dependencyConfig.DefaultOutputsAllowedTerraformCommands) == 0 ||
+			util.ListContainsElement(*dependencyConfig.DefaultOutputsAllowedTerraformCommands, terragruntOptions.TerraformCommand)
+	return defaultOutputsSet && allowedCommand
+}
+
+// Return whether or not the target config has been applied. Returns false when the target config hasn't been applied,
+// and true when it has.
+func isTerragruntApplied(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	// target config check: make sure the target config exists
+	targetConfig := getCleanedTargetConfigPath(dependencyConfig, terragruntOptions)
+	if !util.FileExists(targetConfig) {
+		return false, errors.WithStackTrace(DependencyConfigNotFound{Path: targetConfig})
+	}
+
+	// Check if the target terraform module (managed by terragrunt target config) has been applied.
+	// When a module hasn't been applied yet, there will be no state object, so `terragrunt show` will indicate that.
+	stdout, err := runTerragruntShow(terragruntOptions, targetConfig)
+	stdout = strings.TrimSpace(stdout)
+	isApplied := stdout != "No state."
+	util.Debugf(
+		terragruntOptions.Logger,
+		"Dependency %s of %s is applied: %v (output of terragrunt show: %s)",
+		targetConfig,
+		terragruntOptions.TerragruntConfigPath,
+		isApplied,
+		stdout,
+	)
+	return isApplied, err
+}
+
+// Return the output from the state of another module, managed by terragrunt. This function will parse the provided
+// terragrunt config and extract the desired output from the remote state. Note that this will error if the targetted
+// module hasn't been applied yet.
+func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
+	// target config check: make sure the target config exists
+	targetConfig := getCleanedTargetConfigPath(dependencyConfig, terragruntOptions)
 	if !util.FileExists(targetConfig) {
 		return nil, errors.WithStackTrace(DependencyConfigNotFound{Path: targetConfig})
 	}
@@ -134,6 +215,23 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 		err = TerragruntOutputEncodingError{Path: targetConfig, Err: err}
 	}
 	return &convertedOutput, errors.WithStackTrace(err)
+}
+
+// runTerragruntShow uses terragrunt running functions to show the current state of the target config.
+func runTerragruntShow(terragruntOptions *options.TerragruntOptions, targetConfig string) (string, error) {
+	var stdoutBuffer bytes.Buffer
+	stdoutBufferWriter := bufio.NewWriter(&stdoutBuffer)
+	targetOptions := terragruntOptions.Clone(targetConfig)
+	targetOptions.TerraformCliArgs = []string{"show", "-no-color"}
+	targetOptions.Writer = stdoutBufferWriter
+	err := targetOptions.RunTerragrunt(targetOptions)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	stdoutBufferWriter.Flush()
+	outputString := stdoutBuffer.String()
+	return outputString, nil
 }
 
 // runTerragruntOutputJson uses terragrunt running functions to extract the json output from the target config. Make a
@@ -222,4 +320,13 @@ type TerragruntOutputListEncodingError struct {
 
 func (err TerragruntOutputListEncodingError) Error() string {
 	return fmt.Sprintf("Could not encode output from list of terragrunt configs %v. Underlying error: %s", err.Paths, err.Err)
+}
+
+type TerragruntOutputTargetNotApplied struct {
+	targetConfig  string
+	currentConfig string
+}
+
+func (err TerragruntOutputTargetNotApplied) Error() string {
+	return fmt.Sprintf("%s is a dependency of %s but is not applied yet so can not get outputs.", err.targetConfig, err.currentConfig)
 }

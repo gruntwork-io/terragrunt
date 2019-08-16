@@ -1114,6 +1114,67 @@ If any of the modules failed to deploy, then Terragrunt will not attempt to depl
 **Note**: Not all blocks are able to access outputs passed by `dependency` blocks. See the section on
 [Configuration parsing order](#configuration-parsing-order) in this README for more information.
 
+##### Unapplied dependency and default outputs
+
+Terragrunt will return an error indicating the dependency hasn't been applied yet if the config referenced in a
+`dependency` block has not been applied yet. This is because you cannot actually fetch outputs out of an unapplied
+Terraform module, even if there are no resources being created in the module.
+
+This is most prominent when running commands that do not modify state (e.g `plan-all` and `validate-all`) on a
+completely new setup where no infrastructure has been deployed. You won't be able to `plan` or `validate` a module if
+you can't determine the `inputs`. If the module depends on the outputs of another module that hasn't been applied
+yet, you won't be able to compute the `inputs` unless the dependencies are all applied.
+
+To address this, you can provide default outputs to use when a module hasn't been applied yet. This is configured using
+the `default_outputs` attribute on the `dependency` block and it corresponds to a map that will be injected in place of
+the actual dependency outputs if the target config hasn't been applied yet.
+
+For example, in the previous example with a `mysql` module and `vpc` module, suppose you wanted to place in a temporary,
+dummy value for the `vpc_id` during a `validate-all` for the `mysql` module. You can specify in `mysql/terragrunt.hcl`:
+
+```
+dependency "vpc" {
+  config_path = "../vpc"
+
+  default_outputs = {
+    vpc_id = "temporary-dummy-id"
+  }
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+}
+```
+
+You can now run `validate` on this config before the `vpc` module is applied because Terragrunt will use the map
+`{vpc_id = "temporary-dummy-id"}` as the `outputs` attribute on the dependency instead of erroring out.
+
+What if you wanted to restrict this behavior to only the `validate` command? For example, you might not want to use
+the defaults for a `plan` operation because the plan doesn't give you any indication of what is actually going to be
+created.
+
+You can use the `default_outputs_allowed_terraform_commands` attribute to indicate that the `default_outputs` should
+only be used when running those Terraform commands. So to restrict the `default_outputs` to only when `validate` is
+being run, you can modify the above `terragrunt.hcl` file to:
+
+```
+dependency "vpc" {
+  config_path = "../vpc"
+
+  default_outputs = {
+    vpc_id = "temporary-dummy-id"
+  }
+  default_outputs_allowed_terraform_commands = ["validate"]
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+}
+```
+
+Note that indicating `validate` means that the `default_outputs` will be used either with `validate` or with
+`validate-all`.
+
 
 #### Dependencies between modules
 
