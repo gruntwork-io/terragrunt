@@ -39,9 +39,8 @@ func Debugf(logger *log.Logger, fmtString string, fmtArgs ...interface{}) {
 func ColorLogf(logger *log.Logger, colorCode *color.Color, fmtString string, fmtArgs ...interface{}) {
 	logOut := fmt.Sprintf(fmtString, fmtArgs...)
 
-	loggerIsStderr := logger.Writer() == os.Stderr
 	allowColor := terminal.IsTerminal(int(os.Stderr.Fd()))
-	if loggerIsStderr && allowColor {
+	if allowColor {
 		logOut = colorCode.SprintFunc()(logOut)
 	}
 	logger.Println(logOut)
