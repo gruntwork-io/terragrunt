@@ -1116,14 +1116,15 @@ If any of the modules failed to deploy, then Terragrunt will not attempt to depl
 
 ##### Unapplied dependency and default outputs
 
-Terragrunt will return an error indicating the dependency hasn't been applied yet if the config referenced in a
-`dependency` block has not been applied yet. This is because you cannot actually fetch outputs out of an unapplied
-Terraform module, even if there are no resources being created in the module.
+Terragrunt will return an error indicating the dependency hasn't been applied yet if the terraform module managed by the
+terragrunt config referenced in a `dependency` block has not been applied yet. This is because you cannot actually fetch
+outputs out of an unapplied Terraform module, even if there are no resources being created in the module.
 
-This is most prominent when running commands that do not modify state (e.g `plan-all` and `validate-all`) on a
+This is most problematic when running commands that do not modify state (e.g `plan-all` and `validate-all`) on a
 completely new setup where no infrastructure has been deployed. You won't be able to `plan` or `validate` a module if
 you can't determine the `inputs`. If the module depends on the outputs of another module that hasn't been applied
-yet, you won't be able to compute the `inputs` unless the dependencies are all applied.
+yet, you won't be able to compute the `inputs` unless the dependencies are all applied. However, in real life usage, you
+would want to run `validate-all` or `plan-all` on a completely new set of infrastructure.
 
 To address this, you can provide default outputs to use when a module hasn't been applied yet. This is configured using
 the `default_outputs` attribute on the `dependency` block and it corresponds to a map that will be injected in place of
