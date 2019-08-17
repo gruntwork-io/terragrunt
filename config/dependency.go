@@ -123,30 +123,31 @@ func getCleanedTargetConfigPath(dependencyConfig Dependency, terragruntOptions *
 // - If the dependency block indicates a default_outputs attribute, this will return that.
 // - If the dependency block does NOT indicate a default_outputs attribute, this will return an error.
 func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
-	isApplied, err := isTerragruntApplied(dependencyConfig, terragruntOptions)
+	outputVal, isEmpty, err := getTerragruntOutput(dependencyConfig, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	if isApplied {
-		return getTerragruntOutput(dependencyConfig, terragruntOptions)
+	if !isEmpty {
+		return outputVal, err
 	}
 
-	// When the module is not applied, check if there is a default outputs value to return. If yes, return that. Else,
+	// When we get no output, it can be an indication that either the module has no outputs or the module is not
+	// applied. In either case, check if there are default output values to return. If yes, return that. Else,
 	// return error.
 	targetConfig := getCleanedTargetConfigPath(dependencyConfig, terragruntOptions)
 	currentConfig := terragruntOptions.TerragruntConfigPath
 	if shouldReturnDefaultOutputs(dependencyConfig, terragruntOptions) {
 		util.Debugf(
 			terragruntOptions.Logger,
-			"WARNING: config %s is a dependency of %s that hasn't been applied, but default outputs provided and returning those in dependency output.",
+			"WARNING: config %s is a dependency of %s that has no outputs, but default outputs provided and returning those in dependency output.",
 			targetConfig,
 			currentConfig,
 		)
 		return dependencyConfig.DefaultOutputs, nil
 	}
 
-	err = TerragruntOutputTargetNotApplied{
+	err = TerragruntOutputTargetNoOutputs{
 		targetConfig:  targetConfig,
 		currentConfig: currentConfig,
 	}
@@ -164,49 +165,25 @@ func shouldReturnDefaultOutputs(dependencyConfig Dependency, terragruntOptions *
 	return defaultOutputsSet && allowedCommand
 }
 
-// Return whether or not the target config has been applied. Returns false when the target config hasn't been applied,
-// and true when it has.
-func isTerragruntApplied(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	// target config check: make sure the target config exists
-	targetConfig := getCleanedTargetConfigPath(dependencyConfig, terragruntOptions)
-	if !util.FileExists(targetConfig) {
-		return false, errors.WithStackTrace(DependencyConfigNotFound{Path: targetConfig})
-	}
-
-	// Check if the target terraform module (managed by terragrunt target config) has been applied.
-	// When a module hasn't been applied yet, there will be no state object, so `terragrunt show` will indicate that.
-	stdout, err := runTerragruntShow(terragruntOptions, targetConfig)
-	stdout = strings.TrimSpace(stdout)
-	isApplied := stdout != "No state."
-	util.Debugf(
-		terragruntOptions.Logger,
-		"Dependency %s of %s is applied: %v (output of terragrunt show: %s)",
-		targetConfig,
-		terragruntOptions.TerragruntConfigPath,
-		isApplied,
-		stdout,
-	)
-	return isApplied, err
-}
-
 // Return the output from the state of another module, managed by terragrunt. This function will parse the provided
 // terragrunt config and extract the desired output from the remote state. Note that this will error if the targetted
 // module hasn't been applied yet.
-func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
+func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, bool, error) {
 	// target config check: make sure the target config exists
 	targetConfig := getCleanedTargetConfigPath(dependencyConfig, terragruntOptions)
 	if !util.FileExists(targetConfig) {
-		return nil, errors.WithStackTrace(DependencyConfigNotFound{Path: targetConfig})
+		return nil, true, errors.WithStackTrace(DependencyConfigNotFound{Path: targetConfig})
 	}
 
 	jsonBytes, err := runTerragruntOutputJson(terragruntOptions, targetConfig)
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
+	isEmpty := string(jsonBytes) == "{}"
 
 	outputMap, err := terraformOutputJsonToCtyValueMap(targetConfig, jsonBytes)
 	if err != nil {
-		return nil, err
+		return nil, isEmpty, err
 	}
 
 	// We need to convert the value map to a single cty.Value at the end for use in the terragrunt config.
@@ -214,24 +191,7 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 	if err != nil {
 		err = TerragruntOutputEncodingError{Path: targetConfig, Err: err}
 	}
-	return &convertedOutput, errors.WithStackTrace(err)
-}
-
-// runTerragruntShow uses terragrunt running functions to show the current state of the target config.
-func runTerragruntShow(terragruntOptions *options.TerragruntOptions, targetConfig string) (string, error) {
-	var stdoutBuffer bytes.Buffer
-	stdoutBufferWriter := bufio.NewWriter(&stdoutBuffer)
-	targetOptions := terragruntOptions.Clone(targetConfig)
-	targetOptions.TerraformCliArgs = []string{"show", "-no-color"}
-	targetOptions.Writer = stdoutBufferWriter
-	err := targetOptions.RunTerragrunt(targetOptions)
-	if err != nil {
-		return "", errors.WithStackTrace(err)
-	}
-
-	stdoutBufferWriter.Flush()
-	outputString := stdoutBuffer.String()
-	return outputString, nil
+	return &convertedOutput, isEmpty, errors.WithStackTrace(err)
 }
 
 // runTerragruntOutputJson uses terragrunt running functions to extract the json output from the target config. Make a
@@ -249,7 +209,7 @@ func runTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targe
 
 	stdoutBufferWriter.Flush()
 	jsonString := stdoutBuffer.String()
-	jsonBytes := []byte(jsonString)
+	jsonBytes := []byte(strings.TrimSpace(jsonString))
 	util.Debugf(terragruntOptions.Logger, "Retrieved output from %s as json: %s", targetConfig, jsonString)
 	return jsonBytes, nil
 }
@@ -322,11 +282,15 @@ func (err TerragruntOutputListEncodingError) Error() string {
 	return fmt.Sprintf("Could not encode output from list of terragrunt configs %v. Underlying error: %s", err.Paths, err.Err)
 }
 
-type TerragruntOutputTargetNotApplied struct {
+type TerragruntOutputTargetNoOutputs struct {
 	targetConfig  string
 	currentConfig string
 }
 
-func (err TerragruntOutputTargetNotApplied) Error() string {
-	return fmt.Sprintf("%s is a dependency of %s but is not applied yet so can not get outputs.", err.targetConfig, err.currentConfig)
+func (err TerragruntOutputTargetNoOutputs) Error() string {
+	return fmt.Sprintf(
+		"%s is a dependency of %s but detected no outputs. Either the target module has not been applied yet, or the module has no outputs. If this is expected, set the skip_outputs flag to true on the dependency block.",
+		err.targetConfig,
+		err.currentConfig,
+	)
 }
