@@ -21,6 +21,7 @@ import (
 type Dependency struct {
 	Name                                   string     `hcl:",label"`
 	ConfigPath                             string     `hcl:"config_path,attr"`
+	SkipOutputs                            *bool      `hcl:"skip_outputs,attr"`
 	DefaultOutputs                         *cty.Value `hcl:"default_outputs,attr"`
 	DefaultOutputsAllowedTerraformCommands *[]string  `hcl:"default_outputs_allowed_terraform_commands,attr"`
 }

@@ -1626,6 +1626,26 @@ func TestDependencyOutputErrorBeforeApply(t *testing.T) {
 	logBufferContentsLineByLine(t, showStderr, "show stderr")
 }
 
+func TestDependencyOutputSkipOutputs(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "integration")
+	emptyPath := filepath.Join(rootPath, "empty")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	// Test that even if the dependency (app1) is not applied, using skip_outputs will skip pulling the outputs so there
+	// will be no errors.
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", emptyPath), &showStdout, &showStderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+}
+
 // Test that when you have an output default on a dependency, the dependency will use the default as the output instead
 // of erroring out.
 func TestDependencyOutputDefaults(t *testing.T) {
