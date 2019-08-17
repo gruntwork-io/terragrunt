@@ -26,6 +26,11 @@ type Dependency struct {
 	DefaultOutputsAllowedTerraformCommands *[]string  `hcl:"default_outputs_allowed_terraform_commands,attr"`
 }
 
+// Given a dependency config, we should only attempt to get the outputs if SkipOutputs is nil or false
+func (dependencyConfig Dependency) shouldGetOutputs() bool {
+	return dependencyConfig.SkipOutputs == nil || !(*dependencyConfig.SkipOutputs)
+}
+
 // Decode the dependency blocks from the file, and then retrieve all the outputs from the remote state. Then encode the
 // resulting map as a cty.Value object.
 // TODO: In the future, consider allowing importing dependency blocks from included config
@@ -78,13 +83,15 @@ func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOption
 		// - outputs: The module outputs of the target config
 		dependencyEncodingMap := map[string]cty.Value{}
 
-		// Encode the outputs and nest under `outputs` attribute
-		paths = append(paths, dependencyConfig.ConfigPath)
-		outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig, terragruntOptions)
-		if err != nil {
-			return nil, err
+		// Encode the outputs and nest under `outputs` attribute if we should get the outputs
+		if dependencyConfig.shouldGetOutputs() {
+			paths = append(paths, dependencyConfig.ConfigPath)
+			outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig, terragruntOptions)
+			if err != nil {
+				return nil, err
+			}
+			dependencyEncodingMap["outputs"] = *outputVal
 		}
-		dependencyEncodingMap["outputs"] = *outputVal
 
 		// Once the dependency is encoded into a map, we need to conver to a cty.Value again so that it can be fed to
 		// the higher order dependency map.
