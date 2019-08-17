@@ -1176,6 +1176,20 @@ inputs = {
 Note that indicating `validate` means that the `default_outputs` will be used either with `validate` or with
 `validate-all`.
 
+You can also use `skip_outputs` on the `dependency` block to specify the dependency without pulling in the outputs:
+
+```
+dependency "vpc" {
+  config_path = "../vpc"
+  skip_outputs = true
+}
+```
+
+<!--
+This currently makes no sense to do, but will make more sense when `dependency` blocks start to pull in other
+information from the target config.
+-->
+
 
 #### Dependencies between modules
 
