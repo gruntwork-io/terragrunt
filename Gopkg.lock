@@ -242,7 +242,7 @@
   revision = "318e80eefe28c3aa01b434c61bcf4c83a0cc6b25"
 
 [[projects]]
-  digest = "1:93a7a26ca378c3e071b5f1477b98aea19e4e038da6e3baad91225b76bf4cce7e"
+  digest = "1:66dd758d5abbc9b64f515b567120d22cdac3b99875199ee2409a9615f9f468ac"
   name = "github.com/hashicorp/terraform"
   packages = [
     "addrs",
@@ -254,8 +254,8 @@
     "tfdiags",
   ]
   pruneopts = "UT"
-  revision = "a5fb573be1e8b5564f3fd879852a6681c55d6e8f"
-  version = "v0.12.2"
+  revision = "380226f0aaa57db5685f43b824f8bda99acdf00c"
+  version = "v0.12.6"
 
 [[projects]]
   digest = "1:bb81097a5b62634f3e9fec1014657855610c82d19b9a40c17612e32651e35dca"
@@ -372,12 +372,12 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:7922171eda409496bd43979d690c2ba5d58912d9bc5cafdc0509e7cd5a6f8314"
+  digest = "1:15fbb37db073777762aa7df4d9109f01de9d9a3fa233f51f5986cada7491562e"
   name = "github.com/zclconf/go-cty-yaml"
   packages = ["."]
   pruneopts = "UT"
-  revision = "fbabe99bb1c897a56ed70103a40aa94fc50a7104"
-  version = "v0.1.0"
+  revision = "bc34c981dadb5ed30af852693e3aba8fb6546f42"
+  version = "v1.0.1"
 
 [[projects]]
   digest = "1:74055050ea547bb04600be79cc501965cb3de8988018262f2ca430f0a0b48ec3"

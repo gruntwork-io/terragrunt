@@ -90,6 +90,7 @@ const (
 	TEST_FIXTURE_LOCALS_CANONICAL                           = "fixture-locals/canonical"
 	TEST_FIXTURE_LOCALS_IN_INCLUDE                          = "fixture-locals/local-in-include"
 	TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH           = "qa/my-app"
+	TEST_FIXTURE_REGRESSIONS                                = "fixture-regressions"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -1555,6 +1556,30 @@ func TestTerragruntInfo(t *testing.T) {
 	assert.Equal(t, dat.IamRole, "")
 }
 
+func TestYamlDecodeRegressions(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_REGRESSIONS)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_REGRESSIONS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_REGRESSIONS, "yamldecode")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// Check the output of yamldecode and make sure it doesn't parse the string incorrectly
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	assert.Equal(t, outputs["test1"].Value, "003")
+	assert.Equal(t, outputs["test2"].Value, "1.00")
+}
+
 func TestDependencyOutput(t *testing.T) {
 	t.Parallel()
 
@@ -1562,16 +1587,7 @@ func TestDependencyOutput(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "integration")
 
-	showStdout := bytes.Buffer{}
-	showStderr := bytes.Buffer{}
-
-	assert.NoError(
-		t,
-		runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr),
-	)
-
-	logBufferContentsLineByLine(t, showStdout, "show stdout")
-	logBufferContentsLineByLine(t, showStderr, "show stderr")
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
 	// verify expected output 42
 	stdout := bytes.Buffer{}
