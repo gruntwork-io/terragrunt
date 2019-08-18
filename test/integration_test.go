@@ -1556,6 +1556,7 @@ func TestTerragruntInfo(t *testing.T) {
 	assert.Equal(t, dat.IamRole, "")
 }
 
+// Test case for yamldecode bug: https://github.com/gruntwork-io/terragrunt/issues/834
 func TestYamlDecodeRegressions(t *testing.T) {
 	t.Parallel()
 
