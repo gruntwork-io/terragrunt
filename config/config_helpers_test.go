@@ -673,10 +673,11 @@ func TestTerraformOutputJsonToCtyValueMap(t *testing.T) {
 	}
 }
 
-func getKeys(valueMap map[string]cty.Value) []string {
-	keys := []string{}
+// Return keys as a map so it is treated like a set, and order doesn't matter when comparing equivalence
+func getKeys(valueMap map[string]cty.Value) map[string]bool {
+	keys := map[string]bool{}
 	for k, _ := range valueMap {
-		keys = append(keys, k)
+		keys[k] = true
 	}
 	return keys
 }
