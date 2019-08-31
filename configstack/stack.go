@@ -77,7 +77,7 @@ func (stack *Stack) Apply(terragruntOptions *options.TerragruntOptions) error {
 // Destroy all the modules in the given stack, making sure to destroy the dependencies of each module in the stack in
 // the proper order.
 func (stack *Stack) Destroy(terragruntOptions *options.TerragruntOptions) error {
-	stack.setTerraformCommand([]string{"destroy", "-force", "-input=false"})
+	stack.setTerraformCommand([]string{"destroy", "-input=false", "-auto-approve"})
 	return RunModulesReverseOrder(stack.Modules)
 }
 
