@@ -235,8 +235,8 @@ func (terragruntOptions *TerragruntOptions) InsertTerraformCliArgs(argsToInsert 
 	// command is either 1 word or 2 words
 	var args []string
 	args = append(args, terragruntOptions.TerraformCliArgs[:commandLength]...)
-	args = append(args, argsToInsert...)
 	args = append(args, terragruntOptions.TerraformCliArgs[commandLength:]...)
+	args = append(args, argsToInsert...)
 	terragruntOptions.TerraformCliArgs = args
 }
 
