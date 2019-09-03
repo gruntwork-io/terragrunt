@@ -1801,10 +1801,8 @@ func TestDependencyOutputCycleHandling(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "cycle")
 	fooPath := util.JoinPath(rootPath, "foo")
 
-	var (
-		planStdout bytes.Buffer
-		planStderr bytes.Buffer
-	)
+	planStdout := bytes.Buffer{}
+	planStderr := bytes.Buffer{}
 	err := runTerragruntCommand(
 		t,
 		fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", fooPath),
@@ -1814,7 +1812,7 @@ func TestDependencyOutputCycleHandling(t *testing.T) {
 	logBufferContentsLineByLine(t, planStdout, "plan stdout")
 	logBufferContentsLineByLine(t, planStderr, "plan stderr")
 	assert.Error(t, err)
-	assert.True(t, strings.Contains(planStderr.String(), "Found a dependency cycle between modules"))
+	assert.True(t, strings.Contains(err.Error(), "Found a dependency cycle between modules"))
 }
 
 func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
