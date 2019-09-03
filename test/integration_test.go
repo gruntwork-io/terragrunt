@@ -1646,14 +1646,14 @@ func TestDependencyOutputSkipOutputs(t *testing.T) {
 	logBufferContentsLineByLine(t, showStderr, "show stderr")
 }
 
-// Test that when you have an output default on a dependency, the dependency will use the default as the output instead
+// Test that when you have a mock_output on a dependency, the dependency will use the mock as the output instead
 // of erroring out.
-func TestDependencyOutputDefaults(t *testing.T) {
+func TestDependencyMockOutput(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "default-outputs")
+	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs")
 	dependent1Path := filepath.Join(rootPath, "dependent1")
 
 	showStdout := bytes.Buffer{}
@@ -1665,7 +1665,7 @@ func TestDependencyOutputDefaults(t *testing.T) {
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
 	logBufferContentsLineByLine(t, showStderr, "show stderr")
 
-	// verify expected output when defaults are used: The answer is 0
+	// verify expected output when mocks are used: The answer is 0
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	require.NoError(
@@ -1683,7 +1683,7 @@ func TestDependencyOutputDefaults(t *testing.T) {
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
 	logBufferContentsLineByLine(t, showStderr, "show stderr")
 
-	// verify expected output when defaults are used: The answer is 0
+	// verify expected output when mocks are used: The answer is 0
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
 	require.NoError(
@@ -1695,14 +1695,14 @@ func TestDependencyOutputDefaults(t *testing.T) {
 	assert.Equal(t, outputs["truth"].Value, "The answer is 42")
 }
 
-// Test that when you have an output default on a dependency, the dependency will use the default as the output instead
+// Test that when you have a mock_output on a dependency, the dependency will use the mock as the output instead
 // of erroring out when running an allowed command.
-func TestDependencyOutputDefaultsRestricted(t *testing.T) {
+func TestDependencyMockOutputRestricted(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "default-outputs")
+	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs")
 	dependent2Path := filepath.Join(rootPath, "dependent2")
 
 	showStdout := bytes.Buffer{}
