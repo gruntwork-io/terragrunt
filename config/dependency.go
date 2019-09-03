@@ -42,12 +42,11 @@ func decodeAndRetrieveOutputs(
 	terragruntOptions *options.TerragruntOptions,
 	extensions EvalContextExtensions,
 ) (*cty.Value, error) {
-	if err := checkForDependencyBlockCyclesUsingDFS(filename, &[]string{}, &[]string{}, terragruntOptions); err != nil {
-		return nil, err
-	}
-
 	decodedDependency := terragruntDependency{}
 	if err := decodeHcl(file, filename, &decodedDependency, terragruntOptions, extensions); err != nil {
+		return nil, err
+	}
+	if err := checkForDependencyBlockCycles(filename, decodedDependency, terragruntOptions); err != nil {
 		return nil, err
 	}
 	return dependencyBlocksToCtyValue(decodedDependency.Dependencies, terragruntOptions)
@@ -72,7 +71,21 @@ func dependencyBlocksToModuleDependencies(decodedDependencyBlocks []Dependency) 
 	return &ModuleDependencies{Paths: paths}
 }
 
-// Check for cyclic dependency blocks to avoid infinite `terragrunt output` loops.
+// Check for cyclic dependency blocks to avoid infinite `terragrunt output` loops. To avoid reparsing the config, we
+// kickstart the initial loop using what we already decoded.
+func checkForDependencyBlockCycles(filename string, decodedDependency terragruntDependency, terragruntOptions *options.TerragruntOptions) error {
+	visitedPaths := []string{}
+	currentTraversalPaths := []string{filename}
+	for _, dependency := range decodedDependency.Dependencies {
+		dependencyPath := cleanDependencyTerragruntConfigPath(filename, dependency.ConfigPath)
+		if err := checkForDependencyBlockCyclesUsingDFS(dependencyPath, &visitedPaths, &currentTraversalPaths, terragruntOptions); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Helper function for checkForDependencyBlockCycles.
 //
 // Same implementation as configstack/graph.go:checkForCyclesUsingDepthFirstSearch, except walks the graph of
 // dependencies by `dependency` blocks (which make explicit `terragrunt output` calls) instead of explicit dependencies.
@@ -96,17 +109,7 @@ func checkForDependencyBlockCyclesUsingDFS(
 		return err
 	}
 	for _, dependency := range dependencyPaths {
-		// Dependency paths are relative to the config, so we convert to absolute paths while we still have the proper
-		// context.
-		dependency = filepath.Clean(filepath.Join(filepath.Dir(currentConfigPath), dependency))
-		// Dependency blocks can be the directory holding a terragrunt config, but we want to read the actual config
-		// file here. So if the dependency path is a directory, we assume the default config filename exists in the
-		// directory.
-		if util.IsDir(dependency) {
-			dependency = filepath.Join(dependency, DefaultTerragruntConfigPath)
-		}
-
-		if err := checkForDependencyBlockCyclesUsingDFS(dependency, visitedPaths, currentTraversalPaths, terragruntOptions); err != nil {
+		if err := checkForDependencyBlockCyclesUsingDFS(cleanDependencyTerragruntConfigPath(currentConfigPath, dependency), visitedPaths, currentTraversalPaths, terragruntOptions); err != nil {
 			return err
 		}
 	}
@@ -115,6 +118,22 @@ func checkForDependencyBlockCyclesUsingDFS(
 	*currentTraversalPaths = util.RemoveElementFromList(*currentTraversalPaths, currentConfigPath)
 
 	return nil
+}
+
+// Ensures the dependency path points to the right terragrunt config path.
+func cleanDependencyTerragruntConfigPath(currentConfigPath string, dependencyPath string) string {
+	// Dependency paths are relative to the config, so we convert to absolute paths while we still have the proper
+	// context.
+	if !filepath.IsAbs(dependencyPath) {
+		dependencyPath = filepath.Clean(filepath.Join(filepath.Dir(currentConfigPath), dependencyPath))
+	}
+	// Dependency blocks can be the directory holding a terragrunt config, but we want to read the actual config
+	// file here. So if the dependency path is a directory, we assume the default config filename exists in the
+	// directory.
+	if util.IsDir(dependencyPath) {
+		dependencyPath = filepath.Join(dependencyPath, DefaultTerragruntConfigPath)
+	}
+	return dependencyPath
 }
 
 // Given the config path, return the list of config paths that are specified as dependency blocks in the config
