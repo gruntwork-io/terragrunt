@@ -1,9 +1,9 @@
 dependency "source" {
   config_path = "../source"
-  default_outputs = {
+  mock_outputs = {
     the_answer = "0"
   }
-  default_outputs_allowed_terraform_commands = ["validate"]
+  mock_outputs_allowed_terraform_commands = ["validate"]
 }
 
 inputs = {

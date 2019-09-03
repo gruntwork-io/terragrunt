@@ -1,6 +1,6 @@
 dependency "source" {
   config_path = "../source"
-  default_outputs = {
+  mock_outputs = {
     the_answer = "0"
   }
 }

@@ -19,11 +19,11 @@ import (
 )
 
 type Dependency struct {
-	Name                                   string     `hcl:",label"`
-	ConfigPath                             string     `hcl:"config_path,attr"`
-	SkipOutputs                            *bool      `hcl:"skip_outputs,attr"`
-	DefaultOutputs                         *cty.Value `hcl:"default_outputs,attr"`
-	DefaultOutputsAllowedTerraformCommands *[]string  `hcl:"default_outputs_allowed_terraform_commands,attr"`
+	Name                                string     `hcl:",label"`
+	ConfigPath                          string     `hcl:"config_path,attr"`
+	SkipOutputs                         *bool      `hcl:"skip_outputs,attr"`
+	MockOutputs                         *cty.Value `hcl:"mock_outputs,attr"`
+	MockOutputsAllowedTerraformCommands *[]string  `hcl:"mock_outputs_allowed_terraform_commands,attr"`
 }
 
 // Given a dependency config, we should only attempt to get the outputs if SkipOutputs is nil or false
@@ -128,8 +128,8 @@ func getCleanedTargetConfigPath(dependencyConfig Dependency, terragruntOptions *
 
 // This will attempt to get the outputs from the target terragrunt config if it is applied. If it is not applied, the
 // behavior is different depending on the configuration of the dependency:
-// - If the dependency block indicates a default_outputs attribute, this will return that.
-// - If the dependency block does NOT indicate a default_outputs attribute, this will return an error.
+// - If the dependency block indicates a mock_outputs attribute, this will return that.
+// - If the dependency block does NOT indicate a mock_outputs attribute, this will return an error.
 func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
 	outputVal, isEmpty, err := getTerragruntOutput(dependencyConfig, terragruntOptions)
 	if err != nil {
@@ -145,14 +145,14 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 	// return error.
 	targetConfig := getCleanedTargetConfigPath(dependencyConfig, terragruntOptions)
 	currentConfig := terragruntOptions.TerragruntConfigPath
-	if shouldReturnDefaultOutputs(dependencyConfig, terragruntOptions) {
+	if shouldReturnMockOutputs(dependencyConfig, terragruntOptions) {
 		util.Debugf(
 			terragruntOptions.Logger,
-			"WARNING: config %s is a dependency of %s that has no outputs, but default outputs provided and returning those in dependency output.",
+			"WARNING: config %s is a dependency of %s that has no outputs, but mock outputs provided and returning those in dependency output.",
 			targetConfig,
 			currentConfig,
 		)
-		return dependencyConfig.DefaultOutputs, nil
+		return dependencyConfig.MockOutputs, nil
 	}
 
 	err = TerragruntOutputTargetNoOutputs{
@@ -162,14 +162,14 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 	return nil, err
 }
 
-// We should only return default outputs if the default_outputs attribute is set, and if we are running one of the
-// allowed commands when `default_outputs_allowed_terraform_commands` is set as well.
-func shouldReturnDefaultOutputs(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) bool {
-	defaultOutputsSet := dependencyConfig.DefaultOutputs != nil
+// We should only return default outputs if the mock_outputs attribute is set, and if we are running one of the
+// allowed commands when `mock_outputs_allowed_terraform_commands` is set as well.
+func shouldReturnMockOutputs(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) bool {
+	defaultOutputsSet := dependencyConfig.MockOutputs != nil
 	allowedCommand :=
-		dependencyConfig.DefaultOutputsAllowedTerraformCommands == nil ||
-			len(*dependencyConfig.DefaultOutputsAllowedTerraformCommands) == 0 ||
-			util.ListContainsElement(*dependencyConfig.DefaultOutputsAllowedTerraformCommands, terragruntOptions.TerraformCommand)
+		dependencyConfig.MockOutputsAllowedTerraformCommands == nil ||
+			len(*dependencyConfig.MockOutputsAllowedTerraformCommands) == 0 ||
+			util.ListContainsElement(*dependencyConfig.MockOutputsAllowedTerraformCommands, terragruntOptions.TerraformCommand)
 	return defaultOutputsSet && allowedCommand
 }
 

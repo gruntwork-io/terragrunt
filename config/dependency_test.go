@@ -71,16 +71,16 @@ dependency {
 	require.Error(t, decodeHcl(file, filename, &decoded, mockOptionsForTest(t), EvalContextExtensions{}))
 }
 
-func TestDecodeDependencyDefaultOutputs(t *testing.T) {
+func TestDecodeDependencyMockOutputs(t *testing.T) {
 	t.Parallel()
 
 	config := `
 dependency "hitchhiker" {
   config_path = "../answers"
-  default_outputs = {
+  mock_outputs = {
     the_answer = 42
   }
-  default_outputs_allowed_terraform_commands = ["validate", "apply"]
+  mock_outputs_allowed_terraform_commands = ["validate", "apply"]
 }
 `
 	filename := DefaultTerragruntConfigPath
@@ -96,7 +96,7 @@ dependency "hitchhiker" {
 	assert.Equal(t, dependency.Name, "hitchhiker")
 	assert.Equal(t, dependency.ConfigPath, "../answers")
 
-	ctyValueDefault := dependency.DefaultOutputs
+	ctyValueDefault := dependency.MockOutputs
 	require.NotNil(t, ctyValueDefault)
 
 	var actualDefault struct {
@@ -105,7 +105,7 @@ dependency "hitchhiker" {
 	require.NoError(t, gocty.FromCtyValue(*ctyValueDefault, &actualDefault))
 	assert.Equal(t, actualDefault.TheAnswer, 42)
 
-	defaultAllowedCommands := dependency.DefaultOutputsAllowedTerraformCommands
+	defaultAllowedCommands := dependency.MockOutputsAllowedTerraformCommands
 	require.NotNil(t, defaultAllowedCommands)
 	assert.Equal(t, *defaultAllowedCommands, []string{"validate", "apply"})
 }

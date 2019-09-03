@@ -1114,7 +1114,7 @@ If any of the modules failed to deploy, then Terragrunt will not attempt to depl
 **Note**: Not all blocks are able to access outputs passed by `dependency` blocks. See the section on
 [Configuration parsing order](#configuration-parsing-order) in this README for more information.
 
-##### Unapplied dependency and default outputs
+##### Unapplied dependency and mock outputs
 
 Terragrunt will return an error indicating the dependency hasn't been applied yet if the terraform module managed by the
 terragrunt config referenced in a `dependency` block has not been applied yet. This is because you cannot actually fetch
@@ -1126,8 +1126,8 @@ you can't determine the `inputs`. If the module depends on the outputs of anothe
 yet, you won't be able to compute the `inputs` unless the dependencies are all applied. However, in real life usage, you
 would want to run `validate-all` or `plan-all` on a completely new set of infrastructure.
 
-To address this, you can provide default outputs to use when a module hasn't been applied yet. This is configured using
-the `default_outputs` attribute on the `dependency` block and it corresponds to a map that will be injected in place of
+To address this, you can provide mock outputs to use when a module hasn't been applied yet. This is configured using
+the `mock_outputs` attribute on the `dependency` block and it corresponds to a map that will be injected in place of
 the actual dependency outputs if the target config hasn't been applied yet.
 
 For example, in the previous example with a `mysql` module and `vpc` module, suppose you wanted to place in a temporary,
@@ -1137,7 +1137,7 @@ dummy value for the `vpc_id` during a `validate-all` for the `mysql` module. You
 dependency "vpc" {
   config_path = "../vpc"
 
-  default_outputs = {
+  mock_outputs = {
     vpc_id = "temporary-dummy-id"
   }
 }
@@ -1154,18 +1154,18 @@ What if you wanted to restrict this behavior to only the `validate` command? For
 the defaults for a `plan` operation because the plan doesn't give you any indication of what is actually going to be
 created.
 
-You can use the `default_outputs_allowed_terraform_commands` attribute to indicate that the `default_outputs` should
-only be used when running those Terraform commands. So to restrict the `default_outputs` to only when `validate` is
+You can use the `mock_outputs_allowed_terraform_commands` attribute to indicate that the `mock_outputs` should
+only be used when running those Terraform commands. So to restrict the `mock_outputs` to only when `validate` is
 being run, you can modify the above `terragrunt.hcl` file to:
 
 ```
 dependency "vpc" {
   config_path = "../vpc"
 
-  default_outputs = {
+  mock_outputs = {
     vpc_id = "temporary-dummy-id"
   }
-  default_outputs_allowed_terraform_commands = ["validate"]
+  mock_outputs_allowed_terraform_commands = ["validate"]
 }
 
 inputs = {
@@ -1173,7 +1173,7 @@ inputs = {
 }
 ```
 
-Note that indicating `validate` means that the `default_outputs` will be used either with `validate` or with
+Note that indicating `validate` means that the `mock_outputs` will be used either with `validate` or with
 `validate-all`.
 
 You can also use `skip_outputs` on the `dependency` block to specify the dependency without pulling in the outputs:
