@@ -34,6 +34,8 @@ func (dependencyConfig Dependency) shouldGetOutputs() bool {
 // Decode the dependency blocks from the file, and then retrieve all the outputs from the remote state. Then encode the
 // resulting map as a cty.Value object.
 // TODO: In the future, consider allowing importing dependency blocks from included config
+// NOTE FOR MAINTAINER: When implementing importation of other config blocks (e.g referencing inputs), carefully
+//                      consider whether or not the implementation of the cyclic dependency detection still makes sense.
 func decodeAndRetrieveOutputs(
 	file *hcl.File,
 	filename string,
@@ -41,8 +43,10 @@ func decodeAndRetrieveOutputs(
 	extensions EvalContextExtensions,
 ) (*cty.Value, error) {
 	decodedDependency := terragruntDependency{}
-	err := decodeHcl(file, filename, &decodedDependency, terragruntOptions, extensions)
-	if err != nil {
+	if err := decodeHcl(file, filename, &decodedDependency, terragruntOptions, extensions); err != nil {
+		return nil, err
+	}
+	if err := checkForDependencyBlockCycles(filename, decodedDependency, terragruntOptions); err != nil {
 		return nil, err
 	}
 	return dependencyBlocksToCtyValue(decodedDependency.Dependencies, terragruntOptions)
@@ -65,6 +69,87 @@ func dependencyBlocksToModuleDependencies(decodedDependencyBlocks []Dependency) 
 		paths = append(paths, configPath)
 	}
 	return &ModuleDependencies{Paths: paths}
+}
+
+// Check for cyclic dependency blocks to avoid infinite `terragrunt output` loops. To avoid reparsing the config, we
+// kickstart the initial loop using what we already decoded.
+func checkForDependencyBlockCycles(filename string, decodedDependency terragruntDependency, terragruntOptions *options.TerragruntOptions) error {
+	visitedPaths := []string{}
+	currentTraversalPaths := []string{filename}
+	for _, dependency := range decodedDependency.Dependencies {
+		dependencyPath := cleanDependencyTerragruntConfigPath(filename, dependency.ConfigPath)
+		if err := checkForDependencyBlockCyclesUsingDFS(dependencyPath, &visitedPaths, &currentTraversalPaths, terragruntOptions); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Helper function for checkForDependencyBlockCycles.
+//
+// Same implementation as configstack/graph.go:checkForCyclesUsingDepthFirstSearch, except walks the graph of
+// dependencies by `dependency` blocks (which make explicit `terragrunt output` calls) instead of explicit dependencies.
+func checkForDependencyBlockCyclesUsingDFS(
+	currentConfigPath string,
+	visitedPaths *[]string,
+	currentTraversalPaths *[]string,
+	terragruntOptions *options.TerragruntOptions,
+) error {
+	if util.ListContainsElement(*visitedPaths, currentConfigPath) {
+		return nil
+	}
+
+	if util.ListContainsElement(*currentTraversalPaths, currentConfigPath) {
+		return errors.WithStackTrace(DependencyCycle(append(*currentTraversalPaths, currentConfigPath)))
+	}
+
+	*currentTraversalPaths = append(*currentTraversalPaths, currentConfigPath)
+	dependencyPaths, err := getDependencyBlockConfigPathsByFilepath(currentConfigPath, terragruntOptions)
+	if err != nil {
+		return err
+	}
+	for _, dependency := range dependencyPaths {
+		if err := checkForDependencyBlockCyclesUsingDFS(cleanDependencyTerragruntConfigPath(currentConfigPath, dependency), visitedPaths, currentTraversalPaths, terragruntOptions); err != nil {
+			return err
+		}
+	}
+
+	*visitedPaths = append(*visitedPaths, currentConfigPath)
+	*currentTraversalPaths = util.RemoveElementFromList(*currentTraversalPaths, currentConfigPath)
+
+	return nil
+}
+
+// Ensures the dependency path points to the right terragrunt config path.
+func cleanDependencyTerragruntConfigPath(currentConfigPath string, dependencyPath string) string {
+	// Dependency paths are relative to the config, so we convert to absolute paths while we still have the proper
+	// context.
+	if !filepath.IsAbs(dependencyPath) {
+		dependencyPath = filepath.Clean(filepath.Join(filepath.Dir(currentConfigPath), dependencyPath))
+	}
+	// Dependency blocks can be the directory holding a terragrunt config, but we want to read the actual config
+	// file here. So if the dependency path is a directory, we assume the default config filename exists in the
+	// directory.
+	if util.IsDir(dependencyPath) {
+		dependencyPath = filepath.Join(dependencyPath, DefaultTerragruntConfigPath)
+	}
+	return dependencyPath
+}
+
+// Given the config path, return the list of config paths that are specified as dependency blocks in the config
+func getDependencyBlockConfigPathsByFilepath(configPath string, terragruntOptions *options.TerragruntOptions) ([]string, error) {
+	// This will automatically parse everything needed to parse the dependency block configs, and load them as
+	// TerragruntConfig.Dependencies. Note that since we aren't passing in `DependenciesBlock` to the
+	// PartialDecodeSectionType list, the Dependencies attribute will not include any dependencies specified via the
+	// dependencies block.
+	tgConfig, err := PartialParseConfigFile(configPath, terragruntOptions, nil, []PartialDecodeSectionType{DependencyBlock})
+	if err != nil {
+		return nil, err
+	}
+	if tgConfig.Dependencies == nil {
+		return []string{}, nil
+	}
+	return tgConfig.Dependencies.Paths, nil
 }
 
 // Encode the list of dependency blocks into a single cty.Value object that maps the dependency block name to the
@@ -301,4 +386,10 @@ func (err TerragruntOutputTargetNoOutputs) Error() string {
 		err.targetConfig,
 		err.currentConfig,
 	)
+}
+
+type DependencyCycle []string
+
+func (err DependencyCycle) Error() string {
+	return fmt.Sprintf("Found a dependency cycle between modules: %s", strings.Join([]string(err), " -> "))
 }
