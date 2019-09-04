@@ -3,18 +3,31 @@
 Contributions to this repo are very welcome! We follow a fairly standard [pull request 
 process](https://help.github.com/articles/about-pull-requests/) for contributions, subject to the following guidelines:
  
-1. [File a GitHub issue](#file-a-github-issue)
+1. [File a GitHub issue or write an RFC](#file-a-github-issue-or-write-an-rfc)
 1. [Update the documentation](#update-the-documentation)
 1. [Update the tests](#update-the-tests)
 1. [Update the code](#update-the-code)
 1. [Create a pull request](#create-a-pull-request)
 1. [Merge and release](#merge-and-release)
 
-## File a GitHub issue
+## File a GitHub issue or write an RFC
 
 Before starting any work, we recommend filing a GitHub issue in this repo. This is your chance to ask questions and
 get feedback from the maintainers and the community before you sink a lot of time into writing (possibly the wrong) 
 code. If there is anything you're unsure about, just ask!
+
+Sometimes, the scope of the feature proposal is large enough that it requires major updates to the code base to
+implement. In these situations, a maintainer may suggest writing up an RFC that describes the feature in more details
+than what can be reasonably captured in a Github Issue. RFCs are written in markdown and live in the directory
+`_docs/rfc`.
+
+To write an RFC:
+
+- Clone the repository
+- Create a new branch
+- Copy the template (`_docs/rfc/TEMPLATE.md`) to a new file in the same directory.
+- Fill out the template
+- Open a PR for comments, prefixing the title with the term `[RFC]` to indicate that it is an RFC PR.
 
 ## Update the documentation
 
