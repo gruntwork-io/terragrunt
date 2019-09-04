@@ -2,6 +2,6 @@ dependency "bar" {
   config_path = "../bar"
 }
 
-dependency "car" {
-  config_path = "../car"
+dependency "baz" {
+  config_path = "../baz"
 }

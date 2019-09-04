@@ -1797,22 +1797,39 @@ func TestDependencyOutputCycleHandling(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "cycle")
-	fooPath := util.JoinPath(rootPath, "foo")
 
-	planStdout := bytes.Buffer{}
-	planStderr := bytes.Buffer{}
-	err := runTerragruntCommand(
-		t,
-		fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", fooPath),
-		&planStdout,
-		&planStderr,
-	)
-	logBufferContentsLineByLine(t, planStdout, "plan stdout")
-	logBufferContentsLineByLine(t, planStderr, "plan stderr")
-	assert.Error(t, err)
-	assert.True(t, strings.Contains(err.Error(), "Found a dependency cycle between modules"))
+	testCases := []string{
+		"aa",
+		"aba",
+		"abca",
+		"abcda",
+	}
+
+	for _, testCase := range testCases {
+		// Capture range variable into forloop so that the binding is consistent across runs.
+		testCase := testCase
+
+		t.Run(testCase, func(t *testing.T) {
+			t.Parallel()
+
+			tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+			rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "cycle", testCase)
+			fooPath := util.JoinPath(rootPath, "foo")
+
+			planStdout := bytes.Buffer{}
+			planStderr := bytes.Buffer{}
+			err := runTerragruntCommand(
+				t,
+				fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", fooPath),
+				&planStdout,
+				&planStderr,
+			)
+			logBufferContentsLineByLine(t, planStdout, "plan stdout")
+			logBufferContentsLineByLine(t, planStderr, "plan stderr")
+			assert.Error(t, err)
+			assert.True(t, strings.Contains(err.Error(), "Found a dependency cycle between modules"))
+		})
+	}
 }
 
 func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
