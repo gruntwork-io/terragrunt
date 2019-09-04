@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/hashicorp/hcl2/hcl"
 	"github.com/zclconf/go-cty/cty"
@@ -18,8 +19,16 @@ import (
 )
 
 type Dependency struct {
-	Name       string `hcl:",label"`
-	ConfigPath string `hcl:"config_path,attr"`
+	Name                                string     `hcl:",label"`
+	ConfigPath                          string     `hcl:"config_path,attr"`
+	SkipOutputs                         *bool      `hcl:"skip_outputs,attr"`
+	MockOutputs                         *cty.Value `hcl:"mock_outputs,attr"`
+	MockOutputsAllowedTerraformCommands *[]string  `hcl:"mock_outputs_allowed_terraform_commands,attr"`
+}
+
+// Given a dependency config, we should only attempt to get the outputs if SkipOutputs is nil or false
+func (dependencyConfig Dependency) shouldGetOutputs() bool {
+	return dependencyConfig.SkipOutputs == nil || !(*dependencyConfig.SkipOutputs)
 }
 
 // Decode the dependency blocks from the file, and then retrieve all the outputs from the remote state. Then encode the
@@ -74,13 +83,15 @@ func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOption
 		// - outputs: The module outputs of the target config
 		dependencyEncodingMap := map[string]cty.Value{}
 
-		// Encode the outputs and nest under `outputs` attribute
-		paths = append(paths, dependencyConfig.ConfigPath)
-		outputVal, err := getTerragruntOutput(dependencyConfig, terragruntOptions)
-		if err != nil {
-			return nil, err
+		// Encode the outputs and nest under `outputs` attribute if we should get the outputs
+		if dependencyConfig.shouldGetOutputs() {
+			paths = append(paths, dependencyConfig.ConfigPath)
+			outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig, terragruntOptions)
+			if err != nil {
+				return nil, err
+			}
+			dependencyEncodingMap["outputs"] = *outputVal
 		}
-		dependencyEncodingMap["outputs"] = *outputVal
 
 		// Once the dependency is encoded into a map, we need to conver to a cty.Value again so that it can be fed to
 		// the higher order dependency map.
@@ -101,11 +112,9 @@ func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOption
 	return &convertedOutput, errors.WithStackTrace(err)
 }
 
-// Return the output from the state of another module, managed by terragrunt. This function will parse the provided
-// terragrunt config and extract the desired output from the remote state. Note that this will error if the targetted
-// module hasn't been applied yet.
-func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
-	// target config check: make sure the target config exists
+// Returns a cleaned path to the target config (the `terragrunt.hcl` file) encoded in the Dependency, handling relative
+// paths correctly. This will automatically append `terragrunt.hcl` to the path if the target path is a directory.
+func getCleanedTargetConfigPath(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) string {
 	cwd := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 	targetConfig := dependencyConfig.ConfigPath
 	if !filepath.IsAbs(targetConfig) {
@@ -114,18 +123,75 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 	if util.IsDir(targetConfig) {
 		targetConfig = util.JoinPath(targetConfig, DefaultTerragruntConfigPath)
 	}
+	return targetConfig
+}
+
+// This will attempt to get the outputs from the target terragrunt config if it is applied. If it is not applied, the
+// behavior is different depending on the configuration of the dependency:
+// - If the dependency block indicates a mock_outputs attribute, this will return that.
+// - If the dependency block does NOT indicate a mock_outputs attribute, this will return an error.
+func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
+	outputVal, isEmpty, err := getTerragruntOutput(dependencyConfig, terragruntOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	if !isEmpty {
+		return outputVal, err
+	}
+
+	// When we get no output, it can be an indication that either the module has no outputs or the module is not
+	// applied. In either case, check if there are default output values to return. If yes, return that. Else,
+	// return error.
+	targetConfig := getCleanedTargetConfigPath(dependencyConfig, terragruntOptions)
+	currentConfig := terragruntOptions.TerragruntConfigPath
+	if shouldReturnMockOutputs(dependencyConfig, terragruntOptions) {
+		util.Debugf(
+			terragruntOptions.Logger,
+			"WARNING: config %s is a dependency of %s that has no outputs, but mock outputs provided and returning those in dependency output.",
+			targetConfig,
+			currentConfig,
+		)
+		return dependencyConfig.MockOutputs, nil
+	}
+
+	err = TerragruntOutputTargetNoOutputs{
+		targetConfig:  targetConfig,
+		currentConfig: currentConfig,
+	}
+	return nil, err
+}
+
+// We should only return default outputs if the mock_outputs attribute is set, and if we are running one of the
+// allowed commands when `mock_outputs_allowed_terraform_commands` is set as well.
+func shouldReturnMockOutputs(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) bool {
+	defaultOutputsSet := dependencyConfig.MockOutputs != nil
+	allowedCommand :=
+		dependencyConfig.MockOutputsAllowedTerraformCommands == nil ||
+			len(*dependencyConfig.MockOutputsAllowedTerraformCommands) == 0 ||
+			util.ListContainsElement(*dependencyConfig.MockOutputsAllowedTerraformCommands, terragruntOptions.TerraformCommand)
+	return defaultOutputsSet && allowedCommand
+}
+
+// Return the output from the state of another module, managed by terragrunt. This function will parse the provided
+// terragrunt config and extract the desired output from the remote state. Note that this will error if the targetted
+// module hasn't been applied yet.
+func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, bool, error) {
+	// target config check: make sure the target config exists
+	targetConfig := getCleanedTargetConfigPath(dependencyConfig, terragruntOptions)
 	if !util.FileExists(targetConfig) {
-		return nil, errors.WithStackTrace(DependencyConfigNotFound{Path: targetConfig})
+		return nil, true, errors.WithStackTrace(DependencyConfigNotFound{Path: targetConfig})
 	}
 
 	jsonBytes, err := runTerragruntOutputJson(terragruntOptions, targetConfig)
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
+	isEmpty := string(jsonBytes) == "{}"
 
 	outputMap, err := terraformOutputJsonToCtyValueMap(targetConfig, jsonBytes)
 	if err != nil {
-		return nil, err
+		return nil, isEmpty, err
 	}
 
 	// We need to convert the value map to a single cty.Value at the end for use in the terragrunt config.
@@ -133,7 +199,7 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 	if err != nil {
 		err = TerragruntOutputEncodingError{Path: targetConfig, Err: err}
 	}
-	return &convertedOutput, errors.WithStackTrace(err)
+	return &convertedOutput, isEmpty, errors.WithStackTrace(err)
 }
 
 // runTerragruntOutputJson uses terragrunt running functions to extract the json output from the target config. Make a
@@ -151,7 +217,7 @@ func runTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targe
 
 	stdoutBufferWriter.Flush()
 	jsonString := stdoutBuffer.String()
-	jsonBytes := []byte(jsonString)
+	jsonBytes := []byte(strings.TrimSpace(jsonString))
 	util.Debugf(terragruntOptions.Logger, "Retrieved output from %s as json: %s", targetConfig, jsonString)
 	return jsonBytes, nil
 }
@@ -222,4 +288,17 @@ type TerragruntOutputListEncodingError struct {
 
 func (err TerragruntOutputListEncodingError) Error() string {
 	return fmt.Sprintf("Could not encode output from list of terragrunt configs %v. Underlying error: %s", err.Paths, err.Err)
+}
+
+type TerragruntOutputTargetNoOutputs struct {
+	targetConfig  string
+	currentConfig string
+}
+
+func (err TerragruntOutputTargetNoOutputs) Error() string {
+	return fmt.Sprintf(
+		"%s is a dependency of %s but detected no outputs. Either the target module has not been applied yet, or the module has no outputs. If this is expected, set the skip_outputs flag to true on the dependency block.",
+		err.targetConfig,
+		err.currentConfig,
+	)
 }
