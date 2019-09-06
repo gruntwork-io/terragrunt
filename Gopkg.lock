@@ -242,11 +242,12 @@
   revision = "318e80eefe28c3aa01b434c61bcf4c83a0cc6b25"
 
 [[projects]]
-  digest = "1:93a7a26ca378c3e071b5f1477b98aea19e4e038da6e3baad91225b76bf4cce7e"
+  digest = "1:3959a3507d970eb64414055c11e53d8505a42becd4843a376692f112cd84347e"
   name = "github.com/hashicorp/terraform"
   packages = [
     "addrs",
     "configs/configschema",
+    "dag",
     "helper/didyoumean",
     "lang",
     "lang/blocktoattr",
@@ -599,6 +600,7 @@
     "github.com/hashicorp/hcl2/hcl/hclsyntax",
     "github.com/hashicorp/hcl2/hclparse",
     "github.com/hashicorp/hcl2/hclwrite",
+    "github.com/hashicorp/terraform/dag",
     "github.com/hashicorp/terraform/lang",
     "github.com/mattn/go-zglob",
     "github.com/mitchellh/mapstructure",
