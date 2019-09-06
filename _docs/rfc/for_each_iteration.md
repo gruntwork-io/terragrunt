@@ -204,8 +204,13 @@ to demonstrate the approach.
 
 **Cons**:
 
-- Code generation is complex. When should you run the code generation step? How often? How do you know if there is
-  drift?
+- Code generation is complex.
+    - When should you run the code generation step?
+    - How often?
+    - How do you know if there is drift?
+    - Do you check in the generated code? If so, you have to maintain it (e.g., 19 sets of files/folders for 19 AWS
+      regions). If it's always generated at runtime, then interacting with just one of the generated things becomes
+      harder.
 - Removing an iteration still requires a bit of a dance. You need to `terragrunt destroy` the relevant folder, then
   remove that folder, and then remove the corresponding item from the iteration list.
 - Users now need to learn a templating tool and language, on top of Terragrunt and Terraform.
