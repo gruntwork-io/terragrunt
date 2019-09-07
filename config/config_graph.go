@@ -25,7 +25,7 @@ type VariableVertex struct {
 	Expr hcl.Expression
 }
 
-// basicEdge is a basic implementation of Edge that has the source and
+// BasicEdge is a basic implementation of Edge that has the source and
 // target vertex.
 type BasicEdge struct {
 	S, T dag.Vertex
@@ -43,12 +43,24 @@ func (e *BasicEdge) Target() dag.Vertex {
 	return e.T
 }
 
+// Evaluation Steps:
+// 1. Parse child HCL, extract locals, globals, and include
+// 2. Add vertices for child locals, globals, and include
+// 3. Add edges for child variables based on interpolations used, creating verticies with empty expressions for missing globals
+// 4. Verify and reduce graph
+// 5. Walk reverse from include vertex to root, collect vertices into list, and evaluate down to include - verify no globals are used
+// 6. Find parent HCL, parse, and extract locals and globals
+// 7. Add vertices for parent locals
+// 8. Add vertices for parent globals that don't already exist, or add expressions to empty globals, noting that they have to be evaluated with the parent locals
+// 9. Verify that there are no globals that are empty.
+// 10. Verify and reduce graph
+// 11. Evaluate everything, skipping things that were evaluated in (5)
 func getValuesFromHclFile(file *hcl.File) map[string]map[string]cty.Value {
 	localsBlock, globalsBlock, includeBlock, _ := getBlocks(file)
 	graph := dag.AcyclicGraph{}
 	root := RootVertex{}
 
-	verticies := map[string]map[string]VariableVertex{
+	vertices := map[string]map[string]VariableVertex{
 		local: {},
 		global: {},
 		include: {},
@@ -58,14 +70,14 @@ func getValuesFromHclFile(file *hcl.File) map[string]map[string]cty.Value {
 	graph.Add(root)
 
 	// TODO: diagnostics
-	_ = addVerticies(graph, verticies[local], local, localsBlock)
-	_ = addVerticies(graph, verticies[global], global, globalsBlock)
-	_ = addVerticies(graph, verticies[include], include, includeBlock)
+	_ = addVerticies(graph, vertices[local], local, localsBlock)
+	_ = addVerticies(graph, vertices[global], global, globalsBlock)
+	_ = addVerticies(graph, vertices[include], include, includeBlock)
 
 	// TODO validate include
-	_ = addEdges(graph, root, verticies, local, localsBlock)
-	_ = addEdges(graph, root, verticies, global, globalsBlock)
-	_ = addEdges(graph, root, verticies, include, includeBlock)
+	_ = addEdges(graph, root, vertices, local, localsBlock)
+	_ = addEdges(graph, root, vertices, global, globalsBlock)
+	_ = addEdges(graph, root, vertices, include, includeBlock)
 
 	// TODO: diagnostics
 
@@ -161,7 +173,7 @@ func getBlocks(file *hcl.File) (hcl.Body, hcl.Body, hcl.Body, hcl.Diagnostics) {
 	return blocksByType[locals][0].Body, blocksByType[globals][0].Body, blocksByType[include][0].Body, diags
 }
 
-func addVerticies(graph dag.AcyclicGraph, verticies map[string]VariableVertex, typ string, block hcl.Body) hcl.Diagnostics {
+func addVerticies(graph dag.AcyclicGraph, vertices map[string]VariableVertex, typ string, block hcl.Body) hcl.Diagnostics {
 	attrs, diags := block.JustAttributes()
 	if diags != nil && diags.HasErrors() {
 		return diags
@@ -173,17 +185,17 @@ func addVerticies(graph dag.AcyclicGraph, verticies map[string]VariableVertex, t
 			Name: name,
 			Expr: attr.Expr,
 		}
-		verticies[name] = vertex
+		vertices[name] = vertex
 		graph.Add(vertex)
 	}
 
 	return nil
 }
 
-func addEdges(graph dag.AcyclicGraph, root RootVertex, verticies map[string]map[string]VariableVertex, typ string, block hcl.Body) hcl.Diagnostics {
+func addEdges(graph dag.AcyclicGraph, root RootVertex, vertices map[string]map[string]VariableVertex, typ string, block hcl.Body) hcl.Diagnostics {
 	attrs, _ := block.JustAttributes()
 	for targetName := range attrs {
-		target := verticies[typ][targetName]
+		target := vertices[typ][targetName]
 		variables := target.Expr.Variables()
 
 		if variables == nil || len(variables) <= 0 {
@@ -200,7 +212,7 @@ func addEdges(graph dag.AcyclicGraph, root RootVertex, verticies map[string]map[
 			switch sourceType {
 			case local, global:
 				sourceName := variable[1].(hcl.TraverseAttr).Name
-				source, exists := verticies[sourceType][sourceName]
+				source, exists := vertices[sourceType][sourceName]
 				if !exists {
 					// TODO
 					return hcl.Diagnostics{}
@@ -213,7 +225,7 @@ func addEdges(graph dag.AcyclicGraph, root RootVertex, verticies map[string]map[
 			case include:
 				// TODO validate options
 				graph.Connect(&BasicEdge{
-					S: verticies[include][path],
+					S: vertices[include][path],
 					T: target,
 				})
 			default:

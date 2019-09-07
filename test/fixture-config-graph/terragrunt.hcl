@@ -1,3 +1,10 @@
+local {
+  source-prefix = "src-"
+}
+globals {
+  region = "us-west-2"
+  source-postfix = null
+}
 terraform {
-  source = "source"
+  source = "${local.source-prefix}${global.source-postfix}"
 }
