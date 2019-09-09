@@ -78,7 +78,8 @@ func checkForDependencyBlockCycles(filename string, decodedDependency terragrunt
 	currentTraversalPaths := []string{filename}
 	for _, dependency := range decodedDependency.Dependencies {
 		dependencyPath := cleanDependencyTerragruntConfigPath(filename, dependency.ConfigPath)
-		if err := checkForDependencyBlockCyclesUsingDFS(dependencyPath, &visitedPaths, &currentTraversalPaths, terragruntOptions); err != nil {
+		dependencyOptions := terragruntOptions.Clone(dependencyPath)
+		if err := checkForDependencyBlockCyclesUsingDFS(dependencyPath, &visitedPaths, &currentTraversalPaths, dependencyOptions); err != nil {
 			return err
 		}
 	}
@@ -109,7 +110,9 @@ func checkForDependencyBlockCyclesUsingDFS(
 		return err
 	}
 	for _, dependency := range dependencyPaths {
-		if err := checkForDependencyBlockCyclesUsingDFS(cleanDependencyTerragruntConfigPath(currentConfigPath, dependency), visitedPaths, currentTraversalPaths, terragruntOptions); err != nil {
+		nextPath := cleanDependencyTerragruntConfigPath(currentConfigPath, dependency)
+		nextOptions := terragruntOptions.Clone(nextPath)
+		if err := checkForDependencyBlockCyclesUsingDFS(nextPath, visitedPaths, currentTraversalPaths, nextOptions); err != nil {
 			return err
 		}
 	}
