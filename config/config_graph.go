@@ -7,11 +7,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl2/hcl"
 	"github.com/hashicorp/hcl2/hclparse"
+	"github.com/hashicorp/terraform/dag"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 	"path/filepath"
 )
-import "github.com/hashicorp/terraform/dag"
 
 const local = "local"
 const global = "global"
