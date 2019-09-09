@@ -1,30 +1,20 @@
 package config
 
 import (
-	"github.com/hashicorp/hcl2/hclparse"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 func TestGraphCreation(t *testing.T) {
-	config := `
-locals {
-	full-name = "${local.name}-${local.region}"
-	name = "test"
-	region = "us-east-1"
-}
-globals {
-	region = local.region
-}
-include {
-	path = "../${global.region}/terragrunt.hcl"
-}
-input = {
-	region = global.region
-}
-`
+	filename := "../test/fixture-config-graph/one/two/three/" + DefaultTerragruntConfigPath
 
-	file, _ := parseHcl(hclparse.NewParser(), config, "terragrunt.hcl")
-	values := getValuesFromHclFile(file)
-	assert.Equal(t,"test-us-east-1", values["local"]["full-name"].AsString())
+	child, parent, err := ParseConfigVariables(filename, terragruntOptionsForTest(t, filename))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	assert.Equal(t,"test-us-east-1", child.Variables["local"].AsValueMap()["full-name"].AsString())
+	assert.Equal(t,"../../../terragrunt.hcl-one/two/three", child.Variables["global"].AsValueMap()["source-postfix"].AsString())
+	assert.Equal(t,"../../../terragrunt.hcl-one/two/three", parent.Variables["global"].AsValueMap()["source-postfix"].AsString())
 }
