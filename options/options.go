@@ -21,6 +21,9 @@ var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
 
 const DEFAULT_MAX_FOLDERS_TO_CHECK = 100
 
+// TERRAFORM_DEFAULT_PATH just takes terraform from the path
+const TERRAFORM_DEFAULT_PATH = "terraform"
+
 const TerragruntCacheDir = ".terragrunt-cache"
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
@@ -124,7 +127,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 
 	return &TerragruntOptions{
 		TerragruntConfigPath:       terragruntConfigPath,
-		TerraformPath:              "terraform",
+		TerraformPath:              TERRAFORM_DEFAULT_PATH,
 		TerraformCommand:           "",
 		AutoInit:                   true,
 		NonInteractive:             false,
@@ -137,16 +140,16 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		DownloadDir:                downloadDir,
 		IgnoreDependencyErrors:     false,
 		IgnoreExternalDependencies: false,
-		Writer:                     os.Stdout,
-		ErrWriter:                  os.Stderr,
-		MaxFoldersToCheck:          DEFAULT_MAX_FOLDERS_TO_CHECK,
-		AutoRetry:                  true,
-		MaxRetryAttempts:           DEFAULT_MAX_RETRY_ATTEMPTS,
-		Sleep:                      DEFAULT_SLEEP,
-		RetryableErrors:            util.CloneStringList(RETRYABLE_ERRORS),
-		ExcludeDirs:                []string{},
-		IncludeDirs:                []string{},
-		Check:                      false,
+		Writer:            os.Stdout,
+		ErrWriter:         os.Stderr,
+		MaxFoldersToCheck: DEFAULT_MAX_FOLDERS_TO_CHECK,
+		AutoRetry:         true,
+		MaxRetryAttempts:  DEFAULT_MAX_RETRY_ATTEMPTS,
+		Sleep:             DEFAULT_SLEEP,
+		RetryableErrors:   util.CloneStringList(RETRYABLE_ERRORS),
+		ExcludeDirs:       []string{},
+		IncludeDirs:       []string{},
+		Check:             false,
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
@@ -205,16 +208,16 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		IamRole:                    terragruntOptions.IamRole,
 		IgnoreDependencyErrors:     terragruntOptions.IgnoreDependencyErrors,
 		IgnoreExternalDependencies: terragruntOptions.IgnoreExternalDependencies,
-		Writer:                     terragruntOptions.Writer,
-		ErrWriter:                  terragruntOptions.ErrWriter,
-		MaxFoldersToCheck:          terragruntOptions.MaxFoldersToCheck,
-		AutoRetry:                  terragruntOptions.AutoRetry,
-		MaxRetryAttempts:           terragruntOptions.MaxRetryAttempts,
-		Sleep:                      terragruntOptions.Sleep,
-		RetryableErrors:            util.CloneStringList(terragruntOptions.RetryableErrors),
-		ExcludeDirs:                terragruntOptions.ExcludeDirs,
-		IncludeDirs:                terragruntOptions.IncludeDirs,
-		RunTerragrunt:              terragruntOptions.RunTerragrunt,
+		Writer:            terragruntOptions.Writer,
+		ErrWriter:         terragruntOptions.ErrWriter,
+		MaxFoldersToCheck: terragruntOptions.MaxFoldersToCheck,
+		AutoRetry:         terragruntOptions.AutoRetry,
+		MaxRetryAttempts:  terragruntOptions.MaxRetryAttempts,
+		Sleep:             terragruntOptions.Sleep,
+		RetryableErrors:   util.CloneStringList(terragruntOptions.RetryableErrors),
+		ExcludeDirs:       terragruntOptions.ExcludeDirs,
+		IncludeDirs:       terragruntOptions.IncludeDirs,
+		RunTerragrunt:     terragruntOptions.RunTerragrunt,
 	}
 }
 

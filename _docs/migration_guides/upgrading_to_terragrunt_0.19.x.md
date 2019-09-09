@@ -27,6 +27,7 @@ to Terragrunt 0.19.x and newer:
 1. [Use first-class expressions](#use-first-class-expressions)
 1. [Check attributes vs blocks usage](#check-attributes-vs-blocks-usage)
 1. [Rename a few built-in functions ](#rename-a-few-built-in-functions)
+1. [Use terraform \<0.12](#use-older-terraform)
 
 Check out [this PR in the terragrunt-infrastructure-live-example 
 repo](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example/pull/17) for an example of what the code 
@@ -272,3 +273,17 @@ Two built-in functions were renamed:
 1. `get_parent_tfvars_dir()` is now called `get_parent_terragrunt_dir()`.   
 
 Make sure to make the corresponding updates in your `terragrunt.hcl` file!
+
+### Use older Terraform
+
+Although it is not officially supported and not tested, it is still possible to use terraform<0.12 with terragrunt >=0.19.
+
+Just install a different version of terraform into a directory of your choice outside of `PATH` and specify path to the binary in `terragrunt.hcl` as `terraform_binary`, plus you need to lower the version check constraint:
+
+```hcl
+
+terraform_binary = "~/bin/terraform-v11/terraform"
+terraform_version_constraint = ">= 0.11"
+
+
+```

@@ -105,6 +105,14 @@
   version = "v1.1.1"
 
 [[projects]]
+  digest = "1:865079840386857c809b72ce300be7580cb50d3d3129ce11bf9aa6ca2bc1934a"
+  name = "github.com/fatih/color"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "5b77d2a35fb0ede96d138fc9a99f5c9b6aef11b4"
+  version = "v1.7.0"
+
+[[projects]]
   digest = "1:aacef5f5e45685f2aeda5534d0a750dee6859de7e9088cdd06192787bb01ae6d"
   name = "github.com/go-errors/errors"
   packages = ["."]
@@ -242,7 +250,7 @@
   revision = "318e80eefe28c3aa01b434c61bcf4c83a0cc6b25"
 
 [[projects]]
-  digest = "1:3959a3507d970eb64414055c11e53d8505a42becd4843a376692f112cd84347e"
+  digest = "1:66dd758d5abbc9b64f515b567120d22cdac3b99875199ee2409a9615f9f468ac"
   name = "github.com/hashicorp/terraform"
   packages = [
     "addrs",
@@ -255,8 +263,8 @@
     "tfdiags",
   ]
   pruneopts = "UT"
-  revision = "a5fb573be1e8b5564f3fd879852a6681c55d6e8f"
-  version = "v0.12.2"
+  revision = "380226f0aaa57db5685f43b824f8bda99acdf00c"
+  version = "v0.12.6"
 
 [[projects]]
   digest = "1:bb81097a5b62634f3e9fec1014657855610c82d19b9a40c17612e32651e35dca"
@@ -264,6 +272,22 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "c2b33e84"
+
+[[projects]]
+  digest = "1:c658e84ad3916da105a761660dcaeb01e63416c8ec7bc62256a9b411a05fcd67"
+  name = "github.com/mattn/go-colorable"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "167de6bfdfba052fa6b2d3664c8f5272e23c9072"
+  version = "v0.0.9"
+
+[[projects]]
+  digest = "1:36325ebb862e0382f2f14feef409ba9351271b89ada286ae56836c603d43b59c"
+  name = "github.com/mattn/go-isatty"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "e1f7b56ace729e4a73a29a6b4fac6cd5fcda7ab3"
+  version = "v0.0.9"
 
 [[projects]]
   digest = "1:36aebe90a13cf9128280ac834399b8bebf83685283c78df279d61c46bb2a8d83"
@@ -373,12 +397,12 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:7922171eda409496bd43979d690c2ba5d58912d9bc5cafdc0509e7cd5a6f8314"
+  digest = "1:15fbb37db073777762aa7df4d9109f01de9d9a3fa233f51f5986cada7491562e"
   name = "github.com/zclconf/go-cty-yaml"
   packages = ["."]
   pruneopts = "UT"
-  revision = "fbabe99bb1c897a56ed70103a40aa94fc50a7104"
-  version = "v0.1.0"
+  revision = "bc34c981dadb5ed30af852693e3aba8fb6546f42"
+  version = "v1.0.1"
 
 [[projects]]
   digest = "1:74055050ea547bb04600be79cc501965cb3de8988018262f2ca430f0a0b48ec3"
@@ -590,6 +614,7 @@
     "github.com/aws/aws-sdk-go/service/dynamodb",
     "github.com/aws/aws-sdk-go/service/s3",
     "github.com/aws/aws-sdk-go/service/sts",
+    "github.com/fatih/color",
     "github.com/go-errors/errors",
     "github.com/gruntwork-io/terratest/modules/files",
     "github.com/hashicorp/go-getter",
@@ -613,6 +638,7 @@
     "github.com/zclconf/go-cty/cty/json",
     "golang.org/x/crypto/ssh/terminal",
     "google.golang.org/api/iterator",
+    "google.golang.org/api/option",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

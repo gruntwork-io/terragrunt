@@ -5,7 +5,9 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 
+	"github.com/fatih/color"
 	"github.com/hashicorp/hcl2/hcl"
 	"github.com/hashicorp/hcl2/hclparse"
 	"golang.org/x/crypto/ssh/terminal"
@@ -28,9 +30,20 @@ func CreateLoggerWithWriter(writer io.Writer, prefix string) *log.Logger {
 // logging solution.
 // Debugf will only print out terragrunt logs if the TG_LOG environment variable is set to DEBUG.
 func Debugf(logger *log.Logger, fmtString string, fmtArgs ...interface{}) {
-	if os.Getenv("TG_LOG") == "DEBUG" {
+	if strings.ToLower(os.Getenv("TG_LOG")) == "debug" {
 		logger.Printf(fmtString, fmtArgs...)
 	}
+}
+
+// ColorLogf
+func ColorLogf(logger *log.Logger, colorCode *color.Color, fmtString string, fmtArgs ...interface{}) {
+	logOut := fmt.Sprintf(fmtString, fmtArgs...)
+
+	allowColor := terminal.IsTerminal(int(os.Stderr.Fd()))
+	if allowColor {
+		logOut = colorCode.SprintFunc()(logOut)
+	}
+	logger.Println(logOut)
 }
 
 // GetDiagnosticsWriter returns a hcl2 parsing diagnostics emitter for the current terminal.
