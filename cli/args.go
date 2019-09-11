@@ -85,6 +85,8 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 
 	ignoreExternalDependencies := parseBooleanArg(args, OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES, false)
 
+	autoApplyExternalDependencies := parseBooleanArg(args, OPT_TERRAGRUNT_AUTO_APPLY_EXTERNAL_DEPENDENCIES, false)
+
 	iamRole, err := parseStringArg(args, OPT_TERRAGRUNT_IAM_ROLE, os.Getenv("TERRAGRUNT_IAM_ROLE"))
 	if err != nil {
 		return nil, err
@@ -119,6 +121,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 	opts.SourceUpdate = sourceUpdate
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
 	opts.IgnoreExternalDependencies = ignoreExternalDependencies
+	opts.AutoApplyExternalDependencies = autoApplyExternalDependencies
 	opts.Writer = writer
 	opts.ErrWriter = errWriter
 	opts.Env = parseEnvironmentVariables(os.Environ())

@@ -77,6 +77,9 @@ type TerragruntOptions struct {
 	// If set to true, skip any external dependencies when running *-all commands
 	IgnoreExternalDependencies bool
 
+	// If set to true, apply all external dependencies when running *-all commands
+	AutoApplyExternalDependencies bool
+
 	// If you want stdout to go somewhere other than os.stdout
 	Writer io.Writer
 
@@ -126,20 +129,21 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 	}
 
 	return &TerragruntOptions{
-		TerragruntConfigPath:       terragruntConfigPath,
-		TerraformPath:              TERRAFORM_DEFAULT_PATH,
-		TerraformCommand:           "",
-		AutoInit:                   true,
-		NonInteractive:             false,
-		TerraformCliArgs:           []string{},
-		WorkingDir:                 workingDir,
-		Logger:                     logger,
-		Env:                        map[string]string{},
-		Source:                     "",
-		SourceUpdate:               false,
-		DownloadDir:                downloadDir,
-		IgnoreDependencyErrors:     false,
-		IgnoreExternalDependencies: false,
+		TerragruntConfigPath:          terragruntConfigPath,
+		TerraformPath:                 TERRAFORM_DEFAULT_PATH,
+		TerraformCommand:              "",
+		AutoInit:                      true,
+		NonInteractive:                false,
+		TerraformCliArgs:              []string{},
+		WorkingDir:                    workingDir,
+		Logger:                        logger,
+		Env:                           map[string]string{},
+		Source:                        "",
+		SourceUpdate:                  false,
+		DownloadDir:                   downloadDir,
+		IgnoreDependencyErrors:        false,
+		IgnoreExternalDependencies:    false,
+		AutoApplyExternalDependencies: false,
 		Writer:            os.Stdout,
 		ErrWriter:         os.Stderr,
 		MaxFoldersToCheck: DEFAULT_MAX_FOLDERS_TO_CHECK,
@@ -192,22 +196,23 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367
 	// for more info.
 	return &TerragruntOptions{
-		TerragruntConfigPath:       terragruntConfigPath,
-		TerraformPath:              terragruntOptions.TerraformPath,
-		TerraformCommand:           terragruntOptions.TerraformCommand,
-		TerraformVersion:           terragruntOptions.TerraformVersion,
-		AutoInit:                   terragruntOptions.AutoInit,
-		NonInteractive:             terragruntOptions.NonInteractive,
-		TerraformCliArgs:           util.CloneStringList(terragruntOptions.TerraformCliArgs),
-		WorkingDir:                 workingDir,
-		Logger:                     util.CreateLoggerWithWriter(terragruntOptions.ErrWriter, workingDir),
-		Env:                        util.CloneStringMap(terragruntOptions.Env),
-		Source:                     terragruntOptions.Source,
-		SourceUpdate:               terragruntOptions.SourceUpdate,
-		DownloadDir:                terragruntOptions.DownloadDir,
-		IamRole:                    terragruntOptions.IamRole,
-		IgnoreDependencyErrors:     terragruntOptions.IgnoreDependencyErrors,
-		IgnoreExternalDependencies: terragruntOptions.IgnoreExternalDependencies,
+		TerragruntConfigPath:          terragruntConfigPath,
+		TerraformPath:                 terragruntOptions.TerraformPath,
+		TerraformCommand:              terragruntOptions.TerraformCommand,
+		TerraformVersion:              terragruntOptions.TerraformVersion,
+		AutoInit:                      terragruntOptions.AutoInit,
+		NonInteractive:                terragruntOptions.NonInteractive,
+		TerraformCliArgs:              util.CloneStringList(terragruntOptions.TerraformCliArgs),
+		WorkingDir:                    workingDir,
+		Logger:                        util.CreateLoggerWithWriter(terragruntOptions.ErrWriter, workingDir),
+		Env:                           util.CloneStringMap(terragruntOptions.Env),
+		Source:                        terragruntOptions.Source,
+		SourceUpdate:                  terragruntOptions.SourceUpdate,
+		DownloadDir:                   terragruntOptions.DownloadDir,
+		IamRole:                       terragruntOptions.IamRole,
+		IgnoreDependencyErrors:        terragruntOptions.IgnoreDependencyErrors,
+		IgnoreExternalDependencies:    terragruntOptions.IgnoreExternalDependencies,
+		AutoApplyExternalDependencies: terragruntOptions.AutoApplyExternalDependencies,
 		Writer:            terragruntOptions.Writer,
 		ErrWriter:         terragruntOptions.ErrWriter,
 		MaxFoldersToCheck: terragruntOptions.MaxFoldersToCheck,

@@ -2210,6 +2210,8 @@ arguments that start with the prefix `--terragrunt-`. The currently available op
 * `--terragrunt-ignore-external-dependencies`: Dont attempt to include any external dependencies when running `*-all` 
   commands
 
+* `--terragrunt-auto-apply-external-dependencies`: Include any external dependencies when running `*-all` without asking.
+
 ### Configuration
 
 Terragrunt configuration is defined in a `terragrunt.hcl` file. This uses the same HCL syntax as Terraform itself.
