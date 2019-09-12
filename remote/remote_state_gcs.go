@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/mitchellh/mapstructure"
+	"google.golang.org/api/option"
 )
 
 /*
@@ -27,6 +28,7 @@ type ExtendedRemoteStateConfigGCS struct {
 	Location             string            `mapstructure:"location"`
 	GCSBucketLabels      map[string]string `mapstructure:"gcs_bucket_labels"`
 	SkipBucketVersioning bool              `mapstructure:"skip_bucket_versioning"`
+	SkipBucketCreation   bool              `mapstructure:"skip_bucket_creation"`
 }
 
 // These are settings that can appear in the remote_state config that are ONLY used by Terragrunt and NOT forwarded
@@ -36,6 +38,7 @@ var terragruntGCSOnlyConfigs = []string{
 	"location",
 	"gcs_bucket_labels",
 	"skip_bucket_versioning",
+	"skip_bucket_creation",
 }
 
 // A representation of the configuration options available for GCS remote state
@@ -70,7 +73,7 @@ func (gcsInitializer GCSInitializer) NeedsInitialization(remoteState *RemoteStat
 		return false, err
 	}
 
-	gcsClient, err := CreateGCSClient()
+	gcsClient, err := CreateGCSClient(*gcsConfig)
 	if err != nil {
 		return false, err
 	}
@@ -133,17 +136,23 @@ func (gcsInitializer GCSInitializer) Initialize(remoteState *RemoteState, terrag
 
 	var gcsConfig = gcsConfigExtended.remoteStateConfigGCS
 
-	gcsClient, err := CreateGCSClient()
+	gcsClient, err := CreateGCSClient(gcsConfig)
 	if err != nil {
 		return err
 	}
 
-	if err := createGCSBucketIfNecessary(gcsClient, gcsConfigExtended, terragruntOptions); err != nil {
-		return err
+	// If bucket is specified and skip_bucket_creation is false then check if Bucket needs to be created
+	if !gcsConfigExtended.SkipBucketCreation && gcsConfig.Bucket != "" {
+		if err := createGCSBucketIfNecessary(gcsClient, gcsConfigExtended, terragruntOptions); err != nil {
+			return err
+		}
 	}
 
-	if err := checkIfGCSVersioningEnabled(gcsClient, &gcsConfig, terragruntOptions); err != nil {
-		return err
+	// Check verioning on the bucket only if the bucket is specified
+	if gcsConfig.Bucket != "" {
+		if err := checkIfGCSVersioningEnabled(gcsClient, &gcsConfig, terragruntOptions); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -194,10 +203,6 @@ func parseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteState
 // Validate all the parameters of the given GCS remote state configuration
 func validateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS, terragruntOptions *options.TerragruntOptions) error {
 	var config = extendedConfig.remoteStateConfigGCS
-
-	if config.Bucket == "" {
-		return errors.WithStackTrace(MissingRequiredGCSRemoteStateConfig("bucket"))
-	}
 
 	if config.Prefix == "" {
 		return errors.WithStackTrace(MissingRequiredGCSRemoteStateConfig("prefix"))
@@ -381,10 +386,17 @@ func DoesGCSBucketExist(gcsClient *storage.Client, config *RemoteStateConfigGCS)
 }
 
 // CreateGCSClient creates an authenticated client for GCS
-func CreateGCSClient() (*storage.Client, error) {
+func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, error) {
 	ctx := context.Background()
+	var client *storage.Client
+	var err error
 
-	client, err := storage.NewClient(ctx)
+	if gcsConfigRemote.Credentials != "" {
+		client, err = storage.NewClient(ctx, option.WithCredentialsFile(gcsConfigRemote.Credentials))
+	} else {
+		client, err = storage.NewClient(ctx)
+	}
+
 	if err != nil {
 		return nil, err
 	}

@@ -36,8 +36,9 @@ const OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS = "terragrunt-ignore-dependency-er
 const OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES = "terragrunt-ignore-external-dependencies"
 const OPT_TERRAGRUNT_EXCLUDE_DIR = "terragrunt-exclude-dir"
 const OPT_TERRAGRUNT_INCLUDE_DIR = "terragrunt-include-dir"
+const OPT_TERRAGRUNT_CHECK = "terragrunt-check"
 
-var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES, OPT_TERRAGRUNT_NO_AUTO_INIT, OPT_TERRAGRUNT_NO_AUTO_RETRY}
+var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES, OPT_TERRAGRUNT_NO_AUTO_INIT, OPT_TERRAGRUNT_NO_AUTO_RETRY, OPT_TERRAGRUNT_CHECK}
 var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_TFPATH, OPT_WORKING_DIR, OPT_DOWNLOAD_DIR, OPT_TERRAGRUNT_SOURCE, OPT_TERRAGRUNT_IAM_ROLE, OPT_TERRAGRUNT_EXCLUDE_DIR, OPT_TERRAGRUNT_INCLUDE_DIR}
 
 const CMD_PLAN_ALL = "plan-all"
@@ -137,6 +138,7 @@ GLOBAL OPTIONS:
    terragrunt-ignore-external-dependencies  *-all commands will not attempt to include external dependencies
    terragrunt-exclude-dir                   Unix-style glob of directories to exclude when running *-all commands
    terragrunt-include-dir                   Unix-style glob of directories to include when running *-all commands
+   terragrunt-check                         Enable check mode in the hclfmt command.
 
 VERSION:
    {{.Version}}{{if len .Authors}}
@@ -149,7 +151,7 @@ AUTHOR(S):
 var MODULE_REGEX = regexp.MustCompile(`module[[:blank:]]+".+"`)
 
 // This uses the constraint syntax from https://github.com/hashicorp/go-version
-// This version of Terragrunt only works with Terraform 0.12.0 and above
+// This version of Terragrunt was tested to work with Terraform 0.12.0 and above only
 const DEFAULT_TERRAFORM_VERSION_CONSTRAINT = ">= v0.12.0"
 
 const TERRAFORM_EXTENSION_GLOB = "*.tf"
@@ -200,14 +202,6 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 		return err
 	}
 
-	if err := PopulateTerraformVersion(terragruntOptions); err != nil {
-		return err
-	}
-
-	if err := CheckTerraformVersion(DEFAULT_TERRAFORM_VERSION_CONSTRAINT, terragruntOptions); err != nil {
-		return err
-	}
-
 	givenCommand := cliContext.Args().First()
 	command := checkDeprecated(givenCommand, terragruntOptions)
 	return runCommand(command, terragruntOptions)
@@ -239,8 +233,31 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
 	}
 
+	if shouldRunHCLFmt(terragruntOptions) {
+		return runHCLFmt(terragruntOptions)
+	}
+
 	terragruntConfig, err := config.ReadTerragruntConfig(terragruntOptions)
+
 	if err != nil {
+		return err
+	}
+
+	// Change the terraform binary path before checking the version
+	// if the path is not changed from default and set in the config.
+	if terragruntOptions.TerraformPath == options.TERRAFORM_DEFAULT_PATH && terragruntConfig.TerraformBinary != "" {
+		terragruntOptions.TerraformPath = terragruntConfig.TerraformBinary
+	}
+
+	if err := PopulateTerraformVersion(terragruntOptions); err != nil {
+		return err
+	}
+
+	versionConstraint := DEFAULT_TERRAFORM_VERSION_CONSTRAINT
+	if terragruntConfig.TerraformVersionConstraint != "" {
+		versionConstraint = terragruntConfig.TerraformVersionConstraint
+	}
+	if err := CheckTerraformVersion(versionConstraint, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -280,10 +297,6 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 		fmt.Fprintf(terragruntOptions.Writer, "%s\n", b)
 		return nil
-	}
-
-	if shouldRunHCLFmt(terragruntOptions) {
-		return runHCLFmt(terragruntOptions)
 	}
 
 	if err := checkFolderContainsTerraformCode(terragruntOptions); err != nil {

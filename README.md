@@ -88,7 +88,8 @@ for a quick introduction to Terragrunt.
    1. [Auto-Retry](#auto-retry)
    1. [CLI options](#cli-options)
    1. [Configuration](#configuration)
-   1. [Formatting terragrunt.hcl](#formatting-terragrunt-hcl)
+   1. [Configuration parsing order](#configuration-parsing-order)
+   1. [Formatting terragrunt.hcl](#formatting-terragrunthcl)
    1. [Clearing the Terragrunt cache](#clearing-the-terragrunt-cache)
    1. [Contributing](#contributing)
    1. [Developing Terragrunt](#developing-terragrunt)
@@ -115,15 +116,16 @@ downloading the binary for your OS, renaming it to `terragrunt`, and adding it t
 
 
 
-## Migrating to Terraform 0.12 and Terragrunt 0.19.x 
+## Migrating to Terraform 0.12 and Terragrunt 0.19.x
 
-If you were using Terraform <= 0.11.x with Terragrunt <= 0.18.x, and you wish to upgrade to Terraform 0.12.x newer, 
+If you were using Terraform <= 0.11.x with Terragrunt <= 0.18.x, and you wish to upgrade to Terraform 0.12.x newer,
 you'll need to upgrade to Terragrunt 0.19.x or newer. Due to some changes in Terraform 0.12.x, this is a backwards
 incompatible upgrade that requires some manual migration steps. Check out our [Upgrading to Terragrunt 0.19.x 
 Guide](/_docs/migration_guides/upgrading_to_terragrunt_0.19.x.md) for instructions.
 
+## Required terraform version
 
-
+We only support and test against the latest version of terraform, however older versions might still work.
 
 ## Use cases
 
@@ -612,16 +614,20 @@ they don't already exist:
   In addition, you can let terragrunt tag the DynamoDB table with custom tags that you specify in
   `remote_state.config.dynamodb_table_tags`.
   
-* **GCS bucket**: If you are using the [GCS backend](https://www.terraform.io/docs/backends/types/gcs.html) for remote
+- **GCS bucket**: If you are using the [GCS backend](https://www.terraform.io/docs/backends/types/gcs.html) for remote
   state storage and the `bucket` you specify in `remote_state.config` doesn't already exist, Terragrunt will create it
   automatically, with [versioning](https://cloud.google.com/storage/docs/object-versioning) enabled. For this to work
   correctly you must also specify `project` and `location` keys in `remote_state.config`, so terragrunt knows where to
-  create the bucket.
+  create the bucket. You will also need to supply valid credentials using either `remote_state.config.credentials` or by
+  setting the `GOOGLE_APPLICATION_CREDENTIALS` environment variable. If you want to skip creating the bucket entirely,
+  simply set `skip_bucket_creation` to `true` and Terragrunt will assume the bucket has already been created. If you
+  don't specify `bucket` in `remote_state` then terragrunt will assume that you will pass `bucket` through
+  `-backend-config` in `extra_arguments`.
 
   We also strongly recommend you enable [Cloud Audit Logs](https://cloud.google.com/storage/docs/access-logs) to audit
   and track API operations performed against the state bucket.
 
-  In addition, you can let terragrunt label the bucket with custom labels that you specify in
+  In addition, you can let Terragrunt label the bucket with custom labels that you specify in
   `remote_state.config.gcs_bucket_labels`.
 
 **Note**: If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile
@@ -661,9 +667,9 @@ remote_state {
 }
 ```
 
-If you experience an error for any of these configurations, confirm you are using Terraform v0.11.2 or greater.
+If you experience an error for any of these configurations, confirm you are using Terraform v0.12.2 or greater.
 
-Further, the config options `s3_bucket_tags`, `dynamodb_table_tags`, `skip_bucket_versioning`, 
+Further, the config options `s3_bucket_tags`, `dynamodb_table_tags`, `skip_bucket_versioning`,
 `skip_bucket_ssencryption`, `skip_bucket_accesslogging`, and `enable_lock_table_ssencryption` are only valid for 
 backend `s3`. They are used by terragrunt and are **not** passed on to
 terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).
@@ -937,6 +943,7 @@ terraform apply -var bucket=example.bucket.name
 
 * [Motivation](#motivation-3)
 * [The apply-all, destroy-all, output-all and plan-all commands](#the-apply-all-destroy-all-output-all-and-plan-all-commands)
+* [Passing outputs between modules](#passing-outputs-between-modules)
 * [Dependencies between modules](#dependencies-between-modules)
 * [Testing multiple modules locally](#testing-multiple-modules-locally)
 
@@ -1030,9 +1037,163 @@ If your modules have dependencies between them—for example, you can't deploy t
 deployed—you'll need to express those dependencies in your Terragrunt configuration as explained in the next section.
 
 
-#### Dependencies between modules
+#### Passing outputs between modules
 
 Consider the following file structure:
+
+```
+root
+├── backend-app
+│   ├── main.tf
+│   └── terragrunt.hcl
+├── mysql
+│   ├── main.tf
+│   └── terragrunt.hcl
+├── redis
+│   ├── main.tf
+│   └── terragrunt.hcl
+└── vpc
+    ├── main.tf
+    └── terragrunt.hcl
+```
+
+Suppose that you wanted to pass in the VPC ID of the VPC that is created from the `vpc` module in the folder structure
+above to the `mysql` module as an input variable. Or if you wanted to pass in the subnet IDs of the private subnet that
+is allocated as part of the `vpc` module.
+
+You can use the `dependency` block to extract the output variables to access another module's output variables in
+the terragrunt `inputs` attribute.
+
+For example, suppose the `vpc` module outputs the ID under the name `vpc_id`. To access that output, you would specify
+in `mysql/terragrunt.hcl`:
+
+```
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+}
+```
+
+When you apply this module, the output will be read from the `vpc` module and passed in as an input to the `mysql`
+module right before calling `terraform apply`.
+
+You can also specify multiple `dependency` blocks to access multiple different module output variables. For
+example, in the above folder structure, you might want to reference the `domain` output of the `redis` and `mysql`
+modules for use as `inputs` in the `backend-app` module. To access those outputs, you would specify in
+`backend-app/terragrunt.hcl`:
+
+```
+dependency "mysql" {
+  config_path = "../mysql"
+}
+
+dependency "redis" {
+  config_path = "../redis"
+}
+
+inputs = {
+  mysql_url = dependency.mysql.outputs.domain
+  redis_url = dependency.redis.outputs.domain
+}
+```
+
+Note that each `dependency` is automatically considered a dependency in Terragrunt. This means that when you run
+`apply-all` on a config that has `dependency` blocks, Terragrunt will not attempt to deploy the config until all
+the modules referenced in `dependency` blocks have been applied. So for the above example, the order for the
+`apply-all` command would be:
+
+1. Deploy the VPC
+1. Deploy MySQL and Redis in parallel
+1. Deploy the backend-app
+
+If any of the modules failed to deploy, then Terragrunt will not attempt to deploy the modules that depend on them.
+
+**Note**: Not all blocks are able to access outputs passed by `dependency` blocks. See the section on
+[Configuration parsing order](#configuration-parsing-order) in this README for more information.
+
+##### Unapplied dependency and mock outputs
+
+Terragrunt will return an error indicating the dependency hasn't been applied yet if the terraform module managed by the
+terragrunt config referenced in a `dependency` block has not been applied yet. This is because you cannot actually fetch
+outputs out of an unapplied Terraform module, even if there are no resources being created in the module.
+
+This is most problematic when running commands that do not modify state (e.g `plan-all` and `validate-all`) on a
+completely new setup where no infrastructure has been deployed. You won't be able to `plan` or `validate` a module if
+you can't determine the `inputs`. If the module depends on the outputs of another module that hasn't been applied
+yet, you won't be able to compute the `inputs` unless the dependencies are all applied. However, in real life usage, you
+would want to run `validate-all` or `plan-all` on a completely new set of infrastructure.
+
+To address this, you can provide mock outputs to use when a module hasn't been applied yet. This is configured using
+the `mock_outputs` attribute on the `dependency` block and it corresponds to a map that will be injected in place of
+the actual dependency outputs if the target config hasn't been applied yet.
+
+For example, in the previous example with a `mysql` module and `vpc` module, suppose you wanted to place in a temporary,
+dummy value for the `vpc_id` during a `validate-all` for the `mysql` module. You can specify in `mysql/terragrunt.hcl`:
+
+```
+dependency "vpc" {
+  config_path = "../vpc"
+
+  mock_outputs = {
+    vpc_id = "temporary-dummy-id"
+  }
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+}
+```
+
+You can now run `validate` on this config before the `vpc` module is applied because Terragrunt will use the map
+`{vpc_id = "temporary-dummy-id"}` as the `outputs` attribute on the dependency instead of erroring out.
+
+What if you wanted to restrict this behavior to only the `validate` command? For example, you might not want to use
+the defaults for a `plan` operation because the plan doesn't give you any indication of what is actually going to be
+created.
+
+You can use the `mock_outputs_allowed_terraform_commands` attribute to indicate that the `mock_outputs` should
+only be used when running those Terraform commands. So to restrict the `mock_outputs` to only when `validate` is
+being run, you can modify the above `terragrunt.hcl` file to:
+
+```
+dependency "vpc" {
+  config_path = "../vpc"
+
+  mock_outputs = {
+    vpc_id = "temporary-dummy-id"
+  }
+  mock_outputs_allowed_terraform_commands = ["validate"]
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+}
+```
+
+Note that indicating `validate` means that the `mock_outputs` will be used either with `validate` or with
+`validate-all`.
+
+You can also use `skip_outputs` on the `dependency` block to specify the dependency without pulling in the outputs:
+
+```
+dependency "vpc" {
+  config_path = "../vpc"
+  skip_outputs = true
+}
+```
+
+<!--
+This currently makes no sense to do, but will make more sense when `dependency` blocks start to pull in other
+information from the target config.
+-->
+
+
+#### Dependencies between modules
+
+You can also specify dependencies explicitly. Consider the following file structure:
 
 ```
 root
@@ -1213,6 +1374,7 @@ This section contains detailed documentation for the following aspects of Terrag
 1. [Auto-Init](#auto-init)
 1. [CLI options](#cli-options)
 1. [Configuration](#configuration)
+1. [Configuration parsing order](#configuration-parsing-order)
 1. [Formatting terragrunt.hcl](#formatting-terragrunt-hcl)
 1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
 1. [Clearing the Terragrunt cache](#clearing-the-terragrunt-cache)
@@ -1638,7 +1800,6 @@ Note that [Terraform will read environment
 variables](https://www.terraform.io/docs/configuration/environment-variables.html#tf_var_name) that start with the
 prefix `TF_VAR_`, so one way to share a variable named `foo` between Terraform and Terragrunt is to set its value
 as the environment variable `TF_VAR_foo` and to read that value in using this `get_env()` built-in function.
-
 
 #### get_terragrunt_dir
 
@@ -2121,6 +2282,46 @@ The `skip` flag must be set explicitly in terragrunt modules that should be skip
 `terragrunt.hcl` file that is included by another `terragrunt.hcl` file, only the `terragrunt.hcl` file that explicitly
 set `skip = true` will be skipped.
 
+
+### Configuration parsing order
+
+It is important to be aware of the terragrunt configuration parsing order when using features like [locals](#locals) and
+[dependency outputs](#passing-outputs-between-modules), where you can reference attributes of other blocks in the config
+in your `inputs`. For example, because `locals` are evaluated before `dependency` blocks, you can not bind outputs
+from `dependency` into `locals`. On the other hand, for the same reason, you can use `locals` in the
+`dependency` blocks.
+
+Currently terragrunt parses the config in the following order:
+
+1. `locals` block
+1. `include` block
+1. `dependencies` block
+1. `dependency` blocks, including calling `terragrunt output` on the dependent modules to retrieve the outputs
+1. Everything else
+1. The config referenced by `include`
+1. A merge operation between the config referenced by `include` and the current config.
+
+Blocks that are parsed earlier in the process will be made available for use in the parsing of later blocks. Similarly,
+you cannot use blocks that are parsed later earlier in the process (e.g you can't reference `dependency` in
+`locals`, `include`, or `dependencies` blocks).
+
+Note that the parsing order is slightly different when using the `-all` flavors of the command. In the `-all` flavors of
+the command, Terragrunt parses the configuration twice. In the first pass, it follows the following parsing order:
+
+1. `locals` block of all configurations in the tree
+1. `include` block of all configurations in the tree
+1. `dependency` blocks of all configurations in the tree, but does NOT retrieve the outputs
+1. `terraform` block of all configurations in the tree
+1. `dependencies` block of all configurations in the tree
+
+The results of this pass are then used to build the dependency graph of the modules in the tree. Once the graph is
+constructed, Terragrunt will loop through the modules and run the specified command. It will then revert to the single
+configuration parsing order specified above for each module as it runs the command.
+
+This allows Terragrunt to avoid resolving `dependency` on modules that haven't been applied yet when doing a
+clean deployment from scratch with `apply-all`.
+
+
 ### Formatting terragrunt.hcl
 
 You can rewrite `terragrunt.hcl` files to a canonical format using the `hclfmt` command built into `terragrunt`. Similar
@@ -2148,6 +2349,26 @@ If you run `terragrunt hclfmt` at the `root`, this will update:
 - `root/prod/terragrunt.hcl`
 - `root/dev/terragrunt.hcl`
 - `root/qa/terragrunt.hcl`
+
+Additionally, there's a flag `--terragrunt-check`. It allows to validating if files are properly formatted. It does not
+rewrite files and in case of invalid format, it will return an error with exit status 0.
+
+#### terraform_binary
+
+The terragrunt `terraform_binary` string option can be used to override the default terraform binary path (which is `terraform`).
+
+The precedence is as follows: `--terragrunt-tfpath` command line option -> `TERRAGRUNT_TFPATH` env variable -> `terragrunt.hcl` in the module directory -> included `terragrunt.hcl`
+
+#### terraform_version_constraint
+
+The terragrunt `terraform_version_constraint` string overrides the default minimum supported version of terraform.
+Terragrunt only officially supports the latest version of terraform, however in some cases an old terraform is needed.
+
+For example:
+
+```hcl
+terraform_version_constraint = ">= 0.11"
+```
 
 ### Clearing the Terragrunt cache
 
@@ -2235,6 +2456,9 @@ go test -v -run TestToTerraformRemoteConfigArgsNoBackendConfigs
 
 If you set the `TERRAGRUNT_DEBUG` environment variable to "true", the stack trace for any error will be printed to
 stdout when you run the app.
+
+Additionally, newer features introduced in v0.19.0 (such as `locals` and `dependency` blocks) can output more verbose
+logging if you set the `TG_LOG` environment variable to `debug`.
 
 
 #### Error handling

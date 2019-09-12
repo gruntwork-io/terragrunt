@@ -1,13 +1,17 @@
 package cli
 
 import (
+	"bytes"
+	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/hashicorp/hcl2/hclparse"
 	"github.com/hashicorp/hcl2/hclwrite"
 	"github.com/mattn/go-zglob"
 
+	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -23,16 +27,27 @@ func runHCLFmt(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
-	terragruntOptions.Logger.Printf("Found %d terragrunt.hcl files", len(tgHclFiles))
-
-	for _, tgHclFile := range tgHclFiles {
-		err := formatTgHCL(terragruntOptions, tgHclFile)
-		if err != nil {
-			return err
+	filteredTgHclFiles := []string{}
+	for _, fname := range tgHclFiles {
+		// Ignore any files that are in the .terragrunt-cache
+		if !util.ListContainsElement(strings.Split(fname, string(os.PathSeparator)), ".terragrunt-cache") {
+			filteredTgHclFiles = append(filteredTgHclFiles, fname)
+		} else {
+			util.Debugf(terragruntOptions.Logger, "%s was ignored due to being in the terragrunt cache", fname)
 		}
 	}
 
-	return nil
+	util.Debugf(terragruntOptions.Logger, "Found %d terragrunt.hcl files", len(filteredTgHclFiles))
+
+	formatErrors := []error{}
+	for _, tgHclFile := range filteredTgHclFiles {
+		err := formatTgHCL(terragruntOptions, tgHclFile)
+		if err != nil {
+			formatErrors = append(formatErrors, err)
+		}
+	}
+
+	return errors.NewMultiError(formatErrors...)
 }
 
 // formatTgHCL uses the hcl2 library to format the terragrunt.hcl file. This will attempt to parse the HCL file first to
@@ -60,6 +75,14 @@ func formatTgHCL(terragruntOptions *options.TerragruntOptions, tgHclFile string)
 	}
 
 	newContents := hclwrite.Format(contents)
+
+	if terragruntOptions.Check {
+		if !bytes.Equal(newContents, contents) {
+			return fmt.Errorf("Invalid file format %s", tgHclFile)
+		}
+		return nil
+	}
+
 	return ioutil.WriteFile(tgHclFile, newContents, info.Mode())
 }
 

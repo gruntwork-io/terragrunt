@@ -2,6 +2,7 @@ package util
 
 import (
 	"io/ioutil"
+	"path"
 	"path/filepath"
 	"testing"
 
@@ -136,6 +137,8 @@ func TestFileManifest(t *testing.T) {
 		assert.NoError(t, err, f.Close())
 		testfiles = append(testfiles, f.Name())
 	}
+	// will later test if the file already doesn't exist
+	testfiles = append(testfiles, path.Join(dir, "ephemeral-file-that-doesnt-exist.txt"))
 
 	// create a manifest
 	manifest := newFileManifest(dir, ".terragrunt-test-manifest")
@@ -145,6 +148,8 @@ func TestFileManifest(t *testing.T) {
 	for _, file := range testfiles {
 		assert.NoError(t, manifest.AddFile(file))
 	}
+	// check for a non-existent directory as well
+	assert.NoError(t, manifest.AddDirectory(path.Join(dir, "ephemeral-directory-that-doesnt-exist")))
 
 	require.NoError(t, manifest.Clean())
 	// test if the files have been deleted
