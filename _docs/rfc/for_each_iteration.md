@@ -1,6 +1,6 @@
 # RFC: for_each - looping variables to call module multiple times
 
-**STATUS**: In proposal _(This should be updated when you open a PR for the implementation)_
+**STATUS: Won't Implement**
 
 
 ## Background
@@ -49,7 +49,9 @@ for **speed of implementation and simplicity**, since it is very likely that thi
 
 ## Proposed solution
 
-_Intentionally blank, as the solution is not obvious._
+We decided to go with Option 1 where we will not implement any new features in Terragrunt to specifically handle this
+use case, given the complexity of the task involved and the relative short lifespan of such a feature. If you have a
+need for replicating modules, we recommend using a code generation tool to templatize your Terraform modules.
 
 
 ## Alternatives
@@ -221,3 +223,4 @@ to demonstrate the approach.
 ## References
 
 - [Terraform Issue proposing for_each on modules](https://github.com/hashicorp/terraform/issues/17519)
+- [Original RFC PR](https://github.com/gruntwork-io/terragrunt/pull/853)
