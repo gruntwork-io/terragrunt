@@ -102,6 +102,9 @@ Note that third-party Terragrunt packages may not be updated with the latest ver
 Please check your version against the latest available on the
 [Releases Page](https://github.com/gruntwork-io/terragrunt/releases).
 
+### Windows
+You can install Terragrunt on Windows using [Chocolatey](https://chocolatey.org/): `choco install terragrunt`.
+
 ### macOS
 You can install Terragrunt on macOS using [Homebrew](https://brew.sh/): `brew install terragrunt`.
 
