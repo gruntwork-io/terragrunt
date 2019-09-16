@@ -1855,6 +1855,28 @@ func TestDependencyOutputRegression854(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// Regression testing for bug where terragrunt output runs on dependency blocks are done in the terragrunt-cache for the
+// child, not the parent.
+func TestDependencyOutputCachePathBug(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "localstate", "live")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(
+		t,
+		fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath),
+		&stdout,
+		&stderr,
+	)
+	logBufferContentsLineByLine(t, stdout, "stdout")
+	logBufferContentsLineByLine(t, stderr, "stderr")
+	require.NoError(t, err)
+}
+
 func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
 	t.Logf("[%s] Full contents of %s:", t.Name(), label)
 	lines := strings.Split(out.String(), "\n")
