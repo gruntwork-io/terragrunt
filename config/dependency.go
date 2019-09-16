@@ -290,15 +290,43 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 	return &convertedOutput, isEmpty, errors.WithStackTrace(err)
 }
 
+// Clone terragrunt options and update context for dependency block so that the outputs can be read correctly
+func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.TerragruntOptions, targetConfig string) (*options.TerragruntOptions, error) {
+	targetOptions := terragruntOptions.Clone(targetConfig)
+	targetOptions.TerraformCliArgs = []string{"output", "-json"}
+
+	// DownloadDir needs to be updated to be in the context of the new config, if using default
+	_, originalDefaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(terragruntOptions.TerragruntConfigPath)
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
+	// Using default, so compute new download dir and update
+	if terragruntOptions.DownloadDir == originalDefaultDownloadDir {
+		_, downloadDir, err := options.DefaultWorkingAndDownloadDirs(targetConfig)
+		if err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
+		targetOptions.DownloadDir = downloadDir
+	}
+
+	return targetOptions, nil
+}
+
 // runTerragruntOutputJson uses terragrunt running functions to extract the json output from the target config. Make a
 // copy of the terragruntOptions so that we can reuse the same execution environment.
 func runTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targetConfig string) ([]byte, error) {
+	targetOptions, err := cloneTerragruntOptionsForDependencyOutput(terragruntOptions, targetConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update the stdout buffer so we can capture the output
 	var stdoutBuffer bytes.Buffer
 	stdoutBufferWriter := bufio.NewWriter(&stdoutBuffer)
-	targetOptions := terragruntOptions.Clone(targetConfig)
-	targetOptions.TerraformCliArgs = []string{"output", "-json"}
 	targetOptions.Writer = stdoutBufferWriter
-	err := targetOptions.RunTerragrunt(targetOptions)
+
+	err = targetOptions.RunTerragrunt(targetOptions)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
