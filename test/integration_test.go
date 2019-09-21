@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -1605,6 +1606,143 @@ func TestDependencyOutput(t *testing.T) {
 	assert.Equal(t, int(outputs["z"].Value.(float64)), 42)
 }
 
+func TestDependencyOutputErrorBeforeApply(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "integration")
+	app3Path := filepath.Join(rootPath, "app3")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", app3Path), &showStdout, &showStderr)
+	assert.Error(t, err)
+	// Verify that we fail because the dependency is not applied yet
+	assert.Contains(t, err.Error(), "has not been applied yet")
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+}
+
+func TestDependencyOutputSkipOutputs(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "integration")
+	emptyPath := filepath.Join(rootPath, "empty")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	// Test that even if the dependency (app1) is not applied, using skip_outputs will skip pulling the outputs so there
+	// will be no errors.
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", emptyPath), &showStdout, &showStderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+}
+
+// Test that when you have a mock_output on a dependency, the dependency will use the mock as the output instead
+// of erroring out.
+func TestDependencyMockOutput(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs")
+	dependent1Path := filepath.Join(rootPath, "dependent1")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", dependent1Path), &showStdout, &showStderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	// verify expected output when mocks are used: The answer is 0
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", dependent1Path), &stdout, &stderr),
+	)
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	assert.Equal(t, outputs["truth"].Value, "The answer is 0")
+
+	// Now apply-all so that the dependency is applied, and verify it uses the dependency output
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	// verify expected output when mocks are used: The answer is 0
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", dependent1Path), &stdout, &stderr),
+	)
+	outputs = map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	assert.Equal(t, outputs["truth"].Value, "The answer is 42")
+}
+
+// Test that when you have a mock_output on a dependency, the dependency will use the mock as the output instead
+// of erroring out when running an allowed command.
+func TestDependencyMockOutputRestricted(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs")
+	dependent2Path := filepath.Join(rootPath, "dependent2")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", dependent2Path), &showStdout, &showStderr)
+	assert.Error(t, err)
+	// Verify that we fail because the dependency is not applied yet
+	assert.Contains(t, err.Error(), "has not been applied yet")
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	// Verify we can run when using one of the allowed commands
+	showStdout.Reset()
+	showStderr.Reset()
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-working-dir %s", dependent2Path), &showStdout, &showStderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	// Verify that validate-all works as well.
+	showStdout.Reset()
+	showStderr.Reset()
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt validate-all --terragrunt-non-interactive --terragrunt-working-dir %s", dependent2Path), &showStdout, &showStderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	showStdout.Reset()
+	showStderr.Reset()
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt validate-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+}
+
 func TestDependencyOutputTypeConversion(t *testing.T) {
 	t.Parallel()
 
@@ -1652,7 +1790,91 @@ func TestDependencyOutputTypeConversion(t *testing.T) {
 	assert.Equal(t, outputs["object"].Value, map[string]interface{}{"list": []interface{}{1.0, 2.0, 3.0}, "map": map[string]interface{}{"foo": "bar"}, "num": 42.0, "str": "string"})
 	assert.Equal(t, outputs["string"].Value, "string")
 	assert.Equal(t, outputs["from_env"].Value, "default")
+}
 
+// Test that we get the expected error message about dependency cycles when there is a cycle in the dependency chain
+func TestDependencyOutputCycleHandling(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+
+	testCases := []string{
+		"aa",
+		"aba",
+		"abca",
+		"abcda",
+	}
+
+	for _, testCase := range testCases {
+		// Capture range variable into forloop so that the binding is consistent across runs.
+		testCase := testCase
+
+		t.Run(testCase, func(t *testing.T) {
+			t.Parallel()
+
+			tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+			rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "cycle", testCase)
+			fooPath := util.JoinPath(rootPath, "foo")
+
+			planStdout := bytes.Buffer{}
+			planStderr := bytes.Buffer{}
+			err := runTerragruntCommand(
+				t,
+				fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", fooPath),
+				&planStdout,
+				&planStderr,
+			)
+			logBufferContentsLineByLine(t, planStdout, "plan stdout")
+			logBufferContentsLineByLine(t, planStderr, "plan stderr")
+			assert.Error(t, err)
+			assert.True(t, strings.Contains(err.Error(), "Found a dependency cycle between modules"))
+		})
+	}
+}
+
+// Regression testing for https://github.com/gruntwork-io/terragrunt/issues/854: Referencing a dependency that is a
+// subdirectory of the current config, which includes an `include` block has problems resolving the correct relative
+// path.
+func TestDependencyOutputRegression854(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "regression-854", "root")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(
+		t,
+		fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath),
+		&stdout,
+		&stderr,
+	)
+	logBufferContentsLineByLine(t, stdout, "stdout")
+	logBufferContentsLineByLine(t, stderr, "stderr")
+	require.NoError(t, err)
+}
+
+// Regression testing for bug where terragrunt output runs on dependency blocks are done in the terragrunt-cache for the
+// child, not the parent.
+func TestDependencyOutputCachePathBug(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "localstate", "live")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(
+		t,
+		fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath),
+		&stdout,
+		&stderr,
+	)
+	logBufferContentsLineByLine(t, stdout, "stdout")
+	logBufferContentsLineByLine(t, stderr, "stderr")
+	require.NoError(t, err)
 }
 
 func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
