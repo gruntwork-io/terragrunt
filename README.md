@@ -1587,6 +1587,40 @@ When the above is applied to an IAM user it will restrict them to creating the D
 already exist and allow updating records for state locking, and for the S3 bucket will allow creating the
 bucket if it doesn't already exist and only write files to the specified path.
 
+If you are only given access to an externally created Bucket you will need at least this IAM policy to be granted to your account:
+```
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": [
+                "s3:GetBucketLocation",
+                "s3:List*"
+            ],
+            "Resource": [
+                "arn:aws:s3:::<BucketName>"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "s3:DeleteObject",
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:ListBucket"
+            ],
+            "Resource": [
+                "arn:aws:s3:::<BucketName>/*"
+            ],
+            "Effect": "Allow"
+        }
+    ]
+}
+```
+
+and you will need to set the flag `skip_bucket_versioning` to true (only bucket owners can check versioning status on an S3 Bucket)
+
+
 ### Built-in Functions
 
 Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like Terraform! The functions 
