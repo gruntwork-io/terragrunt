@@ -1393,7 +1393,7 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 	rootPath := copyEnvironment(t, TEST_FIXTURE_EXTERNAL_DEPENDENCIE)
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_EXTERNAL_DEPENDENCIE, "module-b")
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-auto-apply-external-dependencies --terragrunt-working-dir %s", modulePath), &applyAllStdout, &applyAllStderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-include-external-dependencies --terragrunt-working-dir %s", modulePath), &applyAllStdout, &applyAllStderr)
 	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
 	logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
 	applyAllStdoutString := applyAllStdout.String()
