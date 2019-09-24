@@ -155,7 +155,7 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 
 	assert.Equal(t, expected.TerragruntConfigPath, actual.TerragruntConfigPath, msgAndArgs...)
 	assert.Equal(t, expected.NonInteractive, actual.NonInteractive, msgAndArgs...)
-	assert.Equal(t, expected.includeExternalDependencies, actual.includeExternalDependencies, msgAndArgs...)
+	assert.Equal(t, expected.IncludeExternalDependencies, actual.IncludeExternalDependencies, msgAndArgs...)
 	assert.Equal(t, expected.TerraformCliArgs, actual.TerraformCliArgs, msgAndArgs...)
 	assert.Equal(t, expected.WorkingDir, actual.WorkingDir, msgAndArgs...)
 	assert.Equal(t, expected.Source, actual.Source, msgAndArgs...)
@@ -163,7 +163,7 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 	assert.Equal(t, expected.IamRole, actual.IamRole, msgAndArgs...)
 }
 
-func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, includeExternalDependencies bool) *options.TerragruntOptions {
+func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, IncludeExternalDependencies bool) *options.TerragruntOptions {
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
 	if err != nil {
 		t.Fatalf("error: %v\n", errors.WithStackTrace(err))
@@ -174,7 +174,7 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 	opts.NonInteractive = nonInteractive
 	opts.Source = terragruntSource
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
-	opts.includeExternalDependencies = includeExternalDependencies
+	opts.IncludeExternalDependencies = IncludeExternalDependencies
 
 	return opts
 }

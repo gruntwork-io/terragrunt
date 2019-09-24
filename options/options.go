@@ -78,7 +78,7 @@ type TerragruntOptions struct {
 	IgnoreExternalDependencies bool
 
 	// If set to true, apply all external dependencies when running *-all commands
-	includeExternalDependencies bool
+	IncludeExternalDependencies bool
 
 	// If you want stdout to go somewhere other than os.stdout
 	Writer io.Writer
@@ -143,7 +143,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		DownloadDir:                 downloadDir,
 		IgnoreDependencyErrors:      false,
 		IgnoreExternalDependencies:  false,
-		includeExternalDependencies: false,
+		IncludeExternalDependencies: false,
 		Writer:                      os.Stdout,
 		ErrWriter:                   os.Stderr,
 		MaxFoldersToCheck:           DEFAULT_MAX_FOLDERS_TO_CHECK,
@@ -212,7 +212,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		IamRole:                     terragruntOptions.IamRole,
 		IgnoreDependencyErrors:      terragruntOptions.IgnoreDependencyErrors,
 		IgnoreExternalDependencies:  terragruntOptions.IgnoreExternalDependencies,
-		includeExternalDependencies: terragruntOptions.includeExternalDependencies,
+		IncludeExternalDependencies: terragruntOptions.IncludeExternalDependencies,
 		Writer:                      terragruntOptions.Writer,
 		ErrWriter:                   terragruntOptions.ErrWriter,
 		MaxFoldersToCheck:           terragruntOptions.MaxFoldersToCheck,

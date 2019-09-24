@@ -434,7 +434,7 @@ func resolveExternalDependenciesForModule(module *TerraformModule, moduleMap map
 // Confirm with the user whether they want Terragrunt to assume the given dependency of the given module is already
 // applied. If the user selects "yes", then Terragrunt will apply that module as well.
 func confirmShouldApplyExternalDependency(module *TerraformModule, dependency *TerraformModule, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	if terragruntOptions.includeExternalDependencies {
+	if terragruntOptions.IncludeExternalDependencies {
 		terragruntOptions.Logger.Printf("The --terragrunt-include-external-dependencies flag is set, so automatically including all external dependencies, and will run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
 		return true, nil
 	}
