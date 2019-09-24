@@ -211,8 +211,10 @@ func (s3Initializer S3Initializer) Initialize(remoteState *RemoteState, terragru
 		return err
 	}
 
-	if err := checkIfVersioningEnabled(s3Client, &s3Config, terragruntOptions); err != nil {
-		return err
+	if !s3ConfigExtended.SkipBucketVersioning {
+		if err := checkIfVersioningEnabled(s3Client, &s3Config, terragruntOptions); err != nil {
+			return err
+		}
 	}
 
 	if err := createLockTableIfNecessary(&s3Config, s3ConfigExtended.DynamotableTags, terragruntOptions); err != nil {
