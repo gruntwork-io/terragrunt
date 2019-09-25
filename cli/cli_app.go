@@ -33,11 +33,12 @@ const OPT_TERRAGRUNT_SOURCE_UPDATE = "terragrunt-source-update"
 const OPT_TERRAGRUNT_IAM_ROLE = "terragrunt-iam-role"
 const OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS = "terragrunt-ignore-dependency-errors"
 const OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES = "terragrunt-ignore-external-dependencies"
+const OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES = "terragrunt-include-external-dependencies"
 const OPT_TERRAGRUNT_EXCLUDE_DIR = "terragrunt-exclude-dir"
 const OPT_TERRAGRUNT_INCLUDE_DIR = "terragrunt-include-dir"
 const OPT_TERRAGRUNT_CHECK = "terragrunt-check"
 
-var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES, OPT_TERRAGRUNT_NO_AUTO_INIT, OPT_TERRAGRUNT_NO_AUTO_RETRY, OPT_TERRAGRUNT_CHECK}
+var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES, OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES, OPT_TERRAGRUNT_NO_AUTO_INIT, OPT_TERRAGRUNT_NO_AUTO_RETRY, OPT_TERRAGRUNT_CHECK}
 var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_TFPATH, OPT_WORKING_DIR, OPT_DOWNLOAD_DIR, OPT_TERRAGRUNT_SOURCE, OPT_TERRAGRUNT_IAM_ROLE, OPT_TERRAGRUNT_EXCLUDE_DIR, OPT_TERRAGRUNT_INCLUDE_DIR}
 
 const CMD_PLAN_ALL = "plan-all"
@@ -123,21 +124,22 @@ COMMANDS:
    *                    Terragrunt forwards all other commands directly to Terraform
 
 GLOBAL OPTIONS:
-   terragrunt-config                        Path to the Terragrunt config file. Default is terragrunt.hcl.
-   terragrunt-tfpath                        Path to the Terraform binary. Default is terraform (on PATH).
-   terragrunt-no-auto-init                  Don't automatically run 'terraform init' during other terragrunt commands. You must run 'terragrunt init' manually.
-   terragrunt-no-auto-retry                 Don't automatically re-run command in case of transient errors.
-   terragrunt-non-interactive               Assume "yes" for all prompts.
-   terragrunt-working-dir                   The path to the Terraform templates. Default is current directory.
-   terragrunt-download-dir                  The path where to download Terraform code. Default is .terragrunt-cache in the working directory.
-   terragrunt-source                        Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.
-   terragrunt-source-update                 Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it.
-   terragrunt-iam-role             	    	Assume the specified IAM role before executing Terraform. Can also be set via the TERRAGRUNT_IAM_ROLE environment variable.
-   terragrunt-ignore-dependency-errors      *-all commands continue processing components even if a dependency fails.
-   terragrunt-ignore-external-dependencies  *-all commands will not attempt to include external dependencies
-   terragrunt-exclude-dir                   Unix-style glob of directories to exclude when running *-all commands
-   terragrunt-include-dir                   Unix-style glob of directories to include when running *-all commands
-   terragrunt-check                         Enable check mode in the hclfmt command.
+   terragrunt-config                            Path to the Terragrunt config file. Default is terragrunt.hcl.
+   terragrunt-tfpath                            Path to the Terraform binary. Default is terraform (on PATH).
+   terragrunt-no-auto-init                      Don't automatically run 'terraform init' during other terragrunt commands. You must run 'terragrunt init' manually.
+   terragrunt-no-auto-retry                     Don't automatically re-run command in case of transient errors.
+   terragrunt-non-interactive                   Assume "yes" for all prompts.
+   terragrunt-working-dir                       The path to the Terraform templates. Default is current directory.
+   terragrunt-download-dir                      The path where to download Terraform code. Default is .terragrunt-cache in the working directory.
+   terragrunt-source                            Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.
+   terragrunt-source-update                     Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it.
+   terragrunt-iam-role             	    	    Assume the specified IAM role before executing Terraform. Can also be set via the TERRAGRUNT_IAM_ROLE environment variable.
+   terragrunt-ignore-dependency-errors          *-all commands continue processing components even if a dependency fails.
+   terragrunt-ignore-external-dependencies      *-all commands will not attempt to include external dependencies
+   terragrunt-include-external-dependencies     *-all commands will include external dependencies
+   terragrunt-exclude-dir                       Unix-style glob of directories to exclude when running *-all commands
+   terragrunt-include-dir                       Unix-style glob of directories to include when running *-all commands
+   terragrunt-check                             Enable check mode in the hclfmt command.
 
 VERSION:
    {{.Version}}{{if len .Authors}}
