@@ -1375,8 +1375,6 @@ func TestIncludeDirs(t *testing.T) {
 func TestTerragruntExternalDependencies(t *testing.T) {
 	t.Parallel()
 
-	t.Skip("Skipping for now as --terragrunt-non-interactive no longer automatically applies external dependencies. In the future, we should add a specific flag to control that behavior.")
-
 	modules := []string{
 		"module-a",
 		"module-b",
@@ -1395,7 +1393,7 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 	rootPath := copyEnvironment(t, TEST_FIXTURE_EXTERNAL_DEPENDENCIE)
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_EXTERNAL_DEPENDENCIE, "module-b")
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), &applyAllStdout, &applyAllStderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-include-external-dependencies --terragrunt-working-dir %s", modulePath), &applyAllStdout, &applyAllStderr)
 	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
 	logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
 	applyAllStdoutString := applyAllStdout.String()
@@ -1841,6 +1839,28 @@ func TestDependencyOutputRegression854(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "regression-854", "root")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(
+		t,
+		fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath),
+		&stdout,
+		&stderr,
+	)
+	logBufferContentsLineByLine(t, stdout, "stdout")
+	logBufferContentsLineByLine(t, stderr, "stderr")
+	require.NoError(t, err)
+}
+
+// Regression testing for bug where terragrunt output runs on dependency blocks are done in the terragrunt-cache for the
+// child, not the parent.
+func TestDependencyOutputCachePathBug(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "localstate", "live")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
