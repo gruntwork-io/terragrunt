@@ -170,8 +170,8 @@ It is important that the templates are customizable. Not all users have the same
 customize the templates to their needs is important. The goal is to allow users to define their own standards as
 templates that then is used by their engineers to generate new configurations that conform to their standards, which may
 be different from Gruntwork standards. I envision Gruntwork providing a set of base templates that can be used by
-default, which can be overridden by either forking our `infrastructure-templates` folder or by building new ones from
-scratch.
+default, which can be overridden by either forking our `infrastructure-templates` repository or by building new ones
+from scratch.
 
 `terragrunt new` should support the following scenarios:
 
@@ -284,31 +284,51 @@ in templating engine of Go.
 
 ### Template tests
 
-Template tests can be invoked using a new module in `terratest` that can be used to call `terragrunt new` using these
-templates with arbitrary input values. You can then apply the generated template to test the generated code against
-various variable inputs.
+Template tests can be invoked using the `shell` module in `terratest` that can be used to call `terragrunt new` using
+these templates with arbitrary input values. You can then apply the generated template to test the generated code
+against various variable inputs.
 
 ### Template structure
 
-_TODO: This needs to be fleshed out. Note that this is conditional on if the above proposal is accepted._
+_TODO: This still needs to be fleshed out._
+
 
 ### FAQ
 
 #### When should code be generated?
 
-_TODO_
+The challenge with code generation is deciding when, and how often to generate the code. For example, suppose you ran
+`terragrunt new component` and it seeded the live configuration with all the different variables of the underlying
+module. Next, you will need to make the changes to set the values for each of the variables. This makes sense to edit
+directly on the generated code, so you shouldn't have to run the generator again. However, suppose that at a later point
+the module is updated and a new variable is introduced. Should you regenerate the code so you get the updated variable
+description?
+
+While "codegen drift" is a concern, I think the only practical usage of the proposed scaffolding is for bootstrapping an
+initial implementation, and not for maintaining the code through code generation. As such, you should only generate the
+code in the initial implementation, and then proceed to make manual edits to the generated code over time to maintain
+it, rather than going through `terragrunt new` each time to roll out an update.
+
 
 #### Should the generated code be checked in?
 
-_TODO_
+Given the answer to [When should code be generated?](#when-should-code-be-generated), yes it should be checked in so
+that you can maintain the edits being made to it.
+
 
 #### How to keep code in sync with template?
 
-_TODO_
+In the scenario covered in [When should code be generated?](#when-should-code-be-generated) there is a question of how
+to introduce the new variable to a previously generated code. Specifically, when you introduce a new variable, and if
+you were keeping the list of variable inputs in the live code that was generated, you could end up in a situation of
+"codegen drift", where the module has a new variable that is omitted from your live config.
 
-#### Use Case: Is there a way to continuously generate code from a template?
+Unfortunately, as mentioned in the answer to [When should code be generated?](#when-should-code-be-generated), it is not
+practical to always regenerate the code from the template every time the module changes. This means that we are once
+again back to relying on developer discipline for maintaining this link.
 
-_TODO_
+The solution proposed here will not address this challenge. However, the hope is that the proposed solution will improve
+the UX over what we have currently, while acknowledging that it is not a perfect solution that solves all challenges.
 
 
 ## Alternatives
@@ -344,6 +364,8 @@ for generating the code for the scenario.
   will need to setup a virtualenv for maximum safety, which adds complexity.
 - We can't optimize the UX for Terragrunt. Since the tool lives outside Terragrunt, we can't be opinionated about how we
   call the scaffolds for each of the use case scenarios to provide a better interactive experience.
+- `cookiecutter` specifically requires each template to be a separate repository. This could be a challenge to maintain
+  if you need many different templates for a wide range of scenarios.
 
 #### Terragrunt Wrapper for Scaffolding tool
 
