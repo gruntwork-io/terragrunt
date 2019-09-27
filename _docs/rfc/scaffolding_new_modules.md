@@ -399,4 +399,4 @@ migrating over from the Python community.
 
 ## References
 
--
+- [Original PR with RFC](https://github.com/gruntwork-io/terragrunt/pull/882)
