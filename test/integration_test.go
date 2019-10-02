@@ -93,6 +93,7 @@ const (
 	TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH           = "qa/my-app"
 	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                    = "fixture-get-aws-caller-identity"
 	TEST_FIXTURE_REGRESSIONS                                = "fixture-regressions"
+	TEST_FIXTURE_DIRS_PATH                                  = "fixture-dirs"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -1946,6 +1947,45 @@ func TestAWSGetCallerIdentityFunctions(t *testing.T) {
 	assert.NotEmpty(t, outputs["account"].Value)
 	assert.NotEmpty(t, outputs["arn"].Value)
 	assert.NotEmpty(t, outputs["user_id"].Value)
+}
+
+func TestDataDir(t *testing.T) {
+	// Cannot be run in parallel with other tests as it modifies process' environment.
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_DIRS_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DIRS_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DIRS_PATH)
+
+	os.Setenv("TF_DATA_DIR", util.JoinPath(tmpEnvPath, "data_dir"))
+	defer os.Unsetenv("TF_DATA_DIR")
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	erroutput := stderr.String()
+
+	if err != nil {
+		t.Errorf("Did not expect to get an error: %s", err.Error())
+	}
+
+	assert.Contains(t, erroutput, "Initializing provider plugins")
+
+	var (
+		stdout2 bytes.Buffer
+		stderr2 bytes.Buffer
+	)
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout2, &stderr2)
+	erroutput2 := stderr2.String()
+
+	if err != nil {
+		t.Errorf("Did not expect to get an error: %s", err.Error())
+	}
+
+	assert.NotContains(t, erroutput2, "Initializing provider plugins")
 }
 
 func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
