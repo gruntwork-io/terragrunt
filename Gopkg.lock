@@ -42,7 +42,7 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:b23b81f47109efc6b4768653c95f87a2b6cf5052d653eab69373889f8b52e553"
+  digest = "1:91e14026351e9decfbc736fe9aed292826dbfc39f8654735d549c7d86151587d"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -67,6 +67,7 @@
     "internal/ini",
     "internal/s3err",
     "internal/sdkio",
+    "internal/sdkmath",
     "internal/sdkrand",
     "internal/sdkuri",
     "internal/shareddefaults",
@@ -83,10 +84,11 @@
     "service/dynamodb",
     "service/s3",
     "service/sts",
+    "service/sts/stsiface",
   ]
   pruneopts = "UT"
-  revision = "bdafd99f31a0103ec73bcabfc9498aef3252d515"
-  version = "v1.19.47"
+  revision = "572908275ed4e38fef7ccb7d507f2faacaa7ab36"
+  version = "v1.25.4"
 
 [[projects]]
   branch = "master"
