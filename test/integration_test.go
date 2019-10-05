@@ -1644,6 +1644,53 @@ func TestDependencyOutputSkipOutputs(t *testing.T) {
 	logBufferContentsLineByLine(t, showStderr, "show stderr")
 }
 
+func TestDependencyOutputSkipOutputsWithMockOutput(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs")
+	dependent3Path := filepath.Join(rootPath, "dependent3")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", dependent3Path), &showStdout, &showStderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	// verify expected output when mocks are used: The answer is 0
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", dependent3Path), &stdout, &stderr),
+	)
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	assert.Equal(t, outputs["truth"].Value, "The answer is 0")
+
+	// Now apply-all so that the dependency is applied, and verify it still uses the mock output
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	// verify expected output when mocks are used: The answer is 0
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", dependent3Path), &stdout, &stderr),
+	)
+	outputs = map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	assert.Equal(t, outputs["truth"].Value, "The answer is 0")
+}
+
 // Test that when you have a mock_output on a dependency, the dependency will use the mock as the output instead
 // of erroring out.
 func TestDependencyMockOutput(t *testing.T) {
