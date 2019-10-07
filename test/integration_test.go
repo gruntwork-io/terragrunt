@@ -91,6 +91,7 @@ const (
 	TEST_FIXTURE_LOCALS_CANONICAL                           = "fixture-locals/canonical"
 	TEST_FIXTURE_LOCALS_IN_INCLUDE                          = "fixture-locals/local-in-include"
 	TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH           = "qa/my-app"
+	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                    = "fixture-get-aws-caller-identity"
 	TEST_FIXTURE_REGRESSIONS                                = "fixture-regressions"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
@@ -1920,6 +1921,32 @@ func TestDependencyOutputCachePathBug(t *testing.T) {
 	logBufferContentsLineByLine(t, stdout, "stdout")
 	logBufferContentsLineByLine(t, stderr, "stderr")
 	require.NoError(t, err)
+}
+
+func TestAWSGetCallerIdentityFunctions(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_AWS_GET_CALLER_IDENTITY)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_AWS_GET_CALLER_IDENTITY)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_AWS_GET_CALLER_IDENTITY, "integration")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	app3Path := util.JoinPath(rootPath, "app3")
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", app3Path), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	assert.NotEmpty(t, outputs["account"].Value)
+	assert.NotEmpty(t, outputs["arn"].Value)
+	assert.NotEmpty(t, outputs["user_id"].Value)
 }
 
 func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
