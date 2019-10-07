@@ -302,11 +302,11 @@ func pathRelativeFromInclude(include *IncludeConfig, terragruntOptions *options.
 	return util.GetPathRelativeTo(includePath, currentPath)
 }
 
-// Return the AWS account id associated to the current set of credentials
-func getAWSAccountID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+// Return the AWS caller identity associated with the current set of credentials
+func getAWSCallerID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (sts.GetCallerIdentityOutput, error) {
 	sess, err := session.NewSession()
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return sts.GetCallerIdentityOutput{}, errors.WithStackTrace(err)
 	}
 
 	if terragruntOptions.IamRole != "" {
@@ -315,29 +315,22 @@ func getAWSAccountID(include *IncludeConfig, terragruntOptions *options.Terragru
 
 	identity, err := sts.New(sess).GetCallerIdentity(nil)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return sts.GetCallerIdentityOutput{}, errors.WithStackTrace(err)
 	}
 
-	return *identity.Account, nil
+	return *identity, nil
+}
+
+// Return the AWS account id associated to the current set of credentials
+func getAWSAccountID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	identity, err := getAWSCallerID(include, terragruntOptions)
+	return *identity.Account, err
 }
 
 // Return the ARN of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityARN(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	sess, err := session.NewSession()
-	if err != nil {
-		return "", errors.WithStackTrace(err)
-	}
-
-	if terragruntOptions.IamRole != "" {
-		sess.Config.Credentials = stscreds.NewCredentials(sess, terragruntOptions.IamRole)
-	}
-
-	identity, err := sts.New(sess).GetCallerIdentity(nil)
-	if err != nil {
-		return "", errors.WithStackTrace(err)
-	}
-
-	return *identity.Arn, nil
+	identity, err := getAWSCallerID(include, terragruntOptions)
+	return *identity.Arn, err
 }
 
 // Custom error types
