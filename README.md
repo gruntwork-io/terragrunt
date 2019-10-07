@@ -1650,7 +1650,7 @@ currently available are:
 * [get_terraform_commands_that_need_locking()](#get_terraform_commands_that_need_locking)
 * [get_terraform_commands_that_need_parallelism()](#get_terraform_commands_that_need_parallelism)
 * [get_aws_account_id()](#get_aws_account_id)
-* [get_aws_caller_identity()](#get_aws_caller_identity)
+* [get_aws_caller_identity_arn()](#get_aws_caller_identity_arn)
 * [run_cmd()](#run_cmd)
 
 
@@ -2038,9 +2038,9 @@ remote_state {
 }
 ```
 
-#### get_aws_caller_identity
+#### get_aws_caller_identity_arn
 
-`get_aws_caller_identity()` returns the ARN of the AWS identity associated with the current set of credentials. Example:
+`get_aws_caller_identity_arn()` returns the ARN of the AWS identity associated with the current set of credentials. Example:
 
 ```hcl
 data "aws_iam_policy_document" "master_key_policy" {
@@ -2056,7 +2056,7 @@ data "aws_iam_policy_document" "master_key_policy" {
 
     principals {
       type        = "AWS"
-      identifiers = "${get_aws_caller_identity()}"
+      identifiers = "${get_aws_caller_identity_arn()}"
     }
   }
 ```
