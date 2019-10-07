@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/aws/aws-sdk-go/aws/awsutil"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
@@ -99,6 +100,8 @@ func CreateTerragruntEvalContext(
 		"get_terragrunt_dir":                           wrapVoidToStringAsFuncImpl(getTerragruntDir, extensions.Include, terragruntOptions),
 		"get_parent_terragrunt_dir":                    wrapVoidToStringAsFuncImpl(getParentTerragruntDir, extensions.Include, terragruntOptions),
 		"get_aws_account_id":                           wrapVoidToStringAsFuncImpl(getAWSAccountID, extensions.Include, terragruntOptions),
+		"get_aws_caller_identity_arn":                  wrapVoidToStringAsFuncImpl(getAWSCallerIdentityARN, extensions.Include, terragruntOptions),
+		"get_aws_caller_identity_user_id":              wrapVoidToStringAsFuncImpl(getAWSCallerIdentityUserID, extensions.Include, terragruntOptions),
 		"get_terraform_commands_that_need_vars":        wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_VARS),
 		"get_terraform_commands_that_need_locking":     wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_LOCKING),
 		"get_terraform_commands_that_need_input":       wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_INPUT),
@@ -301,11 +304,11 @@ func pathRelativeFromInclude(include *IncludeConfig, terragruntOptions *options.
 	return util.GetPathRelativeTo(includePath, currentPath)
 }
 
-// Return the AWS account id associated to the current set of credentials
-func getAWSAccountID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+// Return the AWS caller identity associated with the current set of credentials
+func getAWSCallerID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (sts.GetCallerIdentityOutput, error) {
 	sess, err := session.NewSession()
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return sts.GetCallerIdentityOutput{}, errors.WithStackTrace(err)
 	}
 
 	if terragruntOptions.IamRole != "" {
@@ -314,14 +317,31 @@ func getAWSAccountID(include *IncludeConfig, terragruntOptions *options.Terragru
 
 	identity, err := sts.New(sess).GetCallerIdentity(nil)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return sts.GetCallerIdentityOutput{}, errors.WithStackTrace(err)
 	}
 
-	return *identity.Account, nil
+	return *identity, nil
+}
+
+// Return the AWS account id associated to the current set of credentials
+func getAWSAccountID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	identity, err := getAWSCallerID(include, terragruntOptions)
+	return awsutil.StringValue(identity.Account), err
+}
+
+// Return the ARN of the AWS identity associated with the current set of credentials
+func getAWSCallerIdentityARN(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	identity, err := getAWSCallerID(include, terragruntOptions)
+	return awsutil.StringValue(identity.Arn), err
+}
+
+// Return the UserID of the AWS identity associated with the current set of credentials
+func getAWSCallerIdentityUserID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	identity, err := getAWSCallerID(include, terragruntOptions)
+	return awsutil.StringValue(identity.UserId), err
 }
 
 // Custom error types
-
 type WrongNumberOfParams struct {
 	Func     string
 	Expected string

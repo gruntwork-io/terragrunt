@@ -1650,6 +1650,8 @@ currently available are:
 * [get_terraform_commands_that_need_locking()](#get_terraform_commands_that_need_locking)
 * [get_terraform_commands_that_need_parallelism()](#get_terraform_commands_that_need_parallelism)
 * [get_aws_account_id()](#get_aws_account_id)
+* [get_aws_caller_identity_arn()](#get_aws_caller_identity_arn)
+* [get_aws_caller_identity_user_id()](#get_aws_caller_identity_user_id)
 * [run_cmd()](#run_cmd)
 
 
@@ -2034,6 +2036,26 @@ remote_state {
   config = {
     bucket = "mycompany-${get_aws_account_id()}"
   }
+}
+```
+
+#### get_aws_caller_identity_arn
+
+`get_aws_caller_identity_arn()` returns the ARN of the AWS identity associated with the current set of credentials. Example:
+
+```hcl
+inputs = {
+  caller_arn = get_aws_caller_identity_arn()
+}
+```
+
+#### get_aws_caller_identity_user_id
+
+`get_aws_caller_identity_user_id()` returns the UserId of the AWS identity associated with the current set of credentials. Example:
+
+```hcl
+inputs = {
+  caller_user_id = get_aws_caller_identity_user_id()
 }
 ```
 
