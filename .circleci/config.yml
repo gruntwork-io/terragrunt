@@ -1,35 +1,34 @@
-workspace_root: &workspace_root
-  /go/src/github.com/gruntwork-io/terragrunt
+workspace_root: &workspace_root /go/src/github.com/gruntwork-io/terragrunt
 
 defaults: &defaults
   working_directory: *workspace_root
   docker:
-  - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.11
+    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.11
 
 version: 2
 jobs:
   install_dependencies:
     <<: *defaults
     steps:
-    - checkout
-    - attach_workspace:
-        at: *workspace_root
-    - restore_cache:
-        keys:
-        - dep-{{ checksum "Gopkg.lock" }}
-    - run: dep ensure
-    - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.13.8' --download-dir .
-    - save_cache:
-        key: dep-{{ checksum "Gopkg.lock" }}
-        paths:
-        - /go/src/github.com/gruntwork-io/terragrunt/vendor
-    - persist_to_workspace:
-        root: *workspace_root
-        paths: vendor
-# We're running unit tests separately from integration tests - with no parallelization.
-# With heavy parallelization coupled with re-use of test fixtures we've witnessed slight
-# instability with the tests. The unit tests are fast to execute, so there is negligible
-# performance penalty.
+      - checkout
+      - attach_workspace:
+          at: *workspace_root
+      - restore_cache:
+          keys:
+            - dep-{{ checksum "Gopkg.lock" }}
+      - run: dep ensure
+      - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.13.8' --download-dir .
+      - save_cache:
+          key: dep-{{ checksum "Gopkg.lock" }}
+          paths:
+            - /go/src/github.com/gruntwork-io/terragrunt/vendor
+      - persist_to_workspace:
+          root: *workspace_root
+          paths: vendor
+  # We're running unit tests separately from integration tests - with no parallelization.
+  # With heavy parallelization coupled with re-use of test fixtures we've witnessed slight
+  # instability with the tests. The unit tests are fast to execute, so there is negligible
+  # performance penalty.
   unit_test:
     <<: *defaults
     steps:
@@ -72,71 +71,71 @@ jobs:
   build:
     <<: *defaults
     steps:
-    - checkout
-    - attach_workspace:
-        at: *workspace_root
-    - run: build-go-binaries --circle-ci-2 --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG"
-    - persist_to_workspace:
-        root: *workspace_root
-        paths: bin
+      - checkout
+      - attach_workspace:
+          at: *workspace_root
+      - run: build-go-binaries --circle-ci-2 --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG"
+      - persist_to_workspace:
+          root: *workspace_root
+          paths: bin
 
   deploy:
     <<: *defaults
     steps:
-    - checkout
-    - attach_workspace:
-        at: *workspace_root
-    - run: cd bin && sha256sum * > SHA256SUMS
-    - run: upload-github-release-assets bin/*
+      - checkout
+      - attach_workspace:
+          at: *workspace_root
+      - run: cd bin && sha256sum * > SHA256SUMS
+      - run: upload-github-release-assets bin/*
 
 workflows:
   version: 2
   build-and-test:
     jobs:
-    - install_dependencies:
-        filters:
-          tags:
-            only: /^v.*/
-    - unit_test:
-        requires:
-          - install_dependencies
-        filters:
-          tags:
-            only: /^v.*/
-    - integration_test:
-        requires:
-          - unit_test
-        filters:
-          tags:
-            only: /^v.*/
-    - build:
-        requires:
-        - integration_test
-        filters:
-          tags:
-            only: /^v.*/
+      - install_dependencies:
+          filters:
+            tags:
+              only: /^v.*/
+      - unit_test:
+          requires:
+            - install_dependencies
+          filters:
+            tags:
+              only: /^v.*/
+      - integration_test:
+          requires:
+            - unit_test
+          filters:
+            tags:
+              only: /^v.*/
+      - build:
+          requires:
+            - integration_test
+          filters:
+            tags:
+              only: /^v.*/
 
-    - deploy:
-        requires:
-        - build
-        filters:
-          tags:
-            only: /^v.*/
-          branches:
-            ignore: /.*/
+      - deploy:
+          requires:
+            - build
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
 
   nightly:
     triggers:
-    - schedule:
-        cron: "0 6 * * *"
-        filters:
-          branches:
-            only: master
+      - schedule:
+          cron: "0 6 * * *"
+          filters:
+            branches:
+              only: master
     jobs:
-    - install_dependencies
-    - unit_test:
-        requires:
-          - install_dependencies
-    - integration_test:
-        requires:
-          - unit_test
+      - install_dependencies
+      - unit_test:
+          requires:
+            - install_dependencies
+      - integration_test:
+          requires:
+            - install_dependencies
