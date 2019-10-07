@@ -104,12 +104,13 @@ workflows:
               only: /^v.*/
       - integration_test:
           requires:
-            - unit_test
+            - install_dependencies
           filters:
             tags:
               only: /^v.*/
       - build:
           requires:
+            - unit_test
             - integration_test
           filters:
             tags:
