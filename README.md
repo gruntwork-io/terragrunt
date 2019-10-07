@@ -2043,22 +2043,9 @@ remote_state {
 `get_aws_caller_identity_arn()` returns the ARN of the AWS identity associated with the current set of credentials. Example:
 
 ```hcl
-data "aws_iam_policy_document" "master_key_policy" {
-  # Grant CMK Administrators full management rights, but no usage rights.
-  statement {
-    sid       = "AllowAccessForKeyAdministrators"
-    effect    = "Allow"
-    resources = ["*"]
-
-    actions = [
-      "kms:*"
-    ]
-
-    principals {
-      type        = "AWS"
-      identifiers = "${get_aws_caller_identity_arn()}"
-    }
-  }
+inputs = {
+  caller_identity = get_aws_caller_identity_arn()
+}
 ```
 
 This allows uniqueness of the storage bucket per AWS account (since bucket name must be globally unique).
