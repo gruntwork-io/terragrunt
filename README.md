@@ -2036,8 +2036,8 @@ remote_state {
     bucket = "mycompany-${get_aws_account_id()}"
   }
 }
-
 ```
+
 #### get_aws_caller_identity
 
 `get_aws_caller_identity()` returns the ARN of the AWS identity associated with the current set of credentials. Example:
