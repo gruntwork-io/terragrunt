@@ -1650,6 +1650,7 @@ currently available are:
 * [get_terraform_commands_that_need_locking()](#get_terraform_commands_that_need_locking)
 * [get_terraform_commands_that_need_parallelism()](#get_terraform_commands_that_need_parallelism)
 * [get_aws_account_id()](#get_aws_account_id)
+* [get_aws_caller_identity()](#get_aws_caller_identity)
 * [run_cmd()](#run_cmd)
 
 
@@ -2035,6 +2036,29 @@ remote_state {
     bucket = "mycompany-${get_aws_account_id()}"
   }
 }
+
+```
+#### get_aws_caller_identity
+
+`get_aws_caller_identity()` returns the ARN of the AWS identity associated with the current set of credentials. Example:
+
+```hcl
+data "aws_iam_policy_document" "master_key_policy" {
+  # Grant CMK Administrators full management rights, but no usage rights.
+  statement {
+    sid       = "AllowAccessForKeyAdministrators"
+    effect    = "Allow"
+    resources = ["*"]
+
+    actions = [
+      "kms:*"
+    ]
+
+    principals {
+      type        = "AWS"
+      identifiers = "${get_aws_caller_identity()}"
+    }
+  }
 ```
 
 This allows uniqueness of the storage bucket per AWS account (since bucket name must be globally unique).
