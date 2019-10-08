@@ -47,6 +47,7 @@ func evaluateLocalsBlock(
 	parser *hclparse.Parser,
 	hclFile *hcl.File,
 	filename string,
+	included *IncludeConfig,
 ) (map[string]cty.Value, error) {
 	diagsWriter := util.GetDiagnosticsWriter(parser)
 
@@ -86,6 +87,7 @@ func evaluateLocalsBlock(
 			terragruntOptions,
 			filename,
 			locals,
+			included,
 			evaluatedLocals,
 			diagsWriter,
 		)
@@ -116,6 +118,7 @@ func attemptEvaluateLocals(
 	terragruntOptions *options.TerragruntOptions,
 	filename string,
 	locals []*Local,
+	included *IncludeConfig,
 	evaluatedLocals map[string]cty.Value,
 	diagsWriter hcl.DiagnosticWriter,
 ) (unevaluatedLocals []*Local, newEvaluatedLocals map[string]cty.Value, evaluated bool, err error) {
@@ -137,7 +140,11 @@ func attemptEvaluateLocals(
 		terragruntOptions.Logger.Printf("Could not convert evaluated locals to the execution context to evaluate additional locals")
 		return nil, evaluatedLocals, false, err
 	}
-	evalCtx := CreateTerragruntEvalContext(filename, terragruntOptions, EvalContextExtensions{Locals: evaluatedLocalsAsCty})
+	evalCtx := CreateTerragruntEvalContext(
+		filename,
+		terragruntOptions,
+		EvalContextExtensions{Include: included, Locals: evaluatedLocalsAsCty},
+	)
 
 	// Track the locals that were evaluated for logging purposes
 	newlyEvaluatedLocalNames := []string{}

@@ -2380,8 +2380,8 @@ from `dependency` into `locals`. On the other hand, for the same reason, you can
 
 Currently terragrunt parses the config in the following order:
 
-1. `locals` block
 1. `include` block
+1. `locals` block
 1. `dependencies` block
 1. `dependency` blocks, including calling `terragrunt output` on the dependent modules to retrieve the outputs
 1. Everything else
@@ -2395,8 +2395,8 @@ you cannot use blocks that are parsed later earlier in the process (e.g you can'
 Note that the parsing order is slightly different when using the `-all` flavors of the command. In the `-all` flavors of
 the command, Terragrunt parses the configuration twice. In the first pass, it follows the following parsing order:
 
-1. `locals` block of all configurations in the tree
 1. `include` block of all configurations in the tree
+1. `locals` block of all configurations in the tree
 1. `dependency` blocks of all configurations in the tree, but does NOT retrieve the outputs
 1. `terraform` block of all configurations in the tree
 1. `dependencies` block of all configurations in the tree
