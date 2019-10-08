@@ -17,8 +17,10 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/iterator"
@@ -1941,11 +1943,22 @@ func TestAWSGetCallerIdentityFunctions(t *testing.T) {
 		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
 	)
 
+	// Get values from STS
+	sess, err := session.NewSession()
+	if err != nil {
+		t.Fatalf("Error while creating AWS session: %v", err)
+	}
+
+	identity, err := sts.New(sess).GetCallerIdentity(nil)
+	if err != nil {
+		t.Fatalf("Error while getting AWS caller identity: %v", err)
+	}
+
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
-	assert.NotEmpty(t, outputs["account"].Value)
-	assert.NotEmpty(t, outputs["arn"].Value)
-	assert.NotEmpty(t, outputs["user_id"].Value)
+	assert.Equal(t, outputs["account"].Value, *identity.Account)
+	assert.Equal(t, outputs["arn"].Value, *identity.Arn)
+	assert.Equal(t, outputs["user_id"].Value, *identity.UserId)
 }
 
 func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/aws/aws-sdk-go/aws/awsutil"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
@@ -326,19 +325,19 @@ func getAWSCallerID(include *IncludeConfig, terragruntOptions *options.Terragrun
 // Return the AWS account id associated to the current set of credentials
 func getAWSAccountID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	identity, err := getAWSCallerID(include, terragruntOptions)
-	return awsutil.StringValue(identity.Account), err
+	return *identity.Account, err
 }
 
 // Return the ARN of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityARN(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	identity, err := getAWSCallerID(include, terragruntOptions)
-	return awsutil.StringValue(identity.Arn), err
+	return *identity.Arn, err
 }
 
 // Return the UserID of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityUserID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	identity, err := getAWSCallerID(include, terragruntOptions)
-	return awsutil.StringValue(identity.UserId), err
+	return *identity.UserId, err
 }
 
 // Custom error types
