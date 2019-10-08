@@ -1139,14 +1139,33 @@ func TestLocalsParsing(t *testing.T) {
 func TestLocalsInInclude(t *testing.T) {
 	t.Parallel()
 
-	childPath := util.JoinPath(TEST_FIXTURE_LOCALS_IN_INCLUDE, TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH)
 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCALS_IN_INCLUDE)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_LOCALS_IN_INCLUDE)
+	childPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_LOCALS_IN_INCLUDE, TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH)
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", childPath))
 
-	s3BucketName := fmt.Sprintf("terragrunt-%s-%s", strings.ToLower(t.Name()), strings.ToLower(uniqueId()))
-	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	// Check the outputs of the dir functions referenced in locals to make sure they return what is expected
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
 
-	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_LOCALS_IN_INCLUDE, TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH, s3BucketName, config.DefaultTerragruntConfigPath, config.DefaultTerragruntConfigPath)
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	assert.Equal(
+		t,
+		outputs["parent_terragrunt_dir"].Value,
+		filepath.Join(tmpEnvPath, TEST_FIXTURE_LOCALS_IN_INCLUDE),
+	)
+	assert.Equal(
+		t,
+		outputs["terragrunt_dir"].Value,
+		childPath,
+	)
 }
 
 func TestUndefinedLocalsReferenceBreaks(t *testing.T) {

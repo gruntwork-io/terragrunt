@@ -1,10 +1,9 @@
-# Configure Terragrunt to automatically store tfstate files in an S3 bucket
-remote_state {
-  backend = "s3"
-  config = {
-    encrypt = true
-    bucket = "__FILL_IN_BUCKET_NAME__"
-    key = "${path_relative_to_include()}/terraform.tfstate"
-    region = "us-west-2"
-  }
+locals {
+  parent_terragrunt_dir = get_parent_terragrunt_dir()
+  terragrunt_dir = get_terragrunt_dir()
+}
+
+inputs = {
+  parent_terragrunt_dir = local.parent_terragrunt_dir
+  terragrunt_dir = local.terragrunt_dir
 }
