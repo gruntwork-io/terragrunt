@@ -1,7 +1,9 @@
 package configstack
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 
@@ -27,6 +29,9 @@ type runningModule struct {
 	Dependencies   map[string]*runningModule
 	NotifyWhenDone []*runningModule
 	FlagExcluded   bool
+	OutStream      bytes.Buffer
+	ErrStream      bytes.Buffer
+	Writer         io.Writer
 }
 
 // This controls in what order dependencies should be enforced between modules
@@ -35,6 +40,13 @@ type DependencyOrder int
 const (
 	NormalOrder DependencyOrder = iota
 	ReverseOrder
+)
+
+var (
+	// OutputMessageSeparator is the string used for separating the different module outputs
+	OutputMessageSeparator = strings.Repeat("-", 132)
+	// DetailedErrorMessageDivider is the string used for diving the detailed error output at the end of the execution from the rest of the output
+	DetailedErrorMessageDivider = strings.Repeat("=", 132)
 )
 
 // Create a new RunningModule struct for the given module. This will initialize all fields to reasonable defaults,
@@ -48,6 +60,7 @@ func newRunningModule(module *TerraformModule) *runningModule {
 		Dependencies:   map[string]*runningModule{},
 		NotifyWhenDone: []*runningModule{},
 		FlagExcluded:   module.FlagExcluded,
+		Writer:         module.TerragruntOptions.Writer,
 	}
 }
 
@@ -130,6 +143,7 @@ func removeFlagExcluded(modules map[string]*runningModule) map[string]*runningMo
 				Err:            module.Err,
 				NotifyWhenDone: module.NotifyWhenDone,
 				Status:         module.Status,
+				Writer:         module.Module.TerragruntOptions.Writer,
 			}
 
 			// Only add dependencies that should not be excluded
@@ -154,6 +168,8 @@ func runModules(modules map[string]*runningModule) error {
 		waitGroup.Add(1)
 		go func(module *runningModule) {
 			defer waitGroup.Done()
+			module.Module.TerragruntOptions.ErrWriter = io.MultiWriter(&module.OutStream, &module.ErrStream)
+			module.Module.TerragruntOptions.Writer = &module.OutStream
 			module.runModuleWhenReady()
 		}(module)
 	}
@@ -167,17 +183,37 @@ func runModules(modules map[string]*runningModule) error {
 // occurred
 func collectErrors(modules map[string]*runningModule) error {
 	errs := []error{}
+	detailedErrs := []error{}
+
 	for _, module := range modules {
 		if module.Err != nil {
 			errs = append(errs, module.Err)
+			detailedErrs = append(detailedErrs, generateDetailedErrorMessage(module))
 		}
 	}
 
 	if len(errs) == 0 {
 		return nil
-	} else {
-		return errors.WithStackTrace(MultiError{Errors: errs})
 	}
+
+	return errors.WithStackTrace(MultiError{Errors: errs, DetailedErrors: detailedErrs})
+}
+
+// generateDetailedErrorMessage extracts the clean stderr from a module and formats it for printing
+func generateDetailedErrorMessage(module *runningModule) error {
+	// remove the auto-init pollution from the error stream
+	cleanErrorOutput := strings.Replace(module.ErrStream.String(), module.Module.TerragruntOptions.InitStream.String(), "", -1)
+
+	// determine whether the error is a dependency error
+	var errorType string
+
+	if _, isDepErr := module.Err.(DependencyFinishedWithError); isDepErr {
+		errorType = "(dependency error)"
+	} else {
+		errorType = "(root error)"
+	}
+
+	return fmt.Errorf("%s %s: \n\n%s \n\n%s\n%s", module.Module.Path, errorType, module.Err, cleanErrorOutput, OutputMessageSeparator)
 }
 
 // Run a module once all of its dependencies have finished executing.
@@ -223,6 +259,7 @@ func (module *runningModule) runNow() error {
 		module.Module.TerragruntOptions.Logger.Printf("Running module %s now", module.Module.Path)
 		return module.Module.TerragruntOptions.RunTerragrunt(module.Module.TerragruntOptions)
 	}
+
 }
 
 // Record that a module has finished executing and notify all of this module's dependencies
@@ -232,6 +269,8 @@ func (module *runningModule) moduleFinished(moduleErr error) {
 	} else {
 		module.Module.TerragruntOptions.Logger.Printf("Module %s has finished with an error: %v", module.Module.Path, moduleErr)
 	}
+
+	fmt.Fprintf(module.Writer, "%s\n%v\n\n%v\n", OutputMessageSeparator, module.Module.Path, module.OutStream.String())
 
 	module.Status = Finished
 	module.Err = moduleErr
@@ -261,15 +300,16 @@ func (this DependencyFinishedWithError) ExitStatus() (int, error) {
 }
 
 type MultiError struct {
-	Errors []error
+	Errors         []error
+	DetailedErrors []error
 }
 
 func (err MultiError) Error() string {
 	errorStrings := []string{}
-	for _, err := range err.Errors {
+	for _, err := range err.DetailedErrors {
 		errorStrings = append(errorStrings, err.Error())
 	}
-	return fmt.Sprintf("Encountered the following errors:\n%s", strings.Join(errorStrings, "\n"))
+	return fmt.Sprintf("Encountered the following errors:\n%s\n%s", DetailedErrorMessageDivider, strings.Join(errorStrings, "\n"))
 }
 
 func (this MultiError) ExitStatus() (int, error) {
