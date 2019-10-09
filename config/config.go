@@ -27,6 +27,7 @@ type TerragruntConfig struct {
 	TerraformVersionConstraint string
 	RemoteState                *remote.RemoteState
 	Dependencies               *ModuleDependencies
+	DownloadDir                string
 	PreventDestroy             bool
 	Skip                       bool
 	IamRole                    string
@@ -52,6 +53,7 @@ type terragruntConfigFile struct {
 	Include                    *IncludeConfig         `hcl:"include,block"`
 	RemoteState                *remoteStateConfigFile `hcl:"remote_state,block"`
 	Dependencies               *ModuleDependencies    `hcl:"dependencies,block"`
+	DownloadDir                *string                `hcl:"download_dir,attr"`
 	PreventDestroy             *bool                  `hcl:"prevent_destroy,attr"`
 	Skip                       *bool                  `hcl:"skip,attr"`
 	IamRole                    *string                `hcl:"iam_role,attr"`
@@ -454,6 +456,10 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 		includedConfig.Dependencies = config.Dependencies
 	}
 
+	if config.DownloadDir != "" {
+		includedConfig.DownloadDir = config.DownloadDir
+	}
+
 	if config.IamRole != "" {
 		includedConfig.IamRole = config.IamRole
 	}
@@ -623,6 +629,11 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, c
 	if terragruntConfigFromFile.TerraformBinary != nil {
 		terragruntConfig.TerraformBinary = *terragruntConfigFromFile.TerraformBinary
 	}
+
+	if terragruntConfigFromFile.DownloadDir != nil {
+		terragruntConfig.DownloadDir = *terragruntConfigFromFile.DownloadDir
+	}
+
 	if terragruntConfigFromFile.TerraformVersionConstraint != nil {
 		terragruntConfig.TerraformVersionConstraint = *terragruntConfigFromFile.TerraformVersionConstraint
 	}

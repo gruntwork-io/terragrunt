@@ -2448,6 +2448,14 @@ The terragrunt `terraform_binary` string option can be used to override the defa
 
 The precedence is as follows: `--terragrunt-tfpath` command line option -> `TERRAGRUNT_TFPATH` env variable -> `terragrunt.hcl` in the module directory -> included `terragrunt.hcl`
 
+#### download_dir
+
+The terragrunt `download_dir` string option can be used to override the default download directory.
+
+The precedence is as follows: `--terragrunt-download-dir` command line option -> `TERRAGRUNT_DOWNLOAD` env variable -> `terragrunt.hcl` in the module directory -> included `terragrunt.hcl`
+
+It supports all terragrunt functions, i.e. `path_relative_from_include()`.
+
 #### terraform_version_constraint
 
 The terragrunt `terraform_version_constraint` string overrides the default minimum supported version of terraform.
