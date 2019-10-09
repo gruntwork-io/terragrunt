@@ -32,13 +32,14 @@ const OPT_TERRAGRUNT_SOURCE = "terragrunt-source"
 const OPT_TERRAGRUNT_SOURCE_UPDATE = "terragrunt-source-update"
 const OPT_TERRAGRUNT_IAM_ROLE = "terragrunt-iam-role"
 const OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS = "terragrunt-ignore-dependency-errors"
+const OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ORDER = "terragrunt-ignore-dependency-order"
 const OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES = "terragrunt-ignore-external-dependencies"
 const OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES = "terragrunt-include-external-dependencies"
 const OPT_TERRAGRUNT_EXCLUDE_DIR = "terragrunt-exclude-dir"
 const OPT_TERRAGRUNT_INCLUDE_DIR = "terragrunt-include-dir"
 const OPT_TERRAGRUNT_CHECK = "terragrunt-check"
 
-var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES, OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES, OPT_TERRAGRUNT_NO_AUTO_INIT, OPT_TERRAGRUNT_NO_AUTO_RETRY, OPT_TERRAGRUNT_CHECK}
+var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ORDER, OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES, OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES, OPT_TERRAGRUNT_NO_AUTO_INIT, OPT_TERRAGRUNT_NO_AUTO_RETRY, OPT_TERRAGRUNT_CHECK}
 var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_TFPATH, OPT_WORKING_DIR, OPT_DOWNLOAD_DIR, OPT_TERRAGRUNT_SOURCE, OPT_TERRAGRUNT_IAM_ROLE, OPT_TERRAGRUNT_EXCLUDE_DIR, OPT_TERRAGRUNT_INCLUDE_DIR}
 
 const CMD_PLAN_ALL = "plan-all"
@@ -135,6 +136,7 @@ GLOBAL OPTIONS:
    terragrunt-source-update                     Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it.
    terragrunt-iam-role             	    	    Assume the specified IAM role before executing Terraform. Can also be set via the TERRAGRUNT_IAM_ROLE environment variable.
    terragrunt-ignore-dependency-errors          *-all commands continue processing components even if a dependency fails.
+   terragrunt-ignore-dependency-order           *-all commands will be run disregarding the dependencies
    terragrunt-ignore-external-dependencies      *-all commands will not attempt to include external dependencies
    terragrunt-include-external-dependencies     *-all commands will include external dependencies
    terragrunt-exclude-dir                       Unix-style glob of directories to exclude when running *-all commands
