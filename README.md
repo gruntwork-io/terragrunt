@@ -2292,6 +2292,8 @@ arguments that start with the prefix `--terragrunt-`. The currently available op
   under these directories (and all dependent modules) will be included during execution of the commands. If a relative
   path is specified, it should be relative from `--terragrunt-working-dir`. Flag can be specified multiple times.
 
+* `--terragrunt-ignore-dependency-order`: Ignore the depedencies between modules when running `*-all` commands.
+
 * `--terragrunt-ignore-external-dependencies`: Dont attempt to include any external dependencies when running `*-all`
   commands
 
