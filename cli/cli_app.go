@@ -588,7 +588,7 @@ func needsInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *c
 
 // Returns true if we need to run `terraform init` to download providers
 func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
-	providersPath := util.JoinPath(terragruntOptions.WorkingDir, ".terraform/plugins")
+	providersPath := util.JoinPath(terragruntOptions.DataDir(), "plugins")
 	return !util.FileExists(providersPath)
 }
 
@@ -660,7 +660,7 @@ func runMultiModuleCommand(command string, terragruntOptions *options.Terragrunt
 // modules at all. Detecting if your downloaded modules are out of date (as opposed to missing entirely) is more
 // complicated and not something we handle at the moment.
 func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error) {
-	modulesPath := util.JoinPath(terragruntOptions.WorkingDir, ".terraform/modules")
+	modulesPath := util.JoinPath(terragruntOptions.DataDir(), "modules")
 	if util.FileExists(modulesPath) {
 		return false, nil
 	}

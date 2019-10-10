@@ -250,6 +250,14 @@ func (terragruntOptions *TerragruntOptions) AppendTerraformCliArgs(argsToAppend 
 	terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, argsToAppend...)
 }
 
+// DataDir returns Terraform data dir (.terraform by default, overridden by $TF_DATA_DIR envvar)
+func (terragruntOptions *TerragruntOptions) DataDir() string {
+	if tfDataDir, ok := os.LookupEnv("TF_DATA_DIR"); ok {
+		return tfDataDir
+	}
+	return util.JoinPath(terragruntOptions.WorkingDir, ".terraform")
+}
+
 // Custom error types
 
 var RunTerragruntCommandNotSet = fmt.Errorf("The RunTerragrunt option has not been set on this TerragruntOptions object")
