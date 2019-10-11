@@ -60,7 +60,6 @@ type GCSInitializer struct{}
 // 1. Any of the existing backend settings are different than the current config
 // 2. The configured GCS bucket does not exist
 func (gcsInitializer GCSInitializer) NeedsInitialization(remoteState *RemoteState, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error) {
-
 	if remoteState.DisableInit {
 		return false, nil
 	}
