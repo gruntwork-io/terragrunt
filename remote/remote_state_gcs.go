@@ -60,12 +60,17 @@ type GCSInitializer struct{}
 // 1. Any of the existing backend settings are different than the current config
 // 2. The configured GCS bucket does not exist
 func (gcsInitializer GCSInitializer) NeedsInitialization(remoteState *RemoteState, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error) {
+
 	if remoteState.DisableInit {
 		return false, nil
 	}
 
+	project := remoteState.Config["project"]
 	if !gcsConfigValuesEqual(remoteState.Config, existingBackend, terragruntOptions) {
 		return true, nil
+	}
+	if project != nil {
+		remoteState.Config["project"] = project
 	}
 
 	gcsConfig, err := parseGCSConfig(remoteState.Config)
@@ -80,6 +85,9 @@ func (gcsInitializer GCSInitializer) NeedsInitialization(remoteState *RemoteStat
 
 	if !DoesGCSBucketExist(gcsClient, gcsConfig) {
 		return true, nil
+	}
+	if project != nil {
+		delete(remoteState.Config, "project")
 	}
 
 	return false, nil
@@ -217,7 +225,6 @@ func createGCSBucketIfNecessary(gcsClient *storage.Client, config *ExtendedRemot
 	if !DoesGCSBucketExist(gcsClient, &config.remoteStateConfigGCS) {
 		terragruntOptions.Logger.Printf("Remote state GCS bucket %s does not exist. Attempting to create it", config.remoteStateConfigGCS.Bucket)
 
-		terragruntOptions.Logger.Printf("%v", config.Project)
 		// A project must be specified in order for terragrunt to automatically create a storage bucket.
 		if config.Project == "" {
 			return errors.WithStackTrace(MissingRequiredGCSRemoteStateConfig("project"))
