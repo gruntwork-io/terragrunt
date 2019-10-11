@@ -49,7 +49,7 @@ type terragruntFlags struct {
 	Remain         hcl.Body `hcl:",remain"`
 }
 
-// terragruntDependency is a struct that can be used to only decode the dependency blocks in the terragrrunt config
+// terragruntDependency is a struct that can be used to only decode the dependency blocks in the terragrunt config
 type terragruntDependency struct {
 	Dependencies []Dependency `hcl:"dependency,block"`
 	Remain       hcl.Body     `hcl:",remain"`
