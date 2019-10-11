@@ -479,6 +479,34 @@ func TestTerragruntWorksWithExistingGCSBucket(t *testing.T) {
 	validateGCSBucketExistsAndIsLabeled(t, location, gcsBucketName, nil)
 }
 
+func TestTerragruntCorrectlyMirrorsTerraformGCPAuth(t *testing.T) {
+	t.Parallel()
+
+	// We need to ensure Terragrunt works correctly when GOOGLE_CREDENTIALS are specified.
+	// There is no true way to properly unset creds from the environment, but we still try
+	// to unset the CI credentials during this test.
+	defaultCreds := os.Getenv("GCLOUD_SERVICE_KEY")
+	defer os.Setenv("GCLOUD_SERVICE_KEY", defaultCreds)
+	os.Unsetenv("GCLOUD_SERVICE_KEY")
+	os.Setenv("GOOGLE_CREDENTIALS", defaultCreds)
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GCS_PATH)
+
+	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
+	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	gcsBucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	defer deleteGCSBucket(t, gcsBucketName)
+
+	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_PATH, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, TEST_FIXTURE_GCS_PATH))
+
+	var expectedGCSLabels = map[string]string{
+		"owner": "terragrunt_test",
+		"name":  "terraform_state_storage"}
+	validateGCSBucketExistsAndIsLabeled(t, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, expectedGCSLabels)
+}
+
 func TestTerragruntWorksWithIncludes(t *testing.T) {
 	t.Parallel()
 
