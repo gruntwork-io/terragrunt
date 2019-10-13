@@ -99,6 +99,14 @@
   revision = "9fd32a8b3d3d3f9d43c341bfe098430e07609480"
 
 [[projects]]
+  digest = "1:f69f3dd5ddb194ab787d0fd8e3ac382576d4f80c36584b70713656d5c72fca70"
+  name = "github.com/bmatcuk/doublestar"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "2437321e1473408f122a95f65df3d8841fec4fba"
+  version = "v1.1.5"
+
+[[projects]]
   digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
@@ -150,6 +158,14 @@
   pruneopts = "UT"
   revision = "6f77996f0c42f7b84e5a2b252227263f93432e9b"
   version = "v0.3.0"
+
+[[projects]]
+  digest = "1:582b704bebaa06b48c29b0cec224a6058a09c86883aaddabde889cd1a5f73e1b"
+  name = "github.com/google/uuid"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "0cd6bf5da1e1c83f8b45653022c74f71af0538a4"
+  version = "v1.1.1"
 
 [[projects]]
   digest = "1:f1f70abea1ab125d48396343b4c053f8fecfbdb943037bf3d29dc80c90fe60b3"
@@ -252,7 +268,7 @@
   revision = "318e80eefe28c3aa01b434c61bcf4c83a0cc6b25"
 
 [[projects]]
-  digest = "1:66dd758d5abbc9b64f515b567120d22cdac3b99875199ee2409a9615f9f468ac"
+  digest = "1:c10085a89e0c87a8ba284b1bafb49d14cd7f24782086c8f3b47239181081f357"
   name = "github.com/hashicorp/terraform"
   packages = [
     "addrs",
@@ -264,8 +280,8 @@
     "tfdiags",
   ]
   pruneopts = "UT"
-  revision = "380226f0aaa57db5685f43b824f8bda99acdf00c"
-  version = "v0.12.6"
+  revision = "abec0acf40d8e31ac612a244cf3886fb3bcce0bb"
+  version = "v0.12.9"
 
 [[projects]]
   digest = "1:bb81097a5b62634f3e9fec1014657855610c82d19b9a40c17612e32651e35dca"
@@ -340,14 +356,6 @@
   pruneopts = "UT"
   revision = "792786c7400a136282c1664665ae0a8db921c6c2"
   version = "v1.0.0"
-
-[[projects]]
-  digest = "1:274f67cb6fed9588ea2521ecdac05a6d62a8c51c074c1fccc6a49a40ba80e925"
-  name = "github.com/satori/go.uuid"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "f58768cc1a7a7e77a3bd49e98cdd21419399b6a3"
-  version = "v1.2.0"
 
 [[projects]]
   digest = "1:5da8ce674952566deae4dbc23d07c85caafc6cfa815b0b3e03e41979cedb8750"
