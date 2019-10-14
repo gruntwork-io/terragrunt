@@ -273,6 +273,7 @@
   packages = [
     "addrs",
     "configs/configschema",
+    "dag",
     "helper/didyoumean",
     "lang",
     "lang/blocktoattr",
@@ -634,6 +635,7 @@
     "github.com/hashicorp/hcl2/hcl/hclsyntax",
     "github.com/hashicorp/hcl2/hclparse",
     "github.com/hashicorp/hcl2/hclwrite",
+    "github.com/hashicorp/terraform/dag",
     "github.com/hashicorp/terraform/lang",
     "github.com/mattn/go-zglob",
     "github.com/mitchellh/mapstructure",
