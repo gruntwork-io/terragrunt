@@ -1365,8 +1365,12 @@ at all.
 
 This section contains detailed documentation for the following aspects of Terragrunt:
 
+1. [Values](#values)
+    1. [Local Values](#local-values)
+    1. [Global Values](#global-values)
+    1. [Include Values](#include-values)
+    1. [Value Caveats](#value-caveats)
 1. [Inputs](#inputs)
-1. [Locals](#locals)
 1. [AWS credentials](#aws-credentials)
 1. [AWS IAM policies](#aws-iam-policies)
 1. [Built-in Functions](#built-in-functions)
@@ -1382,6 +1386,408 @@ This section contains detailed documentation for the following aspects of Terrag
 1. [Developing Terragrunt](#developing-terragrunt)
 1. [License](#license)
 
+
+### Values
+
+`terragrunt` provides the following "values" (or "variables") to help you keep your configurations DRY when using expressions
+in multiple config locations: `locals`, `globals`, and `include`.  Each type of value is detailed below, and every value
+can be used in any expression with a few [caveats](#value-caveats).
+
+
+#### Local Values
+
+Local values let you bind a name to an expression, so you can reuse that expression within a single `terragrunt` config.
+For example, suppose that you need to use the AWS region in multiple inputs. You can bind the name `aws_region`
+using locals:
+
+```
+locals {
+  aws_region = "us-east-1"
+}
+
+inputs = {
+  aws_region  = local.aws_region
+  s3_endpoint = "com.amazonaws.${local.aws_region}.s3"
+}
+```
+
+You can use any valid terragrunt expression in the `locals` configuration. The `locals` block also supports referencing
+other values:
+
+```
+locals {
+  x = 2
+  y = 40
+  answer = local.x + local.y
+}
+```
+
+#### Global Values
+
+Since `locals` are only available inside the configuration they're defined in, `terragrunt` also supports `globals`.
+`globals` are available across both configurations when `include` is used.  When the same global is defined in both configurations,
+the value of the expression in the "child" configuration will be used as the value of the global in both configurations.
+
+Global values are mainly useful for:
+* [Passing a common value to multiple child configs](#passing-a-common-value)
+* [Affecting the behavior of a parent config from the child config](#affecting-the-behavior-of-a-parent)
+* [Set a default value in the parent config that can be optionally overridden from the child config.](#default-values)
+
+##### Passing a common value
+
+Parent config:
+```
+globals {
+    source_prefix = "/some/path"
+}
+```
+
+Child config:
+```
+terraform {
+    source = "${global.source_prefix}/some/module"
+}
+```
+
+In this example, the value of the child's `terraform.source` would evaluate to `/some/path/some/module`
+
+##### Affecting the behavior of a parent
+
+Parent config:
+```
+globals {
+    region = null
+}
+
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = "bucket-name
+    region = global.region
+    key    = "key"
+  }
+}
+```
+
+Child 1 config:
+```
+globals {
+    region = "us-east-1"
+}
+```
+
+Child 2 config:
+```
+globals {
+    region = "us-west-2"
+}
+```
+
+In this example, the parent's `remote_state` block would change based on which child configuration it was included from.
+
+##### Default values
+
+Parent config:
+```
+globals {
+    bucket = "my-bucket"
+}
+
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = global.bucket
+    region = "us-east-1"
+    key    = "key"
+  }
+}
+```
+
+Child 1 config:
+```
+globals {
+    # This block is optional, but included here to show that it's empty.
+}
+```
+
+Child 2 config:
+```
+globals {
+    bucket = "my-other-bucket"
+}
+```
+
+In this example, the bucket name in the `remote_state` has a default value, and child configs can optionally override it
+to use a different bucket.
+
+#### Include Values
+
+Once `terragrunt` has evaluated the `include` block (if any) in the given config, the following values will be available
+for use in any expression:
+* [`include.parent`](#includeparent)
+* [`include.child`](#includechild)
+* [`include.relative`](#includerelative)
+* [`include.relative_reverse`](#includerelative_reverse)
+
+##### `include.parent`
+
+This value is a direct replacement for the `get_parent_terragrunt_dir()` function.
+
+`include.parent` returns the absolute directory where the Terragrunt parent configuration file (by default 
+`terragrunt.hcl`) lives. This is useful when you need to use relative paths with [remote Terraform 
+configurations](#remote-terraform-configurations) and you want those paths relative to your parent Terragrunt 
+configuration file and not relative to the temporary directory where Terragrunt downloads the code.
+
+This value is very similar to [`include.child](#includechild) except it returns the root instead of the 
+leaf of your terragrunt configuration folder.
+
+```
+/terraform-code
+├── terragrunt.hcl
+├── common.tfvars
+├── app1
+│   └── terragrunt.hcl
+├── tests
+│   ├── app2
+│   |   └── terragrunt.hcl
+│   └── app3
+│       └── terragrunt.hcl
+```
+
+```hcl
+terraform {
+  extra_arguments "common_vars" {
+    commands = [
+      "apply",
+      "plan",
+      "import",
+      "push",
+      "refresh"
+    ]
+
+    arguments = [
+      "-var-file=${include.parent}/common.tfvars"
+    ]
+  }
+}
+```
+
+The common.tfvars located in the terraform root folder will be included by all applications, whatever their relative location to the root.
+
+##### `include.child`
+
+This value is a direct replacement for the `get_terragrunt_dir()` function.
+
+`include.child` returns the directory where the Terragrunt configuration file (by default `terragrunt.hcl`) lives.
+This is useful when you need to use relative paths with [remote Terraform
+configurations](#remote-terraform-configurations) and you want those paths relative to your Terragrunt configuration
+file and not relative to the temporary directory where Terragrunt downloads the code.
+
+For example, imagine you have the following file structure:
+
+```
+/terraform-code
+├── common.tfvars
+├── frontend-app
+│   └── terragrunt.hcl
+```
+
+Inside of `/terraform-code/frontend-app/terragrunt.hcl` you might try to write code that looks like this:
+
+```hcl
+terraform {
+  source = "git::git@github.com:foo/modules.git//frontend-app?ref=v0.0.3"
+
+  extra_arguments "custom_vars" {
+    commands = [
+      "apply",
+      "plan",
+      "import",
+      "push",
+      "refresh"
+    ]
+
+    arguments = [
+      "-var-file=../common.tfvars" # Note: This relative path will NOT work correctly!
+    ]
+  }
+}
+```
+
+Note how the `source` parameter is set, so Terragrunt will download the `frontend-app` code from the `modules` repo
+into a temporary folder and run `terraform` in that temporary folder. Note also that there is an `extra_arguments`
+block that is trying to allow the `frontend-app` to read some shared variables from a `common.tfvars` file.
+Unfortunately, the relative path (`../common.tfvars`) won't work, as it will be relative to the temporary folder!
+Moreover, you can't use an absolute path, or the code won't work on any of your teammates' computers.
+
+To make the relative path work, you need to use `include.child` to combine the path with the folder where
+the `terragrunt.hcl` file lives:
+
+```hcl
+terraform {
+  source = "git::git@github.com:foo/modules.git//frontend-app?ref=v0.0.3"
+
+  extra_arguments "custom_vars" {
+    commands = [
+      "apply",
+      "plan",
+      "import",
+      "push",
+      "refresh"
+    ]
+
+    # With the include.child value, you can use relative paths!
+    arguments = [
+      "-var-file=${include.child}/../common.tfvars"
+    ]
+  }
+}
+```
+
+For the example above, this path will resolve to `/terraform-code/frontend-app/../common.tfvars`, which is exactly
+what you want.
+
+
+##### `include.relative`
+
+This value is a direct replacement for the `path_relative_to_include()` function.
+
+`include.relative` returns the relative path between the included `terragrunt.hcl` file (parent) and the `terragrunt.hcl`
+that included it (child). For example, consider the following folder structure:
+
+```
+├── terragrunt.hcl
+└── prod
+    └── mysql
+        └── terragrunt.hcl
+└── stage
+    └── mysql
+        └── terragrunt.hcl
+```
+
+Imagine `prod/mysql/terragrunt.hcl` and `stage/mysql/terragrunt.hcl` include all settings from the root
+`terragrunt.hcl` file:
+
+```hcl
+include {
+  path = find_in_parent_folders()
+}
+```
+
+The root `terragrunt.hcl` can use `include.relative` in its `remote_state` configuration to ensure
+each child stores its remote state at a different `key`:
+
+```hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = "my-terraform-bucket"
+    region = "us-east-1"
+    key    = "${include.relative}/terraform.tfstate"
+  }
+}
+```
+
+The resulting `key` will be `prod/mysql/terraform.tfstate` for the prod `mysql` module and
+`stage/mysql/terraform.tfstate` for the stage `mysql` module.
+
+##### `include.relative_reverse`
+
+This value is a direct replacement for the `path_relative_from_include()` function.
+
+`include.relative_reverse` returns the reverse of `include.relative`, meaning the relative path between the child config
+and the parent config.  For example, where `include.relative` would return `some/subdirectory`, `include.relative_reverse`
+would return `../..`.
+
+#### Value Caveats
+
+Any value can be used in any other value's expression, with the following caveats:
+
+1. **No dependency loops:** If including a value in another value's expression would cause this value or another value
+to become dependent on itself, an error will be thrown.  Example of a dependency loop:
+    ```
+    locals {
+        one = global.four
+        two = local.one
+    }
+    globals {
+        three = local.two
+        four = global.three
+    }
+    
+    # Error!  global.four depends on global.three, which depends on local.two, which depends on local.one, which depends on global.four!
+    # Therefore, global.four cannot be evaluated unless global.four is evaluated.  This is a dependency loop.
+    ```
+2. **Globals cannot be dependencies of an `include` block:**  Since the `include` block in a child config must be evaluated
+before globals can be resolved, attempting to use a global in the `include` block will result in an error. Example:
+    ```
+    locals {
+        include_path = "${global.prefix}/terragrunt.hcl}"
+    }
+    include {
+        path = local.include_path
+    }
+    
+    # Error!  local.include_path depends on global.prefix!
+    # Since global.prefix can't be resolved, an error will be thrown.
+    ```
+
+##### Including values from other projects
+
+Currently you can only reference `locals` or `globals` defined in the parent or child config. If you wish to reuse variables
+between multiple parent configs or projects, consider using `yaml` or `json` files that are included and merged using the
+`terraform` built in functions available to `terragrunt`.
+
+For example, suppose you had the following directory tree:
+
+```
+.
+├── project1
+│   ├── mysql
+│   │   └── terragrunt.hcl
+│   ├── terragrunt.hcl
+│   └── vpc
+│       └── terragrunt.hcl
+└── project2
+    ├── mysql
+    │   └── terragrunt.hcl
+    ├── terragrunt.hcl
+    └── vpc
+        └── terragrunt.hcl
+```
+
+Here, you can define a file `common_vars.yaml` that contains the global variables you wish to pull in:
+
+```
+.
+├── common_vars.yaml
+├── project1
+│   ├── mysql
+│   │   └── terragrunt.hcl
+│   ├── terragrunt.hcl
+│   └── vpc
+│       └── terragrunt.hcl
+└── project2
+    ├── mysql
+    │   └── terragrunt.hcl
+    ├── terragrunt.hcl
+    └── vpc
+        └── terragrunt.hcl
+```
+
+You can then include them into the `locals` (or `globals`) block of a terragrunt config using `yamldecode` and `file`:
+
+```
+# project1/terragrunt.hcl
+locals {
+  common_vars = yamldecode(file("${get_terragrunt_dir()}/${find_in_parent_folders("common_vars.yaml")}")),
+  region = "us-east-1"
+}
+```
+
+This configuration will load in the `common_vars.yaml` file and bind it to the attribute `common_vars` so that it is available
+in the current context. Note that because `locals` is a block, there currently is no way to merge the map into the top
+level.
 
 ### Inputs
 
@@ -1414,80 +1820,6 @@ terraform apply
 
 Note that Terragrunt will respect any `TF_VAR_xxx` variables you've manually set in your environment, ensuring that 
 anything in `inputs` will NOT be override anything you've already set in your environment.  
-
-
-### Locals
-
-You can use locals to bind a name to an expression, so you can reuse that expression without having to repeat it multiple times (keeping your Terragrunt configuration DRY).
-config. For example, suppose that you need to use the AWS region in multiple inputs. You can bind the name `aws_region`
-using locals:
-
-```
-locals {
-  aws_region = "us-east-1"
-}
-
-inputs = {
-  aws_region  = local.aws_region
-  s3_endpoint = "com.amazonaws.${local.aws_region}.s3"
-}
-```
-
-You can use any valid terragrunt expression in the `locals` configuration. The `locals` block also supports referencing other `locals`:
-
-```
-locals {
-  x = 2
-  y = 40
-  answer = local.x + local.y
-}
-```
-
-##### Including globally defined locals
-
-Currently you can only reference `locals` defined in the same config file. `terragrunt` does not automatically include
-`locals` defined in the parent config of an `include` block into the current context. If you wish to reuse variables
-globally, consider using `yaml` or `json` files that are included and merged using the `terraform` built in functions
-available to `terragrunt`.
-
-For example, suppose you had the following directory tree:
-
-```
-.
-├── terragrunt.hcl
-├── mysql
-│   └── terragrunt.hcl
-└── vpc
-    └── terragrunt.hcl
-```
-
-Instead of adding the `locals` block to the parent `terragrunt.hcl` file, you can define a file `common_vars.yaml`
-that contains the global variables you wish to pull in:
-
-```
-.
-├── terragrunt.hcl
-├── common_vars.yaml
-├── mysql
-│   └── terragrunt.hcl
-└── vpc
-    └── terragrunt.hcl
-```
-
-You can then include them into the `locals` block of the child terragrunt config using `yamldecode` and `file`:
-
-```
-# child terragrunt.hcl
-locals {
-  common_vars = yamldecode(file("${get_terragrunt_dir()}/${find_in_parent_folders("common_vars.yaml")}")),
-  region = "us-east-1"
-}
-```
-
-This configuration will load in the `common_vars.yaml` file and bind it to the attribute `common_vars` so that it is available
-in the current context. Note that because `locals` is a block, there currently is a way to merge the map into the top
-level.
-
 
 ### AWS credentials
 
@@ -1675,44 +2007,6 @@ include {
 
 #### path_relative_to_include
 
-`path_relative_to_include()` returns the relative path between the current `terragrunt.hcl` file and the `path` 
-specified in its `include` block. For example, consider the following folder structure:
-
-```
-├── terragrunt.hcl
-└── prod
-    └── mysql
-        └── terragrunt.hcl
-└── stage
-    └── mysql
-        └── terragrunt.hcl
-```
-
-Imagine `prod/mysql/terragrunt.hcl` and `stage/mysql/terragrunt.hcl` include all settings from the root
-`terragrunt.hcl` file:
-
-```hcl
-include {
-  path = find_in_parent_folders()
-}
-```
-
-The root `terragrunt.hcl` can use the `path_relative_to_include()` in its `remote_state` configuration to ensure
-each child stores its remote state at a different `key`:
-
-```hcl
-remote_state {
-  backend = "s3"
-  config = {
-    bucket = "my-terraform-bucket"
-    region = "us-east-1"
-    key    = "${path_relative_to_include()}/terraform.tfstate"
-  }
-}
-```
-
-The resulting `key` will be `prod/mysql/terraform.tfstate` for the prod `mysql` module and
-`stage/mysql/terraform.tfstate` for the stage `mysql` module.
 
 
 #### path_relative_from_include
@@ -1803,118 +2097,9 @@ as the environment variable `TF_VAR_foo` and to read that value in using this `g
 
 #### get_terragrunt_dir
 
-`get_terragrunt_dir()` returns the directory where the Terragrunt configuration file (by default `terragrunt.hcl`) lives.
-This is useful when you need to use relative paths with [remote Terraform
-configurations](#remote-terraform-configurations) and you want those paths relative to your Terragrunt configuration
-file and not relative to the temporary directory where Terragrunt downloads the code.
-
-For example, imagine you have the following file structure:
-
-```
-/terraform-code
-├── common.tfvars
-├── frontend-app
-│   └── terragrunt.hcl
-```
-
-Inside of `/terraform-code/frontend-app/terragrunt.hcl` you might try to write code that looks like this:
-
-```hcl
-terraform {
-  source = "git::git@github.com:foo/modules.git//frontend-app?ref=v0.0.3"
-
-  extra_arguments "custom_vars" {
-    commands = [
-      "apply",
-      "plan",
-      "import",
-      "push",
-      "refresh"
-    ]
-
-    arguments = [
-      "-var-file=../common.tfvars" # Note: This relative path will NOT work correctly!
-    ]
-  }
-}
-```
-
-Note how the `source` parameter is set, so Terragrunt will download the `frontend-app` code from the `modules` repo
-into a temporary folder and run `terraform` in that temporary folder. Note also that there is an `extra_arguments`
-block that is trying to allow the `frontend-app` to read some shared variables from a `common.tfvars` file.
-Unfortunately, the relative path (`../common.tfvars`) won't work, as it will be relative to the temporary folder!
-Moreover, you can't use an absolute path, or the code won't work on any of your teammates' computers.
-
-To make the relative path work, you need to use `get_terragrunt_dir()` to combine the path with the folder where
-the `terragrunt.hcl` file lives:
-
-```hcl
-terraform {
-  source = "git::git@github.com:foo/modules.git//frontend-app?ref=v0.0.3"
-
-  extra_arguments "custom_vars" {
-    commands = [
-      "apply",
-      "plan",
-      "import",
-      "push",
-      "refresh"
-    ]
-
-    # With the get_terragrunt_dir() function, you can use relative paths!
-    arguments = [
-      "-var-file=${get_terragrunt_dir()}/../common.tfvars"
-    ]
-  }
-}
-```
-
-For the example above, this path will resolve to `/terraform-code/frontend-app/../common.tfvars`, which is exactly
-what you want.
-
 
 #### get_parent_terragrunt_dir
 
-`get_parent_terragrunt_dir()` returns the absolute directory where the Terragrunt parent configuration file (by default 
-`terragrunt.hcl`) lives. This is useful when you need to use relative paths with [remote Terraform 
-configurations](#remote-terraform-configurations) and you want those paths relative to your parent Terragrunt 
-configuration file and not relative to the temporary directory where Terragrunt downloads the code.
-
-This function is very similar to [get_terragrunt_dir()](#get_terragrunt_dir) except it returns the root instead of the 
-leaf of your terragrunt configuration folder.
-
-```
-/terraform-code
-├── terragrunt.hcl
-├── common.tfvars
-├── app1
-│   └── terragrunt.hcl
-├── tests
-│   ├── app2
-│   |   └── terragrunt.hcl
-│   └── app3
-│       └── terragrunt.hcl
-```
-
-```hcl
-terraform {
-  extra_arguments "common_vars" {
-    commands = [
-      "apply",
-      "plan",
-      "import",
-      "push",
-      "refresh"
-    ]
-
-    arguments = [
-      "-var-file=${get_parent_terragrunt_dir()}/common.tfvars"
-    ]
-  }
-}
-```
-
-The common.tfvars located in the terraform root folder will be included by all applications, whatever their relative location to the root.
 
 #### get_terraform_commands_that_need_vars
 
