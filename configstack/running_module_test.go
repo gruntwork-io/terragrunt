@@ -1377,3 +1377,293 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 	assert.True(t, eRan)
 	assert.True(t, fRan)
 }
+
+func TestRemoveFlagExcludedNoExclude(t *testing.T) {
+	t.Parallel()
+
+	moduleA := &TerraformModule{
+		Path:              "a",
+		Dependencies:      []*TerraformModule{},
+		Config:            config.TerragruntConfig{},
+		TerragruntOptions: mockOptions,
+	}
+
+	runningModuleA := &runningModule{
+		Module:         moduleA,
+		Status:         Waiting,
+		Err:            nil,
+		Dependencies:   map[string]*runningModule{},
+		NotifyWhenDone: []*runningModule{},
+		FlagExcluded:   false,
+	}
+
+	moduleB := &TerraformModule{
+		Path:              "b",
+		Dependencies:      []*TerraformModule{moduleA},
+		Config:            config.TerragruntConfig{},
+		TerragruntOptions: mockOptions,
+	}
+
+	runningModuleB := &runningModule{
+		Module:         moduleB,
+		Status:         Waiting,
+		Err:            nil,
+		Dependencies:   map[string]*runningModule{"a": runningModuleA},
+		NotifyWhenDone: []*runningModule{},
+		FlagExcluded:   false,
+	}
+
+	moduleC := &TerraformModule{
+		Path:              "c",
+		Dependencies:      []*TerraformModule{moduleA},
+		Config:            config.TerragruntConfig{},
+		TerragruntOptions: mockOptions,
+	}
+
+	runningModuleC := &runningModule{
+		Module:         moduleC,
+		Status:         Waiting,
+		Err:            nil,
+		Dependencies:   map[string]*runningModule{"a": runningModuleA},
+		NotifyWhenDone: []*runningModule{},
+		FlagExcluded:   false,
+	}
+
+	moduleD := &TerraformModule{
+		Path:              "d",
+		Dependencies:      []*TerraformModule{moduleC},
+		Config:            config.TerragruntConfig{},
+		TerragruntOptions: mockOptions,
+	}
+
+	runningModuleD := &runningModule{
+		Module:         moduleD,
+		Status:         Waiting,
+		Err:            nil,
+		Dependencies:   map[string]*runningModule{"c": runningModuleC},
+		NotifyWhenDone: []*runningModule{},
+		FlagExcluded:   false,
+	}
+
+	moduleE := &TerraformModule{
+		Path:              "e",
+		Dependencies:      []*TerraformModule{moduleB, moduleD},
+		Config:            config.TerragruntConfig{},
+		TerragruntOptions: mockOptions,
+	}
+
+	runningModuleE := &runningModule{
+		Module: moduleE,
+		Status: Waiting,
+		Err:    nil,
+		Dependencies: map[string]*runningModule{
+			"b": runningModuleB,
+			"d": runningModuleD,
+		},
+		NotifyWhenDone: []*runningModule{},
+		FlagExcluded:   false,
+	}
+
+	running_modules := map[string]*runningModule{
+		"a": runningModuleA,
+		"b": runningModuleB,
+		"c": runningModuleC,
+		"d": runningModuleD,
+		"e": runningModuleE,
+	}
+
+	expected := map[string]*runningModule{
+		"a": runningModuleA,
+		"b": runningModuleB,
+		"c": runningModuleC,
+		"d": runningModuleD,
+		"e": runningModuleE,
+	}
+
+	actual := removeFlagExcluded(running_modules)
+	assertRunningModuleMapsEqual(t, expected, actual, true)
+}
+
+func TestRemoveFlagExcludedOneExcludeNoDependencies(t *testing.T) {
+	t.Parallel()
+
+	moduleA := &TerraformModule{
+		Path:              "a",
+		Dependencies:      []*TerraformModule{},
+		Config:            config.TerragruntConfig{},
+		TerragruntOptions: mockOptions,
+	}
+
+	runningModuleA := &runningModule{
+		Module:         moduleA,
+		Status:         Waiting,
+		Err:            nil,
+		Dependencies:   map[string]*runningModule{},
+		NotifyWhenDone: []*runningModule{},
+		FlagExcluded:   false,
+	}
+
+	moduleB := &TerraformModule{
+		Path:              "b",
+		Dependencies:      []*TerraformModule{moduleA},
+		Config:            config.TerragruntConfig{},
+		TerragruntOptions: mockOptions,
+	}
+
+	runningModuleB := &runningModule{
+		Module:         moduleB,
+		Status:         Waiting,
+		Err:            nil,
+		Dependencies:   map[string]*runningModule{"a": runningModuleA},
+		NotifyWhenDone: []*runningModule{},
+		FlagExcluded:   false,
+	}
+
+	moduleC := &TerraformModule{
+		Path:              "c",
+		Dependencies:      []*TerraformModule{moduleA},
+		Config:            config.TerragruntConfig{},
+		TerragruntOptions: mockOptions,
+	}
+
+	runningModuleC := &runningModule{
+		Module:         moduleC,
+		Status:         Waiting,
+		Err:            nil,
+		Dependencies:   map[string]*runningModule{"a": runningModuleA},
+		NotifyWhenDone: []*runningModule{},
+		FlagExcluded:   true,
+	}
+
+	running_modules := map[string]*runningModule{
+		"a": runningModuleA,
+		"b": runningModuleB,
+		"c": runningModuleC,
+	}
+
+	expected := map[string]*runningModule{
+		"a": runningModuleA,
+		"b": runningModuleB,
+	}
+
+	actual := removeFlagExcluded(running_modules)
+	assertRunningModuleMapsEqual(t, expected, actual, true)
+}
+
+
+func TestRemoveFlagExcludedOneExcludeWithDependencies(t *testing.T) {
+	t.Parallel()
+
+	moduleA := &TerraformModule{
+		Path:              "a",
+		Dependencies:      []*TerraformModule{},
+		Config:            config.TerragruntConfig{},
+		TerragruntOptions: mockOptions,
+	}
+
+	runningModuleA := &runningModule{
+		Module:         moduleA,
+		Status:         Waiting,
+		Err:            nil,
+		Dependencies:   map[string]*runningModule{},
+		NotifyWhenDone: []*runningModule{},
+		FlagExcluded:   false,
+	}
+
+	moduleB := &TerraformModule{
+		Path:              "b",
+		Dependencies:      []*TerraformModule{moduleA},
+		Config:            config.TerragruntConfig{},
+		TerragruntOptions: mockOptions,
+	}
+
+	runningModuleB := &runningModule{
+		Module:         moduleB,
+		Status:         Waiting,
+		Err:            nil,
+		Dependencies:   map[string]*runningModule{"a": runningModuleA},
+		NotifyWhenDone: []*runningModule{},
+		FlagExcluded:   false,
+	}
+
+	moduleC := &TerraformModule{
+		Path:              "c",
+		Dependencies:      []*TerraformModule{moduleA},
+		Config:            config.TerragruntConfig{},
+		TerragruntOptions: mockOptions,
+	}
+
+	runningModuleC := &runningModule{
+		Module:         moduleC,
+		Status:         Waiting,
+		Err:            nil,
+		Dependencies:   map[string]*runningModule{"a": runningModuleA},
+		NotifyWhenDone: []*runningModule{},
+		FlagExcluded:   true,
+	}
+
+	moduleD := &TerraformModule{
+		Path:              "d",
+		Dependencies:      []*TerraformModule{moduleB, moduleC},
+		Config:            config.TerragruntConfig{},
+		TerragruntOptions: mockOptions,
+	}
+
+	runningModuleD := &runningModule{
+		Module:         moduleD,
+		Status:         Waiting,
+		Err:            nil,
+		Dependencies:   map[string]*runningModule{
+			"b": runningModuleB,
+			"c": runningModuleC,
+		},
+		NotifyWhenDone: []*runningModule{},
+		FlagExcluded:   false,
+	}
+
+	moduleE := &TerraformModule{
+		Path:              "e",
+		Dependencies:      []*TerraformModule{moduleB, moduleD},
+		Config:            config.TerragruntConfig{},
+		TerragruntOptions: mockOptions,
+	}
+
+	runningModuleE := &runningModule{
+		Module: moduleE,
+		Status: Waiting,
+		Err:    nil,
+		Dependencies: map[string]*runningModule{
+			"b": runningModuleB,
+			"d": runningModuleD,
+		},
+		NotifyWhenDone: []*runningModule{},
+		FlagExcluded:   false,
+	}
+
+	running_modules := map[string]*runningModule{
+		"a": runningModuleA,
+		"b": runningModuleB,
+		"c": runningModuleC,
+		"d": runningModuleD,
+		"e": runningModuleE,
+	}
+	actual := removeFlagExcluded(running_modules)
+
+	_runningModuleD := &runningModule{
+		Module:         moduleD,
+		Status:         Waiting,
+		Err:            nil,
+		Dependencies:   map[string]*runningModule{"b": runningModuleB},
+		NotifyWhenDone: []*runningModule{},
+		FlagExcluded:   false,
+	}
+
+	expected := map[string]*runningModule{
+		"a": runningModuleA,
+		"b": runningModuleB,
+		"d": _runningModuleD,
+		"e": runningModuleE,
+	}
+
+	assertRunningModuleMapsEqual(t, expected, actual, true)
+}

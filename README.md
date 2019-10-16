@@ -2286,7 +2286,8 @@ arguments that start with the prefix `--terragrunt-`. The currently available op
 
 * `--terragrunt-exclude-dir`: Unix-style glob of directories to exclude when running `*-all` commands. Modules under
   these directories will be excluded during execution of the commands. If a relative path is specified, it should be
-  relative from `--terragrunt-working-dir`. Flag can be specified multiple times.
+  relative from `--terragrunt-working-dir`. Flag can be specified multiple times. This will only exclude the module,
+  not its dependencies.
 
 * `--terragrunt-include-dir`: Unix-style glob of directories to include when running `*-all` commands. Only modules
   under these directories (and all dependent modules) will be included during execution of the commands. If a relative
