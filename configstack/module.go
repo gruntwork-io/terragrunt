@@ -198,7 +198,7 @@ func flagIncludedDirs(modules []*TerraformModule, terragruntOptions *options.Ter
 // Returns true if a module is located under one of the target directories
 func findModuleinPath(module *TerraformModule, targetDirs []string) bool {
 	for _, targetDir := range targetDirs {
-		if strings.Contains(module.Path, targetDir) {
+		if module.Path == targetDir {
 			return true
 		}
 	}
