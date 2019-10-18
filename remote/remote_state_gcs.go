@@ -2,7 +2,9 @@ package remote
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 	"strconv"
 	"time"
@@ -12,7 +14,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/terraform/helper/pathorcontents"
 	"github.com/mitchellh/mapstructure"
+	"golang.org/x/oauth2/jwt"
 	"google.golang.org/api/option"
 )
 
@@ -48,6 +52,14 @@ type RemoteStateConfigGCS struct {
 	Prefix        string `mapstructure:"prefix"`
 	Path          string `mapstructure:"path"`
 	EncryptionKey string `mapstructure:"encryption_key"`
+}
+
+// accountFile represents the structure of the Google account file JSON file.
+type accountFile struct {
+	PrivateKeyId string `json:"private_key_id"`
+	PrivateKey   string `json:"private_key"`
+	ClientEmail  string `json:"client_email"`
+	ClientId     string `json:"client_id"`
 }
 
 const MAX_RETRIES_WAITING_FOR_GCS_BUCKET = 12
@@ -399,6 +411,32 @@ func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, err
 
 	if gcsConfigRemote.Credentials != "" {
 		client, err = storage.NewClient(ctx, option.WithCredentialsFile(gcsConfigRemote.Credentials))
+	} else if os.Getenv("GOOGLE_CREDENTIALS") != "" {
+		var account accountFile
+		// to mirror how Terraform works, we have to accept either the file path or the contents
+		creds := os.Getenv("GOOGLE_CREDENTIALS")
+		contents, _, err := pathorcontents.Read(creds)
+		if err != nil {
+			return nil, fmt.Errorf("Error loading credentials: %s", err)
+		}
+
+		if err := json.Unmarshal([]byte(contents), &account); err != nil {
+			return nil, fmt.Errorf("Error parsing credentials '%s': %s", contents, err)
+		}
+
+		if err := json.Unmarshal([]byte(contents), &account); err != nil {
+			return nil, fmt.Errorf("Error parsing credentials '%s': %s", contents, err)
+		}
+
+		conf := jwt.Config{
+			Email:      account.ClientEmail,
+			PrivateKey: []byte(account.PrivateKey),
+			// We need the FullControl scope to be able to add metadata such as labels
+			Scopes:   []string{storage.ScopeFullControl},
+			TokenURL: "https://oauth2.googleapis.com/token",
+		}
+
+		client, err = storage.NewClient(ctx, option.WithHTTPClient(conf.Client(ctx)))
 	} else {
 		client, err = storage.NewClient(ctx)
 	}

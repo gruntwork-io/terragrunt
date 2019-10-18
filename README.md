@@ -620,7 +620,7 @@ they don't already exist:
 - **GCS bucket**: If you are using the [GCS backend](https://www.terraform.io/docs/backends/types/gcs.html) for remote
   state storage and the `bucket` you specify in `remote_state.config` doesn't already exist, Terragrunt will create it
   automatically, with [versioning](https://cloud.google.com/storage/docs/object-versioning) enabled. For this to work
-  correctly you must also specify `project` and `location` keys in `remote_state.config`, so terragrunt knows where to
+  correctly you must also specify `project` and `location` keys in `remote_state.config`, so Terragrunt knows where to
   create the bucket. You will also need to supply valid credentials using either `remote_state.config.credentials` or by
   setting the `GOOGLE_APPLICATION_CREDENTIALS` environment variable. If you want to skip creating the bucket entirely,
   simply set `skip_bucket_creation` to `true` and Terragrunt will assume the bucket has already been created. If you
