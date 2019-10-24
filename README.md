@@ -1390,7 +1390,7 @@ This section contains detailed documentation for the following aspects of Terrag
 1. [CLI options](#cli-options)
 1. [Configuration](#configuration)
 1. [Configuration parsing order](#configuration-parsing-order)
-1. [Formatting terragrunt.hcl](#formatting-terragrunt-hcl)
+1. [Formatting terragrunt.hcl](#formatting-terragrunthcl)
 1. [Migrating from Terragrunt v0.11.x and Terraform 0.8.x and older](#migrating-from-terragrunt-v011x-and-terraform-08x-and-older)
 1. [Clearing the Terragrunt cache](#clearing-the-terragrunt-cache)
 1. [Contributing](#contributing)
