@@ -176,6 +176,26 @@
   version = "v2.0.4"
 
 [[projects]]
+  digest = "1:336fe3365d1ed4fab9a54f6b1aa3031c84354493a7123e357afc8d8390510264"
+  name = "github.com/gruntwork-io/terragrunt"
+  packages = [
+    "aws_helper",
+    "cli",
+    "config",
+    "configstack",
+    "dynamodb",
+    "errors",
+    "options",
+    "remote",
+    "shell",
+    "test/helpers",
+    "util",
+  ]
+  pruneopts = "UT"
+  revision = "84e77303a8c1ce634522612a19f0c12e1ce20a4b"
+  version = "v0.21.0"
+
+[[projects]]
   digest = "1:91e98ea76af524d88f4eeb4240bcd0ab04a8091954dc845c32b3283c7c4ebf8c"
   name = "github.com/gruntwork-io/terratest"
   packages = ["modules/files"]
@@ -268,12 +288,13 @@
   revision = "318e80eefe28c3aa01b434c61bcf4c83a0cc6b25"
 
 [[projects]]
-  digest = "1:c10085a89e0c87a8ba284b1bafb49d14cd7f24782086c8f3b47239181081f357"
+  digest = "1:9fe10797d2a533f1fa71c9acf1af0287a93c3f5e7f2684cee5e1e230b41ca5b8"
   name = "github.com/hashicorp/terraform"
   packages = [
     "addrs",
     "configs/configschema",
     "helper/didyoumean",
+    "helper/pathorcontents",
     "lang",
     "lang/blocktoattr",
     "lang/funcs",
@@ -625,6 +646,17 @@
     "github.com/aws/aws-sdk-go/service/sts",
     "github.com/fatih/color",
     "github.com/go-errors/errors",
+    "github.com/gruntwork-io/terragrunt/aws_helper",
+    "github.com/gruntwork-io/terragrunt/cli",
+    "github.com/gruntwork-io/terragrunt/config",
+    "github.com/gruntwork-io/terragrunt/configstack",
+    "github.com/gruntwork-io/terragrunt/dynamodb",
+    "github.com/gruntwork-io/terragrunt/errors",
+    "github.com/gruntwork-io/terragrunt/options",
+    "github.com/gruntwork-io/terragrunt/remote",
+    "github.com/gruntwork-io/terragrunt/shell",
+    "github.com/gruntwork-io/terragrunt/test/helpers",
+    "github.com/gruntwork-io/terragrunt/util",
     "github.com/gruntwork-io/terratest/modules/files",
     "github.com/hashicorp/go-getter",
     "github.com/hashicorp/go-getter/helper/url",
@@ -634,6 +666,7 @@
     "github.com/hashicorp/hcl2/hcl/hclsyntax",
     "github.com/hashicorp/hcl2/hclparse",
     "github.com/hashicorp/hcl2/hclwrite",
+    "github.com/hashicorp/terraform/helper/pathorcontents",
     "github.com/hashicorp/terraform/lang",
     "github.com/mattn/go-zglob",
     "github.com/mitchellh/mapstructure",
@@ -645,6 +678,7 @@
     "github.com/zclconf/go-cty/cty/gocty",
     "github.com/zclconf/go-cty/cty/json",
     "golang.org/x/crypto/ssh/terminal",
+    "golang.org/x/oauth2/jwt",
     "google.golang.org/api/iterator",
     "google.golang.org/api/option",
   ]
