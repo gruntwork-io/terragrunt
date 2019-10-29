@@ -324,6 +324,7 @@ func runTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targe
 	// `cloneTerragruntOptionsForDependencyOutput`. Specifically, if you have multiple terragrunt sources that point to
 	// the same dependency, then terragrunt could attempt to download the resources multiple times causing conflicts.
 	// See https://github.com/gruntwork-io/terragrunt/issues/906 for more info.
+	// IMPORTANT: When updating this, please reenable test TestDependencyOutputCachePathBug
 	targetOptions := terragruntOptions.Clone(targetConfig)
 	targetOptions.TerraformCliArgs = []string{"output", "-json"}
 
