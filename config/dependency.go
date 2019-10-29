@@ -318,17 +318,21 @@ func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.Terrag
 // runTerragruntOutputJson uses terragrunt running functions to extract the json output from the target config. Make a
 // copy of the terragruntOptions so that we can reuse the same execution environment.
 func runTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targetConfig string) ([]byte, error) {
-	targetOptions, err := cloneTerragruntOptionsForDependencyOutput(terragruntOptions, targetConfig)
-	if err != nil {
-		return nil, err
-	}
+	// NOTE: The following sets the terragrunt working and download directory in the context of the current
+	// configuration, NOT the dependency. This is not correct and breaks a few workflows dependent on local state.
+	// However, this resolves a concurrency issue that will be introduced if you fix this to use
+	// `cloneTerragruntOptionsForDependencyOutput`. Specifically, if you have multiple terragrunt sources that point to
+	// the same dependency, then terragrunt could attempt to download the resources multiple times causing conflicts.
+	// See https://github.com/gruntwork-io/terragrunt/issues/906 for more info.
+	targetOptions := terragruntOptions.Clone(targetConfig)
+	targetOptions.TerraformCliArgs = []string{"output", "-json"}
 
 	// Update the stdout buffer so we can capture the output
 	var stdoutBuffer bytes.Buffer
 	stdoutBufferWriter := bufio.NewWriter(&stdoutBuffer)
 	targetOptions.Writer = stdoutBufferWriter
 
-	err = targetOptions.RunTerragrunt(targetOptions)
+	err := targetOptions.RunTerragrunt(targetOptions)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
