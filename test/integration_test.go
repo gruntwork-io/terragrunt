@@ -1955,6 +1955,46 @@ func TestDependencyOutputRegression854(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// Regression testing for https://github.com/gruntwork-io/terragrunt/issues/906
+func TestDependencyOutputRegression906(t *testing.T) {
+	t.Parallel()
+
+	// Use func to isolate each test run to a single s3 bucket that is deleted. We run the test multiple times
+	// because the underlying error we are trying to test against is nondeterministic, and thus may not always work
+	// the first time.
+	testCase := func() {
+		cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+		tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+		rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "regression-906")
+
+		// Make sure to fill in the s3 bucket to the config. Also ensure the bucket is deleted before the next for
+		// loop call.
+		s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s%s", strings.ToLower(uniqueId()), strings.ToLower(uniqueId()))
+		defer deleteS3BucketWithRetry(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+		commonDepConfigPath := util.JoinPath(rootPath, "common-dep", "terragrunt.hcl")
+		copyTerragruntConfigAndFillPlaceholders(t, commonDepConfigPath, commonDepConfigPath, s3BucketName, "not-used", "not-used")
+
+		stdout := bytes.Buffer{}
+		stderr := bytes.Buffer{}
+		err := runTerragruntCommand(
+			t,
+			fmt.Sprintf("terragrunt apply-all --terragrunt-source-update --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath),
+			&stdout,
+			&stderr,
+		)
+		logBufferContentsLineByLine(t, stdout, "stdout")
+		logBufferContentsLineByLine(t, stderr, "stderr")
+		require.NoError(t, err)
+	}
+
+	for i := 0; i < 3; i++ {
+		testCase()
+		// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
+		// This is only a problem during testing, where the process is shared across terragrunt runs.
+		config.ClearOutputCache()
+	}
+}
+
 // Regression testing for bug where terragrunt output runs on dependency blocks are done in the terragrunt-cache for the
 // child, not the parent.
 func TestDependencyOutputCachePathBug(t *testing.T) {
@@ -2316,11 +2356,30 @@ func assertS3PublicAccessBlocks(t *testing.T, client *s3.S3, bucketName string) 
 	assert.True(t, aws.BoolValue(publicAccessBlockConfig.RestrictPublicBuckets))
 }
 
+// deleteS3BucketWithRetry will attempt to delete the specified S3 bucket, retrying up to 3 times if there are errors to
+// handle eventual consistency issues.
+func deleteS3BucketWithRetry(t *testing.T, awsRegion string, bucketName string) {
+	for i := 0; i < 3; i++ {
+		err := deleteS3BucketE(t, awsRegion, bucketName)
+		if err == nil {
+			return
+		}
+
+		t.Logf("Error deleting s3 bucket %s. Sleeping for 10 seconds before retrying.", bucketName)
+		time.Sleep(10 * time.Second)
+	}
+	t.Fatalf("Max retries attempting to delete s3 bucket %s in region %s", bucketName, awsRegion)
+}
+
 // Delete the specified S3 bucket to clean up after a test
 func deleteS3Bucket(t *testing.T, awsRegion string, bucketName string) {
+	require.NoError(t, deleteS3BucketE(t, awsRegion, bucketName))
+}
+func deleteS3BucketE(t *testing.T, awsRegion string, bucketName string) error {
 	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
 	if err != nil {
-		t.Fatalf("Error creating mockOptions: %v", err)
+		t.Logf("Error creating mockOptions: %v", err)
+		return err
 	}
 
 	sessionConfig := &aws_helper.AwsSessionConfig{
@@ -2329,14 +2388,16 @@ func deleteS3Bucket(t *testing.T, awsRegion string, bucketName string) {
 
 	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
 	if err != nil {
-		t.Fatalf("Error creating S3 client: %v", err)
+		t.Logf("Error creating S3 client: %v", err)
+		return err
 	}
 
 	t.Logf("Deleting test s3 bucket %s", bucketName)
 
 	out, err := s3Client.ListObjectVersions(&s3.ListObjectVersionsInput{Bucket: aws.String(bucketName)})
 	if err != nil {
-		t.Fatalf("Failed to list object versions in s3 bucket %s: %v", bucketName, err)
+		t.Logf("Failed to list object versions in s3 bucket %s: %v", bucketName, err)
+		return err
 	}
 
 	objectIdentifiers := []*s3.ObjectIdentifier{}
@@ -2353,13 +2414,16 @@ func deleteS3Bucket(t *testing.T, awsRegion string, bucketName string) {
 			Delete: &s3.Delete{Objects: objectIdentifiers},
 		}
 		if _, err := s3Client.DeleteObjects(deleteInput); err != nil {
-			t.Fatalf("Error deleting all versions of all objects in bucket %s: %v", bucketName, err)
+			t.Logf("Error deleting all versions of all objects in bucket %s: %v", bucketName, err)
+			return err
 		}
 	}
 
 	if _, err := s3Client.DeleteBucket(&s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
-		t.Fatalf("Failed to delete S3 bucket %s: %v", bucketName, err)
+		t.Logf("Failed to delete S3 bucket %s: %v", bucketName, err)
+		return err
 	}
+	return nil
 }
 
 // Create an authenticated client for DynamoDB
