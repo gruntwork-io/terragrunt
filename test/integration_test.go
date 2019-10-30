@@ -1772,6 +1772,10 @@ func TestDependencyMockOutput(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
 	assert.Equal(t, outputs["truth"].Value, "The answer is 0")
 
+	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
+	// This is only a problem during testing, where the process is shared across terragrunt runs.
+	config.ClearOutputCache()
+
 	// Now apply-all so that the dependency is applied, and verify it uses the dependency output
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
 	assert.NoError(t, err)

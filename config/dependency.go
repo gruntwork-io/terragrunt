@@ -291,6 +291,7 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 	var jsonBytes []byte
 	rawJsonBytes, hasRun := jsonOutputCache.Load(targetConfig)
 	if hasRun {
+		util.Debugf(terragruntOptions.Logger, "%s was run before. Using cached output.", targetConfig)
 		jsonBytes = rawJsonBytes.([]byte)
 	} else {
 		newJsonBytes, err := runTerragruntOutputJson(terragruntOptions, targetConfig)
@@ -393,6 +394,11 @@ func terraformOutputJsonToCtyValueMap(targetConfig string, jsonBytes []byte) (ma
 		flattenedOutput[k] = outputVal
 	}
 	return flattenedOutput, nil
+}
+
+// ClearOutputCache clears the output cache. Useful during testing.
+func ClearOutputCache() {
+	jsonOutputCache = sync.Map{}
 }
 
 // Custom error types
