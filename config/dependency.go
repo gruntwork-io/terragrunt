@@ -220,7 +220,7 @@ func getCleanedTargetConfigPath(dependencyConfig Dependency, terragruntOptions *
 	if util.IsDir(targetConfig) {
 		targetConfig = util.JoinPath(targetConfig, DefaultTerragruntConfigPath)
 	}
-	return targetConfig
+	return util.CleanPath(targetConfig)
 }
 
 // This will attempt to get the outputs from the target terragrunt config if it is applied. If it is not applied, the
@@ -282,26 +282,10 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 		return nil, true, errors.WithStackTrace(DependencyConfigNotFound{Path: targetConfig})
 	}
 
-	// Acquire synchronization lock to ensure only one instance of output is called per config.
-	actualLock, _ := outputLocks.LoadOrStore(targetConfig, &sync.Mutex{})
-	defer actualLock.(*sync.Mutex).Unlock()
-	actualLock.(*sync.Mutex).Lock()
-
-	// Look up if we have already run terragrunt output for this target config
-	var jsonBytes []byte
-	rawJsonBytes, hasRun := jsonOutputCache.Load(targetConfig)
-	if hasRun {
-		util.Debugf(terragruntOptions.Logger, "%s was run before. Using cached output.", targetConfig)
-		jsonBytes = rawJsonBytes.([]byte)
-	} else {
-		newJsonBytes, err := runTerragruntOutputJson(terragruntOptions, targetConfig)
-		if err != nil {
-			return nil, true, err
-		}
-		jsonBytes = newJsonBytes
-		jsonOutputCache.Store(targetConfig, jsonBytes)
+	jsonBytes, err := getOutputJsonOrCache(targetConfig, terragruntOptions)
+	if err != nil {
+		return nil, true, err
 	}
-
 	isEmpty := string(jsonBytes) == "{}"
 
 	outputMap, err := terraformOutputJsonToCtyValueMap(targetConfig, jsonBytes)
@@ -315,6 +299,31 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 		err = TerragruntOutputEncodingError{Path: targetConfig, Err: err}
 	}
 	return &convertedOutput, isEmpty, errors.WithStackTrace(err)
+}
+
+// getOutputJsonOrCache will run terragrunt output on the target config if it is not already cached.
+func getOutputJsonOrCache(targetConfig string, terragruntOptions *options.TerragruntOptions) ([]byte, error) {
+	// Acquire synchronization lock to ensure only one instance of output is called per config.
+	rawActualLock, _ := outputLocks.LoadOrStore(targetConfig, &sync.Mutex{})
+	actualLock := rawActualLock.(*sync.Mutex)
+	defer actualLock.Unlock()
+	actualLock.Lock()
+
+	// Look up if we have already run terragrunt output for this target config
+	rawJsonBytes, hasRun := jsonOutputCache.Load(targetConfig)
+	if hasRun {
+		// Cache hit, so return cached output
+		util.Debugf(terragruntOptions.Logger, "%s was run before. Using cached output.", targetConfig)
+		return rawJsonBytes.([]byte), nil
+	}
+
+	// Cache miss, so look up the output and store in cache
+	newJsonBytes, err := runTerragruntOutputJson(terragruntOptions, targetConfig)
+	if err != nil {
+		return nil, err
+	}
+	jsonOutputCache.Store(targetConfig, newJsonBytes)
+	return newJsonBytes, nil
 }
 
 // Clone terragrunt options and update context for dependency block so that the outputs can be read correctly
