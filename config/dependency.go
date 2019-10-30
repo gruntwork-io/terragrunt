@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/hashicorp/hcl2/hcl"
 	"github.com/zclconf/go-cty/cty"
@@ -30,6 +31,14 @@ type Dependency struct {
 func (dependencyConfig Dependency) shouldGetOutputs() bool {
 	return dependencyConfig.SkipOutputs == nil || !(*dependencyConfig.SkipOutputs)
 }
+
+// jsonOutputCache is a map that maps config paths to the outputs so that they can be reused across calls for common
+// modules. We use sync.Map to ensure atomic updates during concurrent access.
+var jsonOutputCache = sync.Map{}
+
+// outputLocks is a map that maps config paths to mutex locks to ensure we only have a single instance of terragrunt
+// output running for a given dependent config. We use sync.Map to ensure atomic updates during concurrent access.
+var outputLocks = sync.Map{}
 
 // Decode the dependency blocks from the file, and then retrieve all the outputs from the remote state. Then encode the
 // resulting map as a cty.Value object.
@@ -273,10 +282,25 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 		return nil, true, errors.WithStackTrace(DependencyConfigNotFound{Path: targetConfig})
 	}
 
-	jsonBytes, err := runTerragruntOutputJson(terragruntOptions, targetConfig)
-	if err != nil {
-		return nil, true, err
+	// Acquire synchronization lock to ensure only one instance of output is called per config.
+	actualLock, _ := outputLocks.LoadOrStore(targetConfig, &sync.Mutex{})
+	defer actualLock.(*sync.Mutex).Unlock()
+	actualLock.(*sync.Mutex).Lock()
+
+	// Look up if we have already run terragrunt output for this target config
+	var jsonBytes []byte
+	rawJsonBytes, hasRun := jsonOutputCache.Load(targetConfig)
+	if hasRun {
+		jsonBytes = rawJsonBytes.([]byte)
+	} else {
+		newJsonBytes, err := runTerragruntOutputJson(terragruntOptions, targetConfig)
+		if err != nil {
+			return nil, true, err
+		}
+		jsonBytes = newJsonBytes
+		jsonOutputCache.Store(targetConfig, jsonBytes)
 	}
+
 	isEmpty := string(jsonBytes) == "{}"
 
 	outputMap, err := terraformOutputJsonToCtyValueMap(targetConfig, jsonBytes)
