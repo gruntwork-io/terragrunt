@@ -325,7 +325,7 @@ func isLocalSource(sourceUrl *url.URL) bool {
 }
 
 // There are two ways a user can tell Terragrunt that it needs to download Terraform configurations from a specific
-// URL: via a command-line option or via an entry in the Terragrunt configuratino. If the user used one of these, this
+// URL: via a command-line option or via an entry in the Terragrunt configuration. If the user used one of these, this
 // method returns the source URL or an empty string if there is no source url
 func getTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) string {
 	if terragruntOptions.Source != "" {

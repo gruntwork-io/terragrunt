@@ -171,8 +171,8 @@ func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOption
 		// - outputs: The module outputs of the target config
 		dependencyEncodingMap := map[string]cty.Value{}
 
-		// Encode the outputs and nest under `outputs` attribute if we should get the outputs
-		if dependencyConfig.shouldGetOutputs() {
+		// Encode the outputs and nest under `outputs` attribute if we should get the outputs or the `mock_outputs`
+		if dependencyConfig.shouldGetOutputs() || shouldReturnMockOutputs(dependencyConfig, terragruntOptions) {
 			paths = append(paths, dependencyConfig.ConfigPath)
 			outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig, terragruntOptions)
 			if err != nil {
@@ -219,13 +219,15 @@ func getCleanedTargetConfigPath(dependencyConfig Dependency, terragruntOptions *
 // - If the dependency block indicates a mock_outputs attribute, this will return that.
 // - If the dependency block does NOT indicate a mock_outputs attribute, this will return an error.
 func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
-	outputVal, isEmpty, err := getTerragruntOutput(dependencyConfig, terragruntOptions)
-	if err != nil {
-		return nil, err
-	}
+	if dependencyConfig.shouldGetOutputs() {
+		outputVal, isEmpty, err := getTerragruntOutput(dependencyConfig, terragruntOptions)
+		if err != nil {
+			return nil, err
+		}
 
-	if !isEmpty {
-		return outputVal, err
+		if !isEmpty {
+			return outputVal, err
+		}
 	}
 
 	// When we get no output, it can be an indication that either the module has no outputs or the module is not
@@ -243,7 +245,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 		return dependencyConfig.MockOutputs, nil
 	}
 
-	err = TerragruntOutputTargetNoOutputs{
+	err := TerragruntOutputTargetNoOutputs{
 		targetConfig:  targetConfig,
 		currentConfig: currentConfig,
 	}

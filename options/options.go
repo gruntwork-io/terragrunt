@@ -74,6 +74,9 @@ type TerragruntOptions struct {
 	// If set to true, continue running *-all commands even if a dependency has errors. This is mostly useful for 'output-all <some_variable>'. See https://github.com/gruntwork-io/terragrunt/issues/193
 	IgnoreDependencyErrors bool
 
+	// If set to true, ignore the dependency order when running *-all command.
+	IgnoreDependencyOrder bool
+
 	// If set to true, skip any external dependencies when running *-all commands
 	IgnoreExternalDependencies bool
 
@@ -142,6 +145,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		SourceUpdate:                false,
 		DownloadDir:                 downloadDir,
 		IgnoreDependencyErrors:      false,
+		IgnoreDependencyOrder:       false,
 		IgnoreExternalDependencies:  false,
 		IncludeExternalDependencies: false,
 		Writer:                      os.Stdout,
@@ -211,6 +215,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		DownloadDir:                 terragruntOptions.DownloadDir,
 		IamRole:                     terragruntOptions.IamRole,
 		IgnoreDependencyErrors:      terragruntOptions.IgnoreDependencyErrors,
+		IgnoreDependencyOrder:       terragruntOptions.IgnoreDependencyOrder,
 		IgnoreExternalDependencies:  terragruntOptions.IgnoreExternalDependencies,
 		IncludeExternalDependencies: terragruntOptions.IncludeExternalDependencies,
 		Writer:                      terragruntOptions.Writer,
@@ -248,6 +253,14 @@ func (terragruntOptions *TerragruntOptions) InsertTerraformCliArgs(argsToInsert 
 // Appends the given argsToAppend after the current TerraformCliArgs
 func (terragruntOptions *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
 	terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, argsToAppend...)
+}
+
+// DataDir returns Terraform data dir (.terraform by default, overridden by $TF_DATA_DIR envvar)
+func (terragruntOptions *TerragruntOptions) DataDir() string {
+	if tfDataDir, ok := os.LookupEnv("TF_DATA_DIR"); ok {
+		return tfDataDir
+	}
+	return util.JoinPath(terragruntOptions.WorkingDir, ".terraform")
 }
 
 // Custom error types

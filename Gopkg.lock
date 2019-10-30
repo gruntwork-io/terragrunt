@@ -42,7 +42,7 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:b23b81f47109efc6b4768653c95f87a2b6cf5052d653eab69373889f8b52e553"
+  digest = "1:91e14026351e9decfbc736fe9aed292826dbfc39f8654735d549c7d86151587d"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -67,6 +67,7 @@
     "internal/ini",
     "internal/s3err",
     "internal/sdkio",
+    "internal/sdkmath",
     "internal/sdkrand",
     "internal/sdkuri",
     "internal/shareddefaults",
@@ -83,10 +84,11 @@
     "service/dynamodb",
     "service/s3",
     "service/sts",
+    "service/sts/stsiface",
   ]
   pruneopts = "UT"
-  revision = "bdafd99f31a0103ec73bcabfc9498aef3252d515"
-  version = "v1.19.47"
+  revision = "572908275ed4e38fef7ccb7d507f2faacaa7ab36"
+  version = "v1.25.4"
 
 [[projects]]
   branch = "master"
@@ -95,6 +97,14 @@
   packages = ["netrc"]
   pruneopts = "UT"
   revision = "9fd32a8b3d3d3f9d43c341bfe098430e07609480"
+
+[[projects]]
+  digest = "1:f69f3dd5ddb194ab787d0fd8e3ac382576d4f80c36584b70713656d5c72fca70"
+  name = "github.com/bmatcuk/doublestar"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "2437321e1473408f122a95f65df3d8841fec4fba"
+  version = "v1.1.5"
 
 [[projects]]
   digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"
@@ -150,12 +160,40 @@
   version = "v0.3.0"
 
 [[projects]]
+  digest = "1:582b704bebaa06b48c29b0cec224a6058a09c86883aaddabde889cd1a5f73e1b"
+  name = "github.com/google/uuid"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "0cd6bf5da1e1c83f8b45653022c74f71af0538a4"
+  version = "v1.1.1"
+
+[[projects]]
   digest = "1:f1f70abea1ab125d48396343b4c053f8fecfbdb943037bf3d29dc80c90fe60b3"
   name = "github.com/googleapis/gax-go"
   packages = ["v2"]
   pruneopts = "UT"
   revision = "beaecbbdd8af86aa3acf14180d53828ce69400b2"
   version = "v2.0.4"
+
+[[projects]]
+  digest = "1:336fe3365d1ed4fab9a54f6b1aa3031c84354493a7123e357afc8d8390510264"
+  name = "github.com/gruntwork-io/terragrunt"
+  packages = [
+    "aws_helper",
+    "cli",
+    "config",
+    "configstack",
+    "dynamodb",
+    "errors",
+    "options",
+    "remote",
+    "shell",
+    "test/helpers",
+    "util",
+  ]
+  pruneopts = "UT"
+  revision = "84e77303a8c1ce634522612a19f0c12e1ce20a4b"
+  version = "v0.21.0"
 
 [[projects]]
   digest = "1:91e98ea76af524d88f4eeb4240bcd0ab04a8091954dc845c32b3283c7c4ebf8c"
@@ -250,20 +288,21 @@
   revision = "318e80eefe28c3aa01b434c61bcf4c83a0cc6b25"
 
 [[projects]]
-  digest = "1:66dd758d5abbc9b64f515b567120d22cdac3b99875199ee2409a9615f9f468ac"
+  digest = "1:9fe10797d2a533f1fa71c9acf1af0287a93c3f5e7f2684cee5e1e230b41ca5b8"
   name = "github.com/hashicorp/terraform"
   packages = [
     "addrs",
     "configs/configschema",
     "helper/didyoumean",
+    "helper/pathorcontents",
     "lang",
     "lang/blocktoattr",
     "lang/funcs",
     "tfdiags",
   ]
   pruneopts = "UT"
-  revision = "380226f0aaa57db5685f43b824f8bda99acdf00c"
-  version = "v0.12.6"
+  revision = "abec0acf40d8e31ac612a244cf3886fb3bcce0bb"
+  version = "v0.12.9"
 
 [[projects]]
   digest = "1:bb81097a5b62634f3e9fec1014657855610c82d19b9a40c17612e32651e35dca"
@@ -338,14 +377,6 @@
   pruneopts = "UT"
   revision = "792786c7400a136282c1664665ae0a8db921c6c2"
   version = "v1.0.0"
-
-[[projects]]
-  digest = "1:274f67cb6fed9588ea2521ecdac05a6d62a8c51c074c1fccc6a49a40ba80e925"
-  name = "github.com/satori/go.uuid"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "f58768cc1a7a7e77a3bd49e98cdd21419399b6a3"
-  version = "v1.2.0"
 
 [[projects]]
   digest = "1:5da8ce674952566deae4dbc23d07c85caafc6cfa815b0b3e03e41979cedb8750"
@@ -615,6 +646,17 @@
     "github.com/aws/aws-sdk-go/service/sts",
     "github.com/fatih/color",
     "github.com/go-errors/errors",
+    "github.com/gruntwork-io/terragrunt/aws_helper",
+    "github.com/gruntwork-io/terragrunt/cli",
+    "github.com/gruntwork-io/terragrunt/config",
+    "github.com/gruntwork-io/terragrunt/configstack",
+    "github.com/gruntwork-io/terragrunt/dynamodb",
+    "github.com/gruntwork-io/terragrunt/errors",
+    "github.com/gruntwork-io/terragrunt/options",
+    "github.com/gruntwork-io/terragrunt/remote",
+    "github.com/gruntwork-io/terragrunt/shell",
+    "github.com/gruntwork-io/terragrunt/test/helpers",
+    "github.com/gruntwork-io/terragrunt/util",
     "github.com/gruntwork-io/terratest/modules/files",
     "github.com/hashicorp/go-getter",
     "github.com/hashicorp/go-getter/helper/url",
@@ -624,6 +666,7 @@
     "github.com/hashicorp/hcl2/hcl/hclsyntax",
     "github.com/hashicorp/hcl2/hclparse",
     "github.com/hashicorp/hcl2/hclwrite",
+    "github.com/hashicorp/terraform/helper/pathorcontents",
     "github.com/hashicorp/terraform/lang",
     "github.com/mattn/go-zglob",
     "github.com/mitchellh/mapstructure",
@@ -635,6 +678,7 @@
     "github.com/zclconf/go-cty/cty/gocty",
     "github.com/zclconf/go-cty/cty/json",
     "golang.org/x/crypto/ssh/terminal",
+    "golang.org/x/oauth2/jwt",
     "google.golang.org/api/iterator",
     "google.golang.org/api/option",
   ]

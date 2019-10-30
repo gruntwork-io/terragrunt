@@ -270,12 +270,13 @@ func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptio
 // Parse the Terragrunt config contained in the given string and merge it with the given include config (if any). Note
 // that the config parsing consists of multiple stages so as to allow referencing of data resulting from parsing
 // previous config. The parsing order is:
-// 1. Parse locals. Since locals are parsed first, you can only reference other locals in the locals block and it is not
-//    merged from a config imported with an include block.
-//    Allowed References:
-//      - locals
-// 2. Parse include. Include is parsed next and is used to import another config. All the config in the include block is
-//    then merged into the current TerragruntConfig.
+// 1. Parse include. Include is parsed first and is used to import another config. All the config in the include block is
+//    then merged into the current TerragruntConfig, except for locals (by design). Note that since the include block is
+//    parsed first, you cannot reference locals in the include block config.
+// 2. Parse locals. Since locals are parsed next, you can only reference other locals in the locals block. Although it
+//    is possible to merge locals from a config imported with an include block, we do not do that here to avoid
+//    complicated referencing issues. Please refer to the globals proposal for an alternative that allows merging from
+//    included config: https://github.com/gruntwork-io/terragrunt/issues/814
 //    Allowed References:
 //      - locals
 // 3. Parse dependency blocks. This includes running `terragrunt output` to fetch the output data from another

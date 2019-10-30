@@ -49,7 +49,7 @@ type terragruntFlags struct {
 	Remain         hcl.Body `hcl:",remain"`
 }
 
-// terragruntDependency is a struct that can be used to only decode the dependency blocks in the terragrrunt config
+// terragruntDependency is a struct that can be used to only decode the dependency blocks in the terragrunt config
 type terragruntDependency struct {
 	Dependencies []Dependency `hcl:"dependency,block"`
 	Remain       hcl.Body     `hcl:",remain"`
@@ -67,28 +67,28 @@ func DecodeBaseBlocks(
 	filename string,
 	includeFromChild *IncludeConfig,
 ) (*cty.Value, *terragruntInclude, *IncludeConfig, error) {
-	// Evaluate all the expressions in the locals block separately and generate the variables list to use in the
-	// evaluation context.
-	locals, err := evaluateLocalsBlock(terragruntOptions, parser, hclFile, filename)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	localsAsCty, err := convertLocalsMapToCtyVal(locals)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
 	// Decode just the `include` block, and verify that it's allowed here
 	terragruntInclude, err := decodeAsTerragruntInclude(
 		hclFile,
 		filename,
 		terragruntOptions,
-		EvalContextExtensions{Locals: localsAsCty},
+		EvalContextExtensions{},
 	)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	includeForDecode, err := getIncludedConfigForDecode(terragruntInclude, terragruntOptions, includeFromChild)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	// Evaluate all the expressions in the locals block separately and generate the variables list to use in the
+	// evaluation context.
+	locals, err := evaluateLocalsBlock(terragruntOptions, parser, hclFile, filename, includeForDecode)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	localsAsCty, err := convertLocalsMapToCtyVal(locals)
 	if err != nil {
 		return nil, nil, nil, err
 	}
