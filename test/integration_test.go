@@ -1956,7 +1956,7 @@ func TestDependencyOutputRegression854(t *testing.T) {
 }
 
 // Regression testing for https://github.com/gruntwork-io/terragrunt/issues/906
-func TestDependencyOutputRegression906(t *testing.T) {
+func TestDependencyOutputSameOutputConcurrencyRegression(t *testing.T) {
 	t.Parallel()
 
 	// Use func to isolate each test run to a single s3 bucket that is deleted. We run the test multiple times

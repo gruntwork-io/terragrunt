@@ -282,7 +282,7 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 		return nil, true, errors.WithStackTrace(DependencyConfigNotFound{Path: targetConfig})
 	}
 
-	jsonBytes, err := getOutputJsonOrCache(targetConfig, terragruntOptions)
+	jsonBytes, err := getOutputJsonWithCaching(targetConfig, terragruntOptions)
 	if err != nil {
 		return nil, true, err
 	}
@@ -301,8 +301,8 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 	return &convertedOutput, isEmpty, errors.WithStackTrace(err)
 }
 
-// getOutputJsonOrCache will run terragrunt output on the target config if it is not already cached.
-func getOutputJsonOrCache(targetConfig string, terragruntOptions *options.TerragruntOptions) ([]byte, error) {
+// getOutputJsonWithCaching will run terragrunt output on the target config if it is not already cached.
+func getOutputJsonWithCaching(targetConfig string, terragruntOptions *options.TerragruntOptions) ([]byte, error) {
 	// Acquire synchronization lock to ensure only one instance of output is called per config.
 	rawActualLock, _ := outputLocks.LoadOrStore(targetConfig, &sync.Mutex{})
 	actualLock := rawActualLock.(*sync.Mutex)
