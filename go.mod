@@ -3,53 +3,24 @@ module github.com/gruntwork-io/terragrunt
 go 1.13
 
 require (
-	cloud.google.com/go v0.35.1
-	github.com/agext/levenshtein v1.2.2
-	github.com/apparentlymart/go-cidr v1.0.0
-	github.com/apparentlymart/go-textseg v1.0.0
+	cloud.google.com/go v0.45.1
 	github.com/aws/aws-sdk-go v1.25.4
-	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d
-	github.com/bmatcuk/doublestar v1.1.5
-	github.com/davecgh/go-spew v1.1.1
 	github.com/fatih/color v1.7.0
 	github.com/go-errors/errors v1.0.1
-	github.com/golang/protobuf v1.3.1
-	github.com/google/go-cmp v0.3.0
-	github.com/google/uuid v1.1.1
-	github.com/gruntwork-io/terragrunt v0.21.0
 	github.com/gruntwork-io/terratest v0.18.0
-	github.com/hashicorp/errwrap v1.0.0
-	github.com/hashicorp/go-cleanhttp v0.5.1
-	github.com/hashicorp/go-getter v1.3.0
-	github.com/hashicorp/go-multierror v1.0.0
-	github.com/hashicorp/go-safetemp v1.0.0
-	github.com/hashicorp/go-uuid v1.0.1
+	github.com/hashicorp/go-cleanhttp v0.5.1 // indirect
+	github.com/hashicorp/go-getter v1.4.0
 	github.com/hashicorp/go-version v1.2.0
-	github.com/hashicorp/golang-lru v0.5.1
-	github.com/hashicorp/hcl2 v0.0.0-20190607155442-318e80eefe28
+	github.com/hashicorp/hcl2 v0.0.0-20190821123243-0c888d1241f6
 	github.com/hashicorp/terraform v0.12.9
-	github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af
-	github.com/mattn/go-colorable v0.0.9
-	github.com/mattn/go-isatty v0.0.9
+	github.com/mattn/go-isatty v0.0.9 // indirect
 	github.com/mattn/go-zglob v0.0.1
-	github.com/mitchellh/go-homedir v1.1.0
-	github.com/mitchellh/go-testing-interface v1.0.0
-	github.com/mitchellh/go-wordwrap v1.0.0
 	github.com/mitchellh/mapstructure v1.1.2
-	github.com/pmezard/go-difflib v1.0.0
 	github.com/stretchr/testify v1.3.0
-	github.com/ulikunitz/xz v0.5.6
+	github.com/ulikunitz/xz v0.5.6 // indirect
 	github.com/urfave/cli v1.20.0
-	github.com/zclconf/go-cty v1.0.0
-	github.com/zclconf/go-cty-yaml v1.0.1
-	go.opencensus.io v0.22.0
-	golang.org/x/crypto v0.0.0-20190611184440-5c40567a22f8
-	golang.org/x/net v0.0.0-20190607181551-461777fb6f67
+	github.com/zclconf/go-cty v1.0.1-0.20190708163926-19588f92a98f
+	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
-	golang.org/x/sys v0.0.0-20190610200419-93c9922d18ae
-	golang.org/x/text v0.3.2
-	google.golang.org/api v0.6.1-0.20190620001050-890e5eb51fe2
-	google.golang.org/appengine v1.6.1
-	google.golang.org/genproto v0.0.0-20190605220351-eb0b1bdb6ae6
-	google.golang.org/grpc v1.21.1
+	google.golang.org/api v0.9.0
 )
