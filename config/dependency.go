@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/hashicorp/hcl2/hcl"
 	"github.com/zclconf/go-cty/cty"
@@ -30,6 +31,14 @@ type Dependency struct {
 func (dependencyConfig Dependency) shouldGetOutputs() bool {
 	return dependencyConfig.SkipOutputs == nil || !(*dependencyConfig.SkipOutputs)
 }
+
+// jsonOutputCache is a map that maps config paths to the outputs so that they can be reused across calls for common
+// modules. We use sync.Map to ensure atomic updates during concurrent access.
+var jsonOutputCache = sync.Map{}
+
+// outputLocks is a map that maps config paths to mutex locks to ensure we only have a single instance of terragrunt
+// output running for a given dependent config. We use sync.Map to ensure atomic updates during concurrent access.
+var outputLocks = sync.Map{}
 
 // Decode the dependency blocks from the file, and then retrieve all the outputs from the remote state. Then encode the
 // resulting map as a cty.Value object.
@@ -211,7 +220,7 @@ func getCleanedTargetConfigPath(dependencyConfig Dependency, terragruntOptions *
 	if util.IsDir(targetConfig) {
 		targetConfig = util.JoinPath(targetConfig, DefaultTerragruntConfigPath)
 	}
-	return targetConfig
+	return util.CleanPath(targetConfig)
 }
 
 // This will attempt to get the outputs from the target terragrunt config if it is applied. If it is not applied, the
@@ -273,7 +282,7 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 		return nil, true, errors.WithStackTrace(DependencyConfigNotFound{Path: targetConfig})
 	}
 
-	jsonBytes, err := runTerragruntOutputJson(terragruntOptions, targetConfig)
+	jsonBytes, err := getOutputJsonWithCaching(targetConfig, terragruntOptions)
 	if err != nil {
 		return nil, true, err
 	}
@@ -290,6 +299,31 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 		err = TerragruntOutputEncodingError{Path: targetConfig, Err: err}
 	}
 	return &convertedOutput, isEmpty, errors.WithStackTrace(err)
+}
+
+// getOutputJsonWithCaching will run terragrunt output on the target config if it is not already cached.
+func getOutputJsonWithCaching(targetConfig string, terragruntOptions *options.TerragruntOptions) ([]byte, error) {
+	// Acquire synchronization lock to ensure only one instance of output is called per config.
+	rawActualLock, _ := outputLocks.LoadOrStore(targetConfig, &sync.Mutex{})
+	actualLock := rawActualLock.(*sync.Mutex)
+	defer actualLock.Unlock()
+	actualLock.Lock()
+
+	// Look up if we have already run terragrunt output for this target config
+	rawJsonBytes, hasRun := jsonOutputCache.Load(targetConfig)
+	if hasRun {
+		// Cache hit, so return cached output
+		util.Debugf(terragruntOptions.Logger, "%s was run before. Using cached output.", targetConfig)
+		return rawJsonBytes.([]byte), nil
+	}
+
+	// Cache miss, so look up the output and store in cache
+	newJsonBytes, err := runTerragruntOutputJson(terragruntOptions, targetConfig)
+	if err != nil {
+		return nil, err
+	}
+	jsonOutputCache.Store(targetConfig, newJsonBytes)
+	return newJsonBytes, nil
 }
 
 // Clone terragrunt options and update context for dependency block so that the outputs can be read correctly
@@ -369,6 +403,11 @@ func terraformOutputJsonToCtyValueMap(targetConfig string, jsonBytes []byte) (ma
 		flattenedOutput[k] = outputVal
 	}
 	return flattenedOutput, nil
+}
+
+// ClearOutputCache clears the output cache. Useful during testing.
+func ClearOutputCache() {
+	jsonOutputCache = sync.Map{}
 }
 
 // Custom error types
