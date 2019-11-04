@@ -108,8 +108,6 @@ func init() {
 }
 
 func TestTerragruntDownloadDir(t *testing.T) {
-	t.Parallel()
-
 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
 
@@ -180,7 +178,7 @@ func TestTerragruntDownloadDir(t *testing.T) {
 
 			var dat cli.TerragruntInfoGroup
 			err_unmarshal := json.Unmarshal(stdout.Bytes(), &dat)
-			assert.Nil(t, err_unmarshal)
+			assert.NoError(t, err_unmarshal)
 			// compare the results
 			assert.Equal(t, testCase.downloadDirReference, dat.DownloadDir)
 		})
