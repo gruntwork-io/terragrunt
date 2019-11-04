@@ -107,6 +107,87 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
+func TestTerragruntDownloadDir(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+
+	/* we have 2 terragrunt dirs here. One of them doesn't set the download_dir in the config,
+	the other one does. Here we'll be checking for precedence, and if the download_dir is set
+	according to the specified settings
+	*/
+	testCases := []struct {
+		name                 string
+		rootPath             string
+		downloadDirEnv       string // download dir set as an env var
+		downloadDirFlag      string // download dir set as a flag
+		downloadDirReference string // the expected result
+	}{
+		{
+			"download dir not set",
+			util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "download-dir", "not-set"),
+			"", // env
+			"", // flag
+			util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "download-dir", "not-set", TERRAGRUNT_CACHE),
+		},
+		{
+			"download dir set in config",
+			util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "download-dir", "in-config"),
+			"", // env
+			"", // flag
+			util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "download-dir", "in-config", ".download"),
+		},
+		{
+			"download dir set in config and in env var",
+			util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "download-dir", "in-config"),
+			util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "download-dir", "in-config", ".env-var"),
+			"", // flag
+			util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "download-dir", "in-config", ".env-var"),
+		},
+		{
+			"download dir set in config and as a flag",
+			util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "download-dir", "in-config"),
+			"", // env
+			fmt.Sprintf("--terragrunt-download-dir %s", util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "download-dir", "in-config", ".flag-download")),
+			util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "download-dir", "in-config", ".flag-download"),
+		},
+		{
+			"download dir set in config env and as a flag",
+			util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "download-dir", "in-config"),
+			util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "download-dir", "in-config", ".env-var"),
+			fmt.Sprintf("--terragrunt-download-dir %s", util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "download-dir", "in-config", ".flag-download")),
+			util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "download-dir", "in-config", ".flag-download"),
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			if testCase.downloadDirEnv != "" {
+				require.NoError(t, os.Setenv("TERRAGRUNT_DOWNLOAD", testCase.downloadDirEnv))
+			} else {
+				// clear the variable if it's not set
+				require.NoError(t, os.Unsetenv("TERRAGRUNT_DOWNLOAD"))
+			}
+			stdout := bytes.Buffer{}
+			stderr := bytes.Buffer{}
+			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info %s --terragrunt-non-interactive --terragrunt-working-dir %s", testCase.downloadDirFlag, testCase.rootPath), &stdout, &stderr)
+			logBufferContentsLineByLine(t, stdout, "stdout")
+			logBufferContentsLineByLine(t, stderr, "stderr")
+			require.NoError(t, err)
+
+			var dat cli.TerragruntInfoGroup
+			err_unmarshal := json.Unmarshal(stdout.Bytes(), &dat)
+			assert.Nil(t, err_unmarshal)
+			// compare the results
+			assert.Equal(t, testCase.downloadDirReference, dat.DownloadDir)
+		})
+	}
+
+}
+
 func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
 	t.Parallel()
 
