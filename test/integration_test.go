@@ -107,6 +107,8 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
+// We don't run this test in parralel because it modifies the environment variable,
+// so it can affect other tests
 func TestTerragruntDownloadDir(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
@@ -163,10 +165,13 @@ func TestTerragruntDownloadDir(t *testing.T) {
 		testCase := testCase
 
 		t.Run(testCase.name, func(t *testing.T) {
+			// make sure the env var doesn't leak outside of this test case
+			defer os.Unsetenv("TERRAGRUNT_DOWNLOAD")
+
 			if testCase.downloadDirEnv != "" {
 				require.NoError(t, os.Setenv("TERRAGRUNT_DOWNLOAD", testCase.downloadDirEnv))
 			} else {
-				// clear the variable if it's not set
+				// Clear the variable if it's not set. This is clearing the variable in case the variable is set outside the test process.
 				require.NoError(t, os.Unsetenv("TERRAGRUNT_DOWNLOAD"))
 			}
 			stdout := bytes.Buffer{}
