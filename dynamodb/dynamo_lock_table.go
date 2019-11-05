@@ -83,21 +83,19 @@ func CreateLockTable(tableName string, tags map[string]string, client *dynamodb.
 
 	terragruntOptions.Logger.Printf("Creating table %s in DynamoDB", tableName)
 
+	attributeDefinitions := []*dynamodb.AttributeDefinition{
+		{AttributeName: aws.String(ATTR_LOCK_ID), AttributeType: aws.String(dynamodb.ScalarAttributeTypeS)},
+	}
+
+	keySchema := []*dynamodb.KeySchemaElement{
+		{AttributeName: aws.String(ATTR_LOCK_ID), KeyType: aws.String(dynamodb.KeyTypeHash)},
+	}
+
 	createTableOutput, err := client.CreateTable(&dynamodb.CreateTableInput{
 		TableName:   aws.String(tableName),
 		BillingMode: aws.String(DYNAMODB_PAY_PER_REQUEST_BILLING_MODE),
-		AttributeDefinitions: []*dynamodb.AttributeDefinition{
-			{
-				AttributeName: aws.String(ATTR_LOCK_ID),
-				AttributeType: aws.String(dynamodb.ScalarAttributeTypeS),
-			},
-		},
-		KeySchema: []*dynamodb.KeySchemaElement{
-			{
-				AttributeName: aws.String(ATTR_LOCK_ID),
-				KeyType:       aws.String(dynamodb.KeyTypeHash),
-			},
-		},
+		AttributeDefinitions: attributeDefinitions,
+		KeySchema: keySchema,
 	})
 
 	if err != nil {
