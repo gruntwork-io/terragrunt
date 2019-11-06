@@ -278,6 +278,18 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
+	// get the default download dir
+	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(terragruntOptions.TerragruntConfigPath)
+	if err != nil {
+		return err
+	}
+
+	// if the download dir hasn't been changed from default, and is set in the config,
+	// then use it
+	if terragruntOptions.DownloadDir == defaultDownloadDir && terragruntConfig.DownloadDir != "" {
+		terragruntOptions.DownloadDir = terragruntConfig.DownloadDir
+	}
+
 	if sourceUrl := getTerraformSourceUrl(terragruntOptions, terragruntConfig); sourceUrl != "" {
 		if err := downloadTerraformSource(sourceUrl, terragruntOptions, terragruntConfig); err != nil {
 			return err
