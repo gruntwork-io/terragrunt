@@ -17,6 +17,10 @@ var VERSION string
 
 // The main entrypoint for Terragrunt
 func main() {
+	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of
+	// terragrunt used.
+	util.Debugf(util.CreateLogger(""), "Terragrunt Version: %s", VERSION)
+
 	defer errors.Recover(checkForErrorsAndExit)
 
 	app := cli.CreateTerragruntCli(VERSION, os.Stdout, os.Stderr)
