@@ -176,26 +176,6 @@
   version = "v2.0.4"
 
 [[projects]]
-  digest = "1:336fe3365d1ed4fab9a54f6b1aa3031c84354493a7123e357afc8d8390510264"
-  name = "github.com/gruntwork-io/terragrunt"
-  packages = [
-    "aws_helper",
-    "cli",
-    "config",
-    "configstack",
-    "dynamodb",
-    "errors",
-    "options",
-    "remote",
-    "shell",
-    "test/helpers",
-    "util",
-  ]
-  pruneopts = "UT"
-  revision = "84e77303a8c1ce634522612a19f0c12e1ce20a4b"
-  version = "v0.21.0"
-
-[[projects]]
   digest = "1:91e98ea76af524d88f4eeb4240bcd0ab04a8091954dc845c32b3283c7c4ebf8c"
   name = "github.com/gruntwork-io/terratest"
   packages = ["modules/files"]
@@ -646,17 +626,6 @@
     "github.com/aws/aws-sdk-go/service/sts",
     "github.com/fatih/color",
     "github.com/go-errors/errors",
-    "github.com/gruntwork-io/terragrunt/aws_helper",
-    "github.com/gruntwork-io/terragrunt/cli",
-    "github.com/gruntwork-io/terragrunt/config",
-    "github.com/gruntwork-io/terragrunt/configstack",
-    "github.com/gruntwork-io/terragrunt/dynamodb",
-    "github.com/gruntwork-io/terragrunt/errors",
-    "github.com/gruntwork-io/terragrunt/options",
-    "github.com/gruntwork-io/terragrunt/remote",
-    "github.com/gruntwork-io/terragrunt/shell",
-    "github.com/gruntwork-io/terragrunt/test/helpers",
-    "github.com/gruntwork-io/terragrunt/util",
     "github.com/gruntwork-io/terratest/modules/files",
     "github.com/hashicorp/go-getter",
     "github.com/hashicorp/go-getter/helper/url",

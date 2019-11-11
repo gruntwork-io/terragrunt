@@ -276,6 +276,7 @@ func shouldReturnMockOutputs(dependencyConfig Dependency, terragruntOptions *opt
 // terragrunt config and extract the desired output from the remote state. Note that this will error if the targetted
 // module hasn't been applied yet.
 func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, bool, error) {
+
 	// target config check: make sure the target config exists
 	targetConfig := getCleanedTargetConfigPath(dependencyConfig, terragruntOptions)
 	if !util.FileExists(targetConfig) {
@@ -308,6 +309,11 @@ func getOutputJsonWithCaching(targetConfig string, terragruntOptions *options.Te
 	actualLock := rawActualLock.(*sync.Mutex)
 	defer actualLock.Unlock()
 	actualLock.Lock()
+
+	// This debug log is useful for validating if the locking mechanism is working. If the locking mechanism is working,
+	// we should only see one pair of logs at a time that begin with this statement, and then the relevant "terraform
+	// output" log for the dependency.
+	util.Debugf(terragruntOptions.Logger, "Getting output of dependency %s for config %s", targetConfig, terragruntOptions.TerragruntConfigPath)
 
 	// Look up if we have already run terragrunt output for this target config
 	rawJsonBytes, hasRun := jsonOutputCache.Load(targetConfig)
