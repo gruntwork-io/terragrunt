@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "paths": [
+      "../module-a",
+      "../json-module-b/module-b-child",
+      "../module-c"
+    ]
+  }
+}

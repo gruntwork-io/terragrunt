@@ -21,6 +21,12 @@ func FileExists(path string) bool {
 	return err == nil
 }
 
+// Return true if the given file does not exist
+func FileNotExists(path string) bool {
+	_, err := os.Stat(path)
+	return os.IsNotExist(err)
+}
+
 // Return the canonical version of the given path, relative to the given base path. That is, if the given path is a
 // relative path, assume it is relative to the given base path. A canonical path is an absolute path with all relative
 // components (e.g. "../") fully resolved, which makes it safe to compare paths as strings.

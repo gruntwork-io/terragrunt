@@ -19,6 +19,7 @@ import (
 )
 
 const DefaultTerragruntConfigPath = "terragrunt.hcl"
+const DefaultTerragruntJsonConfigPath = "terragrunt.hcl.json"
 
 // TerragruntConfig represents a parsed and expanded configuration
 type TerragruntConfig struct {
@@ -186,9 +187,23 @@ func (conf *TerraformExtraArguments) String() string {
 		conf.EnvVars)
 }
 
-// Return the default path to use for the Terragrunt configuration file in the given directory
+// Return the default hcl path to use for the Terragrunt configuration file in the given directory
 func DefaultConfigPath(workingDir string) string {
 	return util.JoinPath(workingDir, DefaultTerragruntConfigPath)
+}
+
+// Return the default path to use for the Terragrunt Json configuration file in the given directory
+func DefaultJsonConfigPath(workingDir string) string {
+	return util.JoinPath(workingDir, DefaultTerragruntJsonConfigPath)
+}
+
+// Return the default path to use for the Terragrunt configuration that exists within the path giving preference to `terragrunt.hcl`
+func GetDefaultConfigPath(workingDir string) string {
+	if util.FileNotExists(DefaultConfigPath(workingDir)) && util.FileExists(DefaultJsonConfigPath(workingDir)) {
+		return DefaultJsonConfigPath(workingDir)
+	}
+
+	return DefaultConfigPath(workingDir)
 }
 
 // Returns a list of all Terragrunt config files in the given path or any subfolder of the path. A file is a Terragrunt
@@ -207,7 +222,7 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 		}
 
 		if isTerragruntModule {
-			configFiles = append(configFiles, DefaultConfigPath(path))
+			configFiles = append(configFiles, GetDefaultConfigPath(path))
 		}
 
 		return nil
@@ -217,7 +232,7 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 }
 
 // Returns true if the given path with the given FileInfo contains a Terragrunt module and false otherwise. A path
-// contains a Terragrunt module if it contains a Terragrunt configuration file (terragrunt.hcl) and is not a cache
+// contains a Terragrunt module if it contains a Terragrunt configuration file (terragrunt.hcl, terragrunt.hcl.json) and is not a cache
 // or download dir.
 func containsTerragruntModule(path string, info os.FileInfo, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	if !info.IsDir() {
@@ -244,7 +259,7 @@ func containsTerragruntModule(path string, info os.FileInfo, terragruntOptions *
 		return false, err
 	}
 
-	return util.FileExists(DefaultConfigPath(path)), nil
+	return util.FileExists(GetDefaultConfigPath(path)), nil
 }
 
 // Read the Terragrunt config file from its default location
@@ -416,6 +431,15 @@ func parseHcl(parser *hclparse.Parser, hcl string, filename string) (file *hcl.F
 			err = errors.WithStackTrace(PanicWhileParsingConfig{RecoveredValue: recovered, ConfigFile: filename})
 		}
 	}()
+
+	if filepath.Ext(filename) == ".json" {
+		file, parseDiagnostics := parser.ParseJSON([]byte(hcl), filename)
+		if parseDiagnostics != nil && parseDiagnostics.HasErrors() {
+			return nil, parseDiagnostics
+		}
+
+		return file, nil
+	}
 
 	file, parseDiagnostics := parser.ParseHCL([]byte(hcl), filename)
 	if parseDiagnostics != nil && parseDiagnostics.HasErrors() {
