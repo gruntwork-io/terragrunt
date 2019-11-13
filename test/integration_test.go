@@ -52,6 +52,7 @@ const (
 	TEST_FIXTURE_EXTRA_ARGS_PATH                            = "fixture-extra-args/"
 	TEST_FIXTURE_ENV_VARS_BLOCK_PATH                        = "fixture-env-vars-block/"
 	TEST_FIXTURE_SKIP                                       = "fixture-skip/"
+	TEST_FIXTURE_CONFIG_SINGLE_JSON_PATH                    = "fixture-config-files/single-json-config"
 	TEST_FIXTURE_LOCAL_DOWNLOAD_PATH                        = "fixture-download/local"
 	TEST_FIXTURE_REMOTE_DOWNLOAD_PATH                       = "fixture-download/remote"
 	TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH                     = "fixture-download/override"
@@ -603,6 +604,17 @@ func TestTerragruntWorksWithIncludes(t *testing.T) {
 	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_INCLUDE_PATH, TEST_FIXTURE_INCLUDE_CHILD_REL_PATH, s3BucketName, config.DefaultTerragruntConfigPath, config.DefaultTerragruntConfigPath)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
+}
+
+func TestTerragruntWorksWithSingleJsonConfig(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_CONFIG_SINGLE_JSON_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_CONFIG_SINGLE_JSON_PATH)
+
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_CONFIG_SINGLE_JSON_PATH)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootTerragruntConfigPath))
 }
 
 func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {

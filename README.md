@@ -20,9 +20,9 @@ for a quick introduction to Terragrunt.
    downloading the binary for your OS, renaming it to `terragrunt`, and adding it to your PATH.
      * See the [Install Terragrunt](#install-terragrunt) docs for other installation options.
 
-1. Go into a folder with your Terraform configurations (`.tf` files) and create a `terragrunt.hcl` file that contains
-   the configuration for Terragrunt (Terragrunt configuration uses the exact language, HCL, as Terraform). Here's an
-   example of using Terragrunt to keep your Terraform backend configuration DRY (check out the [Use cases](#use-cases)
+1. Go into a folder with your Terraform configurations (`.tf` files) and create a `terragrunt.hcl` or `terragrunt.hcl.json` file that contains 
+   the configuration for Terragrunt (Terragrunt configuration uses the exact language, HCL, as Terraform. [JSON configuration syntax](https://www.terraform.io/docs/configuration/syntax-json.html) is also supported.). Here's an 
+   example of using Terragrunt to keep your Terraform backend configuration DRY (check out the [Use cases](#use-cases) 
    section for other types of configuration Terragrunt supports):
 
     ```hcl
@@ -35,6 +35,22 @@ for a quick introduction to Terragrunt.
         region         = "us-east-1"
         encrypt        = true
         dynamodb_table = "my-lock-table"
+      }   
+    }
+    ```
+
+    ```json
+    # terragrunt.hcl.json example
+    {
+      "remote_state":{
+        "backend": "s3",
+        "config":{
+          "bucket"         : "my-terraform-state",
+          "key"            : "${path_relative_to_include()}/terraform.tfstate",
+          "region"         : "us-east-1",
+          "encrypt"        : true,
+          "dynamodb_table" : "my-lock-table"
+        }
       }
     }
     ```

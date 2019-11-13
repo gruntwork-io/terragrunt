@@ -255,7 +255,7 @@ func findInParentFolders(params []string, include *IncludeConfig, terragruntOpti
 			return "", errors.WithStackTrace(ParentFileNotFound{Path: terragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: "Traversed all the way to the root"})
 		}
 
-		fileToFind := DefaultConfigPath(currentDir)
+		fileToFind := GetDefaultConfigPath(currentDir)
 		if fileToFindParam != "" {
 			fileToFind = util.JoinPath(currentDir, fileToFindParam)
 		}
