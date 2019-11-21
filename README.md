@@ -352,7 +352,7 @@ Infrastructure as Code](https://medium.com/@kief/https-medium-com-kief-using-pip
 
 #### Working locally
 
-If you're testing changes to a local copy of the `modules` repo, you you can use the `--terragrunt-source` command-line
+If you're testing changes to a local copy of the `modules` repo, you can use the `--terragrunt-source` command-line
 option or the `TERRAGRUNT_SOURCE` environment variable to override the `source` parameter. This is useful to point
 Terragrunt at a local checkout of your code so you can do rapid, iterative, make-a-change-and-rerun development:
 
