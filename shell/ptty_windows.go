@@ -12,7 +12,7 @@ import (
 )
 
 // For windows, there is no concept of a pseudoTTY so we run as if there is no pseudoTTY.
-func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.Cmd, cmdStdout io.Writer) error {
+func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.Cmd, cmdStdout io.Writer, cmdStderr io.Writer) error {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = cmdStdout
 	cmd.Stderr = cmdStderr

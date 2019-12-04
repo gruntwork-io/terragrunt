@@ -74,7 +74,7 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, wor
 	}
 
 	if terragruntOptions.AllocatePseudoTTY {
-		if err := runCommandWithPTTY(terragruntOptions, cmd, cmdStdout); err != nil {
+		if err := runCommandWithPTTY(terragruntOptions, cmd, cmdStdout, cmdStderr); err != nil {
 			return nil, err
 		}
 	} else {

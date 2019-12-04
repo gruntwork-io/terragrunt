@@ -16,7 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.Cmd, cmdStdout io.Writer) (err error) {
+func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.Cmd, cmdStdout io.Writer, cmdStderr io.Writer) (err error) {
 	// NOTE: in order to ensure we can return errors that occur in cleanup, we use a variable binding for the return
 	// value so that it can be updated.
 
