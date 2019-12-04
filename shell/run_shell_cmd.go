@@ -48,7 +48,6 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, wor
 	cmd := exec.Command(command, args...)
 
 	// TODO: consider adding prefix from terragruntOptions logger to stdout and stderr
-	cmd.Stdin = os.Stdin
 	cmd.Env = toEnvVarsList(terragruntOptions.Env)
 
 	var errWriter = terragruntOptions.ErrWriter
@@ -66,16 +65,26 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, wor
 		cmd.Dir = workingDir
 	}
 	// Inspired by https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
-	cmd.Stderr = io.MultiWriter(errWriter, &stderrBuf)
+	cmdStderr := io.MultiWriter(errWriter, &stderrBuf)
+	var cmdStdout io.Writer
 	if !suppressStdout {
-		cmd.Stdout = io.MultiWriter(outWriter, &stdoutBuf)
+		cmdStdout = io.MultiWriter(outWriter, &stdoutBuf)
 	} else {
-		cmd.Stdout = io.MultiWriter(&stdoutBuf)
+		cmdStdout = io.MultiWriter(&stdoutBuf)
 	}
 
-	if err := cmd.Start(); err != nil {
-		// bad path, binary not executable, &c
-		return nil, errors.WithStackTrace(err)
+	if terragruntOptions.AllocatePseudoTTY {
+		if err := runCommandWithPTTY(terragruntOptions, cmd, cmdStdout); err != nil {
+			return nil, err
+		}
+	} else {
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = cmdStdout
+		cmd.Stderr = cmdStderr
+		if err := cmd.Start(); err != nil {
+			// bad path, binary not executable, &c
+			return nil, errors.WithStackTrace(err)
+		}
 	}
 
 	cmdChannel := make(chan error)

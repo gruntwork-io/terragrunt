@@ -107,6 +107,14 @@
   version = "v1.1.5"
 
 [[projects]]
+  digest = "1:e29335d5a78621ed7a539ed75e10785c3705bb67d916e48b03b1cdf9b727508d"
+  name = "github.com/creack/pty"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "3a6a957789163cacdfe0e291617a1c8e80612c11"
+  version = "v1.1.9"
+
+[[projects]]
   digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
@@ -624,6 +632,7 @@
     "github.com/aws/aws-sdk-go/service/dynamodb",
     "github.com/aws/aws-sdk-go/service/s3",
     "github.com/aws/aws-sdk-go/service/sts",
+    "github.com/creack/pty",
     "github.com/fatih/color",
     "github.com/go-errors/errors",
     "github.com/gruntwork-io/terratest/modules/files",

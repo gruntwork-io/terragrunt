@@ -2256,6 +2256,9 @@ arguments that start with the prefix `--terragrunt-`. The currently available op
   'yes'. Useful if you need to run Terragrunt in an automated setting (e.g. from a script). May also be specified with
   the [TF_INPUT](https://www.terraform.io/docs/configuration/environment-variables.html#tf_input) environment variable.
 
+* `--terragrunt-ptty`: Allocate a pseudo TTY when running `terraform`. This is for interactive terraform commands such
+  as `console`.
+
 * `--terragrunt-working-dir`: Set the directory where Terragrunt should execute the `terraform` command. Default is the
   current working directory. Note that for the `apply-all`, `destroy-all`, `output-all`, `validate-all`, and `plan-all`
   commands, this parameter has a different meaning: Terragrunt will apply or destroy all the Terraform modules in the
