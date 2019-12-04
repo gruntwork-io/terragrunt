@@ -52,10 +52,6 @@ type TerragruntOptions struct {
 	// The working directory in which to run Terraform
 	WorkingDir string
 
-	// Whether or not to allocate a Pseudo TTY for the terraform command. This is necessary for the readline echoing to
-	// work when working with interactive commands like console.
-	AllocatePseudoTTY bool
-
 	// The logger to use for all logging
 	Logger *log.Logger
 

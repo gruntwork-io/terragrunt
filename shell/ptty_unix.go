@@ -16,6 +16,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
+// runCommandWithPTTY will allocate a pseudo-tty to run the subcommand in. This is only necessary when running
+// interactive commands, so that terminal features like readline work through the subcommand when stdin, stdout, and
+// stderr is being shared.
+// NOTE: This is based on the quickstart example from https://github.com/creack/pty
 func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.Cmd, cmdStdout io.Writer, cmdStderr io.Writer) (err error) {
 	// NOTE: in order to ensure we can return errors that occur in cleanup, we use a variable binding for the return
 	// value so that it can be updated.

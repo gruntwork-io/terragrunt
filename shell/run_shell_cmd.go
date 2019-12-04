@@ -14,29 +14,41 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
 )
+
+var interactiveTerraformCommands = []string{
+	"console",
+}
 
 // Run the given Terraform command
 func RunTerraformCommand(terragruntOptions *options.TerragruntOptions, args ...string) error {
-	_, err := RunShellCommandWithOutput(terragruntOptions, "", false, terragruntOptions.TerraformPath, args...)
+	_, err := RunShellCommandWithOutput(terragruntOptions, "", false, isInteractiveTerraformCommand(args[0]), terragruntOptions.TerraformPath, args...)
 	return err
 }
 
 // Run the given shell command
 func RunShellCommand(terragruntOptions *options.TerragruntOptions, command string, args ...string) error {
-	_, err := RunShellCommandWithOutput(terragruntOptions, "", false, command, args...)
+	_, err := RunShellCommandWithOutput(terragruntOptions, "", false, false, command, args...)
 	return err
 }
 
 // Run the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
 // method's caller
 func RunTerraformCommandWithOutput(terragruntOptions *options.TerragruntOptions, args ...string) (*CmdOutput, error) {
-	return RunShellCommandWithOutput(terragruntOptions, "", false, terragruntOptions.TerraformPath, args...)
+	return RunShellCommandWithOutput(terragruntOptions, "", false, isInteractiveTerraformCommand(args[0]), terragruntOptions.TerraformPath, args...)
 }
 
 // Run the specified shell command with the specified arguments. Connect the command's stdin, stdout, and stderr to
 // the currently running app. The command can be executed in a custom working directory by using the parameter `workingDir`. Terragrunt working directory will be assumed if empty empty.
-func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, workingDir string, suppressStdout bool, command string, args ...string) (*CmdOutput, error) {
+func RunShellCommandWithOutput(
+	terragruntOptions *options.TerragruntOptions,
+	workingDir string,
+	suppressStdout bool,
+	allocatePseudoTty bool,
+	command string,
+	args ...string,
+) (*CmdOutput, error) {
 	terragruntOptions.Logger.Printf("Running command: %s %s", command, strings.Join(args, " "))
 	if suppressStdout {
 		terragruntOptions.Logger.Printf("Command output will be suppressed.")
@@ -73,7 +85,9 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, wor
 		cmdStdout = io.MultiWriter(&stdoutBuf)
 	}
 
-	if terragruntOptions.AllocatePseudoTTY {
+	// If we need to allocate a ptty for the command, route through the ptty routine. Otherwise, directly call the
+	// command.
+	if allocatePseudoTty {
 		if err := runCommandWithPTTY(terragruntOptions, cmd, cmdStdout, cmdStderr); err != nil {
 			return nil, err
 		}
@@ -87,7 +101,8 @@ func RunShellCommandWithOutput(terragruntOptions *options.TerragruntOptions, wor
 		}
 	}
 
-	cmdChannel := make(chan error)
+	// Make sure to forward signals to the subcommand.
+	cmdChannel := make(chan error) // used for closing the signals forwarder goroutine
 	signalChannel := NewSignalsForwarder(forwardSignals, cmd, terragruntOptions.Logger, cmdChannel)
 	defer signalChannel.Close()
 
@@ -108,6 +123,11 @@ func toEnvVarsList(envVarsAsMap map[string]string) []string {
 		envVarsAsList = append(envVarsAsList, fmt.Sprintf("%s=%s", key, value))
 	}
 	return envVarsAsList
+}
+
+// isInteractiveTerraformCommand returns true if the sub command of terraform we are running is interactive.
+func isInteractiveTerraformCommand(command string) bool {
+	return util.ListContainsElement(interactiveTerraformCommands, command)
 }
 
 // Return the exit code of a command. If the error does not implement errors.IErrorCode or is not an exec.ExitError

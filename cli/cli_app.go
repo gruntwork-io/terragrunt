@@ -26,7 +26,6 @@ const OPT_TERRAGRUNT_TFPATH = "terragrunt-tfpath"
 const OPT_TERRAGRUNT_NO_AUTO_INIT = "terragrunt-no-auto-init"
 const OPT_TERRAGRUNT_NO_AUTO_RETRY = "terragrunt-no-auto-retry"
 const OPT_NON_INTERACTIVE = "terragrunt-non-interactive"
-const OPT_ALLOCATE_PSEUDO_TTY = "terragrunt-ptty"
 const OPT_WORKING_DIR = "terragrunt-working-dir"
 const OPT_DOWNLOAD_DIR = "terragrunt-download-dir"
 const OPT_TERRAGRUNT_SOURCE = "terragrunt-source"
@@ -40,7 +39,7 @@ const OPT_TERRAGRUNT_EXCLUDE_DIR = "terragrunt-exclude-dir"
 const OPT_TERRAGRUNT_INCLUDE_DIR = "terragrunt-include-dir"
 const OPT_TERRAGRUNT_CHECK = "terragrunt-check"
 
-var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_ALLOCATE_PSEUDO_TTY, OPT_TERRAGRUNT_SOURCE_UPDATE, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ORDER, OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES, OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES, OPT_TERRAGRUNT_NO_AUTO_INIT, OPT_TERRAGRUNT_NO_AUTO_RETRY, OPT_TERRAGRUNT_CHECK}
+var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ORDER, OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES, OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES, OPT_TERRAGRUNT_NO_AUTO_INIT, OPT_TERRAGRUNT_NO_AUTO_RETRY, OPT_TERRAGRUNT_CHECK}
 var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_TFPATH, OPT_WORKING_DIR, OPT_DOWNLOAD_DIR, OPT_TERRAGRUNT_SOURCE, OPT_TERRAGRUNT_IAM_ROLE, OPT_TERRAGRUNT_EXCLUDE_DIR, OPT_TERRAGRUNT_INCLUDE_DIR}
 
 const CMD_PLAN_ALL = "plan-all"
@@ -131,7 +130,6 @@ GLOBAL OPTIONS:
    terragrunt-no-auto-init                      Don't automatically run 'terraform init' during other terragrunt commands. You must run 'terragrunt init' manually.
    terragrunt-no-auto-retry                     Don't automatically re-run command in case of transient errors.
    terragrunt-non-interactive                   Assume "yes" for all prompts.
-   terragrunt-ptty                              Allocate a pseudo TTY when running terraform. This is for interactive terraform commands such as "console".
    terragrunt-working-dir                       The path to the Terraform templates. Default is current directory.
    terragrunt-download-dir                      The path where to download Terraform code. Default is .terragrunt-cache in the working directory.
    terragrunt-source                            Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.
