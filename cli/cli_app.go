@@ -226,12 +226,12 @@ func runCommand(command string, terragruntOptions *options.TerragruntOptions) (f
 	if isMultiModuleCommand(command) {
 		return runMultiModuleCommand(command, terragruntOptions)
 	}
-	return runTerragrunt(terragruntOptions)
+	return RunTerragrunt(terragruntOptions)
 }
 
 // Downloads terraform source if necessary, then runs terraform with the given options and CLI args.
 // This will forward all the args and extra_arguments directly to Terraform.
-func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
+func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	if shouldPrintTerraformHelp(terragruntOptions) {
 		return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
 	}
