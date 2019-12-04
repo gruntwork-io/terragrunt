@@ -335,7 +335,7 @@ func getAWSAccountID(include *IncludeConfig, terragruntOptions *options.Terragru
 func getAWSCallerIdentityARN(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	identity, err := getAWSCallerID(include, terragruntOptions)
 	if err == nil {
-		return *identity.Account, nil
+		return *identity.Arn, nil
 	}
 	return "", err
 }
@@ -344,7 +344,7 @@ func getAWSCallerIdentityARN(include *IncludeConfig, terragruntOptions *options.
 func getAWSCallerIdentityUserID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	identity, err := getAWSCallerID(include, terragruntOptions)
 	if err == nil {
-		return *identity.Account, nil
+		return *identity.UserId, nil
 	}
 	return "", err
 }
