@@ -325,19 +325,28 @@ func getAWSCallerID(include *IncludeConfig, terragruntOptions *options.Terragrun
 // Return the AWS account id associated to the current set of credentials
 func getAWSAccountID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	identity, err := getAWSCallerID(include, terragruntOptions)
-	return *identity.Account, err
+	if err == nil {
+		return *identity.Account, nil
+	}
+	return "", err
 }
 
 // Return the ARN of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityARN(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	identity, err := getAWSCallerID(include, terragruntOptions)
-	return *identity.Arn, err
+	if err == nil {
+		return *identity.Arn, nil
+	}
+	return "", err
 }
 
 // Return the UserID of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityUserID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	identity, err := getAWSCallerID(include, terragruntOptions)
-	return *identity.UserId, err
+	if err == nil {
+		return *identity.UserId, nil
+	}
+	return "", err
 }
 
 // Custom error types
