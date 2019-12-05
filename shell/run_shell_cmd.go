@@ -17,13 +17,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-var interactiveTerraformCommands = []string{
+// Commands that implement a REPL need a pseudo TTY when run as a subprocess in order for the readline properties to be
+// preserved. This is a list of terraform commands that have this property, which is used to determine if terragrunt
+// should allocate a ptty when running that terraform command.
+var terraformCommandsThatNeedPty = []string{
 	"console",
 }
 
 // Run the given Terraform command
 func RunTerraformCommand(terragruntOptions *options.TerragruntOptions, args ...string) error {
-	_, err := RunShellCommandWithOutput(terragruntOptions, "", false, isInteractiveTerraformCommand(args[0]), terragruntOptions.TerraformPath, args...)
+	_, err := RunShellCommandWithOutput(terragruntOptions, "", false, isTerraformCommandThatNeedsPty(args[0]), terragruntOptions.TerraformPath, args...)
 	return err
 }
 
@@ -36,7 +39,7 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 // Run the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
 // method's caller
 func RunTerraformCommandWithOutput(terragruntOptions *options.TerragruntOptions, args ...string) (*CmdOutput, error) {
-	return RunShellCommandWithOutput(terragruntOptions, "", false, isInteractiveTerraformCommand(args[0]), terragruntOptions.TerraformPath, args...)
+	return RunShellCommandWithOutput(terragruntOptions, "", false, isTerraformCommandThatNeedsPty(args[0]), terragruntOptions.TerraformPath, args...)
 }
 
 // Run the specified shell command with the specified arguments. Connect the command's stdin, stdout, and stderr to
@@ -125,9 +128,9 @@ func toEnvVarsList(envVarsAsMap map[string]string) []string {
 	return envVarsAsList
 }
 
-// isInteractiveTerraformCommand returns true if the sub command of terraform we are running is interactive.
-func isInteractiveTerraformCommand(command string) bool {
-	return util.ListContainsElement(interactiveTerraformCommands, command)
+// isTerraformCommandThatNeedsPty returns true if the sub command of terraform we are running requires a pty.
+func isTerraformCommandThatNeedsPty(command string) bool {
+	return util.ListContainsElement(terraformCommandsThatNeedPty, command)
 }
 
 // Return the exit code of a command. If the error does not implement errors.IErrorCode or is not an exec.ExitError
