@@ -1,0 +1,135 @@
+//
+// Box component
+// =============================================================================
+.box-component {
+  position: relative;
+  z-index: 1;
+  max-width: 800px;
+  margin: auto;
+  .box {
+    max-width: 800px;
+    padding: 15px;
+    padding-top: 50px;
+    padding-bottom: 70px;
+    text-align: center;
+    h1, h2, h3, h4 {
+      text-align: center;
+      font-size: 44px;
+      line-height: 1.27;
+      margin-top: 10px;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      font-size: @font-size-lg;
+      margin-bottom: 30px;
+    }
+    .btn.btn-large {
+      min-width: 320px;
+    }
+  }
+}
+
+//
+// Links section
+// =============================================================================
+
+.links-section-cmp {
+  min-height: 200px;
+  width: 100%;
+  background: @gradient-primary;
+  text-align: center;
+  padding-top: 250px;
+  padding-bottom: 90px;
+  margin-top: -200px;
+  position: relative;
+
+  h2 {
+    font-weight: bold;
+    font-size: 34px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .links {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 680px;
+    margin: auto;
+    position: relative;
+    z-index: 1;
+    a {
+      margin-right: 25px;
+      &:last-child {
+        margin-right: 0px;
+      }
+    }
+  }
+
+  .links-shapes-left {
+    position: absolute;
+    left: 10vw;
+    top: -52px;
+    width: 30vw;
+    max-width: 330px;
+  }
+
+  .links-shapes-right {
+    position: absolute;
+    right: 0;
+    top: -40px;
+    width: 460px;
+    max-width: 460px;
+  }
+}
+
+.index-page {
+  .links-section-cmp {
+    padding-top: 300px;
+    padding-bottom: 90px;
+    margin-top: -250px;
+
+    .links-shapes-right {
+      position: absolute;
+      right: 0;
+      top: -40px;
+      width: 525px;
+    }
+  }
+}
+
+@media all and (max-width: 768px) {
+  .links-section-cmp {
+    padding-bottom: 60px;
+    .links {
+      flex-direction: column;
+      a {
+        margin: 10px auto;
+        &:last-child {
+          margin-right: auto;
+        }
+      }
+    }
+  }
+}
+
+//
+// Links and use cases
+// =============================================================================
+.use-cases-cmp {
+  z-index: 1;
+  position: relative;
+}
+
+//
+// Error (404) page
+// =============================================================================
+.subpage {
+  .subpage__main.subpage-404 {
+    min-height: 50vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}

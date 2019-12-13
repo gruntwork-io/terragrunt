@@ -1,0 +1,24 @@
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+<link href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,400,700" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css?family=Fira+Mono&display=swap" rel="stylesheet">
+<link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+<link rel="stylesheet" href="{{ '/assets/css/prism.css' | prepend: site.baseurl }}">
+
+<!--[if lt IE 9]>
+    <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
+    <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+<![endif]-->
+<title>{% if page.title %}{{ page.title }}{% else %}{{ site.name }}{% endif %}</title>
+<meta name="description" content="{% if page.excerpt %}{{ page.excerpt | strip_html | strip_newlines }}{% else %}{{ site.description }}{% endif %}">
+<link rel="canonical" href="{% include canonical-url.html %}">
+{% if page.noindex == true  %}
+<meta name="robots" CONTENT="noindex">
+{% else %}
+<META NAME="robots" CONTENT="index">
+{% endif %}
+{% include styles.html %}
+{% include favicon.html %}
+{% include share-meta.html %}

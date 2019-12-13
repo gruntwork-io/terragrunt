@@ -1,0 +1,38 @@
+---
+# We need this frontmatter for Jekyll to compile the less code
+# Github Pages do not support LESS and custom plugins. The core styles were
+# built and copy-paste from "_site/assets/css/app.css" to the "assets/css/app_less.css".
+#
+# If you want to add new rules or override those from LESS, you can do this with SASS and styles.scss.
+# If you want more deep changes in app_less.css:
+# 1. In Gemfile, switch from "github-pages" to "jekyll".
+# 2. Make changes in "assets/css/less/*" files
+# 3. Build project with "JEKYLL_ENV=production bundle exec jekyll build"
+# 4. Copy "_site/assets/css/app.css" to the "assets/css/app_less.css"
+# 5. Switch back from "jekyll" to "github-pages" in Gemfile
+---
+
+// Import variables
+@import "less/bootstrap/less/bootstrap";
+@import "less/user10/variables";
+@import "less/app-variable-overrides";
+@import "less/user10/utilities";
+@import "less/lity";
+
+// Import global styles
+@import "less/global";
+
+// Import subpage styles
+@import "less/subpage";
+
+// Import collection browser styles
+@import "less/collection-browser";
+
+// Import page-specific styles
+@import "less/pages/cookie-policy";
+@import "less/pages/home";
+@import "less/pages/support";
+@import "less/pages/library";
+
+// Import components
+@import "less/components";

@@ -1,0 +1,21 @@
+---
+custom_js:
+- prism
+- collection-browser_scroll
+- collection-browser_search
+- collection-browser_toc
+---
+
+<!doctype html>
+<html lang="en">
+    <head>
+        {% include head.html %}
+    </head>
+    <body{% if page.slug %} class="{{ page.slug }} collection-browser collection-browser-doc subpage" {% endif %}>
+        {% include header-min.html %}
+        {% include collection_browser/_doc-page.html content=content %}
+        {% include links-n-use-cases.html %}
+        {% include footer.html %}
+        {% include scripts.html %}
+    </body>
+</html>

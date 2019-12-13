@@ -1,0 +1,40 @@
+<div class='cb-search-cmp container-fluid' data-collection_name='{{collection_name}}'>
+  <div class="row">
+      <div class="searchrow center">
+          <div class="col-xs-6 col-sm-7 no-padding">
+              <div class="input-group">
+                  <div class="input-group-btn" >
+                      <div class="btn-group" role="group">
+                          <button type="button" class="btn btn-primary" >
+                              <span class="glyphicon glyphicon-search" aria-hidden="true"></span>
+                          </button>
+                      </div>
+                  </div>
+                  <input id="cb-search-box-{{collection_name}}" type="text" class="form-control guides-input-box" placeholder="Search...." data-collection_name='{{collection_name}}'>
+              </div>
+          </div>
+          <div class="col-xs-2 col-sm-1 no-padding" id="tags-filter">
+              <button class="btn tags-filter" type="button" data-toggle="collapse" data-target="#filter-options" aria-expanded="false" aria-controls="filter-options">
+                  Filter <i class="fa fa-caret-down" aria-hidden="true"></i>
+              </button>
+          </div>
+      </div>
+      <div class="row">
+          <div class="filter-options center">
+              <div class="col-sm-8 no-padding">
+                  <div class="collapse" id="filter-options" aria-expanded="true">
+                      <div class="card card-body">
+                          <p>Tags</p>
+                          <div class="tags">
+                            {% for tag in tags %}
+                              {% assign tag_name = tag %}
+                              <div class="checkbox"><input value="{{ tag }}" id="filter-{{ tag }}" type="checkbox"><label for="filter-{{ tag }}">{{ tag_name }}</label></div>
+                            {% endfor %}
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      </div>
+  </div>
+</div>

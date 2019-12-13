@@ -1,0 +1,10 @@
+<div id="toc" class="cb-doc-sidebar js-scroll-with-user" data-scroll-after-selector=".cb-doc-header" data-scroll-until-selector=".cb-doc-detail" data-nav-current-cat="{{ page.categories | downcase | slugify }}" data-nav-current-page="{{ page.title | slugify }}">
+  <div class="toc-toggle visible-xs visible-sm">
+    <button id="toc-toggle-open" class="toc-toggle__button"><span class="glyphicon glyphicon-menu-hamburger"></span></button>
+    <button id="toc-toggle-close" class="toc-toggle__button"><span class="glyphicon glyphicon-remove"></span></button>
+  </div>
+  <div class="nav-doc-collection-link">
+    <a href="{{site.baseurl}}/{{ page.collection }}"><span class="glyphicon glyphicon-share-alt icon-flipped"></span> {{ page.collection | replace: "-", " " }}</a>
+  </div>
+  {{ site.data['collections_nav'][page.collection] }}
+</div>
