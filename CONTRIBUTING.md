@@ -36,6 +36,9 @@ Development](http://tom.preston-werner.com/2010/08/23/readme-driven-development.
 stays up to date and allows you to think through the problem at a high level before you get lost in the weeds of 
 coding.
 
+The documentation is built with Jekyll and hosted on the Github Pages from `docs` folder on `master` branch. Check out
+[Terragrunt website](docs/README.md) to learn more about working with the documentation.
+
 ## Update the tests
 
 We also recommend updating the automated tests *before* updating any code (see [Test Driven 
