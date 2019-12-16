@@ -1,4 +1,4 @@
-name: use cases na children
+name: use cases no children
 href: /use-cases/
 children:
   - name: Keep your Terraform code DRY

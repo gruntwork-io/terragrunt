@@ -117,7 +117,7 @@ If you are only given access to an externally created Bucket you will need at le
                     "s3:ListBucket"
                 ],
                 "Resource": [
-                    "arn:aws:s3:::<BucketName>/*"
+                    "arn:aws:s3:::<BucketName>/\*"
                 ],
                 "Effect": "Allow"
             }

@@ -146,10 +146,10 @@ The resulting `key` will be `prod/mysql/terraform.tfstate` for the prod `mysql` 
 
     ├── sources
     |  ├── mysql
-    |  |  └── *.tf
+    |  |  └── \*.tf
     |  └── secrets
     |     └── mysql
-    |         └── *.tf
+    |         └── \*.tf
     └── terragrunt
       └── common.tfvars
       ├── mysql

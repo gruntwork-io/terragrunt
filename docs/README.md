@@ -12,41 +12,32 @@ Clone or fork Terragrunt [repository](https://github.com/gruntwork-io/terragrunt
 
 ## Run
 
-1. Go to the `docs` folder:
+1. Install Ruby:
+https://www.ruby-lang.org/en/documentation/installation/
+
+2. Install `bundler`:
+```
+$ gem install bundler
+```
+
+3. Go to the `docs` folder:
 ```
 $ cd docs
 ```
 
-2. Install gems:
+4. Install gems:
 ```
 $ bundle install
 ```
 
-3. Run project:
+5. Run project:
 ```
 $ bundle exec jekyll serve
 ```
 
 # Deployment
 
-1. Go to the `docs` folder:
-```
-$ cd docs
-```
-
-2. Build static website
-```
-$ JEKYLL_ENV=production bundle exec jekyll build
-```
-
-3. Commit changes to the repository
-```
-$ git add .
-$ git commit -m "New version"
-$ git push origin <branch>
-```
-
-4. Create Pull Request to the master branch and ask for review.
+GitHub Pages automatically rebuilds the website from the `/docs` folder on the `master` branch.
 
 # Working with the documentation
 
