@@ -1,0 +1,19 @@
+---
+custom_js:
+- collection-browser_scroll
+- collection-browser_search
+- collection-browser_toc
+---
+
+<!doctype html>
+<html lang="en">
+    <head>
+        {% include head.html %}
+    </head>
+    <body{% if page.slug %} class="{{ page.slug }} collection-browser subpage" {% endif %}>
+        {% include header.html %}
+        {{ content }}
+        {% include footer.html %}
+        {% include scripts.html %}
+    </body>
+</html>

@@ -1,0 +1,17 @@
+name: use cases no children
+href: /use-cases/
+children:
+  - name: Keep your Terraform code DRY
+    href: /use-cases/keep-your-terraform-code-dry/
+
+  - name: Keep your remote state configuration DRY
+    href: /use-cases/keep-your-remote-state-configuration-dry/
+
+  - name: Keep your CLI flags DRY
+    href: /use-cases/keep-your-cli-flags-dry/
+
+  - name: Execute Terraform commands on multiple modules at once
+    href: /use-cases/execute-terraform-commands-on-multiple-modules-at-once/
+
+  - name: Work with multiple AWS accounts
+    href: /use-cases/work-with-multiple-aws-accounts/

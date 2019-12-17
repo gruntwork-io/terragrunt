@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    {% include head.html %}
+  </head>
+  <body{% if page.slug %} class="{{ page.slug }} subpage" {% endif %}>
+    {% include header.html %}
+    <div class="main subpage__main {{ page.classes }}">
+      {{ content }}
+    </div>
+    {% include links-n-built-by.html %}
+    {% include footer.html %}
+    {% include scripts.html %}
+  </body>
+</html>

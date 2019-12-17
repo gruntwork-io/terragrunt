@@ -1,0 +1,21 @@
+<div class="cb-doc-detail">
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-xs-12">
+        {% include collection_browser/_doc-header.html %}
+      </div>
+    </div>
+  </div>
+  <div class="container-cb-lg">
+    <div class="row equal">
+      {% assign data_scroll_after_selector = '.cb-doc-header' %}
+      {% assign data_scroll_until_selector = '.cb-doc-detail' %}
+      {% include collection_browser/_sidebar.html data_scroll_until_selector=data_scroll_until_selector data_scroll_after_selector=data_scroll_after_selector %}
+      <div class="col-xs-12 col-md-7 col-lg-9 cb-section-white">
+        <div class="cb-doc-content js-scroll-spy" data-scroll-spy-nav-selector="#toc">
+            {{ content }}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
