@@ -1,6 +1,6 @@
 # Terragrunt website
 
-This is the code for the [Terragrunt website](https://terragrunt.io).
+This is the code for the [Terragrunt website](https://terragrunt.gruntwork.io).
 
 Terragrunt website is built with Jekyll and published on Github Pages from `docs` folder on `master` branch.
 
@@ -179,7 +179,7 @@ children:
 
 ## Documentation and Use Cases collections
 
-The [*documentation*](https://terragrunt.io/documentation) and [*use cases*](https://terragrunt.io/use-cases) are implemented as Jekyll collections, and both are built with [*Collection Browser*](#collection-browser).
+The [*documentation*](https://terragrunt.gruntwork.io/documentation) and [*use cases*](https://terragrunt.gruntwork.io/use-cases) are implemented as Jekyll collections, and both are built with [*Collection Browser*](#collection-browser).
 
 ### Documentation collection
 
