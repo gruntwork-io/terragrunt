@@ -1,6 +1,7 @@
 package remote
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/dynamodb"
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -356,6 +358,10 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 		return err
 	}
 
+	if err := EnableRootAccesstoS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
+		return err
+	}
+
 	if err := EnablePublicAccessBlockingForS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
 		return err
 	}
@@ -456,6 +462,62 @@ func CreateS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOpti
 func isBucketAlreadyOwnedByYourError(err error) bool {
 	awsErr, isAwsErr := errors.Unwrap(err).(awserr.Error)
 	return isAwsErr && (awsErr.Code() == "BucketAlreadyOwnedByYou" || awsErr.Code() == "OperationAborted")
+}
+
+// Get the AWS account ID of the current session configuration
+func getAWSAccountID(config *aws_helper.AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	session, err := aws_helper.CreateAwsSession(config, terragruntOptions)
+	if err != nil {
+		return "", err
+	}
+
+	identity, err := sts.New(session).GetCallerIdentity(nil)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	return *identity.Account, nil
+}
+
+// Create the S3 bucket specified in the given config
+func EnableRootAccesstoS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	accountID, err := getAWSAccountID(config.GetAwsSessionConfig(), terragruntOptions)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	rootS3Policy := map[string]interface{}{
+		"Version": "2012-10-17",
+		"Statement": []map[string]interface{}{
+			{
+				"Sid":      "RootAccess",
+				"Effect":   "Allow",
+				"Action":   "s3:*",
+				"Resource": "arn:aws:s3:::" + config.Bucket,
+				"Principal": map[string][]string{
+					"AWS": []string{
+						"arn:aws:iam::" + accountID + ":root",
+					},
+				},
+			},
+		},
+	}
+
+	policy, err := json.Marshal(rootS3Policy)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	_, err = s3Client.PutBucketPolicy(&s3.PutBucketPolicyInput{
+		Bucket: aws.String(config.Bucket),
+		Policy: aws.String(string(policy)),
+	})
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	terragruntOptions.Logger.Printf("Enabled root access to bucket %s", config.Bucket)
+	return nil
 }
 
 // Enable versioning for the S3 bucket specified in the given config
