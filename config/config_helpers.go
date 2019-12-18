@@ -4,14 +4,12 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/hashicorp/hcl2/hcl"
 	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
+	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -302,48 +300,29 @@ func pathRelativeFromInclude(include *IncludeConfig, terragruntOptions *options.
 	return util.GetPathRelativeTo(includePath, currentPath)
 }
 
-// Return the AWS caller identity associated with the current set of credentials
-func getAWSCallerID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (sts.GetCallerIdentityOutput, error) {
-	sess, err := session.NewSession()
-	if err != nil {
-		return sts.GetCallerIdentityOutput{}, errors.WithStackTrace(err)
-	}
-
-	if terragruntOptions.IamRole != "" {
-		sess.Config.Credentials = stscreds.NewCredentials(sess, terragruntOptions.IamRole)
-	}
-
-	identity, err := sts.New(sess).GetCallerIdentity(nil)
-	if err != nil {
-		return sts.GetCallerIdentityOutput{}, errors.WithStackTrace(err)
-	}
-
-	return *identity, nil
-}
-
 // Return the AWS account id associated to the current set of credentials
 func getAWSAccountID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	identity, err := getAWSCallerID(include, terragruntOptions)
+	accountID, err := aws_helper.GetAWSAccountID(terragruntOptions)
 	if err == nil {
-		return *identity.Account, nil
+		return accountID, nil
 	}
 	return "", err
 }
 
 // Return the ARN of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityARN(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	identity, err := getAWSCallerID(include, terragruntOptions)
+	identityARN, err := aws_helper.GetAWSIdentityArn(terragruntOptions)
 	if err == nil {
-		return *identity.Arn, nil
+		return identityARN, nil
 	}
 	return "", err
 }
 
 // Return the UserID of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityUserID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	identity, err := getAWSCallerID(include, terragruntOptions)
+	userID, err := aws_helper.GetAWSUserID(terragruntOptions)
 	if err == nil {
-		return *identity.UserId, nil
+		return userID, nil
 	}
 	return "", err
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/dynamodb"
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -468,24 +467,11 @@ func isBucketAlreadyOwnedByYourError(err error) bool {
 	return isAwsErr && (awsErr.Code() == "BucketAlreadyOwnedByYou" || awsErr.Code() == "OperationAborted")
 }
 
-// Get the AWS account ID of the current session configuration
-func getAWSAccountID(config *aws_helper.AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	session, err := aws_helper.CreateAwsSession(config, terragruntOptions)
-	if err != nil {
-		return "", err
-	}
-
-	identity, err := sts.New(session).GetCallerIdentity(nil)
-	if err != nil {
-		return "", errors.WithStackTrace(err)
-	}
-
-	return *identity.Account, nil
-}
-
 // Create the S3 bucket specified in the given config
 func EnableRootAccesstoS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	accountID, err := getAWSAccountID(config.GetAwsSessionConfig(), terragruntOptions)
+	terragruntOptions.Logger.Printf("Enabling root access to S3 bucket %s", config.Bucket)
+
+	accountID, err := aws_helper.GetAWSAccountID(terragruntOptions)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
