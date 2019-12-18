@@ -12,7 +12,7 @@ working with multiple Terraform modules, and managing remote state.
 Please see the following for more info, including install instructions and complete documentation:
 
 * [Terragrunt Website](https://terragrunt.gruntwork.io)
-* [Getting started with Terragrunt](http://terragrunt.gruntwork.io/docs/getting-started/quick-start/)
+* [Getting started with Terragrunt](https://terragrunt.gruntwork.io/docs/getting-started/quick-start/)
 * [Terragrunt Documentation](https://terragrunt.gruntwork.io/docs)
 * [Contributing to Terragrunt](http://terragrunt.gruntwork.io/docs/community/contributing)
 
