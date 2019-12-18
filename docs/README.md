@@ -1,6 +1,6 @@
 # Terragrunt website
 
-This is the code for the [Terragrunt website](https://terragrunt.io).
+This is the code for the [Terragrunt website](https://terragrunt.gruntwork.io).
 
 Terragrunt website is built with Jekyll and published on Github Pages from `docs` folder on `master` branch.
 
@@ -12,32 +12,37 @@ Clone or fork Terragrunt [repository](https://github.com/gruntwork-io/terragrunt
 
 ## Run
 
-1. Install Ruby:
-https://www.ruby-lang.org/en/documentation/installation/
+1. Install [Ruby](https://www.ruby-lang.org/en/documentation/installation/). Version 2.4 or above is recommended. 
+   Consider using [rbenv](https://github.com/rbenv/rbenv) to manage Ruby versions.
 
 2. Install `bundler`:
-```
-$ gem install bundler
-```
+
+    ```bash
+    gem install bundler
+    ```
 
 3. Go to the `docs` folder:
-```
-$ cd docs
-```
+
+    ```bash
+    cd docs
+    ```
 
 4. Install gems:
-```
-$ bundle install
-```
 
-5. Run project:
-```
-$ bundle exec jekyll serve
-```
+    ```bash
+    bundle install
+    ```
+
+5. Run the docs site locally:
+
+    ```bash
+    bundle exec jekyll serve
+    ```
 
 # Deployment
 
-GitHub Pages automatically rebuilds the website from the `/docs` folder on the `master` branch.
+GitHub Pages automatically rebuilds the website from the `/docs` folder whenever you commit and push to the `master` 
+branch.
 
 # Working with the documentation
 
@@ -46,7 +51,7 @@ Development](http://tom.preston-werner.com/2010/08/23/readme-driven-development.
 stays up to date and allows you to think through the problem at a high level before you get lost in the weeds of
 coding.
 
-The Terragrunt website contains two collections: *Documentation* and *Use cases*. They are stored respectively in `_documentation` and `_use-cases` directories.
+The Terragrunt website contains two collections: *Documentation* and *Use cases*. They are stored respectively in `_docs` and `_use-cases` directories.
 
 When you work with the documentation, it's good to preview the changes. To do that, run project as it is described in [Run section](#run).
 
@@ -59,13 +64,13 @@ When you work with the documentation, it's good to preview the changes. To do th
 
 ## A) Change content on the existing page
 
-1. Find page in `_documentation` or `_use-cases` by file name (it's the same as page's title).
+1. Find page in `_docs` or `_use-cases` by file name (it's the same as page's title).
 2. Edit content.
 3. If you changed, added or removed the file title or any heading, [update navigation](#updating-navigation).
 
 ## B) Add a new page
 
-1. Create a new file in `_documentation` or `_use-cases`. The file's name and title have to be the same.
+1. Create a new file in `_docs` or `_use-cases`. The file's name and title have to be the same.
 2. At the beginning of the file, add:
 
 ```
@@ -78,7 +83,7 @@ excerpt: Learn how to start with Terragrunt.    # <--- Change page description
 tags: ["Quick Start", "DRY", "backend", "CLI"]  # <--- Set tags
 order: 100                                      # <--- It sorts the docs on the list
 nav_title: Documentation
-nav_title_link: /documentation/
+nav_title_link: /docs/
 ---
 
 ```
@@ -97,19 +102,19 @@ nav_title_link: /documentation/
 
 ## C) Remove or rename page
 
-1. Find page in `_documentation` or `_use-cases` by file name (it's the same as page's title).
+1. Find page in `_docs` or `_use-cases` by file name (it's the same as page's title).
 2. Delete page or rename.
 3. Remove related item from the navigation, or update its name and href (link to the page). See more: [Update navigation](#updating-navigation).
 
 ## D) Add custom redirection
 
-To add link to any page, including subpages outside of any collection, you can create a new file in specific collection (`_documentation` or `_use-cases`), and set following content in the file:
+To add link to any page, including subpages outside of any collection, you can create a new file in specific collection (`_docs` or `_use-cases`), and set following content in the file:
 
 ```
 ---
 title: Support
 categories: Community
-excerpt: Need a help?
+excerpt: Need help?
 tags: ["support"]
 redirect_to:
   - /support
@@ -155,13 +160,13 @@ children:
 | |-- navigation-use-cases.yml              # partial included in navigation.yml
 | |-- navigation-use-cases-no-children.yml  # partial included in navigation.yml
 |
-|-- _documentation            # docs *collection*
+|-- _docs                     # docs *collection*
 |-- _includes                 # partials
 |-- _layouts                  # layouts
 |-- _pages                    # static pages
 | |-- 404                     # "404: Not found" page
 | |-- cookie-policy           # "Cookie Policy" page
-| |-- documentation           # index page for *_documentation* collection
+| |-- docs                    # index page for *_docs* collection
 | |-- index                   # home page
 | |-- support                 # "Support" page
 | |-- use-cases               # index page for *_use-cases* collection
@@ -179,13 +184,13 @@ children:
 
 ## Documentation and Use Cases collections
 
-The [*documentation*](https://terragrunt.io/documentation) and [*use cases*](https://terragrunt.io/use-cases) are implemented as Jekyll collections, and both are built with [*Collection Browser*](#collection-browser).
+The [*documentation*](https://terragrunt.gruntwork.io/docs) and [*use cases*](https://terragrunt.gruntwork.io/use-cases) are implemented as Jekyll collections, and both are built with [*Collection Browser*](#collection-browser).
 
 ### Documentation collection
 
-The index page of the *Documentation* collection is in: `_pages/documentation/index.html` and is available under `/documentation` URL. It uses *Collection browser* from `_includes/collection_browser/browser` which makes the list of docs, adds search input with tag filter and puts navigation sidebar containing collection's categories.
+The index page of the *Documentation* collection is in: `_pages/docs/index.html` and is available under `/docs` URL. It uses *Collection browser* from `_includes/collection_browser/browser` which makes the list of docs, adds search input with tag filter and puts navigation sidebar containing collection's categories.
 
-Collection is stored in `_documentation` folder.
+Collection is stored in `_docs` folder.
 
 ### Use Cases collection
 
@@ -197,7 +202,7 @@ Collection is stored in `_use-cases` folder.
 
 The *Documentation* and *Use cases* collection uses *collection browser* which requires to setup proper meta tags in the doc file.
 
-1. Create a new file in collection folder. *Documentation* add to the `_documentation`, and *Use cases* add to `_use-cases`.
+1. Create a new file in collection folder. *Documentation* add to the `_docs`, and *Use cases* add to `_use-cases`.
 ```
 ---
 layout: collection-browser-doc
@@ -209,7 +214,7 @@ excerpt: >- # CHANGE THIS
 tags: ["CLI"] # CHANGE THIS
 order: 102 # CHANGE THIS
 nav_title: Documentation # OPTIONAL
-nav_title_link: /documentation/ # OPTIONAL
+nav_title_link: /docs/ # OPTIONAL
 ---
 ```
 
@@ -249,7 +254,7 @@ excerpt: Learn how to integrate Terragrunt with Terraform.
 permalink: /use-cases/
 slug: use-cases
 nav_title: Documentation # OPTIONAL
-nav_title_link: /documentation/ # OPTIONAL
+nav_title_link: /docs/ # OPTIONAL
 ---
 
 {% include collection_browser/browser.html collection=site.use-cases collection_name='use-cases' %}

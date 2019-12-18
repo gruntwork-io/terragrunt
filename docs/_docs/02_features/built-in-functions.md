@@ -7,7 +7,7 @@ excerpt: Terragrunt allows you to use built-in functions anywhere in `terragrunt
 tags: ["functions"]
 order: 207
 nav_title: Documentation
-nav_title_link: /documentation/
+nav_title_link: /docs/
 ---
 ## Built-in Functions
 

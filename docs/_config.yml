@@ -26,7 +26,7 @@ description: >- # this means to ignore newlines until "baseurl:"
   Terragrunt is a thin wrapper for Terraform that provides extra tools for
   keeping your Terraform configurations DRY, working with multiple Terraform
   modules, and managing remote state.
-baseurl: "/" # the subpath of your site, e.g. /blog
+baseurl: "" # the subpath of your site, e.g. /blog
 full_company_name: "Gruntwork, Inc"
 thumbnail_path: "/assets/img/terragrunt-thumbnail.png"
 repository: "github.com/gruntwork-io/terragrunt"
@@ -58,7 +58,7 @@ include: ['_pages']
 permalink: '/blog/:title'
 
 collections:
-  documentation:
+  docs:
     output: true
     sort_by: order
     permalink: /:collection/:categories/:title/

@@ -1,7 +1,7 @@
 ---
 title: Support
 category: Community
-excerpt: Need a help?
+excerpt: Need help?
 tags: ["support"]
 redirect_to:
   - /support/
