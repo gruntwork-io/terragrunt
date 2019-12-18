@@ -184,10 +184,14 @@ children:
             - name: Releasing new versions
               href: /docs/community/contributing/#releasing-new-versions
       - name: Support
-        href: /support
+        href: /docs/community/support/
         children:
-          - name: Support
-            href: /support
+          - name: StackOverflow
+            href: /docs/community/support/#stack-overflow
+          - name: Github Issues
+            href: /docs/community/support/#github-issues
+          - name: Commercial Support
+            href: /docs/community/support/#commercial-support
       - name: License
         href: /docs/community/license/
         children:
