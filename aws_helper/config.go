@@ -2,6 +2,8 @@ package aws_helper
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
@@ -9,7 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"time"
 )
 
 // A representation of the configuration options for an AWS Session
@@ -101,4 +102,53 @@ func AssumeIamRole(iamRoleArn string) (*sts.Credentials, error) {
 	}
 
 	return output.Credentials, nil
+}
+
+// Return the AWS caller identity associated with the current set of credentials
+func GetAWSCallerIdentity(terragruntOptions *options.TerragruntOptions) (sts.GetCallerIdentityOutput, error) {
+	sess, err := session.NewSession()
+	if err != nil {
+		return sts.GetCallerIdentityOutput{}, errors.WithStackTrace(err)
+	}
+
+	if terragruntOptions.IamRole != "" {
+		sess.Config.Credentials = stscreds.NewCredentials(sess, terragruntOptions.IamRole)
+	}
+
+	identity, err := sts.New(sess).GetCallerIdentity(nil)
+	if err != nil {
+		return sts.GetCallerIdentityOutput{}, errors.WithStackTrace(err)
+	}
+
+	return *identity, nil
+}
+
+// Get the AWS account ID of the current session configuration
+func GetAWSAccountID(terragruntOptions *options.TerragruntOptions) (string, error) {
+	identity, err := GetAWSCallerIdentity(terragruntOptions)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	return *identity.Account, nil
+}
+
+// Get the ARN of the AWS identity associated with the current set of credentials
+func GetAWSIdentityArn(terragruntOptions *options.TerragruntOptions) (string, error) {
+	identity, err := GetAWSCallerIdentity(terragruntOptions)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	return *identity.Arn, nil
+}
+
+// Get the AWS user ID of the current session configuration
+func GetAWSUserID(terragruntOptions *options.TerragruntOptions) (string, error) {
+	identity, err := GetAWSCallerIdentity(terragruntOptions)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	return *identity.UserId, nil
 }

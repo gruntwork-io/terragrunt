@@ -7,7 +7,7 @@
 
 Terragrunt is a thin wrapper for [Terraform](https://www.terraform.io/) that provides extra tools for keeping your
 Terraform configurations [DRY](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself),
-working with multiple Terraform modules, and managing remote state. 
+working with multiple Terraform modules, and managing remote state.
 
 Please see the following for more info, including install instructions and complete documentation:
 
@@ -22,5 +22,3 @@ Please see the following for more info, including install instructions and compl
 ## License
 
 This code is released under the MIT License. See [LICENSE.txt](LICENSE.txt).
-
-
