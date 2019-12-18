@@ -7,7 +7,7 @@ excerpt: Learn how to use locals.
 tags: ["locals"]
 order: 206
 nav_title: Documentation
-nav_title_link: /documentation/
+nav_title_link: /docs/
 ---
 
 ## Locals

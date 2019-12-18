@@ -6,7 +6,7 @@ excerpt: Learn how to start with Terragrunt.
 tags: ["Quick Start", "DRY", "backend", "CLI"]
 order: 100
 nav_title: Documentation
-nav_title_link: /documentation/
+nav_title_link: /docs/
 ---
 
 ## Introduction
@@ -17,7 +17,7 @@ To use it, you:
 
 1.  [Install Terraform](https://learn.hashicorp.com/terraform/getting-started/install).
 
-2.  [Install Terragrunt]({{site.baseurl}}/documentation/getting-started/install/).
+2.  [Install Terragrunt]({{site.baseurl}}/docs/getting-started/install/).
 
 3.  Put your Terragrunt configuration in a `terragrunt.hcl` file. You’ll see several example configurations shortly.
 
@@ -145,7 +145,7 @@ include {
 
 The `find_in_parent_folders()` helper will automatically search up the directory tree to find the root `terragrunt.hcl` and inherit the `remote_state` configuration from it.
 
-Now, [install Terragrunt]({{site.baseurl}}/documentation/getting-started/install), and run all the Terraform commands you’re used to, but with `terragrunt` as the command name rather than `terraform` (e.g., `terragrunt apply` instead of `terraform apply`). To deploy the database module, you would run:
+Now, [install Terragrunt]({{site.baseurl}}/docs/getting-started/install), and run all the Terraform commands you’re used to, but with `terragrunt` as the command name rather than `terraform` (e.g., `terragrunt apply` instead of `terraform apply`). To deploy the database module, you would run:
 
 ``` bash
 $ cd stage/mysql
@@ -401,7 +401,7 @@ inputs = {
 
 If it works well in the `qa` environment, you could promote the exact same code to the `stage` environment by updating its `terragrunt.hcl` file to run `v0.0.2`. And finally, if that code works well in `stage`, you could again promote the exact same code to `prod` by updating that `terragrunt.hcl` file to use `v0.0.2` as well.
 
-![Using Terragrunt to promote immutable Terraform code across environments]({{site.baseurl}}/assets/img/collections/documentation/promote-immutable-Terraform-code-across-envs.png)
+![Using Terragrunt to promote immutable Terraform code across environments]({{site.baseurl}}/assets/img/collections/docs/promote-immutable-Terraform-code-across-envs.png)
 
 If at any point you hit a problem, it will only affect the one environment, and you can roll back by deploying a previous version number. That’s immutable infrastructure at work\!
 
@@ -411,6 +411,6 @@ Now that you’ve seen the basics of Terragrunt, here is some further reading to
 
 1.  [Use cases]({{site.baseurl}}/use-cases/): Learn about the core use cases Terragrunt supports.
 
-2.  [Documentation]({{site.baseurl}}/documentation/): Check out the detailed Terragrunt documentation.
+2.  [Documentation]({{site.baseurl}}/docs/): Check out the detailed Terragrunt documentation.
 
 3.  [*Terraform: Up & Running*](https://www.terraformupandrunning.com/): This book is the fastest way to get up and running with Terraform\! Terragrunt is a direct implementation of many of the ideas from this book.

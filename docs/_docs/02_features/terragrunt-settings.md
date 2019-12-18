@@ -7,7 +7,7 @@ excerpt: Learn more about Terragrunt settings.
 tags: ["AWS", "Settings"]
 order: 214
 nav_title: Documentation
-nav_title_link: /documentation/
+nav_title_link: /docs/
 ---
 ## prevent\_destroy
 

@@ -7,7 +7,7 @@ excerpt: Auto-Init is a feature of Terragrunt that makes it so that terragrunt i
 tags: ["CLI"]
 order: 209
 nav_title: Documentation
-nav_title_link: /documentation/
+nav_title_link: /docs/
 ---
 ## Auto-Init
 

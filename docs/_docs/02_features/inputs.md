@@ -7,7 +7,7 @@ excerpt: Learn how to use inputs.
 tags: ["inputs"]
 order: 205
 nav_title: Documentation
-nav_title_link: /documentation/
+nav_title_link: /docs/
 ---
 ## Inputs
 

@@ -7,7 +7,7 @@ excerpt: >-
 tags: ["license"]
 order: 302
 nav_title: Documentation
-nav_title_link: /documentation/
+nav_title_link: /docs/
 ---
 
 ## License

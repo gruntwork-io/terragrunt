@@ -7,7 +7,7 @@ excerpt: Learn how the Terragrunt works with AWS Credentials and AWS IAM policie
 tags: ["AWS"]
 order: 213
 nav_title: Documentation
-nav_title_link: /documentation/
+nav_title_link: /docs/
 ---
 
 ## AWS credentials
