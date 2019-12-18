@@ -1,7 +1,7 @@
 ---
 title: Use cases
 category: getting-started
-excerpt: Use cases
+excerpt: Learn about the key features of Terragrunt that make your Terraform experience better
 tags: ["Use cases"]
 redirect_to:
   - /use-cases

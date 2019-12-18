@@ -3,7 +3,7 @@ layout: subpage
 permalink: /support/
 slug: support-page
 title: Support
-subtitle: Need a help?
+subtitle: Need help?
 classes: text-large
 ---
 

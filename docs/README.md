@@ -114,7 +114,7 @@ To add link to any page, including subpages outside of any collection, you can c
 ---
 title: Support
 categories: Community
-excerpt: Need a help?
+excerpt: Need help?
 tags: ["support"]
 redirect_to:
   - /support
