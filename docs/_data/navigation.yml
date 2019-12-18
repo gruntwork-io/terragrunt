@@ -151,6 +151,21 @@ children:
         children:
           - name: Contributing
             href: /docs/community/contributing/#contributing
+          - name: Contribution Guidelines
+            href: /docs/community/contributing/#contribution-guidelines
+            children:
+            - name: File a GitHub issue or write an RFC
+              href: /docs/community/contributing/#file-a-github-issue-or-write-an-rfc
+            - name: Update the documentation
+              href: /docs/community/contributing/#update-the-documentation
+            - name: Update the tests
+              href: /docs/community/contributing/#update-the-tests
+            - name: Update the code
+              href: /docs/community/contributing/#update-the-code
+            - name: Create a pull request
+              href: /docs/community/contributing/#create-a-pull-request
+            - name: Merge and release
+              href: /docs/community/contributing/#merge-and-release
           - name: Developing Terragrunt
             href: /docs/community/contributing/#developing-terragrunt
             children:
