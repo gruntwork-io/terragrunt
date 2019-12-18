@@ -7,7 +7,7 @@ excerpt: Learn more about caching in Terragrunt.
 tags: ["caching"]
 order: 211
 nav_title: Documentation
-nav_title_link: /documentation/
+nav_title_link: /docs/
 ---
 
 ## Clearing the Terragrunt cache

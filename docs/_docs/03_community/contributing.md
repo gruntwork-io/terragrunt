@@ -7,7 +7,7 @@ excerpt: >-
 tags: ["contributing", "community"]
 order: 300
 nav_title: Documentation
-nav_title_link: /documentation/
+nav_title_link: /docs/
 ---
 
 ## Contributing
@@ -32,7 +32,7 @@ go run main.go plan
 
 **Note**: The tests in the `dynamodb` folder for Terragrunt run against a real AWS account and will add and remove real data from DynamoDB. DO NOT hit `CTRL+C` while the tests are running, as this will prevent them from cleaning up temporary tables and data in DynamoDB. We are not responsible for any charges you may incur.
 
-Before running the tests, you must configure your [AWS credentials]({{site.baseurl}}/documentation/features/aws-auth/#aws-credentials) and [AWS IAM policies]({{site.baseurl}}/documentation/features/aws-auth/#aws-iam-policies).
+Before running the tests, you must configure your [AWS credentials]({{site.baseurl}}/docs/features/aws-auth/#aws-credentials) and [AWS IAM policies]({{site.baseurl}}/docs/features/aws-auth/#aws-iam-policies).
 
 To run all the tests:
 

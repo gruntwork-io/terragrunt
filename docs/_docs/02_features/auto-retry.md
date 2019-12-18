@@ -7,7 +7,7 @@ excerpt: Auto-Retry is a feature of terragrunt that will automatically address s
 tags: ["CLI"]
 order: 210
 nav_title: Documentation
-nav_title_link: /documentation/
+nav_title_link: /docs/
 ---
 
 ## Auto-Retry

@@ -6,7 +6,7 @@ excerpt: Learn how to install Terragrunt on Windows, Mac OS, Linux and manually 
 tags: ["install"]
 order: 101
 nav_title: Documentation
-nav_title_link: /documentation/
+nav_title_link: /docs/
 ---
 
 ## Install Terragrunt

@@ -7,5 +7,5 @@ redirect_to:
   - /use-cases
 order: 102
 nav_title: Documentation
-nav_title_link: /documentation/
+nav_title_link: /docs/
 ---

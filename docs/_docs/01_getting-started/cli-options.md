@@ -7,20 +7,20 @@ excerpt: >-
 tags: ["CLI"]
 order: 103
 nav_title: Documentation
-nav_title_link: /documentation/
+nav_title_link: /docs/
 ---
 
 ## CLI Options
 
 Terragrunt forwards all arguments and options to Terraform. The only exceptions are `--version`, `terragrunt-info` and arguments that start with the prefix `--terragrunt-`. The currently available options are:
 
-  - `--terragrunt-config`: A custom path to the `terragrunt.hcl` file. May also be specified via the `TERRAGRUNT_CONFIG` environment variable. The default path is `terragrunt.hcl` in the current directory (see [Configuration]({{site.baseurl}}/documentation/getting-started/configuration/#configuration) for a slightly more nuanced explanation). This argument is not used with the `apply-all`, `destroy-all`, `output-all`, `validate-all`, and `plan-all` commands.
+  - `--terragrunt-config`: A custom path to the `terragrunt.hcl` file. May also be specified via the `TERRAGRUNT_CONFIG` environment variable. The default path is `terragrunt.hcl` in the current directory (see [Configuration]({{site.baseurl}}/docs/getting-started/configuration/#configuration) for a slightly more nuanced explanation). This argument is not used with the `apply-all`, `destroy-all`, `output-all`, `validate-all`, and `plan-all` commands.
 
   - `--terragrunt-tfpath`: A custom path to the Terraform binary. May also be specified via the `TERRAGRUNT_TFPATH` environment variable. The default is `terraform` in a directory on your PATH.
 
-  - `--terragrunt-no-auto-init`: Don’t automatically run `terraform init` when other commands are run (e.g. `terragrunt apply`). Useful if you want to pass custom arguments to `terraform init` that are specific to a user or execution environment, and therefore cannot be specified as `extra_arguments`. For example, `-plugin-dir`. You must run `terragrunt init` yourself in this case if needed. `terragrunt` will fail if it detects that `init` is needed, but auto init is disabled. See [Auto-Init]({{site.baseurl}}/documentation/features/auto-init#auto-init)
+  - `--terragrunt-no-auto-init`: Don’t automatically run `terraform init` when other commands are run (e.g. `terragrunt apply`). Useful if you want to pass custom arguments to `terraform init` that are specific to a user or execution environment, and therefore cannot be specified as `extra_arguments`. For example, `-plugin-dir`. You must run `terragrunt init` yourself in this case if needed. `terragrunt` will fail if it detects that `init` is needed, but auto init is disabled. See [Auto-Init]({{site.baseurl}}/docs/features/auto-init#auto-init)
 
-  - `--terragrunt-no-auto-retry`: Don’t automatically retry commands which fail with transient errors. See [Auto-Retry]({{site.baseurl}}/documentation/features/auto-retry#auto-retry)
+  - `--terragrunt-no-auto-retry`: Don’t automatically retry commands which fail with transient errors. See [Auto-Retry]({{site.baseurl}}/docs/features/auto-retry#auto-retry)
 
   - `--terragrunt-non-interactive`: Don’t show interactive user prompts. This will default the answer for all prompts to 'yes'. Useful if you need to run Terragrunt in an automated setting (e.g. from a script). May also be specified with the [TF\_INPUT](https://www.terraform.io/docs/configuration/environment-variables.html#tf_input) environment variable.
 

@@ -1,180 +1,180 @@
-name: documentation
-href: /documentation
+name: docs
+href: /docs
 children:
   - name: Getting Started
-    href: /documentation/#getting-started
+    href: /docs/#getting-started
     children:
       - name: Quick Start
-        href: /documentation/getting-started/quick-start/
+        href: /docs/getting-started/quick-start/
         children:
           - name: Introduction
-            href: /documentation/getting-started/quick-start/#introduction
+            href: /docs/getting-started/quick-start/#introduction
           - name: Keep your backend configuration DRY
-            href: /documentation/getting-started/quick-start/#keep-your-backend-configuration-dry
+            href: /docs/getting-started/quick-start/#keep-your-backend-configuration-dry
           - name: Keep your Terraform CLI arguments DRY
-            href: /documentation/getting-started/quick-start/#keep-your-terraform-cli-arguments-dry
+            href: /docs/getting-started/quick-start/#keep-your-terraform-cli-arguments-dry
           - name: Promote immutable, versioned Terraform modules across environments
-            href: /documentation/getting-started/quick-start/#promote-immutable-versioned-terraform-modules-across-environments
+            href: /docs/getting-started/quick-start/#promote-immutable-versioned-terraform-modules-across-environments
           - name: Next steps
-            href: /documentation/getting-started/quick-start/#next-steps
+            href: /docs/getting-started/quick-start/#next-steps
       - name: Install
-        href: /documentation/getting-started/install/
+        href: /docs/getting-started/install/
         children:
           - name: Install Terragrunt
-            href: /documentation/getting-started/install/#install-terragrunt
+            href: /docs/getting-started/install/#install-terragrunt
           - name: Windows
-            href: /documentation/getting-started/install/#windows
+            href: /docs/getting-started/install/#windows
           - name: macOS
-            href: /documentation/getting-started/install/#macos
+            href: /docs/getting-started/install/#macos
           - name: Linux
-            href: /documentation/getting-started/install/#linux
+            href: /docs/getting-started/install/#linux
           - name: Manual
-            href: /documentation/getting-started/install/#manual
+            href: /docs/getting-started/install/#manual
       - name: Use cases
         href: /use-cases
         children:
           - include_nav: navigation-use-cases
       - name: CLI options
-        href: /documentation/getting-started/cli-options/
+        href: /docs/getting-started/cli-options/
         children:
           - name: CLI options
-            href: /documentation/getting-started/cli-options/#cli-options
+            href: /docs/getting-started/cli-options/#cli-options
       - name: Configuration
-        href: /documentation/getting-started/configuration/
+        href: /docs/getting-started/configuration/
         children:
           - name: Terragrunt configuration file
-            href: /documentation/getting-started/configuration/#terragrunt-configuration-file
+            href: /docs/getting-started/configuration/#terragrunt-configuration-file
           - name: Configuration parsing order
-            href: /documentation/getting-started/configuration/#configuration-parsing-order
+            href: /docs/getting-started/configuration/#configuration-parsing-order
           - name: Formatting terragrunt.hcl
-            href: /documentation/getting-started/configuration/#formatting-terragrunthcl
+            href: /docs/getting-started/configuration/#formatting-terragrunthcl
 
   - name: Features
-    href: /documentation/#features
+    href: /docs/#features
     children:
       - include_nav: navigation-use-cases-no-children
       - name: Inputs
-        href: /documentation/features/inputs/
+        href: /docs/features/inputs/
         children:
           - name: Variable precedence
-            href: /documentation/features/inputs/#variable-precedence
+            href: /docs/features/inputs/#variable-precedence
       - name: Locals
-        href: /documentation/features/locals/
+        href: /docs/features/locals/
         children:
           - name: Including globally defined locals
-            href: /documentation/features/locals/#including-globally-defined-locals
+            href: /docs/features/locals/#including-globally-defined-locals
       - name: Built-in Functions
-        href: /documentation/features/built-in-functions/
+        href: /docs/features/built-in-functions/
         children:
           - name: Terraform built-in functions
-            href: /documentation/features/built-in-functions/#terraform-built-in-functions
+            href: /docs/features/built-in-functions/#terraform-built-in-functions
           - name: find_in_parent_folders
-            href: /documentation/features/built-in-functions/#find_in_parent_folders
+            href: /docs/features/built-in-functions/#find_in_parent_folders
           - name: path_relative_to_include
-            href: /documentation/features/built-in-functions/#path_relative_to_include
+            href: /docs/features/built-in-functions/#path_relative_to_include
           - name: path_relative_from_include
-            href: /documentation/features/built-in-functions/#path_relative_from_include
+            href: /docs/features/built-in-functions/#path_relative_from_include
           - name: get_env
-            href: /documentation/features/built-in-functions/#get_env
+            href: /docs/features/built-in-functions/#get_env
           - name: get_terragrunt_dir
-            href: /documentation/features/built-in-functions/#get_terragrunt_dir
+            href: /docs/features/built-in-functions/#get_terragrunt_dir
           - name: get_parent_terragrunt_dir
-            href: /documentation/features/built-in-functions/#get_parent_terragrunt_dir
+            href: /docs/features/built-in-functions/#get_parent_terragrunt_dir
           - name: get_terraform_commands_that_need_vars
-            href: /documentation/features/built-in-functions/#get_terraform_commands_that_need_vars
+            href: /docs/features/built-in-functions/#get_terraform_commands_that_need_vars
           - name: get_terraform_commands_that_need_input
-            href: /documentation/features/built-in-functions/#get_terraform_commands_that_need_input
+            href: /docs/features/built-in-functions/#get_terraform_commands_that_need_input
           - name: get_terraform_commands_that_need_locking
-            href: /documentation/features/built-in-functions/#get_terraform_commands_that_need_locking
+            href: /docs/features/built-in-functions/#get_terraform_commands_that_need_locking
           - name: get_terraform_commands_that_need_parallelism
-            href: /documentation/features/built-in-functions/#get_terraform_commands_that_need_parallelism
+            href: /docs/features/built-in-functions/#get_terraform_commands_that_need_parallelism
           - name: get_aws_account_id
-            href: /documentation/features/built-in-functions/#get_aws_account_id
+            href: /docs/features/built-in-functions/#get_aws_account_id
           - name: get_aws_caller_identity_arn
-            href: /documentation/features/built-in-functions/#get_aws_caller_identity_arn
+            href: /docs/features/built-in-functions/#get_aws_caller_identity_arn
           - name: get_aws_caller_identity_user_id
-            href: /documentation/features/built-in-functions/#get_aws_caller_identity_user_id
+            href: /docs/features/built-in-functions/#get_aws_caller_identity_user_id
           - name: run_cmd
-            href: /documentation/features/built-in-functions/#run_cmd
+            href: /docs/features/built-in-functions/#run_cmd
 
       - name: Before and After Hooks
-        href: /documentation/features/before-and-after-hooks/
+        href: /docs/features/before-and-after-hooks/
         children:
           - name: Before and After Hooks
-            href: /documentation/features/before-and-after-hooks/#before-and-after-hooks
+            href: /docs/features/before-and-after-hooks/#before-and-after-hooks
 
       - name: Auto-init
-        href: /documentation/features/auto-init/
+        href: /docs/features/auto-init/
         children:
           - name: Auto-init
-            href: /documentation/features/auto-init/#auto-init
+            href: /docs/features/auto-init/#auto-init
 
       - name: Auto-retry
-        href: /documentation/features/auto-retry/
+        href: /docs/features/auto-retry/
         children:
           - name: Auto-retry
-            href: /documentation/features/auto-retry/#auto-retry
+            href: /docs/features/auto-retry/#auto-retry
 
       - name: Caching
-        href: /documentation/features/caching/
+        href: /docs/features/caching/
         children:
           - name: Clearing the Terragrunt cache
-            href: /documentation/features/caching/#clearing-the-terragrunt-cache
+            href: /docs/features/caching/#clearing-the-terragrunt-cache
 
       - name: AWS Auth
-        href: /documentation/features/aws-auth/
+        href: /docs/features/aws-auth/
         children:
           - name: AWS credentials
-            href: /documentation/features/aws-auth/#aws-credentials
+            href: /docs/features/aws-auth/#aws-credentials
           - name: AWS IAM policies
-            href: /documentation/features/aws-auth/#aws-iam-policies
+            href: /docs/features/aws-auth/#aws-iam-policies
 
       - name: Terragrunt settings
-        href: /documentation/features/terragrunt-settings/
+        href: /docs/features/terragrunt-settings/
         children:
           - name: prevent_destroy
-            href: /documentation/features/terragrunt-settings/#prevent_destroy
+            href: /docs/features/terragrunt-settings/#prevent_destroy
           - name: skip
-            href: /documentation/features/terragrunt-settings/#skip
+            href: /docs/features/terragrunt-settings/#skip
           - name: terraform_binary
-            href: /documentation/features/terragrunt-settings/#terraform_binary
+            href: /docs/features/terragrunt-settings/#terraform_binary
           - name: download_dir
-            href: /documentation/features/terragrunt-settings/#download_dir
+            href: /docs/features/terragrunt-settings/#download_dir
           - name: terraform_version_constraint
-            href: /documentation/features/terragrunt-settings/#terraform_version_constraint
+            href: /docs/features/terragrunt-settings/#terraform_version_constraint
 
   - name: Community
-    href: /documentation/#community
+    href: /docs/#community
     children:
       - name: Contributing
-        href: /documentation/community/contributing/
+        href: /docs/community/contributing/
         children:
           - name: Contributing
-            href: /documentation/community/contributing/#contributing
+            href: /docs/community/contributing/#contributing
           - name: Developing Terragrunt
-            href: /documentation/community/contributing/#developing-terragrunt
+            href: /docs/community/contributing/#developing-terragrunt
             children:
             - name: Running locally
-              href: /documentation/community/contributing/#running-locally
+              href: /docs/community/contributing/#running-locally
             - name: Dependencies
-              href: /documentation/community/contributing/#dependencies
+              href: /docs/community/contributing/#dependencies
             - name: Running tests
-              href: /documentation/community/contributing/#running-tests
+              href: /docs/community/contributing/#running-tests
             - name: Debug logging
-              href: /documentation/community/contributing/#debug-logging
+              href: /docs/community/contributing/#debug-logging
             - name: Error handling
-              href: /documentation/community/contributing/#error-handling
+              href: /docs/community/contributing/#error-handling
             - name: Formatting
-              href: /documentation/community/contributing/#formatting
+              href: /docs/community/contributing/#formatting
             - name: Releasing new versions
-              href: /documentation/community/contributing/#releasing-new-versions
+              href: /docs/community/contributing/#releasing-new-versions
       - name: Support
         href: /support
         children:
           - name: Support
             href: /support
       - name: License
-        href: /documentation/community/license/
+        href: /docs/community/license/
         children:
           - name: License
-            href: /documentation/community/license/#license
+            href: /docs/community/license/#license
