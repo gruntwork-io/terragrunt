@@ -33,6 +33,7 @@ type ExtendedRemoteStateConfigS3 struct {
 	SkipBucketVersioning        bool              `mapstructure:"skip_bucket_versioning"`
 	SkipBucketSSEncryption      bool              `mapstructure:"skip_bucket_ssencryption"`
 	SkipBucketAccessLogging     bool              `mapstructure:"skip_bucket_accesslogging"`
+	SkipBucketRootAccess        bool              `mapstructure:"skip_bucket_root_access"`
 	EnableLockTableSSEncryption bool              `mapstructure:"enable_lock_table_ssencryption"`
 }
 
@@ -44,6 +45,7 @@ var terragruntOnlyConfigs = []string{
 	"skip_bucket_versioning",
 	"skip_bucket_ssencryption",
 	"skip_bucket_accesslogging",
+	"skip_bucket_root_access",
 	"enable_lock_table_ssencryption",
 }
 
@@ -358,7 +360,9 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 		return err
 	}
 
-	if err := EnableRootAccesstoS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
+	if config.SkipBucketRootAccess {
+		terragruntOptions.Logger.Printf("Root access is disabled for the remote state S3 bucket %s using 'skip_bucket_root_access' config.", config.remoteStateConfigS3.Bucket)
+	} else if err := EnableRootAccesstoS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
 		return err
 	}
 
