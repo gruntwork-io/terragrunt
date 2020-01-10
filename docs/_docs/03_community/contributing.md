@@ -55,7 +55,8 @@ stays up to date and allows you to think through the problem at a high level bef
 coding.
 
 The documentation is built with Jekyll and hosted on the Github Pages from `docs` folder on `master` branch. Check out
-[Terragrunt website](docs/README.md) to learn more about working with the documentation.
+[Terragrunt website](https://github.com/gruntwork-io/terragrunt/tree/master/docs#working-with-the-documentation) to
+learn more about working with the documentation.
 
 ### Update the tests
 
@@ -63,13 +64,13 @@ We also recommend updating the automated tests *before* updating any code (see [
 Development](https://en.wikipedia.org/wiki/Test-driven_development)). That means you add or update a test case, 
 verify that it's failing with a clear error message, and *then* make the code changes to get that test to pass. This 
 ensures the tests stay up to date and verify all the functionality in this Module, including whatever new 
-functionality you're adding in your contribution. Check out [Developing Terragrunt](README.md#developing-terragrunt) 
+functionality you're adding in your contribution. Check out [Developing Terragrunt](#developing-terragrunt) 
 for instructions on running the automated tests. 
 
 ### Update the code
 
 At this point, make your code changes and use your new test case to verify that everything is working. Check out 
-[Developing Terragrunt](README.md#developing-terragrunt) for instructions on how to build and run Terragrunt locally.
+[Developing Terragrunt](#developing-terragrunt) for instructions on how to build and run Terragrunt locally.
  
 ### Create a pull request
 
