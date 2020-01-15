@@ -213,7 +213,7 @@ In particular:
     }
     ```
 
-    See the [get\_terragrunt\_dir()]({{site.baseurl}}/docs/features/built-in-functions/#get_terragrunt_dir) documentation for more details.
+    See the [get\_terragrunt\_dir()](../_docs/02_features/built-in-functions#get_terragrunt_dir) documentation for more details.
 
 ### Using Terragrunt with private Git repos
 

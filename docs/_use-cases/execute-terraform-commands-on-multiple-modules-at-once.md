@@ -146,7 +146,7 @@ Note that each `dependency` is automatically considered a dependency in Terragru
 
 If any of the modules failed to deploy, then Terragrunt will not attempt to deploy the modules that depend on them.
 
-**Note**: Not all blocks are able to access outputs passed by `dependency` blocks. See the section on [Configuration parsing order]({{site.baseurl}}/docs/getting-started/configuration/#configuration-parsing-order) for more information.
+**Note**: Not all blocks are able to access outputs passed by `dependency` blocks. See the section on [Configuration parsing order](../_docs/01_getting-started/configuration#configuration-parsing-order) for more information.
 
 #### Unapplied dependency and mock outputs
 
@@ -274,7 +274,7 @@ To check all of your dependencies and validate the code in them, you can use the
 
 ### Testing multiple modules locally
 
-If you are using Terragrunt to configure [remote Terraform configurations]({{site.baseurl}}/use-cases/keep-your-terraform-code-dry/#remote-terraform-configurations) and all of your modules have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--terragrunt-source` parameter:
+If you are using Terragrunt to configure [remote Terraform configurations](./keep-your-terraform-code-dry#remote-terraform-configurations) and all of your modules have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--terragrunt-source` parameter:
 
     cd root
     terragrunt plan-all --terragrunt-source /source/modules

@@ -38,7 +38,7 @@ Terragrunt figures out the path to its config file according to the following ru
 
 ## Configuration parsing order
 
-It is important to be aware of the terragrunt configuration parsing order when using features like [locals]({{site.baseurl}}/docs/features/locals/#locals) and [dependency outputs]({{site.baseurl}}/use-cases/execute-terraform-commands-on-multiple-modules-at-once/#passing-outputs-between-modules), where you can reference attributes of other blocks in the config in your `inputs`. For example, because `locals` are evaluated before `dependency` blocks, you can not bind outputs from `dependency` into `locals`. On the other hand, for the same reason, you can use `locals` in the `dependency` blocks.
+It is important to be aware of the terragrunt configuration parsing order when using features like [locals](../../_docs/02_features/locals.md) and [dependency outputs](../../_use-cases/execute-terraform-commands-on-multiple-modules-at-once.md#passing-outputs-between-modules), where you can reference attributes of other blocks in the config in your `inputs`. For example, because `locals` are evaluated before `dependency` blocks, you can not bind outputs from `dependency` into `locals`. On the other hand, for the same reason, you can use `locals` in the `dependency` blocks.
 
 Currently terragrunt parses the config in the following order:
 

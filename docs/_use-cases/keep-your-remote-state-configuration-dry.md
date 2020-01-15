@@ -105,7 +105,7 @@ The `terragrunt.hcl` files above use two Terragrunt built-in functions:
 
   - `path_relative_to_include()`: This function returns the relative path between the current `terragrunt.hcl` file and the path specified in its `include` block. We typically use this in a root `terragrunt.hcl` file so that each Terraform child module stores its Terraform state at a different `key`. For example, the `mysql` module will have its `key` parameter resolve to `mysql/terraform.tfstate` and the `frontend-app` module will have its `key` parameter resolve to `frontend-app/terraform.tfstate`.
 
-See [the Built-in Functions docs]({{site.baseurl}}/docs/features/built-in-functions/#built-in-functions) for more info.
+See [the Built-in Functions docs](../_docs/02_features/built-in-functions#built-in-functions) for more info.
 
 Check out the [terragrunt-infrastructure-modules-example](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example) and [terragrunt-infrastructure-live-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example) repos for fully-working sample code that demonstrates how to use Terragrunt to manage remote state.
 

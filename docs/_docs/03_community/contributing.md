@@ -21,12 +21,22 @@ instructions.
 Contributions to this repo are very welcome! We follow a fairly standard [pull request 
 process](https://help.github.com/articles/about-pull-requests/) for contributions, subject to the following guidelines:
  
-1. [File a GitHub issue or write an RFC](#file-a-github-issue-or-write-an-rfc)
-1. [Update the documentation](#update-the-documentation)
-1. [Update the tests](#update-the-tests)
-1. [Update the code](#update-the-code)
-1. [Create a pull request](#create-a-pull-request)
-1. [Merge and release](#merge-and-release)
+- [Contributing](#contributing)
+- [Contribution Guidelines](#contribution-guidelines)
+  - [File a GitHub issue or write an RFC](#file-a-github-issue-or-write-an-rfc)
+  - [Update the documentation](#update-the-documentation)
+  - [Update the tests](#update-the-tests)
+  - [Update the code](#update-the-code)
+  - [Create a pull request](#create-a-pull-request)
+  - [Merge and release](#merge-and-release)
+- [Developing Terragrunt](#developing-terragrunt)
+  - [Running locally](#running-locally)
+  - [Dependencies](#dependencies)
+  - [Running tests](#running-tests)
+  - [Debug logging](#debug-logging)
+  - [Error handling](#error-handling)
+  - [Formatting](#formatting)
+  - [Releasing new versions](#releasing-new-versions)
 
 ### File a GitHub issue or write an RFC
 
@@ -108,7 +118,7 @@ go run main.go plan
 
 **Note**: The tests in the `dynamodb` folder for Terragrunt run against a real AWS account and will add and remove real data from DynamoDB. DO NOT hit `CTRL+C` while the tests are running, as this will prevent them from cleaning up temporary tables and data in DynamoDB. We are not responsible for any charges you may incur.
 
-Before running the tests, you must configure your [AWS credentials]({{site.baseurl}}/docs/features/aws-auth/#aws-credentials) and [AWS IAM policies]({{site.baseurl}}/docs/features/aws-auth/#aws-iam-policies).
+Before running the tests, you must configure your [AWS credentials](../../_docs/02_features/aws-auth#aws-credentials) and [AWS IAM policies](../../_docs/02_features/aws-auth#aws-iam-policies).
 
 To run all the tests:
 
