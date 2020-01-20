@@ -1,11 +1,11 @@
 ---
 layout: collection-browser-doc
 title: CLI options
-category: getting-started
+category: reference
 excerpt: >-
   Terragrunt forwards all arguments and options to Terraform. Learn more about CLI options in Terragrunt.
 tags: ["CLI"]
-order: 103
+order: 401
 nav_title: Documentation
 nav_title_link: /docs/
 ---
