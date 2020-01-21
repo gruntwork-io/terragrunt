@@ -24,7 +24,7 @@
     <div class="cb-section-white">
 
         <!-- Search -->
-        {% include collection_browser/_search.html tags=tags collection_name=collection_name %}
+        {% include collection_browser/_search.html tags=tags collection_name=include.collection_name %}
         <div class="row">
           <div class="container-cb-lg">
             <div id="cb-doc-listings">
@@ -36,7 +36,7 @@
                 {% include collection_browser/_sidebar.html data_scroll_until_selector=data_scroll_until_selector data_scroll_after_selector=data_scroll_after_selector %}
 
                 <!-- Listing -->
-                {% include collection_browser/_docs-list.html categories=categories collection_name=collection_name docs_grouped=docs_grouped %}
+                {% include collection_browser/_docs-list.html categories=categories collection_name=include.collection_name docs_grouped=docs_grouped %}
 
               </div>
             </div>
@@ -54,13 +54,13 @@
   {% include collection_browser/_cta-section.html %}
 
   <script>
-      var cName = "bc_{{collection_name}}Entries"
+      var cName = "bc_{{include.collection_name}}Entries"
       window[cName] = [
           {% for doc_group in docs_grouped %}
             {% for doc in doc_group.items %}
               {
-                  "id"       : "{{ doc.title | strip_html | downcase | split: ' ' | join: '-' | append: '-card' }}",
-                  "title"    : "{{ doc.title | strip_html | escape | downcase}}",
+                  "id"       : "{{ doc.title | strip_html | slugify | downcase | split: ' ' | join: '-' | append: '-card' }}",
+                  "title"    : "{{ doc.title | strip_html | slugify | escape | downcase}}",
                   "category" : "{{ doc.categories | join: ', ' | downcase}}",
                   "excerpt" : "{{ doc.excerpt | strip_html | strip_newlines | escape | downcase}}",
                   "content"  : {{ doc.content | strip_html | strip_newlines | jsonify | downcase }},

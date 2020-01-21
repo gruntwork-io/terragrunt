@@ -12,7 +12,7 @@ Clone or fork Terragrunt [repository](https://github.com/gruntwork-io/terragrunt
 
 ## Run
 
-1. Install [Ruby](https://www.ruby-lang.org/en/documentation/installation/). Version 2.4 or above is recommended. 
+1. Install [Ruby](https://www.ruby-lang.org/en/documentation/installation/). Version 2.4 or above is recommended.
    Consider using [rbenv](https://github.com/rbenv/rbenv) to manage Ruby versions.
 
 2. Install `bundler`:
@@ -41,7 +41,7 @@ Clone or fork Terragrunt [repository](https://github.com/gruntwork-io/terragrunt
 
 # Deployment
 
-GitHub Pages automatically rebuilds the website from the `/docs` folder whenever you commit and push to the `master` 
+GitHub Pages automatically rebuilds the website from the `/docs` folder whenever you commit and push to the `master`
 branch.
 
 # Working with the documentation
@@ -59,14 +59,11 @@ When you work with the documentation, it's good to preview the changes. To do th
 2. [B) Add a new page](#add-a-new-page)
 3. [C) Remove or rename page](#remove-or-rename-page)
 4. [D) Add custom redirection](#add-custom-redirection)
-5. [Update navigation](#update-navigation)
-  5.1 [Navigation partials](#navigation-partials)
 
 ## A) Change content on the existing page
 
 1. Find page in `_docs` or `_use-cases` by file name (it's the same as page's title).
 2. Edit content.
-3. If you changed, added or removed the file title or any heading, [update navigation](#updating-navigation).
 
 ## B) Add a new page
 
@@ -98,13 +95,11 @@ nav_title_link: /docs/
 * `nav_title_link` - it is URL. If it is set, the `nav_title` becomes a link with a given URL.
 
 3. Add content at the end of the file.
-4. Add new item in the navigation. See more: [Update navigation](#updating-navigation).
 
 ## C) Remove or rename page
 
 1. Find page in `_docs` or `_use-cases` by file name (it's the same as page's title).
 2. Delete page or rename.
-3. Remove related item from the navigation, or update its name and href (link to the page). See more: [Update navigation](#updating-navigation).
 
 ## D) Add custom redirection
 
@@ -122,44 +117,23 @@ order: 301
 ---
 ```
 
-Then add the item to navigation in the same way as when adding a new file.
 
-## Update navigation
+## Navigation
 
-The navigation sidebar is defined in `_data/navigation.yml`. Each item contains:
+The navigation sidebar is built in `_includes/collection_browser/navigation/_collection_toc.html`.
 
-* `name` - text displayed on the website
-* `href` - link to the subpage
-* `children` - (optional) list of nested navigation tabs
+First, the script groups documents of the given collection by categories. Categories make the uppermost level in the navigation sidebar.
+Then, within each category, the script adds documents titles to the navigation under specific categories. Documents are sorted by `order` field set in frontmatter section.
+Next, headings from each document are being extracted and added to the navigation.
 
-To add, edit or delete a navigation item:
-1. Open `_data/navigation.yml` (or partial).
-2. Find item on the list.
-3. To...
-  3.1 ...remove item, delete its `name`, `href` and `children`.
-  3.2 ...edit item, change its `name`, `href` or `children`.
-  3.3 ...add item, create add `name`, `href` and `children` (optional) under specific children.
-
-
-### Navigation partials
-
-You can create partial navigation, like `navigation-use-cases.yml` and `navigation-use-cases-no-children.yml`. Partials are included under `children` with:
-
-```
-children:
-  - include_nav: navigation-use-cases
-```
+The Collection Browser allows to embed another collection. To do that, add a new file within the main collection and set: `as_nested_collection`, `as_nested_collection_link`.
+To learn more about embedding collections, check out how `use-cases` collection is injected into `docs` collection. It is done with one file: `_docs/01_getting-started/use-cases.md`.
 
 
 # Development
 
 ## Project structure
 ```
-|-- _data                     # data files
-| |-- navigation.yml          # the navigation sidebar for documentation & use cases
-| |-- navigation-use-cases.yml              # partial included in navigation.yml
-| |-- navigation-use-cases-no-children.yml  # partial included in navigation.yml
-|
 |-- _docs                     # docs *collection*
 |-- _includes                 # partials
 |-- _layouts                  # layouts
@@ -227,7 +201,6 @@ nav_title_link: /docs/ # OPTIONAL
 * nav_title - the title above navigation. It's optional. It's a link if `nav_title_link` is set.
 * nav_title_link - it is a URL. If it is set, `nav_link` is transformed to the link.
 
-2. Update navigation: [Navigation](#navigation)
 
 ## Adding new collections
 
@@ -261,7 +234,6 @@ nav_title_link: /docs/ # OPTIONAL
 ```
 6. Change `title`, `subtitle`, `excerpt`, `permalink`, and `slug` in meta tags.
 7. In `include` statement, set `collection` to your collection set in `_config.yml` and set `collection_name`.
-8. Update navigation in `_data/navigation.yml`(see: [Navigation](#navigation))
 
 
 ## Collection Browser
@@ -269,8 +241,9 @@ nav_title_link: /docs/ # OPTIONAL
 _The Collection Browser is strongly inspired by implementation of `guides` on *gruntwork.io* website._
 
 The Collection Browser's purpose is to wrap Jekyll collection into:
-* _index_ page containing ordered list of docs with search form
-* _show_ pages presenting docs' contents, and containing navigation sidebar.
+* _index_ page containing ordered list of docs with search form,
+* _show_ pages presenting docs' contents, and containing navigation sidebar,
+* and build navigation sidebar.
 
 ### Usage
 
@@ -353,31 +326,7 @@ Javascript files used by  Collection Browser:
 
 #### Navigation Sidebar
 
-The navigation sidebar is defined in `_data/navigation.yml`. Read more: see: [Navigation](#navigation)
-
-## Navigation
-
-The navigation sidebar is defined in `_data/navigation.yml`. Each navigation tab contains:
-
-* name - text displayed on the website
-* href - link to the subpage
-* children - (optional) list of nested navigation tabs.
-
-### Including partial navigation
-
-You can create partial navigation, like `navigation-use-cases.yml` and `navigation-use-cases-no-children.yml`. Partials are included under `children` with:
-
-```
-children:
-  - include_nav: navigation-use-cases
-```
-
-### When to update navigation?
-
-When the content of the "Documentation" and "Use cases" collections have been changed, the navigation should be updated. It means that whenever:
-
-* the page (document in any collection) was: added, removed, renamed.
-* heading in the page was: added, removed, edited.
+The navigation sidebar is built in `_includes/collection_browser/navigation/_collection_toc.html`. Read more: [Navigation](#navigation)
 
 ## Markdown (md) > AsciiDoc (adoc) converter
 
