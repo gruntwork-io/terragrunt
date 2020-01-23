@@ -24,6 +24,20 @@ supported blocks and attributes in the `terragrunt.hcl` configuration file:
 - [dependency](#dependency)
 - [dependencies](#dependencies)
 
+
+### Attributes
+
+- [inputs](#inputs)
+- [download_dir](#download_dir)
+- [prevent_destroy](#prevent_destroy)
+- [skip](#skip)
+- [iam_role](#iam_role)
+- [terraform_binary](#terraform_binary)
+- [terraform_version_constraint](#terraform_version_constraint)
+
+
+### Reference
+
 #### terraform
 
 The `terraform` block is used to configure how Terragrunt will interact with Terraform. This includes specifying where
@@ -70,7 +84,7 @@ The `terraform` block supports the following arguments:
 
 Example:
 
-```
+```hcl
 terraform {
   # Pull the terraform configuration at the github repo "acme/infrastructure-modules", under the subdirectory
   # "networking/vpc", using the git tag "v0.0.1".
@@ -157,7 +171,7 @@ The `remote_state` block supports the following arguments:
   properties will automatically be included in the Terraform backend block (with a few exceptions: see below). For
   example, if you had the following `remote_state` block:
 
-    ```
+    ```hcl
     remote_state {
       backend = "s3"
       config = {
@@ -170,7 +184,7 @@ The `remote_state` block supports the following arguments:
 
   This is equivalent to the following `terraform` code:
 
-    ```
+    ```hcl
     terraform {
       backend "s3" {
         bucket = "mybucket"
@@ -205,7 +219,7 @@ For the `gcs` backend, the following additional properties are supported in the 
 
 Example with S3:
 
-```
+```hcl
 # Configure terraform state to be stored in S3, in the bucket "my-terraform-state" in us-east-1 under a key that is
 # relative to included terragrunt config. For example, if you had the following folder structure:
 #
@@ -233,7 +247,7 @@ remote_state {
 
 Example with GCS:
 
-```
+```hcl
 # Configure terraform state to be stored in GCS, in the bucket "my-terraform-state" in the "my-terraform" GCP project in
 # the eu region under a key that is relative to included terragrunt config. This will also apply the labels
 # "owner=terragrunt_test" and "name=terraform_state_storage" to the bucket if it is created by Terragrunt.
@@ -284,7 +298,7 @@ The `include` block supports the following arguments:
 
 Example:
 
-```
+```hcl
 # If you have the following folder structure, and the following contents for ./child/terragrunt.hcl, this will include
 # and merge the items in the terragrunt.hcl file at the root.
 #
@@ -308,7 +322,7 @@ The `locals` block does not have a defined set of arguments that are supported. 
 
 Example:
 
-```
+```hcl
 # Make the AWS region a reusable variable within the configuration
 locals {
   aws_region = "us-east-1"
@@ -347,7 +361,7 @@ The `dependency` block supports the following arguments:
 
 Example:
 
-```
+```hcl
 # Run `terragrunt output` on the module at the relative path `../vpc` and expose them under the attribute
 # `dependency.vpc.outputs`
 dependency "vpc" {
@@ -385,10 +399,156 @@ The `dependencies` block supports the following arguments:
 
 Example:
 
-```
+```hcl
 # When applying this terragrunt config in an `xxx-all` command, make sure the modules at "../vpc" and "../rds" are
 # handled first.
 dependencies {
   paths = ["../vpc", "../rds"]
 }
+```
+
+#### inputs
+
+The `inputs` attribute is a map that is used to specify the input variables and their values to pass in to Terraform.
+Each entry of the map will be passed to Terraform using [the environment variable
+mechanism](https://www.terraform.io/docs/configuration/variables.html#environment-variables). This means that each input
+will be set using the form `TF_VAR_variablename`, with the value in `json` encoded format.
+
+Note that because the values are being passed in with environment variables and `json`, the type information is lost
+when crossing the boundary between Terragrunt and Terraform. You must specify the proper [type
+constraint](https://www.terraform.io/docs/configuration/variables.html#type-constraints) on the variable in Terraform in
+order for Terraform to process the inputs to the right type.
+
+Example:
+
+```hcl
+inputs = {
+  string      = "string"
+  number      = 42
+  bool        = true
+  list_string = ["a", "b", "c"]
+  list_number = [1, 2, 3]
+  list_bool   = [true, false]
+
+  map_string = {
+    foo = "bar"
+  }
+
+  map_number = {
+    foo = 42
+    bar = 12345
+  }
+
+  map_bool = {
+    foo = true
+    bar = false
+    baz = true
+  }
+
+  object = {
+    str  = "string"
+    num  = 42
+    list = [1, 2, 3]
+
+    map = {
+      foo = "bar"
+    }
+  }
+
+  from_env = get_env("FROM_ENV", "default")
+}
+```
+
+
+#### download_dir
+
+The terragrunt `download_dir` string option can be used to override the default download directory.
+
+The precedence is as follows: `--terragrunt-download-dir` command line option → `TERRAGRUNT_DOWNLOAD` env variable →
+`download_dir` attribute of the `terragrunt.hcl` file in the module directory → `download_dir` attribute of the included
+`terragrunt.hcl`.
+
+It supports all terragrunt functions, i.e. `path_relative_from_include()`.
+
+
+#### prevent_destroy
+
+Terragrunt `prevent_destroy` boolean flag allows you to protect selected Terraform module. It will prevent `destroy` or
+`destroy-all` command to actually destroy resources of the protected module. This is useful for modules you want to
+carefully protect, such as a database, or a module that provides auth.
+
+Example:
+
+```hcl
+terraform {
+  source = "git::git@github.com:foo/modules.git//app?ref=v0.0.3"
+}
+
+prevent_destroy = true
+```
+
+#### skip
+
+The terragrunt `skip` boolean flag can be used to protect modules you don’t want any changes to or just to skip modules
+that don’t define any infrastructure by themselves. When set to true, all terragrunt commands will skip the selected
+module.
+
+Consider the following file structure:
+
+    root
+    ├── terragrunt.hcl
+    ├── prod
+    │   └── terragrunt.hcl
+    ├── dev
+    │   └── terragrunt.hcl
+    └── qa
+        └── terragrunt.hcl
+
+In some cases, the root level `terragrunt.hcl` file is solely used to DRY up your Terraform configuration by being
+included in the other `terragrunt.hcl` files. In this case, you do not want the `xxx-all` commands to process the root
+level `terragrunt.hcl` since it does not define any infrastructure by itself. To make the `xxx-all` commands skip the
+root level `terragrunt.hcl` file, you can set `skip = true`:
+
+``` hcl
+skip = true
+```
+
+The `skip` flag must be set explicitly in terragrunt modules that should be skipped. If you set `skip = true` in a
+`terragrunt.hcl` file that is included by another `terragrunt.hcl` file, only the `terragrunt.hcl` file that explicitly
+set `skip = true` will be skipped.
+
+
+#### iam_role
+
+The `iam_role` attribute can be used to specify an IAM role that Terragrunt should assume prior to invoking Terraform.
+
+The precedence is as follows: `--terragrunt-iam-role` command line option → `TERRAGRUNT_IAM_ROLE` env variable →
+`iam_role` attribute of the `terragrunt.hcl` file in the module directory → `iam_role` attribute of the included
+`terragrunt.hcl`.
+
+Example:
+
+```hcl
+iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+```
+
+
+#### terraform_binary
+
+The terragrunt `terraform_binary` string option can be used to override the default terraform binary path (which is
+`terraform`).
+
+The precedence is as follows: `--terragrunt-tfpath` command line option → `TERRAGRUNT_TFPATH` env variable →
+`terragrunt.hcl` in the module directory → included `terragrunt.hcl`
+
+
+#### terraform_version_constraint
+
+The terragrunt `terraform_version_constraint` string overrides the default minimum supported version of terraform.
+Terragrunt only officially supports the latest version of terraform, however in some cases an old terraform is needed.
+
+For example:
+
+``` hcl
+terraform_version_constraint = ">= 0.11"
 ```
