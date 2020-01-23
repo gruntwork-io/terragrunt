@@ -45,3 +45,6 @@ Terragrunt forwards all arguments and options to Terraform. The only exceptions 
   - `--terragrunt-ignore-external-dependencies`: Dont attempt to include any external dependencies when running `*-all` commands
 
   - `--terragrunt-include-external-dependencies`: Include any external dependencies when running `*-all` without asking.
+
+  - `--terragrunt-check`: Run `hclfmt` in check only mode instead of actively overwriting the files. This will cause the
+    command to exit with exit code 1 if there are any files that are not formatted.
