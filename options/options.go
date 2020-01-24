@@ -162,7 +162,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		RetryableErrors:             util.CloneStringList(RETRYABLE_ERRORS),
 		ExcludeDirs:                 []string{},
 		IncludeDirs:                 []string{},
-    Parallelism:       DEFAULT_PARALLELISM,
+		Parallelism:                 DEFAULT_PARALLELISM,
 		Check:                       false,
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
@@ -233,7 +233,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		RetryableErrors:             util.CloneStringList(terragruntOptions.RetryableErrors),
 		ExcludeDirs:                 terragruntOptions.ExcludeDirs,
 		IncludeDirs:                 terragruntOptions.IncludeDirs,
-    Parallelism:       terragruntOptions.Parallelism,
+		Parallelism:                 terragruntOptions.Parallelism,
 		RunTerragrunt:               terragruntOptions.RunTerragrunt,
 	}
 }

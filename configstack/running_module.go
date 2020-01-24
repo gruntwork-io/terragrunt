@@ -76,12 +76,12 @@ func RunModulesReverseOrder(modules []*TerraformModule, parallelism int) error {
 
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed without caring for inter-dependencies.
-func RunModulesIgnoreOrder(modules []*TerraformModule) error {
+func RunModulesIgnoreOrder(modules []*TerraformModule, parallelism int) error {
 	runningModules, err := toRunningModules(modules, IgnoreOrder)
 	if err != nil {
 		return err
 	}
-	return runModules(runningModules)
+	return runModules(runningModules, parallelism)
 }
 
 // Convert the list of modules to a map from module path to a runningModule struct. This struct contains information
