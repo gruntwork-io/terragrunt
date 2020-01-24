@@ -1,0 +1,144 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="799" height="354" viewBox="0 0 799 354">
+    <defs>
+        <linearGradient id="a" x1="0%" y1="43.49%" y2="56.51%">
+            <stop offset="0%" stop-color="#5852E6"/>
+            <stop offset="100%" stop-color="#736EF5"/>
+        </linearGradient>
+        <linearGradient id="b" x1="0%" y1="43.48%" y2="56.52%">
+            <stop offset="0%" stop-color="#5852E6"/>
+            <stop offset="100%" stop-color="#736EF5"/>
+        </linearGradient>
+        <rect id="d" width="247" height="53" y="103" rx="8"/>
+        <filter id="c" width="105.7%" height="126.4%" x="-2.8%" y="-9.4%" filterUnits="objectBoundingBox">
+            <feOffset dy="2" in="SourceAlpha" result="shadowOffsetOuter1"/>
+            <feGaussianBlur in="shadowOffsetOuter1" result="shadowBlurOuter1" stdDeviation="2"/>
+            <feColorMatrix in="shadowBlurOuter1" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0"/>
+        </filter>
+        <rect id="f" width="251" height="53" x="269" y="103" rx="8"/>
+        <filter id="e" width="105.6%" height="126.4%" x="-2.8%" y="-9.4%" filterUnits="objectBoundingBox">
+            <feOffset dy="2" in="SourceAlpha" result="shadowOffsetOuter1"/>
+            <feGaussianBlur in="shadowOffsetOuter1" result="shadowBlurOuter1" stdDeviation="2"/>
+            <feColorMatrix in="shadowBlurOuter1" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0"/>
+        </filter>
+        <rect id="h" width="251" height="53" x="540" y="103" rx="8"/>
+        <filter id="g" width="105.6%" height="126.4%" x="-2.8%" y="-9.4%" filterUnits="objectBoundingBox">
+            <feOffset dy="2" in="SourceAlpha" result="shadowOffsetOuter1"/>
+            <feGaussianBlur in="shadowOffsetOuter1" result="shadowBlurOuter1" stdDeviation="2"/>
+            <feColorMatrix in="shadowBlurOuter1" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0"/>
+        </filter>
+        <linearGradient id="i" x1="0%" y1="46.098%" y2="53.902%">
+            <stop offset="0%" stop-color="#5852E6"/>
+            <stop offset="100%" stop-color="#736EF5"/>
+        </linearGradient>
+    </defs>
+    <g fill="none" fill-rule="evenodd" transform="translate(4)">
+        <g transform="translate(75 253)">
+            <rect width="97.2" height="30.24" fill="#1E252F" rx="7.2"/>
+            <rect width="30.24" height="2.88" x="6.3" y="6.48" fill="#5852E6" rx="1.44"/>
+            <rect width="30.24" height="2.88" x="6.3" y="14.4" fill="#5852E6" rx="1.44"/>
+            <rect width="30.24" height="2.88" x="6.3" y="22.32" fill="#5852E6" rx="1.44"/>
+            <circle cx="85.5" cy="15.12" r="3.6" fill="#3A70F0"/>
+            <circle cx="86.94" cy="13.68" r="1" fill="#FFF"/>
+        </g>
+        <g transform="translate(75 217)">
+            <rect width="97.2" height="30.24" fill="#1E252F" rx="7.2"/>
+            <rect width="30.24" height="2.88" x="6.3" y="6.48" fill="#5852E6" rx="1.44"/>
+            <rect width="30.24" height="2.88" x="6.3" y="14.4" fill="#5852E6" rx="1.44"/>
+            <rect width="30.24" height="2.88" x="6.3" y="22.32" fill="#5852E6" rx="1.44"/>
+            <circle cx="85.5" cy="15.12" r="3.6" fill="#3A70F0"/>
+            <circle cx="86.94" cy="13.68" r="1" fill="#FFF"/>
+        </g>
+        <rect width="97" height="30" x="75" y="289" fill="#1E252F" rx="7.2"/>
+        <rect width="30" height="3" x="81" y="295" fill="#5852E6" rx="1.5"/>
+        <rect width="30" height="3" x="81" y="303" fill="#5852E6" rx="1.5"/>
+        <rect width="30" height="3" x="81" y="311" fill="#5852E6" rx="1.5"/>
+        <circle cx="160.5" cy="303.5" r="3.5" fill="#3A70F0"/>
+        <circle cx="161.5" cy="302.5" r="1" fill="#FFF"/>
+        <rect width="31" height="13" x="110" y="341" fill="#1E252F" rx="6.5"/>
+        <rect width="203" height="5" x="84" y="345" fill="#1E252F" opacity=".296" rx="2.5"/>
+        <rect width="5" height="31" x="123" y="316" fill="#1E252F" rx="2.5"/>
+        <rect width="97" height="35" x="75" y="178" fill="url(#a)" rx="7.2"/>
+        <g transform="translate(537 213)">
+            <rect width="97.2" height="30.24" x="86" y="39.6" fill="#1E252F" rx="7.2"/>
+            <rect width="97.2" height="30.24" x="86" y="75.6" fill="#1E252F" rx="7.2"/>
+            <rect width="30.24" height="2.88" x="92.3" y="46.08" fill="#5852E6" rx="1.44"/>
+            <rect width="30.24" height="2.88" x="92.3" y="82.08" fill="#5852E6" rx="1.44"/>
+            <rect width="30.24" height="2.88" x="92.3" y="54" fill="#5852E6" rx="1.44"/>
+            <rect width="30.24" height="2.88" x="92.3" y="90" fill="#5852E6" rx="1.44"/>
+            <rect width="30.24" height="2.88" x="92.3" y="61.92" fill="#5852E6" rx="1.44"/>
+            <rect width="30.24" height="2.88" x="92.3" y="97.92" fill="#5852E6" rx="1.44"/>
+            <circle cx="171.5" cy="54.72" r="3.6" fill="#3A70F0"/>
+            <circle cx="171.5" cy="90.72" r="3.6" fill="#3A70F0"/>
+            <circle cx="172.94" cy="53.28" r="1" fill="#FFF"/>
+            <circle cx="172.94" cy="89.28" r="1" fill="#FFF"/>
+            <g transform="translate(94.1 3.6)">
+                <rect width="83.52" height="30.24" fill="#1E252F" rx="7.2"/>
+                <rect width="30.24" height="2.88" x="5.76" y="6.48" fill="#5852E6" rx="1.44"/>
+                <rect width="30.24" height="2.88" x="5.76" y="14.4" fill="#5852E6" rx="1.44"/>
+                <rect width="30.24" height="2.88" x="5.76" y="22.32" fill="#5852E6" rx="1.44"/>
+                <circle cx="68.4" cy="15.12" r="3.6" fill="#3A70F0"/>
+                <circle cx="69.84" cy="13.68" r="1" fill="#FFF"/>
+            </g>
+            <rect width="30.6" height="12.6" x="121.1" y="127.8" fill="#1E252F" rx="6.3"/>
+            <rect width="202.8" height="5.4" y="131.4" fill="#1E252F" opacity=".296" rx="2.7"/>
+            <rect width="4.5" height="30.6" x="134.6" y="103.5" fill="#1E252F" rx="2.25"/>
+            <rect width="97.2" height="35.1" x="86.45" fill="url(#b)" rx="7.2"/>
+        </g>
+        <g transform="translate(346 289)">
+            <rect width="97.2" height="30.24" fill="#1E252F" rx="7.2"/>
+            <rect width="30.24" height="2.88" x="6.3" y="6.48" fill="#5852E6" rx="1.44"/>
+            <rect width="30.24" height="2.88" x="6.3" y="14.4" fill="#5852E6" rx="1.44"/>
+            <rect width="30.24" height="2.88" x="6.3" y="22.32" fill="#5852E6" rx="1.44"/>
+            <circle cx="85.5" cy="15.12" r="3.6" fill="#3A70F0"/>
+            <circle cx="86.94" cy="13.68" r="1" fill="#FFF"/>
+            <rect width="30.6" height="12.6" x="35.1" y="52.2" fill="#1E252F" rx="6.3"/>
+            <rect width="82.8" height="5.4" x="9" y="55.8" fill="#1E252F" opacity=".296" rx="2.7"/>
+            <rect width="4.5" height="30.6" x="48.6" y="27.9" fill="#1E252F" rx="2.25"/>
+        </g>
+        <rect width="30" height="3" x="379" y="259" fill="#5852E6" rx="1.5"/>
+        <rect width="30" height="3" x="379" y="267" fill="#5852E6" rx="1.5"/>
+        <rect width="30" height="3" x="379" y="275" fill="#5852E6" rx="1.5"/>
+        <circle cx="394.5" cy="267.5" r="3.5" fill="#3A70F0"/>
+        <circle cx="394.5" cy="266.5" r="1" fill="#FFF"/>
+        <rect width="23" height="5" x="504" y="344" fill="#1E252F" opacity=".296" rx="2.5"/>
+        <rect width="13" height="5" x="297" y="344" fill="#1E252F" opacity=".296" rx="2.5"/>
+        <rect width="97" height="35" x="346" y="249" fill="url(#a)" rx="7.2"/>
+        <use fill="#000" filter="url(#c)" xlink:href="#d"/>
+        <use fill="#F0F0F1" xlink:href="#d"/>
+        <use fill="#000" filter="url(#e)" xlink:href="#f"/>
+        <use fill="#F0F0F1" xlink:href="#f"/>
+        <use fill="#000" filter="url(#g)" xlink:href="#h"/>
+        <use fill="#F0F0F1" xlink:href="#h"/>
+        <text fill="#07A7FD" font-family="FiraMonoOT, Fira Mono OT" font-size="12" letter-spacing="1.5">
+            <tspan x="13" y="126">instance_count = 3</tspan> <tspan x="13" y="140">instance_type = &quot;m2.large&quot;</tspan>
+        </text>
+        <text fill="#07A7FD" font-family="FiraMonoOT, Fira Mono OT" font-size="12" letter-spacing="1.5">
+            <tspan x="281" y="126">instance_count = 1</tspan> <tspan x="281" y="140">instance_type = &quot;t2.micro&quot;</tspan>
+        </text>
+        <text fill="#07A7FD" font-family="FiraMonoOT, Fira Mono OT" font-size="12" letter-spacing="1.5">
+            <tspan x="553" y="126">instance_count = 2</tspan> <tspan x="553" y="140">instance_type = &quot;t2.micro&quot;</tspan>
+        </text>
+        <text fill="#FFF" font-family="SourceSansPro-Regular, Source Sans Pro" font-size="16" letter-spacing="2">
+            <tspan x="101.188" y="202">PROD</tspan>
+        </text>
+        <text fill="#FFF" font-family="SourceSansPro-Regular, Source Sans Pro" font-size="16" letter-spacing="2">
+            <tspan x="645.496" y="237">STAGE</tspan>
+        </text>
+        <text fill="#FFF" font-family="SourceSansPro-Regular, Source Sans Pro" font-size="16" letter-spacing="2">
+            <tspan x="383.416" y="273">QA</tspan>
+        </text>
+        <g stroke-width="2">
+            <path stroke="#5953E7" stroke-linecap="round" stroke-linejoin="round" d="M395 68v3.111a8 8 0 0 1-8 8H132a8 8 0 0 0-8 8V93M395 68v3.111a8 8 0 0 0 8 8h260a8 8 0 0 1 8 8V93"/>
+            <path stroke="#5B55E8" d="M395 93V68"/>
+        </g>
+        <circle cx="124" cy="178" r="4" fill="#5B55E8"/>
+        <circle cx="395" cy="248" r="4" fill="#5B55E8"/>
+        <path fill="#5B55E8" d="M673.222 100.086l2.995-5.069A2 2 0 0 0 674.495 92h-5.99a2 2 0 0 0-1.722 3.017l2.995 5.07a2 2 0 0 0 3.444 0zM396.222 100.086l2.995-5.069A2 2 0 0 0 397.495 92h-5.99a2 2 0 0 0-1.722 3.017l2.995 5.07a2 2 0 0 0 3.444 0zM125.222 100.086l2.995-5.069A2 2 0 0 0 126.495 92h-5.99a2 2 0 0 0-1.722 3.017l2.995 5.07a2 2 0 0 0 3.444 0z"/>
+        <circle cx="671" cy="213" r="4" fill="#5B55E8"/>
+        <path stroke="#5B55E8" stroke-width="2" d="M394.5 248v-92M123.5 178v-22M670.5 213v-57"/>
+        <rect width="247" height="69" x="271" fill="url(#i)" rx="8"/>
+        <text fill="#FFF" font-family="SourceSansPro-Regular, Source Sans Pro" font-size="16" letter-spacing="2">
+            <tspan x="307.712" y="31">REMOTE TERRAFORM</tspan> <tspan x="325.712" y="51">CONFIGURATION</tspan>
+        </text>
+    </g>
+</svg>

@@ -4,14 +4,12 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/hashicorp/hcl2/hcl"
 	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
+	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -39,7 +37,6 @@ var TERRAFORM_COMMANDS_NEED_VARS = []string{
 	"plan",
 	"push",
 	"refresh",
-	"validate",
 }
 
 // List of terraform commands that accept -input=
@@ -63,27 +60,44 @@ type EnvVar struct {
 	DefaultValue string
 }
 
+// EvalContextExtensions provides various extensions to the evaluation context to enhance the parsing capabilities.
+type EvalContextExtensions struct {
+	// Include is used to specify another config that should be imported and merged before the final TerragruntConfig is
+	// returned.
+	Include *IncludeConfig
+
+	// Locals are preevaluated variable bindings that can be used by reference in the code.
+	Locals *cty.Value
+
+	// DecodedDependencies are references of other terragrunt config. This contains the following attributes that map to
+	// various fields related to that config:
+	// - outputs: The map of outputs from the terraform state obtained by running `terragrunt output` on that target
+	//            config.
+	DecodedDependencies *cty.Value
+}
+
 // Create an EvalContext for the HCL2 parser. We can define functions and variables in this context that the HCL2 parser
 // will make available to the Terragrunt configuration during parsing.
 func CreateTerragruntEvalContext(
 	filename string,
 	terragruntOptions *options.TerragruntOptions,
-	include *IncludeConfig,
-	locals *cty.Value,
+	extensions EvalContextExtensions,
 ) *hcl.EvalContext {
 	tfscope := tflang.Scope{
 		BaseDir: filepath.Dir(filename),
 	}
 
 	terragruntFunctions := map[string]function.Function{
-		"find_in_parent_folders":                       wrapStringSliceToStringAsFuncImpl(findInParentFolders, include, terragruntOptions),
-		"path_relative_to_include":                     wrapVoidToStringAsFuncImpl(pathRelativeToInclude, include, terragruntOptions),
-		"path_relative_from_include":                   wrapVoidToStringAsFuncImpl(pathRelativeFromInclude, include, terragruntOptions),
-		"get_env":                                      wrapStringSliceToStringAsFuncImpl(getEnvironmentVariable, include, terragruntOptions),
-		"run_cmd":                                      wrapStringSliceToStringAsFuncImpl(runCommand, include, terragruntOptions),
-		"get_terragrunt_dir":                           wrapVoidToStringAsFuncImpl(getTerragruntDir, include, terragruntOptions),
-		"get_parent_terragrunt_dir":                    wrapVoidToStringAsFuncImpl(getParentTerragruntDir, include, terragruntOptions),
-		"get_aws_account_id":                           wrapVoidToStringAsFuncImpl(getAWSAccountID, include, terragruntOptions),
+		"find_in_parent_folders":                       wrapStringSliceToStringAsFuncImpl(findInParentFolders, extensions.Include, terragruntOptions),
+		"path_relative_to_include":                     wrapVoidToStringAsFuncImpl(pathRelativeToInclude, extensions.Include, terragruntOptions),
+		"path_relative_from_include":                   wrapVoidToStringAsFuncImpl(pathRelativeFromInclude, extensions.Include, terragruntOptions),
+		"get_env":                                      wrapStringSliceToStringAsFuncImpl(getEnvironmentVariable, extensions.Include, terragruntOptions),
+		"run_cmd":                                      wrapStringSliceToStringAsFuncImpl(runCommand, extensions.Include, terragruntOptions),
+		"get_terragrunt_dir":                           wrapVoidToStringAsFuncImpl(getTerragruntDir, extensions.Include, terragruntOptions),
+		"get_parent_terragrunt_dir":                    wrapVoidToStringAsFuncImpl(getParentTerragruntDir, extensions.Include, terragruntOptions),
+		"get_aws_account_id":                           wrapVoidToStringAsFuncImpl(getAWSAccountID, extensions.Include, terragruntOptions),
+		"get_aws_caller_identity_arn":                  wrapVoidToStringAsFuncImpl(getAWSCallerIdentityARN, extensions.Include, terragruntOptions),
+		"get_aws_caller_identity_user_id":              wrapVoidToStringAsFuncImpl(getAWSCallerIdentityUserID, extensions.Include, terragruntOptions),
 		"get_terraform_commands_that_need_vars":        wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_VARS),
 		"get_terraform_commands_that_need_locking":     wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_LOCKING),
 		"get_terraform_commands_that_need_input":       wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_INPUT),
@@ -101,8 +115,12 @@ func CreateTerragruntEvalContext(
 	ctx := &hcl.EvalContext{
 		Functions: functions,
 	}
-	if locals != nil {
-		ctx.Variables = map[string]cty.Value{"local": *locals}
+	ctx.Variables = map[string]cty.Value{}
+	if extensions.Locals != nil {
+		ctx.Variables["local"] = *extensions.Locals
+	}
+	if extensions.DecodedDependencies != nil {
+		ctx.Variables["dependency"] = *extensions.DecodedDependencies
 	}
 	return ctx
 }
@@ -164,7 +182,7 @@ func runCommand(args []string, include *IncludeConfig, terragruntOptions *option
 
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 
-	cmdOutput, err := shell.RunShellCommandWithOutput(terragruntOptions, currentPath, suppressOutput, args[0], args[1:]...)
+	cmdOutput, err := shell.RunShellCommandWithOutput(terragruntOptions, currentPath, suppressOutput, false, args[0], args[1:]...)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
@@ -234,7 +252,7 @@ func findInParentFolders(params []string, include *IncludeConfig, terragruntOpti
 			return "", errors.WithStackTrace(ParentFileNotFound{Path: terragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: "Traversed all the way to the root"})
 		}
 
-		fileToFind := DefaultConfigPath(currentDir)
+		fileToFind := GetDefaultConfigPath(currentDir)
 		if fileToFindParam != "" {
 			fileToFind = util.JoinPath(currentDir, fileToFindParam)
 		}
@@ -284,25 +302,32 @@ func pathRelativeFromInclude(include *IncludeConfig, terragruntOptions *options.
 
 // Return the AWS account id associated to the current set of credentials
 func getAWSAccountID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	sess, err := session.NewSession()
-	if err != nil {
-		return "", errors.WithStackTrace(err)
+	accountID, err := aws_helper.GetAWSAccountID(terragruntOptions)
+	if err == nil {
+		return accountID, nil
 	}
+	return "", err
+}
 
-	if terragruntOptions.IamRole != "" {
-		sess.Config.Credentials = stscreds.NewCredentials(sess, terragruntOptions.IamRole)
+// Return the ARN of the AWS identity associated with the current set of credentials
+func getAWSCallerIdentityARN(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	identityARN, err := aws_helper.GetAWSIdentityArn(terragruntOptions)
+	if err == nil {
+		return identityARN, nil
 	}
+	return "", err
+}
 
-	identity, err := sts.New(sess).GetCallerIdentity(nil)
-	if err != nil {
-		return "", errors.WithStackTrace(err)
+// Return the UserID of the AWS identity associated with the current set of credentials
+func getAWSCallerIdentityUserID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	userID, err := aws_helper.GetAWSUserID(terragruntOptions)
+	if err == nil {
+		return userID, nil
 	}
-
-	return *identity.Account, nil
+	return "", err
 }
 
 // Custom error types
-
 type WrongNumberOfParams struct {
 	Func     string
 	Expected string

@@ -64,7 +64,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 		return nil, err
 	}
 	if terragruntConfigPath == "" {
-		terragruntConfigPath = config.DefaultConfigPath(workingDir)
+		terragruntConfigPath = config.GetDefaultConfigPath(workingDir)
 	}
 
 	terraformPath, err := parseStringArg(args, OPT_TERRAGRUNT_TFPATH, os.Getenv("TERRAGRUNT_TFPATH"))
@@ -84,7 +84,11 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 
 	ignoreDependencyErrors := parseBooleanArg(args, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, false)
 
+	ignoreDependencyOrder := parseBooleanArg(args, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ORDER, false)
+
 	ignoreExternalDependencies := parseBooleanArg(args, OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES, false)
+
+	includeExternalDependencies := parseBooleanArg(args, OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES, false)
 
 	iamRole, err := parseStringArg(args, OPT_TERRAGRUNT_IAM_ROLE, os.Getenv("TERRAGRUNT_IAM_ROLE"))
 	if err != nil {
@@ -121,11 +125,13 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 	opts.WorkingDir = filepath.ToSlash(workingDir)
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
 	opts.Logger = util.CreateLoggerWithWriter(errWriter, "")
-	opts.RunTerragrunt = runTerragrunt
+	opts.RunTerragrunt = RunTerragrunt
 	opts.Source = terraformSource
 	opts.SourceUpdate = sourceUpdate
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
+	opts.IgnoreDependencyOrder = ignoreDependencyOrder
 	opts.IgnoreExternalDependencies = ignoreExternalDependencies
+	opts.IncludeExternalDependencies = includeExternalDependencies
 	opts.Writer = writer
 	opts.ErrWriter = errWriter
 	opts.Env = parseEnvironmentVariables(os.Environ())

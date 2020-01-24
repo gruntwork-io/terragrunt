@@ -1,0 +1,292 @@
+---
+layout: collection-browser-doc
+title: Execute Terraform commands on multiple modules at once
+excerpt: Learn how to avoid tedious tasks of running commands on each module separately.
+tags: ["DRY", "CLI"]
+order: 103
+nav_title: All Use Cases
+nav_title_link: /use-cases/
+---
+
+## Execute Terraform commands on multiple modules at once
+
+  - [Motivation](#motivation)
+
+  - [The apply-all, destroy-all, output-all and plan-all commands](#the-apply-all-destroy-all-output-all-and-plan-all-commands)
+
+  - [Passing outputs between modules](#passing-outputs-between-modules)
+
+  - [Dependencies between modules](#dependencies-between-modules)
+
+  - [Testing multiple modules locally](#testing-multiple-modules-locally)
+
+### Motivation
+
+Let’s say your infrastructure is defined across multiple Terraform modules:
+
+    root
+    ├── backend-app
+    │   └── main.tf
+    ├── frontend-app
+    │   └── main.tf
+    ├── mysql
+    │   └── main.tf
+    ├── redis
+    │   └── main.tf
+    └── vpc
+        └── main.tf
+
+There is one module to deploy a frontend-app, another to deploy a backend-app, another for the MySQL database, and so on. To deploy such an environment, you’d have to manually run `terraform apply` in each of the subfolder, wait for it to complete, and then run `terraform apply` in the next subfolder. How do you avoid this tedious and time-consuming process?
+
+### The apply-all, destroy-all, output-all and plan-all commands
+
+To be able to deploy multiple Terraform modules in a single command, add a `terragrunt.hcl` file to each module:
+
+    root
+    ├── backend-app
+    │   ├── main.tf
+    │   └── terragrunt.hcl
+    ├── frontend-app
+    │   ├── main.tf
+    │   └── terragrunt.hcl
+    ├── mysql
+    │   ├── main.tf
+    │   └── terragrunt.hcl
+    ├── redis
+    │   ├── main.tf
+    │   └── terragrunt.hcl
+    └── vpc
+        ├── main.tf
+        └── terragrunt.hcl
+
+Now you can go into the `root` folder and deploy all the modules within it by using the `apply-all` command:
+
+    cd root
+    terragrunt apply-all
+
+When you run this command, Terragrunt will recursively look through all the subfolders of the current working directory, find all folders with a `terragrunt.hcl` file, and run `terragrunt apply` in each of those folders concurrently.
+
+Similarly, to undeploy all the Terraform modules, you can use the `destroy-all` command:
+
+    cd root
+    terragrunt destroy-all
+
+To see the currently applied outputs of all of the subfolders, you can use the `output-all` command:
+
+    cd root
+    terragrunt output-all
+
+Finally, if you make some changes to your project, you could evaluate the impact by using `plan-all` command:
+
+Note: It is important to realize that you could get errors running `plan-all` if you have dependencies between your projects and some of those dependencies haven’t been applied yet.
+
+*Ex: If module A depends on module B and module B hasn’t been applied yet, then plan-all will show the plan for B, but exit with an error when trying to show the plan for A.*
+
+    cd root
+    terragrunt plan-all
+
+If your modules have dependencies between them—for example, you can’t deploy the backend-app until MySQL and redis are deployed—you’ll need to express those dependencies in your Terragrunt configuration as explained in the next section.
+
+### Passing outputs between modules
+
+Consider the following file structure:
+
+    root
+    ├── backend-app
+    │   ├── main.tf
+    │   └── terragrunt.hcl
+    ├── mysql
+    │   ├── main.tf
+    │   └── terragrunt.hcl
+    ├── redis
+    │   ├── main.tf
+    │   └── terragrunt.hcl
+    └── vpc
+        ├── main.tf
+        └── terragrunt.hcl
+
+Suppose that you wanted to pass in the VPC ID of the VPC that is created from the `vpc` module in the folder structure above to the `mysql` module as an input variable. Or if you wanted to pass in the subnet IDs of the private subnet that is allocated as part of the `vpc` module.
+
+You can use the `dependency` block to extract the output variables to access another module’s output variables in the terragrunt `inputs` attribute.
+
+For example, suppose the `vpc` module outputs the ID under the name `vpc_id`. To access that output, you would specify in `mysql/terragrunt.hcl`:
+
+    dependency "vpc" {
+      config_path = "../vpc"
+    }
+
+    inputs = {
+      vpc_id = dependency.vpc.outputs.vpc_id
+    }
+
+When you apply this module, the output will be read from the `vpc` module and passed in as an input to the `mysql` module right before calling `terraform apply`.
+
+You can also specify multiple `dependency` blocks to access multiple different module output variables. For example, in the above folder structure, you might want to reference the `domain` output of the `redis` and `mysql` modules for use as `inputs` in the `backend-app` module. To access those outputs, you would specify in `backend-app/terragrunt.hcl`:
+
+    dependency "mysql" {
+      config_path = "../mysql"
+    }
+
+    dependency "redis" {
+      config_path = "../redis"
+    }
+
+    inputs = {
+      mysql_url = dependency.mysql.outputs.domain
+      redis_url = dependency.redis.outputs.domain
+    }
+
+Note that each `dependency` is automatically considered a dependency in Terragrunt. This means that when you run `apply-all` on a config that has `dependency` blocks, Terragrunt will not attempt to deploy the config until all the modules referenced in `dependency` blocks have been applied. So for the above example, the order for the `apply-all` command would be:
+
+1.  Deploy the VPC
+
+2.  Deploy MySQL and Redis in parallel
+
+3.  Deploy the backend-app
+
+If any of the modules failed to deploy, then Terragrunt will not attempt to deploy the modules that depend on them.
+
+**Note**: Not all blocks are able to access outputs passed by `dependency` blocks. See the section on [Configuration parsing order]({{site.baseurl}}/docs/getting-started/configuration/#configuration-parsing-order) for more information.
+
+#### Unapplied dependency and mock outputs
+
+Terragrunt will return an error indicating the dependency hasn’t been applied yet if the terraform module managed by the terragrunt config referenced in a `dependency` block has not been applied yet. This is because you cannot actually fetch outputs out of an unapplied Terraform module, even if there are no resources being created in the module.
+
+This is most problematic when running commands that do not modify state (e.g `plan-all` and `validate-all`) on a completely new setup where no infrastructure has been deployed. You won’t be able to `plan` or `validate` a module if you can’t determine the `inputs`. If the module depends on the outputs of another module that hasn’t been applied yet, you won’t be able to compute the `inputs` unless the dependencies are all applied. However, in real life usage, you would want to run `validate-all` or `plan-all` on a completely new set of infrastructure.
+
+To address this, you can provide mock outputs to use when a module hasn’t been applied yet. This is configured using the `mock_outputs` attribute on the `dependency` block and it corresponds to a map that will be injected in place of the actual dependency outputs if the target config hasn’t been applied yet.
+
+For example, in the previous example with a `mysql` module and `vpc` module, suppose you wanted to place in a temporary, dummy value for the `vpc_id` during a `validate-all` for the `mysql` module. You can specify in `mysql/terragrunt.hcl`:
+
+    dependency "vpc" {
+      config_path = "../vpc"
+
+      mock_outputs = {
+        vpc_id = "temporary-dummy-id"
+      }
+    }
+
+    inputs = {
+      vpc_id = dependency.vpc.outputs.vpc_id
+    }
+
+You can now run `validate` on this config before the `vpc` module is applied because Terragrunt will use the map `{vpc_id = "temporary-dummy-id"}` as the `outputs` attribute on the dependency instead of erroring out.
+
+What if you wanted to restrict this behavior to only the `validate` command? For example, you might not want to use the defaults for a `plan` operation because the plan doesn’t give you any indication of what is actually going to be created.
+
+You can use the `mock_outputs_allowed_terraform_commands` attribute to indicate that the `mock_outputs` should only be used when running those Terraform commands. So to restrict the `mock_outputs` to only when `validate` is being run, you can modify the above `terragrunt.hcl` file to:
+
+    dependency "vpc" {
+      config_path = "../vpc"
+
+      mock_outputs = {
+        vpc_id = "temporary-dummy-id"
+      }
+      mock_outputs_allowed_terraform_commands = ["validate"]
+    }
+
+    inputs = {
+      vpc_id = dependency.vpc.outputs.vpc_id
+    }
+
+Note that indicating `validate` means that the `mock_outputs` will be used either with `validate` or with `validate-all`.
+
+You can also use `skip_outputs` on the `dependency` block to specify the dependency without pulling in the outputs:
+
+    dependency "vpc" {
+      config_path = "../vpc"
+      skip_outputs = true
+    }
+
+When `skip_outputs` is used with `mock_outputs`, mocked outputs will be returned without pulling in the outputs from remote states. This can be useful when you disable the backend initialization (`remote_state.disable_init`) in CI for example.
+
+    dependency "vpc" {
+      config_path = "../vpc"
+      mock_outputs = {
+        vpc_id = "temporary-dummy-id"
+      }
+
+      skip_outputs = true
+    }
+
+### Dependencies between modules
+
+You can also specify dependencies explicitly. Consider the following file structure:
+
+    root
+    ├── backend-app
+    │   ├── main.tf
+    │   └── terragrunt.hcl
+    ├── frontend-app
+    │   ├── main.tf
+    │   └── terragrunt.hcl
+    ├── mysql
+    │   ├── main.tf
+    │   └── terragrunt.hcl
+    ├── redis
+    │   ├── main.tf
+    │   └── terragrunt.hcl
+    └── vpc
+        ├── main.tf
+        └── terragrunt.hcl
+
+Let’s assume you have the following dependencies between Terraform modules:
+
+  - `backend-app` depends on `mysql`, `redis`, and `vpc`
+
+  - `frontend-app` depends on `backend-app` and `vpc`
+
+  - `mysql` depends on `vpc`
+
+  - `redis` depends on `vpc`
+
+  - `vpc` has no dependencies
+
+You can express these dependencies in your `terragrunt.hcl` config files using a `dependencies` block. For example, in `backend-app/terragrunt.hcl` you would specify:
+
+``` hcl
+dependencies {
+  paths = ["../vpc", "../mysql", "../redis"]
+}
+```
+
+Similarly, in `frontend-app/terragrunt.hcl`, you would specify:
+
+``` hcl
+dependencies {
+  paths = ["../vpc", "../backend-app"]
+}
+```
+
+Once you’ve specified the dependencies in each `terragrunt.hcl` file, when you run the `terragrunt apply-all` or `terragrunt destroy-all`, Terragrunt will ensure that the dependencies are applied or destroyed, respectively, in the correct order. For the example at the start of this section, the order for the `apply-all` command would be:
+
+1.  Deploy the VPC
+
+2.  Deploy MySQL and Redis in parallel
+
+3.  Deploy the backend-app
+
+4.  Deploy the frontend-app
+
+If any of the modules fail to deploy, then Terragrunt will not attempt to deploy the modules that depend on them. Once you’ve fixed the error, it’s usually safe to re-run the `apply-all` or `destroy-all` command again, since it’ll be a no-op for the modules that already deployed successfully, and should only affect the ones that had an error the last time around.
+
+To check all of your dependencies and validate the code in them, you can use the `validate-all` command.
+
+### Testing multiple modules locally
+
+If you are using Terragrunt to configure [remote Terraform configurations]({{site.baseurl}}/use-cases/keep-your-terraform-code-dry/#remote-terraform-configurations) and all of your modules have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--terragrunt-source` parameter:
+
+    cd root
+    terragrunt plan-all --terragrunt-source /source/modules
+
+If you set the `--terragrunt-source` parameter, the `xxx-all` commands will assume that parameter is pointing to a folder on your local file system that has a local checkout of all of your Terraform modules. For each module that is being processed via a `xxx-all` command, Terragrunt will read in the `source` parameter in that module’s `terragrunt.hcl` file, parse out the path (the portion after the double-slash), and append the path to the `--terragrunt-source` parameter to create the final local path for that module.
+
+For example, consider the following `terragrunt.hcl` file:
+
+``` hcl
+terraform {
+  source = "git::git@github.com:acme/infrastructure-modules.git//networking/vpc?ref=v0.0.1"
+}
+```
+
+If you run `terragrunt apply-all --terragrunt-source /source/infrastructure-modules`, then the local path Terragrunt will compute for the module above will be `/source/infrastructure-modules//networking/vpc`.

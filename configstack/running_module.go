@@ -35,6 +35,7 @@ type DependencyOrder int
 const (
 	NormalOrder DependencyOrder = iota
 	ReverseOrder
+	IgnoreOrder
 )
 
 // Create a new RunningModule struct for the given module. This will initialize all fields to reasonable defaults,
@@ -73,6 +74,16 @@ func RunModulesReverseOrder(modules []*TerraformModule, parallelism int) error {
 	return runModules(runningModules, parallelism)
 }
 
+// Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
+// TerragruntOptions object. The modules will be executed without caring for inter-dependencies.
+func RunModulesIgnoreOrder(modules []*TerraformModule) error {
+	runningModules, err := toRunningModules(modules, IgnoreOrder)
+	if err != nil {
+		return err
+	}
+	return runModules(runningModules)
+}
+
 // Convert the list of modules to a map from module path to a runningModule struct. This struct contains information
 // about executing the module, such as whether it has finished running or not and any errors that happened. Note that
 // this does NOT actually run the module. For that, see the RunModules method.
@@ -95,6 +106,7 @@ func toRunningModules(modules []*TerraformModule, dependencyOrder DependencyOrde
 // * If dependencyOrder is NormalOrder, plug in all the modules M depends on into the Dependencies field and all the
 //   modules that depend on M into the NotifyWhenDone field.
 // * If dependencyOrder is ReverseOrder, do the reverse.
+// * If dependencyOrder is IgnoreOrder, do nothing.
 func crossLinkDependencies(modules map[string]*runningModule, dependencyOrder DependencyOrder) (map[string]*runningModule, error) {
 	for _, module := range modules {
 		for _, dependency := range module.Module.Dependencies {
@@ -105,6 +117,8 @@ func crossLinkDependencies(modules map[string]*runningModule, dependencyOrder De
 			if dependencyOrder == NormalOrder {
 				module.Dependencies[runningDependency.Module.Path] = runningDependency
 				runningDependency.NotifyWhenDone = append(runningDependency.NotifyWhenDone, module)
+			} else if dependencyOrder == IgnoreOrder {
+				// Nothing
 			} else {
 				runningDependency.Dependencies[module.Module.Path] = module
 				module.NotifyWhenDone = append(module.NotifyWhenDone, runningDependency)

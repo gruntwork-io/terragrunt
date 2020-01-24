@@ -1,0 +1,276 @@
+body.index-page {
+  header.header {
+    z-index: 20;
+    position: relative;
+  }
+
+  .section.section-hero {
+    position: relative;
+  }
+
+  .header-bg {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    left: 0;
+    top: 0;
+    z-index: 0;
+    overflow-x: hidden;
+
+    .header-shapes-top {
+      z-index: 0;
+      position: absolute;
+      top: 0;
+      width: 60vw;
+      min-width: 600px;
+      max-width: 800px;
+      margin-left: -20%;
+      left: 60vw;
+    }
+  }
+
+  .header-shapes-bottom {
+    position: absolute;
+    bottom: -332px;
+    right: -100px;
+    width: 250px;
+    height: 400px;
+    background: url('/assets/img/home/t-o-3@3x.png');
+    background-position: top left;
+    background-size: 250px 400px;
+    background-repeat: no-repeat;
+  }
+
+  .index-page__header {
+    z-index: 1;
+    position: relative;
+  }
+
+  .navbar.navbar-default {
+    padding-top: 30px;
+  }
+
+  .section-hero {
+    margin-top: 0px;
+    padding-top: 0px;
+    padding-bottom: 70px;
+  }
+
+  .index-page__header {
+    display: flex;
+    width: 100%;
+    margin: auto;
+
+    .img-container {
+      flex: 1;
+      max-width: 50%;
+      position: relative;
+
+      .header-shapes-hero {
+        width: 70%;
+        position: absolute;
+        top: 24px;
+        max-width: 460px;
+        left: 15%;
+      }
+    }
+
+    .text-container {
+      flex: 1;
+      padding: 15px;
+      max-width: 600px;
+      position: relative;
+
+      h1 {
+        line-height: 1;
+        margin-top: 10px;
+      }
+
+      .subtitle {
+        font-size: 22px;
+        display: block;
+        margin-bottom: 40px;
+        line-height: 1.23;
+      }
+
+      .btn {
+        min-width: 250px;
+      }
+    }
+  }
+
+  .index-page__key-features .index-page__key-feature {
+    max-width: 1200px;
+
+    .subtitle {
+      font-size: 22px;
+      max-width: 500px;
+      margin-bottom: 30px;
+    }
+
+    &.text-center .subtitle {
+      max-width: 100%;
+      margin-top: -10px;
+    }
+
+    img {
+      &.custom-width {
+        max-width: 80%;
+      }
+
+      &.custom-width-2 {
+        max-width: 800px;
+      }
+    }
+
+    .custom-width-3 {
+      display: none;
+      max-width: 50%;
+      max-height: 180px;
+      margin-bottom: 50px;
+    }
+  }
+
+  .index-page__built-by {
+    text-align: center;
+    position: relative;
+    overflow-x: hidden;
+    margin-bottom: 30px;
+    padding-bottom: 80px;
+
+    .subtitle {
+      font-size: 22px;
+    }
+
+    .bg-image {
+      position: absolute;
+      z-index: -1;
+      width: 1440px;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+  }
+}
+
+@media all and (max-width: 1600px) {
+  body.index-page {
+    .header-shapes-bottom {
+      right: -50px;
+    }
+
+    .index-page__header .img-container .header-shapes-hero {
+      left: 15px;
+    }
+  }
+}
+
+@media all and (max-width: 1310px) {
+  body.index-page {
+    .header-shapes-bottom {
+      right: 0px;
+    }
+
+    .index-page__header .img-container .header-shapes-hero {
+      left: auto;
+      right: 10vw;
+      min-width: 460px;
+    }
+  }
+}
+
+@media all and (max-width: 1260px) {
+  body.index-page {
+    .index-page__header .img-container .header-shapes-hero {
+      left: auto;
+      right: 10vw;
+    }
+
+    .index-page__key-features .index-page__key-feature {
+      max-width: 90%;
+    }
+  }
+}
+
+@media all and (max-width: 1200px) {
+  body.index-page .header-shapes-bottom {
+    right: 0px;
+    max-height: 350px;
+    bottom: -283px;
+    overflow-y: hidden;
+  }
+}
+
+@media all and (max-width: 991px) {
+  body.index-page {
+    .header-shapes-bottom {
+      display: none;
+    }
+
+    .index-page__header {
+      justify-content: center;
+
+      .img-container {
+        display: none;
+      }
+
+      .text-container {
+        text-align: center;
+        max-width: 700px;
+
+        .subtitle {
+          font-size: 16px;
+        }
+      }
+    }
+
+    .index-page__key-features .index-page__key-feature {
+      text-align: center;
+      max-width: 700px;
+
+      .subtitle {
+        max-width: 100%;
+        font-size: 16px;
+      }
+
+      img {
+        &.custom-width, &.custom-width-2 {
+          display: none;
+        }
+      }
+
+      .custom-width-3 {
+        display: block;
+        margin: auto;
+        margin-bottom: 20px;
+      }
+
+      .code-snippet {
+        font-size: 10px;
+
+        pre {
+          max-width: 600px;
+          margin: 0 auto 30px auto;
+        }
+      }
+    }
+  }
+}
+
+@media all and (max-width: 768px) {
+  body.index-page {
+    .index-page__key-features .index-page__key-feature h3 {
+      margin-top: 5px;
+    }
+
+    hr.short {
+      margin: 10px auto;
+    }
+  }
+}
+
+@media all and (max-width: 480px) {
+  body.index-page .index-page__key-features .index-page__key-feature .code-snippet pre {
+    font-size: 10px;
+  }
+}

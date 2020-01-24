@@ -198,7 +198,7 @@ func flagIncludedDirs(modules []*TerraformModule, terragruntOptions *options.Ter
 // Returns true if a module is located under one of the target directories
 func findModuleinPath(module *TerraformModule, targetDirs []string) bool {
 	for _, targetDir := range targetDirs {
-		if strings.Contains(module.Path, targetDir) {
+		if module.Path == targetDir {
 			return true
 		}
 	}
@@ -234,7 +234,22 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 	}
 
 	opts := terragruntOptions.Clone(terragruntConfigPath)
-	terragruntConfig, err := config.ParseConfigFile(terragruntConfigPath, opts, nil)
+	// We only partially parse the config, only using the pieces that we need in this section. This config will be fully
+	// parsed at a later stage right before the action is run. This is to delay interpolation of functions until right
+	// before we call out to terraform.
+	terragruntConfig, err := config.PartialParseConfigFile(
+		terragruntConfigPath,
+		opts,
+		nil,
+		[]config.PartialDecodeSectionType{
+			// Need for initializing the modules
+			config.TerraformBlock,
+
+			// Need for parsing out the dependencies
+			config.DependenciesBlock,
+			config.DependencyBlock,
+		},
+	)
 	if err != nil {
 		return nil, errors.WithStackTrace(ErrorProcessingModule{UnderlyingError: err, HowThisModuleWasFound: howThisModuleWasFound, ModulePath: terragruntConfigPath})
 	}
@@ -406,7 +421,7 @@ func resolveExternalDependenciesForModule(module *TerraformModule, moduleMap map
 			return map[string]*TerraformModule{}, err
 		}
 
-		terragruntConfigPath := config.DefaultConfigPath(dependencyPath)
+		terragruntConfigPath := config.GetDefaultConfigPath(dependencyPath)
 		if _, alreadyContainsModule := moduleMap[dependencyPath]; !alreadyContainsModule {
 			externalTerragruntConfigPaths = append(externalTerragruntConfigPaths, terragruntConfigPath)
 		}
@@ -419,6 +434,11 @@ func resolveExternalDependenciesForModule(module *TerraformModule, moduleMap map
 // Confirm with the user whether they want Terragrunt to assume the given dependency of the given module is already
 // applied. If the user selects "yes", then Terragrunt will apply that module as well.
 func confirmShouldApplyExternalDependency(module *TerraformModule, dependency *TerraformModule, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	if terragruntOptions.IncludeExternalDependencies {
+		terragruntOptions.Logger.Printf("The --terragrunt-include-external-dependencies flag is set, so automatically including all external dependencies, and will run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
+		return true, nil
+	}
+
 	if terragruntOptions.NonInteractive {
 		terragruntOptions.Logger.Printf("The --non-interactive flag is set. To avoid accidentally affecting external dependencies with an xxx-all command, will not run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
 		return false, nil

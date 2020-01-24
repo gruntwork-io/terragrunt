@@ -9,3 +9,5 @@ vendor
 *.tfstate.backup
 *.out
 .terragrunt-cache
+.bundle
+.ruby-version

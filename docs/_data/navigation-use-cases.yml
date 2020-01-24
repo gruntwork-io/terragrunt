@@ -1,0 +1,81 @@
+name: use cases
+href: /use-cases/
+children:
+  - name: Keep your Terraform code DRY
+    href: /use-cases/keep-your-terraform-code-dry/
+    children:
+      - name: Motivation
+        href: /use-cases/keep-your-terraform-code-dry/#motivation
+      - name: Remote Terraform configurations
+        href: /use-cases/keep-your-terraform-code-dry/#remote-terraform-configurations
+      - name: How to use remote configurations
+        href: /use-cases/keep-your-terraform-code-dry/#how-to-use-remote-configuration
+      - name: Achieve DRY Terraform code and immutable infrastructure
+        href: /use-cases/keep-your-terraform-code-dry/#achieve-dry-terraform-code-and-immutable-infrastructure
+      - name: Working locally
+        href: /use-cases/keep-your-terraform-code-dry/#working-locally
+      - name: 'Important gotcha: working with relative file paths'
+        href: /use-cases/keep-your-terraform-code-dry/#important-gotcha-working-with-relative-file-paths
+      - name: Using Terragrunt with private Git repos
+        href: /use-cases/keep-your-terraform-code-dry/#using-terragrunt-with-private-git-repos
+
+  - name: Keep your remote state configuration DRY
+    href: /use-cases/keep-your-remote-state-configuration-dry/
+    children:
+      - name: Motivation
+        href: /use-cases/keep-your-remote-state-configuration-dry/#motivation
+      - name: Filling in remote state settings with Terragrunt
+        href: /use-cases/keep-your-remote-state-configuration-dry/#filling-in-remote-state-settings-with-terragrunt
+      - name: Rules for merging parent and child configurations
+        href: /use-cases/keep-your-remote-state-configuration-dry/#rules-for-merging-parent-and-child-configurations
+      - name: Create remote state and locking resources automatically
+        href: /use-cases/keep-your-remote-state-configuration-dry/#create-remote-state-and-locking-resources-automatically
+      - name: S3-specific remote state settings
+        href: /use-cases/keep-your-remote-state-configuration-dry/#s3-specific-remote-state-settings
+      - name: GCS-specific remote state settings
+        href: /use-cases/keep-your-remote-state-configuration-dry/#gcs-specific-remote-state-settings
+
+  - name: Keep your CLI flags DRY
+    href: /use-cases/keep-your-cli-flags-dry/
+    children:
+      - name: Keep your CLI flags DRY
+        href: /use-cases/keep-your-cli-flags-dry/#keep-your-cli-flags-dry
+      - name: Motivation
+        href: /use-cases/keep-your-cli-flags-dry/#motivation
+      - name: Multiple extra_arguments blocks
+        href: /use-cases/keep-your-cli-flags-dry/#multiple-extra_arguments-blocks
+      - name: extra_arguments for init
+        href: /use-cases/keep-your-cli-flags-dry/#extra_arguments-for-init
+      - name: Required and optional var-files
+        href: /use-cases/keep-your-cli-flags-dry/#required-and-optional-var-files
+      - name: Handling whitespace
+        href: /use-cases/keep-your-cli-flags-dry/#handling-whitespace
+
+  - name: Execute Terraform commands on multiple modules at once
+    href: /use-cases/execute-terraform-commands-on-multiple-modules-at-once/
+    children:
+      - name: Execute Terraform commands on multiple modules at once
+        href: /use-cases/execute-terraform-commands-on-multiple-modules-at-once/#execute-terraform-commands-on-multiple-modules-at-once
+      - name: Motivation
+        href: /use-cases/execute-terraform-commands-on-multiple-modules-at-once/#motivation
+      - name: The apply-all, destroy-all, output-all and plan-all commands
+        href: /use-cases/execute-terraform-commands-on-multiple-modules-at-once/#the-apply-all-destroy-all-output-all-and-plan-all-commands
+      - name: Passing outputs between modules
+        href: /use-cases/execute-terraform-commands-on-multiple-modules-at-once/#passing-outputs-between-modules
+        children:
+          - name: Unapplied dependency and mock outputs
+            href: /use-cases/execute-terraform-commands-on-multiple-modules-at-once/#unapplied-dependency-and-mock-outputs
+      - name: Dependencies between modules
+        href: /use-cases/execute-terraform-commands-on-multiple-modules-at-once/#dependencies-between-modules
+      - name: Testing multiple modules locally
+        href: /use-cases/execute-terraform-commands-on-multiple-modules-at-once/#testing-multiple-modules-locally
+
+  - name: Work with multiple AWS accounts
+    href: /use-cases/work-with-multiple-aws-accounts/
+    children:
+      - name: Work with multiple AWS accounts
+        href: /use-cases/work-with-multiple-aws-accounts/#work-with-multiple-aws-accounts
+      - name: Motivation
+        href: /use-cases/work-with-multiple-aws-accounts/#motivation
+      - name: Configuring Terragrunt to assume an IAM role
+        href: /use-cases/work-with-multiple-aws-accounts/#configuring-terragrunt-to-assume-an-iam-role

@@ -32,13 +32,15 @@ const OPT_TERRAGRUNT_SOURCE = "terragrunt-source"
 const OPT_TERRAGRUNT_SOURCE_UPDATE = "terragrunt-source-update"
 const OPT_TERRAGRUNT_IAM_ROLE = "terragrunt-iam-role"
 const OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS = "terragrunt-ignore-dependency-errors"
+const OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ORDER = "terragrunt-ignore-dependency-order"
 const OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES = "terragrunt-ignore-external-dependencies"
+const OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES = "terragrunt-include-external-dependencies"
 const OPT_TERRAGRUNT_EXCLUDE_DIR = "terragrunt-exclude-dir"
 const OPT_TERRAGRUNT_INCLUDE_DIR = "terragrunt-include-dir"
 const OPT_TERRAGRUNT_PARALLELISM = "terragrunt-parallelism"
 const OPT_TERRAGRUNT_CHECK = "terragrunt-check"
 
-var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES, OPT_TERRAGRUNT_NO_AUTO_INIT, OPT_TERRAGRUNT_NO_AUTO_RETRY, OPT_TERRAGRUNT_CHECK}
+var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ORDER, OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES, OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES, OPT_TERRAGRUNT_NO_AUTO_INIT, OPT_TERRAGRUNT_NO_AUTO_RETRY, OPT_TERRAGRUNT_CHECK}
 var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_TFPATH, OPT_WORKING_DIR, OPT_DOWNLOAD_DIR, OPT_TERRAGRUNT_SOURCE, OPT_TERRAGRUNT_IAM_ROLE, OPT_TERRAGRUNT_EXCLUDE_DIR, OPT_TERRAGRUNT_INCLUDE_DIR, OPT_TERRAGRUNT_PARALLELISM}
 
 const CMD_PLAN_ALL = "plan-all"
@@ -124,21 +126,23 @@ COMMANDS:
    *                    Terragrunt forwards all other commands directly to Terraform
 
 GLOBAL OPTIONS:
-   terragrunt-config                        Path to the Terragrunt config file. Default is terragrunt.hcl.
-   terragrunt-tfpath                        Path to the Terraform binary. Default is terraform (on PATH).
-   terragrunt-no-auto-init                  Don't automatically run 'terraform init' during other terragrunt commands. You must run 'terragrunt init' manually.
-   terragrunt-no-auto-retry                 Don't automatically re-run command in case of transient errors.
-   terragrunt-non-interactive               Assume "yes" for all prompts.
-   terragrunt-working-dir                   The path to the Terraform templates. Default is current directory.
-   terragrunt-download-dir                  The path where to download Terraform code. Default is .terragrunt-cache in the working directory.
-   terragrunt-source                        Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.
-   terragrunt-source-update                 Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it.
-   terragrunt-iam-role             	    	Assume the specified IAM role before executing Terraform. Can also be set via the TERRAGRUNT_IAM_ROLE environment variable.
-   terragrunt-ignore-dependency-errors      *-all commands continue processing components even if a dependency fails.
-   terragrunt-ignore-external-dependencies  *-all commands will not attempt to include external dependencies
-   terragrunt-exclude-dir                   Unix-style glob of directories to exclude when running *-all commands
-   terragrunt-include-dir                   Unix-style glob of directories to include when running *-all commands
-   terragrunt-check                         Enable check mode in the hclfmt command.
+   terragrunt-config                            Path to the Terragrunt config file. Default is terragrunt.hcl.
+   terragrunt-tfpath                            Path to the Terraform binary. Default is terraform (on PATH).
+   terragrunt-no-auto-init                      Don't automatically run 'terraform init' during other terragrunt commands. You must run 'terragrunt init' manually.
+   terragrunt-no-auto-retry                     Don't automatically re-run command in case of transient errors.
+   terragrunt-non-interactive                   Assume "yes" for all prompts.
+   terragrunt-working-dir                       The path to the Terraform templates. Default is current directory.
+   terragrunt-download-dir                      The path where to download Terraform code. Default is .terragrunt-cache in the working directory.
+   terragrunt-source                            Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.
+   terragrunt-source-update                     Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it.
+   terragrunt-iam-role             	    	    Assume the specified IAM role before executing Terraform. Can also be set via the TERRAGRUNT_IAM_ROLE environment variable.
+   terragrunt-ignore-dependency-errors          *-all commands continue processing components even if a dependency fails.
+   terragrunt-ignore-dependency-order           *-all commands will be run disregarding the dependencies
+   terragrunt-ignore-external-dependencies      *-all commands will not attempt to include external dependencies
+   terragrunt-include-external-dependencies     *-all commands will include external dependencies
+   terragrunt-exclude-dir                       Unix-style glob of directories to exclude when running *-all commands
+   terragrunt-include-dir                       Unix-style glob of directories to include when running *-all commands
+   terragrunt-check                             Enable check mode in the hclfmt command.
 
 VERSION:
    {{.Version}}{{if len .Authors}}
@@ -223,14 +227,18 @@ func runCommand(command string, terragruntOptions *options.TerragruntOptions) (f
 	if isMultiModuleCommand(command) {
 		return runMultiModuleCommand(command, terragruntOptions)
 	}
-	return runTerragrunt(terragruntOptions)
+	return RunTerragrunt(terragruntOptions)
 }
 
 // Downloads terraform source if necessary, then runs terraform with the given options and CLI args.
 // This will forward all the args and extra_arguments directly to Terraform.
-func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
+func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	if shouldPrintTerraformHelp(terragruntOptions) {
 		return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
+	}
+
+	if shouldRunHCLFmt(terragruntOptions) {
+		return runHCLFmt(terragruntOptions)
 	}
 
 	terragruntConfig, err := config.ReadTerragruntConfig(terragruntOptions)
@@ -271,6 +279,18 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
+	// get the default download dir
+	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(terragruntOptions.TerragruntConfigPath)
+	if err != nil {
+		return err
+	}
+
+	// if the download dir hasn't been changed from default, and is set in the config,
+	// then use it
+	if terragruntOptions.DownloadDir == defaultDownloadDir && terragruntConfig.DownloadDir != "" {
+		terragruntOptions.DownloadDir = terragruntConfig.DownloadDir
+	}
+
 	if sourceUrl := getTerraformSourceUrl(terragruntOptions, terragruntConfig); sourceUrl != "" {
 		if err := downloadTerraformSource(sourceUrl, terragruntOptions, terragruntConfig); err != nil {
 			return err
@@ -293,10 +313,6 @@ func runTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 		fmt.Fprintf(terragruntOptions.Writer, "%s\n", b)
 		return nil
-	}
-
-	if shouldRunHCLFmt(terragruntOptions) {
-		return runHCLFmt(terragruntOptions)
 	}
 
 	if err := checkFolderContainsTerraformCode(terragruntOptions); err != nil {
@@ -387,6 +403,7 @@ func assumeRoleIfNecessary(terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Env["AWS_ACCESS_KEY_ID"] = aws.StringValue(creds.AccessKeyId)
 	terragruntOptions.Env["AWS_SECRET_ACCESS_KEY"] = aws.StringValue(creds.SecretAccessKey)
 	terragruntOptions.Env["AWS_SESSION_TOKEN"] = aws.StringValue(creds.SessionToken)
+	terragruntOptions.Env["AWS_SECURITY_TOKEN"] = aws.StringValue(creds.SessionToken)
 
 	return nil
 }
@@ -587,7 +604,7 @@ func needsInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *c
 
 // Returns true if we need to run `terraform init` to download providers
 func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
-	providersPath := util.JoinPath(terragruntOptions.WorkingDir, ".terraform/plugins")
+	providersPath := util.JoinPath(terragruntOptions.DataDir(), "plugins")
 	return !util.FileExists(providersPath)
 }
 
@@ -659,7 +676,7 @@ func runMultiModuleCommand(command string, terragruntOptions *options.Terragrunt
 // modules at all. Detecting if your downloaded modules are out of date (as opposed to missing entirely) is more
 // complicated and not something we handle at the moment.
 func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error) {
-	modulesPath := util.JoinPath(terragruntOptions.WorkingDir, ".terraform/modules")
+	modulesPath := util.JoinPath(terragruntOptions.DataDir(), "modules")
 	if util.FileExists(modulesPath) {
 		return false, nil
 	}

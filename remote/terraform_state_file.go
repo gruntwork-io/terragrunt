@@ -3,9 +3,10 @@ package remote
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
-	"io/ioutil"
 )
 
 // TODO: this file could be changed to use the Terraform Go code to read state files, but that code is relatively
@@ -16,7 +17,7 @@ import (
 const DEFAULT_PATH_TO_LOCAL_STATE_FILE = "terraform.tfstate"
 
 // When using remote state storage, Terraform keeps a local copy of the state file in this folder
-const DEFAULT_PATH_TO_REMOTE_STATE_FILE = ".terraform/terraform.tfstate"
+const DEFAULT_PATH_TO_REMOTE_STATE_FILE = "terraform.tfstate"
 
 // The structure of the Terraform .tfstate file
 type TerraformState struct {
@@ -48,14 +49,14 @@ func (state *TerraformState) IsRemote() bool {
 // return nil if the file is missing. If the backend is not local then parse the Terraform .tfstate
 // file from the location specified by workingDir. If no location is specified, search the current
 // directory. If the file doesn't exist at any of the default locations, return nil.
-func ParseTerraformStateFileFromLocation(backend string, config map[string]interface{}, workingDir string) (*TerraformState, error) {
+func ParseTerraformStateFileFromLocation(backend string, config map[string]interface{}, workingDir, dataDir string) (*TerraformState, error) {
 	stateFile, ok := config["path"].(string)
 	if backend == "local" && ok && util.FileExists(stateFile) {
 		return ParseTerraformStateFile(stateFile)
 	} else if util.FileExists(util.JoinPath(workingDir, DEFAULT_PATH_TO_LOCAL_STATE_FILE)) {
 		return ParseTerraformStateFile(util.JoinPath(workingDir, DEFAULT_PATH_TO_LOCAL_STATE_FILE))
-	} else if util.FileExists(util.JoinPath(workingDir, DEFAULT_PATH_TO_REMOTE_STATE_FILE)) {
-		return ParseTerraformStateFile(util.JoinPath(workingDir, DEFAULT_PATH_TO_REMOTE_STATE_FILE))
+	} else if util.FileExists(util.JoinPath(dataDir, DEFAULT_PATH_TO_REMOTE_STATE_FILE)) {
+		return ParseTerraformStateFile(util.JoinPath(dataDir, DEFAULT_PATH_TO_REMOTE_STATE_FILE))
 	} else {
 		return nil, nil
 	}

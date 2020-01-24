@@ -1,0 +1,27 @@
+<div class="cb-doc-header">
+  <ol class="breadcrumb text-center">
+    {% assign crumbs = page.url | split: '/' %}
+    <a href="{{site.baseurl}}/{{ page.collection }}" ga-on="click" ga-event-category="{{ page.collection }}-{{ page.title | slugify }}" ga-event-action="{{ page.collection }}-main-index">{{ page.collection | capitalize }}</a>
+    {% for crumb in crumbs offset: 2 %}
+      {% if forloop.last %}
+        <a href="#"> / <span> {{ page.title | replace: '-',' ' | replace: '%20', ' ' }}</span></a>
+      {% else %}
+        <a href="{{ site.baseurl }}/{{ page.collection }}#{{ crumb | replace: '%20', '-' }}" ga-on="click" ga-event-category="{{ page.collection }}-{{ page.title | slugify }}" ga-event-action="{{ page.collection }}-breadcrumb-{{ crumb }}">/ <span>{{ crumb | replace:'-',' ' | replace: '%20', ' ' | capitalize }}</span></a>
+      {% endif %}
+    {% endfor %}
+  </ol>
+  <div class="cb-doc-title text-center">
+    {% if page.image %}
+      <img class="img-center cb-doc-title-image" src="{{ site.baseurl }}{{ page.image }}" alt="post logo">
+    {% endif %}
+    <h1>{{ page.title }}</h1>
+    {% if page.tags %}
+      {% for tag in page.tags %}
+        <span class="badge badge-pill badge-default">
+          {% capture tag-name %}{{tag | upcase }}{% endcapture %}
+          {{tag-name | capitalize}}
+        </span>
+      {% endfor %}
+    {% endif %}
+  </div>
+</div>

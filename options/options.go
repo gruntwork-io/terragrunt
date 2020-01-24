@@ -76,8 +76,14 @@ type TerragruntOptions struct {
 	// If set to true, continue running *-all commands even if a dependency has errors. This is mostly useful for 'output-all <some_variable>'. See https://github.com/gruntwork-io/terragrunt/issues/193
 	IgnoreDependencyErrors bool
 
+	// If set to true, ignore the dependency order when running *-all command.
+	IgnoreDependencyOrder bool
+
 	// If set to true, skip any external dependencies when running *-all commands
 	IgnoreExternalDependencies bool
+
+	// If set to true, apply all external dependencies when running *-all commands
+	IncludeExternalDependencies bool
 
 	// If you want stdout to go somewhere other than os.stdout
 	Writer io.Writer
@@ -131,31 +137,33 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 	}
 
 	return &TerragruntOptions{
-		TerragruntConfigPath:       terragruntConfigPath,
-		TerraformPath:              TERRAFORM_DEFAULT_PATH,
-		TerraformCommand:           "",
-		AutoInit:                   true,
-		NonInteractive:             false,
-		TerraformCliArgs:           []string{},
-		WorkingDir:                 workingDir,
-		Logger:                     logger,
-		Env:                        map[string]string{},
-		Source:                     "",
-		SourceUpdate:               false,
-		DownloadDir:                downloadDir,
-		IgnoreDependencyErrors:     false,
-		IgnoreExternalDependencies: false,
-		Writer:            os.Stdout,
-		ErrWriter:         os.Stderr,
-		MaxFoldersToCheck: DEFAULT_MAX_FOLDERS_TO_CHECK,
-		AutoRetry:         true,
-		MaxRetryAttempts:  DEFAULT_MAX_RETRY_ATTEMPTS,
-		Sleep:             DEFAULT_SLEEP,
-		RetryableErrors:   util.CloneStringList(RETRYABLE_ERRORS),
-		ExcludeDirs:       []string{},
-		IncludeDirs:       []string{},
+		TerragruntConfigPath:        terragruntConfigPath,
+		TerraformPath:               TERRAFORM_DEFAULT_PATH,
+		TerraformCommand:            "",
+		AutoInit:                    true,
+		NonInteractive:              false,
+		TerraformCliArgs:            []string{},
+		WorkingDir:                  workingDir,
+		Logger:                      logger,
+		Env:                         map[string]string{},
+		Source:                      "",
+		SourceUpdate:                false,
+		DownloadDir:                 downloadDir,
+		IgnoreDependencyErrors:      false,
+		IgnoreDependencyOrder:       false,
+		IgnoreExternalDependencies:  false,
+		IncludeExternalDependencies: false,
+		Writer:                      os.Stdout,
+		ErrWriter:                   os.Stderr,
+		MaxFoldersToCheck:           DEFAULT_MAX_FOLDERS_TO_CHECK,
+		AutoRetry:                   true,
+		MaxRetryAttempts:            DEFAULT_MAX_RETRY_ATTEMPTS,
+		Sleep:                       DEFAULT_SLEEP,
+		RetryableErrors:             util.CloneStringList(RETRYABLE_ERRORS),
+		ExcludeDirs:                 []string{},
+		IncludeDirs:                 []string{},
     Parallelism:       DEFAULT_PARALLELISM,
-		Check:             false,
+		Check:                       false,
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
@@ -198,33 +206,35 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367
 	// for more info.
 	return &TerragruntOptions{
-		TerragruntConfigPath:       terragruntConfigPath,
-		TerraformPath:              terragruntOptions.TerraformPath,
-		TerraformCommand:           terragruntOptions.TerraformCommand,
-		TerraformVersion:           terragruntOptions.TerraformVersion,
-		AutoInit:                   terragruntOptions.AutoInit,
-		NonInteractive:             terragruntOptions.NonInteractive,
-		TerraformCliArgs:           util.CloneStringList(terragruntOptions.TerraformCliArgs),
-		WorkingDir:                 workingDir,
-		Logger:                     util.CreateLoggerWithWriter(terragruntOptions.ErrWriter, workingDir),
-		Env:                        util.CloneStringMap(terragruntOptions.Env),
-		Source:                     terragruntOptions.Source,
-		SourceUpdate:               terragruntOptions.SourceUpdate,
-		DownloadDir:                terragruntOptions.DownloadDir,
-		IamRole:                    terragruntOptions.IamRole,
-		IgnoreDependencyErrors:     terragruntOptions.IgnoreDependencyErrors,
-		IgnoreExternalDependencies: terragruntOptions.IgnoreExternalDependencies,
-		Writer:            terragruntOptions.Writer,
-		ErrWriter:         terragruntOptions.ErrWriter,
-		MaxFoldersToCheck: terragruntOptions.MaxFoldersToCheck,
-		AutoRetry:         terragruntOptions.AutoRetry,
-		MaxRetryAttempts:  terragruntOptions.MaxRetryAttempts,
-		Sleep:             terragruntOptions.Sleep,
-		RetryableErrors:   util.CloneStringList(terragruntOptions.RetryableErrors),
-		ExcludeDirs:       terragruntOptions.ExcludeDirs,
-		IncludeDirs:       terragruntOptions.IncludeDirs,
+		TerragruntConfigPath:        terragruntConfigPath,
+		TerraformPath:               terragruntOptions.TerraformPath,
+		TerraformCommand:            terragruntOptions.TerraformCommand,
+		TerraformVersion:            terragruntOptions.TerraformVersion,
+		AutoInit:                    terragruntOptions.AutoInit,
+		NonInteractive:              terragruntOptions.NonInteractive,
+		TerraformCliArgs:            util.CloneStringList(terragruntOptions.TerraformCliArgs),
+		WorkingDir:                  workingDir,
+		Logger:                      util.CreateLoggerWithWriter(terragruntOptions.ErrWriter, workingDir),
+		Env:                         util.CloneStringMap(terragruntOptions.Env),
+		Source:                      terragruntOptions.Source,
+		SourceUpdate:                terragruntOptions.SourceUpdate,
+		DownloadDir:                 terragruntOptions.DownloadDir,
+		IamRole:                     terragruntOptions.IamRole,
+		IgnoreDependencyErrors:      terragruntOptions.IgnoreDependencyErrors,
+		IgnoreDependencyOrder:       terragruntOptions.IgnoreDependencyOrder,
+		IgnoreExternalDependencies:  terragruntOptions.IgnoreExternalDependencies,
+		IncludeExternalDependencies: terragruntOptions.IncludeExternalDependencies,
+		Writer:                      terragruntOptions.Writer,
+		ErrWriter:                   terragruntOptions.ErrWriter,
+		MaxFoldersToCheck:           terragruntOptions.MaxFoldersToCheck,
+		AutoRetry:                   terragruntOptions.AutoRetry,
+		MaxRetryAttempts:            terragruntOptions.MaxRetryAttempts,
+		Sleep:                       terragruntOptions.Sleep,
+		RetryableErrors:             util.CloneStringList(terragruntOptions.RetryableErrors),
+		ExcludeDirs:                 terragruntOptions.ExcludeDirs,
+		IncludeDirs:                 terragruntOptions.IncludeDirs,
     Parallelism:       terragruntOptions.Parallelism,
-		RunTerragrunt:     terragruntOptions.RunTerragrunt,
+		RunTerragrunt:               terragruntOptions.RunTerragrunt,
 	}
 }
 
@@ -250,6 +260,14 @@ func (terragruntOptions *TerragruntOptions) InsertTerraformCliArgs(argsToInsert 
 // Appends the given argsToAppend after the current TerraformCliArgs
 func (terragruntOptions *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
 	terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, argsToAppend...)
+}
+
+// DataDir returns Terraform data dir (.terraform by default, overridden by $TF_DATA_DIR envvar)
+func (terragruntOptions *TerragruntOptions) DataDir() string {
+	if tfDataDir, ok := os.LookupEnv("TF_DATA_DIR"); ok {
+		return tfDataDir
+	}
+	return util.JoinPath(terragruntOptions.WorkingDir, ".terraform")
 }
 
 // Custom error types

@@ -1,0 +1,17 @@
+{% capture title %}{% if page.title %}{{ page.title }}{% else %}{{ site.name }}{% endif %}{% endcapture %}
+{% capture description %}{% if page.excerpt %}{{ page.excerpt | strip_html | strip_newlines }}{% else %}{{ site.description }}{% endif %}{% endcapture %}
+{% capture img %}{% if page.image %}{{ page.image }}{% else %}{{ site.thumbnail_path }}{% endif %}{% endcapture %}
+
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:site" content="{{ site.data.contact.twitter.username }}" />
+<meta name="twitter:title" content="{{ title }}" />
+<meta name="twitter:url" content="{% include canonical-url.html %}" />
+<meta name="twitter:description" content="{{ description }}" />
+<meta name="twitter:image" content="{{ site.url }}{{site.baseurl}}{{ img }}" />
+
+<meta property="og:title" content="{{ title }}"/>
+<meta property="og:url" content="{% include canonical-url.html %}"/>
+<meta property="og:site_name" content="{{ site.name }}"/>
+<meta property="article:author" content="{{ site.data.contact.facebook.url }}"/>
+<meta property="og:description" content="{{ description }}"/>
+<meta property="og:image" content="{{site.url}}{{site.baseurl}}{{ img }}"/>

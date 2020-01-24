@@ -1,11 +1,14 @@
 package main
 
 import (
+	"os"
+
+	"github.com/fatih/color"
+
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
-	"os"
 )
 
 // This variable is set at build time using -ldflags parameters. For more info, see:
@@ -14,6 +17,10 @@ var VERSION string
 
 // The main entrypoint for Terragrunt
 func main() {
+	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of
+	// terragrunt used.
+	util.Debugf(util.CreateLogger(""), "Terragrunt Version: %s", VERSION)
+
 	defer errors.Recover(checkForErrorsAndExit)
 
 	app := cli.CreateTerragruntCli(VERSION, os.Stdout, os.Stderr)
@@ -31,7 +38,8 @@ func checkForErrorsAndExit(err error) {
 		if os.Getenv("TERRAGRUNT_DEBUG") != "" {
 			logger.Println(errors.PrintErrorWithStackTrace(err))
 		} else {
-			logger.Println(err)
+			// Log error in red so that it is highlighted
+			util.ColorLogf(logger, color.New(color.FgRed), err.Error())
 		}
 		// exit with the underlying error code
 		exitCode, exitCodeErr := shell.GetExitCode(err)
