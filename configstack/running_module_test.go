@@ -651,6 +651,41 @@ func TestRunModulesMultipleModulesNoDependenciesSuccess(t *testing.T) {
 	assert.True(t, cRan)
 }
 
+func TestRunModulesMultipleModulesNoDependenciesSuccessNoParallelism(t *testing.T) {
+	t.Parallel()
+
+	aRan := false
+	moduleA := &TerraformModule{
+		Path:              "a",
+		Dependencies:      []*TerraformModule{},
+		Config:            config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
+	}
+
+	bRan := false
+	moduleB := &TerraformModule{
+		Path:              "b",
+		Dependencies:      []*TerraformModule{},
+		Config:            config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
+	}
+
+	cRan := false
+	moduleC := &TerraformModule{
+		Path:              "c",
+		Dependencies:      []*TerraformModule{},
+		Config:            config.TerragruntConfig{},
+		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
+	}
+
+	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC}, 1)
+	assert.Nil(t, err, "Unexpected error: %v", err)
+
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
+}
+
 func TestRunModulesReverseOrderMultipleModulesNoDependenciesSuccess(t *testing.T) {
 	t.Parallel()
 
