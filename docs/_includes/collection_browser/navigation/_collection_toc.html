@@ -3,32 +3,13 @@
     To build navigation:
     == A1: Group docs by categories
     == A2: [Loop] Go by categories...
-    == A3: Define a link to the category
-        (if the collection contains a nested collection, the link in navigation may
-        lead to the heading on the main collection's index page or to the nested collection index page).
-    == A4: ADD CATEGORY LINK TO THE NAV
-        (It's the uppermost level of links in navigation.)
-    == A5: [Loop] Go by documents in the category...
-        If document points on nested collection [contains in `as_nested_collection`], go to B1.
-        If document is a regular document, go to C1.
-
-        == B1: Nested collection...
-          == B2: ADD COLLECTION NAME TO NAV
-          == B3: [Loop] Go by categories in nested collection...
-            == B4: ADD CATEGORY NAME TO THE NAV
-            == B5: [Loop] Go by documents in category...
-              == B6: ADD DOC TITLE TO THE NAV
-              == B7: [Loop] Go by headings in the document...
-                == B8: ADD HEADING TO THE NAV
-
-        == C1: Regular collection...
-          == C2: ADD DOC'S TITLE TO NAV
-          == C3: [Loop] Go by headings in a doc...
-            == C4: ADD HEADING TO THE NAV
-
+    == A3: ADD CATEGORY LINK TO THE NAV (It's the uppermost level of links in navigation.)
+    == A4: [Loop] Go by documents in the category...
+      == B1: ADD DOC'S TITLE TO NAV
+      == B2: [Loop] Go by headings in a doc...
+        == B3: ADD HEADING TO THE NAV
     == A6: Final steps
         Add ID and classes to the navigation, and `markdonify` content.
-
   {% endcomment %}
 
   {% capture my_toc %}{% endcapture %}
@@ -55,34 +36,12 @@
     {% capture col_id %}{{ collection_name | downcase | replace: ' ', '-' | replace: ':', ''}}{% endcapture %}
     {% capture cat_id %}{{ category.name | downcase | replace: ' ', '-' | replace: ':', ''}}{% endcapture %}
 
-
     {% comment %}
-      ======================= A3: SET CATEGORY LINK =======================
-      By default, the link to the category is defined as link to the heading on index page.
-      But if main collection contains a nested collection, and link in navigation should lead to
-      the nested collection index page, the category link has to be set from config.yml file.
+      ======================= A3: BUILD CATEGORY LINK =======================
+      The category link is defined as link to the heading on index page.
     {% endcomment %}
+
     {% capture category_link %}{{ site.baseurl }}/{{ collection_name }}#{{ category.name }}{% endcapture %}
-    {% if site.has_nested_collections_as_categories and site.has_nested_collections_as_categories[collection_name] %}
-      {% if site.has_nested_collections_as_categories[collection_name].size > 0 %}
-        {% for nested_collection in site.has_nested_collections_as_categories[collection_name] %}
-          {% assign v1 = category.name | downcase %}
-          {% assign v2 = nested_collection.category_name | downcase %}
-          {% if v1 == v2 %}
-            {% capture category_link %}{{ site.baseurl }}{{ nested_collection.collection_index_page }}{% endcapture %}
-            {% break %}
-          {% endif %}
-        {% endfor %}
-      {% endif %}
-    {% endif %}
-
-
-    {% comment %}
-      ======================= A4: BUILD CATEGORY LINK =======================
-      By default, the link to the category is defined as link to the heading on index page.
-      But if main collection contains a nested collection, and link in navigation should lead to
-      the nested collection index page, the category link has to be set from config.yml file.
-    {% endcomment %}
     {% capture my_toc %}{{ my_toc }}
 - <span
   class='nav-collapse-handler category-head collapsed'
@@ -96,196 +55,24 @@
 
 
     {% comment %}
-      ======================= A5: DOCS LOOP =======================
+      ======================= A4: DOCS LOOP =======================
       Loop over the docs within a category.
     {% endcomment %}
     {% assign items = category.items | sort: sort_by %}
     {% for doc in items %}
 
-      {% if doc.as_nested_collection %}
-        {% comment %}
-          ======================= B1: NESTED COLLECTION =======================
-          Collections can be injected into other collections as "NESTED COLLECTIONS".
-          Nested collection can be handled as another category or subpage in the navigation.
-          Mostly, the link may lead to the nested collection index page.
-        {% endcomment %}
-        {% assign n_collection = site[doc.as_nested_collection] %}
-        {% assign n_collection_name = doc.as_nested_collection %}
-        {% assign n_collection_grouped = n_collection | group_by: 'category' %}
-        {% assign n_firstHeader = true %}
-        {% assign n_cat_indentAmount = 1 %}
-
-        {% capture n_col_id %}{{ n_collection_name | downcase | replace: ' ', '-' | replace: ':', ''}}{% endcapture %}
-
-        {% assign n_cat_space = '' %}
-        {% for i in (1..n_cat_indentAmount) %}
-            {% assign n_cat_space = n_cat_space | prepend: '  ' %}
-        {% endfor %}
-
-        {% comment %}
-          ======================= B2: COLLECTION NAME TO NAV =======================
-        {% endcomment %}
-
-        {% capture n_doc_url %}{{ site.baseurl }}{% if doc.redirect_to %}{{doc.redirect_to[0]}}/{% else %}{{ doc.url }}{% endif %}{% endcapture %}
-
-        {% capture my_toc %}{{ my_toc }}
-{{ n_cat_space }}- <span
-  class='nav-collapse-handler category-head collapsed'
-  id='cat-nav-id-{{ n_col_id }}-{{ cat_id }}'
-  data-toggle='collapse'
-  role='button'
-  aria-expanded='false'
-  aria-controls='{{ n_col_id }}-{{ cat_id }}'>
-  <span class='arrow-icon glyphicon glyphicon-triangle-bottom'></span>
-</span>[{{ doc.title }}]({{ n_doc_url }}){% endcapture %}
-        {% assign n_cat_indentAmount = n_cat_indentAmount | plus: 1 %}
-
-        {% comment %}
-          ======================= B3: CATEGORIES LOOP =======================
-        {% endcomment %}
-        {% for n_category in n_collection_grouped %}
-
-          {% assign n_cat_space = '' %}
-          {% for i in (1..n_cat_indentAmount) %}
-              {% assign n_cat_space = n_cat_space | prepend: '  ' %}
-          {% endfor %}
-
-          {% capture n_col_id %}{{ n_collection_name | downcase | replace: ' ', '-' | replace: ':', ''}}{% endcapture %}
-          {% capture n_cat_id %}{{ n_category.name | downcase | replace: ' ', '-' | replace: ':', ''}}{% endcapture %}
-
-          {% comment %}
-            ======================= B4: CATEGORY NAME TO NAV =======================
-          {% endcomment %}
-          {% if n_category.name != '' %}
-          {% capture my_toc %}{{ my_toc }}
-{{ n_cat_space }}- <span
-  class='nav-collapse-handler category-head collapsed'
-  id='cat-nav-id-{{ col_id }}-{{ cat_id }}'
-  data-toggle='collapse'
-  role='button'
-  aria-expanded='false'
-  aria-controls='{{ col_id }}-{{ cat_id }}'>
-<span class='arrow-icon glyphicon glyphicon-triangle-bottom'></span>
-</span>[{{ n_category.name | replace: '-',' ' | replace: '%20', ' ' | capitalize }}]({{ site.baseurl }}/{{ n_collection_name | slugify }}#{{n_category.name}}){% endcapture %}
-          {% endif %}
-
-          {% comment %}
-            ======================= B5: DOCS LOOP =======================
-          {% endcomment %}
-          {% assign n_items = n_category.items | sort: sort_by %}
-          {% for n_doc in n_items %}
-
-            {% capture n_doc_id %}{{ n_doc.title | downcase | replace: ' ', '-' | replace: ':', ''}}{% endcapture %}
-            {% capture n_cont %}{{ n_doc.content }}{% endcapture %}
-            {% assign n_cont_md = n_cont | markdownify %}
-            {% assign n_nodes = n_cont_md | split: '<h' %}
-
-            {% assign n_cat_space = '' %}
-            {% for i in (0..n_cat_indentAmount) %}
-                {% assign n_cat_space = n_cat_space | prepend: '  ' %}
-            {% endfor %}
-
-            {% comment %}
-              ======================= B6: ADD DOC TITLE TO THE NAV =======================
-            {% endcomment %}
-            {% capture my_toc %}{{ my_toc }}
-{{ n_cat_space }}- <span
-  class='nav-collapse-handler category-head collapsed'
-  id='cat-nav-id-{{ col_id }}-{{ n_doc_id }}-{{ n_cat_id }}'
-  data-toggle='collapse'
-  role='button'
-  aria-expanded='false'
-  aria-controls='{{ doc_id }}-{{ cat_id }}'>
-<span class='arrow-icon glyphicon glyphicon-triangle-bottom'></span>
-</span>[{{ n_doc.title }}]({{ site.baseurl }}{{ n_doc.url }}){% endcapture %}
-
-            {% comment %}
-              ======================= B7: HEADINGS LOOP =======================
-            {% endcomment %}
-            {% for node in n_nodes %}
-              {% if node == "" %}
-                  {% continue %}
-              {% endif %}
-
-              {% assign headerLevel = node | replace: '"', '' | slice: 0, 1 | times: 1 %}
-
-              {% if headerLevel < minHeader or headerLevel > maxHeader %}
-                  {% continue %}
-              {% endif %}
-
-              {% if firstHeader %}
-                  {% assign firstHeader = false %}
-                  {% assign minHeader = headerLevel %}
-              {% endif %}
-
-              {% assign n_indentAmount = headerLevel | minus: minHeader | plus: n_cat_indentAmount | plus: 1 %}
-              {% assign _workspace = node | split: '</h' %}
-
-              {% assign _idWorkspace = _workspace[0] | split: 'id="' %}
-              {% assign _idWorkspace = _idWorkspace[1] | split: '"' %}
-              {% assign html_id = _idWorkspace[0] %}
-
-              {% assign _classWorkspace = _workspace[0] | split: 'class="' %}
-              {% assign _classWorkspace = _classWorkspace[1] | split: '"' %}
-              {% assign html_class = _classWorkspace[0] %}
-
-              {% if html_class contains "no_toc" %}
-                  {% continue %}
-              {% endif %}
-
-              {% capture _hAttrToStrip %}{{ _workspace[0] | split: '>' | first }}>{% endcapture %}
-              {% assign header = _workspace[0] | replace: _hAttrToStrip, '' %}
-
-              {% assign space = '' %}
-              {% for i in (0..n_indentAmount) %}
-                  {% assign space = space | prepend: '  ' %}
-              {% endfor %}
-
-              {% unless include.item_class == blank %}
-                  {% capture listItemClass %}{{ include.item_class | replace: '%level%', headerLevel }}{% endcapture %}
-              {% endunless %}
-
-              {% capture heading_body %}{% if include.sanitize %}{{ header | strip_html }}{% else %}{{ header }}{% endif %}{% endcapture %}
-
-              {% comment %}
-                ======================= B8: ADD HEADING TO THE NAV =======================
-              {% endcomment %}
-              {% capture my_toc %}{{ my_toc }}
-{{ space }}- <span
-  class='nav-collapse-handler category-head collapsed'
-  id='cat-nav-id-{{ n_col_id }}-{{ n_doc_id }}-{{ cat_id }}'
-  data-toggle='collapse'
-  role='button'
-  aria-expanded='false'
-  aria-controls='{{ n_col_id }}-{{ n_doc_id }}-{{ cat_id }}'>
-  <span class='arrow-icon glyphicon glyphicon-triangle-bottom'></span>
-</span>[{{ heading_body | replace: "|", "\|" }}]({% if include.baseurl %}{{ include.baseurl }}{% endif %}{{ site.baseurl }}{{n_doc.url}}#{{ html_id }}){% if include.anchor_class %}{:.{{ include.anchor_class }}}{% endif %}{% endcapture %}
-
-            {% endfor %}
-
-          {% endfor %}
-
-        {% endfor %}
-
-        {% comment %}================== END B1: AS NESTED COLLECTION ============={% endcomment %}
-      {% else %}
-
-        {% comment %}
-          ======================= C1: REGULAR COLLECTION =======================
-          The content of each doc has to be parsed, so then headings can be extracted.
-          First, the doc title is being put to the navigation.
-          Then, in `nodes` loop, script goes by headings in the document, and adds them
-          to the navigation.
-        {% endcomment %}
-
         {% capture n_cont %}{{ doc.content }}{% endcapture %}
         {% assign n_cont_md = n_cont | markdownify %}
 
         {% comment %}
-          ======================= C2: ADD DOC TITLE TO NAV =======================
+          ======================= B1: ADD DOC TITLE TO NAV =======================
           Add document's title to the navigation.
         {% endcomment %}
         {% capture doc_id %}{{ doc.title | downcase | downcase | replace: ' ', '-' | replace: ':', ''}}{% endcapture %}
+        {% assign doc_url = doc.url %}
+        {% if doc.redirect_to %}
+          {% assign doc_url = doc.redirect_to %}
+        {% endif %}
         {% capture my_toc %}{{ my_toc }}
   - <span
     class='nav-collapse-handler category-head collapsed'
@@ -295,10 +82,10 @@
     aria-expanded='false'
     aria-controls='{{ doc_id }}-{{ cat_id }}'>
   <span class='arrow-icon glyphicon glyphicon-triangle-bottom'></span>
-  </span>[{{ doc.title }}]({{ site.baseurl }}{{ doc.url }}){% endcapture %}
+  </span>[{{ doc.title }}]({{ site.baseurl }}{{ doc_url }}){% endcapture %}
 
         {% comment %}
-          ======================= C3: Go by headings in doc =======================
+          =============== B2: Find headings in doc and add to nav ================
           Goes heading by heading (h2, h3, h4, etc.), and adds it to the navigation.
         {% endcomment %}
         {% assign nodes = n_cont_md | split: '<h' %}
@@ -349,7 +136,7 @@
           {% capture heading_body %}{% if include.sanitize %}{{ header | strip_html }}{% else %}{{ header }}{% endif %}{% endcapture %}
 
           {% comment %}
-            ======================= C4: ADD HEADING TO THE NAV =======================
+            ======================= B3: ADD HEADING TO THE NAV =======================
             Go heading-by-heading (h2, h3, h4, etc.), and add it to the navigation.
           {% endcomment %}
           {% capture my_toc %}{{ my_toc }}
@@ -365,7 +152,6 @@
 
         {% endfor %}
 
-      {% endif %}
 
     {% endfor %}
 

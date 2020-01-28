@@ -1,7 +1,7 @@
 ---
 layout: collection-browser-doc
 title: Locals
-category: Features
+category: features
 categories_url: features
 excerpt: Learn how to use locals.
 tags: ["locals"]

@@ -1,7 +1,7 @@
 ---
 layout: collection-browser-doc
 title: Caching
-category: Features
+category: features
 categories_url: features
 excerpt: Learn more about caching in Terragrunt.
 tags: ["caching"]

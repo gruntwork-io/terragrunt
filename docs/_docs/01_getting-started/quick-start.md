@@ -409,7 +409,7 @@ If at any point you hit a problem, it will only affect the one environment, and 
 
 Now that you’ve seen the basics of Terragrunt, here is some further reading to learn more:
 
-1.  [Use cases]({{site.baseurl}}/use-cases/): Learn about the core use cases Terragrunt supports.
+1.  [Use cases]({{site.baseurl}}/docs/#features): Learn about the core use cases Terragrunt supports.
 
 2.  [Documentation]({{site.baseurl}}/docs/): Check out the detailed Terragrunt documentation.
 
