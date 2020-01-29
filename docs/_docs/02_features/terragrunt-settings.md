@@ -1,7 +1,7 @@
 ---
 layout: collection-browser-doc
 title: Terragrunt settings
-category: Features
+category: features
 categories_url: features
 excerpt: Learn more about Terragrunt settings.
 tags: ["AWS", "Settings"]

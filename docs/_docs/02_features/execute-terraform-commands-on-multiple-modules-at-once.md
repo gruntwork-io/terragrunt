@@ -1,11 +1,13 @@
 ---
 layout: collection-browser-doc
 title: Execute Terraform commands on multiple modules at once
+category: features
+categories_url: features
 excerpt: Learn how to avoid tedious tasks of running commands on each module separately.
-tags: ["DRY", "CLI"]
-order: 103
-nav_title: All Use Cases
-nav_title_link: /use-cases/
+tags: ["DRY", "Modules", "Use cases", "CLI"]
+order: 203
+nav_title: Documentation
+nav_title_link: /docs/
 ---
 
 ## Execute Terraform commands on multiple modules at once
@@ -274,7 +276,7 @@ To check all of your dependencies and validate the code in them, you can use the
 
 ### Testing multiple modules locally
 
-If you are using Terragrunt to configure [remote Terraform configurations]({{site.baseurl}}/use-cases/keep-your-terraform-code-dry/#remote-terraform-configurations) and all of your modules have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--terragrunt-source` parameter:
+If you are using Terragrunt to configure [remote Terraform configurations]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry/#remote-terraform-configurations) and all of your modules have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--terragrunt-source` parameter:
 
     cd root
     terragrunt plan-all --terragrunt-source /source/modules

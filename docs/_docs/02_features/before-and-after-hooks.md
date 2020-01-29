@@ -1,7 +1,7 @@
 ---
 layout: collection-browser-doc
 title: Before and after hooks
-category: Features
+category: features
 categories_url: features
 excerpt: Learn how to execute custom code before or after running Terraform.
 tags: ["hooks"]
