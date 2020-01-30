@@ -1,15 +1,14 @@
 ---
 layout: collection-browser-doc
 title: Built-in functions
-category: features
-categories_url: features
+category: reference
+categories_url: reference
 excerpt: Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like Terraform.
 tags: ["functions"]
-order: 207
+order: 402
 nav_title: Documentation
 nav_title_link: /docs/
 ---
-## Built-in Functions
 
 Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like Terraform\! The functions currently available are:
 
@@ -43,7 +42,7 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
 
   - [run\_cmd()](#run_cmd)
 
-### Terraform built-in functions
+## Terraform built-in functions
 
 All [Terraform built-in functions](https://www.terraform.io/docs/configuration/functions.html) are supported in Terragrunt config files:
 
@@ -79,7 +78,7 @@ Then `assets.txt` could be read with the following function call:
 file("assets/mysql/assets.txt")
 ```
 
-### find\_in\_parent\_folders
+## find\_in\_parent\_folders
 
 `find_in_parent_folders()` searches up the directory tree from the current `terragrunt.hcl` file and returns the relative path to the first `terragrunt.hcl` in a parent folder or exit with an error if no such file is found. This is primarily useful in an `include` block to automatically find the path to a parent `terragrunt.hcl` file:
 
@@ -105,7 +104,7 @@ include {
 }
 ```
 
-### path\_relative\_to\_include
+## path\_relative\_to\_include
 
 `path_relative_to_include()` returns the relative path between the current `terragrunt.hcl` file and the `path` specified in its `include` block. For example, consider the following folder structure:
 
@@ -140,7 +139,7 @@ remote_state {
 
 The resulting `key` will be `prod/mysql/terraform.tfstate` for the prod `mysql` module and `stage/mysql/terraform.tfstate` for the stage `mysql` module.
 
-### path\_relative\_from\_include
+## path\_relative\_from\_include
 
 `path_relative_from_include()` returns the relative path between the `path` specified in its `include` block and the current `terragrunt.hcl` file (it is the counterpart of `path_relative_to_include()`). For example, consider the following folder structure:
 
@@ -199,7 +198,7 @@ Another use case would be to add extra argument to include the `common.tfvars` f
 
 This allows proper retrieval of the `common.tfvars` from whatever the level of subdirectories we have.
 
-### get\_env
+## get\_env
 
 `get_env(NAME, DEFAULT)` returns the value of the environment variable named `NAME` or `DEFAULT` if that environment variable is not set. Example:
 
@@ -214,7 +213,7 @@ remote_state {
 
 Note that [Terraform will read environment variables](https://www.terraform.io/docs/configuration/environment-variables.html#tf_var_name) that start with the prefix `TF_VAR_`, so one way to share a variable named `foo` between Terraform and Terragrunt is to set its value as the environment variable `TF_VAR_foo` and to read that value in using this `get_env()` built-in function.
 
-### get\_terragrunt\_dir
+## get\_terragrunt\_dir
 
 `get_terragrunt_dir()` returns the directory where the Terragrunt configuration file (by default `terragrunt.hcl`) lives. This is useful when you need to use relative paths with [remote Terraform configurations]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry/#remote-terraform-configurations) and you want those paths relative to your Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
 
@@ -274,7 +273,7 @@ terraform {
 
 For the example above, this path will resolve to `/terraform-code/frontend-app/../common.tfvars`, which is exactly what you want.
 
-### get\_parent\_terragrunt\_dir
+## get\_parent\_terragrunt\_dir
 
 `get_parent_terragrunt_dir()` returns the absolute directory where the Terragrunt parent configuration file (by default `terragrunt.hcl`) lives. This is useful when you need to use relative paths with [remote Terraform configurations]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry/#remote-terraform-configurations) and you want those paths relative to your parent Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
 
@@ -311,7 +310,7 @@ terraform {
 
 The common.tfvars located in the terraform root folder will be included by all applications, whatever their relative location to the root.
 
-### get\_terraform\_commands\_that\_need\_vars
+## get\_terraform\_commands\_that\_need\_vars
 
 `get_terraform_commands_that_need_vars()` returns the list of terraform commands that accept `-var` and `-var-file` parameters. This function is used when defining [extra\_arguments]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#multiple-extra_arguments-blocks).
 
@@ -324,7 +323,7 @@ terraform {
 }
 ```
 
-### get\_terraform\_commands\_that\_need\_input
+## get\_terraform\_commands\_that\_need\_input
 
 `get_terraform_commands_that_need_input()` returns the list of terraform commands that accept the `-input=(true or false)` parameter. This function is used when defining [extra\_arguments]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#multiple-extra_arguments-blocks).
 
@@ -338,7 +337,7 @@ terraform {
 }
 ```
 
-### get\_terraform\_commands\_that\_need\_locking
+## get\_terraform\_commands\_that\_need\_locking
 
 `get_terraform_commands_that_need_locking()` returns the list of terraform commands that accept the `-lock-timeout` parameter. This function is used when defining [extra\_arguments]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#multiple-extra_arguments-blocks).
 
@@ -352,7 +351,7 @@ terraform {
 }
 ```
 
-### get\_terraform\_commands\_that\_need\_parallelism
+## get\_terraform\_commands\_that\_need\_parallelism
 
 `get_terraform_commands_that_need_parallelism()` returns the list of terraform commands that accept the `-parallelism` parameter. This function is used when defining [extra\_arguments]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#multiple-extra_arguments-blocks).
 
@@ -366,7 +365,7 @@ terraform {
 }
 ```
 
-### get\_aws\_account\_id
+## get\_aws\_account\_id
 
 `get_aws_account_id()` returns the AWS account id associated with the current set of credentials. Example:
 
@@ -379,7 +378,7 @@ remote_state {
 }
 ```
 
-### get\_aws\_caller\_identity\_arn
+## get\_aws\_caller\_identity\_arn
 
 `get_aws_caller_identity_arn()` returns the ARN of the AWS identity associated with the current set of credentials. Example:
 
@@ -389,7 +388,7 @@ inputs = {
 }
 ```
 
-### get\_aws\_caller\_identity\_user\_id
+## get\_aws\_caller\_identity\_user\_id
 
 `get_aws_caller_identity_user_id()` returns the UserId of the AWS identity associated with the current set of credentials. Example:
 
@@ -412,7 +411,7 @@ terraform {
 }
 ```
 
-### run\_cmd
+## run\_cmd
 
 `run_cmd(command, arg1, arg2…​)` runs a shell command and returns the stdout as the result of the interpolation. The command is executed at the same folder as the `terragrunt.hcl` file. This is useful whenever you want to dynamically fill in arbitrary information in your Terragrunt configuration.
 
