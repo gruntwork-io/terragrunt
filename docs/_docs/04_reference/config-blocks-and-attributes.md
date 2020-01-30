@@ -11,12 +11,10 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Configuration Blocks and Attributes
-
 The Terragrunt configuration file uses the same HCL syntax as Terraform itself. The following is a reference of all the
 supported blocks and attributes in the `terragrunt.hcl` configuration file:
 
-### Blocks
+## Blocks
 
 - [terraform](#terraform)
 - [remote_state](#remote_state)
@@ -25,21 +23,7 @@ supported blocks and attributes in the `terragrunt.hcl` configuration file:
 - [dependency](#dependency)
 - [dependencies](#dependencies)
 
-
-### Attributes
-
-- [inputs](#inputs)
-- [download_dir](#download_dir)
-- [prevent_destroy](#prevent_destroy)
-- [skip](#skip)
-- [iam_role](#iam_role)
-- [terraform_binary](#terraform_binary)
-- [terraform_version_constraint](#terraform_version_constraint)
-
-
-### Reference
-
-#### terraform
+### terraform
 
 The `terraform` block is used to configure how Terragrunt will interact with Terraform. This includes specifying where
 to find the Terraform configuration files, any extra arguments to pass to the `terraform` CLI, and any hooks to run
@@ -153,7 +137,7 @@ terraform {
 ```
 
 
-#### remote_state
+### remote_state
 
 The `remote_state` block is used to configure how Terragrunt will set up the remote state configuration of your
 Terraform code. You can read more about Terragrunt's remote state functionality in [Keep your remote state configuration
@@ -284,7 +268,7 @@ remote_state {
 
 
 
-#### include
+### include
 
 The `include` block is used to specify inheritance of Terragrunt configuration files. The included config (also called
 the `parent`) will be merged with the current configuration (also called the `child`) before processing. You can learn
@@ -313,7 +297,7 @@ include {
 ```
 
 
-#### locals
+### locals
 
 The `locals` block is used to define aliases for Terragrunt expressions that can be referenced within the configuration.
 You can learn more about locals in the [feature overview](/docs/features/locals/).
@@ -336,7 +320,7 @@ inputs = {
 ```
 
 
-#### dependency
+### dependency
 
 The `dependency` block is used to configure module dependencies. Each dependency block exports the outputs of the target
 module as block attributes you can reference throughout the configuration. You can learn more about `dependency` blocks
@@ -388,7 +372,7 @@ inputs = {
 ```
 
 
-#### dependencies
+### dependencies
 
 The `dependencies` block is used to enumerate all the Terragrunt modules that need to be applied in order for this
 module to be able to apply. Note that this is purely for ordering the operations when using `xxx-all` commands of
@@ -408,7 +392,20 @@ dependencies {
 }
 ```
 
-#### inputs
+
+
+## Attributes
+
+- [inputs](#inputs)
+- [download_dir](#download_dir)
+- [prevent_destroy](#prevent_destroy)
+- [skip](#skip)
+- [iam_role](#iam_role)
+- [terraform_binary](#terraform_binary)
+- [terraform_version_constraint](#terraform_version_constraint)
+
+
+### inputs
 
 The `inputs` attribute is a map that is used to specify the input variables and their values to pass in to Terraform.
 Each entry of the map will be passed to Terraform using [the environment variable
@@ -461,7 +458,7 @@ inputs = {
 ```
 
 
-#### download_dir
+### download_dir
 
 The terragrunt `download_dir` string option can be used to override the default download directory.
 
@@ -472,7 +469,7 @@ The precedence is as follows: `--terragrunt-download-dir` command line option �
 It supports all terragrunt functions, i.e. `path_relative_from_include()`.
 
 
-#### prevent_destroy
+### prevent_destroy
 
 Terragrunt `prevent_destroy` boolean flag allows you to protect selected Terraform module. It will prevent `destroy` or
 `destroy-all` command to actually destroy resources of the protected module. This is useful for modules you want to
@@ -488,7 +485,7 @@ terraform {
 prevent_destroy = true
 ```
 
-#### skip
+### skip
 
 The terragrunt `skip` boolean flag can be used to protect modules you don’t want any changes to or just to skip modules
 that don’t define any infrastructure by themselves. When set to true, all terragrunt commands will skip the selected
@@ -519,7 +516,7 @@ The `skip` flag must be set explicitly in terragrunt modules that should be skip
 set `skip = true` will be skipped.
 
 
-#### iam_role
+### iam_role
 
 The `iam_role` attribute can be used to specify an IAM role that Terragrunt should assume prior to invoking Terraform.
 
@@ -534,7 +531,7 @@ iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 ```
 
 
-#### terraform_binary
+### terraform_binary
 
 The terragrunt `terraform_binary` string option can be used to override the default terraform binary path (which is
 `terraform`).
@@ -543,7 +540,7 @@ The precedence is as follows: `--terragrunt-tfpath` command line option → `TER
 `terragrunt.hcl` in the module directory → included `terragrunt.hcl`
 
 
-#### terraform_version_constraint
+### terraform_version_constraint
 
 The terragrunt `terraform_version_constraint` string overrides the default minimum supported version of terraform.
 Terragrunt only officially supports the latest version of terraform, however in some cases an old terraform is needed.

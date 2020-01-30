@@ -11,8 +11,6 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## CLI Options
-
 Terragrunt forwards all arguments and options to Terraform. The only exceptions are `--version`, `terragrunt-info` and arguments that start with the prefix `--terragrunt-`. The currently available options are:
 
 - [terragrunt-config](#terragrunt-config)
@@ -34,7 +32,7 @@ Terragrunt forwards all arguments and options to Terraform. The only exceptions 
 - [terragrunt-check](#terragrunt-check)
 
 
-### terragrunt-config
+## terragrunt-config
 
 CLI Arg: `--terragrunt-config`
 
@@ -47,7 +45,7 @@ explanation). This argument is not used with the `apply-all`, `destroy-all`, `ou
 `plan-all` commands.
 
 
-### terragrunt-tfpath
+## terragrunt-tfpath
 
 CLI Arg: `--terragrunt-tfpath`
 
@@ -57,7 +55,7 @@ A custom path to the Terraform binary. May also be specified via the `TERRAGRUNT
 default is `terraform` in a directory on your PATH.
 
 
-### terragrunt-no-auto-init
+## terragrunt-no-auto-init
 
 CLI Arg: `--terragrunt-no-auto-init`
 
@@ -68,7 +66,7 @@ yourself in this case if needed. `terragrunt` will fail if it detects that `init
 disabled. See [Auto-Init]({{site.baseurl}}/docs/features/auto-init#auto-init)
 
 
-### terragrunt-no-auto-retry
+## terragrunt-no-auto-retry
 
 CLI Arg: `--terragrunt-no-auto-retry`
 
@@ -76,7 +74,7 @@ When passed in, don't automatically retry commands which fail with transient err
 [Auto-Retry]({{site.baseurl}}/docs/features/auto-retry#auto-retry)
 
 
-### terragrunt-non-interactive
+## terragrunt-non-interactive
 
 CLI Arg: `--terragrunt-non-interactive`
 
@@ -85,7 +83,7 @@ you need to run Terragrunt in an automated setting (e.g. from a script). May als
 [TF\_INPUT](https://www.terraform.io/docs/configuration/environment-variables.html#tf_input) environment variable.
 
 
-### terragrunt-working-dir
+## terragrunt-working-dir
 
 CLI Arg: `--terragrunt-working-dir`
 
@@ -97,7 +95,7 @@ a different meaning: Terragrunt will apply or destroy all the Terraform modules 
 `terragrunt-working-dir`, running `terraform` in the root of each module it finds.
 
 
-### terragrunt-download-dir
+## terragrunt-download-dir
 
 CLI Arg: `--terragrunt-download-dir`
 
@@ -109,7 +107,7 @@ May also be specified via the `TERRAGRUNT_DOWNLOAD` environment variable. Defaul
 directory. We recommend adding this folder to your `.gitignore`.
 
 
-### terragrunt-source
+## terragrunt-source
 
 CLI Arg: `--terragrunt-source`
 
@@ -124,7 +122,7 @@ command, Terragrunt will automatically append the path of `source` parameter in 
 parameter you passed in.
 
 
-### terragrunt-source-update
+## terragrunt-source-update
 
 CLI Arg: `--terragrunt-source-update`
 
@@ -132,14 +130,14 @@ When passed in, delete the contents of the temporary folder before downloading T
 be enabled by setting the `TERRAGRUNT_SOURCE_UPDATE` environment variable to `true`.
 
 
-### terragrunt-ignore-dependency-errors
+## terragrunt-ignore-dependency-errors
 
 CLI Arg: `--terragrunt-ignore-dependency-errors`
 
 When passed in, the `*-all` commands continue processing components even if a dependency fails
 
 
-### terragrunt-iam-role
+## terragrunt-iam-role
 
 CLI Arg: `--terragrunt-iam-role`
 
@@ -150,7 +148,7 @@ Assume the specified IAM role ARN before running Terraform or AWS commands. May 
 accounts.
 
 
-### terragrunt-exclude-dir
+## terragrunt-exclude-dir
 
 CLI Arg: `--terragrunt-exclude-dir`
 
@@ -164,7 +162,7 @@ excluded during execution of the commands. If a relative path is specified, it s
 module, not its dependencies.
 
 
-### terragrunt-include-dir
+## terragrunt-include-dir
 
 CLI Arg: `--terragrunt-include-dir`
 
@@ -177,28 +175,28 @@ dependent modules) will be included during execution of the commands. If a relat
 relative from `--terragrunt-working-dir`. Flag can be specified multiple times.
 
 
-### terragrunt-ignore-dependency-order
+## terragrunt-ignore-dependency-order
 
 CLI Arg: `--terragrunt-ignore-dependency-order`
 
 When passed in, ignore the depedencies between modules when running `*-all` commands.
 
 
-### terragrunt-ignore-external-dependencies
+## terragrunt-ignore-external-dependencies
 
 CLI Arg: `--terragrunt-ignore-external-dependencies`
 
 When passed in, don't attempt to include any external dependencies when running `*-all` commands
 
 
-### terragrunt-include-external-dependencies
+## terragrunt-include-external-dependencies
 
 CLI Arg: `--terragrunt-include-external-dependencies`
 
 When passed in, include any external dependencies when running `*-all` without asking.
 
 
-### terragrunt-check
+## terragrunt-check
 
 CLI Arg: `--terragrunt-check`
 
