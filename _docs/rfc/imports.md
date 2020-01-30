@@ -125,6 +125,7 @@ The `import` block works as follows:
 - Imports support auto merging via the `merge` setting. When `merge = true`, all the blocks and attributes of the
   imported config will be merged with the child config. Note that since HCL blocks are sequential, imports will be
   merged top to bottom. See below for more details.
+- Imports can also be deep merged using the `deep_merge` setting. This will work similar to `merge = true`.
 - Imports will also export the absolute path to the directory of the terragrunt config file as the attribute
   `terragrunt_dir`.
 - Imports are parsed first in the [configuration parsing
@@ -503,7 +504,7 @@ child
 ```hcl
 import "root" {
   config_path = find_in_parent_folders("root.hcl")
-  merge = true
+  deep_merge = true
 }
 
 remote_state {
@@ -518,8 +519,8 @@ Note how we explicitly set the relative path using only the context of the curre
 circular reference here where you need the context of the child to know the exact values of the attributes being set in
 the parent (although you won't know the full setting of `remote_state` without seeing the child).
 
-Additionally, here we take advantage of the `merge` feature to deep merge the two configurations for `remote_state`.
-This is equivalent to having the following `remote_state` block in the child config:
+Additionally, here we take advantage of the `deep_merge` feature to deep merge the two configurations for
+`remote_state`.  This is equivalent to having the following `remote_state` block in the child config:
 
 ```hcl
 remote_state {
