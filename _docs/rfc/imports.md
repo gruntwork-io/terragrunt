@@ -742,6 +742,18 @@ introduces a new construct, the proposal includes deprecating the `include` bloc
 eventually `import` replaces `include`.
 
 
+## Open Question
+
+- While a major design goal in this RFC is to keep the principles of explicit over implicit, practically speaking it may
+  not be feasible to achieve that design goal to support all the use cases of the community. In that regard, it may be
+  useful to implement a minimal set of features that don't take a whole lot of cognitive load to understand. Should the
+  following functions be implemented for use with `import`?
+    - `path_relative_to_import` and `path_relative_from_import`: These are the equivalent functions of the ones named
+      for `include`.
+    - `find_in_parent_folders_from_importing_config`: This function is the version of `find_in_parent_folders` that
+      works in the context of the config that is importing the current config.
+
+
 ## References
 
 This challenge has come up numerous times in the lifetime of Terragrunt. The following are relevant issues that raise
