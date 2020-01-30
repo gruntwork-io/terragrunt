@@ -2,6 +2,7 @@
 layout: collection-browser-doc
 title: Configuration Blocks and Attributes
 category: reference
+categories_url: reference
 excerpt: >-
   Learn about all the blocks and attributes supported in the terragrunt configuration file.
 tags: ["config"]
