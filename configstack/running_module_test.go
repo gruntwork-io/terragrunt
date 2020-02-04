@@ -1550,7 +1550,6 @@ func TestRemoveFlagExcludedOneExcludeNoDependencies(t *testing.T) {
 	assertRunningModuleMapsEqual(t, expected, actual, true)
 }
 
-
 func TestRemoveFlagExcludedOneExcludeWithDependencies(t *testing.T) {
 	t.Parallel()
 
@@ -1610,10 +1609,10 @@ func TestRemoveFlagExcludedOneExcludeWithDependencies(t *testing.T) {
 	}
 
 	runningModuleD := &runningModule{
-		Module:         moduleD,
-		Status:         Waiting,
-		Err:            nil,
-		Dependencies:   map[string]*runningModule{
+		Module: moduleD,
+		Status: Waiting,
+		Err:    nil,
+		Dependencies: map[string]*runningModule{
 			"b": runningModuleB,
 			"c": runningModuleC,
 		},

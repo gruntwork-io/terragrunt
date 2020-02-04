@@ -15,4 +15,15 @@ terraform {
     run_on_error = true
   }
 
+  before_hook "before_hook_2" {
+    commands = ["terragrunt-read-config"]
+    execute = ["echo", "BEFORE_TERRAGRUNT_READ_CONFIG"]
+    run_on_error = true
+  }
+
+  after_hook "after_hook_2" {
+    commands = ["terragrunt-read-config"]
+    execute = ["echo", "AFTER_TERRAGRUNT_READ_CONFIG"]
+    run_on_error = true
+  }
 }

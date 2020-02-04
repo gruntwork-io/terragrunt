@@ -133,6 +133,14 @@ terraform {
     commands = ["init-from-module"]
     execute  = ["cp", "${get_parent_terragrunt_dir()}/foo.tf", "."]
   }
+
+  # A special after_hook. Use this hook if you wish to run commands immediately after terragrunt finishes loading its 
+  # configurations. If "terragrunt-read-config" is defined as a before_hook, it will be ignored as this config would 
+  # not be loaded before the action is done. 
+  after_hook "terragrunt-read-config" {
+    commands = ["terragrunt-read-config"]
+    execute  = ["bash", "script/get_aws_credentials.sh"]
+  }
 }
 ```
 
