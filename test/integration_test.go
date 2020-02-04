@@ -355,7 +355,8 @@ func TestTerragruntBeforeAndAfterHook(t *testing.T) {
 	}
 
 	assert.Equal(t, 0, strings.Count(output, "BEFORE_TERRAGRUNT_READ_CONFIG"), "terragrunt-read-config before_hook should not be triggered")
-	assert.Equal(t, 1, strings.Count(output, "AFTER_TERRAGRUNT_READ_CONFIG"), "Hooks on terragrunt-read-config command executed more than once")
+	t.Logf("output: %s", output)
+	assert.Equal(t, 2, strings.Count(output, "AFTER_TERRAGRUNT_READ_CONFIG"), "Hooks on terragrunt-read-config command executed more than once")
 
 	assert.NoError(t, beforeException)
 	assert.NoError(t, afterException)
