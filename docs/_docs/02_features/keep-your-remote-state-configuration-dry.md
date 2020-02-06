@@ -200,7 +200,7 @@ For the `gcs` backend, the following config options can be used for GCS-compatib
 remote_state {
  # ...
 
- skip_bucket_versioning    = true # use only if the object store does not support versioning
+ skip_bucket_versioning = true # use only if the object store does not support versioning
 
  enable_bucket_policy_only = true # use only if uniform bucket-level access is needed (https://cloud.google.com/storage/docs/uniform-bucket-level-access)
 
