@@ -195,6 +195,7 @@ For the `s3` backend, the following additional properties are supported in the `
 
 For the `gcs` backend, the following additional properties are supported in the `config` attribute:
 
+- `enable_bucket_policy_only`: When `true`, the GCS bucket that is created to store the state will be configured to use uniform bucket-level access.
 - `skip_bucket_creation`: When `true`, Terragrunt will skip the auto initialization routine for setting up the GCS
   bucket for use with remote state.
 - `skip_bucket_versioning`: When `true`, the GCS bucket that is created to store the state will not be versioned.
