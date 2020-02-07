@@ -202,7 +202,7 @@ remote_state {
 
  skip_bucket_versioning = true # use only if the object store does not support versioning
 
- enable_bucket_policy_only = true # use only if uniform bucket-level access is needed (https://cloud.google.com/storage/docs/uniform-bucket-level-access)
+ enable_bucket_policy_only = false # use only if uniform bucket-level access is needed (https://cloud.google.com/storage/docs/uniform-bucket-level-access)
 
  encryption_key = "GOOGLE_ENCRYPTION_KEY"
 }
