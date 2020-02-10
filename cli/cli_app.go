@@ -51,6 +51,7 @@ const CMD_VALIDATE_ALL = "validate-all"
 const CMD_INIT = "init"
 const CMD_INIT_FROM_MODULE = "init-from-module"
 const CMD_TERRAGRUNT_INFO = "terragrunt-info"
+const CMD_TERRAGRUNT_READ_CONFIG = "terragrunt-read-config"
 const CMD_HCLFMT = "hclfmt"
 
 // CMD_SPIN_UP is deprecated.
@@ -243,6 +244,13 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	terragruntConfig, err := config.ReadTerragruntConfig(terragruntOptions)
 
 	if err != nil {
+		return err
+	}
+
+	terragruntOptionsClone := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	terragruntOptionsClone.TerraformCommand = CMD_TERRAGRUNT_READ_CONFIG
+
+	if err := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone); err != nil {
 		return err
 	}
 

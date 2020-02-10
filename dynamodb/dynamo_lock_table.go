@@ -92,10 +92,10 @@ func CreateLockTable(tableName string, tags map[string]string, client *dynamodb.
 	}
 
 	createTableOutput, err := client.CreateTable(&dynamodb.CreateTableInput{
-		TableName:   aws.String(tableName),
-		BillingMode: aws.String(DYNAMODB_PAY_PER_REQUEST_BILLING_MODE),
+		TableName:            aws.String(tableName),
+		BillingMode:          aws.String(DYNAMODB_PAY_PER_REQUEST_BILLING_MODE),
 		AttributeDefinitions: attributeDefinitions,
-		KeySchema: keySchema,
+		KeySchema:            keySchema,
 	})
 
 	if err != nil {
