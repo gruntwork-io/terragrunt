@@ -483,7 +483,10 @@ func EnableRootAccesstoS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, te
 				"Sid":      "RootAccess",
 				"Effect":   "Allow",
 				"Action":   "s3:*",
-				"Resource": "arn:aws:s3:::" + config.Bucket,
+				"Resource": []string{ 
+					"arn:aws:s3:::" + config.Bucket,
+					"arn:aws:s3:::" + config.Bucket + "/*",
+				},
 				"Principal": map[string][]string{
 					"AWS": []string{
 						"arn:aws:iam::" + accountID + ":root",
