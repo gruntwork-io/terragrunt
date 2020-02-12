@@ -588,6 +588,123 @@ blocks in this way.
 
 ### In consideration
 
+#### Single terragrunt.hcl file per environment
+
+This implementation introduces a new block `module` that replaces `dependency`, `terraform`, and `inputs`. This approach
+is documented in [#759](https://github.com/gruntwork-io/terragrunt/issues/759).
+
+In addition to the general analysis of that proposal, here are the list of Pros and Cons related to the problem of
+sharing config:
+
+Pros:
+
+- Circumvent the reference problem by having all the references in a single shared scope.
+
+Cons:
+
+- If you need to share configurations across environments, you would still need one of the alternative approaches to
+  import the other config. This, however, is likely to be a rare occurrence.
+- This is a drastic change to Terragrunt, completely changing the way it works.
+
+
+Let's walk through how each of the import use cases look like with this implementation:
+
+**Hierarchical variables**
+
+In this approach, a hierarchy of variables is unnecessary because all the blocks are defined in a single scope. However,
+depending on the scope of `locals`, certain things like reusing a repetitive variable becomes more challenging.
+
+To understand this, consider a use case where you are operating in two regions, `us-east-1` and `eu-west-1`. To simplify
+this example, consider a limited application deployment where you have two modules: `vpc` and `app`.
+
+If we assume that `locals` are scoped within the file that they are defined, then you can implement this by separating
+the environment `terragrunt.hcl` into two files, `us_east_1.hcl` and `eu_west_1.hcl`:
+
+us_east_1.hcl
+
+```hcl
+locals {
+  region = "us-east-1"
+}
+
+module "vpc" {
+  # additional args omitted for brevity
+  aws_region = local.region
+}
+
+module "app" {
+  # additional args omitted for brevity
+  aws_region = local.region
+}
+```
+
+eu_west_1.hcl
+
+```hcl
+locals {
+  region = "eu-west-1"
+}
+
+module "vpc" {
+  # additional args omitted for brevity
+  aws_region = local.region
+}
+
+module "app" {
+  # additional args omitted for brevity
+  aws_region = local.region
+}
+```
+
+However, if the namespace of `locals` was shared across the environment, then the above approach would not work and each
+region file will need to define a different name for the region variable.
+
+Note that in this example, we assumed that the environment split is at the account level. An alternative split is to
+have each environment be at the region level. The advantage of this approach is to define a different state bucket for
+each region, which is a better posture for disaster recovery. In this approach, it doesn't matter what the scope of the
+`locals` is. However, the downside of this approach is that there will be some repetition to pull in the AWS account ID
+info across all the different regions.
+
+**Reusing common variables**
+
+Reusing common variables depends on the scope of `locals`. If the scope of `locals` is shared across the environment,
+then you can define the common variable in `locals` blocks to share across the entier environment. If instead the scope
+of `locals` is per file, we either:
+
+- Define all the code for the single environment in a single file.
+- Implement [globals](#globals) in a way that can be shared across the environment.
+
+**Reusing dependencies**
+
+Reusing dependencies is not a problem in this approach because the namespace for the environment is shared. That is, you
+can reference any of the other `module` blocks to hook up the dependency within a single environment. For example, if
+you had two modules `app` and `mysql` which depend on the `vpc` module, you could define the config as follows:
+
+```
+module "vpc" {
+  # args omitted for brevity
+}
+
+module "app" {
+  # args omitted for brevity
+  vpc_id = module.vpc.outputs.vpc_id
+}
+
+module "mysql" {
+  # args omitted for brevity
+  vpc_id = module.vpc.outputs.vpc_id
+}
+```
+
+This example reuses the outputs of `module.vpc` across the two modules, which is the equivalent of having the `vpc`
+`dependency` block redefined in the two module configs.
+
+**Keeping remote state configuration DRY**
+
+This example is covered in [the original issue that proposed this
+idea](https://github.com/gruntwork-io/terragrunt/issues/759).
+
+
 #### hcldecode or read_terragrunt_config helper function
 
 Instead of defining a dedicated block for `import`, we could define a helper function that parses the relevant config.
