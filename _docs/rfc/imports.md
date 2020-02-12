@@ -609,7 +609,7 @@ Cons:
 
 Let's walk through how each of the import use cases look like with this implementation:
 
-_Hierarchical variables_
+__*Hierarchical variables*__
 
 In this approach, a hierarchy of variables is unnecessary because all the blocks are defined in a single scope. However,
 depending on the scope of `locals`, certain things like reusing a repetitive variable becomes more challenging.
@@ -665,7 +665,7 @@ each region, which is a better posture for disaster recovery. In this approach, 
 `locals` is. However, the downside of this approach is that there will be some repetition to pull in the AWS account ID
 info across all the different regions.
 
-**Reusing common variables**
+__*Reusing common variables*__
 
 Reusing common variables depends on the scope of `locals`. If the scope of `locals` is shared across the environment,
 then you can define the common variable in `locals` blocks to share across the entier environment. If instead the scope
@@ -699,7 +699,7 @@ module "mysql" {
 This example reuses the outputs of `module.vpc` across the two modules, which is the equivalent of having the `vpc`
 `dependency` block redefined in the two module configs.
 
-_Keeping remote state configuration DRY_
+__*Keeping remote state configuration DRY*__
 
 This example is covered in [the original issue that proposed this
 idea](https://github.com/gruntwork-io/terragrunt/issues/759).
@@ -745,7 +745,7 @@ so that we can use assignment to override them.
 
 Let's walk through a few more of the use cases:
 
-_Keeping remote state configuration DRY_
+__*Keeping remote state configuration DRY*__
 
 parent
 
@@ -790,7 +790,7 @@ remote_state = deep_merge(local.root_config.remote_state, { config = { key = rel
 due to the fact that `remote_state` is a block and not an attribute.
 
 
-_Reusing dependencies_
+__*Reusing dependencies*__
 
 We can't reuse `dependency` blocks in this implementation because there is no way to auto merge the blocks.
 
