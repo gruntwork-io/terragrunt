@@ -609,7 +609,7 @@ Cons:
 
 Let's walk through how each of the import use cases look like with this implementation:
 
-**Hierarchical variables**
+_Hierarchical variables_
 
 In this approach, a hierarchy of variables is unnecessary because all the blocks are defined in a single scope. However,
 depending on the scope of `locals`, certain things like reusing a repetitive variable becomes more challenging.
@@ -674,13 +674,13 @@ of `locals` is per file, we either:
 - Define all the code for the single environment in a single file.
 - Implement [globals](#globals) in a way that can be shared across the environment.
 
-**Reusing dependencies**
+_Reusing dependencies_
 
 Reusing dependencies is not a problem in this approach because the namespace for the environment is shared. That is, you
 can reference any of the other `module` blocks to hook up the dependency within a single environment. For example, if
 you had two modules `app` and `mysql` which depend on the `vpc` module, you could define the config as follows:
 
-```
+```hcl
 module "vpc" {
   # args omitted for brevity
 }
@@ -699,7 +699,7 @@ module "mysql" {
 This example reuses the outputs of `module.vpc` across the two modules, which is the equivalent of having the `vpc`
 `dependency` block redefined in the two module configs.
 
-**Keeping remote state configuration DRY**
+_Keeping remote state configuration DRY_
 
 This example is covered in [the original issue that proposed this
 idea](https://github.com/gruntwork-io/terragrunt/issues/759).
@@ -711,7 +711,7 @@ Instead of defining a dedicated block for `import`, we could define a helper fun
 For example, the explicit triple import example in the [hierarchical variables use
 case](#hierarchical-variables-included-across-multiple-terragrunt-hcl-files) can be implemented as:
 
-```
+```hcl
 locals {
   root_config = read_terragrunt_config("../../../root.hcl")
   region_config = read_terragrunt_config("../../region.hcl")
@@ -745,7 +745,7 @@ so that we can use assignment to override them.
 
 Let's walk through a few more of the use cases:
 
-**Keeping remote state configuration DRY**
+_Keeping remote state configuration DRY_
 
 parent
 
@@ -790,7 +790,7 @@ remote_state = deep_merge(local.root_config.remote_state, { config = { key = rel
 due to the fact that `remote_state` is a block and not an attribute.
 
 
-**Reusing dependencies**
+_Reusing dependencies_
 
 We can't reuse `dependency` blocks in this implementation because there is no way to auto merge the blocks.
 
@@ -798,7 +798,7 @@ If `dependency` was instead an attribute, we could use the following alternative
 
 vpc_dependency_config.hcl
 
-```
+```hcl
 dependency = {
   vpc = {
     config_path = "/path/to/app/vpc/module"
@@ -806,7 +806,7 @@ dependency = {
 }
 ```
 
-```
+```hcl
 locals {
   common_deps = read_terragrunt_config("../vpc_dependency_config.hcl")
 }
