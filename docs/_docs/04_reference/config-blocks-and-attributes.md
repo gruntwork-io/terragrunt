@@ -22,6 +22,7 @@ supported blocks and attributes in the `terragrunt.hcl` configuration file:
 - [locals](#locals)
 - [dependency](#dependency)
 - [dependencies](#dependencies)
+- [generate](#generate)
 
 ### terraform
 
@@ -348,6 +349,10 @@ that you can reference in your config.
 
 The `dependency` block supports the following arguments:
 
+- `name` (label): You can define multiple `dependency` blocks in a single terragrunt config. As such, each block needs a
+  name to differentiate between the other blocks, which is what the first label of the block is used for. You can
+  reference the specific dependency output by the name. E.g if you had a block `dependency "vpc"`, you can reference the
+  outputs of this dependency with the expression `dependency.vpc.outputs`.
 - `config_path` (attribute): Path to a Terragrunt module (folder with a `terragrunt.hcl` file) that should be included
   as a dependency in this configuration.
 - `skip_outputs` (attribute): When `true`, skip calling `terragrunt output` when processing this dependency. If
@@ -407,6 +412,41 @@ dependencies {
 }
 ```
 
+
+### generate
+
+The `generate` block can be used to arbitrarily generate a file in the terragrunt working directory (where `terraform`
+is called). This can be used to generate common terraform configurations that are shared across multiple terraform
+modules. For example, you can use `generate` to generate the provider blocks in a consistent fashion by defining a
+`generate` block in the parent terragrunt config.
+
+The `generate` block supports the following arguments:
+
+- `name` (label): You can define multiple `generate` blocks in a single terragrunt config. As such, each block needs a
+  name to differentiate between the other blocks.
+- `path` (attribute): The path where the generated file should be written. If a relative path, it'll be relative to the
+  Terragrunt working dir (where the terraform code lives).
+- `if_exists` (attribute): What to do if a file already exists at `path`. Valid values are: `overwrite` (overwrite the
+  existing file), `skip` (skip code generation and leave the existing file as-is), `error` (exit with an error).
+- `contents` (attribute): The contents of the generated file.
+
+Example:
+
+```hcl
+# When using this terragrunt config, terragrunt will generate the file "provider.tf" with the aws provider block before
+# calling to terraform. Note that this will overwrite the `provider.tf` file if it already exists.
+generate "provider" {
+  path      = "provider.tf"
+  if_exists = "skip"
+  contents = <<EOF
+provider "aws" {
+  region              = "us-east-1"
+  version             = "= 2.3.1"
+  allowed_account_ids = ["1234567890"]
+}
+EOF
+}
+```
 
 
 ## Attributes
