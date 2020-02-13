@@ -134,9 +134,9 @@ terraform {
     execute  = ["cp", "${get_parent_terragrunt_dir()}/foo.tf", "."]
   }
 
-  # A special after_hook. Use this hook if you wish to run commands immediately after terragrunt finishes loading its 
-  # configurations. If "terragrunt-read-config" is defined as a before_hook, it will be ignored as this config would 
-  # not be loaded before the action is done. 
+  # A special after_hook. Use this hook if you wish to run commands immediately after terragrunt finishes loading its
+  # configurations. If "terragrunt-read-config" is defined as a before_hook, it will be ignored as this config would
+  # not be loaded before the action is done.
   after_hook "terragrunt-read-config" {
     commands = ["terragrunt-read-config"]
     execute  = ["bash", "script/get_aws_credentials.sh"]
@@ -159,6 +159,13 @@ The `remote_state` block supports the following arguments:
 - `disable_init` (attribute): When `true`, skip automatic initialization of the backend by Terragrunt. Some backends
   have support in Terragrunt to be automatically created if the storage does not exist. Currently `s3` and `gcs` are the
   two backends with support for automatic creation. Defaults to `false`.
+
+- `generate` (attribute): Configure Terragrunt to automatically generate a `.tf` file that configures the remote state
+  backend. This is a map that expects two properties:
+    - `path`: The path where the generated file should be written. If a relative path, it'll be relative to the Terragrunt
+      working dir (where the terraform code lives).
+    - `if_exists`: What to do if a file already exists at `path`. Valid values are: `overwrite` (overwrite the existing
+      file), `skip` (skip code generation and leave the existing file as-is), `error` (exit with an error).
 
 - `config` (attribute): An arbitrary map that is used to fill in the backend configuration in Terraform. All the
   properties will automatically be included in the Terraform backend block (with a few exceptions: see below). For
