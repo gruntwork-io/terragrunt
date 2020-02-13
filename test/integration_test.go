@@ -27,6 +27,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/cli"
+	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
 	terragruntDynamoDb "github.com/gruntwork-io/terragrunt/dynamodb"
@@ -42,6 +43,7 @@ const (
 	TERRAFORM_REMOTE_STATE_S3_REGION                        = "us-west-2"
 	TERRAFORM_REMOTE_STATE_GCP_REGION                       = "eu"
 	TEST_FIXTURE_PATH                                       = "fixture/"
+	TEST_FIXTURE_CODEGEN_PATH                               = "fixture-codegen/"
 	TEST_FIXTURE_GCS_PATH                                   = "fixture-gcs/"
 	TEST_FIXTURE_GCS_BYO_BUCKET_PATH                        = "fixture-gcs-byo-bucket/"
 	TEST_FIXTURE_INCLUDE_PATH                               = "fixture-include/"
@@ -2209,6 +2211,81 @@ func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
 	for _, line := range lines {
 		t.Logf("[%s] %s", t.Name(), line)
 	}
+}
+
+func TestTerragruntRemoteStateCodegenGeneratesBackendBlock(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "remote-state", "base")
+
+	cleanupTerraformFolder(t, generateTestCase)
+	removeFile(t, util.JoinPath(generateTestCase, "foo.tfstate"))
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s -auto-approve", generateTestCase))
+	// If the state file was written as foo.tfstate, that means it wrote out the local backend config.
+	assert.True(t, util.FileExists(filepath.Join(generateTestCase, "foo.tfstate")))
+	assert.False(t, util.FileExists(filepath.Join(generateTestCase, "terraform.tfstate")))
+}
+
+func TestTerragruntRemoteStateCodegenOverwrites(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "remote-state", "overwrite")
+
+	cleanupTerraformFolder(t, generateTestCase)
+	removeFile(t, util.JoinPath(generateTestCase, "foo.tfstate"))
+	removeFile(t, util.JoinPath(generateTestCase, "bar.tfstate"))
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s -auto-approve", generateTestCase))
+	// If the state file was written as foo.tfstate, that means it overwrote the local backend config.
+	assert.True(t, util.FileExists(filepath.Join(generateTestCase, "foo.tfstate")))
+	assert.False(t, util.FileExists(filepath.Join(generateTestCase, "bar.tfstate")))
+	assert.False(t, util.FileExists(filepath.Join(generateTestCase, "terraform.tfstate")))
+}
+
+func TestTerragruntRemoteStateCodegenGeneratesBackendBlockS3(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "remote-state", "s3")
+
+	cleanupTerraformFolder(t, generateTestCase)
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+
+	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, generateTestCase, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s -auto-approve", tmpTerragruntConfigPath, generateTestCase))
+}
+
+func TestTerragruntRemoteStateCodegenErrorsIfExists(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "remote-state", "error")
+	cleanupTerraformFolder(t, generateTestCase)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
+	require.Error(t, err)
+	_, ok := errors.Unwrap(err).(codegen.GenerateFileExistsError)
+	assert.True(t, ok)
+}
+
+func TestTerragruntRemoteStateCodegenDoesNotGenerateWithSkip(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "remote-state", "skip")
+
+	cleanupTerraformFolder(t, generateTestCase)
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s -auto-approve", generateTestCase))
+	// If the state file was written as terraform.tfstate, that means it did not write the local backend config.
+	assert.False(t, util.FileExists(filepath.Join(generateTestCase, "foo.tfstate")))
+	assert.True(t, util.FileExists(filepath.Join(generateTestCase, "terraform.tfstate")))
 }
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {

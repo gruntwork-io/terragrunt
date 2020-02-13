@@ -327,6 +327,9 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	if terragruntConfig.RemoteState != nil {
+		if err := terragruntConfig.RemoteState.GenerateCodeIfNecessary(terragruntOptions); err != nil {
+			return err
+		}
 		if err := checkTerraformCodeDefinesBackend(terragruntOptions, terragruntConfig.RemoteState.Backend); err != nil {
 			return err
 		}

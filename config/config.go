@@ -74,13 +74,20 @@ type terragruntLocal struct {
 
 // Configuration for Terraform remote state as parsed from a terragrunt.hcl config file
 type remoteStateConfigFile struct {
-	Backend     string    `hcl:"backend,attr"`
-	DisableInit *bool     `hcl:"disable_init,attr"`
-	Config      cty.Value `hcl:"config,attr"`
+	Backend     string                     `hcl:"backend,attr"`
+	DisableInit *bool                      `hcl:"disable_init,attr"`
+	Generate    *remoteStateConfigGenerate `hcl:"generate,attr"`
+	Config      cty.Value                  `hcl:"config,attr"`
 }
 
 func (remoteState *remoteStateConfigFile) String() string {
 	return fmt.Sprintf("remoteStateConfigFile{Backend = %v, Config = %v}", remoteState.Backend, remoteState.Config)
+}
+
+type remoteStateConfigGenerate struct {
+	// We use cty instead of hcl, since we are using this type to convert an attr and not a block.
+	Path     string `cty:"path"`
+	IfExists string `cty:"if_exists"`
 }
 
 // IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
@@ -628,6 +635,12 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, c
 
 		remoteState := &remote.RemoteState{}
 		remoteState.Backend = terragruntConfigFromFile.RemoteState.Backend
+		if terragruntConfigFromFile.RemoteState.Generate != nil {
+			remoteState.Generate = &remote.RemoteStateGenerate{
+				Path:     terragruntConfigFromFile.RemoteState.Generate.Path,
+				IfExists: terragruntConfigFromFile.RemoteState.Generate.IfExists,
+			}
+		}
 		remoteState.Config = remoteStateConfig
 
 		if terragruntConfigFromFile.RemoteState.DisableInit != nil {
