@@ -82,12 +82,12 @@ var TERRAFORM_COMMANDS_THAT_USE_STATE = []string{
 	"show",
 	"taint",
 	"untaint",
-	"validate",
 	"force-unlock",
 	"state",
 }
 
 var TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT = []string{
+	"validate",
 	"version",
 	"terragrunt-info",
 }
