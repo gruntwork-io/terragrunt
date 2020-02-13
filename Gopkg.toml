@@ -31,11 +31,11 @@
 
 [[constraint]]
   name = "cloud.google.com/go"
-  version = "0.47.0"
+  version = "0.53.0"
 
 [[constraint]]
-  branch = "master"
   name = "google.golang.org/api"
+  version = "0.16.0"
 
 [[constraint]]
   name = "github.com/go-errors/errors"
