@@ -93,6 +93,7 @@ func CreateTerragruntEvalContext(
 		"path_relative_from_include":                   wrapVoidToStringAsFuncImpl(pathRelativeFromInclude, extensions.Include, terragruntOptions),
 		"get_env":                                      wrapStringSliceToStringAsFuncImpl(getEnvironmentVariable, extensions.Include, terragruntOptions),
 		"run_cmd":                                      wrapStringSliceToStringAsFuncImpl(runCommand, extensions.Include, terragruntOptions),
+		"read_terragrunt_config":                       wrapStringSliceToDynamicValueAsFuncImpl(readTerragruntConfig, extensions.Include, terragruntOptions),
 		"get_terragrunt_dir":                           wrapVoidToStringAsFuncImpl(getTerragruntDir, extensions.Include, terragruntOptions),
 		"get_parent_terragrunt_dir":                    wrapVoidToStringAsFuncImpl(getParentTerragruntDir, extensions.Include, terragruntOptions),
 		"get_aws_account_id":                           wrapVoidToStringAsFuncImpl(getAWSAccountID, extensions.Include, terragruntOptions),
@@ -325,6 +326,31 @@ func getAWSCallerIdentityUserID(include *IncludeConfig, terragruntOptions *optio
 		return userID, nil
 	}
 	return "", err
+}
+
+// Parse the terragrunt config and return a representation that can be used as a reference.
+func readTerragruntConfig(params []string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (cty.Value, error) {
+	numParams := len(params)
+	if numParams != 1 {
+		return cty.NilVal, errors.WithStackTrace(
+			WrongNumberOfParams{Func: "read_terragrunt_config", Expected: "1", Actual: numParams},
+		)
+	}
+
+	configPath := params[0]
+	config, err := ParseConfigFile(configPath, terragruntOptions, nil)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	// We have to set the rendered outputs here because ParseConfigFile will not do so on the TerragruntConfig. The
+	// outputs are stored in a special map that is used only for rendering and thus is not available when we try to
+	// serialize the config for consumption.
+	// NOTE: this will not call terragrunt output, since all the values are cached from the ParseConfigFile call
+	for _, dependency := range config.TerragruntDependencies {
+		dependency.setRenderedOutputs(terragruntOptions)
+	}
+
+	return terragruntConfigAsCty(config)
 }
 
 // Custom error types

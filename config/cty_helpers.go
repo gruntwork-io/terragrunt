@@ -2,10 +2,12 @@ package config
 
 import (
 	"encoding/json"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
+	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
@@ -60,6 +62,27 @@ func wrapStaticValueToStringSliceAsFuncImpl(out []string) function.Function {
 	})
 }
 
+// Create a cty Function that takes as input parameters a slice of strings (var args, so this slice could be of any
+// length) and returns as output a dynamic value. The implementation of the function calls the given toWrap function, passing
+// it the input parameters string slice as well as the given include and terragruntOptions.
+func wrapStringSliceToDynamicValueAsFuncImpl(
+	toWrap func(params []string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (cty.Value, error),
+	include *IncludeConfig,
+	terragruntOptions *options.TerragruntOptions,
+) function.Function {
+	return function.New(&function.Spec{
+		VarParam: &function.Parameter{Type: cty.String},
+		Type:     function.StaticReturnType(cty.DynamicPseudoType),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			params, err := ctySliceToStringSlice(args)
+			if err != nil {
+				return cty.NilVal, err
+			}
+			return toWrap(params, include, terragruntOptions)
+		},
+	})
+}
+
 // Convert the slice of cty values to a slice of strings. If any of the values in the given slice is not a string,
 // return an error.
 func ctySliceToStringSlice(args []cty.Value) ([]string, error) {
@@ -99,4 +122,29 @@ func parseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
 type CtyJsonOutput struct {
 	Value map[string]interface{}
 	Type  interface{}
+}
+
+// convertValuesMapToCtyVal takes a map of name - cty.Value pairs and converts to a single cty.Value object.
+func convertValuesMapToCtyVal(valMap map[string]cty.Value) (cty.Value, error) {
+	valMapAsCty := cty.NilVal
+	if valMap != nil && len(valMap) > 0 {
+		var err error
+		valMapAsCty, err = gocty.ToCtyValue(valMap, generateTypeFromValuesMap(valMap))
+		if err != nil {
+			return valMapAsCty, errors.WithStackTrace(err)
+		}
+	}
+	return valMapAsCty, nil
+}
+
+// generateTypeFromValuesMap takes the locals map and returns an object type that has the same number of fields, but
+// bound to each type of the underlying evaluated expression. This is the only way the HCL decoder will be happy, as
+// object type is the only map type that allows different types for each attribute (cty.Map requires all attributes to
+// have the same type.
+func generateTypeFromValuesMap(locals map[string]cty.Value) cty.Type {
+	outType := map[string]cty.Type{}
+	for k, v := range locals {
+		outType[k] = v.Type()
+	}
+	return cty.Object(outType)
 }

@@ -10,6 +10,7 @@ import (
 )
 
 // Configuration for Terraform remote state
+// NOTE: If any attributes are added here, be sure to add it to ctyRemoteState in config/config_as_cty.go
 type RemoteState struct {
 	Backend     string
 	DisableInit bool

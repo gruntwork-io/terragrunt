@@ -20,16 +20,30 @@ import (
 )
 
 type Dependency struct {
-	Name                                string     `hcl:",label"`
-	ConfigPath                          string     `hcl:"config_path,attr"`
-	SkipOutputs                         *bool      `hcl:"skip_outputs,attr"`
-	MockOutputs                         *cty.Value `hcl:"mock_outputs,attr"`
-	MockOutputsAllowedTerraformCommands *[]string  `hcl:"mock_outputs_allowed_terraform_commands,attr"`
+	Name                                string     `hcl:",label" cty:"name"`
+	ConfigPath                          string     `hcl:"config_path,attr" cty:"config_path"`
+	SkipOutputs                         *bool      `hcl:"skip_outputs,attr" cty:"skip"`
+	MockOutputs                         *cty.Value `hcl:"mock_outputs,attr" cty:"mock_outputs"`
+	MockOutputsAllowedTerraformCommands *[]string  `hcl:"mock_outputs_allowed_terraform_commands,attr" cty:"mock_outputs_allowed_terraform_commands"`
+
+	// Used to store the rendered outputs for use when the config is imported or read with `read_terragrunt_config`
+	renderedOutputs *cty.Value `cty:"outputs"`
 }
 
 // Given a dependency config, we should only attempt to get the outputs if SkipOutputs is nil or false
 func (dependencyConfig Dependency) shouldGetOutputs() bool {
 	return dependencyConfig.SkipOutputs == nil || !(*dependencyConfig.SkipOutputs)
+}
+
+func (dependencyConfig *Dependency) setRenderedOutputs(terragruntOptions *options.TerragruntOptions) error {
+	if (*dependencyConfig).shouldGetOutputs() || shouldReturnMockOutputs(*dependencyConfig, terragruntOptions) {
+		outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(*dependencyConfig, terragruntOptions)
+		if err != nil {
+			return err
+		}
+		dependencyConfig.renderedOutputs = outputVal
+	}
+	return nil
 }
 
 // jsonOutputCache is a map that maps config paths to the outputs so that they can be reused across calls for common
@@ -181,13 +195,12 @@ func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOption
 		dependencyEncodingMap := map[string]cty.Value{}
 
 		// Encode the outputs and nest under `outputs` attribute if we should get the outputs or the `mock_outputs`
-		if dependencyConfig.shouldGetOutputs() || shouldReturnMockOutputs(dependencyConfig, terragruntOptions) {
+		if err := dependencyConfig.setRenderedOutputs(terragruntOptions); err != nil {
+			return nil, err
+		}
+		if dependencyConfig.renderedOutputs != nil {
 			paths = append(paths, dependencyConfig.ConfigPath)
-			outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig, terragruntOptions)
-			if err != nil {
-				return nil, err
-			}
-			dependencyEncodingMap["outputs"] = *outputVal
+			dependencyEncodingMap["outputs"] = *dependencyConfig.renderedOutputs
 		}
 
 		// Once the dependency is encoded into a map, we need to conver to a cty.Value again so that it can be fed to

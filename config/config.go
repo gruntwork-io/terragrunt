@@ -23,6 +23,7 @@ const DefaultTerragruntConfigPath = "terragrunt.hcl"
 const DefaultTerragruntJsonConfigPath = "terragrunt.hcl.json"
 
 // TerragruntConfig represents a parsed and expanded configuration
+// NOTE: if any attributes are added, make sure to update terragruntConfigAsCty in config_as_cty.go
 type TerragruntConfig struct {
 	Terraform                  *TerraformConfig
 	TerraformBinary            string
@@ -116,7 +117,7 @@ func (cfg *IncludeConfig) String() string {
 // ModuleDependencies represents the paths to other Terraform modules that must be applied before the current module
 // can be applied
 type ModuleDependencies struct {
-	Paths []string `hcl:"paths,attr"`
+	Paths []string `hcl:"paths,attr" cty:"paths"`
 }
 
 // Merge appends the paths in the provided ModuleDependencies object into this ModuleDependencies object.
@@ -138,10 +139,10 @@ func (deps *ModuleDependencies) String() string {
 
 // Hook specifies terraform commands (apply/plan) and array of os commands to execute
 type Hook struct {
-	Name       string   `hcl:"name,label"`
-	Commands   []string `hcl:"commands,attr"`
-	Execute    []string `hcl:"execute,attr"`
-	RunOnError *bool    `hcl:"run_on_error,attr"`
+	Name       string   `hcl:"name,label" cty:"name"`
+	Commands   []string `hcl:"commands,attr" cty:"commands"`
+	Execute    []string `hcl:"execute,attr" cty:"execute"`
+	RunOnError *bool    `hcl:"run_on_error,attr" cty:"run_on_error"`
 }
 
 func (conf *Hook) String() string {
@@ -149,6 +150,8 @@ func (conf *Hook) String() string {
 }
 
 // TerraformConfig specifies where to find the Terraform configuration files
+// NOTE: If any attributes or blocks are added here, be sure to add it to ctyTerraformConfig in config_as_cty.go as
+// well.
 type TerraformConfig struct {
 	ExtraArgs   []TerraformExtraArguments `hcl:"extra_arguments,block"`
 	Source      *string                   `hcl:"source,attr"`
@@ -190,12 +193,12 @@ func (conf *TerraformConfig) ValidateHooks() error {
 
 // TerraformExtraArguments sets a list of arguments to pass to Terraform if command fits any in the `Commands` list
 type TerraformExtraArguments struct {
-	Name             string             `hcl:"name,label"`
-	Arguments        *[]string          `hcl:"arguments,attr"`
-	RequiredVarFiles *[]string          `hcl:"required_var_files,attr"`
-	OptionalVarFiles *[]string          `hcl:"optional_var_files,attr"`
-	Commands         []string           `hcl:"commands,attr"`
-	EnvVars          *map[string]string `hcl:"env_vars,attr"`
+	Name             string             `hcl:"name,label" cty:"name"`
+	Arguments        *[]string          `hcl:"arguments,attr" cty:"arguments"`
+	RequiredVarFiles *[]string          `hcl:"required_var_files,attr" cty:"required_var_files"`
+	OptionalVarFiles *[]string          `hcl:"optional_var_files,attr" cty:"optional_var_files"`
+	Commands         []string           `hcl:"commands,attr" cty:"commands"`
+	EnvVars          *map[string]string `hcl:"env_vars,attr" cty:"env_vars"`
 }
 
 func (conf *TerraformExtraArguments) String() string {
