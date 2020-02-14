@@ -2,7 +2,6 @@ package remote
 
 import (
 	"fmt"
-	"path/filepath"
 	"reflect"
 
 	"github.com/gruntwork-io/terragrunt/codegen"
@@ -169,20 +168,10 @@ func (remoteState RemoteState) ToTerraformInitArgs() []string {
 	return backendConfigArgs
 }
 
-// Generate the terraform code for configuring remote state backend if necessary.
-func (remoteState *RemoteState) GenerateCodeIfNecessary(terragruntOptions *options.TerragruntOptions) error {
+// Generate the terraform code for configuring remote state backend.
+func (remoteState *RemoteState) GenerateTerraformCode(terragruntOptions *options.TerragruntOptions) error {
 	if remoteState.Generate == nil {
-		// Do nothing as generate is not configured
-		return nil
-	}
-
-	// Figure out thee target path to generate the code in. Note that relative paths are relative to the terragrunt
-	// working dir (where terraform is called).
-	var targetPath string
-	if filepath.IsAbs(remoteState.Generate.Path) {
-		targetPath = remoteState.Generate.Path
-	} else {
-		targetPath = filepath.Join(terragruntOptions.WorkingDir, remoteState.Generate.Path)
+		return errors.WithStackTrace(GenerateCalledWithNoGenerateAttr)
 	}
 
 	// Make sure to strip out terragrunt specific configurations from the config.
@@ -203,11 +192,15 @@ func (remoteState *RemoteState) GenerateCodeIfNecessary(terragruntOptions *optio
 		return err
 	}
 	codegenConfig := codegen.GenerateConfig{
-		Path:     targetPath,
+		Path:     remoteState.Generate.Path,
 		IfExists: ifExistsEnum,
 		Contents: string(configBytes),
 	}
-	return codegen.WriteToFile(terragruntOptions.Logger, codegenConfig)
+	return codegen.WriteToFile(terragruntOptions.Logger, terragruntOptions.WorkingDir, codegenConfig)
 }
 
-var RemoteBackendMissing = fmt.Errorf("The remote_state.backend field cannot be empty")
+// Custom errors
+var (
+	RemoteBackendMissing             = fmt.Errorf("The remote_state.backend field cannot be empty")
+	GenerateCalledWithNoGenerateAttr = fmt.Errorf("Generate code routine called when no generate attribute is configured.")
+)

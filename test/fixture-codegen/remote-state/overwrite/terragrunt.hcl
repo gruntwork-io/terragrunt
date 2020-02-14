@@ -1,7 +1,7 @@
 remote_state {
   backend = "local"
   generate = {
-    path = "backend.tf"
+    path      = "backend.tf"
     if_exists = "overwrite"
   }
   config = {
@@ -10,5 +10,5 @@ remote_state {
 }
 
 terraform {
-  souce = "../../module"
+  source = "../../module"
 }

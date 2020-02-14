@@ -2213,18 +2213,70 @@ func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
 	}
 }
 
+func TestTerragruntGenerateBlockSkip(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "generate-block", "skip")
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s -auto-approve", generateTestCase))
+	assert.False(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
+}
+
+func TestTerragruntGenerateBlockOverwrite(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "generate-block", "overwrite")
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s -auto-approve", generateTestCase))
+	// If the state file was written as foo.tfstate, that means it overwrote the local backend config.
+	assert.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
+	assert.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
+}
+
+func TestTerragruntGenerateBlockNestedInherit(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "generate-block", "nested", "child_inherit")
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s -auto-approve", generateTestCase))
+	// If the state file was written as foo.tfstate, that means it inherited the config
+	assert.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
+	assert.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
+	// Also check to make sure the child config generate block was included
+	assert.True(t, fileIsInFolder(t, "random_file.txt", generateTestCase))
+}
+
+func TestTerragruntGenerateBlockNestedOverwrite(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "generate-block", "nested", "child_overwrite")
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s -auto-approve", generateTestCase))
+	// If the state file was written as bar.tfstate, that means it overwrite the parent config
+	assert.False(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
+	assert.True(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
+	// Also check to make sure the child config generate block was included
+	assert.True(t, fileIsInFolder(t, "random_file.txt", generateTestCase))
+}
+
 func TestTerragruntRemoteStateCodegenGeneratesBackendBlock(t *testing.T) {
 	t.Parallel()
 
 	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "remote-state", "base")
 
 	cleanupTerraformFolder(t, generateTestCase)
-	removeFile(t, util.JoinPath(generateTestCase, "foo.tfstate"))
+	cleanupTerragruntFolder(t, generateTestCase)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s -auto-approve", generateTestCase))
 	// If the state file was written as foo.tfstate, that means it wrote out the local backend config.
-	assert.True(t, util.FileExists(filepath.Join(generateTestCase, "foo.tfstate")))
-	assert.False(t, util.FileExists(filepath.Join(generateTestCase, "terraform.tfstate")))
+	assert.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
 
 func TestTerragruntRemoteStateCodegenOverwrites(t *testing.T) {
@@ -2233,14 +2285,12 @@ func TestTerragruntRemoteStateCodegenOverwrites(t *testing.T) {
 	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "remote-state", "overwrite")
 
 	cleanupTerraformFolder(t, generateTestCase)
-	removeFile(t, util.JoinPath(generateTestCase, "foo.tfstate"))
-	removeFile(t, util.JoinPath(generateTestCase, "bar.tfstate"))
+	cleanupTerragruntFolder(t, generateTestCase)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s -auto-approve", generateTestCase))
 	// If the state file was written as foo.tfstate, that means it overwrote the local backend config.
-	assert.True(t, util.FileExists(filepath.Join(generateTestCase, "foo.tfstate")))
-	assert.False(t, util.FileExists(filepath.Join(generateTestCase, "bar.tfstate")))
-	assert.False(t, util.FileExists(filepath.Join(generateTestCase, "terraform.tfstate")))
+	assert.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
+	assert.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
 }
 
 func TestTerragruntRemoteStateCodegenGeneratesBackendBlockS3(t *testing.T) {
@@ -2249,6 +2299,7 @@ func TestTerragruntRemoteStateCodegenGeneratesBackendBlockS3(t *testing.T) {
 	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "remote-state", "s3")
 
 	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
@@ -2266,6 +2317,7 @@ func TestTerragruntRemoteStateCodegenErrorsIfExists(t *testing.T) {
 
 	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "remote-state", "error")
 	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -2282,10 +2334,10 @@ func TestTerragruntRemoteStateCodegenDoesNotGenerateWithSkip(t *testing.T) {
 	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "remote-state", "skip")
 
 	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s -auto-approve", generateTestCase))
-	// If the state file was written as terraform.tfstate, that means it did not write the local backend config.
-	assert.False(t, util.FileExists(filepath.Join(generateTestCase, "foo.tfstate")))
-	assert.True(t, util.FileExists(filepath.Join(generateTestCase, "terraform.tfstate")))
+	assert.False(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
@@ -2758,4 +2810,17 @@ func deleteGCSBucket(t *testing.T, bucketName string) {
 	if err := bucket.Delete(ctx); err != nil {
 		t.Fatalf("Failed to delete GCS bucket %s: %v", bucketName, err)
 	}
+}
+
+func fileIsInFolder(t *testing.T, name string, path string) bool {
+	found := false
+	err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+		assert.NoError(t, err)
+		if filepath.Base(path) == name {
+			found = true
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	return found
 }

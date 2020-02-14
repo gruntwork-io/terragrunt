@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"path/filepath"
 
 	"github.com/hashicorp/hcl2/hclwrite"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -41,22 +42,30 @@ type GenerateConfig struct {
 // - if ExistsError, return an error.
 // - if ExistsSkip, do nothing and return
 // - if ExistsOverwrite, overwrite the existing file
-func WriteToFile(logger *log.Logger, config GenerateConfig) error {
-	targetFileExists := util.FileExists(config.Path)
-	if targetFileExists && config.IfExists == ExistsError {
-		return errors.WithStackTrace(GenerateFileExistsError{path: config.Path})
-	} else if targetFileExists && config.IfExists == ExistsSkip {
-		// Do nothing since file exists and skip was configured
-		logger.Printf("The file path %s already exists and if_exists for code generation set to \"skip\". Will not regenerate file.", config.Path)
-		return nil
-	} else if targetFileExists {
-		logger.Printf("The file path %s already exists and if_exists for code generation set to \"overwrite\". Regenerating file.", config.Path)
+func WriteToFile(logger *log.Logger, basePath string, config GenerateConfig) error {
+	// Figure out thee target path to generate the code in. If relative, merge with basePath.
+	var targetPath string
+	if filepath.IsAbs(config.Path) {
+		targetPath = config.Path
+	} else {
+		targetPath = filepath.Join(basePath, config.Path)
 	}
 
-	if err := ioutil.WriteFile(config.Path, []byte(config.Contents), 0644); err != nil {
+	targetFileExists := util.FileExists(targetPath)
+	if targetFileExists && config.IfExists == ExistsError {
+		return errors.WithStackTrace(GenerateFileExistsError{path: targetPath})
+	} else if targetFileExists && config.IfExists == ExistsSkip {
+		// Do nothing since file exists and skip was configured
+		logger.Printf("The file path %s already exists and if_exists for code generation set to \"skip\". Will not regenerate file.", targetPath)
+		return nil
+	} else if targetFileExists {
+		logger.Printf("The file path %s already exists and if_exists for code generation set to \"overwrite\". Regenerating file.", targetPath)
+	}
+
+	if err := ioutil.WriteFile(targetPath, []byte(config.Contents), 0644); err != nil {
 		return errors.WithStackTrace(err)
 	}
-	logger.Printf("Generated file %s.", config.Path)
+	logger.Printf("Generated file %s.", targetPath)
 	return nil
 }
 

@@ -1,7 +1,11 @@
+include {
+  path = "${get_terragrunt_dir()}/../root.hcl"
+}
+
 generate "backend" {
-  path = "backend.tf"
+  path      = "backend.tf"
   if_exists = "overwrite"
-  contents = <<EOF
+  contents  = <<EOF
 terraform {
   backend "local" {
     path = "bar.tfstate"

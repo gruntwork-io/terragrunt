@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/hcl2/hclparse"
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
@@ -35,6 +36,7 @@ type TerragruntConfig struct {
 	Inputs                     map[string]interface{}
 	Locals                     map[string]interface{}
 	TerragruntDependencies     []Dependency
+	GenerateConfigs            map[string]codegen.GenerateConfig
 
 	// Indicates whether or not this is the result of a partial evaluation
 	IsPartial bool
@@ -47,18 +49,19 @@ func (conf *TerragruntConfig) String() string {
 // terragruntConfigFile represents the configuration supported in a Terragrunt configuration file (i.e.
 // terragrunt.hcl)
 type terragruntConfigFile struct {
-	Terraform                  *TerraformConfig       `hcl:"terraform,block"`
-	TerraformBinary            *string                `hcl:"terraform_binary,attr"`
-	TerraformVersionConstraint *string                `hcl:"terraform_version_constraint,attr"`
-	Inputs                     *cty.Value             `hcl:"inputs,attr"`
-	Include                    *IncludeConfig         `hcl:"include,block"`
-	RemoteState                *remoteStateConfigFile `hcl:"remote_state,block"`
-	Dependencies               *ModuleDependencies    `hcl:"dependencies,block"`
-	DownloadDir                *string                `hcl:"download_dir,attr"`
-	PreventDestroy             *bool                  `hcl:"prevent_destroy,attr"`
-	Skip                       *bool                  `hcl:"skip,attr"`
-	IamRole                    *string                `hcl:"iam_role,attr"`
-	TerragruntDependencies     []Dependency           `hcl:"dependency,block"`
+	Terraform                  *TerraformConfig          `hcl:"terraform,block"`
+	TerraformBinary            *string                   `hcl:"terraform_binary,attr"`
+	TerraformVersionConstraint *string                   `hcl:"terraform_version_constraint,attr"`
+	Inputs                     *cty.Value                `hcl:"inputs,attr"`
+	Include                    *IncludeConfig            `hcl:"include,block"`
+	RemoteState                *remoteStateConfigFile    `hcl:"remote_state,block"`
+	Dependencies               *ModuleDependencies       `hcl:"dependencies,block"`
+	DownloadDir                *string                   `hcl:"download_dir,attr"`
+	PreventDestroy             *bool                     `hcl:"prevent_destroy,attr"`
+	Skip                       *bool                     `hcl:"skip,attr"`
+	IamRole                    *string                   `hcl:"iam_role,attr"`
+	TerragruntDependencies     []Dependency              `hcl:"dependency,block"`
+	GenerateBlocks             []terragruntGenerateBlock `hcl:"generate,block"`
 
 	// This struct is used for validating and parsing the entire terragrunt config. Since locals are evaluated in a
 	// completely separate cycle, it should not be evaluated here. Otherwise, we can't support self referencing other
@@ -88,6 +91,15 @@ type remoteStateConfigGenerate struct {
 	// We use cty instead of hcl, since we are using this type to convert an attr and not a block.
 	Path     string `cty:"path"`
 	IfExists string `cty:"if_exists"`
+}
+
+// Struct used to parse generate blocks. This will later be converted to GenerateConfig structs so that we can go
+// through the codegen routine.
+type terragruntGenerateBlock struct {
+	Name     string `hcl:",label"`
+	Path     string `hcl:"path,attr"`
+	IfExists string `hcl:"if_exists,attr"`
+	Contents string `hcl:"contents,attr"`
 }
 
 // IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
@@ -503,6 +515,12 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 		includedConfig.TerraformBinary = config.TerraformBinary
 	}
 
+	// Merge the generate configs. This is a shallow merge. Meaning, if the child has the same name generate block, then the
+	// child's generate block will override the parent's block.
+	for key, val := range config.GenerateConfigs {
+		includedConfig.GenerateConfigs[key] = val
+	}
+
 	if config.Inputs != nil {
 		includedConfig.Inputs = mergeInputs(config.Inputs, includedConfig.Inputs)
 	}
@@ -625,7 +643,11 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, c
 		}
 	}()
 
-	terragruntConfig := &TerragruntConfig{IsPartial: false}
+	terragruntConfig := &TerragruntConfig{
+		IsPartial: false,
+		// Initialize GenerateConfigs so we can append to it
+		GenerateConfigs: map[string]codegen.GenerateConfig{},
+	}
 
 	if terragruntConfigFromFile.RemoteState != nil {
 		remoteStateConfig, err := parseCtyValueToMap(terragruntConfigFromFile.RemoteState.Config)
@@ -685,6 +707,18 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, c
 
 	if terragruntConfigFromFile.IamRole != nil {
 		terragruntConfig.IamRole = *terragruntConfigFromFile.IamRole
+	}
+
+	for _, block := range terragruntConfigFromFile.GenerateBlocks {
+		ifExists, err := codegen.GenerateConfigExistsFromString(block.IfExists)
+		if err != nil {
+			return nil, err
+		}
+		terragruntConfig.GenerateConfigs[block.Name] = codegen.GenerateConfig{
+			Path:     block.Path,
+			IfExists: ifExists,
+			Contents: block.Contents,
+		}
 	}
 
 	if terragruntConfigFromFile.Inputs != nil {

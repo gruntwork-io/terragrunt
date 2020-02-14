@@ -2,7 +2,7 @@ remote_state {
   backend = "local"
   generate = {
     # Intentionally named main.tf so that it conflicts
-    path = "main.tf"
+    path      = "main.tf"
     if_exists = "skip"
   }
   config = {
@@ -11,5 +11,5 @@ remote_state {
 }
 
 terraform {
-  souce = "../../module"
+  source = "../../module"
 }

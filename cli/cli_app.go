@@ -10,6 +10,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -326,10 +327,20 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
-	if terragruntConfig.RemoteState != nil {
-		if err := terragruntConfig.RemoteState.GenerateCodeIfNecessary(terragruntOptions); err != nil {
+	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
+	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
+	for _, config := range terragruntConfig.GenerateConfigs {
+		if err := codegen.WriteToFile(terragruntOptions.Logger, terragruntOptions.WorkingDir, config); err != nil {
 			return err
 		}
+	}
+	if terragruntConfig.RemoteState != nil && terragruntConfig.RemoteState.Generate != nil {
+		if err := terragruntConfig.RemoteState.GenerateTerraformCode(terragruntOptions); err != nil {
+			return err
+		}
+	}
+
+	if terragruntConfig.RemoteState != nil {
 		if err := checkTerraformCodeDefinesBackend(terragruntOptions, terragruntConfig.RemoteState.Backend); err != nil {
 			return err
 		}

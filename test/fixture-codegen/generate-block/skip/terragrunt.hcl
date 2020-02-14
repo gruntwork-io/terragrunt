@@ -1,7 +1,7 @@
 generate "backend" {
-  path = "main.tf"
+  path      = "main.tf"
   if_exists = "skip"
-  contents = <<EOF
+  contents  = <<EOF
 terraform {
   backend "local" {
     path = "foo.tfstate"
