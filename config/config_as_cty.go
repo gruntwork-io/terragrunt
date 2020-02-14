@@ -31,37 +31,49 @@ func terragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	if err != nil {
 		return cty.NilVal, err
 	}
-	output["terraform"] = terraformConfigCty
+	if terraformConfigCty != cty.NilVal {
+		output["terraform"] = terraformConfigCty
+	}
 
 	remoteStateCty, err := remoteStateAsCty(config.RemoteState)
 	if err != nil {
 		return cty.NilVal, err
 	}
-	output["remote_state"] = remoteStateCty
+	if remoteStateCty != cty.NilVal {
+		output["remote_state"] = remoteStateCty
+	}
 
 	dependenciesCty, err := gostructToCty(config.Dependencies)
 	if err != nil {
 		return cty.NilVal, err
 	}
-	output["dependencies"] = dependenciesCty
+	if dependenciesCty != cty.NilVal {
+		output["dependencies"] = dependenciesCty
+	}
 
 	dependencyCty, err := dependencyBlocksAsCty(config.TerragruntDependencies)
 	if err != nil {
 		return cty.NilVal, err
 	}
-	output["dependency"] = dependencyCty
+	if dependencyCty != cty.NilVal {
+		output["dependency"] = dependencyCty
+	}
 
 	inputsCty, err := convertToCtyWithJson(config.Inputs)
 	if err != nil {
 		return cty.NilVal, err
 	}
-	output["inputs"] = inputsCty
+	if inputsCty != cty.NilVal {
+		output["inputs"] = inputsCty
+	}
 
 	localsCty, err := convertToCtyWithJson(config.Locals)
 	if err != nil {
 		return cty.NilVal, err
 	}
-	output["locals"] = localsCty
+	if localsCty != cty.NilVal {
+		output["locals"] = localsCty
+	}
 
 	return convertValuesMapToCtyVal(output)
 }

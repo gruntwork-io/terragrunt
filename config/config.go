@@ -369,7 +369,7 @@ func ParseConfigString(configString string, terragruntOptions *options.Terragrun
 		return nil, errors.WithStackTrace(CouldNotResolveTerragruntConfigInFile(filename))
 	}
 
-	config, err := convertToTerragruntConfig(terragruntConfigFile, filename, terragruntOptions)
+	config, err := convertToTerragruntConfig(terragruntConfigFile, filename, terragruntOptions, contextExtensions)
 	if err != nil {
 		return nil, err
 	}
@@ -638,7 +638,12 @@ func mergeInputs(childInputs map[string]interface{}, parentInputs map[string]int
 }
 
 // Convert the contents of a fully resolved Terragrunt configuration to a TerragruntConfig object
-func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, configPath string, terragruntOptions *options.TerragruntOptions) (cfg *TerragruntConfig, err error) {
+func convertToTerragruntConfig(
+	terragruntConfigFromFile *terragruntConfigFile,
+	configPath string,
+	terragruntOptions *options.TerragruntOptions,
+	contextExtensions EvalContextExtensions,
+) (cfg *TerragruntConfig, err error) {
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
 	// those panics here and convert them to normal errors
 	defer func() {
@@ -736,6 +741,14 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, c
 		}
 
 		terragruntConfig.Inputs = inputs
+	}
+
+	if contextExtensions.Locals != nil && *contextExtensions.Locals != cty.NilVal {
+		localsParsed, err := parseCtyValueToMap(*contextExtensions.Locals)
+		if err != nil {
+			return nil, err
+		}
+		terragruntConfig.Locals = localsParsed
 	}
 
 	return terragruntConfig, nil

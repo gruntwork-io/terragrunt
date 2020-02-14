@@ -27,7 +27,7 @@ type Dependency struct {
 	MockOutputsAllowedTerraformCommands *[]string  `hcl:"mock_outputs_allowed_terraform_commands,attr" cty:"mock_outputs_allowed_terraform_commands"`
 
 	// Used to store the rendered outputs for use when the config is imported or read with `read_terragrunt_config`
-	renderedOutputs *cty.Value `cty:"outputs"`
+	RenderedOutputs *cty.Value `cty:"outputs"`
 }
 
 // Given a dependency config, we should only attempt to get the outputs if SkipOutputs is nil or false
@@ -41,7 +41,7 @@ func (dependencyConfig *Dependency) setRenderedOutputs(terragruntOptions *option
 		if err != nil {
 			return err
 		}
-		dependencyConfig.renderedOutputs = outputVal
+		dependencyConfig.RenderedOutputs = outputVal
 	}
 	return nil
 }
@@ -198,9 +198,9 @@ func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOption
 		if err := dependencyConfig.setRenderedOutputs(terragruntOptions); err != nil {
 			return nil, err
 		}
-		if dependencyConfig.renderedOutputs != nil {
+		if dependencyConfig.RenderedOutputs != nil {
 			paths = append(paths, dependencyConfig.ConfigPath)
-			dependencyEncodingMap["outputs"] = *dependencyConfig.renderedOutputs
+			dependencyEncodingMap["outputs"] = *dependencyConfig.RenderedOutputs
 		}
 
 		// Once the dependency is encoded into a map, we need to conver to a cty.Value again so that it can be fed to
@@ -222,20 +222,6 @@ func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOption
 	return &convertedOutput, errors.WithStackTrace(err)
 }
 
-// Returns a cleaned path to the target config (the `terragrunt.hcl` file) encoded in the Dependency, handling relative
-// paths correctly. This will automatically append `terragrunt.hcl` to the path if the target path is a directory.
-func getCleanedTargetConfigPath(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) string {
-	cwd := filepath.Dir(terragruntOptions.TerragruntConfigPath)
-	targetConfig := dependencyConfig.ConfigPath
-	if !filepath.IsAbs(targetConfig) {
-		targetConfig = util.JoinPath(cwd, targetConfig)
-	}
-	if util.IsDir(targetConfig) {
-		targetConfig = util.JoinPath(targetConfig, DefaultTerragruntConfigPath)
-	}
-	return util.CleanPath(targetConfig)
-}
-
 // This will attempt to get the outputs from the target terragrunt config if it is applied. If it is not applied, the
 // behavior is different depending on the configuration of the dependency:
 // - If the dependency block indicates a mock_outputs attribute, this will return that.
@@ -255,7 +241,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 	// When we get no output, it can be an indication that either the module has no outputs or the module is not
 	// applied. In either case, check if there are default output values to return. If yes, return that. Else,
 	// return error.
-	targetConfig := getCleanedTargetConfigPath(dependencyConfig, terragruntOptions)
+	targetConfig := getCleanedTargetConfigPath(dependencyConfig.ConfigPath, terragruntOptions)
 	currentConfig := terragruntOptions.TerragruntConfigPath
 	if shouldReturnMockOutputs(dependencyConfig, terragruntOptions) {
 		util.Debugf(
@@ -291,7 +277,7 @@ func shouldReturnMockOutputs(dependencyConfig Dependency, terragruntOptions *opt
 func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, bool, error) {
 
 	// target config check: make sure the target config exists
-	targetConfig := getCleanedTargetConfigPath(dependencyConfig, terragruntOptions)
+	targetConfig := getCleanedTargetConfigPath(dependencyConfig.ConfigPath, terragruntOptions)
 	if !util.FileExists(targetConfig) {
 		return nil, true, errors.WithStackTrace(DependencyConfigNotFound{Path: targetConfig})
 	}
