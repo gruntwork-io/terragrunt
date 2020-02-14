@@ -8,3 +8,7 @@ remote_state {
     path = "foo.tfstate"
   }
 }
+
+terraform {
+  souce = "../../module"
+}

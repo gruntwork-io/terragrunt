@@ -25,3 +25,7 @@ remote_state {
     }
   }
 }
+
+terraform {
+  souce = "../../module"
+}
