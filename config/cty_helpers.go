@@ -62,27 +62,6 @@ func wrapStaticValueToStringSliceAsFuncImpl(out []string) function.Function {
 	})
 }
 
-// Create a cty Function that takes as input parameters a slice of strings (var args, so this slice could be of any
-// length) and returns as output a dynamic value. The implementation of the function calls the given toWrap function, passing
-// it the input parameters string slice as well as the given include and terragruntOptions.
-func wrapStringSliceToDynamicValueAsFuncImpl(
-	toWrap func(params []string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (cty.Value, error),
-	include *IncludeConfig,
-	terragruntOptions *options.TerragruntOptions,
-) function.Function {
-	return function.New(&function.Spec{
-		VarParam: &function.Parameter{Type: cty.String},
-		Type:     function.StaticReturnType(cty.DynamicPseudoType),
-		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			params, err := ctySliceToStringSlice(args)
-			if err != nil {
-				return cty.NilVal, err
-			}
-			return toWrap(params, include, terragruntOptions)
-		},
-	})
-}
-
 // Convert the slice of cty values to a slice of strings. If any of the values in the given slice is not a string,
 // return an error.
 func ctySliceToStringSlice(args []cty.Value) ([]string, error) {
