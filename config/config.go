@@ -96,10 +96,11 @@ type remoteStateConfigGenerate struct {
 // Struct used to parse generate blocks. This will later be converted to GenerateConfig structs so that we can go
 // through the codegen routine.
 type terragruntGenerateBlock struct {
-	Name     string `hcl:",label"`
-	Path     string `hcl:"path,attr"`
-	IfExists string `hcl:"if_exists,attr"`
-	Contents string `hcl:"contents,attr"`
+	Name          string  `hcl:",label"`
+	Path          string  `hcl:"path,attr"`
+	IfExists      string  `hcl:"if_exists,attr"`
+	CommentPrefix *string `hcl:"comment_prefix,attr"`
+	Contents      string  `hcl:"contents,attr"`
 }
 
 // IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
@@ -714,11 +715,15 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, c
 		if err != nil {
 			return nil, err
 		}
-		terragruntConfig.GenerateConfigs[block.Name] = codegen.GenerateConfig{
+		genConfig := codegen.GenerateConfig{
 			Path:     block.Path,
 			IfExists: ifExists,
 			Contents: block.Contents,
 		}
+		if block.CommentPrefix != nil {
+			genConfig.CommentPrefix = *block.CommentPrefix
+		}
+		terragruntConfig.GenerateConfigs[block.Name] = genConfig
 	}
 
 	if terragruntConfigFromFile.Inputs != nil {

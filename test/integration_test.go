@@ -2236,6 +2236,34 @@ func TestTerragruntGenerateBlockOverwrite(t *testing.T) {
 	assert.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
 }
 
+func TestTerragruntGenerateBlockOverwriteTerragruntSuccess(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "generate-block", "overwrite_terragrunt")
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s -auto-approve", generateTestCase))
+	// If the state file was written as foo.tfstate, that means it overwrote the local backend config.
+	assert.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
+	assert.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
+}
+
+func TestTerragruntGenerateBlockOverwriteTerragruntFail(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "generate-block", "overwrite_terragrunt_error")
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
+	require.Error(t, err)
+	_, ok := errors.Unwrap(err).(codegen.GenerateFileExistsError)
+	assert.True(t, ok)
+}
+
 func TestTerragruntGenerateBlockNestedInherit(t *testing.T) {
 	t.Parallel()
 
