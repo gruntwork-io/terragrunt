@@ -437,7 +437,7 @@ Example:
 # calling to terraform. Note that this will overwrite the `provider.tf` file if it already exists.
 generate "provider" {
   path      = "provider.tf"
-  if_exists = "skip"
+  if_exists = "overwrite"
   contents = <<EOF
 provider "aws" {
   region              = "us-east-1"
