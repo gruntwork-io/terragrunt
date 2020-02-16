@@ -141,7 +141,7 @@ Other settings in the child `.hcl` file override the respective settings in the 
 ### Using the generate property to generate terraform code for managing remote state
 
 While the default way terragrunt manages remote state is through `terraform init` with `-backend-config`, you can also
-use the `generate` property to configure terragrunt to geneerate a `.tf` file in the terraform working directory with the
+use the `generate` property to configure terragrunt to generate a `.tf` file in the terraform working directory with the
 backend configuration.
 
 The `generate` property is an object that accepts two parameters:
