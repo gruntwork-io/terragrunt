@@ -60,6 +60,8 @@ func WriteToFile(logger *log.Logger, basePath string, config GenerateConfig) err
 		return nil
 	} else if targetFileExists {
 		logger.Printf("The file path %s already exists and if_exists for code generation set to \"overwrite\". Regenerating file.", targetPath)
+	} else if config.IfExists == ExistsUnknown {
+		return errors.WithStackTrace(UnknownGenerateIfExistsVal{""})
 	}
 
 	if err := ioutil.WriteFile(targetPath, []byte(config.Contents), 0644); err != nil {
@@ -114,7 +116,10 @@ type UnknownGenerateIfExistsVal struct {
 }
 
 func (err UnknownGenerateIfExistsVal) Error() string {
-	return fmt.Sprintf("%s is not a valid value for generate if_exists", err.val)
+	if err.val != "" {
+		return fmt.Sprintf("%s is not a valid value for generate if_exists", err.val)
+	}
+	return "Received unknown value for if_exists"
 }
 
 type GenerateFileExistsError struct {
