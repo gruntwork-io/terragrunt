@@ -156,7 +156,7 @@ Terragrunt will automatically find the `mysql` module’s `terragrunt.hcl` file,
 
 You can now add as many child modules as you want, each with a `terragrunt.hcl` with the `include { …​ }` block, and each of those modules will automatically inherit the proper `backend` configuration\!
 
-## Keep your provider configurdation DRY
+## Keep your provider configuration DRY
 
 Unifying provider configurations across all your modules can be a pain, especially when you want to customize
 authentication credentials. To configure Terraform to assume an IAM role before calling out to AWS, you need to add a
