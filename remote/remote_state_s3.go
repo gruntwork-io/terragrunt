@@ -34,6 +34,7 @@ type ExtendedRemoteStateConfigS3 struct {
 	SkipBucketAccessLogging     bool              `mapstructure:"skip_bucket_accesslogging"`
 	SkipBucketRootAccess        bool              `mapstructure:"skip_bucket_root_access"`
 	EnableLockTableSSEncryption bool              `mapstructure:"enable_lock_table_ssencryption"`
+	DisableAWSClientChecksums   bool              `mapstructure:"disable_aws_client_checksums"`
 }
 
 // These are settings that can appear in the remote_state config that are ONLY used by Terragrunt and NOT forwarded
@@ -46,6 +47,7 @@ var terragruntOnlyConfigs = []string{
 	"skip_bucket_accesslogging",
 	"skip_bucket_root_access",
 	"enable_lock_table_ssencryption",
+	"disable_aws_client_checksums",
 }
 
 // A representation of the configuration options available for S3 remote state
@@ -64,14 +66,15 @@ type RemoteStateConfigS3 struct {
 }
 
 // Builds a session config for AWS related requests from the RemoteStateConfigS3 configuration
-func (c *RemoteStateConfigS3) GetAwsSessionConfig() *aws_helper.AwsSessionConfig {
+func (c *ExtendedRemoteStateConfigS3) GetAwsSessionConfig() *aws_helper.AwsSessionConfig {
 	return &aws_helper.AwsSessionConfig{
-		Region:           c.Region,
-		CustomS3Endpoint: c.Endpoint,
-		Profile:          c.Profile,
-		RoleArn:          c.RoleArn,
-		CredsFilename:    c.CredsFilename,
-		S3ForcePathStyle: c.S3ForcePathStyle,
+		Region:                  c.remoteStateConfigS3.Region,
+		CustomS3Endpoint:        c.remoteStateConfigS3.Endpoint,
+		Profile:                 c.remoteStateConfigS3.Profile,
+		RoleArn:                 c.remoteStateConfigS3.RoleArn,
+		CredsFilename:           c.remoteStateConfigS3.CredsFilename,
+		S3ForcePathStyle:        c.remoteStateConfigS3.S3ForcePathStyle,
+		DisableComputeChecksums: c.DisableAWSClientChecksums,
 	}
 }
 
@@ -107,19 +110,20 @@ func (s3Initializer S3Initializer) NeedsInitialization(remoteState *RemoteState,
 		return true, nil
 	}
 
-	s3Config, err := parseS3Config(remoteState.Config)
+	s3ConfigExtended, err := parseExtendedS3Config(remoteState.Config)
 	if err != nil {
 		return false, err
 	}
+	s3Config := s3ConfigExtended.remoteStateConfigS3
 
-	sessionConfig := s3Config.GetAwsSessionConfig()
+	sessionConfig := s3ConfigExtended.GetAwsSessionConfig()
 
 	s3Client, err := CreateS3Client(sessionConfig, terragruntOptions)
 	if err != nil {
 		return false, err
 	}
 
-	if !DoesS3BucketExist(s3Client, s3Config) {
+	if !DoesS3BucketExist(s3Client, &s3Config) {
 		return true, nil
 	}
 
@@ -205,7 +209,7 @@ func (s3Initializer S3Initializer) Initialize(remoteState *RemoteState, terragru
 
 	var s3Config = s3ConfigExtended.remoteStateConfigS3
 
-	s3Client, err := CreateS3Client(s3Config.GetAwsSessionConfig(), terragruntOptions)
+	s3Client, err := CreateS3Client(s3ConfigExtended.GetAwsSessionConfig(), terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -220,7 +224,7 @@ func (s3Initializer S3Initializer) Initialize(remoteState *RemoteState, terragru
 		}
 	}
 
-	if err := createLockTableIfNecessary(&s3Config, s3ConfigExtended.DynamotableTags, terragruntOptions); err != nil {
+	if err := createLockTableIfNecessary(s3ConfigExtended, s3ConfigExtended.DynamotableTags, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -243,16 +247,6 @@ func (s3Initializer S3Initializer) GetTerraformInitArgs(config map[string]interf
 	}
 
 	return filteredConfig
-}
-
-// Parse the given map into an S3 config
-func parseS3Config(config map[string]interface{}) (*RemoteStateConfigS3, error) {
-	var s3Config RemoteStateConfigS3
-	if err := mapstructure.Decode(config, &s3Config); err != nil {
-		return nil, errors.WithStackTrace(err)
-	}
-
-	return &s3Config, nil
 }
 
 // Parse the given map into an extended S3 config
@@ -649,18 +643,18 @@ func DoesS3BucketExist(s3Client *s3.S3, config *RemoteStateConfigS3) bool {
 }
 
 // Create a table for locks in DynamoDB if the user has configured a lock table and the table doesn't already exist
-func createLockTableIfNecessary(s3Config *RemoteStateConfigS3, tags map[string]string, terragruntOptions *options.TerragruntOptions) error {
+func createLockTableIfNecessary(extendedS3Config *ExtendedRemoteStateConfigS3, tags map[string]string, terragruntOptions *options.TerragruntOptions) error {
 
-	if s3Config.GetLockTableName() == "" {
+	if extendedS3Config.remoteStateConfigS3.GetLockTableName() == "" {
 		return nil
 	}
 
-	dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.GetAwsSessionConfig(), terragruntOptions)
+	dynamodbClient, err := dynamodb.CreateDynamoDbClient(extendedS3Config.GetAwsSessionConfig(), terragruntOptions)
 	if err != nil {
 		return err
 	}
 
-	return dynamodb.CreateLockTableIfNecessary(s3Config.GetLockTableName(), tags, dynamodbClient, terragruntOptions)
+	return dynamodb.CreateLockTableIfNecessary(extendedS3Config.remoteStateConfigS3.GetLockTableName(), tags, dynamodbClient, terragruntOptions)
 }
 
 // Update a table for locks in DynamoDB if the user has configured a lock table and the table's server-side encryption isn't turned on
@@ -673,7 +667,7 @@ func UpdateLockTableSetSSEncryptionOnIfNecessary(s3Config *RemoteStateConfigS3, 
 		return nil
 	}
 
-	dynamodbClient, err := dynamodb.CreateDynamoDbClient(s3Config.GetAwsSessionConfig(), terragruntOptions)
+	dynamodbClient, err := dynamodb.CreateDynamoDbClient(config.GetAwsSessionConfig(), terragruntOptions)
 	if err != nil {
 		return err
 	}

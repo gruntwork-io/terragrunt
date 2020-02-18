@@ -15,12 +15,13 @@ import (
 
 // A representation of the configuration options for an AWS Session
 type AwsSessionConfig struct {
-	Region           string
-	CustomS3Endpoint string
-	Profile          string
-	RoleArn          string
-	CredsFilename    string
-	S3ForcePathStyle bool
+	Region                  string
+	CustomS3Endpoint        string
+	Profile                 string
+	RoleArn                 string
+	CredsFilename           string
+	S3ForcePathStyle        bool
+	DisableComputeChecksums bool
 }
 
 // Returns an AWS session object for the given config region (required), profile name (optional), and IAM role to assume
@@ -39,9 +40,10 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 	}
 
 	var awsConfig = aws.Config{
-		Region:           aws.String(config.Region),
-		EndpointResolver: endpoints.ResolverFunc(s3CustResolverFn),
-		S3ForcePathStyle: aws.Bool(config.S3ForcePathStyle),
+		Region:                  aws.String(config.Region),
+		EndpointResolver:        endpoints.ResolverFunc(s3CustResolverFn),
+		S3ForcePathStyle:        aws.Bool(config.S3ForcePathStyle),
+		DisableComputeChecksums: aws.Bool(config.DisableComputeChecksums),
 	}
 
 	var sessionOptions = session.Options{
