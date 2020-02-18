@@ -1,12 +1,13 @@
 package remote
 
 import (
+	"testing"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestConfigValuesEqual(t *testing.T) {
@@ -155,10 +156,10 @@ func TestForcePathStyleClientSession(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			s3Config, err := parseS3Config(testCase.config)
+			s3ConfigExtended, err := parseExtendedS3Config(testCase.config)
 			require.Nil(t, err, "Unexpected error parsing config for test: %v", err)
 
-			s3Client, err := CreateS3Client(s3Config.GetAwsSessionConfig(), terragruntOptions)
+			s3Client, err := CreateS3Client(s3ConfigExtended.GetAwsSessionConfig(), terragruntOptions)
 			require.Nil(t, err, "Unexpected error creating client for test: %v", err)
 
 			actual := aws.BoolValue(s3Client.Config.S3ForcePathStyle)
@@ -196,19 +197,20 @@ func TestGetAwsSessionConfig(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			s3Config, err := parseS3Config(testCase.config)
+			s3ConfigExtended, err := parseExtendedS3Config(testCase.config)
 			require.Nil(t, err, "Unexpected error parsing config for test: %v", err)
 
 			expected := &aws_helper.AwsSessionConfig{
-				Region:           s3Config.Region,
-				CustomS3Endpoint: s3Config.Endpoint,
-				Profile:          s3Config.Profile,
-				RoleArn:          s3Config.RoleArn,
-				CredsFilename:    s3Config.CredsFilename,
-				S3ForcePathStyle: s3Config.S3ForcePathStyle,
+				Region:                  s3ConfigExtended.remoteStateConfigS3.Region,
+				CustomS3Endpoint:        s3ConfigExtended.remoteStateConfigS3.Endpoint,
+				Profile:                 s3ConfigExtended.remoteStateConfigS3.Profile,
+				RoleArn:                 s3ConfigExtended.remoteStateConfigS3.RoleArn,
+				CredsFilename:           s3ConfigExtended.remoteStateConfigS3.CredsFilename,
+				S3ForcePathStyle:        s3ConfigExtended.remoteStateConfigS3.S3ForcePathStyle,
+				DisableComputeChecksums: s3ConfigExtended.DisableAWSClientChecksums,
 			}
 
-			actual := s3Config.GetAwsSessionConfig()
+			actual := s3ConfigExtended.GetAwsSessionConfig()
 			assert.Equal(t, expected, actual)
 		})
 	}
