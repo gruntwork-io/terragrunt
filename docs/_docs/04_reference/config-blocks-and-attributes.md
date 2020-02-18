@@ -388,8 +388,8 @@ dependency "rds" {
 }
 
 inputs = {
-  vpc_id = dependency.vpc.vpc_id
-  db_url = dependency.rds.db_url
+  vpc_id = dependency.vpc.outputs.vpc_id
+  db_url = dependency.rds.outputs.db_url
 }
 ```
 
