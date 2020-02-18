@@ -26,6 +26,8 @@ nav_title_link: /docs/
 
   - [Using Terragrunt with private Git repos](#using-terragrunt-with-private-git-repos)
 
+  - [DRY common Terraform code with Terragrunt generate blocks](#dry-common-terraform-code-with-terragrunt-generate-blocks)
+
 ### Motivation
 
 Consider the following file structure, which defines three environments (prod, qa, stage) with the same infrastructure in each one (an app, a MySQL database, and a VPC):
@@ -232,3 +234,80 @@ Look up the Git repo for your repository to find the proper format.
 Note: In automated pipelines, you may need to run the following command for your Git repository prior to calling `terragrunt` to ensure that the ssh host is registered locally, e.g.:
 
     $ ssh -T -oStrictHostKeyChecking=accept-new git@github.com || true
+
+
+### DRY common Terraform code with Terragrunt generate blocks
+
+Terragrunt has the ability to generate code in to the downloaded remote Terraform modules before calling out to
+`terraform` using the [generate block](/docs/reference/config-blocks-and-attributes#generate). This can be used to
+inject common terraform configurations into all the modules that you use.
+
+For example, it is common to have custom provider configurations in your code to customize authentication. Consider a
+setup where you want to always assume a specific role when calling out to the terraform module. However, not all modules
+expose the right variables for configuring the `aws` provider so that you can assume the role through Terraform.
+
+In this situation, you can use Terragrunt `generate` blocks to generate a tf file called `provider.tf` that includes the
+provider configuration. Add a root `terragrunt.hcl` file for each of the environments in the file layout for the live
+repo:
+
+    └── live
+        ├── prod
+        │   ├── terragrunt.hcl
+        │   ├── app
+        │   │   └── terragrunt.hcl
+        │   ├── mysql
+        │   │   └── terragrunt.hcl
+        │   └── vpc
+        │       └── terragrunt.hcl
+        ├── qa
+        │   ├── terragrunt.hcl
+        │   ├── app
+        │   │   └── terragrunt.hcl
+        │   ├── mysql
+        │   │   └── terragrunt.hcl
+        │   └── vpc
+        │       └── terragrunt.hcl
+        └── stage
+            ├── terragrunt.hcl
+            ├── app
+            │   └── terragrunt.hcl
+            ├── mysql
+            │   └── terragrunt.hcl
+            └── vpc
+                └── terragrunt.hcl
+
+Each **root** `terragurnt.hcl` file (the one at the environment level, e.g `prod/terragrunt.hcl`) should define a
+`generate` block to generate the AWS provider configuration to assume the role for that environment. For example,
+if you wanted to assume the role `arn:aws:iam::0123456789:role/terragrunt` in all the modules for the prod account, you
+would put the following in `prod/terragrunt.hcl`:
+
+```hcl
+generate "provider" {
+  path = "provider.tf"
+  if_exists = "overwrite_terragrunt"
+  contents = <<EOF
+provider "aws" {
+  assume_role {
+    role_arn = "arn:aws:iam::0123456789:role/terragrunt"
+  }
+}
+EOF
+}
+```
+
+This instructs Terragrunt to create the file `provider.tf` in the working directory (where Terragrunt calls `terraform`)
+before it calls any of the Terraform commands (e.g `plan`, `apply`, `validate`, etc). This allows you to inject this
+provider configuration in all the modules that includes the root file.
+
+To include this in the child configurations (e.g `mysql/terragrunt.hcl`), you would update all the child modules to
+include this configuration using the `include` block:
+
+```hcl
+include {
+  path = find_in_parent_folders()
+}
+```
+
+The `include` block tells Terragrunt to use the exact same Terragrunt configuration from the `terragrunt.hcl` file
+specified via the `path` parameter. It behaves exactly as if you had copy/pasted the Terraform configuration from the
+included file `generate` configuration into the child, but this approach is much easier to maintain\!

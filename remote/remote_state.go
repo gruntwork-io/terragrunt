@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -12,11 +13,18 @@ import (
 type RemoteState struct {
 	Backend     string
 	DisableInit bool
+	Generate    *RemoteStateGenerate
 	Config      map[string]interface{}
 }
 
 func (remoteState *RemoteState) String() string {
-	return fmt.Sprintf("RemoteState{Backend = %v, DisableInit = %v, Config = %v}", remoteState.Backend, remoteState.DisableInit, remoteState.Config)
+	return fmt.Sprintf("RemoteState{Backend = %v, DisableInit = %v, Generate = %v, Config = %v}", remoteState.Backend, remoteState.DisableInit, remoteState.Generate, remoteState.Config)
+}
+
+// Code gen configuration for Terraform remote state
+type RemoteStateGenerate struct {
+	Path     string
+	IfExists string
 }
 
 type RemoteStateInitializer interface {
@@ -139,6 +147,11 @@ func (remoteState RemoteState) ToTerraformInitArgs() []string {
 		return []string{"-backend=false"}
 	}
 
+	if remoteState.Generate != nil {
+		// When in generate mode, we don't need to use `-backend-config` to initialize the remote state backend
+		return []string{}
+	}
+
 	initializer, hasInitializer := remoteStateInitializers[remoteState.Backend]
 	if hasInitializer {
 		// get modified config from backend, if backend exists
@@ -155,4 +168,39 @@ func (remoteState RemoteState) ToTerraformInitArgs() []string {
 	return backendConfigArgs
 }
 
-var RemoteBackendMissing = fmt.Errorf("The remote_state.backend field cannot be empty")
+// Generate the terraform code for configuring remote state backend.
+func (remoteState *RemoteState) GenerateTerraformCode(terragruntOptions *options.TerragruntOptions) error {
+	if remoteState.Generate == nil {
+		return errors.WithStackTrace(GenerateCalledWithNoGenerateAttr)
+	}
+
+	// Make sure to strip out terragrunt specific configurations from the config.
+	config := remoteState.Config
+	initializer, hasInitializer := remoteStateInitializers[remoteState.Backend]
+	if hasInitializer {
+		config = initializer.GetTerraformInitArgs(config)
+	}
+
+	// Convert the IfExists setting to the internal enum representation before calling generate.
+	ifExistsEnum, err := codegen.GenerateConfigExistsFromString(remoteState.Generate.IfExists)
+	if err != nil {
+		return err
+	}
+
+	configBytes, err := codegen.RemoteStateConfigToTerraformCode(remoteState.Backend, config)
+	if err != nil {
+		return err
+	}
+	codegenConfig := codegen.GenerateConfig{
+		Path:     remoteState.Generate.Path,
+		IfExists: ifExistsEnum,
+		Contents: string(configBytes),
+	}
+	return codegen.WriteToFile(terragruntOptions.Logger, terragruntOptions.WorkingDir, codegenConfig)
+}
+
+// Custom errors
+var (
+	RemoteBackendMissing             = fmt.Errorf("The remote_state.backend field cannot be empty")
+	GenerateCalledWithNoGenerateAttr = fmt.Errorf("Generate code routine called when no generate attribute is configured.")
+)

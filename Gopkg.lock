@@ -184,6 +184,17 @@
   version = "v2.0.4"
 
 [[projects]]
+  digest = "1:a669bf34b31b6051aa7902ba8c99aff9f344e6ef766c337e08543dc75197d592"
+  name = "github.com/gruntwork-io/gruntwork-cli"
+  packages = [
+    "errors",
+    "files",
+  ]
+  pruneopts = "UT"
+  revision = "00c7cf83f6832942954ee890cf6e8a525b5caec1"
+  version = "v0.6.1"
+
+[[projects]]
   digest = "1:91e98ea76af524d88f4eeb4240bcd0ab04a8091954dc845c32b3283c7c4ebf8c"
   name = "github.com/gruntwork-io/terratest"
   packages = ["modules/files"]
@@ -635,6 +646,7 @@
     "github.com/creack/pty",
     "github.com/fatih/color",
     "github.com/go-errors/errors",
+    "github.com/gruntwork-io/gruntwork-cli/files",
     "github.com/gruntwork-io/terratest/modules/files",
     "github.com/hashicorp/go-getter",
     "github.com/hashicorp/go-getter/helper/url",
