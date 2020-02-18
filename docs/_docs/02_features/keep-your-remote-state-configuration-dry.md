@@ -256,10 +256,12 @@ remote_state {
 
  skip_bucket_versioning = true # use only if the object store does not support versioning
 
+ enable_bucket_policy_only = false # use only if uniform bucket-level access is needed (https://cloud.google.com/storage/docs/uniform-bucket-level-access)
+
  encryption_key = "GOOGLE_ENCRYPTION_KEY"
 }
 ```
 
 If you experience an error for any of these configurations, confirm you are using Terraform v0.12.0 or greater.
 
-Further, the config options `gcs_bucket_labels` and `skip_bucket_versioning` are only valid for the backend `gcs`. They are used by terragrunt and are **not** passed on to terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).
+Further, the config options `gcs_bucket_labels`, `skip_bucket_versioning` and `enable_bucket_policy_only` are only valid for the backend `gcs`. They are used by terragrunt and are **not** passed on to terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).

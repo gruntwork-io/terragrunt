@@ -2,9 +2,10 @@
 
 
 [[projects]]
-  digest = "1:f28b5363f59b4c568f37ebaecf1d739d0dc5818f57b07f9bda776367ffe046fb"
+  digest = "1:df9806ba7cce07f293eddee13e1360d2319e87598e9a1c9b1b295352ab640c0c"
   name = "cloud.google.com/go"
   packages = [
+    ".",
     "compute/metadata",
     "iam",
     "internal",
@@ -14,8 +15,16 @@
     "storage",
   ]
   pruneopts = "UT"
-  revision = "28a4bc8c44b3acbcc482cff0cdf7de29a4688b61"
-  version = "v0.35.1"
+  revision = "d96ccb2ba7586bb79a416471882d347754a78ce5"
+  version = "v0.53.0"
+
+[[projects]]
+  digest = "1:9f3b30d9f8e0d7040f729b82dcbc8f0dead820a133b3147ce355fc451f32d761"
+  name = "github.com/BurntSushi/toml"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "3012a1dbe2e4bd1391d42b32f0577cb7bbc7f005"
+  version = "v0.3.1"
 
 [[projects]]
   digest = "1:90afd0cfdffcc3df7855160ee2954cbca286e23c4eb9cb3d075536c9e4e1b04f"
@@ -139,11 +148,16 @@
   version = "v1.0.1"
 
 [[projects]]
-  digest = "1:64c2b533ffd17023738c534548ab2455d7f519bc15ed4225145425ed2222448b"
+  digest = "1:835c6b6a0c663019e88ea84e84867377b0f259dd6b620232533a680ec3e1dce4"
   name = "github.com/golang/protobuf"
   packages = [
     "proto",
+    "protoc-gen-go",
     "protoc-gen-go/descriptor",
+    "protoc-gen-go/generator",
+    "protoc-gen-go/generator/internal/remap",
+    "protoc-gen-go/grpc",
+    "protoc-gen-go/plugin",
     "ptypes",
     "ptypes/any",
     "ptypes/duration",
@@ -311,6 +325,18 @@
   revision = "c2b33e84"
 
 [[projects]]
+  digest = "1:076c531484852c227471112d49465873aaad47e5ad6e1aec3a5b092a436117ef"
+  name = "github.com/jstemmer/go-junit-report"
+  packages = [
+    ".",
+    "formatter",
+    "parser",
+  ]
+  pruneopts = "UT"
+  revision = "cc1f095d5cc5eca2844f5c5ea7bb37f6b9bf6cac"
+  version = "v0.9.1"
+
+[[projects]]
   digest = "1:c658e84ad3916da105a761660dcaeb01e63416c8ec7bc62256a9b411a05fcd67"
   name = "github.com/mattn/go-colorable"
   packages = ["."]
@@ -472,6 +498,39 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:b1444bc98b5838c3116ed23e231fee4fa8509f975abd96e5d9e67e572dd01604"
+  name = "golang.org/x/exp"
+  packages = [
+    "apidiff",
+    "cmd/apidiff",
+  ]
+  pruneopts = "UT"
+  revision = "f17229e696bd4e065144fd6ae1313e41515abbdc"
+
+[[projects]]
+  branch = "master"
+  digest = "1:802fc3c45ff4507b6e4a5c0c5ea55836242aeac3b8eddfe31d5d80a3cac50731"
+  name = "golang.org/x/lint"
+  packages = [
+    ".",
+    "golint",
+  ]
+  pruneopts = "UT"
+  revision = "910be7a94367618fd0fd25eaabbee4fdc0ac7092"
+
+[[projects]]
+  digest = "1:467bb8fb8fa786448b8d486cd0bb7c1a5577dcd7310441aa02a20110cd9f727d"
+  name = "golang.org/x/mod"
+  packages = [
+    "module",
+    "semver",
+  ]
+  pruneopts = "UT"
+  revision = "ed3ec21bb8e252814c380df79a80f366440ddb2d"
+  version = "v0.2.0"
+
+[[projects]]
+  branch = "master"
   digest = "1:2f357867bf425774d35beca5be718402a4488b8b23b1563ce8c5bb91d09285a7"
   name = "golang.org/x/net"
   packages = [
@@ -539,14 +598,49 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:a7e4acda410127f8e14d451bfb86bb843eec1a991c5e80f88926fe619296bed1"
+  digest = "1:6d7dcadd23e678d4da5f4842121fdafa82548218cc43b1125362b8d778f4dd54"
+  name = "golang.org/x/tools"
+  packages = [
+    "cmd/goimports",
+    "go/analysis",
+    "go/analysis/passes/inspect",
+    "go/ast/astutil",
+    "go/ast/inspector",
+    "go/buildutil",
+    "go/gcexportdata",
+    "go/internal/gcimporter",
+    "go/internal/packagesdriver",
+    "go/packages",
+    "go/types/objectpath",
+    "go/types/typeutil",
+    "internal/fastwalk",
+    "internal/gopathwalk",
+    "internal/imports",
+    "internal/packagesinternal",
+  ]
+  pruneopts = "UT"
+  revision = "49b8ac185c84c5092be0953fb92b7660db9b8162"
+
+[[projects]]
+  branch = "master"
+  digest = "1:918a46e4a2fb83df33f668f5a6bd51b2996775d073fce1800d3ec01b0a5ddd2b"
+  name = "golang.org/x/xerrors"
+  packages = [
+    ".",
+    "internal",
+  ]
+  pruneopts = "UT"
+  revision = "9bdfabe68543c54f90421aeb9a60ef8061b5b544"
+
+[[projects]]
+  digest = "1:d0c1cbc626919ff895f19735a7ed60fee5f9f9b653e1346fc785fb365524165f"
   name = "google.golang.org/api"
   packages = [
-    "gensupport",
     "googleapi",
-    "googleapi/internal/uritemplates",
     "googleapi/transport",
     "internal",
+    "internal/gensupport",
+    "internal/third_party/uritemplates",
     "iterator",
     "option",
     "storage/v1",
@@ -554,7 +648,8 @@
     "transport/http/internal/propagation",
   ]
   pruneopts = "UT"
-  revision = "890e5eb51fe205e56dc55eb68d63e82039730816"
+  revision = "e9c39defab7fc4be8ec95d4ce422dbeae4070400"
+  version = "v0.16.0"
 
 [[projects]]
   digest = "1:498b722d33dde4471e7d6e5d88a5e7132d2a8306fea5ff5ee82d1f418b4f41ed"
@@ -590,10 +685,12 @@
   revision = "eb0b1bdb6ae60fcfc41b8d907b50dfb346112301"
 
 [[projects]]
-  digest = "1:e8800ddadd6bce3bc0c5ffd7bc55dbdddc6e750956c10cc10271cade542fccbe"
+  digest = "1:de21a2d5b9c8697d83f5ab48f3e8fe3616c33ac4b2d057083662dede0e81488e"
   name = "google.golang.org/grpc"
   packages = [
     ".",
+    "attributes",
+    "backoff",
     "balancer",
     "balancer/base",
     "balancer/roundrobin",
@@ -609,10 +706,13 @@
     "internal/backoff",
     "internal/balancerload",
     "internal/binarylog",
+    "internal/buffer",
     "internal/channelz",
     "internal/envconfig",
     "internal/grpcrand",
     "internal/grpcsync",
+    "internal/resolver/dns",
+    "internal/resolver/passthrough",
     "internal/syscall",
     "internal/transport",
     "keepalive",
@@ -620,15 +720,48 @@
     "naming",
     "peer",
     "resolver",
-    "resolver/dns",
-    "resolver/passthrough",
+    "serviceconfig",
     "stats",
     "status",
     "tap",
   ]
   pruneopts = "UT"
-  revision = "501c41df7f472c740d0674ff27122f3f48c80ce7"
-  version = "v1.21.1"
+  revision = "f495f5b15ae7ccda3b38c53a1bfcde4c1a58a2bc"
+  version = "v1.27.1"
+
+[[projects]]
+  digest = "1:131158a88aad1f94854d0aa21a64af2802d0a470fb0f01cb33c04fafd2047111"
+  name = "honnef.co/go/tools"
+  packages = [
+    "arg",
+    "cmd/staticcheck",
+    "config",
+    "deprecated",
+    "facts",
+    "functions",
+    "go/types/typeutil",
+    "internal/cache",
+    "internal/passes/buildssa",
+    "internal/renameio",
+    "internal/sharedcheck",
+    "lint",
+    "lint/lintdsl",
+    "lint/lintutil",
+    "lint/lintutil/format",
+    "loader",
+    "printf",
+    "simple",
+    "ssa",
+    "ssautil",
+    "staticcheck",
+    "staticcheck/vrp",
+    "stylecheck",
+    "unused",
+    "version",
+  ]
+  pruneopts = "UT"
+  revision = "afd67930eec2a9ed3e9b19f684d17a062285f16a"
+  version = "2019.2.3"
 
 [solve-meta]
   analyzer-name = "dep"
