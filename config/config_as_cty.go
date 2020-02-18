@@ -59,6 +59,14 @@ func terragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output["dependency"] = dependencyCty
 	}
 
+	generateCty, err := gostructToCty(config.GenerateConfigs)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	if generateCty != cty.NilVal {
+		output["generate"] = generateCty
+	}
+
 	inputsCty, err := convertToCtyWithJson(config.Inputs)
 	if err != nil {
 		return cty.NilVal, err
@@ -123,6 +131,12 @@ func remoteStateAsCty(remoteState *remote.RemoteState) (cty.Value, error) {
 	output := map[string]cty.Value{}
 	output["backend"] = gostringToCty(remoteState.Backend)
 	output["disable_init"] = goboolToCty(remoteState.DisableInit)
+
+	generateCty, err := gostructToCty(remoteState.Generate)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	output["generate"] = generateCty
 
 	ctyJsonVal, err := convertToCtyWithJson(remoteState.Config)
 	if err != nil {

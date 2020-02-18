@@ -4,6 +4,7 @@ locals {
 
 inputs = {
   localstg                     = local.config.locals
+  generate                     = local.config.generate
   remote_state                 = local.config.remote_state
   terraformtg                  = local.config.terraform
   dependencies                 = local.config.dependencies

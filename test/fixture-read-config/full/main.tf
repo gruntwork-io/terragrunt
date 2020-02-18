@@ -1,6 +1,9 @@
 variable "localstg" {}
 output "localstg" { value = var.localstg }
 
+variable "generate" {}
+output "generate" { value = var.generate }
+
 variable "remote_state" {}
 output "remote_state" { value = var.remote_state }
 

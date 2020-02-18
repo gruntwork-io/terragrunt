@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/remote"
 )
 
@@ -75,6 +76,17 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 				RenderedOutputs:                     &mockOutputs,
 			},
 		},
+		GenerateConfigs: map[string]codegen.GenerateConfig{
+			"provider": codegen.GenerateConfig{
+				Path:          "foo",
+				IfExists:      codegen.ExistsOverwriteTerragrunt,
+				IfExistsStr:   "overwrite_terragrunt",
+				CommentPrefix: "# ",
+				Contents: `terraform {
+  backend "s3" {}
+}`,
+			},
+		},
 	}
 	ctyVal, err := terragruntConfigAsCty(&testConfig)
 	require.NoError(t, err)
@@ -105,6 +117,10 @@ func TestRemoteStateAsCtyDrift(t *testing.T) {
 	testConfig := remote.RemoteState{
 		Backend:     "foo",
 		DisableInit: true,
+		Generate: &remote.RemoteStateGenerate{
+			Path:     "foo",
+			IfExists: "overwrite_terragrunt",
+		},
 		Config: map[string]interface{}{
 			"bar": "baz",
 		},
@@ -172,6 +188,8 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "locals", true
 	case "TerragruntDependencies":
 		return "dependency", true
+	case "GenerateConfigs":
+		return "generate", true
 	case "IsPartial":
 		return "", false
 	default:
@@ -187,6 +205,8 @@ func remoteStateStructFieldToMapKey(t *testing.T, fieldName string) (string, boo
 		return "backend", true
 	case "DisableInit":
 		return "disable_init", true
+	case "Generate":
+		return "generate", true
 	case "Config":
 		return "config", true
 	default:

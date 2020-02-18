@@ -24,8 +24,8 @@ func (remoteState *RemoteState) String() string {
 
 // Code gen configuration for Terraform remote state
 type RemoteStateGenerate struct {
-	Path     string
-	IfExists string
+	Path     string `cty:"path"`
+	IfExists string `cty:"if_exists"`
 }
 
 type RemoteStateInitializer interface {
@@ -193,9 +193,11 @@ func (remoteState *RemoteState) GenerateTerraformCode(terragruntOptions *options
 		return err
 	}
 	codegenConfig := codegen.GenerateConfig{
-		Path:     remoteState.Generate.Path,
-		IfExists: ifExistsEnum,
-		Contents: string(configBytes),
+		Path:          remoteState.Generate.Path,
+		IfExists:      ifExistsEnum,
+		IfExistsStr:   remoteState.Generate.IfExists,
+		Contents:      string(configBytes),
+		CommentPrefix: codegen.DefaultCommentPrefix,
 	}
 	return codegen.WriteToFile(terragruntOptions.Logger, terragruntOptions.WorkingDir, codegenConfig)
 }

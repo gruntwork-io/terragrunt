@@ -2324,6 +2324,23 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 			"paths": []interface{}{"../module-a"},
 		},
 	)
+	generateOut := map[string]interface{}{}
+	require.NoError(t, json.Unmarshal([]byte(outputs["generate"].Value.(string)), &generateOut))
+	assert.Equal(
+		t,
+		generateOut,
+		map[string]interface{}{
+			"provider": map[string]interface{}{
+				"path":           "provider.tf",
+				"if_exists":      "overwrite_terragrunt",
+				"comment_prefix": "# ",
+				"contents": `provider "aws" {
+  region = "us-east-1"
+}
+`,
+			},
+		},
+	)
 	remoteStateOut := map[string]interface{}{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["remote_state"].Value.(string)), &remoteStateOut))
 	assert.Equal(
@@ -2332,6 +2349,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 		map[string]interface{}{
 			"backend":      "local",
 			"disable_init": false,
+			"generate":     map[string]interface{}{"path": "backend.tf", "if_exists": "overwrite_terragrunt"},
 			"config":       map[string]interface{}{"path": "foo.tfstate"},
 		},
 	)

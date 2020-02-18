@@ -724,11 +724,14 @@ func convertToTerragruntConfig(
 			return nil, err
 		}
 		genConfig := codegen.GenerateConfig{
-			Path:     block.Path,
-			IfExists: ifExists,
-			Contents: block.Contents,
+			Path:        block.Path,
+			IfExists:    ifExists,
+			IfExistsStr: block.IfExists,
+			Contents:    block.Contents,
 		}
-		if block.CommentPrefix != nil {
+		if block.CommentPrefix == nil {
+			genConfig.CommentPrefix = codegen.DefaultCommentPrefix
+		} else {
 			genConfig.CommentPrefix = *block.CommentPrefix
 		}
 		terragruntConfig.GenerateConfigs[block.Name] = genConfig
