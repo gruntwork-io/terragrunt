@@ -88,12 +88,12 @@ func DecodeBaseBlocks(
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	localsAsCty, err := convertLocalsMapToCtyVal(locals)
+	localsAsCty, err := convertValuesMapToCtyVal(locals)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	return localsAsCty, terragruntInclude, includeForDecode, nil
+	return &localsAsCty, terragruntInclude, includeForDecode, nil
 }
 
 func PartialParseConfigFile(

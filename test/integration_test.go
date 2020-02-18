@@ -96,6 +96,7 @@ const (
 	TEST_FIXTURE_LOCALS_CANONICAL                           = "fixture-locals/canonical"
 	TEST_FIXTURE_LOCALS_IN_INCLUDE                          = "fixture-locals/local-in-include"
 	TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH           = "qa/my-app"
+	TEST_FIXTURE_READ_CONFIG                                = "fixture-read-config"
 	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                    = "fixture-get-aws-caller-identity"
 	TEST_FIXTURE_REGRESSIONS                                = "fixture-regressions"
 	TEST_FIXTURE_DIRS_PATH                                  = "fixture-dirs"
@@ -2203,6 +2204,192 @@ func TestDataDir(t *testing.T) {
 	}
 
 	assert.NotContains(t, erroutput2, "Initializing provider plugins")
+}
+
+func TestReadTerragruntConfigWithDependency(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_READ_CONFIG)
+	cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
+	tmpEnvPath := copyEnvironment(t, ".")
+
+	inputsPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_READ_CONFIG, "with_dependency")
+
+	// First apply the inputs module
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", inputsPath))
+
+	// Then apply the read config module
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+	assert.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr),
+	)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	// Now check the outputs to make sure they are as expected
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	assert.Equal(t, outputs["bool"].Value, true)
+	assert.Equal(t, outputs["list_bool"].Value, []interface{}{true, false})
+	assert.Equal(t, outputs["list_number"].Value, []interface{}{1.0, 2.0, 3.0})
+	assert.Equal(t, outputs["list_string"].Value, []interface{}{"a", "b", "c"})
+	assert.Equal(t, outputs["map_bool"].Value, map[string]interface{}{"foo": true, "bar": false, "baz": true})
+	assert.Equal(t, outputs["map_number"].Value, map[string]interface{}{"foo": 42.0, "bar": 12345.0})
+	assert.Equal(t, outputs["map_string"].Value, map[string]interface{}{"foo": "bar"})
+	assert.Equal(t, outputs["number"].Value, 42.0)
+	assert.Equal(t, outputs["object"].Value, map[string]interface{}{"list": []interface{}{1.0, 2.0, 3.0}, "map": map[string]interface{}{"foo": "bar"}, "num": 42.0, "str": "string"})
+	assert.Equal(t, outputs["string"].Value, "string")
+	assert.Equal(t, outputs["from_env"].Value, "default")
+}
+
+func TestReadTerragruntConfigWithDefault(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_READ_CONFIG)
+	rootPath := util.JoinPath(TEST_FIXTURE_READ_CONFIG, "with_default")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// check the outputs to make sure they are as expected
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	assert.Equal(t, outputs["data"].Value, "default value")
+}
+
+func TestReadTerragruntConfigFull(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_READ_CONFIG)
+	rootPath := util.JoinPath(TEST_FIXTURE_READ_CONFIG, "full")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// check the outputs to make sure they are as expected
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	// Primitive config attributes
+	assert.Equal(t, outputs["terraform_binary"].Value, "terragrunt")
+	assert.Equal(t, outputs["terraform_version_constraint"].Value, "= 0.12.20")
+	assert.Equal(t, outputs["download_dir"].Value, ".terragrunt-cache")
+	assert.Equal(t, outputs["iam_role"].Value, "TerragruntIAMRole")
+	assert.Equal(t, outputs["skip"].Value, "true")
+	assert.Equal(t, outputs["prevent_destroy"].Value, "true")
+
+	// Simple maps
+	localstgOut := map[string]interface{}{}
+	require.NoError(t, json.Unmarshal([]byte(outputs["localstg"].Value.(string)), &localstgOut))
+	assert.Equal(t, localstgOut, map[string]interface{}{"the_answer": float64(42)})
+	inputsOut := map[string]interface{}{}
+	require.NoError(t, json.Unmarshal([]byte(outputs["inputs"].Value.(string)), &inputsOut))
+	assert.Equal(t, inputsOut, map[string]interface{}{"doc": "Emmett Brown"})
+
+	// Complex blocks
+	depsOut := map[string]interface{}{}
+	require.NoError(t, json.Unmarshal([]byte(outputs["dependencies"].Value.(string)), &depsOut))
+	assert.Equal(
+		t,
+		depsOut,
+		map[string]interface{}{
+			"paths": []interface{}{"../module-a"},
+		},
+	)
+	generateOut := map[string]interface{}{}
+	require.NoError(t, json.Unmarshal([]byte(outputs["generate"].Value.(string)), &generateOut))
+	assert.Equal(
+		t,
+		generateOut,
+		map[string]interface{}{
+			"provider": map[string]interface{}{
+				"path":           "provider.tf",
+				"if_exists":      "overwrite_terragrunt",
+				"comment_prefix": "# ",
+				"contents": `provider "aws" {
+  region = "us-east-1"
+}
+`,
+			},
+		},
+	)
+	remoteStateOut := map[string]interface{}{}
+	require.NoError(t, json.Unmarshal([]byte(outputs["remote_state"].Value.(string)), &remoteStateOut))
+	assert.Equal(
+		t,
+		remoteStateOut,
+		map[string]interface{}{
+			"backend":      "local",
+			"disable_init": false,
+			"generate":     map[string]interface{}{"path": "backend.tf", "if_exists": "overwrite_terragrunt"},
+			"config":       map[string]interface{}{"path": "foo.tfstate"},
+		},
+	)
+	terraformOut := map[string]interface{}{}
+	require.NoError(t, json.Unmarshal([]byte(outputs["terraformtg"].Value.(string)), &terraformOut))
+	assert.Equal(
+		t,
+		terraformOut,
+		map[string]interface{}{
+			"source": "./delorean",
+			"extra_arguments": map[string]interface{}{
+				"var-files": map[string]interface{}{
+					"name":               "var-files",
+					"commands":           []interface{}{"apply", "plan"},
+					"arguments":          nil,
+					"required_var_files": []interface{}{"extra.tfvars"},
+					"optional_var_files": []interface{}{"optional.tfvars"},
+					"env_vars": map[string]interface{}{
+						"TF_VAR_custom_var": "I'm set in extra_arguments env_vars",
+					},
+				},
+			},
+			"before_hook": map[string]interface{}{
+				"before_hook_1": map[string]interface{}{
+					"name":         "before_hook_1",
+					"commands":     []interface{}{"apply", "plan"},
+					"execute":      []interface{}{"touch", "before.out"},
+					"run_on_error": true,
+				},
+			},
+			"after_hook": map[string]interface{}{
+				"after_hook_1": map[string]interface{}{
+					"name":         "after_hook_1",
+					"commands":     []interface{}{"apply", "plan"},
+					"execute":      []interface{}{"touch", "after.out"},
+					"run_on_error": true,
+				},
+			},
+		},
+	)
 }
 
 func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
