@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -1537,6 +1538,28 @@ func TestIncludeDirs(t *testing.T) {
 	}
 }
 
+func TestIncludeDirsDependencyConsistencyRegression(t *testing.T) {
+	t.Parallel()
+
+	modulePaths := []string{
+		"amazing-app/k8s",
+		"clusters/eks",
+		"testapp/k8s",
+	}
+
+	testPath := filepath.Join(TEST_FIXTURE_REGRESSIONS, "exclude-dependency")
+	cleanupTerragruntFolder(t, testPath)
+	for _, modulePath := range modulePaths {
+		cleanupTerragruntFolder(t, filepath.Join(testPath, modulePath))
+	}
+
+	includedModulesWithAmzApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, "amazing-app/k8s")
+	assert.Equal(t, includedModulesWithAmzApp, []string{"amazing-app/k8s", "clusters/eks"})
+
+	includedModulesWithTestApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, "testapp/k8s")
+	assert.Equal(t, includedModulesWithTestApp, []string{"clusters/eks", "testapp/k8s"})
+}
+
 func TestTerragruntExternalDependencies(t *testing.T) {
 	t.Parallel()
 
@@ -3038,4 +3061,43 @@ func fileIsInFolder(t *testing.T, name string, path string) bool {
 	})
 	require.NoError(t, err)
 	return found
+}
+
+func runValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath string, includeModulePath string) []string {
+	validateAllStdout := bytes.Buffer{}
+	validateAllStderr := bytes.Buffer{}
+	err := runTerragruntCommand(
+		t,
+		fmt.Sprintf(
+			"terragrunt validate-all --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-include-dir %s",
+			rootModulePath,
+			includeModulePath,
+		),
+		&validateAllStdout,
+		&validateAllStderr,
+	)
+	logBufferContentsLineByLine(t, validateAllStdout, "validate-all stdout")
+	logBufferContentsLineByLine(t, validateAllStderr, "validate-all stderr")
+	require.NoError(t, err)
+
+	currentDir, err := os.Getwd()
+	require.NoError(t, err)
+
+	includedModulesRegexp, err := regexp.Compile(
+		fmt.Sprintf(
+			`=> Module %s/%s/(.+) \(excluded: (true|false)`,
+			currentDir,
+			rootModulePath,
+		),
+	)
+	require.NoError(t, err)
+	matches := includedModulesRegexp.FindAllStringSubmatch(string(validateAllStderr.Bytes()), -1)
+	includedModules := []string{}
+	for _, match := range matches {
+		if match[2] == "false" {
+			includedModules = append(includedModules, match[1])
+		}
+	}
+	sort.Strings(includedModules)
+	return includedModules
 }

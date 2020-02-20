@@ -178,14 +178,19 @@ When passed in, ignore the depedencies between modules when running `*-all` comm
 
 **CLI Arg**: `--terragrunt-ignore-external-dependencies`
 
-When passed in, don't attempt to include any external dependencies when running `*-all` commands
+When passed in, don't attempt to include any external dependencies when running `*-all` commands. Note that an external
+dependency is a dependency that is outside the current terragrunt working directory, and is not respective to the
+included directories with `terragrunt-include-dir`.
 
 
 ## terragrunt-include-external-dependencies
 
 **CLI Arg**: `--terragrunt-include-external-dependencies`
 
-When passed in, include any external dependencies when running `*-all` without asking.
+When passed in, include any external dependencies when running `*-all` without asking. Note that an external
+dependency is a dependency that is outside the current terragrunt working directory, and is not respective to the
+included directories with `terragrunt-include-dir`.
+
 
 
 ## terragrunt-check

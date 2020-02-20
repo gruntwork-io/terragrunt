@@ -181,14 +181,18 @@ func flagIncludedDirs(modules []*TerraformModule, terragruntOptions *options.Ter
 
 	for _, module := range modules {
 		if findModuleinPath(module, canonicalIncludeDirs) {
-			// Mark module itself as included
 			module.FlagExcluded = false
-			// Mark all affected dependencies as included
+		} else {
+			module.FlagExcluded = true
+		}
+	}
+
+	// Mark all affected dependencies as included before proceeding
+	for _, module := range modules {
+		if !module.FlagExcluded {
 			for _, dependency := range module.Dependencies {
 				dependency.FlagExcluded = false
 			}
-		} else {
-			module.FlagExcluded = true
 		}
 	}
 
