@@ -26,6 +26,7 @@ Terragrunt forwards all arguments and options to Terraform. The only exceptions 
 - [terragrunt-iam-role](#terragrunt-iam-role)
 - [terragrunt-exclude-dir](#terragrunt-exclude-dir)
 - [terragrunt-include-dir](#terragrunt-include-dir)
+- [terragrunt-strict-include](#terragrunt-strict-include)
 - [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
 - [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
 - [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
@@ -165,6 +166,15 @@ Can be supplied multiple times: `--terragrunt-include-dir /path/to/dirs/to/inclu
 Unix-style glob of directories to include when running `*-all` commands. Only modules under these directories (and all
 dependent modules) will be included during execution of the commands. If a relative path is specified, it should be
 relative from `--terragrunt-working-dir`. Flag can be specified multiple times.
+
+
+## terragrunt-strict-include
+
+**CLI Arg**: `--terragrunt-strict-include`
+
+When passed in, only modules under the directories passed in with [--terragrunt-include-dir](#terragrunt-include-dir)
+will be included. All dependencies of the included directories will be excluded if they are not in the included
+directories.
 
 
 ## terragrunt-ignore-dependency-order

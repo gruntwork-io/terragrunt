@@ -104,6 +104,8 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 		return nil, err
 	}
 
+	strictInclude := parseBooleanArg(args, OPT_TERRAGRUNT_STRICT_INCLUDE, false)
+
 	opts, err := options.NewTerragruntOptions(filepath.ToSlash(terragruntConfigPath))
 	if err != nil {
 		return nil, err
@@ -131,6 +133,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 	opts.IamRole = iamRole
 	opts.ExcludeDirs = excludeDirs
 	opts.IncludeDirs = includeDirs
+	opts.StrictInclude = strictInclude
 	opts.Check = parseBooleanArg(args, OPT_TERRAGRUNT_CHECK, os.Getenv("TERRAGRUNT_CHECK") == "false")
 
 	return opts, nil

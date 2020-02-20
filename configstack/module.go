@@ -187,11 +187,13 @@ func flagIncludedDirs(modules []*TerraformModule, terragruntOptions *options.Ter
 		}
 	}
 
-	// Mark all affected dependencies as included before proceeding
-	for _, module := range modules {
-		if !module.FlagExcluded {
-			for _, dependency := range module.Dependencies {
-				dependency.FlagExcluded = false
+	// Mark all affected dependencies as included before proceeding if not in strict include mode.
+	if !terragruntOptions.StrictInclude {
+		for _, module := range modules {
+			if !module.FlagExcluded {
+				for _, dependency := range module.Dependencies {
+					dependency.FlagExcluded = false
+				}
 			}
 		}
 	}

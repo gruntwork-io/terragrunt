@@ -1553,11 +1553,33 @@ func TestIncludeDirsDependencyConsistencyRegression(t *testing.T) {
 		cleanupTerragruntFolder(t, filepath.Join(testPath, modulePath))
 	}
 
-	includedModulesWithAmzApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, "amazing-app/k8s")
+	includedModulesWithAmzApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, "amazing-app/k8s", false)
 	assert.Equal(t, includedModulesWithAmzApp, []string{"amazing-app/k8s", "clusters/eks"})
 
-	includedModulesWithTestApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, "testapp/k8s")
+	includedModulesWithTestApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, "testapp/k8s", false)
 	assert.Equal(t, includedModulesWithTestApp, []string{"clusters/eks", "testapp/k8s"})
+}
+
+func TestIncludeDirsStrict(t *testing.T) {
+	t.Parallel()
+
+	modulePaths := []string{
+		"amazing-app/k8s",
+		"clusters/eks",
+		"testapp/k8s",
+	}
+
+	testPath := filepath.Join(TEST_FIXTURE_REGRESSIONS, "exclude-dependency")
+	cleanupTerragruntFolder(t, testPath)
+	for _, modulePath := range modulePaths {
+		cleanupTerragruntFolder(t, filepath.Join(testPath, modulePath))
+	}
+
+	includedModulesWithAmzApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, "amazing-app/k8s", true)
+	assert.Equal(t, includedModulesWithAmzApp, []string{"amazing-app/k8s"})
+
+	includedModulesWithTestApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, "testapp/k8s", true)
+	assert.Equal(t, includedModulesWithTestApp, []string{"testapp/k8s"})
 }
 
 func TestTerragruntExternalDependencies(t *testing.T) {
@@ -3063,16 +3085,20 @@ func fileIsInFolder(t *testing.T, name string, path string) bool {
 	return found
 }
 
-func runValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath string, includeModulePath string) []string {
+func runValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath string, includeModulePath string, strictInclude bool) []string {
+	cmd := fmt.Sprintf(
+		"terragrunt validate-all --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-include-dir %s",
+		rootModulePath,
+		includeModulePath,
+	)
+	if strictInclude {
+		cmd = cmd + " --terragrunt-strict-include"
+	}
 	validateAllStdout := bytes.Buffer{}
 	validateAllStderr := bytes.Buffer{}
 	err := runTerragruntCommand(
 		t,
-		fmt.Sprintf(
-			"terragrunt validate-all --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-include-dir %s",
-			rootModulePath,
-			includeModulePath,
-		),
+		cmd,
 		&validateAllStdout,
 		&validateAllStderr,
 	)

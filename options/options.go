@@ -111,6 +111,9 @@ type TerragruntOptions struct {
 	// Unix-style glob of directories to include when running *-all commands
 	IncludeDirs []string
 
+	// If set to true, do not include dependencies when processing IncludeDirs (unless they are in the included dirs)
+	StrictInclude bool
+
 	// Enable check mode, by default it's disabled.
 	Check bool
 
@@ -157,6 +160,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		RetryableErrors:             util.CloneStringList(RETRYABLE_ERRORS),
 		ExcludeDirs:                 []string{},
 		IncludeDirs:                 []string{},
+		StrictInclude:               false,
 		Check:                       false,
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
@@ -227,6 +231,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		RetryableErrors:             util.CloneStringList(terragruntOptions.RetryableErrors),
 		ExcludeDirs:                 terragruntOptions.ExcludeDirs,
 		IncludeDirs:                 terragruntOptions.IncludeDirs,
+		StrictInclude:               terragruntOptions.StrictInclude,
 		RunTerragrunt:               terragruntOptions.RunTerragrunt,
 	}
 }
