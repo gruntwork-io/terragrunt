@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"strings"
 
+	"sort"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
-	"sort"
 )
 
 // Represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or
@@ -74,7 +75,7 @@ func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.Terragrunt
 // Apply all the modules in the given stack, making sure to apply the dependencies of each module in the stack in the
 // proper order.
 func (stack *Stack) Apply(terragruntOptions *options.TerragruntOptions) error {
-	stack.setTerraformCommand([]string{"apply", "-input=false", "-auto-approve"})
+	stack.setTerraformCommand([]string{"apply"})
 	if terragruntOptions.IgnoreDependencyOrder {
 		return RunModulesIgnoreOrder(stack.Modules)
 	} else {
@@ -85,7 +86,7 @@ func (stack *Stack) Apply(terragruntOptions *options.TerragruntOptions) error {
 // Destroy all the modules in the given stack, making sure to destroy the dependencies of each module in the stack in
 // the proper order.
 func (stack *Stack) Destroy(terragruntOptions *options.TerragruntOptions) error {
-	stack.setTerraformCommand([]string{"destroy", "-force", "-input=false"})
+	stack.setTerraformCommand([]string{"destroy"})
 	if terragruntOptions.IgnoreDependencyOrder {
 		return RunModulesIgnoreOrder(stack.Modules)
 	} else {
