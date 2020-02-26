@@ -201,6 +201,15 @@ supports additional keys that are used to configure the automatic initialization
 
 For the `s3` backend, the following additional properties are supported in the `config` attribute:
 
+- `region` - (Optional) The region of the S3 bucket.
+- `profile` - (Optional) This is the AWS profile name as set in the shared credentials file.
+- `endpoint` - (Optional) A custom endpoint for the S3 API.
+- `encrypt` - (Optional) Whether to enable server side encryption of the state file.
+- `role_arn` - (Optional) The role to be assumed.
+- `shared_credentials_file` - (Optional) This is the path to the shared credentials file. If this is not set and a profile is specified, `~/.aws/credentials` will be used.
+- `external_id` - (Optional) The external ID to use when assuming the role.
+- `session_name` - (Optional) The session name to use when assuming the role.
+- `dynamodb_table` - (Optional) The name of a DynamoDB table to use for state locking and consistency. The table must have a primary key named LockID. If not present, locking will be disabled.
 - `skip_bucket_versioning`: When `true`, the S3 bucket that is created to store the state will not be versioned.
 - `skip_bucket_ssencryption`: When `true`, the S3 bucket that is created to store the state will not be configured with server-side encryption.
 - `skip_bucket_accesslogging`: When `true`, the S3 bucket that is created to store the state will not be configured with

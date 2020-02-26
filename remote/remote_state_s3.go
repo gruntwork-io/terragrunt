@@ -59,6 +59,8 @@ type RemoteStateConfigS3 struct {
 	Endpoint         string `mapstructure:"endpoint"`
 	Profile          string `mapstructure:"profile"`
 	RoleArn          string `mapstructure:"role_arn"`
+	ExternalID       string `mapstructure:"external_id"`
+	SessionName      string `mapstructure:"session_name"`
 	LockTable        string `mapstructure:"lock_table"`
 	DynamoDBTable    string `mapstructure:"dynamodb_table"`
 	CredsFilename    string `mapstructure:"shared_credentials_file"`
@@ -72,6 +74,8 @@ func (c *ExtendedRemoteStateConfigS3) GetAwsSessionConfig() *aws_helper.AwsSessi
 		CustomS3Endpoint:        c.remoteStateConfigS3.Endpoint,
 		Profile:                 c.remoteStateConfigS3.Profile,
 		RoleArn:                 c.remoteStateConfigS3.RoleArn,
+		ExternalID:              c.remoteStateConfigS3.ExternalID,
+		SessionName:             c.remoteStateConfigS3.SessionName,
 		CredsFilename:           c.remoteStateConfigS3.CredsFilename,
 		S3ForcePathStyle:        c.remoteStateConfigS3.S3ForcePathStyle,
 		DisableComputeChecksums: c.DisableAWSClientChecksums,
