@@ -104,7 +104,7 @@ expensive solutions. The following is a summary of the solutions to be built:
 
 - [Short term: read_terragrunt_config helper function](#read_terragrunt_config-helper-function)
 - [Medium term: import blocks](#import-blocks)
-- [Long term: single terragrunt.hcl file](#single-terragrunt-hcl-file-per-environment)
+- [Long term: single terragrunt.hcl file](#single-terragrunthcl-file-per-environment)
 
 ### read_terragrunt_config helper function
 
@@ -272,7 +272,7 @@ Cons:
 Let's take a look at a few common use cases and how we might use `import` to address them:
 
 - [Hierarchical variables included across multiple terragrunt.hcl
-  files](#import-block-hierarchical-variables-included-across-multiple-terragrunt-hcl-files)
+  files](#import-block-hierarchical-variables-included-across-multiple-terragrunthcl-files)
 - [Reusing common variables](#import-block-reusing-common-variables)
 - [Reusing dependencies](#import-block-reusing-dependencies)
 - [Keeping remote state configuration DRY](#import-block-keeping-remote-state-configuration-dry)
