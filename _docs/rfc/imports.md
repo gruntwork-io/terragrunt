@@ -102,7 +102,7 @@ Given the problem statement, this RFC aims to propose a solution that addresses 
 The proposed solution is an incremental improvement to the situation by implementing a series of increasingly more
 expensive solutions. The following is a summary of the solutions to be built:
 
-- [Short term: read_terragrunt_config helper function](#read_terragrunt_config_helper_function)
+- [Short term: read_terragrunt_config helper function](#read_terragrunt_config-helper-function)
 - [Medium term: import blocks](#import-blocks)
 - [Long term: single terragrunt.hcl file](#single-terragrunt-hcl-file-per-environment)
 
