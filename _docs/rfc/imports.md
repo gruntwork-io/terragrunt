@@ -1,6 +1,6 @@
 # Imports
 
-**STATUS**: In proposal
+**STATUS**: In development
 
 
 ## Background
@@ -99,7 +99,131 @@ Given the problem statement, this RFC aims to propose a solution that addresses 
 
 ## Proposed solution
 
-The proposed solution is to introduce a new block `import` which replaces the functionality of `include`. We use a new
+The proposed solution is an incremental improvement to the situation by implementing a series of increasingly more
+expensive solutions. The following is a summary of the solutions to be built:
+
+- [Short term: read_terragrunt_config helper function](#read_terragrunt_config_helper_function)
+- [Medium term: import blocks](#import-blocks)
+- [Long term: single terragrunt.hcl file](#single-terragrunt-hcl-file-per-environment)
+
+### read_terragrunt_config helper function
+
+For this approach, we define a helper function that parses the relevant config and exposes it for use in the terragrunt
+config. For example, the explicit triple import example in the [hierarchical variables use
+case](#hierarchical-variables-included-across-multiple-terragrunt-hcl-files) can be implemented as:
+
+```hcl
+locals {
+  root_config = read_terragrunt_config("../../../root.hcl")
+  region_config = read_terragrunt_config("../../region.hcl")
+  env_config = read_terragrunt_config("../env.hcl")
+}
+
+inputs = merge(
+  local.root_config.inputs,
+  local.region_config.inputs,
+  local.env_config.inputs,
+  {
+    # args to module
+  },
+)
+```
+
+Pros:
+
+- Relatively simple implementation. It is significantly easier to add helper functions than it is to introduce new
+  blocks in terragrunt.
+- Supports all the use cases described above.
+
+Cons:
+
+- Everything has to be explicit in the config. We can not support automatic merging capabilities when using helper
+  functions, as you can't manipulate the config in a helper. This can lead to very verbose configurations if one wants
+  to use this in place of `include`.
+
+Note that to take full advantage of this approach, all the blocks in `terragrunt.hcl` need to be redefined as attributes
+so that we can use assignment to override them.
+
+Let's walk through a few more of the use cases:
+
+#### (read_terragrunt_config) Keeping remote state configuration DRY
+
+parent
+
+```hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket         = "my-terraform-state"
+    key            = "${path_relative_to_include()}/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "my-lock-table"
+  }
+}
+```
+
+child
+
+```hcl
+locals {
+  root_config = read_terragrunt_config("../../../root.hcl")
+}
+
+remote_state {
+  backend = local.root_config.remote_state.backend
+  config = merge(
+    local.root_config.remote_state.config,
+    {
+      # The relative path between the root terragrunt directory and the current terragrunt file directory.
+      key =  relpath(import.root.terragrunt_dir, get_terragrunt_dir())
+    },
+  )
+}
+```
+
+Note that we can't do:
+
+```hcl
+remote_state = deep_merge(local.root_config.remote_state, { config = { key = relpath } })
+```
+
+due to the fact that `remote_state` is a block and not an attribute.
+
+
+#### (read_terragrunt_config) Reusing dependencies
+
+We can't reuse `dependency` blocks in this implementation because there is no way to auto merge the blocks.
+
+If `dependency` was instead an attribute, we could use the following alternative syntax:
+
+vpc_dependency_config.hcl
+
+```hcl
+dependency = {
+  vpc = {
+    config_path = "/path/to/app/vpc/module"
+  }
+}
+```
+
+```hcl
+locals {
+  common_deps = read_terragrunt_config("../vpc_dependency_config.hcl")
+}
+
+dependency = local.common_deps.dependency
+
+inputs = {
+  name = "unique-name"
+  vpc_id = dependency.vpc.outputs.vpc_id
+}
+```
+
+
+### import blocks
+
+This approach is to introduce a new block `import` which replaces the functionality of `include`. We use a new
 block instead of reusing `include` for backwards compatibility. As part of the implementation, `include` and the
 relevant functions (`get_parent_terragrunt_dir`, `path_relative_to_include`, and `path_relative_from_include`) will be
 deprecated and will throw a warning whenever someone uses it.
@@ -135,15 +259,25 @@ The `import` block works as follows:
   attribute pointing to the target config.
 - Imports are not compatible with `include`. Having both blocks will cause a terragrunt syntax error.
 
+Pros:
+
+- Supports all the use cases described above.
+
+Cons:
+
+- Since we don't allow `path_relative` functions, reusability is limited when compared to `include` (e.g the remote
+  state use case). This can be resolved if we implement the relevant `path_relative` functions for `import` blocks.
+
+
 Let's take a look at a few common use cases and how we might use `import` to address them:
 
 - [Hierarchical variables included across multiple terragrunt.hcl
-  files](#hierarchical-variables-included-across-multiple-terragrunt-hcl-files)
-- [Reusing common variables](#reusing-common-variables)
-- [Reusing dependencies](#reusing-dependencies)
-- [Keeping remote state configuration DRY](#keeping-remote-state-configuration-dry)
+  files](#import-block-hierarchical-variables-included-across-multiple-terragrunt-hcl-files)
+- [Reusing common variables](#import-block-reusing-common-variables)
+- [Reusing dependencies](#import-block-reusing-dependencies)
+- [Keeping remote state configuration DRY](#import-block-keeping-remote-state-configuration-dry)
 
-### Hierarchical variables included across multiple terragrunt.hcl files
+#### (import block) Hierarchical variables included across multiple terragrunt.hcl files
 
 Consider the following folder structure from the canonical example:
 
@@ -298,7 +432,7 @@ The `merge = true` option is a convenience feature to make the child config less
 overridable configuration in your hierarchy.
 
 
-### Reusing common variables
+#### (import block) Reusing common variables
 
 Many resources are named with the region or environment that they belong to. A canonical terragrunt live configuration
 uses hierarchical variables to pass in the region and environment settings to terraform. However, there is no way in the
@@ -324,7 +458,7 @@ inputs = merge(
 ```
 
 
-### Reusing dependencies
+#### (import block) Reusing dependencies
 
 In the problem statement we discussed a use case where we want to pass in and merge the `vpc_id`. This can be
 implemented with `import` blocks in two ways.
@@ -332,7 +466,7 @@ implemented with `import` blocks in two ways.
 - [Auto merge](#auto-merge)
 - [Explicit reference](#explicit-reference)
 
-#### Auto merge
+##### Auto merge
 
 With auto merge, you can `import` the configuration that declares the dependency and the input directly and have nothing
 in the child config. For example:
@@ -381,7 +515,7 @@ inputs = {
 }
 ```
 
-#### Explicit reference
+##### Explicit reference
 
 As an alternative to auto merge, you can also be explicit in referencing the inputs block in the import:
 
@@ -414,7 +548,7 @@ inputs = {
 
 
 
-### Keeping remote state configuration DRY
+#### (import block) Keeping remote state configuration DRY
 
 A canonical use case for terragrunt is to share the remote state configuration. The classic example is having a root
 `terragrunt.hcl` configuration that specifies the `remote_state`, which is then imported using `include` to all the
@@ -562,7 +696,7 @@ The advantage of this configuration is that we're only pulling the `remote_state
 blocks and attributes (e.g `inputs`) is not inherited to the child config. This was something that was not possible to
 do with `include`.
 
-#### Why can't we use the merge function?
+##### Why can't we use the merge function?
 
 In the above example, we have to explicitly declare the block. A natural extension of this pattern is to use the `merge`
 function directly on the `remote_state`:
@@ -582,13 +716,7 @@ Unfortunately, this is a syntax error because `remote_state` is a block, and not
 blocks in this way.
 
 
-
-
-## Alternatives
-
-### In consideration
-
-#### Single terragrunt.hcl file per environment
+### Single terragrunt.hcl file per environment
 
 This implementation introduces a new block `module` that replaces `dependency`, `terraform`, and `inputs`. This approach
 is documented in [#759](https://github.com/gruntwork-io/terragrunt/issues/759).
@@ -609,7 +737,7 @@ Cons:
 
 Let's walk through how each of the import use cases look like with this implementation:
 
-##### Hierarchical variables
+#### (single file) Hierarchical variables
 
 In this approach, a hierarchy of variables is unnecessary because all the blocks are defined in a single scope. However,
 depending on the scope of `locals`, certain things like reusing a repetitive variable becomes more challenging.
@@ -665,7 +793,7 @@ each region, which is a better posture for disaster recovery. In this approach, 
 `locals` is. However, the downside of this approach is that there will be some repetition to pull in the AWS account ID
 info across all the different regions.
 
-##### Reusing common variables
+#### (single file) Reusing common variables
 
 Reusing common variables depends on the scope of `locals`. If the scope of `locals` is shared across the environment,
 then you can define the common variable in `locals` blocks to share across the entier environment. If instead the scope
@@ -699,131 +827,17 @@ module "mysql" {
 This example reuses the outputs of `module.vpc` across the two modules, which is the equivalent of having the `vpc`
 `dependency` block redefined in the two module configs.
 
-##### Keeping remote state configuration DRY
+#### (single file) Keeping remote state configuration DRY
 
 This example is covered in [the original issue that proposed this
 idea](https://github.com/gruntwork-io/terragrunt/issues/759).
 
 
-#### hcldecode or read_terragrunt_config helper function
-
-Instead of defining a dedicated block for `import`, we could define a helper function that parses the relevant config.
-For example, the explicit triple import example in the [hierarchical variables use
-case](#hierarchical-variables-included-across-multiple-terragrunt-hcl-files) can be implemented as:
-
-```hcl
-locals {
-  root_config = read_terragrunt_config("../../../root.hcl")
-  region_config = read_terragrunt_config("../../region.hcl")
-  env_config = read_terragrunt_config("../env.hcl")
-}
-
-inputs = merge(
-  local.root_config.inputs,
-  local.region_config.inputs,
-  local.env_config.inputs,
-  {
-    # args to module
-  },
-)
-```
-
-Pros:
-
-- Relatively simple implementation. It is significantly easier to add helper functions than it is to introduce new
-  blocks in terragrunt.
-- Can address all the same use cases as `import` blocks.
-
-Cons:
-
-- Everything has to be explicit in the config. We can not support automatic merging capabilities when using helper
-  functions, as you can't manipulate the config in a helper. This can lead to very verbose configurations if one wants
-  to use this in place of `include`.
-
-Note that to take full advantage of this approach, all the blocks in `terragrunt.hcl` need to be redefined as attributes
-so that we can use assignment to override them.
-
-Let's walk through a few more of the use cases:
-
-##### Keeping remote state configuration DRY
-
-parent
-
-```hcl
-remote_state {
-  backend = "s3"
-  config = {
-    bucket         = "my-terraform-state"
-    key            = "${path_relative_to_include()}/terraform.tfstate"
-    region         = "us-east-1"
-    encrypt        = true
-    dynamodb_table = "my-lock-table"
-  }
-}
-```
-
-child
-
-```hcl
-locals {
-  root_config = read_terragrunt_config("../../../root.hcl")
-}
-
-remote_state {
-  backend = local.root_config.remote_state.backend
-  config = merge(
-    local.root_config.remote_state.config,
-    {
-      # The relative path between the root terragrunt directory and the current terragrunt file directory.
-      key =  relpath(import.root.terragrunt_dir, get_terragrunt_dir())
-    },
-  )
-}
-```
-
-Note that we can't do:
-
-```hcl
-remote_state = deep_merge(local.root_config.remote_state, { config = { key = relpath } })
-```
-
-due to the fact that `remote_state` is a block and not an attribute.
 
 
-##### Reusing dependencies
+## Alternatives
 
-We can't reuse `dependency` blocks in this implementation because there is no way to auto merge the blocks.
-
-If `dependency` was instead an attribute, we could use the following alternative syntax:
-
-vpc_dependency_config.hcl
-
-```hcl
-dependency = {
-  vpc = {
-    config_path = "/path/to/app/vpc/module"
-  }
-}
-```
-
-```hcl
-locals {
-  common_deps = read_terragrunt_config("../vpc_dependency_config.hcl")
-}
-
-dependency = local.common_deps.dependency
-
-inputs = {
-  name = "unique-name"
-  vpc_id = dependency.vpc.outputs.vpc_id
-}
-```
-
-
-
-### Rejected
-
-#### Enhancing include with import semantics
+### Enhancing include with import semantics
 
 Instead of having a dedicated block with the new functionality, we could enhance `include` to have all the semantics of
 `import`. This reduces complexity of the configuration by being able to recycle a very similar construct that already
@@ -860,7 +874,7 @@ Cons:
 Ultimately, the potential for badly shooting yourself in the foot was enough to warrant a new block to start clean.
 
 
-#### globals
+### globals
 
 Globals was a potential solution to the problem proposed by the community. `globals` work the same way as `locals`,
 except they support merging across `include`. For example, to address the use case of [reusing common
@@ -961,3 +975,9 @@ similar concerns:
 - [Request to allow more than one level of include](https://github.com/gruntwork-io/terragrunt/issues/303)
 - [Request to reference inputs from another config](https://github.com/gruntwork-io/terragrunt/issues/967)
 - [Partially override components of an input](https://github.com/gruntwork-io/terragrunt/issues/1011)
+
+Relevant PRs and Releases:
+
+- [PR for RFC](https://github.com/gruntwork-io/terragrunt/pull/1025)
+- [PR for read_terragrunt_config](https://github.com/gruntwork-io/terragrunt/pull/1051) (released in
+  [v0.22.3](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.22.3))
