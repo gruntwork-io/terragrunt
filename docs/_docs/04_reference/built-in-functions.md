@@ -82,7 +82,7 @@ file("assets/mysql/assets.txt")
 
 ## find\_in\_parent\_folders
 
-`find_in_parent_folders()` searches up the directory tree from the current `terragrunt.hcl` file and returns the relative path to the first `terragrunt.hcl` in a parent folder or exit with an error if no such file is found. This is primarily useful in an `include` block to automatically find the path to a parent `terragrunt.hcl` file:
+`find_in_parent_folders()` searches up the directory tree from the current `terragrunt.hcl` file and returns the absolute path to the first `terragrunt.hcl` in a parent folder or exit with an error if no such file is found. This is primarily useful in an `include` block to automatically find the path to a parent `terragrunt.hcl` file:
 
 ``` hcl
 include {

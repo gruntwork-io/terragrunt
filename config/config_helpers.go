@@ -259,7 +259,7 @@ func findInParentFolders(params []string, include *IncludeConfig, terragruntOpti
 		}
 
 		if util.FileExists(fileToFind) {
-			return util.GetPathRelativeTo(fileToFind, filepath.Dir(terragruntOptions.TerragruntConfigPath))
+			return fileToFind, nil
 		}
 
 		previousDir = currentDir
