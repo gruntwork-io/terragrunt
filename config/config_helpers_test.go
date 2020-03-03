@@ -161,6 +161,13 @@ func TestRunCommand(t *testing.T) {
 		})
 	}
 }
+
+func absPath(t *testing.T, path string) string {
+	out, err := filepath.Abs(path)
+	require.NoError(t, err)
+	return out
+}
+
 func TestFindInParentFolders(t *testing.T) {
 	t.Parallel()
 
@@ -173,13 +180,13 @@ func TestFindInParentFolders(t *testing.T) {
 		{
 			nil,
 			terragruntOptionsForTest(t, "../test/fixture-parent-folders/terragrunt-in-root/child/"+DefaultTerragruntConfigPath),
-			"../" + DefaultTerragruntConfigPath,
+			absPath(t, "../test/fixture-parent-folders/terragrunt-in-root/"+DefaultTerragruntConfigPath),
 			nil,
 		},
 		{
 			nil,
 			terragruntOptionsForTest(t, "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
-			"../../../" + DefaultTerragruntConfigPath,
+			absPath(t, "../test/fixture-parent-folders/terragrunt-in-root/"+DefaultTerragruntConfigPath),
 			nil,
 		},
 		{
@@ -191,25 +198,25 @@ func TestFindInParentFolders(t *testing.T) {
 		{
 			nil,
 			terragruntOptionsForTest(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/"+DefaultTerragruntConfigPath),
-			"../" + DefaultTerragruntConfigPath,
+			absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/"+DefaultTerragruntConfigPath),
 			nil,
 		},
 		{
 			nil,
 			terragruntOptionsForTest(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+DefaultTerragruntConfigPath),
-			"../" + DefaultTerragruntConfigPath,
+			absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/"+DefaultTerragruntConfigPath),
 			nil,
 		},
 		{
 			nil,
 			terragruntOptionsForTest(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
-			"../" + DefaultTerragruntConfigPath,
+			absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+DefaultTerragruntConfigPath),
 			nil,
 		},
 		{
 			[]string{"foo.txt"},
 			terragruntOptionsForTest(t, "../test/fixture-parent-folders/other-file-names/child/"+DefaultTerragruntConfigPath),
-			"../foo.txt",
+			absPath(t, "../test/fixture-parent-folders/other-file-names/foo.txt"),
 			nil,
 		},
 		{
@@ -275,7 +282,7 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 			"terraform { source = find_in_parent_folders() }",
 			nil,
 			terragruntOptionsForTest(t, "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/"+DefaultTerragruntConfigPath),
-			"../../" + DefaultTerragruntConfigPath,
+			absPath(t, "../test/fixture-parent-folders/terragrunt-in-root/"+DefaultTerragruntConfigPath),
 			"",
 		},
 		{
