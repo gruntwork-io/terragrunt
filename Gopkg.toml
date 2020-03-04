@@ -79,7 +79,7 @@
 
 [[constraint]]
   name = "github.com/hashicorp/terraform"
-  version = "0.12.9"
+  version = "0.12.10"
 
 [[override]]
   name = "github.com/zclconf/go-cty-yaml"
