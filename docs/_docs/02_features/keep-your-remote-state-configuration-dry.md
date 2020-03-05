@@ -105,7 +105,7 @@ The next time you run `terragrunt`, it will automatically configure all the sett
 
 The `terragrunt.hcl` files above use two Terragrunt built-in functions:
 
-  - `find_in_parent_folders()`: This function returns the path to the first `terragrunt.hcl` file it finds in the parent folders above the current `terragrunt.hcl` file. In the example above, the call to `find_in_parent_folders()` in `mysql/terragrunt.hcl` will return `../terragrunt.hcl`. This way, you don’t have to hard code the `path` parameter in every module.
+  - `find_in_parent_folders()`: This function returns the absolute path to the first `terragrunt.hcl` file it finds in the parent folders above the current `terragrunt.hcl` file. In the example above, the call to `find_in_parent_folders()` in `mysql/terragrunt.hcl` will return `/your-root-folder/terragrunt.hcl`. This way, you don’t have to hard code the `path` parameter in every module.
 
   - `path_relative_to_include()`: This function returns the relative path between the current `terragrunt.hcl` file and the path specified in its `include` block. We typically use this in a root `terragrunt.hcl` file so that each Terraform child module stores its Terraform state at a different `key`. For example, the `mysql` module will have its `key` parameter resolve to `mysql/terraform.tfstate` and the `frontend-app` module will have its `key` parameter resolve to `frontend-app/terraform.tfstate`.
 
