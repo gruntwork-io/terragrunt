@@ -39,7 +39,11 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 // Run the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
 // method's caller
 func RunTerraformCommandWithOutput(terragruntOptions *options.TerragruntOptions, args ...string) (*CmdOutput, error) {
-	return RunShellCommandWithOutput(terragruntOptions, "", false, isTerraformCommandThatNeedsPty(args[0]), terragruntOptions.TerraformPath, args...)
+	needPty := false
+	if len(args) > 0 {
+		needPty = isTerraformCommandThatNeedsPty(args[0])
+	}
+	return RunShellCommandWithOutput(terragruntOptions, "", false, needPty, terragruntOptions.TerraformPath, args...)
 }
 
 // Run the specified shell command with the specified arguments. Connect the command's stdin, stdout, and stderr to
