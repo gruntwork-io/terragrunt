@@ -11,8 +11,11 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-The Terragrunt configuration file uses the same HCL syntax as Terraform itself. The following is a reference of all the
-supported blocks and attributes in the `terragrunt.hcl` configuration file:
+The Terragrunt configuration file uses the same HCL syntax as Terraform itself in `terragrunt.hcl`.
+Terragrunt also supports [JSON-serialized HCL](https://github.com/hashicorp/hcl/blob/hcl2/json/spec.md) in a `terragrunt.hcl.json` file:
+where `terragrunt.hcl` is mentioned you can always use `terragrunt.hcl.json` instead.
+
+The following is a reference of all the supported blocks and attributes in the configuration file:
 
 ## Blocks
 

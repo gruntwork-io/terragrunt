@@ -26,6 +26,8 @@ dependencies {
 }
 ```
 
+Terragrunt also supports [JSON-serialized HCL](https://github.com/hashicorp/hcl/blob/hcl2/json/spec.md) defined in a `terragrunt.hcl.json` file: where `terragrunt.hcl` is mentioned you can always use `terragrunt.hcl.json` instead.
+
 Terragrunt figures out the path to its config file according to the following rules:
 
 1.  The value of the `--terragrunt-config` command-line option, if specified.
@@ -34,7 +36,9 @@ Terragrunt figures out the path to its config file according to the following ru
 
 3.  A `terragrunt.hcl` file in the current working directory, if it exists.
 
-4.  If none of these are found, exit with an error.
+4.  A `terragrunt.hcl.json` file in the current working directory, if it exists.
+
+5.  If none of these are found, exit with an error.
 
 ## Configuration parsing order
 
