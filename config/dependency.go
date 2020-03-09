@@ -100,7 +100,7 @@ func checkForDependencyBlockCycles(filename string, decodedDependency terragrunt
 	visitedPaths := []string{}
 	currentTraversalPaths := []string{filename}
 	for _, dependency := range decodedDependency.Dependencies {
-		dependencyPath := cleanDependencyTerragruntConfigPath(filename, dependency.ConfigPath)
+		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath, filename)
 		dependencyOptions := terragruntOptions.Clone(dependencyPath)
 		if err := checkForDependencyBlockCyclesUsingDFS(dependencyPath, &visitedPaths, &currentTraversalPaths, dependencyOptions); err != nil {
 			return err
@@ -133,7 +133,7 @@ func checkForDependencyBlockCyclesUsingDFS(
 		return err
 	}
 	for _, dependency := range dependencyPaths {
-		nextPath := cleanDependencyTerragruntConfigPath(currentConfigPath, dependency)
+		nextPath := getCleanedTargetConfigPath(dependency, currentConfigPath)
 		nextOptions := terragruntOptions.Clone(nextPath)
 		if err := checkForDependencyBlockCyclesUsingDFS(nextPath, visitedPaths, currentTraversalPaths, nextOptions); err != nil {
 			return err
@@ -144,22 +144,6 @@ func checkForDependencyBlockCyclesUsingDFS(
 	*currentTraversalPaths = util.RemoveElementFromList(*currentTraversalPaths, currentConfigPath)
 
 	return nil
-}
-
-// Ensures the dependency path points to the right terragrunt config path.
-func cleanDependencyTerragruntConfigPath(currentConfigPath string, dependencyPath string) string {
-	// Dependency paths are relative to the config, so we convert to absolute paths while we still have the proper
-	// context.
-	if !filepath.IsAbs(dependencyPath) {
-		dependencyPath = filepath.Clean(filepath.Join(filepath.Dir(currentConfigPath), dependencyPath))
-	}
-	// Dependency blocks can be the directory holding a terragrunt config, but we want to read the actual config
-	// file here. So if the dependency path is a directory, we assume the default config filename exists in the
-	// directory.
-	if util.IsDir(dependencyPath) {
-		dependencyPath = filepath.Join(dependencyPath, DefaultTerragruntConfigPath)
-	}
-	return dependencyPath
 }
 
 // Given the config path, return the list of config paths that are specified as dependency blocks in the config
@@ -241,7 +225,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 	// When we get no output, it can be an indication that either the module has no outputs or the module is not
 	// applied. In either case, check if there are default output values to return. If yes, return that. Else,
 	// return error.
-	targetConfig := getCleanedTargetConfigPath(dependencyConfig.ConfigPath, terragruntOptions)
+	targetConfig := getCleanedTargetConfigPath(dependencyConfig.ConfigPath, terragruntOptions.TerragruntConfigPath)
 	currentConfig := terragruntOptions.TerragruntConfigPath
 	if shouldReturnMockOutputs(dependencyConfig, terragruntOptions) {
 		util.Debugf(
@@ -277,7 +261,7 @@ func shouldReturnMockOutputs(dependencyConfig Dependency, terragruntOptions *opt
 func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, bool, error) {
 
 	// target config check: make sure the target config exists
-	targetConfig := getCleanedTargetConfigPath(dependencyConfig.ConfigPath, terragruntOptions)
+	targetConfig := getCleanedTargetConfigPath(dependencyConfig.ConfigPath, terragruntOptions.TerragruntConfigPath)
 	if !util.FileExists(targetConfig) {
 		return nil, true, errors.WithStackTrace(DependencyConfigNotFound{Path: targetConfig})
 	}
