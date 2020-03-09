@@ -528,10 +528,7 @@ func runTerraformWithRetry(terragruntOptions *options.TerragruntOptions) error {
 	// Retry the command configurable time with sleep in between
 	for i := 0; i < terragruntOptions.MaxRetryAttempts; i++ {
 		if out, tferr := shell.RunTerraformCommandWithOutput(terragruntOptions, terragruntOptions.TerraformCliArgs...); tferr != nil {
-			if out == nil {
-				return tferr
-			}
-			if isRetryable(out.Stderr, tferr, terragruntOptions) {
+			if out != nil && isRetryable(out.Stderr, tferr, terragruntOptions) {
 				terragruntOptions.Logger.Printf("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.Sleep)
 				time.Sleep(terragruntOptions.Sleep)
 			} else {
