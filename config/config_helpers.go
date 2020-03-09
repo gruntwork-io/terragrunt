@@ -389,8 +389,9 @@ func readTerragruntConfigAsFuncImpl(terragruntOptions *options.TerragruntOptions
 	})
 }
 
-// Returns a cleaned path to the target config (the `terragrunt.hcl` file), handling relative paths correctly. This will
-// automatically append `terragrunt.hcl` to the path if the target path is a directory.
+// Returns a cleaned path to the target config (the `terragrunt.hcl` or `terragrunt.hcl.json` file), handling relative
+// paths correctly. This will automatically append `terragrunt.hcl` or `terragrunt.hcl.json` to the path if the target
+// path is a directory.
 func getCleanedTargetConfigPath(configPath string, terragruntOptions *options.TerragruntOptions) string {
 	cwd := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 	targetConfig := configPath
@@ -398,7 +399,7 @@ func getCleanedTargetConfigPath(configPath string, terragruntOptions *options.Te
 		targetConfig = util.JoinPath(cwd, targetConfig)
 	}
 	if util.IsDir(targetConfig) {
-		targetConfig = util.JoinPath(targetConfig, DefaultTerragruntConfigPath)
+		targetConfig = GetDefaultConfigPath(targetConfig)
 	}
 	return util.CleanPath(targetConfig)
 }
