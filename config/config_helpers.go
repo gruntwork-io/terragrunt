@@ -334,7 +334,7 @@ func readTerragruntConfig(configPath string, defaultVal *cty.Value, terragruntOp
 	// target config check: make sure the target config exists. If the file does not exist, and there is no default val,
 	// return an error. If the file does not exist but there is a default val, return the default val. Otherwise,
 	// proceed to parse the file as a terragrunt config file.
-	targetConfig := getCleanedTargetConfigPath(configPath, terragruntOptions)
+	targetConfig := getCleanedTargetConfigPath(configPath, terragruntOptions.TerragruntConfigPath)
 	targetConfigFileExists := util.FileExists(targetConfig)
 	if !targetConfigFileExists && defaultVal == nil {
 		return cty.NilVal, errors.WithStackTrace(TerragruntConfigNotFound{Path: targetConfig})
@@ -389,16 +389,17 @@ func readTerragruntConfigAsFuncImpl(terragruntOptions *options.TerragruntOptions
 	})
 }
 
-// Returns a cleaned path to the target config (the `terragrunt.hcl` file), handling relative paths correctly. This will
-// automatically append `terragrunt.hcl` to the path if the target path is a directory.
-func getCleanedTargetConfigPath(configPath string, terragruntOptions *options.TerragruntOptions) string {
-	cwd := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+// Returns a cleaned path to the target config (the `terragrunt.hcl` or `terragrunt.hcl.json` file), handling relative
+// paths correctly. This will automatically append `terragrunt.hcl` or `terragrunt.hcl.json` to the path if the target
+// path is a directory.
+func getCleanedTargetConfigPath(configPath string, workingPath string) string {
+	cwd := filepath.Dir(workingPath)
 	targetConfig := configPath
 	if !filepath.IsAbs(targetConfig) {
 		targetConfig = util.JoinPath(cwd, targetConfig)
 	}
 	if util.IsDir(targetConfig) {
-		targetConfig = util.JoinPath(targetConfig, DefaultTerragruntConfigPath)
+		targetConfig = GetDefaultConfigPath(targetConfig)
 	}
 	return util.CleanPath(targetConfig)
 }

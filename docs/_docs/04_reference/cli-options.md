@@ -38,8 +38,8 @@ Terragrunt forwards all arguments and options to Terraform. The only exceptions 
 **CLI Arg**: `--terragrunt-config`<br/>
 **Requires an argument**: `--terragrunt-config /path/to/terragrunt.hcl`
 
-A custom path to the `terragrunt.hcl` file. May also be specified via the `TERRAGRUNT_CONFIG` environment variable. The
-default path is `terragrunt.hcl` in the current directory (see
+A custom path to the `terragrunt.hcl` or `terragrunt.hcl.json` file. May also be specified via the `TERRAGRUNT_CONFIG` environment variable. The
+default path is `terragrunt.hcl` (preferred) or `terragrunt.hcl.json` in the current directory (see
 [Configuration]({{site.baseurl}}/docs/getting-started/configuration/#configuration) for a slightly more nuanced
 explanation). This argument is not used with the `apply-all`, `destroy-all`, `output-all`, `validate-all`, and
 `plan-all` commands.
