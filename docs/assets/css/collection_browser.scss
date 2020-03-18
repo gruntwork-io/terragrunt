@@ -186,7 +186,7 @@
 
     .title {
       text-align: center;
-      color: #bbbdc0;
+      color: #535353;
     }
   }
 }
@@ -197,7 +197,7 @@
   font-size: 14px;
 
   a {
-    color: #bbbdc0;
+    color: #535353;
   }
 
   .nav-doc-collection-link {
@@ -239,13 +239,13 @@
       a {
         text-transform: none;
         font-size: 14px;
-        color: #bbbdc0;
+        color: #535353;
       }
 
-      border-bottom: 1px solid #bbbdc0;
+      border-bottom: 1px solid #535353;
 
       > ul > li {
-        border-bottom: 1px solid #bbbdc0;
+        border-bottom: 1px solid #535353;
       }
     }
 
@@ -253,7 +253,7 @@
   }
 
   .arrow-icon {
-    color: #bbbdc0;
+    color: #535353;
   }
 
   .no-collapsable .arrow-icon {
@@ -267,7 +267,7 @@
 
     &.collapsed {
       .arrow-icon {
-        color: #bbbdc0;
+        color: #535353;
         -webkit-transform: rotate(-90deg);
         -moz-transform: rotate(-90deg);
         -o-transform: rotate(-90deg);
@@ -276,7 +276,7 @@
       }
 
       + a {
-        color: #bbbdc0;
+        color: #535353;
       }
     }
   }
@@ -397,7 +397,7 @@
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    border: 1px solid #bbbdc0;
+    border: 1px solid #535353;
     display: flex;
     align-items: center;
     justify-content: center;
