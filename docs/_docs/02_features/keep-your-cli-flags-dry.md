@@ -60,7 +60,7 @@ Each `extra_arguments` block includes an arbitrary name (in the example above, `
 
     terraform apply -lock-timeout=20m
 
-You can even use built-in functions such as [get\_terraform\_commands\_that\_need\_locking]({{site.baseurl}}/docs/features/built-in-functions/#get_terraform_commands_that_need_locking) to automatically populate the lsit of Terraform commands that need locking:
+You can even use built-in functions such as [get\_terraform\_commands\_that\_need\_locking]({{site.baseurl}}/docs/reference/built-in-functions/#get_terraform_commands_that_need_locking) to automatically populate the list of Terraform commands that need locking:
 
 ``` hcl
 terraform {
@@ -177,7 +177,7 @@ terraform {
   }
 ```
 
-See the [get\_terragrunt\_dir()]({{site.baseurl}}/docs/features/built-in-functions/#get_terragrunt_dir) and [get\_parent\_terragrunt\_dir()]({{site.baseurl}}/docs/features/built-in-functions/#get_parent_terragrunt_dir) documentation for more details.
+See the [get\_terragrunt\_dir()]({{site.baseurl}}/docs/reference/built-in-functions/#get_terragrunt_dir) and [get\_parent\_terragrunt\_dir()]({{site.baseurl}}/docs/reference/built-in-functions/#get_parent_terragrunt_dir) documentation for more details.
 
 With the configuration above, when you run `terragrunt apply-all`, Terragrunt will call Terraform as follows:
 
