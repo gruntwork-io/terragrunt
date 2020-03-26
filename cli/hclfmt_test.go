@@ -212,7 +212,7 @@ func TestHCLFmtFile(t *testing.T) {
 	}
 
 	for _, dir := range dirs {
-		// Capture range variable and options variable into for block so it doesn't change while looping
+		// Capture range variable into for block so it doesn't change while looping
 		dir := dir
 
 		// Create a synchronous subtest to group the child tests so that they can run in parallel while honoring cleanup
@@ -253,7 +253,7 @@ func TestHCLFmtFileErrors(t *testing.T) {
 	}
 
 	for _, dir := range dirs {
-		// Capture range variable and options variable into for block so it doesn't change while looping
+		// Capture range variable into for block so it doesn't change while looping
 		dir := dir
 
 		// Create a synchronous subtest to group the child tests so that they can run in parallel while honoring cleanup
