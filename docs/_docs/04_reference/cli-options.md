@@ -31,6 +31,7 @@ Terragrunt forwards all arguments and options to Terraform. The only exceptions 
 - [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
 - [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
 - [terragrunt-check](#terragrunt-check)
+- [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
 
 
 ## terragrunt-config
@@ -209,3 +210,10 @@ included directories with `terragrunt-include-dir`.
 
 When passed in, run `hclfmt` in check only mode instead of actively overwriting the files. This will cause the
 command to exit with exit code 1 if there are any files that are not formatted.
+
+## terragrunt-hclfmt-file
+
+**CLI Arg**: `--terragrunt-hclfmt-file`
+**Requires an argument**: `--terragrunt-hclfmt-file /path/to/terragrunt.hcl`
+
+When passed in, run `hclfmt` only on specified `terragrunt.hcl` file.
