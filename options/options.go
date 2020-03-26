@@ -117,6 +117,8 @@ type TerragruntOptions struct {
 	// Enable check mode, by default it's disabled.
 	Check bool
 
+	HclFile string
+
 	// A command that can be used to run Terragrunt with the given options. This is useful for running Terragrunt
 	// multiple times (e.g. when spinning up a stack of Terraform modules). The actual command is normally defined
 	// in the cli package, which depends on almost all other packages, so we declare it here so that other
@@ -151,17 +153,17 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		IgnoreDependencyOrder:       false,
 		IgnoreExternalDependencies:  false,
 		IncludeExternalDependencies: false,
-		Writer:                      os.Stdout,
-		ErrWriter:                   os.Stderr,
-		MaxFoldersToCheck:           DEFAULT_MAX_FOLDERS_TO_CHECK,
-		AutoRetry:                   true,
-		MaxRetryAttempts:            DEFAULT_MAX_RETRY_ATTEMPTS,
-		Sleep:                       DEFAULT_SLEEP,
-		RetryableErrors:             util.CloneStringList(RETRYABLE_ERRORS),
-		ExcludeDirs:                 []string{},
-		IncludeDirs:                 []string{},
-		StrictInclude:               false,
-		Check:                       false,
+		Writer:            os.Stdout,
+		ErrWriter:         os.Stderr,
+		MaxFoldersToCheck: DEFAULT_MAX_FOLDERS_TO_CHECK,
+		AutoRetry:         true,
+		MaxRetryAttempts:  DEFAULT_MAX_RETRY_ATTEMPTS,
+		Sleep:             DEFAULT_SLEEP,
+		RetryableErrors:   util.CloneStringList(RETRYABLE_ERRORS),
+		ExcludeDirs:       []string{},
+		IncludeDirs:       []string{},
+		StrictInclude:     false,
+		Check:             false,
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
@@ -222,17 +224,17 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		IgnoreDependencyOrder:       terragruntOptions.IgnoreDependencyOrder,
 		IgnoreExternalDependencies:  terragruntOptions.IgnoreExternalDependencies,
 		IncludeExternalDependencies: terragruntOptions.IncludeExternalDependencies,
-		Writer:                      terragruntOptions.Writer,
-		ErrWriter:                   terragruntOptions.ErrWriter,
-		MaxFoldersToCheck:           terragruntOptions.MaxFoldersToCheck,
-		AutoRetry:                   terragruntOptions.AutoRetry,
-		MaxRetryAttempts:            terragruntOptions.MaxRetryAttempts,
-		Sleep:                       terragruntOptions.Sleep,
-		RetryableErrors:             util.CloneStringList(terragruntOptions.RetryableErrors),
-		ExcludeDirs:                 terragruntOptions.ExcludeDirs,
-		IncludeDirs:                 terragruntOptions.IncludeDirs,
-		StrictInclude:               terragruntOptions.StrictInclude,
-		RunTerragrunt:               terragruntOptions.RunTerragrunt,
+		Writer:            terragruntOptions.Writer,
+		ErrWriter:         terragruntOptions.ErrWriter,
+		MaxFoldersToCheck: terragruntOptions.MaxFoldersToCheck,
+		AutoRetry:         terragruntOptions.AutoRetry,
+		MaxRetryAttempts:  terragruntOptions.MaxRetryAttempts,
+		Sleep:             terragruntOptions.Sleep,
+		RetryableErrors:   util.CloneStringList(terragruntOptions.RetryableErrors),
+		ExcludeDirs:       terragruntOptions.ExcludeDirs,
+		IncludeDirs:       terragruntOptions.IncludeDirs,
+		StrictInclude:     terragruntOptions.StrictInclude,
+		RunTerragrunt:     terragruntOptions.RunTerragrunt,
 	}
 }
 

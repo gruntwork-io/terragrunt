@@ -40,6 +40,7 @@ const OPT_TERRAGRUNT_EXCLUDE_DIR = "terragrunt-exclude-dir"
 const OPT_TERRAGRUNT_INCLUDE_DIR = "terragrunt-include-dir"
 const OPT_TERRAGRUNT_STRICT_INCLUDE = "terragrunt-strict-include"
 const OPT_TERRAGRUNT_CHECK = "terragrunt-check"
+const OPT_TERRAGRUNT_HCLFMT_FILE = "terragrunt-hclfmt-file"
 
 var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{
 	OPT_NON_INTERACTIVE,
@@ -62,6 +63,7 @@ var ALL_TERRAGRUNT_STRING_OPTS = []string{
 	OPT_TERRAGRUNT_IAM_ROLE,
 	OPT_TERRAGRUNT_EXCLUDE_DIR,
 	OPT_TERRAGRUNT_INCLUDE_DIR,
+	OPT_TERRAGRUNT_HCLFMT_FILE,
 }
 
 const CMD_PLAN_ALL = "plan-all"
