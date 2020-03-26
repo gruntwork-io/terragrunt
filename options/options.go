@@ -117,6 +117,7 @@ type TerragruntOptions struct {
 	// Enable check mode, by default it's disabled.
 	Check bool
 
+	// The file which hclfmt should be specifically run on
 	HclFile string
 
 	// A command that can be used to run Terragrunt with the given options. This is useful for running Terragrunt

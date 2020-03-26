@@ -167,7 +167,7 @@ GLOBAL OPTIONS:
    terragrunt-exclude-dir                       Unix-style glob of directories to exclude when running *-all commands
    terragrunt-include-dir                       Unix-style glob of directories to include when running *-all commands
    terragrunt-check                             Enable check mode in the hclfmt command.
-   terragrunt-hclfmt-file						The path to a single terragrunt.hcl file that the hclfmt command should run on.
+   terragrunt-hclfmt-file                       The path to a single terragrunt.hcl file that the hclfmt command should run on.
 
 VERSION:
    {{.Version}}{{if len .Authors}}

@@ -216,4 +216,4 @@ command to exit with exit code 1 if there are any files that are not formatted.
 **CLI Arg**: `--terragrunt-hclfmt-file`
 **Requires an argument**: `--terragrunt-hclfmt-file /path/to/terragrunt.hcl`
 
-When passed in, run `hclfmt` only on specified `terragrunt.hcl` file.
+When passed in, run `hclfmt` only on specified `*/terragrunt.hcl` file.
