@@ -235,3 +235,40 @@ func TestHCLFmtFile(t *testing.T) {
 		})
 	}
 }
+
+func TestHCLFmtFileErrors(t *testing.T) {
+	t.Parallel()
+
+	tmpPath, err := files.CopyFolderToTemp("../test/fixture-hclfmt-file-errors", t.Name(), func(path string) bool { return true })
+	defer os.RemoveAll(tmpPath)
+	require.NoError(t, err)
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	dirs := []string{
+		"dangling-attribute",
+		"invalid-character",
+		"invalid-key",
+	}
+
+	for _, dir := range dirs {
+		// Capture range variable and options variable into for block so it doesn't change while looping
+		dir := dir
+
+		// Create a synchronous subtest to group the child tests so that they can run in parallel while honoring cleanup
+		// routines in the main test.
+		t.Run("group", func(t *testing.T) {
+			t.Run(dir, func(t *testing.T) {
+				t.Parallel()
+
+				newTgOptions := tgOptions.Clone(tgOptions.TerragruntConfigPath)
+				newTgOptions.HclFile = dir
+				newTgOptions.WorkingDir = tmpPath
+				err = runHCLFmt(newTgOptions)
+				require.Error(t, err)
+			})
+		})
+	}
+
+}
