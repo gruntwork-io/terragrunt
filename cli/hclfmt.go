@@ -20,17 +20,18 @@ import (
 // based on the language style guides provided by Hashicorp. This is done using the official hcl2 library.
 func runHCLFmt(terragruntOptions *options.TerragruntOptions) error {
 
-	var tgHclFiles []string
-	var err error
 	workingDir := terragruntOptions.WorkingDir
 	targetFile := terragruntOptions.HclFile
+
+	// handle when option specifies a particular file
 	if targetFile != "" {
-		terragruntOptions.Logger.Printf("Formatting terragrunt.hcl file at: %s.", targetFile)
-		tgHclFiles, err = zglob.Glob(util.JoinPath(workingDir, targetFile))
-	} else {
-		terragruntOptions.Logger.Printf("Formatting terragrunt.hcl files from the directory tree %s.", terragruntOptions.WorkingDir)
-		tgHclFiles, err = zglob.Glob(util.JoinPath(workingDir, "**", "*.hcl"))
+		fullPath := util.JoinPath(workingDir, targetFile)
+		terragruntOptions.Logger.Printf("Formatting terragrunt.hcl file at: %s.", fullPath)
+		return formatTgHCL(terragruntOptions, fullPath)
 	}
+
+	terragruntOptions.Logger.Printf("Formatting terragrunt.hcl files from the directory tree %s.", terragruntOptions.WorkingDir)
+	tgHclFiles, err := zglob.Glob(util.JoinPath(workingDir, "**", "*.hcl"))
 	if err != nil {
 		return err
 	}
