@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/hashicorp/hcl2/hclparse"
@@ -25,9 +26,11 @@ func runHCLFmt(terragruntOptions *options.TerragruntOptions) error {
 
 	// handle when option specifies a particular file
 	if targetFile != "" {
-		fullPath := util.JoinPath(workingDir, targetFile)
-		terragruntOptions.Logger.Printf("Formatting terragrunt.hcl file at: %s.", fullPath)
-		return formatTgHCL(terragruntOptions, fullPath)
+		if !filepath.IsAbs(targetFile) {
+			targetFile = util.JoinPath(workingDir, targetFile)
+		}
+		terragruntOptions.Logger.Printf("Formatting terragrunt.hcl file at: %s.", targetFile)
+		return formatTgHCL(terragruntOptions, targetFile)
 	}
 
 	terragruntOptions.Logger.Printf("Formatting terragrunt.hcl files from the directory tree %s.", terragruntOptions.WorkingDir)
