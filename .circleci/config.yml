@@ -3,28 +3,10 @@ workspace_root: &workspace_root /go/src/github.com/gruntwork-io/terragrunt
 defaults: &defaults
   working_directory: *workspace_root
   docker:
-    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.11
+    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.13
 
 version: 2
 jobs:
-  install_dependencies:
-    <<: *defaults
-    steps:
-      - checkout
-      - attach_workspace:
-          at: *workspace_root
-      - restore_cache:
-          keys:
-            - dep-{{ checksum "Gopkg.lock" }}
-      - run: dep ensure
-      - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.13.8' --download-dir .
-      - save_cache:
-          key: dep-{{ checksum "Gopkg.lock" }}
-          paths:
-            - /go/src/github.com/gruntwork-io/terragrunt/vendor
-      - persist_to_workspace:
-          root: *workspace_root
-          paths: vendor
   # We're running unit tests separately from integration tests - with no parallelization.
   # With heavy parallelization coupled with re-use of test fixtures we've witnessed slight
   # instability with the tests. The unit tests are fast to execute, so there is negligible
@@ -33,12 +15,11 @@ jobs:
     <<: *defaults
     steps:
       - checkout
-      - attach_workspace:
-          at: *workspace_root
+      - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.13.8'
       - run:
           command: |
             mkdir -p logs
-            run-go-tests --circle-ci-2 --parallelism 1 --packages "$(go list ./... | grep -v /test | tr '\n' ' ')"  | tee logs/unit.log
+            run-go-tests --parallelism 1 --packages "$(go list ./... | grep -v /test | tr '\n' ' ')"  | tee logs/unit.log
       - run:
           command: terratest_log_parser --testlog logs/unit.log --outputdir logs
           when: always
@@ -51,15 +32,14 @@ jobs:
     <<: *defaults
     steps:
       - checkout
-      - attach_workspace:
-          at: *workspace_root
+      - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.13.8'
       # Make GCP Service Account creds available as a file
       - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
       - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
       - run:
           command: |
             mkdir -p logs
-            run-go-tests --circle-ci-2 --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
+            run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
       - run:
           command: terratest_log_parser --testlog logs/integration.log --outputdir logs
           when: always
@@ -74,7 +54,7 @@ jobs:
       - checkout
       - attach_workspace:
           at: *workspace_root
-      - run: build-go-binaries --circle-ci-2 --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG"
+      - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG"
       - persist_to_workspace:
           root: *workspace_root
           paths: bin
@@ -92,19 +72,11 @@ workflows:
   version: 2
   build-and-test:
     jobs:
-      - install_dependencies:
-          filters:
-            tags:
-              only: /^v.*/
       - unit_test:
-          requires:
-            - install_dependencies
           filters:
             tags:
               only: /^v.*/
       - integration_test:
-          requires:
-            - install_dependencies
           filters:
             tags:
               only: /^v.*/
@@ -133,10 +105,5 @@ workflows:
             branches:
               only: master
     jobs:
-      - install_dependencies
-      - unit_test:
-          requires:
-            - install_dependencies
-      - integration_test:
-          requires:
-            - install_dependencies
+      - unit_test
+      - integration_test
