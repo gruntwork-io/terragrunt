@@ -117,6 +117,9 @@ type TerragruntOptions struct {
 	// Enable check mode, by default it's disabled.
 	Check bool
 
+	// The file which hclfmt should be specifically run on
+	HclFile string
+
 	// A command that can be used to run Terragrunt with the given options. This is useful for running Terragrunt
 	// multiple times (e.g. when spinning up a stack of Terraform modules). The actual command is normally defined
 	// in the cli package, which depends on almost all other packages, so we declare it here so that other
