@@ -195,11 +195,11 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 func TestHCLFmtFile(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../test/fixture-hclfmt-file", t.Name(), func(path string) bool { return true })
+	tmpPath, err := files.CopyFolderToTemp("../test/fixture-hclfmt", t.Name(), func(path string) bool { return true })
 	defer os.RemoveAll(tmpPath)
 	require.NoError(t, err)
 
-	expected, err := ioutil.ReadFile("../test/fixture-hclfmt-file/expected.hcl")
+	expected, err := ioutil.ReadFile("../test/fixture-hclfmt/expected.hcl")
 	require.NoError(t, err)
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
@@ -227,7 +227,7 @@ func TestHCLFmtFile(t *testing.T) {
 		"a/b/c/terragrunt.hcl",
 	}
 
-	original, err := ioutil.ReadFile("../test/fixture-hclfmt-file/original.hcl")
+	original, err := ioutil.ReadFile("../test/fixture-hclfmt/terragrunt.hcl")
 	require.NoError(t, err)
 
 	// test that none of the other files were formatted
