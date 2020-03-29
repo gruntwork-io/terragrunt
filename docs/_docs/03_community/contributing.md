@@ -84,7 +84,7 @@ to include the following:
    test output so we can verify that everything is working.
 1. Any notes on backwards incompatibility.
 
-### Merge and release   
+### Merge and release
 
 The maintainers for this repo will review your code and provide feedback. If everything looks good, they will merge the
 code and release a new version, which you'll be able to find in the [releases page](../../releases).
@@ -102,7 +102,9 @@ go run main.go plan
 
 ### Dependencies
 
-  - Terragrunt uses `dep`, a vendor package management tool for golang. See the dep repo for [installation instructions](https://github.com/golang/dep).
+Terragrunt uses go modules (read more about the modules system in [the official
+wiki](https://github.com/golang/go/wiki/Modules)). This means that dependencies are automatically installed when you use
+any go command that compiles the code (`build`, `run`, `test`, etc.).
 
 ### Running tests
 
