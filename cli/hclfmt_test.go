@@ -248,3 +248,26 @@ func TestHCLFmtFile(t *testing.T) {
 		})
 	}
 }
+
+func TestHCLFmtHeredoc(t *testing.T) {
+	t.Parallel()
+
+	tmpPath, err := files.CopyFolderToTemp("../test/fixture-hclfmt-heredoc", t.Name(), func(path string) bool { return true })
+	defer os.RemoveAll(tmpPath)
+	require.NoError(t, err)
+
+	expected, err := ioutil.ReadFile("../test/fixture-hclfmt-heredoc/expected.hcl")
+	require.NoError(t, err)
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+	tgOptions.WorkingDir = tmpPath
+
+	err = runHCLFmt(tgOptions)
+	require.NoError(t, err)
+
+	tgHclPath := filepath.Join(tmpPath, "terragrunt.hcl")
+	actual, err := ioutil.ReadFile(tgHclPath)
+	require.NoError(t, err)
+	assert.Equal(t, expected, actual)
+}
