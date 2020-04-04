@@ -21,5 +21,6 @@ require (
 	github.com/zclconf/go-cty v1.3.1
 	golang.org/x/crypto v0.0.0-20200323165209-0ec3e9974c59
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
+	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	google.golang.org/api v0.20.0
 )

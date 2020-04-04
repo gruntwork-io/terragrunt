@@ -1033,7 +1033,7 @@ func TestFindConfigFilesIgnoresDownloadDir(t *testing.T) {
 func mockOptionsForTestWithConfigPath(t *testing.T, configPath string) *options.TerragruntOptions {
 	opts, err := options.NewTerragruntOptionsForTest(configPath)
 	if err != nil {
-		t.Fatalf("Faile to create TerragruntOptions: %v", err)
+		t.Fatalf("Failed to create TerragruntOptions: %v", err)
 	}
 	return opts
 }
