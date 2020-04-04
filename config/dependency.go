@@ -176,11 +176,11 @@ func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOption
 	// various attributes for accessing information about the target config (including the module outputs).
 	dependencyMap := map[string]cty.Value{}
 	lock := sync.Mutex{}
-	g, _ := errgroup.WithContext(context.Background())
+	dependencyErrGroup, _ := errgroup.WithContext(context.Background())
 
 	for _, dependencyConfig := range dependencyConfigs {
 		dependencyConfig := dependencyConfig // https://golang.org/doc/faq#closures_and_goroutines
-		g.Go(func() error {
+		dependencyErrGroup.Go(func() error {
 			// Loose struct to hold the attributes of the dependency. This includes:
 			// - outputs: The module outputs of the target config
 			dependencyEncodingMap := map[string]cty.Value{}
@@ -212,7 +212,7 @@ func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOption
 		})
 	}
 
-	if err := g.Wait(); err != nil {
+	if err := dependencyErrGroup.Wait(); err != nil {
 		return nil, err
 	}
 
