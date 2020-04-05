@@ -50,6 +50,7 @@ const (
 	TEST_FIXTURE_INCLUDE_PATH                               = "fixture-include/"
 	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH                     = "qa/my-app"
 	TEST_FIXTURE_STACK                                      = "fixture-stack/"
+	TEST_FIXTURE_PLAN_ALL_GRAPH                             = "fixture-plan-all-graph"
 	TEST_FIXTURE_OUTPUT_ALL                                 = "fixture-output-all"
 	TEST_FIXTURE_STDOUT                                     = "fixture-download/stdout-test"
 	TEST_FIXTURE_EXTRA_ARGS_PATH                            = "fixture-extra-args/"
@@ -657,6 +658,37 @@ func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 	fmt.Printf("STDERR is %s.\n STDOUT is %s", errOutput, output)
 	assert.True(t, strings.Contains(errOutput, "missingvar1") || strings.Contains(output, "missingvar1"))
 	assert.True(t, strings.Contains(errOutput, "missingvar2") || strings.Contains(output, "missingvar2"))
+}
+
+func TestTerragruntPlanAllGraphCommand(t *testing.T) {
+	t.Parallel()
+
+	// this test doesn't even run plan, it exits right after the stack was created
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PLAN_ALL_GRAPH)
+
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PLAN_ALL_GRAPH, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
+
+	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, TEST_FIXTURE_PLAN_ALL_GRAPH)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt plan-all --terragrunt-graph --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
+	output := stdout.String()
+	assert.True(t, strings.Contains(output, strings.TrimSpace(`
+digraph {
+	"/app1" ;
+	"/app1" -> "/app3";
+	"/app2" ;
+	"/app2" -> "/app3";
+	"/app2" -> "/app1";
+	"/app3" ;
+}
+	`)))
 }
 
 func TestTerragruntOutputAllCommand(t *testing.T) {

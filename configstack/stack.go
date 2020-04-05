@@ -29,6 +29,11 @@ func (stack *Stack) String() string {
 	return fmt.Sprintf("Stack at %s:\n%s", stack.Path, strings.Join(modules, "\n"))
 }
 
+// Graph creates a graphviz representation of the modules
+func (stack *Stack) Graph(terragruntOptions *options.TerragruntOptions) {
+	WriteDot(terragruntOptions.Writer, terragruntOptions, stack.Modules)
+}
+
 // Plan execute plan in the given stack in their specified order.
 func (stack *Stack) Plan(terragruntOptions *options.TerragruntOptions) error {
 	stack.setTerraformCommand([]string{"plan"})

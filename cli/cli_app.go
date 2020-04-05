@@ -32,6 +32,7 @@ const OPT_DOWNLOAD_DIR = "terragrunt-download-dir"
 const OPT_TERRAGRUNT_SOURCE = "terragrunt-source"
 const OPT_TERRAGRUNT_SOURCE_UPDATE = "terragrunt-source-update"
 const OPT_TERRAGRUNT_IAM_ROLE = "terragrunt-iam-role"
+const OPT_TERRAGRUNT_GRAPH = "terragrunt-graph"
 const OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS = "terragrunt-ignore-dependency-errors"
 const OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ORDER = "terragrunt-ignore-dependency-order"
 const OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES = "terragrunt-ignore-external-dependencies"
@@ -61,6 +62,7 @@ var ALL_TERRAGRUNT_STRING_OPTS = []string{
 	OPT_DOWNLOAD_DIR,
 	OPT_TERRAGRUNT_SOURCE,
 	OPT_TERRAGRUNT_IAM_ROLE,
+	OPT_TERRAGRUNT_GRAPH,
 	OPT_TERRAGRUNT_EXCLUDE_DIR,
 	OPT_TERRAGRUNT_INCLUDE_DIR,
 	OPT_TERRAGRUNT_HCLFMT_FILE,
@@ -166,6 +168,7 @@ GLOBAL OPTIONS:
    terragrunt-include-external-dependencies     *-all commands will include external dependencies
    terragrunt-exclude-dir                       Unix-style glob of directories to exclude when running *-all commands
    terragrunt-include-dir                       Unix-style glob of directories to include when running *-all commands
+   terragrunt-graph                             Display the graphviz representation of the modules when running *-all commands, displays the graph and exit
    terragrunt-check                             Enable check mode in the hclfmt command.
    terragrunt-hclfmt-file                       The path to a single terragrunt.hcl file that the hclfmt command should run on.
 
@@ -748,6 +751,12 @@ func planAll(terragruntOptions *options.TerragruntOptions) error {
 	if err != nil {
 		return err
 	}
+
+	if terragruntOptions.Graph {
+		stack.Graph(terragruntOptions)
+		return nil
+	}
+	fmt.Println("Hello world!")
 
 	terragruntOptions.Logger.Printf("%s", stack.String())
 	return stack.Plan(terragruntOptions)
