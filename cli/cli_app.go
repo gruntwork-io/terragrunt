@@ -752,11 +752,11 @@ func planAll(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
+	// Exit early if the operation wanted is to get the graph
 	if terragruntOptions.Graph {
 		stack.Graph(terragruntOptions)
 		return nil
 	}
-	fmt.Println("Hello world!")
 
 	terragruntOptions.Logger.Printf("%s", stack.String())
 	return stack.Plan(terragruntOptions)
