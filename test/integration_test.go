@@ -681,12 +681,12 @@ func TestTerragruntPlanAllGraphCommand(t *testing.T) {
 	output := stdout.String()
 	assert.True(t, strings.Contains(output, strings.TrimSpace(`
 digraph {
-	"/app1" ;
-	"/app1" -> "/app3";
-	"/app2" ;
-	"/app2" -> "/app3";
-	"/app2" -> "/app1";
-	"/app3" ;
+	"app1" ;
+	"app1" -> "app3";
+	"app2" ;
+	"app2" -> "app3";
+	"app2" -> "app1";
+	"app3" ;
 }
 	`)))
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/options"
 	"io"
+	"path/filepath"
 	"strings"
 )
 
@@ -14,21 +15,24 @@ func WriteDot(w io.Writer, terragruntOptions *options.TerragruntOptions, modules
 	w.Write([]byte("digraph {\n"))
 	defer w.Write([]byte("}\n"))
 
+	// all paths are relative to the TerragruntConfigPath
+	prefix := filepath.Dir(terragruntOptions.TerragruntConfigPath) + "/"
+
 	for _, source := range modules {
 		// apply a different coloring for excluded nodes
 		style := ""
 		if source.FlagExcluded {
-			style = fmt.Sprintf("[fillcolor=red]")
+			style = fmt.Sprintf("[color=red]")
 		}
 
 		nodeLine := fmt.Sprintf("\t\"%s\" %s;\n",
-			strings.TrimPrefix(source.Path, terragruntOptions.WorkingDir), style)
+			strings.TrimPrefix(source.Path, prefix), style)
 
 		w.Write([]byte(nodeLine))
 		for _, target := range source.Dependencies {
 			line := fmt.Sprintf("\t\"%s\" -> \"%s\";\n",
-				strings.TrimPrefix(source.Path, terragruntOptions.WorkingDir),
-				strings.TrimPrefix(target.Path, terragruntOptions.WorkingDir),
+				strings.TrimPrefix(source.Path, prefix),
+				strings.TrimPrefix(target.Path, prefix),
 			)
 			w.Write([]byte(line))
 		}
