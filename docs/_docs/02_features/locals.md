@@ -1,7 +1,7 @@
 ---
 layout: collection-browser-doc
 title: Locals
-category: Features
+category: features
 categories_url: features
 excerpt: Learn how to use locals.
 tags: ["locals"]
@@ -79,5 +79,5 @@ locals {
 ```
 
 This configuration will load in the `common_vars.yaml` file and bind it to the attribute `common_vars` so that it is available
-in the current context. Note that because `locals` is a block, there currently is a way to merge the map into the top
+in the current context. Note that because `locals` is a block, there is not currently a way to merge the map into the top
 level.

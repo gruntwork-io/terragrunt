@@ -1,0 +1,177 @@
+{% capture tocWorkspace %}
+  {% comment %}
+    To build navigation:
+    == A1: Group docs by categories
+    == A2: [Loop] Go by categories...
+    == A3: ADD CATEGORY LINK TO THE NAV (It's the uppermost level of links in navigation.)
+    == A4: [Loop] Go by documents in the category...
+      == B1: ADD DOC'S TITLE TO NAV
+      == B2: [Loop] Go by headings in a doc...
+        == B3: ADD HEADING TO THE NAV
+    == A6: Final steps
+        Add ID and classes to the navigation, and `markdonify` content.
+  {% endcomment %}
+
+  {% capture my_toc %}{% endcapture %}
+
+  {% assign collection_name = include.collection_name | default: 'posts' %}
+  {% comment %}
+    ======================= A1: GROUP BY CATEGORIES =======================
+  {% endcomment %}
+  {% assign collection_grouped = site[collection_name] | group_by: 'category' %}
+  {% assign sort_by = include.sort_by | default: 'order' %}
+  {% assign orderedList = include.ordered | default: false %}
+  {% assign minHeader = include.h_min | default: 1 %}
+  {% assign maxHeader = include.h_max | default: 6 %}
+  {% assign firstHeader = true %}
+  {% assign level = 0 %}
+
+  {% assign docHeaderIndentAmount = 1 %}
+
+  {% comment %}
+    ======================= A2: CATEGORIES LOOP =======================
+  {% endcomment %}
+  {% for category in collection_grouped %}
+
+    {% capture col_id %}{{ collection_name | downcase | replace: ' ', '-' | replace: ':', ''}}{% endcapture %}
+    {% capture cat_id %}{{ category.name | downcase | replace: ' ', '-' | replace: ':', ''}}{% endcapture %}
+
+    {% comment %}
+      ======================= A3: BUILD CATEGORY LINK =======================
+      The category link is defined as link to the heading on index page.
+    {% endcomment %}
+
+    {% capture category_link %}{{ site.baseurl }}/{{ collection_name }}#{{ category.name }}{% endcapture %}
+    {% capture my_toc %}{{ my_toc }}
+- <span
+  class='nav-collapse-handler category-head collapsed'
+  id='cat-nav-id-{{ col_id }}-{{ cat_id }}'
+  data-toggle='collapse'
+  role='button'
+  aria-expanded='false'
+  aria-controls='{{ col_id }}-{{ cat_id }}'>
+  <span class='arrow-icon glyphicon glyphicon-triangle-bottom'></span>
+</span>[{{ category.name | replace: '-',' ' | replace: '%20', ' ' | capitalize }}]({{ category_link }}){% endcapture %}
+
+
+    {% comment %}
+      ======================= A4: DOCS LOOP =======================
+      Loop over the docs within a category.
+    {% endcomment %}
+    {% assign items = category.items | sort: sort_by %}
+    {% for doc in items %}
+
+        {% capture n_cont %}{{ doc.content }}{% endcapture %}
+        {% assign n_cont_md = n_cont | markdownify %}
+
+        {% comment %}
+          ======================= B1: ADD DOC TITLE TO NAV =======================
+          Add document's title to the navigation.
+        {% endcomment %}
+        {% capture doc_id %}{{ doc.title | downcase | downcase | replace: ' ', '-' | replace: ':', ''}}{% endcapture %}
+        {% assign doc_url = doc.url %}
+        {% if doc.redirect_to %}
+          {% assign doc_url = doc.redirect_to %}
+        {% endif %}
+        {% capture my_toc %}{{ my_toc }}
+  - <span
+    class='nav-collapse-handler category-head collapsed'
+    id='cat-nav-id-{{ doc_id }}-{{ cat_id }}'
+    data-toggle='collapse'
+    role='button'
+    aria-expanded='false'
+    aria-controls='{{ doc_id }}-{{ cat_id }}'>
+  <span class='arrow-icon glyphicon glyphicon-triangle-bottom'></span>
+  </span>[{{ doc.title }}]({{ site.baseurl }}{{ doc_url }}){% endcapture %}
+
+        {% comment %}
+          =============== B2: Find headings in doc and add to nav ================
+          Goes heading by heading (h2, h3, h4, etc.), and adds it to the navigation.
+        {% endcomment %}
+        {% assign nodes = n_cont_md | split: '<h' %}
+        {% for node in nodes %}
+
+          {% if node == "" %}
+              {% continue %}
+          {% endif %}
+
+          {% assign headerLevel = node | replace: '"', '' | slice: 0, 1 | times: 1 %}
+
+          {% if headerLevel < minHeader or headerLevel > maxHeader %}
+              {% continue %}
+          {% endif %}
+
+          {% if firstHeader %}
+              {% assign firstHeader = false %}
+              {% assign minHeader = headerLevel %}
+          {% endif %}
+
+          {% assign indentAmount = headerLevel | minus: minHeader | plus: docHeaderIndentAmount %}
+          {% assign _workspace = node | split: '</h' %}
+
+          {% assign _idWorkspace = _workspace[0] | split: 'id="' %}
+          {% assign _idWorkspace = _idWorkspace[1] | split: '"' %}
+          {% assign html_id = _idWorkspace[0] %}
+
+          {% assign _classWorkspace = _workspace[0] | split: 'class="' %}
+          {% assign _classWorkspace = _classWorkspace[1] | split: '"' %}
+          {% assign html_class = _classWorkspace[0] %}
+
+          {% if html_class contains "no_toc" %}
+              {% continue %}
+          {% endif %}
+
+          {% capture _hAttrToStrip %}{{ _workspace[0] | split: '>' | first }}>{% endcapture %}
+          {% assign header = _workspace[0] | replace: _hAttrToStrip, '' %}
+
+          {% assign space = '' %}
+          {% for i in (1..indentAmount) %}
+              {% assign space = space | prepend: '    ' %}
+          {% endfor %}
+
+          {% unless include.item_class == blank %}
+              {% capture listItemClass %}{{ include.item_class | replace: '%level%', headerLevel }}{% endcapture %}
+          {% endunless %}
+
+          {% capture heading_body %}{% if include.sanitize %}{{ header | strip_html }}{% else %}{{ header }}{% endif %}{% endcapture %}
+
+          {% comment %}
+            ======================= B3: ADD HEADING TO THE NAV =======================
+            Go heading-by-heading (h2, h3, h4, etc.), and add it to the navigation.
+          {% endcomment %}
+          {% capture my_toc %}{{ my_toc }}
+{{ space }}- <span
+  class='nav-collapse-handler category-head collapsed'
+  id='cat-nav-id-{{ doc_id }}-{{ cat_id }}-{{ increment level }}'
+  data-toggle='collapse'
+  role='button'
+  aria-expanded='false'
+  aria-controls='{{ doc_id }}-{{ cat_id }}-{{ increment level }}'>
+  <span class='arrow-icon glyphicon glyphicon-triangle-bottom'></span>
+</span>[{{ heading_body | replace: "|", "\|" }}]({% if include.baseurl %}{{ include.baseurl }}{% endif %}{{ site.baseurl }}{{doc.url}}#{{ html_id }}){% if include.anchor_class %}{:.{{ include.anchor_class }}}{% endif %}{% endcapture %}
+
+        {% endfor %}
+
+
+    {% endfor %}
+
+  {% endfor %}
+
+
+  {% comment %}
+    ======================= A6: FINAL STEPS =======================
+  {% endcomment %}
+
+  {% if include.class %}
+      {% capture my_toc %}{:.{{ include.class }}}
+{{ my_toc | lstrip }}{% endcapture %}
+  {% endif %}
+  {% if include.id %}
+      {% capture my_toc %}{: #{{ include.id }}}
+{{ my_toc | lstrip }}{% endcapture %}
+  {% endif %}
+
+{% endcapture %}
+{% assign tocWorkspace = '' %}
+
+{{ my_toc | markdownify | strip }}

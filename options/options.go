@@ -113,11 +113,17 @@ type TerragruntOptions struct {
 	// Unix-style glob of directories to include when running *-all commands
 	IncludeDirs []string
 
+	// If set to true, do not include dependencies when processing IncludeDirs (unless they are in the included dirs)
+	StrictInclude bool
+
 	// Parallelism limits the number of commands to run concurrently during *-all commands
 	Parallelism int
 
 	// Enable check mode, by default it's disabled.
 	Check bool
+
+	// The file which hclfmt should be specifically run on
+	HclFile string
 
 	// A command that can be used to run Terragrunt with the given options. This is useful for running Terragrunt
 	// multiple times (e.g. when spinning up a stack of Terraform modules). The actual command is normally defined
@@ -162,6 +168,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		RetryableErrors:             util.CloneStringList(RETRYABLE_ERRORS),
 		ExcludeDirs:                 []string{},
 		IncludeDirs:                 []string{},
+		StrictInclude:               false,
 		Parallelism:                 DEFAULT_PARALLELISM,
 		Check:                       false,
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
@@ -234,6 +241,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		ExcludeDirs:                 terragruntOptions.ExcludeDirs,
 		IncludeDirs:                 terragruntOptions.IncludeDirs,
 		Parallelism:                 terragruntOptions.Parallelism,
+		StrictInclude:               terragruntOptions.StrictInclude,
 		RunTerragrunt:               terragruntOptions.RunTerragrunt,
 	}
 }

@@ -15,12 +15,15 @@ import (
 
 // A representation of the configuration options for an AWS Session
 type AwsSessionConfig struct {
-	Region           string
-	CustomS3Endpoint string
-	Profile          string
-	RoleArn          string
-	CredsFilename    string
-	S3ForcePathStyle bool
+	Region                  string
+	CustomS3Endpoint        string
+	Profile                 string
+	RoleArn                 string
+	CredsFilename           string
+	S3ForcePathStyle        bool
+	DisableComputeChecksums bool
+	ExternalID              string
+	SessionName             string
 }
 
 // Returns an AWS session object for the given config region (required), profile name (optional), and IAM role to assume
@@ -39,9 +42,10 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 	}
 
 	var awsConfig = aws.Config{
-		Region:           aws.String(config.Region),
-		EndpointResolver: endpoints.ResolverFunc(s3CustResolverFn),
-		S3ForcePathStyle: aws.Bool(config.S3ForcePathStyle),
+		Region:                  aws.String(config.Region),
+		EndpointResolver:        endpoints.ResolverFunc(s3CustResolverFn),
+		S3ForcePathStyle:        aws.Bool(config.S3ForcePathStyle),
+		DisableComputeChecksums: aws.Bool(config.DisableComputeChecksums),
 	}
 
 	var sessionOptions = session.Options{
@@ -59,10 +63,19 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 		return nil, errors.WithStackTraceAndPrefix(err, "Error initializing session")
 	}
 
+	credentialsOptFn := func(p *stscreds.AssumeRoleProvider) {
+		if config.ExternalID != "" {
+			p.ExternalID = aws.String(config.ExternalID)
+		}
+		if config.SessionName != "" {
+			p.RoleSessionName = config.SessionName
+		}
+	}
+
 	if config.RoleArn != "" {
-		sess.Config.Credentials = stscreds.NewCredentials(sess, config.RoleArn)
+		sess.Config.Credentials = stscreds.NewCredentials(sess, config.RoleArn, credentialsOptFn)
 	} else if terragruntOptions.IamRole != "" {
-		sess.Config.Credentials = stscreds.NewCredentials(sess, terragruntOptions.IamRole)
+		sess.Config.Credentials = stscreds.NewCredentials(sess, terragruntOptions.IamRole, credentialsOptFn)
 	}
 
 	if _, err = sess.Config.Credentials.Get(); err != nil {

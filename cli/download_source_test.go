@@ -244,10 +244,10 @@ func TestSplitSourceUrl(t *testing.T) {
 		{"relative-path-no-children-with-double-slash", "..//foo", "..", "foo"},
 		{"relative-path-one-child-with-double-slash", "../foo//bar", "../foo", "bar"},
 		{"relative-path-multiple-children-with-double-slash", "../foo/bar//baz/blah", "../foo/bar", "baz/blah"},
-		{"parent-url-one-child-no-double-slash", "ssh://git@github.com:foo/modules.git/foo", "ssh://git@github.com:foo/modules.git/foo", ""},
-		{"parent-url-multiple-children-no-double-slash", "ssh://git@github.com:foo/modules.git/foo/bar/baz/blah", "ssh://git@github.com:foo/modules.git/foo/bar/baz/blah", ""},
-		{"parent-url-one-child-with-double-slash", "ssh://git@github.com:foo/modules.git//foo", "ssh://git@github.com:foo/modules.git", "foo"},
-		{"parent-url-multiple-children-with-double-slash", "ssh://git@github.com:foo/modules.git//foo/bar/baz/blah", "ssh://git@github.com:foo/modules.git", "foo/bar/baz/blah"},
+		{"parent-url-one-child-no-double-slash", "ssh://git@github.com/foo/modules.git/foo", "ssh://git@github.com/foo/modules.git/foo", ""},
+		{"parent-url-multiple-children-no-double-slash", "ssh://git@github.com/foo/modules.git/foo/bar/baz/blah", "ssh://git@github.com/foo/modules.git/foo/bar/baz/blah", ""},
+		{"parent-url-one-child-with-double-slash", "ssh://git@github.com/foo/modules.git//foo", "ssh://git@github.com/foo/modules.git", "foo"},
+		{"parent-url-multiple-children-with-double-slash", "ssh://git@github.com/foo/modules.git//foo/bar/baz/blah", "ssh://git@github.com/foo/modules.git", "foo/bar/baz/blah"},
 	}
 
 	for _, testCase := range testCases {

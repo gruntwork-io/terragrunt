@@ -1,14 +1,12 @@
 package config
 
 import (
-	"sort"
 	"strings"
 
-	"github.com/hashicorp/hcl2/hcl"
-	"github.com/hashicorp/hcl2/hcl/hclsyntax"
-	"github.com/hashicorp/hcl2/hclparse"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
-	"github.com/zclconf/go-cty/cty/gocty"
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -135,7 +133,7 @@ func attemptEvaluateLocals(
 		}
 	}()
 
-	evaluatedLocalsAsCty, err := convertLocalsMapToCtyVal(evaluatedLocals)
+	evaluatedLocalsAsCty, err := convertValuesMapToCtyVal(evaluatedLocals)
 	if err != nil {
 		terragruntOptions.Logger.Printf("Could not convert evaluated locals to the execution context to evaluate additional locals")
 		return nil, evaluatedLocals, false, err
@@ -143,7 +141,7 @@ func attemptEvaluateLocals(
 	evalCtx := CreateTerragruntEvalContext(
 		filename,
 		terragruntOptions,
-		EvalContextExtensions{Include: included, Locals: evaluatedLocalsAsCty},
+		EvalContextExtensions{Include: included, Locals: &evaluatedLocalsAsCty},
 	)
 
 	// Track the locals that were evaluated for logging purposes
@@ -307,46 +305,6 @@ func decodeLocalsBlock(localsBlock *hcl.Block) ([]*Local, hcl.Diagnostics) {
 		})
 	}
 	return locals, diags
-}
-
-// convertLocalsMapToCtyVal takes the name - cty.Value pairs evaluated out of the locals block and converts to a single
-// cty.Value object that can be passed in as a Variable to the HCL evaluation context.
-func convertLocalsMapToCtyVal(locals map[string]cty.Value) (*cty.Value, error) {
-	var localsAsCty *cty.Value
-	localsAsCty = nil
-	if locals != nil && len(locals) > 0 {
-		localsAsCtyRaw, err := gocty.ToCtyValue(locals, generateTypeFromValuesMap(locals))
-		if err != nil {
-			return nil, errors.WithStackTrace(err)
-		}
-		localsAsCty = &localsAsCtyRaw
-	}
-	return localsAsCty, nil
-}
-
-// generateTypeFromValuesMap takes the locals map and returns an object type that has the same number of fields, but
-// bound to each type of the underlying evaluated expression. This is the only way the HCL decoder will be happy, as
-// object type is the only map type that allows different types for each attribute (cty.Map requires all attributes to
-// have the same type.
-func generateTypeFromValuesMap(locals map[string]cty.Value) cty.Type {
-	outType := map[string]cty.Type{}
-	for k, v := range locals {
-		outType[k] = v.Type()
-	}
-	return cty.Object(outType)
-}
-
-// Return the keys for the given locals map, sorted alphabetically
-func keysOfLocalsMap(m map[string]cty.Value) []string {
-	out := []string{}
-
-	for key, _ := range m {
-		out = append(out, key)
-	}
-
-	sort.Strings(out)
-
-	return out
 }
 
 // ------------------------------------------------

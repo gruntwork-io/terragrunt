@@ -1,7 +1,7 @@
 ---
 layout: collection-browser-doc
 title: Auto-init
-category: Features
+category: features
 categories_url: features
 excerpt: Auto-Init is a feature of Terragrunt that makes it so that terragrunt init does not need to be called explicitly before other terragrunt commands.
 tags: ["CLI"]
@@ -21,7 +21,7 @@ When Auto-Init is enabled (the default), terragrunt will automatically call [`te
 
   - the modules or remote state used by the module have changed since the previous call to `terraform init`.
 
-As [mentioned]({{site.baseurl}}/use-cases/keep-your-cli-flags-dry/#extra_arguments-for-init), `extra_arguments` can be configured to allow customization of the `terraform init` command.
+As [mentioned]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#extra_arguments-for-init), `extra_arguments` can be configured to allow customization of the `terraform init` command.
 
 Note that there might be cases where terragrunt does not properly detect that `terraform init` needs be called. In this case, terraform would fail. Running `terragrunt init` again corrects this situation.
 

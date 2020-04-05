@@ -161,6 +161,13 @@ func TestRunCommand(t *testing.T) {
 		})
 	}
 }
+
+func absPath(t *testing.T, path string) string {
+	out, err := filepath.Abs(path)
+	require.NoError(t, err)
+	return out
+}
+
 func TestFindInParentFolders(t *testing.T) {
 	t.Parallel()
 
@@ -173,13 +180,13 @@ func TestFindInParentFolders(t *testing.T) {
 		{
 			nil,
 			terragruntOptionsForTest(t, "../test/fixture-parent-folders/terragrunt-in-root/child/"+DefaultTerragruntConfigPath),
-			"../" + DefaultTerragruntConfigPath,
+			absPath(t, "../test/fixture-parent-folders/terragrunt-in-root/"+DefaultTerragruntConfigPath),
 			nil,
 		},
 		{
 			nil,
 			terragruntOptionsForTest(t, "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
-			"../../../" + DefaultTerragruntConfigPath,
+			absPath(t, "../test/fixture-parent-folders/terragrunt-in-root/"+DefaultTerragruntConfigPath),
 			nil,
 		},
 		{
@@ -191,25 +198,25 @@ func TestFindInParentFolders(t *testing.T) {
 		{
 			nil,
 			terragruntOptionsForTest(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/"+DefaultTerragruntConfigPath),
-			"../" + DefaultTerragruntConfigPath,
+			absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/"+DefaultTerragruntConfigPath),
 			nil,
 		},
 		{
 			nil,
 			terragruntOptionsForTest(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+DefaultTerragruntConfigPath),
-			"../" + DefaultTerragruntConfigPath,
+			absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/"+DefaultTerragruntConfigPath),
 			nil,
 		},
 		{
 			nil,
 			terragruntOptionsForTest(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
-			"../" + DefaultTerragruntConfigPath,
+			absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+DefaultTerragruntConfigPath),
 			nil,
 		},
 		{
 			[]string{"foo.txt"},
 			terragruntOptionsForTest(t, "../test/fixture-parent-folders/other-file-names/child/"+DefaultTerragruntConfigPath),
-			"../foo.txt",
+			absPath(t, "../test/fixture-parent-folders/other-file-names/foo.txt"),
 			nil,
 		},
 		{
@@ -275,7 +282,7 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 			"terraform { source = find_in_parent_folders() }",
 			nil,
 			terragruntOptionsForTest(t, "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/"+DefaultTerragruntConfigPath),
-			"../../" + DefaultTerragruntConfigPath,
+			absPath(t, "../test/fixture-parent-folders/terragrunt-in-root/"+DefaultTerragruntConfigPath),
 			"",
 		},
 		{
@@ -671,6 +678,121 @@ func TestTerraformOutputJsonToCtyValueMap(t *testing.T) {
 			assert.True(t, v.Equals(testCase.expected[k]).True())
 		}
 	}
+}
+
+func TestReadTerragruntConfigInputs(t *testing.T) {
+	t.Parallel()
+
+	options := terragruntOptionsForTest(t, DefaultTerragruntConfigPath)
+	tgConfigCty, err := readTerragruntConfig("../test/fixture-inputs/terragrunt.hcl", nil, options)
+	require.NoError(t, err)
+
+	tgConfigMap, err := parseCtyValueToMap(tgConfigCty)
+	require.NoError(t, err)
+
+	inputsMap := tgConfigMap["inputs"].(map[string]interface{})
+	assert.Equal(t, inputsMap["string"].(string), "string")
+	assert.Equal(t, inputsMap["number"].(float64), float64(42))
+	assert.Equal(t, inputsMap["bool"].(bool), true)
+	assert.Equal(t, inputsMap["list_string"].([]interface{}), []interface{}{"a", "b", "c"})
+	assert.Equal(t, inputsMap["list_number"].([]interface{}), []interface{}{float64(1), float64(2), float64(3)})
+	assert.Equal(t, inputsMap["list_bool"].([]interface{}), []interface{}{true, false})
+	assert.Equal(t, inputsMap["map_string"].(map[string]interface{}), map[string]interface{}{"foo": "bar"})
+	assert.Equal(
+		t,
+		inputsMap["map_number"].(map[string]interface{}),
+		map[string]interface{}{"foo": float64(42), "bar": float64(12345)},
+	)
+	assert.Equal(
+		t,
+		inputsMap["map_bool"].(map[string]interface{}),
+		map[string]interface{}{"foo": true, "bar": false, "baz": true},
+	)
+	assert.Equal(
+		t,
+		inputsMap["object"].(map[string]interface{}),
+		map[string]interface{}{
+			"str":  "string",
+			"num":  float64(42),
+			"list": []interface{}{float64(1), float64(2), float64(3)},
+			"map":  map[string]interface{}{"foo": "bar"},
+		},
+	)
+	assert.Equal(t, inputsMap["from_env"].(string), "default")
+}
+
+func TestReadTerragruntConfigRemoteState(t *testing.T) {
+	t.Parallel()
+
+	options := terragruntOptionsForTest(t, DefaultTerragruntConfigPath)
+	tgConfigCty, err := readTerragruntConfig("../test/fixture/terragrunt.hcl", nil, options)
+	require.NoError(t, err)
+
+	tgConfigMap, err := parseCtyValueToMap(tgConfigCty)
+	require.NoError(t, err)
+
+	remoteStateMap := tgConfigMap["remote_state"].(map[string]interface{})
+	assert.Equal(t, remoteStateMap["backend"].(string), "s3")
+	configMap := remoteStateMap["config"].(map[string]interface{})
+	assert.Equal(t, configMap["encrypt"].(bool), true)
+	assert.Equal(t, configMap["key"].(string), "terraform.tfstate")
+	assert.Equal(
+		t,
+		configMap["s3_bucket_tags"].(map[string]interface{}),
+		map[string]interface{}{"owner": "terragrunt integration test", "name": "Terraform state storage"},
+	)
+}
+
+func TestReadTerragruntConfigHooks(t *testing.T) {
+	t.Parallel()
+
+	options := terragruntOptionsForTest(t, DefaultTerragruntConfigPath)
+	tgConfigCty, err := readTerragruntConfig("../test/fixture-hooks/before-and-after/terragrunt.hcl", nil, options)
+	require.NoError(t, err)
+
+	tgConfigMap, err := parseCtyValueToMap(tgConfigCty)
+	require.NoError(t, err)
+
+	terraformMap := tgConfigMap["terraform"].(map[string]interface{})
+	beforeHooksMap := terraformMap["before_hook"].(map[string]interface{})
+	assert.Equal(
+		t,
+		beforeHooksMap["before_hook_1"].(map[string]interface{})["execute"].([]interface{}),
+		[]interface{}{"touch", "before.out"},
+	)
+	assert.Equal(
+		t,
+		beforeHooksMap["before_hook_2"].(map[string]interface{})["execute"].([]interface{}),
+		[]interface{}{"echo", "BEFORE_TERRAGRUNT_READ_CONFIG"},
+	)
+
+	afterHooksMap := terraformMap["after_hook"].(map[string]interface{})
+	assert.Equal(
+		t,
+		afterHooksMap["after_hook_1"].(map[string]interface{})["execute"].([]interface{}),
+		[]interface{}{"touch", "after.out"},
+	)
+	assert.Equal(
+		t,
+		afterHooksMap["after_hook_2"].(map[string]interface{})["execute"].([]interface{}),
+		[]interface{}{"echo", "AFTER_TERRAGRUNT_READ_CONFIG"},
+	)
+}
+
+func TestReadTerragruntConfigLocals(t *testing.T) {
+	t.Parallel()
+
+	options := terragruntOptionsForTest(t, DefaultTerragruntConfigPath)
+	tgConfigCty, err := readTerragruntConfig("../test/fixture-locals/canonical/terragrunt.hcl", nil, options)
+	require.NoError(t, err)
+
+	tgConfigMap, err := parseCtyValueToMap(tgConfigCty)
+	require.NoError(t, err)
+
+	localsMap := tgConfigMap["locals"].(map[string]interface{})
+	assert.Equal(t, localsMap["x"].(float64), float64(2))
+	assert.Equal(t, localsMap["file_contents"].(string), "Hello world\n")
+	assert.Equal(t, localsMap["number_expression"].(float64), float64(42))
 }
 
 // Return keys as a map so it is treated like a set, and order doesn't matter when comparing equivalence

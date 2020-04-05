@@ -34,9 +34,11 @@ Terragrunt will forward almost all commands, arguments, and options directly to 
 
 1.  [Keep your backend configuration DRY](#keep-your-backend-configuration-dry)
 
-2.  [Keep your Terraform CLI arguments DRY](#keep-your-terraform-cli-arguments-dry)
+1.  [Keep your provider configuration DRY](#keep-your-provider-configuration-dry)
 
-3.  [Promote immutable, versioned Terraform modules across environments](#promote-immutable-versioned-terraform-modules-across-environments)
+1.  [Keep your Terraform CLI arguments DRY](#keep-your-terraform-cli-arguments-dry)
+
+1.  [Promote immutable, versioned Terraform modules across environments](#promote-immutable-versioned-terraform-modules-across-environments)
 
 ## Keep your backend configuration DRY
 
@@ -105,22 +107,16 @@ To use Terragrunt, add a single `terragrunt.hcl` file to the root of your repo, 
         ├── main.tf
         └── terragrunt.hcl
 
-Next, in each of your Terraform modules, remove the contents of the `backend` configuration:
-
-``` hcl
-# stage/mysql/main.tf
-terraform {
-  # Intentionally empty. Will be filled by Terragrunt.
-  backend "s3" {}
-}
-```
-
 Now you can define your `backend` configuration just once in the root `terragrunt.hcl` file:
 
 ``` hcl
 # stage/terragrunt.hcl
 remote_state {
   backend = "s3"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
   config = {
     bucket = "my-terraform-state"
 
@@ -133,6 +129,10 @@ remote_state {
 ```
 
 The `terragrunt.hcl` files use the same configuration language as Terraform (HCL) and the configuration is more or less the same as the `backend` configuration you had in each module, except that the `key` value is now using the `path_relative_to_include()` built-in function, which will automatically set `key` to the relative path between the root `terragrunt.hcl` and the child module (so your Terraform state folder structure will match your Terraform code folder structure, which makes it easy to go from one to the other).
+
+The `generate` attribute is used to inform Terragrunt to generate the Terraform code for configuring the backend. When
+you run any Terragrunt command, Terragrunt will generate a `backend.tf` file with the contents set to the `terraform`
+block that configures the `s3` backend, just like what we had before in each `main.tf` file.
 
 The final step is to update each of the child `terragrunt.hcl` files to tell them to include the configuration from the root `terragrunt.hcl`:
 
@@ -155,6 +155,83 @@ $ terragrunt apply
 Terragrunt will automatically find the `mysql` module’s `terragrunt.hcl` file, configure the `backend` using the settings from the root `terragrunt.hcl` file, and, thanks to the `path_relative_to_include()` function, will set the `key` to `stage/mysql/terraform.tfstate`. If you run `terragrunt apply` in `stage/frontend-app`, it’ll do the same, except it will set the `key` to `stage/frontend-app/terraform.tfstate`.
 
 You can now add as many child modules as you want, each with a `terragrunt.hcl` with the `include { …​ }` block, and each of those modules will automatically inherit the proper `backend` configuration\!
+
+## Keep your provider configuration DRY
+
+Unifying provider configurations across all your modules can be a pain, especially when you want to customize
+authentication credentials. To configure Terraform to assume an IAM role before calling out to AWS, you need to add a
+`provider` block with the `assume_role` configuration:
+
+```
+# stage/frontend-app/main.tf
+provider "aws" {
+  assume_role {
+    role_arn = "arn:aws:iam::0123456789:role/terragrunt"
+  }
+}
+```
+
+This code tells Terraform to assume the role `arn:aws:iam::0123456789:role/terragrunt` prior to calling out to the AWS
+APIs to create the resources. Unlike the `backend` configurations, `provider` configurations support variables, so
+typically you will resolve this by making the role configurable in the module:
+
+```
+# stage/frontend-app/main.tf
+variable "assume_role_arn" {
+  description = "Role to assume for AWS API calls"
+}
+
+provider "aws" {
+  assume_role {
+    role_arn = var.assume_role_arn
+  }
+}
+```
+
+You would then copy paste this configuration in every one of your Terraform modules. This isn't a lot of lines of code,
+but can be a pain to maintain. For example, if you needed to modify the configuration to expose another parameter (e.g
+`session_name`), you would have to then go through each of your modules to make this change.
+
+In addition, what if you wanted to directly deploy a general purpose module, such as that from the [Terraform module
+registry](https://registry.terraform.io/) or the [Gruntwork Infrastructure as Code
+library](https://gruntwork.io/infrastructure-as-code-library/)? These modules typically do not expose provider
+configurations as it is tedious to expose every single provider configuration parameter imaginable through the module
+interface.
+
+Terragrunt allows you to refactor common Terraform code to keep your Terraform modules DRY. Just like with the `backend`
+configuration, you can define the `provider` configurations once in a root location. In the root `terragrunt.hcl` file,
+you would define the `provider` configuration using the `generate` block:
+
+```hcl
+# stage/terragrunt.hcl
+generate "provider" {
+  path = "provider.tf"
+  if_exists = "overwrite_terragrunt"
+  contents = <<EOF
+provider "aws" {
+  assume_role {
+    role_arn = "arn:aws:iam::0123456789:role/terragrunt"
+  }
+}
+EOF
+}
+```
+
+This instructs Terragrunt to create the file `provider.tf` in the working directory (where Terragrunt calls `terraform`)
+before it calls any of the Terraform commands (e.g `plan`, `apply`, `validate`, etc). This allows you to inject this
+provider configuration in all the modules that includes the root file without having to define them in the underlying
+modules.
+
+When you run `terragrunt plan` or `terragrunt apply`, you can see that this file is created in the module working
+directory:
+
+``` bash
+$ cd stage/mysql
+$ terragrunt apply
+$ find . -name "provider.tf"
+.terragrunt-cache/some-unique-hash/provider.tf
+```
+
 
 ## Keep your Terraform CLI arguments DRY
 
@@ -409,7 +486,7 @@ If at any point you hit a problem, it will only affect the one environment, and 
 
 Now that you’ve seen the basics of Terragrunt, here is some further reading to learn more:
 
-1.  [Use cases]({{site.baseurl}}/use-cases/): Learn about the core use cases Terragrunt supports.
+1.  [Use cases]({{site.baseurl}}/docs/#features): Learn about the core use cases Terragrunt supports.
 
 2.  [Documentation]({{site.baseurl}}/docs/): Check out the detailed Terragrunt documentation.
 

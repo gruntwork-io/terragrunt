@@ -1,11 +1,12 @@
 package cli
 
 import (
+	"testing"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
@@ -71,4 +72,16 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 			assert.Equal(t, testCase.expected, opts.Env)
 		})
 	}
+}
+
+func TestTerragruntHandlesCatastrophicTerraformFailure(t *testing.T) {
+	t.Parallel()
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	// Use a path that doesn't exist to induce error
+	tgOptions.TerraformPath = "i-dont-exist"
+	err = runTerraformWithRetry(tgOptions)
+	require.Error(t, err)
 }

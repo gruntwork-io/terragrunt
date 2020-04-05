@@ -1,7 +1,7 @@
 ---
 layout: collection-browser-doc
 title: AWS Auth
-category: Features
+category: features
 categories_url: features
 excerpt: Learn how the Terragrunt works with AWS Credentials and AWS IAM policies.
 tags: ["AWS"]

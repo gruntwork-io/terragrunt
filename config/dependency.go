@@ -3,16 +3,18 @@ package config
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
 
-	"github.com/hashicorp/hcl2/hcl"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -20,16 +22,30 @@ import (
 )
 
 type Dependency struct {
-	Name                                string     `hcl:",label"`
-	ConfigPath                          string     `hcl:"config_path,attr"`
-	SkipOutputs                         *bool      `hcl:"skip_outputs,attr"`
-	MockOutputs                         *cty.Value `hcl:"mock_outputs,attr"`
-	MockOutputsAllowedTerraformCommands *[]string  `hcl:"mock_outputs_allowed_terraform_commands,attr"`
+	Name                                string     `hcl:",label" cty:"name"`
+	ConfigPath                          string     `hcl:"config_path,attr" cty:"config_path"`
+	SkipOutputs                         *bool      `hcl:"skip_outputs,attr" cty:"skip"`
+	MockOutputs                         *cty.Value `hcl:"mock_outputs,attr" cty:"mock_outputs"`
+	MockOutputsAllowedTerraformCommands *[]string  `hcl:"mock_outputs_allowed_terraform_commands,attr" cty:"mock_outputs_allowed_terraform_commands"`
+
+	// Used to store the rendered outputs for use when the config is imported or read with `read_terragrunt_config`
+	RenderedOutputs *cty.Value `cty:"outputs"`
 }
 
 // Given a dependency config, we should only attempt to get the outputs if SkipOutputs is nil or false
 func (dependencyConfig Dependency) shouldGetOutputs() bool {
 	return dependencyConfig.SkipOutputs == nil || !(*dependencyConfig.SkipOutputs)
+}
+
+func (dependencyConfig *Dependency) setRenderedOutputs(terragruntOptions *options.TerragruntOptions) error {
+	if (*dependencyConfig).shouldGetOutputs() || shouldReturnMockOutputs(*dependencyConfig, terragruntOptions) {
+		outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(*dependencyConfig, terragruntOptions)
+		if err != nil {
+			return err
+		}
+		dependencyConfig.RenderedOutputs = outputVal
+	}
+	return nil
 }
 
 // jsonOutputCache is a map that maps config paths to the outputs so that they can be reused across calls for common
@@ -86,7 +102,7 @@ func checkForDependencyBlockCycles(filename string, decodedDependency terragrunt
 	visitedPaths := []string{}
 	currentTraversalPaths := []string{filename}
 	for _, dependency := range decodedDependency.Dependencies {
-		dependencyPath := cleanDependencyTerragruntConfigPath(filename, dependency.ConfigPath)
+		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath, filename)
 		dependencyOptions := terragruntOptions.Clone(dependencyPath)
 		if err := checkForDependencyBlockCyclesUsingDFS(dependencyPath, &visitedPaths, &currentTraversalPaths, dependencyOptions); err != nil {
 			return err
@@ -119,7 +135,7 @@ func checkForDependencyBlockCyclesUsingDFS(
 		return err
 	}
 	for _, dependency := range dependencyPaths {
-		nextPath := cleanDependencyTerragruntConfigPath(currentConfigPath, dependency)
+		nextPath := getCleanedTargetConfigPath(dependency, currentConfigPath)
 		nextOptions := terragruntOptions.Clone(nextPath)
 		if err := checkForDependencyBlockCyclesUsingDFS(nextPath, visitedPaths, currentTraversalPaths, nextOptions); err != nil {
 			return err
@@ -130,22 +146,6 @@ func checkForDependencyBlockCyclesUsingDFS(
 	*currentTraversalPaths = util.RemoveElementFromList(*currentTraversalPaths, currentConfigPath)
 
 	return nil
-}
-
-// Ensures the dependency path points to the right terragrunt config path.
-func cleanDependencyTerragruntConfigPath(currentConfigPath string, dependencyPath string) string {
-	// Dependency paths are relative to the config, so we convert to absolute paths while we still have the proper
-	// context.
-	if !filepath.IsAbs(dependencyPath) {
-		dependencyPath = filepath.Clean(filepath.Join(filepath.Dir(currentConfigPath), dependencyPath))
-	}
-	// Dependency blocks can be the directory holding a terragrunt config, but we want to read the actual config
-	// file here. So if the dependency path is a directory, we assume the default config filename exists in the
-	// directory.
-	if util.IsDir(dependencyPath) {
-		dependencyPath = filepath.Join(dependencyPath, DefaultTerragruntConfigPath)
-	}
-	return dependencyPath
 }
 
 // Given the config path, return the list of config paths that are specified as dependency blocks in the config
@@ -171,34 +171,49 @@ func getDependencyBlockConfigPathsByFilepath(configPath string, terragruntOption
 // This routine will go through the process of obtaining the outputs using `terragrunt output` from the target config.
 func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
 	paths := []string{}
+
 	// dependencyMap is the top level map that maps dependency block names to the encoded version, which includes
 	// various attributes for accessing information about the target config (including the module outputs).
 	dependencyMap := map[string]cty.Value{}
+	lock := sync.Mutex{}
+	dependencyErrGroup, _ := errgroup.WithContext(context.Background())
 
 	for _, dependencyConfig := range dependencyConfigs {
-		// Loose struct to hold the attributes of the dependency. This includes:
-		// - outputs: The module outputs of the target config
-		dependencyEncodingMap := map[string]cty.Value{}
+		dependencyConfig := dependencyConfig // https://golang.org/doc/faq#closures_and_goroutines
+		dependencyErrGroup.Go(func() error {
+			// Loose struct to hold the attributes of the dependency. This includes:
+			// - outputs: The module outputs of the target config
+			dependencyEncodingMap := map[string]cty.Value{}
 
-		// Encode the outputs and nest under `outputs` attribute if we should get the outputs or the `mock_outputs`
-		if dependencyConfig.shouldGetOutputs() || shouldReturnMockOutputs(dependencyConfig, terragruntOptions) {
-			paths = append(paths, dependencyConfig.ConfigPath)
-			outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig, terragruntOptions)
-			if err != nil {
-				return nil, err
+			// Encode the outputs and nest under `outputs` attribute if we should get the outputs or the `mock_outputs`
+			if err := dependencyConfig.setRenderedOutputs(terragruntOptions); err != nil {
+				return err
 			}
-			dependencyEncodingMap["outputs"] = *outputVal
-		}
+			if dependencyConfig.RenderedOutputs != nil {
+				paths = append(paths, dependencyConfig.ConfigPath)
+				dependencyEncodingMap["outputs"] = *dependencyConfig.RenderedOutputs
+			}
 
-		// Once the dependency is encoded into a map, we need to conver to a cty.Value again so that it can be fed to
-		// the higher order dependency map.
-		dependencyEncodingMapEncoded, err := gocty.ToCtyValue(dependencyEncodingMap, generateTypeFromValuesMap(dependencyEncodingMap))
-		if err != nil {
-			err = TerragruntOutputListEncodingError{Paths: paths, Err: err}
-		}
+			// Once the dependency is encoded into a map, we need to convert to a cty.Value again so that it can be fed to
+			// the higher order dependency map.
+			dependencyEncodingMapEncoded, err := gocty.ToCtyValue(dependencyEncodingMap, generateTypeFromValuesMap(dependencyEncodingMap))
+			if err != nil {
+				err = TerragruntOutputListEncodingError{Paths: paths, Err: err}
+				return err
+			}
 
-		// Finally, feed the encoded dependency into the higher order map under the block name
-		dependencyMap[dependencyConfig.Name] = dependencyEncodingMapEncoded
+			// Lock the map as only one goroutine should be writing to the map at a time
+			lock.Lock()
+			defer lock.Unlock()
+
+			// Finally, feed the encoded dependency into the higher order map under the block name
+			dependencyMap[dependencyConfig.Name] = dependencyEncodingMapEncoded
+			return nil
+		})
+	}
+
+	if err := dependencyErrGroup.Wait(); err != nil {
+		return nil, err
 	}
 
 	// We need to convert the value map to a single cty.Value at the end so that it can be used in the execution context
@@ -207,20 +222,6 @@ func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOption
 		err = TerragruntOutputListEncodingError{Paths: paths, Err: err}
 	}
 	return &convertedOutput, errors.WithStackTrace(err)
-}
-
-// Returns a cleaned path to the target config (the `terragrunt.hcl` file) encoded in the Dependency, handling relative
-// paths correctly. This will automatically append `terragrunt.hcl` to the path if the target path is a directory.
-func getCleanedTargetConfigPath(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) string {
-	cwd := filepath.Dir(terragruntOptions.TerragruntConfigPath)
-	targetConfig := dependencyConfig.ConfigPath
-	if !filepath.IsAbs(targetConfig) {
-		targetConfig = util.JoinPath(cwd, targetConfig)
-	}
-	if util.IsDir(targetConfig) {
-		targetConfig = util.JoinPath(targetConfig, DefaultTerragruntConfigPath)
-	}
-	return util.CleanPath(targetConfig)
 }
 
 // This will attempt to get the outputs from the target terragrunt config if it is applied. If it is not applied, the
@@ -242,7 +243,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 	// When we get no output, it can be an indication that either the module has no outputs or the module is not
 	// applied. In either case, check if there are default output values to return. If yes, return that. Else,
 	// return error.
-	targetConfig := getCleanedTargetConfigPath(dependencyConfig, terragruntOptions)
+	targetConfig := getCleanedTargetConfigPath(dependencyConfig.ConfigPath, terragruntOptions.TerragruntConfigPath)
 	currentConfig := terragruntOptions.TerragruntConfigPath
 	if shouldReturnMockOutputs(dependencyConfig, terragruntOptions) {
 		util.Debugf(
@@ -278,7 +279,7 @@ func shouldReturnMockOutputs(dependencyConfig Dependency, terragruntOptions *opt
 func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, bool, error) {
 
 	// target config check: make sure the target config exists
-	targetConfig := getCleanedTargetConfigPath(dependencyConfig, terragruntOptions)
+	targetConfig := getCleanedTargetConfigPath(dependencyConfig.ConfigPath, terragruntOptions.TerragruntConfigPath)
 	if !util.FileExists(targetConfig) {
 		return nil, true, errors.WithStackTrace(DependencyConfigNotFound{Path: targetConfig})
 	}

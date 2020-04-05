@@ -67,6 +67,11 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 		terragruntConfigPath = config.GetDefaultConfigPath(workingDir)
 	}
 
+	terragruntHclFilePath, err := parseStringArg(args, OPT_TERRAGRUNT_HCLFMT_FILE, "")
+	if err != nil {
+		return nil, err
+	}
+
 	terraformPath, err := parseStringArg(args, OPT_TERRAGRUNT_TFPATH, os.Getenv("TERRAGRUNT_TFPATH"))
 	if err != nil {
 		return nil, err
@@ -105,6 +110,8 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 		return nil, err
 	}
 
+	strictInclude := parseBooleanArg(args, OPT_TERRAGRUNT_STRICT_INCLUDE, false)
+
 	opts, err := options.NewTerragruntOptions(filepath.ToSlash(terragruntConfigPath))
 	if err != nil {
 		return nil, err
@@ -138,8 +145,10 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 	opts.IamRole = iamRole
 	opts.ExcludeDirs = excludeDirs
 	opts.IncludeDirs = includeDirs
+	opts.StrictInclude = strictInclude
 	opts.Parallelism = parallelism
 	opts.Check = parseBooleanArg(args, OPT_TERRAGRUNT_CHECK, os.Getenv("TERRAGRUNT_CHECK") == "false")
+	opts.HclFile = filepath.ToSlash(terragruntHclFilePath)
 
 	return opts, nil
 }

@@ -28,11 +28,12 @@ import (
 type ExtendedRemoteStateConfigGCS struct {
 	remoteStateConfigGCS RemoteStateConfigGCS
 
-	Project              string            `mapstructure:"project"`
-	Location             string            `mapstructure:"location"`
-	GCSBucketLabels      map[string]string `mapstructure:"gcs_bucket_labels"`
-	SkipBucketVersioning bool              `mapstructure:"skip_bucket_versioning"`
-	SkipBucketCreation   bool              `mapstructure:"skip_bucket_creation"`
+	Project                string            `mapstructure:"project"`
+	Location               string            `mapstructure:"location"`
+	GCSBucketLabels        map[string]string `mapstructure:"gcs_bucket_labels"`
+	SkipBucketVersioning   bool              `mapstructure:"skip_bucket_versioning"`
+	SkipBucketCreation     bool              `mapstructure:"skip_bucket_creation"`
+	EnableBucketPolicyOnly bool              `mapstructure:"enable_bucket_policy_only"`
 }
 
 // These are settings that can appear in the remote_state config that are ONLY used by Terragrunt and NOT forwarded
@@ -43,6 +44,7 @@ var terragruntGCSOnlyConfigs = []string{
 	"gcs_bucket_labels",
 	"skip_bucket_versioning",
 	"skip_bucket_creation",
+	"enable_bucket_policy_only",
 }
 
 // A representation of the configuration options available for GCS remote state
@@ -355,6 +357,11 @@ func CreateGCSBucket(gcsClient *storage.Client, config *ExtendedRemoteStateConfi
 	} else {
 		terragruntOptions.Logger.Printf("Enabling versioning on GCS bucket %s", config.remoteStateConfigGCS.Bucket)
 		bucketAttrs.VersioningEnabled = true
+	}
+
+	if config.EnableBucketPolicyOnly {
+		terragruntOptions.Logger.Printf("Enabling uniform bucket-level access on GCS bucket %s", config.remoteStateConfigGCS.Bucket)
+		bucketAttrs.BucketPolicyOnly = storage.BucketPolicyOnly{Enabled: true}
 	}
 
 	err := bucket.Create(ctx, projectID, bucketAttrs)

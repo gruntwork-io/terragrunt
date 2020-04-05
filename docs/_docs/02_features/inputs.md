@@ -1,7 +1,7 @@
 ---
 layout: collection-browser-doc
 title: Inputs
-category: Features
+category: features
 categories_url: features
 excerpt: Learn how to use inputs.
 tags: ["inputs"]

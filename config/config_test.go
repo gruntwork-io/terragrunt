@@ -528,8 +528,8 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 	_, actualErr := ParseConfigString(config, opts, nil, configPath)
 	expectedErr := TooManyLevelsOfInheritance{
 		ConfigPath:             configPath,
-		FirstLevelIncludePath:  "../" + DefaultTerragruntConfigPath,
-		SecondLevelIncludePath: "../" + DefaultTerragruntConfigPath,
+		FirstLevelIncludePath:  absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/"+DefaultTerragruntConfigPath),
+		SecondLevelIncludePath: absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/"+DefaultTerragruntConfigPath),
 	}
 	assert.True(t, errors.IsError(actualErr, expectedErr), "Expected error %v but got %v", expectedErr, actualErr)
 }
@@ -549,8 +549,8 @@ func TestParseTerragruntConfigThreeLevels(t *testing.T) {
 	_, actualErr := ParseConfigString(config, opts, nil, configPath)
 	expectedErr := TooManyLevelsOfInheritance{
 		ConfigPath:             configPath,
-		FirstLevelIncludePath:  "../" + DefaultTerragruntConfigPath,
-		SecondLevelIncludePath: "../" + DefaultTerragruntConfigPath,
+		FirstLevelIncludePath:  absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+DefaultTerragruntConfigPath),
+		SecondLevelIncludePath: absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+DefaultTerragruntConfigPath),
 	}
 	assert.True(t, errors.IsError(actualErr, expectedErr), "Expected error %v but got %v", expectedErr, actualErr)
 }
@@ -1033,7 +1033,7 @@ func TestFindConfigFilesIgnoresDownloadDir(t *testing.T) {
 func mockOptionsForTestWithConfigPath(t *testing.T, configPath string) *options.TerragruntOptions {
 	opts, err := options.NewTerragruntOptionsForTest(configPath)
 	if err != nil {
-		t.Fatalf("Faile to create TerragruntOptions: %v", err)
+		t.Fatalf("Failed to create TerragruntOptions: %v", err)
 	}
 	return opts
 }

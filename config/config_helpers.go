@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/hashicorp/hcl2/hcl"
+	"github.com/hashicorp/hcl/v2"
 	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
@@ -93,6 +93,7 @@ func CreateTerragruntEvalContext(
 		"path_relative_from_include":                   wrapVoidToStringAsFuncImpl(pathRelativeFromInclude, extensions.Include, terragruntOptions),
 		"get_env":                                      wrapStringSliceToStringAsFuncImpl(getEnvironmentVariable, extensions.Include, terragruntOptions),
 		"run_cmd":                                      wrapStringSliceToStringAsFuncImpl(runCommand, extensions.Include, terragruntOptions),
+		"read_terragrunt_config":                       readTerragruntConfigAsFuncImpl(terragruntOptions),
 		"get_terragrunt_dir":                           wrapVoidToStringAsFuncImpl(getTerragruntDir, extensions.Include, terragruntOptions),
 		"get_parent_terragrunt_dir":                    wrapVoidToStringAsFuncImpl(getParentTerragruntDir, extensions.Include, terragruntOptions),
 		"get_aws_account_id":                           wrapVoidToStringAsFuncImpl(getAWSAccountID, extensions.Include, terragruntOptions),
@@ -258,7 +259,7 @@ func findInParentFolders(params []string, include *IncludeConfig, terragruntOpti
 		}
 
 		if util.FileExists(fileToFind) {
-			return util.GetPathRelativeTo(fileToFind, filepath.Dir(terragruntOptions.TerragruntConfigPath))
+			return fileToFind, nil
 		}
 
 		previousDir = currentDir
@@ -327,6 +328,82 @@ func getAWSCallerIdentityUserID(include *IncludeConfig, terragruntOptions *optio
 	return "", err
 }
 
+// Parse the terragrunt config and return a representation that can be used as a reference. If given a default value,
+// this will return the default if the terragrunt config file does not exist.
+func readTerragruntConfig(configPath string, defaultVal *cty.Value, terragruntOptions *options.TerragruntOptions) (cty.Value, error) {
+	// target config check: make sure the target config exists. If the file does not exist, and there is no default val,
+	// return an error. If the file does not exist but there is a default val, return the default val. Otherwise,
+	// proceed to parse the file as a terragrunt config file.
+	targetConfig := getCleanedTargetConfigPath(configPath, terragruntOptions.TerragruntConfigPath)
+	targetConfigFileExists := util.FileExists(targetConfig)
+	if !targetConfigFileExists && defaultVal == nil {
+		return cty.NilVal, errors.WithStackTrace(TerragruntConfigNotFound{Path: targetConfig})
+	} else if !targetConfigFileExists {
+		return *defaultVal, nil
+	}
+
+	// We update the context of terragruntOptions to the config being read in.
+	targetOptions := terragruntOptions.Clone(targetConfig)
+	config, err := ParseConfigFile(configPath, targetOptions, nil)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	// We have to set the rendered outputs here because ParseConfigFile will not do so on the TerragruntConfig. The
+	// outputs are stored in a special map that is used only for rendering and thus is not available when we try to
+	// serialize the config for consumption.
+	// NOTE: this will not call terragrunt output, since all the values are cached from the ParseConfigFile call
+	// NOTE: we don't use range here because range will copy the slice, thereby undoing the set attribute.
+	for i := 0; i < len(config.TerragruntDependencies); i++ {
+		config.TerragruntDependencies[i].setRenderedOutputs(targetOptions)
+	}
+
+	return terragruntConfigAsCty(config)
+}
+
+// Create a cty Function that can be used to for calling read_terragrunt_config.
+func readTerragruntConfigAsFuncImpl(terragruntOptions *options.TerragruntOptions) function.Function {
+	return function.New(&function.Spec{
+		// Takes one required string param
+		Params: []function.Parameter{function.Parameter{Type: cty.String}},
+		// And optional param that takes anything
+		VarParam: &function.Parameter{Type: cty.DynamicPseudoType},
+		// We don't know the return type until we parse the terragrunt config, so we use a dynamic type
+		Type: function.StaticReturnType(cty.DynamicPseudoType),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			numParams := len(args)
+			if numParams == 0 || numParams > 2 {
+				return cty.NilVal, errors.WithStackTrace(WrongNumberOfParams{Func: "read_terragrunt_config", Expected: "1 or 2", Actual: numParams})
+			}
+
+			configPath, err := ctySliceToStringSlice(args[:1])
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			var defaultVal *cty.Value = nil
+			if numParams == 2 {
+				defaultVal = &args[1]
+			}
+			return readTerragruntConfig(configPath[0], defaultVal, terragruntOptions)
+		},
+	})
+}
+
+// Returns a cleaned path to the target config (the `terragrunt.hcl` or `terragrunt.hcl.json` file), handling relative
+// paths correctly. This will automatically append `terragrunt.hcl` or `terragrunt.hcl.json` to the path if the target
+// path is a directory.
+func getCleanedTargetConfigPath(configPath string, workingPath string) string {
+	cwd := filepath.Dir(workingPath)
+	targetConfig := configPath
+	if !filepath.IsAbs(targetConfig) {
+		targetConfig = util.JoinPath(cwd, targetConfig)
+	}
+	if util.IsDir(targetConfig) {
+		targetConfig = GetDefaultConfigPath(targetConfig)
+	}
+	return util.CleanPath(targetConfig)
+}
+
 // Custom error types
 type WrongNumberOfParams struct {
 	Func     string
@@ -371,4 +448,12 @@ type EmptyStringNotAllowed string
 
 func (err EmptyStringNotAllowed) Error() string {
 	return fmt.Sprintf("Empty string value is not allowed for %s", string(err))
+}
+
+type TerragruntConfigNotFound struct {
+	Path string
+}
+
+func (err TerragruntConfigNotFound) Error() string {
+	return fmt.Sprintf("Terragrunt config %s not found", err.Path)
 }

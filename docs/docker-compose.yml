@@ -1,0 +1,21 @@
+version: '3'
+
+services:
+  web:
+    build: .
+    volumes:
+      # Bind mount the working dir so the app reloads automatically every time you make a change
+      # Note that we use 'delegated' to improve perf on OSX: https://docs.docker.com/docker-for-mac/osxfs-caching/
+      - .:/src:delegated
+      # Bind a Docker-only volume to the generated _site folder to make it clear we don't need to sync that folder
+      # back to the host OS. That makes Jekyll in Docker work much faster.
+      - generated_site:/src/_site
+    ports:
+      - "4000:4000"
+      # Expose port for jekyll livereload
+      - "35729:35729"
+    environment:
+      - JEKYLL_ENV=development
+
+volumes:
+  generated_site:

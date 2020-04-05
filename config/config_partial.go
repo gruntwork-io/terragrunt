@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/hashicorp/hcl2/hcl"
-	"github.com/hashicorp/hcl2/hclparse"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -88,12 +88,12 @@ func DecodeBaseBlocks(
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	localsAsCty, err := convertLocalsMapToCtyVal(locals)
+	localsAsCty, err := convertValuesMapToCtyVal(locals)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	return localsAsCty, terragruntInclude, includeForDecode, nil
+	return &localsAsCty, terragruntInclude, includeForDecode, nil
 }
 
 func PartialParseConfigFile(

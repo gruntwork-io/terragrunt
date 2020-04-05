@@ -1,7 +1,7 @@
 ---
 layout: collection-browser-doc
 title: Auto-retry
-category: Features
+category: features
 categories_url: features
 excerpt: Auto-Retry is a feature of terragrunt that will automatically address situations where a terraform command needs to be re-run.
 tags: ["CLI"]

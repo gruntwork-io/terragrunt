@@ -2,10 +2,12 @@ package config
 
 import (
 	"encoding/json"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
+	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
@@ -99,4 +101,29 @@ func parseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
 type CtyJsonOutput struct {
 	Value map[string]interface{}
 	Type  interface{}
+}
+
+// convertValuesMapToCtyVal takes a map of name - cty.Value pairs and converts to a single cty.Value object.
+func convertValuesMapToCtyVal(valMap map[string]cty.Value) (cty.Value, error) {
+	valMapAsCty := cty.NilVal
+	if valMap != nil && len(valMap) > 0 {
+		var err error
+		valMapAsCty, err = gocty.ToCtyValue(valMap, generateTypeFromValuesMap(valMap))
+		if err != nil {
+			return valMapAsCty, errors.WithStackTrace(err)
+		}
+	}
+	return valMapAsCty, nil
+}
+
+// generateTypeFromValuesMap takes a values map and returns an object type that has the same number of fields, but
+// bound to each type of the underlying evaluated expression. This is the only way the HCL decoder will be happy, as
+// object type is the only map type that allows different types for each attribute (cty.Map requires all attributes to
+// have the same type.
+func generateTypeFromValuesMap(valMap map[string]cty.Value) cty.Type {
+	outType := map[string]cty.Type{}
+	for k, v := range valMap {
+		outType[k] = v.Type()
+	}
+	return cty.Object(outType)
 }

@@ -18,8 +18,7 @@
       </div>
     {% endif %}
 
-    {% assign level = 0 %}
-    {% include collection_browser/navigation/_nav.html children=site.data.navigation.children level=level %}
+    {% include collection_browser/navigation/_collection_toc.html collection_name='docs' %}
 
   </div>
 </div>

@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 
-	"github.com/hashicorp/hcl2/hclparse"
-	"github.com/hashicorp/hcl2/hclwrite"
+	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/mattn/go-zglob"
 
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -19,9 +20,20 @@ import (
 // runHCLFmt recursively looks for terragrunt.hcl files in the directory tree starting at workingDir, and formats them
 // based on the language style guides provided by Hashicorp. This is done using the official hcl2 library.
 func runHCLFmt(terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Printf("Formatting terragrunt.hcl files from the directory tree %s.", terragruntOptions.WorkingDir)
 
 	workingDir := terragruntOptions.WorkingDir
+	targetFile := terragruntOptions.HclFile
+
+	// handle when option specifies a particular file
+	if targetFile != "" {
+		if !filepath.IsAbs(targetFile) {
+			targetFile = util.JoinPath(workingDir, targetFile)
+		}
+		terragruntOptions.Logger.Printf("Formatting terragrunt.hcl file at: %s.", targetFile)
+		return formatTgHCL(terragruntOptions, targetFile)
+	}
+
+	terragruntOptions.Logger.Printf("Formatting terragrunt.hcl files from the directory tree %s.", terragruntOptions.WorkingDir)
 	tgHclFiles, err := zglob.Glob(util.JoinPath(workingDir, "**", "*.hcl"))
 	if err != nil {
 		return err

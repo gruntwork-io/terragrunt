@@ -1,7 +1,7 @@
 ---
 layout: collection-browser-doc
 title: Support
-category: Community
+category: community
 excerpt: >-
   Need help?
 tags: ["support", "community"]

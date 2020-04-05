@@ -1,7 +1,7 @@
 ---
 layout: collection-browser-doc
-title: Before and after hooks
-category: Features
+title: Before and After Hooks
+category: features
 categories_url: features
 excerpt: Learn how to execute custom code before or after running Terraform.
 tags: ["hooks"]
@@ -18,43 +18,43 @@ Here’s an example:
 
 ``` hcl
 terraform {
-  before_hook "before_hook_1" {
+  before_hook "before_hook" {
     commands     = ["apply", "plan"]
-    execute      = ["echo", "Foo"]
+    execute      = ["echo", "Running Terraform"]
+  }
+
+  after_hook "after_hook" {
+    commands     = ["apply", "plan"]
+    execute      = ["echo", "Finished running Terraform"]
     run_on_error = true
-  }
-
-  before_hook "before_hook_2" {
-    commands     = ["apply"]
-    execute      = ["echo", "Bar"]
-    run_on_error = false
-  }
-
-  before_hook "interpolation_hook_1" {
-    commands     = ["apply", "plan"]
-    execute      = ["echo", get_env("HOME", "HelloWorld")]
-    run_on_error = false
-  }
-
-  after_hook "after_hook_1" {
-    commands     = ["apply", "plan"]
-    execute      = ["echo", "Baz"]
-    run_on_error = true
-  }
-
-  after_hook "init_from_module" {
-    commands = ["init-from-module"]
-    execute  = ["cp", "${get_parent_terragrunt_dir()}/foo.tf", "."]
   }
 }
 ```
 
-Hooks support the following arguments:
+In this example configuration, whenever Terragrunt runs `terraform apply` or `terraform plan`, two things will happen:
 
-  - `commands` (required): the `terraform` commands that will trigger the execution of the hook.
+- Before Terragrunt runs `terraform`, it will output `Running Terraform` to the console.
+- After Terragrunt runs `terraform`, it will output `Finished running Terraform`, regardless of whether or not the
+  command failed.
 
-  - `execute` (required): the shell command to execute.
+You can have multiple before and after hooks. Each hook will execute in the order they are defined. For example:
 
-  - `run_on_error` (optional): if set to true, this hook will run even if a previous hook hit an error, or in the case of "after" hooks, if the Terraform command hit an error. Default is false.
+``` hcl
+terraform {
+  before_hook "before_hook_1" {
+    commands     = ["apply", "plan"]
+    execute      = ["echo", "Will run Terraform"]
+  }
 
-  - `init_from_module` and `init`: This is not an argument, but a special name you can use for hooks that run during initialization. There are two stages of initialization: one is to download [remote configurations]({{site.baseurl}}/use-cases/keep-your-terraform-code-dry) using `go-getter`; the other is [Auto-Init]({{site.baseurl}}/docs/features/auto-init), which configures the backend and downloads provider plugins and modules. If you wish to execute a hook when Terragrunt is using `go-getter` to download remote configurations, name the hook `init_from_module`. If you wish to execute a hook when Terragrunt is using `terraform init` for Auto-Init, name the hook `init`.
+  before_hook "before_hook_2" {
+    commands     = ["apply", "plan"]
+    execute      = ["echo", "Running Terraform"]
+  }
+}
+```
+
+This configuration will cause Terragrunt to output `Will run Terraform` and then `Running Terraform` before the call
+to Terraform.
+
+You can learn more about all the various configuration options supported in [the reference docs for the terraform
+block](/docs/reference/config-blocks-and-attributes/#terraform).

@@ -10,6 +10,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -37,11 +38,35 @@ const OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES = "terragrunt-ignore-external-
 const OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES = "terragrunt-include-external-dependencies"
 const OPT_TERRAGRUNT_EXCLUDE_DIR = "terragrunt-exclude-dir"
 const OPT_TERRAGRUNT_INCLUDE_DIR = "terragrunt-include-dir"
+const OPT_TERRAGRUNT_STRICT_INCLUDE = "terragrunt-strict-include"
 const OPT_TERRAGRUNT_PARALLELISM = "terragrunt-parallelism"
 const OPT_TERRAGRUNT_CHECK = "terragrunt-check"
+const OPT_TERRAGRUNT_HCLFMT_FILE = "terragrunt-hclfmt-file"
 
-var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{OPT_NON_INTERACTIVE, OPT_TERRAGRUNT_SOURCE_UPDATE, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ORDER, OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES, OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES, OPT_TERRAGRUNT_NO_AUTO_INIT, OPT_TERRAGRUNT_NO_AUTO_RETRY, OPT_TERRAGRUNT_CHECK}
-var ALL_TERRAGRUNT_STRING_OPTS = []string{OPT_TERRAGRUNT_CONFIG, OPT_TERRAGRUNT_TFPATH, OPT_WORKING_DIR, OPT_DOWNLOAD_DIR, OPT_TERRAGRUNT_SOURCE, OPT_TERRAGRUNT_IAM_ROLE, OPT_TERRAGRUNT_EXCLUDE_DIR, OPT_TERRAGRUNT_INCLUDE_DIR, OPT_TERRAGRUNT_PARALLELISM}
+var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{
+	OPT_NON_INTERACTIVE,
+	OPT_TERRAGRUNT_SOURCE_UPDATE,
+	OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS,
+	OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ORDER,
+	OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES,
+	OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES,
+	OPT_TERRAGRUNT_NO_AUTO_INIT,
+	OPT_TERRAGRUNT_NO_AUTO_RETRY,
+	OPT_TERRAGRUNT_CHECK,
+	OPT_TERRAGRUNT_STRICT_INCLUDE,
+}
+var ALL_TERRAGRUNT_STRING_OPTS = []string{
+	OPT_TERRAGRUNT_CONFIG,
+	OPT_TERRAGRUNT_TFPATH,
+	OPT_WORKING_DIR,
+	OPT_DOWNLOAD_DIR,
+	OPT_TERRAGRUNT_SOURCE,
+	OPT_TERRAGRUNT_IAM_ROLE,
+	OPT_TERRAGRUNT_EXCLUDE_DIR,
+	OPT_TERRAGRUNT_INCLUDE_DIR,
+	OPT_TERRAGRUNT_PARALLELISM,
+	OPT_TERRAGRUNT_HCLFMT_FILE,
+}
 
 const CMD_PLAN_ALL = "plan-all"
 const CMD_APPLY_ALL = "apply-all"
@@ -52,6 +77,7 @@ const CMD_VALIDATE_ALL = "validate-all"
 const CMD_INIT = "init"
 const CMD_INIT_FROM_MODULE = "init-from-module"
 const CMD_TERRAGRUNT_INFO = "terragrunt-info"
+const CMD_TERRAGRUNT_READ_CONFIG = "terragrunt-read-config"
 const CMD_HCLFMT = "hclfmt"
 
 // CMD_SPIN_UP is deprecated.
@@ -143,6 +169,7 @@ GLOBAL OPTIONS:
    terragrunt-exclude-dir                       Unix-style glob of directories to exclude when running *-all commands
    terragrunt-include-dir                       Unix-style glob of directories to include when running *-all commands
    terragrunt-check                             Enable check mode in the hclfmt command.
+   terragrunt-hclfmt-file                       The path to a single terragrunt.hcl file that the hclfmt command should run on.
 
 VERSION:
    {{.Version}}{{if len .Authors}}
@@ -247,6 +274,13 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
+	terragruntOptionsClone := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	terragruntOptionsClone.TerraformCommand = CMD_TERRAGRUNT_READ_CONFIG
+
+	if err := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone); err != nil {
+		return err
+	}
+
 	// Change the terraform binary path before checking the version
 	// if the path is not changed from default and set in the config.
 	if terragruntOptions.TerraformPath == options.TERRAFORM_DEFAULT_PATH && terragruntConfig.TerraformBinary != "" {
@@ -317,6 +351,19 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 
 	if err := checkFolderContainsTerraformCode(terragruntOptions); err != nil {
 		return err
+	}
+
+	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
+	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
+	for _, config := range terragruntConfig.GenerateConfigs {
+		if err := codegen.WriteToFile(terragruntOptions.Logger, terragruntOptions.WorkingDir, config); err != nil {
+			return err
+		}
+	}
+	if terragruntConfig.RemoteState != nil && terragruntConfig.RemoteState.Generate != nil {
+		if err := terragruntConfig.RemoteState.GenerateTerraformCode(terragruntOptions); err != nil {
+			return err
+		}
 	}
 
 	if terragruntConfig.RemoteState != nil {
@@ -486,7 +533,7 @@ func runTerraformWithRetry(terragruntOptions *options.TerragruntOptions) error {
 	// Retry the command configurable time with sleep in between
 	for i := 0; i < terragruntOptions.MaxRetryAttempts; i++ {
 		if out, tferr := shell.RunTerraformCommandWithOutput(terragruntOptions, terragruntOptions.TerraformCliArgs...); tferr != nil {
-			if isRetryable(out.Stderr, tferr, terragruntOptions) {
+			if out != nil && isRetryable(out.Stderr, tferr, terragruntOptions) {
 				terragruntOptions.Logger.Printf("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.Sleep)
 				time.Sleep(terragruntOptions.Sleep)
 			} else {

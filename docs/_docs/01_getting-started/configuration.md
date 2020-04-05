@@ -26,6 +26,8 @@ dependencies {
 }
 ```
 
+Terragrunt also supports [JSON-serialized HCL](https://github.com/hashicorp/hcl/blob/hcl2/json/spec.md) defined in a `terragrunt.hcl.json` file: where `terragrunt.hcl` is mentioned you can always use `terragrunt.hcl.json` instead.
+
 Terragrunt figures out the path to its config file according to the following rules:
 
 1.  The value of the `--terragrunt-config` command-line option, if specified.
@@ -34,11 +36,13 @@ Terragrunt figures out the path to its config file according to the following ru
 
 3.  A `terragrunt.hcl` file in the current working directory, if it exists.
 
-4.  If none of these are found, exit with an error.
+4.  A `terragrunt.hcl.json` file in the current working directory, if it exists.
+
+5.  If none of these are found, exit with an error.
 
 ## Configuration parsing order
 
-It is important to be aware of the terragrunt configuration parsing order when using features like [locals]({{site.baseurl}}/docs/features/locals/#locals) and [dependency outputs]({{site.baseurl}}/use-cases/execute-terraform-commands-on-multiple-modules-at-once/#passing-outputs-between-modules), where you can reference attributes of other blocks in the config in your `inputs`. For example, because `locals` are evaluated before `dependency` blocks, you can not bind outputs from `dependency` into `locals`. On the other hand, for the same reason, you can use `locals` in the `dependency` blocks.
+It is important to be aware of the terragrunt configuration parsing order when using features like [locals]({{site.baseurl}}/docs/features/locals/#locals) and [dependency outputs]({{site.baseurl}}/docs/features/execute-terraform-commands-on-multiple-modules-at-once/#passing-outputs-between-modules), where you can reference attributes of other blocks in the config in your `inputs`. For example, because `locals` are evaluated before `dependency` blocks, you can not bind outputs from `dependency` into `locals`. On the other hand, for the same reason, you can use `locals` in the `dependency` blocks.
 
 Currently terragrunt parses the config in the following order:
 
