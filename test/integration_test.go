@@ -8,10 +8,13 @@ import (
 	"io"
 	"io/ioutil"
 	"math/rand"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -101,6 +104,7 @@ const (
 	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                    = "fixture-get-aws-caller-identity"
 	TEST_FIXTURE_REGRESSIONS                                = "fixture-regressions"
 	TEST_FIXTURE_DIRS_PATH                                  = "fixture-dirs"
+	TEST_FIXTURE_PARALLELISM                                = "fixture-parallelism/sequential-apply-all"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -745,6 +749,104 @@ func TestTerragruntOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *tes
 
 	// Without --terragrunt-ignore-dependency-errors, app2 never runs because its dependencies have "errors" since they don't have the output "app2_text".
 	assert.True(t, strings.Contains(output, "app2 output"))
+}
+
+func testRemoteFixtureParallelism(t *testing.T, parallelism int, serverUrl string) (string, error) {
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PARALLELISM)
+
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PARALLELISM, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
+
+	environmentPath := fmt.Sprintf("%s/%s", tmpEnvPath, TEST_FIXTURE_PARALLELISM)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-parallelism %d --terragrunt-non-interactive --terragrunt-working-dir %s -var url=%s", parallelism, environmentPath, serverUrl))
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	// Call runTerragruntCommand directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
+	if err != nil {
+		return "", err
+	}
+
+	return stdout.String(), nil
+}
+
+func testTerragruntParallelismWithServer(t *testing.T, parallelism int) {
+	// setup a test server that sleeps for some time and sends the time
+	timeDiff := 20
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(time.Duration(timeDiff) * time.Second)
+		fmt.Fprintln(w, time.Now().Unix())
+	}))
+	defer ts.Close()
+	output, err := testRemoteFixtureParallelism(t, parallelism, ts.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// parse output and sort the times
+	r := regexp.MustCompile(`(\d+)`)
+	matches := r.FindAllStringSubmatch(output, -1)
+	var times []int
+	for _, v := range matches {
+		match, _ := strconv.Atoi(v[1])
+		times = append(times, match)
+	}
+	sort.Slice(times, func(i, j int) bool {
+		return times[i] < times[j]
+	})
+	// there should be a difference of at least `timeDiff` between items in the buckets
+	// there are 4 modules executed with parallelism 2, the time comparison is between [1, 3] and [2, 4]
+	// some scenarios
+	//
+	// time ->
+	//         1               3
+	//             2                4
+	//
+	// time ->
+	//         1                        3
+	//             2                4
+	for i := 0; i+parallelism < len(times); i += 1 {
+		j := i + parallelism
+		assert.True(t, times[j]-times[i] > timeDiff)
+	}
+	// test within buckets, because times are sorted it's enough to compare the first and the last item in the bucket
+	// in the example above the items to compare would be [1, 2] [3, 4]
+	for i := 0; i < len(times); i += parallelism {
+		j := i + parallelism - 1
+		if j >= len(times) {
+			j = len(times) - 1
+		}
+		// assume that modules within the bucket finish within 10s
+		assert.True(t, times[j]-times[i] < 10)
+	}
+	assert.True(t, true)
+}
+
+func TestTerragruntParallelism1(t *testing.T) {
+	t.Parallel()
+	testTerragruntParallelismWithServer(t, 1)
+}
+
+func TestTerragruntParallelism2(t *testing.T) {
+	t.Parallel()
+	testTerragruntParallelismWithServer(t, 2)
+}
+
+func TestTerragruntParallelism3(t *testing.T) {
+	t.Parallel()
+	testTerragruntParallelismWithServer(t, 3)
+}
+
+func TestTerragruntParallelism4(t *testing.T) {
+	t.Parallel()
+	testTerragruntParallelismWithServer(t, 4)
 }
 
 func TestTerragruntStackCommands(t *testing.T) {
