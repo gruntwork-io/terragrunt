@@ -779,9 +779,10 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, serverUrl strin
 
 func testTerragruntParallelismWithServer(t *testing.T, parallelism int) {
 	// setup a test server that sleeps for some time and sends the time
-	timeDiff := 20
+	timeBetweenBuckets := 20
+	timeInsideBucket := 10
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(time.Duration(timeDiff) * time.Second)
+		time.Sleep(time.Duration(timeBetweenBuckets) * time.Second)
 		fmt.Fprintln(w, time.Now().Unix())
 	}))
 	defer ts.Close()
@@ -801,7 +802,9 @@ func testTerragruntParallelismWithServer(t *testing.T, parallelism int) {
 	sort.Slice(times, func(i, j int) bool {
 		return times[i] < times[j]
 	})
-	// there should be a difference of at least `timeDiff` between items in the buckets
+	t.Logf("Parallelism test n=%d p=%d timeBetweenBuckets=%d timeInsideBucket=%d sortedTimes=%v", 4, parallelism, timeBetweenBuckets, timeInsideBucket, times)
+
+	// there should be a difference of at least `timeBetweenBuckets` between items in the buckets
 	// there are 4 modules executed with parallelism 2, the time comparison is between [1, 3] and [2, 4]
 	// some scenarios
 	//
@@ -814,7 +817,7 @@ func testTerragruntParallelismWithServer(t *testing.T, parallelism int) {
 	//             2                4
 	for i := 0; i+parallelism < len(times); i += 1 {
 		j := i + parallelism
-		assert.True(t, times[j]-times[i] > timeDiff)
+		assert.True(t, times[j]-times[i] > timeBetweenBuckets)
 	}
 	// test within buckets, because times are sorted it's enough to compare the first and the last item in the bucket
 	// in the example above the items to compare would be [1, 2] [3, 4]
@@ -824,7 +827,7 @@ func testTerragruntParallelismWithServer(t *testing.T, parallelism int) {
 			j = len(times) - 1
 		}
 		// assume that modules within the bucket finish within 10s
-		assert.True(t, times[j]-times[i] < 10)
+		assert.True(t, times[j]-times[i] < timeInsideBucket)
 	}
 	assert.True(t, true)
 }
