@@ -832,23 +832,11 @@ func testTerragruntParallelismWithServer(t *testing.T, parallelism int) {
 	assert.True(t, true)
 }
 
-func TestTerragruntParallelism1(t *testing.T) {
+func TestTerragruntParallelism(t *testing.T) {
 	t.Parallel()
 	testTerragruntParallelismWithServer(t, 1)
-}
-
-func TestTerragruntParallelism2(t *testing.T) {
-	t.Parallel()
 	testTerragruntParallelismWithServer(t, 2)
-}
-
-func TestTerragruntParallelism3(t *testing.T) {
-	t.Parallel()
 	testTerragruntParallelismWithServer(t, 3)
-}
-
-func TestTerragruntParallelism4(t *testing.T) {
-	t.Parallel()
 	testTerragruntParallelismWithServer(t, 4)
 }
 
