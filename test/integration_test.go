@@ -104,7 +104,7 @@ const (
 	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                    = "fixture-get-aws-caller-identity"
 	TEST_FIXTURE_REGRESSIONS                                = "fixture-regressions"
 	TEST_FIXTURE_DIRS_PATH                                  = "fixture-dirs"
-	TEST_FIXTURE_PARALLELISM                                = "fixture-parallelism/sequential-apply-all"
+	TEST_FIXTURE_PARALLELISM                                = "fixture-parallelism/apply-all"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -753,7 +753,7 @@ func TestTerragruntOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *tes
 
 func testRemoteFixtureParallelism(t *testing.T, parallelism int, serverUrl string) (string, error) {
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	//defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PARALLELISM)
 
@@ -762,6 +762,8 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, serverUrl strin
 
 	environmentPath := fmt.Sprintf("%s/%s", tmpEnvPath, TEST_FIXTURE_PARALLELISM)
 
+	// forces plugin download & initialization (no parallelism control)
+	runTerragrunt(t, fmt.Sprintf("terragrunt plan-all --terragrunt-non-interactive --terragrunt-working-dir %s -var url=%s", environmentPath, serverUrl))
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-parallelism %d --terragrunt-non-interactive --terragrunt-working-dir %s -var url=%s", parallelism, environmentPath, serverUrl))
 
 	var (
@@ -777,10 +779,8 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, serverUrl strin
 	return stdout.String(), nil
 }
 
-func testTerragruntParallelismWithServer(t *testing.T, parallelism int) {
+func testTerragruntParallelismWithServer(t *testing.T, parallelism, timeBetweenBuckets, timeInsideBucket int) {
 	// setup a test server that sleeps for some time and sends the time
-	timeBetweenBuckets := 20
-	timeInsideBucket := 10
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(time.Duration(timeBetweenBuckets) * time.Second)
 		fmt.Fprintln(w, time.Now().Unix())
@@ -791,9 +791,12 @@ func testTerragruntParallelismWithServer(t *testing.T, parallelism int) {
 		t.Fatal(err)
 	}
 
+	numberOfModules := 8
+
 	// parse output and sort the times
-	r := regexp.MustCompile(`(\d+)`)
+	r := regexp.MustCompile(`out = (\d+)`)
 	matches := r.FindAllStringSubmatch(output, -1)
+	assert.True(t, len(matches) == numberOfModules) // 8 modules in the fixture
 	var times []int
 	for _, v := range matches {
 		match, _ := strconv.Atoi(v[1])
@@ -802,7 +805,7 @@ func testTerragruntParallelismWithServer(t *testing.T, parallelism int) {
 	sort.Slice(times, func(i, j int) bool {
 		return times[i] < times[j]
 	})
-	t.Logf("Parallelism test n=%d p=%d timeBetweenBuckets=%d timeInsideBucket=%d sortedTimes=%v", 4, parallelism, timeBetweenBuckets, timeInsideBucket, times)
+	t.Logf("Parallelism test numberOfModules=%d p=%d timeBetweenBuckets=%d timeInsideBucket=%d sortedTimes=%v", numberOfModules, parallelism, timeBetweenBuckets, timeInsideBucket, times)
 
 	// there should be a difference of at least `timeBetweenBuckets` between items in the buckets
 	// there are 4 modules executed with parallelism 2, the time comparison is between [1, 3] and [2, 4]
@@ -826,18 +829,29 @@ func testTerragruntParallelismWithServer(t *testing.T, parallelism int) {
 		if j >= len(times) {
 			j = len(times) - 1
 		}
-		// assume that modules within the bucket finish within 10s
 		assert.True(t, times[j]-times[i] < timeInsideBucket)
 	}
-	assert.True(t, true)
 }
 
 func TestTerragruntParallelism(t *testing.T) {
 	t.Parallel()
-	testTerragruntParallelismWithServer(t, 1)
-	testTerragruntParallelismWithServer(t, 2)
-	testTerragruntParallelismWithServer(t, 3)
-	testTerragruntParallelismWithServer(t, 4)
+	testCases := []struct {
+		parallelism        int
+		timeBetweenBuckets int
+		timeInsideBucket   int
+	}{
+		{1, 5, 1},
+		{2, 8, 5},
+		{3, 8, 5},
+		{4, 8, 5},
+	}
+	for _, tc := range testCases {
+		tc := tc // shadow and force execution with this case
+		t.Run(fmt.Sprintf("parallelism=%d timeBetweenBuckets=%d timeInsideBucket=%d", tc.parallelism, tc.timeBetweenBuckets, tc.timeInsideBucket), func(t *testing.T) {
+			t.Parallel()
+			testTerragruntParallelismWithServer(t, tc.parallelism, tc.timeBetweenBuckets, tc.timeInsideBucket)
+		})
+	}
 }
 
 func TestTerragruntStackCommands(t *testing.T) {

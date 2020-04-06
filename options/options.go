@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -21,7 +22,8 @@ var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
 
 const DEFAULT_MAX_FOLDERS_TO_CHECK = 100
 
-const DEFAULT_PARALLELISM = 10
+// no limits on parallelism by default (limited by GOPROCS)
+const DEFAULT_PARALLELISM = math.MaxInt32
 
 // TERRAFORM_DEFAULT_PATH just takes terraform from the path
 const TERRAFORM_DEFAULT_PATH = "terraform"
