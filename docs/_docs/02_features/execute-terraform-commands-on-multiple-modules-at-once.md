@@ -283,6 +283,9 @@ In the example above it'll generate this graph
 
 ![terragrunt graph-dependencies]({{site.baseurl}}/assets/img/collections/documentation/graph.png)
 
+Note that this graph shows the dependency relationship in the direction of the arrow (top down), however terragrunt will run the action
+in reverse order (bottom up)
+
 ### Testing multiple modules locally
 
 If you are using Terragrunt to configure [remote Terraform configurations]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry/#remote-terraform-configurations) and all of your modules have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--terragrunt-source` parameter:
