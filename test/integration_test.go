@@ -50,6 +50,7 @@ const (
 	TEST_FIXTURE_INCLUDE_PATH                               = "fixture-include/"
 	TEST_FIXTURE_INCLUDE_CHILD_REL_PATH                     = "qa/my-app"
 	TEST_FIXTURE_STACK                                      = "fixture-stack/"
+	TEST_FIXTURE_GRAPH_DEPENDENCIES                         = "fixture-graph-dependencies"
 	TEST_FIXTURE_OUTPUT_ALL                                 = "fixture-output-all"
 	TEST_FIXTURE_STDOUT                                     = "fixture-download/stdout-test"
 	TEST_FIXTURE_EXTRA_ARGS_PATH                            = "fixture-extra-args/"
@@ -657,6 +658,43 @@ func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 	fmt.Printf("STDERR is %s.\n STDOUT is %s", errOutput, output)
 	assert.True(t, strings.Contains(errOutput, "missingvar1") || strings.Contains(output, "missingvar1"))
 	assert.True(t, strings.Contains(errOutput, "missingvar2") || strings.Contains(output, "missingvar2"))
+}
+
+func TestTerragruntGraphDependenciesCommand(t *testing.T) {
+	t.Parallel()
+
+	// this test doesn't even run plan, it exits right after the stack was created
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GRAPH_DEPENDENCIES)
+
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH_DEPENDENCIES, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
+
+	environmentPath := fmt.Sprintf("%s/%s/root", tmpEnvPath, TEST_FIXTURE_GRAPH_DEPENDENCIES)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt graph-dependencies --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
+	output := stdout.String()
+	assert.True(t, strings.Contains(output, strings.TrimSpace(`
+digraph {
+	"backend-app" ;
+	"backend-app" -> "mysql";
+	"backend-app" -> "redis";
+	"backend-app" -> "vpc";
+	"frontend-app" ;
+	"frontend-app" -> "backend-app";
+	"frontend-app" -> "vpc";
+	"mysql" ;
+	"mysql" -> "vpc";
+	"redis" ;
+	"redis" -> "vpc";
+	"vpc" ;
+}
+	`)))
 }
 
 func TestTerragruntOutputAllCommand(t *testing.T) {
