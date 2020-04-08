@@ -10,6 +10,8 @@ import (
 
 // WriteDot is used to emit a GraphViz compatible definition
 // for a directed graph. It can be used to dump a .dot file.
+// This is a similar implementation to terraform's digraph https://github.com/hashicorp/terraform/blob/master/digraph/graphviz.go
+// adding some styling to modules that are excluded from the execution in *-all commands
 func WriteDot(w io.Writer, terragruntOptions *options.TerragruntOptions, modules []*TerraformModule) error {
 
 	w.Write([]byte("digraph {\n"))
