@@ -3,6 +3,6 @@ include {
 }
 
 dependencies {
-  paths = ["../app3"]
+  paths = ["../vpc"]
 }
 

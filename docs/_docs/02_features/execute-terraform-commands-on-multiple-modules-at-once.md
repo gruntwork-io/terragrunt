@@ -274,6 +274,15 @@ If any of the modules fail to deploy, then Terragrunt will not attempt to deploy
 
 To check all of your dependencies and validate the code in them, you can use the `validate-all` command.
 
+To check the dependency graph you can use the `graph-dependencies` command (similar to the `terraform graph` command),
+the graph is output in DOT format The typical program that can read this format is GraphViz, but many web services are also available to read this format.
+
+     terragrunt graph-dependencies | dot -Tsvg > graph.svg
+
+In the example above it'll generate this graph
+
+![terragrunt graph-dependencies]({{site.baseurl}}/assets/img/collections/documentation/graph.png)
+
 ### Testing multiple modules locally
 
 If you are using Terragrunt to configure [remote Terraform configurations]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry/#remote-terraform-configurations) and all of your modules have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--terragrunt-source` parameter:

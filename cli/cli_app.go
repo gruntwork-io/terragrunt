@@ -32,7 +32,6 @@ const OPT_DOWNLOAD_DIR = "terragrunt-download-dir"
 const OPT_TERRAGRUNT_SOURCE = "terragrunt-source"
 const OPT_TERRAGRUNT_SOURCE_UPDATE = "terragrunt-source-update"
 const OPT_TERRAGRUNT_IAM_ROLE = "terragrunt-iam-role"
-const OPT_TERRAGRUNT_GRAPH = "terragrunt-graph"
 const OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS = "terragrunt-ignore-dependency-errors"
 const OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ORDER = "terragrunt-ignore-dependency-order"
 const OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES = "terragrunt-ignore-external-dependencies"
@@ -62,7 +61,6 @@ var ALL_TERRAGRUNT_STRING_OPTS = []string{
 	OPT_DOWNLOAD_DIR,
 	OPT_TERRAGRUNT_SOURCE,
 	OPT_TERRAGRUNT_IAM_ROLE,
-	OPT_TERRAGRUNT_GRAPH,
 	OPT_TERRAGRUNT_EXCLUDE_DIR,
 	OPT_TERRAGRUNT_INCLUDE_DIR,
 	OPT_TERRAGRUNT_HCLFMT_FILE,
@@ -77,6 +75,7 @@ const CMD_VALIDATE_ALL = "validate-all"
 const CMD_INIT = "init"
 const CMD_INIT_FROM_MODULE = "init-from-module"
 const CMD_TERRAGRUNT_INFO = "terragrunt-info"
+const CMD_TERRAGRUNT_GRAPH_DEPENDENCIES = "graph-dependencies"
 const CMD_TERRAGRUNT_READ_CONFIG = "terragrunt-read-config"
 const CMD_HCLFMT = "hclfmt"
 
@@ -116,6 +115,7 @@ var TERRAFORM_COMMANDS_THAT_USE_STATE = []string{
 var TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT = []string{
 	"version",
 	"terragrunt-info",
+	"graph-dependencies",
 }
 
 // Struct is output as JSON by 'terragrunt-info':
@@ -148,6 +148,7 @@ COMMANDS:
    destroy-all          Destroy a 'stack' by running 'terragrunt destroy' in each subfolder
    validate-all         Validate 'stack' by running 'terragrunt validate' in each subfolder
    terragrunt-info      Emits limited terragrunt state on stdout and exits
+   graph-dependencies   Prints the terragrunt dependency graph to stdout
    hclfmt               Recursively find terragrunt.hcl files and rewrite them into a canonical format.
    *                    Terragrunt forwards all other commands directly to Terraform
 
@@ -269,6 +270,10 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return runHCLFmt(terragruntOptions)
 	}
 
+	if shouldRunGraphDependencies(terragruntOptions) {
+		return runGraphDependencies(terragruntOptions)
+	}
+
 	terragruntConfig, err := config.ReadTerragruntConfig(terragruntOptions)
 
 	if err != nil {
@@ -376,6 +381,18 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	return runTerragruntWithConfig(terragruntOptions, terragruntConfig, false)
 }
 
+// Run graph dependencies prints the dependency graph to stdout
+func runGraphDependencies(terragruntOptions *options.TerragruntOptions) error {
+	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
+	if err != nil {
+		return err
+	}
+
+	// Exit early if the operation wanted is to get the graph
+	stack.Graph(terragruntOptions)
+	return nil
+}
+
 func shouldPrintTerraformHelp(terragruntOptions *options.TerragruntOptions) bool {
 	for _, tfHelpFlag := range TERRAFORM_HELP_FLAGS {
 		if util.ListContainsElement(terragruntOptions.TerraformCliArgs, tfHelpFlag) {
@@ -383,6 +400,10 @@ func shouldPrintTerraformHelp(terragruntOptions *options.TerragruntOptions) bool
 		}
 	}
 	return false
+}
+
+func shouldRunGraphDependencies(terragruntOptions *options.TerragruntOptions) bool {
+	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_TERRAGRUNT_GRAPH_DEPENDENCIES)
 }
 
 func shouldPrintTerragruntInfo(terragruntOptions *options.TerragruntOptions) bool {
@@ -750,12 +771,6 @@ func planAll(terragruntOptions *options.TerragruntOptions) error {
 	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
 	if err != nil {
 		return err
-	}
-
-	// Exit early if the operation wanted is to get the graph
-	if terragruntOptions.Graph {
-		stack.Graph(terragruntOptions)
-		return nil
 	}
 
 	terragruntOptions.Logger.Printf("%s", stack.String())

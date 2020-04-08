@@ -99,8 +99,6 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 		return nil, err
 	}
 
-	graph := parseBooleanArg(args, OPT_TERRAGRUNT_GRAPH, false)
-
 	excludeDirs, err := parseMultiStringArg(args, OPT_TERRAGRUNT_EXCLUDE_DIR, []string{})
 	if err != nil {
 		return nil, err
@@ -130,7 +128,6 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 	opts.RunTerragrunt = RunTerragrunt
 	opts.Source = terraformSource
 	opts.SourceUpdate = sourceUpdate
-	opts.Graph = graph
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
 	opts.IgnoreDependencyOrder = ignoreDependencyOrder
 	opts.IgnoreExternalDependencies = ignoreExternalDependencies
