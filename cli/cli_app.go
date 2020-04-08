@@ -169,7 +169,6 @@ GLOBAL OPTIONS:
    terragrunt-include-external-dependencies     *-all commands will include external dependencies
    terragrunt-exclude-dir                       Unix-style glob of directories to exclude when running *-all commands
    terragrunt-include-dir                       Unix-style glob of directories to include when running *-all commands
-   terragrunt-graph                             Display the graphviz representation of the modules when running *-all commands, displays the graph and exit
    terragrunt-check                             Enable check mode in the hclfmt command.
    terragrunt-hclfmt-file                       The path to a single terragrunt.hcl file that the hclfmt command should run on.
 
