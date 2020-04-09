@@ -58,12 +58,12 @@ The `terraform` block supports the following arguments:
       `["echo", "Foo"]`, the command `echo Foo` will be run.
     - `run_on_error` (optional) : If set to true, this hook will run even if a previous hook hit an error, or in the
       case of "after" hooks, if the Terraform command hit an error. Default is false.
-    - `init_from_module` and `init`: This is not an argument, but a special name you can use for hooks that run during
+    - `init-from-module` and `init`: This is not an argument, but a special name you can use for hooks that run during
       initialization. There are two stages of initialization: one is to download [remote
       configurations](https://terragrunt.gruntwork.io/use-cases/keep-your-terraform-code-dry/) using `go-getter`; the
       other is [Auto-Init](https://terragrunt.gruntwork.io/docs/features/auto-init/), which configures the backend and
       downloads provider plugins and modules. If you wish to execute a hook when Terragrunt is using `go-getter` to
-      download remote configurations, name the hook `init_from_module`. If you wish to execute a hook when Terragrunt is
+      download remote configurations, name the hook `init-from-module`. If you wish to execute a hook when Terragrunt is
       using terraform `init` for Auto-Init, name the hook `init`.
 
 
