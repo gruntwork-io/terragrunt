@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -543,14 +546,45 @@ func setTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, 
 		terragruntOptions.Env = map[string]string{}
 	}
 
+	if terragruntOptions.Debug {
+		writeTerragruntDebugFile(terragruntOptions, terragruntConfig)
+	}
+
 	for key, value := range asEnvVars {
 		// Don't override any env vars the user has already set
 		if _, envVarAlreadySet := terragruntOptions.Env[key]; !envVarAlreadySet {
 			terragruntOptions.Env[key] = value
 		}
 	}
-
 	return nil
+}
+
+func writeTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) {
+	configFolder := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+	fileContents, err := terragruntDebugFileContents(terragruntOptions, terragruntConfig)
+	if err != nil {
+		return
+	}
+	fileName := filepath.Join(configFolder, "terragrunt-debug.tfvars.json")
+	ioutil.WriteFile(fileName, []byte(fileContents), os.FileMode(int(0700)))
+}
+
+func terragruntDebugFileContents(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (string, error) {
+	jsonValuesByKey := make(map[string]interface{})
+	for varName, varValue := range terragruntConfig.Inputs {
+		nameAsEnvVar := fmt.Sprintf("TF_VAR_%s", varName)
+		// Only add to the file if the explicit env var does NOT exist.
+		// We must do this in order to avoid overriding the env var on
+		// direct invocations to terraform.
+		if _, varIsInEnv := terragruntOptions.Env[nameAsEnvVar]; !varIsInEnv {
+			jsonValuesByKey[varName] = varValue
+		}
+	}
+	jsonContent, err := json.Marshal(jsonValuesByKey)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+	return string(jsonContent), nil
 }
 
 func runTerraformWithRetry(terragruntOptions *options.TerragruntOptions) error {
