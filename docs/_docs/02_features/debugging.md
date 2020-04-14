@@ -28,8 +28,8 @@ Running this command will do two things for you:
     terraform code)
   - Print instructions on how to invoke terraform against the generated file to
     reproduce exactly the same terraform output as you saw when invoking
-    `terragrunt`. This will help you to understand whether the problem is coming
-    from
+    `terragrunt`. This will help you to understand where the problem is coming
+    from.
 
 The flag's goal is to help you determine which of these three major areas is the
 root cause of your problem:
