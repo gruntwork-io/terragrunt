@@ -92,7 +92,7 @@ inputs = {
 }
 ```
 
-You perform a `terragrunt apply`, and find that oops! `task_ids` has 7
+You perform a `terragrunt apply`, and find that oops! `outputs.task_ids` has 7
 elements, but you know that the cluster only has 4 VMs in it! What's happening?
 Let's figure it out. Run this:
 
@@ -102,7 +102,7 @@ After applying, you will see this output on standard error
 
 ```
 [terragrunt] Variables passed to terraform are located in "/Users/erem/live/prod/app/terragrunt-debug.tfvars"
-[terragrunt] Run this command to replicate how terragrunt applied terraform:
+[terragrunt] Run this command to replicate how terraform was invoked:
 [terragrunt]     terraform apply -var-file="/Users/erem/live/prod/app/terragrunt-debug.tfvars" "/Users/erem/live/prod/app"
 ```
 
@@ -124,10 +124,11 @@ output "cluster_min_size" {
 }
 ```
 
-Oops! It says `max` when it should be `min`. If we fix `ecs-cluster/outputs.tf` we should be golden!
+Oops! It says `max` when it should be `min`. If we fix `ecs-cluster/outputs.tf`
+we should be golden!
 
-In this example we've seen how `terragrunt debug` can help us root cause issues in local
-and dependency resolution.
+In this example we've seen how `terragrunt debug` can help us root cause issues
+in dependency and local variable resolution.
 
 ### Use-case: `terragrunt apply` produces a kernel panic. What's broken?
 TODO: not in scope for 1-day project =)
