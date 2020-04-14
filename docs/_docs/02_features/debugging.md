@@ -134,7 +134,8 @@ output "cluster_min_size" {
 ```
 
 Oops! It says `max` when it should be `min`. If we fix `ecs-cluster/outputs.tf`
-we should be golden!
+we should be golden! We fix the problem in time to take a nice afternoon walk in
+the sun.
 
 In this example we've seen how `terragrunt debug` can help us root cause issues
 in dependency and local variable resolution.
