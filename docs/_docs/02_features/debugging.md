@@ -59,7 +59,9 @@ number of machines in some cluster.
 
 ```
 
-The files contain this text:
+The files contain this text (`app/main.tf` and `ecs-cluster/outputs.tf` elided
+for brevity):
+
 ```hcl
 // app/vars.tf
 variable "image_id" {
