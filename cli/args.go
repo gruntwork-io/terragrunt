@@ -116,6 +116,8 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 
 	strictInclude := parseBooleanArg(args, OPT_TERRAGRUNT_STRICT_INCLUDE, false)
 
+	debug := parseBooleanArg(args, OPT_TERRAGRUNT_DEBUG, false)
+
 	opts, err := options.NewTerragruntOptions(filepath.ToSlash(terragruntConfigPath))
 	if err != nil {
 		return nil, err
@@ -161,6 +163,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.Parallelism = parallelism
 	opts.Check = parseBooleanArg(args, OPT_TERRAGRUNT_CHECK, os.Getenv("TERRAGRUNT_CHECK") == "true")
 	opts.HclFile = filepath.ToSlash(terragruntHclFilePath)
+	opts.Debug = debug
 
 	return opts, nil
 }
