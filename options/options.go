@@ -126,6 +126,10 @@ type TerragruntOptions struct {
 	// packages can use the command without a direct reference back to the cli package (which would create a
 	// circular dependency).
 	RunTerragrunt func(*TerragruntOptions) error
+
+	// True if terragrunt should run in debug mode, writing terragrunt-debug.tfvars to working folder to help
+	// root-cause issues.
+	Debug bool
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage
