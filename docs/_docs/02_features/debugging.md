@@ -140,3 +140,6 @@ TODO: not in scope for 1-day project =)
 
 ### Use-case: I need more detailed logs to figure out what's happening!
 TODO: not in scope for 1-day project =)
+
+### Use-case: apply-all
+TODO: not in scope for 1-day project =)
