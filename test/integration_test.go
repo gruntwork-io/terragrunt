@@ -2467,9 +2467,10 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 		generateOut,
 		map[string]interface{}{
 			"provider": map[string]interface{}{
-				"path":           "provider.tf",
-				"if_exists":      "overwrite_terragrunt",
-				"comment_prefix": "# ",
+				"path":              "provider.tf",
+				"if_exists":         "overwrite_terragrunt",
+				"comment_prefix":    "# ",
+				"disable_signature": false,
 				"contents": `provider "aws" {
   region = "us-east-1"
 }
