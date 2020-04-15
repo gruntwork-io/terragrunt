@@ -46,11 +46,12 @@ const (
 
 // Configuration for generating code
 type GenerateConfig struct {
-	Path          string `cty:"path"`
-	IfExists      GenerateConfigExists
-	IfExistsStr   string `cty:"if_exists"`
-	CommentPrefix string `cty:"comment_prefix"`
-	Contents      string `cty:"contents"`
+	Path             string `cty:"path"`
+	IfExists         GenerateConfigExists
+	IfExistsStr      string `cty:"if_exists"`
+	CommentPrefix    string `cty:"comment_prefix"`
+	Contents         string `cty:"contents"`
+	DisableSignature bool   `cty:"disable_signature"`
 }
 
 // WriteToFile will generate a new file at the given target path with the given contents. If a file already exists at
@@ -75,8 +76,12 @@ func WriteToFile(logger *log.Logger, basePath string, config GenerateConfig) err
 		}
 	}
 
-	// Add the signature as a prefix to the file
-	contentsToWrite := fmt.Sprintf("%s%s\n%s", config.CommentPrefix, TerragruntGeneratedSignature, config.Contents)
+	// Add the signature as a prefix to the file, unless it is disabled.
+	prefix := ""
+	if !config.DisableSignature {
+		prefix = fmt.Sprintf("%s%s\n", config.CommentPrefix, TerragruntGeneratedSignature)
+	}
+	contentsToWrite := fmt.Sprintf("%s%s", prefix, config.Contents)
 
 	if err := ioutil.WriteFile(targetPath, []byte(contentsToWrite), 0644); err != nil {
 		return errors.WithStackTrace(err)

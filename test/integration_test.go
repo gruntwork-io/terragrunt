@@ -2467,9 +2467,10 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 		generateOut,
 		map[string]interface{}{
 			"provider": map[string]interface{}{
-				"path":           "provider.tf",
-				"if_exists":      "overwrite_terragrunt",
-				"comment_prefix": "# ",
+				"path":              "provider.tf",
+				"if_exists":         "overwrite_terragrunt",
+				"comment_prefix":    "# ",
+				"disable_signature": false,
 				"contents": `provider "aws" {
   region = "us-east-1"
 }
@@ -2615,6 +2616,30 @@ func TestTerragruntGenerateBlockNestedOverwrite(t *testing.T) {
 	assert.True(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
 	// Also check to make sure the child config generate block was included
 	assert.True(t, fileIsInFolder(t, "random_file.txt", generateTestCase))
+}
+
+func TestTerragruntGenerateBlockDisableSignature(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "generate-block", "disable-signature")
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s -auto-approve", generateTestCase))
+
+	// Now check the outputs to make sure they are as expected
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	assert.Equal(t, outputs["text"].Value, "Hello, World!")
 }
 
 func TestTerragruntRemoteStateCodegenGeneratesBackendBlock(t *testing.T) {
