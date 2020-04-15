@@ -574,8 +574,14 @@ func terragruntDebugFileContents(terragruntOptions *options.TerragruntOptions, t
 	for varName, varValue := range terragruntConfig.Inputs {
 		nameAsEnvVar := fmt.Sprintf("TF_VAR_%s", varName)
 		// Only add to the file if the explicit env var does NOT exist.
-		// We must do this in order to avoid overriding the env var on
-		// direct invocations to terraform.
+		// We must do this in order to avoid overriding the env var when
+		// the user follows up with a direct invocation to terraform using
+		// this file (due to the order in which terraform resolves config sources).
+		//
+		// TODO: this is currently broken! In some circumstance this function gets called twice:
+		//       once for `terraform init` and once for the target command. Since the env
+		//       contains all keys by the time the second execution comes through, we
+		//       will always end up with an empty json map in those scenarios.
 		if _, varIsInEnv := terragruntOptions.Env[nameAsEnvVar]; !varIsInEnv {
 			jsonValuesByKey[varName] = varValue
 		}

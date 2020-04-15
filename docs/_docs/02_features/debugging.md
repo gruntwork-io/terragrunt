@@ -143,3 +143,106 @@ TODO: not in scope for 1-day project =)
 
 ### Use-case: apply-all
 TODO: not in scope for 1-day project =)
+
+### Progress
+We can largely break down this feature into these categories:
+
+  - *Accepting input*. Status: Done
+  - *Outputting the TFVARS file*. Status: In Progress
+  - *Input attribution*. Status: Not Started
+  - *Outputting helpful logs or comments on how to use the tfvars file*. Status: Not Started
+
+As of 04/14/2020, here are notes on each section
+
+#### Progress: Accepting input
+Status: Done
+
+This is just about the only part of the feature that is written and tested. The
+app now accepts the flag `--terragrunt-debug`, which maps to a boolean flag in
+the app that is used to gate whether or not a json flag gets written.
+
+#### Progress: Outputting TFVARS file
+Status: In Progress
+
+This is there, but currently broken. I want to document a few design challenges
+I found along the way for whoever picks this up next.
+
+First challenge: how to incorporate user-provided `TF_VAR_x` env variables into
+the output. Why is this a problem? Well, in addition to specifying values in
+`terragrunt.hcl`, we also support forwarding these env variables directly
+from the caller's environment to terraform. So then what is the correct behavior
+of `terragrunt-debug.tfvars` in the case that the user has `TF_VAR_foo` but also
+specifies the input `foo` in `terragrunt.hcl`? Here are some choices:
+  - Serialize the user-provided env var `TF_VAR_foo` to `terragrunt-debug.tfvars`
+    * Benefits: global reproducibility. Anybody executing terraform against that file would get
+      the same output as the original user, since terraform's prioritization
+      rules place the file contents at higher priority than the user's own env.
+    * Drawbacks: This will mask the terragrunt-interpolated value that the user
+      might have actually been trying to debug. This also requires more work
+      because we have to martial and interpret those env vars ourselves to
+      produce valid hcl and/or json (the difficulty in dealing with TF_VAR_x ->
+      JSON was one big stumbling block in doing this project quickly). See 
+      https://www.terraform.io/docs/configuration/variables.html#complex-typed-values for
+      related discussion
+  - Serialize only the interpolated `terragrunt.hcl` value.
+    * Benefits: these are the most likely values to be messed up, so we want to see them
+    * Drawbacks: fatally, you can't use this one to actually reproduce the call to terraform
+      as it was executed by `terragrunt` -- you would need the user's env var for that.
+  - Serialize only those interpolated `terragrunt.hcl` values that are not overridden by the
+    user's env
+    * Benefits: The user themselves can reproduce the call, as long as their env stays the same
+      between invocations of terragrunt and terraform.
+    * Drawbacks: Not globally reproducible. Violates the principle of least surprise
+      -- depending on their use-case the user will expect to see not only what it
+      takes to reproduce the terraform, but also what the world looked like according to terragrunt.
+      This is however the version that is currently implemented (brokenly).
+  - Serialize both, but comment out the interpolated value as overridden by the user's env. This
+    one has all the benefits of the other approaches and none of their weaknesses except that it
+    would take longer to implement, and is not doable in json (which I fell back on for time sake)
+    due to lack of commenting. I recommend doing this approach for whoever picks up the torch.
+
+Second challenge (the cause of the current bug). Even in single-module calls, an
+invocation to `terragrunt` can involve several calls to `terraform`: one call to
+the user's target command and one `terraform init`. The two follow the same call
+path, and some state carries over between the first and the second: the
+TerragruntOptions.Env map in the second invocation remains updated to reflect
+the resolved input values from the first. Why does that matter? Since the
+current implementation of this feature tries to grab only the subset of
+`terragrunt.hcl` inputs that were not duplicated in the user's env (see previous
+challenge), the Debug file is first written with all the correct values (for the
+`terraform init`), and then rewritten with an empty object, since after the
+first command all input variables have been written into the env map. Since this
+approach kind of sucks anyways, I recommend just switching to the "serialize
+both" resolution strategy from challenge 1 and this problem should puff into the
+mist.
+
+We also need significant testing, and particularly testing on the _-all_
+variants of the command, though I believe the file will naturally end up
+serializing to the correct location as written.
+
+#### Progress: Input Attribution
+Status: Not started
+
+This is the part of the feature where we share with the user "oh by the way,
+this input was resolved from this a/b/terragrunt.hcl". 
+
+I did not get to touch this beyond general thoughts on how it could be
+accomplished, which follow:
+
+Currently, `terragrunt.hcl` input resolution happens in
+`config.go::ParseConfigString`, and its goal is to resolve a valid
+`TerragruntConfig`. `TerragruntConfig` has a property `Inputs` that is a map
+from string to json-marshallable value.
+
+My proposal would be to instead make `Inputs` into a map from string to tuple of
+(value, metadata) where the metadata for example contains information about the
+source file. The source file can be easily threaded through the call stack from
+interpreted `ParseConfigString`. Then, without changing any of the resolution
+logic we would end up with the correct attribution in the `Inputs` property when
+it's time to write the debug file. Still figuring out how locals would fit into
+this scheme.
+
+#### Progress: Outputting helpful logs or comments on how to use the tfvars file
+Status: Not started
+
+Didn't get a chance to even think much about this one honestly =/
