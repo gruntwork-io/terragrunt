@@ -795,6 +795,44 @@ func TestReadTerragruntConfigLocals(t *testing.T) {
 	assert.Equal(t, localsMap["number_expression"].(float64), float64(42))
 }
 
+func TestGetTerragruntSourceForModuleHappyPath(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		config   *TerragruntConfig
+		source   string
+		expected string
+	}{
+		{mockConfigWithSource(""), "", ""},
+		{mockConfigWithSource(""), "/source/modules", ""},
+		{mockConfigWithSource("git::git@github.com:acme/modules.git//foo/bar"), "/source/modules", "/source/modules//foo/bar"},
+		{mockConfigWithSource("git::git@github.com:acme/modules.git//foo/bar?ref=v0.0.1"), "/source/modules", "/source/modules//foo/bar"},
+		{mockConfigWithSource("git::git@github.com:acme/emr_cluster.git?ref=feature/fix_bugs"), "/source/modules", "/source/modules//emr_cluster"},
+		{mockConfigWithSource("git::ssh://git@ghe.ourcorp.com/OurOrg/some-module.git"), "/source/modules", "/source/modules//some-module"},
+		{mockConfigWithSource("github.com/hashicorp/example"), "/source/modules", "/source/modules//example"},
+		{mockConfigWithSource("github.com/hashicorp/example//subdir"), "/source/modules", "/source/modules//subdir"},
+		{mockConfigWithSource("git@github.com:hashicorp/example.git//subdir"), "/source/modules", "/source/modules//subdir"},
+		{mockConfigWithSource("./some/path//to/modulename"), "/source/modules", "/source/modules//to/modulename"},
+	}
+
+	for _, testCase := range testCases {
+		// The following is necessary to make sure testCase's values don't
+		// get updated due to concurrency within the scope of t.Run(..) below
+		testCase := testCase
+		t.Run(fmt.Sprintf("%v-%s", *testCase.config.Terraform.Source, testCase.source), func(t *testing.T) {
+			actual, err := GetTerragruntSourceForModule(testCase.source, "mock-for-test", testCase.config)
+			require.NoError(t, err)
+			assert.Equal(t, testCase.expected, actual)
+		})
+	}
+}
+
+func mockConfigWithSource(sourceUrl string) *TerragruntConfig {
+	cfg := TerragruntConfig{IsPartial: true}
+	cfg.Terraform = &TerraformConfig{Source: &sourceUrl}
+	return &cfg
+}
+
 // Return keys as a map so it is treated like a set, and order doesn't matter when comparing equivalence
 func getKeys(valueMap map[string]cty.Value) map[string]bool {
 	keys := map[string]bool{}

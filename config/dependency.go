@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
@@ -351,6 +352,30 @@ func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.Terrag
 			return nil, errors.WithStackTrace(err)
 		}
 		targetOptions.DownloadDir = downloadDir
+	}
+
+	// If the Source is set, then we need to recompute it in the context of the target config.
+	if terragruntOptions.Source != "" {
+		// We need the terraform source of the target config to compute the actual source to use
+		partialParseIncludedConfig, err := PartialParseConfigFile(
+			targetConfig,
+			targetOptions,
+			nil,
+			[]PartialDecodeSectionType{TerraformBlock},
+		)
+		if err != nil {
+			return nil, err
+		}
+		// Update the source value to be everything before "//" so that it can be recomputed
+		moduleUrl, _ := getter.SourceDirSubdir(terragruntOptions.Source)
+
+		// Finally, update the source to be the combined path between the terraform source in the target config, and the
+		// value before "//" in the original terragrunt options.
+		targetSource, err := GetTerragruntSourceForModule(moduleUrl, filepath.Dir(targetConfig), partialParseIncludedConfig)
+		if err != nil {
+			return nil, err
+		}
+		targetOptions.Source = targetSource
 	}
 
 	return targetOptions, nil

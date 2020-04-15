@@ -3,7 +3,10 @@ package config
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
+	"strings"
 
+	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/hcl/v2"
 	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/zclconf/go-cty/cty"
@@ -404,6 +407,69 @@ func getCleanedTargetConfigPath(configPath string, workingPath string) string {
 	return util.CleanPath(targetConfig)
 }
 
+// If one of the xxx-all commands is called with the --terragrunt-source parameter, then for each module, we need to
+// build its own --terragrunt-source parameter by doing the following:
+//
+// 1. Read the source URL from the Terragrunt configuration of each module
+// 2. Extract the path from that URL (the part after a double-slash)
+// 3. Append the path to the --terragrunt-source parameter
+//
+// Example:
+//
+// --terragrunt-source: /source/infrastructure-modules
+// source param in module's terragrunt.hcl: git::git@github.com:acme/infrastructure-modules.git//networking/vpc?ref=v0.0.1
+//
+// This method will return: /source/infrastructure-modules//networking/vpc
+//
+func GetTerragruntSourceForModule(sourcePath string, modulePath string, moduleTerragruntConfig *TerragruntConfig) (string, error) {
+	if sourcePath == "" || moduleTerragruntConfig.Terraform == nil || moduleTerragruntConfig.Terraform.Source == nil || *moduleTerragruntConfig.Terraform.Source == "" {
+		return "", nil
+	}
+
+	// use go-getter to split the module source string into a valid URL and subdirectory (if // is present)
+	moduleUrl, moduleSubdir := getter.SourceDirSubdir(*moduleTerragruntConfig.Terraform.Source)
+
+	// if both URL and subdir are missing, something went terribly wrong
+	if moduleUrl == "" && moduleSubdir == "" {
+		return "", errors.WithStackTrace(InvalidSourceUrl{ModulePath: modulePath, ModuleSourceUrl: *moduleTerragruntConfig.Terraform.Source, TerragruntSource: sourcePath})
+	}
+	// if only subdir is missing, check if we can obtain a valid module name from the URL portion
+	if moduleUrl != "" && moduleSubdir == "" {
+		moduleSubdirFromUrl, err := getModulePathFromSourceUrl(moduleUrl)
+		if err != nil {
+			return moduleSubdirFromUrl, err
+		}
+		return util.JoinTerraformModulePath(sourcePath, moduleSubdirFromUrl), nil
+	}
+
+	return util.JoinTerraformModulePath(sourcePath, moduleSubdir), nil
+}
+
+// Parse sourceUrl not containing '//', and attempt to obtain a module path.
+// Example:
+//
+// sourceUrl = "git::ssh://git@ghe.ourcorp.com/OurOrg/module-name.git"
+// will return "module-name".
+
+func getModulePathFromSourceUrl(sourceUrl string) (string, error) {
+
+	// Regexp for module name extraction. It assumes that the query string has already been stripped off.
+	// Then we simply capture anything after the last slash, and before `.` or end of string.
+	var moduleNameRegexp = regexp.MustCompile(`(?:.+/)(.+?)(?:\.|$)`)
+
+	// strip off the query string if present
+	sourceUrl = strings.Split(sourceUrl, "?")[0]
+
+	matches := moduleNameRegexp.FindStringSubmatch(sourceUrl)
+
+	// if regexp returns less/more than the full match + 1 capture group, then something went wrong with regex (invalid source string)
+	if len(matches) != 2 {
+		return "", errors.WithStackTrace(ErrorParsingModulePath{ModuleSourceUrl: sourceUrl})
+	}
+
+	return matches[1], nil
+}
+
 // Custom error types
 type WrongNumberOfParams struct {
 	Func     string
@@ -456,4 +522,22 @@ type TerragruntConfigNotFound struct {
 
 func (err TerragruntConfigNotFound) Error() string {
 	return fmt.Sprintf("Terragrunt config %s not found", err.Path)
+}
+
+type InvalidSourceUrl struct {
+	ModulePath       string
+	ModuleSourceUrl  string
+	TerragruntSource string
+}
+
+func (err InvalidSourceUrl) Error() string {
+	return fmt.Sprintf("The --terragrunt-source parameter is set to '%s', but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!", err.TerragruntSource, err.ModulePath, err.ModuleSourceUrl)
+}
+
+type ErrorParsingModulePath struct {
+	ModuleSourceUrl string
+}
+
+func (err ErrorParsingModulePath) Error() string {
+	return fmt.Sprintf("Unable to obtain the module path from the source URL '%s'. Ensure that the URL is in a supported format.", err.ModuleSourceUrl)
 }
