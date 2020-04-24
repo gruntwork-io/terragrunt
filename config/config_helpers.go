@@ -98,6 +98,7 @@ func CreateTerragruntEvalContext(
 		"run_cmd":                                      wrapStringSliceToStringAsFuncImpl(runCommand, extensions.Include, terragruntOptions),
 		"read_terragrunt_config":                       readTerragruntConfigAsFuncImpl(terragruntOptions),
 		"get_terragrunt_dir":                           wrapVoidToStringAsFuncImpl(getTerragruntDir, extensions.Include, terragruntOptions),
+		"get_terraform_command":                        wrapVoidToStringAsFuncImpl(getTerraformCommand, extensions.Include, terragruntOptions),
 		"get_parent_terragrunt_dir":                    wrapVoidToStringAsFuncImpl(getParentTerragruntDir, extensions.Include, terragruntOptions),
 		"get_aws_account_id":                           wrapVoidToStringAsFuncImpl(getAWSAccountID, extensions.Include, terragruntOptions),
 		"get_aws_caller_identity_arn":                  wrapVoidToStringAsFuncImpl(getAWSCallerIdentityARN, extensions.Include, terragruntOptions),
@@ -302,6 +303,11 @@ func pathRelativeFromInclude(include *IncludeConfig, terragruntOptions *options.
 	}
 
 	return util.GetPathRelativeTo(includePath, currentPath)
+}
+
+// getTerraformCommand returns the current terraform command in execution
+func getTerraformCommand(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	return terragruntOptions.TerraformCommand, nil
 }
 
 // Return the AWS account id associated to the current set of credentials
