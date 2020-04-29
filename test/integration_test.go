@@ -1340,13 +1340,18 @@ func TestLocalsInInclude(t *testing.T) {
 
 	assert.Equal(
 		t,
-		outputs["parent_terragrunt_dir"].Value,
 		filepath.Join(tmpEnvPath, TEST_FIXTURE_LOCALS_IN_INCLUDE),
+		outputs["parent_terragrunt_dir"].Value,
 	)
 	assert.Equal(
 		t,
-		outputs["terragrunt_dir"].Value,
 		childPath,
+		outputs["terragrunt_dir"].Value,
+	)
+	assert.Equal(
+		t,
+		"apply",
+		outputs["terraform_command"].Value,
 	)
 }
 
