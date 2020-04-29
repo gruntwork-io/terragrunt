@@ -61,6 +61,7 @@ var TERRAFORM_COMMANDS_NEED_PARALLELISM = []string{
 type EnvVar struct {
 	Name         string
 	DefaultValue string
+	IsRequired   bool
 }
 
 // EvalContextExtensions provides various extensions to the evaluation context to enhance the parsing capabilities.
@@ -157,12 +158,18 @@ func getParentTerragruntDir(include *IncludeConfig, terragruntOptions *options.T
 
 func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 	envVariable := EnvVar{}
-	if len(parameters) != 2 {
-		return envVariable, errors.WithStackTrace(InvalidGetEnvParams{ExpectedNumParams: 2, ActualNumParams: 2, Example: `getEnv("<NAME>", "<DEFAULT>")`})
-	}
 
 	envVariable.Name = parameters[0]
-	envVariable.DefaultValue = parameters[1]
+
+    if len(parameters) == 1 {
+    	envVariable.IsRequired = true
+    } else {
+		envVariable.DefaultValue = parameters[1]
+	}
+
+	if len(parameters) > 2 {
+		return envVariable, errors.WithStackTrace(InvalidGetEnvParams{ExpectedNumParams: 2, ActualNumParams: 2, Example: `getEnv("<NAME>", "<DEFAULT>")`})
+	}
 
 	if envVariable.Name == "" {
 		return envVariable, errors.WithStackTrace(InvalidGetEnvParams{ExpectedNumParams: 2, ActualNumParams: 2, Example: `getEnv("<NAME>", "<DEFAULT>")`})
@@ -209,6 +216,9 @@ func getEnvironmentVariable(parameters []string, include *IncludeConfig, terragr
 	envValue, exists := terragruntOptions.Env[parameterMap.Name]
 
 	if !exists {
+		if parameterMap.IsRequired {
+			return "", errors.WithStackTrace(EnvVarNotFound{EnvVar: parameterMap.Name})
+		}
 		envValue = parameterMap.DefaultValue
 	}
 
@@ -506,8 +516,16 @@ type InvalidGetEnvParams struct {
 	Example           string
 }
 
+type EnvVarNotFound struct {
+	EnvVar	string
+}
+
 func (err InvalidGetEnvParams) Error() string {
 	return fmt.Sprintf("InvalidGetEnvParams: Expected %d parameters (%s) for get_env but got %d.", err.ExpectedNumParams, err.Example, err.ActualNumParams)
+}
+
+func (err EnvVarNotFound) Error() string {
+	return fmt.Sprintf("EnvVarNotFound: Required environment variable %s - not found", err.EnvVar)
 }
 
 type EmptyStringNotAllowed string
