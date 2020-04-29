@@ -496,6 +496,15 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 		if err := prepareInitCommand(terragruntOptions, terragruntConfig, allowSourceDownload); err != nil {
 			return err
 		}
+		if logval, ok := terragruntOptions.Env["TG_LOG"]; ok && logval == "env"{
+			fmt.Println("=======================================TF_VARs=======================================")
+			for env, val := range terragruntOptions.Env {
+				if (strings.HasPrefix(env, "TF_VAR_")) {
+					fmt.Printf("%s = %s\n", env, val)
+				}
+			}
+			fmt.Println("======================================================================================")
+		}
 	} else {
 		if err := prepareNonInitCommand(terragruntOptions, terragruntConfig); err != nil {
 			return err
