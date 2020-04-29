@@ -161,9 +161,9 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 
 	envVariable.Name = parameters[0]
 
-    if len(parameters) == 1 {
-    	envVariable.IsRequired = true
-    } else {
+	if len(parameters) == 1 {
+		envVariable.IsRequired = true
+	} else {
 		envVariable.DefaultValue = parameters[1]
 	}
 
@@ -517,7 +517,7 @@ type InvalidGetEnvParams struct {
 }
 
 type EnvVarNotFound struct {
-	EnvVar	string
+	EnvVar string
 }
 
 func (err InvalidGetEnvParams) Error() string {
