@@ -343,7 +343,28 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 			nil,
 			terragruntOptionsForTest(t, "/root/child/"+DefaultTerragruntConfigPath),
 			"",
+			"InvalidEnvParamName",
+		},
+		{
+			`iam_role = get_env()`,
+			nil,
+			terragruntOptionsForTest(t, "/root/child/"+DefaultTerragruntConfigPath),
+			"",
 			"InvalidGetEnvParams",
+		},
+		{
+			`iam_role = get_env("TEST_VAR_1", "TEST_VAR_2", "TEST_VAR_3")`,
+			nil,
+			terragruntOptionsForTest(t, "/root/child/"+DefaultTerragruntConfigPath),
+			"",
+			"InvalidGetEnvParams",
+		},
+		{
+			`iam_role = get_env("TEST_ENV_TERRAGRUNT_VAR")`,
+			nil,
+			terragruntOptionsForTestWithEnv(t, "/root/child/"+DefaultTerragruntConfigPath, map[string]string{"TEST_ENV_TERRAGRUNT_VAR": "SOMETHING"}),
+			"SOMETHING",
+			"",
 		},
 		{
 			`iam_role = get_env("SOME_VAR", "SOME_VALUE")`,
@@ -364,6 +385,13 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 			nil,
 			terragruntOptionsForTestWithEnv(t, "/root/child/"+DefaultTerragruntConfigPath, map[string]string{"TEST_ENV_TERRAGRUNT_OTHER": "SOMETHING"}),
 			"foo/DEFAULT/bar",
+			"",
+		},
+		{
+			`iam_role = "foo/${get_env("TEST_ENV_TERRAGRUNT_VAR")}/bar"`,
+			nil,
+			terragruntOptionsForTestWithEnv(t, "/root/child/"+DefaultTerragruntConfigPath, map[string]string{"TEST_ENV_TERRAGRUNT_VAR": "SOMETHING"}),
+			"foo/SOMETHING/bar",
 			"",
 		},
 	}

@@ -202,6 +202,17 @@ This allows proper retrieval of the `common.tfvars` from whatever the level of s
 
 ## get\_env
 
+`get_env(NAME)` return the value of variable named `NAME` or throws exceptions if that variable is not set. Example:
+
+``` hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = get_env("BUCKET")
+  }
+}
+```
+ 
 `get_env(NAME, DEFAULT)` returns the value of the environment variable named `NAME` or `DEFAULT` if that environment variable is not set. Example:
 
 ``` hcl
