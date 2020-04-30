@@ -159,22 +159,20 @@ func getParentTerragruntDir(include *IncludeConfig, terragruntOptions *options.T
 func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 	envVariable := EnvVar{}
 
-	envVariable.Name = parameters[0]
-
-	if len(parameters) == 1 {
+	switch len(parameters) {
+	case 1:
 		envVariable.IsRequired = true
-	} else {
+		envVariable.Name = parameters[0]
+	case 2:
+		envVariable.Name = parameters[0]
 		envVariable.DefaultValue = parameters[1]
-	}
-
-	if len(parameters) > 2 {
-		return envVariable, errors.WithStackTrace(InvalidGetEnvParams{ExpectedNumParams: 2, ActualNumParams: 2, Example: `getEnv("<NAME>", "<DEFAULT>")`})
+	default:
+		return envVariable, errors.WithStackTrace(InvalidGetEnvParams{ActualNumParams: len(parameters), Example: `getEnv("<NAME>", "[DEFAULT]")`})
 	}
 
 	if envVariable.Name == "" {
-		return envVariable, errors.WithStackTrace(InvalidGetEnvParams{ExpectedNumParams: 2, ActualNumParams: 2, Example: `getEnv("<NAME>", "<DEFAULT>")`})
+		return envVariable, errors.WithStackTrace(InvalidEnvParamName{EnvVarName: parameters[0]})
 	}
-
 	return envVariable, nil
 }
 
@@ -511,17 +509,24 @@ func (err ParentFileNotFound) Error() string {
 }
 
 type InvalidGetEnvParams struct {
-	ExpectedNumParams int
-	ActualNumParams   int
-	Example           string
+	ActualNumParams int
+	Example         string
 }
 
 type EnvVarNotFound struct {
 	EnvVar string
 }
 
+type InvalidEnvParamName struct {
+	EnvVarName string
+}
+
 func (err InvalidGetEnvParams) Error() string {
-	return fmt.Sprintf("InvalidGetEnvParams: Expected %d parameters (%s) for get_env but got %d.", err.ExpectedNumParams, err.Example, err.ActualNumParams)
+	return fmt.Sprintf("InvalidGetEnvParams: Expected one or two parameters (%s) for get_env but got %d.", err.Example, err.ActualNumParams)
+}
+
+func (err InvalidEnvParamName) Error() string {
+	return fmt.Sprintf("InvalidEnvParamName: Invalid environment variable name - (%s) ", err.EnvVarName)
 }
 
 func (err EnvVarNotFound) Error() string {
