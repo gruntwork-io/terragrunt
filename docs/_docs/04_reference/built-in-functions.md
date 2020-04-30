@@ -33,6 +33,8 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
   - [get\_terraform\_commands\_that\_need\_locking()](#get_terraform_commands_that_need_locking)
 
   - [get\_terraform\_commands\_that\_need\_parallelism()](#get_terraform_commands_that_need_parallelism)
+  
+  - [get\_terraform\_command()](#get_terraform_command)
 
   - [get\_aws\_account\_id()](#get_aws_account_id)
 
@@ -398,6 +400,16 @@ remote_state {
 ``` hcl
 inputs = {
   caller_arn = get_aws_caller_identity_arn()
+}
+```
+
+## get\_terraform\_command
+
+`get_terraform_command()` returns the current terraform command in execution. Example:
+
+``` hcl
+inputs = {
+  current_command = get_terraform_command()
 }
 ```
 
