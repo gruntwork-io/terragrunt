@@ -73,7 +73,7 @@ You can then include them into the `locals` block of the child terragrunt config
 ```
 # child terragrunt.hcl
 locals {
-  common_vars = yamldecode(file("${get_terragrunt_dir()}/${find_in_parent_folders("common_vars.yaml")}")),
+  common_vars = yamldecode(file("${find_in_parent_folders("common_vars.yaml")}")),
   region = "us-east-1"
 }
 ```

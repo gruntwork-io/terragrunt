@@ -77,6 +77,7 @@ const CMD_VALIDATE_ALL = "validate-all"
 const CMD_INIT = "init"
 const CMD_INIT_FROM_MODULE = "init-from-module"
 const CMD_TERRAGRUNT_INFO = "terragrunt-info"
+const CMD_TERRAGRUNT_GRAPH_DEPENDENCIES = "graph-dependencies"
 const CMD_TERRAGRUNT_READ_CONFIG = "terragrunt-read-config"
 const CMD_HCLFMT = "hclfmt"
 
@@ -116,6 +117,7 @@ var TERRAFORM_COMMANDS_THAT_USE_STATE = []string{
 var TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT = []string{
 	"version",
 	"terragrunt-info",
+	"graph-dependencies",
 }
 
 // Struct is output as JSON by 'terragrunt-info':
@@ -148,6 +150,7 @@ COMMANDS:
    destroy-all          Destroy a 'stack' by running 'terragrunt destroy' in each subfolder
    validate-all         Validate 'stack' by running 'terragrunt validate' in each subfolder
    terragrunt-info      Emits limited terragrunt state on stdout and exits
+   graph-dependencies   Prints the terragrunt dependency graph to stdout
    hclfmt               Recursively find terragrunt.hcl files and rewrite them into a canonical format.
    *                    Terragrunt forwards all other commands directly to Terraform
 
@@ -161,7 +164,7 @@ GLOBAL OPTIONS:
    terragrunt-download-dir                      The path where to download Terraform code. Default is .terragrunt-cache in the working directory.
    terragrunt-source                            Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.
    terragrunt-source-update                     Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it.
-   terragrunt-iam-role             	    	    Assume the specified IAM role before executing Terraform. Can also be set via the TERRAGRUNT_IAM_ROLE environment variable.
+   terragrunt-iam-role                          Assume the specified IAM role before executing Terraform. Can also be set via the TERRAGRUNT_IAM_ROLE environment variable.
    terragrunt-ignore-dependency-errors          *-all commands continue processing components even if a dependency fails.
    terragrunt-ignore-dependency-order           *-all commands will be run disregarding the dependencies
    terragrunt-ignore-external-dependencies      *-all commands will not attempt to include external dependencies
@@ -266,6 +269,10 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 
 	if shouldRunHCLFmt(terragruntOptions) {
 		return runHCLFmt(terragruntOptions)
+	}
+
+	if shouldRunGraphDependencies(terragruntOptions) {
+		return runGraphDependencies(terragruntOptions)
 	}
 
 	terragruntConfig, err := config.ReadTerragruntConfig(terragruntOptions)
@@ -375,6 +382,18 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	return runTerragruntWithConfig(terragruntOptions, terragruntConfig, false)
 }
 
+// Run graph dependencies prints the dependency graph to stdout
+func runGraphDependencies(terragruntOptions *options.TerragruntOptions) error {
+	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
+	if err != nil {
+		return err
+	}
+
+	// Exit early if the operation wanted is to get the graph
+	stack.Graph(terragruntOptions)
+	return nil
+}
+
 func shouldPrintTerraformHelp(terragruntOptions *options.TerragruntOptions) bool {
 	for _, tfHelpFlag := range TERRAFORM_HELP_FLAGS {
 		if util.ListContainsElement(terragruntOptions.TerraformCliArgs, tfHelpFlag) {
@@ -382,6 +401,10 @@ func shouldPrintTerraformHelp(terragruntOptions *options.TerragruntOptions) bool
 		}
 	}
 	return false
+}
+
+func shouldRunGraphDependencies(terragruntOptions *options.TerragruntOptions) bool {
+	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_TERRAGRUNT_GRAPH_DEPENDENCIES)
 }
 
 func shouldPrintTerragruntInfo(terragruntOptions *options.TerragruntOptions) bool {

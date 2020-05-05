@@ -33,6 +33,8 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
   - [get\_terraform\_commands\_that\_need\_locking()](#get_terraform_commands_that_need_locking)
 
   - [get\_terraform\_commands\_that\_need\_parallelism()](#get_terraform_commands_that_need_parallelism)
+  
+  - [get\_terraform\_command()](#get_terraform_command)
 
   - [get\_aws\_account\_id()](#get_aws_account_id)
 
@@ -202,6 +204,17 @@ This allows proper retrieval of the `common.tfvars` from whatever the level of s
 
 ## get\_env
 
+`get_env(NAME)` return the value of variable named `NAME` or throws exceptions if that variable is not set. Example:
+
+``` hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = get_env("BUCKET")
+  }
+}
+```
+ 
 `get_env(NAME, DEFAULT)` returns the value of the environment variable named `NAME` or `DEFAULT` if that environment variable is not set. Example:
 
 ``` hcl
@@ -387,6 +400,16 @@ remote_state {
 ``` hcl
 inputs = {
   caller_arn = get_aws_caller_identity_arn()
+}
+```
+
+## get\_terraform\_command
+
+`get_terraform_command()` returns the current terraform command in execution. Example:
+
+``` hcl
+inputs = {
+  current_command = get_terraform_command()
 }
 ```
 
