@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/google/go-cmp/cmp"
 	"io"
 	"io/ioutil"
 	"math"
@@ -861,21 +860,26 @@ func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules in
 	sort.Slice(times, func(i, j int) bool {
 		return times[i] < times[j]
 	})
-	t.Logf("Parallelism test numberOfModules=%d p=%d sortedTimes=%v", numberOfModules, parallelism, times)
 
-	// TODO: this part is incomplete, sorting + doing a diff with a window doesn't seem to work
-	maxDiffInSeconds := 3
-	comparator := cmp.Comparer(func(x, y int) bool {
-		// 3 is equivalent to the max time inside
-		return int(math.Abs(float64(x-y))) < maxDiffInSeconds
-	})
+	// the reported times are skewed (running terragrunt/terraform apply adds a little bit of overhead)
+	// we apply a simple scaling algorithm on the times based on the last expected time and the last actual time
+	k := float64(times[len(times)-1]) / float64(expectedTimings[len(expectedTimings)-1])
+
+	scaledTimes := make([]float64, len(times))
+	for i := 0; i < len(times); i += 1 {
+		scaledTimes[i] = float64(times[i]) / k
+	}
+
+	t.Logf("Parallelism test numberOfModules=%d p=%d expectedTimes=%v times=%v scaledTimes=%v scaleFactor=%f", numberOfModules, parallelism, expectedTimings, times, scaledTimes, k)
+
+	maxDiffInSeconds := 3.0
+	isEqual := func(x, y float64) bool {
+		return math.Abs(x-y) <= maxDiffInSeconds
+	}
 	for i := 0; i < len(times); i += 1 {
 		// it's impossible to know when will the first test finish however once a test finishes
 		// we know that all the other times are relative to the first one
-		assert.True(t, cmp.Equal(
-			times[i]-times[0],
-			expectedTimings[i]-expectedTimings[0],
-			comparator))
+		assert.True(t, isEqual(scaledTimes[i], float64(expectedTimings[i])))
 	}
 }
 
@@ -887,11 +891,9 @@ func TestTerragruntParallelism(t *testing.T) {
 		timeToDeployEachModule time.Duration
 		expectedTimings        []int
 	}{
-		//{1, 10, 5 * time.Second, []int{5, 10, 15, 20, 25, 30, 35, 40, 45, 50}},
-		//{2, 10, 5 * time.Second, []int{5, 5, 10, 10, 15, 15, 20, 20, 25, 25}},
-		//{3, 10, 5 * time.Second, []int{5, 5, 5, 10, 10, 10, 15, 15, 15, 20}},
-		{4, 10, 5 * time.Second, []int{5, 5, 5, 5, 10, 10, 10, 10, 15, 15}},
-		//{5, 10, 5 * time.Second, []int{5, 5, 5, 5, 5, 5, 5, 5, 5, 5}},
+		{1, 10, 5 * time.Second, []int{5, 10, 15, 20, 25, 30, 35, 40, 45, 50}},
+		{3, 10, 5 * time.Second, []int{5, 5, 5, 10, 10, 10, 15, 15, 15, 20}},
+		{5, 10, 5 * time.Second, []int{5, 5, 5, 5, 5, 5, 5, 5, 5, 5}},
 	}
 	for _, tc := range testCases {
 		tc := tc // shadow and force execution with this case
