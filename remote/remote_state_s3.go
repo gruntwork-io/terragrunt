@@ -527,7 +527,7 @@ func EnableVersioningForS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, t
 func EnableSSEForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Enabling bucket-wide SSE on AWS S3 bucket %s", config.Bucket)
 	// Encrypt with KMS by default
-	defEnc := &s3.ServerSideEncryptionByDefault{KMSMasterKeyID: aws.String("aws/s3"), SSEAlgorithm: aws.String(s3.ServerSideEncryptionAwsKms)}
+	defEnc := &s3.ServerSideEncryptionByDefault{SSEAlgorithm: aws.String(s3.ServerSideEncryptionAwsKms)}
 	rule := &s3.ServerSideEncryptionRule{ApplyServerSideEncryptionByDefault: defEnc}
 	rules := []*s3.ServerSideEncryptionRule{rule}
 	serverConfig := &s3.ServerSideEncryptionConfiguration{Rules: rules}
