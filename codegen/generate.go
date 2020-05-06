@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -148,11 +149,16 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]interfac
 	f := hclwrite.NewEmptyFile()
 	backendBlock := f.Body().AppendNewBlock("terraform", nil).Body().AppendNewBlock("backend", []string{backend})
 	backendBlockBody := backendBlock.Body()
+	var backendKeys []string
 
-	for key, val := range config {
+	for key := range config {
+		backendKeys = append(backendKeys, key)
+	}
+	sort.Strings(backendKeys)
+	for _, key := range backendKeys {
 		// Since we don't have the cty type information for the config and since config can be arbitrary, we cheat by using
 		// json as an intermediate representation.
-		jsonBytes, err := json.Marshal(val)
+		jsonBytes, err := json.Marshal(config[key])
 		if err != nil {
 			return nil, errors.WithStackTrace(err)
 		}
