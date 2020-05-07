@@ -36,6 +36,8 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
   
   - [get\_terraform\_command()](#get_terraform_command)
 
+  - [get\_terraform\_cli\_args()](#get_terraform_cli_args)
+
   - [get\_aws\_account\_id()](#get_aws_account_id)
 
   - [get\_aws\_caller\_identity\_arn()](#get_aws_caller_identity_arn)
@@ -410,6 +412,16 @@ inputs = {
 ``` hcl
 inputs = {
   current_command = get_terraform_command()
+}
+```
+
+## get\_terraform\_cli\_args
+
+`get_terraform_cli_args()` returns cli args for the current terraform command in execution. Example:
+
+``` hcl
+inputs = {
+  current_cli_args = get_terraform_cli_args()
 }
 ```
 
