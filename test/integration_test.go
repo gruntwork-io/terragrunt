@@ -1324,7 +1324,7 @@ func TestLocalsInInclude(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCALS_IN_INCLUDE)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_LOCALS_IN_INCLUDE)
 	childPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_LOCALS_IN_INCLUDE, TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH)
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", childPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -no-color --terragrunt-non-interactive --terragrunt-working-dir %s", childPath))
 
 	// Check the outputs of the dir functions referenced in locals to make sure they return what is expected
 	stdout := bytes.Buffer{}
@@ -1352,6 +1352,11 @@ func TestLocalsInInclude(t *testing.T) {
 		t,
 		"apply",
 		outputs["terraform_command"].Value,
+	)
+	assert.Equal(
+		t,
+		"[\"apply\",\"-no-color\"]",
+		outputs["terraform_cli_args"].Value,
 	)
 }
 
