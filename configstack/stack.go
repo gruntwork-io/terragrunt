@@ -44,10 +44,11 @@ func (stack *Stack) Plan(terragruntOptions *options.TerragruntOptions) error {
 		module.TerragruntOptions.ErrWriter = &errorStreams[n]
 	}
 	defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
+
 	if terragruntOptions.IgnoreDependencyOrder {
-		return RunModulesIgnoreOrder(stack.Modules)
+		return RunModulesIgnoreOrder(stack.Modules, terragruntOptions.Parallelism)
 	} else {
-		return RunModules(stack.Modules)
+		return RunModules(stack.Modules, terragruntOptions.Parallelism)
 	}
 }
 
@@ -80,10 +81,11 @@ func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.Terragrunt
 // proper order.
 func (stack *Stack) Apply(terragruntOptions *options.TerragruntOptions) error {
 	stack.setTerraformCommand([]string{"apply", "-input=false", "-auto-approve"})
+
 	if terragruntOptions.IgnoreDependencyOrder {
-		return RunModulesIgnoreOrder(stack.Modules)
+		return RunModulesIgnoreOrder(stack.Modules, terragruntOptions.Parallelism)
 	} else {
-		return RunModules(stack.Modules)
+		return RunModules(stack.Modules, terragruntOptions.Parallelism)
 	}
 }
 
@@ -91,30 +93,33 @@ func (stack *Stack) Apply(terragruntOptions *options.TerragruntOptions) error {
 // the proper order.
 func (stack *Stack) Destroy(terragruntOptions *options.TerragruntOptions) error {
 	stack.setTerraformCommand([]string{"destroy", "-force", "-input=false"})
+
 	if terragruntOptions.IgnoreDependencyOrder {
-		return RunModulesIgnoreOrder(stack.Modules)
+		return RunModulesIgnoreOrder(stack.Modules, terragruntOptions.Parallelism)
 	} else {
-		return RunModulesReverseOrder(stack.Modules)
+		return RunModulesReverseOrder(stack.Modules, terragruntOptions.Parallelism)
 	}
 }
 
 // Output prints the outputs of all the modules in the given stack in their specified order.
 func (stack *Stack) Output(terragruntOptions *options.TerragruntOptions) error {
 	stack.setTerraformCommand([]string{"output"})
+
 	if terragruntOptions.IgnoreDependencyOrder {
-		return RunModulesIgnoreOrder(stack.Modules)
+		return RunModulesIgnoreOrder(stack.Modules, terragruntOptions.Parallelism)
 	} else {
-		return RunModules(stack.Modules)
+		return RunModules(stack.Modules, terragruntOptions.Parallelism)
 	}
 }
 
 // Validate runs terraform validate on each module
 func (stack *Stack) Validate(terragruntOptions *options.TerragruntOptions) error {
 	stack.setTerraformCommand([]string{"validate"})
+
 	if terragruntOptions.IgnoreDependencyOrder {
-		return RunModulesIgnoreOrder(stack.Modules)
+		return RunModulesIgnoreOrder(stack.Modules, terragruntOptions.Parallelism)
 	} else {
-		return RunModules(stack.Modules)
+		return RunModules(stack.Modules, terragruntOptions.Parallelism)
 	}
 }
 

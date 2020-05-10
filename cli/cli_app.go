@@ -39,6 +39,7 @@ const OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES = "terragrunt-include-externa
 const OPT_TERRAGRUNT_EXCLUDE_DIR = "terragrunt-exclude-dir"
 const OPT_TERRAGRUNT_INCLUDE_DIR = "terragrunt-include-dir"
 const OPT_TERRAGRUNT_STRICT_INCLUDE = "terragrunt-strict-include"
+const OPT_TERRAGRUNT_PARALLELISM = "terragrunt-parallelism"
 const OPT_TERRAGRUNT_CHECK = "terragrunt-check"
 const OPT_TERRAGRUNT_HCLFMT_FILE = "terragrunt-hclfmt-file"
 
@@ -63,6 +64,7 @@ var ALL_TERRAGRUNT_STRING_OPTS = []string{
 	OPT_TERRAGRUNT_IAM_ROLE,
 	OPT_TERRAGRUNT_EXCLUDE_DIR,
 	OPT_TERRAGRUNT_INCLUDE_DIR,
+	OPT_TERRAGRUNT_PARALLELISM,
 	OPT_TERRAGRUNT_HCLFMT_FILE,
 }
 
@@ -167,6 +169,7 @@ GLOBAL OPTIONS:
    terragrunt-ignore-dependency-order           *-all commands will be run disregarding the dependencies
    terragrunt-ignore-external-dependencies      *-all commands will not attempt to include external dependencies
    terragrunt-include-external-dependencies     *-all commands will include external dependencies
+   terragrunt-parallelism <N>					*-all commands parallelism set to at most N modules
    terragrunt-exclude-dir                       Unix-style glob of directories to exclude when running *-all commands
    terragrunt-include-dir                       Unix-style glob of directories to include when running *-all commands
    terragrunt-check                             Enable check mode in the hclfmt command.

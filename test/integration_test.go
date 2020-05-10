@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"math/rand"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -102,6 +105,7 @@ const (
 	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                    = "fixture-get-aws-caller-identity"
 	TEST_FIXTURE_REGRESSIONS                                = "fixture-regressions"
 	TEST_FIXTURE_DIRS_PATH                                  = "fixture-dirs"
+	TEST_FIXTURE_PARALLELISM                                = "fixture-parallelism"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -783,6 +787,121 @@ func TestTerragruntOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *tes
 
 	// Without --terragrunt-ignore-dependency-errors, app2 never runs because its dependencies have "errors" since they don't have the output "app2_text".
 	assert.True(t, strings.Contains(output, "app2 output"))
+}
+
+func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules int, timeToDeployEachModule time.Duration) (string, int, error) {
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	// folders inside the fixture
+	//fixtureTemplate := path.Join(TEST_FIXTURE_PARALLELISM, "template")
+	//fixtureApp := path.Join(TEST_FIXTURE_PARALLELISM, "app")
+
+	// copy the template `numberOfModules` times into the app
+	tmpEnvPath, err := ioutil.TempDir("", "terragrunt-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir due to error: %v", err)
+	}
+	for i := 0; i < numberOfModules; i++ {
+		err := util.CopyFolderContents(TEST_FIXTURE_PARALLELISM, tmpEnvPath, ".terragrunt-test")
+		if err != nil {
+			return "", 0, err
+		}
+		err = os.Rename(
+			path.Join(tmpEnvPath, "template"),
+			path.Join(tmpEnvPath, "app"+strconv.Itoa(i)))
+		if err != nil {
+			return "", 0, err
+		}
+	}
+
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
+
+	environmentPath := fmt.Sprintf("%s", tmpEnvPath)
+
+	// forces plugin download & initialization (no parallelism control)
+	runTerragrunt(t, fmt.Sprintf("terragrunt plan-all --terragrunt-non-interactive --terragrunt-working-dir %s -var sleep_seconds=%d", environmentPath, timeToDeployEachModule/time.Second))
+	// apply all with parallelism set
+	// NOTE: we can't run just apply-all and not plan-all because the time to initialize the plugins skews the results of the test
+	testStart := int(time.Now().Unix())
+	t.Logf("apply-all start time = %d, %s", testStart, time.Now().Format(time.RFC3339))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-parallelism %d --terragrunt-non-interactive --terragrunt-working-dir %s -var sleep_seconds=%d", parallelism, environmentPath, timeToDeployEachModule/time.Second))
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	// Call runTerragruntCommand directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
+	if err != nil {
+		return "", 0, err
+	}
+
+	return stdout.String(), testStart, nil
+}
+
+func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules int, timeToDeployEachModule time.Duration, expectedTimings []int) {
+	output, testStart, err := testRemoteFixtureParallelism(t, parallelism, numberOfModules, timeToDeployEachModule)
+	require.NoError(t, err)
+
+	// parse output and sort the times, the regex captures a string in the format time.RFC3339 emitted by terraform's timestamp function
+	r, err := regexp.Compile(`out = ([-:\w]+)`)
+	require.NoError(t, err)
+
+	matches := r.FindAllStringSubmatch(output, -1)
+	require.True(t, len(matches) == numberOfModules)
+	var times []int
+	for _, v := range matches {
+		// timestamp() is parsed
+		parsed, err := time.Parse(time.RFC3339, v[1])
+		require.NoError(t, err)
+		times = append(times, int(parsed.Unix())-testStart)
+	}
+	sort.Slice(times, func(i, j int) bool {
+		return times[i] < times[j]
+	})
+
+	// the reported times are skewed (running terragrunt/terraform apply adds a little bit of overhead)
+	// we apply a simple scaling algorithm on the times based on the last expected time and the last actual time
+	k := float64(times[len(times)-1]) / float64(expectedTimings[len(expectedTimings)-1])
+
+	scaledTimes := make([]float64, len(times))
+	for i := 0; i < len(times); i += 1 {
+		scaledTimes[i] = float64(times[i]) / k
+	}
+
+	t.Logf("Parallelism test numberOfModules=%d p=%d expectedTimes=%v times=%v scaledTimes=%v scaleFactor=%f", numberOfModules, parallelism, expectedTimings, times, scaledTimes, k)
+
+	maxDiffInSeconds := 3.0
+	isEqual := func(x, y float64) bool {
+		return math.Abs(x-y) <= maxDiffInSeconds
+	}
+	for i := 0; i < len(times); i += 1 {
+		// it's impossible to know when will the first test finish however once a test finishes
+		// we know that all the other times are relative to the first one
+		assert.True(t, isEqual(scaledTimes[i], float64(expectedTimings[i])))
+	}
+}
+
+func TestTerragruntParallelism(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		parallelism            int
+		numberOfModules        int
+		timeToDeployEachModule time.Duration
+		expectedTimings        []int
+	}{
+		{1, 10, 5 * time.Second, []int{5, 10, 15, 20, 25, 30, 35, 40, 45, 50}},
+		{3, 10, 5 * time.Second, []int{5, 5, 5, 10, 10, 10, 15, 15, 15, 20}},
+		{5, 10, 5 * time.Second, []int{5, 5, 5, 5, 5, 5, 5, 5, 5, 5}},
+	}
+	for _, tc := range testCases {
+		tc := tc // shadow and force execution with this case
+		t.Run(fmt.Sprintf("parallelism=%d numberOfModules=%d timeToDeployEachModule=%v expectedTimings=%v", tc.parallelism, tc.numberOfModules, tc.timeToDeployEachModule, tc.expectedTimings), func(t *testing.T) {
+			// t.Parallel()
+			testTerragruntParallelism(t, tc.parallelism, tc.numberOfModules, tc.timeToDeployEachModule, tc.expectedTimings)
+		})
+	}
 }
 
 func TestTerragruntStackCommands(t *testing.T) {
