@@ -339,9 +339,11 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
-	for _, customProvider := range terragruntConfig.Terraform.CustomProvider {
-		if err := downloadTerraformProvider(&customProvider, terragruntOptions, terragruntConfig); err != nil {
-			return err
+	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.CustomProvider != nil {
+		for _, customProvider := range terragruntConfig.Terraform.CustomProvider {
+			if err := downloadTerraformProvider(&customProvider, terragruntOptions, terragruntConfig); err != nil {
+				return err
+			}
 		}
 	}
 
