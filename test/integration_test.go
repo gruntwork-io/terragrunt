@@ -106,6 +106,7 @@ const (
 	TEST_FIXTURE_REGRESSIONS                                = "fixture-regressions"
 	TEST_FIXTURE_DIRS_PATH                                  = "fixture-dirs"
 	TEST_FIXTURE_PARALLELISM                                = "fixture-parallelism"
+	TEST_FICTURE_CUSTOM_PROVIDER                            = "fixture-custom-provider"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -1082,6 +1083,21 @@ func TestExitCode(t *testing.T) {
 	exitCode, exitCodeErr := shell.GetExitCode(err)
 	assert.Nil(t, exitCodeErr)
 	assert.Equal(t, 2, exitCode)
+}
+
+func TestCustomProvider(t *testing.T) {
+	t.Parallel()
+
+	rootPath := copyEnvironment(t, TEST_FICTURE_CUSTOM_PROVIDER)
+	modulePath := util.JoinPath(rootPath, TEST_FICTURE_CUSTOM_PROVIDER, "module")
+	out := new(bytes.Buffer)
+
+	//err := runTerragruntCommand(t, terr)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
+	t.Log(out.String())
+	// And the result value for test should be the injected variable since the injected arguments are injected before the suplied parameters,
+	// so our override of extra_var should be the last argument.
+	assert.Contains(t, out.String(), fmt.Sprintf("test = %s", "Hello from custom provider"))
 }
 
 func TestExtraArguments(t *testing.T) {

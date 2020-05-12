@@ -89,10 +89,11 @@ func terragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 // ctyTerraformConfig is an alternate representation of TerraformConfig that converts internal blocks into a map that
 // maps the name to the underlying struct, as opposed to a list representation.
 type ctyTerraformConfig struct {
-	ExtraArgs   map[string]TerraformExtraArguments `cty:"extra_arguments"`
-	Source      *string                            `cty:"source"`
-	BeforeHooks map[string]Hook                    `cty:"before_hook"`
-	AfterHooks  map[string]Hook                    `cty:"after_hook"`
+	CustomProvider map[string]CustomProvider          `cty:"custom_provider"`
+	ExtraArgs      map[string]TerraformExtraArguments `cty:"extra_arguments"`
+	Source         *string                            `cty:"source"`
+	BeforeHooks    map[string]Hook                    `cty:"before_hook"`
+	AfterHooks     map[string]Hook                    `cty:"after_hook"`
 }
 
 // Serialize TerraformConfig to a cty Value, but with maps instead of lists for the blocks.
@@ -102,10 +103,11 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 	}
 
 	configCty := ctyTerraformConfig{
-		Source:      config.Source,
-		ExtraArgs:   map[string]TerraformExtraArguments{},
-		BeforeHooks: map[string]Hook{},
-		AfterHooks:  map[string]Hook{},
+		Source:         config.Source,
+		CustomProvider: map[string]CustomProvider{},
+		ExtraArgs:      map[string]TerraformExtraArguments{},
+		BeforeHooks:    map[string]Hook{},
+		AfterHooks:     map[string]Hook{},
 	}
 
 	for _, arg := range config.ExtraArgs {
@@ -116,6 +118,9 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 	}
 	for _, hook := range config.AfterHooks {
 		configCty.AfterHooks[hook.Name] = hook
+	}
+	for _, provider := range config.CustomProvider {
+		configCty.CustomProvider[provider.Name] = provider
 	}
 
 	return gostructToCty(configCty)

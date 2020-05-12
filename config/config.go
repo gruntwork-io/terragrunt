@@ -138,6 +138,11 @@ func (deps *ModuleDependencies) String() string {
 	return fmt.Sprintf("ModuleDependencies{Paths = %v}", deps.Paths)
 }
 
+type CustomProvider struct {
+	Name   string  `hcl:"name,label" cty:"name"`
+	Source *string `hcl:"source,attr"`
+}
+
 // Hook specifies terraform commands (apply/plan) and array of os commands to execute
 type Hook struct {
 	Name       string   `hcl:"name,label" cty:"name"`
@@ -154,10 +159,11 @@ func (conf *Hook) String() string {
 // NOTE: If any attributes or blocks are added here, be sure to add it to ctyTerraformConfig in config_as_cty.go as
 // well.
 type TerraformConfig struct {
-	ExtraArgs   []TerraformExtraArguments `hcl:"extra_arguments,block"`
-	Source      *string                   `hcl:"source,attr"`
-	BeforeHooks []Hook                    `hcl:"before_hook,block"`
-	AfterHooks  []Hook                    `hcl:"after_hook,block"`
+	ExtraArgs      []TerraformExtraArguments `hcl:"extra_arguments,block"`
+	CustomProvider []CustomProvider          `hcl:"custom_provider,block"`
+	Source         *string                   `hcl:"source,attr"`
+	BeforeHooks    []Hook                    `hcl:"before_hook,block"`
+	AfterHooks     []Hook                    `hcl:"after_hook,block"`
 }
 
 func (conf *TerraformConfig) String() string {

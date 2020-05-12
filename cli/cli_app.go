@@ -339,6 +339,12 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
+	for _, customProvider := range terragruntConfig.Terraform.CustomProvider {
+		if err := downloadTerraformProvider(&customProvider, terragruntOptions, terragruntConfig); err != nil {
+			return err
+		}
+	}
+
 	if shouldPrintTerragruntInfo(terragruntOptions) {
 		group := TerragruntInfoGroup{
 			ConfigPath:       terragruntOptions.TerragruntConfigPath,
@@ -696,7 +702,7 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 		return errors.WithStackTrace(InitNeededButDisabled("Cannot continue because init is needed, but Auto-Init is disabled.  You must run 'terragrunt init' manually."))
 	}
 
-	initOptions, err := prepareInitOptions(terragruntOptions, terraformSource)
+	initOptions, err := prepareInitOptions(terragruntOptions)
 
 	if err != nil {
 		return err
@@ -705,7 +711,7 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 	return runTerragruntWithConfig(initOptions, terragruntConfig, terraformSource != nil)
 }
 
-func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformSource *TerraformSource) (*options.TerragruntOptions, error) {
+func prepareInitOptions(terragruntOptions *options.TerragruntOptions) (*options.TerragruntOptions, error) {
 	// Need to clone the terragruntOptions, so the TerraformCliArgs can be configured to run the init command
 	initOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	initOptions.TerraformCliArgs = []string{CMD_INIT}

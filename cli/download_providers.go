@@ -8,19 +8,14 @@ import (
 	"os"
 )
 
-type CustomProvider struct {
-	Source string
-	Name   string
-}
-
 // 1. Download the given source URL, which should use Terraform's module source syntax, into a temporary folder
 // 2. Copy the contents of terragruntOptions.WorkingDir into the temporary folder.
 // 3. Set terragruntOptions.WorkingDir to the temporary folder.
 //
 // See the processTerraformSource method for how we determine the temporary folder so we can reuse it across multiple
 // runs of Terragrunt to avoid downloading everything from scratch every time.
-func downloadTerraformProvider(provider *CustomProvider, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	terraformSource, err := processTerraformSource(provider.Source, terragruntOptions)
+func downloadTerraformProvider(provider *config.CustomProvider, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+	terraformSource, err := processTerraformSource(*provider.Source, terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -29,7 +24,7 @@ func downloadTerraformProvider(provider *CustomProvider, terragruntOptions *opti
 		return err
 	}
 
-	binaryLocation := terragruntOptions.WorkingDir + command.DefaultPluginVendorDir + "/terraform-provider" + provider.Name
+	binaryLocation := terragruntOptions.WorkingDir + "/" + command.DefaultPluginVendorDir + "/terraform-provider-" + provider.Name
 
 	if err := compileGoProject(terraformSource.WorkingDir, binaryLocation, terragruntOptions); err != nil {
 		return err
@@ -44,6 +39,7 @@ func compileGoProject(location, output string, terragruntOptions *options.Terrag
 
 	//TODO: Clone options
 	clonedTerragruntOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	//Required for building
 	clonedTerragruntOptions.Env["GOCACHE"] = tmpDir + "/terragrunt-cache/gocache"
 	clonedTerragruntOptions.Env["GOPATH"] = tmpDir + "/terragrunt-cache/gopath"
 
