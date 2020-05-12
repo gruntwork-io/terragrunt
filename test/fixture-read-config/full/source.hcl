@@ -26,6 +26,10 @@ remote_state {
 terraform {
   source = "./delorean"
 
+  custom_provider "custom_provider_1" {
+    source = "./delorean_provider"
+  }
+
   extra_arguments "var-files" {
     commands = ["apply", "plan"]
     required_var_files = ["extra.tfvars"]

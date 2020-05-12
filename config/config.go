@@ -139,8 +139,8 @@ func (deps *ModuleDependencies) String() string {
 }
 
 type CustomProvider struct {
-	Name   string  `hcl:"name,label" cty:"name"`
-	Source *string `hcl:"source,attr"`
+	Name   string `hcl:"name,label" cty:"name"`
+	Source string `hcl:"source,attr" cty:"source"`
 }
 
 // Hook specifies terraform commands (apply/plan) and array of os commands to execute

@@ -2642,6 +2642,12 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 		terraformOut,
 		map[string]interface{}{
 			"source": "./delorean",
+			"custom_provider": map[string]interface{}{
+				"custom_provider_1": map[string]interface{}{
+					"name":   "custom_provider_1",
+					"source": "./delorean_provider",
+				},
+			},
 			"extra_arguments": map[string]interface{}{
 				"var-files": map[string]interface{}{
 					"name":               "var-files",

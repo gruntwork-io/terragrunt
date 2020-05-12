@@ -15,7 +15,7 @@ import (
 // See the processTerraformSource method for how we determine the temporary folder so we can reuse it across multiple
 // runs of Terragrunt to avoid downloading everything from scratch every time.
 func downloadTerraformProvider(provider *config.CustomProvider, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	terraformSource, err := processTerraformSource(*provider.Source, terragruntOptions)
+	terraformSource, err := processTerraformSource(provider.Source, terragruntOptions)
 	if err != nil {
 		return err
 	}
