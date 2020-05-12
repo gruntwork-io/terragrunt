@@ -5,11 +5,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/hashicorp/terraform/command"
+	"os"
 )
 
 type CustomProvider struct {
 	Source string
-	Name string
+	Name   string
 }
 
 // 1. Download the given source URL, which should use Terraform's module source syntax, into a temporary folder
@@ -38,7 +39,15 @@ func downloadTerraformProvider(provider *CustomProvider, terragruntOptions *opti
 }
 
 func compileGoProject(location, output string, terragruntOptions *options.TerragruntOptions) error {
-	_, err := shell.RunShellCommandWithOutput(terragruntOptions, location, false, false,
+
+	tmpDir := os.TempDir()
+
+	//TODO: Clone options
+	clonedTerragruntOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	clonedTerragruntOptions.Env["GOCACHE"] = tmpDir + "/terragrunt-cache/gocache"
+	clonedTerragruntOptions.Env["GOPATH"] = tmpDir + "/terragrunt-cache/gopath"
+
+	_, err := shell.RunShellCommandWithOutput(clonedTerragruntOptions, location, false, false,
 		"go", "build", "-o", output)
 
 	if err != nil {
