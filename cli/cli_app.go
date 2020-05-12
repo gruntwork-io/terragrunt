@@ -169,7 +169,7 @@ GLOBAL OPTIONS:
    terragrunt-ignore-dependency-order           *-all commands will be run disregarding the dependencies
    terragrunt-ignore-external-dependencies      *-all commands will not attempt to include external dependencies
    terragrunt-include-external-dependencies     *-all commands will include external dependencies
-   terragrunt-parallelism <N>					*-all commands parallelism set to at most N modules
+   terragrunt-parallelism <N>                   *-all commands parallelism set to at most N modules
    terragrunt-exclude-dir                       Unix-style glob of directories to exclude when running *-all commands
    terragrunt-include-dir                       Unix-style glob of directories to include when running *-all commands
    terragrunt-check                             Enable check mode in the hclfmt command.
