@@ -494,8 +494,7 @@ func getModulePathFromSourceUrl(sourceUrl string) (string, error) {
 	return matches[1], nil
 }
 
-// decrypts and returns sops encrypted data, if it's utf8 it will return a string
-// else it will return base64 encoded binary data
+// decrypts and returns sops encrypted utf-8 yaml or json data as a string
 func sopsDecryptFile(params []string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	numParams := len(params)
 
