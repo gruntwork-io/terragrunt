@@ -504,7 +504,7 @@ func sopsDecryptFile(params []string, include *IncludeConfig, terragruntOptions 
 		sourceFile = params[0]
 	}
 	if numParams != 1 {
-		return "", errors.WithStackTrace(WrongNumberOfParams{Func: "sops_decrypt", Expected: "1", Actual: numParams})
+		return "", errors.WithStackTrace(WrongNumberOfParams{Func: "sops_decrypt_file", Expected: "1", Actual: numParams})
 	}
 
 	var format string
