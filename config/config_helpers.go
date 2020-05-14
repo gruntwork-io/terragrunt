@@ -2,15 +2,18 @@ package config
 
 import (
 	"fmt"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/hcl/v2"
 	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
+	"go.mozilla.org/sops/v3/decrypt"
 
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -109,6 +112,7 @@ func CreateTerragruntEvalContext(
 		"get_terraform_commands_that_need_locking":     wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_LOCKING),
 		"get_terraform_commands_that_need_input":       wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_INPUT),
 		"get_terraform_commands_that_need_parallelism": wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_PARALLELISM),
+		"sops_decrypt_file":                            wrapStringSliceToStringAsFuncImpl(sopsDecryptFile, extensions.Include, terragruntOptions),
 	}
 
 	functions := map[string]function.Function{}
@@ -490,6 +494,41 @@ func getModulePathFromSourceUrl(sourceUrl string) (string, error) {
 	return matches[1], nil
 }
 
+// decrypts and returns sops encrypted utf-8 yaml or json data as a string
+func sopsDecryptFile(params []string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	numParams := len(params)
+
+	var sourceFile string
+
+	if numParams > 0 {
+		sourceFile = params[0]
+	}
+	if numParams != 1 {
+		return "", errors.WithStackTrace(WrongNumberOfParams{Func: "sops_decrypt_file", Expected: "1", Actual: numParams})
+	}
+
+	var format string
+	switch ext := path.Ext(sourceFile); ext {
+	case ".json":
+		format = "json"
+	case ".yaml", ".yml":
+		format = "yaml"
+	default:
+		return "", errors.WithStackTrace(InvalidSopsFormat{SourceFilePath: sourceFile})
+	}
+
+	rawData, err := decrypt.File(sourceFile, format)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	if utf8.Valid(rawData) {
+		return string(rawData), nil
+	}
+
+	return "", errors.WithStackTrace(InvalidSopsFormat{SourceFilePath: sourceFile})
+}
+
 // Custom error types
 type WrongNumberOfParams struct {
 	Func     string
@@ -575,4 +614,12 @@ type ErrorParsingModulePath struct {
 
 func (err ErrorParsingModulePath) Error() string {
 	return fmt.Sprintf("Unable to obtain the module path from the source URL '%s'. Ensure that the URL is in a supported format.", err.ModuleSourceUrl)
+}
+
+type InvalidSopsFormat struct {
+	SourceFilePath string
+}
+
+func (err InvalidSopsFormat) Error() string {
+	return fmt.Sprintf("File %s is not a valid format or encoding. Terragrunt will only decrypt yaml or json files in UTF-8 encoding.", err.SourceFilePath)
 }
