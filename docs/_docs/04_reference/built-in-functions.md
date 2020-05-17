@@ -541,7 +541,7 @@ inputs = {
 }
 ```
 
-# sops\_decrypt\_file
+## sops\_decrypt\_file
 
 `sops_decrypt_file(file_path)` decrypts a yaml or json file encrypted with `sops`.
 
