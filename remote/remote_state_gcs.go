@@ -169,7 +169,7 @@ func (gcsInitializer GCSInitializer) Initialize(remoteState *RemoteState, terrag
 		}
 	}
 
-	// Check verioning on the bucket only if the bucket is specified
+	// Check versioning on the bucket only if the bucket is specified
 	if gcsConfig.Bucket != "" {
 		if err := checkIfGCSVersioningEnabled(gcsClient, &gcsConfig, terragruntOptions); err != nil {
 			return err
