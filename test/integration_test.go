@@ -118,7 +118,7 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-// We don't run this test in parralel because it modifies the environment variable,
+// We don't run this test in parallel because it modifies the environment variable,
 // so it can affect other tests
 func TestTerragruntDownloadDir(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH)
