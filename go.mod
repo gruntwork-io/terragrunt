@@ -9,6 +9,7 @@ require (
 	github.com/fatih/color v1.9.0
 	github.com/fatih/structs v1.1.0
 	github.com/go-errors/errors v1.0.2-0.20180813162953-d98b870cc4e0
+	github.com/google/go-cmp v0.4.0
 	github.com/gruntwork-io/terratest v0.26.1
 	github.com/hashicorp/go-getter v1.4.2-0.20200106182914-9813cbd4eb02
 	github.com/hashicorp/go-version v1.2.0
@@ -19,6 +20,7 @@ require (
 	github.com/stretchr/testify v1.5.1
 	github.com/urfave/cli v1.22.3
 	github.com/zclconf/go-cty v1.3.1
+	go.mozilla.org/sops/v3 v3.5.0
 	golang.org/x/crypto v0.0.0-20200323165209-0ec3e9974c59
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e

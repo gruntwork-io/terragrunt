@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -20,6 +21,9 @@ var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
 }
 
 const DEFAULT_MAX_FOLDERS_TO_CHECK = 100
+
+// no limits on parallelism by default (limited by GOPROCS)
+const DEFAULT_PARALLELISM = math.MaxInt32
 
 // TERRAFORM_DEFAULT_PATH just takes terraform from the path
 const TERRAFORM_DEFAULT_PATH = "terraform"
@@ -114,6 +118,9 @@ type TerragruntOptions struct {
 	// If set to true, do not include dependencies when processing IncludeDirs (unless they are in the included dirs)
 	StrictInclude bool
 
+	// Parallelism limits the number of commands to run concurrently during *-all commands
+	Parallelism int
+
 	// Enable check mode, by default it's disabled.
 	Check bool
 
@@ -164,6 +171,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		ExcludeDirs:                 []string{},
 		IncludeDirs:                 []string{},
 		StrictInclude:               false,
+		Parallelism:                 DEFAULT_PARALLELISM,
 		Check:                       false,
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
@@ -234,6 +242,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		RetryableErrors:             util.CloneStringList(terragruntOptions.RetryableErrors),
 		ExcludeDirs:                 terragruntOptions.ExcludeDirs,
 		IncludeDirs:                 terragruntOptions.IncludeDirs,
+		Parallelism:                 terragruntOptions.Parallelism,
 		StrictInclude:               terragruntOptions.StrictInclude,
 		RunTerragrunt:               terragruntOptions.RunTerragrunt,
 	}

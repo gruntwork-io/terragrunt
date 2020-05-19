@@ -21,6 +21,8 @@ nav_title_link: /docs/
   - [Dependencies between modules](#dependencies-between-modules)
 
   - [Testing multiple modules locally](#testing-multiple-modules-locally)
+  
+  - [Limiting the module execution parallelism](#limiting-the-module-execution-parallelism)
 
 ### Motivation
 
@@ -304,3 +306,16 @@ terraform {
 ```
 
 If you run `terragrunt apply-all --terragrunt-source /source/infrastructure-modules`, then the local path Terragrunt will compute for the module above will be `/source/infrastructure-modules//networking/vpc`.
+
+### Limiting the module execution parallelism
+
+By default Terragrunt will not impose a limit on the number of modules it executes when it traverses the dependency graph,
+meaning that if it finds 5 modules it'll run terraform 5 times in parallel once in each module. Sometimes
+this might create a problem if there are a lot of modules in the dependency graph like hitting a rate limit on some
+cloud provider.
+
+To limit the maximum number of module executions at any given time use the `--terragrunt-parallelism [number]` flag
+
+```sh
+terragrunt apply-all --terragrunt-parallelism 4
+```

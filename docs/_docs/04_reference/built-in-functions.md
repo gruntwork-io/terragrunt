@@ -33,8 +33,10 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
   - [get\_terraform\_commands\_that\_need\_locking()](#get_terraform_commands_that_need_locking)
 
   - [get\_terraform\_commands\_that\_need\_parallelism()](#get_terraform_commands_that_need_parallelism)
-  
+
   - [get\_terraform\_command()](#get_terraform_command)
+
+  - [get\_terraform\_cli\_args()](#get_terraform_cli_args)
 
   - [get\_aws\_account\_id()](#get_aws_account_id)
 
@@ -45,6 +47,8 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
   - [run\_cmd()](#run_cmd)
 
   - [read\_terragrunt\_config()](#read_terragrunt_config)
+
+  - [sops\_decrypt\_file()](#sops_decrypt_file)
 
 ## Terraform built-in functions
 
@@ -214,7 +218,7 @@ remote_state {
   }
 }
 ```
- 
+
 `get_env(NAME, DEFAULT)` returns the value of the environment variable named `NAME` or `DEFAULT` if that environment variable is not set. Example:
 
 ``` hcl
@@ -413,6 +417,16 @@ inputs = {
 }
 ```
 
+## get\_terraform\_cli\_args
+
+`get_terraform_cli_args()` returns cli args for the current terraform command in execution. Example:
+
+``` hcl
+inputs = {
+  current_cli_args = get_terraform_cli_args()
+}
+```
+
 ## get\_aws\_caller\_identity\_user\_id
 
 `get_aws_caller_identity_user_id()` returns the UserId of the AWS identity associated with the current set of credentials. Example:
@@ -525,4 +539,47 @@ locals {
 inputs = {
   vpc_id = local.common_deps.dependency.vpc.outputs.vpc_id
 }
+```
+
+## sops\_decrypt\_file
+
+`sops_decrypt_file(file_path)` decrypts a yaml or json file encrypted with `sops`.
+
+[sops](https://github.com/mozilla/sops) is an editor of encrypted files that supports YAML, JSON, ENV, INI and
+BINARY formats and encrypts with AWS KMS, GCP KMS, Azure Key Vault and PGP.
+
+This allows static secrets to be stored encrypted within your Terragrunt repository.
+
+Only YAML and JSON formats are supported by `sops_decrypt_file`
+
+For example, suppose you have some static secrets required to bootstrap your
+infrastructure in `secrets.yaml`, you can decrypt and merge them into the inputs
+by using `sops_decrypt_file`:
+
+```hcl
+locals {
+  secret_vars = yamldecode(sops_decrypt_file(find_in_parent_folders("secrets.yaml")))
+}
+
+inputs = merge(
+  local.secret_vars,
+  {
+    # additional inputs
+  }
+)
+```
+
+If you absolutely need to fallback to a default value you can make use of the Terraform `try` function:
+
+```hcl
+locals {
+  secret_vars = try(jsondecode(sops_decrypt_file(find_in_parent_folders("no-secrets-here.json"))), {})
+}
+
+inputs = merge(
+  local.secret_vars, # This will be {}
+  {
+    # additional inputs
+  }
+)
 ```
