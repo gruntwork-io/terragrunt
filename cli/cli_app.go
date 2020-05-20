@@ -618,10 +618,18 @@ func prepareInitCommand(terragruntOptions *options.TerragruntOptions, terragrunt
 }
 
 func checkFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptions) error {
-	files, err := zglob.Glob(fmt.Sprintf("%s/**/*.tf", terragruntOptions.WorkingDir))
+	files := []string{}
+	hclFiles, err := zglob.Glob(fmt.Sprintf("%s/**/*.tf", terragruntOptions.WorkingDir))
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
+	files = append(files, hclFiles...)
+
+	jsonFiles, err := zglob.Glob(fmt.Sprintf("%s/**/*.tf.json", terragruntOptions.WorkingDir))
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	files = append(files, jsonFiles...)
 
 	if len(files) == 0 {
 		return errors.WithStackTrace(NoTerraformFilesFound(terragruntOptions.WorkingDir))
