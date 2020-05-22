@@ -137,7 +137,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		actualOptions, actualErr := parseTerragruntOptionsFromArgs(testCase.args, &bytes.Buffer{}, &bytes.Buffer{})
+		actualOptions, actualErr := parseTerragruntOptionsFromArgs("0.0", testCase.args, &bytes.Buffer{}, &bytes.Buffer{})
 		if testCase.expectedErr != nil {
 			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "Expected error %v but got error %v", testCase.expectedErr, actualErr)
 		} else {

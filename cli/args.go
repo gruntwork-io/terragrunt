@@ -13,12 +13,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/go-version"
 	"github.com/urfave/cli"
 )
 
 // Parse command line options that are passed in for Terragrunt
 func ParseTerragruntOptions(cliContext *cli.Context) (*options.TerragruntOptions, error) {
-	terragruntOptions, err := parseTerragruntOptionsFromArgs(cliContext.Args(), cliContext.App.Writer, cliContext.App.ErrWriter)
+	terragruntOptions, err := parseTerragruntOptionsFromArgs(cliContext.App.Version, cliContext.Args(), cliContext.App.Writer, cliContext.App.ErrWriter)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +37,7 @@ func ParseTerragruntOptions(cliContext *cli.Context) (*options.TerragruntOptions
 // see: https://github.com/urfave/cli/issues/533. For now, our workaround is to dumbly loop over the arguments
 // and look for the ones we need, but in the future, we should change to a different CLI library to avoid this
 // limitation.
-func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) (*options.TerragruntOptions, error) {
+func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, writer, errWriter io.Writer) (*options.TerragruntOptions, error) {
 	currentDir, err := os.Getwd()
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
@@ -135,6 +136,14 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 	opts.RunTerragrunt = RunTerragrunt
 	opts.Source = terraformSource
 	opts.SourceUpdate = sourceUpdate
+	opts.TerragruntVersion, err = version.NewVersion(terragruntVersion)
+	if err != nil {
+		// Malformed Terragrunt version; set the version to 0.0
+		opts.TerragruntVersion, err = version.NewVersion("0.0")
+		if err != nil {
+			return nil, err
+		}
+	}
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
 	opts.IgnoreDependencyOrder = ignoreDependencyOrder
 	opts.IgnoreExternalDependencies = ignoreExternalDependencies

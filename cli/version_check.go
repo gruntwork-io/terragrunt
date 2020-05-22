@@ -42,6 +42,26 @@ func CheckTerraformVersion(constraint string, terragruntOptions *options.Terragr
 	return checkTerraformVersionMeetsConstraint(terragruntOptions.TerraformVersion, constraint)
 }
 
+// Check that the currently running Terragrunt version works meets the specified version constraint and return an error
+// if it doesn't
+func CheckTerragruntVersion(constraint string, terragruntOptions *options.TerragruntOptions) error {
+	return checkTerragruntVersionMeetsConstraint(terragruntOptions.TerragruntVersion, constraint)
+}
+
+// Check that the current version of Terragrunt meets the specified constraint and return an error if it doesn't
+func checkTerragruntVersionMeetsConstraint(currentVersion *version.Version, constraint string) error {
+	versionConstraint, err := version.NewConstraint(constraint)
+	if err != nil {
+		return err
+	}
+
+	if !versionConstraint.Check(currentVersion) {
+		return errors.WithStackTrace(InvalidTerragruntVersion{CurrentVersion: currentVersion, VersionConstraints: versionConstraint})
+	}
+
+	return nil
+}
+
 // Check that the current version of Terraform meets the specified constraint and return an error if it doesn't
 func checkTerraformVersionMeetsConstraint(currentVersion *version.Version, constraint string) error {
 	versionConstraint, err := version.NewConstraint(constraint)
@@ -80,6 +100,15 @@ type InvalidTerraformVersion struct {
 	VersionConstraints version.Constraints
 }
 
+type InvalidTerragruntVersion struct {
+	CurrentVersion     *version.Version
+	VersionConstraints version.Constraints
+}
+
 func (err InvalidTerraformVersion) Error() string {
 	return fmt.Sprintf("The currently installed version of Terraform (%s) is not compatible with the version Terragrunt requires (%s).", err.CurrentVersion.String(), err.VersionConstraints.String())
+}
+
+func (err InvalidTerragruntVersion) Error() string {
+	return fmt.Sprintf("The currently installed version of Terragrunt (%s) is not compatible with the version constraint requiring (%s).", err.CurrentVersion.String(), err.VersionConstraints.String())
 }
