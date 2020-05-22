@@ -118,8 +118,8 @@ func AssumeIamRole(iamRoleArn string) (*sts.Credentials, error) {
 }
 
 // Return the AWS caller identity associated with the current set of credentials
-func GetAWSCallerIdentity(terragruntOptions *options.TerragruntOptions) (sts.GetCallerIdentityOutput, error) {
-	sess, err := session.NewSession()
+func GetAWSCallerIdentity(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (sts.GetCallerIdentityOutput, error) {
+	sess, err := CreateAwsSession(config, terragruntOptions)
 	if err != nil {
 		return sts.GetCallerIdentityOutput{}, errors.WithStackTrace(err)
 	}
@@ -137,8 +137,8 @@ func GetAWSCallerIdentity(terragruntOptions *options.TerragruntOptions) (sts.Get
 }
 
 // Get the AWS account ID of the current session configuration
-func GetAWSAccountID(terragruntOptions *options.TerragruntOptions) (string, error) {
-	identity, err := GetAWSCallerIdentity(terragruntOptions)
+func GetAWSAccountID(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	identity, err := GetAWSCallerIdentity(config, terragruntOptions)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
@@ -147,8 +147,8 @@ func GetAWSAccountID(terragruntOptions *options.TerragruntOptions) (string, erro
 }
 
 // Get the ARN of the AWS identity associated with the current set of credentials
-func GetAWSIdentityArn(terragruntOptions *options.TerragruntOptions) (string, error) {
-	identity, err := GetAWSCallerIdentity(terragruntOptions)
+func GetAWSIdentityArn(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	identity, err := GetAWSCallerIdentity(config, terragruntOptions)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
@@ -157,8 +157,8 @@ func GetAWSIdentityArn(terragruntOptions *options.TerragruntOptions) (string, er
 }
 
 // Get the AWS user ID of the current session configuration
-func GetAWSUserID(terragruntOptions *options.TerragruntOptions) (string, error) {
-	identity, err := GetAWSCallerIdentity(terragruntOptions)
+func GetAWSUserID(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	identity, err := GetAWSCallerIdentity(config, terragruntOptions)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
