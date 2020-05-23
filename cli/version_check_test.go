@@ -127,8 +127,8 @@ func testCheckTerragruntVersionMeetsConstraint(t *testing.T, currentVersion stri
 
 	err = checkTerragruntVersionMeetsConstraint(current, versionConstraint)
 	if versionMeetsConstraint && err != nil {
-		assert.Nil(t, err, "Expected Terragrunt version %s to meet constraint %s, but got error: %v", currentVersion, versionConstraint, err)
+		t.Fatalf("Expected Terragrunt version %s to meet constraint %s, but got error: %v", currentVersion, versionConstraint, err)
 	} else if !versionMeetsConstraint && err == nil {
-		assert.NotNil(t, err, "Expected Terragrunt version %s to NOT meet constraint %s, but got back a nil error", currentVersion, versionConstraint)
+		t.Fatalf("Expected Terragrunt version %s to NOT meet constraint %s, but got back a nil error", currentVersion, versionConstraint)
 	}
 }
