@@ -19,6 +19,9 @@ output "terraform_binary" { value = var.terraform_binary }
 variable "terraform_version_constraint" {}
 output "terraform_version_constraint" { value = var.terraform_version_constraint }
 
+variable "terragrunt_version_constraint" {}
+output "terragrunt_version_constraint" { value = var.terragrunt_version_constraint }
+
 variable "download_dir" {}
 output "download_dir" { value = var.download_dir }
 
