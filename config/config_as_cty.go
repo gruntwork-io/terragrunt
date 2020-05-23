@@ -22,6 +22,7 @@ func terragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	// Convert attributes that are primitive types
 	output["terraform_binary"] = gostringToCty(config.TerraformBinary)
 	output["terraform_version_constraint"] = gostringToCty(config.TerraformVersionConstraint)
+	output["terragrunt_version_constraint"] = gostringToCty(config.TerragruntVersionConstraint)
 	output["download_dir"] = gostringToCty(config.DownloadDir)
 	output["iam_role"] = gostringToCty(config.IamRole)
 	output["prevent_destroy"] = goboolToCty(config.PreventDestroy)
