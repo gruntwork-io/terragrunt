@@ -10,6 +10,7 @@ inputs = {
   dependencies                 = local.config.dependencies
   terraform_binary             = local.config.terraform_binary
   terraform_version_constraint = local.config.terraform_version_constraint
+  terragrunt_version_constraint = local.config.terragrunt_version_constraint
   download_dir                 = local.config.download_dir
   prevent_destroy              = local.config.prevent_destroy
   skip                         = local.config.skip

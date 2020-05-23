@@ -2567,6 +2567,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 	// Primitive config attributes
 	assert.Equal(t, outputs["terraform_binary"].Value, "terragrunt")
 	assert.Equal(t, outputs["terraform_version_constraint"].Value, "= 0.12.20")
+	assert.Equal(t, outputs["terragrunt_version_constraint"].Value, "= 0.23.18")
 	assert.Equal(t, outputs["download_dir"].Value, ".terragrunt-cache")
 	assert.Equal(t, outputs["iam_role"].Value, "TerragruntIAMRole")
 	assert.Equal(t, outputs["skip"].Value, "true")
@@ -2846,6 +2847,71 @@ func TestTerragruntRemoteStateCodegenDoesNotGenerateWithSkip(t *testing.T) {
 	assert.False(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
 
+func TestTerragruntVersionConstraints(t *testing.T) {
+	testCases := []struct {
+		name                 string
+		terragruntVersion    string
+		terragruntConstraint string
+		shouldSucceed        bool
+	}{
+		{
+			"version meets constraint equal",
+			"v0.23.18",
+			"terragrunt_version_constraint = \">= v0.23.18\"",
+			true,
+		},
+		{
+			"version meets constriant greater patch",
+			"v0.23.19",
+			"terragrunt_version_constraint = \">= v0.23.18\"",
+			true,
+		},
+		{
+			"version meets constriant greater major",
+			"v1.0.0",
+			"terragrunt_version_constraint = \">= v0.23.18\"",
+			true,
+		},
+		{
+			"version meets constriant less patch",
+			"v0.23.17",
+			"terragrunt_version_constraint = \">= v0.23.18\"",
+			false,
+		},
+		{
+			"version meets constriant less major",
+			"v0.22.18",
+			"terragrunt_version_constraint = \">= v0.23.18\"",
+			false,
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+
+			tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_READ_CONFIG)
+			rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_READ_CONFIG, "with_constraints")
+
+			tmpTerragruntConfigPath := createTmpTerragruntConfigContent(t, testCase.terragruntConstraint, config.DefaultTerragruntConfigPath)
+
+			stdout := bytes.Buffer{}
+			stderr := bytes.Buffer{}
+
+			err := runTerragruntVersionCommand(t, testCase.terragruntVersion, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, rootPath), &stdout, &stderr)
+			logBufferContentsLineByLine(t, stdout, "stdout")
+			logBufferContentsLineByLine(t, stderr, "stderr")
+
+			if testCase.shouldSucceed {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+			}
+		})
+	}
+}
+
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE))
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE_BACKUP))
@@ -2876,6 +2942,13 @@ func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwri
 	args := strings.Split(command, " ")
 
 	app := cli.CreateTerragruntCli("TEST", writer, errwriter)
+	return app.Run(args)
+}
+
+func runTerragruntVersionCommand(t *testing.T, version string, command string, writer io.Writer, errwriter io.Writer) error {
+	args := strings.Split(command, " ")
+
+	app := cli.CreateTerragruntCli(version, writer, errwriter)
 	return app.Run(args)
 }
 
@@ -2952,6 +3025,21 @@ func createTmpTerragruntConfig(t *testing.T, templatesPath string, s3BucketName 
 	tmpTerragruntConfigFile := util.JoinPath(tmpFolder, configFileName)
 	originalTerragruntConfigPath := util.JoinPath(templatesPath, configFileName)
 	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "not-used")
+
+	return tmpTerragruntConfigFile
+}
+
+func createTmpTerragruntConfigContent(t *testing.T, contents string, configFileName string) string {
+	tmpFolder, err := ioutil.TempDir("", "terragrunt-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp folder due to error: %v", err)
+	}
+
+	tmpTerragruntConfigFile := util.JoinPath(tmpFolder, configFileName)
+
+	if err := ioutil.WriteFile(tmpTerragruntConfigFile, []byte(contents), 0444); err != nil {
+		t.Fatalf("Error writing temp Terragrunt config to %s: %v", tmpTerragruntConfigFile, err)
+	}
 
 	return tmpTerragruntConfigFile
 }

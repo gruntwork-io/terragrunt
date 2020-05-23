@@ -35,6 +35,9 @@ type TerragruntOptions struct {
 	// Location of the Terragrunt config file
 	TerragruntConfigPath string
 
+	// Version of terragrunt
+	TerragruntVersion *version.Version
+
 	// Location of the terraform binary
 	TerraformPath string
 

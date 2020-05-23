@@ -25,19 +25,20 @@ const DefaultTerragruntJsonConfigPath = "terragrunt.hcl.json"
 // TerragruntConfig represents a parsed and expanded configuration
 // NOTE: if any attributes are added, make sure to update terragruntConfigAsCty in config_as_cty.go
 type TerragruntConfig struct {
-	Terraform                  *TerraformConfig
-	TerraformBinary            string
-	TerraformVersionConstraint string
-	RemoteState                *remote.RemoteState
-	Dependencies               *ModuleDependencies
-	DownloadDir                string
-	PreventDestroy             bool
-	Skip                       bool
-	IamRole                    string
-	Inputs                     map[string]interface{}
-	Locals                     map[string]interface{}
-	TerragruntDependencies     []Dependency
-	GenerateConfigs            map[string]codegen.GenerateConfig
+	Terraform                   *TerraformConfig
+	TerraformBinary             string
+	TerraformVersionConstraint  string
+	TerragruntVersionConstraint string
+	RemoteState                 *remote.RemoteState
+	Dependencies                *ModuleDependencies
+	DownloadDir                 string
+	PreventDestroy              bool
+	Skip                        bool
+	IamRole                     string
+	Inputs                      map[string]interface{}
+	Locals                      map[string]interface{}
+	TerragruntDependencies      []Dependency
+	GenerateConfigs             map[string]codegen.GenerateConfig
 
 	// Indicates whether or not this is the result of a partial evaluation
 	IsPartial bool
@@ -50,19 +51,20 @@ func (conf *TerragruntConfig) String() string {
 // terragruntConfigFile represents the configuration supported in a Terragrunt configuration file (i.e.
 // terragrunt.hcl)
 type terragruntConfigFile struct {
-	Terraform                  *TerraformConfig          `hcl:"terraform,block"`
-	TerraformBinary            *string                   `hcl:"terraform_binary,attr"`
-	TerraformVersionConstraint *string                   `hcl:"terraform_version_constraint,attr"`
-	Inputs                     *cty.Value                `hcl:"inputs,attr"`
-	Include                    *IncludeConfig            `hcl:"include,block"`
-	RemoteState                *remoteStateConfigFile    `hcl:"remote_state,block"`
-	Dependencies               *ModuleDependencies       `hcl:"dependencies,block"`
-	DownloadDir                *string                   `hcl:"download_dir,attr"`
-	PreventDestroy             *bool                     `hcl:"prevent_destroy,attr"`
-	Skip                       *bool                     `hcl:"skip,attr"`
-	IamRole                    *string                   `hcl:"iam_role,attr"`
-	TerragruntDependencies     []Dependency              `hcl:"dependency,block"`
-	GenerateBlocks             []terragruntGenerateBlock `hcl:"generate,block"`
+	Terraform                   *TerraformConfig          `hcl:"terraform,block"`
+	TerraformBinary             *string                   `hcl:"terraform_binary,attr"`
+	TerraformVersionConstraint  *string                   `hcl:"terraform_version_constraint,attr"`
+	TerragruntVersionConstraint *string                   `hcl:"terragrunt_version_constraint,attr"`
+	Inputs                      *cty.Value                `hcl:"inputs,attr"`
+	Include                     *IncludeConfig            `hcl:"include,block"`
+	RemoteState                 *remoteStateConfigFile    `hcl:"remote_state,block"`
+	Dependencies                *ModuleDependencies       `hcl:"dependencies,block"`
+	DownloadDir                 *string                   `hcl:"download_dir,attr"`
+	PreventDestroy              *bool                     `hcl:"prevent_destroy,attr"`
+	Skip                        *bool                     `hcl:"skip,attr"`
+	IamRole                     *string                   `hcl:"iam_role,attr"`
+	TerragruntDependencies      []Dependency              `hcl:"dependency,block"`
+	GenerateBlocks              []terragruntGenerateBlock `hcl:"generate,block"`
 
 	// This struct is used for validating and parsing the entire terragrunt config. Since locals are evaluated in a
 	// completely separate cycle, it should not be evaluated here. Otherwise, we can't support self referencing other
@@ -520,6 +522,10 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 		includedConfig.TerraformBinary = config.TerraformBinary
 	}
 
+	if config.TerragruntVersionConstraint != "" {
+		includedConfig.TerragruntVersionConstraint = config.TerragruntVersionConstraint
+	}
+
 	// Merge the generate configs. This is a shallow merge. Meaning, if the child has the same name generate block, then the
 	// child's generate block will override the parent's block.
 	for key, val := range config.GenerateConfigs {
@@ -705,6 +711,10 @@ func convertToTerragruntConfig(
 
 	if terragruntConfigFromFile.TerraformVersionConstraint != nil {
 		terragruntConfig.TerraformVersionConstraint = *terragruntConfigFromFile.TerraformVersionConstraint
+	}
+
+	if terragruntConfigFromFile.TerragruntVersionConstraint != nil {
+		terragruntConfig.TerragruntVersionConstraint = *terragruntConfigFromFile.TerragruntVersionConstraint
 	}
 
 	if terragruntConfigFromFile.PreventDestroy != nil {

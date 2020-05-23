@@ -299,12 +299,18 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
-	versionConstraint := DEFAULT_TERRAFORM_VERSION_CONSTRAINT
+	terraformVersionConstraint := DEFAULT_TERRAFORM_VERSION_CONSTRAINT
 	if terragruntConfig.TerraformVersionConstraint != "" {
-		versionConstraint = terragruntConfig.TerraformVersionConstraint
+		terraformVersionConstraint = terragruntConfig.TerraformVersionConstraint
 	}
-	if err := CheckTerraformVersion(versionConstraint, terragruntOptions); err != nil {
+	if err := CheckTerraformVersion(terraformVersionConstraint, terragruntOptions); err != nil {
 		return err
+	}
+
+	if terragruntConfig.TerragruntVersionConstraint != "" {
+		if err := CheckTerragruntVersion(terragruntConfig.TerragruntVersionConstraint, terragruntOptions); err != nil {
+			return err
+		}
 	}
 
 	if terragruntConfig.Skip {

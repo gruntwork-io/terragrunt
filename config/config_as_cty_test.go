@@ -44,8 +44,9 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 				},
 			},
 		},
-		TerraformBinary:            "terraform",
-		TerraformVersionConstraint: "= 0.12.20",
+		TerraformBinary:             "terraform",
+		TerraformVersionConstraint:  "= 0.12.20",
+		TerragruntVersionConstraint: "= 0.23.18",
 		RemoteState: &remote.RemoteState{
 			Backend:     "foo",
 			DisableInit: true,
@@ -170,6 +171,8 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "terraform_binary", true
 	case "TerraformVersionConstraint":
 		return "terraform_version_constraint", true
+	case "TerragruntVersionConstraint":
+		return "terragrunt_version_constraint", true
 	case "RemoteState":
 		return "remote_state", true
 	case "Dependencies":
