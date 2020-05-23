@@ -42,7 +42,7 @@ func CheckTerraformVersion(constraint string, terragruntOptions *options.Terragr
 	return checkTerraformVersionMeetsConstraint(terragruntOptions.TerraformVersion, constraint)
 }
 
-// Check that the currently running Terragrunt version works meets the specified version constraint and return an error
+// Check that the currently running Terragrunt version meets the specified version constraint and return an error
 // if it doesn't
 func CheckTerragruntVersion(constraint string, terragruntOptions *options.TerragruntOptions) error {
 	return checkTerragruntVersionMeetsConstraint(terragruntOptions.TerragruntVersion, constraint)
