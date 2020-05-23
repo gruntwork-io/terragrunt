@@ -2912,6 +2912,23 @@ func TestTerragruntVersionConstraints(t *testing.T) {
 	}
 }
 
+func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
+	fixturePath := "fixture-partial-parse/terragrunt-version-constraint"
+	cleanupTerragruntFolder(t, fixturePath)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntVersionCommand(t, "0.21.23", fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", fixturePath), &stdout, &stderr)
+	logBufferContentsLineByLine(t, stdout, "stdout")
+	logBufferContentsLineByLine(t, stderr, "stderr")
+
+	assert.Error(t, err)
+
+	_, isTgVersionError := errors.Unwrap(err).(cli.InvalidTerragruntVersion)
+	assert.True(t, isTgVersionError)
+}
+
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE))
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE_BACKUP))
@@ -2939,10 +2956,7 @@ func removeFolder(t *testing.T, path string) {
 }
 
 func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {
-	args := strings.Split(command, " ")
-
-	app := cli.CreateTerragruntCli("TEST", writer, errwriter)
-	return app.Run(args)
+	return runTerragruntVersionCommand(t, "TEST", command, writer, errwriter)
 }
 
 func runTerragruntVersionCommand(t *testing.T, version string, command string, writer io.Writer, errwriter io.Writer) error {

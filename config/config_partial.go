@@ -22,6 +22,7 @@ const (
 	DependencyBlock
 	TerraformBlock
 	TerragruntFlags
+	TerragruntVersionConstraints
 )
 
 // terragruntInclude is a struct that can be used to only decode the include block.
@@ -47,6 +48,15 @@ type terragruntFlags struct {
 	PreventDestroy *bool    `hcl:"prevent_destroy,attr"`
 	Skip           *bool    `hcl:"skip,attr"`
 	Remain         hcl.Body `hcl:",remain"`
+}
+
+// terragruntVersionConstraints is a struct that can be used to only decode the attributes related to constraining the
+// versions of terragrunt and terraform.
+type terragruntVersionConstraints struct {
+	TerragruntVersionConstraint *string  `hcl:"terragrunt_version_constraint,attr"`
+	TerraformVersionConstraint  *string  `hcl:"terraform_version_constraint,attr"`
+	TerraformBinary             *string  `hcl:"terraform_binary,attr"`
+	Remain                      hcl.Body `hcl:",remain"`
 }
 
 // terragruntDependency is a struct that can be used to only decode the dependency blocks in the terragrunt config
@@ -122,6 +132,8 @@ func PartialParseConfigFile(
 // - DependencyBlock: Parses the `dependency` block in the config
 // - TerraformBlock: Parses the `terraform` block in the config
 // - TerragruntFlags: Parses the boolean flags `prevent_destroy` and `skip` in the config
+// - TerragruntVersionConstraints: Parses the attributes related to constraining terragrunt and terraform versions in
+//                                 the config.
 // Note that the following blocks are always decoded:
 // - locals
 // - include
@@ -209,6 +221,22 @@ func PartialParseConfigString(
 			}
 			if decoded.Skip != nil {
 				output.Skip = *decoded.Skip
+			}
+
+		case TerragruntVersionConstraints:
+			decoded := terragruntVersionConstraints{}
+			err := decodeHcl(file, filename, &decoded, terragruntOptions, contextExtensions)
+			if err != nil {
+				return nil, err
+			}
+			if decoded.TerragruntVersionConstraint != nil {
+				output.TerragruntVersionConstraint = *decoded.TerragruntVersionConstraint
+			}
+			if decoded.TerraformVersionConstraint != nil {
+				output.TerraformVersionConstraint = *decoded.TerraformVersionConstraint
+			}
+			if decoded.TerraformBinary != nil {
+				output.TerraformBinary = *decoded.TerraformBinary
 			}
 
 		default:
