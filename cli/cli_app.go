@@ -228,8 +228,7 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 
 	// If someone calls us with no args at all, show the help text and exit
 	if !cliContext.Args().Present() {
-		cli.ShowAppHelp(cliContext)
-		return nil
+		return cli.ShowAppHelp(cliContext)
 	}
 
 	terragruntOptions, err := ParseTerragruntOptions(cliContext)
@@ -276,8 +275,11 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return runGraphDependencies(terragruntOptions)
 	}
 
-	terragruntConfig, err := config.ReadTerragruntConfig(terragruntOptions)
+	if err := checkVersionConstraints(terragruntOptions); err != nil {
+		return err
+	}
 
+	terragruntConfig, err := config.ReadTerragruntConfig(terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -287,30 +289,6 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 
 	if err := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone); err != nil {
 		return err
-	}
-
-	// Change the terraform binary path before checking the version
-	// if the path is not changed from default and set in the config.
-	if terragruntOptions.TerraformPath == options.TERRAFORM_DEFAULT_PATH && terragruntConfig.TerraformBinary != "" {
-		terragruntOptions.TerraformPath = terragruntConfig.TerraformBinary
-	}
-
-	if err := PopulateTerraformVersion(terragruntOptions); err != nil {
-		return err
-	}
-
-	terraformVersionConstraint := DEFAULT_TERRAFORM_VERSION_CONSTRAINT
-	if terragruntConfig.TerraformVersionConstraint != "" {
-		terraformVersionConstraint = terragruntConfig.TerraformVersionConstraint
-	}
-	if err := CheckTerraformVersion(terraformVersionConstraint, terragruntOptions); err != nil {
-		return err
-	}
-
-	if terragruntConfig.TerragruntVersionConstraint != "" {
-		if err := CheckTerragruntVersion(terragruntConfig.TerragruntVersionConstraint, terragruntOptions); err != nil {
-			return err
-		}
 	}
 
 	if terragruntConfig.Skip {
@@ -387,6 +365,47 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	return runTerragruntWithConfig(terragruntOptions, terragruntConfig, false)
+}
+
+// Check the version constraints of both terragrunt and terraform. Note that as a side effect this will set the
+// following settings on terragruntOptions:
+// - TerraformPath
+// - TerraformVersion
+// TODO: Look into a way to refactor this function to avoid the side effect.
+func checkVersionConstraints(terragruntOptions *options.TerragruntOptions) error {
+	partialTerragruntConfig, err := config.PartialParseConfigFile(
+		terragruntOptions.TerragruntConfigPath,
+		terragruntOptions,
+		nil,
+		[]config.PartialDecodeSectionType{config.TerragruntVersionConstraints},
+	)
+	if err != nil {
+		return err
+	}
+
+	// Change the terraform binary path before checking the version
+	// if the path is not changed from default and set in the config.
+	if terragruntOptions.TerraformPath == options.TERRAFORM_DEFAULT_PATH && partialTerragruntConfig.TerraformBinary != "" {
+		terragruntOptions.TerraformPath = partialTerragruntConfig.TerraformBinary
+	}
+	if err := PopulateTerraformVersion(terragruntOptions); err != nil {
+		return err
+	}
+
+	terraformVersionConstraint := DEFAULT_TERRAFORM_VERSION_CONSTRAINT
+	if partialTerragruntConfig.TerraformVersionConstraint != "" {
+		terraformVersionConstraint = partialTerragruntConfig.TerraformVersionConstraint
+	}
+	if err := CheckTerraformVersion(terraformVersionConstraint, terragruntOptions); err != nil {
+		return err
+	}
+
+	if partialTerragruntConfig.TerragruntVersionConstraint != "" {
+		if err := CheckTerragruntVersion(partialTerragruntConfig.TerragruntVersionConstraint, terragruntOptions); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Run graph dependencies prints the dependency graph to stdout
