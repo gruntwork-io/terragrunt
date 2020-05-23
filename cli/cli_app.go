@@ -371,6 +371,7 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 // following settings on terragruntOptions:
 // - TerraformPath
 // - TerraformVersion
+// TODO: Look into a way to refactor this function to avoid the side effect.
 func checkVersionConstraints(terragruntOptions *options.TerragruntOptions) error {
 	partialTerragruntConfig, err := config.PartialParseConfigFile(
 		terragruntOptions.TerragruntConfigPath,
