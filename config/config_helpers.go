@@ -5,6 +5,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"unicode/utf8"
 
@@ -101,6 +102,7 @@ func CreateTerragruntEvalContext(
 		"get_env":                                      wrapStringSliceToStringAsFuncImpl(getEnvironmentVariable, extensions.Include, terragruntOptions),
 		"run_cmd":                                      wrapStringSliceToStringAsFuncImpl(runCommand, extensions.Include, terragruntOptions),
 		"read_terragrunt_config":                       readTerragruntConfigAsFuncImpl(terragruntOptions),
+		"get_platform":                                 wrapVoidToStringAsFuncImpl(getPlatform, extensions.Include, terragruntOptions),
 		"get_terragrunt_dir":                           wrapVoidToStringAsFuncImpl(getTerragruntDir, extensions.Include, terragruntOptions),
 		"get_terraform_command":                        wrapVoidToStringAsFuncImpl(getTerraformCommand, extensions.Include, terragruntOptions),
 		"get_terraform_cli_args":                       wrapVoidToStringSliceAsFuncImpl(getTerraformCliArgs, extensions.Include, terragruntOptions),
@@ -134,6 +136,11 @@ func CreateTerragruntEvalContext(
 		ctx.Variables["dependency"] = *extensions.DecodedDependencies
 	}
 	return ctx
+}
+
+// Return the OS platform
+func getPlatform(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	return runtime.GOOS, nil
 }
 
 // Return the directory where the Terragrunt configuration file lives
