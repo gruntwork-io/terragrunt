@@ -21,8 +21,6 @@ func main() {
 	// terragrunt used.
 	util.Debugf(util.CreateLogger(""), "Terragrunt Version: %s", VERSION)
 
-	shell.PrepareConsole()
-
 	defer errors.Recover(checkForErrorsAndExit)
 
 	app := cli.CreateTerragruntCli(VERSION, os.Stdout, os.Stderr)
