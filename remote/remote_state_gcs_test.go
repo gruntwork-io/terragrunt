@@ -98,6 +98,12 @@ func TestGCSConfigValuesEqual(t *testing.T) {
 			&TerraformBackend{Type: "gcs", Config: map[string]interface{}{"something": "foo", "ignored-because-null": nil}},
 			true,
 		},
+		{
+			"terragrunt-only-configs-remain-intact",
+			map[string]interface{}{"something": "foo", "skip_bucket_creation": true},
+			&TerraformBackend{Type: "gcs", Config: map[string]interface{}{"something": "foo"}},
+			true,
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -106,8 +112,18 @@ func TestGCSConfigValuesEqual(t *testing.T) {
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			actual := gcsConfigValuesEqual(testCase.config, testCase.backend, terragruntOptions)
+
+			// Create a copy of the new config
+			config := make(map[string]interface{})
+			for key, value := range testCase.config {
+				config[key] = value
+			}
+
+			actual := gcsConfigValuesEqual(config, testCase.backend, terragruntOptions)
 			assert.Equal(t, testCase.shouldBeEqual, actual)
+
+			// Ensure the config remains unchanged by the comparison
+			assert.Equal(t, testCase.config, config)
 		})
 	}
 }

@@ -130,12 +130,17 @@ func gcsConfigValuesEqual(config map[string]interface{}, existingBackend *Terraf
 		}
 	}
 
-	// Delete custom GCS labels that are only used in Terragrunt config and not in Terraform's backend
-	for _, key := range terragruntGCSOnlyConfigs {
-		delete(config, key)
+	// Construct a new map excluding custom GCS labels that are only used in Terragrunt config and not in Terraform's backend
+	comparisonConfig := make(map[string]interface{})
+	for key, value := range config {
+		comparisonConfig[key] = value
 	}
 
-	if !terraformStateConfigEqual(existingBackend.Config, config) {
+	for _, key := range terragruntGCSOnlyConfigs {
+		delete(comparisonConfig, key)
+	}
+
+	if !terraformStateConfigEqual(existingBackend.Config, comparisonConfig) {
 		terragruntOptions.Logger.Printf("Backend config has changed from %s to %s", existingBackend.Config, config)
 		return false
 	}
