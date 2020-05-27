@@ -236,7 +236,7 @@ Note that [Terraform will read environment variables](https://www.terraform.io/d
 
 ## get\_platform
 
-`get_platform()` returns the current Operational System. Example:
+`get_platform()` returns the current Operating System. Example:
 
 ``` hcl
 inputs = {
@@ -247,7 +247,7 @@ inputs = {
 This function can also be used in a comparison to evaluate what to do based on the current operating system. Example:
 ``` hcl
 output "platform" {
-  value = var.platform == "darwin" ? "" : ""
+  value = var.platform == "darwin" ? "(value for MacOS)" : "(value for other OS's)"
 }
 ```
 
