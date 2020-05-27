@@ -2424,7 +2424,9 @@ func TestGetPlatform(t *testing.T) {
 	outputs := map[string]TerraformOutput{}
 
 	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
-	assert.Equal(t, outputs["platform"].Value, runtime.GOOS)
+	platform, hasPlatform := outputs["platform"]
+	require.True(t, hasPlatform)
+	require.Equal(t, platform.Value, runtime.GOOS)
 }
 
 func TestDataDir(t *testing.T) {
