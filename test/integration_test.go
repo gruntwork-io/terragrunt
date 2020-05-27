@@ -13,6 +13,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -103,6 +104,7 @@ const (
 	TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH           = "qa/my-app"
 	TEST_FIXTURE_READ_CONFIG                                = "fixture-read-config"
 	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                    = "fixture-get-aws-caller-identity"
+	TEST_FIXTURE_GET_PLATFORM                               = "fixture-get-platform"
 	TEST_FIXTURE_REGRESSIONS                                = "fixture-regressions"
 	TEST_FIXTURE_DIRS_PATH                                  = "fixture-dirs"
 	TEST_FIXTURE_PARALLELISM                                = "fixture-parallelism"
@@ -2399,6 +2401,30 @@ func TestAWSGetCallerIdentityFunctions(t *testing.T) {
 	assert.Equal(t, outputs["account"].Value, *identity.Account)
 	assert.Equal(t, outputs["arn"].Value, *identity.Arn)
 	assert.Equal(t, outputs["user_id"].Value, *identity.UserId)
+}
+
+func TestGetPlatform(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_PLATFORM)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_PLATFORM)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_PLATFORM)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	assert.Equal(t, outputs["platform"].Value, runtime.GOOS)
 }
 
 func TestDataDir(t *testing.T) {
