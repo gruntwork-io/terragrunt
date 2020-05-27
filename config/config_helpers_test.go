@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -479,16 +478,6 @@ func toStringSlice(t *testing.T, value interface{}) []string {
 	}
 
 	return out
-}
-
-func TestGetPlatform(t *testing.T) {
-	t.Parallel()
-
-	expectedPlatform := runtime.GOOS
-	actualPlatform, err := getPlatform(nil, nil)
-
-	assert.Nil(t, err)
-	assert.Equal(t, expectedPlatform, actualPlatform)
 }
 
 func TestGetTerragruntDirAbsPath(t *testing.T) {
