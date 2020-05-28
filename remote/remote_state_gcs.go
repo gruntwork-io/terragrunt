@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/terraform/helper/pathorcontents"
 	"github.com/mitchellh/mapstructure"
+	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/jwt"
 	"google.golang.org/api/option"
 )
@@ -130,12 +131,17 @@ func gcsConfigValuesEqual(config map[string]interface{}, existingBackend *Terraf
 		}
 	}
 
-	// Delete custom GCS labels that are only used in Terragrunt config and not in Terraform's backend
-	for _, key := range terragruntGCSOnlyConfigs {
-		delete(config, key)
+	// Construct a new map excluding custom GCS labels that are only used in Terragrunt config and not in Terraform's backend
+	comparisonConfig := make(map[string]interface{})
+	for key, value := range config {
+		comparisonConfig[key] = value
 	}
 
-	if !terraformStateConfigEqual(existingBackend.Config, config) {
+	for _, key := range terragruntGCSOnlyConfigs {
+		delete(comparisonConfig, key)
+	}
+
+	if !terraformStateConfigEqual(existingBackend.Config, comparisonConfig) {
 		terragruntOptions.Logger.Printf("Backend config has changed from %s to %s", existingBackend.Config, config)
 		return false
 	}
@@ -418,6 +424,11 @@ func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, err
 
 	if gcsConfigRemote.Credentials != "" {
 		client, err = storage.NewClient(ctx, option.WithCredentialsFile(gcsConfigRemote.Credentials))
+	} else if oauthAccessToken := os.Getenv("GOOGLE_OAUTH_ACCESS_TOKEN"); oauthAccessToken != "" {
+		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
+			AccessToken: oauthAccessToken,
+		})
+		client, err = storage.NewClient(ctx, option.WithTokenSource(tokenSource))
 	} else if os.Getenv("GOOGLE_CREDENTIALS") != "" {
 		var account accountFile
 		// to mirror how Terraform works, we have to accept either the file path or the contents
