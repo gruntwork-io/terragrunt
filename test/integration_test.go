@@ -2875,6 +2875,19 @@ func TestTerragruntRemoteStateCodegenDoesNotGenerateWithSkip(t *testing.T) {
 	assert.False(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
 
+func TestTerragruntValidateAllWithVersionChecks(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, "fixture-version-check")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntVersionCommand(t, "v0.23.21", fmt.Sprintf("terragrunt validate-all --terragrunt-non-interactive --terragrunt-working-dir %s", tmpEnvPath), &stdout, &stderr)
+	logBufferContentsLineByLine(t, stdout, "stdout")
+	logBufferContentsLineByLine(t, stderr, "stderr")
+	require.NoError(t, err)
+}
+
 func TestTerragruntVersionConstraints(t *testing.T) {
 	testCases := []struct {
 		name                 string
