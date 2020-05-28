@@ -22,6 +22,8 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
 
   - [get\_env(NAME, DEFAULT)](#get_env)
 
+  - [get\_platform()](#get_platform)
+
   - [get\_terragrunt\_dir()](#get_terragrunt_dir)
 
   - [get\_parent\_terragrunt\_dir()](#get_parent_terragrunt_dir)
@@ -231,6 +233,31 @@ remote_state {
 ```
 
 Note that [Terraform will read environment variables](https://www.terraform.io/docs/configuration/environment-variables.html#tf_var_name) that start with the prefix `TF_VAR_`, so one way to share a variable named `foo` between Terraform and Terragrunt is to set its value as the environment variable `TF_VAR_foo` and to read that value in using this `get_env()` built-in function.
+
+## get\_platform
+
+`get_platform()` returns the current Operating System. Example:
+
+``` hcl
+inputs = {
+  platform = get_platform()
+}
+```
+
+This function can also be used in a comparison to evaluate what to do based on the current operating system. Example:
+``` hcl
+output "platform" {
+  value = var.platform == "darwin" ? "(value for MacOS)" : "(value for other OS's)"
+}
+```
+
+Some of the returned values can be:
+```
+darwin
+freebsd
+linux
+windows
+```
 
 ## get\_terragrunt\_dir
 
