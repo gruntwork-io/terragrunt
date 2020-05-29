@@ -222,6 +222,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		TerraformPath:               terragruntOptions.TerraformPath,
 		TerraformCommand:            terragruntOptions.TerraformCommand,
 		TerraformVersion:            terragruntOptions.TerraformVersion,
+		TerragruntVersion:           terragruntOptions.TerragruntVersion,
 		AutoInit:                    terragruntOptions.AutoInit,
 		NonInteractive:              terragruntOptions.NonInteractive,
 		TerraformCliArgs:            util.CloneStringList(terragruntOptions.TerraformCliArgs),
