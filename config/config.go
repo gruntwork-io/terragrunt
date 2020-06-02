@@ -258,8 +258,8 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 }
 
 // Returns true if the given path with the given FileInfo contains a Terragrunt module and false otherwise. A path
-// contains a Terragrunt module if it contains a Terragrunt configuration file (terragrunt.hcl, terragrunt.hcl.json) and is not a cache
-// or download dir.
+// contains a Terragrunt module if it contains a Terragrunt configuration file (terragrunt.hcl, terragrunt.hcl.json)
+// and is not a cache, data, or download dir.
 func containsTerragruntModule(path string, info os.FileInfo, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	if !info.IsDir() {
 		return false, nil
@@ -267,6 +267,15 @@ func containsTerragruntModule(path string, info os.FileInfo, terragruntOptions *
 
 	// Skip the Terragrunt cache dir
 	if strings.Contains(path, options.TerragruntCacheDir) {
+		return false, nil
+	}
+
+	// Skip the Terraform data dir
+	dataDir, found := terragruntOptions.Env["TF_DATA_DIR"]
+	if !found {
+		dataDir = options.TerraformDataDir
+	}
+	if strings.Contains(path, dataDir) {
 		return false, nil
 	}
 

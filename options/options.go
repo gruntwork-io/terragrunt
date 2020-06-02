@@ -30,6 +30,8 @@ const TERRAFORM_DEFAULT_PATH = "terraform"
 
 const TerragruntCacheDir = ".terragrunt-cache"
 
+const TerraformDataDir = ".terraform"
+
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
 	// Location of the Terragrunt config file
@@ -281,7 +283,7 @@ func (terragruntOptions *TerragruntOptions) DataDir() string {
 	if tfDataDir, ok := os.LookupEnv("TF_DATA_DIR"); ok {
 		return tfDataDir
 	}
-	return util.JoinPath(terragruntOptions.WorkingDir, ".terraform")
+	return util.JoinPath(terragruntOptions.WorkingDir, TerraformDataDir)
 }
 
 // Custom error types
