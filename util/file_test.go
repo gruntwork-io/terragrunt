@@ -159,7 +159,7 @@ func TestFileManifest(t *testing.T) {
 
 }
 
-func TestSeparatePath(t *testing.T) {
+func TestSplitPath(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -172,7 +172,7 @@ func TestSeparatePath(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		actual := SeparatePath(testCase.path)
+		actual := SplitPath(testCase.path)
 		assert.Equal(t, testCase.expected, actual, "For path %s", testCase.path)
 	}
 }

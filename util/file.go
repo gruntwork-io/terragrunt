@@ -256,8 +256,8 @@ func JoinPath(elem ...string) string {
 	return filepath.ToSlash(filepath.Join(elem...))
 }
 
-// Separate the given path into a list, e.g. "/foo/bar/boo.txt" -> ["foo", "bar", "boo.txt"]
-func SeparatePath(path string) []string {
+// SplitPath splits the given path into a list, e.g. "/foo/bar/boo.txt" -> ["foo", "bar", "boo.txt"]
+func SplitPath(path string) []string {
 	var splitPath []string
 	dir, file := path, ""
 

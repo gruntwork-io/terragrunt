@@ -64,7 +64,6 @@ func ListContainsSubList(list, sublist []string) bool {
 		}
 		return match
 	}
-	return false
 }
 
 // Return a copy of the given list with all instances of the given element removed

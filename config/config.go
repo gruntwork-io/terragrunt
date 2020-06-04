@@ -265,7 +265,7 @@ func containsTerragruntModule(path string, info os.FileInfo, terragruntOptions *
 		return false, nil
 	}
 
-	splitPath := util.SeparatePath(path)
+	splitPath := util.SplitPath(path)
 
 	// Skip the Terragrunt cache dir
 	if util.ListContainsElement(splitPath, options.TerragruntCacheDir) {
@@ -274,7 +274,7 @@ func containsTerragruntModule(path string, info os.FileInfo, terragruntOptions *
 
 	// Skip the Terraform data dir
 	dataDir := terragruntOptions.TerraformDataDir()
-	splitDataDir := util.SeparatePath(dataDir)
+	splitDataDir := util.SplitPath(dataDir)
 	if util.ListContainsSubList(splitPath, splitDataDir) {
 		return false, nil
 	}
