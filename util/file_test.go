@@ -169,6 +169,7 @@ func TestSplitPath(t *testing.T) {
 		{"foo/bar/.tf/tg.hcl", []string{"foo", "bar", ".tf", "tg.hcl"}},
 		{"/foo/bar/.tf/tg.hcl", []string{"foo", "bar", ".tf", "tg.hcl"}},
 		{"../foo/bar/.tf/tg.hcl", []string{"..", "foo", "bar", ".tf", "tg.hcl"}},
+		{"foo//////bar/.tf/tg.hcl", []string{"foo", "bar", ".tf", "tg.hcl"}},
 	}
 
 	for _, testCase := range testCases {
