@@ -74,6 +74,7 @@ func TestListContainsSubList(t *testing.T) {
 		{[]string{"bar", "foo"}, []string{"foo", "bar"}, false},
 		{[]string{"bar", "foo", "gee"}, []string{"foo", "bar"}, false},
 		{[]string{"foo", "foo", "gee"}, []string{"foo", "bar"}, false},
+		{[]string{"zim", "gee", "foo", "foo", "foo"}, []string{"foo", "foo", "bar", "bar"}, false},
 
 		{[]string{"foo", "bar"}, []string{"foo"}, true},
 		{[]string{"bar", "foo"}, []string{"foo"}, true},

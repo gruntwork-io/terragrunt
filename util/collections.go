@@ -54,7 +54,7 @@ func ListContainsSubList(list, sublist []string) bool {
 			}
 			for _, item := range sublist[1:] {
 				i++
-				if i >= len(list) || item != l[i] {
+				if i >= len(l) || item != l[i] {
 					match = false
 					beg += i
 					break
