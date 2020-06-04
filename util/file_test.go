@@ -158,3 +158,21 @@ func TestFileManifest(t *testing.T) {
 	}
 
 }
+
+func TestSeparatePath(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		path     string
+		expected []string
+	}{
+		{"foo/bar/.tf/tg.hcl", []string{"foo", "bar", ".tf", "tg.hcl"}},
+		{"/foo/bar/.tf/tg.hcl", []string{"foo", "bar", ".tf", "tg.hcl"}},
+		{"../foo/bar/.tf/tg.hcl", []string{"..", "foo", "bar", ".tf", "tg.hcl"}},
+	}
+
+	for _, testCase := range testCases {
+		actual := SeparatePath(testCase.path)
+		assert.Equal(t, testCase.expected, actual, "For path %s", testCase.path)
+	}
+}

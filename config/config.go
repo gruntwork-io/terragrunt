@@ -265,17 +265,17 @@ func containsTerragruntModule(path string, info os.FileInfo, terragruntOptions *
 		return false, nil
 	}
 
+	splitPath := util.SeparatePath(path)
+
 	// Skip the Terragrunt cache dir
-	if strings.Contains(path, options.TerragruntCacheDir) {
+	if util.ListContainsElement(splitPath, options.TerragruntCacheDir) {
 		return false, nil
 	}
 
 	// Skip the Terraform data dir
-	dataDir, found := terragruntOptions.Env["TF_DATA_DIR"]
-	if !found {
-		dataDir = options.TerraformDataDir
-	}
-	if strings.Contains(path, dataDir) {
+	dataDir := terragruntOptions.TerraformDataDir()
+	splitDataDir := util.SeparatePath(dataDir)
+	if util.ListContainsSubList(splitPath, splitDataDir) {
 		return false, nil
 	}
 

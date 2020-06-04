@@ -15,14 +15,55 @@ func MatchesAny(regExps []string, s string) bool {
 	return false
 }
 
-// Return true if the given list contains the given element
-func ListContainsElement(list []string, element string) bool {
-	for _, item := range list {
+// Return the index of the first given element in the given list
+func IndexOfElement(list []string, element string) int {
+	for index, item := range list {
 		if item == element {
-			return true
+			return index
 		}
 	}
 
+	return -1
+}
+
+// Return true if the given list contains the given element
+func ListContainsElement(list []string, element string) bool {
+	index := IndexOfElement(list, element)
+
+	return index != -1
+}
+
+// Returns true if an instance of the list sublist can be found in the given list
+func ListContainsSubList(list, sublist []string) bool {
+	n := len(sublist)
+	switch {
+	case n == 0:
+		return false
+	case n > len(list):
+		return false
+	case n == 1:
+		return IndexOfElement(list, sublist[0]) != -1
+	default:
+		match := false
+		beg := 0
+		for !match && beg < len(list) {
+			l := list[beg:]
+			i := IndexOfElement(l, sublist[0])
+			if i == -1 {
+				break
+			}
+			for _, item := range sublist[1:] {
+				i++
+				if i >= len(list) || item != l[i] {
+					match = false
+					beg += i
+					break
+				}
+				match = true
+			}
+		}
+		return match
+	}
 	return false
 }
 

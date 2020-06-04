@@ -256,6 +256,23 @@ func JoinPath(elem ...string) string {
 	return filepath.ToSlash(filepath.Join(elem...))
 }
 
+// Separate the given path into a list, e.g. "/foo/bar/boo.txt" -> ["foo", "bar", "boo.txt"]
+func SeparatePath(path string) []string {
+	var splitPath []string
+	dir, file := path, ""
+
+	for dir != "" {
+		dir, file = filepath.Split(filepath.Clean(dir))
+		splitPath = append([]string{file}, splitPath...)
+		if len(dir) == 1 && os.IsPathSeparator(uint8(dir[0])) {
+			// filepath.Clean will not clean the path "/" to "" which means if we hit the end
+			// of an absolute path we need to break out of the loop.
+			break
+		}
+	}
+	return splitPath
+}
+
 // Use this function when cleaning paths to ensure the returned path uses / as the path separator to improve cross-platform compatibility
 func CleanPath(path string) string {
 	return filepath.ToSlash(filepath.Clean(path))
