@@ -33,7 +33,7 @@ func ListContainsElement(list []string, element string) bool {
 	return index != -1
 }
 
-// Returns true if an instance of the list sublist can be found in the given list
+// Returns true if an instance of the sublist can be found in the given list
 func ListContainsSubList(list, sublist []string) bool {
 	n := len(sublist)
 	switch {
