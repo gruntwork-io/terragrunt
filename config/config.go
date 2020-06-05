@@ -265,33 +265,26 @@ func containsTerragruntModule(path string, info os.FileInfo, terragruntOptions *
 		return false, nil
 	}
 
-	canonicalPath, err := util.CanonicalPath(path, "")
-	if err != nil {
-		return false, err
-	}
-
-	splitPath := util.SplitPath(path)
-
 	// Skip the Terragrunt cache dir
-	if util.ListContainsElement(splitPath, options.TerragruntCacheDir) {
+	if util.ContainsPath(path, options.TerragruntCacheDir) {
 		return false, nil
 	}
 
 	// Skip the Terraform data dir
 	dataDir := terragruntOptions.TerraformDataDir()
 	if filepath.IsAbs(dataDir) {
-		canonDataDir, err := util.CanonicalPath(dataDir, "")
-		if err != nil {
-			return false, err
-		}
-		if strings.HasPrefix(canonicalPath, canonDataDir) {
+		if util.HasPathPrefix(path, dataDir) {
 			return false, nil
 		}
 	} else {
-		splitDataDir := util.SplitPath(dataDir)
-		if util.ListContainsSubList(splitPath, splitDataDir) {
+		if util.ContainsPath(path, dataDir) {
 			return false, nil
 		}
+	}
+
+	canonicalPath, err := util.CanonicalPath(path, "")
+	if err != nil {
+		return false, err
 	}
 
 	canonicalDownloadPath, err := util.CanonicalPath(terragruntOptions.DownloadDir, "")

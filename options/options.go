@@ -278,15 +278,16 @@ func (terragruntOptions *TerragruntOptions) AppendTerraformCliArgs(argsToAppend 
 	terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, argsToAppend...)
 }
 
-// TerraformDataDir returns Terraform data dir (.terraform by default, overridden by $TF_DATA_DIR envvar)
+// TerraformDataDir returns Terraform data directory (.terraform by default, overridden by $TF_DATA_DIR envvar)
 func (terragruntOptions *TerragruntOptions) TerraformDataDir() string {
 	if tfDataDir, ok := terragruntOptions.Env["TF_DATA_DIR"]; ok {
-		return filepath.Clean(tfDataDir)
+		return tfDataDir
 	}
 	return DefaultTFDataDir
 }
 
-// DataDir returns the working directory path to the Terraform data dir.
+// DataDir returns the Terraform data directory prepended with the working directory path,
+// or just the Terraform data directory if it is an absolute path.
 func (terragruntOptions *TerragruntOptions) DataDir() string {
 	tfDataDir := terragruntOptions.TerraformDataDir()
 	if filepath.IsAbs(tfDataDir) {

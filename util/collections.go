@@ -15,55 +15,56 @@ func MatchesAny(regExps []string, s string) bool {
 	return false
 }
 
-// Return the index of the first given element in the given list
-func IndexOfElement(list []string, element string) int {
-	for index, item := range list {
-		if item == element {
-			return index
+// ListEquals returns true if the two lists are equal
+func ListEquals(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
 		}
 	}
-
-	return -1
+	return true
 }
 
 // Return true if the given list contains the given element
 func ListContainsElement(list []string, element string) bool {
-	index := IndexOfElement(list, element)
+	for _, item := range list {
+		if item == element {
+			return true
+		}
+	}
 
-	return index != -1
+	return false
 }
 
-// Returns true if an instance of the sublist can be found in the given list
-func ListContainsSubList(list, sublist []string) bool {
-	n := len(sublist)
-	switch {
-	case n == 0:
+// ListContainsSublist returns true if an instance of the sublist can be found in the given list
+func ListContainsSublist(list, sublist []string) bool {
+	// A list cannot contain an empty sublist
+	if len(sublist) == 0 {
 		return false
-	case n > len(list):
-		return false
-	case n == 1:
-		return IndexOfElement(list, sublist[0]) != -1
-	default:
-		match := false
-		beg := 0
-		for !match && beg < len(list) {
-			l := list[beg:]
-			i := IndexOfElement(l, sublist[0])
-			if i == -1 {
-				break
-			}
-			for _, item := range sublist[1:] {
-				i++
-				if i >= len(l) || item != l[i] {
-					match = false
-					beg += i
-					break
-				}
-				match = true
-			}
-		}
-		return match
 	}
+	if len(sublist) > len(list) {
+		return false
+	}
+	for i := 0; len(list[i:]) >= len(sublist); i++ {
+		if ListEquals(list[i:i+len(sublist)], sublist) {
+			return true
+		}
+	}
+	return false
+}
+
+// ListHasPrefix returns true if list starts with the given prefix list
+func ListHasPrefix(list, prefix []string) bool {
+	if len(prefix) == 0 {
+		return false
+	}
+	if len(prefix) > len(list) {
+		return false
+	}
+	return ListEquals(list[:len(prefix)], prefix)
 }
 
 // Return a copy of the given list with all instances of the given element removed
