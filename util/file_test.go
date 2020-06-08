@@ -158,3 +158,79 @@ func TestFileManifest(t *testing.T) {
 	}
 
 }
+
+func TestSplitPath(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		path     string
+		expected []string
+	}{
+		{"foo/bar/.tf/tg.hcl", []string{"foo", "bar", ".tf", "tg.hcl"}},
+		{"/foo/bar/.tf/tg.hcl", []string{"", "foo", "bar", ".tf", "tg.hcl"}},
+		{"../foo/bar/.tf/tg.hcl", []string{"..", "foo", "bar", ".tf", "tg.hcl"}},
+		{"foo//////bar/.tf/tg.hcl", []string{"foo", "bar", ".tf", "tg.hcl"}},
+	}
+
+	for _, testCase := range testCases {
+		actual := SplitPath(testCase.path)
+		assert.Equal(t, testCase.expected, actual, "For path %s", testCase.path)
+	}
+}
+
+func TestContainsPath(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		path     string
+		subpath  string
+		expected bool
+	}{
+		{"", "", true},
+		{"/", "/", true},
+		{"foo/bar/.tf/tg.hcl", "foo/bar", true},
+		{"/foo/bar/.tf/tg.hcl", "foo/bar", true},
+		{"foo/bar/.tf/tg.hcl", "bar", true},
+		{"foo/bar/.tf/tg.hcl", ".tf/tg.hcl", true},
+		{"foo/bar/.tf/tg.hcl", "tg.hcl", true},
+
+		{"foo/bar/.tf/tg.hcl", "/bar", false},
+		{"/foo/bar/.tf/tg.hcl", "/bar", false},
+		{"foo/bar", "foo/bar/gee", false},
+		{"foo/bar/.tf/tg.hcl", "foo/barf", false},
+		{"foo/bar/.tf/tg.hcl", "foo/ba", false},
+	}
+
+	for _, testCase := range testCases {
+		actual := ContainsPath(testCase.path, testCase.subpath)
+		assert.Equal(t, testCase.expected, actual, "For path %s and subpath %s", testCase.path, testCase.subpath)
+	}
+}
+func TestHasPathPrefix(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		path     string
+		prefix   string
+		expected bool
+	}{
+		{"", "", true},
+		{"/", "/", true},
+		{"foo/bar/.tf/tg.hcl", "foo", true},
+		{"/foo/bar/.tf/tg.hcl", "/foo", true},
+		{"foo/bar/.tf/tg.hcl", "foo/bar", true},
+		{"/foo/bar/.tf/tg.hcl", "/foo/bar", true},
+
+		{"/", "", false},
+		{"foo", "foo/bar/.tf/tg.hcl", false},
+		{"/foo/bar/.tf/tg.hcl", "foo", false},
+		{"/foo/bar/.tf/tg.hcl", "bar/.tf", false},
+		{"/foo/bar/.tf/tg.hcl", "/foo/barf", false},
+		{"/foo/bar/.tf/tg.hcl", "/foo/ba", false},
+	}
+
+	for _, testCase := range testCases {
+		actual := HasPathPrefix(testCase.path, testCase.prefix)
+		assert.Equal(t, testCase.expected, actual, "For path %s and prefix %s", testCase.path, testCase.prefix)
+	}
+}

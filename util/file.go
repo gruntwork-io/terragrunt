@@ -256,9 +256,38 @@ func JoinPath(elem ...string) string {
 	return filepath.ToSlash(filepath.Join(elem...))
 }
 
+// SplitPath splits the given path into a list.
+// E.g. "foo/bar/boo.txt" -> ["foo", "bar", "boo.txt"]
+// E.g. "/foo/bar/boo.txt" -> ["", "foo", "bar", "boo.txt"]
+// Notice that if path is absolute the resulting list will begin with an empty string.
+func SplitPath(path string) []string {
+	return strings.Split(CleanPath(path), string(filepath.Separator))
+}
+
 // Use this function when cleaning paths to ensure the returned path uses / as the path separator to improve cross-platform compatibility
 func CleanPath(path string) string {
 	return filepath.ToSlash(filepath.Clean(path))
+}
+
+// ContainsPath returns true if path contains the given subpath
+// E.g. path="foo/bar/bee", subpath="bar/bee" -> true
+// E.g. path="foo/bar/bee", subpath="bar/be" -> false (becuase be is not a directory)
+func ContainsPath(path, subpath string) bool {
+	splitPath := SplitPath(CleanPath(path))
+	splitSubpath := SplitPath(CleanPath(subpath))
+	contains := ListContainsSublist(splitPath, splitSubpath)
+	return contains
+}
+
+// HasPathPrefix returns true if path starts with the given path prefix
+// E.g. path="/foo/bar/biz", prefix="/foo/bar" -> true
+// E.g. path="/foo/bar/biz", prefix="/foo/ba" -> false (because ba is not a directory
+// path)
+func HasPathPrefix(path, prefix string) bool {
+	splitPath := SplitPath(CleanPath(path))
+	splitPrefix := SplitPath(CleanPath(prefix))
+	hasPrefix := ListHasPrefix(splitPath, splitPrefix)
+	return hasPrefix
 }
 
 // Join two paths together with a double-slash between them, as this is what Terraform uses to identify where a "repo"

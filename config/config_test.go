@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -1008,6 +1010,84 @@ func TestFindConfigFilesIgnoresTerragruntCache(t *testing.T) {
 	require.NoError(t, err)
 
 	actual, err := FindConfigFilesInPath("../test/fixture-config-files/ignore-cached-config", terragruntOptions)
+
+	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.Equal(t, expected, actual)
+}
+
+func TestFindConfigFilesIgnoresTerraformDataDir(t *testing.T) {
+	t.Parallel()
+
+	expected := []string{
+		"../test/fixture-config-files/ignore-terraform-data-dir/terragrunt.hcl",
+		"../test/fixture-config-files/ignore-terraform-data-dir/.tf_data/modules/mod/terragrunt.hcl",
+		"../test/fixture-config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
+		"../test/fixture-config-files/ignore-terraform-data-dir/subdir/.tf_data/modules/mod/terragrunt.hcl",
+	}
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
+	require.NoError(t, err)
+
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/ignore-terraform-data-dir", terragruntOptions)
+
+	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.Equal(t, expected, actual)
+}
+
+func TestFindConfigFilesIgnoresTerraformDataDirEnv(t *testing.T) {
+	t.Parallel()
+
+	expected := []string{
+		"../test/fixture-config-files/ignore-terraform-data-dir/terragrunt.hcl",
+		"../test/fixture-config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
+		"../test/fixture-config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl",
+	}
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
+	require.NoError(t, err)
+	terragruntOptions.Env["TF_DATA_DIR"] = ".tf_data"
+
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/ignore-terraform-data-dir", terragruntOptions)
+
+	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.Equal(t, expected, actual)
+}
+
+func TestFindConfigFilesIgnoresTerraformDataDirEnvPath(t *testing.T) {
+	t.Parallel()
+
+	expected := []string{
+		"../test/fixture-config-files/ignore-terraform-data-dir/terragrunt.hcl",
+		"../test/fixture-config-files/ignore-terraform-data-dir/.tf_data/modules/mod/terragrunt.hcl",
+		"../test/fixture-config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
+		"../test/fixture-config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl",
+	}
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
+	require.NoError(t, err)
+	terragruntOptions.Env["TF_DATA_DIR"] = "subdir/.tf_data"
+
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/ignore-terraform-data-dir", terragruntOptions)
+
+	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.Equal(t, expected, actual)
+}
+
+func TestFindConfigFilesIgnoresTerraformDataDirEnvRoot(t *testing.T) {
+	t.Parallel()
+
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+
+	expected := []string{
+		filepath.Join(cwd, "../test/fixture-config-files/ignore-terraform-data-dir/terragrunt.hcl"),
+		filepath.Join(cwd, "../test/fixture-config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl"),
+		filepath.Join(cwd, "../test/fixture-config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl"),
+		filepath.Join(cwd, "../test/fixture-config-files/ignore-terraform-data-dir/subdir/.tf_data/modules/mod/terragrunt.hcl"),
+	}
+	workingDir := filepath.Join(cwd, "../test/fixture-config-files/ignore-terraform-data-dir/")
+	terragruntOptions, err := options.NewTerragruntOptionsForTest(workingDir)
+	require.NoError(t, err)
+	terragruntOptions.Env["TF_DATA_DIR"] = filepath.Join(workingDir, ".tf_data")
+
+	actual, err := FindConfigFilesInPath(workingDir, terragruntOptions)
 
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, expected, actual)

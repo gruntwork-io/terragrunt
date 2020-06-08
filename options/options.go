@@ -30,6 +30,8 @@ const TERRAFORM_DEFAULT_PATH = "terraform"
 
 const TerragruntCacheDir = ".terragrunt-cache"
 
+const DefaultTFDataDir = ".terraform"
+
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
 	// Location of the Terragrunt config file
@@ -276,12 +278,22 @@ func (terragruntOptions *TerragruntOptions) AppendTerraformCliArgs(argsToAppend 
 	terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, argsToAppend...)
 }
 
-// DataDir returns Terraform data dir (.terraform by default, overridden by $TF_DATA_DIR envvar)
-func (terragruntOptions *TerragruntOptions) DataDir() string {
-	if tfDataDir, ok := os.LookupEnv("TF_DATA_DIR"); ok {
+// TerraformDataDir returns Terraform data directory (.terraform by default, overridden by $TF_DATA_DIR envvar)
+func (terragruntOptions *TerragruntOptions) TerraformDataDir() string {
+	if tfDataDir, ok := terragruntOptions.Env["TF_DATA_DIR"]; ok {
 		return tfDataDir
 	}
-	return util.JoinPath(terragruntOptions.WorkingDir, ".terraform")
+	return DefaultTFDataDir
+}
+
+// DataDir returns the Terraform data directory prepended with the working directory path,
+// or just the Terraform data directory if it is an absolute path.
+func (terragruntOptions *TerragruntOptions) DataDir() string {
+	tfDataDir := terragruntOptions.TerraformDataDir()
+	if filepath.IsAbs(tfDataDir) {
+		return tfDataDir
+	}
+	return util.JoinPath(terragruntOptions.WorkingDir, tfDataDir)
 }
 
 // Custom error types
