@@ -54,7 +54,7 @@ func wrapVoidToStringSliceAsFuncImpl(toWrap func(include *IncludeConfig, terragr
 		Type: function.StaticReturnType(cty.List(cty.String)),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			outVals, err := toWrap(include, terragruntOptions)
-			if err != nil {
+			if err != nil || len(outVals) == 0 {
 				return cty.ListValEmpty(cty.String), err
 			}
 			outCtyVals := []cty.Value{}

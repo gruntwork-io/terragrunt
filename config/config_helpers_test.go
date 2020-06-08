@@ -466,6 +466,48 @@ func TestResolveCommandsInterpolationConfigString(t *testing.T) {
 	}
 }
 
+func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
+	t.Parallel()
+
+	for _, cliArgs := range [][]string{nil, {}, {"apply"}, {"plan", "-out=planfile"}} {
+		opts := terragruntOptionsForTest(t, DefaultTerragruntConfigPath)
+		opts.TerraformCliArgs = cliArgs
+		expectedFooInput := cliArgs
+		// Expecting nil to be returned for get_terraform_cli_args() call for
+		// either nil or empty array of input args
+		if len(cliArgs) == 0 {
+			expectedFooInput = nil
+		}
+		testCase := struct {
+			str               string
+			include           *IncludeConfig
+			terragruntOptions *options.TerragruntOptions
+			expectedFooInput  []string
+		}{
+			"inputs = { foo = get_terraform_cli_args() }",
+			nil,
+			opts,
+			expectedFooInput,
+		}
+		t.Run(testCase.str, func(t *testing.T) {
+			actualOut, actualErr := ParseConfigString(testCase.str, testCase.terragruntOptions, testCase.include, "mock-path-for-test.hcl")
+			require.NoError(t, actualErr, "For string '%s' include %v and options %v, unexpected error: %v", testCase.str, testCase.include, testCase.terragruntOptions, actualErr)
+
+			require.NotNil(t, actualOut)
+
+			inputs := actualOut.Inputs
+			require.NotNil(t, inputs)
+
+			foo, containsFoo := inputs["foo"]
+			assert.True(t, containsFoo)
+
+			fooSlice := toStringSlice(t, foo)
+
+			assert.EqualValues(t, testCase.expectedFooInput, fooSlice, "For string '%s' include %v and options %v", testCase.str, testCase.include, testCase.terragruntOptions)
+		})
+	}
+}
+
 func toStringSlice(t *testing.T, value interface{}) []string {
 	asInterfaceSlice, isInterfaceSlice := value.([]interface{})
 	require.True(t, isInterfaceSlice)
