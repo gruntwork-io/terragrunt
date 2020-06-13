@@ -31,7 +31,7 @@ func enableVirtualTerminalProcessing(options *options.TerragruntOptions, file *o
 
 	if err := windows.SetConsoleMode(handle, mode|windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING); err != nil {
 		options.Logger.Printf("failed to set console mode: %v\n", err)
-		_ = windows.SetConsoleMode(handle, mode)
+		windows.SetConsoleMode(handle, mode)
 	}
 }
 
