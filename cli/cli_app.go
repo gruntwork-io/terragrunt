@@ -236,6 +236,8 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 		return err
 	}
 
+	shell.PrepareConsole(terragruntOptions)
+
 	givenCommand := cliContext.Args().First()
 	command := checkDeprecated(givenCommand, terragruntOptions)
 	return runCommand(command, terragruntOptions)
