@@ -3,10 +3,11 @@
 package shell
 
 import (
-	"golang.org/x/sys/windows"
 	"io"
 	"os"
 	"os/exec"
+
+	"golang.org/x/sys/windows"
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -36,7 +37,7 @@ func enableVirtualTerminalProcessing(options *options.TerragruntOptions, file *o
 }
 
 // For windows, there is no concept of a pseudoTTY so we run as if there is no pseudoTTY.
-func runCommandWithPTTY(cmd *exec.Cmd, cmdStdout io.Writer, cmdStderr io.Writer) error {
+func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.Cmd, cmdStdout io.Writer, cmdStderr io.Writer) error {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = cmdStdout
 	cmd.Stderr = cmdStderr

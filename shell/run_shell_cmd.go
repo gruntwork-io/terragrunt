@@ -95,7 +95,7 @@ func RunShellCommandWithOutput(
 	// If we need to allocate a ptty for the command, route through the ptty routine. Otherwise, directly call the
 	// command.
 	if allocatePseudoTty {
-		if err := runCommandWithPTTY(cmd, cmdStdout, cmdStderr); err != nil {
+		if err := runCommandWithPTTY(terragruntOptions, cmd, cmdStdout, cmdStderr); err != nil {
 			return nil, err
 		}
 	} else {
