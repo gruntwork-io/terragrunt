@@ -33,6 +33,7 @@ func PopulateTerraformVersion(terragruntOptions *options.TerragruntOptions) erro
 	}
 
 	terragruntOptions.TerraformVersion = terraformVersion
+	terragruntOptions.Logger.Printf("Terraform version: %s", terraformVersion)
 	return nil
 }
 
