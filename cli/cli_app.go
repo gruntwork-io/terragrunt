@@ -884,7 +884,7 @@ func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragru
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) != "destroy" {
 		return nil
 	}
-	if terragruntConfig.PreventDestroy {
+	if terragruntConfig.PreventDestroy != nil && *terragruntConfig.PreventDestroy {
 		return errors.WithStackTrace(ModuleIsProtected{Opts: terragruntOptions})
 	}
 	return nil

@@ -73,6 +73,8 @@ const (
 	TEST_FIXTURE_REMOTE_MODULE_IN_ROOT                      = "fixture-download/remote-module-in-root"
 	TEST_FIXTURE_LOCAL_MISSING_BACKEND                      = "fixture-download/local-with-missing-backend"
 	TEST_FIXTURE_LOCAL_WITH_HIDDEN_FOLDER                   = "fixture-download/local-with-hidden-folder"
+	TEST_FIXTURE_PREVENT_DESTROY_OVERRIDE                   = "fixture-prevent-destroy-override/child"
+	TEST_FIXTURE_PREVENT_DESTROY_NOT_SET                    = "fixture-prevent-destroy-not-set/child"
 	TEST_FIXTURE_LOCAL_PREVENT_DESTROY                      = "fixture-download/local-with-prevent-destroy"
 	TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES         = "fixture-download/local-with-prevent-destroy-dependencies"
 	TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES = "fixture-download/local-include-with-prevent-destroy-dependencies"
@@ -1293,6 +1295,29 @@ func TestTerraformSubcommandCliArgs(t *testing.T) {
 		output := stdout.String()
 		errOutput := stderr.String()
 		assert.True(t, strings.Contains(errOutput, testCase.expected) || strings.Contains(output, testCase.expected))
+	}
+}
+
+func TestPreventDestroyOverride(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_PREVENT_DESTROY_OVERRIDE)
+
+	assert.NoError(t, runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-working-dir %s", TEST_FIXTURE_PREVENT_DESTROY_OVERRIDE), os.Stdout, os.Stderr))
+	assert.NoError(t, runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy --auto-approve --terragrunt-working-dir %s", TEST_FIXTURE_PREVENT_DESTROY_OVERRIDE), os.Stdout, os.Stderr))
+}
+
+func TestPreventDestroyNotSet(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_PREVENT_DESTROY_NOT_SET)
+
+	assert.NoError(t, runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-working-dir %s", TEST_FIXTURE_PREVENT_DESTROY_NOT_SET), os.Stdout, os.Stderr))
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy --auto-approve --terragrunt-working-dir %s", TEST_FIXTURE_PREVENT_DESTROY_NOT_SET), os.Stdout, os.Stderr)
+
+	if assert.Error(t, err) {
+		underlying := errors.Unwrap(err)
+		assert.IsType(t, cli.ModuleIsProtected{}, underlying)
 	}
 }
 

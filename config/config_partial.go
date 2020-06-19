@@ -217,7 +217,7 @@ func PartialParseConfigString(
 				return nil, err
 			}
 			if decoded.PreventDestroy != nil {
-				output.PreventDestroy = *decoded.PreventDestroy
+				output.PreventDestroy = decoded.PreventDestroy
 			}
 			if decoded.Skip != nil {
 				output.Skip = *decoded.Skip
