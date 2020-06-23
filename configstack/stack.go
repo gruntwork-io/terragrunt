@@ -58,8 +58,8 @@ func (stack *Stack) Plan(terragruntOptions *options.TerragruntOptions) error {
 func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.TerragruntOptions, errorStreams []bytes.Buffer) {
 	for i, errorStream := range errorStreams {
 		output := errorStream.String()
+		terragruntOptions.Logger.Println(output)
 		if strings.Contains(output, "Error running plan:") {
-			terragruntOptions.Logger.Println(output)
 			if strings.Contains(output, ": Resource 'data.terraform_remote_state.") {
 				var dependenciesMsg string
 				if len(stack.Modules[i].Dependencies) > 0 {
@@ -71,8 +71,6 @@ func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.Terragrunt
 					dependenciesMsg,
 				)
 			}
-		} else if errorStream.Len() > 0 {
-			terragruntOptions.Logger.Printf("Error with plan: %s", output)
 		}
 	}
 }
