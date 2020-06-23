@@ -53,7 +53,7 @@ func TestParseTerragruntJsonConfigRemoteStateMinimalConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.Terraform)
-
+	assert.Nil(t, terragruntConfig.RetryableErrors)
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
@@ -109,7 +109,7 @@ remote_state {
 	}
 
 	assert.Nil(t, terragruntConfig.Terraform)
-
+	assert.Nil(t, terragruntConfig.RetryableErrors)
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
@@ -145,7 +145,7 @@ func TestParseTerragruntJsonConfigRemoteStateFullConfig(t *testing.T) {
 	}
 
 	assert.Nil(t, terragruntConfig.Terraform)
-
+	assert.Nil(t, terragruntConfig.RetryableErrors)
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
@@ -155,6 +155,48 @@ func TestParseTerragruntJsonConfigRemoteStateFullConfig(t *testing.T) {
 		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
 		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
 		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+	}
+}
+
+func TestParseTerragruntHclConfigRetryableErrors(t *testing.T) {
+	t.Parallel()
+
+	config := `
+retryable_errors = [
+    "My own little error",
+    "Another one of my errors"
+]
+`
+	terragruntConfig, err := ParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath)
+	require.NoError(t, err)
+
+	assert.Nil(t, terragruntConfig.Terraform)
+	assert.Empty(t, terragruntConfig.IamRole)
+
+	if assert.NotNil(t, terragruntConfig.RetryableErrors) {
+		assert.Equal(t, []string{"My own little error", "Another one of my errors"}, terragruntConfig.RetryableErrors)
+	}
+}
+
+func TestParseTerragruntJsonConfigRetryableErrors(t *testing.T) {
+	t.Parallel()
+
+	config := `
+{
+	"retryable_errors": [
+        "My own little error"
+	]
+}
+`
+
+	terragruntConfig, err := ParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntJsonConfigPath)
+	require.NoError(t, err)
+
+	assert.Nil(t, terragruntConfig.Terraform)
+	assert.Empty(t, terragruntConfig.IamRole)
+
+	if assert.NotNil(t, terragruntConfig.RetryableErrors) {
+		assert.Equal(t, []string{"My own little error"}, terragruntConfig.RetryableErrors)
 	}
 }
 
@@ -171,6 +213,7 @@ func TestParseIamRole(t *testing.T) {
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.Dependencies)
+	assert.Nil(t, terragruntConfig.RetryableErrors)
 
 	assert.Equal(t, "terragrunt-iam-role", terragruntConfig.IamRole)
 }
@@ -191,6 +234,7 @@ dependencies {
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
+	assert.Nil(t, terragruntConfig.RetryableErrors)
 
 	assert.Empty(t, terragruntConfig.IamRole)
 
@@ -215,7 +259,7 @@ dependencies {
 
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Terraform)
-
+	assert.Nil(t, terragruntConfig.RetryableErrors)
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.Dependencies) {
@@ -254,7 +298,7 @@ dependencies {
 	require.NotNil(t, terragruntConfig.Terraform)
 	require.NotNil(t, terragruntConfig.Terraform.Source)
 	assert.Equal(t, "foo", *terragruntConfig.Terraform.Source)
-
+	assert.Nil(t, terragruntConfig.RetryableErrors)
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
@@ -302,7 +346,7 @@ func TestParseTerragruntJsonConfigRemoteStateDynamoDbTerraformConfigAndDependenc
 	require.NotNil(t, terragruntConfig.Terraform)
 	require.NotNil(t, terragruntConfig.Terraform.Source)
 	assert.Equal(t, "foo", *terragruntConfig.Terraform.Source)
-
+	assert.Nil(t, terragruntConfig.RetryableErrors)
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
