@@ -32,5 +32,5 @@ func (errs MultiError) Error() string {
 		}
 	}
 
-	return fmt.Sprintf("Hit multiple errors:\n%s", strings.Join(errorMessages, "\n"))
+	return fmt.Sprintf("\n%s", strings.Join(errorMessages, "\n"))
 }
