@@ -37,9 +37,10 @@ Terragrunt forwards all arguments and options to Terraform. The only exceptions 
 ## terragrunt-config
 
 **CLI Arg**: `--terragrunt-config`<br/>
+**Environment Variable**: `TERRAGRUNT_CONFIG`<br/>
 **Requires an argument**: `--terragrunt-config /path/to/terragrunt.hcl`
 
-A custom path to the `terragrunt.hcl` or `terragrunt.hcl.json` file. May also be specified via the `TERRAGRUNT_CONFIG` environment variable. The
+A custom path to the `terragrunt.hcl` or `terragrunt.hcl.json` file. The
 default path is `terragrunt.hcl` (preferred) or `terragrunt.hcl.json` in the current directory (see
 [Configuration]({{site.baseurl}}/docs/getting-started/configuration/#configuration) for a slightly more nuanced
 explanation). This argument is not used with the `apply-all`, `destroy-all`, `output-all`, `validate-all`, and
@@ -49,15 +50,16 @@ explanation). This argument is not used with the `apply-all`, `destroy-all`, `ou
 ## terragrunt-tfpath
 
 **CLI Arg**: `--terragrunt-tfpath`<br/>
+**Environment Variable**: `TERRAGRUNT_TFPATH`<br/>
 **Requires an argument**: `--terragrunt-tfpath /path/to/terraform-binary`
 
-A custom path to the Terraform binary. May also be specified via the `TERRAGRUNT_TFPATH` environment variable. The
-default is `terraform` in a directory on your PATH.
+A custom path to the Terraform binary. The default is `terraform` in a directory on your PATH.
 
 
 ## terragrunt-no-auto-init
 
-**CLI Arg**: `--terragrunt-no-auto-init`
+**CLI Arg**: `--terragrunt-no-auto-init`<br/>
+**Environment Variable**: `TERRAGRUNT_AUTO_INIT` (set to `false`)
 
 When passed in, don't automatically run `terraform init` when other commands are run (e.g. `terragrunt apply`). Useful
 if you want to pass custom arguments to `terraform init` that are specific to a user or execution environment, and
@@ -68,7 +70,8 @@ disabled. See [Auto-Init]({{site.baseurl}}/docs/features/auto-init#auto-init)
 
 ## terragrunt-no-auto-retry
 
-**CLI Arg**: `--terragrunt-no-auto-retry`
+**CLI Arg**: `--terragrunt-no-auto-retry`<br/>
+**Environment Variable**: `TERRAGRUNT_AUTO_RETRY` (set to `false`)
 
 When passed in, don't automatically retry commands which fail with transient errors. See
 [Auto-Retry]({{site.baseurl}}/docs/features/auto-retry#auto-retry)
@@ -76,7 +79,8 @@ When passed in, don't automatically retry commands which fail with transient err
 
 ## terragrunt-non-interactive
 
-**CLI Arg**: `--terragrunt-non-interactive`
+**CLI Arg**: `--terragrunt-non-interactive`<br/>
+**Environment Variable**: `TF_INPUT` (set to `false`)
 
 When passed in, don't show interactive user prompts. This will default the answer for all prompts to 'yes'. Useful if
 you need to run Terragrunt in an automated setting (e.g. from a script). May also be specified with the
@@ -86,6 +90,7 @@ you need to run Terragrunt in an automated setting (e.g. from a script). May als
 ## terragrunt-working-dir
 
 **CLI Arg**: `--terragrunt-working-dir`<br/>
+**Environment Variable**: `TERRAGRUNT_WORKING_DIR`<br/>
 **Requires an argument**: `--terragrunt-working-dir /path/to/working-directory`
 
 Set the directory where Terragrunt should execute the `terraform` command. Default is the current working directory.
@@ -97,34 +102,34 @@ a different meaning: Terragrunt will apply or destroy all the Terraform modules 
 ## terragrunt-download-dir
 
 **CLI Arg**: `--terragrunt-download-dir`<br/>
+**Environment Variable**: `TERRAGRUNT_DOWNLOAD`<br/>
 **Requires an argument**: `--terragrunt-download-dir /path/to/dir-to-download-terraform-code`
 
 The path where to download Terraform code when using [remote Terraform
 configurations](https://blog.gruntwork.io/terragrunt-how-to-keep-your-terraform-code-dry-and-maintainable-f61ae06959d8).
-May also be specified via the `TERRAGRUNT_DOWNLOAD` environment variable. Default is `.terragrunt-cache` in the working
-directory. We recommend adding this folder to your `.gitignore`.
+Default is `.terragrunt-cache` in the working directory. We recommend adding this folder to your `.gitignore`.
 
 
 ## terragrunt-source
 
 **CLI Arg**: `--terragrunt-source`<br/>
+**Environment Variable**: `TERRAGRUNT_SOURCE`<br/>
 **Requires an argument**: `--terragrunt-source /path/to/local-terraform-code`
 
 Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary
-folder. May also be specified via the `TERRAGRUNT_SOURCE` environment variable. The source should use the same syntax as
-the [Terraform module source](https://www.terraform.io/docs/modules/sources.html) parameter. If you specify this
-argument for the `apply-all`, `destroy-all`, `output-all`, `validate-all`, or `plan-all` commands, Terragrunt will
-assume this is the local file path for all of your Terraform modules, and for each module processed by the `xxx-all`
-command, Terragrunt will automatically append the path of `source` parameter in each module to the `--terragrunt-source`
-parameter you passed in.
+folder. The source should use the same syntax as the [Terraform module
+source](https://www.terraform.io/docs/modules/sources.html) parameter. If you specify this argument for the `apply-all`,
+`destroy-all`, `output-all`, `validate-all`, or `plan-all` commands, Terragrunt will assume this is the local file path
+for all of your Terraform modules, and for each module processed by the `xxx-all` command, Terragrunt will automatically
+append the path of `source` parameter in each module to the `--terragrunt-source` parameter you passed in.
 
 
 ## terragrunt-source-update
 
-**CLI Arg**: `--terragrunt-source-update`
+**CLI Arg**: `--terragrunt-source-update`<br/>
+**Environment Variable**: `TERRAGRUNT_SOURCE_UPDATE` (set to `true`)
 
-When passed in, delete the contents of the temporary folder before downloading Terraform source code into it. Can also
-be enabled by setting the `TERRAGRUNT_SOURCE_UPDATE` environment variable to `true`.
+When passed in, delete the contents of the temporary folder before downloading Terraform source code into it.
 
 
 ## terragrunt-ignore-dependency-errors
@@ -137,11 +142,11 @@ When passed in, the `*-all` commands continue processing components even if a de
 ## terragrunt-iam-role
 
 **CLI Arg**: `--terragrunt-iam-role`<br/>
+**Environment Variable**: `TERRAGRUNT_IAM_ROLE`<br/>
 **Requires an argument**: `--terragrunt-iam-role "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"`
 
-Assume the specified IAM role ARN before running Terraform or AWS commands. May also be specified via the
-`TERRAGRUNT_IAM_ROLE` environment variable. This is a convenient way to use Terragrunt and Terraform with multiple AWS
-accounts.
+Assume the specified IAM role ARN before running Terraform or AWS commands. This is a convenient way to use Terragrunt
+and Terraform with multiple AWS accounts.
 
 
 ## terragrunt-exclude-dir
@@ -206,7 +211,8 @@ included directories with `terragrunt-include-dir`.
 
 ## terragrunt-check
 
-**CLI Arg**: `--terragrunt-check`
+**CLI Arg**: `--terragrunt-check`<br/>
+**Environment Variable**: `TERRAGRUNT_CHECK` (set to `true`)
 
 When passed in, run `hclfmt` in check only mode instead of actively overwriting the files. This will cause the
 command to exit with exit code 1 if there are any files that are not formatted.

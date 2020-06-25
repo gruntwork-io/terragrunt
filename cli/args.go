@@ -38,12 +38,15 @@ func ParseTerragruntOptions(cliContext *cli.Context) (*options.TerragruntOptions
 // and look for the ones we need, but in the future, we should change to a different CLI library to avoid this
 // limitation.
 func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, writer, errWriter io.Writer) (*options.TerragruntOptions, error) {
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return nil, errors.WithStackTrace(err)
+	defaultWorkingDir := os.Getenv("TERRAGRUNT_WORKING_DIR")
+	if defaultWorkingDir == "" {
+		currentDir, err := os.Getwd()
+		if err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
+		defaultWorkingDir = currentDir
 	}
-
-	workingDir, err := parseStringArg(args, OPT_WORKING_DIR, currentDir)
+	workingDir, err := parseStringArg(args, OPT_WORKING_DIR, defaultWorkingDir)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +159,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.IncludeDirs = includeDirs
 	opts.StrictInclude = strictInclude
 	opts.Parallelism = parallelism
-	opts.Check = parseBooleanArg(args, OPT_TERRAGRUNT_CHECK, os.Getenv("TERRAGRUNT_CHECK") == "false")
+	opts.Check = parseBooleanArg(args, OPT_TERRAGRUNT_CHECK, os.Getenv("TERRAGRUNT_CHECK") == "true")
 	opts.HclFile = filepath.ToSlash(terragruntHclFilePath)
 
 	return opts, nil
