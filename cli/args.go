@@ -43,7 +43,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		return nil, errors.WithStackTrace(err)
 	}
 
-	workingDir, err := parseStringArg(args, OPT_WORKING_DIR, currentDir)
+	workingDir, err := parseStringArg(args, OPT_WORKING_DIR, os.Getenv("TERRAGRUNT_WORKING_DIR"))
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +156,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.IncludeDirs = includeDirs
 	opts.StrictInclude = strictInclude
 	opts.Parallelism = parallelism
-	opts.Check = parseBooleanArg(args, OPT_TERRAGRUNT_CHECK, os.Getenv("TERRAGRUNT_CHECK") == "false")
+	opts.Check = parseBooleanArg(args, OPT_TERRAGRUNT_CHECK, os.Getenv("TERRAGRUNT_CHECK") == "true")
 	opts.HclFile = filepath.ToSlash(terragruntHclFilePath)
 
 	return opts, nil
