@@ -110,7 +110,7 @@ You can also pass an optional second `fallback` parameter which causes the funct
 
 ``` hcl
 include {
-  path = find_in_parent_folders("some-other-file-name.tfvars", "fallback.tfvars")
+  path = find_in_parent_folders("some-other-file-name.hcl", "fallback.hcl")
 }
 ```
 
