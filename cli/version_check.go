@@ -11,9 +11,12 @@ import (
 	"github.com/hashicorp/go-version"
 )
 
-// The terraform --version output is of the format: Terraform v0.9.5-dev (cad024a5fe131a546936674ef85445215bbc4226+CHANGES)
-// where -dev and (commitid+CHANGES) is for custom builds or if TF_LOG is set for debug purposes
-var TERRAFORM_VERSION_REGEX = regexp.MustCompile("Terraform (v?[\\d\\.]+)(?:-dev)?(?: .+)?")
+// TerraformVersionRegex verifies that terraform --version output is in one of the following formats:
+// - Terraform v0.9.5-dev (cad024a5fe131a546936674ef85445215bbc4226+CHANGES)
+// - Terraform v0.13.0-beta2
+// - Terraform v0.12.27
+// We only make sure the "v#.#.#" part is present in the output.
+var TerraformVersionRegex = regexp.MustCompile(`Terraform (v\d+\.\d+\.\d+).*`)
 
 // Populate the currently installed version of Terraform into the given terragruntOptions
 func PopulateTerraformVersion(terragruntOptions *options.TerragruntOptions) error {
@@ -78,7 +81,7 @@ func checkTerraformVersionMeetsConstraint(currentVersion *version.Version, const
 
 // Parse the output of the terraform --version command
 func parseTerraformVersion(versionCommandOutput string) (*version.Version, error) {
-	matches := TERRAFORM_VERSION_REGEX.FindStringSubmatch(versionCommandOutput)
+	matches := TerraformVersionRegex.FindStringSubmatch(versionCommandOutput)
 
 	if len(matches) != 2 {
 		return nil, errors.WithStackTrace(InvalidTerraformVersionSyntax(versionCommandOutput))
