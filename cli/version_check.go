@@ -16,7 +16,7 @@ import (
 // - Terraform v0.13.0-beta2
 // - Terraform v0.12.27
 // We only make sure the "v#.#.#" part is present in the output.
-var TerraformVersionRegex = regexp.MustCompile(`Terraform (v\d+\.\d+\.\d+).*`)
+var TerraformVersionRegex = regexp.MustCompile(`Terraform (v?\d+\.\d+\.\d+).*`)
 
 // Populate the currently installed version of Terraform into the given terragruntOptions
 func PopulateTerraformVersion(terragruntOptions *options.TerragruntOptions) error {
