@@ -11,7 +11,12 @@ nav_title_link: /docs/
 
 ## Install Terragrunt
 
-Note that third-party Terragrunt packages may not be updated with the latest version, but are often close. Please check your version against the latest available on the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases).
+### Download from releases page
+
+You can install Terragrunt manually by going to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases), downloading the binary for your OS, renaming it to `terragrunt`, and adding it to your PATH.
+
+Note that all the different package managers are third party.The third party Terragrunt packages may not be updated with the latest version, but are often close. Please check your version against the latest available on the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases).
+The recommended installation option is via the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases).
 
 ### Windows
 
@@ -33,7 +38,3 @@ There are multiple ways to install Terragrunt on Linux depending on your distrib
 #### Other
 
 You can install Terragrunt on Linux using [Homebrew](https://docs.brew.sh/Homebrew-on-Linux): `brew install terragrunt`.
-
-### Manual install
-
-You can install Terragrunt manually by going to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases), downloading the binary for your OS, renaming it to `terragrunt`, and adding it to your PATH.
