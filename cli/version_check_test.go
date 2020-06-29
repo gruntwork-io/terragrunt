@@ -59,6 +59,16 @@ func TestParseTerraformVersionWithDev(t *testing.T) {
 	testParseTerraformVersion(t, "Terraform v0.9.4-dev", "v0.9.4", nil)
 }
 
+func TestParseTerraformVersionWithBeta(t *testing.T) {
+	t.Parallel()
+	testParseTerraformVersion(t, "Terraform v0.13.0-beta1", "v0.13.0", nil)
+}
+
+func TestParseTerraformVersionWithUnexpectedName(t *testing.T) {
+	t.Parallel()
+	testParseTerraformVersion(t, "Terraform v0.15.0-rc1", "v0.15.0", nil)
+}
+
 func TestParseTerraformVersionInvalidSyntax(t *testing.T) {
 	t.Parallel()
 	testParseTerraformVersion(t, "invalid-syntax", "", InvalidTerraformVersionSyntax("invalid-syntax"))
