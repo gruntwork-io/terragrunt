@@ -2,7 +2,6 @@ package configstack
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -191,7 +190,7 @@ func collectErrors(modules map[string]*runningModule) error {
 	if len(errs) == 0 {
 		return nil
 	} else {
-		return errors.WithStackTrace(MultiError{Errors: errs})
+		return errors.WithStackTrace(errors.MultiError{Errors: errs})
 	}
 }
 
@@ -249,7 +248,7 @@ func (module *runningModule) moduleFinished(moduleErr error) {
 	if moduleErr == nil {
 		module.Module.TerragruntOptions.Logger.Printf("Module %s has finished successfully!", module.Module.Path)
 	} else {
-		module.Module.TerragruntOptions.Logger.Printf("Module %s has finished with status: %v", module.Module.Path, moduleErr)
+		module.Module.TerragruntOptions.Logger.Printf("Module %s has finished with an error: %v", module.Module.Path, moduleErr)
 	}
 
 	module.Status = Finished
@@ -279,21 +278,7 @@ func (this DependencyFinishedWithError) ExitStatus() (int, error) {
 	return -1, this
 }
 
-type MultiError struct {
-	Errors []error
-}
-
-func (err MultiError) Error() string {
-	errorStrings := []string{}
-	for _, err := range err.Errors {
-		if err.Error() == "exit status 1" {
-            errorStrings = append(errorStrings, err.Error())
-		}
-	}
-	return fmt.Sprintf("Encountered the following errors:\nHit multiple errors:\n%s", strings.Join(errorStrings, "\n"))
-}
-
-func (this MultiError) ExitStatus() (int, error) {
+func ExitStatus(this errors.MultiError) (int, error) {
 	exitCode := 0
 	for i := range this.Errors {
 		if code, err := shell.GetExitCode(this.Errors[i]); err != nil {

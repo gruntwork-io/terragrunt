@@ -32,5 +32,10 @@ func (errs MultiError) Error() string {
 		}
 	}
 
-	return fmt.Sprintf("\n%s", strings.Join(errorMessages, "\n"))
+	for _, errStatus := range errorMessages {
+        if errStatus == "exit status 2" {
+			return errStatus
+		}
+	}
+	return fmt.Sprintf("Encountered the following errors:\nHit multiple errors:\n%s", strings.Join(errorMessages, "\n"))
 }

@@ -1073,7 +1073,7 @@ func TestRemoteWithModuleInRoot(t *testing.T) {
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 }
 
-// Run terragrunt plan -detailed-exitcode on a folder with some uncreated resources and make sure that you get an exit
+// Run terragrunt plan --detailed-exitcode on a folder with some uncreated resources and make sure that you get an exit
 // code of "2", which means there are changes to apply.
 func TestExitCode(t *testing.T) {
 	t.Parallel()
@@ -1358,7 +1358,7 @@ func TestPreventDestroyDependencies(t *testing.T) {
 
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		assert.IsType(t, configstack.MultiError{}, underlying)
+		assert.IsType(t, configstack.ExitStatus, underlying)
 	}
 
 	// Check that modules C, D and E were deleted and modules A and B weren't.
@@ -1549,7 +1549,7 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		assert.IsType(t, configstack.MultiError{}, underlying)
+		assert.IsType(t, configstack.ExitStatus, underlying)
 	}
 
 	// Check that modules C, D and E were deleted and modules A and B weren't.
