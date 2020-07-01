@@ -32,7 +32,7 @@ type TerragruntConfig struct {
 	RemoteState                 *remote.RemoteState
 	Dependencies                *ModuleDependencies
 	DownloadDir                 string
-	PreventDestroy              bool
+	PreventDestroy              *bool
 	Skip                        bool
 	IamRole                     string
 	Inputs                      map[string]interface{}
@@ -493,7 +493,8 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 	if config.RemoteState != nil {
 		includedConfig.RemoteState = config.RemoteState
 	}
-	if config.PreventDestroy {
+
+	if config.PreventDestroy != nil {
 		includedConfig.PreventDestroy = config.PreventDestroy
 	}
 
@@ -730,7 +731,7 @@ func convertToTerragruntConfig(
 	}
 
 	if terragruntConfigFromFile.PreventDestroy != nil {
-		terragruntConfig.PreventDestroy = *terragruntConfigFromFile.PreventDestroy
+		terragruntConfig.PreventDestroy = terragruntConfigFromFile.PreventDestroy
 	}
 
 	if terragruntConfigFromFile.Skip != nil {

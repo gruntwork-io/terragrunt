@@ -58,7 +58,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 			Paths: []string{"foo"},
 		},
 		DownloadDir:    ".terragrunt-cache",
-		PreventDestroy: true,
+		PreventDestroy: &testTrue,
 		Skip:           true,
 		IamRole:        "terragruntRole",
 		Inputs: map[string]interface{}{

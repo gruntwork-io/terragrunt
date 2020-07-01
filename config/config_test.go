@@ -568,7 +568,7 @@ func TestParseTerragruntConfigEmptyConfig(t *testing.T) {
 	assert.Nil(t, cfg.Terraform)
 	assert.Nil(t, cfg.RemoteState)
 	assert.Nil(t, cfg.Dependencies)
-	assert.False(t, cfg.PreventDestroy)
+	assert.Nil(t, cfg.PreventDestroy)
 	assert.False(t, cfg.Skip)
 	assert.Empty(t, cfg.IamRole)
 }
@@ -1137,7 +1137,7 @@ prevent_destroy = true
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Dependencies)
-	assert.Equal(t, true, terragruntConfig.PreventDestroy)
+	assert.Equal(t, true, *terragruntConfig.PreventDestroy)
 }
 
 func TestParseTerragruntConfigPreventDestroyFalse(t *testing.T) {
@@ -1155,7 +1155,7 @@ prevent_destroy = false
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Dependencies)
-	assert.Equal(t, false, terragruntConfig.PreventDestroy)
+	assert.Equal(t, false, *terragruntConfig.PreventDestroy)
 }
 
 func TestParseTerragruntConfigSkipTrue(t *testing.T) {

@@ -25,7 +25,6 @@ func terragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	output["terragrunt_version_constraint"] = gostringToCty(config.TerragruntVersionConstraint)
 	output["download_dir"] = gostringToCty(config.DownloadDir)
 	output["iam_role"] = gostringToCty(config.IamRole)
-	output["prevent_destroy"] = goboolToCty(config.PreventDestroy)
 	output["skip"] = goboolToCty(config.Skip)
 
 	terraformConfigCty, err := terraformConfigAsCty(config.Terraform)
@@ -50,6 +49,10 @@ func terragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	}
 	if dependenciesCty != cty.NilVal {
 		output["dependencies"] = dependenciesCty
+	}
+	
+	if config.PreventDestroy != nil {
+		output["prevent_destroy"] = goboolToCty(*config.PreventDestroy)
 	}
 
 	dependencyCty, err := dependencyBlocksAsCty(config.TerragruntDependencies)
