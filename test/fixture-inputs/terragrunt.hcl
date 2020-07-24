@@ -32,4 +32,6 @@ inputs = {
   }
 
   from_env = get_env("FROM_ENV", "default")
+
+  undefined_var = "this var does not exist in module"
 }
