@@ -26,6 +26,7 @@ The following is a reference of all the supported blocks and attributes in the c
 - [dependency](#dependency)
 - [dependencies](#dependencies)
 - [generate](#generate)
+- [authenticate](#authenticate)
 
 ### terraform
 
@@ -471,6 +472,55 @@ EOF
 }
 ```
 
+### authenticate
+
+The `authenticate` block is used to configure how Terragrunt will authenticate to the cloud provider. The authentication
+configuration specified in the block is used when Terragrunt needs to invoke the cloud APIs for remote state
+configuration of S3 or GCS buckets, and when invoking Terraform. This can be used to implement complex authentication
+protocols such as when you want to invoke multiple modules that span accounts.
+
+The `authenticate` block supports the following arguments:
+
+- `cloud` (label): Specifies which cloud API this authentication block corresponds to. Currently only `aws` is
+  supported, but other clouds will be supported in the future.
+
+The supported attributes differ based on which cloud the block targets. For `aws`, the following additional attributes
+are supported:
+
+- `iam_role_arn` (attribute): The ARN of an IAM role to assume.
+- `profile` (attribute): The AWS profile name to use when sourcing credentials from the shared credentials file.
+- `shared_credentials_file` (attribute): The path to the shared credentials file to use when looking up AWS profiles. If
+  this is not set and `profile` is specified, `~/.aws/credentials` will be used.
+- `aws_vault_profile` (attribute): The AWS profile name to use when sourcing credentials from
+  [aws-vault](https://github.com/99designs/aws-vault).
+- `aws_vault_config_file` (attribute): The path to the aws-vault config file to use when looking up aws-vault profiles.
+  If this is not set and `aws_vault_profile` is specified, `~/.aws/config` will be used.
+
+Caveats:
+
+- Only one of `iam_role_arn`, `profile`, or `aws_vault_profile` can be set. Terragrunt will exit with an error if more
+  than one of the specified attributes are set.
+- You can only have one `authenticate` block per cloud. Terragrunt will exit with an error if more than one
+  `authenticate` block exists for a given cloud.
+
+Example for IAM role:
+
+```hcl
+# Assume an IAM role before accessing the AWS APIs.
+authenticate "aws" {
+  iam_role_arn = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+}
+```
+
+Example for aws-vault:
+
+```hcl
+# Use aws-vault to fetch credentials, using the profile terragrunt.
+authenticate "aws" {
+  aws_vault_profile = "terragrunt"
+}
+```
+
 
 ## Attributes
 
@@ -596,6 +646,8 @@ set `skip = true` will be skipped.
 
 
 ### iam_role
+
+**DEPRECATED**: Use the [authenticate block](#authenticate) instead.
 
 The `iam_role` attribute can be used to specify an IAM role that Terragrunt should assume prior to invoking Terraform.
 
