@@ -24,18 +24,30 @@ inputs = {
 }
 ```
 
-Whenever you run a Terragrunt command, Terragrunt will set any inputs you pass in as environment variables. For example, with the `terragrunt.hcl` file above, running `terragrunt apply` is roughly equivalent to:
+Whenever you run a Terragrunt command, Terragrunt will convert these inputs into [a tfvars json
+file](https://www.terraform.io/docs/configuration/variables.html#variable-definitions-tfvars-files) named
+`terragrunt-generated.auto.tfvars.json`. This file will be autoloaded by terraform when it is invoked.
 
-    $ terragrunt apply
+For example, with the `terragrunt.hcl` file above, running `terragrunt apply` will generate the following
+`terragrunt-generated.auto.tfvars.json` file in the terraform module directory:
 
-    # Roughly equivalent to:
+    {
+        "instance_type": "t2.micro",
+        "instance_count": 10,
+        "tags": {
+            "Name": "example-app"
+        }
+    }
 
-    TF_VAR_instance_type="t2.micro" \
-    TF_VAR_instance_count=10 \
-    TF_VAR_tags='{"Name":"example-app"}' \
-    terraform apply
+Note that Terragrunt will respect any `TF_VAR_xxx` variables you’ve manually set in your environment, ensuring that anything in `inputs` will NOT be override anything you’ve already set in your environment. For example, if you set the environment variable `TF_VAR_instance_type`, then the resulting generated tfvars file will omit that variable:
 
-Note that Terragrunt will respect any `TF_VAR_xxx` variables you’ve manually set in your environment, ensuring that anything in `inputs` will NOT be override anything you’ve already set in your environment.
+    {
+        "instance_count": 10,
+        "tags": {
+            "Name": "example-app"
+        }
+    }
+
 
 ### Variable precedence
 
