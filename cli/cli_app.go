@@ -42,7 +42,6 @@ const OPT_TERRAGRUNT_STRICT_INCLUDE = "terragrunt-strict-include"
 const OPT_TERRAGRUNT_PARALLELISM = "terragrunt-parallelism"
 const OPT_TERRAGRUNT_CHECK = "terragrunt-check"
 const OPT_TERRAGRUNT_HCLFMT_FILE = "terragrunt-hclfmt-file"
-const OPT_TERRAGRUNT_DEBUG = "terragrunt-debug"
 
 var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{
 	OPT_NON_INTERACTIVE,
@@ -55,7 +54,6 @@ var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{
 	OPT_TERRAGRUNT_NO_AUTO_RETRY,
 	OPT_TERRAGRUNT_CHECK,
 	OPT_TERRAGRUNT_STRICT_INCLUDE,
-	OPT_TERRAGRUNT_DEBUG,
 }
 var ALL_TERRAGRUNT_STRING_OPTS = []string{
 	OPT_TERRAGRUNT_CONFIG,
@@ -176,7 +174,6 @@ GLOBAL OPTIONS:
    terragrunt-include-dir                       Unix-style glob of directories to include when running *-all commands
    terragrunt-check                             Enable check mode in the hclfmt command.
    terragrunt-hclfmt-file                       The path to a single terragrunt.hcl file that the hclfmt command should run on.
-   terragrunt-debug                             Write terragrunt-debug.tfvars to working folder to help root-cause issues.
 
 VERSION:
    {{.Version}}{{if len .Authors}}
@@ -371,13 +368,10 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
-	// We do the debug file generation here, after all the terragrunt generated terraform files are created so that we
-	// can ensure the tfvars json file only includes the vars that are defined in the module.
-	if terragruntOptions.Debug {
-		err := writeTerragruntDebugFile(terragruntOptions, terragruntConfig)
-		if err != nil {
-			return err
-		}
+	// Generate the tfvars file here, after all the terragrunt generated terraform files are created so that we can
+	// ensure the tfvars json file only includes the vars that are defined in the module.
+	if err := writeTFVarsFile(terragruntOptions, terragruntConfig); err != nil {
+		return err
 	}
 
 	return runTerragruntWithConfig(terragruntOptions, terragruntConfig, false)
@@ -532,10 +526,6 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 		}
 	}
 
-	if err := setTerragruntInputsAsEnvVars(terragruntOptions, terragruntConfig); err != nil {
-		return err
-	}
-
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) == CMD_INIT {
 		if err := prepareInitCommand(terragruntOptions, terragruntConfig, allowSourceDownload); err != nil {
 			return err
@@ -570,27 +560,6 @@ func runActionWithHooks(description string, terragruntOptions *options.Terragrun
 	postHookErrors := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, beforeHookErrors, actionErrors)
 
 	return errors.NewMultiError(beforeHookErrors, actionErrors, postHookErrors)
-}
-
-// The Terragrunt configuration can contain a set of inputs to pass to Terraform as environment variables. This method
-// sets these environment variables in the given terragruntOptions.
-func setTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	asEnvVars, err := toTerraformEnvVars(terragruntConfig.Inputs)
-	if err != nil {
-		return err
-	}
-
-	if terragruntOptions.Env == nil {
-		terragruntOptions.Env = map[string]string{}
-	}
-
-	for key, value := range asEnvVars {
-		// Don't override any env vars the user has already set
-		if _, envVarAlreadySet := terragruntOptions.Env[key]; !envVarAlreadySet {
-			terragruntOptions.Env[key] = value
-		}
-	}
-	return nil
 }
 
 func runTerraformWithRetry(terragruntOptions *options.TerragruntOptions) error {

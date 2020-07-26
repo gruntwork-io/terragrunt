@@ -116,7 +116,6 @@ const (
 	TERRAFORM_STATE                                         = "terraform.tfstate"
 	TERRAFORM_STATE_BACKUP                                  = "terraform.tfstate.backup"
 	TERRAGRUNT_CACHE                                        = ".terragrunt-cache"
-	TERRAGRUNT_DEBUG_FILE                                   = "terragrunt-debug.tfvars.json"
 )
 
 func init() {
@@ -1448,17 +1447,20 @@ func TestInputsPassedThroughCorrectly(t *testing.T) {
 	validateInputs(t, outputs)
 }
 
-func TestDebugGeneratedInputs(t *testing.T) {
+func TestGeneratedInputs(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt plan --terragrunt-debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
-	debugFile := util.JoinPath(rootPath, TERRAGRUNT_DEBUG_FILE)
-	assert.True(t, util.FileExists(debugFile))
+	pathFromRoot, err := util.PathInDirectory(cli.TerragruntTFVarsFileName, rootPath)
+	assert.NoError(t, err)
+	assert.NotEqual(t, "", pathFromRoot)
+	tfvarsPath := filepath.Join(rootPath, cli.TerragruntTFVarsFileName)
+	assert.True(t, util.FileExists(tfvarsPath))
 
 	// If the debug file is generated correctly, we should be able to run terraform apply using the generated var file
 	// without going through terragrunt.
@@ -1467,7 +1469,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	mockOptions.WorkingDir = rootPath
 	require.NoError(
 		t,
-		shell.RunTerraformCommand(mockOptions, "apply", "-var-file", debugFile),
+		shell.RunTerraformCommand(mockOptions, "apply"),
 	)
 
 	stdout := bytes.Buffer{}
@@ -1482,10 +1484,10 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	validateInputs(t, outputs)
 
 	// Also make sure the undefined variable is not included in the json file
-	debugJsonContents, err := ioutil.ReadFile(debugFile)
+	tfvarsJsonContents, err := ioutil.ReadFile(tfvarsPath)
 	require.NoError(t, err)
 	var data map[string]interface{}
-	require.NoError(t, json.Unmarshal(debugJsonContents, &data))
+	require.NoError(t, json.Unmarshal(tfvarsJsonContents, &data))
 	_, isDefined := data["undefined_var"]
 	assert.False(t, isDefined)
 }
@@ -3069,7 +3071,6 @@ func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE))
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE_BACKUP))
-	removeFile(t, util.JoinPath(templatesPath, TERRAGRUNT_DEBUG_FILE))
 	removeFolder(t, util.JoinPath(templatesPath, TERRAFORM_FOLDER))
 }
 

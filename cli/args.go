@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -14,8 +15,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
+	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 	"github.com/urfave/cli"
 )
+
+const TerragruntTFVarsFileName = "terragrunt-generated.auto.tfvars.json"
 
 // Parse command line options that are passed in for Terragrunt
 func ParseTerragruntOptions(cliContext *cli.Context) (*options.TerragruntOptions, error) {
@@ -116,8 +120,6 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 
 	strictInclude := parseBooleanArg(args, OPT_TERRAGRUNT_STRICT_INCLUDE, false)
 
-	debug := parseBooleanArg(args, OPT_TERRAGRUNT_DEBUG, false)
-
 	opts, err := options.NewTerragruntOptions(filepath.ToSlash(terragruntConfigPath))
 	if err != nil {
 		return nil, err
@@ -163,7 +165,6 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.Parallelism = parallelism
 	opts.Check = parseBooleanArg(args, OPT_TERRAGRUNT_CHECK, os.Getenv("TERRAGRUNT_CHECK") == "true")
 	opts.HclFile = filepath.ToSlash(terragruntHclFilePath)
-	opts.Debug = debug
 
 	return opts, nil
 }
@@ -349,41 +350,93 @@ func parseMultiStringArg(args []string, argName string, defaultValue []string) (
 	return stringArgs, nil
 }
 
-// Convert the given variables to a map of environment variables that will expose those variables to Terraform. The
-// keys will be of the format TF_VAR_xxx and the values will be converted to JSON, which Terraform knows how to read
-// natively.
-func toTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) {
-	out := map[string]string{}
+// writeTFVarsFile will create a tfvars file that can be used to invoke the terraform module with the inputs generated
+// in terragrunt.
+func writeTFVarsFile(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+	terragruntOptions.Logger.Printf("Generating tfvars file")
 
-	for varName, varValue := range vars {
-		envVarName := fmt.Sprintf("TF_VAR_%s", varName)
+	variables, err := terraformModuleVariables(terragruntOptions)
+	if err != nil {
+		return err
+	}
+	util.Debugf(terragruntOptions.Logger, "The following variables were detected in the terraform module:")
+	util.Debugf(terragruntOptions.Logger, "%v", variables)
 
-		envVarValue, err := asTerraformEnvVarJsonValue(varValue)
-		if err != nil {
-			return nil, err
-		}
-
-		out[envVarName] = string(envVarValue)
+	fileContents, err := terragruntTFVarsFileContents(terragruntOptions, terragruntConfig, variables)
+	if err != nil {
+		return err
 	}
 
-	return out, nil
+	fileName := filepath.Join(terragruntOptions.WorkingDir, TerragruntTFVarsFileName)
+	if err := ioutil.WriteFile(fileName, fileContents, os.FileMode(int(0600))); err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	terragruntOptions.Logger.Printf("Variables passed to terraform are located in \"%s\"", fileName)
+	terragruntOptions.Logger.Printf("Run this command to replicate how terraform was invoked:")
+	terragruntOptions.Logger.Printf("\tterraform apply \"%s\"", terragruntOptions.WorkingDir)
+	return nil
 }
 
-// Convert the given value to a JSON value that can be passed to Terraform as an environment variable. For the most
-// part, this converts the value directly to JSON using Go's built-in json.Marshal. However, we have special handling
-// for strings, which with normal JSON conversion would be wrapped in quotes, but when passing them to Terraform via
-// env vars, we need to NOT wrap them in quotes, so this method adds special handling for that case.
-func asTerraformEnvVarJsonValue(value interface{}) (string, error) {
-	switch val := value.(type) {
-	case string:
-		return val, nil
-	default:
-		envVarValue, err := json.Marshal(val)
-		if err != nil {
-			return "", errors.WithStackTrace(err)
-		}
-		return string(envVarValue), nil
+// terragruntTFVarsFileContents will return a tfvars file in json format of all the terragrunt rendered variables values
+// that should be set to invoke the terraform module in the same way as terragrunt. Note that this will only include the
+// values of variables that are actually defined in the module.
+func terragruntTFVarsFileContents(
+	terragruntOptions *options.TerragruntOptions,
+	terragruntConfig *config.TerragruntConfig,
+	moduleVariables []string,
+) ([]byte, error) {
+	envVars := map[string]string{}
+	if terragruntOptions.Env != nil {
+		envVars = terragruntOptions.Env
 	}
+
+	jsonValuesByKey := make(map[string]interface{})
+	for varName, varValue := range terragruntConfig.Inputs {
+		nameAsEnvVar := fmt.Sprintf("TF_VAR_%s", varName)
+		_, varIsInEnv := envVars[nameAsEnvVar]
+		varIsDefined := util.ListContainsElement(moduleVariables, varName)
+
+		// Only add to the file if the explicit env var does NOT exist and the variable is defined in the module.
+		// We must do this in order to avoid overriding the env var when the user follows up with a direct invocation to
+		// terraform using this file (due to the order in which terraform resolves config sources).
+		if !varIsInEnv && varIsDefined {
+			jsonValuesByKey[varName] = varValue
+		} else if varIsInEnv {
+			util.Debugf(
+				terragruntOptions.Logger,
+				"WARN: The variable %s was omitted from the debug file because the env var %s is already set.",
+				varName, nameAsEnvVar,
+			)
+		} else if !varIsDefined {
+			util.Debugf(
+				terragruntOptions.Logger,
+				"WARN: The variable %s was omitted because it is not defined in the terraform module.",
+				varName,
+			)
+		}
+	}
+	jsonContent, err := json.MarshalIndent(jsonValuesByKey, "", "  ")
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+	return jsonContent, nil
+}
+
+// terraformModuleVariables will return all the variables defined in the downloaded terraform modules, taking into
+// account all the generated sources.
+func terraformModuleVariables(terragruntOptions *options.TerragruntOptions) ([]string, error) {
+	modulePath := terragruntOptions.WorkingDir
+	module, diags := tfconfig.LoadModule(modulePath)
+	if diags.HasErrors() {
+		return nil, errors.WithStackTrace(diags)
+	}
+
+	variables := []string{}
+	for _, variable := range module.Variables {
+		variables = append(variables, variable.Name)
+	}
+	return variables, nil
 }
 
 // Custom error types
