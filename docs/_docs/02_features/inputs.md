@@ -24,7 +24,7 @@ inputs = {
 }
 ```
 
-Whenever you run a Terragrunt command, Terragrunt will convert these inputs into [a tfvars json
+Whenever you run a Terragrunt command, Terragrunt will convert these inputs into a [`.tfvars.json`
 file](https://www.terraform.io/docs/configuration/variables.html#variable-definitions-tfvars-files) named
 `terragrunt-generated.auto.tfvars.json`. This file will be autoloaded by terraform when it is invoked.
 
