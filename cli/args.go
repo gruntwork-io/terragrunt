@@ -368,13 +368,20 @@ func writeTFVarsFile(terragruntOptions *options.TerragruntOptions, terragruntCon
 	}
 
 	fileName := filepath.Join(terragruntOptions.WorkingDir, TerragruntTFVarsFileName)
+
+	// If the file already exists, log a warning indicating that we will overwrite it.
+	if util.FileExists(fileName) {
+		terragruntOptions.Logger.Printf(
+			"WARNING: File with name \"%s\" already exists in terraform working directory. This file will be replaced with terragrunt generated vars",
+			TerragruntTFVarsFileName,
+		)
+	}
+
 	if err := ioutil.WriteFile(fileName, fileContents, os.FileMode(int(0600))); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
 	terragruntOptions.Logger.Printf("Variables passed to terraform are located in \"%s\"", fileName)
-	terragruntOptions.Logger.Printf("Run this command to replicate how terraform was invoked:")
-	terragruntOptions.Logger.Printf("\tterraform apply \"%s\"", terragruntOptions.WorkingDir)
 	return nil
 }
 

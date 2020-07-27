@@ -368,8 +368,8 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
-	// Generate the tfvars file here, after all the terragrunt generated terraform files are created so that we can
-	// ensure the tfvars json file only includes the vars that are defined in the module.
+	// Generate the tfvars file here, after all the terragrunt generated terraform files are created, so that the module
+	// variables check includes variables defined in `generate` blocks.
 	if err := writeTFVarsFile(terragruntOptions, terragruntConfig); err != nil {
 		return err
 	}

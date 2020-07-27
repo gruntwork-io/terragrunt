@@ -57,7 +57,11 @@ func RunShellCommandWithOutput(
 	command string,
 	args ...string,
 ) (*CmdOutput, error) {
-	terragruntOptions.Logger.Printf("Running command: %s %s", command, strings.Join(args, " "))
+	if workingDir == "" {
+		workingDir = terragruntOptions.WorkingDir
+	}
+
+	terragruntOptions.Logger.Printf("Running command in dir \"%s\": %s %s", workingDir, command, strings.Join(args, " "))
 	if suppressStdout {
 		terragruntOptions.Logger.Printf("Command output will be suppressed.")
 	}
@@ -79,11 +83,7 @@ func RunShellCommandWithOutput(
 		outWriter = terragruntOptions.ErrWriter
 	}
 
-	if workingDir == "" {
-		cmd.Dir = terragruntOptions.WorkingDir
-	} else {
-		cmd.Dir = workingDir
-	}
+	cmd.Dir = workingDir
 	// Inspired by https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
 	cmdStderr := io.MultiWriter(errWriter, &stderrBuf)
 	var cmdStdout io.Writer
