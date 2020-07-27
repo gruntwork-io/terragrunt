@@ -452,7 +452,8 @@ func TestTerragruntBeforeOneArgAction(t *testing.T) {
 	if err != nil {
 		t.Error("Expected successful execution of terragrunt with 1 before hook execution.")
 	} else {
-		assert.Contains(t, output, "Running command: date")
+		expectedText := fmt.Sprintf("Running command in dir \"%s\": date", rootPath)
+		assert.Contains(t, output, expectedText)
 	}
 }
 
