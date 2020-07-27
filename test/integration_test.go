@@ -2749,32 +2749,23 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 	assert.Equal(t, outputs["terragrunt_version_constraint"].Value, "= 0.23.18")
 	assert.Equal(t, outputs["download_dir"].Value, ".terragrunt-cache")
 	assert.Equal(t, outputs["iam_role"].Value, "TerragruntIAMRole")
-	assert.Equal(t, outputs["skip"].Value, "true")
-	assert.Equal(t, outputs["prevent_destroy"].Value, "true")
+	assert.Equal(t, outputs["skip"].Value, true)
+	assert.Equal(t, outputs["prevent_destroy"].Value, true)
 
 	// Simple maps
-	localstgOut := map[string]interface{}{}
-	require.NoError(t, json.Unmarshal([]byte(outputs["localstg"].Value.(string)), &localstgOut))
-	assert.Equal(t, localstgOut, map[string]interface{}{"the_answer": float64(42)})
-	inputsOut := map[string]interface{}{}
-	require.NoError(t, json.Unmarshal([]byte(outputs["inputs"].Value.(string)), &inputsOut))
-	assert.Equal(t, inputsOut, map[string]interface{}{"doc": "Emmett Brown"})
+	assert.Equal(t, outputs["inputs"].Value, map[string]interface{}{"doc": "Emmett Brown"})
 
 	// Complex blocks
-	depsOut := map[string]interface{}{}
-	require.NoError(t, json.Unmarshal([]byte(outputs["dependencies"].Value.(string)), &depsOut))
 	assert.Equal(
 		t,
-		depsOut,
+		outputs["dependencies"].Value,
 		map[string]interface{}{
 			"paths": []interface{}{"../module-a"},
 		},
 	)
-	generateOut := map[string]interface{}{}
-	require.NoError(t, json.Unmarshal([]byte(outputs["generate"].Value.(string)), &generateOut))
 	assert.Equal(
 		t,
-		generateOut,
+		outputs["generate"].Value,
 		map[string]interface{}{
 			"provider": map[string]interface{}{
 				"path":              "provider.tf",
@@ -2788,11 +2779,9 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 			},
 		},
 	)
-	remoteStateOut := map[string]interface{}{}
-	require.NoError(t, json.Unmarshal([]byte(outputs["remote_state"].Value.(string)), &remoteStateOut))
 	assert.Equal(
 		t,
-		remoteStateOut,
+		outputs["remote_state"].Value,
 		map[string]interface{}{
 			"backend":      "local",
 			"disable_init": false,
@@ -2800,11 +2789,9 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 			"config":       map[string]interface{}{"path": "foo.tfstate"},
 		},
 	)
-	terraformOut := map[string]interface{}{}
-	require.NoError(t, json.Unmarshal([]byte(outputs["terraformtg"].Value.(string)), &terraformOut))
 	assert.Equal(
 		t,
-		terraformOut,
+		outputs["terraformtg"].Value,
 		map[string]interface{}{
 			"source": "./delorean",
 			"extra_arguments": map[string]interface{}{
