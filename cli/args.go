@@ -353,7 +353,7 @@ func parseMultiStringArg(args []string, argName string, defaultValue []string) (
 // writeTFVarsFile will create a tfvars file that can be used to invoke the terraform module with the inputs generated
 // in terragrunt.
 func writeTFVarsFile(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	terragruntOptions.Logger.Printf("Generating tfvars file")
+	terragruntOptions.Logger.Printf("Generating tfvars file %s in working dir (%s)", TerragruntTFVarsFileName, terragruntOptions.WorkingDir)
 
 	variables, err := terraformModuleVariables(terragruntOptions)
 	if err != nil {
@@ -381,7 +381,7 @@ func writeTFVarsFile(terragruntOptions *options.TerragruntOptions, terragruntCon
 		return errors.WithStackTrace(err)
 	}
 
-	terragruntOptions.Logger.Printf("Variables passed to terraform are located in \"%s\"", fileName)
+	terragruntOptions.Logger.Printf("Successfully generated tfvars file to pass to terraform (%s)", fileName)
 	return nil
 }
 

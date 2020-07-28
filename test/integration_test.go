@@ -1603,7 +1603,7 @@ func TestLocalsInInclude(t *testing.T) {
 	)
 	assert.Equal(
 		t,
-		"[\"apply\",\"-no-color\"]",
+		[]interface{}{"apply", "-no-color"},
 		outputs["terraform_cli_args"].Value,
 	)
 }
@@ -3112,6 +3112,7 @@ func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE))
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE_BACKUP))
+	removeFile(t, util.JoinPath(templatesPath, cli.TerragruntTFVarsFileName))
 	removeFolder(t, util.JoinPath(templatesPath, TERRAFORM_FOLDER))
 }
 
