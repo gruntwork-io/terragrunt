@@ -371,7 +371,7 @@ func writeTFVarsFile(terragruntOptions *options.TerragruntOptions, terragruntCon
 
 	// If the file already exists, log a warning indicating that we will overwrite it.
 	if util.FileExists(fileName) {
-		terragruntOptions.Logger.Printf(
+		util.Debugf(
 			"WARNING: File with name \"%s\" already exists in terraform working directory. This file will be replaced with terragrunt generated vars",
 			TerragruntTFVarsFileName,
 		)
