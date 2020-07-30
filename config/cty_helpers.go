@@ -125,7 +125,7 @@ type CtyJsonOutput struct {
 // convertValuesMapToCtyVal takes a map of name - cty.Value pairs and converts to a single cty.Value object.
 func convertValuesMapToCtyVal(valMap map[string]cty.Value) (cty.Value, error) {
 	valMapAsCty := cty.NilVal
-	if valMap != nil && len(valMap) > 0 {
+	if len(valMap) > 0 {
 		var err error
 		valMapAsCty, err = gocty.ToCtyValue(valMap, generateTypeFromValuesMap(valMap))
 		if err != nil {

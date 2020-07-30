@@ -127,7 +127,7 @@ func CreateLockTable(tableName string, tags map[string]string, client *dynamodb.
 
 func tagTableIfTagsGiven(tags map[string]string, tableArn *string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
 
-	if tags == nil || len(tags) == 0 {
+	if len(tags) == 0 {
 		terragruntOptions.Logger.Printf("No tags for lock table given.")
 		return nil
 	}

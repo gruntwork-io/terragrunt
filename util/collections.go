@@ -118,9 +118,7 @@ func CommaSeparatedStrings(list []string) string {
 // Make a copy of the given list of strings
 func CloneStringList(listToClone []string) []string {
 	out := []string{}
-	for _, item := range listToClone {
-		out = append(out, item)
-	}
+	out = append(out, listToClone...)
 	return out
 }
 
