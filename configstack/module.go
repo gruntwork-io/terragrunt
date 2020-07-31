@@ -247,7 +247,7 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 		nil,
 		[]config.PartialDecodeSectionType{
 			// Need for initializing the modules
-			config.TerraformBlock,
+			config.TerraformSource,
 
 			// Need for parsing out the dependencies
 			config.DependenciesBlock,

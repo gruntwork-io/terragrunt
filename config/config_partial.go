@@ -21,6 +21,7 @@ const (
 	DependenciesBlock PartialDecodeSectionType = iota
 	DependencyBlock
 	TerraformBlock
+	TerraformSource
 	TerragruntFlags
 	TerragruntVersionConstraints
 )
@@ -41,6 +42,19 @@ type terragruntDependencies struct {
 type terragruntTerraform struct {
 	Terraform *TerraformConfig `hcl:"terraform,block"`
 	Remain    hcl.Body         `hcl:",remain"`
+}
+
+// terragruntTerraformSource is a struct that can be used to only decode the terraform block, and only the source
+// attribute.
+type terragruntTerraformSource struct {
+	Terraform *terraformConfigSourceOnly `hcl:"terraform,block"`
+	Remain    hcl.Body                   `hcl:",remain"`
+}
+
+// terraformConfigSourceOnly is a struct that can be used to decode only the source attribute of the terraform block.
+type terraformConfigSourceOnly struct {
+	Source *string  `hcl:"source,attr"`
+	Remain hcl.Body `hcl:",remain"`
 }
 
 // terragruntFlags is a struct that can be used to only decode the flag attributes (skip and prevent_destroy)
@@ -192,6 +206,16 @@ func PartialParseConfigString(
 				return nil, err
 			}
 			output.Terraform = decoded.Terraform
+
+		case TerraformSource:
+			decoded := terragruntTerraformSource{}
+			err := decodeHcl(file, filename, &decoded, terragruntOptions, contextExtensions)
+			if err != nil {
+				return nil, err
+			}
+			if decoded.Terraform != nil {
+				output.Terraform = &TerraformConfig{Source: decoded.Terraform.Source}
+			}
 
 		case DependencyBlock:
 			decoded := terragruntDependency{}
