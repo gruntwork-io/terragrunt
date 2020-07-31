@@ -2392,6 +2392,32 @@ func TestDependencyOutputWithTerragruntSource(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestDependencyOutputWithHooks(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "regression-1273")
+	depPathFileOut := util.JoinPath(rootPath, "dep", "file.out")
+	mainPath := util.JoinPath(rootPath, "main")
+	mainPathFileOut := util.JoinPath(mainPath, "file.out")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
+	// This is only a problem during testing, where the process is shared across terragrunt runs.
+	config.ClearOutputCache()
+
+	// The file should exist in the first run.
+	assert.True(t, util.FileExists(depPathFileOut))
+	assert.False(t, util.FileExists(mainPathFileOut))
+
+	// Now delete file and run just main again. It should NOT create file.out.
+	require.NoError(t, os.Remove(depPathFileOut))
+	runTerragrunt(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", mainPath))
+	assert.False(t, util.FileExists(depPathFileOut))
+	assert.False(t, util.FileExists(mainPathFileOut))
+}
+
 func TestAWSGetCallerIdentityFunctions(t *testing.T) {
 	t.Parallel()
 
