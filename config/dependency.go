@@ -337,6 +337,7 @@ func getOutputJsonWithCaching(targetConfig string, terragruntOptions *options.Te
 // Clone terragrunt options and update context for dependency block so that the outputs can be read correctly
 func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.TerragruntOptions, targetConfig string) (*options.TerragruntOptions, error) {
 	targetOptions := terragruntOptions.Clone(targetConfig)
+	targetOptions.TerraformCommand = "output"
 	targetOptions.TerraformCliArgs = []string{"output", "-json"}
 
 	// DownloadDir needs to be updated to be in the context of the new config, if using default
