@@ -289,3 +289,29 @@ dependency "sql" {
 	assert.Equal(t, len(terragruntConfig.Dependencies.Paths), 2)
 	assert.Equal(t, terragruntConfig.Dependencies.Paths, []string{"../app1", "../db1"})
 }
+
+func TestPartialParseOnlyParsesTerraformSource(t *testing.T) {
+	t.Parallel()
+
+	config := `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+terraform {
+  source = "../../modules/app"
+  before_hook "before" {
+    commands = ["apply"]
+	execute  = ["echo", dependency.vpc.outputs.vpc_id]
+  }
+}
+`
+
+	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{TerraformSource})
+	require.NoError(t, err)
+	assert.True(t, terragruntConfig.IsPartial)
+
+	require.NotNil(t, terragruntConfig.Terraform)
+	require.NotNil(t, terragruntConfig.Terraform.Source)
+	assert.Equal(t, *terragruntConfig.Terraform.Source, "../../modules/app")
+}
