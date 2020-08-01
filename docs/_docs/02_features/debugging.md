@@ -16,11 +16,16 @@ Terragrunt and Terraform usually play well together in helping you
 write DRY, re-usable infrastructure. But how do we figure out what
 went wrong in the rare case that they _don't_ play well?
 
-Whenever you run a Terragrunt command, two things happen:
+Whenever you run a Terragrunt command, it will convert the inputs into [a tfvars json
+file](https://www.terraform.io/docs/configuration/variables.html#variable-definitions-tfvars-files) named
+`terragrunt-generated.auto.tfvars.json`. This file will be autoloaded by terraform when it is invoked. However, normally
+this file is cleaned up at the end of each execution, which makes it hard to understand what inputs were passed into
+terraform.
 
-- Terragrunt will convert the inputs into [a tfvars json
-  file](https://www.terraform.io/docs/configuration/variables.html#variable-definitions-tfvars-files) named
-  `terragrunt-generated.auto.tfvars.json`. This file will be autoloaded by terraform when it is invoked.
+To help with debugging, Terragrunt offers a CLI flag `--terragrunt-debug` which can be used to run in debug mode.
+Whenever you run a Terragrunt command in debug mode, two things happen:
+
+- Terragrunt will keep around the generated `terragrunt-generated.auto.tfvars.json` file.
 - Print instructions on how to invoke terraform against the generated file to reproduce exactly the same terraform
   output as you saw when invoking `terragrunt`. This will help you to determine where the problem's root cause lies.
 
@@ -88,7 +93,7 @@ You perform a `terragrunt apply`, and find that `outputs.task_ids` has 7
 elements, but you know that the cluster only has 4 VMs in it! What's happening?
 Let's figure it out. Run this:
 
-    $ terragrunt apply
+    $ terragrunt apply --terragrunt-debug
 
 After applying, you will see this output on standard error
 

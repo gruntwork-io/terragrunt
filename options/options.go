@@ -123,6 +123,9 @@ type TerragruntOptions struct {
 	// If set to true, do not include dependencies when processing IncludeDirs (unless they are in the included dirs)
 	StrictInclude bool
 
+	// If set to true, don't clean up the tfvars json file used to pass inputs to terraform.
+	DebugMode bool
+
 	// Parallelism limits the number of commands to run concurrently during *-all commands
 	Parallelism int
 

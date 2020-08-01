@@ -48,6 +48,8 @@ Note that Terragrunt will respect any `TF_VAR_xxx` variables you’ve manually s
         }
     }
 
+Since these inputs may include unencrypted secrets, Terragrunt will clean up this file at the end of each terraform
+call. To keep this file around even after terragrunt exits, pass in the `--terragrunt-debug` CLI arg.
 
 ### Variable precedence
 

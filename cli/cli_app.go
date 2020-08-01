@@ -42,6 +42,7 @@ const OPT_TERRAGRUNT_STRICT_INCLUDE = "terragrunt-strict-include"
 const OPT_TERRAGRUNT_PARALLELISM = "terragrunt-parallelism"
 const OPT_TERRAGRUNT_CHECK = "terragrunt-check"
 const OPT_TERRAGRUNT_HCLFMT_FILE = "terragrunt-hclfmt-file"
+const OPT_TERRAGRUNT_DEBUG = "terragrunt-debug"
 
 var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{
 	OPT_NON_INTERACTIVE,
@@ -54,6 +55,7 @@ var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{
 	OPT_TERRAGRUNT_NO_AUTO_RETRY,
 	OPT_TERRAGRUNT_CHECK,
 	OPT_TERRAGRUNT_STRICT_INCLUDE,
+	OPT_TERRAGRUNT_DEBUG,
 }
 var ALL_TERRAGRUNT_STRING_OPTS = []string{
 	OPT_TERRAGRUNT_CONFIG,
@@ -172,6 +174,7 @@ GLOBAL OPTIONS:
    terragrunt-parallelism <N>                   *-all commands parallelism set to at most N modules
    terragrunt-exclude-dir                       Unix-style glob of directories to exclude when running *-all commands
    terragrunt-include-dir                       Unix-style glob of directories to include when running *-all commands
+   terragrunt-debug                             Enable debug mode: keep the tfvars file that is generated instead of cleaning it up
    terragrunt-check                             Enable check mode in the hclfmt command.
    terragrunt-hclfmt-file                       The path to a single terragrunt.hcl file that the hclfmt command should run on.
 
@@ -370,6 +373,7 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 
 	// Generate the tfvars file here, after all the terragrunt generated terraform files are created, so that the module
 	// variables check includes variables defined in `generate` blocks.
+	defer deleteTFVarsFile(terragruntOptions, terragruntConfig)
 	if err := writeTFVarsFile(terragruntOptions, terragruntConfig); err != nil {
 		return err
 	}
