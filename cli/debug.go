@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 
@@ -15,10 +16,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+const TerragruntTFVarsFile = "terragrunt-debug.tfvars.json"
+
 // writeTerragruntDebugFile will create a tfvars file that can be used to invoke the terraform module in the same way
 // that terragrunt invokes the module, so that you can debug issues with the terragrunt config.
 func writeTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	terragruntOptions.Logger.Printf("Debug mode requested: generating debug file")
+	terragruntOptions.Logger.Printf(
+		"Debug mode requested: generating debug file %s in working dir %s",
+		TerragruntTFVarsFile,
+		terragruntOptions.WorkingDir,
+	)
 
 	variables, err := terraformModuleVariables(terragruntOptions)
 	if err != nil {
@@ -33,14 +40,19 @@ func writeTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terr
 	}
 
 	configFolder := filepath.Dir(terragruntOptions.TerragruntConfigPath)
-	fileName := filepath.Join(configFolder, "terragrunt-debug.tfvars.json")
+	fileName := filepath.Join(configFolder, TerragruntTFVarsFile)
 	if err := ioutil.WriteFile(fileName, fileContents, os.FileMode(int(0600))); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
 	terragruntOptions.Logger.Printf("Variables passed to terraform are located in \"%s\"", fileName)
 	terragruntOptions.Logger.Printf("Run this command to replicate how terraform was invoked:")
-	terragruntOptions.Logger.Printf("\tterraform apply -var-file=\"%s\" \"%s\"", fileName, terragruntOptions.WorkingDir)
+	terragruntOptions.Logger.Printf(
+		"\tterraform %s -var-file=\"%s\" \"%s\"",
+		strings.Join(terragruntOptions.TerraformCliArgs, " "),
+		fileName,
+		terragruntOptions.WorkingDir,
+	)
 	return nil
 }
 
@@ -52,10 +64,8 @@ func terragruntDebugFileContents(
 	terragruntConfig *config.TerragruntConfig,
 	moduleVariables []string,
 ) ([]byte, error) {
-	var envVars map[string]string
-	if terragruntOptions.Env == nil {
-		envVars = map[string]string{}
-	} else {
+	envVars := map[string]string{}
+	if terragruntOptions.Env != nil {
 		envVars = terragruntOptions.Env
 	}
 

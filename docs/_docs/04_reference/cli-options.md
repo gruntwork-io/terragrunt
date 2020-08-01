@@ -30,6 +30,7 @@ Terragrunt forwards all arguments and options to Terraform. The only exceptions 
 - [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
 - [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
 - [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
+- [terragrunt-debug](#terragrunt-debug)
 - [terragrunt-check](#terragrunt-check)
 - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
 
@@ -206,6 +207,15 @@ included directories with `terragrunt-include-dir`.
 When passed in, include any external dependencies when running `*-all` without asking. Note that an external
 dependency is a dependency that is outside the current terragrunt working directory, and is not respective to the
 included directories with `terragrunt-include-dir`.
+
+
+
+## terragrunt-debug
+
+**CLI Arg**: `--terragrunt-debug`
+
+When passed in, run Terragrunt in debug mode where the vars that are passed into Terragrunt are recorded as a
+tfvars.json file.
 
 
 
