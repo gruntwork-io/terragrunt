@@ -13,6 +13,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestPathInDirectory(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		filePath       string
+		expectedPathIn string
+	}{
+		// Nested deep in fixtures
+		{"d/e/f.txt", "fixtures/a/b/c/d/e/f.txt"},
+		// In toplevel of folder
+		{"file_test.go", "file_test.go"},
+		// Does not exist
+		{"i-dont-exist.go", ""},
+	}
+
+	for _, testCase := range testCases {
+		inDir, err := PathInDirectory(testCase.filePath, ".")
+		assert.NoError(t, err)
+		assert.Equal(t, testCase.expectedPathIn, inDir)
+	}
+}
+
 func TestGetPathRelativeTo(t *testing.T) {
 	t.Parallel()
 

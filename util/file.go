@@ -27,6 +27,25 @@ func FileNotExists(path string) bool {
 	return os.IsNotExist(err)
 }
 
+// Return the relative path from the directory if the given file is in the directory (recursive), otherwise return empty
+// string.
+func PathInDirectory(filePath string, dirPath string) (string, error) {
+	pathInDir := ""
+	err := filepath.Walk(
+		dirPath,
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if strings.HasSuffix(path, filePath) {
+				pathInDir = path
+			}
+			return nil
+		},
+	)
+	return pathInDir, err
+}
+
 // Return the canonical version of the given path, relative to the given base path. That is, if the given path is a
 // relative path, assume it is relative to the given base path. A canonical path is an absolute path with all relative
 // components (e.g. "../") fully resolved, which makes it safe to compare paths as strings.

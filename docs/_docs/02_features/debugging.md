@@ -16,22 +16,22 @@ Terragrunt and Terraform usually play well together in helping you
 write DRY, re-usable infrastructure. But how do we figure out what
 went wrong in the rare case that they _don't_ play well?
 
-Terragrunt provides a debug mode you can access through the `--terragrunt-debug`
-command flag. For example you could use it like this to debug an `apply`
-that's producing unexpected output:
+Whenever you run a Terragrunt command, it will convert the inputs into [a tfvars json
+file](https://www.terraform.io/docs/configuration/variables.html#variable-definitions-tfvars-files) named
+`terragrunt-generated.auto.tfvars.json`. This file will be autoloaded by terraform when it is invoked. However, normally
+this file is cleaned up at the end of each execution, which makes it hard to understand what inputs were passed into
+terraform.
 
-    $ terragrunt --terragrunt-debug apply
+To help with debugging, Terragrunt offers a CLI flag `--terragrunt-debug` which can be used to run in debug mode.
+Whenever you run a Terragrunt command in debug mode, two things happen:
 
-Running this command will do two things for you:
-  - Output a file named `terragrunt-debug.tfvars.json` to your terragrunt working
-    directory (the same one containing your `terragrunt.hcl`)
-  - Print instructions on how to invoke terraform against the generated file to
-    reproduce exactly the same terraform output as you saw when invoking
-    `terragrunt`. This will help you to determine where the problem's root cause
-    lies.
+- Terragrunt will keep around the generated `terragrunt-generated.auto.tfvars.json` file.
+- Print instructions on how to invoke terraform against the generated file to reproduce exactly the same terraform
+  output as you saw when invoking `terragrunt`. This will help you to determine where the problem's root cause lies.
 
-The flag's goal is to help you determine which of these three major areas is the
+You can use the generated tfvars json file to determine which of these three major areas is the
 root cause of your problem:
+
   1. Misconfiguration of your infrastructure code.
   2. An error in `terragrunt`.
   3. An error in `terraform`.
@@ -93,19 +93,19 @@ You perform a `terragrunt apply`, and find that `outputs.task_ids` has 7
 elements, but you know that the cluster only has 4 VMs in it! What's happening?
 Let's figure it out. Run this:
 
-    $ terragrunt --terragrunt-debug apply
+    $ terragrunt apply --terragrunt-debug
 
 After applying, you will see this output on standard error
 
 ```
-[terragrunt] Variables passed to terraform are located in "~/live/prod/app/terragrunt-debug.tfvars"
+[terragrunt] Variables passed to terraform are located in "~/live/prod/app/terragrunt-generated.auto.tfvars"
 [terragrunt] Run this command to replicate how terraform was invoked:
-[terragrunt]     terraform apply -var-file="~/live/prod/app/terragrunt-debug.tfvars.json" "~/live/prod/app"
+[terragrunt]     terraform apply "~/live/prod/app"
 ```
 
-Well we may have to do all that, but first let's just take a look at `terragrunt-debug.tfvars.json`
+Well we may have to do all that, but first let's just take a look at `terragrunt-generated.auto.tfvars.json`
 
-```hcl
+```json
 {
     "image_id": "acme/myapp:1",
     "num_tasks": 7
@@ -126,7 +126,7 @@ Oops! It says `max` when it should be `min`. If we fix `ecs-cluster/outputs.tf`
 we should be golden! We fix the problem in time to take a nice afternoon walk in
 the sun.
 
-In this example we've seen how `terragrunt debug` can help us root cause issues
+In this example we've seen how the tfvars json file can help us root cause issues
 in dependency and local variable resolution.
 
 <!-- See

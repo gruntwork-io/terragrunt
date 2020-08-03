@@ -123,6 +123,9 @@ type TerragruntOptions struct {
 	// If set to true, do not include dependencies when processing IncludeDirs (unless they are in the included dirs)
 	StrictInclude bool
 
+	// If set to true, don't clean up the tfvars json file used to pass inputs to terraform.
+	DebugMode bool
+
 	// Parallelism limits the number of commands to run concurrently during *-all commands
 	Parallelism int
 
@@ -138,10 +141,6 @@ type TerragruntOptions struct {
 	// packages can use the command without a direct reference back to the cli package (which would create a
 	// circular dependency).
 	RunTerragrunt func(*TerragruntOptions) error
-
-	// True if terragrunt should run in debug mode, writing terragrunt-debug.tfvars to working folder to help
-	// root-cause issues.
-	Debug bool
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage

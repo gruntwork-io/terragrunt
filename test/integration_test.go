@@ -116,7 +116,6 @@ const (
 	TERRAFORM_STATE                                         = "terraform.tfstate"
 	TERRAFORM_STATE_BACKUP                                  = "terraform.tfstate.backup"
 	TERRAGRUNT_CACHE                                        = ".terragrunt-cache"
-	TERRAGRUNT_DEBUG_FILE                                   = "terragrunt-debug.tfvars.json"
 )
 
 func init() {
@@ -453,7 +452,8 @@ func TestTerragruntBeforeOneArgAction(t *testing.T) {
 	if err != nil {
 		t.Error("Expected successful execution of terragrunt with 1 before hook execution.")
 	} else {
-		assert.Contains(t, output, "Running command: date")
+		expectedText := fmt.Sprintf("Running command in dir \"%s\": date", rootPath)
+		assert.Contains(t, output, expectedText)
 	}
 }
 
@@ -1448,33 +1448,105 @@ func TestInputsPassedThroughCorrectly(t *testing.T) {
 	validateInputs(t, outputs)
 }
 
-func TestDebugGeneratedInputs(t *testing.T) {
+func TestGeneratedInputsExternalEnvVar(t *testing.T) {
+	// Do not use t.Parallel() on this test, it will conflict with other tests since it is manipulating environment
+	// variables.
+
+	os.Setenv("TF_VAR_string", "I am a teapot")
+	defer os.Unsetenv("TF_VAR_string")
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-debug --terragrunt-working-dir %s", rootPath))
+
+	pathFromRoot, err := util.PathInDirectory(cli.TerragruntTFVarsFileName, rootPath)
+	assert.NoError(t, err)
+	assert.NotEqual(t, "", pathFromRoot)
+	tfvarsPath := filepath.Join(rootPath, cli.TerragruntTFVarsFileName)
+	assert.True(t, util.FileExists(tfvarsPath))
+
+	getOutputAndVerifyInputs := func(validateFunc func(*testing.T, map[string]TerraformOutput)) {
+		stdout := bytes.Buffer{}
+		stderr := bytes.Buffer{}
+		require.NoError(
+			t,
+			runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+		)
+
+		outputs := map[string]TerraformOutput{}
+		require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+		validateFunc(t, outputs)
+	}
+
+	getOutputAndVerifyInputs(func(t *testing.T, outputs map[string]TerraformOutput) {
+		assert.Equal(t, outputs["string"].Value, "I am a teapot")
+	})
+
+	// Also make sure the variable is not included in the json file
+	tfvarsJsonContents, err := ioutil.ReadFile(tfvarsPath)
+	require.NoError(t, err)
+	var data map[string]interface{}
+	require.NoError(t, json.Unmarshal(tfvarsJsonContents, &data))
+	_, isDefined := data["string"]
+	assert.False(t, isDefined)
+
+	// Finally, verify that unsetting the env var will reconstruct the json file with the var included
+	os.Unsetenv("TF_VAR_string")
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-debug --terragrunt-working-dir %s", rootPath))
+	getOutputAndVerifyInputs(validateInputs)
+	newTfvarsJsonContents, err := ioutil.ReadFile(tfvarsPath)
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(newTfvarsJsonContents, &data))
+	assert.Equal(t, data["string"], "string")
+}
+
+func TestGeneratedInputsFileDiscarded(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt plan --terragrunt-debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
-	debugFile := util.JoinPath(rootPath, TERRAGRUNT_DEBUG_FILE)
-	assert.True(t, util.FileExists(debugFile))
+	// Assert that the tfvars file was deleted.
+	pathFromRoot, err := util.PathInDirectory(cli.TerragruntTFVarsFileName, rootPath)
+	assert.NoError(t, err)
+	assert.Equal(t, "", pathFromRoot)
+}
 
-	// If the debug file is generated correctly, we should be able to run terraform apply using the generated var file
+func TestGeneratedInputs(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-debug --terragrunt-working-dir %s", rootPath))
+
+	pathFromRoot, err := util.PathInDirectory(cli.TerragruntTFVarsFileName, rootPath)
+	assert.NoError(t, err)
+	assert.NotEqual(t, "", pathFromRoot)
+	tfvarsPath := filepath.Join(rootPath, cli.TerragruntTFVarsFileName)
+	assert.True(t, util.FileExists(tfvarsPath))
+
+	// If the tfvars file is generated correctly, we should be able to run terraform apply using the generated var file
 	// without going through terragrunt.
 	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
 	require.NoError(t, err)
 	mockOptions.WorkingDir = rootPath
 	require.NoError(
 		t,
-		shell.RunTerraformCommand(mockOptions, "apply", "-var-file", debugFile),
+		shell.RunTerraformCommand(mockOptions, "apply"),
 	)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	require.NoError(
 		t,
-		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
 	)
 
 	outputs := map[string]TerraformOutput{}
@@ -1482,10 +1554,10 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	validateInputs(t, outputs)
 
 	// Also make sure the undefined variable is not included in the json file
-	debugJsonContents, err := ioutil.ReadFile(debugFile)
+	tfvarsJsonContents, err := ioutil.ReadFile(tfvarsPath)
 	require.NoError(t, err)
 	var data map[string]interface{}
-	require.NoError(t, json.Unmarshal(debugJsonContents, &data))
+	require.NoError(t, json.Unmarshal(tfvarsJsonContents, &data))
 	_, isDefined := data["undefined_var"]
 	assert.False(t, isDefined)
 }
@@ -1547,7 +1619,7 @@ func TestLocalsInInclude(t *testing.T) {
 	)
 	assert.Equal(
 		t,
-		"[\"apply\",\"-no-color\"]",
+		[]interface{}{"apply", "-no-color"},
 		outputs["terraform_cli_args"].Value,
 	)
 }
@@ -2694,32 +2766,23 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 	assert.Equal(t, outputs["terragrunt_version_constraint"].Value, "= 0.23.18")
 	assert.Equal(t, outputs["download_dir"].Value, ".terragrunt-cache")
 	assert.Equal(t, outputs["iam_role"].Value, "TerragruntIAMRole")
-	assert.Equal(t, outputs["skip"].Value, "true")
-	assert.Equal(t, outputs["prevent_destroy"].Value, "true")
+	assert.Equal(t, outputs["skip"].Value, true)
+	assert.Equal(t, outputs["prevent_destroy"].Value, true)
 
 	// Simple maps
-	localstgOut := map[string]interface{}{}
-	require.NoError(t, json.Unmarshal([]byte(outputs["localstg"].Value.(string)), &localstgOut))
-	assert.Equal(t, localstgOut, map[string]interface{}{"the_answer": float64(42)})
-	inputsOut := map[string]interface{}{}
-	require.NoError(t, json.Unmarshal([]byte(outputs["inputs"].Value.(string)), &inputsOut))
-	assert.Equal(t, inputsOut, map[string]interface{}{"doc": "Emmett Brown"})
+	assert.Equal(t, outputs["inputs"].Value, map[string]interface{}{"doc": "Emmett Brown"})
 
 	// Complex blocks
-	depsOut := map[string]interface{}{}
-	require.NoError(t, json.Unmarshal([]byte(outputs["dependencies"].Value.(string)), &depsOut))
 	assert.Equal(
 		t,
-		depsOut,
+		outputs["dependencies"].Value,
 		map[string]interface{}{
 			"paths": []interface{}{"../module-a"},
 		},
 	)
-	generateOut := map[string]interface{}{}
-	require.NoError(t, json.Unmarshal([]byte(outputs["generate"].Value.(string)), &generateOut))
 	assert.Equal(
 		t,
-		generateOut,
+		outputs["generate"].Value,
 		map[string]interface{}{
 			"provider": map[string]interface{}{
 				"path":              "provider.tf",
@@ -2733,11 +2796,9 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 			},
 		},
 	)
-	remoteStateOut := map[string]interface{}{}
-	require.NoError(t, json.Unmarshal([]byte(outputs["remote_state"].Value.(string)), &remoteStateOut))
 	assert.Equal(
 		t,
-		remoteStateOut,
+		outputs["remote_state"].Value,
 		map[string]interface{}{
 			"backend":      "local",
 			"disable_init": false,
@@ -2745,11 +2806,9 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 			"config":       map[string]interface{}{"path": "foo.tfstate"},
 		},
 	)
-	terraformOut := map[string]interface{}{}
-	require.NoError(t, json.Unmarshal([]byte(outputs["terraformtg"].Value.(string)), &terraformOut))
 	assert.Equal(
 		t,
-		terraformOut,
+		outputs["terraformtg"].Value,
 		map[string]interface{}{
 			"source": "./delorean",
 			"extra_arguments": map[string]interface{}{
@@ -3069,7 +3128,7 @@ func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE))
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE_BACKUP))
-	removeFile(t, util.JoinPath(templatesPath, TERRAGRUNT_DEBUG_FILE))
+	removeFile(t, util.JoinPath(templatesPath, cli.TerragruntTFVarsFileName))
 	removeFolder(t, util.JoinPath(templatesPath, TERRAFORM_FOLDER))
 }
 
