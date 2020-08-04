@@ -20,7 +20,7 @@ Terragrunt provides a debug mode you can access through the `--terragrunt-debug`
 command flag. For example you could use it like this to debug an `apply`
 that's producing unexpected output:
 
-    $ terragrunt --terragrunt-debug apply
+    $ terragrunt apply --terragrunt-debug
 
 Running this command will do two things for you:
   - Output a file named `terragrunt-debug.tfvars.json` to your terragrunt working
@@ -93,7 +93,7 @@ You perform a `terragrunt apply`, and find that `outputs.task_ids` has 7
 elements, but you know that the cluster only has 4 VMs in it! What's happening?
 Let's figure it out. Run this:
 
-    $ terragrunt --terragrunt-debug apply
+    $ terragrunt apply --terragrunt-debug
 
 After applying, you will see this output on standard error
 
