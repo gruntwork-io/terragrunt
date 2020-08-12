@@ -30,6 +30,7 @@ Terragrunt forwards all arguments and options to Terraform. The only exceptions 
 - [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
 - [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
 - [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
+- [terragrunt-parallelism](#terragrunt-parallelism)
 - [terragrunt-debug](#terragrunt-debug)
 - [terragrunt-check](#terragrunt-check)
 - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
@@ -207,6 +208,14 @@ included directories with `terragrunt-include-dir`.
 When passed in, include any external dependencies when running `*-all` without asking. Note that an external
 dependency is a dependency that is outside the current terragrunt working directory, and is not respective to the
 included directories with `terragrunt-include-dir`.
+
+
+## terragrunt-parallelism
+
+**CLI Arg**: `--terragrunt-parallelism`<br/>
+**Environment Variable**: `TERRAGRUNT_PARALLELISM`
+
+When passed in, limit the number of modules that are run concurrently to this number during *-all commands.
 
 
 
