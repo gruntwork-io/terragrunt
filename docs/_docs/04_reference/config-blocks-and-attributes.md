@@ -428,7 +428,7 @@ inputs = {
 }
 ```
 
-##### Can I speed up dependency fetching?
+**Can I speed up dependency fetching?**
 
 `dependency` blocks are fetched in parallel at each source level, but will serially parse each recursive dependency. For
 example, consider the following chain of dependencies:
