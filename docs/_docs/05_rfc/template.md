@@ -1,3 +1,15 @@
+---
+layout: collection-browser-doc
+title: RFC Template
+category: rfc
+categories_url: rfc
+excerpt: This is a template you can use for proposing new major features to Terragrunt.
+tags: ["rfc", "contributing", "community"]
+order: 501
+nav_title: Documentation
+nav_title_link: /docs/
+---
+
 # RFC Template
 
 This is a template you can use for proposing new major features to Terragrunt. When creating a new RFC, copy this

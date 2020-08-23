@@ -1,16 +1,28 @@
 # Upgrading to Terragrunt 0.19.x
 
+---
+layout: collection-browser-doc
+title: Terragrunt 0.19 migration guide
+category: migration
+categories_url: migration
+excerpt: Migration guide to upgrade to terragrunt 0.19.x
+tags: ["migration", "community"]
+order: 601
+nav_title: Documentation
+nav_title_link: /docs/
+---
+
 ## Background
 
 Terraform 0.12 was released in May, 2019, and it included a few major changes:
 
-1. More strict rules around what can go in a `.tfvars` file. In particular, any variable defined in a `.tfvars` file 
+1. More strict rules around what can go in a `.tfvars` file. In particular, any variable defined in a `.tfvars` file
    that does not match a corresponding `variable` definition in your `.tf` files produces an error.
 1. A shift from HCL to HCL2 as the main syntax. This included support for first-class expressions (i.e., using variables
    and functions without having to wrap everything in `${...}`).
-   
-Before version 0.19.0, Terragrunt had you define its configuration in a `terragrunt = { ... }` variable in 
-a `terraform.tfvars` file, but due to item (1) this no longer works with Terraform 0.12 and newer. That means we had to 
+
+Before version 0.19.0, Terragrunt had you define its configuration in a `terragrunt = { ... }` variable in
+a `terraform.tfvars` file, but due to item (1) this no longer works with Terraform 0.12 and newer. That means we had to
 move to a new file format. This requires a migration, which is unfortunate, but as a nice benefit, item (2)
 gives us a nicer syntax and new functionality!
 
@@ -29,16 +41,16 @@ to Terragrunt 0.19.x and newer:
 1. [Rename a few built-in functions ](#rename-a-few-built-in-functions)
 1. [Use terraform \<0.12](#use-older-terraform)
 
-Check out [this PR in the terragrunt-infrastructure-live-example 
-repo](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example/pull/17) for an example of what the code 
-changes look like. 
+Check out [this PR in the terragrunt-infrastructure-live-example
+repo](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example/pull/17) for an example of what the code
+changes look like.
 
-   
+
 ### Move from terraform.tfvars to terragrunt.hcl
 
 Since Terraform 0.12 has more strict rules about what can go into `terraform.tfvars` files, you now need to move your
 Terragrunt configuration from `terraform.tfvars` to a `terragrunt.hcl` file, removing the `terragrunt = { ... }`
-wrapping along the way. 
+wrapping along the way.
 
 For example, if you had the following in `terraform.tfvars`:
 
@@ -54,7 +66,7 @@ terragrunt = {
       arguments = ["-var", "foo=42"]
     }
   }
-  
+
   remote_state {
     backend = "s3"
     config = {
@@ -63,8 +75,8 @@ terragrunt = {
       region         = "us-east-1"
       encrypt        = true
       dynamodb_table = "my-lock-table"
-    }   
-  }  
+    }
+  }
 }
 ```
 
@@ -90,15 +102,15 @@ remote_state {
     region         = "us-east-1"
     encrypt        = true
     dynamodb_table = "my-lock-table"
-  }   
-}  
+  }
+}
 ```
 
 
 ### Move input variables into inputs
 
-When we were using `terraform.tfvars` files for Terragrunt configuration, we were piggybacking on the fact that 
-Terraform [automatically loads variables from tfvars 
+When we were using `terraform.tfvars` files for Terragrunt configuration, we were piggybacking on the fact that
+Terraform [automatically loads variables from tfvars
 files](https://www.terraform.io/docs/configuration/variables.html#variable-definitions-tfvars-files) to set variables
 for our modules:
 
@@ -110,7 +122,7 @@ terragrunt = {
   terraform {
     # ...
   }
-  
+
   remote_state {
     # ...
   }
@@ -119,9 +131,9 @@ terragrunt = {
 # Input variables to set for your Terraform module
 instance_type  = "t2.micro"
 instance_count = 10
-``` 
+```
 
-With the move to `terragrunt.hcl`, we no longer get this behavior for free. However, Terragrunt can simulate this 
+With the move to `terragrunt.hcl`, we no longer get this behavior for free. However, Terragrunt can simulate this
 behavior for you if you define your input variables by specifying `inputs = { ... }`:
 
 ```hcl
@@ -132,15 +144,15 @@ terraform {
 }
 
 remote_state {
-  # ...  
+  # ...
 }
 
 # Input variables to set for your Terraform module
 inputs = {
   instance_type  = "t2.micro"
   instance_count = 10
-}  
-``` 
+}
+```
 
 Whenever you run a Terragrunt command, such as `terragrunt apply`, Terragrunt will make these variables available to
 your Terraform module as environment variables.
@@ -148,7 +160,7 @@ your Terraform module as environment variables.
 ### Use first-class expressions
 
 Terraform 0.11 only allowed special behavior, such as function calls, using "interpolation syntax," where you wrapped
-the code with `${...}`. Terragrunt included a handful of functions you could call using interpolation syntax, but 
+the code with `${...}`. Terragrunt included a handful of functions you could call using interpolation syntax, but
 _only_ within the `terragrunt = { ... }` block:
 
 ```hcl
@@ -168,7 +180,7 @@ terragrunt = {
 foo = "${get_env("FOO", "default")}"
 ```
 
-Terraform 0.12 has moved to HCL2, which has first-class support for expressions. That means you can call functions 
+Terraform 0.12 has moved to HCL2, which has first-class support for expressions. That means you can call functions
 without having to wrap them in `${...}`. Terragrunt embraces HCL2, and thanks to HCL2's nice parser, that means we not
 only get first-class expressions, but we can also use those expressions _everywhere_ in `terragrunt.hcl`!
 
@@ -209,7 +221,7 @@ foo {
 }
 ```
 
-Since Terragrunt uses HCL2, we now have to be more strict with which parts of the Terragrunt configuration are 
+Since Terragrunt uses HCL2, we now have to be more strict with which parts of the Terragrunt configuration are
 attributes and which are blocks:
 
 ```hcl
@@ -218,7 +230,7 @@ attributes and which are blocks:
 # terraform is a block, so make sure NOT to include an equals sign
 terraform {
   source = "git::git@github.com:foo/modules.git//frontend-app?ref=v0.0.3"
-  
+
   # extra_arguments is a block, so make sure NOT to include an equals sign
   extra_arguments "custom_vars" {
     commands  = ["apply", "plan"]
@@ -232,7 +244,7 @@ remote_state {
   # config is an attribute, so an equals sign is REQUIRED
   config = {
     bucket = "foo"
-    
+
     # s3_bucket_tags is an attribute, so an equals sign is REQUIRED
     s3_bucket_tags = {
       owner = "terragrunt integration test"
@@ -243,7 +255,7 @@ remote_state {
     dynamodb_table_tags = {
       owner = "terragrunt integration test"
       name = "Terraform lock table"
-    }    
+    }
   }
 }
 
@@ -261,16 +273,16 @@ dependencies {
 inputs = {
   instance_type  = "t2.micro"
   instance_count = 10
-}  
+}
 ```
 
 
-### Rename a few built-in functions 
+### Rename a few built-in functions
 
 Two built-in functions were renamed:
 
 1. `get_tfvars_dir()` is now called `get_terragrunt_dir()`.
-1. `get_parent_tfvars_dir()` is now called `get_parent_terragrunt_dir()`.   
+1. `get_parent_tfvars_dir()` is now called `get_parent_terragrunt_dir()`.
 
 Make sure to make the corresponding updates in your `terragrunt.hcl` file!
 

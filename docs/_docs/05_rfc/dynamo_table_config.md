@@ -1,3 +1,15 @@
+---
+layout: collection-browser-doc
+title: RFC: custom state configuration
+category: rfc
+categories_url: rfc
+excerpt: Allow further customization of Terraform Lock table for S3 Remote State.
+tags: ["rfc", "contributing", "community"]
+order: 503
+nav_title: Documentation
+nav_title_link: /docs/
+---
+
 # Allow further customization of Terraform Lock table for S3 Remote State
 
 **STATUS**: In proposal
