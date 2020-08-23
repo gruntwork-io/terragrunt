@@ -1,16 +1,16 @@
-# Upgrading to Terragrunt 0.19.x
-
 ---
 layout: collection-browser-doc
 title: Terragrunt 0.19 migration guide
-category: migration
-categories_url: migration
+category: upgrade
+categories_url: upgrade
 excerpt: Migration guide to upgrade to terragrunt 0.19.x
 tags: ["migration", "community"]
 order: 601
 nav_title: Documentation
 nav_title_link: /docs/
 ---
+
+# Upgrading to Terragrunt 0.19.x
 
 ## Background
 

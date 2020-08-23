@@ -1,7 +1,7 @@
 ---
 layout: collection-browser-doc
-title: RFC: Imports
-category: rfc
+title: Imports
+category: RFC
 categories_url: rfc
 excerpt: Define new mechanisms for importing terragrunt config.
 tags: ["rfc", "contributing", "community"]
