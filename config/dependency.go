@@ -395,16 +395,23 @@ func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.Terrag
 // by directly pulling down the state file. Otherwise, terragrunt will fallback to running `terragrunt output` on the
 // target module.
 func getTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targetConfig string) ([]byte, error) {
+	// Make a copy of the terragruntOptions so that we can reuse the same execution environment, but in the context of
+	// the target config.
+	targetTGOptions, err := cloneTerragruntOptionsForDependencyOutput(terragruntOptions, targetConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	// First, attempt to parse the `remote_state` blocks without parsing/getting dependency outputs. If this is
 	// possible, proceed to routine that fetches remote state directly. Otherwise, fallback to calling
 	// `terragrunt output` directly.
-	remoteStateTGConfig, err := PartialParseConfigFile(targetConfig, terragruntOptions, nil, []PartialDecodeSectionType{RemoteStateBlock})
+	remoteStateTGConfig, err := PartialParseConfigFile(targetConfig, targetTGOptions, nil, []PartialDecodeSectionType{RemoteStateBlock})
 	if err != nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {
 		terragruntOptions.Logger.Printf("WARNING: Could not parse remote_state block from target config %s", targetConfig)
 		terragruntOptions.Logger.Printf("WARNING: Falling back to terragrunt output.")
-		return runTerragruntOutputJson(terragruntOptions, targetConfig)
+		return runTerragruntOutputJson(targetTGOptions, targetConfig)
 	}
-	return getTerragruntOutputJsonFromRemoteState(terragruntOptions, targetConfig, remoteStateTGConfig.RemoteState)
+	return getTerragruntOutputJsonFromRemoteState(targetTGOptions, targetConfig, remoteStateTGConfig.RemoteState)
 }
 
 // canGetRemoteState returns true if the remote state block is not nil and has the generate block configured.
@@ -420,7 +427,10 @@ func canGetRemoteState(remoteState *remote.RemoteState) bool {
 // - Generate the backend.tf file with the backend configuration from the remote_state block
 // - Run terraform init and terraform output
 // - Clean up folder once json file is generated
-func getTerragruntOutputJsonFromRemoteState(terragruntOptions *options.TerragruntOptions, targetConfig string, remoteState *remote.RemoteState) ([]byte, error) {
+// NOTE: targetTGOptions should be in the context of the targetConfig.
+func getTerragruntOutputJsonFromRemoteState(targetTGOptions *options.TerragruntOptions, targetConfig string, remoteState *remote.RemoteState) ([]byte, error) {
+	util.Debugf(targetTGOptions.Logger, "Detected remote state block with generate config. Resolving dependency by pulling remote state.")
+
 	// Create working directory where we will run terraform in. Make sure it is cleaned up before the function returns.
 	tempWorkDir, err := ioutil.TempDir("", "")
 	if err != nil {
@@ -428,44 +438,40 @@ func getTerragruntOutputJsonFromRemoteState(terragruntOptions *options.Terragrun
 	}
 	defer os.RemoveAll(tempWorkDir)
 
-	// Set the terraform working dir to the tempdir
-	tmpTGOptions := terragruntOptions.Clone(tempWorkDir)
-	tmpTGOptions.WorkingDir = tempWorkDir
+	// Set the terraform working dir to the tempdir, and set stdout writer to ioutil.Discard so that output content is
+	// not logged.
+	targetTGOptions.WorkingDir = tempWorkDir
+	targetTGOptions.Writer = ioutil.Discard
 
 	// Generate the backend configuration in the working dir
-	if err := remoteState.GenerateTerraformCode(tmpTGOptions); err != nil {
+	if err := remoteState.GenerateTerraformCode(targetTGOptions); err != nil {
 		return nil, err
 	}
 
 	// The working directory is now set up to interact with the state, so pull it down to get the json output.
 	// First run init, then output.
-	if err := shell.RunTerraformCommand(tmpTGOptions, "init"); err != nil {
+	if err := shell.RunTerraformCommand(targetTGOptions, "init"); err != nil {
 		return nil, err
 	}
-	out, err := shell.RunTerraformCommandWithOutput(tmpTGOptions, "output", "-json")
+	out, err := shell.RunTerraformCommandWithOutput(targetTGOptions, "output", "-json")
 	if err != nil {
 		return nil, err
 	}
 	jsonString := out.Stdout
 	jsonBytes := []byte(strings.TrimSpace(jsonString))
-	util.Debugf(terragruntOptions.Logger, "Retrieved output from %s as json: %s", targetConfig, jsonString)
+	util.Debugf(targetTGOptions.Logger, "Retrieved output from %s as json: %s", targetConfig, jsonString)
 	return jsonBytes, nil
 }
 
-// runTerragruntOutputJson uses terragrunt running functions to extract the json output from the target config. Make a
-// copy of the terragruntOptions so that we can reuse the same execution environment.
-func runTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targetConfig string) ([]byte, error) {
-	targetOptions, err := cloneTerragruntOptionsForDependencyOutput(terragruntOptions, targetConfig)
-	if err != nil {
-		return nil, err
-	}
-
+// runTerragruntOutputJson uses terragrunt running functions to extract the json output from the target config.
+// NOTE: targetTGOptions should be in the context of the targetConfig.
+func runTerragruntOutputJson(targetTGOptions *options.TerragruntOptions, targetConfig string) ([]byte, error) {
 	// Update the stdout buffer so we can capture the output
 	var stdoutBuffer bytes.Buffer
 	stdoutBufferWriter := bufio.NewWriter(&stdoutBuffer)
-	targetOptions.Writer = stdoutBufferWriter
+	targetTGOptions.Writer = stdoutBufferWriter
 
-	err = targetOptions.RunTerragrunt(targetOptions)
+	err := targetTGOptions.RunTerragrunt(targetTGOptions)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
@@ -473,7 +479,7 @@ func runTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targe
 	stdoutBufferWriter.Flush()
 	jsonString := stdoutBuffer.String()
 	jsonBytes := []byte(strings.TrimSpace(jsonString))
-	util.Debugf(terragruntOptions.Logger, "Retrieved output from %s as json: %s", targetConfig, jsonString)
+	util.Debugf(targetTGOptions.Logger, "Retrieved output from %s as json: %s", targetConfig, jsonString)
 	return jsonBytes, nil
 }
 
