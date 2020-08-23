@@ -90,6 +90,35 @@ func (remoteState *remoteStateConfigFile) String() string {
 	return fmt.Sprintf("remoteStateConfigFile{Backend = %v, Config = %v}", remoteState.Backend, remoteState.Config)
 }
 
+// Convert the parsed config file remote state struct to the internal representation struct of remote state
+// configurations.
+func (remoteState *remoteStateConfigFile) toConfig() (*remote.RemoteState, error) {
+	remoteStateConfig, err := parseCtyValueToMap(remoteState.Config)
+	if err != nil {
+		return nil, err
+	}
+
+	config := &remote.RemoteState{}
+	config.Backend = remoteState.Backend
+	if remoteState.Generate != nil {
+		config.Generate = &remote.RemoteStateGenerate{
+			Path:     remoteState.Generate.Path,
+			IfExists: remoteState.Generate.IfExists,
+		}
+	}
+	config.Config = remoteStateConfig
+
+	if remoteState.DisableInit != nil {
+		config.DisableInit = *remoteState.DisableInit
+	}
+
+	config.FillDefaults()
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+	return config, err
+}
+
 type remoteStateConfigGenerate struct {
 	// We use cty instead of hcl, since we are using this type to convert an attr and not a block.
 	Path     string `cty:"path"`
@@ -679,30 +708,10 @@ func convertToTerragruntConfig(
 	}
 
 	if terragruntConfigFromFile.RemoteState != nil {
-		remoteStateConfig, err := parseCtyValueToMap(terragruntConfigFromFile.RemoteState.Config)
+		remoteState, err := terragruntConfigFromFile.RemoteState.toConfig()
 		if err != nil {
 			return nil, err
 		}
-
-		remoteState := &remote.RemoteState{}
-		remoteState.Backend = terragruntConfigFromFile.RemoteState.Backend
-		if terragruntConfigFromFile.RemoteState.Generate != nil {
-			remoteState.Generate = &remote.RemoteStateGenerate{
-				Path:     terragruntConfigFromFile.RemoteState.Generate.Path,
-				IfExists: terragruntConfigFromFile.RemoteState.Generate.IfExists,
-			}
-		}
-		remoteState.Config = remoteStateConfig
-
-		if terragruntConfigFromFile.RemoteState.DisableInit != nil {
-			remoteState.DisableInit = *terragruntConfigFromFile.RemoteState.DisableInit
-		}
-
-		remoteState.FillDefaults()
-		if err := remoteState.Validate(); err != nil {
-			return nil, err
-		}
-
 		terragruntConfig.RemoteState = remoteState
 	}
 

@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -19,6 +21,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/remote"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -326,7 +330,7 @@ func getOutputJsonWithCaching(targetConfig string, terragruntOptions *options.Te
 	}
 
 	// Cache miss, so look up the output and store in cache
-	newJsonBytes, err := runTerragruntOutputJson(terragruntOptions, targetConfig)
+	newJsonBytes, err := getTerragruntOutputJson(terragruntOptions, targetConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -380,6 +384,72 @@ func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.Terrag
 	}
 
 	return targetOptions, nil
+}
+
+// Retrieve the outputs from the terraform state in the target configuration. This attempts to optimize the output
+// retrieval if the following conditions are true:
+// - State backends are managed with a `remote_state` block.
+// - The `remote_state` block is using the generator pattern (the `generate` attribute is set).
+// - The `remote_state` block does not depend on any `dependency` outputs.
+// If these conditions are met, terragrunt can optimize the retrieval to avoid recursively retrieving dependency outputs
+// by directly pulling down the state file. Otherwise, terragrunt will fallback to running `terragrunt output` on the
+// target module.
+func getTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targetConfig string) ([]byte, error) {
+	// First, attempt to parse the `remote_state` blocks without parsing/getting dependency outputs. If this is
+	// possible, proceed to routine that fetches remote state directly. Otherwise, fallback to calling
+	// `terragrunt output` directly.
+	remoteStateTGConfig, err := PartialParseConfigFile(targetConfig, terragruntOptions, nil, []PartialDecodeSectionType{RemoteStateBlock})
+	if err != nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {
+		terragruntOptions.Logger.Printf("WARNING: Could not parse remote_state block from target config %s", targetConfig)
+		terragruntOptions.Logger.Printf("WARNING: Falling back to terragrunt output.")
+		return runTerragruntOutputJson(terragruntOptions, targetConfig)
+	}
+	return getTerragruntOutputJsonFromRemoteState(terragruntOptions, targetConfig, remoteStateTGConfig.RemoteState)
+}
+
+// canGetRemoteState returns true if the remote state block is not nil and has the generate block configured.
+func canGetRemoteState(remoteState *remote.RemoteState) bool {
+	return remoteState != nil && remoteState.Generate != nil
+}
+
+// getTerragruntOutputJsonFromRemoteState will retrieve the outputs directly by using just the remote state block. This
+// uses terraform's feature where `output` and `init` can work without the real source, as long as you have the
+// `backend` configured.
+// To do this, this function will:
+// - Create a temporary folder
+// - Generate the backend.tf file with the backend configuration from the remote_state block
+// - Run terraform init and terraform output
+// - Clean up folder once json file is generated
+func getTerragruntOutputJsonFromRemoteState(terragruntOptions *options.TerragruntOptions, targetConfig string, remoteState *remote.RemoteState) ([]byte, error) {
+	// Create working directory where we will run terraform in. Make sure it is cleaned up before the function returns.
+	tempWorkDir, err := ioutil.TempDir("", "")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(tempWorkDir)
+
+	// Set the terraform working dir to the tempdir
+	tmpTGOptions := terragruntOptions.Clone(tempWorkDir)
+	tmpTGOptions.WorkingDir = tempWorkDir
+
+	// Generate the backend configuration in the working dir
+	if err := remoteState.GenerateTerraformCode(tmpTGOptions); err != nil {
+		return nil, err
+	}
+
+	// The working directory is now set up to interact with the state, so pull it down to get the json output.
+	// First run init, then output.
+	if err := shell.RunTerraformCommand(tmpTGOptions, "init"); err != nil {
+		return nil, err
+	}
+	out, err := shell.RunTerraformCommandWithOutput(tmpTGOptions, "output", "-json")
+	if err != nil {
+		return nil, err
+	}
+	jsonString := out.Stdout
+	jsonBytes := []byte(strings.TrimSpace(jsonString))
+	util.Debugf(terragruntOptions.Logger, "Retrieved output from %s as json: %s", targetConfig, jsonString)
+	return jsonBytes, nil
 }
 
 // runTerragruntOutputJson uses terragrunt running functions to extract the json output from the target config. Make a

@@ -2030,6 +2030,49 @@ func TestYamlDecodeRegressions(t *testing.T) {
 	assert.Equal(t, outputs["test2"].Value, "1.00")
 }
 
+// We test the path with remote_state blocks by:
+// - Applying all modules initially
+// - Deleting the local state of the nested deep dependency
+// - Running apply on the root module
+// If output optimization is working, we should still get the same correct output even though the state of the upmost
+// module has been destroyed.
+func TestDependencyOutputOptimization(t *testing.T) {
+	t.Parallel()
+
+	expectedOutput := `They said, "No, The answer is 42"`
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "nested-optimization")
+	rootTerragruntConfigPath := filepath.Join(rootPath, config.DefaultTerragruntConfigPath)
+	livePath := filepath.Join(rootPath, "live")
+	deepDepPath := filepath.Join(rootPath, "deepdep")
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// verify expected output
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", livePath))
+	require.NoError(t, err)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
+	assert.Equal(t, expectedOutput, outputs["output"].Value)
+
+	// Now delete the deepdep state and verify still works
+	require.NoError(t, os.Remove(filepath.Join(deepDepPath, "terraform.tfstate")))
+	reout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", livePath))
+	require.NoError(t, err)
+
+	require.NoError(t, json.Unmarshal([]byte(reout), &outputs))
+	assert.Equal(t, expectedOutput, outputs["output"].Value)
+}
+
 func TestDependencyOutput(t *testing.T) {
 	t.Parallel()
 
@@ -3106,6 +3149,16 @@ func runTerragruntVersionCommand(t *testing.T, version string, command string, w
 
 func runTerragrunt(t *testing.T, command string) {
 	runTerragruntRedirectOutput(t, command, os.Stdout, os.Stderr)
+}
+
+func runTerragruntCommandWithOutput(t *testing.T, command string) (string, string, error) {
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, command, &stdout, &stderr)
+	if err != nil {
+		return "", "", err
+	}
+	return stdout.String(), stderr.String(), nil
 }
 
 func runTerragruntRedirectOutput(t *testing.T, command string, writer io.Writer, errwriter io.Writer) {
