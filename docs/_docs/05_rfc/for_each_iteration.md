@@ -1,3 +1,15 @@
+---
+layout: collection-browser-doc
+title: for_each to call terraform module multiple times
+category: RFC
+categories_url: rfc
+excerpt: for_each - looping variables to call module multiple times.
+tags: ["rfc", "contributing", "community"]
+order: 502
+nav_title: Documentation
+nav_title_link: /docs/
+---
+
 # RFC: for_each - looping variables to call module multiple times
 
 **STATUS: Won't Implement**
