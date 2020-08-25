@@ -428,6 +428,35 @@ inputs = {
 }
 ```
 
+**Can I speed up dependency fetching?**
+
+`dependency` blocks are fetched in parallel at each source level, but will serially parse each recursive dependency. For
+example, consider the following chain of dependencies:
+
+```
+account --> vpc --> securitygroup --> ecs
+                                      ^
+                                     /
+                              ecr --
+```
+
+In this chain, the `ecr` and `securitygroup` module outputs will be fetched concurrently when applying the `ecs` module,
+but the outputs for `account` and `vpc` will be fetched serially as terragrunt needs to recursively walk through the
+tree to retrieve the outputs at each level.
+
+This recursive parsing happens due to the necessity to parse the entire `terragrunt.hcl` configuration (including
+`dependency` blocks) in full before being able to call `terraform output`.
+
+However, terragrunt includes an optimization to only fetch the lowest level outputs (`securitygroup` and `ecr` in this
+example) provided that the following conditions are met in the immediate dependencies:
+
+- The remote state is managed using `remote_state` blocks.
+- The `remote_state` block is in generate mode (the `generate` attribute is set).
+- The `remote_state` block itself does not depend on any `dependency` outputs (`locals` and `include` are ok).
+
+If these conditions are met, terragrunt will only parse out the `remote_state` blocks and use that to pull down the
+state for the target module without parsing the `dependency` blocks, avoiding the recursive dependency retrieval.
+
 
 ### dependencies
 
