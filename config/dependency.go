@@ -19,6 +19,7 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
@@ -405,11 +406,17 @@ func getTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targe
 	// First, attempt to parse the `remote_state` blocks without parsing/getting dependency outputs. If this is
 	// possible, proceed to routine that fetches remote state directly. Otherwise, fallback to calling
 	// `terragrunt output` directly.
-	remoteStateTGConfig, err := PartialParseConfigFile(targetConfig, targetTGOptions, nil, []PartialDecodeSectionType{RemoteStateBlock})
+	remoteStateTGConfig, err := PartialParseConfigFile(targetConfig, targetTGOptions, nil, []PartialDecodeSectionType{RemoteStateBlock, TerragruntFlags})
 	if err != nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {
 		terragruntOptions.Logger.Printf("WARNING: Could not parse remote_state block from target config %s", targetConfig)
 		terragruntOptions.Logger.Printf("WARNING: Falling back to terragrunt output.")
 		return runTerragruntOutputJson(targetTGOptions, targetConfig)
+	}
+
+	// Fetch directly. If the target config has an IAM role directive and it was not set on the command line, set it to
+	// the one we retrieved from the config.
+	if remoteStateTGConfig.IamRole != "" && targetTGOptions.IamRole == "" {
+		targetTGOptions.IamRole = remoteStateTGConfig.IamRole
 	}
 	return getTerragruntOutputJsonFromRemoteState(targetTGOptions, targetConfig, remoteStateTGConfig.RemoteState)
 }
@@ -442,6 +449,11 @@ func getTerragruntOutputJsonFromRemoteState(targetTGOptions *options.TerragruntO
 	// not logged.
 	targetTGOptions.WorkingDir = tempWorkDir
 	targetTGOptions.Writer = ioutil.Discard
+
+	// Make sure to assume any roles set by TERRAGRUNT_IAM_ROLE
+	if err := aws_helper.AssumeRoleAndUpdateEnvIfNecessary(targetTGOptions); err != nil {
+		return nil, err
+	}
 
 	// Generate the backend configuration in the working dir
 	if err := remoteState.GenerateTerraformCode(targetTGOptions); err != nil {
