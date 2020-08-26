@@ -2037,6 +2037,14 @@ func TestYamlDecodeRegressions(t *testing.T) {
 // If output optimization is working, we should still get the same correct output even though the state of the upmost
 // module has been destroyed.
 func TestDependencyOutputOptimization(t *testing.T) {
+	dependencyOutputOptimizationTest(t, "nested-optimization")
+}
+
+func TestDependencyOutputOptimizationNoGenerate(t *testing.T) {
+	dependencyOutputOptimizationTest(t, "nested-optimization-nogen")
+}
+
+func dependencyOutputOptimizationTest(t *testing.T, moduleName string) {
 	t.Parallel()
 
 	expectedOutput := `They said, "No, The answer is 42"`
@@ -2044,7 +2052,7 @@ func TestDependencyOutputOptimization(t *testing.T) {
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "nested-optimization")
+	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, moduleName)
 	rootTerragruntConfigPath := filepath.Join(rootPath, config.DefaultTerragruntConfigPath)
 	livePath := filepath.Join(rootPath, "live")
 	deepDepPath := filepath.Join(rootPath, "deepdep")

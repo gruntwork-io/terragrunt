@@ -20,6 +20,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
@@ -390,7 +391,6 @@ func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.Terrag
 // Retrieve the outputs from the terraform state in the target configuration. This attempts to optimize the output
 // retrieval if the following conditions are true:
 // - State backends are managed with a `remote_state` block.
-// - The `remote_state` block is using the generator pattern (the `generate` attribute is set).
 // - The `remote_state` block does not depend on any `dependency` outputs.
 // If these conditions are met, terragrunt can optimize the retrieval to avoid recursively retrieving dependency outputs
 // by directly pulling down the state file. Otherwise, terragrunt will fallback to running `terragrunt output` on the
@@ -412,18 +412,12 @@ func getTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targe
 		terragruntOptions.Logger.Printf("WARNING: Falling back to terragrunt output.")
 		return runTerragruntOutputJson(targetTGOptions, targetConfig)
 	}
-
-	// Fetch directly. If the target config has an IAM role directive and it was not set on the command line, set it to
-	// the one we retrieved from the config.
-	if remoteStateTGConfig.IamRole != "" && targetTGOptions.IamRole == "" {
-		targetTGOptions.IamRole = remoteStateTGConfig.IamRole
-	}
-	return getTerragruntOutputJsonFromRemoteState(targetTGOptions, targetConfig, remoteStateTGConfig.RemoteState)
+	return getTerragruntOutputJsonFromRemoteState(targetTGOptions, targetConfig, remoteStateTGConfig.RemoteState, remoteStateTGConfig.IamRole)
 }
 
-// canGetRemoteState returns true if the remote state block is not nil and has the generate block configured.
+// canGetRemoteState returns true if the remote state block is not nil
 func canGetRemoteState(remoteState *remote.RemoteState) bool {
-	return remoteState != nil && remoteState.Generate != nil
+	return remoteState != nil
 }
 
 // getTerragruntOutputJsonFromRemoteState will retrieve the outputs directly by using just the remote state block. This
@@ -434,9 +428,14 @@ func canGetRemoteState(remoteState *remote.RemoteState) bool {
 // - Generate the backend.tf file with the backend configuration from the remote_state block
 // - Run terraform init and terraform output
 // - Clean up folder once json file is generated
-// NOTE: targetTGOptions should be in the context of the targetConfig.
-func getTerragruntOutputJsonFromRemoteState(targetTGOptions *options.TerragruntOptions, targetConfig string, remoteState *remote.RemoteState) ([]byte, error) {
-	util.Debugf(targetTGOptions.Logger, "Detected remote state block with generate config. Resolving dependency by pulling remote state.")
+// NOTE: terragruntOptions should be in the context of the targetConfig already.
+func getTerragruntOutputJsonFromRemoteState(
+	terragruntOptions *options.TerragruntOptions,
+	targetConfig string,
+	remoteState *remote.RemoteState,
+	iamRole string,
+) ([]byte, error) {
+	util.Debugf(terragruntOptions.Logger, "Detected remote state block with generate config. Resolving dependency by pulling remote state.")
 
 	// Create working directory where we will run terraform in. Make sure it is cleaned up before the function returns.
 	tempWorkDir, err := ioutil.TempDir("", "")
@@ -445,17 +444,33 @@ func getTerragruntOutputJsonFromRemoteState(targetTGOptions *options.TerragruntO
 	}
 	defer os.RemoveAll(tempWorkDir)
 
+	// Here we clone the terragrunt options again since we need to make further modifications to it to allow fetching
+	// remote state.
 	// Set the terraform working dir to the tempdir, and set stdout writer to ioutil.Discard so that output content is
 	// not logged.
+	targetTGOptions := terragruntOptions.Clone(targetConfig)
 	targetTGOptions.WorkingDir = tempWorkDir
 	targetTGOptions.Writer = ioutil.Discard
+
+	// If the target config has an IAM role directive and it was not set on the command line, set it to
+	// the one we retrieved from the config.
+	if iamRole != "" && targetTGOptions.IamRole == "" {
+		targetTGOptions.IamRole = iamRole
+	}
 
 	// Make sure to assume any roles set by TERRAGRUNT_IAM_ROLE
 	if err := aws_helper.AssumeRoleAndUpdateEnvIfNecessary(targetTGOptions); err != nil {
 		return nil, err
 	}
 
-	// Generate the backend configuration in the working dir
+	// Generate the backend configuration in the working dir. If no generate config is set on the remote state block,
+	// set a temporary generate config so we can generate the backend code.
+	if remoteState.Generate == nil {
+		remoteState.Generate = &remote.RemoteStateGenerate{
+			Path:     "backend.tf",
+			IfExists: codegen.ExistsOverwriteTerragruntStr,
+		}
+	}
 	if err := remoteState.GenerateTerraformCode(targetTGOptions); err != nil {
 		return nil, err
 	}

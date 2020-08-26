@@ -451,7 +451,6 @@ However, terragrunt includes an optimization to only fetch the lowest level outp
 example) provided that the following conditions are met in the immediate dependencies:
 
 - The remote state is managed using `remote_state` blocks.
-- The `remote_state` block is in generate mode (the `generate` attribute is set).
 - The `remote_state` block itself does not depend on any `dependency` outputs (`locals` and `include` are ok).
 
 If these conditions are met, terragrunt will only parse out the `remote_state` blocks and use that to pull down the
