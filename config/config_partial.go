@@ -60,6 +60,7 @@ type terraformConfigSourceOnly struct {
 
 // terragruntFlags is a struct that can be used to only decode the flag attributes (skip and prevent_destroy)
 type terragruntFlags struct {
+	IamRole        *string  `hcl:"iam_role,attr"`
 	PreventDestroy *bool    `hcl:"prevent_destroy,attr"`
 	Skip           *bool    `hcl:"skip,attr"`
 	Remain         hcl.Body `hcl:",remain"`
@@ -253,6 +254,9 @@ func PartialParseConfigString(
 			}
 			if decoded.Skip != nil {
 				output.Skip = *decoded.Skip
+			}
+			if decoded.IamRole != nil {
+				output.IamRole = *decoded.IamRole
 			}
 
 		case TerragruntVersionConstraints:

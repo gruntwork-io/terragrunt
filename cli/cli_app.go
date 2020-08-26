@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -306,7 +305,7 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		terragruntOptions.IamRole = terragruntConfig.IamRole
 	}
 
-	if err := assumeRoleIfNecessary(terragruntOptions); err != nil {
+	if err := aws_helper.AssumeRoleAndUpdateEnvIfNecessary(terragruntOptions); err != nil {
 		return err
 	}
 
@@ -497,27 +496,6 @@ func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOption
 	multiError := errors.NewMultiError(previousExecErrors...)
 
 	return util.ListContainsElement(hook.Commands, terragruntOptions.TerraformCommand) && (multiError == nil || (hook.RunOnError != nil && *hook.RunOnError))
-}
-
-// Assume an IAM role, if one is specified, by making API calls to Amazon STS and setting the environment variables
-// we get back inside of terragruntOptions.Env
-func assumeRoleIfNecessary(terragruntOptions *options.TerragruntOptions) error {
-	if terragruntOptions.IamRole == "" {
-		return nil
-	}
-
-	terragruntOptions.Logger.Printf("Assuming IAM role %s", terragruntOptions.IamRole)
-	creds, err := aws_helper.AssumeIamRole(terragruntOptions.IamRole)
-	if err != nil {
-		return err
-	}
-
-	terragruntOptions.Env["AWS_ACCESS_KEY_ID"] = aws.StringValue(creds.AccessKeyId)
-	terragruntOptions.Env["AWS_SECRET_ACCESS_KEY"] = aws.StringValue(creds.SecretAccessKey)
-	terragruntOptions.Env["AWS_SESSION_TOKEN"] = aws.StringValue(creds.SessionToken)
-	terragruntOptions.Env["AWS_SECURITY_TOKEN"] = aws.StringValue(creds.SessionToken)
-
-	return nil
 }
 
 // Runs terraform with the given options and CLI args.
