@@ -415,9 +415,9 @@ func getTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targe
 	return getTerragruntOutputJsonFromRemoteState(targetTGOptions, targetConfig, remoteStateTGConfig.RemoteState, remoteStateTGConfig.IamRole)
 }
 
-// canGetRemoteState returns true if the remote state block is not nil
+// canGetRemoteState returns true if the remote state block is not nil and dependency optimization is not disabled
 func canGetRemoteState(remoteState *remote.RemoteState) bool {
-	return remoteState != nil
+	return remoteState != nil && !remoteState.DisableDependencyOptimization
 }
 
 // getTerragruntOutputJsonFromRemoteState will retrieve the outputs directly by using just the remote state block. This
