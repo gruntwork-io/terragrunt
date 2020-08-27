@@ -48,8 +48,9 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 		TerraformVersionConstraint:  "= 0.12.20",
 		TerragruntVersionConstraint: "= 0.23.18",
 		RemoteState: &remote.RemoteState{
-			Backend:     "foo",
-			DisableInit: true,
+			Backend:                       "foo",
+			DisableInit:                   true,
+			DisableDependencyOptimization: true,
 			Config: map[string]interface{}{
 				"bar": "baz",
 			},
@@ -116,8 +117,9 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 // This test makes sure that all the fields in RemoteState are converted to cty
 func TestRemoteStateAsCtyDrift(t *testing.T) {
 	testConfig := remote.RemoteState{
-		Backend:     "foo",
-		DisableInit: true,
+		Backend:                       "foo",
+		DisableInit:                   true,
+		DisableDependencyOptimization: true,
 		Generate: &remote.RemoteStateGenerate{
 			Path:     "foo",
 			IfExists: "overwrite_terragrunt",
@@ -208,6 +210,8 @@ func remoteStateStructFieldToMapKey(t *testing.T, fieldName string) (string, boo
 		return "backend", true
 	case "DisableInit":
 		return "disable_init", true
+	case "DisableDependencyOptimization":
+		return "disable_dependency_optimization", true
 	case "Generate":
 		return "generate", true
 	case "Config":

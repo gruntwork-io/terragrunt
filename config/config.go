@@ -80,10 +80,11 @@ type terragruntLocal struct {
 
 // Configuration for Terraform remote state as parsed from a terragrunt.hcl config file
 type remoteStateConfigFile struct {
-	Backend     string                     `hcl:"backend,attr"`
-	DisableInit *bool                      `hcl:"disable_init,attr"`
-	Generate    *remoteStateConfigGenerate `hcl:"generate,attr"`
-	Config      cty.Value                  `hcl:"config,attr"`
+	Backend                       string                     `hcl:"backend,attr"`
+	DisableInit                   *bool                      `hcl:"disable_init,attr"`
+	DisableDependencyOptimization *bool                      `hcl:"disable_dependency_optimization,attr"`
+	Generate                      *remoteStateConfigGenerate `hcl:"generate,attr"`
+	Config                        cty.Value                  `hcl:"config,attr"`
 }
 
 func (remoteState *remoteStateConfigFile) String() string {
@@ -110,6 +111,9 @@ func (remoteState *remoteStateConfigFile) toConfig() (*remote.RemoteState, error
 
 	if remoteState.DisableInit != nil {
 		config.DisableInit = *remoteState.DisableInit
+	}
+	if remoteState.DisableDependencyOptimization != nil {
+		config.DisableDependencyOptimization = *remoteState.DisableDependencyOptimization
 	}
 
 	config.FillDefaults()

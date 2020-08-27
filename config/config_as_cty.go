@@ -50,7 +50,7 @@ func terragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	if dependenciesCty != cty.NilVal {
 		output["dependencies"] = dependenciesCty
 	}
-	
+
 	if config.PreventDestroy != nil {
 		output["prevent_destroy"] = goboolToCty(*config.PreventDestroy)
 	}
@@ -135,6 +135,7 @@ func remoteStateAsCty(remoteState *remote.RemoteState) (cty.Value, error) {
 	output := map[string]cty.Value{}
 	output["backend"] = gostringToCty(remoteState.Backend)
 	output["disable_init"] = goboolToCty(remoteState.DisableInit)
+	output["disable_dependency_optimization"] = goboolToCty(remoteState.DisableDependencyOptimization)
 
 	generateCty, err := gostructToCty(remoteState.Generate)
 	if err != nil {
