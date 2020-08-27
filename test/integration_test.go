@@ -2495,7 +2495,11 @@ func TestDependencyOutputSameOutputConcurrencyRegression(t *testing.T) {
 // Regression testing for bug where terragrunt output runs on dependency blocks are done in the terragrunt-cache for the
 // child, not the parent.
 func TestDependencyOutputCachePathBug(t *testing.T) {
-	t.Parallel()
+	// NOTE: this test can't be run in parallel, as it is sensitive to the dependency output cache, and we can't have
+	// all the different tests busting it at random points in time.
+	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
+	// This is only a problem during testing, where the process is shared across terragrunt runs.
+	config.ClearOutputCache()
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
