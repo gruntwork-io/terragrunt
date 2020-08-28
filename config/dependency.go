@@ -476,10 +476,11 @@ func getTerragruntOutputJsonFromRemoteState(
 	}
 
 	// The working directory is now set up to interact with the state, so pull it down to get the json output.
-	// First run init, then output.
-	if err := shell.RunTerraformCommand(targetTGOptions, "init"); err != nil {
-		return nil, err
-	}
+
+	// First run init to setup the backend configuration so that we can run output.
+	runTerraformInitForDependencyOutput(targetTGOptions, tempWorkDir, targetConfig)
+
+	// Now that the backend is initialized, run terraform output to get the data and return it.
 	out, err := shell.RunTerraformCommandWithOutput(targetTGOptions, "output", "-json")
 	if err != nil {
 		return nil, err
@@ -544,6 +545,24 @@ func terraformOutputJsonToCtyValueMap(targetConfig string, jsonBytes []byte) (ma
 // ClearOutputCache clears the output cache. Useful during testing.
 func ClearOutputCache() {
 	jsonOutputCache = sync.Map{}
+}
+
+// runTerraformInitForDependencyOutput will run terraform init in a mode that doesn't pull down plugins or modules. Note
+// that this will cause the command to fail for most modules as terraform init does a validation check to make sure the
+// plugins are available, even though we don't need it for our purposes (terraform output does not depend on any of the
+// plugins being available). As such this command will ignore errors in the init command.
+// To help with debuggability, the errors will be printed to the console when TG_LOG=debug is set.
+func runTerraformInitForDependencyOutput(terragruntOptions *options.TerragruntOptions, workingDir string, targetConfig string) {
+	stderr := bytes.Buffer{}
+	initTGOptions := terragruntOptions.Clone(targetConfig)
+	initTGOptions.WorkingDir = workingDir
+	initTGOptions.ErrWriter = &stderr
+	err := shell.RunTerraformCommand(initTGOptions, "init", "-get=false", "-get-plugins=false")
+	if err != nil {
+		util.Debugf(terragruntOptions.Logger, "Ignoring expected error from dependency init call")
+		util.Debugf(terragruntOptions.Logger, "Init call stderr:")
+		util.Debugf(terragruntOptions.Logger, stderr.String())
+	}
 }
 
 // Custom error types
