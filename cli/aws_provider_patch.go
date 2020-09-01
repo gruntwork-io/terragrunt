@@ -6,9 +6,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/hashicorp/hcl2/hcl"
-	"github.com/hashicorp/hcl2/hcl/hclsyntax"
-	"github.com/hashicorp/hcl2/hclwrite"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/mattn/go-zglob"
 	"github.com/zclconf/go-cty/cty"
 	"io/ioutil"
@@ -143,27 +142,12 @@ func patchAwsProviderInTerraformCode(terraformCode string, terraformFilePath str
 	codeWasUpdated := false
 
 	for _, block := range hclFile.Body().Blocks() {
-		tokens := block.BuildTokens(nil)
-
-		for index, token := range tokens {
-			if token.Type == hclsyntax.TokenIdent && string(token.Bytes) == "provider" {
-				// We're looking for 4 tokens in a row that look like this:
-				//   - provider
-				//   - "
-				//   - aws
-				//   - "
-				if len(tokens)-index > 2 {
-					maybeAws := tokens[index+2]
-
-					if maybeAws.Type == hclsyntax.TokenQuotedLit && string(maybeAws.Bytes) == "aws" {
-						for key, value := range attributesToOverride {
-							block.Body().SetAttributeValue(key, cty.StringVal(value))
-						}
-
-						codeWasUpdated = true
-					}
-				}
+		if block.Type() == "provider" && len(block.Labels()) == 1 && block.Labels()[0] == "aws" {
+			for key, value := range attributesToOverride {
+				block.Body().SetAttributeValue(key, cty.StringVal(value))
 			}
+
+			codeWasUpdated = true
 		}
 	}
 
