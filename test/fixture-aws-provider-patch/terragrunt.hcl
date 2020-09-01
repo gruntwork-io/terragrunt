@@ -1,0 +1,1 @@
+# Intentionally empty. This is merely a placeholder so that Terragrunt treats this folder as a Terragrunt module.
