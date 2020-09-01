@@ -142,6 +142,10 @@ type TerragruntOptions struct {
 	// True if terragrunt should run in debug mode, writing terragrunt-debug.tfvars to working folder to help
 	// root-cause issues.
 	Debug bool
+
+	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command. See that
+	// command for more info.
+	AwsProviderPatchOverrides map[string]string
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage
@@ -255,6 +259,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		Parallelism:                 terragruntOptions.Parallelism,
 		StrictInclude:               terragruntOptions.StrictInclude,
 		RunTerragrunt:               terragruntOptions.RunTerragrunt,
+		AwsProviderPatchOverrides:   terragruntOptions.AwsProviderPatchOverrides,
 	}
 }
 

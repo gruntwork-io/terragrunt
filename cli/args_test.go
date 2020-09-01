@@ -88,6 +88,12 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
+			[]string{"--terragrunt-override-attr", "region=us-east-1"},
+			mockOptionsWithOverrideAttrs(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, map[string]string{"region": "us-east-1"}),
+			nil,
+		},
+
+		{
 			[]string{"--terragrunt-ignore-dependency-errors"},
 			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", true, false, false),
 			nil,
@@ -169,6 +175,7 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 	assert.Equal(t, expected.IgnoreDependencyErrors, actual.IgnoreDependencyErrors, msgAndArgs...)
 	assert.Equal(t, expected.IamRole, actual.IamRole, msgAndArgs...)
 	assert.Equal(t, expected.Debug, actual.Debug, msgAndArgs...)
+	assert.Equal(t, expected.AwsProviderPatchOverrides, actual.AwsProviderPatchOverrides, msgAndArgs...)
 }
 
 func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, includeExternalDependencies bool, debugMode bool) *options.TerragruntOptions {
@@ -192,6 +199,12 @@ func mockOptionsWithIamRole(t *testing.T, terragruntConfigPath string, workingDi
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, false)
 	opts.IamRole = iamRole
 
+	return opts
+}
+
+func mockOptionsWithOverrideAttrs(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, overrideAttrs map[string]string) *options.TerragruntOptions {
+	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, false, "", false, false, false)
+	opts.AwsProviderPatchOverrides = overrideAttrs
 	return opts
 }
 
@@ -236,6 +249,36 @@ func TestParseMultiStringArg(t *testing.T) {
 
 	for _, testCase := range testCases {
 		actual, actualErr := parseMultiStringArg(testCase.args, testCase.argName, testCase.defaultValue)
+
+		if testCase.expectedErr != nil {
+			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "Expected error %v but got error %v", testCase.expectedErr, actualErr)
+		} else {
+			assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+			assert.Equal(t, testCase.expectedVals, actual, "For args %v", testCase.args)
+		}
+	}
+}
+
+func TestParseMutliStringKeyValueArg(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		args         []string
+		argName      string
+		defaultValue map[string]string
+		expectedVals map[string]string
+		expectedErr  error
+	}{
+		{[]string{"aws-provider-patch"}, "foo", nil, nil, nil},
+		{[]string{"aws-provider-patch"}, "foo", map[string]string{"default": "value"}, map[string]string{"default": "value"}, nil},
+		{[]string{"aws-provider-patch", "--other", "arg"}, "foo", map[string]string{"default": "value"}, map[string]string{"default": "value"}, nil},
+		{[]string{"aws-provider-patch", "--foo", "key=value"}, "foo", map[string]string{"default": "value"}, map[string]string{"key": "value"}, nil},
+		{[]string{"aws-provider-patch", "--foo", "key1=value1", "--foo", "key2=value2", "--foo", "key3=value3"}, "foo", map[string]string{"default": "value"}, map[string]string{"key1": "value1", "key2": "value2", "key3": "value3"}, nil},
+		{[]string{"aws-provider-patch", "--foo", "invalidvalue"}, "foo", map[string]string{"default": "value"}, nil, InvalidKeyValue("invalidvalue")},
+	}
+
+	for _, testCase := range testCases {
+		actual, actualErr := parseMutliStringKeyValueArg(testCase.args, testCase.argName, testCase.defaultValue)
 
 		if testCase.expectedErr != nil {
 			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "Expected error %v but got error %v", testCase.expectedErr, actualErr)
