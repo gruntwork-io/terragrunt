@@ -152,8 +152,8 @@ func patchAwsProviderInTerraformCode(terraformCode string, terraformFilePath str
 				//   - "
 				//   - aws
 				//   - "
-				if len(tokens) - index > 2 {
-					maybeAws := tokens[index + 2]
+				if len(tokens)-index > 2 {
+					maybeAws := tokens[index+2]
 
 					if maybeAws.Type == hclsyntax.TokenQuotedLit && string(maybeAws.Bytes) == "aws" {
 						for key, value := range attributesToOverride {
