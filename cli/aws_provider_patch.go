@@ -69,7 +69,9 @@ func findAllTerraformFilesInModules(terragruntOptions *options.TerragruntOptions
 	// into that folder, but the entire repo it's in, which can contain lots of other unrelated code we probably don't
 	// want to touch. To find the paths to the actual modules, we read the modules.json file in that folder, which is
 	// a manifest file Terraform uses to track where the modules are within each repo. Note that this is an internal
-	// API, so the way we parse/read this modules.json file may break in future Terraform versions.
+	// API, so the way we parse/read this modules.json file may break in future Terraform versions. Note that we
+	// can't use the official HashiCorp code to parse this file, as it's marked internal:
+	// https://github.com/hashicorp/terraform/blob/master/internal/modsdir/manifest.go
 	modulesJsonPath := util.JoinPath(terragruntOptions.DataDir(), "modules", "modules.json")
 
 	if !util.FileExists(modulesJsonPath) {
