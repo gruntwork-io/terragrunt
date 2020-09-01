@@ -26,7 +26,7 @@ func applyAwsProviderPatch(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	for _, terraformFile := range terraformFilesInModules {
-		terragruntOptions.Logger.Printf("Looking at file %s...", terraformFile)
+		util.Debugf(terragruntOptions.Logger, "Looking at file %s", terraformFile)
 		originalTerraformFileContents, err := util.ReadFileAsString(terraformFile)
 		if err != nil {
 			return err
