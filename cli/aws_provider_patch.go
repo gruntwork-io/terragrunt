@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -10,6 +11,8 @@ import (
 	"github.com/hashicorp/hcl2/hclwrite"
 	"github.com/mattn/go-zglob"
 	"github.com/zclconf/go-cty/cty"
+	"io/ioutil"
+	"path/filepath"
 )
 
 func applyAwsProviderPatch(terragruntOptions *options.TerragruntOptions) error {
@@ -45,6 +48,17 @@ func applyAwsProviderPatch(terragruntOptions *options.TerragruntOptions) error {
 	return nil
 }
 
+// The format we expect in the .terraform/modules/modules.json file
+type TerraformModulesJson struct {
+	Modules []TerraformModule
+}
+
+type TerraformModule struct {
+	Key    string
+	Source string
+	Dir    string
+}
+
 // findAllTerraformFiles returns all Terraform source files within the modules being used by this Terragrunt
 // configuration. To be more specific, it only returns the source files downloaded for module "xxx" { ... } blocks into
 // the .terraform/modules folder; it does NOT return Terraform files for the top-level (AKA "root") module.
@@ -52,21 +66,49 @@ func applyAwsProviderPatch(terragruntOptions *options.TerragruntOptions) error {
 // NOTE: this method only supports *.tf files right now. Terraform code defined in *.json files is not currently
 // supported.d
 func findAllTerraformFilesInModules(terragruntOptions *options.TerragruntOptions) ([]string, error) {
-	modulesPath := util.JoinPath(terragruntOptions.DataDir(), "modules")
+	// Terraform downloads modules into the .terraform/modules folder. Unfortunately, it downloads not only the module
+	// into that folder, but the entire repo it's in, which can contain lots of other unrelated code we probably don't
+	// want to touch. To find the paths to the actual modules, we read the modules.json file in that folder, which is
+	// a manifest file Terraform uses to track where the modules are within each repo. Note that this is an internal
+	// API, so the way we parse/read this modules.json file may break in future Terraform versions.
+	modulesJsonPath := util.JoinPath(terragruntOptions.DataDir(), "modules", "modules.json")
 
-	if !util.FileExists(modulesPath) {
+	if !util.FileExists(modulesJsonPath) {
 		return nil, nil
 	}
 
-	// Ideally, we'd use a builin Go library like filepath.Glob here, but per https://github.com/golang/go/issues/11862,
-	// the current go implementation doesn't support treating ** as zero or more directories, just zero or one.
-	// So we use a third-party library.
-	matches, err := zglob.Glob(fmt.Sprintf("%s/**/*.tf", modulesPath))
+	modulesJsonContents, err := ioutil.ReadFile(modulesJsonPath)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
 
-	return matches, nil
+	var terraformModulesJson TerraformModulesJson
+	if err := json.Unmarshal(modulesJsonContents, &terraformModulesJson); err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
+	var terraformFiles []string
+
+	for _, module := range terraformModulesJson.Modules {
+		if module.Key != "" && module.Dir != "" {
+			moduleAbsPath := module.Dir
+			if !filepath.IsAbs(moduleAbsPath) {
+				moduleAbsPath = util.JoinPath(terragruntOptions.WorkingDir, moduleAbsPath)
+			}
+
+			// Ideally, we'd use a builin Go library like filepath.Glob here, but per https://github.com/golang/go/issues/11862,
+			// the current go implementation doesn't support treating ** as zero or more directories, just zero or one.
+			// So we use a third-party library.
+			matches, err := zglob.Glob(fmt.Sprintf("%s/**/*.tf", moduleAbsPath))
+			if err != nil {
+				return nil, errors.WithStackTrace(err)
+			}
+
+			terraformFiles = append(terraformFiles, matches...)
+		}
+	}
+
+	return terraformFiles, nil
 }
 
 // patchAwsProviderInTerraformCode looks for provider "aws" { ... } blocks in the given Terraform code and overwrites
