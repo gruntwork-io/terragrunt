@@ -1223,7 +1223,7 @@ func TestAwsProviderPatch(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AWS_PROVIDER_PATCH)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt aws-provider-patch --terragrunt-override-attr region=eu-west-1 --terragrunt-working-dir %s", modulePath), os.Stdout, stderr)
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Regexp(t, "Patching AWS provider in .+test/fixture-aws-provider-patch/example-module/main.tf", stderr.String())
 }
 
