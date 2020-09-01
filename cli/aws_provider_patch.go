@@ -63,7 +63,7 @@ type TerraformModule struct {
 // the .terraform/modules folder; it does NOT return Terraform files for the top-level (AKA "root") module.
 //
 // NOTE: this method only supports *.tf files right now. Terraform code defined in *.json files is not currently
-// supported.d
+// supported.
 func findAllTerraformFilesInModules(terragruntOptions *options.TerragruntOptions) ([]string, error) {
 	// Terraform downloads modules into the .terraform/modules folder. Unfortunately, it downloads not only the module
 	// into that folder, but the entire repo it's in, which can contain lots of other unrelated code we probably don't
@@ -97,7 +97,7 @@ func findAllTerraformFilesInModules(terragruntOptions *options.TerragruntOptions
 				moduleAbsPath = util.JoinPath(terragruntOptions.WorkingDir, moduleAbsPath)
 			}
 
-			// Ideally, we'd use a builin Go library like filepath.Glob here, but per https://github.com/golang/go/issues/11862,
+			// Ideally, we'd use a builtin Go library like filepath.Glob here, but per https://github.com/golang/go/issues/11862,
 			// the current go implementation doesn't support treating ** as zero or more directories, just zero or one.
 			// So we use a third-party library.
 			matches, err := zglob.Glob(fmt.Sprintf("%s/**/*.tf", moduleAbsPath))
