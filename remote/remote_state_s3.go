@@ -19,6 +19,10 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
+const (
+	lockTableDeprecationMessage = "Remote state configuration 'lock_table' attribute is deprecated; use 'dynamodb_table' instead."
+)
+
 /*
  * We use this construct to separate the two config keys 's3_bucket_tags' and 'dynamodb_table_tags'
  * from the others, as they are specific to the s3 backend, but only used by terragrunt to tag
@@ -61,7 +65,7 @@ type RemoteStateConfigS3 struct {
 	RoleArn          string `mapstructure:"role_arn"`
 	ExternalID       string `mapstructure:"external_id"`
 	SessionName      string `mapstructure:"session_name"`
-	LockTable        string `mapstructure:"lock_table"`
+	LockTable        string `mapstructure:"lock_table"` // Deprecated in Terraform version 0.13 or newer.
 	DynamoDBTable    string `mapstructure:"dynamodb_table"`
 	CredsFilename    string `mapstructure:"shared_credentials_file"`
 	S3ForcePathStyle bool   `mapstructure:"force_path_style"`
@@ -82,8 +86,9 @@ func (c *ExtendedRemoteStateConfigS3) GetAwsSessionConfig() *aws_helper.AwsSessi
 	}
 }
 
-// The DynamoDB lock table name used to be called lock_table, but has since been renamed to dynamodb_table, and the old
-// name deprecated. To maintain backwards compatibility, we support both names.
+// The DynamoDB lock table attribute used to be called "lock_table", but has since been renamed to "dynamodb_table", and
+// the old attribute name deprecated. The old attribute name has been eventually removed from Terraform starting with
+// release 0.13. To maintain a backwards compatibility, we support both names.
 func (s3Config *RemoteStateConfigS3) GetLockTableName() string {
 	if s3Config.DynamoDBTable != "" {
 		return s3Config.DynamoDBTable
@@ -186,6 +191,17 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 		}
 	}
 
+	// Nowadays it only makes sense to set the "dynamodb_table" attribute as it has
+	// been supported in Terraform since the release of version 0.10. The deprecated
+	// "lock_table" attribute it's either set to NULL in the state file or missing
+	// from it altogether. Display a deprecation warning when the "lock_table"
+	// attribute is being used.
+	if util.KindOf(config["lock_table"]) == reflect.String && config["lock_table"] != "" {
+		terragruntOptions.Logger.Printf("%s\n", lockTableDeprecationMessage)
+		config["dynamodb_table"] = config["lock_table"]
+		delete(config, "lock_table")
+	}
+
 	// Delete custom S3 and DynamoDB tags that are only used in Terragrunt config and not in Terraform's backend
 	for _, key := range terragruntOnlyConfigs {
 		delete(config, key)
@@ -212,6 +228,12 @@ func (s3Initializer S3Initializer) Initialize(remoteState *RemoteState, terragru
 	}
 
 	var s3Config = s3ConfigExtended.remoteStateConfigS3
+
+	// Display a deprecation warning when the "lock_table" attribute is being used
+	// during initialization.
+	if s3Config.LockTable != "" {
+		terragruntOptions.Logger.Printf("%s\n", lockTableDeprecationMessage)
+	}
 
 	s3Client, err := CreateS3Client(s3ConfigExtended.GetAwsSessionConfig(), terragruntOptions)
 	if err != nil {
@@ -242,8 +264,24 @@ func (s3Initializer S3Initializer) Initialize(remoteState *RemoteState, terragru
 func (s3Initializer S3Initializer) GetTerraformInitArgs(config map[string]interface{}) map[string]interface{} {
 	var filteredConfig = make(map[string]interface{})
 
+	const (
+		lockTableKey     = "lock_table"
+		dynamoDBTableKey = "dynamodb_table"
+	)
+
 	for key, val := range config {
+		// Remove attributes that are specific to Terragrunt as
+		// Terraform would fail with an error while trying to
+		// consume these attributes.
 		if util.ListContainsElement(terragruntOnlyConfigs, key) {
+			continue
+		}
+
+		// Remove the deprecated "lock_table" attribute so that it
+		// will not be passed either when generating a backend block
+		// or as a command-line argument.
+		if key == lockTableKey {
+			filteredConfig[dynamoDBTableKey] = val
 			continue
 		}
 
