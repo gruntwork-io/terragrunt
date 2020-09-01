@@ -152,7 +152,7 @@ func patchAwsProviderInTerraformCode(terraformCode string, terraformFilePath str
 			if maybeProvider.Type == hclsyntax.TokenIdent && string(maybeProvider.Bytes) == "provider" &&
 				maybeAws.Type == hclsyntax.TokenQuotedLit && string(maybeAws.Bytes) == "aws" {
 
-				codeWasUpdated = true
+				codeWasUpdated = len(attributesToOverride) > 0
 				for key, value := range attributesToOverride {
 					block.Body().SetAttributeValue(key, cty.StringVal(value))
 				}

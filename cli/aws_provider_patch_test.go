@@ -176,6 +176,98 @@ output "hello" {
 }
 `
 
+const terraformCodeExampleAwsMultipleProvidersNonEmptyWithCommentsOriginal = `
+# Make sure comments are maintained
+# And don't interfere with parsing
+provider "aws" {
+  # Make sure comments are maintained
+  # And don't interfere with parsing
+  region = var.aws_region
+
+  # Make sure comments are maintained
+  # And don't interfere with parsing
+  version = "0.2.0"
+}
+
+# Make sure comments are maintained
+# And don't interfere with parsing
+provider "aws" {
+  # Make sure comments are maintained
+  # And don't interfere with parsing
+  region = var.aws_region
+
+  # Make sure comments are maintained
+  # And don't interfere with parsing
+  version = "0.2.0"
+
+  # Make sure comments are maintained
+  # And don't interfere with parsing
+  alias = "secondary"
+}
+`
+
+const terraformCodeExampleAwsMultipleProvidersNonEmptyWithCommentsRegionOverriddenExpected = `
+# Make sure comments are maintained
+# And don't interfere with parsing
+provider "aws" {
+  # Make sure comments are maintained
+  # And don't interfere with parsing
+  region = "eu-west-1"
+
+  # Make sure comments are maintained
+  # And don't interfere with parsing
+  version = "0.2.0"
+}
+
+# Make sure comments are maintained
+# And don't interfere with parsing
+provider "aws" {
+  # Make sure comments are maintained
+  # And don't interfere with parsing
+  region = "eu-west-1"
+
+  # Make sure comments are maintained
+  # And don't interfere with parsing
+  version = "0.2.0"
+
+  # Make sure comments are maintained
+  # And don't interfere with parsing
+  alias = "secondary"
+}
+`
+
+const terraformCodeExampleAwsMultipleProvidersNonEmptyWithCommentsRegionVersionProfileOverriddenExpected = `
+# Make sure comments are maintained
+# And don't interfere with parsing
+provider "aws" {
+  # Make sure comments are maintained
+  # And don't interfere with parsing
+  region = "eu-west-1"
+
+  # Make sure comments are maintained
+  # And don't interfere with parsing
+  version = "0.3.0"
+  profile = "foo"
+}
+
+# Make sure comments are maintained
+# And don't interfere with parsing
+provider "aws" {
+  # Make sure comments are maintained
+  # And don't interfere with parsing
+  region = "eu-west-1"
+
+  # Make sure comments are maintained
+  # And don't interfere with parsing
+  version = "0.3.0"
+
+  # Make sure comments are maintained
+  # And don't interfere with parsing
+  alias   = "secondary"
+  profile = "foo"
+}
+`
+
 func TestPatchAwsProviderInTerraformCodeHappyPath(t *testing.T) {
 	t.Parallel()
 
@@ -199,6 +291,9 @@ func TestPatchAwsProviderInTerraformCodeHappyPath(t *testing.T) {
 		{"multiple providers, but no overrides", terraformCodeExampleAwsMultipleProvidersOriginal, nil, false, terraformCodeExampleAwsMultipleProvidersOriginal},
 		{"multiple providers, with region override", terraformCodeExampleAwsMultipleProvidersOriginal, map[string]string{"region": "eu-west-1"}, true, terraformCodeExampleAwsMultipleProvidersRegionOverridenExpected},
 		{"multiple providers, with region, version, profile override", terraformCodeExampleAwsMultipleProvidersOriginal, map[string]string{"region": "eu-west-1", "version": "0.3.0", "profile": "foo"}, true, terraformCodeExampleAwsMultipleProvidersRegionProfileVersionOverridenExpected},
+		{"multiple providers with comments, but no overrides", terraformCodeExampleAwsMultipleProvidersNonEmptyWithCommentsOriginal, nil, false, terraformCodeExampleAwsMultipleProvidersNonEmptyWithCommentsOriginal},
+		{"multiple providers with comments, with region override", terraformCodeExampleAwsMultipleProvidersNonEmptyWithCommentsOriginal, map[string]string{"region": "eu-west-1"}, true, terraformCodeExampleAwsMultipleProvidersNonEmptyWithCommentsRegionOverriddenExpected},
+		{"multiple providers with comments, with region, version, profile override", terraformCodeExampleAwsMultipleProvidersNonEmptyWithCommentsOriginal, map[string]string{"region": "eu-west-1", "version": "0.3.0", "profile": "foo"}, true, terraformCodeExampleAwsMultipleProvidersNonEmptyWithCommentsRegionVersionProfileOverriddenExpected},
 	}
 
 	for _, testCase := range testCases {
@@ -207,8 +302,9 @@ func TestPatchAwsProviderInTerraformCodeHappyPath(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.testName, func(t *testing.T) {
 			t.Parallel()
-			actualTerraformCode, codeWasUpdated, err := patchAwsProviderInTerraformCode(testCase.originalTerraformCode, "test.tf", testCase.attributesToOverride)
+			actualTerraformCode, actualCodeWasUpdated, err := patchAwsProviderInTerraformCode(testCase.originalTerraformCode, "test.tf", testCase.attributesToOverride)
 			assert.NoError(t, err)
+			assert.Equal(t, testCase.expectedCodeWasUpdated, actualCodeWasUpdated)
 			assert.Equal(t, testCase.expectedTerraformCode, actualTerraformCode)
 		})
 	}
