@@ -197,7 +197,7 @@ func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string,
 		return "", "", errors.WithStackTrace(err)
 	}
 
-	return workingDir, downloadDir, nil
+	return filepath.ToSlash(workingDir), filepath.ToSlash(downloadDir), nil
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for test usage
