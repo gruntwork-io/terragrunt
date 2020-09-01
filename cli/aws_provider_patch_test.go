@@ -180,24 +180,25 @@ func TestPatchAwsProviderInTerraformCodeHappyPath(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		testName              string
-		originalTerraformCode string
-		attributesToOverride  map[string]string
-		expectedTerraformCode string
+		testName               string
+		originalTerraformCode  string
+		attributesToOverride   map[string]string
+		expectedCodeWasUpdated bool
+		expectedTerraformCode  string
 	}{
-		{"empty", "", nil, ""},
-		{"empty with attributes", "", map[string]string{"region": "eu-west-1"}, ""},
-		{"no provider", terraformCodeExampleOutputOnly, map[string]string{"region": "eu-west-1"}, terraformCodeExampleOutputOnly},
-		{"no aws provider", terraformCodeExampleGcpProvider, map[string]string{"region": "eu-west-1"}, terraformCodeExampleGcpProvider},
-		{"one empty aws provider, but no overrides", terraformCodeExampleAwsProviderEmptyOriginal, nil, terraformCodeExampleAwsProviderEmptyOriginal},
-		{"one empty aws provider, with region override", terraformCodeExampleAwsProviderEmptyOriginal, map[string]string{"region": "eu-west-1"}, terraformCodeExampleAwsProviderRegionOverridenExpected},
-		{"one empty aws provider, with region, version, profile override", terraformCodeExampleAwsProviderEmptyOriginal, map[string]string{"region": "eu-west-1", "version": "0.3.0", "profile": "foo"}, terraformCodeExampleAwsProviderRegionVersionProfileOverridenExpected},
-		{"one non-empty aws provider, but no overrides", terraformCodeExampleAwsProviderNonEmptyOriginal, nil, terraformCodeExampleAwsProviderNonEmptyOriginal},
-		{"one non-empty aws provider, with region override", terraformCodeExampleAwsProviderNonEmptyOriginal, map[string]string{"region": "eu-west-1"}, terraformCodeExampleAwsProviderRegionOverridenVersionNotOverriddenExpected},
-		{"one non-empty aws provider, with region, version, profile override", terraformCodeExampleAwsProviderNonEmptyOriginal, map[string]string{"region": "eu-west-1", "version": "0.3.0", "profile": "foo"}, terraformCodeExampleAwsProviderRegionVersionProfileOverridenExpected},
-		{"multiple providers, but no overrides", terraformCodeExampleAwsMultipleProvidersOriginal, nil, terraformCodeExampleAwsMultipleProvidersOriginal},
-		{"multiple providers, with region override", terraformCodeExampleAwsMultipleProvidersOriginal, map[string]string{"region": "eu-west-1"}, terraformCodeExampleAwsMultipleProvidersRegionOverridenExpected},
-		{"multiple providers, with region, version, profile override", terraformCodeExampleAwsMultipleProvidersOriginal, map[string]string{"region": "eu-west-1", "version": "0.3.0", "profile": "foo"}, terraformCodeExampleAwsMultipleProvidersRegionProfileVersionOverridenExpected},
+		{"empty", "", nil, false, ""},
+		{"empty with attributes", "", map[string]string{"region": "eu-west-1"}, false, ""},
+		{"no provider", terraformCodeExampleOutputOnly, map[string]string{"region": "eu-west-1"}, false, terraformCodeExampleOutputOnly},
+		{"no aws provider", terraformCodeExampleGcpProvider, map[string]string{"region": "eu-west-1"}, false, terraformCodeExampleGcpProvider},
+		{"one empty aws provider, but no overrides", terraformCodeExampleAwsProviderEmptyOriginal, nil, false, terraformCodeExampleAwsProviderEmptyOriginal},
+		{"one empty aws provider, with region override", terraformCodeExampleAwsProviderEmptyOriginal, map[string]string{"region": "eu-west-1"}, true, terraformCodeExampleAwsProviderRegionOverridenExpected},
+		{"one empty aws provider, with region, version, profile override", terraformCodeExampleAwsProviderEmptyOriginal, map[string]string{"region": "eu-west-1", "version": "0.3.0", "profile": "foo"}, true, terraformCodeExampleAwsProviderRegionVersionProfileOverridenExpected},
+		{"one non-empty aws provider, but no overrides", terraformCodeExampleAwsProviderNonEmptyOriginal, nil, false, terraformCodeExampleAwsProviderNonEmptyOriginal},
+		{"one non-empty aws provider, with region override", terraformCodeExampleAwsProviderNonEmptyOriginal, map[string]string{"region": "eu-west-1"}, true, terraformCodeExampleAwsProviderRegionOverridenVersionNotOverriddenExpected},
+		{"one non-empty aws provider, with region, version, profile override", terraformCodeExampleAwsProviderNonEmptyOriginal, map[string]string{"region": "eu-west-1", "version": "0.3.0", "profile": "foo"}, true, terraformCodeExampleAwsProviderRegionVersionProfileOverridenExpected},
+		{"multiple providers, but no overrides", terraformCodeExampleAwsMultipleProvidersOriginal, nil, false, terraformCodeExampleAwsMultipleProvidersOriginal},
+		{"multiple providers, with region override", terraformCodeExampleAwsMultipleProvidersOriginal, map[string]string{"region": "eu-west-1"}, true, terraformCodeExampleAwsMultipleProvidersRegionOverridenExpected},
+		{"multiple providers, with region, version, profile override", terraformCodeExampleAwsMultipleProvidersOriginal, map[string]string{"region": "eu-west-1", "version": "0.3.0", "profile": "foo"}, true, terraformCodeExampleAwsMultipleProvidersRegionProfileVersionOverridenExpected},
 	}
 
 	for _, testCase := range testCases {
@@ -206,7 +207,7 @@ func TestPatchAwsProviderInTerraformCodeHappyPath(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.testName, func(t *testing.T) {
 			t.Parallel()
-			actualTerraformCode, err := patchAwsProviderInTerraformCode(testCase.originalTerraformCode, "test.tf", testCase.attributesToOverride)
+			actualTerraformCode, codeWasUpdated, err := patchAwsProviderInTerraformCode(testCase.originalTerraformCode, "test.tf", testCase.attributesToOverride)
 			assert.NoError(t, err)
 			assert.Equal(t, testCase.expectedTerraformCode, actualTerraformCode)
 		})

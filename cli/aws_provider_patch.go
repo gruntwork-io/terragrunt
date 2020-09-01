@@ -23,17 +23,18 @@ func applyAwsProviderPatch(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	for _, terraformFile := range terraformFilesInModules {
+		terragruntOptions.Logger.Printf("Looking at file %s...", terraformFile)
 		originalTerraformFileContents, err := util.ReadFileAsString(terraformFile)
 		if err != nil {
 			return err
 		}
 
-		updatedTerraformFileContents, err := patchAwsProviderInTerraformCode(originalTerraformFileContents, terraformFile, terragruntOptions.AwsProviderPatchOverrides)
+		updatedTerraformFileContents, codeWasUpdated, err := patchAwsProviderInTerraformCode(originalTerraformFileContents, terraformFile, terragruntOptions.AwsProviderPatchOverrides)
 		if err != nil {
 			return err
 		}
 
-		if originalTerraformFileContents != updatedTerraformFileContents {
+		if codeWasUpdated {
 			terragruntOptions.Logger.Printf("Patching AWS provider in %s", terraformFile)
 			if err := util.WriteFileWithSamePermissions(terraformFile, terraformFile, []byte(updatedTerraformFileContents)); err != nil {
 				return err
@@ -69,7 +70,8 @@ func findAllTerraformFilesInModules(terragruntOptions *options.TerragruntOptions
 }
 
 // patchAwsProviderInTerraformCode looks for provider "aws" { ... } blocks in the given Terraform code and overwrites
-// the attributes in those provider blocks with the given attributes.
+// the attributes in those provider blocks with the given attributes. It returns the new Terraform code and a boolean
+// true if that code was updated.
 //
 // For example, if you passed in the following Terraform code:
 //
@@ -86,11 +88,13 @@ func findAllTerraformFilesInModules(terragruntOptions *options.TerragruntOptions
 // This is a temporary workaround for a Terraform bug (https://github.com/hashicorp/terraform/issues/13018) where
 // any dynamic values in nested provider blocks are not handled correctly when you call 'terraform import', so by
 // temporarily hard-coding them, we can allow 'import' to work.
-func patchAwsProviderInTerraformCode(terraformCode string, terraformFilePath string, attributesToOverride map[string]string) (string, error) {
+func patchAwsProviderInTerraformCode(terraformCode string, terraformFilePath string, attributesToOverride map[string]string) (string, bool, error) {
 	hclFile, err := hclwrite.ParseConfig([]byte(terraformCode), terraformFilePath, hcl.InitialPos)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", false, errors.WithStackTrace(err)
 	}
+
+	codeWasUpdated := false
 
 	for _, block := range hclFile.Body().Blocks() {
 		tokens := block.BuildTokens(nil)
@@ -106,6 +110,7 @@ func patchAwsProviderInTerraformCode(terraformCode string, terraformFilePath str
 			if maybeProvider.Type == hclsyntax.TokenIdent && string(maybeProvider.Bytes) == "provider" &&
 				maybeAws.Type == hclsyntax.TokenQuotedLit && string(maybeAws.Bytes) == "aws" {
 
+				codeWasUpdated = true
 				for key, value := range attributesToOverride {
 					block.Body().SetAttributeValue(key, cty.StringVal(value))
 				}
@@ -114,7 +119,7 @@ func patchAwsProviderInTerraformCode(terraformCode string, terraformFilePath str
 
 	}
 
-	return string(hclFile.Bytes()), nil
+	return string(hclFile.Bytes()), codeWasUpdated, nil
 }
 
 // Custom error types
