@@ -131,6 +131,10 @@ func findAllTerraformFilesInModules(terragruntOptions *options.TerragruntOptions
 // any dynamic values in nested provider blocks are not handled correctly when you call 'terraform import', so by
 // temporarily hard-coding them, we can allow 'import' to work.
 func patchAwsProviderInTerraformCode(terraformCode string, terraformFilePath string, attributesToOverride map[string]string) (string, bool, error) {
+	if len(attributesToOverride) == 0 {
+		return terraformCode, false, nil
+	}
+
 	hclFile, err := hclwrite.ParseConfig([]byte(terraformCode), terraformFilePath, hcl.InitialPos)
 	if err != nil {
 		return "", false, errors.WithStackTrace(err)
@@ -140,25 +144,27 @@ func patchAwsProviderInTerraformCode(terraformCode string, terraformFilePath str
 
 	for _, block := range hclFile.Body().Blocks() {
 		tokens := block.BuildTokens(nil)
-		if len(tokens) > 4 {
-			// The tokens should be:
-			//   - provider
-			//   - "
-			//   - aws
-			//   - "
-			maybeProvider := tokens[0]
-			maybeAws := tokens[2]
 
-			if maybeProvider.Type == hclsyntax.TokenIdent && string(maybeProvider.Bytes) == "provider" &&
-				maybeAws.Type == hclsyntax.TokenQuotedLit && string(maybeAws.Bytes) == "aws" {
+		for index, token := range tokens {
+			if token.Type == hclsyntax.TokenIdent && string(token.Bytes) == "provider" {
+				// We're looking for 4 tokens in a row that look like this:
+				//   - provider
+				//   - "
+				//   - aws
+				//   - "
+				if len(tokens) - index > 2 {
+					maybeAws := tokens[index + 2]
 
-				codeWasUpdated = len(attributesToOverride) > 0
-				for key, value := range attributesToOverride {
-					block.Body().SetAttributeValue(key, cty.StringVal(value))
+					if maybeAws.Type == hclsyntax.TokenQuotedLit && string(maybeAws.Bytes) == "aws" {
+						for key, value := range attributesToOverride {
+							block.Body().SetAttributeValue(key, cty.StringVal(value))
+						}
+
+						codeWasUpdated = true
+					}
 				}
 			}
 		}
-
 	}
 
 	return string(hclFile.Bytes()), codeWasUpdated, nil
