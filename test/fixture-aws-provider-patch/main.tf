@@ -3,8 +3,7 @@ provider "aws" {
 }
 
 module "example_module" {
-  # TODO: replace the ref with a proper release once this is all merged!
-  source = "github.com/gruntwork-io/terragrunt.git//test/fixture-aws-provider-patch/example-module?ref=provider-overwritte"
+  source = "github.com/gruntwork-io/terragrunt.git//test/fixture-aws-provider-patch/example-module?ref=v0.23.40"
 
   secondary_aws_region = var.secondary_aws_region
   bucket_name          = var.bucket_name
