@@ -42,6 +42,7 @@ const OPT_TERRAGRUNT_PARALLELISM = "terragrunt-parallelism"
 const OPT_TERRAGRUNT_CHECK = "terragrunt-check"
 const OPT_TERRAGRUNT_HCLFMT_FILE = "terragrunt-hclfmt-file"
 const OPT_TERRAGRUNT_DEBUG = "terragrunt-debug"
+const OPT_TERRAGRUNT_OVERRIDE_ATTR = "terragrunt-override-attr"
 
 var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{
 	OPT_NON_INTERACTIVE,
@@ -67,6 +68,7 @@ var ALL_TERRAGRUNT_STRING_OPTS = []string{
 	OPT_TERRAGRUNT_INCLUDE_DIR,
 	OPT_TERRAGRUNT_PARALLELISM,
 	OPT_TERRAGRUNT_HCLFMT_FILE,
+	OPT_TERRAGRUNT_OVERRIDE_ATTR,
 }
 
 const CMD_PLAN_ALL = "plan-all"
@@ -81,6 +83,7 @@ const CMD_TERRAGRUNT_INFO = "terragrunt-info"
 const CMD_TERRAGRUNT_GRAPH_DEPENDENCIES = "graph-dependencies"
 const CMD_TERRAGRUNT_READ_CONFIG = "terragrunt-read-config"
 const CMD_HCLFMT = "hclfmt"
+const CMD_AWS_PROVIDER_PATCH = "aws-provider-patch"
 
 // CMD_SPIN_UP is deprecated.
 const CMD_SPIN_UP = "spin-up"
@@ -153,6 +156,7 @@ COMMANDS:
    terragrunt-info      Emits limited terragrunt state on stdout and exits
    graph-dependencies   Prints the terragrunt dependency graph to stdout
    hclfmt               Recursively find terragrunt.hcl files and rewrite them into a canonical format.
+   aws-provider-patch   Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018)
    *                    Terragrunt forwards all other commands directly to Terraform
 
 GLOBAL OPTIONS:
@@ -175,6 +179,7 @@ GLOBAL OPTIONS:
    terragrunt-include-dir                       Unix-style glob of directories to include when running *-all commands
    terragrunt-check                             Enable check mode in the hclfmt command.
    terragrunt-hclfmt-file                       The path to a single terragrunt.hcl file that the hclfmt command should run on.
+   terragrunt-override-attr                     A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.
    terragrunt-debug                             Write terragrunt-debug.tfvars to working folder to help root-cause issues.
 
 VERSION:
@@ -456,6 +461,10 @@ func shouldRunHCLFmt(terragruntOptions *options.TerragruntOptions) bool {
 	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_HCLFMT)
 }
 
+func shouldApplyAwsProviderPatch(terragruntOptions *options.TerragruntOptions) bool {
+	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_AWS_PROVIDER_PATCH)
+}
+
 func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOptions, previousExecError ...error) error {
 	if len(hooks) == 0 {
 		return nil
@@ -522,6 +531,11 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 		if err := prepareNonInitCommand(terragruntOptions, terragruntConfig); err != nil {
 			return err
 		}
+	}
+
+	// Now that we've run 'init' and have all the source code locally, we can finally run the patch command
+	if shouldApplyAwsProviderPatch(terragruntOptions) {
+		return applyAwsProviderPatch(terragruntOptions)
 	}
 
 	if err := checkProtectedModule(terragruntOptions, terragruntConfig); err != nil {

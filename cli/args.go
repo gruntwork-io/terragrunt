@@ -76,6 +76,11 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		return nil, err
 	}
 
+	awsProviderPatchOverrides, err := parseMutliStringKeyValueArg(args, OPT_TERRAGRUNT_OVERRIDE_ATTR, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	terraformPath, err := parseStringArg(args, OPT_TERRAGRUNT_TFPATH, os.Getenv("TERRAGRUNT_TFPATH"))
 	if err != nil {
 		return nil, err
@@ -164,6 +169,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.Check = parseBooleanArg(args, OPT_TERRAGRUNT_CHECK, os.Getenv("TERRAGRUNT_CHECK") == "true")
 	opts.HclFile = filepath.ToSlash(terragruntHclFilePath)
 	opts.Debug = debug
+	opts.AwsProviderPatchOverrides = awsProviderPatchOverrides
 
 	return opts, nil
 }
@@ -349,6 +355,34 @@ func parseMultiStringArg(args []string, argName string, defaultValue []string) (
 	return stringArgs, nil
 }
 
+// Find multiple key=vallue arguments of the same type (e.g. --foo "KEY_A=VALUE_A" --foo "KEY_B=VALUE_B") of the given name in the given list of arguments. If there are any present,
+// return a map of all values. If there are any present, but one of them has no value, return an error. If there aren't any present, return defaultValue.
+func parseMutliStringKeyValueArg(args []string, argName string, defaultValue map[string]string) (map[string]string, error) {
+	asList, err := parseMultiStringArg(args, argName, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if asList == nil {
+		return defaultValue, nil
+	}
+
+	asMap := map[string]string{}
+	for _, arg := range asList {
+		parts := strings.Split(arg, "=")
+		if len(parts) != 2 {
+			return nil, errors.WithStackTrace(InvalidKeyValue(arg))
+		}
+
+		key := parts[0]
+		value := parts[1]
+
+		asMap[key] = value
+	}
+
+	return asMap, nil
+}
+
 // Convert the given variables to a map of environment variables that will expose those variables to Terraform. The
 // keys will be of the format TF_VAR_xxx and the values will be converted to JSON, which Terraform knows how to read
 // natively.
@@ -392,4 +426,10 @@ type ArgMissingValue string
 
 func (err ArgMissingValue) Error() string {
 	return fmt.Sprintf("You must specify a value for the --%s option", string(err))
+}
+
+type InvalidKeyValue string
+
+func (err InvalidKeyValue) Error() string {
+	return fmt.Sprintf("Invalid key-value pair. Expected format KEY=VALUE, got %s.", string(err))
 }

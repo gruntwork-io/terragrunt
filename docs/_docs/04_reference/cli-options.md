@@ -4,14 +4,263 @@ title: CLI options
 category: reference
 categories_url: reference
 excerpt: >-
-  Terragrunt forwards all arguments and options to Terraform. Learn more about CLI options in Terragrunt.
+  Learn about all CLI arguments and options you can use with Terragrunt.
 tags: ["CLI"]
 order: 401
 nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-Terragrunt forwards all arguments and options to Terraform. The only exceptions are `--version`, `terragrunt-info` and arguments that start with the prefix `--terragrunt-`. The currently available options are:
+This page documents the CLI commands and options available with Terragrunt:
+
+  - [CLI commands](#cli-commands)
+  - [CLI options](#cli-options)
+
+
+
+
+## CLI commands
+
+Terragrunt supports the following CLI commands:
+
+  - [All Terraform built-in commands](#all-terraform-built-in-commands)
+  - [plan-all](#plan-all)
+  - [apply-all](#apply-all)
+  - [output-all](#output-all)
+  - [destroy-all](#destroy-all)
+  - [validate-all](#validate-all)
+  - [terragrunt-info](#terragrunt-info)
+  - [graph-dependencies](#graph-dependencies)
+  - [hclfmt](#hclfmt)
+  - [aws-provider-patch](#aws-provider-patch)
+
+### All Terraform built-in commands
+
+Terragrunt is a thin wrapper for Terraform, so except for a few of the special commands defined in these docs, 
+Terragrunt forwards all other commands to Terraform. For example, when you run `terragrunt apply`, Terragrunt executes 
+`terraform apply`.
+
+Examples:
+
+```bash
+terragrunt plan 
+terragrunt apply 
+terragrunt output
+terragrunt destroy
+# etc 
+```
+
+Run `terraform --help` to get the full list. 
+
+### plan-all
+
+Display the plans of a 'stack' by running 'terragrunt plan' in each subfolder. Make sure to read [Execute Terraform 
+commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for 
+context.
+
+Example:
+
+```bash
+terragrunt plan-all
+``` 
+
+This will recursively search the current working directory for any folders that contain Terragrunt modules and run
+`plan` in each one, concurrently, while respecting ordering defined via 
+[`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
+[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks. 
+
+**[WARNING] `plan-all` is currently broken for certain use cases**. If you have a stack of Terragrunt modules with 
+dependencies between them—either via `dependency` blocks or `terraform_remote_state` data sources—and you've never 
+deployed them, then `plan-all` will fail as it will not be possible to resolve the `dependency` blocks or 
+`terraform_remote_state` data sources! Please [see here for more 
+information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-497888756).
+
+
+### apply-all
+
+Apply a 'stack' by running 'terragrunt apply' in each subfolder. Make sure to read [Execute Terraform 
+commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for 
+context.
+
+Example:
+
+```bash
+terragrunt apply-all
+``` 
+
+This will recursively search the current working directory for any folders that contain Terragrunt modules and run
+`apply` in each one, concurrently, while respecting ordering defined via 
+[`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
+[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks. 
+
+### output-all
+
+Display the outputs of a 'stack' by running 'terragrunt output' in each subfolder. Make sure to read [Execute Terraform 
+commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for 
+context.
+
+Example:
+
+```bash
+terragrunt output-all
+``` 
+
+This will recursively search the current working directory for any folders that contain Terragrunt modules and run
+`output` in each one, concurrently, while respecting ordering defined via 
+[`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
+[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks. 
+
+**[WARNING] `output-all` is currently broken for certain use cases**. If you have a stack of Terragrunt modules with 
+dependencies between them—either via `dependency` blocks or `terraform_remote_state` data sources—and you've never 
+deployed them, then `output-all` will fail as it will not be possible to resolve the `dependency` blocks or 
+`terraform_remote_state` data sources! Please [see here for more 
+information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-497888756).
+
+### destroy-all
+
+Destroy a 'stack' by running 'terragrunt destroy' in each subfolder. Make sure to read [Execute Terraform 
+commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for 
+context.
+
+Example:
+
+```bash
+terragrunt destroy-all
+``` 
+
+This will recursively search the current working directory for any folders that contain Terragrunt modules and run
+`destroy` in each one, concurrently, while respecting ordering defined via 
+[`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
+[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks. 
+
+### validate-all
+
+Validate 'stack' by running 'terragrunt validate' in each subfolder. Make sure to read [Execute Terraform 
+commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for 
+context.
+
+Example:
+
+```bash
+terragrunt validate-all
+``` 
+
+This will recursively search the current working directory for any folders that contain Terragrunt modules and run
+`validate` in each one, concurrently, while respecting ordering defined via 
+[`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
+[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks. 
+
+### terragrunt-info
+
+Emits limited terragrunt state on `stdout` in a JSON format and exits.
+
+Example:
+
+```bash
+terragrunt terragrunt-info
+```
+
+Might produce output such as:
+
+```json
+{
+  "ConfigPath": "/example/path/terragrunt.hcl",
+  "DownloadDir": "/example/path/.terragrunt-cache",
+  "IamRole": "",
+  "TerraformBinary": "terraform",
+  "TerraformCommand": "terragrunt-info",
+  "WorkingDir": "/example/path"
+}
+```
+
+### graph-dependencies
+
+Prints the terragrunt dependency graph, in DOT format, to `stdout`. You can generate charts from DOT format using tools
+such as [GraphViz](http://www.graphviz.org/).
+
+Example:
+
+```bash
+terragrunt graph-dependencies
+```
+
+This will recursively search the current working directory for any folders that contain Terragrunt modules and build
+the dependency graph based on [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
+[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks. This may produce output such as:
+
+```
+digraph {
+	"mgmt/bastion-host" ;
+	"mgmt/bastion-host" -> "mgmt/vpc";
+	"mgmt/bastion-host" -> "mgmt/kms-master-key";
+	"mgmt/kms-master-key" ;
+	"mgmt/vpc" ;
+	"stage/backend-app" ;
+	"stage/backend-app" -> "stage/vpc";
+	"stage/backend-app" -> "mgmt/bastion-host";
+	"stage/backend-app" -> "stage/mysql";
+	"stage/backend-app" -> "stage/search-app";
+	"stage/frontend-app" ;
+	"stage/frontend-app" -> "stage/vpc";
+	"stage/frontend-app" -> "mgmt/bastion-host";
+	"stage/frontend-app" -> "stage/backend-app";
+	"stage/mysql" ;
+	"stage/mysql" -> "stage/vpc";
+	"stage/redis" ;
+	"stage/redis" -> "stage/vpc";
+	"stage/search-app" ;
+	"stage/search-app" -> "stage/vpc";
+	"stage/search-app" -> "stage/redis";
+	"stage/vpc" ;
+	"stage/vpc" -> "mgmt/vpc";
+}
+```
+
+### hclfmt
+
+Recursively find `terragrunt.hcl` files and rewrite them into a canonical format.
+
+Example:
+
+```bash
+terragrunt hclfmt
+```
+
+This will recursively search the current working directory for any folders that contain Terragrunt configuration files
+(`terragrunt.hcl`) and run the equivalent of `terraform fmt` on them.
+
+
+### aws-provider-patch
+
+Overwrite settings on nested AWS providers to work around a Terraform bug. Due to 
+[issue #13018](https://github.com/hashicorp/terraform/issues/13018), the `import` command may fail if your Terraform
+code uses a module that has a `provider` block nested within it that sets any of its attributes to computed values. 
+This command is a hacky attempt at working around this problem by allowing you to temporarily hard-code those 
+attributes, based on the [terragrunt-override-attr](#terragrunt-override-attr) options you set, so that `import` 
+can work.
+
+Example:
+
+```bash
+terragrunt aws-provider-patch --terragrunt-override-attr region=eu-west-1
+```  
+
+When you run the command above, Terragrunt will:
+
+1. Run `terraform init` to download the code for all your modules into `.terraform/modules`.
+1. Scan all the Terraform code in `.terraform/modules`, find AWS `provider` blocks, and hard-code the `region` param
+   to `eu-west-1` for each one. 
+
+This should allow you to run `import` on the module and work around issue #13018.   
+
+
+
+
+
+## CLI options
+
+Terragrunt forwards all options to Terraform. The only exceptions are `--version` and arguments that start with the 
+prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available options are:
 
 - [terragrunt-config](#terragrunt-config)
 - [terragrunt-tfpath](#terragrunt-tfpath)
@@ -34,9 +283,10 @@ Terragrunt forwards all arguments and options to Terraform. The only exceptions 
 - [terragrunt-debug](#terragrunt-debug)
 - [terragrunt-check](#terragrunt-check)
 - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
+- [terragrunt-override-attr](#terragrunt-override-attr)
 
 
-## terragrunt-config
+### terragrunt-config
 
 **CLI Arg**: `--terragrunt-config`<br/>
 **Environment Variable**: `TERRAGRUNT_CONFIG`<br/>
@@ -49,7 +299,7 @@ explanation). This argument is not used with the `apply-all`, `destroy-all`, `ou
 `plan-all` commands.
 
 
-## terragrunt-tfpath
+### terragrunt-tfpath
 
 **CLI Arg**: `--terragrunt-tfpath`<br/>
 **Environment Variable**: `TERRAGRUNT_TFPATH`<br/>
@@ -58,7 +308,7 @@ explanation). This argument is not used with the `apply-all`, `destroy-all`, `ou
 A custom path to the Terraform binary. The default is `terraform` in a directory on your PATH.
 
 
-## terragrunt-no-auto-init
+### terragrunt-no-auto-init
 
 **CLI Arg**: `--terragrunt-no-auto-init`<br/>
 **Environment Variable**: `TERRAGRUNT_AUTO_INIT` (set to `false`)
@@ -70,7 +320,7 @@ yourself in this case if needed. `terragrunt` will fail if it detects that `init
 disabled. See [Auto-Init]({{site.baseurl}}/docs/features/auto-init#auto-init)
 
 
-## terragrunt-no-auto-retry
+### terragrunt-no-auto-retry
 
 **CLI Arg**: `--terragrunt-no-auto-retry`<br/>
 **Environment Variable**: `TERRAGRUNT_AUTO_RETRY` (set to `false`)
@@ -79,7 +329,7 @@ When passed in, don't automatically retry commands which fail with transient err
 [Auto-Retry]({{site.baseurl}}/docs/features/auto-retry#auto-retry)
 
 
-## terragrunt-non-interactive
+### terragrunt-non-interactive
 
 **CLI Arg**: `--terragrunt-non-interactive`<br/>
 **Environment Variable**: `TF_INPUT` (set to `false`)
@@ -89,7 +339,7 @@ you need to run Terragrunt in an automated setting (e.g. from a script). May als
 [TF\_INPUT](https://www.terraform.io/docs/configuration/environment-variables.html#tf_input) environment variable.
 
 
-## terragrunt-working-dir
+### terragrunt-working-dir
 
 **CLI Arg**: `--terragrunt-working-dir`<br/>
 **Environment Variable**: `TERRAGRUNT_WORKING_DIR`<br/>
@@ -101,7 +351,7 @@ a different meaning: Terragrunt will apply or destroy all the Terraform modules 
 `terragrunt-working-dir`, running `terraform` in the root of each module it finds.
 
 
-## terragrunt-download-dir
+### terragrunt-download-dir
 
 **CLI Arg**: `--terragrunt-download-dir`<br/>
 **Environment Variable**: `TERRAGRUNT_DOWNLOAD`<br/>
@@ -112,7 +362,7 @@ configurations](https://blog.gruntwork.io/terragrunt-how-to-keep-your-terraform-
 Default is `.terragrunt-cache` in the working directory. We recommend adding this folder to your `.gitignore`.
 
 
-## terragrunt-source
+### terragrunt-source
 
 **CLI Arg**: `--terragrunt-source`<br/>
 **Environment Variable**: `TERRAGRUNT_SOURCE`<br/>
@@ -126,7 +376,7 @@ for all of your Terraform modules, and for each module processed by the `xxx-all
 append the path of `source` parameter in each module to the `--terragrunt-source` parameter you passed in.
 
 
-## terragrunt-source-update
+### terragrunt-source-update
 
 **CLI Arg**: `--terragrunt-source-update`<br/>
 **Environment Variable**: `TERRAGRUNT_SOURCE_UPDATE` (set to `true`)
@@ -134,14 +384,14 @@ append the path of `source` parameter in each module to the `--terragrunt-source
 When passed in, delete the contents of the temporary folder before downloading Terraform source code into it.
 
 
-## terragrunt-ignore-dependency-errors
+### terragrunt-ignore-dependency-errors
 
 **CLI Arg**: `--terragrunt-ignore-dependency-errors`
 
 When passed in, the `*-all` commands continue processing components even if a dependency fails
 
 
-## terragrunt-iam-role
+### terragrunt-iam-role
 
 **CLI Arg**: `--terragrunt-iam-role`<br/>
 **Environment Variable**: `TERRAGRUNT_IAM_ROLE`<br/>
@@ -151,7 +401,7 @@ Assume the specified IAM role ARN before running Terraform or AWS commands. This
 and Terraform with multiple AWS accounts.
 
 
-## terragrunt-exclude-dir
+### terragrunt-exclude-dir
 
 **CLI Arg**: `--terragrunt-exclude-dir`<br/>
 **Requires an argument**: `--terragrunt-exclude-dir /path/to/dirs/to/exclude*`
@@ -164,7 +414,7 @@ excluded during execution of the commands. If a relative path is specified, it s
 module, not its dependencies.
 
 
-## terragrunt-include-dir
+### terragrunt-include-dir
 
 **CLI Arg**: `--terragrunt-include-dir`<br/>
 **Requires an argument**: `--terragrunt-include-dir /path/to/dirs/to/include*`
@@ -176,7 +426,7 @@ dependent modules) will be included during execution of the commands. If a relat
 relative from `--terragrunt-working-dir`. Flag can be specified multiple times.
 
 
-## terragrunt-strict-include
+### terragrunt-strict-include
 
 **CLI Arg**: `--terragrunt-strict-include`
 
@@ -185,14 +435,14 @@ will be included. All dependencies of the included directories will be excluded 
 directories.
 
 
-## terragrunt-ignore-dependency-order
+### terragrunt-ignore-dependency-order
 
 **CLI Arg**: `--terragrunt-ignore-dependency-order`
 
 When passed in, ignore the depedencies between modules when running `*-all` commands.
 
 
-## terragrunt-ignore-external-dependencies
+### terragrunt-ignore-external-dependencies
 
 **CLI Arg**: `--terragrunt-ignore-external-dependencies`
 
@@ -201,7 +451,7 @@ dependency is a dependency that is outside the current terragrunt working direct
 included directories with `terragrunt-include-dir`.
 
 
-## terragrunt-include-external-dependencies
+### terragrunt-include-external-dependencies
 
 **CLI Arg**: `--terragrunt-include-external-dependencies`
 
@@ -210,7 +460,7 @@ dependency is a dependency that is outside the current terragrunt working direct
 included directories with `terragrunt-include-dir`.
 
 
-## terragrunt-parallelism
+### terragrunt-parallelism
 
 **CLI Arg**: `--terragrunt-parallelism`<br/>
 **Environment Variable**: `TERRAGRUNT_PARALLELISM`
@@ -219,7 +469,7 @@ When passed in, limit the number of modules that are run concurrently to this nu
 
 
 
-## terragrunt-debug
+### terragrunt-debug
 
 **CLI Arg**: `--terragrunt-debug`
 
@@ -228,7 +478,7 @@ tfvars.json file.
 
 
 
-## terragrunt-check
+### terragrunt-check
 
 **CLI Arg**: `--terragrunt-check`<br/>
 **Environment Variable**: `TERRAGRUNT_CHECK` (set to `true`)
@@ -236,9 +486,19 @@ tfvars.json file.
 When passed in, run `hclfmt` in check only mode instead of actively overwriting the files. This will cause the
 command to exit with exit code 1 if there are any files that are not formatted.
 
-## terragrunt-hclfmt-file
+
+### terragrunt-hclfmt-file
 
 **CLI Arg**: `--terragrunt-hclfmt-file`
 **Requires an argument**: `--terragrunt-hclfmt-file /path/to/terragrunt.hcl`
 
 When passed in, run `hclfmt` only on specified `*/terragrunt.hcl` file.
+
+
+### terragrunt-override-attr
+
+**CLI Arg**: `--terragrunt-override-attr`
+**Requires an argument**: `--terragrunt-override-attr KEY=VALUE`
+
+A `KEY=VALUE` attribute to override in a `provider` block as part of the [aws-provider-patch 
+command](#aws-provider-patch). May be specified multiple times.
