@@ -193,7 +193,7 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 
 	// Nowadays it only makes sense to set the "dynamodb_table" attribute as it has
 	// been supported in Terraform since the release of version 0.10. The deprecated
-	// "lock_table" attribute it's either set to NULL in the state file or missing
+	// "lock_table" attribute is either set to NULL in the state file or missing
 	// from it altogether. Display a deprecation warning when the "lock_table"
 	// attribute is being used.
 	if util.KindOf(config["lock_table"]) == reflect.String && config["lock_table"] != "" {
