@@ -77,6 +77,12 @@ func TestConfigValuesEqual(t *testing.T) {
 			true,
 		},
 		{
+			"equal-lock-table-replaced-with-dynamodb-table",
+			map[string]interface{}{"lock_table": "foo", "something": "bar"},
+			&TerraformBackend{Type: "s3", Config: map[string]interface{}{"dynamodb_table": "foo", "something": "bar"}},
+			true,
+		},
+		{
 			"unequal-wrong-backend",
 			map[string]interface{}{"foo": "bar"},
 			&TerraformBackend{Type: "wrong", Config: map[string]interface{}{"foo": "bar"}},
@@ -212,6 +218,126 @@ func TestGetAwsSessionConfig(t *testing.T) {
 
 			actual := s3ConfigExtended.GetAwsSessionConfig()
 			assert.Equal(t, expected, actual)
+		})
+	}
+}
+
+func TestGetTerraformInitArgs(t *testing.T) {
+	t.Parallel()
+
+	initializer := S3Initializer{}
+
+	testCases := []struct {
+		name          string
+		config        map[string]interface{}
+		expected      map[string]interface{}
+		shouldBeEqual bool
+	}{
+		{
+			"empty-no-values",
+			map[string]interface{}{},
+			map[string]interface{}{},
+			true,
+		},
+		{
+			"valid-s3-configuration-keys",
+			map[string]interface{}{
+				"bucket":  "foo",
+				"encrypt": "bar",
+				"key":     "baz",
+				"region":  "quux",
+			},
+			map[string]interface{}{
+				"bucket":  "foo",
+				"encrypt": "bar",
+				"key":     "baz",
+				"region":  "quux",
+			},
+			true,
+		},
+		{
+			"terragrunt-keys-filtered",
+			map[string]interface{}{
+				"bucket":         "foo",
+				"encrypt":        "bar",
+				"key":            "baz",
+				"region":         "quux",
+				"s3_bucket_tags": map[string]string{},
+			},
+			map[string]interface{}{
+				"bucket":  "foo",
+				"encrypt": "bar",
+				"key":     "baz",
+				"region":  "quux",
+			},
+			true,
+		},
+		{
+			"empty-no-values-all-terragrunt-keys-filtered",
+			map[string]interface{}{
+				"s3_bucket_tags":                 map[string]string{},
+				"dynamodb_table_tags":            map[string]string{},
+				"skip_bucket_versioning":         true,
+				"skip_bucket_ssencryption":       false,
+				"skip_bucket_accesslogging":      true,
+				"skip_bucket_root_access":        false,
+				"enable_lock_table_ssencryption": true,
+				"disable_aws_client_checksums":   false,
+			},
+			map[string]interface{}{},
+			true,
+		},
+		{
+			"lock-table-replaced-with-dynamodb-table",
+			map[string]interface{}{
+				"bucket":     "foo",
+				"encrypt":    "bar",
+				"key":        "baz",
+				"region":     "quux",
+				"lock_table": "xyzzy",
+			},
+			map[string]interface{}{
+				"bucket":         "foo",
+				"encrypt":        "bar",
+				"key":            "baz",
+				"region":         "quux",
+				"dynamodb_table": "xyzzy",
+			},
+			true,
+		},
+		{
+			"dynamodb-table-not-replaced-with-lock-table",
+			map[string]interface{}{
+				"bucket":         "foo",
+				"encrypt":        "bar",
+				"key":            "baz",
+				"region":         "quux",
+				"dynamodb_table": "xyzzy",
+			},
+			map[string]interface{}{
+				"bucket":     "foo",
+				"encrypt":    "bar",
+				"key":        "baz",
+				"region":     "quux",
+				"lock_table": "xyzzy",
+			},
+			false,
+		},
+	}
+
+	for _, testCase := range testCases {
+		// Save the testCase in local scope so all the t.Run calls don't end up with the last item in the list
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			actual := initializer.GetTerraformInitArgs(testCase.config)
+
+			if !testCase.shouldBeEqual {
+				assert.NotEqual(t, testCase.expected, actual)
+				return
+			}
+			assert.Equal(t, testCase.expected, actual)
 		})
 	}
 }
