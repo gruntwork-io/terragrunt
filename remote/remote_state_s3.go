@@ -88,7 +88,7 @@ func (c *ExtendedRemoteStateConfigS3) GetAwsSessionConfig() *aws_helper.AwsSessi
 
 // The DynamoDB lock table attribute used to be called "lock_table", but has since been renamed to "dynamodb_table", and
 // the old attribute name deprecated. The old attribute name has been eventually removed from Terraform starting with
-// release 0.13. To maintain a backwards compatibility, we support both names.
+// release 0.13. To maintain backwards compatibility, we support both names.
 func (s3Config *RemoteStateConfigS3) GetLockTableName() string {
 	if s3Config.DynamoDBTable != "" {
 		return s3Config.DynamoDBTable
