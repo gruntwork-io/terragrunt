@@ -98,6 +98,7 @@ const (
 	TEST_FIXTURE_AUTO_RETRY_RERUN                           = "fixture-auto-retry/re-run"
 	TEST_FIXTURE_AUTO_RETRY_EXHAUST                         = "fixture-auto-retry/exhaust"
 	TEST_FIXTURE_AUTO_RETRY_APPLY_ALL_RETRIES               = "fixture-auto-retry/apply-all"
+	TEST_FIXTURE_AUTO_RETRY_APPLY_AUTOMATIC_INIT            = "fixture-auto-retry/automatic-init"
 	TEST_FIXTURE_AWS_PROVIDER_PATCH                         = "fixture-aws-provider-patch"
 	TEST_FIXTURE_INPUTS                                     = "fixture-inputs"
 	TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL               = "fixture-locals-errors/undefined-local"
@@ -1196,6 +1197,67 @@ func TestAutoRetryEnvVarWithRecoverableError(t *testing.T) {
 
 	assert.NotNil(t, err)
 	assert.NotContains(t, out.String(), "Apply complete!")
+}
+
+func TestAutomaticInitAfterRecoverableError(t *testing.T) {
+	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_APPLY_AUTOMATIC_INIT)
+
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_APPLY_AUTOMATIC_INIT)
+
+	var paths = map[string]string{
+		"old":     util.JoinPath(modulePath, "module-old"),
+		"new":     util.JoinPath(modulePath, "module-new"),
+		"invalid": util.JoinPath(modulePath, "module-invalid"),
+	}
+
+	var copyTerragruntFiles = func(source string) error {
+		for _, file := range []string{"terragrunt.hcl", "main.tf"} {
+			if err := util.CopyFile(util.JoinPath(source, file), util.JoinPath(modulePath, file)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	var (
+		err    error
+		stdOut bytes.Buffer
+		stdErr bytes.Buffer
+	)
+
+	require.NoError(t, copyTerragruntFiles(paths["old"]))
+
+	// Step 1: Initialize Terraform and download first version (old) of the provider defined in the module.
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), &stdOut, &stdErr)
+	require.NoError(t, err)
+	assert.Contains(t, stdOut.String(), "Terraform has been successfully initialized!")
+
+	stdOut.Reset()
+	stdErr.Reset()
+
+	require.NoError(t, copyTerragruntFiles(paths["new"]))
+
+	// Step 2: Run "terragrunt apply" against a module that uses different (new) version of the provider.
+	// This will cause initial "apply" to fail, and then recovery for known init errors will run "terraform init"
+	// so that new provider version will be downloaded. Then "apply" will be run again.
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), &stdOut, &stdErr)
+	require.NoError(t, err)
+	assert.Contains(t, stdErr.String(), "Error: Could not satisfy plugin requirements")
+	assert.Contains(t, stdOut.String(), "Apply complete!")
+
+	stdOut.Reset()
+	stdErr.Reset()
+
+	require.NoError(t, copyTerragruntFiles(paths["invalid"]))
+
+	// Step 3: Run "terragrunt apply" against a module that uses an unavailable (invalid) version of the provider.
+	// This will cause initial "apply" to fail, and then recovery for known init errors will run "terraform init"
+	// that is going to fail causing the entire Terragrunt run to be interrupted with an error.
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), &stdOut, &stdErr)
+	require.Error(t, err)
+	assert.Contains(t, stdErr.String(), "Error: Could not satisfy plugin requirements")
+	assert.Contains(t, stdErr.String(), "Error: no suitable version is available")
+	assert.Empty(t, stdOut.String())
 }
 
 func TestAutoRetryApplyAllDependentModuleRetries(t *testing.T) {

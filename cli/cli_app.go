@@ -384,7 +384,27 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
-	return runTerragruntWithConfig(terragruntOptions, terragruntConfig, false)
+	isInitCommand := util.FirstArg(terragruntOptions.TerraformCliArgs) == CMD_INIT
+
+	output, err := runTerragruntWithConfig(terragruntOptions, terragruntConfig, false)
+
+	// If running Terraform resulted in an error that matches one of the init errors,
+	// then run the required interim init, and then re-run previous command as-is,
+	// otherwise return error without making any attempt to recover from it or
+	// retry anything.
+	if err != nil && isErrorRequiringInit(output, err, terragruntOptions) && !isInitCommand {
+		terragruntOptions.Logger.Println("Detected an error that requires Terraform to be re-initialized; running 'terraform init' now...")
+
+		// Run the "terraform init" command.
+		if err := runTerraformInit(terragruntOptions, terragruntConfig, nil); err != nil {
+			return err
+		}
+
+		// If the init succeeded, re-run previous command again.
+		_, err = runTerragruntWithConfig(terragruntOptions, terragruntConfig, false)
+	}
+
+	return err
 }
 
 // Check the version constraints of both terragrunt and terraform. Note that as a side effect this will set the
@@ -509,7 +529,7 @@ func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOption
 
 // Runs terraform with the given options and CLI args.
 // This will forward all the args and extra_arguments directly to Terraform.
-func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, allowSourceDownload bool) error {
+func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, allowSourceDownload bool) (string, error) {
 
 	// Add extra_arguments to the command
 	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExtraArgs != nil && len(terragruntConfig.Terraform.ExtraArgs) > 0 {
@@ -520,48 +540,51 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 	}
 
 	if err := setTerragruntInputsAsEnvVars(terragruntOptions, terragruntConfig); err != nil {
-		return err
+		return "", err
 	}
 
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) == CMD_INIT {
 		if err := prepareInitCommand(terragruntOptions, terragruntConfig, allowSourceDownload); err != nil {
-			return err
+			return "", err
 		}
 	} else {
 		if err := prepareNonInitCommand(terragruntOptions, terragruntConfig); err != nil {
-			return err
+			return "", err
 		}
 	}
 
 	// Now that we've run 'init' and have all the source code locally, we can finally run the patch command
 	if shouldApplyAwsProviderPatch(terragruntOptions) {
-		return applyAwsProviderPatch(terragruntOptions)
+		return "", applyAwsProviderPatch(terragruntOptions)
 	}
 
 	if err := checkProtectedModule(terragruntOptions, terragruntConfig); err != nil {
-		return err
+		return "", err
 	}
 
-	return runActionWithHooks("terraform", terragruntOptions, terragruntConfig, func() error {
+	return runActionWithHooks("terraform", terragruntOptions, terragruntConfig, func() (string, error) {
 		return runTerraformWithRetry(terragruntOptions)
 	})
 }
 
 // Run the given action function surrounded by hooks. That is, run the before hooks first, then, if there were no
 // errors, run the action, and finally, run the after hooks. Return any errors hit from the hooks or action.
-func runActionWithHooks(description string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, action func() error) error {
+func runActionWithHooks(description string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, action func() (string, error)) (string, error) {
 	beforeHookErrors := processHooks(terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions)
 
-	var actionErrors error
+	var (
+		actionErrors error
+		actionStderr string
+	)
 	if beforeHookErrors == nil {
-		actionErrors = action()
+		actionStderr, actionErrors = action()
 	} else {
 		terragruntOptions.Logger.Printf("Errors encountered running before_hooks. Not running '%s'.", description)
 	}
 
 	postHookErrors := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, beforeHookErrors, actionErrors)
 
-	return errors.NewMultiError(beforeHookErrors, actionErrors, postHookErrors)
+	return actionStderr, errors.NewMultiError(beforeHookErrors, actionErrors, postHookErrors)
 }
 
 // The Terragrunt configuration can contain a set of inputs to pass to Terraform as environment variables. This method
@@ -585,22 +608,24 @@ func setTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, 
 	return nil
 }
 
-func runTerraformWithRetry(terragruntOptions *options.TerragruntOptions) error {
+func runTerraformWithRetry(terragruntOptions *options.TerragruntOptions) (string, error) {
 	// Retry the command configurable time with sleep in between
 	for i := 0; i < terragruntOptions.MaxRetryAttempts; i++ {
 		if out, tferr := shell.RunTerraformCommandWithOutput(terragruntOptions, terragruntOptions.TerraformCliArgs...); tferr != nil {
-			if out != nil && isRetryable(out.Stderr, tferr, terragruntOptions) {
-				terragruntOptions.Logger.Printf("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.Sleep)
-				time.Sleep(terragruntOptions.Sleep)
-			} else {
-				return tferr
+			if out != nil {
+				if isRetryable(out.Stderr, tferr, terragruntOptions) {
+					terragruntOptions.Logger.Printf("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.Sleep)
+					time.Sleep(terragruntOptions.Sleep)
+				} else {
+					return out.Stderr, tferr
+				}
 			}
-		} else {
-			return nil
+			return "", tferr
 		}
+		return "", nil
 	}
 
-	return errors.WithStackTrace(MaxRetriesExceeded{terragruntOptions})
+	return "", errors.WithStackTrace(MaxRetriesExceeded{terragruntOptions})
 }
 
 // Prepare for running 'terraform init' by initializing remote state storage and adding backend configuration arguments
@@ -742,7 +767,10 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 		return err
 	}
 
-	return runTerragruntWithConfig(initOptions, terragruntConfig, terraformSource != nil)
+	if _, err = runTerragruntWithConfig(initOptions, terragruntConfig, terraformSource != nil); err != nil {
+		return err
+	}
+	return nil
 }
 
 func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformSource *TerraformSource) (*options.TerragruntOptions, error) {
@@ -901,6 +929,14 @@ func isRetryable(tfoutput string, tferr error, terragruntOptions *options.Terrag
 		return false
 	}
 	return util.MatchesAny(terragruntOptions.RetryableErrors, tfoutput)
+}
+
+// isErrorRequiringInit checks whether there was an error and we should attempt to re-run init.
+func isErrorRequiringInit(tfoutput string, tferr error, terragruntOptions *options.TerragruntOptions) bool {
+	if !terragruntOptions.AutoRetry || !terragruntOptions.AutoInit || tferr == nil {
+		return false
+	}
+	return util.MatchesAny(terragruntOptions.ErrorsRequiringInit, tfoutput)
 }
 
 // Custom error types

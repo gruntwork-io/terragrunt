@@ -23,7 +23,7 @@ When Auto-Init is enabled (the default), terragrunt will automatically call [`te
 
 As [mentioned]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#extra_arguments-for-init), `extra_arguments` can be configured to allow customization of the `terraform init` command.
 
-Note that there might be cases where terragrunt does not properly detect that `terraform init` needs be called. In this case, terraform would fail. Running `terragrunt init` again corrects this situation.
+Terragrunt will attempt to detect several common errors to automatically handle the cases where `terraform init` would need to be called (for example a module version has changed and a new version has to be downloaded, etc.) and then run it as appropriate. In case where Terragrunt detected that `terraform init` has to be run it will then re-run the original command (e.g., `plan`, `apply`, etc.) once `terraform init` completes successfully. Note that even though Terragrunt will try to recover from most errors there might be cases where Terragrunt does not properly detect that `terraform init` needs be called. In this case, Terraform would fail. Running `terragrunt init` again corrects this situation.
 
 For some use cases, it might be desirable to disable Auto-Init. For example, if each user wants to specify a different `-plugin-dir` option to `terraform init` (and therefore it cannot be put in `extra_arguments`). To disable Auto-Init, use the `--terragrunt-no-auto-init` command line option or set the `TERRAGRUNT_AUTO_INIT` environment variable to `false`.
 

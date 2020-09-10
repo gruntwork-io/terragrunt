@@ -114,6 +114,10 @@ type TerragruntOptions struct {
 	// RetryableErrors is an array of regular expressions with RE2 syntax (https://github.com/google/re2/wiki/Syntax) that qualify for retrying
 	RetryableErrors []string
 
+	// ErrorsRequiringInit is an array of regular expressions with RE2 syntax
+	// (https://github.com/google/re2/wiki/Syntax) that qualify for re-running init.
+	ErrorsRequiringInit []string
+
 	// Unix-style glob of directories to exclude when running *-all commands
 	ExcludeDirs []string
 
@@ -181,6 +185,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		MaxRetryAttempts:            DEFAULT_MAX_RETRY_ATTEMPTS,
 		Sleep:                       DEFAULT_SLEEP,
 		RetryableErrors:             util.CloneStringList(RETRYABLE_ERRORS),
+		ErrorsRequiringInit:         util.CloneStringList(ERRORS_REQUIRING_INIT),
 		ExcludeDirs:                 []string{},
 		IncludeDirs:                 []string{},
 		StrictInclude:               false,
@@ -254,6 +259,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		MaxRetryAttempts:            terragruntOptions.MaxRetryAttempts,
 		Sleep:                       terragruntOptions.Sleep,
 		RetryableErrors:             util.CloneStringList(terragruntOptions.RetryableErrors),
+		ErrorsRequiringInit:         util.CloneStringList(terragruntOptions.ErrorsRequiringInit),
 		ExcludeDirs:                 terragruntOptions.ExcludeDirs,
 		IncludeDirs:                 terragruntOptions.IncludeDirs,
 		Parallelism:                 terragruntOptions.Parallelism,
