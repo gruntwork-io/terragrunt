@@ -37,6 +37,7 @@ type ExtendedRemoteStateConfigS3 struct {
 	SkipBucketSSEncryption      bool              `mapstructure:"skip_bucket_ssencryption"`
 	SkipBucketAccessLogging     bool              `mapstructure:"skip_bucket_accesslogging"`
 	SkipBucketRootAccess        bool              `mapstructure:"skip_bucket_root_access"`
+	SkipBucketEnforcedTLS       bool              `mapstructure:"skip_bucket_enforced_tls"`
 	EnableLockTableSSEncryption bool              `mapstructure:"enable_lock_table_ssencryption"`
 	DisableAWSClientChecksums   bool              `mapstructure:"disable_aws_client_checksums"`
 }
@@ -50,6 +51,7 @@ var terragruntOnlyConfigs = []string{
 	"skip_bucket_ssencryption",
 	"skip_bucket_accesslogging",
 	"skip_bucket_root_access",
+	"skip_bucket_enforced_tls",
 	"enable_lock_table_ssencryption",
 	"disable_aws_client_checksums",
 }
@@ -401,6 +403,12 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 		return err
 	}
 
+	if config.SkipBucketEnforcedTLS {
+		terragruntOptions.Logger.Printf("TLS enforcement is disabled for the remote state S3 bucket %s using 'skip_bucket_enforce_tls' config.", config.remoteStateConfigS3.Bucket)
+	} else if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
+		return err
+	}
+
 	if err := EnablePublicAccessBlockingForS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
 		return err
 	}
@@ -503,7 +511,7 @@ func isBucketAlreadyOwnedByYourError(err error) bool {
 	return isAwsErr && (awsErr.Code() == "BucketAlreadyOwnedByYou" || awsErr.Code() == "OperationAborted")
 }
 
-// Create the S3 bucket specified in the given config
+// Add a policy to allow root access to the bucket
 func EnableRootAccesstoS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Enabling root access to S3 bucket %s", config.Bucket)
 
@@ -546,6 +554,48 @@ func EnableRootAccesstoS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, te
 	}
 
 	terragruntOptions.Logger.Printf("Enabled root access to bucket %s", config.Bucket)
+	return nil
+}
+
+// Add a policy to enforce TLS based access to the bucket
+func EnableEnforcedTLSAccesstoS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Printf("Enabling enforced TLS access for S3 bucket %s", config.Bucket)
+
+	tlsS3Policy := map[string]interface{}{
+		"Version": "2012-10-17",
+		"Statement": []map[string]interface{}{
+			{
+				"Sid":    "AllowSSLRequestsOnly",
+				"Action": "s3:*",
+				"Effect": "Deny",
+				"Resource": []string{
+					"arn:aws:s3:::" + config.Bucket,
+					"arn:aws:s3:::" + config.Bucket + "/*",
+				},
+				"Condition": map[string]interface{}{
+					"Bool": map[string]interface{}{
+						"aws:SecureTransport": "false",
+					},
+				},
+				"Principal": "*",
+			},
+		},
+	}
+
+	policy, err := json.Marshal(tlsS3Policy)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	_, err = s3Client.PutBucketPolicy(&s3.PutBucketPolicyInput{
+		Bucket: aws.String(config.Bucket),
+		Policy: aws.String(string(policy)),
+	})
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	terragruntOptions.Logger.Printf("Enabled enforced TLS access for bucket %s", config.Bucket)
 	return nil
 }
 
