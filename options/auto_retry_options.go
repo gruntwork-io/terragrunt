@@ -18,4 +18,5 @@ var RETRYABLE_ERRORS = []string{
 	"NoSuchBucket: The specified bucket does not exist",
 	"(?s).*Error creating SSM parameter: TooManyUpdates:.*",
 	"(?s).*\"app.terraform.io/.*\": 429 Too Many Requests.*",
+	"(?s).*app.terraform.io: error looking up module versions: 429 Too Many Requests.*",
 }
