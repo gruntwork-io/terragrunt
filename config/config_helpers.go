@@ -501,6 +501,16 @@ func getModulePathFromSourceUrl(sourceUrl string) (string, error) {
 	return matches[1], nil
 }
 
+//
+// A map that caches the results of a decrypt operation via sops. Each decryption
+// operation can take several seconds, so this cache speeds up terragrunt executions
+// where the same sops files are referenced multiple times.
+//
+// The keys are the canonical paths to the encrypted files, and the values are the
+// plain-text result of the decrypt operation.
+//
+var sopsCache = make(map[string]string)
+
 // decrypts and returns sops encrypted utf-8 yaml or json data as a string
 func sopsDecryptFile(params []string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	numParams := len(params)
@@ -524,13 +534,24 @@ func sopsDecryptFile(params []string, include *IncludeConfig, terragruntOptions 
 		return "", errors.WithStackTrace(InvalidSopsFormat{SourceFilePath: sourceFile})
 	}
 
+	canonicalSourceFile, err := util.CanonicalPath(sourceFile, terragruntOptions.WorkingDir)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	if val, ok := sopsCache[canonicalSourceFile]; ok {
+		return val, nil
+	}
+
 	rawData, err := decrypt.File(sourceFile, format)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
 
 	if utf8.Valid(rawData) {
-		return string(rawData), nil
+		value := string(rawData)
+		sopsCache[canonicalSourceFile] = value
+		return value, nil
 	}
 
 	return "", errors.WithStackTrace(InvalidSopsFormat{SourceFilePath: sourceFile})
