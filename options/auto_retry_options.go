@@ -17,8 +17,5 @@ var RETRYABLE_ERRORS = []string{
 	"(?s).*Error installing provider.*tcp.*connection reset by peer.*",
 	"NoSuchBucket: The specified bucket does not exist",
 	"(?s).*Error creating SSM parameter: TooManyUpdates:.*",
-	".*etcdserver: leader changed.*",
-	".*etcdserver: request timed out.*",
-	"(?s).*\"app.terraform.io/.*\": 429 Too Many Requests.*",
-	"(?s).*app.terraform.io: error looking up module versions: 429 Too Many Requests.*",
+	"(?s).*app.terraform.io.*: 429 Too Many Requests.*",
 }
