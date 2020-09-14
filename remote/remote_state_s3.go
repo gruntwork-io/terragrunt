@@ -404,7 +404,7 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 	}
 
 	if config.SkipBucketEnforcedTLS {
-		terragruntOptions.Logger.Printf("TLS enforcement is disabled for the remote state S3 bucket %s using 'skip_bucket_enforce_tls' config.", config.remoteStateConfigS3.Bucket)
+		terragruntOptions.Logger.Printf("TLS enforcement is disabled for the remote state S3 bucket %s using 'skip_bucket_enforced_tls' config.", config.remoteStateConfigS3.Bucket)
 	} else if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
 		return err
 	}
@@ -565,7 +565,7 @@ func EnableEnforcedTLSAccesstoS3Bucket(s3Client *s3.S3, config *RemoteStateConfi
 		"Version": "2012-10-17",
 		"Statement": []map[string]interface{}{
 			{
-				"Sid":    "AllowSSLRequestsOnly",
+				"Sid":    "AllowTLSRequestsOnly",
 				"Action": "s3:*",
 				"Effect": "Deny",
 				"Resource": []string{
