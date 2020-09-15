@@ -437,12 +437,18 @@ func getTerragruntOutputJsonFromRemoteState(
 ) ([]byte, error) {
 	util.Debugf(terragruntOptions.Logger, "Detected remote state block with generate config. Resolving dependency by pulling remote state.")
 
-	// Create working directory where we will run terraform in. Make sure it is cleaned up before the function returns.
-	tempWorkDir, err := ioutil.TempDir("", "")
+	// Create working directory where we will run terraform in. We will create the temporary directory in the download
+	// directory for consistency with other file generation capabilities of terragrunt. Make sure it is cleaned up
+	// before the function returns.
+	if err := util.EnsureDirectory(terragruntOptions.DownloadDir); err != nil {
+		return nil, err
+	}
+	tempWorkDir, err := ioutil.TempDir(terragruntOptions.DownloadDir, "")
 	if err != nil {
 		return nil, err
 	}
 	defer os.RemoveAll(tempWorkDir)
+	util.Debugf(terragruntOptions.Logger, "Setting dependency working directory to %s", tempWorkDir)
 
 	// Here we clone the terragrunt options again since we need to make further modifications to it to allow fetching
 	// remote state.
@@ -474,6 +480,7 @@ func getTerragruntOutputJsonFromRemoteState(
 	if err := remoteState.GenerateTerraformCode(targetTGOptions); err != nil {
 		return nil, err
 	}
+	util.Debugf(terragruntOptions.Logger, "Generated remote state configuration in working dir %s", tempWorkDir)
 
 	// The working directory is now set up to interact with the state, so pull it down to get the json output.
 

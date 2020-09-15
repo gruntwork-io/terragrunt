@@ -27,6 +27,16 @@ func FileNotExists(path string) bool {
 	return os.IsNotExist(err)
 }
 
+// EnsureDirectory creates a directory at this path if it does not exist, or error if the path exists and is a file.
+func EnsureDirectory(path string) error {
+	if FileExists(path) && IsFile(path) {
+		return errors.WithStackTrace(PathIsNotDirectory{path})
+	} else if !FileExists(path) {
+		return errors.WithStackTrace(os.MkdirAll(path, 0700))
+	}
+	return nil
+}
+
 // Return the canonical version of the given path, relative to the given base path. That is, if the given path is a
 // relative path, assume it is relative to the given base path. A canonical path is an absolute path with all relative
 // components (e.g. "../") fully resolved, which makes it safe to compare paths as strings.
@@ -397,4 +407,15 @@ func (manifest *fileManifest) Close() error {
 
 func newFileManifest(manifestFolder string, manifestFile string) *fileManifest {
 	return &fileManifest{ManifestFolder: manifestFolder, ManifestFile: manifestFile}
+}
+
+// Custom errors
+
+// PathIsNotDirectory is returned when the given path is unexpectedly not a directory.
+type PathIsNotDirectory struct {
+	path string
+}
+
+func (err PathIsNotDirectory) Error() string {
+	return fmt.Sprintf("%s is not a directory", err.path)
 }
