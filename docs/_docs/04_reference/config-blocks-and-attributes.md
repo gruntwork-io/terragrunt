@@ -241,6 +241,7 @@ For the `s3` backend, the following additional properties are supported in the `
 - `skip_bucket_accesslogging`: When `true`, the S3 bucket that is created to store the state will not be configured with
   access logging.
 - `skip_bucket_root_access`: When `true`, the S3 bucket that is created will not be configured with bucket policies that allow access to the root AWS user.
+- `skip_bucket_enforced_tls`: When `true`, the S3 bucket that is created will not be configured with a bucket policy that enforces access to the bucket via a TLS connection.
 - `enable_lock_table_ssencryption`: When `true`, the synchronization lock table in DynamoDB used for remote state concurrent access will not be configured with server side encryption.
 - `s3_bucket_tags`: A map of key value pairs to associate as tags on the created S3 bucket.
 - `dynamodb_table_tags`: A map of key value pairs to associate as tags on the created DynamoDB remote state lock table.
