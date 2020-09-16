@@ -103,4 +103,4 @@ If you run `terragrunt hclfmt` at the `root`, this will update:
 
   - `root/qa/terragrunt.hcl`
 
-Additionally, there’s a flag `--terragrunt-check`. It allows to validating if files are properly formatted. It does not rewrite files and in case of invalid format, it will return an error with exit status 0.
+Additionally, there’s a flag `--terragrunt-check`. `terragrunt hclfmt --terragrunt-check` will only verify if the files are correctly formatted **without rewriting** them. The command will return exit status 1 if any matching files are improperly formatted, or 0 if all matching .hcl files are correctly formatted.
