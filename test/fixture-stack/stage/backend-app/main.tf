@@ -20,7 +20,7 @@ data "terraform_remote_state" "vpc" {
   config = {
     region = "us-west-2"
     bucket = var.terraform_remote_state_s3_bucket
-    key = "stage/vpc/terraform.tfstate"
+    key    = "stage/vpc/terraform.tfstate"
   }
 }
 
@@ -29,7 +29,7 @@ data "terraform_remote_state" "mysql" {
   config = {
     region = "us-west-2"
     bucket = var.terraform_remote_state_s3_bucket
-    key = "stage/mysql/terraform.tfstate"
+    key    = "stage/mysql/terraform.tfstate"
   }
 }
 
@@ -38,7 +38,7 @@ data "terraform_remote_state" "search_app" {
   config = {
     region = "us-west-2"
     bucket = var.terraform_remote_state_s3_bucket
-    key = "stage/search-app/terraform.tfstate"
+    key    = "stage/search-app/terraform.tfstate"
   }
 }
 
@@ -47,6 +47,6 @@ data "terraform_remote_state" "bastion_host" {
   config = {
     region = "us-west-2"
     bucket = var.terraform_remote_state_s3_bucket
-    key = "mgmt/bastion-host/terraform.tfstate"
+    key    = "mgmt/bastion-host/terraform.tfstate"
   }
 }

@@ -24,7 +24,7 @@ data "terraform_remote_state" "vpc" {
   config = {
     region = "us-west-2"
     bucket = var.terraform_remote_state_s3_bucket
-    key = "stage/vpc/terraform.tfstate"
+    key    = "stage/vpc/terraform.tfstate"
   }
 }
 
@@ -33,6 +33,6 @@ data "terraform_remote_state" "redis" {
   config = {
     region = "us-west-2"
     bucket = var.terraform_remote_state_s3_bucket
-    key = "stage/redis/terraform.tfstate"
+    key    = "stage/redis/terraform.tfstate"
   }
 }

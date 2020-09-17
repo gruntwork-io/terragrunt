@@ -1,5 +1,5 @@
 data "template_file" "example" {
-  template = "hello, world"  
+  template = "hello, world"
 }
 
 output "example" {
