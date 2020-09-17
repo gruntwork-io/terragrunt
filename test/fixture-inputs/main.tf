@@ -72,10 +72,10 @@ output "map_bool" {
 
 variable "object" {
   type = object({
-    str = string
-    num = number
+    str  = string
+    num  = number
     list = list(number)
-    map = map(string)
+    map  = map(string)
   })
 }
 
