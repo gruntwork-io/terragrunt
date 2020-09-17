@@ -1480,7 +1480,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	mockOptions.WorkingDir = rootPath
 	require.NoError(
 		t,
-		shell.RunTerraformCommand(mockOptions, "apply", "-var-file", debugFile),
+		shell.RunTerraformCommand(mockOptions, "apply", "-auto-approve", "-var-file", debugFile),
 	)
 
 	stdout := bytes.Buffer{}
@@ -1560,7 +1560,7 @@ func TestLocalsInInclude(t *testing.T) {
 	)
 	assert.Equal(
 		t,
-		"[\"apply\",\"-no-color\"]",
+		"[\"apply\",\"-auto-approve\",\"-no-color\"]",
 		outputs["terraform_cli_args"].Value,
 	)
 }
