@@ -48,7 +48,7 @@ const (
 	TERRAFORM_REMOTE_STATE_S3_REGION                        = "us-west-2"
 	TERRAFORM_REMOTE_STATE_GCP_REGION                       = "eu"
 	TEST_FIXTURE_PATH                                       = "fixture/"
-	TEST_FIXTURE_CODEGEN_PATH                               = "fixture-codegen/"
+	TEST_FIXTURE_CODEGEN_PATH                               = "fixture-codegen"
 	TEST_FIXTURE_GCS_PATH                                   = "fixture-gcs/"
 	TEST_FIXTURE_GCS_BYO_BUCKET_PATH                        = "fixture-gcs-byo-bucket/"
 	TEST_FIXTURE_INCLUDE_PATH                               = "fixture-include/"
@@ -2910,7 +2910,7 @@ func TestTerragruntGenerateBlockSkip(t *testing.T) {
 	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "generate-block", "skip")
 	cleanupTerraformFolder(t, generateTestCase)
 	cleanupTerragruntFolder(t, generateTestCase)
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s ", generateTestCase))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
 	assert.False(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
 
@@ -2921,7 +2921,7 @@ func TestTerragruntGenerateBlockOverwrite(t *testing.T) {
 	cleanupTerraformFolder(t, generateTestCase)
 	cleanupTerragruntFolder(t, generateTestCase)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s ", generateTestCase))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
 	// If the state file was written as foo.tfstate, that means it overwrote the local backend config.
 	assert.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 	assert.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
@@ -2934,7 +2934,7 @@ func TestTerragruntGenerateBlockOverwriteTerragruntSuccess(t *testing.T) {
 	cleanupTerraformFolder(t, generateTestCase)
 	cleanupTerragruntFolder(t, generateTestCase)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s ", generateTestCase))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
 	// If the state file was written as foo.tfstate, that means it overwrote the local backend config.
 	assert.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 	assert.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
@@ -2962,7 +2962,7 @@ func TestTerragruntGenerateBlockNestedInherit(t *testing.T) {
 	cleanupTerraformFolder(t, generateTestCase)
 	cleanupTerragruntFolder(t, generateTestCase)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s ", generateTestCase))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
 	// If the state file was written as foo.tfstate, that means it inherited the config
 	assert.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 	assert.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
@@ -2977,7 +2977,7 @@ func TestTerragruntGenerateBlockNestedOverwrite(t *testing.T) {
 	cleanupTerraformFolder(t, generateTestCase)
 	cleanupTerragruntFolder(t, generateTestCase)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s ", generateTestCase))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
 	// If the state file was written as bar.tfstate, that means it overwrite the parent config
 	assert.False(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 	assert.True(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
@@ -2992,7 +2992,7 @@ func TestTerragruntGenerateBlockDisableSignature(t *testing.T) {
 	cleanupTerraformFolder(t, generateTestCase)
 	cleanupTerragruntFolder(t, generateTestCase)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s ", generateTestCase))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
 
 	// Now check the outputs to make sure they are as expected
 	stdout := bytes.Buffer{}
@@ -3017,7 +3017,7 @@ func TestTerragruntRemoteStateCodegenGeneratesBackendBlock(t *testing.T) {
 	cleanupTerraformFolder(t, generateTestCase)
 	cleanupTerragruntFolder(t, generateTestCase)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s ", generateTestCase))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
 	// If the state file was written as foo.tfstate, that means it wrote out the local backend config.
 	assert.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
@@ -3030,7 +3030,7 @@ func TestTerragruntRemoteStateCodegenOverwrites(t *testing.T) {
 	cleanupTerraformFolder(t, generateTestCase)
 	cleanupTerragruntFolder(t, generateTestCase)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s ", generateTestCase))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
 	// If the state file was written as foo.tfstate, that means it overwrote the local backend config.
 	assert.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 	assert.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
@@ -3052,7 +3052,7 @@ func TestTerragruntRemoteStateCodegenGeneratesBackendBlockS3(t *testing.T) {
 
 	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, generateTestCase, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s ", tmpTerragruntConfigPath, generateTestCase))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, generateTestCase))
 }
 
 func TestTerragruntRemoteStateCodegenErrorsIfExists(t *testing.T) {
@@ -3079,7 +3079,7 @@ func TestTerragruntRemoteStateCodegenDoesNotGenerateWithSkip(t *testing.T) {
 	cleanupTerraformFolder(t, generateTestCase)
 	cleanupTerragruntFolder(t, generateTestCase)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s ", generateTestCase))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
 	assert.False(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
 
