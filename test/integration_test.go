@@ -48,7 +48,7 @@ const (
 	TERRAFORM_REMOTE_STATE_S3_REGION                        = "us-west-2"
 	TERRAFORM_REMOTE_STATE_GCP_REGION                       = "eu"
 	TEST_FIXTURE_PATH                                       = "fixture/"
-	TEST_FIXTURE_CODEGEN_PATH                               = "fixture-codegen/"
+	TEST_FIXTURE_CODEGEN_PATH                               = "fixture-codegen"
 	TEST_FIXTURE_GCS_PATH                                   = "fixture-gcs/"
 	TEST_FIXTURE_GCS_BYO_BUCKET_PATH                        = "fixture-gcs-byo-bucket/"
 	TEST_FIXTURE_INCLUDE_PATH                               = "fixture-include/"
@@ -220,7 +220,7 @@ func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 	output := stderr.String()
 
 	if err != nil {
@@ -252,7 +252,7 @@ func TestTerragruntInitHookNoSourceWithBackend(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 	output := stderr.String()
 
 	if err != nil {
@@ -277,7 +277,7 @@ func TestTerragruntInitHookWithSourceNoBackend(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 	output := stderr.String()
 
 	if err != nil {
@@ -309,7 +309,7 @@ func TestTerragruntInitHookWithSourceWithBackend(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 	output := stderr.String()
 
 	if err != nil {
@@ -329,7 +329,7 @@ func TestTerragruntBeforeHook(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
 	_, exception := ioutil.ReadFile(rootPath + "/file.out")
 
@@ -343,7 +343,7 @@ func TestTerragruntAfterHook(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
 	_, exception := ioutil.ReadFile(rootPath + "/file.out")
 
@@ -359,7 +359,7 @@ func TestTerragruntBeforeAndAfterHook(t *testing.T) {
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 
 	_, beforeException := ioutil.ReadFile(rootPath + "/before.out")
 	_, afterException := ioutil.ReadFile(rootPath + "/after.out")
@@ -393,7 +393,7 @@ func TestTerragruntBeforeAndAfterMergeHook(t *testing.T) {
 
 	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_MERGE_PATH, TEST_FIXTURE_INCLUDE_CHILD_REL_PATH, s3BucketName, config.DefaultTerragruntConfigPath, config.DefaultTerragruntConfigPath)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
 
 	_, beforeException := ioutil.ReadFile(childPath + "/before.out")
 	_, beforeChildException := ioutil.ReadFile(childPath + "/before-child.out")
@@ -422,7 +422,7 @@ func TestTerragruntSkipOnError(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 
 	output := stderr.String()
 	if err != nil {
@@ -448,7 +448,7 @@ func TestTerragruntBeforeOneArgAction(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 	output := stderr.String()
 
 	if err != nil {
@@ -470,7 +470,7 @@ func TestTerragruntEmptyStringCommandHook(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 
 	if err != nil {
 		assert.Contains(t, err.Error(), "Need at least one non-empty argument in 'execute'.")
@@ -491,7 +491,7 @@ func TestTerragruntEmptyCommandListHook(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 
 	if err != nil {
 		assert.Contains(t, err.Error(), "Need at least one non-empty argument in 'execute'.")
@@ -512,7 +512,7 @@ func TestTerragruntHookInterpolation(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 	erroutput := stderr.String()
 
 	homePath := os.Getenv("HOME")
@@ -541,7 +541,7 @@ func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
 
 	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, TEST_FIXTURE_PATH, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, TEST_FIXTURE_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, TEST_FIXTURE_PATH))
 
 	var expectedS3Tags = map[string]string{
 		"owner": "terragrunt integration test",
@@ -566,7 +566,7 @@ func TestTerragruntWorksWithGCSBackend(t *testing.T) {
 	defer deleteGCSBucket(t, gcsBucketName)
 
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_PATH, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, TEST_FIXTURE_GCS_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, TEST_FIXTURE_GCS_PATH))
 
 	var expectedGCSLabels = map[string]string{
 		"owner": "terragrunt_test",
@@ -590,7 +590,7 @@ func TestTerragruntWorksWithExistingGCSBucket(t *testing.T) {
 	createGCSBucket(t, project, location, gcsBucketName)
 
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_BYO_BUCKET_PATH, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, TEST_FIXTURE_GCS_BYO_BUCKET_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, TEST_FIXTURE_GCS_BYO_BUCKET_PATH))
 
 	validateGCSBucketExistsAndIsLabeled(t, location, gcsBucketName, nil)
 }
@@ -615,7 +615,7 @@ func TestTerragruntCorrectlyMirrorsTerraformGCPAuth(t *testing.T) {
 	defer deleteGCSBucket(t, gcsBucketName)
 
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_PATH, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, TEST_FIXTURE_GCS_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, TEST_FIXTURE_GCS_PATH))
 
 	var expectedGCSLabels = map[string]string{
 		"owner": "terragrunt_test",
@@ -634,7 +634,7 @@ func TestTerragruntWorksWithIncludes(t *testing.T) {
 
 	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_INCLUDE_PATH, TEST_FIXTURE_INCLUDE_CHILD_REL_PATH, s3BucketName, config.DefaultTerragruntConfigPath, config.DefaultTerragruntConfigPath)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
 }
 
 func TestTerragruntWorksWithSingleJsonConfig(t *testing.T) {
@@ -762,7 +762,7 @@ func TestTerragruntStdOut(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_STDOUT))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_STDOUT))
 	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output foo --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_STDOUT), &stdout, &stderr)
 
 	output := stdout.String()
@@ -943,10 +943,10 @@ func TestLocalDownload(t *testing.T) {
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_DOWNLOAD_PATH)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_DOWNLOAD_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_DOWNLOAD_PATH))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_DOWNLOAD_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_DOWNLOAD_PATH))
 }
 
 func TestLocalDownloadWithHiddenFolder(t *testing.T) {
@@ -954,10 +954,10 @@ func TestLocalDownloadWithHiddenFolder(t *testing.T) {
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_WITH_HIDDEN_FOLDER)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_WITH_HIDDEN_FOLDER))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_WITH_HIDDEN_FOLDER))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_WITH_HIDDEN_FOLDER))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_WITH_HIDDEN_FOLDER))
 }
 
 func TestLocalDownloadWithRelativePath(t *testing.T) {
@@ -965,10 +965,10 @@ func TestLocalDownloadWithRelativePath(t *testing.T) {
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH))
 }
 
 func TestRemoteDownload(t *testing.T) {
@@ -976,10 +976,10 @@ func TestRemoteDownload(t *testing.T) {
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_REMOTE_DOWNLOAD_PATH)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_REMOTE_DOWNLOAD_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_REMOTE_DOWNLOAD_PATH))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_REMOTE_DOWNLOAD_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_REMOTE_DOWNLOAD_PATH))
 }
 
 func TestRemoteDownloadWithRelativePath(t *testing.T) {
@@ -987,10 +987,10 @@ func TestRemoteDownloadWithRelativePath(t *testing.T) {
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_REMOTE_RELATIVE_DOWNLOAD_PATH))
 }
 
 func TestRemoteDownloadOverride(t *testing.T) {
@@ -998,10 +998,10 @@ func TestRemoteDownloadOverride(t *testing.T) {
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH, "../hello-world"))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH, "../hello-world"))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH, "../hello-world"))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH, "../hello-world"))
 }
 
 func TestLocalWithBackend(t *testing.T) {
@@ -1019,10 +1019,10 @@ func TestLocalWithBackend(t *testing.T) {
 	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 }
 
 func TestLocalWithMissingBackend(t *testing.T) {
@@ -1037,7 +1037,7 @@ func TestLocalWithMissingBackend(t *testing.T) {
 	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), os.Stdout, os.Stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), os.Stdout, os.Stderr)
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
 		assert.IsType(t, cli.BackendNotDefined{}, underlying)
@@ -1059,10 +1059,10 @@ func TestRemoteWithBackend(t *testing.T) {
 	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 }
 
 func TestRemoteWithModuleInRoot(t *testing.T) {
@@ -1071,10 +1071,10 @@ func TestRemoteWithModuleInRoot(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_REMOTE_MODULE_IN_ROOT)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_REMOTE_MODULE_IN_ROOT)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 }
 
 // Run terragrunt plan -detailed-exitcode on a folder with some uncreated resources and make sure that you get an exit
@@ -1094,7 +1094,7 @@ func TestExitCode(t *testing.T) {
 func TestExtraArguments(t *testing.T) {
 	// Do not use t.Parallel() on this test, it will infers with the other TestExtraArguments.* tests
 	out := new(bytes.Buffer)
-	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_EXTRA_ARGS_PATH), out, os.Stderr)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_EXTRA_ARGS_PATH), out, os.Stderr)
 	t.Log(out.String())
 	assert.Contains(t, out.String(), "Hello, World from dev!")
 }
@@ -1104,14 +1104,14 @@ func TestExtraArgumentsWithEnv(t *testing.T) {
 	out := new(bytes.Buffer)
 	os.Setenv("TF_VAR_env", "prod")
 	defer os.Unsetenv("TF_VAR_env")
-	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_EXTRA_ARGS_PATH), out, os.Stderr)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_EXTRA_ARGS_PATH), out, os.Stderr)
 	t.Log(out.String())
 	assert.Contains(t, out.String(), "Hello, World!")
 }
 
 func TestExtraArgumentsWithEnvVarBlock(t *testing.T) {
 	out := new(bytes.Buffer)
-	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_ENV_VARS_BLOCK_PATH), out, os.Stderr)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_ENV_VARS_BLOCK_PATH), out, os.Stderr)
 	t.Log(out.String())
 	assert.Contains(t, out.String(), "I'm set in extra_arguments env_vars")
 }
@@ -1121,7 +1121,7 @@ func TestExtraArgumentsWithRegion(t *testing.T) {
 	out := new(bytes.Buffer)
 	os.Setenv("TF_VAR_region", "us-west-2")
 	defer os.Unsetenv("TF_VAR_region")
-	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_EXTRA_ARGS_PATH), out, os.Stderr)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_EXTRA_ARGS_PATH), out, os.Stderr)
 	t.Log(out.String())
 	assert.Contains(t, out.String(), "Hello, World from Oregon!")
 }
@@ -1130,7 +1130,7 @@ func TestPriorityOrderOfArgument(t *testing.T) {
 	// Do not use t.Parallel() on this test, it will infers with the other TestExtraArguments.* tests
 	out := new(bytes.Buffer)
 	injectedValue := "Injected-directly-by-argument"
-	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply -var extra_var=%s --terragrunt-non-interactive --terragrunt-working-dir %s", injectedValue, TEST_FIXTURE_EXTRA_ARGS_PATH), out, os.Stderr)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply -auto-approve -var extra_var=%s --terragrunt-non-interactive --terragrunt-working-dir %s", injectedValue, TEST_FIXTURE_EXTRA_ARGS_PATH), out, os.Stderr)
 	t.Log(out.String())
 	// And the result value for test should be the injected variable since the injected arguments are injected before the suplied parameters,
 	// so our override of extra_var should be the last argument.
@@ -1143,7 +1143,7 @@ func TestAutoRetryBasicRerun(t *testing.T) {
 	out := new(bytes.Buffer)
 	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_RERUN)
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_RERUN)
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
 	assert.Nil(t, err)
 	assert.Contains(t, out.String(), "Apply complete!")
@@ -1155,7 +1155,7 @@ func TestAutoRetrySkip(t *testing.T) {
 	out := new(bytes.Buffer)
 	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_RERUN)
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_RERUN)
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
 	assert.NotNil(t, err)
 	assert.NotContains(t, out.String(), "Apply complete!")
@@ -1167,7 +1167,7 @@ func TestAutoRetryExhaustRetries(t *testing.T) {
 	out := new(bytes.Buffer)
 	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_EXHAUST)
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_EXHAUST)
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
 	assert.NotNil(t, err)
 	assert.Contains(t, out.String(), "Failed to load backend")
@@ -1180,7 +1180,7 @@ func TestAutoRetryFlagWithRecoverableError(t *testing.T) {
 	out := new(bytes.Buffer)
 	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_RERUN)
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_RERUN)
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
 	assert.NotNil(t, err)
 	assert.NotContains(t, out.String(), "Apply complete!")
@@ -1192,7 +1192,7 @@ func TestAutoRetryEnvVarWithRecoverableError(t *testing.T) {
 	out := new(bytes.Buffer)
 	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_RERUN)
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_RERUN)
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
 	assert.NotNil(t, err)
 	assert.NotContains(t, out.String(), "Apply complete!")
@@ -1204,7 +1204,7 @@ func TestAutoRetryApplyAllDependentModuleRetries(t *testing.T) {
 	out := new(bytes.Buffer)
 	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_APPLY_ALL_RETRIES)
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_APPLY_ALL_RETRIES)
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
 	assert.Nil(t, err)
 	s := out.String()
@@ -1317,8 +1317,8 @@ func TestPreventDestroyOverride(t *testing.T) {
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_PREVENT_DESTROY_OVERRIDE)
 
-	assert.NoError(t, runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-working-dir %s", TEST_FIXTURE_PREVENT_DESTROY_OVERRIDE), os.Stdout, os.Stderr))
-	assert.NoError(t, runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy --auto-approve --terragrunt-working-dir %s", TEST_FIXTURE_PREVENT_DESTROY_OVERRIDE), os.Stdout, os.Stderr))
+	assert.NoError(t, runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-working-dir %s", TEST_FIXTURE_PREVENT_DESTROY_OVERRIDE), os.Stdout, os.Stderr))
+	assert.NoError(t, runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy -auto-approve --terragrunt-working-dir %s", TEST_FIXTURE_PREVENT_DESTROY_OVERRIDE), os.Stdout, os.Stderr))
 }
 
 func TestPreventDestroyNotSet(t *testing.T) {
@@ -1326,8 +1326,8 @@ func TestPreventDestroyNotSet(t *testing.T) {
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_PREVENT_DESTROY_NOT_SET)
 
-	assert.NoError(t, runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-working-dir %s", TEST_FIXTURE_PREVENT_DESTROY_NOT_SET), os.Stdout, os.Stderr))
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy --auto-approve --terragrunt-working-dir %s", TEST_FIXTURE_PREVENT_DESTROY_NOT_SET), os.Stdout, os.Stderr)
+	assert.NoError(t, runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-working-dir %s", TEST_FIXTURE_PREVENT_DESTROY_NOT_SET), os.Stdout, os.Stderr))
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy -auto-approve --terragrunt-working-dir %s", TEST_FIXTURE_PREVENT_DESTROY_NOT_SET), os.Stdout, os.Stderr)
 
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
@@ -1340,9 +1340,9 @@ func TestPreventDestroy(t *testing.T) {
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_PREVENT_DESTROY)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_PREVENT_DESTROY))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_PREVENT_DESTROY))
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_PREVENT_DESTROY), os.Stdout, os.Stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_PREVENT_DESTROY), os.Stdout, os.Stderr)
 
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
@@ -1449,7 +1449,7 @@ func TestInputsPassedThroughCorrectly(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -1480,7 +1480,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	mockOptions.WorkingDir = rootPath
 	require.NoError(
 		t,
-		shell.RunTerraformCommand(mockOptions, "apply", "-var-file", debugFile),
+		shell.RunTerraformCommand(mockOptions, "apply", "-auto-approve", "-var-file", debugFile),
 	)
 
 	stdout := bytes.Buffer{}
@@ -1508,7 +1508,7 @@ func TestLocalsParsing(t *testing.T) {
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCALS_CANONICAL)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCALS_CANONICAL))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCALS_CANONICAL))
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -1529,7 +1529,7 @@ func TestLocalsInInclude(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCALS_IN_INCLUDE)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_LOCALS_IN_INCLUDE)
 	childPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_LOCALS_IN_INCLUDE, TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH)
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -no-color --terragrunt-non-interactive --terragrunt-working-dir %s", childPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve -no-color --terragrunt-non-interactive --terragrunt-working-dir %s", childPath))
 
 	// Check the outputs of the dir functions referenced in locals to make sure they return what is expected
 	stdout := bytes.Buffer{}
@@ -1560,7 +1560,7 @@ func TestLocalsInInclude(t *testing.T) {
 	)
 	assert.Equal(
 		t,
-		"[\"apply\",\"-no-color\"]",
+		"[\"apply\",\"-auto-approve\",\"-no-color\"]",
 		outputs["terraform_cli_args"].Value,
 	)
 }
@@ -1569,7 +1569,7 @@ func TestUndefinedLocalsReferenceBreaks(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL)
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL), os.Stdout, os.Stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL), os.Stdout, os.Stderr)
 	assert.Error(t, err)
 }
 
@@ -1577,7 +1577,7 @@ func TestUndefinedLocalsReferenceToInputsBreaks(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL_BUT_INPUT)
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL_BUT_INPUT), os.Stdout, os.Stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL_BUT_INPUT), os.Stdout, os.Stderr)
 	assert.Error(t, err)
 }
 
@@ -1916,7 +1916,7 @@ func TestApplySkipTrue(t *testing.T) {
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s --var person=Hobbs", rootPath), &showStdout, &showStderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --var person=Hobbs", rootPath), &showStdout, &showStderr)
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
 	logBufferContentsLineByLine(t, showStderr, "show stderr")
 
@@ -1937,7 +1937,7 @@ func TestApplySkipFalse(t *testing.T) {
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
 	logBufferContentsLineByLine(t, showStderr, "show stderr")
 
@@ -2026,7 +2026,7 @@ func TestYamlDecodeRegressions(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_REGRESSIONS)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_REGRESSIONS, "yamldecode")
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
 	// Check the output of yamldecode and make sure it doesn't parse the string incorrectly
 	stdout := bytes.Buffer{}
@@ -2216,7 +2216,7 @@ func TestDependencyOutputSkipOutputsWithMockOutput(t *testing.T) {
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", dependent3Path), &showStdout, &showStderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", dependent3Path), &showStdout, &showStderr)
 	assert.NoError(t, err)
 
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
@@ -2265,7 +2265,7 @@ func TestDependencyMockOutput(t *testing.T) {
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", dependent1Path), &showStdout, &showStderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", dependent1Path), &showStdout, &showStderr)
 	assert.NoError(t, err)
 
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
@@ -2318,7 +2318,7 @@ func TestDependencyMockOutputRestricted(t *testing.T) {
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", dependent2Path), &showStdout, &showStderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", dependent2Path), &showStdout, &showStderr)
 	assert.Error(t, err)
 	// Verify that we fail because the dependency is not applied yet
 	assert.Contains(t, err.Error(), "has not been applied yet")
@@ -2364,14 +2364,14 @@ func TestDependencyOutputTypeConversion(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "type-conversion")
 
 	// First apply the inputs module
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", inputsPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", inputsPath))
 
 	// Then apply the outputs module
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
 	assert.NoError(
 		t,
-		runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr),
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr),
 	)
 
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
@@ -2686,14 +2686,14 @@ func TestReadTerragruntConfigWithDependency(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_READ_CONFIG, "with_dependency")
 
 	// First apply the inputs module
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", inputsPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", inputsPath))
 
 	// Then apply the read config module
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
 	assert.NoError(
 		t,
-		runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr),
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr),
 	)
 
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
@@ -2762,7 +2762,7 @@ func TestReadTerragruntConfigWithDefault(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_READ_CONFIG)
 	rootPath := util.JoinPath(TEST_FIXTURE_READ_CONFIG, "with_default")
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
 	// check the outputs to make sure they are as expected
 	stdout := bytes.Buffer{}
@@ -2785,7 +2785,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_READ_CONFIG)
 	rootPath := util.JoinPath(TEST_FIXTURE_READ_CONFIG, "full")
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
 	// check the outputs to make sure they are as expected
 	stdout := bytes.Buffer{}
@@ -2910,7 +2910,7 @@ func TestTerragruntGenerateBlockSkip(t *testing.T) {
 	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "generate-block", "skip")
 	cleanupTerraformFolder(t, generateTestCase)
 	cleanupTerragruntFolder(t, generateTestCase)
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s -auto-approve", generateTestCase))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
 	assert.False(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
 
@@ -2921,7 +2921,7 @@ func TestTerragruntGenerateBlockOverwrite(t *testing.T) {
 	cleanupTerraformFolder(t, generateTestCase)
 	cleanupTerragruntFolder(t, generateTestCase)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s -auto-approve", generateTestCase))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
 	// If the state file was written as foo.tfstate, that means it overwrote the local backend config.
 	assert.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 	assert.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
@@ -2934,7 +2934,7 @@ func TestTerragruntGenerateBlockOverwriteTerragruntSuccess(t *testing.T) {
 	cleanupTerraformFolder(t, generateTestCase)
 	cleanupTerragruntFolder(t, generateTestCase)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s -auto-approve", generateTestCase))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
 	// If the state file was written as foo.tfstate, that means it overwrote the local backend config.
 	assert.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 	assert.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
@@ -2962,7 +2962,7 @@ func TestTerragruntGenerateBlockNestedInherit(t *testing.T) {
 	cleanupTerraformFolder(t, generateTestCase)
 	cleanupTerragruntFolder(t, generateTestCase)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s -auto-approve", generateTestCase))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
 	// If the state file was written as foo.tfstate, that means it inherited the config
 	assert.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 	assert.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
@@ -2977,7 +2977,7 @@ func TestTerragruntGenerateBlockNestedOverwrite(t *testing.T) {
 	cleanupTerraformFolder(t, generateTestCase)
 	cleanupTerragruntFolder(t, generateTestCase)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s -auto-approve", generateTestCase))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
 	// If the state file was written as bar.tfstate, that means it overwrite the parent config
 	assert.False(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 	assert.True(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
@@ -2992,7 +2992,7 @@ func TestTerragruntGenerateBlockDisableSignature(t *testing.T) {
 	cleanupTerraformFolder(t, generateTestCase)
 	cleanupTerragruntFolder(t, generateTestCase)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s -auto-approve", generateTestCase))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
 
 	// Now check the outputs to make sure they are as expected
 	stdout := bytes.Buffer{}
@@ -3017,7 +3017,7 @@ func TestTerragruntRemoteStateCodegenGeneratesBackendBlock(t *testing.T) {
 	cleanupTerraformFolder(t, generateTestCase)
 	cleanupTerragruntFolder(t, generateTestCase)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s -auto-approve", generateTestCase))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
 	// If the state file was written as foo.tfstate, that means it wrote out the local backend config.
 	assert.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
@@ -3030,7 +3030,7 @@ func TestTerragruntRemoteStateCodegenOverwrites(t *testing.T) {
 	cleanupTerraformFolder(t, generateTestCase)
 	cleanupTerragruntFolder(t, generateTestCase)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s -auto-approve", generateTestCase))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
 	// If the state file was written as foo.tfstate, that means it overwrote the local backend config.
 	assert.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 	assert.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
@@ -3052,7 +3052,7 @@ func TestTerragruntRemoteStateCodegenGeneratesBackendBlockS3(t *testing.T) {
 
 	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, generateTestCase, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s -auto-approve", tmpTerragruntConfigPath, generateTestCase))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, generateTestCase))
 }
 
 func TestTerragruntRemoteStateCodegenErrorsIfExists(t *testing.T) {
@@ -3079,7 +3079,7 @@ func TestTerragruntRemoteStateCodegenDoesNotGenerateWithSkip(t *testing.T) {
 	cleanupTerraformFolder(t, generateTestCase)
 	cleanupTerragruntFolder(t, generateTestCase)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s -auto-approve", generateTestCase))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
 	assert.False(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
 
@@ -3148,7 +3148,7 @@ func TestTerragruntVersionConstraints(t *testing.T) {
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
 
-			err := runTerragruntVersionCommand(t, testCase.terragruntVersion, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, rootPath), &stdout, &stderr)
+			err := runTerragruntVersionCommand(t, testCase.terragruntVersion, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, rootPath), &stdout, &stderr)
 			logBufferContentsLineByLine(t, stdout, "stdout")
 			logBufferContentsLineByLine(t, stderr, "stderr")
 
@@ -3168,7 +3168,7 @@ func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := runTerragruntVersionCommand(t, "0.21.23", fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", fixturePath), &stdout, &stderr)
+	err := runTerragruntVersionCommand(t, "0.21.23", fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", fixturePath), &stdout, &stderr)
 	logBufferContentsLineByLine(t, stdout, "stdout")
 	logBufferContentsLineByLine(t, stderr, "stderr")
 
@@ -3746,7 +3746,7 @@ func TestSopsDecryptedCorrectly(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_SOPS)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_SOPS)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}

@@ -1,0 +1,6 @@
+repos:
+  - repo: https://github.com/gruntwork-io/pre-commit
+    rev:  v0.1.10
+    hooks:
+      - id: terraform-fmt
+      - id: gofmt
