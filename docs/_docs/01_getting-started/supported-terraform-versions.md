@@ -1,0 +1,30 @@
+---
+layout: collection-browser-doc
+title: Supported Terraform Versions
+category: getting-started
+excerpt: Learn which Terraform versions are compatible with Terragrunt.
+tags: ["install"]
+order: 102
+nav_title: Documentation
+nav_title_link: /docs/
+---
+
+## Supported Terraform Versions
+
+The officially supported versions are:
+
+| Terraform Version | Terragrunt Version                                                                                                                                    |
+|-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 0.13.x            | >= [0.25.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.25.0)                                                                          |
+| 0.12.x            | [0.19.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.19.0) - [0.24.4](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.24.4) |
+| 0.11.x            | [0.14.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.14.0) - [0.18.7](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.18.7) |
+
+
+However, note that these are the versions that are officially tested in the CI process. In practice, the version
+compatibility is more relaxed than documented above. For example, we've found that Terraform 0.13 works with any version
+above 0.19.0, and we've also found that terraform 0.11 works with any version above 0.19.18 as well.
+
+If you wish to use Terragrunt against an untested Terraform version, you can use the
+[terraform_version_constraint](https://terragrunt.gruntwork.io/docs/reference/config-blocks-and-attributes/#terraform_version_constraint)
+(introduced in Terragrunt [v0.19.18](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.19.18)) attribute to
+relax the version constraint.

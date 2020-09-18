@@ -129,7 +129,22 @@
       }
     }
   }
+
+  table {
+    width: 100%;
+    margin-bottom: 1em;
+
+    th {
+      padding: 5px;
+      border: 1px solid black;
+    }
+    td {
+      padding: 5px;
+      border: 1px solid black;
+    }
+  }
 }
+
 
 @media all and (max-width: 991px) {
   .subpage .subpage__header .header-bg {
