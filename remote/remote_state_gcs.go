@@ -142,7 +142,8 @@ func gcsConfigValuesEqual(config map[string]interface{}, existingBackend *Terraf
 	}
 
 	if !terraformStateConfigEqual(existingBackend.Config, comparisonConfig) {
-		util.Debugf(terragruntOptions.Logger, "Backend config has changed from %s to %s", existingBackend.Config, config)
+		terragruntOptions.Logger.Printf("Backend config has changed")
+		util.Debugf(terragruntOptions.Logger, "Changed from %s to %s", existingBackend.Config, config)
 		return false
 	}
 
