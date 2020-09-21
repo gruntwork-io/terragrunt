@@ -1126,6 +1126,30 @@ func TestExtraArgumentsWithRegion(t *testing.T) {
 	assert.Contains(t, out.String(), "Hello, World from Oregon!")
 }
 
+func TestPreserveEnvVarApplyAll(t *testing.T) {
+	// Do not use t.Parallel() on this test, it will interfere with other tests dependent on the env vars
+	os.Setenv("TF_VAR_seed", "from the env")
+	defer os.Unsetenv("TF_VAR_seed")
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_REGRESSIONS)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_REGRESSIONS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_REGRESSIONS, "apply-all-envvar")
+
+	stdout := bytes.Buffer{}
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply-all -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, os.Stderr)
+	t.Log(stdout.String())
+
+	// Check the output of each child module to make sure the inputs were overridden by the env var
+	requireEnvVarModule := util.JoinPath(rootPath, "require-envvar")
+	noRequireEnvVarModule := util.JoinPath(rootPath, "no-require-envvar")
+	for _, mod := range []string{requireEnvVarModule, noRequireEnvVarModule} {
+		stdout := bytes.Buffer{}
+		err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output text -no-color --terragrunt-non-interactive --terragrunt-working-dir %s", mod), &stdout, os.Stderr)
+		require.NoError(t, err)
+		assert.Contains(t, stdout.String(), "Hello from the env")
+	}
+}
+
 func TestPriorityOrderOfArgument(t *testing.T) {
 	// Do not use t.Parallel() on this test, it will infers with the other TestExtraArguments.* tests
 	out := new(bytes.Buffer)
