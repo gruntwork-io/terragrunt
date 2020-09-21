@@ -1,8 +1,8 @@
 ---
 layout: collection-browser-doc
-title: Supported Terraform Versions
+title: Terraform Version Compatibility Table
 category: getting-started
-excerpt: Learn which Terraform versions are compatible with Terragrunt.
+excerpt: Learn which Terraform versions are compatible with which versions of Terragrunt.
 tags: ["install"]
 order: 102
 nav_title: Documentation
