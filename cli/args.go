@@ -390,14 +390,17 @@ func toTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) 
 	out := map[string]string{}
 
 	for varName, varValue := range vars {
-		envVarName := fmt.Sprintf("TF_VAR_%s", varName)
+		// Do not set null value variables
+		// null assigned variables in terraform are "unset" (do not exist)
+		if varValue != nil {
+			envVarName := fmt.Sprintf("TF_VAR_%s", varName)
+			envVarValue, err := asTerraformEnvVarJsonValue(varValue)
+			if err != nil {
+				return nil, err
+			}
 
-		envVarValue, err := asTerraformEnvVarJsonValue(varValue)
-		if err != nil {
-			return nil, err
+			out[envVarName] = string(envVarValue)
 		}
-
-		out[envVarName] = string(envVarValue)
 	}
 
 	return out, nil
