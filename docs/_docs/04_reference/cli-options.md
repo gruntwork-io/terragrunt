@@ -284,6 +284,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-check](#terragrunt-check)
 - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
 - [terragrunt-override-attr](#terragrunt-override-attr)
+- [terragrunt-pass-null-vars](#terragrunt-pass-null-vars)
 
 
 ### terragrunt-config
@@ -502,3 +503,9 @@ When passed in, run `hclfmt` only on specified `*/terragrunt.hcl` file.
 
 A `KEY=VALUE` attribute to override in a `provider` block as part of the [aws-provider-patch 
 command](#aws-provider-patch). May be specified multiple times.
+
+### terragrunt-pass-null-vars
+
+**CLI Arg**: `--terragrunt-pass-null-vars`
+
+When passed in, Terragrunt will pass null value input variables to Terraform as string (i.e: "null")

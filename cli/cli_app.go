@@ -43,6 +43,7 @@ const OPT_TERRAGRUNT_CHECK = "terragrunt-check"
 const OPT_TERRAGRUNT_HCLFMT_FILE = "terragrunt-hclfmt-file"
 const OPT_TERRAGRUNT_DEBUG = "terragrunt-debug"
 const OPT_TERRAGRUNT_OVERRIDE_ATTR = "terragrunt-override-attr"
+const OPT_TERRAGRUNT_PASS_NULL_VARS = "terragrunt-pass-null-vars"
 
 var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{
 	OPT_NON_INTERACTIVE,
@@ -56,6 +57,7 @@ var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{
 	OPT_TERRAGRUNT_CHECK,
 	OPT_TERRAGRUNT_STRICT_INCLUDE,
 	OPT_TERRAGRUNT_DEBUG,
+	OPT_TERRAGRUNT_PASS_NULL_VARS,
 }
 var ALL_TERRAGRUNT_STRING_OPTS = []string{
 	OPT_TERRAGRUNT_CONFIG,
@@ -181,6 +183,7 @@ GLOBAL OPTIONS:
    terragrunt-hclfmt-file                       The path to a single terragrunt.hcl file that the hclfmt command should run on.
    terragrunt-override-attr                     A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.
    terragrunt-debug                             Write terragrunt-debug.tfvars to working folder to help root-cause issues.
+   terragrunt-pass-null-vars					Pass null value input variables to Terraform (as "null" string)
 
 VERSION:
    {{.Version}}{{if len .Authors}}
@@ -567,7 +570,7 @@ func runActionWithHooks(description string, terragruntOptions *options.Terragrun
 // The Terragrunt configuration can contain a set of inputs to pass to Terraform as environment variables. This method
 // sets these environment variables in the given terragruntOptions.
 func setTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	asEnvVars, err := toTerraformEnvVars(terragruntConfig.Inputs)
+	asEnvVars, err := toTerraformEnvVars(terragruntConfig.Inputs, terragruntOptions.PassNullVars)
 	if err != nil {
 		return err
 	}

@@ -146,6 +146,9 @@ type TerragruntOptions struct {
 	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command. See that
 	// command for more info.
 	AwsProviderPatchOverrides map[string]string
+
+	// Pass to Terraform null value variables as string (terraform does not export null variables)
+	PassNullVars bool
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage
@@ -260,6 +263,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		StrictInclude:               terragruntOptions.StrictInclude,
 		RunTerragrunt:               terragruntOptions.RunTerragrunt,
 		AwsProviderPatchOverrides:   terragruntOptions.AwsProviderPatchOverrides,
+		PassNullVars:                terragruntOptions.PassNullVars,
 	}
 }
 

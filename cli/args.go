@@ -104,6 +104,8 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 
 	includeExternalDependencies := parseBooleanArg(args, OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES, false)
 
+	passNullVars := parseBooleanArg(args, OPT_TERRAGRUNT_PASS_NULL_VARS, false)
+
 	iamRole, err := parseStringArg(args, OPT_TERRAGRUNT_IAM_ROLE, os.Getenv("TERRAGRUNT_IAM_ROLE"))
 	if err != nil {
 		return nil, err
@@ -170,6 +172,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.HclFile = filepath.ToSlash(terragruntHclFilePath)
 	opts.Debug = debug
 	opts.AwsProviderPatchOverrides = awsProviderPatchOverrides
+	opts.PassNullVars = passNullVars
 
 	return opts, nil
 }
@@ -386,13 +389,13 @@ func parseMutliStringKeyValueArg(args []string, argName string, defaultValue map
 // Convert the given variables to a map of environment variables that will expose those variables to Terraform. The
 // keys will be of the format TF_VAR_xxx and the values will be converted to JSON, which Terraform knows how to read
 // natively.
-func toTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) {
+func toTerraformEnvVars(vars map[string]interface{}, passNullVars bool) (map[string]string, error) {
 	out := map[string]string{}
 
 	for varName, varValue := range vars {
-		// Do not set null value variables
-		// null assigned variables in terraform are "unset" (do not exist)
-		if varValue != nil {
+		// Do not pass null value variables if option is not set
+		// null assigned variables in terraform are "unset" variables (do not exist)
+		if varValue != nil || passNullVars {
 			envVarName := fmt.Sprintf("TF_VAR_%s", varName)
 			envVarValue, err := asTerraformEnvVarJsonValue(varValue)
 			if err != nil {
