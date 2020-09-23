@@ -183,7 +183,7 @@ GLOBAL OPTIONS:
    terragrunt-hclfmt-file                       The path to a single terragrunt.hcl file that the hclfmt command should run on.
    terragrunt-override-attr                     A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.
    terragrunt-debug                             Write terragrunt-debug.tfvars to working folder to help root-cause issues.
-   terragrunt-pass-null-vars					Pass null value input variables to Terraform (as "null" string)
+   terragrunt-pass-null-vars                    Pass null value input variables to Terraform (as "null" string)
 
 VERSION:
    {{.Version}}{{if len .Authors}}
