@@ -98,6 +98,7 @@ const (
 	TEST_FIXTURE_AUTO_RETRY_RERUN                           = "fixture-auto-retry/re-run"
 	TEST_FIXTURE_AUTO_RETRY_EXHAUST                         = "fixture-auto-retry/exhaust"
 	TEST_FIXTURE_AUTO_RETRY_CUSTOM_ERRORS                   = "fixture-auto-retry/custom-errors"
+	TEST_FIXTURE_AUTO_RETRY_CUSTOM_ERRORS_NOT_SET           = "fixture-auto-retry/custom-errors-not-set"
 	TEST_FIXTURE_AUTO_RETRY_APPLY_ALL_RETRIES               = "fixture-auto-retry/apply-all"
 	TEST_FIXTURE_AWS_PROVIDER_PATCH                         = "fixture-aws-provider-patch"
 	TEST_FIXTURE_INPUTS                                     = "fixture-inputs"
@@ -1212,7 +1213,18 @@ func TestAutoRetryCustomRetryableErrors(t *testing.T) {
 	assert.Contains(t, out.String(), "Apply complete!")
 }
 
-//TODO: Add a test to test a failure case when retryable_errors are not set in terragrunt.hcl
+func TestAutoRetryCustomRetryableErrorsFailsWhenRetryableErrorsNotSet(t *testing.T) {
+	t.Parallel()
+
+	out := new(bytes.Buffer)
+	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_CUSTOM_ERRORS_NOT_SET)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_CUSTOM_ERRORS_NOT_SET)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
+
+	assert.NotNil(t, err)
+	assert.Contains(t, out.String(), "My own little error")
+	assert.NotContains(t, out.String(), "Apply complete!")
+}
 
 func TestAutoRetryFlagWithRecoverableError(t *testing.T) {
 	t.Parallel()
