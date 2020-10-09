@@ -71,6 +71,14 @@ func terragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output["generate"] = generateCty
 	}
 
+	retryableCty, err := gostructToCty(config.RetryableErrors)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	if retryableCty != cty.NilVal {
+		output["retryable_errors"] = retryableCty
+	}
+
 	inputsCty, err := convertToCtyWithJson(config.Inputs)
 	if err != nil {
 		return cty.NilVal, err

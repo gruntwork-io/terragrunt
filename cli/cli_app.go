@@ -326,6 +326,11 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		terragruntOptions.DownloadDir = terragruntConfig.DownloadDir
 	}
 
+	// Override the default value of retryable errors using the value set in the config file
+	if terragruntConfig.RetryableErrors != nil {
+		terragruntOptions.RetryableErrors = terragruntConfig.RetryableErrors
+	}
+
 	if sourceUrl := getTerraformSourceUrl(terragruntOptions, terragruntConfig); sourceUrl != "" {
 		if err := downloadTerraformSource(sourceUrl, terragruntOptions, terragruntConfig); err != nil {
 			return err
