@@ -39,6 +39,7 @@ type TerragruntConfig struct {
 	Locals                      map[string]interface{}
 	TerragruntDependencies      []Dependency
 	GenerateConfigs             map[string]codegen.GenerateConfig
+	RetryableErrors             []string
 
 	// Indicates whether or not this is the result of a partial evaluation
 	IsPartial bool
@@ -65,6 +66,7 @@ type terragruntConfigFile struct {
 	IamRole                     *string                   `hcl:"iam_role,attr"`
 	TerragruntDependencies      []Dependency              `hcl:"dependency,block"`
 	GenerateBlocks              []terragruntGenerateBlock `hcl:"generate,block"`
+	RetryableErrors             []string                  `hcl:"retryable_errors,optional"`
 
 	// This struct is used for validating and parsing the entire terragrunt config. Since locals are evaluated in a
 	// completely separate cycle, it should not be evaluated here. Otherwise, we can't support self referencing other
@@ -568,6 +570,10 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 		includedConfig.TerraformBinary = config.TerraformBinary
 	}
 
+	if config.RetryableErrors != nil {
+		includedConfig.RetryableErrors = config.RetryableErrors
+	}
+
 	if config.TerragruntVersionConstraint != "" {
 		includedConfig.TerragruntVersionConstraint = config.TerragruntVersionConstraint
 	}
@@ -729,6 +735,10 @@ func convertToTerragruntConfig(
 
 	if terragruntConfigFromFile.TerraformBinary != nil {
 		terragruntConfig.TerraformBinary = *terragruntConfigFromFile.TerraformBinary
+	}
+
+	if terragruntConfigFromFile.RetryableErrors != nil {
+		terragruntConfig.RetryableErrors = terragruntConfigFromFile.RetryableErrors
 	}
 
 	if terragruntConfigFromFile.DownloadDir != nil {

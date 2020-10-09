@@ -538,6 +538,7 @@ EOF
 - [terraform_binary](#terraform_binary)
 - [terraform_version_constraint](#terraform_version_constraint)
 - [terragrunt_version_constraint](#terragrunt_version_constraint)
+- [retryable_errors](#retryable_errors)
 
 
 ### inputs
@@ -694,4 +695,18 @@ Example:
 
 ```hcl
 terragrunt_version_constraint = ">= 0.23"
+```
+
+### retryable_errors
+
+The terragrunt `retryable_errors` list can be used to override the default list of retryable errors with your own custom list.
+To learn more about the `retryable_errors` attribute, see the [auto-retry feature overview](/docs/features/auto-retry).
+
+Example:
+
+```hcl
+retryable_errors = [
+  "(?s).*Error installing provider.*tcp.*connection reset by peer.*",
+  "(?s).*ssh_exchange_identification.*Connection closed by remote host.*"
+]
 ```
