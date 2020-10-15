@@ -12,6 +12,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 )
 
 // applyAwsProviderPatch finds all Terraform modules nested in the current code (i.e., in the .terraform/modules
@@ -173,14 +174,111 @@ func patchAwsProviderInTerraformCode(terraformCode string, terraformFilePath str
 	for _, block := range hclFile.Body().Blocks() {
 		if block.Type() == "provider" && len(block.Labels()) == 1 && block.Labels()[0] == "aws" {
 			for key, value := range attributesToOverride {
-				block.Body().SetAttributeValue(key, cty.StringVal(value))
+				attributeOverridden := overrideAttributeInBlock(block, key, value)
+				codeWasUpdated = codeWasUpdated || attributeOverridden
 			}
-
-			codeWasUpdated = true
 		}
 	}
 
 	return string(hclFile.Bytes()), codeWasUpdated, nil
+}
+
+// Override the attribute specified in the given key to the given value in a Terraform block: that is, if the attribute
+// is already set, then update its value to the new value; if the attribute is not already set, do nothing. This method
+// returns true if an attribute was overridden and false if nothing was changed.
+//
+// Note that you can set attributes within nested blocks by using a dot syntax similar to Terraform addresses: e.g.,
+// "<NESTED_BLOCK>.<KEY>".
+//
+// Examples:
+//
+// Assume that block1 is:
+//
+// provider "aws" {
+//   region = var.aws_region
+//   assume_role {
+//     role_arn = var.role_arn
+//   }
+// }
+//
+// If you call:
+//
+// overrideAttributeInBlock(block1, "region", "eu-west-1")
+// overrideAttributeInBlock(block1, "assume_role.role_arn", "foo")
+//
+// The result would be:
+//
+// provider "aws" {
+//   region = "eu-west-1"
+//   assume_role {
+//     role_arn = "foo"
+//   }
+// }
+//
+// Assume block2 is:
+//
+// provider "aws" {}
+//
+// If you call:
+//
+// overrideAttributeInBlock(block2, "region", "eu-west-1")
+// overrideAttributeInBlock(block2, "assume_role.role_arn", "foo")
+//
+//
+// The result would be:
+//
+// provider "aws" {}
+func overrideAttributeInBlock(block *hclwrite.Block, key string, value string) bool {
+	body, attr := traverseBlock(block, strings.Split(key, "."))
+	if body == nil || body.GetAttribute(attr) == nil {
+		// We didn't find an existing block or attribute, so there's nothing to override
+		return false
+	}
+
+	body.SetAttributeValue(attr, cty.StringVal(value))
+	return true
+}
+
+// Given a Terraform block and slice of keys, return the body of the block that is indicated by the keys, and the
+// attribute to set within that body. If the slice is of length one, this method returns the body of the current block
+// and the one entry in the slice. However, if the slice contains multiple values, those indicate nested blocks, so
+// this method will recursively descend into those blocks and return the body of the final one and the final entry in
+// the slice to set on it. If a nested block is specified that doesn't actually exist, this method returns a nil body
+// and empty string for the attribute.
+//
+// Examples:
+//
+// Assume block is:
+//
+// provider "aws" {
+//   region = var.aws_region
+//   assume_role {
+//     role_arn = var.role_arn
+//   }
+// }
+//
+// traverseBlock(block, []string{"region"})
+//   => returns (<body of the current block>, "region")
+//
+// traverseBlock(block, []string{"assume_role", "role_arn"})
+//   => returns (<body of the nested assume_role block>, "role_arn")
+//
+// traverseBlock(block, []string{"foo"})
+//   => returns (nil, "")
+//
+// traverseBlock(block, []string{"assume_role", "foo"})
+//   => returns (nil, "")
+func traverseBlock(block *hclwrite.Block, keyParts []string) (*hclwrite.Body, string) {
+	if block == nil {
+		return nil, ""
+	}
+
+	if len(keyParts) < 2 {
+		return block.Body(), strings.Join(keyParts, "")
+	}
+
+	blockName := keyParts[0]
+	return traverseBlock(block.Body().FirstMatchingBlock(blockName, nil), keyParts[1:])
 }
 
 // Custom error types
