@@ -173,9 +173,8 @@ provider "google" {
 }
 
 provider "aws" {
-  alias   = "yet another"
-  region  = "eu-west-1"
-  version = "0.3.0"
+  alias  = "yet another"
+  region = "eu-west-1"
 }
 
 output "hello" {
@@ -273,6 +272,24 @@ provider "aws" {
 }
 `
 
+const terraformCodeExampleAwsOneProviderNestedBlocks = `
+provider "aws" {
+  region = var.aws_region
+  assume_role {
+    role_arn = var.role_arn
+  }
+}
+`
+
+const terraformCodeExampleAwsOneProviderNestedBlocksRegionRoleArnExpected = `
+provider "aws" {
+  region = "eu-west-1"
+  assume_role {
+    role_arn = "nested-override"
+  }
+}
+`
+
 func TestPatchAwsProviderInTerraformCodeHappyPath(t *testing.T) {
 	t.Parallel()
 
@@ -288,8 +305,8 @@ func TestPatchAwsProviderInTerraformCodeHappyPath(t *testing.T) {
 		{"no provider", terraformCodeExampleOutputOnly, map[string]string{"region": "eu-west-1"}, false, []string{terraformCodeExampleOutputOnly}},
 		{"no aws provider", terraformCodeExampleGcpProvider, map[string]string{"region": "eu-west-1"}, false, []string{terraformCodeExampleGcpProvider}},
 		{"one empty aws provider, but no overrides", terraformCodeExampleAwsProviderEmptyOriginal, nil, false, []string{terraformCodeExampleAwsProviderEmptyOriginal}},
-		{"one empty aws provider, with region override", terraformCodeExampleAwsProviderEmptyOriginal, map[string]string{"region": "eu-west-1"}, true, []string{terraformCodeExampleAwsProviderRegionOverridenExpected}},
-		{"one empty aws provider, with region, version override", terraformCodeExampleAwsProviderEmptyOriginal, map[string]string{"region": "eu-west-1", "version": "0.3.0"}, true, []string{terraformCodeExampleAwsProviderRegionVersionOverridenExpected, terraformCodeExampleAwsProviderRegionVersionOverridenReverseOrderExpected}},
+		{"one empty aws provider, with region override", terraformCodeExampleAwsProviderEmptyOriginal, map[string]string{"region": "eu-west-1"}, false, []string{terraformCodeExampleAwsProviderEmptyOriginal}},
+		{"one empty aws provider, with region, version override", terraformCodeExampleAwsProviderEmptyOriginal, map[string]string{"region": "eu-west-1", "version": "0.3.0"}, false, []string{terraformCodeExampleAwsProviderEmptyOriginal}},
 		{"one non-empty aws provider, but no overrides", terraformCodeExampleAwsProviderNonEmptyOriginal, nil, false, []string{terraformCodeExampleAwsProviderNonEmptyOriginal}},
 		{"one non-empty aws provider, with region override", terraformCodeExampleAwsProviderNonEmptyOriginal, map[string]string{"region": "eu-west-1"}, true, []string{terraformCodeExampleAwsProviderRegionOverridenVersionNotOverriddenExpected}},
 		{"one non-empty aws provider, with region, version override", terraformCodeExampleAwsProviderNonEmptyOriginal, map[string]string{"region": "eu-west-1", "version": "0.3.0"}, true, []string{terraformCodeExampleAwsProviderRegionVersionOverridenExpected, terraformCodeExampleAwsProviderRegionVersionOverridenReverseOrderExpected}},
@@ -299,6 +316,8 @@ func TestPatchAwsProviderInTerraformCodeHappyPath(t *testing.T) {
 		{"multiple providers with comments, but no overrides", terraformCodeExampleAwsMultipleProvidersNonEmptyWithCommentsOriginal, nil, false, []string{terraformCodeExampleAwsMultipleProvidersNonEmptyWithCommentsOriginal}},
 		{"multiple providers with comments, with region override", terraformCodeExampleAwsMultipleProvidersNonEmptyWithCommentsOriginal, map[string]string{"region": "eu-west-1"}, true, []string{terraformCodeExampleAwsMultipleProvidersNonEmptyWithCommentsRegionOverriddenExpected}},
 		{"multiple providers with comments, with region, version override", terraformCodeExampleAwsMultipleProvidersNonEmptyWithCommentsOriginal, map[string]string{"region": "eu-west-1", "version": "0.3.0"}, true, []string{terraformCodeExampleAwsMultipleProvidersNonEmptyWithCommentsRegionVersionOverriddenExpected}},
+		{"one provider with nested blocks, with region and role_arn override", terraformCodeExampleAwsOneProviderNestedBlocks, map[string]string{"region": "eu-west-1", "assume_role.role_arn": "nested-override"}, true, []string{terraformCodeExampleAwsOneProviderNestedBlocksRegionRoleArnExpected}},
+		{"one provider with nested blocks, with region and role_arn override, plus non-matching overrides", terraformCodeExampleAwsOneProviderNestedBlocks, map[string]string{"region": "eu-west-1", "assume_role.role_arn": "nested-override", "should-be": "ignored", "assume_role.should-be": "ignored"}, true, []string{terraformCodeExampleAwsOneProviderNestedBlocksRegionRoleArnExpected}},
 	}
 
 	for _, testCase := range testCases {

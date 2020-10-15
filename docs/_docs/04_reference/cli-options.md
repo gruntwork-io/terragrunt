@@ -232,27 +232,56 @@ This will recursively search the current working directory for any folders that 
 
 ### aws-provider-patch
 
-Overwrite settings on nested AWS providers to work around a Terraform bug. Due to 
-[issue #13018](https://github.com/hashicorp/terraform/issues/13018), the `import` command may fail if your Terraform
+Overwrite settings on nested AWS providers to work around several Terraform bugs. Due to 
+[issue #13018](https://github.com/hashicorp/terraform/issues/13018) and
+[issue #26211](https://github.com/hashicorp/terraform/issues/26211), the `import` command may fail if your Terraform
 code uses a module that has a `provider` block nested within it that sets any of its attributes to computed values. 
 This command is a hacky attempt at working around this problem by allowing you to temporarily hard-code those 
-attributes, based on the [terragrunt-override-attr](#terragrunt-override-attr) options you set, so that `import` 
-can work.
+attributes so `import` can work. 
 
-Example:
+You specify which attributes to hard-code using the [`--terragrunt-override-attr`](#terragrunt-override-attr) option, 
+passing it `ATTR=VALUE`, where `ATTR` is the attribute name and `VALUE` is the new value. Note that `ATTR` can specify 
+attributes within a nested block by specifying `<BLOCK>.<ATTR>`, where `<BLOCK>` is the block name. For example, let's
+say you had a `provider` block in a module that looked like this:
+
+```hcl
+provider "aws" {
+  region = var.aws_region
+  assume_role {
+    role_arn = var.role_arn
+  }
+}
+```
+
+Both the `region` and `role_arn` parameters are set to dynamic values, which will trigger those Terraform bugs. To work
+around it, run the following command: 
 
 ```bash
-terragrunt aws-provider-patch --terragrunt-override-attr region=eu-west-1
+terragrunt aws-provider-patch \
+  --terragrunt-override-attr region=eu-west-1 \
+  --terragrunt-override-attr assume_role.role_arn=""
 ```  
 
 When you run the command above, Terragrunt will:
 
 1. Run `terraform init` to download the code for all your modules into `.terraform/modules`.
-1. Scan all the Terraform code in `.terraform/modules`, find AWS `provider` blocks, and hard-code the `region` param
-   to `eu-west-1` for each one. 
+1. Scan all the Terraform code in `.terraform/modules`, find AWS `provider` blocks, and for each one, hard-code: 
+    1. The `region` param to `"eu-west-1"`.
+    1. The `role_arn` within the `assume_role` block to `""`.
 
-This should allow you to run `import` on the module and work around issue #13018.   
+The result will look like this:
 
+```hcl
+provider "aws" {
+  region = "eu-west-1"
+  assume_role {
+    role_arn = ""
+  }
+}
+```
+
+This should allow you to run `import` on the module and work around those Terraform bugs. When you're done running 
+`import`, remember to delete your overridden code! E.g., Delete the `.terraform` or `.terragrunt-cache` folders.   
 
 
 
@@ -498,7 +527,9 @@ When passed in, run `hclfmt` only on specified `*/terragrunt.hcl` file.
 ### terragrunt-override-attr
 
 **CLI Arg**: `--terragrunt-override-attr`
-**Requires an argument**: `--terragrunt-override-attr KEY=VALUE`
+**Requires an argument**: `--terragrunt-override-attr ATTR=VALUE`
 
-A `KEY=VALUE` attribute to override in a `provider` block as part of the [aws-provider-patch 
-command](#aws-provider-patch). May be specified multiple times.
+Override the attribute named `ATTR` with the value `VALUE` in a `provider` block as part of the [aws-provider-patch 
+command](#aws-provider-patch). May be specified multiple times. Also, `ATTR` can specify attributes within a nested
+block by specifying `<BLOCK>.<ATTR>`, where `<BLOCK>` is the block name: e.g., `assume_role.role` arn will override the
+`role_arn` attribute of the `assume_role { ... }` block.
