@@ -52,7 +52,6 @@
     align-items: center;
     justify-content: center;
     width: 100%;
-    max-width: 680px;
     margin: auto;
     position: relative;
     z-index: 1;
@@ -83,10 +82,33 @@
   }
 }
 
+.get-access-cmp{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-top:100px;
+  padding-bottom:100px;
+  text-align: center;
+  width: 100%;
+  span{
+    font-size:26px;
+    font-weight: 300;
+    padding: 40px;
+    max-width: 550px;
+  }
+}
+.links-n-get-access__section{
+  .links-section-cmp {
+    margin-top: 0;
+    padding-top: 50px;
+  }
+}
+
 .index-page .links-section-cmp {
-  padding-top: 300px;
+  padding-top: 90px;
   padding-bottom: 90px;
-  margin-top: -250px;
+  margin-top: -80px;
 
   .links-shapes-right {
     position: absolute;
