@@ -546,6 +546,23 @@ p code, h1 code, h2 code, h3 code, h4 code, h5 code {
   }
 }
 
+.thanks-page {
+  .header {
+    background: linear-gradient(107deg, #5b4de5 6%, #06a3ff 68%, #0dc0ef 98%);
+  }
+
+  .section-thanks {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 60vh;
+    
+    .copy-container {
+      margin-top: 10px;
+    }
+  }
+}
+
 .section-heading {
   padding-bottom: 0;
   margin-bottom: -30px;
@@ -785,10 +802,10 @@ footer hr {
   }
 }
 
-@media (min-width: 992px) {
+@media (min-width: 1024px) {
   .navbar-nav > li > a {
-    padding-right: 20px;
-    padding-left: 20px;
+    padding-right: 10px;
+    padding-left: 10px;
   }
 }
 
@@ -859,6 +876,21 @@ a.caret-right::after {
   &:hover, &:focus {
     color: rgba(255, 255, 255, 0.7);
   }
+}
+
+//
+// TEXT-DECORATION 
+// -------------------------------------------------------
+
+.new-badge{
+  background: #ee4f5d;
+  padding: 0px 10px;
+  border-radius: 3px;
+  display: inline-block;
+  color: #fff;
+  font-family: 'Source Sans Pro', sans-serif;
+  font-size: 16px;
+  font-weight: 800;
 }
 
 //
@@ -949,7 +981,7 @@ a.caret-right::after {
   background: linear-gradient(100deg, #1b242e 5%, #2a3644 98%);
   padding-top: 60px;
   padding-bottom: 60px;
-
+  position: relative;
   > .container-fluid {
     max-width: 1200px;
     margin: 0 auto;
@@ -989,24 +1021,46 @@ a.caret-right::after {
 
   .learn-col {
     text-align: right;
-
     ul {
       display: flex;
+      flex-wrap: wrap;
       list-style: none;
       padding-left: 0;
       margin-left: 0;
       justify-content: flex-end;
 
       li {
+        margin-bottom: 1rem;
         margin-left: 40px;
       }
     }
   }
-
+  .copy-container {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: 90px;
+    ul {
+      margin-left: 0;
+      margin-bottom: 0;
+      li {
+        display: inline-block;
+        margin-left: 0;
+        margin-bottom: 0;
+        line-height: 1;
+        margin-right: 20px;
+        a {
+          font-size: 12px;
+        }
+      }
+    }
+  }
   .footer__copyright {
-    margin-top: 20px;
     font-size: 12px;
+    margin-top: 2px;
     color: #fff;
+    opacity: 0.5;
+    line-height: 1;
   }
 }
 
@@ -1024,15 +1078,16 @@ a.caret-right::after {
         flex-direction: column;
         justify-content: center;
         align-items: center;
-
+        
         li {
           margin-left: 0px;
         }
       }
-    }
-
-    .footer__copyright {
-      margin-top: 20px;
+      .copy-container {
+        ul {
+          flex-direction: row;
+        }
+      }
     }
   }
 }
@@ -1048,7 +1103,20 @@ a.caret-right::after {
 
     .learn-col {
       margin-top: 30px;
+      .copy-container {
+        justify-content: center;
+        flex-direction: column;
+        margin-top: 40px;
+        ul {
+          flex-direction: column;
+          li {
+            margin-bottom: 10px;
+            margin-right: 0;
+          }
+        }
+      }
     }
+    
 
     .terragrunt-logo {
       align-items: center;
