@@ -117,6 +117,17 @@ func (s3Initializer S3Initializer) NeedsInitialization(remoteState *RemoteState,
 		return false, nil
 	}
 
+	// Nowadays it only makes sense to set the "dynamodb_table" attribute as it has
+	// been supported in Terraform since the release of version 0.10. The deprecated
+	// "lock_table" attribute is either set to NULL in the state file or missing
+	// from it altogether. Display a deprecation warning when the "lock_table"
+	// attribute is being used.
+	if util.KindOf(remoteState.Config["lock_table"]) == reflect.String && remoteState.Config["lock_table"] != "" {
+		terragruntOptions.Logger.Printf("%s\n", lockTableDeprecationMessage)
+		remoteState.Config["dynamodb_table"] = remoteState.Config["lock_table"]
+		delete(remoteState.Config, "lock_table")
+	}
+
 	if !configValuesEqual(remoteState.Config, existingBackend, terragruntOptions) {
 		return true, nil
 	}
@@ -193,23 +204,16 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 		}
 	}
 
-	// Nowadays it only makes sense to set the "dynamodb_table" attribute as it has
-	// been supported in Terraform since the release of version 0.10. The deprecated
-	// "lock_table" attribute is either set to NULL in the state file or missing
-	// from it altogether. Display a deprecation warning when the "lock_table"
-	// attribute is being used.
-	if util.KindOf(config["lock_table"]) == reflect.String && config["lock_table"] != "" {
-		terragruntOptions.Logger.Printf("%s\n", lockTableDeprecationMessage)
-		config["dynamodb_table"] = config["lock_table"]
-		delete(config, "lock_table")
+	// We now construct a version of the config that matches what we expect in the backend by stripping out terragrunt
+	// related configs.
+	terraformConfig := map[string]interface{}{}
+	for key, val := range config {
+		if !util.ListContainsElement(terragruntOnlyConfigs, key) {
+			terraformConfig[key] = val
+		}
 	}
 
-	// Delete custom S3 and DynamoDB tags that are only used in Terragrunt config and not in Terraform's backend
-	for _, key := range terragruntOnlyConfigs {
-		delete(config, key)
-	}
-
-	if !terraformStateConfigEqual(existingBackend.Config, config) {
+	if !terraformStateConfigEqual(existingBackend.Config, terraformConfig) {
 		terragruntOptions.Logger.Printf("Backend config has changed (Set environment variable TG_LOG=debug to have terragrunt log the changes)")
 		util.Debugf(terragruntOptions.Logger, "Changed from %s to %s", existingBackend.Config, config)
 		return false
