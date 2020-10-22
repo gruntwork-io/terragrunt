@@ -77,12 +77,6 @@ func TestConfigValuesEqual(t *testing.T) {
 			true,
 		},
 		{
-			"equal-lock-table-replaced-with-dynamodb-table",
-			map[string]interface{}{"lock_table": "foo", "something": "bar"},
-			&TerraformBackend{Type: "s3", Config: map[string]interface{}{"dynamodb_table": "foo", "something": "bar"}},
-			true,
-		},
-		{
 			"unequal-wrong-backend",
 			map[string]interface{}{"foo": "bar"},
 			&TerraformBackend{Type: "wrong", Config: map[string]interface{}{"foo": "bar"}},
