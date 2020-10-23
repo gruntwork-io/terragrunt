@@ -389,7 +389,7 @@ func checkIfVersioningEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 
 // Create the given S3 bucket and enable versioning for it
 func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	err := CreateS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions)
+	err := CreateS3Bucket(s3Client, aws.String(config.remoteStateConfigS3.Bucket), terragruntOptions)
 
 	if err != nil {
 		if isBucketAlreadyOwnedByYourError(err) {
@@ -443,8 +443,9 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 	//}
 
 	if config.AccessLoggingBucketName != "" {
-		if err := CreateLogsS3Bucket(s3Client, aws.String(config.AccessLoggingBucketName), terragruntOptions); err != nil{
-			return err;
+		if err := CreateLogsS3BucketIfNecessary(s3Client, aws.String(config.AccessLoggingBucketName), terragruntOptions); err != nil {
+			terragruntOptions.Logger.Printf("Access Logging is disabled for the remote state AWS S3 bucket for bucket %s", config.remoteStateConfigS3.Bucket)
+			return err
 		}
 		if err := EnableAccessLoggingForS3BucketWide(s3Client, &config.remoteStateConfigS3, terragruntOptions, config.AccessLoggingBucketName); err != nil {
 			return err
@@ -456,17 +457,19 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 	return nil
 }
 
-func CreateLogsS3Bucket(s3Client *s3.S3, logsBucketName *string, terragruntOptions *options.TerragruntOptions) error {
-	//check if logs bucket exists, no - error
+func CreateLogsS3BucketIfNecessary(s3Client *s3.S3, logsBucketName *string, terragruntOptions *options.TerragruntOptions) error {
 	if !DoesS3BucketExist(s3Client, logsBucketName) {
-		prompt := fmt.Sprintf("Remote state S3 bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", logsBucketName)
+		prompt := fmt.Sprintf("Logs S3 bucket %s for the remote state does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", *logsBucketName)
 		shouldCreateBucket, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
 		if err != nil {
 			return err
 		}
 
 		if shouldCreateBucket {
-			// ...
+			err := CreateS3Bucket(s3Client, logsBucketName, terragruntOptions)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -532,9 +535,9 @@ func WaitUntilS3BucketExists(s3Client *s3.S3, config *RemoteStateConfigS3, terra
 }
 
 // Create the S3 bucket specified in the given config
-func CreateS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Printf("Creating S3 bucket %s", config.Bucket)
-	_, err := s3Client.CreateBucket(&s3.CreateBucketInput{Bucket: aws.String(config.Bucket)})
+func CreateS3Bucket(s3Client *s3.S3, bucket *string, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Printf("Creating S3 bucket %s", aws.StringValue(bucket))
+	_, err := s3Client.CreateBucket(&s3.CreateBucketInput{Bucket: bucket})
 	return errors.WithStackTrace(err)
 }
 
