@@ -663,18 +663,18 @@ func EnableSSEForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 }
 
 // Enable bucket-wide Access Logging for the AWS S3 bucket specified in the given config
-func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions, accessLoggingBucketName string) error {
-	if err := configureBucketAccessLoggingAcl(s3Client, config, terragruntOptions); err != nil {
+func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions, logsBucket string) error {
+	if err := configureBucketAccessLoggingAcl(s3Client, aws.String(logsBucket), terragruntOptions); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	terragruntOptions.Logger.Printf("Enabling bucket-wide Access Logging on AWS S3 bucket \"%s\" - using as TargetBucket \"%s\"", config.Bucket, accessLoggingBucketName)
+	terragruntOptions.Logger.Printf("Enabling bucket-wide Access Logging on AWS S3 bucket \"%s\" - using as TargetBucket \"%s\"", config.Bucket, logsBucket)
 
 	loggingInput := s3.PutBucketLoggingInput{
 		Bucket: aws.String(config.Bucket),
 		BucketLoggingStatus: &s3.BucketLoggingStatus{
 			LoggingEnabled: &s3.LoggingEnabled{
-				TargetBucket: aws.String(accessLoggingBucketName),
+				TargetBucket: aws.String(logsBucket),
 				TargetPrefix: aws.String("TFStateLogs/"),
 			},
 		},
@@ -709,12 +709,12 @@ func EnablePublicAccessBlockingForS3Bucket(s3Client *s3.S3, config *RemoteStateC
 // To enable access logging in an S3 bucket, you must grant WRITE and READ_ACP permissions to the Log Delivery
 // Group. For more info, see:
 // https://docs.aws.amazon.com/AmazonS3/latest/dev/enable-logging-programming.html
-func configureBucketAccessLoggingAcl(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Printf("Granting WRITE and READ_ACP permissions to S3 Log Delivery (%s) for bucket %s. This is required for access logging.", s3LogDeliveryGranteeUri, config.Bucket)
+func configureBucketAccessLoggingAcl(s3Client *s3.S3, bucket *string, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Printf("Granting WRITE and READ_ACP permissions to S3 Log Delivery (%s) for bucket %s. This is required for access logging.", s3LogDeliveryGranteeUri, aws.StringValue(bucket))
 
 	uri := fmt.Sprintf("uri=%s", s3LogDeliveryGranteeUri)
 	aclInput := s3.PutBucketAclInput{
-		Bucket:       aws.String(config.Bucket),
+		Bucket:       bucket,
 		GrantWrite:   aws.String(uri),
 		GrantReadACP: aws.String(uri),
 	}
@@ -723,17 +723,17 @@ func configureBucketAccessLoggingAcl(s3Client *s3.S3, config *RemoteStateConfigS
 		return errors.WithStackTrace(err)
 	}
 
-	return waitUntilBucketHasAccessLoggingAcl(s3Client, config, terragruntOptions)
+	return waitUntilBucketHasAccessLoggingAcl(s3Client, bucket, terragruntOptions)
 }
 
-func waitUntilBucketHasAccessLoggingAcl(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Printf("Waiting for ACL bucket %s to have the updated ACL for access logging.", config.Bucket)
+func waitUntilBucketHasAccessLoggingAcl(s3Client *s3.S3, bucket *string, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Printf("Waiting for ACL bucket %s to have the updated ACL for access logging.", aws.StringValue(bucket))
 
 	maxRetries := 10
 	timeBetweenRetries := 5 * time.Second
 
 	for i := 0; i < maxRetries; i++ {
-		out, err := s3Client.GetBucketAcl(&s3.GetBucketAclInput{Bucket: aws.String(config.Bucket)})
+		out, err := s3Client.GetBucketAcl(&s3.GetBucketAclInput{Bucket: bucket})
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
@@ -753,15 +753,15 @@ func waitUntilBucketHasAccessLoggingAcl(s3Client *s3.S3, config *RemoteStateConf
 		}
 
 		if hasReadAcp && hasWrite {
-			terragruntOptions.Logger.Printf("Bucket %s now has the proper ACL permissions for access logging!", config.Bucket)
+			terragruntOptions.Logger.Printf("Bucket %s now has the proper ACL permissions for access logging!", aws.StringValue(bucket))
 			return nil
 		}
 
-		terragruntOptions.Logger.Printf("Bucket %s still does not have the ACL permissions for access logging. Will sleep for %v and check again.", config.Bucket, timeBetweenRetries)
+		terragruntOptions.Logger.Printf("Bucket %s still does not have the ACL permissions for access logging. Will sleep for %v and check again.", aws.StringValue(bucket), timeBetweenRetries)
 		time.Sleep(timeBetweenRetries)
 	}
 
-	return errors.WithStackTrace(MaxRetriesWaitingForS3ACLExceeded(config.Bucket))
+	return errors.WithStackTrace(MaxRetriesWaitingForS3ACLExceeded(aws.StringValue(bucket)))
 }
 
 // Returns true if the S3 bucket specified in the given config exists and the current user has the ability to access
