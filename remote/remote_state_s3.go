@@ -40,7 +40,7 @@ type ExtendedRemoteStateConfigS3 struct {
 	SkipBucketEnforcedTLS       bool              `mapstructure:"skip_bucket_enforced_tls"`
 	EnableLockTableSSEncryption bool              `mapstructure:"enable_lock_table_ssencryption"`
 	DisableAWSClientChecksums   bool              `mapstructure:"disable_aws_client_checksums"`
-	EnableBucketAccessLogging   bool              `mapstructure:"enable_bucket_accesslogging"`
+	AccessLoggingBucketName   	string            `mapstructure:"accesslogging_bucket_name"`
 }
 
 // These are settings that can appear in the remote_state config that are ONLY used by Terragrunt and NOT forwarded
@@ -55,7 +55,7 @@ var terragruntOnlyConfigs = []string{
 	"skip_bucket_enforced_tls",
 	"enable_lock_table_ssencryption",
 	"disable_aws_client_checksums",
-	"enable_bucket_accesslogging",
+	"accesslogging_bucket_name",
 }
 
 // A representation of the configuration options available for S3 remote state
@@ -442,8 +442,8 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 	//	return err
 	//}
 
-	if config.EnableBucketAccessLogging {
-		if err := EnableAccessLoggingForS3BucketWide(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
+	if config.AccessLoggingBucketName != "" {
+		if err := EnableAccessLoggingForS3BucketWide(s3Client, &config.remoteStateConfigS3, terragruntOptions, config.AccessLoggingBucketName); err != nil {
 			return err
 		}
 	} else {
@@ -641,18 +641,18 @@ func EnableSSEForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 }
 
 // Enable bucket-wide Access Logging for the AWS S3 bucket specified in the given config
-func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions, accessLoggingBucketName string) error {
 	if err := configureBucketAccessLoggingAcl(s3Client, config, terragruntOptions); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	terragruntOptions.Logger.Printf("Enabling bucket-wide Access Logging on AWS S3 bucket \"%s\" - using as TargetBucket \"%s\"", config.Bucket, config.Bucket)
+	terragruntOptions.Logger.Printf("Enabling bucket-wide Access Logging on AWS S3 bucket \"%s\" - using as TargetBucket \"%s\"", config.Bucket, accessLoggingBucketName)
 
 	loggingInput := s3.PutBucketLoggingInput{
 		Bucket: aws.String(config.Bucket),
 		BucketLoggingStatus: &s3.BucketLoggingStatus{
 			LoggingEnabled: &s3.LoggingEnabled{
-				TargetBucket: aws.String(config.Bucket),
+				TargetBucket: aws.String(accessLoggingBucketName),
 				TargetPrefix: aws.String("TFStateLogs/"),
 			},
 		},
