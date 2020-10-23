@@ -40,6 +40,7 @@ type ExtendedRemoteStateConfigS3 struct {
 	SkipBucketEnforcedTLS       bool              `mapstructure:"skip_bucket_enforced_tls"`
 	EnableLockTableSSEncryption bool              `mapstructure:"enable_lock_table_ssencryption"`
 	DisableAWSClientChecksums   bool              `mapstructure:"disable_aws_client_checksums"`
+	EnableBucketAccessLogging   bool              `mapstructure:"enable_bucket_accesslogging"`
 }
 
 // These are settings that can appear in the remote_state config that are ONLY used by Terragrunt and NOT forwarded
@@ -54,6 +55,7 @@ var terragruntOnlyConfigs = []string{
 	"skip_bucket_enforced_tls",
 	"enable_lock_table_ssencryption",
 	"disable_aws_client_checksums",
+	"enable_bucket_accesslogging",
 }
 
 // A representation of the configuration options available for S3 remote state
@@ -433,11 +435,19 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 	} else if err := EnableSSEForS3BucketWide(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
 		return err
 	}
+	//
+	//if config.SkipBucketAccessLogging {
+	//	terragruntOptions.Logger.Printf("Access Logging is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_accesslogging' config.", config.remoteStateConfigS3.Bucket)
+	//} else if err := EnableAccessLoggingForS3BucketWide(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
+	//	return err
+	//}
 
-	if config.SkipBucketAccessLogging {
-		terragruntOptions.Logger.Printf("Access Logging is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_accesslogging' config.", config.remoteStateConfigS3.Bucket)
-	} else if err := EnableAccessLoggingForS3BucketWide(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
-		return err
+	if config.EnableBucketAccessLogging {
+		if err := EnableAccessLoggingForS3BucketWide(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
+			return err
+		}
+	} else {
+		terragruntOptions.Logger.Printf("Access Logging is disabled for the remote state AWS S3 bucket for bucket %s", config.remoteStateConfigS3.Bucket)
 	}
 
 	return nil
