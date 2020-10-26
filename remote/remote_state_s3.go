@@ -491,13 +491,12 @@ func TagS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragrun
 			TagSet: tagsConverted}}
 
 	_, err := s3Client.PutBucketTagging(&putBucketTaggingInput)
-
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 
+	terragruntOptions.Logger.Printf("Tagged S3 bucket with %s", config.S3BucketTags)
 	return nil
-
 }
 
 func convertTags(tags map[string]string) []*s3.Tag {
@@ -643,7 +642,12 @@ func EnableVersioningForS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, t
 	}
 
 	_, err := s3Client.PutBucketVersioning(&input)
-	return errors.WithStackTrace(err)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	terragruntOptions.Logger.Printf("Enabled versioning on S3 bucket %s", config.Bucket)
+	return nil
 }
 
 // Enable bucket-wide Server-Side Encryption for the AWS S3 bucket specified in the given config
@@ -657,7 +661,12 @@ func EnableSSEForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 	input := &s3.PutBucketEncryptionInput{Bucket: aws.String(config.Bucket), ServerSideEncryptionConfiguration: serverConfig}
 
 	_, err := s3Client.PutBucketEncryption(input)
-	return errors.WithStackTrace(err)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	terragruntOptions.Logger.Printf("Enabled bucket-wide SSE on AWS S3 bucket %s", config.Bucket)
+	return nil
 }
 
 // Enable bucket-wide Access Logging for the AWS S3 bucket specified in the given config
@@ -682,6 +691,7 @@ func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConf
 		return errors.WithStackTrace(err)
 	}
 
+	terragruntOptions.Logger.Printf("Enabled bucket-wide Access Logging on AWS S3 bucket \"%s\" - using as TargetBucket \"%s\"", config.Bucket, logsBucket)
 	return nil
 }
 
@@ -701,7 +711,13 @@ func EnablePublicAccessBlockingForS3Bucket(s3Client *s3.S3, config *RemoteStateC
 			},
 		},
 	)
-	return errors.WithStackTrace(err)
+
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	terragruntOptions.Logger.Printf("Blocked all public access to S3 bucket %s", config.Bucket)
+	return nil
 }
 
 // To enable access logging in an S3 bucket, you must grant WRITE and READ_ACP permissions to the Log Delivery
