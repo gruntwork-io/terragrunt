@@ -30,9 +30,8 @@ $(function() {
     function submitToFormSpree(data) {
       submitButton.html("Sending...");
       submitButton.prop("disabled", true);
-
       var postParams = {
-        url: "https://api.formbucket.com/f/buk_7GKMDWyXtHYRco5J0JQgFgan",
+        url: form.attr('action'),
         type: "POST",
         data: data,
         dataType: "json"
