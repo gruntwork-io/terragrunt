@@ -766,6 +766,16 @@ footer hr {
   .navbar.navbar-default {
     max-width: 90%;
     margin: 0px auto;
+    .navbar-nav > li > a {
+      padding-right: 18px;
+      padding-left: 18px;
+      font-size: 15px;
+    }
+    .navbar-nav > li {
+      &:last-child {
+        padding-left: 10px;
+      }
+    }
   }
 }
 
@@ -774,12 +784,11 @@ footer hr {
   align-items: flex-start;
 }
 .navbar-nav > li > a {
-  padding-right: 10px;
-  padding-left: 10px;
+  padding-right: 15px;
+  padding-left: 15px;
   text-transform: uppercase;
   letter-spacing: 2px;
-  font-size: 16px;
-
+  font-size: 14px;
   &.btn {
     padding: 6px 12px;
     margin-top: 19px;
@@ -792,6 +801,12 @@ footer hr {
   }
 }
 
+.navbar-nav > li {
+  &:last-child {
+    padding-left: 0;
+  }
+}
+
 .github-nav-link {
   img {
     max-height: 18px;
@@ -799,13 +814,6 @@ footer hr {
     &:hover {
       opacity: 0.7;
     }
-  }
-}
-
-@media (min-width: 1024px) {
-  .navbar-nav > li > a {
-    padding-right: 10px;
-    padding-left: 10px;
   }
 }
 
