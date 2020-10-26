@@ -24,7 +24,7 @@ $(function() {
 
     if(validateForm()) {
       var data = form.serialize(form.get(0), { hash: true });
-      submitToFormSpree(data)
+      submitToFormSpree(data);
     }
 
     function submitToFormSpree(data) {
