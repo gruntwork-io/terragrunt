@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="248px" height="295px" viewBox="0 0 248 295" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>top-left</title>
+    <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="terragrunt-support--contact" transform="translate(-186.000000, 14.000000)">
+            <g id="top-left" transform="translate(186.000000, -14.000000)">
+                <polygon id="Rectangle" fill="#5852E6" points="0 127.483871 82 76 82 157.516129 0 209"></polygon>
+                <polygon id="Rectangle-Copy-5" fill="#4B5FEA" points="166 213.483871 248 162 248 243.516129 166 295"></polygon>
+                <polygon id="Rectangle-Copy-2" fill="#3A70F0" transform="translate(81.500000, 211.500000) scale(-1, 1) translate(-81.500000, -211.500000) " points="0 211.5 81.5 160 163 211.5 81.5 263"></polygon>
+                <polygon id="Rectangle-Copy-4" fill="#3278F2" transform="translate(165.500000, 157.500000) scale(-1, 1) translate(-165.500000, -157.500000) " points="84 157.5 165.5 106 247 157.5 165.5 209"></polygon>
+                <polygon id="Rectangle-Copy-14" fill="#5457E8" transform="translate(165.500000, 51.500000) scale(-1, 1) translate(-165.500000, -51.500000) " points="84 51.5 165.5 0 247 51.5 165.5 103"></polygon>
+            </g>
+        </g>
+    </g>
+</svg>

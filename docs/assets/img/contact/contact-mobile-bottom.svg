@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="317px" height="176px" viewBox="0 0 317 176" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>contact-mobile-bottom</title>
+    <defs>
+        <linearGradient x1="30.993838%" y1="0%" x2="69.006162%" y2="100%" id="linearGradient-1">
+            <stop stop-color="#4EB9FB" offset="0%"></stop>
+            <stop stop-color="#2683F5" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="31.5688776%" y1="0%" x2="68.4311224%" y2="100%" id="linearGradient-2">
+            <stop stop-color="#4EB9FB" offset="0%"></stop>
+            <stop stop-color="#2683F5" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="79.8583349%" y1="52.4235768%" x2="23.5716011%" y2="62.2595436%" id="linearGradient-3">
+            <stop stop-color="#1888CF" offset="0%"></stop>
+            <stop stop-color="#0352C2" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="29.3367347%" y1="0%" x2="70.6632653%" y2="100%" id="linearGradient-4">
+            <stop stop-color="#4EB9FB" offset="0%"></stop>
+            <stop stop-color="#2683F5" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="79.8583349%" y1="52.6127965%" x2="23.5716011%" y2="63.2167021%" id="linearGradient-5">
+            <stop stop-color="#1888CF" offset="0%"></stop>
+            <stop stop-color="#0352C2" offset="100%"></stop>
+        </linearGradient>
+    </defs>
+    <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="mobile---contact" transform="translate(-20.000000, -1034.000000)">
+            <g id="contact-mobile-bottom" transform="translate(20.500000, 1034.000000)">
+                <g id="Group-Copy-6">
+                    <polygon id="Rectangle" fill="url(#linearGradient-1)" points="26.5 32.6451613 51.1 17.2 51.1 41.6548387 26.5 57.1"></polygon>
+                    <polygon id="Rectangle-Copy-15" fill="#012FA8" transform="translate(12.300000, 37.150000) scale(-1, 1) translate(-12.300000, -37.150000) " points="0 32.6451613 24.6 17.2 24.6 41.6548387 0 57.1"></polygon>
+                    <polygon id="Rectangle-Copy-3" fill="#067ACB" transform="translate(25.650000, 15.450000) scale(-1, 1) translate(-25.650000, -15.450000) " points="1.2 15.45 25.65 0 50.1 15.45 25.65 30.9"></polygon>
+                </g>
+                <polygon id="Rectangle" fill="url(#linearGradient-2)" points="262.5 141.677419 296.5 120 296.5 154.322581 262.5 176"></polygon>
+                <polygon id="Rectangle-Copy-15" fill="#0237AE" transform="translate(244.500000, 148.000000) scale(-1, 1) translate(-244.500000, -148.000000) " points="227.5 141.677419 261.5 120 261.5 154.322581 227.5 176"></polygon>
+                <polygon id="Rectangle-Copy-3" fill="url(#linearGradient-3)" transform="translate(262.000000, 119.500000) scale(-1, 1) translate(-262.000000, -119.500000) " points="227.5 119.5 262 98 296.5 119.5 262 141"></polygon>
+                <polygon id="Rectangle" fill="url(#linearGradient-4)" points="297.5 99.8387097 315.5 89 315.5 106.16129 297.5 117"></polygon>
+                <polygon id="Rectangle-Copy-15" fill="#0237AE" transform="translate(288.500000, 103.000000) scale(-1, 1) translate(-288.500000, -103.000000) " points="279.5 99.8387097 297.5 89 297.5 106.16129 279.5 117"></polygon>
+                <polygon id="Rectangle-Copy-3" fill="url(#linearGradient-5)" transform="translate(296.500000, 88.000000) scale(-1, 1) translate(-296.500000, -88.000000) " points="279.5 88 296.5 77 313.5 88 296.5 99"></polygon>
+                <polygon id="Rectangle" fill="url(#linearGradient-4)" points="167.5 97.8387097 185.5 87 185.5 104.16129 167.5 115"></polygon>
+                <polygon id="Rectangle-Copy-15" fill="#0237AE" transform="translate(158.500000, 101.000000) scale(-1, 1) translate(-158.500000, -101.000000) " points="149.5 97.8387097 167.5 87 167.5 104.16129 149.5 115"></polygon>
+                <polygon id="Rectangle-Copy-3" fill="#0237AE" transform="translate(167.500000, 86.000000) scale(-1, 1) translate(-167.500000, -86.000000) " points="150.5 86 167.5 75 184.5 86 167.5 97"></polygon>
+            </g>
+        </g>
+    </g>
+</svg>

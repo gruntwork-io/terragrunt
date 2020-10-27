@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    {% include head.html %}
+  </head>
+  <body{% if page.slug %} class="{{ page.slug }} subpage" {% endif %}>
+    <div class="subpage__header subpage__header--min section-colorful-bg">
+      {% include navbar.html %}
+      <img src='{{site.baseurl}}/assets/img/contact/top.svg' alt='Shape' class="header-shapes-left hidden-shape-xs" />
+      <img src='{{site.baseurl}}/assets/img/commercial-support/top-right.svg' alt='Shape' class="header-shapes-top hidden-sm hidden-xs" />
+      <img src='{{site.baseurl}}/assets/img/contact/right.svg' alt='Shape' class="header-shapes-top hidden-shape" />
+    </div>
+    <div class="contact subpage__contact {{ page.classes }}">
+      {{ content }}
+    </div>
+    <section>
+      {% include links-section.html %}
+    </section>
+    {% include footer.html %}
+    {% include scripts.html %}
+  </body>
+</html>
