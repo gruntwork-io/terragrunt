@@ -277,7 +277,7 @@ func TestGetTerraformInitArgs(t *testing.T) {
 				"skip_bucket_enforced_tls":       false,
 				"enable_lock_table_ssencryption": true,
 				"disable_aws_client_checksums":   false,
-				"accesslogging_bucket_name": 	  "test",
+				"accesslogging_bucket_name":      "test",
 			},
 			map[string]interface{}{},
 			true,

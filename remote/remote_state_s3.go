@@ -40,7 +40,7 @@ type ExtendedRemoteStateConfigS3 struct {
 	SkipBucketEnforcedTLS       bool              `mapstructure:"skip_bucket_enforced_tls"`
 	EnableLockTableSSEncryption bool              `mapstructure:"enable_lock_table_ssencryption"`
 	DisableAWSClientChecksums   bool              `mapstructure:"disable_aws_client_checksums"`
-	AccessLoggingBucketName   	string            `mapstructure:"accesslogging_bucket_name"`
+	AccessLoggingBucketName     string            `mapstructure:"accesslogging_bucket_name"`
 }
 
 // These are settings that can appear in the remote_state config that are ONLY used by Terragrunt and NOT forwarded
@@ -344,19 +344,19 @@ func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3, terragruntOpt
 // If the bucket specified in the given config doesn't already exist, prompt the user to create it, and if the user
 // confirms, create the bucket and enable versioning for it.
 func createS3BucketWithRetry(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-		// Creating the S3 bucket occasionally fails with eventual consistency errors: e.g., the S3 HeadBucket
-		// operation says the bucket exists, but a subsequent call to enable versioning on that bucket fails with
-		// the error "NoSuchBucket: The specified bucket does not exist." Therefore, when creating and configuring
-		// the S3 bucket, we do so in a retry loop with a sleep between retries that will hopefully work around the
-		// eventual consistency issues. Each S3 operation should be idempotent, so redoing steps that have already
-		// been performed should be a no-op.
-		description := fmt.Sprintf("Attempt to create the S3 bucket %s", config.remoteStateConfigS3.Bucket)
-		maxRetries := 3
-		sleepBetweenRetries := 10 * time.Second
+	// Creating the S3 bucket occasionally fails with eventual consistency errors: e.g., the S3 HeadBucket
+	// operation says the bucket exists, but a subsequent call to enable versioning on that bucket fails with
+	// the error "NoSuchBucket: The specified bucket does not exist." Therefore, when creating and configuring
+	// the S3 bucket, we do so in a retry loop with a sleep between retries that will hopefully work around the
+	// eventual consistency issues. Each S3 operation should be idempotent, so redoing steps that have already
+	// been performed should be a no-op.
+	description := fmt.Sprintf("Attempt to create the S3 bucket %s", config.remoteStateConfigS3.Bucket)
+	maxRetries := 3
+	sleepBetweenRetries := 10 * time.Second
 
-		return util.DoWithRetry(description, maxRetries, sleepBetweenRetries, terragruntOptions.Logger, func() error {
-			return CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client, config, terragruntOptions)
-		})
+	return util.DoWithRetry(description, maxRetries, sleepBetweenRetries, terragruntOptions.Logger, func() error {
+		return CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client, config, terragruntOptions)
+	})
 }
 
 // Check if versioning is enabled for the S3 bucket specified in the given config and warn the user if it is not
