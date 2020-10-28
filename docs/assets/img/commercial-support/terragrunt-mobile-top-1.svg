@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="124px" height="199px" viewBox="0 0 124 199" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>terragrunt-mobile-top-1</title>
+    <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="mobile-copy" transform="translate(-224.000000, 31.000000)">
+            <g id="terragrunt-mobile-top-1" transform="translate(224.000000, -31.000000)">
+                <polygon id="Rectangle" fill="#5852E6" points="0.5 63.7419355 41.5 38 41.5 78.7580645 0.5 104.5"></polygon>
+                <polygon id="Rectangle-Copy-15" fill="#5B4DE5" transform="translate(102.500000, 139.250000) scale(-1, 1) translate(-102.500000, -139.250000) " points="82 131.741935 123 106 123 146.758065 82 172.5"></polygon>
+                <polygon id="Rectangle-Copy-2" fill="#3A70F0" transform="translate(41.250000, 105.750000) scale(-1, 1) translate(-41.250000, -105.750000) " points="0.5 105.75 41.25 80 82 105.75 41.25 131.5"></polygon>
+                <polygon id="Rectangle-Copy-4" fill="#3278F2" transform="translate(83.250000, 172.750000) scale(-1, 1) translate(-83.250000, -172.750000) " points="42.5 172.75 83.25 147 124 172.75 83.25 198.5"></polygon>
+                <polygon id="Rectangle-Copy-14" fill="#5457E8" transform="translate(83.250000, 25.750000) scale(-1, 1) translate(-83.250000, -25.750000) " points="42.5 25.75 83.25 0 124 25.75 83.25 51.5"></polygon>
+            </g>
+        </g>
+    </g>
+</svg>

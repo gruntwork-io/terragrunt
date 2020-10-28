@@ -1,0 +1,35 @@
+---
+custom_js:
+- prism
+- collection-browser_scroll
+- collection-browser_search
+- collection-browser_toc
+- video-player
+---
+
+<!doctype html>
+<html lang="en">
+    <head>
+      {% include head.html %}
+    </head>
+    <body{% if page.slug %} class="{{ page.slug }} collection-browser subpage" {% endif %}>
+      <div class="subpage__header section-colorful-bg">
+        {% include navbar.html %}
+        <div class="subpage__hero">
+          <h1><span>Commercial</span> Support</h1>
+          <span class='subtitle'>{{ page.subtitle }}</span>
+        </div>
+        <div class='header-bg'>
+          <div class='overflow-hide'>
+          </div>
+          <img src='{{site.baseurl}}/assets/img/commercial-support/terragrunt-mobile-top-1.svg' alt='Shape' class="header-shapes-top hidden-md hidden-lg" />
+          <img src='{{site.baseurl}}/assets/img/commercial-support/top-right.svg' alt='Shape' class="header-shapes-top hidden-sm hidden-xs" />
+          <img src='{{site.baseurl}}/assets/img/commercial-support/t-o-2.svg' alt='Shape' class="header-shapes-left" />
+          <img src='{{site.baseurl}}/assets/img/commercial-support/right-header.svg' alt='Hero' class="header-shapes-right" />
+        </div>
+      </div>
+      {{ content }}
+      {% include footer.html %}
+      {% include scripts.html %}
+    </body>
+</html>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="102px" height="113px" viewBox="0 0 102 113" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>support-mobile-top-1</title>
+    <defs>
+        <linearGradient x1="30.993838%" y1="0%" x2="69.006162%" y2="100%" id="linearGradient-1">
+            <stop stop-color="#4EB9FB" offset="0%"></stop>
+            <stop stop-color="#2683F5" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="79.8583349%" y1="52.4918236%" x2="23.5716011%" y2="62.6047667%" id="linearGradient-2">
+            <stop stop-color="#1888CF" offset="0%"></stop>
+            <stop stop-color="#0352C2" offset="100%"></stop>
+        </linearGradient>
+    </defs>
+    <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="mobile" transform="translate(-187.000000, 35.000000)">
+            <g id="support-mobile-top-1" transform="translate(187.500000, -35.000000)">
+                <polygon id="Rectangle" fill="url(#linearGradient-1)" points="51 63.2903226 100.2 32.4 100.2 81.3096774 51 112.2"></polygon>
+                <polygon id="Rectangle-Copy-15" fill="#0242B7" transform="translate(24.600000, 72.300000) scale(-1, 1) translate(-24.600000, -72.300000) " points="-8.8817842e-14 63.2903226 49.2 32.4 49.2 81.3096774 -8.8817842e-14 112.2"></polygon>
+                <polygon id="Rectangle-Copy-3" fill="url(#linearGradient-2)" transform="translate(50.100000, 30.900000) scale(-1, 1) translate(-50.100000, -30.900000) " points="1.2 30.9 50.1 7.10542736e-15 99 30.9 50.1 61.8"></polygon>
+            </g>
+        </g>
+    </g>
+</svg>
