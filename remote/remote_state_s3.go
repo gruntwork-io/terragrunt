@@ -420,7 +420,7 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 	}
 
 	if config.SkipBucketAccessLogging {
-		terragruntOptions.Logger.Printf("___WARNING___: The terragrunt configuration option 'skip_bucket_accesslogging' is now deprecated. To enable access logging for bucket %s, please provide property `accesslogging_bucket_name` in the terragrunt config file. For more details, please refer to the Terragrunt documentation.", config.remoteStateConfigS3.Bucket)
+		terragruntOptions.Logger.Printf("___WARNING___: The terragrunt configuration option 'skip_bucket_accesslogging' is now deprecated. Access logging for the state bucket %s is disabled by default. To enable access logging for bucket %s, please provide property `accesslogging_bucket_name` in the terragrunt config file. For more details, please refer to the Terragrunt documentation.", config.remoteStateConfigS3.Bucket, config.remoteStateConfigS3.Bucket)
 	}
 
 	if config.AccessLoggingBucketName != "" {
