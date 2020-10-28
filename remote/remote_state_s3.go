@@ -684,11 +684,12 @@ func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConf
 		},
 	}
 
+	terragruntOptions.Logger.Printf("Putting bucket logging for bucket %s - using as TargetBucket %s", config.Bucket, logsBucket)
 	if _, err := s3Client.PutBucketLogging(&loggingInput); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	terragruntOptions.Logger.Printf("Enabled bucket-wide Access Logging on AWS S3 bucket \"%s\" - using as TargetBucket \"%s\"", config.Bucket, logsBucket)
+	terragruntOptions.Logger.Printf("Enabled bucket-wide Access Logging on AWS S3 bucket %s", config.Bucket)
 	return nil
 }
 
