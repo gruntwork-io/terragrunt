@@ -463,10 +463,7 @@ func CreateLogsS3BucketIfNecessary(s3Client *s3.S3, logsBucketName *string, terr
 		}
 
 		if shouldCreateBucket {
-			err := CreateS3Bucket(s3Client, logsBucketName, terragruntOptions)
-			if err != nil {
-				return err
-			}
+			return CreateS3Bucket(s3Client, logsBucketName, terragruntOptions)
 		}
 	}
 	return nil

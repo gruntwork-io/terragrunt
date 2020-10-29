@@ -597,6 +597,7 @@ func TestTerragruntHonorsS3RemoteStateSkipFlagsRegression(t *testing.T) {
 
 // Regression test to ensure that accesslogging_bucket_name is taken into account
 // & sets the TargetLock bucket to a new S3 bucket, different from the origin S3 bucket
+// TODO - update this test once PR in terratest has been merged in https://github.com/gruntwork-io/terratest/pull/689
 func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucket(t *testing.T) {
 	t.Parallel()
 	t.Skip("Skipping this test untul PR Terratest-689 has been merged in")
