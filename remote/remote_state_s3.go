@@ -358,7 +358,7 @@ func createS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 			// the S3 bucket, we do so in a retry loop with a sleep between retries that will hopefully work around the
 			// eventual consistency issues. Each S3 operation should be idempotent, so redoing steps that have already
 			// been performed should be a no-op.
-			description := fmt.Sprintf("Create S3 bucket %s", config.remoteStateConfigS3.Bucket)
+			description := fmt.Sprintf("Create S3 bucket with retry %s", config.remoteStateConfigS3.Bucket)
 			maxRetries := 3
 			sleepBetweenRetries := 10 * time.Second
 
@@ -392,8 +392,8 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 	err := CreateS3Bucket(s3Client, aws.String(config.remoteStateConfigS3.Bucket), terragruntOptions)
 
 	if err != nil {
-		if isBucketAlreadyOwnedByYourError(err) {
-			terragruntOptions.Logger.Printf("Looks like someone is creating bucket %s at the same time. Will not attempt to create it again.", config.remoteStateConfigS3.Bucket)
+		if isBucketAlreadyOwnedByYouError(err) {
+			terragruntOptions.Logger.Printf("Looks like you're already creating bucket %s at the same time. Will not attempt to create it again.", config.remoteStateConfigS3.Bucket)
 			return WaitUntilS3BucketExists(s3Client, &config.remoteStateConfigS3, terragruntOptions)
 		}
 
@@ -440,7 +440,7 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 		terragruntOptions.Logger.Printf("Enabling bucket-wide Access Logging on AWS S3 bucket %s - using as TargetBucket %s", config.remoteStateConfigS3.Bucket, config.AccessLoggingBucketName)
 
 		if err := CreateLogsS3BucketIfNecessary(s3Client, aws.String(config.AccessLoggingBucketName), terragruntOptions); err != nil {
-			terragruntOptions.Logger.Printf("Could not create logs bucket for AWS S3 bucket %s", config.remoteStateConfigS3.Bucket)
+			terragruntOptions.Logger.Printf("Error: Could not create logs bucket %s for AWS S3 bucket %s", config.AccessLoggingBucketName, config.remoteStateConfigS3.Bucket)
 			return err
 		}
 
@@ -534,12 +534,16 @@ func WaitUntilS3BucketExists(s3Client *s3.S3, config *RemoteStateConfigS3, terra
 func CreateS3Bucket(s3Client *s3.S3, bucket *string, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Printf("Creating S3 bucket %s", aws.StringValue(bucket))
 	_, err := s3Client.CreateBucket(&s3.CreateBucketInput{Bucket: bucket})
-	return errors.WithStackTrace(err)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	terragruntOptions.Logger.Printf("Created S3 bucket %s", aws.StringValue(bucket))
+	return nil
 }
 
 // Determine if this is an error that implies you've already made a request to create the S3 bucket and it succeeded
 // or is in progress. This usually happens when running many tests in parallel or xxx-all commands.
-func isBucketAlreadyOwnedByYourError(err error) bool {
+func isBucketAlreadyOwnedByYouError(err error) bool {
 	awsErr, isAwsErr := errors.Unwrap(err).(awserr.Error)
 	return isAwsErr && (awsErr.Code() == "BucketAlreadyOwnedByYou" || awsErr.Code() == "OperationAborted")
 }
@@ -674,17 +678,19 @@ func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConf
 		return errors.WithStackTrace(err)
 	}
 
+	targetPrefix := "TFStateLogs/"
+	terragruntOptions.Logger.Printf("Putting bucket logging on S3 bucket %s with TargetBucket %s and TargetPrefix %s", config.Bucket, logsBucket, targetPrefix)
+
 	loggingInput := s3.PutBucketLoggingInput{
 		Bucket: aws.String(config.Bucket),
 		BucketLoggingStatus: &s3.BucketLoggingStatus{
 			LoggingEnabled: &s3.LoggingEnabled{
 				TargetBucket: aws.String(logsBucket),
-				TargetPrefix: aws.String("TFStateLogs/"),
+				TargetPrefix: aws.String(targetPrefix),
 			},
 		},
 	}
 
-	terragruntOptions.Logger.Printf("Putting bucket logging for bucket %s - using as TargetBucket %s", config.Bucket, logsBucket)
 	if _, err := s3Client.PutBucketLogging(&loggingInput); err != nil {
 		return errors.WithStackTrace(err)
 	}
