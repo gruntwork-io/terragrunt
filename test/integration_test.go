@@ -606,7 +606,7 @@ func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucket(t *testi
 	removeFile(t, filepath.Join(examplePath, "backend.tf"))
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-	s3BucketLogsName := fmt.Sprintf("terragrunt-test-bucket-%s-tf-state-logs", strings.ToLower(uniqueId()))
+	s3BucketLogsName := fmt.Sprintf("%s-tf-state-logs", s3BucketName)
 	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
