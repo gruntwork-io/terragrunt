@@ -400,6 +400,10 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 		return err
 	}
 
+	if err := WaitUntilS3BucketExists(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
+		return err
+	}
+
 	if config.SkipBucketRootAccess {
 		terragruntOptions.Logger.Printf("Root access is disabled for the remote state S3 bucket %s using 'skip_bucket_root_access' config.", config.remoteStateConfigS3.Bucket)
 	} else if err := EnableRootAccesstoS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
