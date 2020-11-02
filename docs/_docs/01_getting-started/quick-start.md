@@ -478,7 +478,7 @@ inputs = {
 
 If it works well in the `qa` environment, you could promote the exact same code to the `stage` environment by updating its `terragrunt.hcl` file to run `v0.0.2`. And finally, if that code works well in `stage`, you could again promote the exact same code to `prod` by updating that `terragrunt.hcl` file to use `v0.0.2` as well.
 
-![Using Terragrunt to promote immutable Terraform code across environments]({{site.baseurl}}/assets/img/collections/docs/promote-immutable-Terraform-code-across-envs.png)
+![Using Terragrunt to promote immutable Terraform code across environments]({{site.baseurl}}/assets/img/collections/documentation/promote-immutable-Terraform-code-across-envs.png)
 
 If at any point you hit a problem, it will only affect the one environment, and you can roll back by deploying a previous version number. That’s immutable infrastructure at work\!
 
