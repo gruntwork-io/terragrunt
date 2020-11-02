@@ -43,7 +43,7 @@ func terragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output["remote_state"] = remoteStateCty
 	}
 
-	dependenciesCty, err := gostructToCty(config.Dependencies)
+	dependenciesCty, err := goTypeToCty(config.Dependencies)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -63,7 +63,7 @@ func terragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output["dependency"] = dependencyCty
 	}
 
-	generateCty, err := gostructToCty(config.GenerateConfigs)
+	generateCty, err := goTypeToCty(config.GenerateConfigs)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -71,7 +71,7 @@ func terragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output["generate"] = generateCty
 	}
 
-	retryableCty, err := gostructToCty(config.RetryableErrors)
+	retryableCty, err := goTypeToCty(config.RetryableErrors)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -130,7 +130,7 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 		configCty.AfterHooks[hook.Name] = hook
 	}
 
-	return gostructToCty(configCty)
+	return goTypeToCty(configCty)
 }
 
 // Serialize RemoteState to a cty Value. We can't directly serialize the struct because `config` is an arbitrary
@@ -145,7 +145,7 @@ func remoteStateAsCty(remoteState *remote.RemoteState) (cty.Value, error) {
 	output["disable_init"] = goboolToCty(remoteState.DisableInit)
 	output["disable_dependency_optimization"] = goboolToCty(remoteState.DisableDependencyOptimization)
 
-	generateCty, err := gostructToCty(remoteState.Generate)
+	generateCty, err := goTypeToCty(remoteState.Generate)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -164,7 +164,7 @@ func remoteStateAsCty(remoteState *remote.RemoteState) (cty.Value, error) {
 func dependencyBlocksAsCty(dependencyBlocks []Dependency) (cty.Value, error) {
 	out := map[string]cty.Value{}
 	for _, block := range dependencyBlocks {
-		blockCty, err := gostructToCty(block)
+		blockCty, err := goTypeToCty(block)
 		if err != nil {
 			return cty.NilVal, err
 		}
@@ -188,8 +188,9 @@ func convertToCtyWithJson(val interface{}) (cty.Value, error) {
 	return ctyJsonVal.Value, nil
 }
 
-// Converts an arbitrary go struct that has cty tags to a cty Value.
-func gostructToCty(val interface{}) (cty.Value, error) {
+// Converts arbitrary go type (struct that has cty tags, slice, map with string keys, string, bool, int
+// uint, float, cty.Value) to a cty Value
+func goTypeToCty(val interface{}) (cty.Value, error) {
 	ctyType, err := gocty.ImpliedType(val)
 	if err != nil {
 		return cty.NilVal, errors.WithStackTrace(err)
