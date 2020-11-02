@@ -595,6 +595,48 @@ func TestTerragruntHonorsS3RemoteStateSkipFlagsRegression(t *testing.T) {
 	assert.NotEqual(t, versioningStatus, "Enabled")
 }
 
+// Regression test to ensure that accesslogging_bucket_name is taken into account
+// & sets the TargetLock bucket to a new S3 bucket, different from the origin S3 bucket
+// TODO - update this test once PR in terratest has been merged in https://github.com/gruntwork-io/terratest/pull/689
+func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucket(t *testing.T) {
+	t.Parallel()
+	t.Skip("Skipping this test untul PR Terratest-689 has been merged in")
+
+	examplePath := filepath.Join(TEST_FIXTURE_REGRESSIONS, "accesslogging-bucket-name")
+	cleanupTerraformFolder(t, examplePath)
+	// Also clean up generated backend file
+	removeFile(t, filepath.Join(examplePath, "backend.tf"))
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	s3BucketLogsName := fmt.Sprintf("%s-tf-state-logs", s3BucketName)
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+
+	tmpTerragruntConfigPath := createTmpTerragruntConfig(
+		t,
+		examplePath,
+		s3BucketName,
+		lockTableName,
+		"remote_terragrunt.hcl",
+	)
+	localBackendTerragruntConfigPath := filepath.Join(examplePath, "local_terragrunt.hcl")
+
+	// Pass 1 with local backend. This should only download and setup the terragrunt-cache. Note that the first pass has
+	// to be an apply so that the state file is created. Otherwise, terragrunt short circuits the problematic routine.
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", localBackendTerragruntConfigPath, examplePath))
+
+	// Pass 2 with remote backend. This should setup the remote backend and create the s3 bucket.
+	runTerragrunt(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, examplePath))
+
+	// This needs to be implemented in terratest
+	// targetLoggingBucket := terraws.(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+
+	// TODO - update this test once PR in terratest has been merged in https://github.com/gruntwork-io/terratest/pull/689
+	assert.Equal(t, s3BucketLogsName, s3BucketLogsName) //replcae with targetLoggingBucket)
+}
+
 func TestTerragruntWorksWithGCSBackend(t *testing.T) {
 	t.Parallel()
 
@@ -3433,6 +3475,7 @@ func copyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string,
 	contents = strings.Replace(contents, "__FILL_IN_BUCKET_NAME__", s3BucketName, -1)
 	contents = strings.Replace(contents, "__FILL_IN_LOCK_TABLE_NAME__", lockTableName, -1)
 	contents = strings.Replace(contents, "__FILL_IN_REGION__", region, -1)
+	contents = strings.Replace(contents, "__FILL_IN_LOGS_BUCKET_NAME__", s3BucketName+"-tf-state-logs", -1)
 
 	if err := ioutil.WriteFile(configDestPath, []byte(contents), 0444); err != nil {
 		t.Fatalf("Error writing temp Terragrunt config to %s: %v", configDestPath, err)
@@ -3488,7 +3531,7 @@ func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketNam
 	}
 
 	remoteStateConfig := remote.RemoteStateConfigS3{Bucket: bucketName, Region: awsRegion}
-	assert.True(t, remote.DoesS3BucketExist(s3Client, &remoteStateConfig), "Terragrunt failed to create remote state S3 bucket %s", bucketName)
+	assert.True(t, remote.DoesS3BucketExist(s3Client, &remoteStateConfig.Bucket), "Terragrunt failed to create remote state S3 bucket %s", bucketName)
 
 	if expectedTags != nil {
 		assertS3Tags(expectedTags, bucketName, s3Client, t)
