@@ -238,8 +238,7 @@ For the `s3` backend, the following additional properties are supported in the `
 - `dynamodb_table` - (Optional) The name of a DynamoDB table to use for state locking and consistency. The table must have a primary key named LockID. If not present, locking will be disabled.
 - `skip_bucket_versioning`: When `true`, the S3 bucket that is created to store the state will not be versioned.
 - `skip_bucket_ssencryption`: When `true`, the S3 bucket that is created to store the state will not be configured with server-side encryption.
-- `skip_bucket_accesslogging`: When `true`, the S3 bucket that is created to store the state will not be configured with
-  access logging.
+- `skip_bucket_accesslogging`: _DEPRECATED_ If provided, will be ignored. A log warning will be issued in the console output to notify the user.
 - `skip_bucket_root_access`: When `true`, the S3 bucket that is created will not be configured with bucket policies that allow access to the root AWS user.
 - `skip_bucket_enforced_tls`: When `true`, the S3 bucket that is created will not be configured with a bucket policy that enforces access to the bucket via a TLS connection.
 - `enable_lock_table_ssencryption`: When `true`, the synchronization lock table in DynamoDB used for remote state concurrent access will not be configured with server side encryption.
@@ -248,6 +247,7 @@ For the `s3` backend, the following additional properties are supported in the `
 - `disable_aws_client_checksums`: When `true`, disable computing and checking checksums on the request and response,
   such as the CRC32 check for DynamoDB. This can be used to workaround
   https://github.com/gruntwork-io/terragrunt/issues/1059.
+- `accesslogging_bucket_name`: (Optional) When provided as a valid `string`, create an S3 bucket with this name to store the access logs for the S3 bucket used to store Terraform state. If not provided, or string is empty or invalid S3 bucket name, then server access logging for the S3 bucket storing the terraform state will be disabled.
 
 For the `gcs` backend, the following additional properties are supported in the `config` attribute:
 
