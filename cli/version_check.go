@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"regexp"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -24,6 +25,16 @@ func PopulateTerraformVersion(terragruntOptions *options.TerragruntOptions) erro
 	terragruntOptionsCopy := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	terragruntOptionsCopy.Writer = ioutil.Discard
 	terragruntOptionsCopy.ErrWriter = ioutil.Discard
+
+	// Remove any TF_CLI_ARGS before version checking. These are appended to
+	// the arguments supplied on the command line and cause issues when running
+	// the --version command.
+	// https://www.terraform.io/docs/commands/environment-variables.html#tf_cli_args-and-tf_cli_args_name
+	for key := range terragruntOptionsCopy.Env {
+		if strings.HasPrefix(key, "TF_CLI_ARGS") {
+			delete(terragruntOptionsCopy.Env, key)
+		}
+	}
 
 	output, err := shell.RunTerraformCommandWithOutput(terragruntOptionsCopy, "--version")
 	if err != nil {
