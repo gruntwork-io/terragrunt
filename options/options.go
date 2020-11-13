@@ -276,9 +276,27 @@ func (terragruntOptions *TerragruntOptions) InsertTerraformCliArgs(argsToInsert 
 	// Options must be inserted after command but before the other args
 	// command is either 1 word or 2 words
 	var args []string
+	var lastArg string
+
 	args = append(args, terragruntOptions.TerraformCliArgs[:commandLength]...)
-	args = append(args, argsToInsert...)
+	// We need to iterate over the argsToInsert to find an arg that is a file.
+	// If we found one, we treat it as the Terraform plan file and we then set it
+	// as lastArg to append it as last argument.
+	for _, arg := range argsToInsert {
+		if util.IsFile(arg) {
+			lastArg = arg
+		} else {
+			args = append(args, arg)
+		}
+	}
+
 	args = append(args, terragruntOptions.TerraformCliArgs[commandLength:]...)
+
+	// Append lastArg which is a Terraform plan file
+	if lastArg != "" {
+		args = append(args, lastArg)
+	}
+
 	terragruntOptions.TerraformCliArgs = args
 }
 
