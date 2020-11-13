@@ -277,6 +277,11 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 			return err
 		}
 
+		// Skip the Terragrunt cache dir entirely
+		if info.IsDir() && info.Name() == options.TerragruntCacheDir {
+			return filepath.SkipDir
+		}
+
 		isTerragruntModule, err := containsTerragruntModule(path, info, terragruntOptions)
 		if err != nil {
 			return err
