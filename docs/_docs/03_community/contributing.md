@@ -72,6 +72,10 @@ for instructions on running the automated tests.
 At this point, make your code changes and use your new test case to verify that everything is working. Check out
 [Developing Terragrunt](#developing-terragrunt) for instructions on how to build and run Terragrunt locally.
 
+We have a [style guide](https://gruntwork.io/guides/style%20guides/golang-style-guide/) for the Go programming language,
+in which we documented some best practices for writing Go code. Please ensure your code adheres to the guidelines
+outlined in the guide.
+
 ### Create a pull request
 
 [Create a pull request](https://help.github.com/articles/creating-a-pull-request/) with your changes. Please make sure
