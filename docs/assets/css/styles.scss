@@ -1,0 +1,23 @@
+---
+# Frontmatter
+---
+
+@import "bootstrap/scss/bootstrap";
+@import "global";
+@import "components";
+@import "collection_browser";
+@import "subpage";
+
+@import "pages/cookie-policy";
+@import "pages/home";
+@import "pages/support";
+@import "pages/commercial-support";
+@import "pages/contact";
+
+@import "utilities";
+
+body.index-page {
+  .header-shapes-bottom {
+    background-image: url('{{ site.baseurl }}/assets/img/home/t-o-3@3x.png');
+  }
+}

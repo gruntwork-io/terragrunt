@@ -1,0 +1,24 @@
+<div class="col-md-2-5">
+  <div id="toc" class="cb-doc-sidebar js-scroll-with-user" data-scroll-after-selector="{{ include.data_scroll_after_selector }}" data-scroll-until-selector="{{ include.data_scroll_until_selector }}" data-nav-current-cat="{{ page.categories | downcase | slugify }}" data-nav-current-page="{{ page.title | slugify }}">
+    <div class="toc-toggle visible-xs visible-sm">
+      <button id="toc-toggle-open" class="toc-toggle__button"><span class="glyphicon glyphicon-menu-hamburger"></span></button>
+      <button id="toc-toggle-close" class="toc-toggle__button"><span class="glyphicon glyphicon-remove"></span></button>
+    </div>
+
+    {% capture nav_title %}{{page.nav_title}}{% endcapture %}
+    {% capture nav_title_link %}{{page.nav_title_link}}{% endcapture %}
+
+    {% if nav_title != empty and nav_title_link != empty  %}
+      <div class="nav-doc-collection-link">
+        <a href="{{ site.baseurl }}{{ page.nav_title_link }}"><span class="glyphicon glyphicon-share-alt icon-flipped"></span> {{ page.nav_title | replace: "-", " " }}</a>
+      </div>
+    {% elsif nav_title != empty and nav_title_link == empty  %}
+      <div class="nav-doc-collection-link">
+        {{ page.nav_title | replace: "-", " " }}
+      </div>
+    {% endif %}
+
+    {% include collection_browser/navigation/_collection_toc.html collection_name='docs' %}
+
+  </div>
+</div>

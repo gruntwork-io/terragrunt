@@ -25,4 +25,17 @@ install-pre-commit-hook:
 	@ln -s scripts/pre-commit .git/hooks/pre-commit
 	@echo "pre-commit hook installed."
 
-.PHONY: help fmtcheck fmt install-fmt-hook
+
+# This build target just for convenience for those building directly from
+# source. See also: .circleci/config.yml
+build: terragrunt
+terragrunt: $(shell find . \( -type d -name 'vendor' -prune \) \
+                        -o \( -type f -name '*.go'   -print \) )
+	set -xe ;\
+	vtag_maybe_extra=$$(git describe --tags --abbrev=12 --dirty --broken) ;\
+	go build -o $@ -ldflags "-X main.VERSION=$${vtag_maybe_extra}" .
+
+clean:
+	rm -f terragrunt
+
+.PHONY: help fmtcheck fmt install-fmt-hook clean

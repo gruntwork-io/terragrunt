@@ -17,6 +17,17 @@ import (
 func TestCommandOutputOrder(t *testing.T) {
 	t.Parallel()
 
+	t.Run("withPtty", func(t *testing.T) {
+		t.Parallel()
+		testCommandOutputOrder(t, true)
+	})
+	t.Run("withoutPtty", func(t *testing.T) {
+		t.Parallel()
+		testCommandOutputOrder(t, false)
+	})
+}
+
+func testCommandOutputOrder(t *testing.T, withPtty bool) {
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
@@ -27,7 +38,8 @@ func TestCommandOutputOrder(t *testing.T) {
 	terragruntOptions.ErrWriter = &allOutputBuffer
 
 	terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, "same")
-	out, err := RunShellCommandWithOutput(terragruntOptions, "", "../testdata/test_outputs.sh", "same")
+
+	out, err := RunShellCommandWithOutput(terragruntOptions, "", false, false, "../testdata/test_outputs.sh", "same")
 
 	require.NotNil(t, out, "Should get output")
 	assert.Nil(t, err, "Should have no error")

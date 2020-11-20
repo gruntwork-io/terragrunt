@@ -4,11 +4,11 @@ terraform {
 
 # Create an arbitrary local resource
 data "template_file" "text" {
-  template = "[I am a stage vpc template. Data from my dependencies: vpc = ${data.terraform_remote_state.mgmt_vpc.text}]"
+  template = "[I am a stage vpc template. Data from my dependencies: vpc = ${data.terraform_remote_state.mgmt_vpc.outputs.text}]"
 }
 
 output "text" {
-  value = "${data.template_file.text.rendered}"
+  value = data.template_file.text.rendered
 }
 
 variable "terraform_remote_state_s3_bucket" {
@@ -17,9 +17,9 @@ variable "terraform_remote_state_s3_bucket" {
 
 data "terraform_remote_state" "mgmt_vpc" {
   backend = "s3"
-  config {
+  config = {
     region = "us-west-2"
-    bucket = "${var.terraform_remote_state_s3_bucket}"
-    key = "mgmt/vpc/terraform.tfstate"
+    bucket = var.terraform_remote_state_s3_bucket
+    key    = "mgmt/vpc/terraform.tfstate"
   }
 }

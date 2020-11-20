@@ -35,61 +35,73 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 	}{
 		{
 			[]string{},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false),
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, false),
 			nil,
 		},
 
 		{
 			[]string{"foo", "bar"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"foo", "bar"}, false, "", false),
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"foo", "bar"}, false, "", false, false, false),
 			nil,
 		},
 
 		{
 			[]string{"--foo", "--bar"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"--foo", "--bar"}, false, "", false),
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"--foo", "--bar"}, false, "", false, false, false),
 			nil,
 		},
 
 		{
 			[]string{"--foo", "apply", "--bar"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"--foo", "apply", "--bar"}, false, "", false),
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"--foo", "apply", "--bar"}, false, "", false, false, false),
 			nil,
 		},
 
 		{
 			[]string{"--terragrunt-non-interactive"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, true, "", false),
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, true, "", false, false, false),
+			nil,
+		},
+
+		{
+			[]string{"--terragrunt-include-external-dependencies"},
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, true, false),
 			nil,
 		},
 
 		{
 			[]string{"--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath)},
-			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false),
+			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, false),
 			nil,
 		},
 
 		{
 			[]string{"--terragrunt-working-dir", "/some/path"},
-			mockOptions(t, util.JoinPath("/some/path", config.DefaultTerragruntConfigPath), "/some/path", []string{}, false, "", false),
+			mockOptions(t, util.JoinPath("/some/path", config.DefaultTerragruntConfigPath), "/some/path", []string{}, false, "", false, false, false),
 			nil,
 		},
 
 		{
 			[]string{"--terragrunt-source", "/some/path"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "/some/path", false),
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "/some/path", false, false, false),
+			nil,
+		},
+
+		{
+			[]string{"--terragrunt-override-attr", "region=us-east-1"},
+			mockOptionsWithOverrideAttrs(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, map[string]string{"region": "us-east-1"}),
 			nil,
 		},
 
 		{
 			[]string{"--terragrunt-ignore-dependency-errors"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", true),
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", true, false, false),
 			nil,
 		},
 
 		{
 			[]string{"--terragrunt-ignore-external-dependencies"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false),
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, false),
 			nil,
 		},
 
@@ -101,13 +113,20 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 
 		{
 			[]string{"--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "--terragrunt-non-interactive"},
-			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, true, "", false),
+			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, true, "", false, false, false),
 			nil,
 		},
 
 		{
 			[]string{"--foo", "--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "bar", "--terragrunt-non-interactive", "--baz", "--terragrunt-working-dir", "/some/path", "--terragrunt-source", "github.com/foo/bar//baz?ref=1.0.3"},
-			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "/some/path", []string{"--foo", "bar", "--baz"}, true, "github.com/foo/bar//baz?ref=1.0.3", false),
+			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "/some/path", []string{"--foo", "bar", "--baz"}, true, "github.com/foo/bar//baz?ref=1.0.3", false, false, false),
+			nil,
+		},
+
+		// Adding the --terragrunt-debug flag should result in an Options with Debug set to true
+		{
+			[]string{"--terragrunt-debug"},
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, true),
 			nil,
 		},
 
@@ -131,7 +150,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		actualOptions, actualErr := parseTerragruntOptionsFromArgs(testCase.args, &bytes.Buffer{}, &bytes.Buffer{})
+		actualOptions, actualErr := parseTerragruntOptionsFromArgs("0.0", testCase.args, &bytes.Buffer{}, &bytes.Buffer{})
 		if testCase.expectedErr != nil {
 			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "Expected error %v but got error %v", testCase.expectedErr, actualErr)
 		} else {
@@ -149,14 +168,17 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 
 	assert.Equal(t, expected.TerragruntConfigPath, actual.TerragruntConfigPath, msgAndArgs...)
 	assert.Equal(t, expected.NonInteractive, actual.NonInteractive, msgAndArgs...)
+	assert.Equal(t, expected.IncludeExternalDependencies, actual.IncludeExternalDependencies, msgAndArgs...)
 	assert.Equal(t, expected.TerraformCliArgs, actual.TerraformCliArgs, msgAndArgs...)
 	assert.Equal(t, expected.WorkingDir, actual.WorkingDir, msgAndArgs...)
 	assert.Equal(t, expected.Source, actual.Source, msgAndArgs...)
 	assert.Equal(t, expected.IgnoreDependencyErrors, actual.IgnoreDependencyErrors, msgAndArgs...)
 	assert.Equal(t, expected.IamRole, actual.IamRole, msgAndArgs...)
+	assert.Equal(t, expected.Debug, actual.Debug, msgAndArgs...)
+	assert.Equal(t, expected.AwsProviderPatchOverrides, actual.AwsProviderPatchOverrides, msgAndArgs...)
 }
 
-func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool) *options.TerragruntOptions {
+func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, includeExternalDependencies bool, debugMode bool) *options.TerragruntOptions {
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
 	if err != nil {
 		t.Fatalf("error: %v\n", errors.WithStackTrace(err))
@@ -167,14 +189,22 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 	opts.NonInteractive = nonInteractive
 	opts.Source = terragruntSource
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
+	opts.IncludeExternalDependencies = includeExternalDependencies
+	opts.Debug = debugMode
 
 	return opts
 }
 
 func mockOptionsWithIamRole(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, iamRole string) *options.TerragruntOptions {
-	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors)
+	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, false)
 	opts.IamRole = iamRole
 
+	return opts
+}
+
+func mockOptionsWithOverrideAttrs(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, overrideAttrs map[string]string) *options.TerragruntOptions {
+	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, false, "", false, false, false)
+	opts.AwsProviderPatchOverrides = overrideAttrs
 	return opts
 }
 
@@ -189,6 +219,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		{[]string{"foo", "--bar"}, []string{"foo", "--bar"}},
 		{[]string{"foo", "--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath)}, []string{"foo"}},
 		{[]string{"foo", "--terragrunt-non-interactive"}, []string{"foo"}},
+		{[]string{"foo", "--terragrunt-debug"}, []string{"foo"}},
 		{[]string{"foo", "--terragrunt-non-interactive", "--bar", "--terragrunt-working-dir", "/some/path", "--baz", "--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath)}, []string{"foo", "--bar", "--baz"}},
 		{[]string{"apply-all", "foo", "bar"}, []string{"foo", "bar"}},
 		{[]string{"foo", "destroy-all", "--foo", "--bar"}, []string{"foo", "--foo", "--bar"}},
@@ -218,6 +249,36 @@ func TestParseMultiStringArg(t *testing.T) {
 
 	for _, testCase := range testCases {
 		actual, actualErr := parseMultiStringArg(testCase.args, testCase.argName, testCase.defaultValue)
+
+		if testCase.expectedErr != nil {
+			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "Expected error %v but got error %v", testCase.expectedErr, actualErr)
+		} else {
+			assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+			assert.Equal(t, testCase.expectedVals, actual, "For args %v", testCase.args)
+		}
+	}
+}
+
+func TestParseMutliStringKeyValueArg(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		args         []string
+		argName      string
+		defaultValue map[string]string
+		expectedVals map[string]string
+		expectedErr  error
+	}{
+		{[]string{"aws-provider-patch"}, "foo", nil, nil, nil},
+		{[]string{"aws-provider-patch"}, "foo", map[string]string{"default": "value"}, map[string]string{"default": "value"}, nil},
+		{[]string{"aws-provider-patch", "--other", "arg"}, "foo", map[string]string{"default": "value"}, map[string]string{"default": "value"}, nil},
+		{[]string{"aws-provider-patch", "--foo", "key=value"}, "foo", map[string]string{"default": "value"}, map[string]string{"key": "value"}, nil},
+		{[]string{"aws-provider-patch", "--foo", "key1=value1", "--foo", "key2=value2", "--foo", "key3=value3"}, "foo", map[string]string{"default": "value"}, map[string]string{"key1": "value1", "key2": "value2", "key3": "value3"}, nil},
+		{[]string{"aws-provider-patch", "--foo", "invalidvalue"}, "foo", map[string]string{"default": "value"}, nil, InvalidKeyValue("invalidvalue")},
+	}
+
+	for _, testCase := range testCases {
+		actual, actualErr := parseMutliStringKeyValueArg(testCase.args, testCase.argName, testCase.defaultValue)
 
 		if testCase.expectedErr != nil {
 			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "Expected error %v but got error %v", testCase.expectedErr, actualErr)
@@ -399,6 +460,31 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
 			[]string{"--foo", "bar", "foo"},
 		},
+		// destroy providing a folder, var files should stay included
+		{
+			mockCmdOptions(t, workingDir, []string{"destroy", workingDir}),
+			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "-var='key=value'"}, []string{"plan", "destroy"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			[]string{"--foo", "-var-file=test.tfvars", "-var='key=value'", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+		},
+		// destroy providing a file, no var files included
+		{
+			mockCmdOptions(t, workingDir, []string{"destroy", temporaryFile}),
+			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "destroy"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			[]string{"--foo", "bar", "foo"},
+		},
+
+		// destroy providing no params, var files should stay included
+		{
+			mockCmdOptions(t, workingDir, []string{"destroy"}),
+			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "destroy"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			[]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+		},
+		// destroy with some parameters, providing a file => no var files included
+		{
+			mockCmdOptions(t, workingDir, []string{"destroy", "-no-color", "-foo", temporaryFile}),
+			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "destroy"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			[]string{"--foo", "bar", "foo"},
+		},
 
 		// Command not included in commands list
 		{
@@ -419,6 +505,68 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 
 }
 
+func TestToTerraformEnvVars(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		description string
+		vars        map[string]interface{}
+		expected    map[string]string
+	}{
+		{
+			"empty",
+			map[string]interface{}{},
+			map[string]string{},
+		},
+		{
+			"string value",
+			map[string]interface{}{"foo": "bar"},
+			map[string]string{"TF_VAR_foo": `bar`},
+		},
+		{
+			"int value",
+			map[string]interface{}{"foo": 42},
+			map[string]string{"TF_VAR_foo": `42`},
+		},
+		{
+			"bool value",
+			map[string]interface{}{"foo": true},
+			map[string]string{"TF_VAR_foo": `true`},
+		},
+		{
+			"list value",
+			map[string]interface{}{"foo": []string{"a", "b", "c"}},
+			map[string]string{"TF_VAR_foo": `["a","b","c"]`},
+		},
+		{
+			"map value",
+			map[string]interface{}{"foo": map[string]interface{}{"a": "b", "c": "d"}},
+			map[string]string{"TF_VAR_foo": `{"a":"b","c":"d"}`},
+		},
+		{
+			"nested map value",
+			map[string]interface{}{"foo": map[string]interface{}{"a": []int{1, 2, 3}, "b": "c", "d": map[string]interface{}{"e": "f"}}},
+			map[string]string{"TF_VAR_foo": `{"a":[1,2,3],"b":"c","d":{"e":"f"}}`},
+		},
+		{
+			"multiple values",
+			map[string]interface{}{"str": "bar", "int": 42, "bool": false, "list": []int{1, 2, 3}, "map": map[string]interface{}{"a": "b"}},
+			map[string]string{"TF_VAR_str": `bar`, "TF_VAR_int": `42`, "TF_VAR_bool": `false`, "TF_VAR_list": `[1,2,3]`, "TF_VAR_map": `{"a":"b"}`},
+		},
+	}
+
+	for _, testCase := range testCases {
+		// The following is necessary to make sure testCase's values don't
+		// get updated due to concurrency within the scope of t.Run(..) below
+		testCase := testCase
+		t.Run(testCase.description, func(t *testing.T) {
+			actual, err := toTerraformEnvVars(testCase.vars)
+			require.NoError(t, err)
+			assert.Equal(t, testCase.expected, actual)
+		})
+	}
+}
+
 func createTempFile(t *testing.T) string {
 	tmpFile, err := ioutil.TempFile("", "")
 	if err != nil {
@@ -429,17 +577,17 @@ func createTempFile(t *testing.T) string {
 }
 
 func mockCmdOptions(t *testing.T, workingDir string, terraformCliArgs []string) *options.TerragruntOptions {
-	o := mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, terraformCliArgs, true, "", false)
+	o := mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, terraformCliArgs, true, "", false, false, false)
 	return o
 }
 
 func mockExtraArgs(arguments, commands, requiredVarFiles, optionalVarFiles []string) config.TerraformExtraArguments {
 	a := config.TerraformExtraArguments{
 		Name:             "test",
-		Arguments:        arguments,
+		Arguments:        &arguments,
 		Commands:         commands,
-		RequiredVarFiles: requiredVarFiles,
-		OptionalVarFiles: optionalVarFiles,
+		RequiredVarFiles: &requiredVarFiles,
+		OptionalVarFiles: &optionalVarFiles,
 	}
 
 	return a

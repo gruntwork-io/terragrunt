@@ -35,6 +35,7 @@ type DependencyOrder int
 const (
 	NormalOrder DependencyOrder = iota
 	ReverseOrder
+	IgnoreOrder
 )
 
 // Create a new RunningModule struct for the given module. This will initialize all fields to reasonable defaults,
@@ -54,23 +55,33 @@ func newRunningModule(module *TerraformModule) *runningModule {
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func RunModules(modules []*TerraformModule) error {
+func RunModules(modules []*TerraformModule, parallelism int) error {
 	runningModules, err := toRunningModules(modules, NormalOrder)
 	if err != nil {
 		return err
 	}
-	return runModules(runningModules)
+	return runModules(runningModules, parallelism)
 }
 
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in the reverse order of their inter-dependencies, using
 // as much concurrency as possible.
-func RunModulesReverseOrder(modules []*TerraformModule) error {
+func RunModulesReverseOrder(modules []*TerraformModule, parallelism int) error {
 	runningModules, err := toRunningModules(modules, ReverseOrder)
 	if err != nil {
 		return err
 	}
-	return runModules(runningModules)
+	return runModules(runningModules, parallelism)
+}
+
+// Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
+// TerragruntOptions object. The modules will be executed without caring for inter-dependencies.
+func RunModulesIgnoreOrder(modules []*TerraformModule, parallelism int) error {
+	runningModules, err := toRunningModules(modules, IgnoreOrder)
+	if err != nil {
+		return err
+	}
+	return runModules(runningModules, parallelism)
 }
 
 // Convert the list of modules to a map from module path to a runningModule struct. This struct contains information
@@ -95,6 +106,7 @@ func toRunningModules(modules []*TerraformModule, dependencyOrder DependencyOrde
 // * If dependencyOrder is NormalOrder, plug in all the modules M depends on into the Dependencies field and all the
 //   modules that depend on M into the NotifyWhenDone field.
 // * If dependencyOrder is ReverseOrder, do the reverse.
+// * If dependencyOrder is IgnoreOrder, do nothing.
 func crossLinkDependencies(modules map[string]*runningModule, dependencyOrder DependencyOrder) (map[string]*runningModule, error) {
 	for _, module := range modules {
 		for _, dependency := range module.Module.Dependencies {
@@ -105,6 +117,8 @@ func crossLinkDependencies(modules map[string]*runningModule, dependencyOrder De
 			if dependencyOrder == NormalOrder {
 				module.Dependencies[runningDependency.Module.Path] = runningDependency
 				runningDependency.NotifyWhenDone = append(runningDependency.NotifyWhenDone, module)
+			} else if dependencyOrder == IgnoreOrder {
+				// Nothing
 			} else {
 				runningDependency.Dependencies[module.Module.Path] = module
 				module.NotifyWhenDone = append(module.NotifyWhenDone, runningDependency)
@@ -147,14 +161,15 @@ func removeFlagExcluded(modules map[string]*runningModule) map[string]*runningMo
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func runModules(modules map[string]*runningModule) error {
+func runModules(modules map[string]*runningModule, parallelism int) error {
 	var waitGroup sync.WaitGroup
+	var semaphore = make(chan struct{}, parallelism) // Make a semaphore from a buffered channel
 
 	for _, module := range modules {
 		waitGroup.Add(1)
 		go func(module *runningModule) {
 			defer waitGroup.Done()
-			module.runModuleWhenReady()
+			module.runModuleWhenReady(semaphore)
 		}(module)
 	}
 
@@ -181,8 +196,12 @@ func collectErrors(modules map[string]*runningModule) error {
 }
 
 // Run a module once all of its dependencies have finished executing.
-func (module *runningModule) runModuleWhenReady() {
+func (module *runningModule) runModuleWhenReady(semaphore chan struct{}) {
 	err := module.waitForDependencies()
+	semaphore <- struct{}{} // Add one to the buffered channel. Will block if parallelism limit is met
+	defer func() {
+		<-semaphore // Remove one from the buffered channel
+	}()
 	if err == nil {
 		err = module.runNow()
 	}

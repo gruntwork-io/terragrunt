@@ -2,26 +2,26 @@ package config
 
 import (
 	"fmt"
+	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
+	"unicode/utf8"
 
-	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/hashicorp/go-getter"
+	"github.com/hashicorp/hcl/v2"
+	tflang "github.com/hashicorp/terraform/lang"
+	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
+	"go.mozilla.org/sops/v3/decrypt"
 
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 )
-
-var INTERPOLATION_PARAMETERS = `(\s*"[^"]*?"\s*,?\s*)*`
-var INTERPOLATION_SYNTAX_REGEX = regexp.MustCompile(fmt.Sprintf(`\$\{\s*\w+\(%s\)\s*\}`, INTERPOLATION_PARAMETERS))
-var INTERPOLATION_SYNTAX_REGEX_SINGLE = regexp.MustCompile(fmt.Sprintf(`"(%s)"`, INTERPOLATION_SYNTAX_REGEX))
-var INTERPOLATION_SYNTAX_REGEX_REMAINING = regexp.MustCompile(`\$\{.*?\}`)
-var HELPER_FUNCTION_SYNTAX_REGEX = regexp.MustCompile(`^\$\{\s*(.*?)\((.*?)\)\s*\}$`)
-var HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX = regexp.MustCompile(`^\s*"(?P<env>[^=]+?)"\s*\,\s*"(?P<default>.*?)"\s*$`)
 
 // List of terraform commands that accept -lock-timeout
 var TERRAFORM_COMMANDS_NEED_LOCKING = []string{
@@ -44,7 +44,6 @@ var TERRAFORM_COMMANDS_NEED_VARS = []string{
 	"plan",
 	"push",
 	"refresh",
-	"validate",
 }
 
 // List of terraform commands that accept -input=
@@ -66,118 +65,86 @@ var TERRAFORM_COMMANDS_NEED_PARALLELISM = []string{
 type EnvVar struct {
 	Name         string
 	DefaultValue string
+	IsRequired   bool
 }
 
-// Given a string value from a Terragrunt configuration, parse the string, resolve any calls to helper functions using
-// the syntax ${...}, and return the final value.
-func ResolveTerragruntConfigString(terragruntConfigString string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	// First, we replace all single interpolation syntax (i.e. function directly enclosed within quotes "${function()}")
-	terragruntConfigString, err := processSingleInterpolationInString(terragruntConfigString, include, terragruntOptions)
-	if err != nil {
-		return terragruntConfigString, err
-	}
-	// Then, we replace all other interpolation functions (i.e. functions not directly enclosed within quotes)
-	return processMultipleInterpolationsInString(terragruntConfigString, include, terragruntOptions)
+// EvalContextExtensions provides various extensions to the evaluation context to enhance the parsing capabilities.
+type EvalContextExtensions struct {
+	// Include is used to specify another config that should be imported and merged before the final TerragruntConfig is
+	// returned.
+	Include *IncludeConfig
+
+	// Locals are preevaluated variable bindings that can be used by reference in the code.
+	Locals *cty.Value
+
+	// DecodedDependencies are references of other terragrunt config. This contains the following attributes that map to
+	// various fields related to that config:
+	// - outputs: The map of outputs from the terraform state obtained by running `terragrunt output` on that target
+	//            config.
+	DecodedDependencies *cty.Value
 }
 
-// Execute a single Terragrunt helper function and return the result
-func executeTerragruntHelperFunction(functionName string, parameters string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (interface{}, error) {
-	switch functionName {
-	case "find_in_parent_folders":
-		return findInParentFolders(parameters, terragruntOptions)
-	case "path_relative_to_include":
-		return pathRelativeToInclude(include, terragruntOptions)
-	case "path_relative_from_include":
-		return pathRelativeFromInclude(include, terragruntOptions)
-	case "get_env":
-		return getEnvironmentVariable(parameters, terragruntOptions)
-	case "run_cmd":
-		return runCommand(parameters, terragruntOptions)
-	case "get_tfvars_dir":
-		return getTfVarsDir(terragruntOptions)
-	case "get_parent_tfvars_dir":
-		return getParentTfVarsDir(include, terragruntOptions)
-	case "get_aws_account_id":
-		return getAWSAccountID(terragruntOptions)
-	case "get_terraform_commands_that_need_vars":
-		return TERRAFORM_COMMANDS_NEED_VARS, nil
-	case "get_terraform_commands_that_need_locking":
-		return TERRAFORM_COMMANDS_NEED_LOCKING, nil
-	case "get_terraform_commands_that_need_input":
-		return TERRAFORM_COMMANDS_NEED_INPUT, nil
-	case "get_terraform_commands_that_need_parallelism":
-		return TERRAFORM_COMMANDS_NEED_PARALLELISM, nil
-	default:
-		return "", errors.WithStackTrace(UnknownHelperFunction(functionName))
-	}
-}
-
-// For all interpolation functions that are called using the syntax "${function_name()}" (i.e. single interpolation function within string,
-// functions that return a non-string value we have to get rid of the surrounding quotes and convert the output to HCL syntax. For example,
-// for an array, we need to return "v1", "v2", "v3".
-func processSingleInterpolationInString(terragruntConfigString string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (resolved string, finalErr error) {
-	// The function we pass to ReplaceAllStringFunc cannot return an error, so we have to use named error parameters to capture such errors.
-	resolved = INTERPOLATION_SYNTAX_REGEX_SINGLE.ReplaceAllStringFunc(terragruntConfigString, func(str string) string {
-		matches := INTERPOLATION_SYNTAX_REGEX_SINGLE.FindStringSubmatch(str)
-
-		out, err := resolveTerragruntInterpolation(matches[1], include, terragruntOptions)
-		if err != nil {
-			finalErr = err
-			return str
-		}
-
-		switch out := out.(type) {
-		case string:
-			return fmt.Sprintf(`"%s"`, out)
-		case []string:
-			return util.CommaSeparatedStrings(out)
-		default:
-			return fmt.Sprintf("%v", out)
-		}
-	})
-	return
-}
-
-// For all interpolation functions that are called using the syntax "${function_a()}-${function_b()}" (i.e. multiple interpolation function
-// within the same string) or "Some text ${function_name()}" (i.e. string composition), we just replace the interpolation function call
-// by the string representation of its return.
-func processMultipleInterpolationsInString(terragruntConfigString string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (resolved string, finalErr error) {
-	// The function we pass to ReplaceAllStringFunc cannot return an error, so we have to use named error parameters to capture such errors.
-	resolved = INTERPOLATION_SYNTAX_REGEX.ReplaceAllStringFunc(terragruntConfigString, func(str string) string {
-		out, err := resolveTerragruntInterpolation(str, include, terragruntOptions)
-		if err != nil {
-			finalErr = err
-			return str
-		}
-
-		return fmt.Sprintf("%v", out)
-	})
-
-	if finalErr == nil {
-		// If there is no error, we check if there are remaining look-a-like interpolation strings
-		// that have not been considered. If so, they are certainly malformed.
-		remaining := INTERPOLATION_SYNTAX_REGEX_REMAINING.FindAllString(resolved, -1)
-		if len(remaining) > 0 {
-			finalErr = InvalidInterpolationSyntax(strings.Join(remaining, ", "))
-		}
+// Create an EvalContext for the HCL2 parser. We can define functions and variables in this context that the HCL2 parser
+// will make available to the Terragrunt configuration during parsing.
+func CreateTerragruntEvalContext(
+	filename string,
+	terragruntOptions *options.TerragruntOptions,
+	extensions EvalContextExtensions,
+) *hcl.EvalContext {
+	tfscope := tflang.Scope{
+		BaseDir: filepath.Dir(filename),
 	}
 
-	return
+	terragruntFunctions := map[string]function.Function{
+		"find_in_parent_folders":                       wrapStringSliceToStringAsFuncImpl(findInParentFolders, extensions.Include, terragruntOptions),
+		"path_relative_to_include":                     wrapVoidToStringAsFuncImpl(pathRelativeToInclude, extensions.Include, terragruntOptions),
+		"path_relative_from_include":                   wrapVoidToStringAsFuncImpl(pathRelativeFromInclude, extensions.Include, terragruntOptions),
+		"get_env":                                      wrapStringSliceToStringAsFuncImpl(getEnvironmentVariable, extensions.Include, terragruntOptions),
+		"run_cmd":                                      wrapStringSliceToStringAsFuncImpl(runCommand, extensions.Include, terragruntOptions),
+		"read_terragrunt_config":                       readTerragruntConfigAsFuncImpl(terragruntOptions),
+		"get_platform":                                 wrapVoidToStringAsFuncImpl(getPlatform, extensions.Include, terragruntOptions),
+		"get_terragrunt_dir":                           wrapVoidToStringAsFuncImpl(getTerragruntDir, extensions.Include, terragruntOptions),
+		"get_terraform_command":                        wrapVoidToStringAsFuncImpl(getTerraformCommand, extensions.Include, terragruntOptions),
+		"get_terraform_cli_args":                       wrapVoidToStringSliceAsFuncImpl(getTerraformCliArgs, extensions.Include, terragruntOptions),
+		"get_parent_terragrunt_dir":                    wrapVoidToStringAsFuncImpl(getParentTerragruntDir, extensions.Include, terragruntOptions),
+		"get_aws_account_id":                           wrapVoidToStringAsFuncImpl(getAWSAccountID, extensions.Include, terragruntOptions),
+		"get_aws_caller_identity_arn":                  wrapVoidToStringAsFuncImpl(getAWSCallerIdentityARN, extensions.Include, terragruntOptions),
+		"get_aws_caller_identity_user_id":              wrapVoidToStringAsFuncImpl(getAWSCallerIdentityUserID, extensions.Include, terragruntOptions),
+		"get_terraform_commands_that_need_vars":        wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_VARS),
+		"get_terraform_commands_that_need_locking":     wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_LOCKING),
+		"get_terraform_commands_that_need_input":       wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_INPUT),
+		"get_terraform_commands_that_need_parallelism": wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_PARALLELISM),
+		"sops_decrypt_file":                            wrapStringSliceToStringAsFuncImpl(sopsDecryptFile, extensions.Include, terragruntOptions),
+	}
+
+	functions := map[string]function.Function{}
+	for k, v := range tfscope.Functions() {
+		functions[k] = v
+	}
+	for k, v := range terragruntFunctions {
+		functions[k] = v
+	}
+
+	ctx := &hcl.EvalContext{
+		Functions: functions,
+	}
+	ctx.Variables = map[string]cty.Value{}
+	if extensions.Locals != nil {
+		ctx.Variables["local"] = *extensions.Locals
+	}
+	if extensions.DecodedDependencies != nil {
+		ctx.Variables["dependency"] = *extensions.DecodedDependencies
+	}
+	return ctx
 }
 
-// Given a string value from a Terragrunt configuration, parse the string, resolve any calls to helper functions using
-// Resolve a single call to an interpolation function of the format ${some_function()} in a Terragrunt configuration
-func resolveTerragruntInterpolation(str string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (interface{}, error) {
-	matches := HELPER_FUNCTION_SYNTAX_REGEX.FindStringSubmatch(str)
-	if len(matches) == 3 {
-		return executeTerragruntHelperFunction(matches[1], matches[2], include, terragruntOptions)
-	} else {
-		return "", errors.WithStackTrace(InvalidInterpolationSyntax(str))
-	}
+// Return the OS platform
+func getPlatform(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	return runtime.GOOS, nil
 }
 
 // Return the directory where the Terragrunt configuration file lives
-func getTfVarsDir(terragruntOptions *options.TerragruntOptions) (string, error) {
+func getTerragruntDir(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	terragruntConfigFileAbsPath, err := filepath.Abs(terragruntOptions.TerragruntConfigPath)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
@@ -187,7 +154,7 @@ func getTfVarsDir(terragruntOptions *options.TerragruntOptions) (string, error) 
 }
 
 // Return the parent directory where the Terragrunt configuration file lives
-func getParentTfVarsDir(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+func getParentTerragruntDir(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	parentPath, err := pathRelativeFromInclude(include, terragruntOptions)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
@@ -202,48 +169,59 @@ func getParentTfVarsDir(include *IncludeConfig, terragruntOptions *options.Terra
 	return filepath.ToSlash(parentPath), nil
 }
 
-func parseGetEnvParameters(parameters string) (EnvVar, error) {
+func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 	envVariable := EnvVar{}
-	matches := HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX.FindStringSubmatch(parameters)
-	if len(matches) < 2 {
-		return envVariable, errors.WithStackTrace(InvalidGetEnvParams(parameters))
+
+	switch len(parameters) {
+	case 1:
+		envVariable.IsRequired = true
+		envVariable.Name = parameters[0]
+	case 2:
+		envVariable.Name = parameters[0]
+		envVariable.DefaultValue = parameters[1]
+	default:
+		return envVariable, errors.WithStackTrace(InvalidGetEnvParams{ActualNumParams: len(parameters), Example: `getEnv("<NAME>", "[DEFAULT]")`})
 	}
 
-	for index, name := range HELPER_FUNCTION_GET_ENV_PARAMETERS_SYNTAX_REGEX.SubexpNames() {
-		if name == "env" {
-			envVariable.Name = strings.TrimSpace(matches[index])
-		}
-		if name == "default" {
-			envVariable.DefaultValue = strings.TrimSpace(matches[index])
-		}
+	if envVariable.Name == "" {
+		return envVariable, errors.WithStackTrace(InvalidEnvParamName{EnvVarName: parameters[0]})
 	}
-
 	return envVariable, nil
 }
 
 // runCommand is a helper function that runs a command and returns the stdout as the interporation
 // result
-func runCommand(parameters string, terragruntOptions *options.TerragruntOptions) (string, error) {
-	args := parseParamList(parameters)
-
+func runCommand(args []string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	if len(args) == 0 {
 		return "", errors.WithStackTrace(EmptyStringNotAllowed("parameter to the run_cmd function"))
 	}
 
+	suppressOutput := false
+	if args[0] == "--terragrunt-quiet" {
+		suppressOutput = true
+		args = append(args[:0], args[1:]...)
+	}
+
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 
-	cmdOutput, err := shell.RunShellCommandWithOutput(terragruntOptions, currentPath, args[0], args[1:]...)
+	cmdOutput, err := shell.RunShellCommandWithOutput(terragruntOptions, currentPath, suppressOutput, false, args[0], args[1:]...)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
 
-	value := strings.TrimSuffix(cmdOutput.Stdout, "\n")
 
-	terragruntOptions.Logger.Printf("run_cmd output: [%s]", value)
+  value := strings.TrimSuffix(cmdOutput.Stdout, "\n")
+  
+	if suppressOutput {
+		terragruntOptions.Logger.Printf("run_cmd output: [REDACTED]")
+	} else {
+		terragruntOptions.Logger.Printf("run_cmd output: [%s]", value)
+	}
+
 	return value, nil
 }
 
-func getEnvironmentVariable(parameters string, terragruntOptions *options.TerragruntOptions) (string, error) {
+func getEnvironmentVariable(parameters []string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	parameterMap, err := parseGetEnvParameters(parameters)
 
 	if err != nil {
@@ -252,6 +230,9 @@ func getEnvironmentVariable(parameters string, terragruntOptions *options.Terrag
 	envValue, exists := terragruntOptions.Env[parameterMap.Name]
 
 	if !exists {
+		if parameterMap.IsRequired {
+			return "", errors.WithStackTrace(EnvVarNotFound{EnvVar: parameterMap.Name})
+		}
 		envValue = parameterMap.DefaultValue
 	}
 
@@ -260,13 +241,20 @@ func getEnvironmentVariable(parameters string, terragruntOptions *options.Terrag
 
 // Find a parent Terragrunt configuration file in the parent folders above the current Terragrunt configuration file
 // and return its path
-func findInParentFolders(parameters string, terragruntOptions *options.TerragruntOptions) (string, error) {
-	fileToFindParam, fallbackParam, numParams, err := parseOptionalQuotedParam(parameters)
-	if err != nil {
-		return "", err
+func findInParentFolders(params []string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	numParams := len(params)
+
+	var fileToFindParam string
+	var fallbackParam string
+
+	if numParams > 0 {
+		fileToFindParam = params[0]
 	}
-	if numParams > 0 && fileToFindParam == "" {
-		return "", errors.WithStackTrace(EmptyStringNotAllowed("parameter to the find_in_parent_folders_function"))
+	if numParams > 1 {
+		fallbackParam = params[1]
+	}
+	if numParams > 2 {
+		return "", errors.WithStackTrace(WrongNumberOfParams{Func: "find_in_parent_folders", Expected: "0, 1, or 2", Actual: numParams})
 	}
 
 	previousDir, err := filepath.Abs(filepath.Dir(terragruntOptions.TerragruntConfigPath))
@@ -276,7 +264,7 @@ func findInParentFolders(parameters string, terragruntOptions *options.Terragrun
 		return "", errors.WithStackTrace(err)
 	}
 
-	fileToFindStr := fmt.Sprintf("%s or %s", DefaultTerragruntConfigPath, OldTerragruntConfigPath)
+	fileToFindStr := DefaultTerragruntConfigPath
 	if fileToFindParam != "" {
 		fileToFindStr = fileToFindParam
 	}
@@ -292,88 +280,19 @@ func findInParentFolders(parameters string, terragruntOptions *options.Terragrun
 			return "", errors.WithStackTrace(ParentFileNotFound{Path: terragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: "Traversed all the way to the root"})
 		}
 
-		fileToFind := DefaultConfigPath(currentDir)
+		fileToFind := GetDefaultConfigPath(currentDir)
 		if fileToFindParam != "" {
 			fileToFind = util.JoinPath(currentDir, fileToFindParam)
 		}
 
 		if util.FileExists(fileToFind) {
-			return util.GetPathRelativeTo(fileToFind, filepath.Dir(terragruntOptions.TerragruntConfigPath))
+			return fileToFind, nil
 		}
 
 		previousDir = currentDir
 	}
 
 	return "", errors.WithStackTrace(ParentFileNotFound{Path: terragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", terragruntOptions.MaxFoldersToCheck)})
-}
-
-var oneQuotedParamRegex = regexp.MustCompile(`^"([^"]*?)"$`)
-var twoQuotedParamsRegex = regexp.MustCompile(`^"([^"]*?)"\s*,\s*"([^"]*?)"$`)
-var listQuotedParamRegex = regexp.MustCompile(`^"([^"]*?)"\s*,\s*(.*)$`)
-
-// Parse two optional parameters, wrapped in quotes, passed to a function, and return the parameter values and how many
-// of the parameters were actually set. For example, if you have a function foo(bar, baz), where bar and baz are
-// optional string parameters, this function will behave as follows:
-//
-// foo() -> return "", "", 0, nil
-// foo("a") -> return "a", "", 1, nil
-// foo("a", "b") -> return "a", "b", 2, nil
-//
-func parseOptionalQuotedParam(parameters string) (string, string, int, error) {
-	trimmedParameters := strings.TrimSpace(parameters)
-	if trimmedParameters == "" {
-		return "", "", 0, nil
-	}
-
-	matches := oneQuotedParamRegex.FindStringSubmatch(trimmedParameters)
-	if len(matches) == 2 {
-		return matches[1], "", 1, nil
-	}
-
-	matches = twoQuotedParamsRegex.FindStringSubmatch(trimmedParameters)
-	if len(matches) == 3 {
-		return matches[1], matches[2], 2, nil
-	}
-
-	return "", "", 0, errors.WithStackTrace(InvalidStringParams(parameters))
-}
-
-// parseParamList parses a string of comma separated parameters wrapped in quote and
-// return them as a list of strings. For example:
-// foo() -> return []string{""}, nil
-// foo("a") -> return []string{"foo"}, nil
-// foo("a", "b", "c", "d") -> return []string{"a", "b", "c", "d"}, nil
-func parseParamList(parameters string) []string {
-	trimmedParameters := strings.TrimSpace(parameters)
-	if trimmedParameters == "" {
-		return []string{}
-	}
-
-	matches := oneQuotedParamRegex.FindStringSubmatch(trimmedParameters)
-	if len(matches) > 0 {
-		return matches[1:]
-	}
-
-	matches = listQuotedParamRegex.FindStringSubmatch(trimmedParameters)
-	if len(matches) != 3 {
-		return []string{}
-	}
-	var trimmedArgs []string
-	trimmedArgs = append(trimmedArgs, matches[1])
-
-	args := matches[2]
-	args = strings.Replace(args, `"`, "", -1)
-
-	parsedArgs := strings.Split(args, ",")
-
-	for _, arg := range parsedArgs {
-		trimmedArg := strings.TrimSpace(arg)
-		if trimmedArg != "" {
-			trimmedArgs = append(trimmedArgs, trimmedArg)
-		}
-	}
-
-	return trimmedArgs
 }
 
 // Return the relative path between the included Terragrunt configuration file and the current Terragrunt configuration
@@ -383,12 +302,7 @@ func pathRelativeToInclude(include *IncludeConfig, terragruntOptions *options.Te
 		return ".", nil
 	}
 
-	includedConfigPath, err := ResolveTerragruntConfigString(include.Path, include, terragruntOptions)
-	if err != nil {
-		return "", errors.WithStackTrace(err)
-	}
-
-	includePath := filepath.Dir(includedConfigPath)
+	includePath := filepath.Dir(include.Path)
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 
 	if !filepath.IsAbs(includePath) {
@@ -404,12 +318,7 @@ func pathRelativeFromInclude(include *IncludeConfig, terragruntOptions *options.
 		return ".", nil
 	}
 
-	includedConfigPath, err := ResolveTerragruntConfigString(include.Path, include, terragruntOptions)
-	if err != nil {
-		return "", errors.WithStackTrace(err)
-	}
-
-	includePath := filepath.Dir(includedConfigPath)
+	includePath := filepath.Dir(include.Path)
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 
 	if !filepath.IsAbs(includePath) {
@@ -419,37 +328,256 @@ func pathRelativeFromInclude(include *IncludeConfig, terragruntOptions *options.
 	return util.GetPathRelativeTo(includePath, currentPath)
 }
 
+// getTerraformCommand returns the current terraform command in execution
+func getTerraformCommand(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	return terragruntOptions.TerraformCommand, nil
+}
+
+// getTerraformCommand returns the current terraform command in execution
+func getTerraformCliArgs(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) ([]string, error) {
+	return terragruntOptions.TerraformCliArgs, nil
+}
+
 // Return the AWS account id associated to the current set of credentials
-func getAWSAccountID(terragruntOptions *options.TerragruntOptions) (string, error) {
-	sess, err := session.NewSession()
+func getAWSAccountID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	accountID, err := aws_helper.GetAWSAccountID(terragruntOptions)
+	if err == nil {
+		return accountID, nil
+	}
+	return "", err
+}
+
+// Return the ARN of the AWS identity associated with the current set of credentials
+func getAWSCallerIdentityARN(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	identityARN, err := aws_helper.GetAWSIdentityArn(terragruntOptions)
+	if err == nil {
+		return identityARN, nil
+	}
+	return "", err
+}
+
+// Return the UserID of the AWS identity associated with the current set of credentials
+func getAWSCallerIdentityUserID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	userID, err := aws_helper.GetAWSUserID(terragruntOptions)
+	if err == nil {
+		return userID, nil
+	}
+	return "", err
+}
+
+// Parse the terragrunt config and return a representation that can be used as a reference. If given a default value,
+// this will return the default if the terragrunt config file does not exist.
+func readTerragruntConfig(configPath string, defaultVal *cty.Value, terragruntOptions *options.TerragruntOptions) (cty.Value, error) {
+	// target config check: make sure the target config exists. If the file does not exist, and there is no default val,
+	// return an error. If the file does not exist but there is a default val, return the default val. Otherwise,
+	// proceed to parse the file as a terragrunt config file.
+	targetConfig := getCleanedTargetConfigPath(configPath, terragruntOptions.TerragruntConfigPath)
+	targetConfigFileExists := util.FileExists(targetConfig)
+	if !targetConfigFileExists && defaultVal == nil {
+		return cty.NilVal, errors.WithStackTrace(TerragruntConfigNotFound{Path: targetConfig})
+	} else if !targetConfigFileExists {
+		return *defaultVal, nil
+	}
+
+	// We update the context of terragruntOptions to the config being read in.
+	targetOptions := terragruntOptions.Clone(targetConfig)
+	config, err := ParseConfigFile(targetConfig, targetOptions, nil)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	// We have to set the rendered outputs here because ParseConfigFile will not do so on the TerragruntConfig. The
+	// outputs are stored in a special map that is used only for rendering and thus is not available when we try to
+	// serialize the config for consumption.
+	// NOTE: this will not call terragrunt output, since all the values are cached from the ParseConfigFile call
+	// NOTE: we don't use range here because range will copy the slice, thereby undoing the set attribute.
+	for i := 0; i < len(config.TerragruntDependencies); i++ {
+		config.TerragruntDependencies[i].setRenderedOutputs(targetOptions)
+	}
+
+	return terragruntConfigAsCty(config)
+}
+
+// Create a cty Function that can be used to for calling read_terragrunt_config.
+func readTerragruntConfigAsFuncImpl(terragruntOptions *options.TerragruntOptions) function.Function {
+	return function.New(&function.Spec{
+		// Takes one required string param
+		Params: []function.Parameter{function.Parameter{Type: cty.String}},
+		// And optional param that takes anything
+		VarParam: &function.Parameter{Type: cty.DynamicPseudoType},
+		// We don't know the return type until we parse the terragrunt config, so we use a dynamic type
+		Type: function.StaticReturnType(cty.DynamicPseudoType),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			numParams := len(args)
+			if numParams == 0 || numParams > 2 {
+				return cty.NilVal, errors.WithStackTrace(WrongNumberOfParams{Func: "read_terragrunt_config", Expected: "1 or 2", Actual: numParams})
+			}
+
+			configPath, err := ctySliceToStringSlice(args[:1])
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			var defaultVal *cty.Value = nil
+			if numParams == 2 {
+				defaultVal = &args[1]
+			}
+			return readTerragruntConfig(configPath[0], defaultVal, terragruntOptions)
+		},
+	})
+}
+
+// Returns a cleaned path to the target config (the `terragrunt.hcl` or `terragrunt.hcl.json` file), handling relative
+// paths correctly. This will automatically append `terragrunt.hcl` or `terragrunt.hcl.json` to the path if the target
+// path is a directory.
+func getCleanedTargetConfigPath(configPath string, workingPath string) string {
+	cwd := filepath.Dir(workingPath)
+	targetConfig := configPath
+	if !filepath.IsAbs(targetConfig) {
+		targetConfig = util.JoinPath(cwd, targetConfig)
+	}
+	if util.IsDir(targetConfig) {
+		targetConfig = GetDefaultConfigPath(targetConfig)
+	}
+	return util.CleanPath(targetConfig)
+}
+
+// If one of the xxx-all commands is called with the --terragrunt-source parameter, then for each module, we need to
+// build its own --terragrunt-source parameter by doing the following:
+//
+// 1. Read the source URL from the Terragrunt configuration of each module
+// 2. Extract the path from that URL (the part after a double-slash)
+// 3. Append the path to the --terragrunt-source parameter
+//
+// Example:
+//
+// --terragrunt-source: /source/infrastructure-modules
+// source param in module's terragrunt.hcl: git::git@github.com:acme/infrastructure-modules.git//networking/vpc?ref=v0.0.1
+//
+// This method will return: /source/infrastructure-modules//networking/vpc
+//
+func GetTerragruntSourceForModule(sourcePath string, modulePath string, moduleTerragruntConfig *TerragruntConfig) (string, error) {
+	if sourcePath == "" || moduleTerragruntConfig.Terraform == nil || moduleTerragruntConfig.Terraform.Source == nil || *moduleTerragruntConfig.Terraform.Source == "" {
+		return "", nil
+	}
+
+	// use go-getter to split the module source string into a valid URL and subdirectory (if // is present)
+	moduleUrl, moduleSubdir := getter.SourceDirSubdir(*moduleTerragruntConfig.Terraform.Source)
+
+	// if both URL and subdir are missing, something went terribly wrong
+	if moduleUrl == "" && moduleSubdir == "" {
+		return "", errors.WithStackTrace(InvalidSourceUrl{ModulePath: modulePath, ModuleSourceUrl: *moduleTerragruntConfig.Terraform.Source, TerragruntSource: sourcePath})
+	}
+	// if only subdir is missing, check if we can obtain a valid module name from the URL portion
+	if moduleUrl != "" && moduleSubdir == "" {
+		moduleSubdirFromUrl, err := getModulePathFromSourceUrl(moduleUrl)
+		if err != nil {
+			return moduleSubdirFromUrl, err
+		}
+		return util.JoinTerraformModulePath(sourcePath, moduleSubdirFromUrl), nil
+	}
+
+	return util.JoinTerraformModulePath(sourcePath, moduleSubdir), nil
+}
+
+// Parse sourceUrl not containing '//', and attempt to obtain a module path.
+// Example:
+//
+// sourceUrl = "git::ssh://git@ghe.ourcorp.com/OurOrg/module-name.git"
+// will return "module-name".
+
+func getModulePathFromSourceUrl(sourceUrl string) (string, error) {
+
+	// Regexp for module name extraction. It assumes that the query string has already been stripped off.
+	// Then we simply capture anything after the last slash, and before `.` or end of string.
+	var moduleNameRegexp = regexp.MustCompile(`(?:.+/)(.+?)(?:\.|$)`)
+
+	// strip off the query string if present
+	sourceUrl = strings.Split(sourceUrl, "?")[0]
+
+	matches := moduleNameRegexp.FindStringSubmatch(sourceUrl)
+
+	// if regexp returns less/more than the full match + 1 capture group, then something went wrong with regex (invalid source string)
+	if len(matches) != 2 {
+		return "", errors.WithStackTrace(ErrorParsingModulePath{ModuleSourceUrl: sourceUrl})
+	}
+
+	return matches[1], nil
+}
+
+//
+// A map that caches the results of a decrypt operation via sops. Each decryption
+// operation can take several seconds, so this cache speeds up terragrunt executions
+// where the same sops files are referenced multiple times.
+//
+// The keys are the canonical paths to the encrypted files, and the values are the
+// plain-text result of the decrypt operation.
+//
+var sopsCache = make(map[string]string)
+
+// decrypts and returns sops encrypted utf-8 yaml or json data as a string
+func sopsDecryptFile(params []string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	numParams := len(params)
+
+	var sourceFile string
+
+	if numParams > 0 {
+		sourceFile = params[0]
+	}
+	if numParams != 1 {
+		return "", errors.WithStackTrace(WrongNumberOfParams{Func: "sops_decrypt_file", Expected: "1", Actual: numParams})
+	}
+
+	var format string
+	switch ext := path.Ext(sourceFile); ext {
+	case ".json":
+		format = "json"
+	case ".yaml", ".yml":
+		format = "yaml"
+	default:
+		return "", errors.WithStackTrace(InvalidSopsFormat{SourceFilePath: sourceFile})
+	}
+
+	canonicalSourceFile, err := util.CanonicalPath(sourceFile, terragruntOptions.WorkingDir)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
 
-	if terragruntOptions.IamRole != "" {
-		sess.Config.Credentials = stscreds.NewCredentials(sess, terragruntOptions.IamRole)
+	if val, ok := sopsCache[canonicalSourceFile]; ok {
+		return val, nil
 	}
 
-	identity, err := sts.New(sess).GetCallerIdentity(nil)
+	rawData, err := decrypt.File(sourceFile, format)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
 
-	return *identity.Account, nil
+	if utf8.Valid(rawData) {
+		value := string(rawData)
+		sopsCache[canonicalSourceFile] = value
+		return value, nil
+	}
+
+	return "", errors.WithStackTrace(InvalidSopsFormat{SourceFilePath: sourceFile})
 }
 
 // Custom error types
-
-type InvalidInterpolationSyntax string
-
-func (err InvalidInterpolationSyntax) Error() string {
-	return fmt.Sprintf("Invalid interpolation syntax. Expected syntax of the form '${function_name()}', but got '%s'", string(err))
+type WrongNumberOfParams struct {
+	Func     string
+	Expected string
+	Actual   int
 }
 
-type UnknownHelperFunction string
+func (err WrongNumberOfParams) Error() string {
+	return fmt.Sprintf("Expected %s params for function %s, but got %d", err.Expected, err.Func, err.Actual)
+}
 
-func (err UnknownHelperFunction) Error() string {
-	return fmt.Sprintf("Unknown helper function: %s", string(err))
+type InvalidParameterType struct {
+	Expected string
+	Actual   string
+}
+
+func (err InvalidParameterType) Error() string {
+	return fmt.Sprintf("Expected param of type %s but got %s", err.Expected, err.Actual)
 }
 
 type ParentFileNotFound struct {
@@ -459,23 +587,70 @@ type ParentFileNotFound struct {
 }
 
 func (err ParentFileNotFound) Error() string {
-	return fmt.Sprintf("Could not find a %s in any of the parent folders of %s. Cause: %s.", err.File, err.Path, err.Cause)
+	return fmt.Sprintf("ParentFileNotFound: Could not find a %s in any of the parent folders of %s. Cause: %s.", err.File, err.Path, err.Cause)
 }
 
-type InvalidGetEnvParams string
+type InvalidGetEnvParams struct {
+	ActualNumParams int
+	Example         string
+}
+
+type EnvVarNotFound struct {
+	EnvVar string
+}
+
+type InvalidEnvParamName struct {
+	EnvVarName string
+}
 
 func (err InvalidGetEnvParams) Error() string {
-	return fmt.Sprintf("Invalid parameters. Expected syntax of the form '${get_env(\"env\", \"default\")}', but got '%s'", string(err))
+	return fmt.Sprintf("InvalidGetEnvParams: Expected one or two parameters (%s) for get_env but got %d.", err.Example, err.ActualNumParams)
 }
 
-type InvalidStringParams string
+func (err InvalidEnvParamName) Error() string {
+	return fmt.Sprintf("InvalidEnvParamName: Invalid environment variable name - (%s) ", err.EnvVarName)
+}
 
-func (err InvalidStringParams) Error() string {
-	return fmt.Sprintf("Invalid parameters. Expected one string parameter (e.g., ${foo(\"xxx\")}), two string parameters (e.g. ${foo(\"xxx\", \"yyy\")}), or no parameters (e.g., ${foo()}) but got '%s'.", string(err))
+func (err EnvVarNotFound) Error() string {
+	return fmt.Sprintf("EnvVarNotFound: Required environment variable %s - not found", err.EnvVar)
 }
 
 type EmptyStringNotAllowed string
 
 func (err EmptyStringNotAllowed) Error() string {
 	return fmt.Sprintf("Empty string value is not allowed for %s", string(err))
+}
+
+type TerragruntConfigNotFound struct {
+	Path string
+}
+
+func (err TerragruntConfigNotFound) Error() string {
+	return fmt.Sprintf("Terragrunt config %s not found", err.Path)
+}
+
+type InvalidSourceUrl struct {
+	ModulePath       string
+	ModuleSourceUrl  string
+	TerragruntSource string
+}
+
+func (err InvalidSourceUrl) Error() string {
+	return fmt.Sprintf("The --terragrunt-source parameter is set to '%s', but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!", err.TerragruntSource, err.ModulePath, err.ModuleSourceUrl)
+}
+
+type ErrorParsingModulePath struct {
+	ModuleSourceUrl string
+}
+
+func (err ErrorParsingModulePath) Error() string {
+	return fmt.Sprintf("Unable to obtain the module path from the source URL '%s'. Ensure that the URL is in a supported format.", err.ModuleSourceUrl)
+}
+
+type InvalidSopsFormat struct {
+	SourceFilePath string
+}
+
+func (err InvalidSopsFormat) Error() string {
+	return fmt.Sprintf("File %s is not a valid format or encoding. Terragrunt will only decrypt yaml or json files in UTF-8 encoding.", err.SourceFilePath)
 }

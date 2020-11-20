@@ -1,0 +1,74 @@
+<!-- Basic collection data -->
+{% assign collection_name = include.collection_name %}
+{% assign nav_title = include.nav_title %}
+{% assign nav_title_link = include.nav_title_link %}
+
+<!-- Get categories and tags from collection -->
+{% assign categories = "" | split: "|" %}
+{% assign tags = "" | split: "|" %}
+{% for doc in include.collection %}
+    {% for category in doc.categories %}
+        {% assign categories = categories | push: category | uniq %}
+    {% endfor %}
+
+    {% for tag in doc.tags %}
+        {% assign tags = tags | push: tag | uniq %}
+    {% endfor %}
+{% endfor %}
+
+<!-- Get posts grouped in categories -->
+{% assign docs_grouped = include.collection | group_by: "category" %}
+
+  <div class="main">
+
+    <div class="cb-section-white">
+
+        <!-- Search -->
+        {% include collection_browser/_search.html tags=tags collection_name=include.collection_name %}
+        <div class="row">
+          <div class="container-cb-lg">
+            <div id="cb-doc-listings">
+              <div class="row equal">
+
+                <!-- Sidebar -->
+                {% assign data_scroll_after_selector = '.cb-search-cmp' %}
+                {% assign data_scroll_until_selector = '.cb-doc-listing' %}
+                {% include collection_browser/_sidebar.html data_scroll_until_selector=data_scroll_until_selector data_scroll_after_selector=data_scroll_after_selector %}
+
+                <!-- Listing -->
+                {% include collection_browser/_docs-list.html categories=categories collection_name=include.collection_name docs_grouped=docs_grouped %}
+
+              </div>
+            </div>
+          </div>
+        </div>
+
+      <!-- No results -->
+      {% include collection_browser/_no-search-results.html %}
+
+    </div>
+
+  </div>
+
+  <!-- CTA Section -->
+  {% include collection_browser/_cta-section.html %}
+
+  <script>
+      var cName = "bc_{{include.collection_name}}Entries"
+      window[cName] = [
+          {% for doc_group in docs_grouped %}
+            {% for doc in doc_group.items %}
+              {
+                  "id"       : "{{ doc.title | strip_html | slugify | downcase | split: ' ' | join: '-' | append: '-card' }}",
+                  "title"    : "{{ doc.title | strip_html | slugify | escape | downcase}}",
+                  "category" : "{{ doc.categories | join: ', ' | downcase}}",
+                  "excerpt" : "{{ doc.excerpt | strip_html | strip_newlines | escape | downcase}}",
+                  "content"  : {{ doc.content | strip_html | strip_newlines | jsonify | downcase }},
+                  "tags"     : "{{ doc.tags | join: ', ' | downcase}}",
+                  "cloud"     : "{{ doc.cloud | join: ', ' | downcase}}"
+              },
+            {% endfor %}
+            {% unless forloop.last %},{% endunless %}
+          {% endfor %}
+      ];
+  </script>

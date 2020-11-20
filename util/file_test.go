@@ -1,12 +1,16 @@
 package util
 
 import (
+	"io/ioutil"
+	"path"
 	"path/filepath"
 	"testing"
 
 	"fmt"
+
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetPathRelativeTo(t *testing.T) {
@@ -116,5 +120,117 @@ func TestJoinTerraformModulePath(t *testing.T) {
 			actual := JoinTerraformModulePath(testCase.modulesFolder, testCase.path)
 			assert.Equal(t, testCase.expected, actual)
 		})
+	}
+}
+
+func TestFileManifest(t *testing.T) {
+	t.Parallel()
+
+	var testfiles []string
+
+	// create temp dir
+	dir, err := ioutil.TempDir("", ".terragrunt-test-dir")
+	require.NoError(t, err)
+	for _, file := range []string{"file1", "file2"} {
+		// create temp files in the dir
+		f, err := ioutil.TempFile(dir, file)
+		assert.NoError(t, err, f.Close())
+		testfiles = append(testfiles, f.Name())
+	}
+	// will later test if the file already doesn't exist
+	testfiles = append(testfiles, path.Join(dir, "ephemeral-file-that-doesnt-exist.txt"))
+
+	// create a manifest
+	manifest := newFileManifest(dir, ".terragrunt-test-manifest")
+	require.Nil(t, manifest.Create())
+	// check the file manifest has been created
+	require.FileExists(t, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
+	for _, file := range testfiles {
+		assert.NoError(t, manifest.AddFile(file))
+	}
+	// check for a non-existent directory as well
+	assert.NoError(t, manifest.AddDirectory(path.Join(dir, "ephemeral-directory-that-doesnt-exist")))
+
+	require.NoError(t, manifest.Clean())
+	// test if the files have been deleted
+	for _, file := range testfiles {
+		assert.Equal(t, FileExists(file), false)
+	}
+
+}
+
+func TestSplitPath(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		path     string
+		expected []string
+	}{
+		{"foo/bar/.tf/tg.hcl", []string{"foo", "bar", ".tf", "tg.hcl"}},
+		{"/foo/bar/.tf/tg.hcl", []string{"", "foo", "bar", ".tf", "tg.hcl"}},
+		{"../foo/bar/.tf/tg.hcl", []string{"..", "foo", "bar", ".tf", "tg.hcl"}},
+		{"foo//////bar/.tf/tg.hcl", []string{"foo", "bar", ".tf", "tg.hcl"}},
+	}
+
+	for _, testCase := range testCases {
+		actual := SplitPath(testCase.path)
+		assert.Equal(t, testCase.expected, actual, "For path %s", testCase.path)
+	}
+}
+
+func TestContainsPath(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		path     string
+		subpath  string
+		expected bool
+	}{
+		{"", "", true},
+		{"/", "/", true},
+		{"foo/bar/.tf/tg.hcl", "foo/bar", true},
+		{"/foo/bar/.tf/tg.hcl", "foo/bar", true},
+		{"foo/bar/.tf/tg.hcl", "bar", true},
+		{"foo/bar/.tf/tg.hcl", ".tf/tg.hcl", true},
+		{"foo/bar/.tf/tg.hcl", "tg.hcl", true},
+
+		{"foo/bar/.tf/tg.hcl", "/bar", false},
+		{"/foo/bar/.tf/tg.hcl", "/bar", false},
+		{"foo/bar", "foo/bar/gee", false},
+		{"foo/bar/.tf/tg.hcl", "foo/barf", false},
+		{"foo/bar/.tf/tg.hcl", "foo/ba", false},
+	}
+
+	for _, testCase := range testCases {
+		actual := ContainsPath(testCase.path, testCase.subpath)
+		assert.Equal(t, testCase.expected, actual, "For path %s and subpath %s", testCase.path, testCase.subpath)
+	}
+}
+func TestHasPathPrefix(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		path     string
+		prefix   string
+		expected bool
+	}{
+		{"", "", true},
+		{"/", "/", true},
+		{"foo/bar/.tf/tg.hcl", "foo", true},
+		{"/foo/bar/.tf/tg.hcl", "/foo", true},
+		{"foo/bar/.tf/tg.hcl", "foo/bar", true},
+		{"/foo/bar/.tf/tg.hcl", "/foo/bar", true},
+
+		{"/", "", false},
+		{"foo", "foo/bar/.tf/tg.hcl", false},
+		{"/foo/bar/.tf/tg.hcl", "foo", false},
+		{"/foo/bar/.tf/tg.hcl", "bar/.tf", false},
+		{"/foo/bar/.tf/tg.hcl", "/foo/barf", false},
+		{"/foo/bar/.tf/tg.hcl", "/foo/ba", false},
+	}
+
+	for _, testCase := range testCases {
+		actual := HasPathPrefix(testCase.path, testCase.prefix)
+		assert.Equal(t, testCase.expected, actual, "For path %s and prefix %s", testCase.path, testCase.prefix)
 	}
 }

@@ -58,6 +58,94 @@ func TestListContainsElement(t *testing.T) {
 	}
 }
 
+func TestListEquals(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		a        []string
+		b        []string
+		expected bool
+	}{
+		{[]string{""}, []string{}, false},
+		{[]string{"foo"}, []string{"bar"}, false},
+		{[]string{"foo", "bar"}, []string{"bar"}, false},
+		{[]string{"foo"}, []string{"foo", "bar"}, false},
+		{[]string{"foo", "bar"}, []string{"bar", "foo"}, false},
+
+		{[]string{}, []string{}, true},
+		{[]string{""}, []string{""}, true},
+		{[]string{"foo", "bar"}, []string{"foo", "bar"}, true},
+	}
+	for _, testCase := range testCases {
+		actual := ListEquals(testCase.a, testCase.b)
+		assert.Equal(t, testCase.expected, actual, "For list %v and list %v", testCase.a, testCase.b)
+	}
+}
+
+func TestListContainsSublist(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		list     []string
+		sublist  []string
+		expected bool
+	}{
+		{[]string{}, []string{}, false},
+		{[]string{}, []string{"foo"}, false},
+		{[]string{"foo"}, []string{}, false},
+		{[]string{"foo"}, []string{"bar"}, false},
+		{[]string{"foo"}, []string{"foo", "bar"}, false},
+		{[]string{"bar", "foo"}, []string{"foo", "bar"}, false},
+		{[]string{"bar", "foo", "gee"}, []string{"foo", "bar"}, false},
+		{[]string{"foo", "foo", "gee"}, []string{"foo", "bar"}, false},
+		{[]string{"zim", "gee", "foo", "foo", "foo"}, []string{"foo", "foo", "bar", "bar"}, false},
+
+		{[]string{""}, []string{""}, true},
+		{[]string{"foo"}, []string{"foo"}, true},
+		{[]string{"foo", "bar"}, []string{"foo"}, true},
+		{[]string{"bar", "foo"}, []string{"foo"}, true},
+		{[]string{"foo", "bar", "gee"}, []string{"foo", "bar"}, true},
+		{[]string{"zim", "foo", "bar", "gee"}, []string{"foo", "bar"}, true},
+		{[]string{"foo", "foo", "bar", "gee"}, []string{"foo", "bar"}, true},
+		{[]string{"zim", "gee", "foo", "bar"}, []string{"foo", "bar"}, true},
+		{[]string{"foo", "foo", "foo", "bar"}, []string{"foo", "foo"}, true},
+		{[]string{"bar", "foo", "foo", "foo"}, []string{"foo", "foo"}, true},
+		{[]string{"zim", "gee", "foo", "bar"}, []string{"gee", "foo", "bar"}, true},
+	}
+
+	for _, testCase := range testCases {
+		actual := ListContainsSublist(testCase.list, testCase.sublist)
+		assert.Equal(t, testCase.expected, actual, "For list %v and sublist %v", testCase.list, testCase.sublist)
+	}
+}
+
+func TestListHasPrefix(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		list     []string
+		prefix   []string
+		expected bool
+	}{
+		{[]string{}, []string{}, false},
+		{[]string{""}, []string{}, false},
+		{[]string{"foo"}, []string{"bar"}, false},
+		{[]string{"foo", "bar"}, []string{"bar"}, false},
+		{[]string{"foo"}, []string{"foo", "bar"}, false},
+		{[]string{"foo", "bar", "foo"}, []string{"bar", "foo"}, false},
+
+		{[]string{""}, []string{""}, true},
+		{[]string{"", "foo"}, []string{""}, true},
+		{[]string{"foo", "bar"}, []string{"foo"}, true},
+		{[]string{"foo", "bar"}, []string{"foo", "bar"}, true},
+		{[]string{"foo", "bar", "biz"}, []string{"foo", "bar"}, true},
+	}
+	for _, testCase := range testCases {
+		actual := ListHasPrefix(testCase.list, testCase.prefix)
+		assert.Equal(t, testCase.expected, actual, "For list %v and prefix %v", testCase.list, testCase.prefix)
+	}
+}
+
 func TestRemoveElementFromList(t *testing.T) {
 	t.Parallel()
 

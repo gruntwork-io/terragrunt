@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="326" height="342" viewBox="0 0 326 342">
+    <defs>
+        <linearGradient id="a" x1="0%" y1="47.881%" y2="52.119%">
+            <stop offset="0%" stop-color="#5852E6"/>
+            <stop offset="100%" stop-color="#736EF5"/>
+        </linearGradient>
+    </defs>
+    <g fill="none" fill-rule="evenodd">
+        <circle cx="4" cy="4" r="4" fill="#1E252F"/>
+        <circle cx="40" cy="105" r="4" fill="#1E252F" transform="matrix(0 -1 -1 0 145 145)"/>
+        <path stroke="#1E252F" stroke-width="2" d="M3 44.5v60h37"/>
+        <path stroke="#5B55E8" stroke-width="2" d="M254 326.5h70l.5-283h-120"/>
+        <path stroke="#5B55E8" stroke-width="2" d="M254 187.5h70l.5-144h-120"/>
+        <circle cx="41" cy="244" r="4" fill="#1E252F" transform="matrix(0 -1 -1 0 285 285)"/>
+        <path stroke="#1E252F" stroke-width="2" d="M3 95l.507 149H40M33 45H3V4"/>
+        <rect width="170" height="35" x="34" y="27" fill="url(#a)" rx="8"/>
+        <rect width="170" height="35" x="77" y="170" fill="url(#a)" rx="8"/>
+        <rect width="170" height="35" x="77" y="307" fill="url(#a)" rx="8"/>
+        <rect width="170" height="35" x="77" y="130" fill="#F0F0F1" rx="8"/>
+        <rect width="170" height="35" x="77" y="267" fill="#F0F0F1" rx="8"/>
+        <text fill="#FFF" font-family="SourceSansPro-Bold, Source Sans Pro" font-size="16" font-weight="bold" letter-spacing="2">
+            <tspan x="54" y="51">terragrunt.hcl</tspan>
+        </text>
+        <text fill="#FFF" font-family="SourceSansPro-Bold, Source Sans Pro" font-size="16" font-weight="bold" letter-spacing="2">
+            <tspan x="98.048" y="194">terragrunt.hcl</tspan>
+        </text>
+        <text fill="#FFF" font-family="SourceSansPro-Bold, Source Sans Pro" font-size="16" font-weight="bold" letter-spacing="2">
+            <tspan x="98.048" y="331">terragrunt.hcl</tspan>
+        </text>
+        <path stroke="#1E252F" stroke-width="2" d="M40 107l.507 81H77M41 244l.007 81.5H77.5"/>
+        <path stroke="#1E252F" stroke-width="2" d="M40 108l.507 40H77M41 245l.007 40.5H77.5"/>
+        <circle cx="77" cy="189" r="3" fill="#FFF" stroke="#1E252F" stroke-width="2" transform="matrix(0 -1 -1 0 266 266)"/>
+        <circle cx="77" cy="326" r="3" fill="#FFF" stroke="#1E252F" stroke-width="2" transform="matrix(0 -1 -1 0 403 403)"/>
+        <circle cx="77" cy="148" r="3" fill="#FFF" stroke="#1E252F" stroke-width="2" transform="matrix(0 -1 -1 0 225 225)"/>
+        <circle cx="77" cy="285" r="3" fill="#FFF" stroke="#1E252F" stroke-width="2" transform="matrix(0 -1 -1 0 362 362)"/>
+        <text fill="#1E252F" font-family="SourceSansPro-Bold, Source Sans Pro" font-size="16" font-weight="bold" letter-spacing="2">
+            <tspan x="129.456" y="154">main.tf</tspan>
+        </text>
+        <text fill="#1E252F" font-family="SourceSansPro-Bold, Source Sans Pro" font-size="16" font-weight="bold" letter-spacing="2">
+            <tspan x="129.456" y="291">main.tf</tspan>
+        </text>
+        <text fill="#1E252F" font-family="SourceSansPro-Bold, Source Sans Pro" font-size="16" font-weight="bold" letter-spacing="2">
+            <tspan x="54" y="108">frontend-app</tspan>
+        </text>
+        <text fill="#1E252F" font-family="SourceSansPro-Bold, Source Sans Pro" font-size="16" font-weight="bold" letter-spacing="2">
+            <tspan x="54" y="248">mysql</tspan>
+        </text>
+        <path fill="#5B55E8" d="M252.914 185.778l5.069-2.995a2 2 0 0 1 3.017 1.722v5.99a2 2 0 0 1-3.017 1.722l-5.07-2.995a2 2 0 0 1 0-3.444zM252.914 323.778l5.069-2.995a2 2 0 0 1 3.017 1.722v5.99a2 2 0 0 1-3.017 1.722l-5.07-2.995a2 2 0 0 1 0-3.444z"/>
+    </g>
+</svg>

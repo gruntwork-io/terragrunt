@@ -1,0 +1,34 @@
+<footer class="footer">
+  <div class="container-fluid">
+    <div class="row">
+
+      <div class="col-xs-12 col-sm-6">
+        {% include logo.html %}
+        <p class="subtitle">Your entire infrastructure. Defined as code. In about a day.</p>
+        <a href="https://gruntwork.io" target="_blank" class="btn btn-primary">Discover Gruntwork.io</a>
+      </div>
+
+      <div class="col-xs-12 col-sm-6 learn-col">
+        <h4>Learn</h4>
+        <ul>
+          <li><a href="{{site.baseurl}}/docs/getting-started/install">Install</a></li>
+          <li><a href="{{site.baseurl}}/docs/getting-started/quick-start">Quick Start</a></li>
+          <li><a href="{{site.baseurl}}/docs">Documentation</a></li>
+          <li><a href="{{site.baseurl}}/docs/#features">Use cases</a></li>
+          <li><a href="{{site.baseurl}}/commercial-support/">Commercial Support <span class="new-badge">NEW</span></a></li>
+        </ul>
+        <div class="copy-container">
+          <ul>
+            <li><a href="https://github.com/gruntwork-io/terragrunt" class="github-nav-link"><img src="{{ site.baseurl}}/assets/img/logos/github-logo.png" alt="GitHub" /></a></li>
+            <li><a href="{{site.baseurl}}/cookie-policy/">Cookie Policy</a></li>
+            <li><a href="{{site.baseurl}}/docs/community/support/">Support</a></li>
+          </ul>
+          <div class="footer__copyright">
+            &copy; {{ 'now' | date: "%Y" }} Gruntwork, Inc. All rights reserved.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</footer>

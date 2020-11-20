@@ -15,6 +15,19 @@ func MatchesAny(regExps []string, s string) bool {
 	return false
 }
 
+// ListEquals returns true if the two lists are equal
+func ListEquals(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // Return true if the given list contains the given element
 func ListContainsElement(list []string, element string) bool {
 	for _, item := range list {
@@ -24,6 +37,34 @@ func ListContainsElement(list []string, element string) bool {
 	}
 
 	return false
+}
+
+// ListContainsSublist returns true if an instance of the sublist can be found in the given list
+func ListContainsSublist(list, sublist []string) bool {
+	// A list cannot contain an empty sublist
+	if len(sublist) == 0 {
+		return false
+	}
+	if len(sublist) > len(list) {
+		return false
+	}
+	for i := 0; len(list[i:]) >= len(sublist); i++ {
+		if ListEquals(list[i:i+len(sublist)], sublist) {
+			return true
+		}
+	}
+	return false
+}
+
+// ListHasPrefix returns true if list starts with the given prefix list
+func ListHasPrefix(list, prefix []string) bool {
+	if len(prefix) == 0 {
+		return false
+	}
+	if len(prefix) > len(list) {
+		return false
+	}
+	return ListEquals(list[:len(prefix)], prefix)
 }
 
 // Return a copy of the given list with all instances of the given element removed

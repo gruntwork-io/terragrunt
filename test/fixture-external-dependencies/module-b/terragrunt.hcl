@@ -1,0 +1,5 @@
+dependencies {
+  paths = [
+    "../module-a",
+  ]
+}

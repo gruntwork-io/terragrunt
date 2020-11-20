@@ -1,6 +1,6 @@
 
 module "sub" {
-    source = "..//submod"
+  source = "..//submod"
 }
 
 

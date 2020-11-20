@@ -4,26 +4,45 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/gohcl"
+	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/hashicorp/hcl"
 )
 
-const DefaultTerragruntConfigPath = "terraform.tfvars"
-const OldTerragruntConfigPath = ".terragrunt"
+const DefaultTerragruntConfigPath = "terragrunt.hcl"
+const DefaultTerragruntJsonConfigPath = "terragrunt.hcl.json"
 
 // TerragruntConfig represents a parsed and expanded configuration
+// NOTE: if any attributes are added, make sure to update terragruntConfigAsCty in config_as_cty.go
 type TerragruntConfig struct {
-	Terraform      *TerraformConfig
-	RemoteState    *remote.RemoteState
-	Dependencies   *ModuleDependencies
-	PreventDestroy bool
-	Skip           bool
-	IamRole        string
+	Terraform                   *TerraformConfig
+	TerraformBinary             string
+	TerraformVersionConstraint  string
+	TerragruntVersionConstraint string
+	RemoteState                 *remote.RemoteState
+	Dependencies                *ModuleDependencies
+	DownloadDir                 string
+	PreventDestroy              *bool
+	Skip                        bool
+	IamRole                     string
+	Inputs                      map[string]interface{}
+	Locals                      map[string]interface{}
+	TerragruntDependencies      []Dependency
+	GenerateConfigs             map[string]codegen.GenerateConfig
+	RetryableErrors             []string
+
+	// Indicates whether or not this is the result of a partial evaluation
+	IsPartial bool
 }
 
 func (conf *TerragruntConfig) String() string {
@@ -31,38 +50,125 @@ func (conf *TerragruntConfig) String() string {
 }
 
 // terragruntConfigFile represents the configuration supported in a Terragrunt configuration file (i.e.
-// terraform.tfvars or .terragrunt)
+// terragrunt.hcl)
 type terragruntConfigFile struct {
-	Terraform      *TerraformConfig    `hcl:"terraform,omitempty"`
-	Include        *IncludeConfig      `hcl:"include,omitempty"`
-	Lock           *LockConfig         `hcl:"lock,omitempty"`
-	RemoteState    *remote.RemoteState `hcl:"remote_state,omitempty"`
-	Dependencies   *ModuleDependencies `hcl:"dependencies,omitempty"`
-	PreventDestroy bool                `hcl:"prevent_destroy,omitempty"`
-	Skip           bool                `hcl:"skip,omitempty"`
-	IamRole        string              `hcl:"iam_role"`
+	Terraform                   *TerraformConfig          `hcl:"terraform,block"`
+	TerraformBinary             *string                   `hcl:"terraform_binary,attr"`
+	TerraformVersionConstraint  *string                   `hcl:"terraform_version_constraint,attr"`
+	TerragruntVersionConstraint *string                   `hcl:"terragrunt_version_constraint,attr"`
+	Inputs                      *cty.Value                `hcl:"inputs,attr"`
+	Include                     *IncludeConfig            `hcl:"include,block"`
+	RemoteState                 *remoteStateConfigFile    `hcl:"remote_state,block"`
+	Dependencies                *ModuleDependencies       `hcl:"dependencies,block"`
+	DownloadDir                 *string                   `hcl:"download_dir,attr"`
+	PreventDestroy              *bool                     `hcl:"prevent_destroy,attr"`
+	Skip                        *bool                     `hcl:"skip,attr"`
+	IamRole                     *string                   `hcl:"iam_role,attr"`
+	TerragruntDependencies      []Dependency              `hcl:"dependency,block"`
+	GenerateBlocks              []terragruntGenerateBlock `hcl:"generate,block"`
+	RetryableErrors             []string                  `hcl:"retryable_errors,optional"`
+
+	// This struct is used for validating and parsing the entire terragrunt config. Since locals are evaluated in a
+	// completely separate cycle, it should not be evaluated here. Otherwise, we can't support self referencing other
+	// elements in the same block.
+	Locals *terragruntLocal `hcl:"locals,block"`
 }
 
-// Older versions of Terraform did not support locking, so Terragrunt offered locking as a feature. As of version 0.9.0,
-// Terraform supports locking natively, so this feature was removed from Terragrunt. However, we keep around the
-// LockConfig so we can log a warning for Terragrunt users who are still trying to use it.
-type LockConfig map[interface{}]interface{}
+// We use a struct designed to not parse the block, as locals are parsed and decoded using a special routine that allows
+// references to the other locals in the same block.
+type terragruntLocal struct {
+	Remain hcl.Body `hcl:",remain"`
+}
 
-// tfvarsFileWithTerragruntConfig represents a .tfvars file that contains a terragrunt = { ... } block
-type tfvarsFileWithTerragruntConfig struct {
-	Terragrunt *terragruntConfigFile `hcl:"terragrunt,omitempty"`
+// Configuration for Terraform remote state as parsed from a terragrunt.hcl config file
+type remoteStateConfigFile struct {
+	Backend                       string                     `hcl:"backend,attr"`
+	DisableInit                   *bool                      `hcl:"disable_init,attr"`
+	DisableDependencyOptimization *bool                      `hcl:"disable_dependency_optimization,attr"`
+	Generate                      *remoteStateConfigGenerate `hcl:"generate,attr"`
+	Config                        cty.Value                  `hcl:"config,attr"`
+}
+
+func (remoteState *remoteStateConfigFile) String() string {
+	return fmt.Sprintf("remoteStateConfigFile{Backend = %v, Config = %v}", remoteState.Backend, remoteState.Config)
+}
+
+// Convert the parsed config file remote state struct to the internal representation struct of remote state
+// configurations.
+func (remoteState *remoteStateConfigFile) toConfig() (*remote.RemoteState, error) {
+	remoteStateConfig, err := parseCtyValueToMap(remoteState.Config)
+	if err != nil {
+		return nil, err
+	}
+
+	config := &remote.RemoteState{}
+	config.Backend = remoteState.Backend
+	if remoteState.Generate != nil {
+		config.Generate = &remote.RemoteStateGenerate{
+			Path:     remoteState.Generate.Path,
+			IfExists: remoteState.Generate.IfExists,
+		}
+	}
+	config.Config = remoteStateConfig
+
+	if remoteState.DisableInit != nil {
+		config.DisableInit = *remoteState.DisableInit
+	}
+	if remoteState.DisableDependencyOptimization != nil {
+		config.DisableDependencyOptimization = *remoteState.DisableDependencyOptimization
+	}
+
+	config.FillDefaults()
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+	return config, err
+}
+
+type remoteStateConfigGenerate struct {
+	// We use cty instead of hcl, since we are using this type to convert an attr and not a block.
+	Path     string `cty:"path"`
+	IfExists string `cty:"if_exists"`
+}
+
+// Struct used to parse generate blocks. This will later be converted to GenerateConfig structs so that we can go
+// through the codegen routine.
+type terragruntGenerateBlock struct {
+	Name             string  `hcl:",label"`
+	Path             string  `hcl:"path,attr"`
+	IfExists         string  `hcl:"if_exists,attr"`
+	CommentPrefix    *string `hcl:"comment_prefix,attr"`
+	Contents         string  `hcl:"contents,attr"`
+	DisableSignature *bool   `hcl:"disable_signature,attr"`
 }
 
 // IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
 // "include" in a child Terragrunt configuration file
 type IncludeConfig struct {
-	Path string `hcl:"path"`
+	Path string `hcl:"path,attr"`
+}
+
+func (cfg *IncludeConfig) String() string {
+	return fmt.Sprintf("IncludeConfig{Path = %s}", cfg.Path)
 }
 
 // ModuleDependencies represents the paths to other Terraform modules that must be applied before the current module
 // can be applied
 type ModuleDependencies struct {
-	Paths []string `hcl:"paths"`
+	Paths []string `hcl:"paths,attr" cty:"paths"`
+}
+
+// Merge appends the paths in the provided ModuleDependencies object into this ModuleDependencies object.
+func (deps *ModuleDependencies) Merge(source *ModuleDependencies) {
+	if source == nil {
+		return
+	}
+
+	for _, path := range source.Paths {
+		if !util.ListContainsElement(deps.Paths, path) {
+			deps.Paths = append(deps.Paths, path)
+		}
+	}
 }
 
 func (deps *ModuleDependencies) String() string {
@@ -71,10 +177,10 @@ func (deps *ModuleDependencies) String() string {
 
 // Hook specifies terraform commands (apply/plan) and array of os commands to execute
 type Hook struct {
-	Name       string   `hcl:",key"`
-	Commands   []string `hcl:"commands,omitempty"`
-	Execute    []string `hcl:"execute,omitempty"`
-	RunOnError bool     `hcl:"run_on_error,omitempty"`
+	Name       string   `hcl:"name,label" cty:"name"`
+	Commands   []string `hcl:"commands,attr" cty:"commands"`
+	Execute    []string `hcl:"execute,attr" cty:"execute"`
+	RunOnError *bool    `hcl:"run_on_error,attr" cty:"run_on_error"`
 }
 
 func (conf *Hook) String() string {
@@ -82,11 +188,13 @@ func (conf *Hook) String() string {
 }
 
 // TerraformConfig specifies where to find the Terraform configuration files
+// NOTE: If any attributes or blocks are added here, be sure to add it to ctyTerraformConfig in config_as_cty.go as
+// well.
 type TerraformConfig struct {
-	ExtraArgs   []TerraformExtraArguments `hcl:"extra_arguments"`
-	Source      string                    `hcl:"source"`
-	BeforeHooks []Hook                    `hcl:"before_hook"`
-	AfterHooks  []Hook                    `hcl:"after_hook"`
+	ExtraArgs   []TerraformExtraArguments `hcl:"extra_arguments,block"`
+	Source      *string                   `hcl:"source,attr"`
+	BeforeHooks []Hook                    `hcl:"before_hook,block"`
+	AfterHooks  []Hook                    `hcl:"after_hook,block"`
 }
 
 func (conf *TerraformConfig) String() string {
@@ -123,12 +231,12 @@ func (conf *TerraformConfig) ValidateHooks() error {
 
 // TerraformExtraArguments sets a list of arguments to pass to Terraform if command fits any in the `Commands` list
 type TerraformExtraArguments struct {
-	Name             string            `hcl:",key"`
-	Arguments        []string          `hcl:"arguments,omitempty"`
-	RequiredVarFiles []string          `hcl:"required_var_files,omitempty"`
-	OptionalVarFiles []string          `hcl:"optional_var_files,omitempty"`
-	Commands         []string          `hcl:"commands,omitempty"`
-	EnvVars          map[string]string `hcl:"env_vars,omitempty"`
+	Name             string             `hcl:"name,label" cty:"name"`
+	Arguments        *[]string          `hcl:"arguments,attr" cty:"arguments"`
+	RequiredVarFiles *[]string          `hcl:"required_var_files,attr" cty:"required_var_files"`
+	OptionalVarFiles *[]string          `hcl:"optional_var_files,attr" cty:"optional_var_files"`
+	Commands         []string           `hcl:"commands,attr" cty:"commands"`
+	EnvVars          *map[string]string `hcl:"env_vars,attr" cty:"env_vars"`
 }
 
 func (conf *TerraformExtraArguments) String() string {
@@ -140,20 +248,27 @@ func (conf *TerraformExtraArguments) String() string {
 		conf.EnvVars)
 }
 
-// Return the default path to use for the Terragrunt configuration file. The reason this is a method rather than a
-// constant is that older versions of Terragrunt stored configuration in a different file. This method returns the
-// path to the old configuration format if such a file exists and the new format otherwise.
+// Return the default hcl path to use for the Terragrunt configuration file in the given directory
 func DefaultConfigPath(workingDir string) string {
-	path := util.JoinPath(workingDir, OldTerragruntConfigPath)
-	if util.FileExists(path) {
-		return path
-	}
 	return util.JoinPath(workingDir, DefaultTerragruntConfigPath)
 }
 
+// Return the default path to use for the Terragrunt Json configuration file in the given directory
+func DefaultJsonConfigPath(workingDir string) string {
+	return util.JoinPath(workingDir, DefaultTerragruntJsonConfigPath)
+}
+
+// Return the default path to use for the Terragrunt configuration that exists within the path giving preference to `terragrunt.hcl`
+func GetDefaultConfigPath(workingDir string) string {
+	if util.FileNotExists(DefaultConfigPath(workingDir)) && util.FileExists(DefaultJsonConfigPath(workingDir)) {
+		return DefaultJsonConfigPath(workingDir)
+	}
+
+	return DefaultConfigPath(workingDir)
+}
+
 // Returns a list of all Terragrunt config files in the given path or any subfolder of the path. A file is a Terragrunt
-// config file if it has a name as returned by the DefaultConfigPath method and contains Terragrunt config contents
-// as returned by the IsTerragruntConfigFile method.
+// config file if it has a name as returned by the DefaultConfigPath method
 func FindConfigFilesInPath(rootPath string, terragruntOptions *options.TerragruntOptions) ([]string, error) {
 	configFiles := []string{}
 
@@ -162,13 +277,18 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 			return err
 		}
 
+		// Skip the Terragrunt cache dir entirely
+		if info.IsDir() && info.Name() == options.TerragruntCacheDir {
+			return filepath.SkipDir
+		}
+
 		isTerragruntModule, err := containsTerragruntModule(path, info, terragruntOptions)
 		if err != nil {
 			return err
 		}
 
 		if isTerragruntModule {
-			configFiles = append(configFiles, DefaultConfigPath(path))
+			configFiles = append(configFiles, GetDefaultConfigPath(path))
 		}
 
 		return nil
@@ -178,16 +298,28 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 }
 
 // Returns true if the given path with the given FileInfo contains a Terragrunt module and false otherwise. A path
-// contains a Terragrunt module if it contains a Terragrunt configuration file (terraform.tfvars) and is not a cache
-// or download dir.
+// contains a Terragrunt module if it contains a Terragrunt configuration file (terragrunt.hcl, terragrunt.hcl.json)
+// and is not a cache, data, or download dir.
 func containsTerragruntModule(path string, info os.FileInfo, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	if !info.IsDir() {
 		return false, nil
 	}
 
 	// Skip the Terragrunt cache dir
-	if strings.Contains(path, options.TerragruntCacheDir) {
+	if util.ContainsPath(path, options.TerragruntCacheDir) {
 		return false, nil
+	}
+
+	// Skip the Terraform data dir
+	dataDir := terragruntOptions.TerraformDataDir()
+	if filepath.IsAbs(dataDir) {
+		if util.HasPathPrefix(path, dataDir) {
+			return false, nil
+		}
+	} else {
+		if util.ContainsPath(path, dataDir) {
+			return false, nil
+		}
 	}
 
 	canonicalPath, err := util.CanonicalPath(path, "")
@@ -205,54 +337,7 @@ func containsTerragruntModule(path string, info os.FileInfo, terragruntOptions *
 		return false, err
 	}
 
-	return IsTerragruntConfigFile(DefaultConfigPath(path))
-}
-
-// Returns true if the given path corresponds to file that could be a Terragrunt config file. A file could be a
-// Terragrunt config file if:
-//
-// 1. The file exists
-// 2. It is a .terragrunt file, which is the old Terragrunt-specific file format
-// 3. The file contains HCL contents with a terragrunt = { ... } block
-func IsTerragruntConfigFile(path string) (bool, error) {
-	if !util.FileExists(path) {
-		return false, nil
-	}
-
-	if isOldTerragruntConfig(path) {
-		return true, nil
-	}
-
-	return isNewTerragruntConfig(path)
-}
-
-// Returns true if the given path points to an old Terragrunt config file
-func isOldTerragruntConfig(path string) bool {
-	return strings.HasSuffix(path, OldTerragruntConfigPath)
-}
-
-// Retrusn true if the given path points to a new (current) Terragrunt config file
-func isNewTerragruntConfig(path string) (bool, error) {
-	configContents, err := util.ReadFileAsString(path)
-	if err != nil {
-		return false, err
-	}
-
-	containsBlock, err := containsTerragruntBlock(configContents)
-	if err != nil {
-		return false, errors.WithStackTrace(ErrorParsingTerragruntConfig{ConfigPath: path, Underlying: err})
-	}
-
-	return containsBlock, nil
-}
-
-// Returns true if the given string contains valid HCL with a terragrunt = { ... } block
-func containsTerragruntBlock(configString string) (bool, error) {
-	terragruntConfig := &tfvarsFileWithTerragruntConfig{}
-	if err := hcl.Decode(terragruntConfig, configString); err != nil {
-		return false, errors.WithStackTrace(err)
-	}
-	return terragruntConfig.Terragrunt != nil, nil
+	return util.FileExists(GetDefaultConfigPath(path)), nil
 }
 
 // Read the Terragrunt config file from its default location
@@ -263,17 +348,13 @@ func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*Terrag
 
 // Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
-func ParseConfigFile(configPath string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) (*TerragruntConfig, error) {
-	if isOldTerragruntConfig(configPath) {
-		terragruntOptions.Logger.Printf("DEPRECATION WARNING: Found deprecated config file format %s. This old config format will not be supported in the future. Please move your config files into a %s file.", configPath, DefaultTerragruntConfigPath)
-	}
-
-	configString, err := util.ReadFileAsString(configPath)
+func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) (*TerragruntConfig, error) {
+	configString, err := util.ReadFileAsString(filename)
 	if err != nil {
 		return nil, err
 	}
 
-	config, err := parseConfigString(configString, terragruntOptions, include, configPath)
+	config, err := ParseConfigString(configString, terragruntOptions, include, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -281,72 +362,179 @@ func ParseConfigFile(configPath string, terragruntOptions *options.TerragruntOpt
 	return config, nil
 }
 
-// Parse the Terragrunt config contained in the given string.
-func parseConfigString(configString string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig, configPath string) (*TerragruntConfig, error) {
-	resolvedConfigString, err := ResolveTerragruntConfigString(configString, include, terragruntOptions)
+// Parse the Terragrunt config contained in the given string and merge it with the given include config (if any). Note
+// that the config parsing consists of multiple stages so as to allow referencing of data resulting from parsing
+// previous config. The parsing order is:
+// 1. Parse include. Include is parsed first and is used to import another config. All the config in the include block is
+//    then merged into the current TerragruntConfig, except for locals (by design). Note that since the include block is
+//    parsed first, you cannot reference locals in the include block config.
+// 2. Parse locals. Since locals are parsed next, you can only reference other locals in the locals block. Although it
+//    is possible to merge locals from a config imported with an include block, we do not do that here to avoid
+//    complicated referencing issues. Please refer to the globals proposal for an alternative that allows merging from
+//    included config: https://github.com/gruntwork-io/terragrunt/issues/814
+//    Allowed References:
+//      - locals
+// 3. Parse dependency blocks. This includes running `terragrunt output` to fetch the output data from another
+//    terragrunt config, so that it is accessible within the config. See PartialParseConfigString for a way to parse the
+//    blocks but avoid decoding.
+//    Allowed References:
+//      - locals
+// 4. Parse everything else. At this point, all the necessary building blocks for parsing the rest of the config are
+//    available, so parse the rest of the config.
+//    Allowed References:
+//      - locals
+//      - dependency
+// 5. Merge the included config with the parsed config. Note that all the config data is mergable except for `locals`
+//    blocks, which are only scoped to be available within the defining config.
+func ParseConfigString(configString string, terragruntOptions *options.TerragruntOptions, includeFromChild *IncludeConfig, filename string) (*TerragruntConfig, error) {
+	// Parse the HCL string into an AST body that can be decoded multiple times later without having to re-parse
+	parser := hclparse.NewParser()
+	file, err := parseHcl(parser, configString, filename)
 	if err != nil {
 		return nil, err
 	}
 
-	terragruntConfigFile, err := parseConfigStringAsTerragruntConfigFile(resolvedConfigString, configPath)
+	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
+	localsAsCty, terragruntInclude, includeForDecode, err := DecodeBaseBlocks(terragruntOptions, parser, file, filename, includeFromChild)
+	if err != nil {
+		return nil, err
+	}
+
+	// Initialize evaluation context extensions from base blocks.
+	contextExtensions := EvalContextExtensions{
+		Locals:  localsAsCty,
+		Include: includeForDecode,
+	}
+
+	// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
+	// process.
+	retrievedOutputs, err := decodeAndRetrieveOutputs(file, filename, terragruntOptions, contextExtensions)
+	if err != nil {
+		return nil, err
+	}
+	contextExtensions.DecodedDependencies = retrievedOutputs
+
+	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
+	// is appropriate
+	terragruntConfigFile, err := decodeAsTerragruntConfigFile(file, filename, terragruntOptions, contextExtensions)
 	if err != nil {
 		return nil, err
 	}
 	if terragruntConfigFile == nil {
-		return nil, errors.WithStackTrace(CouldNotResolveTerragruntConfigInFile(configPath))
+		return nil, errors.WithStackTrace(CouldNotResolveTerragruntConfigInFile(filename))
 	}
 
-	config, err := convertToTerragruntConfig(terragruntConfigFile, terragruntOptions)
+	config, err := convertToTerragruntConfig(terragruntConfigFile, filename, terragruntOptions, contextExtensions)
 	if err != nil {
 		return nil, err
 	}
 
-	if include != nil && terragruntConfigFile.Include != nil {
-		return nil, errors.WithStackTrace(TooManyLevelsOfInheritance{
-			ConfigPath:             terragruntOptions.TerragruntConfigPath,
-			FirstLevelIncludePath:  include.Path,
-			SecondLevelIncludePath: terragruntConfigFile.Include.Path,
-		})
+	// If this file includes another, parse and merge it.  Otherwise just return this config.
+	if terragruntInclude.Include != nil {
+		includedConfig, err := parseIncludedConfig(terragruntInclude.Include, terragruntOptions)
+		if err != nil {
+			return nil, err
+		}
+		return mergeConfigWithIncludedConfig(config, includedConfig, terragruntOptions)
+	} else {
+		return config, nil
 	}
-
-	includedConfig, err := parseIncludedConfig(terragruntConfigFile.Include, terragruntOptions)
-	if err != nil {
-		return nil, err
-	}
-
-	return mergeConfigWithIncludedConfig(config, includedConfig, terragruntOptions)
 }
 
-// Parse the given config string, read from the given config file, as a terragruntConfigFile struct. This method solely
-// converts the HCL syntax in the string to the terragruntConfigFile struct; it does not process any interpolations.
-func parseConfigStringAsTerragruntConfigFile(configString string, configPath string) (*terragruntConfigFile, error) {
-	if isOldTerragruntConfig(configPath) {
-		terragruntConfig := &terragruntConfigFile{}
-		if err := hcl.Decode(terragruntConfig, configString); err != nil {
-			return nil, errors.WithStackTrace(err)
+func getIncludedConfigForDecode(
+	parsedTerragruntInclude *terragruntInclude,
+	terragruntOptions *options.TerragruntOptions,
+	includeFromChild *IncludeConfig,
+) (*IncludeConfig, error) {
+	if parsedTerragruntInclude.Include != nil && includeFromChild != nil {
+		return nil, errors.WithStackTrace(TooManyLevelsOfInheritance{
+			ConfigPath:             terragruntOptions.TerragruntConfigPath,
+			FirstLevelIncludePath:  includeFromChild.Path,
+			SecondLevelIncludePath: parsedTerragruntInclude.Include.Path,
+		})
+	} else if parsedTerragruntInclude.Include != nil {
+		return parsedTerragruntInclude.Include, nil
+	} else if includeFromChild != nil {
+		return includeFromChild, nil
+	}
+	return nil, nil
+}
+
+func decodeAsTerragruntConfigFile(
+	file *hcl.File,
+	filename string,
+	terragruntOptions *options.TerragruntOptions,
+	extensions EvalContextExtensions,
+) (*terragruntConfigFile, error) {
+	terragruntConfig := terragruntConfigFile{}
+	err := decodeHcl(file, filename, &terragruntConfig, terragruntOptions, extensions)
+	if err != nil {
+		return nil, err
+	}
+	return &terragruntConfig, nil
+}
+
+// decodeHcl uses the HCL2 parser to decode the parsed HCL into the struct specified by out.
+func decodeHcl(
+	file *hcl.File,
+	filename string,
+	out interface{},
+	terragruntOptions *options.TerragruntOptions,
+	extensions EvalContextExtensions,
+) (err error) {
+	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
+	// those panics here and convert them to normal errors
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = errors.WithStackTrace(PanicWhileParsingConfig{RecoveredValue: recovered, ConfigFile: filename})
 		}
-		return terragruntConfig, nil
-	} else {
-		tfvarsConfig := &tfvarsFileWithTerragruntConfig{}
-		if err := hcl.Decode(tfvarsConfig, configString); err != nil {
-			return nil, errors.WithStackTrace(err)
+	}()
+
+	evalContext := CreateTerragruntEvalContext(filename, terragruntOptions, extensions)
+
+	decodeDiagnostics := gohcl.DecodeBody(file.Body, evalContext, out)
+	if decodeDiagnostics != nil && decodeDiagnostics.HasErrors() {
+		return decodeDiagnostics
+	}
+
+	return nil
+}
+
+// parseHcl uses the HCL2 parser to parse the given string into an HCL file body.
+func parseHcl(parser *hclparse.Parser, hcl string, filename string) (file *hcl.File, err error) {
+	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
+	// those panics here and convert them to normal errors
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = errors.WithStackTrace(PanicWhileParsingConfig{RecoveredValue: recovered, ConfigFile: filename})
+		}
+	}()
+
+	if filepath.Ext(filename) == ".json" {
+		file, parseDiagnostics := parser.ParseJSON([]byte(hcl), filename)
+		if parseDiagnostics != nil && parseDiagnostics.HasErrors() {
+			return nil, parseDiagnostics
 		}
 
-		return tfvarsConfig.Terragrunt, nil
+		return file, nil
 	}
+
+	file, parseDiagnostics := parser.ParseHCL([]byte(hcl), filename)
+	if parseDiagnostics != nil && parseDiagnostics.HasErrors() {
+		return nil, parseDiagnostics
+	}
+
+	return file, nil
 }
 
 // Merge the given config with an included config. Anything specified in the current config will override the contents
 // of the included config. If the included config is nil, just return the current config.
 func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *TerragruntConfig, terragruntOptions *options.TerragruntOptions) (*TerragruntConfig, error) {
-	if includedConfig == nil {
-		return config, nil
-	}
-
 	if config.RemoteState != nil {
 		includedConfig.RemoteState = config.RemoteState
 	}
-	if config.PreventDestroy {
+
+	if config.PreventDestroy != nil {
 		includedConfig.PreventDestroy = config.PreventDestroy
 	}
 
@@ -357,7 +545,7 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 		if includedConfig.Terraform == nil {
 			includedConfig.Terraform = config.Terraform
 		} else {
-			if config.Terraform.Source != "" {
+			if config.Terraform.Source != nil {
 				includedConfig.Terraform.Source = config.Terraform.Source
 			}
 			mergeExtraArgs(terragruntOptions, config.Terraform.ExtraArgs, &includedConfig.Terraform.ExtraArgs)
@@ -371,8 +559,38 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 		includedConfig.Dependencies = config.Dependencies
 	}
 
+	if config.DownloadDir != "" {
+		includedConfig.DownloadDir = config.DownloadDir
+	}
+
 	if config.IamRole != "" {
 		includedConfig.IamRole = config.IamRole
+	}
+
+	if config.TerraformVersionConstraint != "" {
+		includedConfig.TerraformVersionConstraint = config.TerraformVersionConstraint
+	}
+
+	if config.TerraformBinary != "" {
+		includedConfig.TerraformBinary = config.TerraformBinary
+	}
+
+	if config.RetryableErrors != nil {
+		includedConfig.RetryableErrors = config.RetryableErrors
+	}
+
+	if config.TerragruntVersionConstraint != "" {
+		includedConfig.TerragruntVersionConstraint = config.TerragruntVersionConstraint
+	}
+
+	// Merge the generate configs. This is a shallow merge. Meaning, if the child has the same name generate block, then the
+	// child's generate block will override the parent's block.
+	for key, val := range config.GenerateConfigs {
+		includedConfig.GenerateConfigs[key] = val
+	}
+
+	if config.Inputs != nil {
+		includedConfig.Inputs = mergeInputs(config.Inputs, includedConfig.Inputs)
 	}
 
 	return includedConfig, nil
@@ -456,40 +674,60 @@ func getIndexOfExtraArgsWithName(extraArgs []TerraformExtraArguments, name strin
 
 // Parse the config of the given include, if one is specified
 func parseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *options.TerragruntOptions) (*TerragruntConfig, error) {
-	if includedConfig == nil {
-		return nil, nil
-	}
 	if includedConfig.Path == "" {
 		return nil, errors.WithStackTrace(IncludedConfigMissingPath(terragruntOptions.TerragruntConfigPath))
 	}
 
-	resolvedIncludePath, err := ResolveTerragruntConfigString(includedConfig.Path, nil, terragruntOptions)
-	if err != nil {
-		return nil, err
+	includePath := includedConfig.Path
+
+	if !filepath.IsAbs(includePath) {
+		includePath = util.JoinPath(filepath.Dir(terragruntOptions.TerragruntConfigPath), includePath)
 	}
 
-	if !filepath.IsAbs(resolvedIncludePath) {
-		resolvedIncludePath = util.JoinPath(filepath.Dir(terragruntOptions.TerragruntConfigPath), resolvedIncludePath)
+	return ParseConfigFile(includePath, terragruntOptions, includedConfig)
+}
+
+func mergeInputs(childInputs map[string]interface{}, parentInputs map[string]interface{}) map[string]interface{} {
+	out := map[string]interface{}{}
+
+	for key, value := range parentInputs {
+		out[key] = value
 	}
 
-	return ParseConfigFile(resolvedIncludePath, terragruntOptions, includedConfig)
+	for key, value := range childInputs {
+		out[key] = value
+	}
+
+	return out
 }
 
 // Convert the contents of a fully resolved Terragrunt configuration to a TerragruntConfig object
-func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, terragruntOptions *options.TerragruntOptions) (*TerragruntConfig, error) {
-	terragruntConfig := &TerragruntConfig{}
+func convertToTerragruntConfig(
+	terragruntConfigFromFile *terragruntConfigFile,
+	configPath string,
+	terragruntOptions *options.TerragruntOptions,
+	contextExtensions EvalContextExtensions,
+) (cfg *TerragruntConfig, err error) {
+	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
+	// those panics here and convert them to normal errors
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = errors.WithStackTrace(PanicWhileParsingConfig{RecoveredValue: recovered, ConfigFile: configPath})
+		}
+	}()
 
-	if terragruntConfigFromFile.Lock != nil {
-		terragruntOptions.Logger.Printf("WARNING: Found a lock configuration in the Terraform configuration at %s. Terraform added native support for locking as of version 0.9.0, so this feature has been removed from Terragrunt and will have no effect. See your Terraform backend docs for how to configure locking: https://www.terraform.io/docs/backends/types/index.html.", terragruntOptions.TerragruntConfigPath)
+	terragruntConfig := &TerragruntConfig{
+		IsPartial: false,
+		// Initialize GenerateConfigs so we can append to it
+		GenerateConfigs: map[string]codegen.GenerateConfig{},
 	}
 
 	if terragruntConfigFromFile.RemoteState != nil {
-		terragruntConfigFromFile.RemoteState.FillDefaults()
-		if err := terragruntConfigFromFile.RemoteState.Validate(); err != nil {
+		remoteState, err := terragruntConfigFromFile.RemoteState.toConfig()
+		if err != nil {
 			return nil, err
 		}
-
-		terragruntConfig.RemoteState = terragruntConfigFromFile.RemoteState
+		terragruntConfig.RemoteState = remoteState
 	}
 
 	if err := terragruntConfigFromFile.Terraform.ValidateHooks(); err != nil {
@@ -498,9 +736,80 @@ func convertToTerragruntConfig(terragruntConfigFromFile *terragruntConfigFile, t
 
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
-	terragruntConfig.PreventDestroy = terragruntConfigFromFile.PreventDestroy
-	terragruntConfig.Skip = terragruntConfigFromFile.Skip
-	terragruntConfig.IamRole = terragruntConfigFromFile.IamRole
+	terragruntConfig.TerragruntDependencies = terragruntConfigFromFile.TerragruntDependencies
+
+	if terragruntConfigFromFile.TerraformBinary != nil {
+		terragruntConfig.TerraformBinary = *terragruntConfigFromFile.TerraformBinary
+	}
+
+	if terragruntConfigFromFile.RetryableErrors != nil {
+		terragruntConfig.RetryableErrors = terragruntConfigFromFile.RetryableErrors
+	}
+
+	if terragruntConfigFromFile.DownloadDir != nil {
+		terragruntConfig.DownloadDir = *terragruntConfigFromFile.DownloadDir
+	}
+
+	if terragruntConfigFromFile.TerraformVersionConstraint != nil {
+		terragruntConfig.TerraformVersionConstraint = *terragruntConfigFromFile.TerraformVersionConstraint
+	}
+
+	if terragruntConfigFromFile.TerragruntVersionConstraint != nil {
+		terragruntConfig.TerragruntVersionConstraint = *terragruntConfigFromFile.TerragruntVersionConstraint
+	}
+
+	if terragruntConfigFromFile.PreventDestroy != nil {
+		terragruntConfig.PreventDestroy = terragruntConfigFromFile.PreventDestroy
+	}
+
+	if terragruntConfigFromFile.Skip != nil {
+		terragruntConfig.Skip = *terragruntConfigFromFile.Skip
+	}
+
+	if terragruntConfigFromFile.IamRole != nil {
+		terragruntConfig.IamRole = *terragruntConfigFromFile.IamRole
+	}
+
+	for _, block := range terragruntConfigFromFile.GenerateBlocks {
+		ifExists, err := codegen.GenerateConfigExistsFromString(block.IfExists)
+		if err != nil {
+			return nil, err
+		}
+		genConfig := codegen.GenerateConfig{
+			Path:        block.Path,
+			IfExists:    ifExists,
+			IfExistsStr: block.IfExists,
+			Contents:    block.Contents,
+		}
+		if block.CommentPrefix == nil {
+			genConfig.CommentPrefix = codegen.DefaultCommentPrefix
+		} else {
+			genConfig.CommentPrefix = *block.CommentPrefix
+		}
+		if block.DisableSignature == nil {
+			genConfig.DisableSignature = false
+		} else {
+			genConfig.DisableSignature = *block.DisableSignature
+		}
+		terragruntConfig.GenerateConfigs[block.Name] = genConfig
+	}
+
+	if terragruntConfigFromFile.Inputs != nil {
+		inputs, err := parseCtyValueToMap(*terragruntConfigFromFile.Inputs)
+		if err != nil {
+			return nil, err
+		}
+
+		terragruntConfig.Inputs = inputs
+	}
+
+	if contextExtensions.Locals != nil && *contextExtensions.Locals != cty.NilVal {
+		localsParsed, err := parseCtyValueToMap(*contextExtensions.Locals)
+		if err != nil {
+			return nil, err
+		}
+		terragruntConfig.Locals = localsParsed
+	}
 
 	return terragruntConfig, nil
 }
@@ -542,4 +851,22 @@ type ErrorParsingTerragruntConfig struct {
 
 func (err ErrorParsingTerragruntConfig) Error() string {
 	return fmt.Sprintf("Error parsing Terragrunt config at %s: %v", err.ConfigPath, err.Underlying)
+}
+
+type PanicWhileParsingConfig struct {
+	ConfigFile     string
+	RecoveredValue interface{}
+}
+
+func (err PanicWhileParsingConfig) Error() string {
+	return fmt.Sprintf("Recovering panic while parsing '%s'. Got error of type '%v': %v", err.ConfigFile, reflect.TypeOf(err.RecoveredValue), err.RecoveredValue)
+}
+
+type InvalidBackendConfigType struct {
+	ExpectedType string
+	ActualType   string
+}
+
+func (err InvalidBackendConfigType) Error() string {
+	return fmt.Sprintf("Expected backend config to be of type '%s' but got '%s'.", err.ExpectedType, err.ActualType)
 }

@@ -63,7 +63,7 @@ func TestNewSignalsForwarderWaitWindows(t *testing.T) {
 	// start := time.Now()
 	// Note: sending interrupt on Windows is not supported by Windows and not implemented in Go
 	cmd.Process.Signal(os.Kill)
-	err := <-runChannel
+	err = <-runChannel
 	cmdChannel <- err
 	assert.Error(t, err)
 

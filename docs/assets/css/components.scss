@@ -1,0 +1,249 @@
+.box-component {
+  position: relative;
+  z-index: 1;
+  max-width: 800px;
+  margin: auto;
+
+  .box {
+    max-width: 800px;
+    padding: 15px;
+    padding-top: 50px;
+    padding-bottom: 70px;
+    text-align: center;
+
+    h1, h2, h3, h4 {
+      text-align: center;
+      font-size: 44px;
+      line-height: 1.27;
+      margin-top: 10px;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      font-size: 22px;
+      margin-bottom: 30px;
+    }
+
+    .btn.btn-large {
+      min-width: 320px;
+    }
+  }
+}
+
+.links-section-cmp {
+  min-height: 200px;
+  width: 100%;
+  background: linear-gradient(107deg, #5b4de5 6%, #06a3ff 68%, #0dc0ef 98%);
+  text-align: center;
+  padding-top: 250px;
+  padding-bottom: 90px;
+  margin-top: -200px;
+  position: relative;
+
+  h2 {
+    font-weight: bold;
+    font-size: 34px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .links {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin: auto;
+    position: relative;
+    z-index: 1;
+
+    a {
+      margin-right: 25px;
+
+      &:last-child {
+        margin-right: 0px;
+      }
+    }
+  }
+
+  .links-shapes-left {
+    position: absolute;
+    left: 10vw;
+    top: -52px;
+    width: 30vw;
+    max-width: 330px;
+  }
+
+  .links-shapes-right {
+    position: absolute;
+    right: 0;
+    top: -40px;
+    width: 460px;
+    max-width: 460px;
+  }
+}
+
+.get-access-cmp{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-top:100px;
+  padding-bottom:100px;
+  text-align: center;
+  width: 100%;
+  span{
+    font-size:26px;
+    font-weight: 300;
+    padding: 40px;
+    max-width: 550px;
+  }
+}
+.links-n-get-access__section{
+  .links-section-cmp {
+    margin-top: 0;
+    padding-top: 50px;
+  }
+}
+
+.index-page .links-section-cmp {
+  padding-top: 90px;
+  padding-bottom: 90px;
+  margin-top: -80px;
+
+  .links-shapes-right {
+    position: absolute;
+    right: 0;
+    top: -40px;
+    width: 525px;
+  }
+}
+
+@media all and (max-width: 768px) {
+  .links-section-cmp {
+    padding-bottom: 60px;
+
+    .links {
+      flex-direction: column;
+
+      a {
+        margin: 10px auto;
+
+        &:last-child {
+          margin-right: auto;
+        }
+      }
+    }
+  }
+}
+
+.use-cases-cmp {
+  z-index: 1;
+  position: relative;
+}
+
+.subpage .subpage__main.subpage-404 {
+  min-height: 50vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+//
+// COOKIES
+// ----------------------------------------------
+/* Elmo - The Grunty Cookie Policy Gatekeeper */
+#gruntyCookie {
+  background: #ffffff;
+  display: block;
+  color: #1e252f;
+  position: fixed;
+  bottom: 10px;
+  left: 50%;
+  width: 90vw;
+  transform: translateX(-50%);
+  margin: 0 auto;
+  max-width: 600px;
+  padding: 10px 25px;
+  -moz-box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+  z-index: 1112;
+  box-shadow: 0 8px 16px 0 rgba(34, 50, 84, 0.6);
+  border-radius: 8px;
+  text-align: center;
+
+  p {
+    margin: 0;
+    float: left;
+    padding: 15px 0 10px;
+    font-size: 18px;
+    line-height: 22px;
+
+    a {
+      &:link, &:visited, &:hover, &:active {
+        color: #5b4de5;
+        font-weight: bold;
+      }
+    }
+  }
+
+  #cookieModalClose {
+    float: right;
+    margin-left: 10px;
+    margin-top: 5px;
+  }
+}
+
+@media (max-width: 767px) {
+  #gruntyCookie {
+    width: 100%;
+    max-width: none;
+    border-radius: 0;
+    bottom: 0;
+    padding: 4px 10px;
+
+    p {
+      width: 78%;
+      display: inline-block;
+      text-align: left;
+    }
+
+    #cookieModalClose {
+      width: 20%;
+      display: inline-block;
+      float: none;
+      margin: 18px 0 10px;
+    }
+  }
+}
+
+.cookieModalCBeginAnimate {
+  -webkit-animation: gruntyCookieModal 0.5s;
+  animation: gruntyCookieModal 0.5s;
+}
+
+/* Chrome, Safari, Opera */
+@-webkit-keyframes gruntyCookieModal {
+  from {
+    opacity: 0;
+    transform: translate(0px, 40px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(0px, 0px);
+  }
+}
+
+/* Standard syntax */
+@keyframes gruntyCookieModal {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 40px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0px);
+  }
+}

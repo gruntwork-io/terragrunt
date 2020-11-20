@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -21,12 +22,23 @@ var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
 
 const DEFAULT_MAX_FOLDERS_TO_CHECK = 100
 
+// no limits on parallelism by default (limited by GOPROCS)
+const DEFAULT_PARALLELISM = math.MaxInt32
+
+// TERRAFORM_DEFAULT_PATH just takes terraform from the path
+const TERRAFORM_DEFAULT_PATH = "terraform"
+
 const TerragruntCacheDir = ".terragrunt-cache"
+
+const DefaultTFDataDir = ".terraform"
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
 	// Location of the Terragrunt config file
 	TerragruntConfigPath string
+
+	// Version of terragrunt
+	TerragruntVersion *version.Version
 
 	// Location of the terraform binary
 	TerraformPath string
@@ -71,8 +83,14 @@ type TerragruntOptions struct {
 	// If set to true, continue running *-all commands even if a dependency has errors. This is mostly useful for 'output-all <some_variable>'. See https://github.com/gruntwork-io/terragrunt/issues/193
 	IgnoreDependencyErrors bool
 
+	// If set to true, ignore the dependency order when running *-all command.
+	IgnoreDependencyOrder bool
+
 	// If set to true, skip any external dependencies when running *-all commands
 	IgnoreExternalDependencies bool
+
+	// If set to true, apply all external dependencies when running *-all commands
+	IncludeExternalDependencies bool
 
 	// If you want stdout to go somewhere other than os.stdout
 	Writer io.Writer
@@ -102,12 +120,32 @@ type TerragruntOptions struct {
 	// Unix-style glob of directories to include when running *-all commands
 	IncludeDirs []string
 
+	// If set to true, do not include dependencies when processing IncludeDirs (unless they are in the included dirs)
+	StrictInclude bool
+
+	// Parallelism limits the number of commands to run concurrently during *-all commands
+	Parallelism int
+
+	// Enable check mode, by default it's disabled.
+	Check bool
+
+	// The file which hclfmt should be specifically run on
+	HclFile string
+
 	// A command that can be used to run Terragrunt with the given options. This is useful for running Terragrunt
 	// multiple times (e.g. when spinning up a stack of Terraform modules). The actual command is normally defined
 	// in the cli package, which depends on almost all other packages, so we declare it here so that other
 	// packages can use the command without a direct reference back to the cli package (which would create a
 	// circular dependency).
 	RunTerragrunt func(*TerragruntOptions) error
+
+	// True if terragrunt should run in debug mode, writing terragrunt-debug.tfvars to working folder to help
+	// root-cause issues.
+	Debug bool
+
+	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command. See that
+	// command for more info.
+	AwsProviderPatchOverrides map[string]string
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage
@@ -120,29 +158,34 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 	}
 
 	return &TerragruntOptions{
-		TerragruntConfigPath:       terragruntConfigPath,
-		TerraformPath:              "terraform",
-		TerraformCommand:           "",
-		AutoInit:                   true,
-		NonInteractive:             false,
-		TerraformCliArgs:           []string{},
-		WorkingDir:                 workingDir,
-		Logger:                     logger,
-		Env:                        map[string]string{},
-		Source:                     "",
-		SourceUpdate:               false,
-		DownloadDir:                downloadDir,
-		IgnoreDependencyErrors:     false,
-		IgnoreExternalDependencies: false,
-		Writer:                     os.Stdout,
-		ErrWriter:                  os.Stderr,
-		MaxFoldersToCheck:          DEFAULT_MAX_FOLDERS_TO_CHECK,
-		AutoRetry:                  true,
-		MaxRetryAttempts:           DEFAULT_MAX_RETRY_ATTEMPTS,
-		Sleep:                      DEFAULT_SLEEP,
-		RetryableErrors:            util.CloneStringList(RETRYABLE_ERRORS),
-		ExcludeDirs:                []string{},
-		IncludeDirs:                []string{},
+		TerragruntConfigPath:        terragruntConfigPath,
+		TerraformPath:               TERRAFORM_DEFAULT_PATH,
+		TerraformCommand:            "",
+		AutoInit:                    true,
+		NonInteractive:              false,
+		TerraformCliArgs:            []string{},
+		WorkingDir:                  workingDir,
+		Logger:                      logger,
+		Env:                         map[string]string{},
+		Source:                      "",
+		SourceUpdate:                false,
+		DownloadDir:                 downloadDir,
+		IgnoreDependencyErrors:      false,
+		IgnoreDependencyOrder:       false,
+		IgnoreExternalDependencies:  false,
+		IncludeExternalDependencies: false,
+		Writer:                      os.Stdout,
+		ErrWriter:                   os.Stderr,
+		MaxFoldersToCheck:           DEFAULT_MAX_FOLDERS_TO_CHECK,
+		AutoRetry:                   true,
+		MaxRetryAttempts:            DEFAULT_MAX_RETRY_ATTEMPTS,
+		Sleep:                       DEFAULT_SLEEP,
+		RetryableErrors:             util.CloneStringList(DEFAULT_RETRYABLE_ERRORS),
+		ExcludeDirs:                 []string{},
+		IncludeDirs:                 []string{},
+		StrictInclude:               false,
+		Parallelism:                 DEFAULT_PARALLELISM,
+		Check:                       false,
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
@@ -158,7 +201,7 @@ func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string,
 		return "", "", errors.WithStackTrace(err)
 	}
 
-	return workingDir, downloadDir, nil
+	return filepath.ToSlash(workingDir), filepath.ToSlash(downloadDir), nil
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for test usage
@@ -185,32 +228,38 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367
 	// for more info.
 	return &TerragruntOptions{
-		TerragruntConfigPath:       terragruntConfigPath,
-		TerraformPath:              terragruntOptions.TerraformPath,
-		TerraformCommand:           terragruntOptions.TerraformCommand,
-		TerraformVersion:           terragruntOptions.TerraformVersion,
-		AutoInit:                   terragruntOptions.AutoInit,
-		NonInteractive:             terragruntOptions.NonInteractive,
-		TerraformCliArgs:           util.CloneStringList(terragruntOptions.TerraformCliArgs),
-		WorkingDir:                 workingDir,
-		Logger:                     util.CreateLoggerWithWriter(terragruntOptions.ErrWriter, workingDir),
-		Env:                        util.CloneStringMap(terragruntOptions.Env),
-		Source:                     terragruntOptions.Source,
-		SourceUpdate:               terragruntOptions.SourceUpdate,
-		DownloadDir:                terragruntOptions.DownloadDir,
-		IamRole:                    terragruntOptions.IamRole,
-		IgnoreDependencyErrors:     terragruntOptions.IgnoreDependencyErrors,
-		IgnoreExternalDependencies: terragruntOptions.IgnoreExternalDependencies,
-		Writer:                     terragruntOptions.Writer,
-		ErrWriter:                  terragruntOptions.ErrWriter,
-		MaxFoldersToCheck:          terragruntOptions.MaxFoldersToCheck,
-		AutoRetry:                  terragruntOptions.AutoRetry,
-		MaxRetryAttempts:           terragruntOptions.MaxRetryAttempts,
-		Sleep:                      terragruntOptions.Sleep,
-		RetryableErrors:            util.CloneStringList(terragruntOptions.RetryableErrors),
-		ExcludeDirs:                terragruntOptions.ExcludeDirs,
-		IncludeDirs:                terragruntOptions.IncludeDirs,
-		RunTerragrunt:              terragruntOptions.RunTerragrunt,
+		TerragruntConfigPath:        terragruntConfigPath,
+		TerraformPath:               terragruntOptions.TerraformPath,
+		TerraformCommand:            terragruntOptions.TerraformCommand,
+		TerraformVersion:            terragruntOptions.TerraformVersion,
+		TerragruntVersion:           terragruntOptions.TerragruntVersion,
+		AutoInit:                    terragruntOptions.AutoInit,
+		NonInteractive:              terragruntOptions.NonInteractive,
+		TerraformCliArgs:            util.CloneStringList(terragruntOptions.TerraformCliArgs),
+		WorkingDir:                  workingDir,
+		Logger:                      util.CreateLoggerWithWriter(terragruntOptions.ErrWriter, workingDir),
+		Env:                         util.CloneStringMap(terragruntOptions.Env),
+		Source:                      terragruntOptions.Source,
+		SourceUpdate:                terragruntOptions.SourceUpdate,
+		DownloadDir:                 terragruntOptions.DownloadDir,
+		IamRole:                     terragruntOptions.IamRole,
+		IgnoreDependencyErrors:      terragruntOptions.IgnoreDependencyErrors,
+		IgnoreDependencyOrder:       terragruntOptions.IgnoreDependencyOrder,
+		IgnoreExternalDependencies:  terragruntOptions.IgnoreExternalDependencies,
+		IncludeExternalDependencies: terragruntOptions.IncludeExternalDependencies,
+		Writer:                      terragruntOptions.Writer,
+		ErrWriter:                   terragruntOptions.ErrWriter,
+		MaxFoldersToCheck:           terragruntOptions.MaxFoldersToCheck,
+		AutoRetry:                   terragruntOptions.AutoRetry,
+		MaxRetryAttempts:            terragruntOptions.MaxRetryAttempts,
+		Sleep:                       terragruntOptions.Sleep,
+		RetryableErrors:             util.CloneStringList(terragruntOptions.RetryableErrors),
+		ExcludeDirs:                 terragruntOptions.ExcludeDirs,
+		IncludeDirs:                 terragruntOptions.IncludeDirs,
+		Parallelism:                 terragruntOptions.Parallelism,
+		StrictInclude:               terragruntOptions.StrictInclude,
+		RunTerragrunt:               terragruntOptions.RunTerragrunt,
+		AwsProviderPatchOverrides:   terragruntOptions.AwsProviderPatchOverrides,
 	}
 }
 
@@ -236,6 +285,24 @@ func (terragruntOptions *TerragruntOptions) InsertTerraformCliArgs(argsToInsert 
 // Appends the given argsToAppend after the current TerraformCliArgs
 func (terragruntOptions *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
 	terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, argsToAppend...)
+}
+
+// TerraformDataDir returns Terraform data directory (.terraform by default, overridden by $TF_DATA_DIR envvar)
+func (terragruntOptions *TerragruntOptions) TerraformDataDir() string {
+	if tfDataDir, ok := terragruntOptions.Env["TF_DATA_DIR"]; ok {
+		return tfDataDir
+	}
+	return DefaultTFDataDir
+}
+
+// DataDir returns the Terraform data directory prepended with the working directory path,
+// or just the Terraform data directory if it is an absolute path.
+func (terragruntOptions *TerragruntOptions) DataDir() string {
+	tfDataDir := terragruntOptions.TerraformDataDir()
+	if filepath.IsAbs(tfDataDir) {
+		return tfDataDir
+	}
+	return util.JoinPath(terragruntOptions.WorkingDir, tfDataDir)
 }
 
 // Custom error types

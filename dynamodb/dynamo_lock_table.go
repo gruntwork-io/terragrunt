@@ -24,8 +24,7 @@ const ATTR_LOCK_ID = "LockID"
 const MAX_RETRIES_WAITING_FOR_TABLE_TO_BE_ACTIVE = 30
 const SLEEP_BETWEEN_TABLE_STATUS_CHECKS = 10 * time.Second
 
-const DEFAULT_READ_CAPACITY_UNITS = 1
-const DEFAULT_WRITE_CAPACITY_UNITS = 1
+const DYNAMODB_PAY_PER_REQUEST_BILLING_MODE = "PAY_PER_REQUEST"
 
 // Create an authenticated client for DynamoDB
 func CreateDynamoDbClient(config *aws_helper.AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*dynamodb.DynamoDB, error) {
@@ -46,7 +45,7 @@ func CreateLockTableIfNecessary(tableName string, tags map[string]string, client
 
 	if !tableExists {
 		terragruntOptions.Logger.Printf("Lock table %s does not exist in DynamoDB. Will need to create it just this first time.", tableName)
-		return CreateLockTable(tableName, tags, DEFAULT_READ_CAPACITY_UNITS, DEFAULT_WRITE_CAPACITY_UNITS, client, terragruntOptions)
+		return CreateLockTable(tableName, tags, client, terragruntOptions)
 	}
 
 	return nil
@@ -78,28 +77,25 @@ func LockTableCheckSSEncryptionIsOn(tableName string, client *dynamodb.DynamoDB)
 
 // Create a lock table in DynamoDB and wait until it is in "active" state. If the table already exists, merely wait
 // until it is in "active" state.
-func CreateLockTable(tableName string, tags map[string]string, readCapacityUnits int, writeCapacityUnits int, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
+func CreateLockTable(tableName string, tags map[string]string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
 	tableCreateDeleteSemaphore.Acquire()
 	defer tableCreateDeleteSemaphore.Release()
 
 	terragruntOptions.Logger.Printf("Creating table %s in DynamoDB", tableName)
 
 	attributeDefinitions := []*dynamodb.AttributeDefinition{
-		&dynamodb.AttributeDefinition{AttributeName: aws.String(ATTR_LOCK_ID), AttributeType: aws.String(dynamodb.ScalarAttributeTypeS)},
+		{AttributeName: aws.String(ATTR_LOCK_ID), AttributeType: aws.String(dynamodb.ScalarAttributeTypeS)},
 	}
 
 	keySchema := []*dynamodb.KeySchemaElement{
-		&dynamodb.KeySchemaElement{AttributeName: aws.String(ATTR_LOCK_ID), KeyType: aws.String(dynamodb.KeyTypeHash)},
+		{AttributeName: aws.String(ATTR_LOCK_ID), KeyType: aws.String(dynamodb.KeyTypeHash)},
 	}
 
 	createTableOutput, err := client.CreateTable(&dynamodb.CreateTableInput{
 		TableName:            aws.String(tableName),
+		BillingMode:          aws.String(DYNAMODB_PAY_PER_REQUEST_BILLING_MODE),
 		AttributeDefinitions: attributeDefinitions,
 		KeySchema:            keySchema,
-		ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
-			ReadCapacityUnits:  aws.Int64(int64(readCapacityUnits)),
-			WriteCapacityUnits: aws.Int64(int64(writeCapacityUnits)),
-		},
 	})
 
 	if err != nil {

@@ -1,0 +1,105 @@
+<div class="index-page__key-features">
+
+  <div class="section text-center container-fluid index-page__key-feature">
+    <div class="row">
+      <div class="col-xs-12">
+        <h2 class="h2-tag-style">Key features</h2>
+        <img src='{{site.baseurl}}/assets/img/key-features/key-features-terraform-code-dry-sm.png' alt='Keep your Terraform code DRY' class='custom-width-3' />
+        <h3>Keep your <strong>Terraform code</strong> DRY</h3>
+        <p class="subtitle">Define Terraform code once, no matter how many environments you have.</p>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-xs-12">
+        <img src='{{site.baseurl}}/assets/img/key-features/key-features-terraform-code-dry.png' alt='Keep your Terraform code DRY' class='custom-width-2' />
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-xs-12">
+        <a href="{{site.baseurl}}/docs/features/keep-your-terraform-code-dry/" class="btn btn-primary btn-lg margin-top-xlg hidden-xs hidden-sm" href="">Learn more</a>
+        <a href="{{site.baseurl}}/docs/features/keep-your-terraform-code-dry/" class="btn btn-primary hidden-md hidden-lg" href="">Learn more</a>
+      </div>
+    </div>
+  </div>
+
+  <hr class="short" />
+
+  <div class="section container-fluid index-page__key-feature">
+    <div class="row">
+      <div class="col-xs-12 col-md-6">
+        <img src='{{site.baseurl}}/assets/img/key-features/key-features-backend-dry.png' alt='Keep your backend DRY' class='custom-width' />
+      </div>
+      <div class="col-xs-12 col-md-6">
+        <img src='{{site.baseurl}}/assets/img/key-features/key-features-backend-dry-sm.png' alt='Keep your backend DRY' class='custom-width-3' />
+        <h3>Keep your <strong>backend</strong> configuration DRY</h3>
+        <p class="subtitle">
+          Get rid of duplicated backend code.
+          Define how to manage your Terraform state once in
+          a root directory and inherit in all child modules.</p>
+        <a class="btn btn-primary" href='{{site.baseurl}}/docs/getting-started/quick-start/#keep-your-backend-configuration-dry'>Learn more</a>
+      </div>
+    </div>
+  </div>
+
+  <hr class="short" />
+
+  <div class="section container-fluid index-page__key-feature">
+    <div class="row">
+      <div class="col-xs-12 col-md-6 order-md-2">
+        <img src='{{site.baseurl}}/assets/img/key-features/key-features-cli-dry-sm.png' alt='Keep your Terraform CLI arguments DRY' class='custom-width-3' />
+        <h3>Keep your <strong>Terraform CLI</strong> arguments DRY</h3>
+        <p class="subtitle">Set CLI arguments for repeatable Terraform commands once in Terragrunt configuration.</p>
+        <a href="{{site.baseurl}}/docs/getting-started/quick-start/#keep-your-terraform-cli-arguments-dry" class="btn btn-primary">Learn more</a>
+      </div>
+      <div class="col-xs-12 col-md-6 order-md-1 text-center">
+        <img src='{{site.baseurl}}/assets/img/key-features/key-features-cli-dry.svg' alt='Keep your Terraform CLI arguments DRY' class='custom-width' />
+      </div>
+    </div>
+  </div>
+
+  <hr class="short" />
+
+  <div class="section container-fluid index-page__key-feature">
+    <div class="row">
+      <div class="col-xs-12 col-md-6">
+        <img src='{{site.baseurl}}/assets/img/key-features/key-features-multiple-modules-at-once.png' alt='Execute Terraform commands on multiple modules at once' class='custom-width' />
+        <img src='{{site.baseurl}}/assets/img/key-features/key-features-multiple-modules-at-once-sm.png' alt='Execute Terraform commands on multiple modules at once' class='custom-width-3' />
+      </div>
+      <div class="col-xs-12 col-md-6">
+        <h3>Execute Terraform commands on <strong>multiple modules</strong> at once</h3>
+        <p class="subtitle">Run one command for all modules instead executing it in each module independently.</p>
+        <a class="btn btn-primary" href="{{site.baseurl}}/docs/features/execute-terraform-commands-on-multiple-modules-at-once/">Learn more</a>
+      </div>
+    </div>
+  </div>
+
+  <hr class="short" />
+
+  <div class="section container-fluid index-page__key-feature">
+    <div class="row">
+      <div class="col-xs-12 col-md-5 order-md-2">
+        <h3><strong>Before & After</strong> hooks</h3>
+        <p class="subtitle">Execute custom code before or after running Terraform.</p>
+        <a class="btn btn-primary hidden-xs hidden-sm" href="{{site.baseurl}}/docs/features/before-and-after-hooks/#before-and-after-hooks">Learn more</a>
+      </div>
+      <div class="col-xs-12 col-md-7 order-md-1">
+        <div class="code-snippet">
+<pre><code><span class='purple'>terraform</span> {
+  before_hook <span class='salmon'>"before_hook_1"</span> {
+    commands = ["apply", "plan"]
+    execute = ["echo", "Foo"]
+    run_on_error = true
+  }
+
+  after_hook <span class='salmon'>"after_hook_1"</span> {
+    commands = ["init-from-module"]
+    execute = ["cp", "{get_parent_terragrunt_dir()}/foo.tf", "."]
+  }
+}</code></pre>
+        </div>
+        <a class="btn btn-primary hidden-md hidden-lg" href="{{site.baseurl}}/docs/features/before-and-after-hooks/#before-and-after-hooks">Learn more</a>
+      </div>
+    </div>
+  </div>
+
+</div>

@@ -1,12 +1,13 @@
 package remote
 
 import (
+	"testing"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestConfigValuesEqual(t *testing.T) {
@@ -99,6 +100,12 @@ func TestConfigValuesEqual(t *testing.T) {
 			&TerraformBackend{Type: "s3", Config: map[string]interface{}{"something": "false"}},
 			false,
 		},
+		{
+			"equal-null-ignored",
+			map[string]interface{}{"something": "foo"},
+			&TerraformBackend{Type: "s3", Config: map[string]interface{}{"something": "foo", "ignored-because-null": nil}},
+			true,
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -142,15 +149,17 @@ func TestForcePathStyleClientSession(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
+		// The following is necessary to make sure testCase's values don't
+		// get updated due to concurrency within the scope of t.Run(..) below
 		testCase := testCase
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			s3Config, err := parseS3Config(testCase.config)
+			s3ConfigExtended, err := parseExtendedS3Config(testCase.config)
 			require.Nil(t, err, "Unexpected error parsing config for test: %v", err)
 
-			s3Client, err := CreateS3Client(s3Config.GetAwsSessionConfig(), terragruntOptions)
+			s3Client, err := CreateS3Client(s3ConfigExtended.GetAwsSessionConfig(), terragruntOptions)
 			require.Nil(t, err, "Unexpected error creating client for test: %v", err)
 
 			actual := aws.BoolValue(s3Client.Config.S3ForcePathStyle)
@@ -181,25 +190,149 @@ func TestGetAwsSessionConfig(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
+		// The following is necessary to make sure testCase's values don't
+		// get updated due to concurrency within the scope of t.Run(..) below
 		testCase := testCase
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			s3Config, err := parseS3Config(testCase.config)
+			s3ConfigExtended, err := parseExtendedS3Config(testCase.config)
 			require.Nil(t, err, "Unexpected error parsing config for test: %v", err)
 
 			expected := &aws_helper.AwsSessionConfig{
-				Region:           s3Config.Region,
-				CustomS3Endpoint: s3Config.Endpoint,
-				Profile:          s3Config.Profile,
-				RoleArn:          s3Config.RoleArn,
-				CredsFilename:    s3Config.CredsFilename,
-				S3ForcePathStyle: s3Config.S3ForcePathStyle,
+				Region:                  s3ConfigExtended.remoteStateConfigS3.Region,
+				CustomS3Endpoint:        s3ConfigExtended.remoteStateConfigS3.Endpoint,
+				Profile:                 s3ConfigExtended.remoteStateConfigS3.Profile,
+				RoleArn:                 s3ConfigExtended.remoteStateConfigS3.RoleArn,
+				CredsFilename:           s3ConfigExtended.remoteStateConfigS3.CredsFilename,
+				S3ForcePathStyle:        s3ConfigExtended.remoteStateConfigS3.S3ForcePathStyle,
+				DisableComputeChecksums: s3ConfigExtended.DisableAWSClientChecksums,
 			}
 
-			actual := s3Config.GetAwsSessionConfig()
+			actual := s3ConfigExtended.GetAwsSessionConfig()
 			assert.Equal(t, expected, actual)
+		})
+	}
+}
+
+func TestGetTerraformInitArgs(t *testing.T) {
+	t.Parallel()
+
+	initializer := S3Initializer{}
+
+	testCases := []struct {
+		name          string
+		config        map[string]interface{}
+		expected      map[string]interface{}
+		shouldBeEqual bool
+	}{
+		{
+			"empty-no-values",
+			map[string]interface{}{},
+			map[string]interface{}{},
+			true,
+		},
+		{
+			"valid-s3-configuration-keys",
+			map[string]interface{}{
+				"bucket":  "foo",
+				"encrypt": "bar",
+				"key":     "baz",
+				"region":  "quux",
+			},
+			map[string]interface{}{
+				"bucket":  "foo",
+				"encrypt": "bar",
+				"key":     "baz",
+				"region":  "quux",
+			},
+			true,
+		},
+		{
+			"terragrunt-keys-filtered",
+			map[string]interface{}{
+				"bucket":         "foo",
+				"encrypt":        "bar",
+				"key":            "baz",
+				"region":         "quux",
+				"s3_bucket_tags": map[string]string{},
+			},
+			map[string]interface{}{
+				"bucket":  "foo",
+				"encrypt": "bar",
+				"key":     "baz",
+				"region":  "quux",
+			},
+			true,
+		},
+		{
+			"empty-no-values-all-terragrunt-keys-filtered",
+			map[string]interface{}{
+				"s3_bucket_tags":                 map[string]string{},
+				"dynamodb_table_tags":            map[string]string{},
+				"skip_bucket_versioning":         true,
+				"skip_bucket_ssencryption":       false,
+				"skip_bucket_root_access":        false,
+				"skip_bucket_enforced_tls":       false,
+				"enable_lock_table_ssencryption": true,
+				"disable_aws_client_checksums":   false,
+				"accesslogging_bucket_name":      "test",
+			},
+			map[string]interface{}{},
+			true,
+		},
+		{
+			"lock-table-replaced-with-dynamodb-table",
+			map[string]interface{}{
+				"bucket":     "foo",
+				"encrypt":    "bar",
+				"key":        "baz",
+				"region":     "quux",
+				"lock_table": "xyzzy",
+			},
+			map[string]interface{}{
+				"bucket":         "foo",
+				"encrypt":        "bar",
+				"key":            "baz",
+				"region":         "quux",
+				"dynamodb_table": "xyzzy",
+			},
+			true,
+		},
+		{
+			"dynamodb-table-not-replaced-with-lock-table",
+			map[string]interface{}{
+				"bucket":         "foo",
+				"encrypt":        "bar",
+				"key":            "baz",
+				"region":         "quux",
+				"dynamodb_table": "xyzzy",
+			},
+			map[string]interface{}{
+				"bucket":     "foo",
+				"encrypt":    "bar",
+				"key":        "baz",
+				"region":     "quux",
+				"lock_table": "xyzzy",
+			},
+			false,
+		},
+	}
+
+	for _, testCase := range testCases {
+		// Save the testCase in local scope so all the t.Run calls don't end up with the last item in the list
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			actual := initializer.GetTerraformInitArgs(testCase.config)
+
+			if !testCase.shouldBeEqual {
+				assert.NotEqual(t, testCase.expected, actual)
+				return
+			}
+			assert.Equal(t, testCase.expected, actual)
 		})
 	}
 }

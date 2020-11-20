@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        {% include head.html %}
+    </head>
+    <body{% if page.slug %} class="{{ page.slug }}{% if page.slug != 'index-page' and page.slug !='how-it-works' and page.slug != 'guides' %} sub-page{% endif %}" {% endif %}>
+        {{ content }}
+        {% include footer.html %}
+        {% include scripts.html %}
+    </body>
+</html>

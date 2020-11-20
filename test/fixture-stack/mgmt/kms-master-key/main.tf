@@ -8,5 +8,5 @@ data "template_file" "text" {
 }
 
 output "text" {
-  value = "${data.template_file.text.rendered}"
+  value = data.template_file.text.rendered
 }

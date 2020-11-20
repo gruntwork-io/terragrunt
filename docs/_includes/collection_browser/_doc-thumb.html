@@ -1,0 +1,25 @@
+<div class="cb-doc-card card-shadow" id="{{ doc.title | downcase | split: ' ' | join: '-' | append: '-card' }}">
+  <div class="card" ga-on="click" ga-event-category="cb-doc-{{ doc.title | slugify }}" ga-event-action="cb-doc-click">
+    <div class="row no-padding">
+
+      {% if doc.image %}
+        <div class="col-xs-2 img-inner no-padding">
+          <img src="{{ site.baseurl }}{{ doc.image }}" alt="card image" class="img-center">
+        </div>
+        <a href="{{ site.baseurl }}{{ doc.url }}">
+          <div class="col-xs-10 card-body cb-doc-card-description float-right">
+            <h5 class="card-title"><b>{{ doc.title }}</b></h5>
+            <p class="card-text">{{ doc.excerpt | strip_html }}</p>
+          </div>
+        </a>
+      {% else %}
+        <a href="{{ site.baseurl }}{{ doc.url }}">
+          <div class="col-xs-12 card-body cb-doc-card-description float-right">
+            <h5 class="card-title"><b>{{ doc.title }}</b></h5>
+            <p class="card-text">{{ doc.excerpt | strip_html }}</p>
+          </div>
+        </a>
+      {% endif %}
+    </div>
+  </div>
+</div>

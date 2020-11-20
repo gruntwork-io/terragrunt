@@ -1,0 +1,347 @@
+.text-red {
+  color: #f44336;
+}
+
+.text-pink {
+  color: #e91e63;
+}
+
+.text-purple {
+  color: #9c27b0;
+}
+
+.text-deep-purple {
+  color: #673ab7;
+}
+
+.text-indigo {
+  color: #3f51b5;
+}
+
+.text-blue {
+  color: #2196f3;
+}
+
+.text-light-blue {
+  color: #03a9f4;
+}
+
+.text-cyan {
+  color: #00bcd4;
+}
+
+.text-teal {
+  color: #009688;
+}
+
+.text-green {
+  color: #4caf50;
+}
+
+.text-light-green {
+  color: #8bc34a;
+}
+
+.text-lime {
+  color: #cddc39;
+}
+
+.text-yellow {
+  color: #ffeb3b;
+}
+
+.text-amber {
+  color: #ffc107;
+}
+
+.text-orange {
+  color: #ff9800;
+}
+
+.text-deep-orange {
+  color: #ff5722;
+}
+
+.text-brown {
+  color: #795548;
+}
+
+.text-gray {
+  color: #545454;
+}
+
+.text-default {
+  color: #1e252f;
+
+  > a {
+    color: #1e252f;
+
+    &:hover, &:focus {
+      color: #1e252f;
+    }
+  }
+}
+
+.text-white, .link-white, .text-white > a, .link-white > a {
+  color: #fff;
+}
+
+a {
+  &.text-white, &.link-white {
+    color: #fff;
+  }
+}
+
+.text-white:hover, .link-white:hover, .text-white > a:hover, .link-white > a:hover {
+  color: #fff;
+}
+
+a {
+  &.text-white:hover, &.link-white:hover {
+    color: #fff;
+  }
+}
+
+.text-white:focus, .link-white:focus, .text-white > a:focus, .link-white > a:focus {
+  color: #fff;
+}
+
+a {
+  &.text-white:focus, &.link-white:focus {
+    color: #fff;
+  }
+}
+
+.link-muted {
+  color: rgba(10, 12, 16, 0.6);
+
+  > a {
+    color: rgba(10, 12, 16, 0.6);
+  }
+}
+
+.text-muted > a, a.text-muted {
+  color: rgba(10, 12, 16, 0.6);
+}
+
+.link-muted {
+  &:hover, > a:hover {
+    color: rgba(30, 37, 47, 0.6);
+  }
+}
+
+.text-muted > a:hover, a.text-muted:hover {
+  color: rgba(30, 37, 47, 0.6);
+}
+
+.link-muted {
+  &:focus, > a:focus {
+    color: rgba(30, 37, 47, 0.6);
+  }
+}
+
+.text-muted > a:focus, a.text-muted:focus {
+  color: rgba(30, 37, 47, 0.6);
+}
+
+@media (max-width: 992px) {
+  .text-sm-center {
+    text-align: center;
+  }
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-weight: 400;
+}
+
+.text-normal {
+  font-weight: 400;
+}
+
+.text-bold {
+  font-weight: 700;
+}
+
+.text-lg {
+  font-size: 20px;
+}
+
+.big {
+  font-size: 115%;
+}
+
+.link-decoration-none {
+  text-decoration: none;
+
+  &:hover, &:focus {
+    text-decoration: none;
+  }
+}
+
+h1 a {
+  color: inherit;
+  text-decoration: none;
+
+  &:focus, &:hover {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+h2 a {
+  color: inherit;
+  text-decoration: none;
+
+  &:focus, &:hover {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+h3 a {
+  color: inherit;
+  text-decoration: none;
+
+  &:focus, &:hover {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+h4 a {
+  color: inherit;
+  text-decoration: none;
+
+  &:focus, &:hover {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+h5 a {
+  color: inherit;
+  text-decoration: none;
+
+  &:focus, &:hover {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+h6 a {
+  color: inherit;
+  text-decoration: none;
+
+  &:focus, &:hover {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+.text-tiny {
+  font-size: 12px;
+}
+
+.text-large {
+  font-size: 22px;
+  line-height: 1.33;
+}
+
+
+.margin-top-lg {
+  margin-top: 30px;
+}
+
+.margin-top-xlg {
+  margin-top: 50px;
+}
+
+.margin-top-none {
+  margin-top: 0 !important;
+}
+
+.margin-bottom-none {
+  margin-bottom: 0 !important;
+}
+
+.padding-top-none {
+  padding-top: 0 !important;
+}
+
+.padding-bottom-none {
+  padding-bottom: 0 !important;
+}
+
+.page-header {
+  padding-bottom: 21.6px;
+  margin: 60px 0 45px;
+
+  &.page-header-sm {
+    margin: 40.5px 0 21.6px;
+    padding-bottom: 10.8px;
+  }
+}
+
+.header, .main {
+  background-color: transparent;
+}
+
+.pull-none {
+  float: none;
+}
+
+.container .container {
+  width: 100%;
+}
+
+.row img {
+  max-width: 100%;
+}
+
+.icon-flipped {
+  transform: scaleX(-1);
+  -moz-transform: scaleX(-1);
+  -webkit-transform: scaleX(-1);
+  -ms-transform: scaleX(-1);
+}
+
+.d-inline-block {
+  display: inline-block;
+}
+
+.flex {
+  display: -webkit-flex;
+  display: -moz-flex;
+  display: -ms-flex;
+  display: -o-flex;
+  display: flex;
+}
+
+.flex-column {
+  -webkit-flex-direction: column;
+  -ms-flex-direction: column;
+  flex-direction: column;
+}
+
+.flex-middle {
+  -webkit-justify-content: center;
+  justify-content: center;
+}
+
+.flex-full {
+  -webkit-flex: 1 1 auto;
+  -ms-flex: 1 1 auto;
+  flex: 1 1 auto;
+}
+
+.flex-1 {
+  -webkit-flex: 1;
+  -ms-flex: 1;
+  flex: 1;
+}
+
+.underline {
+  text-decoration: underline;
+}
