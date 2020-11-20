@@ -1,7 +1,6 @@
 defaults: &defaults
   docker:
     - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:tf13
-
 version: 2
 jobs:
   # We're running unit tests separately from integration tests - with no parallelization.
@@ -34,7 +33,6 @@ jobs:
           path: logs
       - store_test_results:
           path: logs
-
   integration_test:
     <<: *defaults
     steps:
@@ -56,13 +54,11 @@ jobs:
           path: logs
       - store_test_results:
           path: logs
-
   build:
     <<: *defaults
     steps:
       - checkout
       - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG"
-
   deploy:
     <<: *defaults
     steps:
@@ -70,7 +66,6 @@ jobs:
       - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG"
       - run: cd bin && sha256sum * > SHA256SUMS
       - run: upload-github-release-assets bin/*
-
 workflows:
   version: 2
   build-and-test:
@@ -79,10 +74,14 @@ workflows:
           filters:
             tags:
               only: /^v.*/
+          context:
+            - Gruntwork Admin
       - integration_test:
           filters:
             tags:
               only: /^v.*/
+          context:
+            - Gruntwork Admin
       - build:
           requires:
             - unit_test
@@ -90,7 +89,8 @@ workflows:
           filters:
             tags:
               only: /^v.*/
-
+          context:
+            - Gruntwork Admin
       - deploy:
           requires:
             - build
@@ -99,7 +99,8 @@ workflows:
               only: /^v.*/
             branches:
               ignore: /.*/
-
+          context:
+            - Gruntwork Admin
   nightly:
     triggers:
       - schedule:
@@ -108,5 +109,9 @@ workflows:
             branches:
               only: master
     jobs:
-      - unit_test
-      - integration_test
+      - unit_test:
+          context:
+            - Gruntwork Admin
+      - integration_test:
+          context:
+            - Gruntwork Admin
