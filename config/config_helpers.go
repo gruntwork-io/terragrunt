@@ -209,8 +209,7 @@ func runCommand(args []string, include *IncludeConfig, terragruntOptions *option
 		return "", errors.WithStackTrace(err)
 	}
 
-
-  value := strings.TrimSuffix(cmdOutput.Stdout, "\n")
+	value := strings.TrimSuffix(cmdOutput.Stdout, "\n")
   
 	if suppressOutput {
 		terragruntOptions.Logger.Printf("run_cmd output: [REDACTED]")
