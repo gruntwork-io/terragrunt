@@ -3,7 +3,7 @@ module github.com/gruntwork-io/terragrunt
 go 1.13
 
 require (
-	cloud.google.com/go/storage v1.6.0
+	cloud.google.com/go/storage v1.10.0
 	github.com/aws/aws-sdk-go v1.29.34
 	github.com/creack/pty v1.1.9
 	github.com/fatih/color v1.9.0
@@ -21,9 +21,9 @@ require (
 	github.com/urfave/cli v1.22.3
 	github.com/zclconf/go-cty v1.3.1
 	go.mozilla.org/sops/v3 v3.5.0
-	golang.org/x/crypto v0.0.0-20200323165209-0ec3e9974c59
-	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
-	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
-	golang.org/x/sys v0.0.0-20200223170610-d5e6a3e2c0ae
-	google.golang.org/api v0.20.0
+	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
+	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
+	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
+	golang.org/x/sys v0.0.0-20200905004654-be1d3432aa8f
+	google.golang.org/api v0.35.0
 )
