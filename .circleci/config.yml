@@ -109,9 +109,5 @@ workflows:
             branches:
               only: master
     jobs:
-      - unit_test:
-          context:
-            - Gruntwork Admin
-      - integration_test:
-          context:
-            - Gruntwork Admin
+      - unit_test
+      - integration_test
