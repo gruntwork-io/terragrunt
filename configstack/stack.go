@@ -3,13 +3,13 @@ package configstack
 import (
 	"bytes"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
-	"sort"
 )
 
 // Represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or
@@ -142,6 +142,7 @@ func FindStackInSubfolders(terragruntOptions *options.TerragruntOptions) (*Stack
 func (stack *Stack) setTerraformCommand(command []string) {
 	for _, module := range stack.Modules {
 		module.TerragruntOptions.TerraformCliArgs = append(command, module.TerragruntOptions.TerraformCliArgs...)
+		module.TerragruntOptions.OriginalTerraformCommand = util.FirstArg(command)
 		module.TerragruntOptions.TerraformCommand = util.FirstArg(command)
 	}
 }

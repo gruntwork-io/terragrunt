@@ -276,7 +276,7 @@ func shouldReturnMockOutputs(dependencyConfig Dependency, terragruntOptions *opt
 	allowedCommand :=
 		dependencyConfig.MockOutputsAllowedTerraformCommands == nil ||
 			len(*dependencyConfig.MockOutputsAllowedTerraformCommands) == 0 ||
-			util.ListContainsElement(*dependencyConfig.MockOutputsAllowedTerraformCommands, terragruntOptions.TerraformCommand)
+			util.ListContainsElement(*dependencyConfig.MockOutputsAllowedTerraformCommands, terragruntOptions.OriginalTerraformCommand)
 	return defaultOutputsSet && allowedCommand
 }
 
