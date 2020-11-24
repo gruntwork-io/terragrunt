@@ -46,6 +46,13 @@ type TerragruntOptions struct {
 	// Current Terraform command being executed by Terragrunt
 	TerraformCommand string
 
+	// Original Terraform command being executed by Terragrunt. Used to track command evolution as terragrunt chains
+	// different commands together. For example, when retrieving dependencies, terragrunt will change the
+	// TerraformCommand to `output` to run `terraform output`, which loses the context of the original command that was
+	// run to fetch the dependency. This is a problem when mock_outputs is configured and we only allow mocks to be
+	// returned on specific commands.
+	OriginalTerraformCommand string
+
 	// Version of terraform (obtained by running 'terraform version')
 	TerraformVersion *version.Version
 
@@ -230,6 +237,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 	return &TerragruntOptions{
 		TerragruntConfigPath:        terragruntConfigPath,
 		TerraformPath:               terragruntOptions.TerraformPath,
+		OriginalTerraformCommand:    terragruntOptions.OriginalTerraformCommand,
 		TerraformCommand:            terragruntOptions.TerraformCommand,
 		TerraformVersion:            terragruntOptions.TerraformVersion,
 		TerragruntVersion:           terragruntOptions.TerragruntVersion,
