@@ -101,13 +101,3 @@ workflows:
               ignore: /.*/
           context:
             - Gruntwork Admin
-  nightly:
-    triggers:
-      - schedule:
-          cron: "0 6 * * *"
-          filters:
-            branches:
-              only: master
-    jobs:
-      - unit_test
-      - integration_test
