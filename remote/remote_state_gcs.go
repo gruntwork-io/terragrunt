@@ -55,6 +55,9 @@ type RemoteStateConfigGCS struct {
 	Prefix        string `mapstructure:"prefix"`
 	Path          string `mapstructure:"path"`
 	EncryptionKey string `mapstructure:"encryption_key"`
+
+	ImpersonateServiceAccount          string   `mapstructure:"impersonate_service_account"`
+	ImpersonateServiceAccountDelegates []string `mapstructure:"impersonate_service_account_delegates"`
 }
 
 // accountFile represents the structure of the Google account file JSON file.
@@ -420,16 +423,15 @@ func DoesGCSBucketExist(gcsClient *storage.Client, config *RemoteStateConfigGCS)
 // CreateGCSClient creates an authenticated client for GCS
 func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, error) {
 	ctx := context.Background()
-	var client *storage.Client
-	var err error
+	var opts []option.ClientOption
 
 	if gcsConfigRemote.Credentials != "" {
-		client, err = storage.NewClient(ctx, option.WithCredentialsFile(gcsConfigRemote.Credentials))
+		opts = append(opts, option.WithCredentialsFile(gcsConfigRemote.Credentials))
 	} else if oauthAccessToken := os.Getenv("GOOGLE_OAUTH_ACCESS_TOKEN"); oauthAccessToken != "" {
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
 			AccessToken: oauthAccessToken,
 		})
-		client, err = storage.NewClient(ctx, option.WithTokenSource(tokenSource))
+		opts = append(opts, option.WithTokenSource(tokenSource))
 	} else if os.Getenv("GOOGLE_CREDENTIALS") != "" {
 		var account accountFile
 		// to mirror how Terraform works, we have to accept either the file path or the contents
@@ -455,11 +457,16 @@ func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, err
 			TokenURL: "https://oauth2.googleapis.com/token",
 		}
 
-		client, err = storage.NewClient(ctx, option.WithHTTPClient(conf.Client(ctx)))
-	} else {
-		client, err = storage.NewClient(ctx)
+		opts = append(opts, option.WithHTTPClient(conf.Client(ctx)))
 	}
 
+	if gcsConfigRemote.ImpersonateServiceAccount != "" {
+		opts = append(opts, option.ImpersonateCredentials(
+			gcsConfigRemote.ImpersonateServiceAccount,
+			gcsConfigRemote.ImpersonateServiceAccountDelegates...))
+	}
+
+	client, err := storage.NewClient(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
