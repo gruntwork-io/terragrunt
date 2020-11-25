@@ -34,6 +34,7 @@ func runHCLFmt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	terragruntOptions.Logger.Printf("Formatting terragrunt.hcl files from the directory tree %s.", terragruntOptions.WorkingDir)
+	// zglob normalizes paths to "/"
 	tgHclFiles, err := zglob.Glob(util.JoinPath(workingDir, "**", "*.hcl"))
 	if err != nil {
 		return err
@@ -42,7 +43,7 @@ func runHCLFmt(terragruntOptions *options.TerragruntOptions) error {
 	filteredTgHclFiles := []string{}
 	for _, fname := range tgHclFiles {
 		// Ignore any files that are in the .terragrunt-cache
-		if !util.ListContainsElement(strings.Split(fname, string(os.PathSeparator)), ".terragrunt-cache") {
+		if !util.ListContainsElement(strings.Split(fname, "/"), ".terragrunt-cache") {
 			filteredTgHclFiles = append(filteredTgHclFiles, fname)
 		} else {
 			util.Debugf(terragruntOptions.Logger, "%s was ignored due to being in the terragrunt cache", fname)
