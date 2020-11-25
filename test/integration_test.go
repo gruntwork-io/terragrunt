@@ -2707,6 +2707,21 @@ func TestDependencyOutputWithHooks(t *testing.T) {
 	assert.False(t, util.FileExists(mainPathFileOut))
 }
 
+func TestDeepDependencyOutputWithMock(t *testing.T) {
+	// Test that the terraform command flows through for mock output retrieval to deeper dependencies. Previously the
+	// terraform command was being overwritten, so by the time the deep dependency retrieval runs, it was replaced with
+	// "output" instead of the original one.
+
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "nested-mocks", "live")
+
+	// Since we haven't applied anything, this should only succeed if mock outputs are used.
+	runTerragrunt(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+}
+
 func TestAWSGetCallerIdentityFunctions(t *testing.T) {
 	t.Parallel()
 
