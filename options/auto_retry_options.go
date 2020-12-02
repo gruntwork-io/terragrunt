@@ -2,8 +2,8 @@ package options
 
 import "time"
 
-const DEFAULT_MAX_RETRY_ATTEMPTS = 3
-const DEFAULT_SLEEP = 5 * time.Second
+const DEFAULT_MAX_RETRY_ATTEMPTS = 10
+const DEFAULT_SLEEP = 30 * time.Second
 
 // List of recurring transient errors encountered when calling terraform
 // If any of these match, we'll retry the command
