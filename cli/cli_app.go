@@ -549,6 +549,7 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 
 	return runActionWithHooks("terraform", terragruntOptions, terragruntConfig, func() error {
 		return runTerraformWithRetry(terragruntOptions)
+		//TODO: Make sure lock file gets copied back to where you ran terragrunt from
 	})
 }
 

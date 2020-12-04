@@ -92,7 +92,7 @@ func TestPathContainsHiddenFileOrFolder(t *testing.T) {
 
 	for _, testCase := range testCases {
 		path := filepath.FromSlash(testCase.path)
-		actual := PathContainsHiddenFileOrFolder(path)
+		actual := TerragruntExcludes(path)
 		assert.Equal(t, testCase.expected, actual, "For path %s", path)
 	}
 }
