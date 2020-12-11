@@ -7,7 +7,7 @@ variable "name" {
 }
 
 output "test" {
-  value = "${data.template_file.test.rendered}"
+  value = data.template_file.test.rendered
 }
 
 module "hello" {
@@ -16,5 +16,5 @@ module "hello" {
 
 module "remote" {
   source = "github.com/gruntwork-io/terragrunt.git//test/fixture-download/hello-world?ref=v0.9.9"
-  name   = "${var.name}"
+  name   = var.name
 }
