@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -538,7 +539,7 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 			return err
 		}
 	} else {
-		if err := prepareNonInitCommand(terragruntOptions, terragruntConfig); err != nil {
+		if err := prepareNonInitCommand(originalTerragruntOptions, terragruntOptions, terragruntConfig); err != nil {
 			return err
 		}
 	}
@@ -557,7 +558,7 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 
 		var lockFileError error
 		if util.FirstArg(terragruntOptions.TerraformCliArgs) == CMD_INIT {
-			lockFileError = copyLockFile(terragruntOptions.WorkingDir, originalTerragruntOptions.WorkingDir)
+			lockFileError = copyLockFile(terragruntOptions.WorkingDir, originalTerragruntOptions.WorkingDir, terragruntOptions.Logger)
 		}
 
 		return errors.NewMultiError(runTerraformError, lockFileError)
@@ -566,11 +567,12 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 
 // Terraform 0.14 now generates a lock file when you run `terraform init`.
 // If any such file exists, this function will copy the lock file to the destination folder
-func copyLockFile(sourceFolder string, destinationFolder string) error {
+func copyLockFile(sourceFolder string, destinationFolder string, logger *log.Logger) error {
 	sourceLockFilePath := util.JoinPath(sourceFolder, util.TerraformLockFile)
 	destinationLockFilePath := util.JoinPath(destinationFolder, util.TerraformLockFile)
 
 	if util.FileExists(sourceLockFilePath) {
+		logger.Printf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
 		return util.CopyFile(sourceLockFilePath, destinationLockFilePath)
 	}
 
@@ -706,16 +708,17 @@ func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptio
 	return errors.WithStackTrace(BackendNotDefined{Opts: terragruntOptions, BackendType: backendType})
 }
 
-// Prepare for running any command other than 'terraform init' by
-// running 'terraform init' if necessary
-func prepareNonInitCommand(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+// Prepare for running any command other than 'terraform init' by running 'terraform init' if necessary
+// This function takes in the "original" terragrunt options has the unmodified 'WorkingDir' from before downloading the code from the source URL,
+// and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
+func prepareNonInitCommand(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	needsInit, err := needsInit(terragruntOptions, terragruntConfig)
 	if err != nil {
 		return err
 	}
 
 	if needsInit {
-		if err := runTerraformInit(terragruntOptions, terragruntConfig, nil); err != nil {
+		if err := runTerraformInit(originalTerragruntOptions, terragruntOptions, terragruntConfig, nil); err != nil {
 			return err
 		}
 	}
@@ -759,7 +762,10 @@ func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 // If terraformSource is specified, then arguments to download the terraform source will be appended to the init command.
 //
 // This method will return an error and NOT run terraform init if the user has disabled Auto-Init
-func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, terraformSource *TerraformSource) error {
+//
+// This method takes in the "original" terragrunt options has the unmodified 'WorkingDir' from before downloading the code from the source URL,
+// and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
+func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, terraformSource *TerraformSource) error {
 
 	// Prevent Auto-Init if the user has disabled it
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) != CMD_INIT && !terragruntOptions.AutoInit {
@@ -772,7 +778,7 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 		return err
 	}
 
-	return runTerragruntWithConfig(initOptions, initOptions, terragruntConfig, terraformSource != nil)
+	return runTerragruntWithConfig(originalTerragruntOptions, initOptions, terragruntConfig, terraformSource != nil)
 }
 
 func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformSource *TerraformSource) (*options.TerragruntOptions, error) {
