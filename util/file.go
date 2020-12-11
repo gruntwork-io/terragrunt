@@ -15,7 +15,7 @@ import (
 	"github.com/mattn/go-zglob"
 )
 
-const terraformLockFile = ".terraform.lock.hcl"
+const TerraformLockFile = ".terraform.lock.hcl"
 
 // Return true if the given file exists
 func FileExists(path string) bool {
@@ -233,7 +233,7 @@ func IsSymLink(path string) bool {
 
 func TerragruntExcludes(path string) bool {
 	// Do not exclude the terraform lock file (new feature added in terraform 0.14)
-	if filepath.Base(path) == terraformLockFile {
+	if filepath.Base(path) == TerraformLockFile {
 		return false
 	}
 	pathParts := strings.Split(path, string(filepath.Separator))

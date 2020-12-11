@@ -48,10 +48,10 @@ var forcedRegexp = regexp.MustCompile(`^([A-Za-z0-9]+)::(.+)$`)
 //
 // See the processTerraformSource method for how we determine the temporary folder so we can reuse it across multiple
 // runs of Terragrunt to avoid downloading everything from scratch every time.
-func downloadTerraformSource(source string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+func downloadTerraformSource(source string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (*options.TerragruntOptions, error) {
 	terraformSource, err := processTerraformSource(source, terragruntOptions)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions, terragruntConfig); err != nil {
@@ -60,13 +60,15 @@ func downloadTerraformSource(source string, terragruntOptions *options.Terragrun
 
 	terragruntOptions.Logger.Printf("Copying files from %s into %s", terragruntOptions.WorkingDir, terraformSource.WorkingDir)
 	if err := util.CopyFolderContents(terragruntOptions.WorkingDir, terraformSource.WorkingDir, MODULE_MANIFEST_NAME); err != nil {
-		return err
+		return nil, err
 	}
 
-	terragruntOptions.Logger.Printf("Setting working directory to %s", terraformSource.WorkingDir)
-	terragruntOptions.WorkingDir = terraformSource.WorkingDir
+	updatedTerragruntOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 
-	return nil
+	terragruntOptions.Logger.Printf("Setting working directory to %s", terraformSource.WorkingDir)
+	updatedTerragruntOptions.WorkingDir = terraformSource.WorkingDir
+
+	return updatedTerragruntOptions, nil
 }
 
 // Download the specified TerraformSource if the latest code hasn't already been downloaded.
