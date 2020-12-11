@@ -55,7 +55,7 @@ func downloadTerraformSource(source string, terragruntOptions *options.Terragrun
 	}
 
 	if err := downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions, terragruntConfig); err != nil {
-		return err
+		return nil, err
 	}
 
 	terragruntOptions.Logger.Printf("Copying files from %s into %s", terragruntOptions.WorkingDir, terraformSource.WorkingDir)
