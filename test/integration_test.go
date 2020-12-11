@@ -63,6 +63,7 @@ const (
 	TEST_FIXTURE_SKIP                                       = "fixture-skip/"
 	TEST_FIXTURE_CONFIG_SINGLE_JSON_PATH                    = "fixture-config-files/single-json-config"
 	TEST_FIXTURE_LOCAL_DOWNLOAD_PATH                        = "fixture-download/local"
+	TEST_FIXTURE_CUSTOM_LOCK_FILE                           = "fixture-download/custom-lock-file"
 	TEST_FIXTURE_REMOTE_DOWNLOAD_PATH                       = "fixture-download/remote"
 	TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH                     = "fixture-download/override"
 	TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH               = "fixture-download/local-relative"
@@ -1029,6 +1030,18 @@ func TestLocalDownload(t *testing.T) {
 
 	// Run a second time to make sure the temporary folder can be reused without errors
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_DOWNLOAD_PATH))
+}
+
+func TestCustomLockFile(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_CUSTOM_LOCK_FILE)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_CUSTOM_LOCK_FILE))
+
+	ioutil.ReadDir(util.JoinPath(TEST_FIXTURE_CUSTOM_LOCK_FILE, TERRAGRUNT_CACHE))
+	//As of Terraform 0.14.0 we should be copying the lock file to be in the working directory
+	//assert.FileExists(t, util.JoinPath(util.TerraformLockFile))
 }
 
 func TestLocalDownloadWithHiddenFolder(t *testing.T) {
