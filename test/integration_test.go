@@ -846,7 +846,7 @@ func TestTerragruntStdOut(t *testing.T) {
 	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output foo --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_STDOUT), &stdout, &stderr)
 
 	output := stdout.String()
-	assert.Equal(t, `"foo"\n`, output)
+	assert.Equal(t, "\"foo\"\n", output)
 }
 
 func TestTerragruntOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *testing.T) {
