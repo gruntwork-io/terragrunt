@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/url"
 	"os"
 	"regexp"
@@ -46,10 +47,10 @@ var forcedRegexp = regexp.MustCompile(`^([A-Za-z0-9]+)::(.+)$`)
 // 2. Copy the contents of terragruntOptions.WorkingDir into the temporary folder.
 // 3. Set terragruntOptions.WorkingDir to the temporary folder.
 //
-// See the processTerraformSource method for how we determine the temporary folder so we can reuse it across multiple
+// See the ProcessTerraformSource method for how we determine the temporary folder so we can reuse it across multiple
 // runs of Terragrunt to avoid downloading everything from scratch every time.
 func downloadTerraformSource(source string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (*options.TerragruntOptions, error) {
-	terraformSource, err := processTerraformSource(source, terragruntOptions)
+	terraformSource, err := ProcessTerraformSource(source, terragruntOptions.DownloadDir, terragruntOptions.WorkingDir, terragruntOptions.Logger)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +114,7 @@ func downloadTerraformSourceIfNecessary(terraformSource *TerraformSource, terrag
 // Returns true if the specified TerraformSource, of the exact same version, has already been downloaded into the
 // DownloadFolder. This helps avoid downloading the same code multiple times. Note that if the TerraformSource points
 // to a local file path, we assume the user is doing local development and always return false to ensure the latest
-// code is downloaded (or rather, copied) every single time. See the processTerraformSource method for more info.
+// code is downloaded (or rather, copied) every single time. See the ProcessTerraformSource method for more info.
 func alreadyHaveLatestCode(terraformSource *TerraformSource, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	if isLocalSource(terraformSource.CanonicalSourceURL) ||
 		!util.FileExists(terraformSource.DownloadDir) ||
@@ -184,8 +185,9 @@ func writeVersionFile(terraformSource *TerraformSource) error {
 // 1. Always download source URLs pointing to local file paths.
 // 2. Only download source URLs pointing to remote paths if /T/W/H doesn't already exist or, if it does exist, if the
 //    version number in /T/W/H/.terragrunt-source-version doesn't match the current version.
-func processTerraformSource(source string, terragruntOptions *options.TerragruntOptions) (*TerraformSource, error) {
-	canonicalWorkingDir, err := util.CanonicalPath(terragruntOptions.WorkingDir, "")
+func ProcessTerraformSource(source string, downloadDir string, workingDir string, logger *log.Logger) (*TerraformSource, error) {
+
+	canonicalWorkingDir, err := util.CanonicalPath(workingDir, "")
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +197,7 @@ func processTerraformSource(source string, terragruntOptions *options.Terragrunt
 		return nil, err
 	}
 
-	rootSourceUrl, modulePath, err := splitSourceUrl(canonicalSourceUrl, terragruntOptions)
+	rootSourceUrl, modulePath, err := splitSourceUrl(canonicalSourceUrl, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -217,14 +219,14 @@ func processTerraformSource(source string, terragruntOptions *options.Terragrunt
 	}
 
 	encodedWorkingDir := util.EncodeBase64Sha1(canonicalWorkingDir)
-	downloadDir := util.JoinPath(terragruntOptions.DownloadDir, encodedWorkingDir, rootPath)
-	workingDir := util.JoinPath(downloadDir, modulePath)
-	versionFile := util.JoinPath(downloadDir, ".terragrunt-source-version")
+	updatedDownloadDir := util.JoinPath(downloadDir, encodedWorkingDir, rootPath)
+	updatedWorkingDir := util.JoinPath(updatedDownloadDir, modulePath)
+	versionFile := util.JoinPath(updatedDownloadDir, ".terragrunt-source-version")
 
 	return &TerraformSource{
 		CanonicalSourceURL: rootSourceUrl,
-		DownloadDir:        downloadDir,
-		WorkingDir:         workingDir,
+		DownloadDir:        updatedDownloadDir,
+		WorkingDir:         updatedWorkingDir,
 		VersionFile:        versionFile,
 	}, nil
 }
@@ -277,7 +279,7 @@ func getForcedGetter(sourceUrl string) (string, string) {
 // (//), which typically represents the root of a modules repo (e.g. github.com/foo/infrastructure-modules) and the
 // path is everything after the double slash. If there is no double-slash in the URL, the root repo is the entire
 // sourceUrl and the path is an empty string.
-func splitSourceUrl(sourceUrl *url.URL, terragruntOptions *options.TerragruntOptions) (*url.URL, string, error) {
+func splitSourceUrl(sourceUrl *url.URL, logger *log.Logger) (*url.URL, string, error) {
 	pathSplitOnDoubleSlash := strings.SplitN(sourceUrl.Path, "//", 2)
 
 	if len(pathSplitOnDoubleSlash) > 1 {
@@ -289,7 +291,7 @@ func splitSourceUrl(sourceUrl *url.URL, terragruntOptions *options.TerragruntOpt
 		sourceUrlModifiedPath.Path = pathSplitOnDoubleSlash[0]
 		return sourceUrlModifiedPath, pathSplitOnDoubleSlash[1], nil
 	} else {
-		terragruntOptions.Logger.Printf("WARNING: no double-slash (//) found in source URL %s. Relative paths in downloaded Terraform code may not work.", sourceUrl.Path)
+		logger.Printf("WARNING: no double-slash (//) found in source URL %s. Relative paths in downloaded Terraform code may not work.", sourceUrl.Path)
 		return sourceUrl, "", nil
 	}
 }
@@ -299,7 +301,7 @@ func splitSourceUrl(sourceUrl *url.URL, terragruntOptions *options.TerragruntOpt
 // based on the assumption that the scheme/host/path of the URL (e.g. git::github.com/foo/bar) identifies the module
 // name and the query string (e.g. ?ref=v0.0.3) identifies the version. For local file paths, there is no query string,
 // so the same file path (/foo/bar) is always considered the same version. See also the encodeSourceName and
-// processTerraformSource methods.
+// ProcessTerraformSource methods.
 func encodeSourceVersion(sourceUrl *url.URL) string {
 	return util.EncodeBase64Sha1(sourceUrl.Query().Encode())
 }
@@ -309,7 +311,7 @@ func encodeSourceVersion(sourceUrl *url.URL) string {
 // assumption that the scheme/host/path of the URL (e.g. git::github.com/foo/bar) identifies the module name and the
 // query string (e.g. ?ref=v0.0.3) identifies the version. For local file paths, there is no query string, so the same
 // file path (/foo/bar) is always considered the same version. See also the encodeSourceVersion and
-// processTerraformSource methods.
+// ProcessTerraformSource methods.
 func encodeSourceName(sourceUrl *url.URL) (string, error) {
 	sourceUrlNoQuery, err := parseSourceUrl(sourceUrl.String())
 	if err != nil {
