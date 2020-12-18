@@ -846,7 +846,7 @@ func TestTerragruntStdOut(t *testing.T) {
 	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output foo --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_STDOUT), &stdout, &stderr)
 
 	output := stdout.String()
-	assert.Equal(t, "foo\n", output)
+	assert.Equal(t, `"foo"\n`, output)
 }
 
 func TestTerragruntOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *testing.T) {
@@ -932,7 +932,7 @@ func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules in
 	require.NoError(t, err)
 
 	// parse output and sort the times, the regex captures a string in the format time.RFC3339 emitted by terraform's timestamp function
-	r, err := regexp.Compile(`out = ([-:\w]+)`)
+	r, err := regexp.Compile(`out = "([-:\w]+)"`)
 	require.NoError(t, err)
 
 	matches := r.FindAllStringSubmatch(output, -1)
@@ -1253,7 +1253,7 @@ func TestPriorityOrderOfArgument(t *testing.T) {
 	t.Log(out.String())
 	// And the result value for test should be the injected variable since the injected arguments are injected before the suplied parameters,
 	// so our override of extra_var should be the last argument.
-	assert.Contains(t, out.String(), fmt.Sprintf("test = %s", injectedValue))
+	assert.Contains(t, out.String(), fmt.Sprintf(`test = "%s"`, injectedValue))
 }
 
 func TestAutoRetryBasicRerun(t *testing.T) {
