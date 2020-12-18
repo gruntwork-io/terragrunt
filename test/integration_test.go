@@ -1039,9 +1039,17 @@ func TestCustomLockFile(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_CUSTOM_LOCK_FILE))
 
-	ioutil.ReadDir(util.JoinPath(TEST_FIXTURE_CUSTOM_LOCK_FILE, TERRAGRUNT_CACHE))
-	//As of Terraform 0.14.0 we should be copying the lock file to be in the working directory
-	//assert.FileExists(t, util.JoinPath(util.TerraformLockFile))
+	source := "../hello-world"
+	downloadDir := util.JoinPath(TEST_FIXTURE_CUSTOM_LOCK_FILE, TERRAGRUNT_CACHE)
+	result, err := cli.ProcessTerraformSource(source, downloadDir, TEST_FIXTURE_CUSTOM_LOCK_FILE, util.CreateLogger(""))
+	require.NoError(t, err)
+
+	lockFilePath := util.JoinPath(result.WorkingDir, util.TerraformLockFile)
+	require.FileExists(t, lockFilePath)
+
+	readFile, err := ioutil.ReadFile(lockFilePath)
+	require.NoError(t, err)
+	assert.Contains(t, string(readFile), "THIS COMMENT IS INTENTIONALLY HERE FOR TESTING")
 }
 
 func TestLocalDownloadWithHiddenFolder(t *testing.T) {

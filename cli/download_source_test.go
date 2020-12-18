@@ -262,7 +262,7 @@ func TestSplitSourceUrl(t *testing.T) {
 			terragruntOptions, err := options.NewTerragruntOptionsForTest("testing")
 			require.NoError(t, err)
 
-			actualRootRepo, actualModulePath, err := splitSourceUrl(sourceUrl, terragruntOptions)
+			actualRootRepo, actualModulePath, err := splitSourceUrl(sourceUrl, terragruntOptions.Logger)
 			require.NoError(t, err)
 
 			assert.Equal(t, testCase.expectedRootRepo, actualRootRepo.String())
