@@ -3,5 +3,5 @@ inputs = {
 }
 
 terraform {
-  source = "../hello-world"
+  source = "../custom-lock-file-module"
 }
