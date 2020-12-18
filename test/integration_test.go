@@ -1051,7 +1051,11 @@ func TestCustomLockFile(t *testing.T) {
 
 	readFile, err := ioutil.ReadFile(lockFilePath)
 	require.NoError(t, err)
-	assert.Contains(t, string(readFile), "THIS COMMENT IS INTENTIONALLY HERE FOR TESTING")
+
+	// In our lock file, we intentionally have hashes for an older version of the AWS provider. If the lock file
+	// copying works, then Terraform will stick with this older version. If there is a bug, Terraform will end up
+	// installing a newer version (since the version is not pinned in the .tf code, only in the lock file).
+	assert.Contains(t, string(readFile), `version = "3.0.0"`)
 }
 
 func TestLocalDownloadWithHiddenFolder(t *testing.T) {
