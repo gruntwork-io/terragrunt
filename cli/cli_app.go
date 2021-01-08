@@ -518,7 +518,7 @@ func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOption
 // Runs terraform with the given options and CLI args.
 // This will forward all the args and extra_arguments directly to Terraform.
 
-// This function takes in the "original" terragrunt options has the unmodified 'WorkingDir' from before downloading the code from the source URL,
+// This function takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
 // and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
 func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, allowSourceDownload bool) error {
 
@@ -709,7 +709,7 @@ func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptio
 }
 
 // Prepare for running any command other than 'terraform init' by running 'terraform init' if necessary
-// This function takes in the "original" terragrunt options has the unmodified 'WorkingDir' from before downloading the code from the source URL,
+// This function takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
 // and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
 func prepareNonInitCommand(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	needsInit, err := needsInit(terragruntOptions, terragruntConfig)
@@ -764,7 +764,7 @@ func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 //
 // This method will return an error and NOT run terraform init if the user has disabled Auto-Init
 //
-// This method takes in the "original" terragrunt options has the unmodified 'WorkingDir' from before downloading the code from the source URL,
+// This method takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
 // and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
 func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, terraformSource *TerraformSource) error {
 
