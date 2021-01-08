@@ -175,8 +175,8 @@ If you’re testing changes to a local copy of the `modules` repo, you can use t
 ### Working with lock files
 
 Terraform 0.14 introduced lock files. These should mostly "just work" with Terragrunt version v0.27.0 and above: that
-is, the lock file will be generated next to your `terragrunt.hcl`, and you should check it into version control. See
-the [Lock File Handling docs]({{site.baseurl}}/docs/features/lock-file-handling/) for more details.
+is, the lock file (`.terraform.lock.hcl`) will be generated next to your `terragrunt.hcl`, and you should check it into 
+version control. See the [Lock File Handling docs]({{site.baseurl}}/docs/features/lock-file-handling/) for more details.
 
 ### Important gotcha: Terragrunt caching
 
