@@ -558,6 +558,13 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 
 		var lockFileError error
 		if util.FirstArg(terragruntOptions.TerraformCliArgs) == CMD_INIT {
+			// Copy the lock file from the Terragrunt working dir (e.g., .terragrunt-cache/xxx/<some-module>) to the
+			// user's working dir (e.g., /live/stage/vpc). That way, the lock file will end up right next to the user's
+			// terragrunt.hcl and can be checked into version control. Note that in the past, Terragrunt allowed the
+			// user's working dir to be different than the directory where the terragrunt.hcl file lived, so just in
+			// case, we are using the user's working dir here, rather than just looking at the parent dir of the
+			// terragrunt.hcl. However, the default value for the user's working dir, set in options.go, IS just the
+			// parent dir of terragrunt.hcl, so these will likely always be the same.
 			lockFileError = copyLockFile(terragruntOptions.WorkingDir, originalTerragruntOptions.WorkingDir, terragruntOptions.Logger)
 		}
 
