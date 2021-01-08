@@ -15,6 +15,8 @@ import (
 	"github.com/mattn/go-zglob"
 )
 
+const TerraformLockFile = ".terraform.lock.hcl"
+
 // Return true if the given file exists
 func FileExists(path string) bool {
 	_, err := os.Stat(path)
@@ -149,7 +151,7 @@ func ReadFileAsString(path string) (string, error) {
 // (those starting with a dot) will be skipped. Will create a specified manifest file that contains paths of all copied files.
 func CopyFolderContents(source, destination, manifestFile string) error {
 	return CopyFolderContentsWithFilter(source, destination, manifestFile, func(path string) bool {
-		return !PathContainsHiddenFileOrFolder(path)
+		return !TerragruntExcludes(path)
 	})
 }
 
@@ -229,7 +231,11 @@ func IsSymLink(path string) bool {
 	return err == nil && fileInfo.Mode()&os.ModeSymlink != 0
 }
 
-func PathContainsHiddenFileOrFolder(path string) bool {
+func TerragruntExcludes(path string) bool {
+	// Do not exclude the terraform lock file (new feature added in terraform 0.14)
+	if filepath.Base(path) == TerraformLockFile {
+		return false
+	}
 	pathParts := strings.Split(path, string(filepath.Separator))
 	for _, pathPart := range pathParts {
 		if strings.HasPrefix(pathPart, ".") && pathPart != "." && pathPart != ".." {

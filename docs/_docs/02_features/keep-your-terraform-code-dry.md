@@ -172,6 +172,12 @@ If you’re testing changes to a local copy of the `modules` repo, you can use t
 
 *(Note: the double slash (`//`) here too is intentional and required. Terragrunt downloads all the code in the folder before the double-slash into the temporary folder so that relative paths between modules work correctly. Terraform may display a "Terraform initialized in an empty directory" warning, but you can safely ignore it.)*
 
+### Working with lock files
+
+Terraform 0.14 introduced lock files. These should mostly "just work" with Terragrunt version v0.27.0 and above: that
+is, the lock file (`.terraform.lock.hcl`) will be generated next to your `terragrunt.hcl`, and you should check it into 
+version control. See the [Lock File Handling docs]({{site.baseurl}}/docs/features/lock-file-handling/) for more details.
+
 ### Important gotcha: Terragrunt caching
 
 The first time you set the `source` parameter to a remote URL, Terragrunt will download the code from that URL into a tmp folder. It will *NOT* download it again afterwords unless you change that URL. That’s because downloading code—and more importantly, reinitializing remote state, redownloading provider plugins, and redownloading modules—can take a long time. To avoid adding 10-90 seconds of overhead to every Terragrunt command, Terragrunt assumes all remote URLs are immutable, and only downloads them once.

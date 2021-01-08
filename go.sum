@@ -386,9 +386,11 @@ github.com/grpc-ecosystem/grpc-gateway v1.8.5/go.mod h1:vNeuVxBJEsws4ogUvrchl83t
 github.com/grpc-ecosystem/grpc-gateway v1.9.5/go.mod h1:vNeuVxBJEsws4ogUvrchl83t/GYV9WGTSLVdBhOQFDY=
 github.com/gruntwork-io/gruntwork-cli v0.5.1 h1:mVmVsFubUSLSCO8bGigI63HXzvzkC0uWXzm4dd9pXRg=
 github.com/gruntwork-io/gruntwork-cli v0.5.1/go.mod h1:IBX21bESC1/LGoV7jhXKUnTQTZgQ6dYRsoj/VqxUSZQ=
+github.com/gruntwork-io/gruntwork-cli v0.7.0 h1:YgSAmfCj9c61H+zuvHwKfYUwlMhu5arnQQLM4RH+CYs=
 github.com/gruntwork-io/gruntwork-cli v0.7.0/go.mod h1:jp6Z7NcLF2avpY8v71fBx6hds9eOFPELSuD/VPv7w00=
 github.com/gruntwork-io/terratest v0.26.1 h1:T+R6sxhr4hTkbhOl9EIp/xTJm6070YcM5sCG0tR4xXg=
 github.com/gruntwork-io/terratest v0.26.1/go.mod h1:ONEOU6Fv3a1rN16Z5t5yWbV57DkVC7665yRyvu3aWnk=
+github.com/gruntwork-io/terratest v0.30.26 h1:0nNTfmYl5ohvKtPot7j5jwKhG1j7EJAO3ixi0TbVmH0=
 github.com/gruntwork-io/terratest v0.30.26/go.mod h1:EEgJie28gX/4AD71IFqgMj6e99KP5mi81hEtzmDjxTo=
 github.com/hashicorp/aws-sdk-go-base v0.4.0/go.mod h1:eRhlz3c4nhqxFZJAahJEFL7gh6Jyj5rQmQc7F9eHFyQ=
 github.com/hashicorp/consul v0.0.0-20171026175957-610f3c86a089/go.mod h1:mFrjN1mfidgJfYP1xrJCF+AfRhr6Eaqhb2+sfyn/OOI=

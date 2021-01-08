@@ -63,6 +63,7 @@ const (
 	TEST_FIXTURE_SKIP                                       = "fixture-skip/"
 	TEST_FIXTURE_CONFIG_SINGLE_JSON_PATH                    = "fixture-config-files/single-json-config"
 	TEST_FIXTURE_LOCAL_DOWNLOAD_PATH                        = "fixture-download/local"
+	TEST_FIXTURE_CUSTOM_LOCK_FILE                           = "fixture-download/custom-lock-file"
 	TEST_FIXTURE_REMOTE_DOWNLOAD_PATH                       = "fixture-download/remote"
 	TEST_FIXTURE_OVERRIDE_DOWNLOAD_PATH                     = "fixture-download/override"
 	TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH               = "fixture-download/local-relative"
@@ -845,7 +846,7 @@ func TestTerragruntStdOut(t *testing.T) {
 	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output foo --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_STDOUT), &stdout, &stderr)
 
 	output := stdout.String()
-	assert.Equal(t, "foo\n", output)
+	assert.Equal(t, "\"foo\"\n", output)
 }
 
 func TestTerragruntOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *testing.T) {
@@ -931,7 +932,7 @@ func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules in
 	require.NoError(t, err)
 
 	// parse output and sort the times, the regex captures a string in the format time.RFC3339 emitted by terraform's timestamp function
-	r, err := regexp.Compile(`out = ([-:\w]+)`)
+	r, err := regexp.Compile(`out = "([-:\w]+)"`)
 	require.NoError(t, err)
 
 	matches := r.FindAllStringSubmatch(output, -1)
@@ -1024,8 +1025,37 @@ func TestLocalDownload(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_DOWNLOAD_PATH))
 
+	// As of Terraform 0.14.0 we should be copying the lock file from .terragrunt-cache to the working directory
+	assert.FileExists(t, util.JoinPath(TEST_FIXTURE_LOCAL_DOWNLOAD_PATH, util.TerraformLockFile))
+
 	// Run a second time to make sure the temporary folder can be reused without errors
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_DOWNLOAD_PATH))
+}
+
+// As of Terraform 0.14.0, if there's already a lock file in the working directory, we should be copying it into
+// .terragrunt-cache
+func TestCustomLockFile(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_CUSTOM_LOCK_FILE)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_CUSTOM_LOCK_FILE))
+
+	source := "../custom-lock-file-module"
+	downloadDir := util.JoinPath(TEST_FIXTURE_CUSTOM_LOCK_FILE, TERRAGRUNT_CACHE)
+	result, err := cli.ProcessTerraformSource(source, downloadDir, TEST_FIXTURE_CUSTOM_LOCK_FILE, util.CreateLogger(""))
+	require.NoError(t, err)
+
+	lockFilePath := util.JoinPath(result.WorkingDir, util.TerraformLockFile)
+	require.FileExists(t, lockFilePath)
+
+	readFile, err := ioutil.ReadFile(lockFilePath)
+	require.NoError(t, err)
+
+	// In our lock file, we intentionally have hashes for an older version of the AWS provider. If the lock file
+	// copying works, then Terraform will stick with this older version. If there is a bug, Terraform will end up
+	// installing a newer version (since the version is not pinned in the .tf code, only in the lock file).
+	assert.Contains(t, string(readFile), `version = "3.0.0"`)
 }
 
 func TestLocalDownloadWithHiddenFolder(t *testing.T) {
@@ -1237,7 +1267,7 @@ func TestPriorityOrderOfArgument(t *testing.T) {
 	t.Log(out.String())
 	// And the result value for test should be the injected variable since the injected arguments are injected before the suplied parameters,
 	// so our override of extra_var should be the last argument.
-	assert.Contains(t, out.String(), fmt.Sprintf("test = %s", injectedValue))
+	assert.Contains(t, out.String(), fmt.Sprintf(`test = "%s"`, injectedValue))
 }
 
 func TestAutoRetryBasicRerun(t *testing.T) {
