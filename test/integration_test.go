@@ -2219,6 +2219,48 @@ func TestDependencyOutputTypeConversion(t *testing.T) {
 	assert.Equal(t, outputs["from_env"].Value, "default")
 }
 
+// Regression testing for https://github.com/gruntwork-io/terragrunt/issues/1102: Ordering keys from
+// maps to avoid random placements when terraform file if generated.
+func TestOrderedMapOutputRegressions1102(t *testing.T) {
+	t.Parallel()
+
+	var firstOutput string
+	// Run the commands 20x and compare them to the first output.
+	for i := 0; i < 20; i++ {
+		cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+		cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
+		tmpEnvPath := copyEnvironment(t, ".")
+		inputsPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
+		rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "regression-1102")
+
+		// First apply the inputs module
+		runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", inputsPath))
+
+		// Then apply the outputs module
+		showStdout := bytes.Buffer{}
+		showStderr := bytes.Buffer{}
+		assert.NoError(
+			t,
+			runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr),
+		)
+
+		// Now check the outputs to make sure they are as expected
+		stdout := bytes.Buffer{}
+		stderr := bytes.Buffer{}
+		require.NoError(
+			t,
+			runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+		)
+
+		output := stdout.String()
+		if i == 0 {
+			firstOutput = output
+			continue
+		}
+		require.Equal(t, firstOutput, output)
+	}
+}
+
 // Test that we get the expected error message about dependency cycles when there is a cycle in the dependency chain
 func TestDependencyOutputCycleHandling(t *testing.T) {
 	t.Parallel()
