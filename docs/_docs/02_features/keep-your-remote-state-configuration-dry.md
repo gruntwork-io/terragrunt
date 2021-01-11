@@ -225,15 +225,18 @@ remote_state {
 
 For the `s3` backend, the following config options can be used for S3-compatible object stores, as necessary:
 
+**Note**: The `skip_bucket_accesslogging` is now DEPRECATED. It is replaced by `accesslogging_bucket_name`. Please read below for more details on when to use the new config option.
+
 ``` hcl
 remote_state {
   # ...
 
   skip_bucket_versioning         = true # use only if the object store does not support versioning
   skip_bucket_ssencryption       = true # use only if non-encrypted Terraform State is required and/or the object store does not support server-side encryption
-  skip_bucket_accesslogging      = true # use only if the cost for the extra object space is undesirable or the object store does not support access logging
   skip_bucket_root_access        = true # use only if the AWS account root user should not have access to the remote state bucket for some reason
+  skip_bucket_enforced_tls       = true # use only if you need to access the S3 bucket without TLS being enforced
   enable_lock_table_ssencryption = true # use only if non-encrypted DynamoDB Lock Table for the Terraform State is required and/or the NoSQL database service does not support server-side encryption
+  accesslogging_bucket_name      = <string> # use only if you need server access logging to be enabled for your terraform state S3 bucket. Provide a <string> value representing the name of the target bucket to be used for logs output.
 
   shared_credentials_file     = "/path/to/credentials/file"
   skip_credentials_validation = true
@@ -244,7 +247,7 @@ remote_state {
 
 If you experience an error for any of these configurations, confirm you are using Terraform v0.12.2 or greater.
 
-Further, the config options `s3_bucket_tags`, `dynamodb_table_tags`, `skip_bucket_versioning`, `skip_bucket_ssencryption`, `skip_bucket_root_access`, `skip_bucket_accesslogging`, and `enable_lock_table_ssencryption` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).
+Further, the config options `s3_bucket_tags`, `dynamodb_table_tags`, `skip_bucket_versioning`, `skip_bucket_ssencryption`, `skip_bucket_root_access`, `skip_bucket_enforced_tls`, `accesslogging_bucket_name`, and `enable_lock_table_ssencryption` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).
 
 ### GCS-specific remote state settings
 

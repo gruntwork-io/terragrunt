@@ -7,19 +7,21 @@ import (
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // Configuration for Terraform remote state
-// NOTE: If any attributes are added here, be sure to add it to ctyRemoteState in config/config_as_cty.go
+// NOTE: If any attributes are added here, be sure to add it to remoteStateAsCty in config/config_as_cty.go
 type RemoteState struct {
-	Backend     string
-	DisableInit bool
-	Generate    *RemoteStateGenerate
-	Config      map[string]interface{}
+	Backend                       string
+	DisableInit                   bool
+	DisableDependencyOptimization bool
+	Generate                      *RemoteStateGenerate
+	Config                        map[string]interface{}
 }
 
 func (remoteState *RemoteState) String() string {
-	return fmt.Sprintf("RemoteState{Backend = %v, DisableInit = %v, Generate = %v, Config = %v}", remoteState.Backend, remoteState.DisableInit, remoteState.Generate, remoteState.Config)
+	return fmt.Sprintf("RemoteState{Backend = %v, DisableInit = %v, DisableDependencyOptimization = %v, Generate = %v, Config = %v}", remoteState.Backend, remoteState.DisableInit, remoteState.DisableDependencyOptimization, remoteState.Generate, remoteState.Config)
 }
 
 // Code gen configuration for Terraform remote state
@@ -111,7 +113,8 @@ func (remoteState *RemoteState) differsFrom(existingBackend *TerraformBackend, t
 	}
 
 	if !terraformStateConfigEqual(existingBackend.Config, remoteState.Config) {
-		terragruntOptions.Logger.Printf("Backend config has changed from %s to %s", existingBackend.Config, remoteState.Config)
+		terragruntOptions.Logger.Printf("Backend config has changed (Set environment variable TG_LOG=debug to have terragrunt log the changes)")
+		util.Debugf(terragruntOptions.Logger, "Changed from %s to %s", existingBackend.Config, remoteState.Config)
 		return true
 	}
 

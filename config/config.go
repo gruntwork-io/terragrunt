@@ -25,19 +25,21 @@ const DefaultTerragruntJsonConfigPath = "terragrunt.hcl.json"
 // TerragruntConfig represents a parsed and expanded configuration
 // NOTE: if any attributes are added, make sure to update terragruntConfigAsCty in config_as_cty.go
 type TerragruntConfig struct {
-	Terraform                  *TerraformConfig
-	TerraformBinary            string
-	TerraformVersionConstraint string
-	RemoteState                *remote.RemoteState
-	Dependencies               *ModuleDependencies
-	DownloadDir                string
-	PreventDestroy             bool
-	Skip                       bool
-	IamRole                    string
-	Inputs                     map[string]interface{}
-	Locals                     map[string]interface{}
-	TerragruntDependencies     []Dependency
-	GenerateConfigs            map[string]codegen.GenerateConfig
+	Terraform                   *TerraformConfig
+	TerraformBinary             string
+	TerraformVersionConstraint  string
+	TerragruntVersionConstraint string
+	RemoteState                 *remote.RemoteState
+	Dependencies                *ModuleDependencies
+	DownloadDir                 string
+	PreventDestroy              *bool
+	Skip                        bool
+	IamRole                     string
+	Inputs                      map[string]interface{}
+	Locals                      map[string]interface{}
+	TerragruntDependencies      []Dependency
+	GenerateConfigs             map[string]codegen.GenerateConfig
+	RetryableErrors             []string
 
 	// Indicates whether or not this is the result of a partial evaluation
 	IsPartial bool
@@ -50,19 +52,21 @@ func (conf *TerragruntConfig) String() string {
 // terragruntConfigFile represents the configuration supported in a Terragrunt configuration file (i.e.
 // terragrunt.hcl)
 type terragruntConfigFile struct {
-	Terraform                  *TerraformConfig          `hcl:"terraform,block"`
-	TerraformBinary            *string                   `hcl:"terraform_binary,attr"`
-	TerraformVersionConstraint *string                   `hcl:"terraform_version_constraint,attr"`
-	Inputs                     *cty.Value                `hcl:"inputs,attr"`
-	Include                    *IncludeConfig            `hcl:"include,block"`
-	RemoteState                *remoteStateConfigFile    `hcl:"remote_state,block"`
-	Dependencies               *ModuleDependencies       `hcl:"dependencies,block"`
-	DownloadDir                *string                   `hcl:"download_dir,attr"`
-	PreventDestroy             *bool                     `hcl:"prevent_destroy,attr"`
-	Skip                       *bool                     `hcl:"skip,attr"`
-	IamRole                    *string                   `hcl:"iam_role,attr"`
-	TerragruntDependencies     []Dependency              `hcl:"dependency,block"`
-	GenerateBlocks             []terragruntGenerateBlock `hcl:"generate,block"`
+	Terraform                   *TerraformConfig          `hcl:"terraform,block"`
+	TerraformBinary             *string                   `hcl:"terraform_binary,attr"`
+	TerraformVersionConstraint  *string                   `hcl:"terraform_version_constraint,attr"`
+	TerragruntVersionConstraint *string                   `hcl:"terragrunt_version_constraint,attr"`
+	Inputs                      *cty.Value                `hcl:"inputs,attr"`
+	Include                     *IncludeConfig            `hcl:"include,block"`
+	RemoteState                 *remoteStateConfigFile    `hcl:"remote_state,block"`
+	Dependencies                *ModuleDependencies       `hcl:"dependencies,block"`
+	DownloadDir                 *string                   `hcl:"download_dir,attr"`
+	PreventDestroy              *bool                     `hcl:"prevent_destroy,attr"`
+	Skip                        *bool                     `hcl:"skip,attr"`
+	IamRole                     *string                   `hcl:"iam_role,attr"`
+	TerragruntDependencies      []Dependency              `hcl:"dependency,block"`
+	GenerateBlocks              []terragruntGenerateBlock `hcl:"generate,block"`
+	RetryableErrors             []string                  `hcl:"retryable_errors,optional"`
 
 	// This struct is used for validating and parsing the entire terragrunt config. Since locals are evaluated in a
 	// completely separate cycle, it should not be evaluated here. Otherwise, we can't support self referencing other
@@ -78,14 +82,47 @@ type terragruntLocal struct {
 
 // Configuration for Terraform remote state as parsed from a terragrunt.hcl config file
 type remoteStateConfigFile struct {
-	Backend     string                     `hcl:"backend,attr"`
-	DisableInit *bool                      `hcl:"disable_init,attr"`
-	Generate    *remoteStateConfigGenerate `hcl:"generate,attr"`
-	Config      cty.Value                  `hcl:"config,attr"`
+	Backend                       string                     `hcl:"backend,attr"`
+	DisableInit                   *bool                      `hcl:"disable_init,attr"`
+	DisableDependencyOptimization *bool                      `hcl:"disable_dependency_optimization,attr"`
+	Generate                      *remoteStateConfigGenerate `hcl:"generate,attr"`
+	Config                        cty.Value                  `hcl:"config,attr"`
 }
 
 func (remoteState *remoteStateConfigFile) String() string {
 	return fmt.Sprintf("remoteStateConfigFile{Backend = %v, Config = %v}", remoteState.Backend, remoteState.Config)
+}
+
+// Convert the parsed config file remote state struct to the internal representation struct of remote state
+// configurations.
+func (remoteState *remoteStateConfigFile) toConfig() (*remote.RemoteState, error) {
+	remoteStateConfig, err := parseCtyValueToMap(remoteState.Config)
+	if err != nil {
+		return nil, err
+	}
+
+	config := &remote.RemoteState{}
+	config.Backend = remoteState.Backend
+	if remoteState.Generate != nil {
+		config.Generate = &remote.RemoteStateGenerate{
+			Path:     remoteState.Generate.Path,
+			IfExists: remoteState.Generate.IfExists,
+		}
+	}
+	config.Config = remoteStateConfig
+
+	if remoteState.DisableInit != nil {
+		config.DisableInit = *remoteState.DisableInit
+	}
+	if remoteState.DisableDependencyOptimization != nil {
+		config.DisableDependencyOptimization = *remoteState.DisableDependencyOptimization
+	}
+
+	config.FillDefaults()
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+	return config, err
 }
 
 type remoteStateConfigGenerate struct {
@@ -240,6 +277,11 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 			return err
 		}
 
+		// Skip the Terragrunt cache dir entirely
+		if info.IsDir() && info.Name() == options.TerragruntCacheDir {
+			return filepath.SkipDir
+		}
+
 		isTerragruntModule, err := containsTerragruntModule(path, info, terragruntOptions)
 		if err != nil {
 			return err
@@ -256,16 +298,28 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 }
 
 // Returns true if the given path with the given FileInfo contains a Terragrunt module and false otherwise. A path
-// contains a Terragrunt module if it contains a Terragrunt configuration file (terragrunt.hcl, terragrunt.hcl.json) and is not a cache
-// or download dir.
+// contains a Terragrunt module if it contains a Terragrunt configuration file (terragrunt.hcl, terragrunt.hcl.json)
+// and is not a cache, data, or download dir.
 func containsTerragruntModule(path string, info os.FileInfo, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	if !info.IsDir() {
 		return false, nil
 	}
 
 	// Skip the Terragrunt cache dir
-	if strings.Contains(path, options.TerragruntCacheDir) {
+	if util.ContainsPath(path, options.TerragruntCacheDir) {
 		return false, nil
+	}
+
+	// Skip the Terraform data dir
+	dataDir := terragruntOptions.TerraformDataDir()
+	if filepath.IsAbs(dataDir) {
+		if util.HasPathPrefix(path, dataDir) {
+			return false, nil
+		}
+	} else {
+		if util.ContainsPath(path, dataDir) {
+			return false, nil
+		}
 	}
 
 	canonicalPath, err := util.CanonicalPath(path, "")
@@ -479,7 +533,8 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 	if config.RemoteState != nil {
 		includedConfig.RemoteState = config.RemoteState
 	}
-	if config.PreventDestroy {
+
+	if config.PreventDestroy != nil {
 		includedConfig.PreventDestroy = config.PreventDestroy
 	}
 
@@ -518,6 +573,14 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 
 	if config.TerraformBinary != "" {
 		includedConfig.TerraformBinary = config.TerraformBinary
+	}
+
+	if config.RetryableErrors != nil {
+		includedConfig.RetryableErrors = config.RetryableErrors
+	}
+
+	if config.TerragruntVersionConstraint != "" {
+		includedConfig.TerragruntVersionConstraint = config.TerragruntVersionConstraint
 	}
 
 	// Merge the generate configs. This is a shallow merge. Meaning, if the child has the same name generate block, then the
@@ -660,30 +723,10 @@ func convertToTerragruntConfig(
 	}
 
 	if terragruntConfigFromFile.RemoteState != nil {
-		remoteStateConfig, err := parseCtyValueToMap(terragruntConfigFromFile.RemoteState.Config)
+		remoteState, err := terragruntConfigFromFile.RemoteState.toConfig()
 		if err != nil {
 			return nil, err
 		}
-
-		remoteState := &remote.RemoteState{}
-		remoteState.Backend = terragruntConfigFromFile.RemoteState.Backend
-		if terragruntConfigFromFile.RemoteState.Generate != nil {
-			remoteState.Generate = &remote.RemoteStateGenerate{
-				Path:     terragruntConfigFromFile.RemoteState.Generate.Path,
-				IfExists: terragruntConfigFromFile.RemoteState.Generate.IfExists,
-			}
-		}
-		remoteState.Config = remoteStateConfig
-
-		if terragruntConfigFromFile.RemoteState.DisableInit != nil {
-			remoteState.DisableInit = *terragruntConfigFromFile.RemoteState.DisableInit
-		}
-
-		remoteState.FillDefaults()
-		if err := remoteState.Validate(); err != nil {
-			return nil, err
-		}
-
 		terragruntConfig.RemoteState = remoteState
 	}
 
@@ -699,6 +742,10 @@ func convertToTerragruntConfig(
 		terragruntConfig.TerraformBinary = *terragruntConfigFromFile.TerraformBinary
 	}
 
+	if terragruntConfigFromFile.RetryableErrors != nil {
+		terragruntConfig.RetryableErrors = terragruntConfigFromFile.RetryableErrors
+	}
+
 	if terragruntConfigFromFile.DownloadDir != nil {
 		terragruntConfig.DownloadDir = *terragruntConfigFromFile.DownloadDir
 	}
@@ -707,8 +754,12 @@ func convertToTerragruntConfig(
 		terragruntConfig.TerraformVersionConstraint = *terragruntConfigFromFile.TerraformVersionConstraint
 	}
 
+	if terragruntConfigFromFile.TerragruntVersionConstraint != nil {
+		terragruntConfig.TerragruntVersionConstraint = *terragruntConfigFromFile.TerragruntVersionConstraint
+	}
+
 	if terragruntConfigFromFile.PreventDestroy != nil {
-		terragruntConfig.PreventDestroy = *terragruntConfigFromFile.PreventDestroy
+		terragruntConfig.PreventDestroy = terragruntConfigFromFile.PreventDestroy
 	}
 
 	if terragruntConfigFromFile.Skip != nil {

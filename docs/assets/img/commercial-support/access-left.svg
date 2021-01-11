@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="156px" height="118px" viewBox="0 0 156 118" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>Left</title>
+    <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="terragrunt-support" transform="translate(-253.000000, -1966.000000)">
+            <g id="Left" transform="translate(253.000000, 1966.000000)">
+                <g id="Group-3-Copy-3" transform="translate(43.000000, 0.000000)">
+                    <polygon id="Rectangle-Copy-21" fill="#5852E6" points="0.114140217 48.2187273 37.5525218 24.7400938 37.5525218 61.9145968 0.114140217 85.3932303"></polygon>
+                    <polygon id="Rectangle-Copy-27" fill="#5852E6" points="37.0959562 9.4701555 52.162622 0.11400833 52.162622 14.927908 37.0959562 24.2840552"></polygon>
+                    <polygon id="Rectangle-Copy-22" fill="#4B5FEA" points="55.9292929 98.4344709 75.9040404 86.0772947 75.9040404 105.642824 55.9292929 118"></polygon>
+                    <polygon id="Rectangle-Copy-26" fill="#3278F2" transform="translate(75.675752, 61.907241) scale(-1, 1) translate(-75.675752, -61.907241) " points="38.4656531 61.9072414 75.6757519 38.4212524 112.885851 61.9072414 75.6757519 85.3932303"></polygon>
+                </g>
+                <polygon id="Rectangle-Copy-110" fill="#3A70F0" transform="translate(22.500000, 49.000000) scale(-1, 1) translate(-22.500000, -49.000000) " points="0 49 22.5 35 45 49 22.5 63"></polygon>
+            </g>
+        </g>
+    </g>
+</svg>

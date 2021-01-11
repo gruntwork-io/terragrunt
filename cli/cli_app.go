@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"regexp"
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -42,6 +42,8 @@ const OPT_TERRAGRUNT_STRICT_INCLUDE = "terragrunt-strict-include"
 const OPT_TERRAGRUNT_PARALLELISM = "terragrunt-parallelism"
 const OPT_TERRAGRUNT_CHECK = "terragrunt-check"
 const OPT_TERRAGRUNT_HCLFMT_FILE = "terragrunt-hclfmt-file"
+const OPT_TERRAGRUNT_DEBUG = "terragrunt-debug"
+const OPT_TERRAGRUNT_OVERRIDE_ATTR = "terragrunt-override-attr"
 
 var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{
 	OPT_NON_INTERACTIVE,
@@ -54,6 +56,7 @@ var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{
 	OPT_TERRAGRUNT_NO_AUTO_RETRY,
 	OPT_TERRAGRUNT_CHECK,
 	OPT_TERRAGRUNT_STRICT_INCLUDE,
+	OPT_TERRAGRUNT_DEBUG,
 }
 var ALL_TERRAGRUNT_STRING_OPTS = []string{
 	OPT_TERRAGRUNT_CONFIG,
@@ -66,6 +69,7 @@ var ALL_TERRAGRUNT_STRING_OPTS = []string{
 	OPT_TERRAGRUNT_INCLUDE_DIR,
 	OPT_TERRAGRUNT_PARALLELISM,
 	OPT_TERRAGRUNT_HCLFMT_FILE,
+	OPT_TERRAGRUNT_OVERRIDE_ATTR,
 }
 
 const CMD_PLAN_ALL = "plan-all"
@@ -80,6 +84,7 @@ const CMD_TERRAGRUNT_INFO = "terragrunt-info"
 const CMD_TERRAGRUNT_GRAPH_DEPENDENCIES = "graph-dependencies"
 const CMD_TERRAGRUNT_READ_CONFIG = "terragrunt-read-config"
 const CMD_HCLFMT = "hclfmt"
+const CMD_AWS_PROVIDER_PATCH = "aws-provider-patch"
 
 // CMD_SPIN_UP is deprecated.
 const CMD_SPIN_UP = "spin-up"
@@ -152,6 +157,7 @@ COMMANDS:
    terragrunt-info      Emits limited terragrunt state on stdout and exits
    graph-dependencies   Prints the terragrunt dependency graph to stdout
    hclfmt               Recursively find terragrunt.hcl files and rewrite them into a canonical format.
+   aws-provider-patch   Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018)
    *                    Terragrunt forwards all other commands directly to Terraform
 
 GLOBAL OPTIONS:
@@ -174,6 +180,8 @@ GLOBAL OPTIONS:
    terragrunt-include-dir                       Unix-style glob of directories to include when running *-all commands
    terragrunt-check                             Enable check mode in the hclfmt command.
    terragrunt-hclfmt-file                       The path to a single terragrunt.hcl file that the hclfmt command should run on.
+   terragrunt-override-attr                     A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.
+   terragrunt-debug                             Write terragrunt-debug.tfvars to working folder to help root-cause issues.
 
 VERSION:
    {{.Version}}{{if len .Authors}}
@@ -228,14 +236,15 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 
 	// If someone calls us with no args at all, show the help text and exit
 	if !cliContext.Args().Present() {
-		cli.ShowAppHelp(cliContext)
-		return nil
+		return cli.ShowAppHelp(cliContext)
 	}
 
 	terragruntOptions, err := ParseTerragruntOptions(cliContext)
 	if err != nil {
 		return err
 	}
+
+	shell.PrepareConsole(terragruntOptions)
 
 	givenCommand := cliContext.Args().First()
 	command := checkDeprecated(givenCommand, terragruntOptions)
@@ -276,8 +285,11 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return runGraphDependencies(terragruntOptions)
 	}
 
-	terragruntConfig, err := config.ReadTerragruntConfig(terragruntOptions)
+	if err := checkVersionConstraints(terragruntOptions); err != nil {
+		return err
+	}
 
+	terragruntConfig, err := config.ReadTerragruntConfig(terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -286,24 +298,6 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptionsClone.TerraformCommand = CMD_TERRAGRUNT_READ_CONFIG
 
 	if err := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone); err != nil {
-		return err
-	}
-
-	// Change the terraform binary path before checking the version
-	// if the path is not changed from default and set in the config.
-	if terragruntOptions.TerraformPath == options.TERRAFORM_DEFAULT_PATH && terragruntConfig.TerraformBinary != "" {
-		terragruntOptions.TerraformPath = terragruntConfig.TerraformBinary
-	}
-
-	if err := PopulateTerraformVersion(terragruntOptions); err != nil {
-		return err
-	}
-
-	versionConstraint := DEFAULT_TERRAFORM_VERSION_CONSTRAINT
-	if terragruntConfig.TerraformVersionConstraint != "" {
-		versionConstraint = terragruntConfig.TerraformVersionConstraint
-	}
-	if err := CheckTerraformVersion(versionConstraint, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -317,7 +311,7 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		terragruntOptions.IamRole = terragruntConfig.IamRole
 	}
 
-	if err := assumeRoleIfNecessary(terragruntOptions); err != nil {
+	if err := aws_helper.AssumeRoleAndUpdateEnvIfNecessary(terragruntOptions); err != nil {
 		return err
 	}
 
@@ -333,54 +327,113 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		terragruntOptions.DownloadDir = terragruntConfig.DownloadDir
 	}
 
+	// Override the default value of retryable errors using the value set in the config file
+	if terragruntConfig.RetryableErrors != nil {
+		terragruntOptions.RetryableErrors = terragruntConfig.RetryableErrors
+	}
+
+	updatedTerragruntOptions := terragruntOptions
 	if sourceUrl := getTerraformSourceUrl(terragruntOptions, terragruntConfig); sourceUrl != "" {
-		if err := downloadTerraformSource(sourceUrl, terragruntOptions, terragruntConfig); err != nil {
+		updatedTerragruntOptions, err = downloadTerraformSource(sourceUrl, terragruntOptions, terragruntConfig)
+		if err != nil {
 			return err
 		}
 	}
 
-	if shouldPrintTerragruntInfo(terragruntOptions) {
+	// NOTE: At this point, the terraform source is downloaded to the terragrunt working directory
+
+	if shouldPrintTerragruntInfo(updatedTerragruntOptions) {
 		group := TerragruntInfoGroup{
-			ConfigPath:       terragruntOptions.TerragruntConfigPath,
-			DownloadDir:      terragruntOptions.DownloadDir,
-			IamRole:          terragruntOptions.IamRole,
-			TerraformBinary:  terragruntOptions.TerraformPath,
-			TerraformCommand: terragruntOptions.TerraformCommand,
-			WorkingDir:       terragruntOptions.WorkingDir,
+			ConfigPath:       updatedTerragruntOptions.TerragruntConfigPath,
+			DownloadDir:      updatedTerragruntOptions.DownloadDir,
+			IamRole:          updatedTerragruntOptions.IamRole,
+			TerraformBinary:  updatedTerragruntOptions.TerraformPath,
+			TerraformCommand: updatedTerragruntOptions.TerraformCommand,
+			WorkingDir:       updatedTerragruntOptions.WorkingDir,
 		}
 		b, err := json.MarshalIndent(group, "", "  ")
 		if err != nil {
-			terragruntOptions.Logger.Printf("JSON error marshalling terragrunt-info")
+			updatedTerragruntOptions.Logger.Printf("JSON error marshalling terragrunt-info")
 			return err
 		}
-		fmt.Fprintf(terragruntOptions.Writer, "%s\n", b)
+		fmt.Fprintf(updatedTerragruntOptions.Writer, "%s\n", b)
 		return nil
 	}
 
-	if err := checkFolderContainsTerraformCode(terragruntOptions); err != nil {
+	if err := checkFolderContainsTerraformCode(updatedTerragruntOptions); err != nil {
 		return err
 	}
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
 	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
 	for _, config := range terragruntConfig.GenerateConfigs {
-		if err := codegen.WriteToFile(terragruntOptions.Logger, terragruntOptions.WorkingDir, config); err != nil {
+		if err := codegen.WriteToFile(updatedTerragruntOptions.Logger, updatedTerragruntOptions.WorkingDir, config); err != nil {
 			return err
 		}
 	}
 	if terragruntConfig.RemoteState != nil && terragruntConfig.RemoteState.Generate != nil {
-		if err := terragruntConfig.RemoteState.GenerateTerraformCode(terragruntOptions); err != nil {
+		if err := terragruntConfig.RemoteState.GenerateTerraformCode(updatedTerragruntOptions); err != nil {
 			return err
 		}
 	}
 
 	if terragruntConfig.RemoteState != nil {
-		if err := checkTerraformCodeDefinesBackend(terragruntOptions, terragruntConfig.RemoteState.Backend); err != nil {
+		if err := checkTerraformCodeDefinesBackend(updatedTerragruntOptions, terragruntConfig.RemoteState.Backend); err != nil {
 			return err
 		}
 	}
 
-	return runTerragruntWithConfig(terragruntOptions, terragruntConfig, false)
+	// We do the debug file generation here, after all the terragrunt generated terraform files are created so that we
+	// can ensure the tfvars json file only includes the vars that are defined in the module.
+	if updatedTerragruntOptions.Debug {
+		err := writeTerragruntDebugFile(updatedTerragruntOptions, terragruntConfig)
+		if err != nil {
+			return err
+		}
+	}
+
+	return runTerragruntWithConfig(terragruntOptions, updatedTerragruntOptions, terragruntConfig, false)
+}
+
+// Check the version constraints of both terragrunt and terraform. Note that as a side effect this will set the
+// following settings on terragruntOptions:
+// - TerraformPath
+// - TerraformVersion
+// TODO: Look into a way to refactor this function to avoid the side effect.
+func checkVersionConstraints(terragruntOptions *options.TerragruntOptions) error {
+	partialTerragruntConfig, err := config.PartialParseConfigFile(
+		terragruntOptions.TerragruntConfigPath,
+		terragruntOptions,
+		nil,
+		[]config.PartialDecodeSectionType{config.TerragruntVersionConstraints},
+	)
+	if err != nil {
+		return err
+	}
+
+	// Change the terraform binary path before checking the version
+	// if the path is not changed from default and set in the config.
+	if terragruntOptions.TerraformPath == options.TERRAFORM_DEFAULT_PATH && partialTerragruntConfig.TerraformBinary != "" {
+		terragruntOptions.TerraformPath = partialTerragruntConfig.TerraformBinary
+	}
+	if err := PopulateTerraformVersion(terragruntOptions); err != nil {
+		return err
+	}
+
+	terraformVersionConstraint := DEFAULT_TERRAFORM_VERSION_CONSTRAINT
+	if partialTerragruntConfig.TerraformVersionConstraint != "" {
+		terraformVersionConstraint = partialTerragruntConfig.TerraformVersionConstraint
+	}
+	if err := CheckTerraformVersion(terraformVersionConstraint, terragruntOptions); err != nil {
+		return err
+	}
+
+	if partialTerragruntConfig.TerragruntVersionConstraint != "" {
+		if err := CheckTerragruntVersion(partialTerragruntConfig.TerragruntVersionConstraint, terragruntOptions); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Run graph dependencies prints the dependency graph to stdout
@@ -414,6 +467,10 @@ func shouldPrintTerragruntInfo(terragruntOptions *options.TerragruntOptions) boo
 
 func shouldRunHCLFmt(terragruntOptions *options.TerragruntOptions) bool {
 	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_HCLFMT)
+}
+
+func shouldApplyAwsProviderPatch(terragruntOptions *options.TerragruntOptions) bool {
+	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_AWS_PROVIDER_PATCH)
 }
 
 func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOptions, previousExecError ...error) error {
@@ -458,30 +515,12 @@ func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOption
 	return util.ListContainsElement(hook.Commands, terragruntOptions.TerraformCommand) && (multiError == nil || (hook.RunOnError != nil && *hook.RunOnError))
 }
 
-// Assume an IAM role, if one is specified, by making API calls to Amazon STS and setting the environment variables
-// we get back inside of terragruntOptions.Env
-func assumeRoleIfNecessary(terragruntOptions *options.TerragruntOptions) error {
-	if terragruntOptions.IamRole == "" {
-		return nil
-	}
-
-	terragruntOptions.Logger.Printf("Assuming IAM role %s", terragruntOptions.IamRole)
-	creds, err := aws_helper.AssumeIamRole(terragruntOptions.IamRole)
-	if err != nil {
-		return err
-	}
-
-	terragruntOptions.Env["AWS_ACCESS_KEY_ID"] = aws.StringValue(creds.AccessKeyId)
-	terragruntOptions.Env["AWS_SECRET_ACCESS_KEY"] = aws.StringValue(creds.SecretAccessKey)
-	terragruntOptions.Env["AWS_SESSION_TOKEN"] = aws.StringValue(creds.SessionToken)
-	terragruntOptions.Env["AWS_SECURITY_TOKEN"] = aws.StringValue(creds.SessionToken)
-
-	return nil
-}
-
 // Runs terraform with the given options and CLI args.
 // This will forward all the args and extra_arguments directly to Terraform.
-func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, allowSourceDownload bool) error {
+
+// This function takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
+// and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
+func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, allowSourceDownload bool) error {
 
 	// Add extra_arguments to the command
 	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExtraArgs != nil && len(terragruntConfig.Terraform.ExtraArgs) > 0 {
@@ -500,9 +539,14 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 			return err
 		}
 	} else {
-		if err := prepareNonInitCommand(terragruntOptions, terragruntConfig); err != nil {
+		if err := prepareNonInitCommand(originalTerragruntOptions, terragruntOptions, terragruntConfig); err != nil {
 			return err
 		}
+	}
+
+	// Now that we've run 'init' and have all the source code locally, we can finally run the patch command
+	if shouldApplyAwsProviderPatch(terragruntOptions) {
+		return applyAwsProviderPatch(terragruntOptions)
 	}
 
 	if err := checkProtectedModule(terragruntOptions, terragruntConfig); err != nil {
@@ -510,8 +554,36 @@ func runTerragruntWithConfig(terragruntOptions *options.TerragruntOptions, terra
 	}
 
 	return runActionWithHooks("terraform", terragruntOptions, terragruntConfig, func() error {
-		return runTerraformWithRetry(terragruntOptions)
+		runTerraformError := runTerraformWithRetry(terragruntOptions)
+
+		var lockFileError error
+		if util.FirstArg(terragruntOptions.TerraformCliArgs) == CMD_INIT {
+			// Copy the lock file from the Terragrunt working dir (e.g., .terragrunt-cache/xxx/<some-module>) to the
+			// user's working dir (e.g., /live/stage/vpc). That way, the lock file will end up right next to the user's
+			// terragrunt.hcl and can be checked into version control. Note that in the past, Terragrunt allowed the
+			// user's working dir to be different than the directory where the terragrunt.hcl file lived, so just in
+			// case, we are using the user's working dir here, rather than just looking at the parent dir of the
+			// terragrunt.hcl. However, the default value for the user's working dir, set in options.go, IS just the
+			// parent dir of terragrunt.hcl, so these will likely always be the same.
+			lockFileError = copyLockFile(terragruntOptions.WorkingDir, originalTerragruntOptions.WorkingDir, terragruntOptions.Logger)
+		}
+
+		return errors.NewMultiError(runTerraformError, lockFileError)
 	})
+}
+
+// Terraform 0.14 now generates a lock file when you run `terraform init`.
+// If any such file exists, this function will copy the lock file to the destination folder
+func copyLockFile(sourceFolder string, destinationFolder string, logger *log.Logger) error {
+	sourceLockFilePath := util.JoinPath(sourceFolder, util.TerraformLockFile)
+	destinationLockFilePath := util.JoinPath(destinationFolder, util.TerraformLockFile)
+
+	if util.FileExists(sourceLockFilePath) {
+		logger.Printf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
+		return util.CopyFile(sourceLockFilePath, destinationLockFilePath)
+	}
+
+	return nil
 }
 
 // Run the given action function surrounded by hooks. That is, run the before hooks first, then, if there were no
@@ -549,7 +621,6 @@ func setTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, 
 			terragruntOptions.Env[key] = value
 		}
 	}
-
 	return nil
 }
 
@@ -593,10 +664,18 @@ func prepareInitCommand(terragruntOptions *options.TerragruntOptions, terragrunt
 }
 
 func checkFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptions) error {
-	files, err := zglob.Glob(fmt.Sprintf("%s/**/*.tf", terragruntOptions.WorkingDir))
+	files := []string{}
+	hclFiles, err := zglob.Glob(fmt.Sprintf("%s/**/*.tf", terragruntOptions.WorkingDir))
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
+	files = append(files, hclFiles...)
+
+	jsonFiles, err := zglob.Glob(fmt.Sprintf("%s/**/*.tf.json", terragruntOptions.WorkingDir))
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	files = append(files, jsonFiles...)
 
 	if len(files) == 0 {
 		return errors.WithStackTrace(NoTerraformFilesFound(terragruntOptions.WorkingDir))
@@ -636,16 +715,17 @@ func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptio
 	return errors.WithStackTrace(BackendNotDefined{Opts: terragruntOptions, BackendType: backendType})
 }
 
-// Prepare for running any command other than 'terraform init' by
-// running 'terraform init' if necessary
-func prepareNonInitCommand(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+// Prepare for running any command other than 'terraform init' by running 'terraform init' if necessary
+// This function takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
+// and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
+func prepareNonInitCommand(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	needsInit, err := needsInit(terragruntOptions, terragruntConfig)
 	if err != nil {
 		return err
 	}
 
 	if needsInit {
-		if err := runTerraformInit(terragruntOptions, terragruntConfig, nil); err != nil {
+		if err := runTerraformInit(originalTerragruntOptions, terragruntOptions, terragruntConfig, nil); err != nil {
 			return err
 		}
 	}
@@ -675,8 +755,9 @@ func needsInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *c
 
 // Returns true if we need to run `terraform init` to download providers
 func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
-	providersPath := util.JoinPath(terragruntOptions.DataDir(), "plugins")
-	return !util.FileExists(providersPath)
+	providersPath013 := util.JoinPath(terragruntOptions.DataDir(), "plugins")
+	providersPath014 := util.JoinPath(terragruntOptions.DataDir(), "providers")
+	return !(util.FileExists(providersPath013) || util.FileExists(providersPath014))
 }
 
 // Runs the terraform init command to perform what is referred to as Auto-Init in the README.md.
@@ -689,7 +770,10 @@ func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 // If terraformSource is specified, then arguments to download the terraform source will be appended to the init command.
 //
 // This method will return an error and NOT run terraform init if the user has disabled Auto-Init
-func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, terraformSource *TerraformSource) error {
+//
+// This method takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
+// and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
+func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, terraformSource *TerraformSource) error {
 
 	// Prevent Auto-Init if the user has disabled it
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) != CMD_INIT && !terragruntOptions.AutoInit {
@@ -702,7 +786,7 @@ func runTerraformInit(terragruntOptions *options.TerragruntOptions, terragruntCo
 		return err
 	}
 
-	return runTerragruntWithConfig(initOptions, terragruntConfig, terraformSource != nil)
+	return runTerragruntWithConfig(originalTerragruntOptions, initOptions, terragruntConfig, terraformSource != nil)
 }
 
 func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformSource *TerraformSource) (*options.TerragruntOptions, error) {
@@ -849,7 +933,7 @@ func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragru
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) != "destroy" {
 		return nil
 	}
-	if terragruntConfig.PreventDestroy {
+	if terragruntConfig.PreventDestroy != nil && *terragruntConfig.PreventDestroy {
 		return errors.WithStackTrace(ModuleIsProtected{Opts: terragruntOptions})
 	}
 	return nil

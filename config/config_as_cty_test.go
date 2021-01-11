@@ -44,11 +44,13 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 				},
 			},
 		},
-		TerraformBinary:            "terraform",
-		TerraformVersionConstraint: "= 0.12.20",
+		TerraformBinary:             "terraform",
+		TerraformVersionConstraint:  "= 0.12.20",
+		TerragruntVersionConstraint: "= 0.23.18",
 		RemoteState: &remote.RemoteState{
-			Backend:     "foo",
-			DisableInit: true,
+			Backend:                       "foo",
+			DisableInit:                   true,
+			DisableDependencyOptimization: true,
 			Config: map[string]interface{}{
 				"bar": "baz",
 			},
@@ -57,7 +59,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 			Paths: []string{"foo"},
 		},
 		DownloadDir:    ".terragrunt-cache",
-		PreventDestroy: true,
+		PreventDestroy: &testTrue,
 		Skip:           true,
 		IamRole:        "terragruntRole",
 		Inputs: map[string]interface{}{
@@ -115,8 +117,9 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 // This test makes sure that all the fields in RemoteState are converted to cty
 func TestRemoteStateAsCtyDrift(t *testing.T) {
 	testConfig := remote.RemoteState{
-		Backend:     "foo",
-		DisableInit: true,
+		Backend:                       "foo",
+		DisableInit:                   true,
+		DisableDependencyOptimization: true,
 		Generate: &remote.RemoteStateGenerate{
 			Path:     "foo",
 			IfExists: "overwrite_terragrunt",
@@ -170,6 +173,8 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "terraform_binary", true
 	case "TerraformVersionConstraint":
 		return "terraform_version_constraint", true
+	case "TerragruntVersionConstraint":
+		return "terragrunt_version_constraint", true
 	case "RemoteState":
 		return "remote_state", true
 	case "Dependencies":
@@ -192,6 +197,8 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "generate", true
 	case "IsPartial":
 		return "", false
+	case "RetryableErrors":
+		return "retryable_errors", true
 	default:
 		t.Fatalf("Unknown struct property: %s", fieldName)
 		// This should not execute
@@ -205,6 +212,8 @@ func remoteStateStructFieldToMapKey(t *testing.T, fieldName string) (string, boo
 		return "backend", true
 	case "DisableInit":
 		return "disable_init", true
+	case "DisableDependencyOptimization":
+		return "disable_dependency_optimization", true
 	case "Generate":
 		return "generate", true
 	case "Config":

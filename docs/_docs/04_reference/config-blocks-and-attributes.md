@@ -51,25 +51,45 @@ The `terraform` block supports the following arguments:
       `terraform` like `required_var_files`, only any files that do not exist are ignored.
 
 - `before_hook` (block): Nested blocks used to specify command hooks that should be run before `terraform` is called.
-  Hooks run from the terragrunt configuration directory (the directory where `terragrunt.hcl` lives).
+  Hooks run from the directory with the terraform module, except for hooks related to `terragrunt-read-config` and
+  `init-from-module`. These hooks run in the terragrunt configuration directory (the directory where `terragrunt.hcl`
+  lives).
   Supports the following arguments:
     - `commands` (required) : A list of `terraform` sub commands for which the hook should run before.
     - `execute` (required) : A list of command and arguments that should be run as the hook. For example, if `execute` is set as
       `["echo", "Foo"]`, the command `echo Foo` will be run.
     - `run_on_error` (optional) : If set to true, this hook will run even if a previous hook hit an error, or in the
       case of "after" hooks, if the Terraform command hit an error. Default is false.
-    - `init-from-module` and `init`: This is not an argument, but a special name you can use for hooks that run during
-      initialization. There are two stages of initialization: one is to download [remote
-      configurations](https://terragrunt.gruntwork.io/use-cases/keep-your-terraform-code-dry/) using `go-getter`; the
-      other is [Auto-Init](https://terragrunt.gruntwork.io/docs/features/auto-init/), which configures the backend and
-      downloads provider plugins and modules. If you wish to execute a hook when Terragrunt is using `go-getter` to
-      download remote configurations, name the hook `init-from-module`. If you wish to execute a hook when Terragrunt is
-      using terraform `init` for Auto-Init, name the hook `init`.
-
 
 - `after_hook` (block): Nested blocks used to specify command hooks that should be run after `terraform` is called.
   Hooks run from the terragrunt configuration directory (the directory where `terragrunt.hcl` lives). Supports the same
   arguments as `before_hook`.
+
+In addition to supporting before and after hooks for all terraform commands, the following specialized hooks are also
+supported:
+
+- `terragrunt-read-config` (after hook only): `terragrunt-read-config` is a special hook command that you can use with
+  the `after_hook` subblock to run an action immediately after terragrunt finishes loading the config. This hook will
+  run on every invocation of terragrunt. Note that you can only use this hook with `after_hooks`. Any `before_hooks`
+  with the command `terragrunt-read-config` will be ignored. The working directory for hooks associated with this
+  command will be the terragrunt config directory.
+
+- `init-from-module` and `init`: Terragrunt has two stages of initialization: one is to download [remote
+  configurations](https://terragrunt.gruntwork.io/use-cases/keep-your-terraform-code-dry/) using `go-getter`; the other
+  is [Auto-Init](https://terragrunt.gruntwork.io/docs/features/auto-init/), which configures the backend and downloads
+  provider plugins and modules. If you wish to run a hook when Terragrunt is using `go-getter` to download remote
+  configurations, use `init-from-module` for the command. If you wish to execute a hook when Terragrunt is using
+  terraform `init` for Auto-Init, use `init` for the command. For example, an `after_hook` for the command
+  `init-from-module` will run after terragrunt clones the module, while an `after_hook` for the command `init` will run
+  after terragrunt runs `terraform init` on the cloned module.
+    - Hooks for both `init-from-module` and `init` only run if the requisite stage needs to run. That is, if terragrunt
+      detects that the module is already cloned in the terragrunt cache, this stage will be skipped and thus the hooks
+      will not run. Similarly, if terragrunt detects that it does not need to run `init` in the auto init feature, the
+      `init` stage is skipped along with the related hooks.
+    - The working directory for hooks associated with `init-from-module` will run in the terragrunt config directory,
+      while the working directory for hooks associated with `init` will be the terraform module.
+
+
 
 Example:
 
@@ -164,6 +184,9 @@ The `remote_state` block supports the following arguments:
   have support in Terragrunt to be automatically created if the storage does not exist. Currently `s3` and `gcs` are the
   two backends with support for automatic creation. Defaults to `false`.
 
+- `disable_dependency_optimization` (attribute): When `true`, disable optimized dependency fetching for terragrunt
+  modules using this `remote_state` block. See the documentation for [dependency block](#dependency) for more details.
+
 - `generate` (attribute): Configure Terragrunt to automatically generate a `.tf` file that configures the remote state
   backend. This is a map that expects two properties:
     - `path`: The path where the generated file should be written. If a relative path, it'll be relative to the Terragrunt
@@ -215,15 +238,16 @@ For the `s3` backend, the following additional properties are supported in the `
 - `dynamodb_table` - (Optional) The name of a DynamoDB table to use for state locking and consistency. The table must have a primary key named LockID. If not present, locking will be disabled.
 - `skip_bucket_versioning`: When `true`, the S3 bucket that is created to store the state will not be versioned.
 - `skip_bucket_ssencryption`: When `true`, the S3 bucket that is created to store the state will not be configured with server-side encryption.
-- `skip_bucket_accesslogging`: When `true`, the S3 bucket that is created to store the state will not be configured with
-  access logging.
+- `skip_bucket_accesslogging`: _DEPRECATED_ If provided, will be ignored. A log warning will be issued in the console output to notify the user.
 - `skip_bucket_root_access`: When `true`, the S3 bucket that is created will not be configured with bucket policies that allow access to the root AWS user.
+- `skip_bucket_enforced_tls`: When `true`, the S3 bucket that is created will not be configured with a bucket policy that enforces access to the bucket via a TLS connection.
 - `enable_lock_table_ssencryption`: When `true`, the synchronization lock table in DynamoDB used for remote state concurrent access will not be configured with server side encryption.
 - `s3_bucket_tags`: A map of key value pairs to associate as tags on the created S3 bucket.
 - `dynamodb_table_tags`: A map of key value pairs to associate as tags on the created DynamoDB remote state lock table.
 - `disable_aws_client_checksums`: When `true`, disable computing and checking checksums on the request and response,
   such as the CRC32 check for DynamoDB. This can be used to workaround
   https://github.com/gruntwork-io/terragrunt/issues/1059.
+- `accesslogging_bucket_name`: (Optional) When provided as a valid `string`, create an S3 bucket with this name to store the access logs for the S3 bucket used to store Terraform state. If not provided, or string is empty or invalid S3 bucket name, then server access logging for the S3 bucket storing the terraform state will be disabled.
 
 For the `gcs` backend, the following additional properties are supported in the `config` attribute:
 
@@ -408,6 +432,38 @@ inputs = {
 }
 ```
 
+**Can I speed up dependency fetching?**
+
+`dependency` blocks are fetched in parallel at each source level, but will serially parse each recursive dependency. For
+example, consider the following chain of dependencies:
+
+```
+account --> vpc --> securitygroup --> ecs
+                                      ^
+                                     /
+                              ecr --
+```
+
+In this chain, the `ecr` and `securitygroup` module outputs will be fetched concurrently when applying the `ecs` module,
+but the outputs for `account` and `vpc` will be fetched serially as terragrunt needs to recursively walk through the
+tree to retrieve the outputs at each level.
+
+This recursive parsing happens due to the necessity to parse the entire `terragrunt.hcl` configuration (including
+`dependency` blocks) in full before being able to call `terraform output`.
+
+However, terragrunt includes an optimization to only fetch the lowest level outputs (`securitygroup` and `ecr` in this
+example) provided that the following conditions are met in the immediate dependencies:
+
+- The remote state is managed using `remote_state` blocks.
+- The dependency optimization feature flag is enabled (`disable_dependency_optimization = false`, which is the default).
+- The `remote_state` block itself does not depend on any `dependency` outputs (`locals` and `include` are ok).
+- You are not relying on `before_hook`, `after_hook`, or `extra_arguments` to the `terraform init` call. NOTE:
+  terragrunt will not automatically detect this and you will need to explicitly opt out of the dependency optimization
+  flag.
+
+If these conditions are met, terragrunt will only parse out the `remote_state` blocks and use that to pull down the
+state for the target module without parsing the `dependency` blocks, avoiding the recursive dependency retrieval.
+
 
 ### dependencies
 
@@ -481,6 +537,8 @@ EOF
 - [iam_role](#iam_role)
 - [terraform_binary](#terraform_binary)
 - [terraform_version_constraint](#terraform_version_constraint)
+- [terragrunt_version_constraint](#terragrunt_version_constraint)
+- [retryable_errors](#retryable_errors)
 
 
 ### inputs
@@ -627,4 +685,28 @@ Example:
 
 ```hcl
 terraform_version_constraint = ">= 0.11"
+```
+
+### terragrunt_version_constraint
+
+The terragrunt `terragrunt_version_constraint` string can be used to specify which versions of the Terragrunt CLI can be used with your configuration. If the running version of Terragrunt doesn't match the constraints specified, Terragrunt will produce an error and exit without taking any further actions.
+
+Example:
+
+```hcl
+terragrunt_version_constraint = ">= 0.23"
+```
+
+### retryable_errors
+
+The terragrunt `retryable_errors` list can be used to override the default list of retryable errors with your own custom list.
+To learn more about the `retryable_errors` attribute, see the [auto-retry feature overview](/docs/features/auto-retry).
+
+Example:
+
+```hcl
+retryable_errors = [
+  "(?s).*Error installing provider.*tcp.*connection reset by peer.*",
+  "(?s).*ssh_exchange_identification.*Connection closed by remote host.*"
+]
 ```

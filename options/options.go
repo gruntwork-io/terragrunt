@@ -30,16 +30,30 @@ const TERRAFORM_DEFAULT_PATH = "terraform"
 
 const TerragruntCacheDir = ".terragrunt-cache"
 
+const DefaultTFDataDir = ".terraform"
+
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
 	// Location of the Terragrunt config file
 	TerragruntConfigPath string
+
+	// Version of terragrunt
+	TerragruntVersion *version.Version
 
 	// Location of the terraform binary
 	TerraformPath string
 
 	// Current Terraform command being executed by Terragrunt
 	TerraformCommand string
+
+	// Original Terraform command being executed by Terragrunt. Used to track command evolution as terragrunt chains
+	// different commands together. For example, when retrieving dependencies, terragrunt will change the
+	// TerraformCommand to `output` to run `terraform output`, which loses the context of the original command that was
+	// run to fetch the dependency. This is a problem when mock_outputs is configured and we only allow mocks to be
+	// returned on specific commands.
+	// NOTE: For `xxx-all` commands, this will be set to the Terraform command, which would be `xxx`. For example,
+	// if you run `apply-all` (which is a terragrunt command), this variable will be set to `apply`.
+	OriginalTerraformCommand string
 
 	// Version of terraform (obtained by running 'terraform version')
 	TerraformVersion *version.Version
@@ -133,6 +147,14 @@ type TerragruntOptions struct {
 	// packages can use the command without a direct reference back to the cli package (which would create a
 	// circular dependency).
 	RunTerragrunt func(*TerragruntOptions) error
+
+	// True if terragrunt should run in debug mode, writing terragrunt-debug.tfvars to working folder to help
+	// root-cause issues.
+	Debug bool
+
+	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command. See that
+	// command for more info.
+	AwsProviderPatchOverrides map[string]string
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage
@@ -147,6 +169,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 	return &TerragruntOptions{
 		TerragruntConfigPath:        terragruntConfigPath,
 		TerraformPath:               TERRAFORM_DEFAULT_PATH,
+		OriginalTerraformCommand:    "",
 		TerraformCommand:            "",
 		AutoInit:                    true,
 		NonInteractive:              false,
@@ -167,7 +190,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		AutoRetry:                   true,
 		MaxRetryAttempts:            DEFAULT_MAX_RETRY_ATTEMPTS,
 		Sleep:                       DEFAULT_SLEEP,
-		RetryableErrors:             util.CloneStringList(RETRYABLE_ERRORS),
+		RetryableErrors:             util.CloneStringList(DEFAULT_RETRYABLE_ERRORS),
 		ExcludeDirs:                 []string{},
 		IncludeDirs:                 []string{},
 		StrictInclude:               false,
@@ -188,7 +211,7 @@ func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string,
 		return "", "", errors.WithStackTrace(err)
 	}
 
-	return workingDir, downloadDir, nil
+	return filepath.ToSlash(workingDir), filepath.ToSlash(downloadDir), nil
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for test usage
@@ -217,8 +240,10 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 	return &TerragruntOptions{
 		TerragruntConfigPath:        terragruntConfigPath,
 		TerraformPath:               terragruntOptions.TerraformPath,
+		OriginalTerraformCommand:    terragruntOptions.OriginalTerraformCommand,
 		TerraformCommand:            terragruntOptions.TerraformCommand,
 		TerraformVersion:            terragruntOptions.TerraformVersion,
+		TerragruntVersion:           terragruntOptions.TerragruntVersion,
 		AutoInit:                    terragruntOptions.AutoInit,
 		NonInteractive:              terragruntOptions.NonInteractive,
 		TerraformCliArgs:            util.CloneStringList(terragruntOptions.TerraformCliArgs),
@@ -245,6 +270,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		Parallelism:                 terragruntOptions.Parallelism,
 		StrictInclude:               terragruntOptions.StrictInclude,
 		RunTerragrunt:               terragruntOptions.RunTerragrunt,
+		AwsProviderPatchOverrides:   terragruntOptions.AwsProviderPatchOverrides,
 	}
 }
 
@@ -272,12 +298,22 @@ func (terragruntOptions *TerragruntOptions) AppendTerraformCliArgs(argsToAppend 
 	terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, argsToAppend...)
 }
 
-// DataDir returns Terraform data dir (.terraform by default, overridden by $TF_DATA_DIR envvar)
-func (terragruntOptions *TerragruntOptions) DataDir() string {
-	if tfDataDir, ok := os.LookupEnv("TF_DATA_DIR"); ok {
+// TerraformDataDir returns Terraform data directory (.terraform by default, overridden by $TF_DATA_DIR envvar)
+func (terragruntOptions *TerragruntOptions) TerraformDataDir() string {
+	if tfDataDir, ok := terragruntOptions.Env["TF_DATA_DIR"]; ok {
 		return tfDataDir
 	}
-	return util.JoinPath(terragruntOptions.WorkingDir, ".terraform")
+	return DefaultTFDataDir
+}
+
+// DataDir returns the Terraform data directory prepended with the working directory path,
+// or just the Terraform data directory if it is an absolute path.
+func (terragruntOptions *TerragruntOptions) DataDir() string {
+	tfDataDir := terragruntOptions.TerraformDataDir()
+	if filepath.IsAbs(tfDataDir) {
+		return tfDataDir
+	}
+	return util.JoinPath(terragruntOptions.WorkingDir, tfDataDir)
 }
 
 // Custom error types

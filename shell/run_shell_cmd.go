@@ -47,7 +47,8 @@ func RunTerraformCommandWithOutput(terragruntOptions *options.TerragruntOptions,
 }
 
 // Run the specified shell command with the specified arguments. Connect the command's stdin, stdout, and stderr to
-// the currently running app. The command can be executed in a custom working directory by using the parameter `workingDir`. Terragrunt working directory will be assumed if empty empty.
+// the currently running app. The command can be executed in a custom working directory by using the parameter
+// `workingDir`. Terragrunt working directory will be assumed if empty string.
 func RunShellCommandWithOutput(
 	terragruntOptions *options.TerragruntOptions,
 	workingDir string,

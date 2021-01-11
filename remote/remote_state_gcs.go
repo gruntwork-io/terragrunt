@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/terraform/helper/pathorcontents"
 	"github.com/mitchellh/mapstructure"
+	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/jwt"
 	"google.golang.org/api/option"
 )
@@ -54,6 +55,9 @@ type RemoteStateConfigGCS struct {
 	Prefix        string `mapstructure:"prefix"`
 	Path          string `mapstructure:"path"`
 	EncryptionKey string `mapstructure:"encryption_key"`
+
+	ImpersonateServiceAccount          string   `mapstructure:"impersonate_service_account"`
+	ImpersonateServiceAccountDelegates []string `mapstructure:"impersonate_service_account_delegates"`
 }
 
 // accountFile represents the structure of the Google account file JSON file.
@@ -130,13 +134,19 @@ func gcsConfigValuesEqual(config map[string]interface{}, existingBackend *Terraf
 		}
 	}
 
-	// Delete custom GCS labels that are only used in Terragrunt config and not in Terraform's backend
-	for _, key := range terragruntGCSOnlyConfigs {
-		delete(config, key)
+	// Construct a new map excluding custom GCS labels that are only used in Terragrunt config and not in Terraform's backend
+	comparisonConfig := make(map[string]interface{})
+	for key, value := range config {
+		comparisonConfig[key] = value
 	}
 
-	if !terraformStateConfigEqual(existingBackend.Config, config) {
-		terragruntOptions.Logger.Printf("Backend config has changed from %s to %s", existingBackend.Config, config)
+	for _, key := range terragruntGCSOnlyConfigs {
+		delete(comparisonConfig, key)
+	}
+
+	if !terraformStateConfigEqual(existingBackend.Config, comparisonConfig) {
+		terragruntOptions.Logger.Printf("Backend config has changed (Set environment variable TG_LOG=debug to have terragrunt log the changes)")
+		util.Debugf(terragruntOptions.Logger, "Changed from %s to %s", existingBackend.Config, config)
 		return false
 	}
 
@@ -413,11 +423,15 @@ func DoesGCSBucketExist(gcsClient *storage.Client, config *RemoteStateConfigGCS)
 // CreateGCSClient creates an authenticated client for GCS
 func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, error) {
 	ctx := context.Background()
-	var client *storage.Client
-	var err error
+	var opts []option.ClientOption
 
 	if gcsConfigRemote.Credentials != "" {
-		client, err = storage.NewClient(ctx, option.WithCredentialsFile(gcsConfigRemote.Credentials))
+		opts = append(opts, option.WithCredentialsFile(gcsConfigRemote.Credentials))
+	} else if oauthAccessToken := os.Getenv("GOOGLE_OAUTH_ACCESS_TOKEN"); oauthAccessToken != "" {
+		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
+			AccessToken: oauthAccessToken,
+		})
+		opts = append(opts, option.WithTokenSource(tokenSource))
 	} else if os.Getenv("GOOGLE_CREDENTIALS") != "" {
 		var account accountFile
 		// to mirror how Terraform works, we have to accept either the file path or the contents
@@ -443,11 +457,16 @@ func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, err
 			TokenURL: "https://oauth2.googleapis.com/token",
 		}
 
-		client, err = storage.NewClient(ctx, option.WithHTTPClient(conf.Client(ctx)))
-	} else {
-		client, err = storage.NewClient(ctx)
+		opts = append(opts, option.WithHTTPClient(conf.Client(ctx)))
 	}
 
+	if gcsConfigRemote.ImpersonateServiceAccount != "" {
+		opts = append(opts, option.ImpersonateCredentials(
+			gcsConfigRemote.ImpersonateServiceAccount,
+			gcsConfigRemote.ImpersonateServiceAccountDelegates...))
+	}
+
+	client, err := storage.NewClient(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}

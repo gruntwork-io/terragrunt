@@ -29,7 +29,7 @@ dependencies {
 	assert.Equal(t, terragruntConfig.Dependencies.Paths[0], "../app1")
 
 	assert.False(t, terragruntConfig.Skip)
-	assert.False(t, terragruntConfig.PreventDestroy)
+	assert.Nil(t, terragruntConfig.PreventDestroy)
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Inputs)
@@ -76,7 +76,7 @@ skip = true
 	assert.Equal(t, terragruntConfig.Dependencies.Paths[0], "../app1")
 
 	assert.True(t, terragruntConfig.Skip)
-	assert.True(t, terragruntConfig.PreventDestroy)
+	assert.True(t, *terragruntConfig.PreventDestroy)
 
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RemoteState)
@@ -92,7 +92,7 @@ func TestPartialParseOmittedItems(t *testing.T) {
 	assert.True(t, terragruntConfig.IsPartial)
 	assert.Nil(t, terragruntConfig.Dependencies)
 	assert.False(t, terragruntConfig.Skip)
-	assert.False(t, terragruntConfig.PreventDestroy)
+	assert.Nil(t, terragruntConfig.PreventDestroy)
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Inputs)
@@ -119,7 +119,7 @@ func TestPartialParseOnlyInheritsSelectedBlocksFlags(t *testing.T) {
 	assert.True(t, terragruntConfig.IsPartial)
 	assert.Nil(t, terragruntConfig.Dependencies)
 	assert.False(t, terragruntConfig.Skip)
-	assert.True(t, terragruntConfig.PreventDestroy)
+	assert.True(t, *terragruntConfig.PreventDestroy)
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Inputs)
@@ -139,7 +139,7 @@ func TestPartialParseOnlyInheritsSelectedBlocksDependencies(t *testing.T) {
 	assert.Equal(t, terragruntConfig.Dependencies.Paths[0], "../app1")
 
 	assert.False(t, terragruntConfig.Skip)
-	assert.False(t, terragruntConfig.PreventDestroy)
+	assert.Nil(t, terragruntConfig.PreventDestroy)
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Inputs)
@@ -288,4 +288,30 @@ dependency "sql" {
 	require.NotNil(t, terragruntConfig.Dependencies)
 	assert.Equal(t, len(terragruntConfig.Dependencies.Paths), 2)
 	assert.Equal(t, terragruntConfig.Dependencies.Paths, []string{"../app1", "../db1"})
+}
+
+func TestPartialParseOnlyParsesTerraformSource(t *testing.T) {
+	t.Parallel()
+
+	config := `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+terraform {
+  source = "../../modules/app"
+  before_hook "before" {
+    commands = ["apply"]
+	execute  = ["echo", dependency.vpc.outputs.vpc_id]
+  }
+}
+`
+
+	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{TerraformSource})
+	require.NoError(t, err)
+	assert.True(t, terragruntConfig.IsPartial)
+
+	require.NotNil(t, terragruntConfig.Terraform)
+	require.NotNil(t, terragruntConfig.Terraform.Source)
+	assert.Equal(t, *terragruntConfig.Terraform.Source, "../../modules/app")
 }

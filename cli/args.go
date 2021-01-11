@@ -13,12 +13,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/go-version"
 	"github.com/urfave/cli"
 )
 
 // Parse command line options that are passed in for Terragrunt
 func ParseTerragruntOptions(cliContext *cli.Context) (*options.TerragruntOptions, error) {
-	terragruntOptions, err := parseTerragruntOptionsFromArgs(cliContext.Args(), cliContext.App.Writer, cliContext.App.ErrWriter)
+	terragruntOptions, err := parseTerragruntOptionsFromArgs(cliContext.App.Version, cliContext.Args(), cliContext.App.Writer, cliContext.App.ErrWriter)
 	if err != nil {
 		return nil, err
 	}
@@ -36,13 +37,16 @@ func ParseTerragruntOptions(cliContext *cli.Context) (*options.TerragruntOptions
 // see: https://github.com/urfave/cli/issues/533. For now, our workaround is to dumbly loop over the arguments
 // and look for the ones we need, but in the future, we should change to a different CLI library to avoid this
 // limitation.
-func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) (*options.TerragruntOptions, error) {
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return nil, errors.WithStackTrace(err)
+func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, writer, errWriter io.Writer) (*options.TerragruntOptions, error) {
+	defaultWorkingDir := os.Getenv("TERRAGRUNT_WORKING_DIR")
+	if defaultWorkingDir == "" {
+		currentDir, err := os.Getwd()
+		if err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
+		defaultWorkingDir = currentDir
 	}
-
-	workingDir, err := parseStringArg(args, OPT_WORKING_DIR, currentDir)
+	workingDir, err := parseStringArg(args, OPT_WORKING_DIR, defaultWorkingDir)
 	if err != nil {
 		return nil, err
 	}
@@ -68,6 +72,11 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 	}
 
 	terragruntHclFilePath, err := parseStringArg(args, OPT_TERRAGRUNT_HCLFMT_FILE, "")
+	if err != nil {
+		return nil, err
+	}
+
+	awsProviderPatchOverrides, err := parseMutliStringKeyValueArg(args, OPT_TERRAGRUNT_OVERRIDE_ATTR, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -112,6 +121,8 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 
 	strictInclude := parseBooleanArg(args, OPT_TERRAGRUNT_STRICT_INCLUDE, false)
 
+	debug := parseBooleanArg(args, OPT_TERRAGRUNT_DEBUG, false)
+
 	opts, err := options.NewTerragruntOptions(filepath.ToSlash(terragruntConfigPath))
 	if err != nil {
 		return nil, err
@@ -128,6 +139,7 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 	opts.AutoRetry = !parseBooleanArg(args, OPT_TERRAGRUNT_NO_AUTO_RETRY, os.Getenv("TERRAGRUNT_AUTO_RETRY") == "false")
 	opts.NonInteractive = parseBooleanArg(args, OPT_NON_INTERACTIVE, os.Getenv("TF_INPUT") == "false" || os.Getenv("TF_INPUT") == "0")
 	opts.TerraformCliArgs = filterTerragruntArgs(args)
+	opts.OriginalTerraformCommand = util.FirstArg(opts.TerraformCliArgs)
 	opts.TerraformCommand = util.FirstArg(opts.TerraformCliArgs)
 	opts.WorkingDir = filepath.ToSlash(workingDir)
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
@@ -135,6 +147,14 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 	opts.RunTerragrunt = RunTerragrunt
 	opts.Source = terraformSource
 	opts.SourceUpdate = sourceUpdate
+	opts.TerragruntVersion, err = version.NewVersion(terragruntVersion)
+	if err != nil {
+		// Malformed Terragrunt version; set the version to 0.0
+		opts.TerragruntVersion, err = version.NewVersion("0.0")
+		if err != nil {
+			return nil, err
+		}
+	}
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
 	opts.IgnoreDependencyOrder = ignoreDependencyOrder
 	opts.IgnoreExternalDependencies = ignoreExternalDependencies
@@ -147,8 +167,10 @@ func parseTerragruntOptionsFromArgs(args []string, writer, errWriter io.Writer) 
 	opts.IncludeDirs = includeDirs
 	opts.StrictInclude = strictInclude
 	opts.Parallelism = parallelism
-	opts.Check = parseBooleanArg(args, OPT_TERRAGRUNT_CHECK, os.Getenv("TERRAGRUNT_CHECK") == "false")
+	opts.Check = parseBooleanArg(args, OPT_TERRAGRUNT_CHECK, os.Getenv("TERRAGRUNT_CHECK") == "true")
 	opts.HclFile = filepath.ToSlash(terragruntHclFilePath)
+	opts.Debug = debug
+	opts.AwsProviderPatchOverrides = awsProviderPatchOverrides
 
 	return opts, nil
 }
@@ -334,6 +356,34 @@ func parseMultiStringArg(args []string, argName string, defaultValue []string) (
 	return stringArgs, nil
 }
 
+// Find multiple key=vallue arguments of the same type (e.g. --foo "KEY_A=VALUE_A" --foo "KEY_B=VALUE_B") of the given name in the given list of arguments. If there are any present,
+// return a map of all values. If there are any present, but one of them has no value, return an error. If there aren't any present, return defaultValue.
+func parseMutliStringKeyValueArg(args []string, argName string, defaultValue map[string]string) (map[string]string, error) {
+	asList, err := parseMultiStringArg(args, argName, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if asList == nil {
+		return defaultValue, nil
+	}
+
+	asMap := map[string]string{}
+	for _, arg := range asList {
+		parts := strings.Split(arg, "=")
+		if len(parts) != 2 {
+			return nil, errors.WithStackTrace(InvalidKeyValue(arg))
+		}
+
+		key := parts[0]
+		value := parts[1]
+
+		asMap[key] = value
+	}
+
+	return asMap, nil
+}
+
 // Convert the given variables to a map of environment variables that will expose those variables to Terraform. The
 // keys will be of the format TF_VAR_xxx and the values will be converted to JSON, which Terraform knows how to read
 // natively.
@@ -377,4 +427,10 @@ type ArgMissingValue string
 
 func (err ArgMissingValue) Error() string {
 	return fmt.Sprintf("You must specify a value for the --%s option", string(err))
+}
+
+type InvalidKeyValue string
+
+func (err InvalidKeyValue) Error() string {
+	return fmt.Sprintf("Invalid key-value pair. Expected format KEY=VALUE, got %s.", string(err))
 }

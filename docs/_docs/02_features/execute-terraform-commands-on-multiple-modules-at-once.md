@@ -91,6 +91,8 @@ Note: It is important to realize that you could get errors running `plan-all` if
 
 If your modules have dependencies between them—for example, you can’t deploy the backend-app until MySQL and redis are deployed—you’ll need to express those dependencies in your Terragrunt configuration as explained in the next section.
 
+Additional note: If your modules have dependencies between them, and you run a `terragrunt destroy-all` command, Terragrunt will destroy all the modules under the current working directory, *as well as each of the module dependencies* (that is, modules you depend on via `dependencies` and `dependency` blocks)! If you wish to use exclude dependencies from being destroyed, add the `--terragrunt-ignore-external-dependencies` flag, or use the `--terragrunt-exclude-dir` once for each directory you wish to exclude.
+
 ### Passing outputs between modules
 
 Consider the following file structure:

@@ -15,6 +15,8 @@ import (
 	"github.com/mattn/go-zglob"
 )
 
+const TerraformLockFile = ".terraform.lock.hcl"
+
 // Return true if the given file exists
 func FileExists(path string) bool {
 	_, err := os.Stat(path)
@@ -25,6 +27,16 @@ func FileExists(path string) bool {
 func FileNotExists(path string) bool {
 	_, err := os.Stat(path)
 	return os.IsNotExist(err)
+}
+
+// EnsureDirectory creates a directory at this path if it does not exist, or error if the path exists and is a file.
+func EnsureDirectory(path string) error {
+	if FileExists(path) && IsFile(path) {
+		return errors.WithStackTrace(PathIsNotDirectory{path})
+	} else if !FileExists(path) {
+		return errors.WithStackTrace(os.MkdirAll(path, 0700))
+	}
+	return nil
 }
 
 // Return the canonical version of the given path, relative to the given base path. That is, if the given path is a
@@ -139,7 +151,7 @@ func ReadFileAsString(path string) (string, error) {
 // (those starting with a dot) will be skipped. Will create a specified manifest file that contains paths of all copied files.
 func CopyFolderContents(source, destination, manifestFile string) error {
 	return CopyFolderContentsWithFilter(source, destination, manifestFile, func(path string) bool {
-		return !PathContainsHiddenFileOrFolder(path)
+		return !TerragruntExcludes(path)
 	})
 }
 
@@ -219,7 +231,11 @@ func IsSymLink(path string) bool {
 	return err == nil && fileInfo.Mode()&os.ModeSymlink != 0
 }
 
-func PathContainsHiddenFileOrFolder(path string) bool {
+func TerragruntExcludes(path string) bool {
+	// Do not exclude the terraform lock file (new feature added in terraform 0.14)
+	if filepath.Base(path) == TerraformLockFile {
+		return false
+	}
 	pathParts := strings.Split(path, string(filepath.Separator))
 	for _, pathPart := range pathParts {
 		if strings.HasPrefix(pathPart, ".") && pathPart != "." && pathPart != ".." {
@@ -256,9 +272,38 @@ func JoinPath(elem ...string) string {
 	return filepath.ToSlash(filepath.Join(elem...))
 }
 
+// SplitPath splits the given path into a list.
+// E.g. "foo/bar/boo.txt" -> ["foo", "bar", "boo.txt"]
+// E.g. "/foo/bar/boo.txt" -> ["", "foo", "bar", "boo.txt"]
+// Notice that if path is absolute the resulting list will begin with an empty string.
+func SplitPath(path string) []string {
+	return strings.Split(CleanPath(path), string(filepath.Separator))
+}
+
 // Use this function when cleaning paths to ensure the returned path uses / as the path separator to improve cross-platform compatibility
 func CleanPath(path string) string {
 	return filepath.ToSlash(filepath.Clean(path))
+}
+
+// ContainsPath returns true if path contains the given subpath
+// E.g. path="foo/bar/bee", subpath="bar/bee" -> true
+// E.g. path="foo/bar/bee", subpath="bar/be" -> false (becuase be is not a directory)
+func ContainsPath(path, subpath string) bool {
+	splitPath := SplitPath(CleanPath(path))
+	splitSubpath := SplitPath(CleanPath(subpath))
+	contains := ListContainsSublist(splitPath, splitSubpath)
+	return contains
+}
+
+// HasPathPrefix returns true if path starts with the given path prefix
+// E.g. path="/foo/bar/biz", prefix="/foo/bar" -> true
+// E.g. path="/foo/bar/biz", prefix="/foo/ba" -> false (because ba is not a directory
+// path)
+func HasPathPrefix(path, prefix string) bool {
+	splitPath := SplitPath(CleanPath(path))
+	splitPrefix := SplitPath(CleanPath(prefix))
+	hasPrefix := ListHasPrefix(splitPath, splitPrefix)
+	return hasPrefix
 }
 
 // Join two paths together with a double-slash between them, as this is what Terraform uses to identify where a "repo"
@@ -368,4 +413,15 @@ func (manifest *fileManifest) Close() error {
 
 func newFileManifest(manifestFolder string, manifestFile string) *fileManifest {
 	return &fileManifest{ManifestFolder: manifestFolder, ManifestFile: manifestFile}
+}
+
+// Custom errors
+
+// PathIsNotDirectory is returned when the given path is unexpectedly not a directory.
+type PathIsNotDirectory struct {
+	path string
+}
+
+func (err PathIsNotDirectory) Error() string {
+	return fmt.Sprintf("%s is not a directory", err.path)
 }

@@ -37,13 +37,13 @@ code. If there is anything you're unsure about, just ask!
 Sometimes, the scope of the feature proposal is large enough that it requires major updates to the code base to
 implement. In these situations, a maintainer may suggest writing up an RFC that describes the feature in more details
 than what can be reasonably captured in a Github Issue. RFCs are written in markdown and live in the directory
-`_docs/rfc`.
+`docs/_docs/05_rfc`.
 
 To write an RFC:
 
 - Clone the repository
 - Create a new branch
-- Copy the template (`_docs/rfc/TEMPLATE.md`) to a new file in the same directory.
+- Copy the template (`docs/_docs/05_rfc/template.md`) to a new file in the same directory.
 - Fill out the template
 - Open a PR for comments, prefixing the title with the term `[RFC]` to indicate that it is an RFC PR.
 
@@ -71,6 +71,10 @@ for instructions on running the automated tests.
 
 At this point, make your code changes and use your new test case to verify that everything is working. Check out
 [Developing Terragrunt](#developing-terragrunt) for instructions on how to build and run Terragrunt locally.
+
+We have a [style guide](https://gruntwork.io/guides/style%20guides/golang-style-guide/) for the Go programming language,
+in which we documented some best practices for writing Go code. Please ensure your code adheres to the guidelines
+outlined in the guide.
 
 ### Create a pull request
 

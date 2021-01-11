@@ -21,7 +21,10 @@ const (
 	DependenciesBlock PartialDecodeSectionType = iota
 	DependencyBlock
 	TerraformBlock
+	TerraformSource
 	TerragruntFlags
+	TerragruntVersionConstraints
+	RemoteStateBlock
 )
 
 // terragruntInclude is a struct that can be used to only decode the include block.
@@ -42,17 +45,46 @@ type terragruntTerraform struct {
 	Remain    hcl.Body         `hcl:",remain"`
 }
 
+// terragruntTerraformSource is a struct that can be used to only decode the terraform block, and only the source
+// attribute.
+type terragruntTerraformSource struct {
+	Terraform *terraformConfigSourceOnly `hcl:"terraform,block"`
+	Remain    hcl.Body                   `hcl:",remain"`
+}
+
+// terraformConfigSourceOnly is a struct that can be used to decode only the source attribute of the terraform block.
+type terraformConfigSourceOnly struct {
+	Source *string  `hcl:"source,attr"`
+	Remain hcl.Body `hcl:",remain"`
+}
+
 // terragruntFlags is a struct that can be used to only decode the flag attributes (skip and prevent_destroy)
 type terragruntFlags struct {
+	IamRole        *string  `hcl:"iam_role,attr"`
 	PreventDestroy *bool    `hcl:"prevent_destroy,attr"`
 	Skip           *bool    `hcl:"skip,attr"`
 	Remain         hcl.Body `hcl:",remain"`
+}
+
+// terragruntVersionConstraints is a struct that can be used to only decode the attributes related to constraining the
+// versions of terragrunt and terraform.
+type terragruntVersionConstraints struct {
+	TerragruntVersionConstraint *string  `hcl:"terragrunt_version_constraint,attr"`
+	TerraformVersionConstraint  *string  `hcl:"terraform_version_constraint,attr"`
+	TerraformBinary             *string  `hcl:"terraform_binary,attr"`
+	Remain                      hcl.Body `hcl:",remain"`
 }
 
 // terragruntDependency is a struct that can be used to only decode the dependency blocks in the terragrunt config
 type terragruntDependency struct {
 	Dependencies []Dependency `hcl:"dependency,block"`
 	Remain       hcl.Body     `hcl:",remain"`
+}
+
+// terragruntRemoteState is a struct that can be used to only decode the remote_state blocks in the terragrunt config
+type terragruntRemoteState struct {
+	RemoteState *remoteStateConfigFile `hcl:"remote_state,block"`
+	Remain      hcl.Body               `hcl:",remain"`
 }
 
 // DecodeBaseBlocks takes in a parsed HCL2 file and decodes the base blocks. Base blocks are blocks that should always
@@ -122,6 +154,9 @@ func PartialParseConfigFile(
 // - DependencyBlock: Parses the `dependency` block in the config
 // - TerraformBlock: Parses the `terraform` block in the config
 // - TerragruntFlags: Parses the boolean flags `prevent_destroy` and `skip` in the config
+// - TerragruntVersionConstraints: Parses the attributes related to constraining terragrunt and terraform versions in
+//                                 the config.
+// - RemoteStateBlock: Parses the `remote_state` block in the config
 // Note that the following blocks are always decoded:
 // - locals
 // - include
@@ -181,6 +216,16 @@ func PartialParseConfigString(
 			}
 			output.Terraform = decoded.Terraform
 
+		case TerraformSource:
+			decoded := terragruntTerraformSource{}
+			err := decodeHcl(file, filename, &decoded, terragruntOptions, contextExtensions)
+			if err != nil {
+				return nil, err
+			}
+			if decoded.Terraform != nil {
+				output.Terraform = &TerraformConfig{Source: decoded.Terraform.Source}
+			}
+
 		case DependencyBlock:
 			decoded := terragruntDependency{}
 			err := decodeHcl(file, filename, &decoded, terragruntOptions, contextExtensions)
@@ -205,10 +250,43 @@ func PartialParseConfigString(
 				return nil, err
 			}
 			if decoded.PreventDestroy != nil {
-				output.PreventDestroy = *decoded.PreventDestroy
+				output.PreventDestroy = decoded.PreventDestroy
 			}
 			if decoded.Skip != nil {
 				output.Skip = *decoded.Skip
+			}
+			if decoded.IamRole != nil {
+				output.IamRole = *decoded.IamRole
+			}
+
+		case TerragruntVersionConstraints:
+			decoded := terragruntVersionConstraints{}
+			err := decodeHcl(file, filename, &decoded, terragruntOptions, contextExtensions)
+			if err != nil {
+				return nil, err
+			}
+			if decoded.TerragruntVersionConstraint != nil {
+				output.TerragruntVersionConstraint = *decoded.TerragruntVersionConstraint
+			}
+			if decoded.TerraformVersionConstraint != nil {
+				output.TerraformVersionConstraint = *decoded.TerraformVersionConstraint
+			}
+			if decoded.TerraformBinary != nil {
+				output.TerraformBinary = *decoded.TerraformBinary
+			}
+
+		case RemoteStateBlock:
+			decoded := terragruntRemoteState{}
+			err := decodeHcl(file, filename, &decoded, terragruntOptions, contextExtensions)
+			if err != nil {
+				return nil, err
+			}
+			if decoded.RemoteState != nil {
+				remoteState, err := decoded.RemoteState.toConfig()
+				if err != nil {
+					return nil, err
+				}
+				output.RemoteState = remoteState
 			}
 
 		default:

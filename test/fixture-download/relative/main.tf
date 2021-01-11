@@ -1,6 +1,6 @@
 module "foo" {
   source = "../hello-world"
-  name = var.name
+  name   = var.name
 }
 
 variable "name" {
