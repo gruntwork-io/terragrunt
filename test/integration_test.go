@@ -2562,7 +2562,7 @@ func TestDependencyOutputTypeConversion(t *testing.T) {
 }
 
 // Regression testing for https://github.com/gruntwork-io/terragrunt/issues/1102: Ordering keys from
-// maps to avoid random placements when terraform file if generated.
+// maps to avoid random placements when terraform file is generated.
 func TestOrderedMapOutputRegressions1102(t *testing.T) {
 	t.Parallel()
 	generateTestCase := filepath.Join(TEST_FIXTURE_GET_OUTPUT, "regression-1102")
@@ -2572,12 +2572,25 @@ func TestOrderedMapOutputRegressions1102(t *testing.T) {
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
+	command := fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase)
+	path := filepath.Join(generateTestCase, "backend.tf")
 
-	runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
-	expected, _ := ioutil.ReadFile(filepath.Join(generateTestCase, "backend.tf"))
-	for i := 1; i < 20; i++ {
-		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
-		actual, _ := ioutil.ReadFile(filepath.Join(generateTestCase, "backend.tf"))
+	// runs terragrunt for the first time and checks the output "backend.tf" file.
+	require.NoError(
+		t,
+		runTerragruntCommand(t, command, &stdout, &stderr),
+	)
+	expected, _ := ioutil.ReadFile(path)
+	require.Contains(t, string(expected), "local")
+
+	// runs terragrunt again. All the outputs must be
+	// equal to the first run.
+	for i := 0; i < 20; i++ {
+		require.NoError(
+			t,
+			runTerragruntCommand(t, command, &stdout, &stderr),
+		)
+		actual, _ := ioutil.ReadFile(path)
 		require.Equal(t, expected, actual)
 	}
 }
