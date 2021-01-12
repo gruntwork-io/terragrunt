@@ -2223,41 +2223,20 @@ func TestDependencyOutputTypeConversion(t *testing.T) {
 // maps to avoid random placements when terraform file if generated.
 func TestOrderedMapOutputRegressions1102(t *testing.T) {
 	t.Parallel()
+	generateTestCase := filepath.Join(TEST_FIXTURE_GET_OUTPUT, "regression-1102")
 
-	var firstOutput string
-	// Run the commands 20x and compare them to the first output.
-	for i := 0; i < 20; i++ {
-		cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-		cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
-		tmpEnvPath := copyEnvironment(t, ".")
-		inputsPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
-		rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "regression-1102")
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
 
-		// First apply the inputs module
-		runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", inputsPath))
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
 
-		// Then apply the outputs module
-		showStdout := bytes.Buffer{}
-		showStderr := bytes.Buffer{}
-		assert.NoError(
-			t,
-			runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr),
-		)
-
-		// Now check the outputs to make sure they are as expected
-		stdout := bytes.Buffer{}
-		stderr := bytes.Buffer{}
-		require.NoError(
-			t,
-			runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
-		)
-
-		output := stdout.String()
-		if i == 0 {
-			firstOutput = output
-			continue
-		}
-		require.Equal(t, firstOutput, output)
+	runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
+	expected, _ := ioutil.ReadFile(filepath.Join(generateTestCase, "backend.tf"))
+	for i := 1; i < 20; i++ {
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
+		actual, _ := ioutil.ReadFile(filepath.Join(generateTestCase, "backend.tf"))
+		require.Equal(t, expected, actual)
 	}
 }
 
