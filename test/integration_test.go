@@ -2561,6 +2561,40 @@ func TestDependencyOutputTypeConversion(t *testing.T) {
 	assert.Equal(t, outputs["from_env"].Value, "default")
 }
 
+// Regression testing for https://github.com/gruntwork-io/terragrunt/issues/1102: Ordering keys from
+// maps to avoid random placements when terraform file is generated.
+func TestOrderedMapOutputRegressions1102(t *testing.T) {
+	t.Parallel()
+	generateTestCase := filepath.Join(TEST_FIXTURE_GET_OUTPUT, "regression-1102")
+
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	command := fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase)
+	path := filepath.Join(generateTestCase, "backend.tf")
+
+	// runs terragrunt for the first time and checks the output "backend.tf" file.
+	require.NoError(
+		t,
+		runTerragruntCommand(t, command, &stdout, &stderr),
+	)
+	expected, _ := ioutil.ReadFile(path)
+	require.Contains(t, string(expected), "local")
+
+	// runs terragrunt again. All the outputs must be
+	// equal to the first run.
+	for i := 0; i < 20; i++ {
+		require.NoError(
+			t,
+			runTerragruntCommand(t, command, &stdout, &stderr),
+		)
+		actual, _ := ioutil.ReadFile(path)
+		require.Equal(t, expected, actual)
+	}
+}
+
 // Test that we get the expected error message about dependency cycles when there is a cycle in the dependency chain
 func TestDependencyOutputCycleHandling(t *testing.T) {
 	t.Parallel()
