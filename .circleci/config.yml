@@ -76,12 +76,14 @@ workflows:
               only: /^v.*/
           context:
             - Gruntwork Admin
+            - Gruntwork GCP
       - integration_test:
           filters:
             tags:
               only: /^v.*/
           context:
             - Gruntwork Admin
+            - Gruntwork GCP
       - build:
           requires:
             - unit_test
@@ -91,6 +93,7 @@ workflows:
               only: /^v.*/
           context:
             - Gruntwork Admin
+            - Gruntwork GCP
       - deploy:
           requires:
             - build
@@ -101,3 +104,4 @@ workflows:
               ignore: /.*/
           context:
             - Gruntwork Admin
+            - Gruntwork GCP
