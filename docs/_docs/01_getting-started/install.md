@@ -2,7 +2,7 @@
 layout: collection-browser-doc
 title: Install
 category: getting-started
-excerpt: Learn how to install Terragrunt on Windows, Mac OS, Linux and manually from source.
+excerpt: Learn how to install Terragrunt on Windows, Mac OS, Linux, FreeBSD and manually from source.
 tags: ["install"]
 order: 101
 nav_title: Documentation
@@ -30,3 +30,4 @@ If you  want the latest version, the recommended installation option is to [down
 
 * **Linux**: Most Linux users can use [Homebrew](https://docs.brew.sh/Homebrew-on-Linux): `brew install terragrunt`. Arch Linux users can either use the pre-built binaries from [`aur/terragrunt-bin`](https://aur.archlinux.org/packages/terragrunt-bin) or build Terragrunt from source from [`aur/terragrunt`](https://aur.archlinux.org/packages/terragrunt).
 
+* **FreeBSD**: You can install Terragrunt on FreeBSD using [Pkg](https://www.freebsd.org/cgi/man.cgi?pkg(7)): `pkg install terragrunt`.
