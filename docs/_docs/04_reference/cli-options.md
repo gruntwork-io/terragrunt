@@ -349,6 +349,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-exclude-dir](#terragrunt-exclude-dir)
 - [terragrunt-include-dir](#terragrunt-include-dir)
 - [terragrunt-strict-include](#terragrunt-strict-include)
+- [terragrunt-sts-endpoint](#terragrunt-sts-enpoint)
 - [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
 - [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
 - [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
@@ -507,6 +508,15 @@ When passed in, only modules under the directories passed in with [--terragrunt-
 will be included. All dependencies of the included directories will be excluded if they are not in the included
 directories.
 
+### terragrunt-sts-endpoint
+
+**CLI Arg**: `--terragrunt-sts-endpoint http://custom-endpoint`
+
+An option for defining a custom endpoint to use for Terragrunt calls to the AWS STS service. The endpoint is only used
+by Terragrunt when executing the AWS specific built-in functions `get_aws_account_id`, `get_aws_caller_identity_arn`,
+and `get_aws_caller_identity_user_id`. 
+
+This option is useful when working with Terragrunt locally and using tools that mock the STS endpoint (such as Localstack).
 
 ### terragrunt-ignore-dependency-order
 
