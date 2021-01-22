@@ -608,6 +608,9 @@ func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucket(t *testi
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 	s3BucketLogsName := fmt.Sprintf("%s-tf-state-logs", s3BucketName)
+	// Do not change this value - it's expected from the terragrunt config for this test too.
+	// If there's no value provided in the config, the TargetPrefix will be set to empty string.
+	s3BucketLogsTargetPrefix := "TFStatelogs/"
 	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
@@ -632,6 +635,7 @@ func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucket(t *testi
 	targetLoggingBucket := terraws.GetS3BucketLoggingTarget(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 
 	assert.Equal(t, s3BucketLogsName, targetLoggingBucket)
+	assert.Equal(t, s3BucketLogsTargetPrefix, targetLoggingBucket)
 }
 
 func TestTerragruntWorksWithGCSBackend(t *testing.T) {
