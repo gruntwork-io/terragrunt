@@ -210,9 +210,9 @@ func runCommand(args []string, include *IncludeConfig, terragruntOptions *option
 	}
 
 	if suppressOutput {
-		terragruntOptions.Logger.Printf("run_cmd output: [REDACTED]")
+		terragruntOptions.Logger.Infof("run_cmd output: [REDACTED]")
 	} else {
-		terragruntOptions.Logger.Printf("run_cmd output: [%s]", cmdOutput.Stdout)
+		terragruntOptions.Logger.Infof("run_cmd output: [%s]", cmdOutput.Stdout)
 	}
 
 	return cmdOutput.Stdout, nil

@@ -3,7 +3,6 @@ package options
 import (
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -12,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
+	log "github.com/sirupsen/logrus"
 )
 
 var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
@@ -70,8 +70,8 @@ type TerragruntOptions struct {
 	// The working directory in which to run Terraform
 	WorkingDir string
 
-	// The logger to use for all logging
-	Logger *log.Logger
+	// Basic log entry
+	Logger *log.Entry
 
 	// Environment variables at runtime
 	Env map[string]string
@@ -159,7 +159,7 @@ type TerragruntOptions struct {
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage
 func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, error) {
-	logger := util.CreateLogger("")
+	logger := util.CreateLogEntry("", false)
 
 	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(terragruntConfigPath)
 	if err != nil {
@@ -219,7 +219,7 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string) (*TerragruntOption
 	opts, err := NewTerragruntOptions(terragruntConfigPath)
 
 	if err != nil {
-		logger := util.CreateLogger("")
+		logger := util.CreateLogEntry("", false)
 		logger.Printf("error: %v\n", errors.WithStackTrace(err))
 		return nil, err
 	}
@@ -248,7 +248,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		NonInteractive:              terragruntOptions.NonInteractive,
 		TerraformCliArgs:            util.CloneStringList(terragruntOptions.TerraformCliArgs),
 		WorkingDir:                  workingDir,
-		Logger:                      util.CreateLoggerWithWriter(terragruntOptions.ErrWriter, workingDir),
+		Logger:                      util.CreateLogEntryWithWriter(terragruntOptions.ErrWriter, workingDir, terragruntOptions.Debug),
 		Env:                         util.CloneStringMap(terragruntOptions.Env),
 		Source:                      terragruntOptions.Source,
 		SourceUpdate:                terragruntOptions.SourceUpdate,

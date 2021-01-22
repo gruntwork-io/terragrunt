@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -15,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
+	log "github.com/sirupsen/logrus"
 )
 
 // Commands that implement a REPL need a pseudo TTY when run as a subprocess in order for the readline properties to be
@@ -57,9 +57,9 @@ func RunShellCommandWithOutput(
 	command string,
 	args ...string,
 ) (*CmdOutput, error) {
-	terragruntOptions.Logger.Printf("Running command: %s %s", command, strings.Join(args, " "))
+	terragruntOptions.Logger.Infof("Running command: %s %s", command, strings.Join(args, " "))
 	if suppressStdout {
-		terragruntOptions.Logger.Printf("Command output will be suppressed.")
+		terragruntOptions.Logger.Info("Command output will be suppressed.")
 	}
 
 	var stdoutBuf bytes.Buffer
@@ -165,7 +165,7 @@ func GetExitCode(err error) (int, error) {
 type SignalsForwarder chan os.Signal
 
 // Forwards signals to a command, waiting for the command to finish.
-func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger *log.Logger, cmdChannel chan error) SignalsForwarder {
+func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger *log.Entry, cmdChannel chan error) SignalsForwarder {
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, signals...)
 

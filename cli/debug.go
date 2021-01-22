@@ -31,8 +31,8 @@ func writeTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terr
 	if err != nil {
 		return err
 	}
-	util.Debugf(terragruntOptions.Logger, "The following variables were detected in the terraform module:")
-	util.Debugf(terragruntOptions.Logger, "%v", variables)
+	terragruntOptions.Logger.Debugf("The following variables were detected in the terraform module:")
+	terragruntOptions.Logger.Debugf("%v", variables)
 
 	fileContents, err := terragruntDebugFileContents(terragruntOptions, terragruntConfig, variables)
 	if err != nil {
@@ -45,9 +45,9 @@ func writeTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terr
 		return errors.WithStackTrace(err)
 	}
 
-	terragruntOptions.Logger.Printf("Variables passed to terraform are located in \"%s\"", fileName)
-	terragruntOptions.Logger.Printf("Run this command to replicate how terraform was invoked:")
-	terragruntOptions.Logger.Printf(
+	terragruntOptions.Logger.Debugf("Variables passed to terraform are located in \"%s\"", fileName)
+	terragruntOptions.Logger.Debugf("Run this command to replicate how terraform was invoked:")
+	terragruntOptions.Logger.Debugf(
 		"\tterraform %s -var-file=\"%s\" \"%s\"",
 		strings.Join(terragruntOptions.TerraformCliArgs, " "),
 		fileName,
@@ -81,14 +81,12 @@ func terragruntDebugFileContents(
 		if !varIsInEnv && varIsDefined {
 			jsonValuesByKey[varName] = varValue
 		} else if varIsInEnv {
-			util.Debugf(
-				terragruntOptions.Logger,
+			terragruntOptions.Logger.Debugf(
 				"WARN: The variable %s was omitted from the debug file because the env var %s is already set.",
 				varName, nameAsEnvVar,
 			)
 		} else if !varIsDefined {
-			util.Debugf(
-				terragruntOptions.Logger,
+			terragruntOptions.Logger.Debugf(
 				"WARN: The variable %s was omitted because it is not defined in the terraform module.",
 				varName,
 			)

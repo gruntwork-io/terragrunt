@@ -342,7 +342,7 @@ func containsTerragruntModule(path string, info os.FileInfo, terragruntOptions *
 
 // Read the Terragrunt config file from its default location
 func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*TerragruntConfig, error) {
-	terragruntOptions.Logger.Printf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
+	terragruntOptions.Logger.Debugf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
 	return ParseConfigFile(terragruntOptions.TerragruntConfigPath, terragruntOptions, nil)
 }
 
@@ -610,7 +610,7 @@ func mergeHooks(terragruntOptions *options.TerragruntOptions, childHooks []Hook,
 		if parentHookWithSameName != -1 {
 			// If the parent contains a hook with the same name as the child,
 			// then override the parent's hook with the child's.
-			terragruntOptions.Logger.Printf("hook '%v' from child overriding parent", child.Name)
+			terragruntOptions.Logger.Debugf("hook '%v' from child overriding parent", child.Name)
 			result[parentHookWithSameName] = child
 		} else {
 			// If the parent does not contain a hook with the same name as the child
@@ -649,7 +649,7 @@ func mergeExtraArgs(terragruntOptions *options.TerragruntOptions, childExtraArgs
 		if parentExtraArgsWithSameName != -1 {
 			// If the parent contains an extra_arguments with the same name as the child,
 			// then override the parent's extra_arguments with the child's.
-			terragruntOptions.Logger.Printf("extra_arguments '%v' from child overriding parent", child.Name)
+			terragruntOptions.Logger.Debugf("extra_arguments '%v' from child overriding parent", child.Name)
 			result[parentExtraArgsWithSameName] = child
 		} else {
 			// If the parent does not contain an extra_arguments with the same name as the child

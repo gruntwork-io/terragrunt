@@ -143,7 +143,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.TerraformCommand = util.FirstArg(opts.TerraformCliArgs)
 	opts.WorkingDir = filepath.ToSlash(workingDir)
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
-	opts.Logger = util.CreateLoggerWithWriter(errWriter, "")
+	opts.Logger = util.CreateLogEntryWithWriter(errWriter, "", debug)
 	opts.RunTerragrunt = RunTerragrunt
 	opts.Source = terraformSource
 	opts.SourceUpdate = sourceUpdate
@@ -217,7 +217,7 @@ func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 							if util.FileExists(file) {
 								out = append(out, fmt.Sprintf("-var-file=%s", file))
 							} else {
-								terragruntOptions.Logger.Printf("Skipping var-file %s as it does not exist", file)
+								terragruntOptions.Logger.Debugf("Skipping var-file %s as it does not exist", file)
 							}
 						}
 					}

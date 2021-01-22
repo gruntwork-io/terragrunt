@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"regexp"
 	"strings"
 	"time"
@@ -257,7 +257,7 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 func checkDeprecated(command string, terragruntOptions *options.TerragruntOptions) string {
 	newCommand, deprecated := DEPRECATED_COMMANDS[command]
 	if deprecated {
-		terragruntOptions.Logger.Printf("%v is deprecated; running %v instead.\n", command, newCommand)
+		terragruntOptions.Logger.Infof("%v is deprecated; running %v instead.\n", command, newCommand)
 		return newCommand
 	}
 	return command
@@ -304,7 +304,7 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	if terragruntConfig.Skip {
-		terragruntOptions.Logger.Printf("Skipping terragrunt module %s due to skip = true.",
+		terragruntOptions.Logger.Info("Skipping terragrunt module %s due to skip = true.",
 			terragruntOptions.TerragruntConfigPath)
 		return nil
 	}
@@ -355,7 +355,7 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 		b, err := json.MarshalIndent(group, "", "  ")
 		if err != nil {
-			updatedTerragruntOptions.Logger.Printf("JSON error marshalling terragrunt-info")
+			updatedTerragruntOptions.Logger.Errorf("JSON error marshalling terragrunt-info")
 			return err
 		}
 		fmt.Fprintf(updatedTerragruntOptions.Writer, "%s\n", b)
@@ -369,7 +369,7 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
 	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
 	for _, config := range terragruntConfig.GenerateConfigs {
-		if err := codegen.WriteToFile(updatedTerragruntOptions.Logger, updatedTerragruntOptions.WorkingDir, config); err != nil {
+		if err := codegen.WriteToFile(updatedTerragruntOptions, updatedTerragruntOptions.WorkingDir, config); err != nil {
 			return err
 		}
 	}
@@ -601,12 +601,12 @@ func shouldCopyLockFile(args []string) bool {
 
 // Terraform 0.14 now generates a lock file when you run `terraform init`.
 // If any such file exists, this function will copy the lock file to the destination folder
-func copyLockFile(sourceFolder string, destinationFolder string, logger *log.Logger) error {
+func copyLockFile(sourceFolder string, destinationFolder string, logger *log.Entry) error {
 	sourceLockFilePath := util.JoinPath(sourceFolder, util.TerraformLockFile)
 	destinationLockFilePath := util.JoinPath(destinationFolder, util.TerraformLockFile)
 
 	if util.FileExists(sourceLockFilePath) {
-		logger.Printf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
+		logger.Debugf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
 		return util.CopyFile(sourceLockFilePath, destinationLockFilePath)
 	}
 

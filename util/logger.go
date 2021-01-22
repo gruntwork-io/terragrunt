@@ -3,47 +3,55 @@ package util
 import (
 	"fmt"
 	"io"
-	"log"
 	"os"
-	"strings"
 
 	"github.com/fatih/color"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-// Create a logger with the given prefix
-func CreateLogger(prefix string) *log.Logger {
-	return CreateLoggerWithWriter(os.Stderr, prefix)
+// CreateLogger creates a logger. If debug is set, we use ErrorLevel to enable verbose output, otherwise - only errors are shown
+func CreateLogger(debug bool) *log.Logger {
+	logger := log.New()
+	if debug {
+		logger.SetLevel(log.DebugLevel)
+	} else {
+		logger.SetLevel(log.ErrorLevel)
+	}
+	return logger
+}
+
+// CreateLogEntry creates a logger entry with the given prefix field
+func CreateLogEntry(prefix string, debug bool) *log.Entry {
+	logger := CreateLogger(debug)
+	var fields log.Fields
+	if prefix != "" {
+		prefix = fmt.Sprintf("[%s]", prefix)
+		fields = log.Fields{"prefix": prefix}
+	} else {
+		fields = log.Fields{}
+	}
+	return logger.WithFields(fields)
 }
 
 // CreateLoggerWithWriter Create a logger around the given output stream and prefix
-func CreateLoggerWithWriter(writer io.Writer, prefix string) *log.Logger {
-	if prefix != "" {
-		prefix = fmt.Sprintf("[%s] ", prefix)
-	}
-	return log.New(writer, fmt.Sprintf("[terragrunt] %s", prefix), log.LstdFlags)
-}
-
-// MAINTAINER'S NOTE: This is a temporary solution for logging levels in terragrunt. This is not a permanent debug
-// logging solution.
-// Debugf will only print out terragrunt logs if the TG_LOG environment variable is set to DEBUG.
-func Debugf(logger *log.Logger, fmtString string, fmtArgs ...interface{}) {
-	if strings.ToLower(os.Getenv("TG_LOG")) == "debug" {
-		logger.Printf(fmtString, fmtArgs...)
-	}
+func CreateLogEntryWithWriter(writer io.Writer, prefix string, debug bool) *log.Entry {
+	logger := CreateLogEntry(prefix, debug)
+	logger.Logger.SetOutput(writer)
+	return logger
 }
 
 // ColorLogf
-func ColorLogf(logger *log.Logger, colorCode *color.Color, fmtString string, fmtArgs ...interface{}) {
+func ColorLogf(logger *log.Entry, colorCode *color.Color, fmtString string, fmtArgs ...interface{}) {
 	logOut := fmt.Sprintf(fmtString, fmtArgs...)
 
 	allowColor := terminal.IsTerminal(int(os.Stderr.Fd()))
 	if allowColor {
 		logOut = colorCode.SprintFunc()(logOut)
 	}
-	logger.Println(logOut)
+	logger.Errorf(logOut)
 }
 
 // GetDiagnosticsWriter returns a hcl2 parsing diagnostics emitter for the current terminal.
