@@ -582,6 +582,12 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 //
 // In any of these cases, terragrunt should attempt to copy the generated
 // `.terraform.lock.hcl`
+//
+// terraform init is not guaranteed to pull all checksums depending on platforms,
+// if you already have the provider requested in a cache, or if you are using a mirror.
+// There are lots of details at [hashicorp/terraform#27264](https://github.com/hashicorp/terraform/issues/27264#issuecomment-743389837)
+// The `providers lock` sub command enables you to ensure that the lock file is
+// fully populated.
 func shouldCopyLockFile(args []string) bool {
 	if util.FirstArg(args) == CMD_INIT {
 		return true
