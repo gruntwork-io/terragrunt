@@ -218,9 +218,9 @@ func (module *runningModule) waitForDependencies() error {
 
 		if doneDependency.Err != nil {
 			if module.Module.TerragruntOptions.IgnoreDependencyErrors {
-				module.Module.TerragruntOptions.Logger.Debugf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too. However, because of --terragrunt-ignore-dependency-errors, module %s will run anyway.", doneDependency.Module.Path, module.Module.Path, module.Module.Path, module.Module.Path)
+				module.Module.TerragruntOptions.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too. However, because of --terragrunt-ignore-dependency-errors, module %s will run anyway.", doneDependency.Module.Path, module.Module.Path, module.Module.Path, module.Module.Path)
 			} else {
-				module.Module.TerragruntOptions.Logger.Debugf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too.", doneDependency.Module.Path, module.Module.Path, module.Module.Path)
+				module.Module.TerragruntOptions.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too.", doneDependency.Module.Path, module.Module.Path, module.Module.Path)
 				return DependencyFinishedWithError{module.Module, doneDependency.Module, doneDependency.Err}
 			}
 		} else {

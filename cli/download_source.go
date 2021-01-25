@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"io/ioutil"
-	log "github.com/sirupsen/logrus"
 	"net/url"
 	"os"
 	"regexp"
@@ -16,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-getter"
+	"github.com/sirupsen/logrus"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 )
 
@@ -185,7 +185,7 @@ func writeVersionFile(terraformSource *TerraformSource) error {
 // 1. Always download source URLs pointing to local file paths.
 // 2. Only download source URLs pointing to remote paths if /T/W/H doesn't already exist or, if it does exist, if the
 //    version number in /T/W/H/.terragrunt-source-version doesn't match the current version.
-func ProcessTerraformSource(source string, downloadDir string, workingDir string, logger *log.Entry) (*TerraformSource, error) {
+func ProcessTerraformSource(source string, downloadDir string, workingDir string, logger *logrus.Entry) (*TerraformSource, error) {
 
 	canonicalWorkingDir, err := util.CanonicalPath(workingDir, "")
 	if err != nil {
@@ -279,7 +279,7 @@ func getForcedGetter(sourceUrl string) (string, string) {
 // (//), which typically represents the root of a modules repo (e.g. github.com/foo/infrastructure-modules) and the
 // path is everything after the double slash. If there is no double-slash in the URL, the root repo is the entire
 // sourceUrl and the path is an empty string.
-func splitSourceUrl(sourceUrl *url.URL, logger *log.Entry) (*url.URL, string, error) {
+func splitSourceUrl(sourceUrl *url.URL, logger *logrus.Entry) (*url.URL, string, error) {
 	pathSplitOnDoubleSlash := strings.SplitN(sourceUrl.Path, "//", 2)
 
 	if len(pathSplitOnDoubleSlash) > 1 {

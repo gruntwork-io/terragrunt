@@ -216,7 +216,6 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 	}
 
 	if !terraformStateConfigEqual(existingBackend.Config, terraformConfig) {
-		terragruntOptions.Logger.Info("Backend config has changed (Set environment variable TG_LOG=debug to have terragrunt log the changes)")
 		terragruntOptions.Logger.Debugf("Changed from %s to %s", existingBackend.Config, config)
 		return false
 	}

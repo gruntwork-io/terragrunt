@@ -123,6 +123,16 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 
 	debug := parseBooleanArg(args, OPT_TERRAGRUNT_DEBUG, false)
 
+	// Those correspond to logrus levels
+	logLevel, err := parseStringArg(args, OPT_TERRAGRUNT_LOGLEVEL, options.DEFAULT_LOG_LEVEL)
+	if err != nil {
+		return nil, err
+	}
+
+	if debug {
+		logLevel = "debug"
+	}
+
 	opts, err := options.NewTerragruntOptions(filepath.ToSlash(terragruntConfigPath))
 	if err != nil {
 		return nil, err
@@ -143,7 +153,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.TerraformCommand = util.FirstArg(opts.TerraformCliArgs)
 	opts.WorkingDir = filepath.ToSlash(workingDir)
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
-	opts.Logger = util.CreateLogEntryWithWriter(errWriter, "", debug)
+	opts.Logger = util.CreateLogEntryWithWriter(errWriter, "", logLevel)
 	opts.RunTerragrunt = RunTerragrunt
 	opts.Source = terraformSource
 	opts.SourceUpdate = sourceUpdate
@@ -169,7 +179,6 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.Parallelism = parallelism
 	opts.Check = parseBooleanArg(args, OPT_TERRAGRUNT_CHECK, os.Getenv("TERRAGRUNT_CHECK") == "true")
 	opts.HclFile = filepath.ToSlash(terragruntHclFilePath)
-	opts.Debug = debug
 	opts.AwsProviderPatchOverrides = awsProviderPatchOverrides
 
 	return opts, nil
@@ -290,11 +299,24 @@ func filterTerragruntArgs(args []string) []string {
 	return out
 }
 
+// isDeprecatedOption checks if provided option is deprecated, and returns its substitution
+// TODO: ideally, it would be better to make this return (string, err)
+func isDeprecatedOption(optionName string) string {
+	newOption, deprecated := DEPRECATED_ARGUMENTS[optionName]
+	if deprecated {
+		logger := util.CreateLogEntry("", "debug")
+		logger.Warnf("Command line option %s is deprecated, please consider using %s", optionName, newOption)
+		return newOption
+	}
+	return optionName
+}
+
 // Find a boolean argument (e.g. --foo) of the given name in the given list of arguments. If it's present, return true.
 // If it isn't, return defaultValue.
 func parseBooleanArg(args []string, argName string, defaultValue bool) bool {
 	for _, arg := range args {
 		if arg == fmt.Sprintf("--%s", argName) {
+			argName = isDeprecatedOption(argName)
 			return true
 		}
 	}
@@ -306,6 +328,7 @@ func parseBooleanArg(args []string, argName string, defaultValue bool) bool {
 func parseStringArg(args []string, argName string, defaultValue string) (string, error) {
 	for i, arg := range args {
 		if arg == fmt.Sprintf("--%s", argName) {
+			argName = isDeprecatedOption(argName)
 			if (i + 1) < len(args) {
 				return args[i+1], nil
 			} else {
@@ -321,6 +344,7 @@ func parseStringArg(args []string, argName string, defaultValue string) (string,
 func parseIntArg(args []string, argName string, envValue string, envProvided bool, defaultValue int) (int, error) {
 	for i, arg := range args {
 		if arg == fmt.Sprintf("--%s", argName) {
+			argName = isDeprecatedOption(argName)
 			if (i + 1) < len(args) {
 				return strconv.Atoi(args[i+1])
 			} else {
@@ -342,6 +366,7 @@ func parseMultiStringArg(args []string, argName string, defaultValue []string) (
 
 	for i, arg := range args {
 		if arg == fmt.Sprintf("--%s", argName) {
+			argName = isDeprecatedOption(argName)
 			if (i + 1) < len(args) {
 				stringArgs = append(stringArgs, args[i+1])
 			} else {

@@ -30,7 +30,7 @@ func checkForErrorsAndExit(err error) {
 	if err == nil {
 		os.Exit(0)
 	} else {
-		logger := util.CreateLogEntry("", true)
+		logger := util.CreateLogEntry("", "debug")
 		if os.Getenv("TERRAGRUNT_DEBUG") != "" {
 			logger.Errorln(errors.PrintErrorWithStackTrace(err))
 		} else {

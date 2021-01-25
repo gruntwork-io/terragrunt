@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	log "github.com/sirupsen/logrus"
+	
 	"regexp"
 	"strings"
 	"time"
@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/mattn/go-zglob"
 	"github.com/urfave/cli"
+	"github.com/sirupsen/logrus"
 )
 
 const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
@@ -44,6 +45,7 @@ const OPT_TERRAGRUNT_CHECK = "terragrunt-check"
 const OPT_TERRAGRUNT_HCLFMT_FILE = "terragrunt-hclfmt-file"
 const OPT_TERRAGRUNT_DEBUG = "terragrunt-debug"
 const OPT_TERRAGRUNT_OVERRIDE_ATTR = "terragrunt-override-attr"
+const OPT_TERRAGRUNT_LOGLEVEL="terragrunt-log-level"
 
 var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{
 	OPT_NON_INTERACTIVE,
@@ -125,6 +127,11 @@ var TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT = []string{
 	"version",
 	"terragrunt-info",
 	"graph-dependencies",
+}
+
+// DEPRECATED_ARGUMENTS is a map of deprecated arguments to the argument that replace them.
+var DEPRECATED_ARGUMENTS = map[string]string{
+	OPT_TERRAGRUNT_DEBUG: OPT_TERRAGRUNT_LOGLEVEL,
 }
 
 // Struct is output as JSON by 'terragrunt-info':
@@ -245,6 +252,8 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 	if err != nil {
 		return err
 	}
+
+	terragruntOptions.Logger.Debugf("Terragrunt Version: %s", cliContext.App.Version)
 
 	shell.PrepareConsole(terragruntOptions)
 
@@ -601,7 +610,7 @@ func shouldCopyLockFile(args []string) bool {
 
 // Terraform 0.14 now generates a lock file when you run `terraform init`.
 // If any such file exists, this function will copy the lock file to the destination folder
-func copyLockFile(sourceFolder string, destinationFolder string, logger *log.Entry) error {
+func copyLockFile(sourceFolder string, destinationFolder string, logger *logrus.Entry) error {
 	sourceLockFilePath := util.JoinPath(sourceFolder, util.TerraformLockFile)
 	destinationLockFilePath := util.JoinPath(destinationFolder, util.TerraformLockFile)
 

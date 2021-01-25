@@ -112,7 +112,6 @@ func (remoteState *RemoteState) differsFrom(existingBackend *TerraformBackend, t
 	}
 
 	if !terraformStateConfigEqual(existingBackend.Config, remoteState.Config) {
-		terragruntOptions.Logger.Infof("Backend config has changed (Set environment variable TG_LOG=debug to have terragrunt log the changes)")
 		terragruntOptions.Logger.Debugf("Changed from %s to %s", existingBackend.Config, remoteState.Config)
 		return true
 	}

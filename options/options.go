@@ -11,7 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
@@ -27,6 +27,9 @@ const DEFAULT_PARALLELISM = math.MaxInt32
 
 // TERRAFORM_DEFAULT_PATH just takes terraform from the path
 const TERRAFORM_DEFAULT_PATH = "terraform"
+
+// DEFAULT_LOG_LEVEL defines default log level for Terragrunt
+const DEFAULT_LOG_LEVEL = "warn"
 
 const TerragruntCacheDir = ".terragrunt-cache"
 
@@ -71,7 +74,10 @@ type TerragruntOptions struct {
 	WorkingDir string
 
 	// Basic log entry
-	Logger *log.Entry
+	Logger *logrus.Entry
+
+	// Log level
+	LogLevel string
 
 	// Environment variables at runtime
 	Env map[string]string
@@ -159,7 +165,7 @@ type TerragruntOptions struct {
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage
 func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, error) {
-	logger := util.CreateLogEntry("", false)
+	logger := util.CreateLogEntry("", DEFAULT_LOG_LEVEL)
 
 	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(terragruntConfigPath)
 	if err != nil {
@@ -176,6 +182,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		TerraformCliArgs:            []string{},
 		WorkingDir:                  workingDir,
 		Logger:                      logger,
+		LogLevel:                    DEFAULT_LOG_LEVEL,
 		Env:                         map[string]string{},
 		Source:                      "",
 		SourceUpdate:                false,
@@ -219,7 +226,7 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string) (*TerragruntOption
 	opts, err := NewTerragruntOptions(terragruntConfigPath)
 
 	if err != nil {
-		logger := util.CreateLogEntry("", false)
+		logger := util.CreateLogEntry("", "warn")
 		logger.Printf("error: %v\n", errors.WithStackTrace(err))
 		return nil, err
 	}
@@ -248,7 +255,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		NonInteractive:              terragruntOptions.NonInteractive,
 		TerraformCliArgs:            util.CloneStringList(terragruntOptions.TerraformCliArgs),
 		WorkingDir:                  workingDir,
-		Logger:                      util.CreateLogEntryWithWriter(terragruntOptions.ErrWriter, workingDir, terragruntOptions.Debug),
+		Logger:                      util.CreateLogEntryWithWriter(terragruntOptions.ErrWriter, workingDir, terragruntOptions.LogLevel),
 		Env:                         util.CloneStringMap(terragruntOptions.Env),
 		Source:                      terragruntOptions.Source,
 		SourceUpdate:                terragruntOptions.SourceUpdate,
