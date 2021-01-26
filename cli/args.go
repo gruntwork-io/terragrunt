@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
 	"github.com/urfave/cli"
+	"github.com/sirupsen/logrus"
 )
 
 // Parse command line options that are passed in for Terragrunt
@@ -121,16 +122,26 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 
 	strictInclude := parseBooleanArg(args, OPT_TERRAGRUNT_STRICT_INCLUDE, false)
 
-	debug := parseBooleanArg(args, OPT_TERRAGRUNT_DEBUG, false)
-
 	// Those correspond to logrus levels
-	logLevel, err := parseStringArg(args, OPT_TERRAGRUNT_LOGLEVEL, options.DEFAULT_LOG_LEVEL)
+	logLevel, err := parseStringArg(args, OPT_TERRAGRUNT_LOGLEVEL, "warn")
 	if err != nil {
 		return nil, err
-	}
+	}	
 
+	// We are keeping debug flag for compatibility reasons, but users should migrate to `--terragrunt-log-level`
+	debug := parseBooleanArg(args, OPT_TERRAGRUNT_DEBUG, false)
 	if debug {
 		logLevel = "debug"
+	}
+
+	// Final loggingLevel, based on logLevel and debug above
+	loggingLevel, err := logrus.ParseLevel(logLevel)
+	if err != nil {
+		util.LogEntry.Errorf(err.Error())
+		return nil, err
+	} else {
+		util.LogEntry.Debugf("Updating logging level to %s", loggingLevel)
+		util.LogEntry.Logger.SetLevel(loggingLevel)
 	}
 
 	opts, err := options.NewTerragruntOptions(filepath.ToSlash(terragruntConfigPath))
@@ -153,7 +164,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.TerraformCommand = util.FirstArg(opts.TerraformCliArgs)
 	opts.WorkingDir = filepath.ToSlash(workingDir)
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
-	opts.Logger = util.CreateLogEntryWithWriter(errWriter, "", logLevel)
+	opts.Logger = util.LogEntry
 	opts.RunTerragrunt = RunTerragrunt
 	opts.Source = terraformSource
 	opts.SourceUpdate = sourceUpdate
@@ -304,8 +315,7 @@ func filterTerragruntArgs(args []string) []string {
 func isDeprecatedOption(optionName string) string {
 	newOption, deprecated := DEPRECATED_ARGUMENTS[optionName]
 	if deprecated {
-		logger := util.CreateLogEntry("", "debug")
-		logger.Warnf("Command line option %s is deprecated, please consider using %s", optionName, newOption)
+		util.LogEntry.Warnf("Command line option %s is deprecated, please consider using %s", optionName, newOption)
 		return newOption
 	}
 	return optionName

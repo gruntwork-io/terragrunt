@@ -12,20 +12,27 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+const DEFAULT_LOG_LEVEL = logrus.WarnLevel
+
+// LogEntry is a global logentry for the application
+// The idea is simple: we start with global logger and DEFAULT_LOG_LEVEL, and update it's configuration if needed
+// Ideally global objects passed around are considered an antipattern, but here we can tolerate it till we migrate to 
+// proper cli library (see https://github.com/gruntwork-io/terragrunt/blob/master/cli/args.go#L29)
+var LogEntry *logrus.Entry
+
+func init() {
+	LogEntry = CreateLogEntry("", DEFAULT_LOG_LEVEL)
+}
+
 // CreateLogger creates a logger. If debug is set, we use ErrorLevel to enable verbose output, otherwise - only errors are shown
-func CreateLogger(lvl string) *logrus.Logger {
+func CreateLogger(lvl logrus.Level) *logrus.Logger {
 	logger := logrus.New()
-	level, err := logrus.ParseLevel(lvl)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-	logger.SetLevel(level)
+	logger.SetLevel(lvl)
 	return logger
 }
 
 // CreateLogEntry creates a logger entry with the given prefix field
-func CreateLogEntry(prefix string, level string) *logrus.Entry {
+func CreateLogEntry(prefix string, level logrus.Level) *logrus.Entry {
 	logger := CreateLogger(level)
 	var fields logrus.Fields
 	if prefix != "" {
@@ -37,7 +44,7 @@ func CreateLogEntry(prefix string, level string) *logrus.Entry {
 }
 
 // CreateLoggerWithWriter Create a logger around the given output stream and prefix
-func CreateLogEntryWithWriter(writer io.Writer, prefix string, level string) *logrus.Entry {
+func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Level) *logrus.Entry {
 	if prefix != "" {
 		prefix = fmt.Sprintf("[%s] ", prefix)
 	} else {

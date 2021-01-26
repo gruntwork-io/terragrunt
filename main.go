@@ -3,12 +3,10 @@ package main
 import (
 	"os"
 
-	"github.com/fatih/color"
-
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/shell"
 )
 
 // This variable is set at build time using -ldflags parameters. For more info, see:
@@ -30,18 +28,17 @@ func checkForErrorsAndExit(err error) {
 	if err == nil {
 		os.Exit(0)
 	} else {
-		logger := util.CreateLogEntry("", "debug")
 		if os.Getenv("TERRAGRUNT_DEBUG") != "" {
-			logger.Errorln(errors.PrintErrorWithStackTrace(err))
+			util.LogEntry.Debugf(errors.PrintErrorWithStackTrace(err))
 		} else {
 			// Log error in red so that it is highlighted
-			util.ColorLogf(logger, color.New(color.FgRed), err.Error())
+			util.LogEntry.Errorf(err.Error())
 		}
 		// exit with the underlying error code
 		exitCode, exitCodeErr := shell.GetExitCode(err)
 		if exitCodeErr != nil {
 			exitCode = 1
-			logger.Errorf("Unable to determine underlying exit code, so Terragrunt will exit with error code 1")
+			util.LogEntry.Errorf("Unable to determine underlying exit code, so Terragrunt will exit with error code 1")
 		}
 		os.Exit(exitCode)
 	}

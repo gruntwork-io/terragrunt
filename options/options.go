@@ -29,7 +29,7 @@ const DEFAULT_PARALLELISM = math.MaxInt32
 const TERRAFORM_DEFAULT_PATH = "terraform"
 
 // DEFAULT_LOG_LEVEL defines default log level for Terragrunt
-const DEFAULT_LOG_LEVEL = "warn"
+const DEFAULT_LOG_LEVEL = util.DEFAULT_LOG_LEVEL
 
 const TerragruntCacheDir = ".terragrunt-cache"
 
@@ -77,7 +77,7 @@ type TerragruntOptions struct {
 	Logger *logrus.Entry
 
 	// Log level
-	LogLevel string
+	LogLevel logrus.Level
 
 	// Environment variables at runtime
 	Env map[string]string
@@ -226,7 +226,7 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string) (*TerragruntOption
 	opts, err := NewTerragruntOptions(terragruntConfigPath)
 
 	if err != nil {
-		logger := util.CreateLogEntry("", "warn")
+		logger := util.CreateLogEntry("", DEFAULT_LOG_LEVEL)
 		logger.Printf("error: %v\n", errors.WithStackTrace(err))
 		return nil, err
 	}

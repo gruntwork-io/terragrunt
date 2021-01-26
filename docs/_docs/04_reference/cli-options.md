@@ -502,6 +502,16 @@ When passed in, limit the number of modules that are run concurrently to this nu
 
 **CLI Arg**: `--terragrunt-debug`
 
+**WARNING: Outdated**. Consider using `--terragrunt-log` instead
+
+When passed in, run Terragrunt in debug mode where the vars that are passed into Terragrunt are recorded as a
+tfvars.json file.
+
+
+### terragrunt-log
+
+**CLI Arg**: `--terragrunt-log`
+
 When passed in, run Terragrunt in debug mode where the vars that are passed into Terragrunt are recorded as a
 tfvars.json file.
 
