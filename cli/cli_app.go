@@ -80,6 +80,8 @@ const CMD_VALIDATE_ALL = "validate-all"
 
 const CMD_INIT = "init"
 const CMD_INIT_FROM_MODULE = "init-from-module"
+const CMD_PROVIDERS = "providers"
+const CMD_LOCK = "lock"
 const CMD_TERRAGRUNT_INFO = "terragrunt-info"
 const CMD_TERRAGRUNT_GRAPH_DEPENDENCIES = "graph-dependencies"
 const CMD_TERRAGRUNT_READ_CONFIG = "terragrunt-read-config"
@@ -557,7 +559,7 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 		runTerraformError := runTerraformWithRetry(terragruntOptions)
 
 		var lockFileError error
-		if util.FirstArg(terragruntOptions.TerraformCliArgs) == CMD_INIT {
+		if shouldCopyLockFile(terragruntOptions.TerraformCliArgs) {
 			// Copy the lock file from the Terragrunt working dir (e.g., .terragrunt-cache/xxx/<some-module>) to the
 			// user's working dir (e.g., /live/stage/vpc). That way, the lock file will end up right next to the user's
 			// terragrunt.hcl and can be checked into version control. Note that in the past, Terragrunt allowed the
@@ -570,6 +572,31 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 
 		return errors.NewMultiError(runTerraformError, lockFileError)
 	})
+}
+
+// Terraform 0.14 now manages a lock file for providers. This can be updated
+// in three ways:
+// * `terraform init` in a module where no `.terraform.lock.hcl` exists
+// * `terraform init -upgrade`
+// * `terraform providers lock`
+//
+// In any of these cases, terragrunt should attempt to copy the generated
+// `.terraform.lock.hcl`
+//
+// terraform init is not guaranteed to pull all checksums depending on platforms,
+// if you already have the provider requested in a cache, or if you are using a mirror.
+// There are lots of details at [hashicorp/terraform#27264](https://github.com/hashicorp/terraform/issues/27264#issuecomment-743389837)
+// The `providers lock` sub command enables you to ensure that the lock file is
+// fully populated.
+func shouldCopyLockFile(args []string) bool {
+	if util.FirstArg(args) == CMD_INIT {
+		return true
+	}
+
+	if util.FirstArg(args) == CMD_PROVIDERS && util.SecondArg(args) == CMD_LOCK {
+		return true
+	}
+	return false
 }
 
 // Terraform 0.14 now generates a lock file when you run `terraform init`.
