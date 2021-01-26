@@ -313,7 +313,7 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	if terragruntConfig.Skip {
-		terragruntOptions.Logger.Info("Skipping terragrunt module %s due to skip = true.",
+		terragruntOptions.Logger.Infof("Skipping terragrunt module %s due to skip = true.",
 			terragruntOptions.TerragruntConfigPath)
 		return nil
 	}
