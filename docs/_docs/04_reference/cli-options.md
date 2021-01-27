@@ -508,7 +508,7 @@ When passed in, run Terragrunt in debug mode where the vars that are passed into
 tfvars.json file.
 
 
-### terragrunt-log
+### terragrunt-log-level
 
 **CLI Arg**: `--terragrunt-log-level`<br/>
 **Requires an argument**: `--terragrunt-log-level <LOG_LEVEL>`
