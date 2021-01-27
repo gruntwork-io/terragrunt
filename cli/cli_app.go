@@ -253,8 +253,6 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 		return err
 	}
 
-	terragruntOptions.Logger.Debugf("Terragrunt Version: %s", cliContext.App.Version)
-
 	shell.PrepareConsole(terragruntOptions)
 
 	givenCommand := cliContext.Args().First()

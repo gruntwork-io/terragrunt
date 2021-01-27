@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/fatih/color"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/sirupsen/logrus"
@@ -14,14 +13,16 @@ import (
 
 const DEFAULT_LOG_LEVEL = logrus.WarnLevel
 
-// LogEntry is a global logentry for the application
-// The idea is simple: we start with global logger and DEFAULT_LOG_LEVEL, and update it's configuration if needed
-// Ideally global objects passed around are considered an antipattern, but here we can tolerate it till we migrate to 
-// proper cli library (see https://github.com/gruntwork-io/terragrunt/blob/master/cli/args.go#L29)
-var LogEntry *logrus.Entry
+// GlobalFallbackLogEntry is a global fallback logentry for the application
+// Should be used in cases when more specific logger can't be created (like in the very beginning, when we have not yet
+// parsed command line arguments).
+//
+// This might go away once we migrate toproper cli library 
+// (see https://github.com/gruntwork-io/terragrunt/blob/master/cli/args.go#L29)
+var GlobalFallbackLogEntry *logrus.Entry
 
 func init() {
-	LogEntry = CreateLogEntry("", DEFAULT_LOG_LEVEL)
+	GlobalFallbackLogEntry = CreateLogEntry("", DEFAULT_LOG_LEVEL)
 }
 
 // CreateLogger creates a logger. If debug is set, we use ErrorLevel to enable verbose output, otherwise - only errors are shown
@@ -53,17 +54,6 @@ func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Leve
 	logger := CreateLogEntry(prefix, level)
 	logger.Logger.SetOutput(writer)
 	return logger
-}
-
-// ColorLogf
-func ColorLogf(logger *logrus.Entry, colorCode *color.Color, fmtString string, fmtArgs ...interface{}) {
-	logOut := fmt.Sprintf(fmtString, fmtArgs...)
-
-	allowColor := terminal.IsTerminal(int(os.Stderr.Fd()))
-	if allowColor {
-		logOut = colorCode.SprintFunc()(logOut)
-	}
-	logger.Errorf(logOut)
 }
 
 // GetDiagnosticsWriter returns a hcl2 parsing diagnostics emitter for the current terminal.

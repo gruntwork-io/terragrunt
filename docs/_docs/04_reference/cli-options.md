@@ -502,7 +502,7 @@ When passed in, limit the number of modules that are run concurrently to this nu
 
 **CLI Arg**: `--terragrunt-debug`
 
-**WARNING: Outdated**. Consider using `--terragrunt-log` instead
+**WARNING: Deprecated**. Use `--terragrunt-log-level` instead
 
 When passed in, run Terragrunt in debug mode where the vars that are passed into Terragrunt are recorded as a
 tfvars.json file.
@@ -510,10 +510,18 @@ tfvars.json file.
 
 ### terragrunt-log
 
-**CLI Arg**: `--terragrunt-log`
+**CLI Arg**: `--terragrunt-log-level`<br/>
+**Requires an argument**: `--terragrunt-log-level <LOG_LEVEL>`
 
-When passed in, run Terragrunt in debug mode where the vars that are passed into Terragrunt are recorded as a
-tfvars.json file.
+When passed it, sets logging level for terragrunt. All supported levels are:
+
+* panic
+* fatal
+* error
+* warn (this is the default)
+* info
+* debug
+* trace
 
 
 

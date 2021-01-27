@@ -123,7 +123,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	strictInclude := parseBooleanArg(args, OPT_TERRAGRUNT_STRICT_INCLUDE, false)
 
 	// Those correspond to logrus levels
-	logLevel, err := parseStringArg(args, OPT_TERRAGRUNT_LOGLEVEL, "warn")
+	logLevel, err := parseStringArg(args, OPT_TERRAGRUNT_LOGLEVEL, logrus.WarnLevel.String())
 	if err != nil {
 		return nil, err
 	}	
@@ -131,17 +131,14 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	// We are keeping debug flag for compatibility reasons, but users should migrate to `--terragrunt-log-level`
 	debug := parseBooleanArg(args, OPT_TERRAGRUNT_DEBUG, false)
 	if debug {
-		logLevel = "debug"
+		logLevel = logrus.DebugLevel.String()
 	}
 
 	// Final loggingLevel, based on logLevel and debug above
 	loggingLevel, err := logrus.ParseLevel(logLevel)
 	if err != nil {
-		util.LogEntry.Errorf(err.Error())
+		util.GlobalFallbackLogEntry.Errorf(err.Error())
 		return nil, err
-	} else {
-		util.LogEntry.Debugf("Updating logging level to %s", loggingLevel)
-		util.LogEntry.Logger.SetLevel(loggingLevel)
 	}
 
 	opts, err := options.NewTerragruntOptions(filepath.ToSlash(terragruntConfigPath))
@@ -164,7 +161,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.TerraformCommand = util.FirstArg(opts.TerraformCliArgs)
 	opts.WorkingDir = filepath.ToSlash(workingDir)
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
-	opts.Logger = util.LogEntry
+	opts.Logger = util.CreateLogEntry("", loggingLevel)
 	opts.RunTerragrunt = RunTerragrunt
 	opts.Source = terraformSource
 	opts.SourceUpdate = sourceUpdate
@@ -310,15 +307,14 @@ func filterTerragruntArgs(args []string) []string {
 	return out
 }
 
-// isDeprecatedOption checks if provided option is deprecated, and returns its substitution
-// TODO: ideally, it would be better to make this return (string, err)
-func isDeprecatedOption(optionName string) string {
+// isDeprecatedOption checks if provided option is deprecated, and returns its substitution with the check
+// if option is not deprecated - we are returning same value
+func isDeprecatedOption(optionName string) (string, bool) {
 	newOption, deprecated := DEPRECATED_ARGUMENTS[optionName]
 	if deprecated {
-		util.LogEntry.Warnf("Command line option %s is deprecated, please consider using %s", optionName, newOption)
-		return newOption
+		return newOption, true
 	}
-	return optionName
+	return optionName, false
 }
 
 // Find a boolean argument (e.g. --foo) of the given name in the given list of arguments. If it's present, return true.
@@ -326,7 +322,10 @@ func isDeprecatedOption(optionName string) string {
 func parseBooleanArg(args []string, argName string, defaultValue bool) bool {
 	for _, arg := range args {
 		if arg == fmt.Sprintf("--%s", argName) {
-			argName = isDeprecatedOption(argName)
+			newOption, deprecated := isDeprecatedOption(argName)
+			if deprecated {
+				util.GlobalFallbackLogEntry.Warnf("Command line option %s is deprecated, please consider using %s", argName, newOption)
+			}
 			return true
 		}
 	}
@@ -338,7 +337,10 @@ func parseBooleanArg(args []string, argName string, defaultValue bool) bool {
 func parseStringArg(args []string, argName string, defaultValue string) (string, error) {
 	for i, arg := range args {
 		if arg == fmt.Sprintf("--%s", argName) {
-			argName = isDeprecatedOption(argName)
+			newOption, deprecated := isDeprecatedOption(argName)
+			if deprecated {
+				util.GlobalFallbackLogEntry.Warnf("Command line option %s is deprecated, please consider using %s", argName, newOption)
+			}
 			if (i + 1) < len(args) {
 				return args[i+1], nil
 			} else {
@@ -354,7 +356,10 @@ func parseStringArg(args []string, argName string, defaultValue string) (string,
 func parseIntArg(args []string, argName string, envValue string, envProvided bool, defaultValue int) (int, error) {
 	for i, arg := range args {
 		if arg == fmt.Sprintf("--%s", argName) {
-			argName = isDeprecatedOption(argName)
+			newOption, deprecated := isDeprecatedOption(argName)
+			if deprecated {
+				util.GlobalFallbackLogEntry.Warnf("Command line option %s is deprecated, please consider using %s", argName, newOption)
+			}
 			if (i + 1) < len(args) {
 				return strconv.Atoi(args[i+1])
 			} else {
@@ -376,7 +381,10 @@ func parseMultiStringArg(args []string, argName string, defaultValue []string) (
 
 	for i, arg := range args {
 		if arg == fmt.Sprintf("--%s", argName) {
-			argName = isDeprecatedOption(argName)
+			newOption, deprecated := isDeprecatedOption(argName)
+			if deprecated {
+				util.GlobalFallbackLogEntry.Warnf("Command line option %s is deprecated, please consider using %s", argName, newOption)
+			}
 			if (i + 1) < len(args) {
 				stringArgs = append(stringArgs, args[i+1])
 			} else {
