@@ -5,8 +5,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // This variable is set at build time using -ldflags parameters. For more info, see:
@@ -34,7 +34,7 @@ func checkForErrorsAndExit(err error) {
 	} else {
 		util.GlobalFallbackLogEntry.Debugf(errors.PrintErrorWithStackTrace(err))
 		util.GlobalFallbackLogEntry.Errorf(err.Error())
-		
+
 		// exit with the underlying error code
 		exitCode, exitCodeErr := shell.GetExitCode(err)
 		if exitCodeErr != nil {
