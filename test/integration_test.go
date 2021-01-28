@@ -232,8 +232,7 @@ func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
 		t.Errorf("Did not expect to get error: %s", err.Error())
 	}
 
-	// `init` hook should execute only once (2 occurrences due to the echo and its output)
-	assert.Equal(t, 2, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
+	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
 	// With no source, `init-from-module` should not execute
 	assert.NotContains(t, output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE", "Hooks on init-from-module command executed when no source was specified")
 }
