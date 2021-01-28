@@ -39,9 +39,6 @@ func ParseTerragruntOptions(cliContext *cli.Context) (*options.TerragruntOptions
 // and look for the ones we need, but in the future, we should change to a different CLI library to avoid this
 // limitation.
 func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, writer, errWriter io.Writer) (*options.TerragruntOptions, error) {
-
-	// We need to set proper writer early on
-	util.GlobalFallbackLogEntry.Logger.SetOutput(errWriter)
 	defaultWorkingDir := os.Getenv("TERRAGRUNT_WORKING_DIR")
 	if defaultWorkingDir == "" {
 		currentDir, err := os.Getwd()
