@@ -17,7 +17,7 @@ const DEFAULT_LOG_LEVEL = logrus.WarnLevel
 // Should be used in cases when more specific logger can't be created (like in the very beginning, when we have not yet
 // parsed command line arguments).
 //
-// This might go away once we migrate toproper cli library 
+// This might go away once we migrate toproper cli library
 // (see https://github.com/gruntwork-io/terragrunt/blob/master/cli/args.go#L29)
 var GlobalFallbackLogEntry *logrus.Entry
 

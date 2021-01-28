@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	
+
 	"regexp"
 	"strings"
 	"time"
@@ -19,8 +19,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/mattn/go-zglob"
-	"github.com/urfave/cli"
 	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
 )
 
 const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
@@ -45,7 +45,7 @@ const OPT_TERRAGRUNT_CHECK = "terragrunt-check"
 const OPT_TERRAGRUNT_HCLFMT_FILE = "terragrunt-hclfmt-file"
 const OPT_TERRAGRUNT_DEBUG = "terragrunt-debug"
 const OPT_TERRAGRUNT_OVERRIDE_ATTR = "terragrunt-override-attr"
-const OPT_TERRAGRUNT_LOGLEVEL="terragrunt-log-level"
+const OPT_TERRAGRUNT_LOGLEVEL = "terragrunt-log-level"
 
 var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{
 	OPT_NON_INTERACTIVE,

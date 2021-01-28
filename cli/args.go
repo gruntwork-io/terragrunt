@@ -14,8 +14,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
-	"github.com/urfave/cli"
 	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
 )
 
 // Parse command line options that are passed in for Terragrunt
@@ -126,7 +126,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	logLevel, err := parseStringArg(args, OPT_TERRAGRUNT_LOGLEVEL, logrus.WarnLevel.String())
 	if err != nil {
 		return nil, err
-	}	
+	}
 
 	// We are keeping debug flag for compatibility reasons, but users should migrate to `--terragrunt-log-level`
 	debug := parseBooleanArg(args, OPT_TERRAGRUNT_DEBUG, false)

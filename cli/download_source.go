@@ -15,8 +15,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-getter"
-	"github.com/sirupsen/logrus"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
+	"github.com/sirupsen/logrus"
 )
 
 // manifest for files coped from terragrunt module folder (i.e., the folder that contains the current terragrunt.hcl)
