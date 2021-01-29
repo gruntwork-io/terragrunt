@@ -17,6 +17,7 @@ import (
 type AwsSessionConfig struct {
 	Region                  string
 	CustomS3Endpoint        string
+	CustomStsEndpoint       string
 	Profile                 string
 	RoleArn                 string
 	CredsFilename           string
@@ -30,11 +31,18 @@ type AwsSessionConfig struct {
 // (optional), ensuring that the credentials are available
 func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*session.Session, error) {
 	defaultResolver := endpoints.DefaultResolver()
-	s3CustResolverFn := func(service, region string, optFns ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
+	customResolverFn := func(service, region string, optFns ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
 		if service == "s3" && config.CustomS3Endpoint != "" {
 			return endpoints.ResolvedEndpoint{
 				URL:           config.CustomS3Endpoint,
 				SigningRegion: config.Region,
+			}, nil
+		}
+
+		if service == "sts" && config.CustomStsEndpoint != "" {
+			return endpoints.ResolvedEndpoint{
+				URL:           config.CustomStsEndpoint,
+				SigningRegion: region,
 			}, nil
 		}
 
@@ -43,7 +51,7 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 
 	var awsConfig = aws.Config{
 		Region:                  aws.String(config.Region),
-		EndpointResolver:        endpoints.ResolverFunc(s3CustResolverFn),
+		EndpointResolver:        endpoints.ResolverFunc(customResolverFn),
 		S3ForcePathStyle:        aws.Bool(config.S3ForcePathStyle),
 		DisableComputeChecksums: aws.Bool(config.DisableComputeChecksums),
 	}
@@ -119,20 +127,9 @@ func AssumeIamRole(iamRoleArn string) (*sts.Credentials, error) {
 
 // Return the AWS caller identity associated with the current set of credentials
 func GetAWSCallerIdentity(terragruntOptions *options.TerragruntOptions) (sts.GetCallerIdentityOutput, error) {
-	defaultResolver := endpoints.DefaultResolver()
-	stsCustResolverFn := func(service, region string, optFns ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
-		if service == "sts" && terragruntOptions.StsEndpoint != "" {
-			return endpoints.ResolvedEndpoint{
-				URL:           terragruntOptions.StsEndpoint,
-				SigningRegion: region,
-			}, nil
-		}
-
-		return defaultResolver.EndpointFor(service, region, optFns...)
-	}
-	sess, err := session.NewSession(&aws.Config{
-		EndpointResolver: endpoints.ResolverFunc(stsCustResolverFn),
-	})
+	sess, err := CreateAwsSession(&AwsSessionConfig{
+		CustomStsEndpoint: terragruntOptions.StsEndpoint,
+	}, terragruntOptions)
 	if err != nil {
 		return sts.GetCallerIdentityOutput{}, errors.WithStackTrace(err)
 	}
