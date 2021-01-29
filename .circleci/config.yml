@@ -1,6 +1,6 @@
 defaults: &defaults
   docker:
-    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:tf14
+    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:tf14.4
 version: 2
 jobs:
   # We're running unit tests separately from integration tests - with no parallelization.
