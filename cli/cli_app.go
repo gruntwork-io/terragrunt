@@ -924,6 +924,7 @@ func runAll(terragruntOptions *options.TerragruntOptions) error {
 func planAll(terragruntOptions *options.TerragruntOptions) error {
 	opts := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	opts.TerraformCommand = "plan"
+	opts.OriginalTerraformCommand = "plan"
 	opts.TerraformCliArgs = append([]string{"plan"}, opts.TerraformCliArgs...)
 	logCommandAllDeprecationWarning(opts, "plan-all")
 	return runAll(opts)
@@ -934,6 +935,7 @@ func planAll(terragruntOptions *options.TerragruntOptions) error {
 func applyAll(terragruntOptions *options.TerragruntOptions) error {
 	opts := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	opts.TerraformCommand = "apply"
+	opts.OriginalTerraformCommand = "apply"
 	opts.TerraformCliArgs = append([]string{"apply"}, opts.TerraformCliArgs...)
 	logCommandAllDeprecationWarning(opts, "apply-all")
 	return runAll(opts)
@@ -944,6 +946,7 @@ func applyAll(terragruntOptions *options.TerragruntOptions) error {
 func destroyAll(terragruntOptions *options.TerragruntOptions) error {
 	opts := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	opts.TerraformCommand = "destroy"
+	opts.OriginalTerraformCommand = "destroy"
 	opts.TerraformCliArgs = append([]string{"destroy"}, opts.TerraformCliArgs...)
 	logCommandAllDeprecationWarning(opts, "destroy-all")
 	return runAll(opts)
@@ -954,6 +957,7 @@ func destroyAll(terragruntOptions *options.TerragruntOptions) error {
 func outputAll(terragruntOptions *options.TerragruntOptions) error {
 	opts := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	opts.TerraformCommand = "output"
+	opts.OriginalTerraformCommand = "output"
 	opts.TerraformCliArgs = append([]string{"output"}, opts.TerraformCliArgs...)
 	logCommandAllDeprecationWarning(opts, "output-all")
 	return runAll(opts)
@@ -963,6 +967,7 @@ func outputAll(terragruntOptions *options.TerragruntOptions) error {
 func validateAll(terragruntOptions *options.TerragruntOptions) error {
 	opts := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	opts.TerraformCommand = "validate"
+	opts.OriginalTerraformCommand = "validate"
 	opts.TerraformCliArgs = append([]string{"validate"}, opts.TerraformCliArgs...)
 	logCommandAllDeprecationWarning(opts, "validate-all")
 	return runAll(opts)
