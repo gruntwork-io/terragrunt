@@ -1400,7 +1400,7 @@ func TestAwsProviderPatch(t *testing.T) {
 	// Make sure the resulting terraform code is still valid
 	assert.NoError(
 		t,
-		runTerragruntCommand(t, fmt.Sprintf("terragrunt validate --terragrunt-working-dir %s", modulePath), os.Stdout, stderr),
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt validate --terragrunt-working-dir %s", modulePath), os.Stdout, os.Stderr),
 	)
 }
 
