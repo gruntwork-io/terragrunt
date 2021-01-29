@@ -58,7 +58,9 @@ jobs:
     <<: *defaults
     steps:
       - checkout
-      - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG"
+      # Build amd64 and 386 separately, as darwin/386 is no longer supported in later versions of go
+      - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG" --arch 'amd64'
+      - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG" --os 'linux windows' --arch 386
   deploy:
     <<: *defaults
     steps:
