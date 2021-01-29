@@ -34,19 +34,32 @@ func (stack *Stack) Graph(terragruntOptions *options.TerragruntOptions) {
 	WriteDot(terragruntOptions.Writer, terragruntOptions, stack.Modules)
 }
 
-// Plan execute plan in the given stack in their specified order.
-func (stack *Stack) Plan(terragruntOptions *options.TerragruntOptions) error {
-	stack.setTerraformCommand([]string{"plan"})
-
-	// We capture the out stream for each module
-	errorStreams := make([]bytes.Buffer, len(stack.Modules))
-	for n, module := range stack.Modules {
-		module.TerragruntOptions.ErrWriter = &errorStreams[n]
+func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
+	fullStackCmd := terragruntOptions.TerraformCliArgs
+	stackCmd := util.FirstArg(fullStackCmd)
+	// For apply and destroy, run in non-interactive mode to avoid comingling stdin across multiple concurrent runs.
+	switch stackCmd {
+	case "apply":
+		fullStackCmd = append(fullStackCmd, "-input=false", "-auto-approve")
+	case "destroy":
+		fullStackCmd = append(fullStackCmd, "-input=false", "-force")
 	}
-	defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
+
+	stack.setTerraformCommand(fullStackCmd)
+
+	if stackCmd == "plan" {
+		// We capture the out stream for each module
+		errorStreams := make([]bytes.Buffer, len(stack.Modules))
+		for n, module := range stack.Modules {
+			module.TerragruntOptions.ErrWriter = &errorStreams[n]
+		}
+		defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
+	}
 
 	if terragruntOptions.IgnoreDependencyOrder {
 		return RunModulesIgnoreOrder(stack.Modules, terragruntOptions.Parallelism)
+	} else if stackCmd == "destroy" {
+		return RunModulesReverseOrder(stack.Modules, terragruntOptions.Parallelism)
 	} else {
 		return RunModules(stack.Modules, terragruntOptions.Parallelism)
 	}
@@ -75,52 +88,6 @@ func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.Terragrunt
 	}
 }
 
-// Apply all the modules in the given stack, making sure to apply the dependencies of each module in the stack in the
-// proper order.
-func (stack *Stack) Apply(terragruntOptions *options.TerragruntOptions) error {
-	stack.setTerraformCommand([]string{"apply", "-input=false", "-auto-approve"})
-
-	if terragruntOptions.IgnoreDependencyOrder {
-		return RunModulesIgnoreOrder(stack.Modules, terragruntOptions.Parallelism)
-	} else {
-		return RunModules(stack.Modules, terragruntOptions.Parallelism)
-	}
-}
-
-// Destroy all the modules in the given stack, making sure to destroy the dependencies of each module in the stack in
-// the proper order.
-func (stack *Stack) Destroy(terragruntOptions *options.TerragruntOptions) error {
-	stack.setTerraformCommand([]string{"destroy", "-force", "-input=false"})
-
-	if terragruntOptions.IgnoreDependencyOrder {
-		return RunModulesIgnoreOrder(stack.Modules, terragruntOptions.Parallelism)
-	} else {
-		return RunModulesReverseOrder(stack.Modules, terragruntOptions.Parallelism)
-	}
-}
-
-// Output prints the outputs of all the modules in the given stack in their specified order.
-func (stack *Stack) Output(terragruntOptions *options.TerragruntOptions) error {
-	stack.setTerraformCommand([]string{"output"})
-
-	if terragruntOptions.IgnoreDependencyOrder {
-		return RunModulesIgnoreOrder(stack.Modules, terragruntOptions.Parallelism)
-	} else {
-		return RunModules(stack.Modules, terragruntOptions.Parallelism)
-	}
-}
-
-// Validate runs terraform validate on each module
-func (stack *Stack) Validate(terragruntOptions *options.TerragruntOptions) error {
-	stack.setTerraformCommand([]string{"validate"})
-
-	if terragruntOptions.IgnoreDependencyOrder {
-		return RunModulesIgnoreOrder(stack.Modules, terragruntOptions.Parallelism)
-	} else {
-		return RunModules(stack.Modules, terragruntOptions.Parallelism)
-	}
-}
-
 // Return an error if there is a dependency cycle in the modules of this stack.
 func (stack *Stack) CheckForCycles() error {
 	return CheckForCycles(stack.Modules)
@@ -140,10 +107,21 @@ func FindStackInSubfolders(terragruntOptions *options.TerragruntOptions) (*Stack
 
 // Set the command in the TerragruntOptions object of each module in this stack to the given command.
 func (stack *Stack) setTerraformCommand(command []string) {
+	tfCmd := util.FirstArg(command)
 	for _, module := range stack.Modules {
-		module.TerragruntOptions.TerraformCliArgs = append(command, module.TerragruntOptions.TerraformCliArgs...)
-		module.TerragruntOptions.OriginalTerraformCommand = util.FirstArg(command)
-		module.TerragruntOptions.TerraformCommand = util.FirstArg(command)
+		// Filter out the command arg that may have leaked into the TerraformCliArgs. This is a stopgap workaround for
+		// run-all commands where the terraform command is parsed into the TerraformCliArgs. This is necessary to
+		// support the legacy xxx-all commands.
+		tfCliArgs := []string{}
+		for _, arg := range module.TerragruntOptions.TerraformCliArgs {
+			if arg != tfCmd {
+				tfCliArgs = append(tfCliArgs, arg)
+			}
+		}
+
+		module.TerragruntOptions.TerraformCliArgs = append(command, tfCliArgs...)
+		module.TerragruntOptions.OriginalTerraformCommand = tfCmd
+		module.TerragruntOptions.TerraformCommand = tfCmd
 	}
 }
 

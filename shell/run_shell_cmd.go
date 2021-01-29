@@ -84,6 +84,7 @@ func RunShellCommandWithOutput(
 	} else {
 		cmd.Dir = workingDir
 	}
+
 	// Inspired by https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
 	cmdStderr := io.MultiWriter(errWriter, &stderrBuf)
 	var cmdStdout io.Writer

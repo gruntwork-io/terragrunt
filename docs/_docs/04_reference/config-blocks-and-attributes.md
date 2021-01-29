@@ -468,7 +468,7 @@ state for the target module without parsing the `dependency` blocks, avoiding th
 ### dependencies
 
 The `dependencies` block is used to enumerate all the Terragrunt modules that need to be applied in order for this
-module to be able to apply. Note that this is purely for ordering the operations when using `xxx-all` commands of
+module to be able to apply. Note that this is purely for ordering the operations when using `run-all` commands of
 Terraform. This does not expose or pull in the outputs like `dependency` blocks.
 
 The `dependencies` block supports the following arguments:
@@ -478,7 +478,7 @@ The `dependencies` block supports the following arguments:
 Example:
 
 ```hcl
-# When applying this terragrunt config in an `xxx-all` command, make sure the modules at "../vpc" and "../rds" are
+# When applying this terragrunt config in an `run-all` command, make sure the modules at "../vpc" and "../rds" are
 # handled first.
 dependencies {
   paths = ["../vpc", "../rds"]
@@ -639,8 +639,8 @@ Consider the following file structure:
         └── terragrunt.hcl
 
 In some cases, the root level `terragrunt.hcl` file is solely used to DRY up your Terraform configuration by being
-included in the other `terragrunt.hcl` files. In this case, you do not want the `xxx-all` commands to process the root
-level `terragrunt.hcl` since it does not define any infrastructure by itself. To make the `xxx-all` commands skip the
+included in the other `terragrunt.hcl` files. In this case, you do not want the `run-all` commands to process the root
+level `terragrunt.hcl` since it does not define any infrastructure by itself. To make the `run-all` commands skip the
 root level `terragrunt.hcl` file, you can set `skip = true`:
 
 ``` hcl
