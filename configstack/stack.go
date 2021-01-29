@@ -9,7 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // Represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or
@@ -35,17 +34,16 @@ func (stack *Stack) Graph(terragruntOptions *options.TerragruntOptions) {
 }
 
 func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
-	fullStackCmd := terragruntOptions.TerraformCliArgs
-	stackCmd := util.FirstArg(fullStackCmd)
+	stackCmd := terragruntOptions.TerraformCommand
 	// For apply and destroy, run in non-interactive mode to avoid comingling stdin across multiple concurrent runs.
 	switch stackCmd {
 	case "apply":
-		fullStackCmd = append(fullStackCmd, "-input=false", "-auto-approve")
+		terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, "-input=false", "-auto-approve")
+		stack.syncTerraformCliArgs(terragruntOptions)
 	case "destroy":
-		fullStackCmd = append(fullStackCmd, "-input=false", "-force")
+		terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, "-input=false", "-force")
+		stack.syncTerraformCliArgs(terragruntOptions)
 	}
-
-	stack.setTerraformCommand(fullStackCmd)
 
 	if stackCmd == "plan" {
 		// We capture the out stream for each module
@@ -105,23 +103,10 @@ func FindStackInSubfolders(terragruntOptions *options.TerragruntOptions) (*Stack
 	return createStackForTerragruntConfigPaths(terragruntOptions.WorkingDir, terragruntConfigFiles, terragruntOptions, howThesePathsWereFound)
 }
 
-// Set the command in the TerragruntOptions object of each module in this stack to the given command.
-func (stack *Stack) setTerraformCommand(command []string) {
-	tfCmd := util.FirstArg(command)
+// Sync the TerraformCliArgs for each module in the stack to match the provided terragruntOptions struct.
+func (stack *Stack) syncTerraformCliArgs(terragruntOptions *options.TerragruntOptions) {
 	for _, module := range stack.Modules {
-		// Filter out the command arg that may have leaked into the TerraformCliArgs. This is a stopgap workaround for
-		// run-all commands where the terraform command is parsed into the TerraformCliArgs. This is necessary to
-		// support the legacy xxx-all commands.
-		tfCliArgs := []string{}
-		for _, arg := range module.TerragruntOptions.TerraformCliArgs {
-			if arg != tfCmd {
-				tfCliArgs = append(tfCliArgs, arg)
-			}
-		}
-
-		module.TerragruntOptions.TerraformCliArgs = append(command, tfCliArgs...)
-		module.TerragruntOptions.OriginalTerraformCommand = tfCmd
-		module.TerragruntOptions.TerraformCommand = tfCmd
+		module.TerragruntOptions.TerraformCliArgs = terragruntOptions.TerraformCliArgs
 	}
 }
 
