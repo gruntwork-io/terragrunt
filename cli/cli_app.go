@@ -75,8 +75,6 @@ var ALL_TERRAGRUNT_STRING_OPTS = []string{
 	OPT_TERRAGRUNT_LOGLEVEL,
 }
 
-const CMD_RUN_ALL = "run-all"
-
 const CMD_INIT = "init"
 const CMD_INIT_FROM_MODULE = "init-from-module"
 const CMD_PROVIDERS = "providers"
@@ -87,14 +85,40 @@ const CMD_TERRAGRUNT_READ_CONFIG = "terragrunt-read-config"
 const CMD_HCLFMT = "hclfmt"
 const CMD_AWS_PROVIDER_PATCH = "aws-provider-patch"
 
+// START: Constants useful for multimodule command handling
+const CMD_RUN_ALL = "run-all"
+
+// Known terraform commands that are explicitly not supported in run-all due to the nature of the command. This is
+// tracked as a map that maps the terraform command to the reasoning behind disallowing the command in run-all.
+var runAllDisabledCommands = map[string]string{
+	"import":       "terraform import should only be run against a single state representation to avoid injecting the wrong object in the wrong state representation.",
+	"taint":        "terraform taint should only be run against a single state representation to avoid using the wrong state address.",
+	"untaint":      "terraform untaint should only be run against a single state representation to avoid using the wrong state address.",
+	"console":      "terraform console requires stdin, which is shared across all instances of run-all when multiple modules run concurrently.",
+	"force-unlock": "lock IDs are unique per state representation and thus should not be run with run-all.",
+
+	// MAINTAINER'S NOTE: There are a few other commands that might not make sense, but we deliberately allow it for
+	// certain use cases that are documented here:
+	// - state          : Supporting `state` with run-all could be useful for a mass pull and push operation, which can
+	//                    be done en masse with the use of relative pathing.
+	// - login / logout : Supporting `login` with run-all could be useful when used in conjunction with tfenv and
+	//                    multi-terraform version setups, where multiple terraform versions need to be configured.
+	// - version        : Supporting `version` with run-all could be useful for sanity checking a multi-version setup.
+}
+
 var MULTI_MODULE_COMMANDS = []string{
 	CMD_RUN_ALL,
+
+	// The rest of the commands are deprecated, and are only here for legacy reasons to ensure that terragrunt knows to
+	// filter them out during arg parsing.
 	CMD_APPLY_ALL,
 	CMD_DESTROY_ALL,
 	CMD_OUTPUT_ALL,
 	CMD_PLAN_ALL,
 	CMD_VALIDATE_ALL,
 }
+
+// END: Constants useful for multimodule command handling
 
 // The following commands are DEPRECATED
 const (
@@ -874,6 +898,14 @@ func remoteStateNeedsInit(remoteState *remote.RemoteState, terragruntOptions *op
 
 // runAll runs the provided terraform command against all the modules that are found in the directory tree.
 func runAll(terragruntOptions *options.TerragruntOptions) error {
+	reason, isDisabled := runAllDisabledCommands[terragruntOptions.TerraformCommand]
+	if isDisabled {
+		return RunAllDisabledErr{
+			command: terragruntOptions.TerraformCommand,
+			reason:  reason,
+		}
+	}
+
 	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
 	if err != nil {
 		return err
@@ -972,4 +1004,13 @@ type MaxRetriesExceeded struct {
 
 func (err MaxRetriesExceeded) Error() string {
 	return fmt.Sprintf("Exhausted retries (%v) for command %v %v", err.Opts.MaxRetryAttempts, err.Opts.TerraformPath, strings.Join(err.Opts.TerraformCliArgs, " "))
+}
+
+type RunAllDisabledErr struct {
+	command string
+	reason  string
+}
+
+func (err RunAllDisabledErr) Error() string {
+	return fmt.Sprintf("%s with run-all is disabled: %s", err.command, err.reason)
 }
