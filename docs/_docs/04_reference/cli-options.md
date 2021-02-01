@@ -502,10 +502,9 @@ When passed in, limit the number of modules that are run concurrently to this nu
 
 **CLI Arg**: `--terragrunt-debug`
 
-**WARNING: Deprecated**. Use `--terragrunt-log-level` instead
-
-When passed in, run Terragrunt in debug mode where the vars that are passed into Terragrunt are recorded as a
-tfvars.json file.
+When passed in, Terragrunt will create a tfvars file that can be used to invoke the terraform module in the same way
+that Terragrunt invokes the module, so that you can debug issues with the terragrunt config. See
+[Debugging]({{site.baseurl}}/docs/features/debugging) for some additional details.
 
 
 ### terragrunt-log-level

@@ -128,13 +128,6 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		return nil, err
 	}
 
-	// We are keeping debug flag for compatibility reasons, but users should migrate to `--terragrunt-log-level`
-	debug := parseBooleanArg(args, OPT_TERRAGRUNT_DEBUG, false)
-	if debug {
-		logLevel = logrus.DebugLevel.String()
-	}
-
-	// Final loggingLevel, based on logLevel and debug above
 	loggingLevel, err := logrus.ParseLevel(logLevel)
 	if err != nil {
 		util.GlobalFallbackLogEntry.Errorf(err.Error())
@@ -144,6 +137,11 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts, err := options.NewTerragruntOptions(filepath.ToSlash(terragruntConfigPath))
 	if err != nil {
 		return nil, err
+	}
+
+	debug := parseBooleanArg(args, OPT_TERRAGRUNT_DEBUG, false)
+	if debug {
+		opts.Debug = true
 	}
 
 	envValue, envProvided := os.LookupEnv("TERRAGRUNT_PARALLELISM")
@@ -161,6 +159,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.TerraformCommand = util.FirstArg(opts.TerraformCliArgs)
 	opts.WorkingDir = filepath.ToSlash(workingDir)
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
+	opts.LogLevel = loggingLevel
 	opts.Logger = util.CreateLogEntry("", loggingLevel)
 	opts.Logger.Logger.SetOutput(errWriter)
 	opts.RunTerragrunt = RunTerragrunt
