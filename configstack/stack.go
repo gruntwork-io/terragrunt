@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // Represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or
@@ -35,13 +36,20 @@ func (stack *Stack) Graph(terragruntOptions *options.TerragruntOptions) {
 
 func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
 	stackCmd := terragruntOptions.TerraformCommand
-	// For apply and destroy, run in non-interactive mode to avoid comingling stdin across multiple concurrent runs.
-	switch stackCmd {
-	case "apply":
-		terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, "-input=false", "-auto-approve")
+
+	// For any command that needs input, run in non-interactive mode to avoid cominglint stdin across multiple
+	// concurrent runs.
+	if util.ListContainsElement(config.TERRAFORM_COMMANDS_NEED_INPUT, stackCmd) {
+		terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, "-input=false")
 		stack.syncTerraformCliArgs(terragruntOptions)
-	case "destroy":
-		terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, "-input=false", "-force")
+	}
+
+	// For apply and destroy, run with auto-approve due to the co-mingling of the prompts. This is not ideal, but until
+	// we have a better way of handling interactivity with run-all, we take the evil of having a global prompt (managed
+	// in cli/cli_app.go) be the gate keeper.
+	switch stackCmd {
+	case "apply", "destroy":
+		terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, "-auto-approve")
 		stack.syncTerraformCliArgs(terragruntOptions)
 	}
 
