@@ -27,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/sts"
 	terraws "github.com/gruntwork-io/terratest/modules/aws"
+	"github.com/gruntwork-io/terratest/modules/git"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/iterator"
@@ -1380,10 +1381,27 @@ func TestAwsProviderPatch(t *testing.T) {
 	stderr := new(bytes.Buffer)
 	rootPath := copyEnvironment(t, TEST_FIXTURE_AWS_PROVIDER_PATCH)
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AWS_PROVIDER_PATCH)
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt aws-provider-patch --terragrunt-override-attr region=eu-west-1 --terragrunt-working-dir %s", modulePath), os.Stdout, stderr)
+	mainTFFile := filepath.Join(modulePath, "main.tf")
 
-	assert.NoError(t, err)
+	// fill in branch so we can test against updates to the test case file
+	mainContents, err := util.ReadFileAsString(mainTFFile)
+	require.NoError(t, err)
+	mainContents = strings.Replace(mainContents, "__BRANCH_NAME__", git.GetCurrentBranchName(t), -1)
+	require.NoError(t, ioutil.WriteFile(mainTFFile, []byte(mainContents), 0444))
+
+	assert.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt aws-provider-patch --terragrunt-override-attr region=eu-west-1 --terragrunt-working-dir %s", modulePath), os.Stdout, stderr),
+	)
+	t.Log(stderr.String())
+
 	assert.Regexp(t, "Patching AWS provider in .+test/fixture-aws-provider-patch/example-module/main.tf", stderr.String())
+
+	// Make sure the resulting terraform code is still valid
+	assert.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt validate --terragrunt-working-dir %s", modulePath), os.Stdout, os.Stderr),
+	)
 }
 
 // This tests terragrunt properly passes through terraform commands and any number of specified args

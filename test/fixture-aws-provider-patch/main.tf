@@ -3,7 +3,7 @@ provider "aws" {
 }
 
 module "example_module" {
-  source = "github.com/gruntwork-io/terragrunt.git//test/fixture-aws-provider-patch/example-module?ref=v0.23.40"
+  source = "github.com/gruntwork-io/terragrunt.git//test/fixture-aws-provider-patch/example-module?ref=__BRANCH_NAME__"
 
   secondary_aws_region = var.secondary_aws_region
   bucket_name          = var.bucket_name
