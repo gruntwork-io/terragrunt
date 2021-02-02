@@ -281,15 +281,16 @@ func TestTerragruntInitHookWithSourceNoBackend(t *testing.T) {
 	)
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", rootPath), &stdout, &stderr)
+	logBufferContentsLineByLine(t, stdout, "apply stdout")
+	logBufferContentsLineByLine(t, stderr, "apply stderr")
 	output := stderr.String()
 
 	if err != nil {
 		t.Errorf("Did not expect to get error: %s", err.Error())
 	}
 
-	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
-	// `init-from-module` hook should execute only once (2 occurrences due to the echo and its output)
-	assert.Equal(t, 2, strings.Count(output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE"), "Hooks on init-from-module command executed more than once")
+	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE\n"), "Hooks on init command executed more than once")
+	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE\n"), "Hooks on init-from-module command executed more than once")
 }
 
 func TestTerragruntInitHookWithSourceWithBackend(t *testing.T) {
