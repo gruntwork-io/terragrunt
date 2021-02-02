@@ -30,6 +30,9 @@ func CreateLogger(lvl logrus.Level) *logrus.Logger {
 	logger := logrus.New()
 	logger.SetLevel(lvl)
 	logger.SetOutput(os.Stderr) //Terragrunt should output all it's logs to stderr by default
+	logger.SetFormatter(&logrus.TextFormatter{
+		DisableQuote: true,
+	})
 	return logger
 }
 

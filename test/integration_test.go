@@ -280,7 +280,7 @@ func TestTerragruntInitHookWithSourceNoBackend(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", rootPath), &stdout, &stderr)
 	output := stderr.String()
 
 	if err != nil {
@@ -3919,7 +3919,7 @@ func fileIsInFolder(t *testing.T, name string, path string) bool {
 
 func runValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath string, includeModulePath string, strictInclude bool) []string {
 	cmd := fmt.Sprintf(
-		"terragrunt validate-all --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-include-dir %s --terragrunt-log-level info",
+		"terragrunt validate-all --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-include-dir %s",
 		rootModulePath,
 		includeModulePath,
 	)

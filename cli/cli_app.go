@@ -131,9 +131,7 @@ var TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT = []string{
 }
 
 // DEPRECATED_ARGUMENTS is a map of deprecated arguments to the argument that replace them.
-var DEPRECATED_ARGUMENTS = map[string]string{
-	OPT_TERRAGRUNT_DEBUG: OPT_TERRAGRUNT_LOGLEVEL,
-}
+var DEPRECATED_ARGUMENTS = map[string]string{}
 
 // Struct is output as JSON by 'terragrunt-info':
 type TerragruntInfoGroup struct {
