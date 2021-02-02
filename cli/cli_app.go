@@ -75,12 +75,6 @@ var ALL_TERRAGRUNT_STRING_OPTS = []string{
 	OPT_TERRAGRUNT_LOGLEVEL,
 }
 
-const CMD_PLAN_ALL = "plan-all"
-const CMD_APPLY_ALL = "apply-all"
-const CMD_DESTROY_ALL = "destroy-all"
-const CMD_OUTPUT_ALL = "output-all"
-const CMD_VALIDATE_ALL = "validate-all"
-
 const CMD_INIT = "init"
 const CMD_INIT_FROM_MODULE = "init-from-module"
 const CMD_PROVIDERS = "providers"
@@ -91,18 +85,63 @@ const CMD_TERRAGRUNT_READ_CONFIG = "terragrunt-read-config"
 const CMD_HCLFMT = "hclfmt"
 const CMD_AWS_PROVIDER_PATCH = "aws-provider-patch"
 
-// CMD_SPIN_UP is deprecated.
-const CMD_SPIN_UP = "spin-up"
+// START: Constants useful for multimodule command handling
+const CMD_RUN_ALL = "run-all"
 
-// CMD_TEAR_DOWN is deprecated.
-const CMD_TEAR_DOWN = "tear-down"
+// Known terraform commands that are explicitly not supported in run-all due to the nature of the command. This is
+// tracked as a map that maps the terraform command to the reasoning behind disallowing the command in run-all.
+var runAllDisabledCommands = map[string]string{
+	"import":       "terraform import should only be run against a single state representation to avoid injecting the wrong object in the wrong state representation.",
+	"taint":        "terraform taint should only be run against a single state representation to avoid using the wrong state address.",
+	"untaint":      "terraform untaint should only be run against a single state representation to avoid using the wrong state address.",
+	"console":      "terraform console requires stdin, which is shared across all instances of run-all when multiple modules run concurrently.",
+	"force-unlock": "lock IDs are unique per state representation and thus should not be run with run-all.",
 
-var MULTI_MODULE_COMMANDS = []string{CMD_APPLY_ALL, CMD_DESTROY_ALL, CMD_OUTPUT_ALL, CMD_PLAN_ALL, CMD_VALIDATE_ALL}
+	// MAINTAINER'S NOTE: There are a few other commands that might not make sense, but we deliberately allow it for
+	// certain use cases that are documented here:
+	// - state          : Supporting `state` with run-all could be useful for a mass pull and push operation, which can
+	//                    be done en masse with the use of relative pathing.
+	// - login / logout : Supporting `login` with run-all could be useful when used in conjunction with tfenv and
+	//                    multi-terraform version setups, where multiple terraform versions need to be configured.
+	// - version        : Supporting `version` with run-all could be useful for sanity checking a multi-version setup.
+}
 
-// DEPRECATED_COMMANDS is a map of deprecated commands to the commands that replace them.
-var DEPRECATED_COMMANDS = map[string]string{
-	CMD_SPIN_UP:   CMD_APPLY_ALL,
-	CMD_TEAR_DOWN: CMD_DESTROY_ALL,
+var MULTI_MODULE_COMMANDS = []string{
+	CMD_RUN_ALL,
+
+	// The rest of the commands are deprecated, and are only here for legacy reasons to ensure that terragrunt knows to
+	// filter them out during arg parsing.
+	CMD_APPLY_ALL,
+	CMD_DESTROY_ALL,
+	CMD_OUTPUT_ALL,
+	CMD_PLAN_ALL,
+	CMD_VALIDATE_ALL,
+}
+
+// END: Constants useful for multimodule command handling
+
+// The following commands are DEPRECATED
+const (
+	CMD_SPIN_UP      = "spin-up"
+	CMD_TEAR_DOWN    = "tear-down"
+	CMD_PLAN_ALL     = "plan-all"
+	CMD_APPLY_ALL    = "apply-all"
+	CMD_DESTROY_ALL  = "destroy-all"
+	CMD_OUTPUT_ALL   = "output-all"
+	CMD_VALIDATE_ALL = "validate-all"
+)
+
+// deprecatedCommands is a map of deprecated commands to a handler that knows how to convert the command to the known
+// alternative. The handler should return the new TerragruntOptions (if any modifications are needed) and command
+// string.
+var deprecatedCommands = map[string]func(origOptions *options.TerragruntOptions) (*options.TerragruntOptions, string, string){
+	CMD_SPIN_UP:      spinUpDeprecationHandler,
+	CMD_TEAR_DOWN:    tearDownDeprecationHandler,
+	CMD_APPLY_ALL:    applyAllDeprecationHandler,
+	CMD_DESTROY_ALL:  destroyAllDeprecationHandler,
+	CMD_PLAN_ALL:     planAllDeprecationHandler,
+	CMD_VALIDATE_ALL: validateAllDeprecationHandler,
+	CMD_OUTPUT_ALL:   outputAllDeprecationHandler,
 }
 
 var TERRAFORM_COMMANDS_THAT_USE_STATE = []string{
@@ -157,11 +196,7 @@ USAGE:
    {{.Usage}}
 
 COMMANDS:
-   plan-all             Display the plans of a 'stack' by running 'terragrunt plan' in each subfolder
-   apply-all            Apply a 'stack' by running 'terragrunt apply' in each subfolder
-   output-all           Display the outputs of a 'stack' by running 'terragrunt output' in each subfolder
-   destroy-all          Destroy a 'stack' by running 'terragrunt destroy' in each subfolder
-   validate-all         Validate 'stack' by running 'terragrunt validate' in each subfolder
+   run-all              Run a terraform command against a 'stack' by running the specified command in each subfolder. E.g., to run 'terragrunt apply' in each subfolder, use 'terragrunt run-all apply'.
    terragrunt-info      Emits limited terragrunt state on stdout and exits
    graph-dependencies   Prints the terragrunt dependency graph to stdout
    hclfmt               Recursively find terragrunt.hcl files and rewrite them into a canonical format.
@@ -255,25 +290,32 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 	shell.PrepareConsole(terragruntOptions)
 
 	givenCommand := cliContext.Args().First()
-	command := checkDeprecated(givenCommand, terragruntOptions)
-	return runCommand(command, terragruntOptions)
+	newOptions, command := checkDeprecated(givenCommand, terragruntOptions)
+	return runCommand(command, newOptions)
 }
 
 // checkDeprecated checks if the given command is deprecated.  If so: prints a message and returns the new command.
-func checkDeprecated(command string, terragruntOptions *options.TerragruntOptions) string {
-	newCommand, deprecated := DEPRECATED_COMMANDS[command]
+func checkDeprecated(command string, terragruntOptions *options.TerragruntOptions) (*options.TerragruntOptions, string) {
+	deprecationHandler, deprecated := deprecatedCommands[command]
 	if deprecated {
-		terragruntOptions.Logger.Infof("%v is deprecated; running %v instead.\n", command, newCommand)
-		return newCommand
+		newOptions, newCommand, newCommandFriendly := deprecationHandler(terragruntOptions)
+		terragruntOptions.Logger.Warnf(
+			"'%s' is deprecated. Running '%s' instead. Please update your workflows to use '%s', as '%s' may be removed in the future!\n",
+			command,
+			newCommandFriendly,
+			newCommandFriendly,
+			command,
+		)
+		return newOptions, newCommand
 	}
-	return command
+	return terragruntOptions, command
 }
 
 // runCommand runs one or many terraform commands based on the type of
 // terragrunt command
 func runCommand(command string, terragruntOptions *options.TerragruntOptions) (finalEff error) {
-	if isMultiModuleCommand(command) {
-		return runMultiModuleCommand(command, terragruntOptions)
+	if command == CMD_RUN_ALL {
+		return runAll(terragruntOptions)
 	}
 	return RunTerragrunt(terragruntOptions)
 }
@@ -310,8 +352,10 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	if terragruntConfig.Skip {
-		terragruntOptions.Logger.Infof("Skipping terragrunt module %s due to skip = true.",
-			terragruntOptions.TerragruntConfigPath)
+		terragruntOptions.Logger.Infof(
+			"Skipping terragrunt module %s due to skip = true.",
+			terragruntOptions.TerragruntConfigPath,
+		)
 		return nil
 	}
 
@@ -835,30 +879,6 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformS
 	return initOptions, nil
 }
 
-// Returns true if the command the user wants to execute is supposed to affect multiple Terraform modules, such as the
-// apply-all or destroy-all command.
-func isMultiModuleCommand(command string) bool {
-	return util.ListContainsElement(MULTI_MODULE_COMMANDS, command)
-}
-
-// Execute a command that affects multiple Terraform modules, such as the apply-all or destroy-all command.
-func runMultiModuleCommand(command string, terragruntOptions *options.TerragruntOptions) error {
-	switch command {
-	case CMD_PLAN_ALL:
-		return planAll(terragruntOptions)
-	case CMD_APPLY_ALL:
-		return applyAll(terragruntOptions)
-	case CMD_DESTROY_ALL:
-		return destroyAll(terragruntOptions)
-	case CMD_OUTPUT_ALL:
-		return outputAll(terragruntOptions)
-	case CMD_VALIDATE_ALL:
-		return validateAll(terragruntOptions)
-	default:
-		return errors.WithStackTrace(UnrecognizedCommand(command))
-	}
-}
-
 // Return true if modules aren't already downloaded and the Terraform templates in this project reference modules.
 // Note that to keep the logic in this code very simple, this code ONLY detects the case where you haven't downloaded
 // modules at all. Detecting if your downloaded modules are out of date (as opposed to missing entirely) is more
@@ -884,81 +904,43 @@ func remoteStateNeedsInit(remoteState *remote.RemoteState, terragruntOptions *op
 	return false, nil
 }
 
-// planAll prints the plans from all configuration in a stack, in the order
-// specified in the terraform_remote_state dependencies
-func planAll(terragruntOptions *options.TerragruntOptions) error {
+// runAll runs the provided terraform command against all the modules that are found in the directory tree.
+func runAll(terragruntOptions *options.TerragruntOptions) error {
+	reason, isDisabled := runAllDisabledCommands[terragruntOptions.TerraformCommand]
+	if isDisabled {
+		return RunAllDisabledErr{
+			command: terragruntOptions.TerraformCommand,
+			reason:  reason,
+		}
+	}
+
 	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
 	if err != nil {
 		return err
 	}
 
-	terragruntOptions.Logger.Printf("%s", stack.String())
-	return stack.Plan(terragruntOptions)
-}
+	terragruntOptions.Logger.Infof("%s", stack.String())
 
-// Spin up an entire "stack" by running 'terragrunt apply' in each subfolder, processing them in the right order based
-// on terraform_remote_state dependencies.
-func applyAll(terragruntOptions *options.TerragruntOptions) error {
-	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
-	if err != nil {
-		return err
+	var prompt string
+	switch terragruntOptions.TerraformCommand {
+	case "apply":
+		prompt = "Are you sure you want to run 'terragrunt apply' in each folder of the stack described above?"
+	case "destroy":
+		prompt = "WARNING: Are you sure you want to run `terragrunt destroy` in each folder of the stack described above? There is no undo!"
+	case "state":
+		prompt = "Are you sure you want to manipulate the state with `terragrunt state` in each folder of the stack described above? Note that absolute paths are shared, while relative paths will be relative to each working directory."
+	}
+	if prompt != "" {
+		shouldRunAll, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
+		if err != nil {
+			return err
+		}
+		if shouldRunAll == false {
+			return nil
+		}
 	}
 
-	terragruntOptions.Logger.Printf("%s", stack.String())
-	shouldApplyAll, err := shell.PromptUserForYesNo("Are you sure you want to run 'terragrunt apply' in each folder of the stack described above?", terragruntOptions)
-	if err != nil {
-		return err
-	}
-
-	if shouldApplyAll {
-		return stack.Apply(terragruntOptions)
-	}
-
-	return nil
-}
-
-// Tear down an entire "stack" by running 'terragrunt destroy' in each subfolder, processing them in the right order
-// based on terraform_remote_state dependencies.
-func destroyAll(terragruntOptions *options.TerragruntOptions) error {
-	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
-	if err != nil {
-		return err
-	}
-
-	terragruntOptions.Logger.Printf("%s", stack.String())
-	shouldDestroyAll, err := shell.PromptUserForYesNo("WARNING: Are you sure you want to run `terragrunt destroy` in each folder of the stack described above? There is no undo!", terragruntOptions)
-	if err != nil {
-		return err
-	}
-
-	if shouldDestroyAll {
-		return stack.Destroy(terragruntOptions)
-	}
-
-	return nil
-}
-
-// outputAll prints the outputs from all configuration in a stack, in the order
-// specified in the terraform_remote_state dependencies
-func outputAll(terragruntOptions *options.TerragruntOptions) error {
-	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
-	if err != nil {
-		return err
-	}
-
-	terragruntOptions.Logger.Printf("%s", stack.String())
-	return stack.Output(terragruntOptions)
-}
-
-// validateAll validates runs terraform validate on all the modules
-func validateAll(terragruntOptions *options.TerragruntOptions) error {
-	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
-	if err != nil {
-		return err
-	}
-
-	terragruntOptions.Logger.Printf("%s", stack.String())
-	return stack.Validate(terragruntOptions)
+	return stack.Run(terragruntOptions)
 }
 
 // checkProtectedModule checks if module is protected via the "prevent_destroy" flag
@@ -1032,4 +1014,13 @@ type MaxRetriesExceeded struct {
 
 func (err MaxRetriesExceeded) Error() string {
 	return fmt.Sprintf("Exhausted retries (%v) for command %v %v", err.Opts.MaxRetryAttempts, err.Opts.TerraformPath, strings.Join(err.Opts.TerraformCliArgs, " "))
+}
+
+type RunAllDisabledErr struct {
+	command string
+	reason  string
+}
+
+func (err RunAllDisabledErr) Error() string {
+	return fmt.Sprintf("%s with run-all is disabled: %s", err.command, err.reason)
 }

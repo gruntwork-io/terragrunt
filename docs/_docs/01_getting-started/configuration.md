@@ -76,7 +76,7 @@ Note that the parsing order is slightly different when using the `-all` flavors 
 
 The results of this pass are then used to build the dependency graph of the modules in the tree. Once the graph is constructed, Terragrunt will loop through the modules and run the specified command. It will then revert to the single configuration parsing order specified above for each module as it runs the command.
 
-This allows Terragrunt to avoid resolving `dependency` on modules that haven’t been applied yet when doing a clean deployment from scratch with `apply-all`.
+This allows Terragrunt to avoid resolving `dependency` on modules that haven’t been applied yet when doing a clean deployment from scratch with `run-all apply`.
 
 ## Formatting terragrunt.hcl
 
