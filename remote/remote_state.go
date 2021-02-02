@@ -7,7 +7,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // Configuration for Terraform remote state
@@ -108,13 +107,12 @@ func (remoteState *RemoteState) NeedsInit(terragruntOptions *options.TerragruntO
 // Returns true if this remote state is different than the given remote state that is currently being used by terraform.
 func (remoteState *RemoteState) differsFrom(existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) bool {
 	if existingBackend.Type != remoteState.Backend {
-		terragruntOptions.Logger.Printf("Backend type has changed from %s to %s", existingBackend.Type, remoteState.Backend)
+		terragruntOptions.Logger.Infof("Backend type has changed from %s to %s", existingBackend.Type, remoteState.Backend)
 		return true
 	}
 
 	if !terraformStateConfigEqual(existingBackend.Config, remoteState.Config) {
-		terragruntOptions.Logger.Printf("Backend config has changed (Set environment variable TG_LOG=debug to have terragrunt log the changes)")
-		util.Debugf(terragruntOptions.Logger, "Changed from %s to %s", existingBackend.Config, remoteState.Config)
+		terragruntOptions.Logger.Debugf("Changed from %s to %s", existingBackend.Config, remoteState.Config)
 		return true
 	}
 
@@ -202,7 +200,7 @@ func (remoteState *RemoteState) GenerateTerraformCode(terragruntOptions *options
 		Contents:      string(configBytes),
 		CommentPrefix: codegen.DefaultCommentPrefix,
 	}
-	return codegen.WriteToFile(terragruntOptions.Logger, terragruntOptions.WorkingDir, codegenConfig)
+	return codegen.WriteToFile(terragruntOptions, terragruntOptions.WorkingDir, codegenConfig)
 }
 
 // Custom errors

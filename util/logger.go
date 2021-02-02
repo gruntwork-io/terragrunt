@@ -3,47 +3,61 @@ package util
 import (
 	"fmt"
 	"io"
-	"log"
 	"os"
-	"strings"
 
-	"github.com/fatih/color"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-// Create a logger with the given prefix
-func CreateLogger(prefix string) *log.Logger {
-	return CreateLoggerWithWriter(os.Stderr, prefix)
+const DEFAULT_LOG_LEVEL = logrus.WarnLevel
+
+// GlobalFallbackLogEntry is a global fallback logentry for the application
+// Should be used in cases when more specific logger can't be created (like in the very beginning, when we have not yet
+// parsed command line arguments).
+//
+// This might go away once we migrate toproper cli library
+// (see https://github.com/gruntwork-io/terragrunt/blob/master/cli/args.go#L29)
+var GlobalFallbackLogEntry *logrus.Entry
+
+func init() {
+	GlobalFallbackLogEntry = CreateLogEntry("", DEFAULT_LOG_LEVEL)
+}
+
+// CreateLogger creates a logger. If debug is set, we use ErrorLevel to enable verbose output, otherwise - only errors are shown
+func CreateLogger(lvl logrus.Level) *logrus.Logger {
+	logger := logrus.New()
+	logger.SetLevel(lvl)
+	logger.SetOutput(os.Stderr) //Terragrunt should output all it's logs to stderr by default
+	logger.SetFormatter(&logrus.TextFormatter{
+		DisableQuote: true,
+	})
+	return logger
+}
+
+// CreateLogEntry creates a logger entry with the given prefix field
+func CreateLogEntry(prefix string, level logrus.Level) *logrus.Entry {
+	logger := CreateLogger(level)
+	var fields logrus.Fields
+	if prefix != "" {
+		fields = logrus.Fields{"prefix": prefix}
+	} else {
+		fields = logrus.Fields{}
+	}
+	return logger.WithFields(fields)
 }
 
 // CreateLoggerWithWriter Create a logger around the given output stream and prefix
-func CreateLoggerWithWriter(writer io.Writer, prefix string) *log.Logger {
+func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Level) *logrus.Entry {
 	if prefix != "" {
 		prefix = fmt.Sprintf("[%s] ", prefix)
+	} else {
+		prefix = fmt.Sprintf("[terragrunt] %s", prefix)
 	}
-	return log.New(writer, fmt.Sprintf("[terragrunt] %s", prefix), log.LstdFlags)
-}
-
-// MAINTAINER'S NOTE: This is a temporary solution for logging levels in terragrunt. This is not a permanent debug
-// logging solution.
-// Debugf will only print out terragrunt logs if the TG_LOG environment variable is set to DEBUG.
-func Debugf(logger *log.Logger, fmtString string, fmtArgs ...interface{}) {
-	if strings.ToLower(os.Getenv("TG_LOG")) == "debug" {
-		logger.Printf(fmtString, fmtArgs...)
-	}
-}
-
-// ColorLogf
-func ColorLogf(logger *log.Logger, colorCode *color.Color, fmtString string, fmtArgs ...interface{}) {
-	logOut := fmt.Sprintf(fmtString, fmtArgs...)
-
-	allowColor := terminal.IsTerminal(int(os.Stderr.Fd()))
-	if allowColor {
-		logOut = colorCode.SprintFunc()(logOut)
-	}
-	logger.Println(logOut)
+	logger := CreateLogEntry(prefix, level)
+	logger.Logger.SetOutput(writer)
+	return logger
 }
 
 // GetDiagnosticsWriter returns a hcl2 parsing diagnostics emitter for the current terminal.

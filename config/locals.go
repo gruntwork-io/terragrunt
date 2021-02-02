@@ -56,15 +56,15 @@ func evaluateLocalsBlock(
 	}
 	if localsBlock == nil {
 		// No locals block referenced in the file
-		util.Debugf(terragruntOptions.Logger, "Did not find any locals block: skipping evaluation.")
+		terragruntOptions.Logger.Debugf("Did not find any locals block: skipping evaluation.")
 		return nil, nil
 	}
 
-	util.Debugf(terragruntOptions.Logger, "Found locals block: evaluating the expressions.")
+	terragruntOptions.Logger.Debugf("Found locals block: evaluating the expressions.")
 
 	locals, diags := decodeLocalsBlock(localsBlock)
 	if diags.HasErrors() {
-		terragruntOptions.Logger.Printf("Encountered error while decoding locals block into name expression pairs.")
+		terragruntOptions.Logger.Errorf("Encountered error while decoding locals block into name expression pairs.")
 		diagsWriter.WriteDiagnostics(diags)
 		return nil, errors.WithStackTrace(diags)
 	}
@@ -90,15 +90,15 @@ func evaluateLocalsBlock(
 			diagsWriter,
 		)
 		if err != nil {
-			terragruntOptions.Logger.Printf("Encountered error while evaluating locals.")
+			terragruntOptions.Logger.Errorf("Encountered error while evaluating locals.")
 			return nil, err
 		}
 	}
 	if len(locals) > 0 {
 		// This is an error because we couldn't evaluate all locals
-		terragruntOptions.Logger.Printf("Not all locals could be evaluated:")
+		terragruntOptions.Logger.Errorf("Not all locals could be evaluated:")
 		for _, local := range locals {
-			terragruntOptions.Logger.Printf("\t- %s", local.Name)
+			terragruntOptions.Logger.Errorf("\t- %s", local.Name)
 		}
 		return nil, errors.WithStackTrace(CouldNotEvaluateAllLocalsError{})
 	}
@@ -135,7 +135,7 @@ func attemptEvaluateLocals(
 
 	evaluatedLocalsAsCty, err := convertValuesMapToCtyVal(evaluatedLocals)
 	if err != nil {
-		terragruntOptions.Logger.Printf("Could not convert evaluated locals to the execution context to evaluate additional locals")
+		terragruntOptions.Logger.Errorf("Could not convert evaluated locals to the execution context to evaluate additional locals")
 		return nil, evaluatedLocals, false, err
 	}
 	evalCtx := CreateTerragruntEvalContext(
@@ -168,8 +168,7 @@ func attemptEvaluateLocals(
 		}
 	}
 
-	util.Debugf(
-		terragruntOptions.Logger,
+	terragruntOptions.Logger.Debugf(
 		"Evaluated %d locals (remaining %d): %s",
 		len(newlyEvaluatedLocalNames),
 		len(unevaluatedLocals),

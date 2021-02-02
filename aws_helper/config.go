@@ -173,7 +173,7 @@ func AssumeRoleAndUpdateEnvIfNecessary(terragruntOptions *options.TerragruntOpti
 		return nil
 	}
 
-	terragruntOptions.Logger.Printf("Assuming IAM role %s", terragruntOptions.IamRole)
+	terragruntOptions.Logger.Debugf("Assuming IAM role %s", terragruntOptions.IamRole)
 	creds, err := AssumeIamRole(terragruntOptions.IamRole)
 	if err != nil {
 		return err

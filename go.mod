@@ -17,6 +17,7 @@ require (
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20191212124732-c6ae6269b9d7
 	github.com/mattn/go-zglob v0.0.2-0.20190814121620-e3c945676326
 	github.com/mitchellh/mapstructure v1.2.2
+	github.com/sirupsen/logrus v1.6.0
 	github.com/stretchr/testify v1.5.1
 	github.com/urfave/cli v1.22.3
 	github.com/zclconf/go-cty v1.3.1

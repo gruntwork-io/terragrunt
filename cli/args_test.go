@@ -14,9 +14,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+const defaultLogLevel = options.DEFAULT_LOG_LEVEL
 
 func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 	t.Parallel()
@@ -35,55 +38,55 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 	}{
 		{
 			[]string{},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, false),
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
 			[]string{"foo", "bar"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"foo", "bar"}, false, "", false, false, false),
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"foo", "bar"}, false, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
 			[]string{"--foo", "--bar"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"--foo", "--bar"}, false, "", false, false, false),
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"--foo", "--bar"}, false, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
 			[]string{"--foo", "apply", "--bar"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"--foo", "apply", "--bar"}, false, "", false, false, false),
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"--foo", "apply", "--bar"}, false, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
 			[]string{"--terragrunt-non-interactive"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, true, "", false, false, false),
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, true, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
 			[]string{"--terragrunt-include-external-dependencies"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, true, false),
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, true, defaultLogLevel, false),
 			nil,
 		},
 
 		{
 			[]string{"--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath)},
-			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, false),
+			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
 			[]string{"--terragrunt-working-dir", "/some/path"},
-			mockOptions(t, util.JoinPath("/some/path", config.DefaultTerragruntConfigPath), "/some/path", []string{}, false, "", false, false, false),
+			mockOptions(t, util.JoinPath("/some/path", config.DefaultTerragruntConfigPath), "/some/path", []string{}, false, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
 			[]string{"--terragrunt-source", "/some/path"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "/some/path", false, false, false),
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "/some/path", false, false, defaultLogLevel, false),
 			nil,
 		},
 
@@ -95,13 +98,13 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 
 		{
 			[]string{"--terragrunt-ignore-dependency-errors"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", true, false, false),
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", true, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
 			[]string{"--terragrunt-ignore-external-dependencies"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, false),
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
@@ -113,23 +116,22 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 
 		{
 			[]string{"--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "--terragrunt-non-interactive"},
-			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, true, "", false, false, false),
+			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, true, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
 			[]string{"--foo", "--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "bar", "--terragrunt-non-interactive", "--baz", "--terragrunt-working-dir", "/some/path", "--terragrunt-source", "github.com/foo/bar//baz?ref=1.0.3"},
-			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "/some/path", []string{"--foo", "bar", "--baz"}, true, "github.com/foo/bar//baz?ref=1.0.3", false, false, false),
+			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "/some/path", []string{"--foo", "bar", "--baz"}, true, "github.com/foo/bar//baz?ref=1.0.3", false, false, defaultLogLevel, false),
 			nil,
 		},
 
-		// Adding the --terragrunt-debug flag should result in an Options with Debug set to true
+		// Adding the --terragrunt-log-level flag should result in DebugLevel configured
 		{
-			[]string{"--terragrunt-debug"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, true),
+			[]string{"--terragrunt-log-level", "debug"},
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, logrus.DebugLevel, false),
 			nil,
 		},
-
 		{
 			[]string{"--terragrunt-config"},
 			nil,
@@ -146,6 +148,11 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 			[]string{"--foo", "bar", "--terragrunt-config"},
 			nil,
 			ArgMissingValue("terragrunt-config"),
+		},
+		{
+			[]string{"--terragrunt-debug"},
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, defaultLogLevel, true),
+			nil,
 		},
 	}
 
@@ -178,7 +185,7 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 	assert.Equal(t, expected.AwsProviderPatchOverrides, actual.AwsProviderPatchOverrides, msgAndArgs...)
 }
 
-func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, includeExternalDependencies bool, debugMode bool) *options.TerragruntOptions {
+func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, includeExternalDependencies bool, logLevel logrus.Level, debug bool) *options.TerragruntOptions {
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
 	if err != nil {
 		t.Fatalf("error: %v\n", errors.WithStackTrace(err))
@@ -190,20 +197,21 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 	opts.Source = terragruntSource
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
 	opts.IncludeExternalDependencies = includeExternalDependencies
-	opts.Debug = debugMode
+	opts.Logger.Level = logLevel
+	opts.Debug = debug
 
 	return opts
 }
 
 func mockOptionsWithIamRole(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, iamRole string) *options.TerragruntOptions {
-	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, false)
+	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
 	opts.IamRole = iamRole
 
 	return opts
 }
 
 func mockOptionsWithOverrideAttrs(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, overrideAttrs map[string]string) *options.TerragruntOptions {
-	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, false, "", false, false, false)
+	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, false, "", false, false, defaultLogLevel, false)
 	opts.AwsProviderPatchOverrides = overrideAttrs
 	return opts
 }
@@ -577,7 +585,7 @@ func createTempFile(t *testing.T) string {
 }
 
 func mockCmdOptions(t *testing.T, workingDir string, terraformCliArgs []string) *options.TerragruntOptions {
-	o := mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, terraformCliArgs, true, "", false, false, false)
+	o := mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, terraformCliArgs, true, "", false, false, defaultLogLevel, false)
 	return o
 }
 

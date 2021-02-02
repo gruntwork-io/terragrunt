@@ -46,11 +46,11 @@ func runHCLFmt(terragruntOptions *options.TerragruntOptions) error {
 		if !util.ListContainsElement(strings.Split(fname, "/"), ".terragrunt-cache") {
 			filteredTgHclFiles = append(filteredTgHclFiles, fname)
 		} else {
-			util.Debugf(terragruntOptions.Logger, "%s was ignored due to being in the terragrunt cache", fname)
+			terragruntOptions.Logger.Debugf("%s was ignored due to being in the terragrunt cache", fname)
 		}
 	}
 
-	util.Debugf(terragruntOptions.Logger, "Found %d terragrunt.hcl files", len(filteredTgHclFiles))
+	terragruntOptions.Logger.Debugf("Found %d terragrunt.hcl files", len(filteredTgHclFiles))
 
 	formatErrors := []error{}
 	for _, tgHclFile := range filteredTgHclFiles {

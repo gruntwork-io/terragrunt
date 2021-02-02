@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
+	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
 
@@ -121,11 +122,26 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 
 	strictInclude := parseBooleanArg(args, OPT_TERRAGRUNT_STRICT_INCLUDE, false)
 
-	debug := parseBooleanArg(args, OPT_TERRAGRUNT_DEBUG, false)
+	// Those correspond to logrus levels
+	logLevel, err := parseStringArg(args, OPT_TERRAGRUNT_LOGLEVEL, logrus.WarnLevel.String())
+	if err != nil {
+		return nil, err
+	}
+
+	loggingLevel, err := logrus.ParseLevel(logLevel)
+	if err != nil {
+		util.GlobalFallbackLogEntry.Errorf(err.Error())
+		return nil, err
+	}
 
 	opts, err := options.NewTerragruntOptions(filepath.ToSlash(terragruntConfigPath))
 	if err != nil {
 		return nil, err
+	}
+
+	debug := parseBooleanArg(args, OPT_TERRAGRUNT_DEBUG, false)
+	if debug {
+		opts.Debug = true
 	}
 
 	envValue, envProvided := os.LookupEnv("TERRAGRUNT_PARALLELISM")
@@ -143,7 +159,9 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.TerraformCommand = util.FirstArg(opts.TerraformCliArgs)
 	opts.WorkingDir = filepath.ToSlash(workingDir)
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
-	opts.Logger = util.CreateLoggerWithWriter(errWriter, "")
+	opts.LogLevel = loggingLevel
+	opts.Logger = util.CreateLogEntry("", loggingLevel)
+	opts.Logger.Logger.SetOutput(errWriter)
 	opts.RunTerragrunt = RunTerragrunt
 	opts.Source = terraformSource
 	opts.SourceUpdate = sourceUpdate
@@ -169,7 +187,6 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.Parallelism = parallelism
 	opts.Check = parseBooleanArg(args, OPT_TERRAGRUNT_CHECK, os.Getenv("TERRAGRUNT_CHECK") == "true")
 	opts.HclFile = filepath.ToSlash(terragruntHclFilePath)
-	opts.Debug = debug
 	opts.AwsProviderPatchOverrides = awsProviderPatchOverrides
 
 	return opts, nil
@@ -217,7 +234,7 @@ func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 							if util.FileExists(file) {
 								out = append(out, fmt.Sprintf("-var-file=%s", file))
 							} else {
-								terragruntOptions.Logger.Printf("Skipping var-file %s as it does not exist", file)
+								terragruntOptions.Logger.Debugf("Skipping var-file %s as it does not exist", file)
 							}
 						}
 					}
@@ -290,11 +307,25 @@ func filterTerragruntArgs(args []string) []string {
 	return out
 }
 
+// isDeprecatedOption checks if provided option is deprecated, and returns its substitution with the check
+// if option is not deprecated - we are returning same value
+func isDeprecatedOption(optionName string) (string, bool) {
+	newOption, deprecated := DEPRECATED_ARGUMENTS[optionName]
+	if deprecated {
+		return newOption, true
+	}
+	return optionName, false
+}
+
 // Find a boolean argument (e.g. --foo) of the given name in the given list of arguments. If it's present, return true.
 // If it isn't, return defaultValue.
 func parseBooleanArg(args []string, argName string, defaultValue bool) bool {
 	for _, arg := range args {
 		if arg == fmt.Sprintf("--%s", argName) {
+			newOption, deprecated := isDeprecatedOption(argName)
+			if deprecated {
+				util.GlobalFallbackLogEntry.Warnf("Command line option %s is deprecated, please consider using %s", argName, newOption)
+			}
 			return true
 		}
 	}
@@ -306,6 +337,10 @@ func parseBooleanArg(args []string, argName string, defaultValue bool) bool {
 func parseStringArg(args []string, argName string, defaultValue string) (string, error) {
 	for i, arg := range args {
 		if arg == fmt.Sprintf("--%s", argName) {
+			newOption, deprecated := isDeprecatedOption(argName)
+			if deprecated {
+				util.GlobalFallbackLogEntry.Warnf("Command line option %s is deprecated, please consider using %s", argName, newOption)
+			}
 			if (i + 1) < len(args) {
 				return args[i+1], nil
 			} else {
@@ -321,6 +356,10 @@ func parseStringArg(args []string, argName string, defaultValue string) (string,
 func parseIntArg(args []string, argName string, envValue string, envProvided bool, defaultValue int) (int, error) {
 	for i, arg := range args {
 		if arg == fmt.Sprintf("--%s", argName) {
+			newOption, deprecated := isDeprecatedOption(argName)
+			if deprecated {
+				util.GlobalFallbackLogEntry.Warnf("Command line option %s is deprecated, please consider using %s", argName, newOption)
+			}
 			if (i + 1) < len(args) {
 				return strconv.Atoi(args[i+1])
 			} else {
@@ -342,6 +381,10 @@ func parseMultiStringArg(args []string, argName string, defaultValue []string) (
 
 	for i, arg := range args {
 		if arg == fmt.Sprintf("--%s", argName) {
+			newOption, deprecated := isDeprecatedOption(argName)
+			if deprecated {
+				util.GlobalFallbackLogEntry.Warnf("Command line option %s is deprecated, please consider using %s", argName, newOption)
+			}
 			if (i + 1) < len(args) {
 				stringArgs = append(stringArgs, args[i+1])
 			} else {
