@@ -925,6 +925,8 @@ func runAll(terragruntOptions *options.TerragruntOptions) error {
 		prompt = "Are you sure you want to run 'terragrunt apply' in each folder of the stack described above?"
 	case "destroy":
 		prompt = "WARNING: Are you sure you want to run `terragrunt destroy` in each folder of the stack described above? There is no undo!"
+	case "state":
+		prompt = "Are you sure you want to manipulate the state with `terragrunt state` in each folder of the stack described above? Note that absolute paths are shared, while relative paths will be relative to each working directory."
 	}
 	if prompt != "" {
 		shouldRunAll, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
