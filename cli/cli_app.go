@@ -299,7 +299,13 @@ func checkDeprecated(command string, terragruntOptions *options.TerragruntOption
 	deprecationHandler, deprecated := deprecatedCommands[command]
 	if deprecated {
 		newOptions, newCommand, newCommandFriendly := deprecationHandler(terragruntOptions)
-		util.GlobalFallbackLogEntry.Warnf("%s is deprecated; running %s instead.\n", command, newCommandFriendly)
+		util.GlobalFallbackLogEntry.Warnf(
+			"'%s' is deprecated. Running '%s' instead. Please update your workflows to use '%s', as '%s' may be removed in the future!\n",
+			command,
+			newCommandFriendly,
+			newCommandFriendly,
+			command,
+		)
 		return newOptions, newCommand
 	}
 	return terragruntOptions, command
