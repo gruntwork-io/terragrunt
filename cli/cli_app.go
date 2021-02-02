@@ -299,7 +299,7 @@ func checkDeprecated(command string, terragruntOptions *options.TerragruntOption
 	deprecationHandler, deprecated := deprecatedCommands[command]
 	if deprecated {
 		newOptions, newCommand, newCommandFriendly := deprecationHandler(terragruntOptions)
-		util.GlobalFallbackLogEntry.Warnf(
+		terragruntOptions.Logger.Warnf(
 			"'%s' is deprecated. Running '%s' instead. Please update your workflows to use '%s', as '%s' may be removed in the future!\n",
 			command,
 			newCommandFriendly,
@@ -352,8 +352,10 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	if terragruntConfig.Skip {
-		terragruntOptions.Logger.Infof("Skipping terragrunt module %s due to skip = true.",
-			terragruntOptions.TerragruntConfigPath)
+		terragruntOptions.Logger.Infof(
+			"Skipping terragrunt module %s due to skip = true.",
+			terragruntOptions.TerragruntConfigPath,
+		)
 		return nil
 	}
 
@@ -917,7 +919,7 @@ func runAll(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
-	terragruntOptions.Logger.Printf("%s", stack.String())
+	terragruntOptions.Logger.Infof("%s", stack.String())
 
 	var prompt string
 	switch terragruntOptions.TerraformCommand {
