@@ -11,10 +11,16 @@ import (
 
 // Prompt the user for text in the CLI. Returns the text entered by the user.
 func PromptUserForInput(prompt string, terragruntOptions *options.TerragruntOptions) (string, error) {
-	terragruntOptions.Logger.Print(prompt)
-
+	n, err := terragruntOptions.ErrWriter.Write([]byte(prompt))
+	if err != nil {
+		terragruntOptions.Logger.Error(err)
+		return "", errors.WithStackTrace(err)
+	}
+	if n != len(prompt) {
+		terragruntOptions.Logger.Errorln("Failed to write data")
+		return "", errors.WithStackTrace(err)
+	}
 	if terragruntOptions.NonInteractive {
-		terragruntOptions.Logger.Println()
 		terragruntOptions.Logger.Infof("The non-interactive flag is set to true, so assuming 'yes' for all prompts")
 		return "yes", nil
 	}
