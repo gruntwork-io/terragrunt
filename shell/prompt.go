@@ -11,6 +11,10 @@ import (
 
 // Prompt the user for text in the CLI. Returns the text entered by the user.
 func PromptUserForInput(prompt string, terragruntOptions *options.TerragruntOptions) (string, error) {
+	// We are writing directly to ErrWriter so the prompt is always visible
+	// no matter what logLevel is configured.
+	//
+	// See https://github.com/gruntwork-io/terragrunt/issues/1524 for additional context
 	n, err := terragruntOptions.ErrWriter.Write([]byte(prompt))
 	if err != nil {
 		terragruntOptions.Logger.Error(err)
