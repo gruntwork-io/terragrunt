@@ -161,6 +161,9 @@ type TerragruntOptions struct {
 	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command. See that
 	// command for more info.
 	AwsProviderPatchOverrides map[string]string
+
+	// The endpoint to use for Terragrunt calls to STS (get_aws_account_id, get_aws_caller_identity_arn, get_aws_caller_identity_user_id)
+	StsEndpoint string
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage
@@ -280,6 +283,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		StrictInclude:               terragruntOptions.StrictInclude,
 		RunTerragrunt:               terragruntOptions.RunTerragrunt,
 		AwsProviderPatchOverrides:   terragruntOptions.AwsProviderPatchOverrides,
+		StsEndpoint:                 terragruntOptions.StsEndpoint,
 	}
 }
 

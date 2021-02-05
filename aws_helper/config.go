@@ -119,7 +119,20 @@ func AssumeIamRole(iamRoleArn string) (*sts.Credentials, error) {
 
 // Return the AWS caller identity associated with the current set of credentials
 func GetAWSCallerIdentity(terragruntOptions *options.TerragruntOptions) (sts.GetCallerIdentityOutput, error) {
-	sess, err := session.NewSession()
+	defaultResolver := endpoints.DefaultResolver()
+	stsCustResolverFn := func(service, region string, optFns ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
+		if service == "sts" && terragruntOptions.StsEndpoint != "" {
+			return endpoints.ResolvedEndpoint{
+				URL:           terragruntOptions.StsEndpoint,
+				SigningRegion: region,
+			}, nil
+		}
+
+		return defaultResolver.EndpointFor(service, region, optFns...)
+	}
+	sess, err := session.NewSession(&aws.Config{
+		EndpointResolver: endpoints.ResolverFunc(stsCustResolverFn),
+	})
 	if err != nil {
 		return sts.GetCallerIdentityOutput{}, errors.WithStackTrace(err)
 	}

@@ -34,6 +34,7 @@ type TerragruntConfig struct {
 	DownloadDir                 string
 	PreventDestroy              *bool
 	Skip                        bool
+	StsEndpoint                 string
 	IamRole                     string
 	Inputs                      map[string]interface{}
 	Locals                      map[string]interface{}
@@ -591,6 +592,10 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 
 	if config.Inputs != nil {
 		includedConfig.Inputs = mergeInputs(config.Inputs, includedConfig.Inputs)
+	}
+
+	if config.StsEndpoint != "" {
+		includedConfig.StsEndpoint = config.StsEndpoint
 	}
 
 	return includedConfig, nil
