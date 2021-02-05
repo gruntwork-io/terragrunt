@@ -84,6 +84,7 @@ const (
 	TEST_FIXTURE_EXTERNAL_DEPENDENCIE                       = "fixture-external-dependencies"
 	TEST_FIXTURE_GET_OUTPUT                                 = "fixture-get-output"
 	TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH                     = "fixture-hooks/before-only"
+	TEST_FIXTURE_HOOKS_ALL_PATH                             = "fixture-hooks/all"
 	TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH                      = "fixture-hooks/after-only"
 	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH                = "fixture-hooks/before-and-after"
 	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_MERGE_PATH          = "fixture-hooks/before-and-after-merge"
@@ -323,6 +324,40 @@ func TestTerragruntInitHookWithSourceWithBackend(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
 	// `init-from-module` hook should execute only once
 	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE"), "Hooks on init-from-module command executed more than once")
+}
+
+func TestTerragruntHookRunAllApply(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_ALL_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_ALL_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_ALL_PATH)
+	beforeOnlyPath := util.JoinPath(rootPath, "before-only")
+	afterOnlyPath := util.JoinPath(rootPath, "after-only")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	_, beforeErr := ioutil.ReadFile(beforeOnlyPath + "/file.out")
+	assert.NoError(t, beforeErr)
+	_, afterErr := ioutil.ReadFile(afterOnlyPath + "/file.out")
+	assert.NoError(t, afterErr)
+}
+
+func TestTerragruntHookApplyAll(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_ALL_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_ALL_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_ALL_PATH)
+	beforeOnlyPath := util.JoinPath(rootPath, "before-only")
+	afterOnlyPath := util.JoinPath(rootPath, "after-only")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all -auto-approve --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	_, beforeErr := ioutil.ReadFile(beforeOnlyPath + "/file.out")
+	assert.NoError(t, beforeErr)
+	_, afterErr := ioutil.ReadFile(afterOnlyPath + "/file.out")
+	assert.NoError(t, afterErr)
 }
 
 func TestTerragruntBeforeHook(t *testing.T) {
