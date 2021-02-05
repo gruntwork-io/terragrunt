@@ -125,19 +125,6 @@ func readVersionFile(terraformSource *tfsource.TerraformSource) (string, error) 
 	return util.ReadFileAsString(terraformSource.VersionFile)
 }
 
-// There are two ways a user can tell Terragrunt that it needs to download Terraform configurations from a specific
-// URL: via a command-line option or via an entry in the Terragrunt configuration. If the user used one of these, this
-// method returns the source URL or an empty string if there is no source url
-func getTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) string {
-	if terragruntOptions.Source != "" {
-		return terragruntOptions.Source
-	} else if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.Source != nil {
-		return *terragruntConfig.Terraform.Source
-	} else {
-		return ""
-	}
-}
-
 // We use this code to force go-getter to copy files instead of creating symlinks.
 var copyFiles = func(client *getter.Client) error {
 

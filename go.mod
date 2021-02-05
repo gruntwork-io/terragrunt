@@ -27,4 +27,5 @@ require (
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
 	golang.org/x/sys v0.0.0-20200905004654-be1d3432aa8f
 	google.golang.org/api v0.35.0
+	gotest.tools v2.2.0+incompatible
 )

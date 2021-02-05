@@ -20,6 +20,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/gruntwork-io/terragrunt/cli/tfsource"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -401,14 +402,24 @@ func getTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targe
 		return nil, err
 	}
 
-	// First, attempt to parse the `remote_state` blocks without parsing/getting dependency outputs. If this is
-	// possible, proceed to routine that fetches remote state directly. Otherwise, fallback to calling
-	// `terragrunt output` directly.
+	// First attempt to parse the `remote_state` blocks without parsing/getting dependency outputs. If this is possible,
+	// proceed to routine that fetches remote state directly. Otherwise, fallback to calling `terragrunt output`
+	// directly.
 	remoteStateTGConfig, err := PartialParseConfigFile(targetConfig, targetTGOptions, nil, []PartialDecodeSectionType{RemoteStateBlock, TerragruntFlags})
 	if err != nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {
 		terragruntOptions.Logger.Warningf("Could not parse remote_state block from target config %s", targetConfig)
 		terragruntOptions.Logger.Warningf("Falling back to terragrunt output.")
 		return runTerragruntOutputJson(targetTGOptions, targetConfig)
+	}
+
+	// In optimization mode, see if there is already an init-ed folder that terragrunt can use, and if so, run
+	// `terraform output` in the working directory.
+	isInit, workingDir, err := terragruntAlreadyInit(targetTGOptions, targetConfig)
+	if err != nil {
+		return nil, err
+	}
+	if isInit {
+		return getTerragruntOutputJsonFromInitFolder(targetTGOptions, workingDir, remoteStateTGConfig.IamRole)
 	}
 	return getTerragruntOutputJsonFromRemoteState(targetTGOptions, targetConfig, remoteStateTGConfig.RemoteState, remoteStateTGConfig.IamRole)
 }
@@ -416,6 +427,58 @@ func getTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targe
 // canGetRemoteState returns true if the remote state block is not nil and dependency optimization is not disabled
 func canGetRemoteState(remoteState *remote.RemoteState) bool {
 	return remoteState != nil && !remoteState.DisableDependencyOptimization
+}
+
+// terragruntAlreadyInit returns true if it detects that the module specified by the given terragrunt configuration is
+// already initialized with the terraform source. This will also return the working directory where you can run
+// terraform.
+func terragruntAlreadyInit(terragruntOptions *options.TerragruntOptions, configPath string) (bool, string, error) {
+	// We need to first determine the working directory where the terraform source should be located. This is dependent
+	// on the source field of the terraform block in the config.
+	terraformBlockTGConfig, err := PartialParseConfigFile(configPath, terragruntOptions, nil, []PartialDecodeSectionType{TerraformSource})
+	if err != nil {
+		return false, "", err
+	}
+	var workingDir string
+	sourceUrl := GetTerraformSourceUrl(terragruntOptions, terraformBlockTGConfig)
+	if sourceUrl == "" || sourceUrl == "." {
+		// When there is no source URL, there is no download process and the working dir is the same as the directory
+		// where the config is.
+		if util.IsDir(configPath) {
+			workingDir = configPath
+		} else {
+			workingDir = filepath.Dir(configPath)
+		}
+	} else {
+		terraformSource, err := tfsource.NewTerraformSource(sourceUrl, terragruntOptions.DownloadDir, terragruntOptions.WorkingDir, terragruntOptions.Logger)
+		if err != nil {
+			return false, "", err
+		}
+		// We're only interested in the computed working dir.
+		workingDir = terraformSource.WorkingDir
+	}
+	// Terragrunt is already init-ed if the terraform state dir (.terraform) exists in the working dir.
+	return util.FileExists(filepath.Join(workingDir, ".terraform")), workingDir, nil
+}
+
+// getTerragruntOutputJsonFromInitFolder will retrieve the outputs directly from the module's working directory without
+// running init.
+func getTerragruntOutputJsonFromInitFolder(terragruntOptions *options.TerragruntOptions, terraformWorkingDir string, iamRole string) ([]byte, error) {
+	terragruntOptions.Logger.Infof("Detected module is already init-ed. Retrieving outputs directly from working directory.")
+
+	targetConfig := terragruntOptions.TerragruntConfigPath
+	targetTGOptions, err := setupTerragruntOptionsForBareTerraform(terragruntOptions, terraformWorkingDir, targetConfig, iamRole)
+	if err != nil {
+		return nil, err
+	}
+	out, err := shell.RunTerraformCommandWithOutput(targetTGOptions, "output", "-json")
+	if err != nil {
+		return nil, err
+	}
+	jsonString := out.Stdout
+	jsonBytes := []byte(strings.TrimSpace(jsonString))
+	terragruntOptions.Logger.Debugf("Retrieved output from %s as json: %s", targetConfig, jsonString)
+	return jsonBytes, nil
 }
 
 // getTerragruntOutputJsonFromRemoteState will retrieve the outputs directly by using just the remote state block. This
@@ -448,22 +511,8 @@ func getTerragruntOutputJsonFromRemoteState(
 	defer os.RemoveAll(tempWorkDir)
 	terragruntOptions.Logger.Debugf("Setting dependency working directory to %s", tempWorkDir)
 
-	// Here we clone the terragrunt options again since we need to make further modifications to it to allow fetching
-	// remote state.
-	// Set the terraform working dir to the tempdir, and set stdout writer to ioutil.Discard so that output content is
-	// not logged.
-	targetTGOptions := terragruntOptions.Clone(targetConfig)
-	targetTGOptions.WorkingDir = tempWorkDir
-	targetTGOptions.Writer = ioutil.Discard
-
-	// If the target config has an IAM role directive and it was not set on the command line, set it to
-	// the one we retrieved from the config.
-	if iamRole != "" && targetTGOptions.IamRole == "" {
-		targetTGOptions.IamRole = iamRole
-	}
-
-	// Make sure to assume any roles set by TERRAGRUNT_IAM_ROLE
-	if err := aws_helper.AssumeRoleAndUpdateEnvIfNecessary(targetTGOptions); err != nil {
+	targetTGOptions, err := setupTerragruntOptionsForBareTerraform(terragruntOptions, tempWorkDir, targetConfig, iamRole)
+	if err != nil {
 		return nil, err
 	}
 
@@ -494,6 +543,30 @@ func getTerragruntOutputJsonFromRemoteState(
 	jsonBytes := []byte(strings.TrimSpace(jsonString))
 	terragruntOptions.Logger.Debugf("Retrieved output from %s as json: %s", targetConfig, jsonString)
 	return jsonBytes, nil
+}
+
+// setupTerragruntOptionsForBareTerraform sets up a new TerragruntOptions struct that can be used to run terraform
+// without going through the full RunTerragrunt operation.
+func setupTerragruntOptionsForBareTerraform(originalOptions *options.TerragruntOptions, workingDir string, configPath string, iamRole string) (*options.TerragruntOptions, error) {
+	// Here we clone the terragrunt options again since we need to make further modifications to it to allow running
+	// terraform directly.
+	// Set the terraform working dir to the tempdir, and set stdout writer to ioutil.Discard so that output content is
+	// not logged.
+	targetTGOptions := originalOptions.Clone(configPath)
+	targetTGOptions.WorkingDir = workingDir
+	targetTGOptions.Writer = ioutil.Discard
+
+	// If the target config has an IAM role directive and it was not set on the command line, set it to
+	// the one we retrieved from the config.
+	if iamRole != "" && targetTGOptions.IamRole == "" {
+		targetTGOptions.IamRole = iamRole
+	}
+
+	// Make sure to assume any roles set by TERRAGRUNT_IAM_ROLE
+	if err := aws_helper.AssumeRoleAndUpdateEnvIfNecessary(targetTGOptions); err != nil {
+		return nil, err
+	}
+	return targetTGOptions, nil
 }
 
 // runTerragruntOutputJson uses terragrunt running functions to extract the json output from the target config.
