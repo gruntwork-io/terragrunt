@@ -458,6 +458,9 @@ func terragruntAlreadyInit(terragruntOptions *options.TerragruntOptions, configP
 		workingDir = terraformSource.WorkingDir
 	}
 	// Terragrunt is already init-ed if the terraform state dir (.terraform) exists in the working dir.
+	// NOTE: if the ref changes, the workingDir would be different as the download dir includes a base64 encoded hash of
+	// the source URL with ref. This would ensure that this routine would not return true if the new ref is not already
+	// init-ed.
 	return util.FileExists(filepath.Join(workingDir, ".terraform")), workingDir, nil
 }
 
