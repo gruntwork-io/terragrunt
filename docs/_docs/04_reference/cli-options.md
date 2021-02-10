@@ -561,8 +561,8 @@ When passed it, sets logging level for terragrunt. All supported levels are:
 * panic
 * fatal
 * error
-* warn (this is the default)
-* info
+* warn
+* info (this is the default)
 * debug
 * trace
 
