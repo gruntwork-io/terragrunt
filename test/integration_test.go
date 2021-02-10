@@ -34,6 +34,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/cli"
+	"github.com/gruntwork-io/terragrunt/cli/tfsource"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
@@ -1094,7 +1095,7 @@ func TestCustomLockFile(t *testing.T) {
 
 	source := "../custom-lock-file-module"
 	downloadDir := util.JoinPath(TEST_FIXTURE_CUSTOM_LOCK_FILE, TERRAGRUNT_CACHE)
-	result, err := cli.ProcessTerraformSource(source, downloadDir, TEST_FIXTURE_CUSTOM_LOCK_FILE, util.CreateLogEntry("", options.DEFAULT_LOG_LEVEL))
+	result, err := tfsource.NewTerraformSource(source, downloadDir, TEST_FIXTURE_CUSTOM_LOCK_FILE, util.CreateLogEntry("", options.DEFAULT_LOG_LEVEL))
 	require.NoError(t, err)
 
 	lockFilePath := util.JoinPath(result.WorkingDir, util.TerraformLockFile)
@@ -2277,14 +2278,27 @@ func TestYamlDecodeRegressions(t *testing.T) {
 // If output optimization is working, we should still get the same correct output even though the state of the upmost
 // module has been destroyed.
 func TestDependencyOutputOptimization(t *testing.T) {
-	dependencyOutputOptimizationTest(t, "nested-optimization")
+	expectOutputLogs := []string{
+		`Running command: terraform init -get=false -get-plugins=false prefix=\[.*fixture-get-output/nested-optimization/dep\]`,
+	}
+	dependencyOutputOptimizationTest(t, "nested-optimization", true, expectOutputLogs)
+}
+
+func TestDependencyOutputOptimizationSkipInit(t *testing.T) {
+	expectOutputLogs := []string{
+		`Detected module .*nested-optimization/dep/terragrunt.hcl is already init-ed. Retrieving outputs directly from working directory. prefix=\[.*fixture-get-output/nested-optimization/dep\]`,
+	}
+	dependencyOutputOptimizationTest(t, "nested-optimization", false, expectOutputLogs)
 }
 
 func TestDependencyOutputOptimizationNoGenerate(t *testing.T) {
-	dependencyOutputOptimizationTest(t, "nested-optimization-nogen")
+	expectOutputLogs := []string{
+		`Running command: terraform init -get=false -get-plugins=false prefix=\[.*fixture-get-output/nested-optimization-nogen/dep\]`,
+	}
+	dependencyOutputOptimizationTest(t, "nested-optimization-nogen", true, expectOutputLogs)
 }
 
-func dependencyOutputOptimizationTest(t *testing.T, moduleName string) {
+func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit bool, expectedOutputLogs []string) {
 	t.Parallel()
 
 	expectedOutput := `They said, "No, The answer is 42"`
@@ -2296,6 +2310,7 @@ func dependencyOutputOptimizationTest(t *testing.T, moduleName string) {
 	rootTerragruntConfigPath := filepath.Join(rootPath, config.DefaultTerragruntConfigPath)
 	livePath := filepath.Join(rootPath, "live")
 	deepDepPath := filepath.Join(rootPath, "deepdep")
+	depPath := filepath.Join(rootPath, "dep")
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(generatedUniqueId))
 	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(generatedUniqueId))
@@ -2303,28 +2318,40 @@ func dependencyOutputOptimizationTest(t *testing.T, moduleName string) {
 	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
 	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
 	// This is only a problem during testing, where the process is shared across terragrunt runs.
 	config.ClearOutputCache()
 
 	// verify expected output
-	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", livePath))
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", livePath))
 	require.NoError(t, err)
 
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
 	assert.Equal(t, expectedOutput, outputs["output"].Value)
 
+	// If we want to force reinit, delete the relevant .terraform directories
+	if forceInit {
+		cleanupTerraformFolder(t, depPath)
+	}
+
 	// Now delete the deepdep state and verify still works (note we need to bust the cache again)
 	config.ClearOutputCache()
 	require.NoError(t, os.Remove(filepath.Join(deepDepPath, "terraform.tfstate")))
-	reout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", livePath))
+	reout, reerr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", livePath))
 	require.NoError(t, err)
 
 	require.NoError(t, json.Unmarshal([]byte(reout), &outputs))
 	assert.Equal(t, expectedOutput, outputs["output"].Value)
+
+	for _, logRegexp := range expectedOutputLogs {
+		re, err := regexp.Compile(logRegexp)
+		require.NoError(t, err)
+		matches := re.FindAllString(reerr, -1)
+		assert.Greater(t, len(matches), 0)
+	}
 }
 
 func TestDependencyOutputOptimizationDisableTest(t *testing.T) {

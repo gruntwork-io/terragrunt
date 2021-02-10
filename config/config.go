@@ -248,6 +248,19 @@ func (conf *TerraformExtraArguments) String() string {
 		conf.EnvVars)
 }
 
+// There are two ways a user can tell Terragrunt that it needs to download Terraform configurations from a specific
+// URL: via a command-line option or via an entry in the Terragrunt configuration. If the user used one of these, this
+// method returns the source URL or an empty string if there is no source url
+func GetTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragruntConfig *TerragruntConfig) string {
+	if terragruntOptions.Source != "" {
+		return terragruntOptions.Source
+	} else if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.Source != nil {
+		return *terragruntConfig.Terraform.Source
+	} else {
+		return ""
+	}
+}
+
 // Return the default hcl path to use for the Terragrunt configuration file in the given directory
 func DefaultConfigPath(workingDir string) string {
 	return util.JoinPath(workingDir, DefaultTerragruntConfigPath)
