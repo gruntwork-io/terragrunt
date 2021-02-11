@@ -40,7 +40,9 @@ func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
 	// For any command that needs input, run in non-interactive mode to avoid cominglint stdin across multiple
 	// concurrent runs.
 	if util.ListContainsElement(config.TERRAFORM_COMMANDS_NEED_INPUT, stackCmd) {
-		terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, "-input=false")
+		// to support potential positional args in the args list, we append the input=false arg after the first element,
+		// which is the target command.
+		terragruntOptions.TerraformCliArgs = util.StringListInsert(terragruntOptions.TerraformCliArgs, "-input=false", 1)
 		stack.syncTerraformCliArgs(terragruntOptions)
 	}
 
@@ -49,7 +51,9 @@ func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
 	// in cli/cli_app.go) be the gate keeper.
 	switch stackCmd {
 	case "apply", "destroy":
-		terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, "-auto-approve")
+		// to support potential positional args in the args list, we append the input=false arg after the first element,
+		// which is the target command.
+		terragruntOptions.TerraformCliArgs = util.StringListInsert(terragruntOptions.TerraformCliArgs, "-auto-approve", 1)
 		stack.syncTerraformCliArgs(terragruntOptions)
 	}
 

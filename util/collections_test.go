@@ -1,8 +1,9 @@
 package util
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestMatchesAny(t *testing.T) {
@@ -210,6 +211,27 @@ func TestCommaSeparatedStrings(t *testing.T) {
 
 	for _, testCase := range testCases {
 		assert.Equal(t, CommaSeparatedStrings(testCase.list), testCase.expected, "For list %v", testCase.list)
+		t.Logf("%v passed", testCase.list)
+	}
+}
+
+func TestStringListInsert(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		list     []string
+		element  string
+		index    int
+		expected []string
+	}{
+		{[]string{}, "foo", 0, []string{"foo"}},
+		{[]string{"a", "c", "d"}, "b", 1, []string{"a", "b", "c", "d"}},
+		{[]string{"b", "c", "d"}, "a", 0, []string{"a", "b", "c", "d"}},
+		{[]string{"a", "b", "d"}, "c", 2, []string{"a", "b", "c", "d"}},
+	}
+
+	for _, testCase := range testCases {
+		assert.Equal(t, testCase.expected, StringListInsert(testCase.list, testCase.element, testCase.index), "For list %v", testCase.list)
 		t.Logf("%v passed", testCase.list)
 	}
 }
