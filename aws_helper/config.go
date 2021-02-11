@@ -30,24 +30,7 @@ type AwsSessionConfig struct {
 // Returns an AWS session object for the given config region (required), profile name (optional), and IAM role to assume
 // (optional), ensuring that the credentials are available
 func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*session.Session, error) {
-	defaultResolver := endpoints.DefaultResolver()
-	customResolverFn := func(service, region string, optFns ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
-		if service == "s3" && config.CustomS3Endpoint != "" {
-			return endpoints.ResolvedEndpoint{
-				URL:           config.CustomS3Endpoint,
-				SigningRegion: config.Region,
-			}, nil
-		}
-
-		if service == "sts" && config.CustomStsEndpoint != "" {
-			return endpoints.ResolvedEndpoint{
-				URL:           config.CustomStsEndpoint,
-				SigningRegion: region,
-			}, nil
-		}
-
-		return defaultResolver.EndpointFor(service, region, optFns...)
-	}
+	customResolverFn := createCustomResolver(config)
 
 	var awsConfig = aws.Config{
 		Region:                  aws.String(config.Region),
@@ -96,6 +79,30 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 	}
 
 	return sess, nil
+}
+
+// Create a custom endpoint resolver; useful for connecting to custom endpoints for AWS services
+func createCustomResolver(config *AwsSessionConfig) func(string, string, ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
+	defaultResolver := endpoints.DefaultResolver()
+	customResolverFn := func(service, region string, optFns ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
+		if service == "s3" && config.CustomS3Endpoint != "" {
+			return endpoints.ResolvedEndpoint{
+				URL:           config.CustomS3Endpoint,
+				SigningRegion: config.Region,
+			}, nil
+		}
+
+		if service == "sts" && config.CustomStsEndpoint != "" {
+			return endpoints.ResolvedEndpoint{
+				URL:           config.CustomStsEndpoint,
+				SigningRegion: region,
+			}, nil
+		}
+
+		return defaultResolver.EndpointFor(service, region, optFns...)
+	}
+
+	return customResolverFn
 }
 
 // Make API calls to AWS to assume the IAM role specified and return the temporary AWS credentials to use that role
