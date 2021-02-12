@@ -526,7 +526,8 @@ directories.
 
 **CLI Arg**: `--terragrunt-ignore-dependency-order`
 
-When passed in, ignore the depedencies between modules when running `*-all` commands.
+**CLI Arg**: `--terragrunt-include-external-dependencies`</br>
+**Environment Variable**: `TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES` (set to `false`)</br>
 
 
 ### terragrunt-ignore-external-dependencies
