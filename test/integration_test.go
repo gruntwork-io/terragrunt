@@ -1070,6 +1070,15 @@ func TestTerragruntStackCommands(t *testing.T) {
 	runTerragrunt(t, fmt.Sprintf("terragrunt destroy-all --terragrunt-non-interactive --terragrunt-working-dir %s", mgmtEnvironmentPath))
 }
 
+func TestTerragruntStackCommandsWithPlanFile(t *testing.T) {
+	t.Parallel()
+
+	disjointEnvironmentPath := "fixture-stack/disjoint"
+	cleanupTerraformFolder(t, disjointEnvironmentPath)
+	runTerragrunt(t, fmt.Sprintf("terragrunt plan-all -out=plan.tfplan --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir %s", disjointEnvironmentPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all plan.tfplan --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir %s", disjointEnvironmentPath))
+}
+
 func TestLocalDownload(t *testing.T) {
 	t.Parallel()
 
