@@ -67,6 +67,9 @@ type TerragruntOptions struct {
 	// Whether we should automatically run terraform init if necessary when executing other commands
 	AutoInit bool
 
+	// Whether we should force skipping init.
+	ForceSkipInit bool
+
 	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
 	TerraformCliArgs []string
 
@@ -178,6 +181,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		OriginalTerraformCommand:    "",
 		TerraformCommand:            "",
 		AutoInit:                    true,
+		ForceSkipInit:               false,
 		NonInteractive:              false,
 		TerraformCliArgs:            []string{},
 		WorkingDir:                  workingDir,
@@ -252,6 +256,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		TerraformVersion:            terragruntOptions.TerraformVersion,
 		TerragruntVersion:           terragruntOptions.TerragruntVersion,
 		AutoInit:                    terragruntOptions.AutoInit,
+		ForceSkipInit:               terragruntOptions.ForceSkipInit,
 		NonInteractive:              terragruntOptions.NonInteractive,
 		TerraformCliArgs:            util.CloneStringList(terragruntOptions.TerraformCliArgs),
 		WorkingDir:                  workingDir,

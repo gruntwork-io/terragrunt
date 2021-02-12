@@ -152,6 +152,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 
 	opts.TerraformPath = filepath.ToSlash(terraformPath)
 	opts.AutoInit = !parseBooleanArg(args, OPT_TERRAGRUNT_NO_AUTO_INIT, os.Getenv("TERRAGRUNT_AUTO_INIT") == "false")
+	opts.ForceSkipInit = parseBooleanArg(args, OPT_TERRAGRUNT_FORCE_SKIP_INIT, os.Getenv("TERRAGRUNT_FORCE_SKIP_INIT") == "true")
 	opts.AutoRetry = !parseBooleanArg(args, OPT_TERRAGRUNT_NO_AUTO_RETRY, os.Getenv("TERRAGRUNT_AUTO_RETRY") == "false")
 	opts.NonInteractive = parseBooleanArg(args, OPT_NON_INTERACTIVE, os.Getenv("TF_INPUT") == "false" || os.Getenv("TF_INPUT") == "0")
 	opts.TerraformCliArgs = filterTerragruntArgs(args)

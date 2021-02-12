@@ -27,6 +27,7 @@ import (
 const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
 const OPT_TERRAGRUNT_TFPATH = "terragrunt-tfpath"
 const OPT_TERRAGRUNT_NO_AUTO_INIT = "terragrunt-no-auto-init"
+const OPT_TERRAGRUNT_FORCE_SKIP_INIT = "terragrunt-force-skip-init"
 const OPT_TERRAGRUNT_NO_AUTO_RETRY = "terragrunt-no-auto-retry"
 const OPT_NON_INTERACTIVE = "terragrunt-non-interactive"
 const OPT_WORKING_DIR = "terragrunt-working-dir"
@@ -56,6 +57,7 @@ var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{
 	OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES,
 	OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES,
 	OPT_TERRAGRUNT_NO_AUTO_INIT,
+	OPT_TERRAGRUNT_FORCE_SKIP_INIT,
 	OPT_TERRAGRUNT_NO_AUTO_RETRY,
 	OPT_TERRAGRUNT_CHECK,
 	OPT_TERRAGRUNT_STRICT_INCLUDE,
@@ -856,6 +858,10 @@ func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terr
 
 	// Prevent Auto-Init if the user has disabled it
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) != CMD_INIT && !terragruntOptions.AutoInit {
+		if terragruntOptions.ForceSkipInit {
+			terragruntOptions.Logger.Warnf("Detected that init is needed, but Auto-Init is disabled and --terragrunt-force-skip-init flag is passed in. Continuing with further actuions, but subsequent terraform commands may fail.")
+			return nil
+		}
 		return errors.WithStackTrace(InitNeededButDisabled("Cannot continue because init is needed, but Auto-Init is disabled.  You must run 'terragrunt init' manually."))
 	}
 

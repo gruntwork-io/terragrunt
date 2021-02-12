@@ -339,6 +339,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-tfpath](#terragrunt-tfpath)
 - [terragrunt-no-auto-init](#terragrunt-no-auto-init)
 - [terragrunt-no-auto-retry](#terragrunt-no-auto-retry)
+- [terragrunt-force-skip-init](#terragrunt-force-skip-init)
 - [terragrunt-non-interactive](#terragrunt-non-interactive)
 - [terragrunt-working-dir](#terragrunt-working-dir)
 - [terragrunt-download-dir](#terragrunt-download-dir)
@@ -390,7 +391,8 @@ When passed in, don't automatically run `terraform init` when other commands are
 if you want to pass custom arguments to `terraform init` that are specific to a user or execution environment, and
 therefore cannot be specified as `extra_arguments`. For example, `-plugin-dir`. You must run `terragrunt init`
 yourself in this case if needed. `terragrunt` will fail if it detects that `init` is needed, but auto init is
-disabled. See [Auto-Init]({{site.baseurl}}/docs/features/auto-init#auto-init)
+disabled, unless [terragrunt-force-skip-init](#terragrunt-force-skip-init) is also passed in. See
+[Auto-Init]({{site.baseurl}}/docs/features/auto-init#auto-init)
 
 
 ### terragrunt-no-auto-retry
@@ -400,6 +402,19 @@ disabled. See [Auto-Init]({{site.baseurl}}/docs/features/auto-init#auto-init)
 
 When passed in, don't automatically retry commands which fail with transient errors. See
 [Auto-Retry]({{site.baseurl}}/docs/features/auto-retry#auto-retry)
+
+
+### terragrunt-force-skip-init
+
+**CLI Arg**: `--terragrunt-force-skip-init`<br/>
+**Environment Variable**: `TERRAGRUNT_FORCE_SKIP_INIT` (set to `true`)
+
+When passed in, force skipping `terraform init` when other commands are run
+even if terragrunt detects that `init` is needed. This is useful when you want
+to skip configuring modules and providers with `init` to fix issues with the
+state file during a terraform upgrade.
+
+See [Auto-Init]({{site.baseurl}}/docs/features/auto-init#auto-init) for additional information.
 
 
 ### terragrunt-non-interactive

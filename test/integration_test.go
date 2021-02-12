@@ -1731,6 +1731,30 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	assert.False(t, isDefined)
 }
 
+func TestForceSkipInit(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_REGRESSIONS)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_REGRESSIONS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_REGRESSIONS, "skip-init")
+
+	noForceStdout := bytes.Buffer{}
+	noForceStderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-no-auto-init --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &noForceStdout, &noForceStderr)
+	logBufferContentsLineByLine(t, noForceStdout, "no force apply stdout")
+	logBufferContentsLineByLine(t, noForceStderr, "no force apply stderr")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "Cannot continue because init is needed, but Auto-Init is disabled.")
+
+	forceStdout := bytes.Buffer{}
+	forceStderr := bytes.Buffer{}
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-force-skip-init --terragrunt-no-auto-init --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &forceStdout, &forceStderr)
+	logBufferContentsLineByLine(t, forceStdout, "no force apply stdout")
+	logBufferContentsLineByLine(t, forceStderr, "no force apply stderr")
+	require.Error(t, err)
+	require.Contains(t, forceStderr.String(), "This module is not yet installed.")
+}
+
 func TestLocalsParsing(t *testing.T) {
 	t.Parallel()
 
