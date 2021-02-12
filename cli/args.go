@@ -18,7 +18,7 @@ import (
 	"github.com/urfave/cli"
 )
 
-// Parse command line options that are passed in for Terragrunt
+// ParseTerragruntOptions Parse command line options that are passed in for Terragrunt
 func ParseTerragruntOptions(cliContext *cli.Context) (*options.TerragruntOptions, error) {
 	terragruntOptions, err := parseTerragruntOptionsFromArgs(cliContext.App.Version, cliContext.Args(), cliContext.App.Writer, cliContext.App.ErrWriter)
 	if err != nil {
@@ -103,7 +103,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 
 	ignoreExternalDependencies := parseBooleanArg(args, OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES, false)
 
-	includeExternalDependencies := parseBooleanArg(args, OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES, false)
+	includeExternalDependencies := parseBooleanArg(args, OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES, func() bool { _, b := os.LookupEnv("TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES"); return b }())
 
 	iamRole, err := parseStringArg(args, OPT_TERRAGRUNT_IAM_ROLE, os.Getenv("TERRAGRUNT_IAM_ROLE"))
 	if err != nil {
