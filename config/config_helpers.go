@@ -301,6 +301,7 @@ func pathRelativeToInclude(include *IncludeConfig, terragruntOptions *options.Te
 
 	includePath := filepath.Dir(include.Path)
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+	currentPath = filepath.EvalSymlinks(currentPath)
 
 	if !filepath.IsAbs(includePath) {
 		includePath = util.JoinPath(currentPath, includePath)
