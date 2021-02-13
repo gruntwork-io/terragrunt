@@ -534,18 +534,18 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 
 	errorsOccurred := []error{}
 
-	terragruntOptions.Logger.Printf("Detected %d Hooks", len(hooks))
+	terragruntOptions.Logger.Infof("Detected %d Hooks", len(hooks))
 
 	for _, curHook := range hooks {
 		allPreviousErrors := append(previousExecError, errorsOccurred...)
 		if shouldRunHook(curHook, terragruntOptions, allPreviousErrors...) {
-			terragruntOptions.Logger.Printf("Executing hook: %s", curHook.Name)
+			terragruntOptions.Logger.Infof("Executing hook: %s", curHook.Name)
 			actionToExecute := curHook.Execute[0]
 			actionParams := curHook.Execute[1:]
 			possibleError := shell.RunShellCommand(terragruntOptions, actionToExecute, actionParams...)
 
 			if possibleError != nil {
-				terragruntOptions.Logger.Printf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
+				terragruntOptions.Logger.Infof("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
 				errorsOccurred = append(errorsOccurred, possibleError)
 			}
 
@@ -674,7 +674,7 @@ func runActionWithHooks(description string, terragruntOptions *options.Terragrun
 	if beforeHookErrors == nil {
 		actionErrors = action()
 	} else {
-		terragruntOptions.Logger.Printf("Errors encountered running before_hooks. Not running '%s'.", description)
+		terragruntOptions.Logger.Infof("Errors encountered running before_hooks. Not running '%s'.", description)
 	}
 
 	postHookErrors := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, beforeHookErrors, actionErrors)
@@ -708,7 +708,7 @@ func runTerraformWithRetry(terragruntOptions *options.TerragruntOptions) error {
 	for i := 0; i < terragruntOptions.MaxRetryAttempts; i++ {
 		if out, tferr := shell.RunTerraformCommandWithOutput(terragruntOptions, terragruntOptions.TerraformCliArgs...); tferr != nil {
 			if out != nil && isRetryable(out.Stderr, tferr, terragruntOptions) {
-				terragruntOptions.Logger.Printf("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.Sleep)
+				terragruntOptions.Logger.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.Sleep)
 				time.Sleep(terragruntOptions.Sleep)
 			} else {
 				return tferr

@@ -11,7 +11,7 @@ import (
 // MaxRetriesExceeded error.
 func DoWithRetry(actionDescription string, maxRetries int, sleepBetweenRetries time.Duration, logger *logrus.Entry, action func() error) error {
 	for i := 0; i <= maxRetries; i++ {
-		logger.Printf(actionDescription)
+		logger.Infof(actionDescription)
 
 		err := action()
 		if err == nil {

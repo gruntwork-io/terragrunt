@@ -29,11 +29,11 @@ func runHCLFmt(terragruntOptions *options.TerragruntOptions) error {
 		if !filepath.IsAbs(targetFile) {
 			targetFile = util.JoinPath(workingDir, targetFile)
 		}
-		terragruntOptions.Logger.Printf("Formatting terragrunt.hcl file at: %s.", targetFile)
+		terragruntOptions.Logger.Infof("Formatting terragrunt.hcl file at: %s.", targetFile)
 		return formatTgHCL(terragruntOptions, targetFile)
 	}
 
-	terragruntOptions.Logger.Printf("Formatting terragrunt.hcl files from the directory tree %s.", terragruntOptions.WorkingDir)
+	terragruntOptions.Logger.Infof("Formatting terragrunt.hcl files from the directory tree %s.", terragruntOptions.WorkingDir)
 	// zglob normalizes paths to "/"
 	tgHclFiles, err := zglob.Glob(util.JoinPath(workingDir, "**", "*.hcl"))
 	if err != nil {
@@ -66,24 +66,24 @@ func runHCLFmt(terragruntOptions *options.TerragruntOptions) error {
 // formatTgHCL uses the hcl2 library to format the terragrunt.hcl file. This will attempt to parse the HCL file first to
 // ensure that there are no syntax errors, before attempting to format it.
 func formatTgHCL(terragruntOptions *options.TerragruntOptions, tgHclFile string) error {
-	terragruntOptions.Logger.Printf("Formatting %s", tgHclFile)
+	terragruntOptions.Logger.Infof("Formatting %s", tgHclFile)
 
 	info, err := os.Stat(tgHclFile)
 	if err != nil {
-		terragruntOptions.Logger.Printf("Error retrieving file info of %s", tgHclFile)
+		terragruntOptions.Logger.Infof("Error retrieving file info of %s", tgHclFile)
 		return err
 	}
 
 	contentsStr, err := util.ReadFileAsString(tgHclFile)
 	if err != nil {
-		terragruntOptions.Logger.Printf("Error reading %s", tgHclFile)
+		terragruntOptions.Logger.Infof("Error reading %s", tgHclFile)
 		return err
 	}
 	contents := []byte(contentsStr)
 
 	err = checkErrors(contents, tgHclFile)
 	if err != nil {
-		terragruntOptions.Logger.Printf("Error parsing %s", tgHclFile)
+		terragruntOptions.Logger.Infof("Error parsing %s", tgHclFile)
 		return err
 	}
 
