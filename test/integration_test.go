@@ -1740,6 +1740,22 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	assert.False(t, isDefined)
 }
 
+func TestNoAutoInit(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_REGRESSIONS)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_REGRESSIONS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_REGRESSIONS, "skip-init")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-no-auto-init --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	logBufferContentsLineByLine(t, stdout, "no force apply stdout")
+	logBufferContentsLineByLine(t, stderr, "no force apply stderr")
+	require.Error(t, err)
+	require.Contains(t, stderr.String(), "This module is not yet installed.")
+}
+
 func TestLocalsParsing(t *testing.T) {
 	t.Parallel()
 

@@ -856,7 +856,8 @@ func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terr
 
 	// Prevent Auto-Init if the user has disabled it
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) != CMD_INIT && !terragruntOptions.AutoInit {
-		return errors.WithStackTrace(InitNeededButDisabled("Cannot continue because init is needed, but Auto-Init is disabled.  You must run 'terragrunt init' manually."))
+		terragruntOptions.Logger.Warnf("Detected that init is needed, but Auto-Init is disabled. Continuing with further actions, but subsequent terraform commands may fail.")
+		return nil
 	}
 
 	initOptions, err := prepareInitOptions(terragruntOptions, terraformSource)
@@ -979,12 +980,6 @@ type ArgumentNotAllowed struct {
 
 func (err ArgumentNotAllowed) Error() string {
 	return fmt.Sprintf(err.Message, err.Argument)
-}
-
-type InitNeededButDisabled string
-
-func (err InitNeededButDisabled) Error() string {
-	return string(err)
 }
 
 type BackendNotDefined struct {
