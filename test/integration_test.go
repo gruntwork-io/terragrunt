@@ -602,7 +602,7 @@ func TestTerragruntHonorsS3RemoteStateSkipFlagsRegression(t *testing.T) {
 func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucket(t *testing.T) {
 	t.Parallel()
 
-	examplePath := filepath.Join(TEST_FIXTURE_REGRESSIONS, "accesslogging-bucket-name")
+	examplePath := filepath.Join(TEST_FIXTURE_REGRESSIONS, "accesslogging-bucket")
 	cleanupTerraformFolder(t, examplePath)
 	// Also clean up generated backend file
 	removeFile(t, filepath.Join(examplePath, "backend.tf"))
