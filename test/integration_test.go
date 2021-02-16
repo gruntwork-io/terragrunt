@@ -596,8 +596,9 @@ func TestTerragruntHonorsS3RemoteStateSkipFlagsRegression(t *testing.T) {
 	assert.NotEqual(t, versioningStatus, "Enabled")
 }
 
-// Regression test to ensure that accesslogging_bucket_name is taken into account
-// & sets the TargetLock bucket to a new S3 bucket, different from the origin S3 bucket
+// Regression test to ensure that `accesslogging_bucket_name` and `accesslogging_target_prefix` are taken into account
+// & the TargetLock bucket is set to a new S3 bucket, different from the origin S3 bucket
+// & the logs objects are prefixed with the `accesslogging_target_prefix` value
 func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucket(t *testing.T) {
 	t.Parallel()
 
