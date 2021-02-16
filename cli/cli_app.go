@@ -534,7 +534,7 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 
 	errorsOccurred := []error{}
 
-	terragruntOptions.Logger.Infof("Detected %d Hooks", len(hooks))
+	terragruntOptions.Logger.Debugf("Detected %d Hooks", len(hooks))
 
 	for _, curHook := range hooks {
 		allPreviousErrors := append(previousExecError, errorsOccurred...)
@@ -545,7 +545,7 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 			possibleError := shell.RunShellCommand(terragruntOptions, actionToExecute, actionParams...)
 
 			if possibleError != nil {
-				terragruntOptions.Logger.Infof("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
+				terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
 				errorsOccurred = append(errorsOccurred, possibleError)
 			}
 
@@ -674,7 +674,7 @@ func runActionWithHooks(description string, terragruntOptions *options.Terragrun
 	if beforeHookErrors == nil {
 		actionErrors = action()
 	} else {
-		terragruntOptions.Logger.Infof("Errors encountered running before_hooks. Not running '%s'.", description)
+		terragruntOptions.Logger.Errorf("Errors encountered running before_hooks. Not running '%s'.", description)
 	}
 
 	postHookErrors := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, beforeHookErrors, actionErrors)

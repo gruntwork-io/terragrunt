@@ -70,20 +70,20 @@ func formatTgHCL(terragruntOptions *options.TerragruntOptions, tgHclFile string)
 
 	info, err := os.Stat(tgHclFile)
 	if err != nil {
-		terragruntOptions.Logger.Infof("Error retrieving file info of %s", tgHclFile)
+		terragruntOptions.Logger.Errorf("Error retrieving file info of %s", tgHclFile)
 		return err
 	}
 
 	contentsStr, err := util.ReadFileAsString(tgHclFile)
 	if err != nil {
-		terragruntOptions.Logger.Infof("Error reading %s", tgHclFile)
+		terragruntOptions.Logger.Errorf("Error reading %s", tgHclFile)
 		return err
 	}
 	contents := []byte(contentsStr)
 
 	err = checkErrors(contents, tgHclFile)
 	if err != nil {
-		terragruntOptions.Logger.Infof("Error parsing %s", tgHclFile)
+		terragruntOptions.Logger.Errorf("Error parsing %s", tgHclFile)
 		return err
 	}
 

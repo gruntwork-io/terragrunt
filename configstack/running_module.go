@@ -249,7 +249,7 @@ func (module *runningModule) moduleFinished(moduleErr error) {
 	if moduleErr == nil {
 		module.Module.TerragruntOptions.Logger.Debugf("Module %s has finished successfully!", module.Module.Path)
 	} else {
-		module.Module.TerragruntOptions.Logger.Infof("Module %s has finished with an error: %v", module.Module.Path, moduleErr)
+		module.Module.TerragruntOptions.Logger.Errorf("Module %s has finished with an error: %v", module.Module.Path, moduleErr)
 	}
 
 	module.Status = Finished

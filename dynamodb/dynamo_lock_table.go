@@ -44,7 +44,7 @@ func CreateLockTableIfNecessary(tableName string, tags map[string]string, client
 	}
 
 	if !tableExists {
-		terragruntOptions.Logger.Infof("Lock table %s does not exist in DynamoDB. Will need to create it just this first time.", tableName)
+		terragruntOptions.Logger.Debugf("Lock table %s does not exist in DynamoDB. Will need to create it just this first time.", tableName)
 		return CreateLockTable(tableName, tags, client, terragruntOptions)
 	}
 
@@ -81,7 +81,7 @@ func CreateLockTable(tableName string, tags map[string]string, client *dynamodb.
 	tableCreateDeleteSemaphore.Acquire()
 	defer tableCreateDeleteSemaphore.Release()
 
-	terragruntOptions.Logger.Infof("Creating table %s in DynamoDB", tableName)
+	terragruntOptions.Logger.Debugf("Creating table %s in DynamoDB", tableName)
 
 	attributeDefinitions := []*dynamodb.AttributeDefinition{
 		{AttributeName: aws.String(ATTR_LOCK_ID), AttributeType: aws.String(dynamodb.ScalarAttributeTypeS)},
@@ -100,7 +100,7 @@ func CreateLockTable(tableName string, tags map[string]string, client *dynamodb.
 
 	if err != nil {
 		if isTableAlreadyBeingCreatedOrUpdatedError(err) {
-			terragruntOptions.Logger.Infof("Looks like someone created table %s at the same time. Will wait for it to be in active state.", tableName)
+			terragruntOptions.Logger.Debugf("Looks like someone created table %s at the same time. Will wait for it to be in active state.", tableName)
 		} else {
 			return errors.WithStackTrace(err)
 		}
@@ -128,12 +128,12 @@ func CreateLockTable(tableName string, tags map[string]string, client *dynamodb.
 func tagTableIfTagsGiven(tags map[string]string, tableArn *string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
 
 	if tags == nil || len(tags) == 0 {
-		terragruntOptions.Logger.Infof("No tags for lock table given.")
+		terragruntOptions.Logger.Debugf("No tags for lock table given.")
 		return nil
 	}
 
 	// we were able to create the table successfully, now add tags
-	terragruntOptions.Logger.Infof("Adding tags to lock table: %s", tags)
+	terragruntOptions.Logger.Debugf("Adding tags to lock table: %s", tags)
 
 	var tagsConverted []*dynamodb.Tag
 
@@ -183,12 +183,12 @@ func waitForTableToBeActiveWithRandomSleep(tableName string, client *dynamodb.Dy
 		}
 
 		if tableReady {
-			terragruntOptions.Logger.Infof("Success! Table %s is now in active state.", tableName)
+			terragruntOptions.Logger.Debugf("Success! Table %s is now in active state.", tableName)
 			return nil
 		}
 
 		sleepBetweenRetries := util.GetRandomTime(sleepBetweenRetriesMin, sleepBetweenRetriesMax)
-		terragruntOptions.Logger.Infof("Table %s is not yet in active state. Will check again after %s.", tableName, sleepBetweenRetries)
+		terragruntOptions.Logger.Debugf("Table %s is not yet in active state. Will check again after %s.", tableName, sleepBetweenRetries)
 		time.Sleep(sleepBetweenRetries)
 	}
 
@@ -203,14 +203,14 @@ func UpdateLockTableSetSSEncryptionOnIfNecessary(tableName string, client *dynam
 	}
 
 	if tableSSEncrypted {
-		terragruntOptions.Logger.Infof("Table %s already has encryption enabled", tableName)
+		terragruntOptions.Logger.Debugf("Table %s already has encryption enabled", tableName)
 		return nil
 	}
 
 	tableCreateDeleteSemaphore.Acquire()
 	defer tableCreateDeleteSemaphore.Release()
 
-	terragruntOptions.Logger.Infof("Enabling server-side encryption on table %s in AWS DynamoDB", tableName)
+	terragruntOptions.Logger.Debugf("Enabling server-side encryption on table %s in AWS DynamoDB", tableName)
 
 	input := &dynamodb.UpdateTableInput{
 		SSESpecification: &dynamodb.SSESpecification{
@@ -222,7 +222,7 @@ func UpdateLockTableSetSSEncryptionOnIfNecessary(tableName string, client *dynam
 
 	if _, err := client.UpdateTable(input); err != nil {
 		if isTableAlreadyBeingCreatedOrUpdatedError(err) {
-			terragruntOptions.Logger.Infof("Looks like someone is already updating table %s at the same time. Will wait for that update to complete.", tableName)
+			terragruntOptions.Logger.Debugf("Looks like someone is already updating table %s at the same time. Will wait for that update to complete.", tableName)
 		} else {
 			return errors.WithStackTrace(err)
 		}
@@ -240,7 +240,7 @@ func waitForEncryptionToBeEnabled(tableName string, client *dynamodb.DynamoDB, t
 	maxRetries := 15
 	sleepBetweenRetries := 20 * time.Second
 
-	terragruntOptions.Logger.Infof("Waiting for encryption to be enabled on table %s", tableName)
+	terragruntOptions.Logger.Debugf("Waiting for encryption to be enabled on table %s", tableName)
 
 	for i := 0; i < maxRetries; i++ {
 		tableSSEncrypted, err := LockTableCheckSSEncryptionIsOn(tableName, client)
@@ -249,11 +249,11 @@ func waitForEncryptionToBeEnabled(tableName string, client *dynamodb.DynamoDB, t
 		}
 
 		if tableSSEncrypted {
-			terragruntOptions.Logger.Infof("Encryption is now enabled for table %s!", tableName)
+			terragruntOptions.Logger.Debugf("Encryption is now enabled for table %s!", tableName)
 			return nil
 		}
 
-		terragruntOptions.Logger.Infof("Encryption is still not enabled for table %s. Will sleep for %v and try again.", tableName, sleepBetweenRetries)
+		terragruntOptions.Logger.Debugf("Encryption is still not enabled for table %s. Will sleep for %v and try again.", tableName, sleepBetweenRetries)
 		time.Sleep(sleepBetweenRetries)
 	}
 

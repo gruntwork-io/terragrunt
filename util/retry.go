@@ -9,9 +9,9 @@ import (
 // DoWithRetry runs the specified action. If it returns a value, return that value. If it returns an error, sleep for
 // sleepBetweenRetries and try again, up to a maximum of maxRetries retries. If maxRetries is exceeded, return a
 // MaxRetriesExceeded error.
-func DoWithRetry(actionDescription string, maxRetries int, sleepBetweenRetries time.Duration, logger *logrus.Entry, action func() error) error {
+func DoWithRetry(actionDescription string, maxRetries int, sleepBetweenRetries time.Duration, logger *logrus.Entry, logLevel logrus.Level, action func() error) error {
 	for i := 0; i <= maxRetries; i++ {
-		logger.Infof(actionDescription)
+		logger.Logf(logLevel, actionDescription)
 
 		err := action()
 		if err == nil {

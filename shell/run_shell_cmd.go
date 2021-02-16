@@ -57,7 +57,7 @@ func RunShellCommandWithOutput(
 	command string,
 	args ...string,
 ) (*CmdOutput, error) {
-	terragruntOptions.Logger.Infof("Running command: %s %s", command, strings.Join(args, " "))
+	terragruntOptions.Logger.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 	if suppressStdout {
 		terragruntOptions.Logger.Debugf("Command output will be suppressed.")
 	}
@@ -174,10 +174,10 @@ func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger *logrus.Entry,
 		for {
 			select {
 			case s := <-signalChannel:
-				logger.Infof("Forward signal %v to terraform.", s)
+				logger.Debugf("Forward signal %v to terraform.", s)
 				err := c.Process.Signal(s)
 				if err != nil {
-					logger.Infof("Error forwarding signal: %v", err)
+					logger.Errorf("Error forwarding signal: %v", err)
 				}
 			case <-cmdChannel:
 				return

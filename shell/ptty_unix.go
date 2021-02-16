@@ -27,7 +27,7 @@ func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.
 	pseudoTerminal, startErr := pty.Start(cmd)
 	defer func() {
 		if closeErr := pseudoTerminal.Close(); closeErr != nil {
-			terragruntOptions.Logger.Infof("Error closing pty: %s", closeErr)
+			terragruntOptions.Logger.Errorf("Error closing pty: %s", closeErr)
 			// Only overwrite the previous error if there was no error since this error has lower priority than any
 			// errors in the main routine
 			if err == nil {
@@ -45,7 +45,7 @@ func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.
 	go func() {
 		for range ch {
 			if inheritSizeErr := pty.InheritSize(os.Stdin, pseudoTerminal); inheritSizeErr != nil {
-				terragruntOptions.Logger.Infof("error resizing pty: %s", inheritSizeErr)
+				terragruntOptions.Logger.Errorf("error resizing pty: %s", inheritSizeErr)
 				// We don't propagate this error upstream because it does not affect normal operation of the command
 			}
 		}
@@ -59,7 +59,7 @@ func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.
 	}
 	defer func() {
 		if restoreErr := terminal.Restore(int(os.Stdin.Fd()), oldState); restoreErr != nil {
-			terragruntOptions.Logger.Infof("Error restoring terminal state: %s", restoreErr)
+			terragruntOptions.Logger.Errorf("Error restoring terminal state: %s", restoreErr)
 			// Only overwrite the previous error if there was no error since this error has lower priority than any
 			// errors in the main routine
 			if err == nil {
@@ -71,7 +71,7 @@ func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.
 	// Copy stdin to the pty
 	go func() {
 		_, copyStdinErr := io.Copy(pseudoTerminal, os.Stdin)
-		terragruntOptions.Logger.Infof("Error forwarding stdin: %s", copyStdinErr)
+		terragruntOptions.Logger.Errorf("Error forwarding stdin: %s", copyStdinErr)
 		// We don't propagate this error upstream because it does not affect normal operation of the command. A repeat
 		// of the same stdin in this case should resolve the issue.
 	}()
