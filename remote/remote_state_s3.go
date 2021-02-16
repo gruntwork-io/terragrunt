@@ -335,7 +335,7 @@ func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3, terragruntOpt
 	}
 
 	if !config.Encrypt {
-		terragruntOptions.Logger.Warnf("WARNING: encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enabling encryption!", config.Bucket)
+		terragruntOptions.Logger.Warnf("Encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enabling encryption!", config.Bucket)
 	}
 
 	return nil
@@ -381,7 +381,7 @@ func checkIfVersioningEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 	// NOTE: There must be a bug in the AWS SDK since out == nil when versioning is not enabled. In the future,
 	// check the AWS SDK for updates to see if we can remove "out == nil ||".
 	if out == nil || out.Status == nil || *out.Status != s3.BucketVersioningStatusEnabled {
-		terragruntOptions.Logger.Warnf("WARNING: Versioning is not enabled for the remote state S3 bucket %s. We recommend enabling versioning so that you can roll back to previous versions of your Terraform state in case of error.", config.Bucket)
+		terragruntOptions.Logger.Warnf("Versioning is not enabled for the remote state S3 bucket %s. We recommend enabling versioning so that you can roll back to previous versions of your Terraform state in case of error.", config.Bucket)
 	}
 
 	return nil
@@ -437,14 +437,14 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 	}
 
 	if config.SkipBucketAccessLogging {
-		terragruntOptions.Logger.Warnf("___WARNING___: The terragrunt configuration option 'skip_bucket_accesslogging' is now deprecated. Access logging for the state bucket %s is disabled by default. To enable access logging for bucket %s, please provide property `accesslogging_bucket_name` in the terragrunt config file. For more details, please refer to the Terragrunt documentation.", config.remoteStateConfigS3.Bucket, config.remoteStateConfigS3.Bucket)
+		terragruntOptions.Logger.Warnf("Terragrunt configuration option 'skip_bucket_accesslogging' is now deprecated. Access logging for the state bucket %s is disabled by default. To enable access logging for bucket %s, please provide property `accesslogging_bucket_name` in the terragrunt config file. For more details, please refer to the Terragrunt documentation.", config.remoteStateConfigS3.Bucket, config.remoteStateConfigS3.Bucket)
 	}
 
 	if config.AccessLoggingBucketName != "" {
 		terragruntOptions.Logger.Debugf("Enabling bucket-wide Access Logging on AWS S3 bucket %s - using as TargetBucket %s", config.remoteStateConfigS3.Bucket, config.AccessLoggingBucketName)
 
 		if err := CreateLogsS3BucketIfNecessary(s3Client, aws.String(config.AccessLoggingBucketName), terragruntOptions); err != nil {
-			terragruntOptions.Logger.Errorf("Error: Could not create logs bucket %s for AWS S3 bucket %s", config.AccessLoggingBucketName, config.remoteStateConfigS3.Bucket)
+			terragruntOptions.Logger.Errorf("Could not create logs bucket %s for AWS S3 bucket %s", config.AccessLoggingBucketName, config.remoteStateConfigS3.Bucket)
 			return err
 		}
 

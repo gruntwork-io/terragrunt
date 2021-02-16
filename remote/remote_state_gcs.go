@@ -118,7 +118,7 @@ func gcsConfigValuesEqual(config map[string]interface{}, existingBackend *Terraf
 	}
 
 	if existingBackend.Type != "gcs" {
-		terragruntOptions.Logger.Infof("Backend type has changed from gcs to %s", existingBackend.Type)
+		terragruntOptions.Logger.Debugf("Backend type has changed from gcs to %s", existingBackend.Type)
 		return false
 	}
 
@@ -291,7 +291,7 @@ func checkIfGCSVersioningEnabled(gcsClient *storage.Client, config *RemoteStateC
 	}
 
 	if attrs.VersioningEnabled == false {
-		terragruntOptions.Logger.Warnf("WARNING: Versioning is not enabled for the remote state GCS bucket %s. We recommend enabling versioning so that you can roll back to previous versions of your Terraform state in case of error.", config.Bucket)
+		terragruntOptions.Logger.Warnf("Versioning is not enabled for the remote state GCS bucket %s. We recommend enabling versioning so that you can roll back to previous versions of your Terraform state in case of error.", config.Bucket)
 	}
 
 	return nil
