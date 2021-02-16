@@ -633,9 +633,10 @@ func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucket(t *testi
 	runTerragrunt(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, examplePath))
 
 	targetLoggingBucket := terraws.GetS3BucketLoggingTarget(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	targetLoggingBucketPrefix := terraws.GetS3BucketLoggingTargetPrefix(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 
 	assert.Equal(t, s3BucketLogsName, targetLoggingBucket)
-	assert.Equal(t, s3BucketLogsTargetPrefix, targetLoggingBucket)
+	assert.Equal(t, s3BucketLogsTargetPrefix, targetLoggingBucketPrefix)
 }
 
 func TestTerragruntWorksWithGCSBackend(t *testing.T) {
