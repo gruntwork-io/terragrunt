@@ -446,7 +446,7 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 		terragruntOptions.Logger.Debugf("Enabling bucket-wide Access Logging on AWS S3 bucket %s - using as TargetBucket %s", config.remoteStateConfigS3.Bucket, config.AccessLoggingBucketName)
 
 		if config.AccessLoggingTargetPrefix != "" {
-			terragruntOptions.Logger.Printf("Setting Target Prefix for Access Logging to %s", config.AccessLoggingTargetPrefix)
+			terragruntOptions.Logger.Debugf("Setting Target Prefix for Access Logging to %s", config.AccessLoggingTargetPrefix)
 		}
 
 		if err := CreateLogsS3BucketIfNecessary(s3Client, aws.String(config.AccessLoggingBucketName), terragruntOptions); err != nil {
@@ -685,7 +685,7 @@ func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConf
 		return errors.WithStackTrace(err)
 	}
 
-	terragruntOptions.Logger.Printf("Putting bucket logging on S3 bucket %s with TargetBucket %s and TargetPrefix %s", config.Bucket, logsBucket, logsBucketPrefix)
+	terragruntOptions.Logger.Debugf("Putting bucket logging on S3 bucket %s with TargetBucket %s and TargetPrefix %s", config.Bucket, logsBucket, logsBucketPrefix)
 
 	loggingInput := s3.PutBucketLoggingInput{
 		Bucket: aws.String(config.Bucket),
