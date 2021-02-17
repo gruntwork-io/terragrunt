@@ -123,7 +123,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	strictInclude := parseBooleanArg(args, OPT_TERRAGRUNT_STRICT_INCLUDE, false)
 
 	// Those correspond to logrus levels
-	logLevel, err := parseStringArg(args, OPT_TERRAGRUNT_LOGLEVEL, logrus.WarnLevel.String())
+	logLevel, err := parseStringArg(args, OPT_TERRAGRUNT_LOGLEVEL, util.DEFAULT_LOG_LEVEL.String())
 	if err != nil {
 		return nil, err
 	}
