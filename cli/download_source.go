@@ -33,14 +33,14 @@ func downloadTerraformSource(source string, terragruntOptions *options.Terragrun
 		return nil, err
 	}
 
-	terragruntOptions.Logger.Printf("Copying files from %s into %s", terragruntOptions.WorkingDir, terraformSource.WorkingDir)
+	terragruntOptions.Logger.Debugf("Copying files from %s into %s", terragruntOptions.WorkingDir, terraformSource.WorkingDir)
 	if err := util.CopyFolderContents(terragruntOptions.WorkingDir, terraformSource.WorkingDir, MODULE_MANIFEST_NAME); err != nil {
 		return nil, err
 	}
 
 	updatedTerragruntOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 
-	terragruntOptions.Logger.Printf("Setting working directory to %s", terraformSource.WorkingDir)
+	terragruntOptions.Logger.Debugf("Setting working directory to %s", terraformSource.WorkingDir)
 	updatedTerragruntOptions.WorkingDir = terraformSource.WorkingDir
 
 	return updatedTerragruntOptions, nil
@@ -49,7 +49,7 @@ func downloadTerraformSource(source string, terragruntOptions *options.Terragrun
 // Download the specified TerraformSource if the latest code hasn't already been downloaded.
 func downloadTerraformSourceIfNecessary(terraformSource *tfsource.TerraformSource, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	if terragruntOptions.SourceUpdate {
-		terragruntOptions.Logger.Printf("The --%s flag is set, so deleting the temporary folder %s before downloading source.", OPT_TERRAGRUNT_SOURCE_UPDATE, terraformSource.DownloadDir)
+		terragruntOptions.Logger.Debugf("The --%s flag is set, so deleting the temporary folder %s before downloading source.", OPT_TERRAGRUNT_SOURCE_UPDATE, terraformSource.DownloadDir)
 		if err := os.RemoveAll(terraformSource.DownloadDir); err != nil {
 			return errors.WithStackTrace(err)
 		}
@@ -61,7 +61,7 @@ func downloadTerraformSourceIfNecessary(terraformSource *tfsource.TerraformSourc
 	}
 
 	if alreadyLatest {
-		terragruntOptions.Logger.Printf("Terraform files in %s are up to date. Will not download again.", terraformSource.WorkingDir)
+		terragruntOptions.Logger.Debugf("Terraform files in %s are up to date. Will not download again.", terraformSource.WorkingDir)
 		return nil
 	}
 
@@ -104,7 +104,7 @@ func alreadyHaveLatestCode(terraformSource *tfsource.TerraformSource, terragrunt
 	}
 
 	if len(tfFiles) == 0 {
-		terragruntOptions.Logger.Printf("Working dir %s exists but contains no Terraform files, so assuming code needs to be downloaded again.", terraformSource.WorkingDir)
+		terragruntOptions.Logger.Debugf("Working dir %s exists but contains no Terraform files, so assuming code needs to be downloaded again.", terraformSource.WorkingDir)
 		return false, nil
 	}
 
@@ -146,7 +146,7 @@ var copyFiles = func(client *getter.Client) error {
 
 // Download the code from the Canonical Source URL into the Download Folder using the go-getter library
 func downloadSource(terraformSource *tfsource.TerraformSource, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	terragruntOptions.Logger.Printf("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
+	terragruntOptions.Logger.Debugf("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
 
 	if err := getter.GetAny(terraformSource.DownloadDir, terraformSource.CanonicalSourceURL.String(), copyFiles); err != nil {
 		return errors.WithStackTrace(err)

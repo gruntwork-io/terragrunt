@@ -768,7 +768,7 @@ func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 
 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, "fixture-failure")
 
-	cmd := fmt.Sprintf("terragrunt plan-all --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", rootTerragruntConfigPath)
+	cmd := fmt.Sprintf("terragrunt plan-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootTerragruntConfigPath)
 	var (
 		stdout bytes.Buffer
 		stderr bytes.Buffer

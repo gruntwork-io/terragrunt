@@ -11,7 +11,7 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-const DEFAULT_LOG_LEVEL = logrus.WarnLevel
+const DEFAULT_LOG_LEVEL = logrus.InfoLevel
 
 // GlobalFallbackLogEntry is a global fallback logentry for the application
 // Should be used in cases when more specific logger can't be created (like in the very beginning, when we have not yet

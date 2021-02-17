@@ -469,7 +469,7 @@ func terragruntAlreadyInit(terragruntOptions *options.TerragruntOptions, configP
 func getTerragruntOutputJsonFromInitFolder(terragruntOptions *options.TerragruntOptions, terraformWorkingDir string, iamRole string) ([]byte, error) {
 	targetConfig := terragruntOptions.TerragruntConfigPath
 
-	terragruntOptions.Logger.Infof("Detected module %s is already init-ed. Retrieving outputs directly from working directory.", targetConfig)
+	terragruntOptions.Logger.Debugf("Detected module %s is already init-ed. Retrieving outputs directly from working directory.", targetConfig)
 
 	targetTGOptions, err := setupTerragruntOptionsForBareTerraform(terragruntOptions, terraformWorkingDir, targetConfig, iamRole)
 	if err != nil {
