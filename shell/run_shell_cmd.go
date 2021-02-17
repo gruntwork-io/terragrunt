@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -15,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/sirupsen/logrus"
 )
 
 // Commands that implement a REPL need a pseudo TTY when run as a subprocess in order for the readline properties to be
@@ -57,9 +57,9 @@ func RunShellCommandWithOutput(
 	command string,
 	args ...string,
 ) (*CmdOutput, error) {
-	terragruntOptions.Logger.Printf("Running command: %s %s", command, strings.Join(args, " "))
+	terragruntOptions.Logger.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 	if suppressStdout {
-		terragruntOptions.Logger.Printf("Command output will be suppressed.")
+		terragruntOptions.Logger.Debugf("Command output will be suppressed.")
 	}
 
 	var stdoutBuf bytes.Buffer
@@ -84,6 +84,7 @@ func RunShellCommandWithOutput(
 	} else {
 		cmd.Dir = workingDir
 	}
+
 	// Inspired by https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
 	cmdStderr := io.MultiWriter(errWriter, &stderrBuf)
 	var cmdStdout io.Writer
@@ -165,7 +166,7 @@ func GetExitCode(err error) (int, error) {
 type SignalsForwarder chan os.Signal
 
 // Forwards signals to a command, waiting for the command to finish.
-func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger *log.Logger, cmdChannel chan error) SignalsForwarder {
+func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger *logrus.Entry, cmdChannel chan error) SignalsForwarder {
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, signals...)
 
@@ -173,10 +174,10 @@ func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger *log.Logger, c
 		for {
 			select {
 			case s := <-signalChannel:
-				logger.Printf("Forward signal %v to terraform.", s)
+				logger.Debugf("Forward signal %v to terraform.", s)
 				err := c.Process.Signal(s)
 				if err != nil {
-					logger.Printf("Error forwarding signal: %v", err)
+					logger.Errorf("Error forwarding signal: %v", err)
 				}
 			case <-cmdChannel:
 				return

@@ -4,12 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/mattn/go-zglob"
+	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
+
 	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/gruntwork-io/terragrunt/cli/tfsource"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
@@ -18,8 +22,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/mattn/go-zglob"
-	"github.com/urfave/cli"
 )
 
 const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
@@ -44,6 +46,7 @@ const OPT_TERRAGRUNT_CHECK = "terragrunt-check"
 const OPT_TERRAGRUNT_HCLFMT_FILE = "terragrunt-hclfmt-file"
 const OPT_TERRAGRUNT_DEBUG = "terragrunt-debug"
 const OPT_TERRAGRUNT_OVERRIDE_ATTR = "terragrunt-override-attr"
+const OPT_TERRAGRUNT_LOGLEVEL = "terragrunt-log-level"
 
 var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{
 	OPT_NON_INTERACTIVE,
@@ -70,34 +73,76 @@ var ALL_TERRAGRUNT_STRING_OPTS = []string{
 	OPT_TERRAGRUNT_PARALLELISM,
 	OPT_TERRAGRUNT_HCLFMT_FILE,
 	OPT_TERRAGRUNT_OVERRIDE_ATTR,
+	OPT_TERRAGRUNT_LOGLEVEL,
 }
-
-const CMD_PLAN_ALL = "plan-all"
-const CMD_APPLY_ALL = "apply-all"
-const CMD_DESTROY_ALL = "destroy-all"
-const CMD_OUTPUT_ALL = "output-all"
-const CMD_VALIDATE_ALL = "validate-all"
 
 const CMD_INIT = "init"
 const CMD_INIT_FROM_MODULE = "init-from-module"
+const CMD_PROVIDERS = "providers"
+const CMD_LOCK = "lock"
 const CMD_TERRAGRUNT_INFO = "terragrunt-info"
 const CMD_TERRAGRUNT_GRAPH_DEPENDENCIES = "graph-dependencies"
 const CMD_TERRAGRUNT_READ_CONFIG = "terragrunt-read-config"
 const CMD_HCLFMT = "hclfmt"
 const CMD_AWS_PROVIDER_PATCH = "aws-provider-patch"
 
-// CMD_SPIN_UP is deprecated.
-const CMD_SPIN_UP = "spin-up"
+// START: Constants useful for multimodule command handling
+const CMD_RUN_ALL = "run-all"
 
-// CMD_TEAR_DOWN is deprecated.
-const CMD_TEAR_DOWN = "tear-down"
+// Known terraform commands that are explicitly not supported in run-all due to the nature of the command. This is
+// tracked as a map that maps the terraform command to the reasoning behind disallowing the command in run-all.
+var runAllDisabledCommands = map[string]string{
+	"import":       "terraform import should only be run against a single state representation to avoid injecting the wrong object in the wrong state representation.",
+	"taint":        "terraform taint should only be run against a single state representation to avoid using the wrong state address.",
+	"untaint":      "terraform untaint should only be run against a single state representation to avoid using the wrong state address.",
+	"console":      "terraform console requires stdin, which is shared across all instances of run-all when multiple modules run concurrently.",
+	"force-unlock": "lock IDs are unique per state representation and thus should not be run with run-all.",
 
-var MULTI_MODULE_COMMANDS = []string{CMD_APPLY_ALL, CMD_DESTROY_ALL, CMD_OUTPUT_ALL, CMD_PLAN_ALL, CMD_VALIDATE_ALL}
+	// MAINTAINER'S NOTE: There are a few other commands that might not make sense, but we deliberately allow it for
+	// certain use cases that are documented here:
+	// - state          : Supporting `state` with run-all could be useful for a mass pull and push operation, which can
+	//                    be done en masse with the use of relative pathing.
+	// - login / logout : Supporting `login` with run-all could be useful when used in conjunction with tfenv and
+	//                    multi-terraform version setups, where multiple terraform versions need to be configured.
+	// - version        : Supporting `version` with run-all could be useful for sanity checking a multi-version setup.
+}
 
-// DEPRECATED_COMMANDS is a map of deprecated commands to the commands that replace them.
-var DEPRECATED_COMMANDS = map[string]string{
-	CMD_SPIN_UP:   CMD_APPLY_ALL,
-	CMD_TEAR_DOWN: CMD_DESTROY_ALL,
+var MULTI_MODULE_COMMANDS = []string{
+	CMD_RUN_ALL,
+
+	// The rest of the commands are deprecated, and are only here for legacy reasons to ensure that terragrunt knows to
+	// filter them out during arg parsing.
+	CMD_APPLY_ALL,
+	CMD_DESTROY_ALL,
+	CMD_OUTPUT_ALL,
+	CMD_PLAN_ALL,
+	CMD_VALIDATE_ALL,
+}
+
+// END: Constants useful for multimodule command handling
+
+// The following commands are DEPRECATED
+const (
+	CMD_SPIN_UP      = "spin-up"
+	CMD_TEAR_DOWN    = "tear-down"
+	CMD_PLAN_ALL     = "plan-all"
+	CMD_APPLY_ALL    = "apply-all"
+	CMD_DESTROY_ALL  = "destroy-all"
+	CMD_OUTPUT_ALL   = "output-all"
+	CMD_VALIDATE_ALL = "validate-all"
+)
+
+// deprecatedCommands is a map of deprecated commands to a handler that knows how to convert the command to the known
+// alternative. The handler should return the new TerragruntOptions (if any modifications are needed) and command
+// string.
+var deprecatedCommands = map[string]func(origOptions *options.TerragruntOptions) (*options.TerragruntOptions, string, string){
+	CMD_SPIN_UP:      spinUpDeprecationHandler,
+	CMD_TEAR_DOWN:    tearDownDeprecationHandler,
+	CMD_APPLY_ALL:    applyAllDeprecationHandler,
+	CMD_DESTROY_ALL:  destroyAllDeprecationHandler,
+	CMD_PLAN_ALL:     planAllDeprecationHandler,
+	CMD_VALIDATE_ALL: validateAllDeprecationHandler,
+	CMD_OUTPUT_ALL:   outputAllDeprecationHandler,
 }
 
 var TERRAFORM_COMMANDS_THAT_USE_STATE = []string{
@@ -125,6 +170,9 @@ var TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT = []string{
 	"graph-dependencies",
 }
 
+// DEPRECATED_ARGUMENTS is a map of deprecated arguments to the argument that replace them.
+var DEPRECATED_ARGUMENTS = map[string]string{}
+
 // Struct is output as JSON by 'terragrunt-info':
 type TerragruntInfoGroup struct {
 	ConfigPath       string
@@ -149,11 +197,7 @@ USAGE:
    {{.Usage}}
 
 COMMANDS:
-   plan-all             Display the plans of a 'stack' by running 'terragrunt plan' in each subfolder
-   apply-all            Apply a 'stack' by running 'terragrunt apply' in each subfolder
-   output-all           Display the outputs of a 'stack' by running 'terragrunt output' in each subfolder
-   destroy-all          Destroy a 'stack' by running 'terragrunt destroy' in each subfolder
-   validate-all         Validate 'stack' by running 'terragrunt validate' in each subfolder
+   run-all              Run a terraform command against a 'stack' by running the specified command in each subfolder. E.g., to run 'terragrunt apply' in each subfolder, use 'terragrunt run-all apply'.
    terragrunt-info      Emits limited terragrunt state on stdout and exits
    graph-dependencies   Prints the terragrunt dependency graph to stdout
    hclfmt               Recursively find terragrunt.hcl files and rewrite them into a canonical format.
@@ -182,6 +226,7 @@ GLOBAL OPTIONS:
    terragrunt-hclfmt-file                       The path to a single terragrunt.hcl file that the hclfmt command should run on.
    terragrunt-override-attr                     A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.
    terragrunt-debug                             Write terragrunt-debug.tfvars to working folder to help root-cause issues.
+   terragrunt-log-level                         Sets the logging level for Terragrunt. Supported levels: panic, fatal, error, warn (default), info, debug, trace.
 
 VERSION:
    {{.Version}}{{if len .Authors}}
@@ -247,25 +292,32 @@ func runApp(cliContext *cli.Context) (finalErr error) {
 	shell.PrepareConsole(terragruntOptions)
 
 	givenCommand := cliContext.Args().First()
-	command := checkDeprecated(givenCommand, terragruntOptions)
-	return runCommand(command, terragruntOptions)
+	newOptions, command := checkDeprecated(givenCommand, terragruntOptions)
+	return runCommand(command, newOptions)
 }
 
 // checkDeprecated checks if the given command is deprecated.  If so: prints a message and returns the new command.
-func checkDeprecated(command string, terragruntOptions *options.TerragruntOptions) string {
-	newCommand, deprecated := DEPRECATED_COMMANDS[command]
+func checkDeprecated(command string, terragruntOptions *options.TerragruntOptions) (*options.TerragruntOptions, string) {
+	deprecationHandler, deprecated := deprecatedCommands[command]
 	if deprecated {
-		terragruntOptions.Logger.Printf("%v is deprecated; running %v instead.\n", command, newCommand)
-		return newCommand
+		newOptions, newCommand, newCommandFriendly := deprecationHandler(terragruntOptions)
+		terragruntOptions.Logger.Warnf(
+			"'%s' is deprecated. Running '%s' instead. Please update your workflows to use '%s', as '%s' may be removed in the future!\n",
+			command,
+			newCommandFriendly,
+			newCommandFriendly,
+			command,
+		)
+		return newOptions, newCommand
 	}
-	return command
+	return terragruntOptions, command
 }
 
 // runCommand runs one or many terraform commands based on the type of
 // terragrunt command
 func runCommand(command string, terragruntOptions *options.TerragruntOptions) (finalEff error) {
-	if isMultiModuleCommand(command) {
-		return runMultiModuleCommand(command, terragruntOptions)
+	if command == CMD_RUN_ALL {
+		return runAll(terragruntOptions)
 	}
 	return RunTerragrunt(terragruntOptions)
 }
@@ -302,8 +354,10 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	if terragruntConfig.Skip {
-		terragruntOptions.Logger.Printf("Skipping terragrunt module %s due to skip = true.",
-			terragruntOptions.TerragruntConfigPath)
+		terragruntOptions.Logger.Infof(
+			"Skipping terragrunt module %s due to skip = true.",
+			terragruntOptions.TerragruntConfigPath,
+		)
 		return nil
 	}
 
@@ -333,7 +387,7 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	updatedTerragruntOptions := terragruntOptions
-	if sourceUrl := getTerraformSourceUrl(terragruntOptions, terragruntConfig); sourceUrl != "" {
+	if sourceUrl := config.GetTerraformSourceUrl(terragruntOptions, terragruntConfig); sourceUrl != "" {
 		updatedTerragruntOptions, err = downloadTerraformSource(sourceUrl, terragruntOptions, terragruntConfig)
 		if err != nil {
 			return err
@@ -353,7 +407,7 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 		b, err := json.MarshalIndent(group, "", "  ")
 		if err != nil {
-			updatedTerragruntOptions.Logger.Printf("JSON error marshalling terragrunt-info")
+			updatedTerragruntOptions.Logger.Errorf("JSON error marshalling terragrunt-info")
 			return err
 		}
 		fmt.Fprintf(updatedTerragruntOptions.Writer, "%s\n", b)
@@ -367,7 +421,7 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
 	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
 	for _, config := range terragruntConfig.GenerateConfigs {
-		if err := codegen.WriteToFile(updatedTerragruntOptions.Logger, updatedTerragruntOptions.WorkingDir, config); err != nil {
+		if err := codegen.WriteToFile(updatedTerragruntOptions, updatedTerragruntOptions.WorkingDir, config); err != nil {
 			return err
 		}
 	}
@@ -480,18 +534,18 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 
 	errorsOccurred := []error{}
 
-	terragruntOptions.Logger.Printf("Detected %d Hooks", len(hooks))
+	terragruntOptions.Logger.Debugf("Detected %d Hooks", len(hooks))
 
 	for _, curHook := range hooks {
 		allPreviousErrors := append(previousExecError, errorsOccurred...)
 		if shouldRunHook(curHook, terragruntOptions, allPreviousErrors...) {
-			terragruntOptions.Logger.Printf("Executing hook: %s", curHook.Name)
+			terragruntOptions.Logger.Infof("Executing hook: %s", curHook.Name)
 			actionToExecute := curHook.Execute[0]
 			actionParams := curHook.Execute[1:]
 			possibleError := shell.RunShellCommand(terragruntOptions, actionToExecute, actionParams...)
 
 			if possibleError != nil {
-				terragruntOptions.Logger.Printf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
+				terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
 				errorsOccurred = append(errorsOccurred, possibleError)
 			}
 
@@ -557,7 +611,7 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 		runTerraformError := runTerraformWithRetry(terragruntOptions)
 
 		var lockFileError error
-		if util.FirstArg(terragruntOptions.TerraformCliArgs) == CMD_INIT {
+		if shouldCopyLockFile(terragruntOptions.TerraformCliArgs) {
 			// Copy the lock file from the Terragrunt working dir (e.g., .terragrunt-cache/xxx/<some-module>) to the
 			// user's working dir (e.g., /live/stage/vpc). That way, the lock file will end up right next to the user's
 			// terragrunt.hcl and can be checked into version control. Note that in the past, Terragrunt allowed the
@@ -572,14 +626,39 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 	})
 }
 
+// Terraform 0.14 now manages a lock file for providers. This can be updated
+// in three ways:
+// * `terraform init` in a module where no `.terraform.lock.hcl` exists
+// * `terraform init -upgrade`
+// * `terraform providers lock`
+//
+// In any of these cases, terragrunt should attempt to copy the generated
+// `.terraform.lock.hcl`
+//
+// terraform init is not guaranteed to pull all checksums depending on platforms,
+// if you already have the provider requested in a cache, or if you are using a mirror.
+// There are lots of details at [hashicorp/terraform#27264](https://github.com/hashicorp/terraform/issues/27264#issuecomment-743389837)
+// The `providers lock` sub command enables you to ensure that the lock file is
+// fully populated.
+func shouldCopyLockFile(args []string) bool {
+	if util.FirstArg(args) == CMD_INIT {
+		return true
+	}
+
+	if util.FirstArg(args) == CMD_PROVIDERS && util.SecondArg(args) == CMD_LOCK {
+		return true
+	}
+	return false
+}
+
 // Terraform 0.14 now generates a lock file when you run `terraform init`.
 // If any such file exists, this function will copy the lock file to the destination folder
-func copyLockFile(sourceFolder string, destinationFolder string, logger *log.Logger) error {
+func copyLockFile(sourceFolder string, destinationFolder string, logger *logrus.Entry) error {
 	sourceLockFilePath := util.JoinPath(sourceFolder, util.TerraformLockFile)
 	destinationLockFilePath := util.JoinPath(destinationFolder, util.TerraformLockFile)
 
 	if util.FileExists(sourceLockFilePath) {
-		logger.Printf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
+		logger.Debugf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
 		return util.CopyFile(sourceLockFilePath, destinationLockFilePath)
 	}
 
@@ -595,7 +674,7 @@ func runActionWithHooks(description string, terragruntOptions *options.Terragrun
 	if beforeHookErrors == nil {
 		actionErrors = action()
 	} else {
-		terragruntOptions.Logger.Printf("Errors encountered running before_hooks. Not running '%s'.", description)
+		terragruntOptions.Logger.Errorf("Errors encountered running before_hooks. Not running '%s'.", description)
 	}
 
 	postHookErrors := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, beforeHookErrors, actionErrors)
@@ -629,7 +708,7 @@ func runTerraformWithRetry(terragruntOptions *options.TerragruntOptions) error {
 	for i := 0; i < terragruntOptions.MaxRetryAttempts; i++ {
 		if out, tferr := shell.RunTerraformCommandWithOutput(terragruntOptions, terragruntOptions.TerraformCliArgs...); tferr != nil {
 			if out != nil && isRetryable(out.Stderr, tferr, terragruntOptions) {
-				terragruntOptions.Logger.Printf("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.Sleep)
+				terragruntOptions.Logger.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.Sleep)
 				time.Sleep(terragruntOptions.Sleep)
 			} else {
 				return tferr
@@ -773,11 +852,12 @@ func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 //
 // This method takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
 // and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
-func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, terraformSource *TerraformSource) error {
+func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, terraformSource *tfsource.TerraformSource) error {
 
 	// Prevent Auto-Init if the user has disabled it
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) != CMD_INIT && !terragruntOptions.AutoInit {
-		return errors.WithStackTrace(InitNeededButDisabled("Cannot continue because init is needed, but Auto-Init is disabled.  You must run 'terragrunt init' manually."))
+		terragruntOptions.Logger.Warnf("Detected that init is needed, but Auto-Init is disabled. Continuing with further actions, but subsequent terraform commands may fail.")
+		return nil
 	}
 
 	initOptions, err := prepareInitOptions(terragruntOptions, terraformSource)
@@ -789,7 +869,7 @@ func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terr
 	return runTerragruntWithConfig(originalTerragruntOptions, initOptions, terragruntConfig, terraformSource != nil)
 }
 
-func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformSource *TerraformSource) (*options.TerragruntOptions, error) {
+func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformSource *tfsource.TerraformSource) (*options.TerragruntOptions, error) {
 	// Need to clone the terragruntOptions, so the TerraformCliArgs can be configured to run the init command
 	initOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	initOptions.TerraformCliArgs = []string{CMD_INIT}
@@ -800,30 +880,6 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformS
 	initOptions.Writer = initOptions.ErrWriter
 
 	return initOptions, nil
-}
-
-// Returns true if the command the user wants to execute is supposed to affect multiple Terraform modules, such as the
-// apply-all or destroy-all command.
-func isMultiModuleCommand(command string) bool {
-	return util.ListContainsElement(MULTI_MODULE_COMMANDS, command)
-}
-
-// Execute a command that affects multiple Terraform modules, such as the apply-all or destroy-all command.
-func runMultiModuleCommand(command string, terragruntOptions *options.TerragruntOptions) error {
-	switch command {
-	case CMD_PLAN_ALL:
-		return planAll(terragruntOptions)
-	case CMD_APPLY_ALL:
-		return applyAll(terragruntOptions)
-	case CMD_DESTROY_ALL:
-		return destroyAll(terragruntOptions)
-	case CMD_OUTPUT_ALL:
-		return outputAll(terragruntOptions)
-	case CMD_VALIDATE_ALL:
-		return validateAll(terragruntOptions)
-	default:
-		return errors.WithStackTrace(UnrecognizedCommand(command))
-	}
 }
 
 // Return true if modules aren't already downloaded and the Terraform templates in this project reference modules.
@@ -851,81 +907,43 @@ func remoteStateNeedsInit(remoteState *remote.RemoteState, terragruntOptions *op
 	return false, nil
 }
 
-// planAll prints the plans from all configuration in a stack, in the order
-// specified in the terraform_remote_state dependencies
-func planAll(terragruntOptions *options.TerragruntOptions) error {
+// runAll runs the provided terraform command against all the modules that are found in the directory tree.
+func runAll(terragruntOptions *options.TerragruntOptions) error {
+	reason, isDisabled := runAllDisabledCommands[terragruntOptions.TerraformCommand]
+	if isDisabled {
+		return RunAllDisabledErr{
+			command: terragruntOptions.TerraformCommand,
+			reason:  reason,
+		}
+	}
+
 	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
 	if err != nil {
 		return err
 	}
 
-	terragruntOptions.Logger.Printf("%s", stack.String())
-	return stack.Plan(terragruntOptions)
-}
+	terragruntOptions.Logger.Infof("%s", stack.String())
 
-// Spin up an entire "stack" by running 'terragrunt apply' in each subfolder, processing them in the right order based
-// on terraform_remote_state dependencies.
-func applyAll(terragruntOptions *options.TerragruntOptions) error {
-	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
-	if err != nil {
-		return err
+	var prompt string
+	switch terragruntOptions.TerraformCommand {
+	case "apply":
+		prompt = "Are you sure you want to run 'terragrunt apply' in each folder of the stack described above?"
+	case "destroy":
+		prompt = "WARNING: Are you sure you want to run `terragrunt destroy` in each folder of the stack described above? There is no undo!"
+	case "state":
+		prompt = "Are you sure you want to manipulate the state with `terragrunt state` in each folder of the stack described above? Note that absolute paths are shared, while relative paths will be relative to each working directory."
+	}
+	if prompt != "" {
+		shouldRunAll, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
+		if err != nil {
+			return err
+		}
+		if shouldRunAll == false {
+			return nil
+		}
 	}
 
-	terragruntOptions.Logger.Printf("%s", stack.String())
-	shouldApplyAll, err := shell.PromptUserForYesNo("Are you sure you want to run 'terragrunt apply' in each folder of the stack described above?", terragruntOptions)
-	if err != nil {
-		return err
-	}
-
-	if shouldApplyAll {
-		return stack.Apply(terragruntOptions)
-	}
-
-	return nil
-}
-
-// Tear down an entire "stack" by running 'terragrunt destroy' in each subfolder, processing them in the right order
-// based on terraform_remote_state dependencies.
-func destroyAll(terragruntOptions *options.TerragruntOptions) error {
-	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
-	if err != nil {
-		return err
-	}
-
-	terragruntOptions.Logger.Printf("%s", stack.String())
-	shouldDestroyAll, err := shell.PromptUserForYesNo("WARNING: Are you sure you want to run `terragrunt destroy` in each folder of the stack described above? There is no undo!", terragruntOptions)
-	if err != nil {
-		return err
-	}
-
-	if shouldDestroyAll {
-		return stack.Destroy(terragruntOptions)
-	}
-
-	return nil
-}
-
-// outputAll prints the outputs from all configuration in a stack, in the order
-// specified in the terraform_remote_state dependencies
-func outputAll(terragruntOptions *options.TerragruntOptions) error {
-	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
-	if err != nil {
-		return err
-	}
-
-	terragruntOptions.Logger.Printf("%s", stack.String())
-	return stack.Output(terragruntOptions)
-}
-
-// validateAll validates runs terraform validate on all the modules
-func validateAll(terragruntOptions *options.TerragruntOptions) error {
-	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
-	if err != nil {
-		return err
-	}
-
-	terragruntOptions.Logger.Printf("%s", stack.String())
-	return stack.Validate(terragruntOptions)
+	return stack.Run(terragruntOptions)
 }
 
 // checkProtectedModule checks if module is protected via the "prevent_destroy" flag
@@ -964,12 +982,6 @@ func (err ArgumentNotAllowed) Error() string {
 	return fmt.Sprintf(err.Message, err.Argument)
 }
 
-type InitNeededButDisabled string
-
-func (err InitNeededButDisabled) Error() string {
-	return string(err)
-}
-
 type BackendNotDefined struct {
 	Opts        *options.TerragruntOptions
 	BackendType string
@@ -999,4 +1011,13 @@ type MaxRetriesExceeded struct {
 
 func (err MaxRetriesExceeded) Error() string {
 	return fmt.Sprintf("Exhausted retries (%v) for command %v %v", err.Opts.MaxRetryAttempts, err.Opts.TerraformPath, strings.Join(err.Opts.TerraformCliArgs, " "))
+}
+
+type RunAllDisabledErr struct {
+	command string
+	reason  string
+}
+
+func (err RunAllDisabledErr) Error() string {
+	return fmt.Sprintf("%s with run-all is disabled: %s", err.command, err.reason)
 }

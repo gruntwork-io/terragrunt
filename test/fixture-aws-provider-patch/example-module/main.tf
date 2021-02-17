@@ -23,3 +23,11 @@ resource "aws_s3_bucket" "example" {
   # Set to true to make testing easier
   force_destroy = true
 }
+
+resource "null_resource" "complex_expression" {
+  triggers = (
+    var.secondary_aws_region == "us-east-1"
+    ? { default = "True" }
+    : {}
+  )
+}

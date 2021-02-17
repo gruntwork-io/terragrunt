@@ -12,11 +12,12 @@ require (
 	github.com/gruntwork-io/terratest v0.32.6
 	github.com/hashicorp/go-getter v1.4.2-0.20200106182914-9813cbd4eb02
 	github.com/hashicorp/go-version v1.2.0
-	github.com/hashicorp/hcl/v2 v2.6.0
+	github.com/hashicorp/hcl/v2 v2.8.2
 	github.com/hashicorp/terraform v0.12.24
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20191212124732-c6ae6269b9d7
 	github.com/mattn/go-zglob v0.0.2-0.20190814121620-e3c945676326
 	github.com/mitchellh/mapstructure v1.2.2
+	github.com/sirupsen/logrus v1.6.0
 	github.com/stretchr/testify v1.5.1
 	github.com/urfave/cli v1.22.3
 	github.com/zclconf/go-cty v1.3.1
@@ -26,4 +27,5 @@ require (
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
 	golang.org/x/sys v0.0.0-20200905004654-be1d3432aa8f
 	google.golang.org/api v0.35.0
+	gotest.tools v2.2.0+incompatible
 )

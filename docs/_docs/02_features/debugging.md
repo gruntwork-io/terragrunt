@@ -16,11 +16,14 @@ Terragrunt and Terraform usually play well together in helping you
 write DRY, re-usable infrastructure. But how do we figure out what
 went wrong in the rare case that they _don't_ play well?
 
-Terragrunt provides a debug mode you can access through the `--terragrunt-debug`
-command flag. For example you could use it like this to debug an `apply`
-that's producing unexpected output:
+Terragrunt provides a way to configure logging level through the `--terragrunt-log-level`
+command flag. Additionally, Terragrunt provides `--terragrunt-debug`, that can be used
+to generate `terragrunt-debug.tfvars.json`.
 
-    $ terragrunt apply --terragrunt-debug
+For example you could use it like this to debug an `apply` that's producing
+unexpected output:
+
+    $ terragrunt apply --terragrunt-log-level debug --terragrunt-debug
 
 Running this command will do two things for you:
   - Output a file named `terragrunt-debug.tfvars.json` to your terragrunt working
@@ -30,7 +33,7 @@ Running this command will do two things for you:
     `terragrunt`. This will help you to determine where the problem's root cause
     lies.
 
-The flag's goal is to help you determine which of these three major areas is the
+Using those features is helpful when you want determine which of these three major areas is the
 root cause of your problem:
   1. Misconfiguration of your infrastructure code.
   2. An error in `terragrunt`.
@@ -93,7 +96,7 @@ You perform a `terragrunt apply`, and find that `outputs.task_ids` has 7
 elements, but you know that the cluster only has 4 VMs in it! What's happening?
 Let's figure it out. Run this:
 
-    $ terragrunt apply --terragrunt-debug
+    $ terragrunt apply --terragrunt-log-level debug --terragrunt-debug
 
 After applying, you will see this output on standard error
 
@@ -126,7 +129,7 @@ Oops! It says `max` when it should be `min`. If we fix `ecs-cluster/outputs.tf`
 we should be golden! We fix the problem in time to take a nice afternoon walk in
 the sun.
 
-In this example we've seen how `terragrunt debug` can help us root cause issues
+In this example we've seen how debug options can help us root cause issues
 in dependency and local variable resolution.
 
 <!-- See

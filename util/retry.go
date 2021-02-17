@@ -2,23 +2,23 @@ package util
 
 import (
 	"fmt"
-	"log"
+	"github.com/sirupsen/logrus"
 	"time"
 )
 
 // DoWithRetry runs the specified action. If it returns a value, return that value. If it returns an error, sleep for
 // sleepBetweenRetries and try again, up to a maximum of maxRetries retries. If maxRetries is exceeded, return a
 // MaxRetriesExceeded error.
-func DoWithRetry(actionDescription string, maxRetries int, sleepBetweenRetries time.Duration, logger *log.Logger, action func() error) error {
+func DoWithRetry(actionDescription string, maxRetries int, sleepBetweenRetries time.Duration, logger *logrus.Entry, logLevel logrus.Level, action func() error) error {
 	for i := 0; i <= maxRetries; i++ {
-		logger.Printf(actionDescription)
+		logger.Logf(logLevel, actionDescription)
 
 		err := action()
 		if err == nil {
 			return nil
 		}
 
-		logger.Printf("%s returned an error: %s. Sleeping for %s and will try again.", actionDescription, err.Error(), sleepBetweenRetries)
+		logger.Errorf("%s returned an error: %s. Sleeping for %s and will try again.", actionDescription, err.Error(), sleepBetweenRetries)
 		time.Sleep(sleepBetweenRetries)
 	}
 

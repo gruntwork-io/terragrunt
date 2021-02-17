@@ -24,11 +24,12 @@ This page documents the CLI commands and options available with Terragrunt:
 Terragrunt supports the following CLI commands:
 
   - [All Terraform built-in commands](#all-terraform-built-in-commands)
-  - [plan-all](#plan-all)
-  - [apply-all](#apply-all)
-  - [output-all](#output-all)
-  - [destroy-all](#destroy-all)
-  - [validate-all](#validate-all)
+  - [run-all](#run-all)
+  - [plan-all (DEPRECATED: use run-all)](#plan-all-deprecated-use-run-all)
+  - [apply-all (DEPRECATED: use run-all)](#apply-all-deprecated-use-run-all)
+  - [output-all (DEPRECATED: use run-all)](#output-all-deprecated-use-run-all)
+  - [destroy-all (DEPRECATED: use run-all)](#destroy-all-deprecated-use-run-all)
+  - [validate-all (DEPRECATED: use run-all)](#validate-all-deprecated-use-run-all)
   - [terragrunt-info](#terragrunt-info)
   - [graph-dependencies](#graph-dependencies)
   - [hclfmt](#hclfmt)
@@ -52,7 +53,42 @@ terragrunt destroy
 
 Run `terraform --help` to get the full list. 
 
-### plan-all
+
+### run-all
+
+Runs the provided terraform command against a 'stack', where a 'stack' is a
+tree of terragrunt modules. The command will recursively find terragrunt
+modules in the current directory tree and run the terraform command in
+dependency order (unless the command is destroy, in which case the command is
+run in reverse dependency order).
+
+Make sure to read [Execute Terraform
+commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for
+context.
+
+Example:
+
+```bash
+terragrunt run-all apply
+```
+
+This will recursively search the current working directory for any folders that contain Terragrunt modules and run
+`apply` in each one, concurrently, while respecting ordering defined via
+[`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
+[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks.
+
+**[WARNING] Using `run-all` with `plan` is currently broken for certain use cases**. If you have a stack of Terragrunt modules with
+dependencies between them—either via `dependency` blocks or `terraform_remote_state` data sources—and you've never
+deployed them, then `plan-all` will fail as it will not be possible to resolve the `dependency` blocks or
+`terraform_remote_state` data sources! Please [see here for more
+information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-497888756).
+
+
+
+
+### plan-all (DEPRECATED: use run-all)
+
+**DEPRECATED: Use `run-all plan` instead.**
 
 Display the plans of a 'stack' by running 'terragrunt plan' in each subfolder. Make sure to read [Execute Terraform 
 commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for 
@@ -76,7 +112,9 @@ deployed them, then `plan-all` will fail as it will not be possible to resolve t
 information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-497888756).
 
 
-### apply-all
+### apply-all (DEPRECATED: use run-all)
+
+**DEPRECATED: Use `run-all apply` instead.**
 
 Apply a 'stack' by running 'terragrunt apply' in each subfolder. Make sure to read [Execute Terraform 
 commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for 
@@ -93,7 +131,9 @@ This will recursively search the current working directory for any folders that 
 [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
 [`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks. 
 
-### output-all
+### output-all (DEPRECATED: use run-all)
+
+**DEPRECATED: Use `run-all output` instead.**
 
 Display the outputs of a 'stack' by running 'terragrunt output' in each subfolder. Make sure to read [Execute Terraform 
 commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for 
@@ -116,7 +156,9 @@ deployed them, then `output-all` will fail as it will not be possible to resolve
 `terraform_remote_state` data sources! Please [see here for more 
 information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-497888756).
 
-### destroy-all
+### destroy-all (DEPRECATED: use run-all)
+
+**DEPRECATED: Use `run-all destroy` instead.**
 
 Destroy a 'stack' by running 'terragrunt destroy' in each subfolder. Make sure to read [Execute Terraform 
 commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for 
@@ -133,7 +175,9 @@ This will recursively search the current working directory for any folders that 
 [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
 [`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks. 
 
-### validate-all
+### validate-all (DEPRECATED: use run-all)
+
+**DEPRECATED: Use `run-all validate` instead.**
 
 Validate 'stack' by running 'terragrunt validate' in each subfolder. Make sure to read [Execute Terraform 
 commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for 
@@ -502,8 +546,25 @@ When passed in, limit the number of modules that are run concurrently to this nu
 
 **CLI Arg**: `--terragrunt-debug`
 
-When passed in, run Terragrunt in debug mode where the vars that are passed into Terragrunt are recorded as a
-tfvars.json file.
+When passed in, Terragrunt will create a tfvars file that can be used to invoke the terraform module in the same way
+that Terragrunt invokes the module, so that you can debug issues with the terragrunt config. See
+[Debugging]({{site.baseurl}}/docs/features/debugging) for some additional details.
+
+
+### terragrunt-log-level
+
+**CLI Arg**: `--terragrunt-log-level`<br/>
+**Requires an argument**: `--terragrunt-log-level <LOG_LEVEL>`
+
+When passed it, sets logging level for terragrunt. All supported levels are:
+
+* panic
+* fatal
+* error
+* warn
+* info (this is the default)
+* debug
+* trace
 
 
 

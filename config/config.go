@@ -248,6 +248,19 @@ func (conf *TerraformExtraArguments) String() string {
 		conf.EnvVars)
 }
 
+// There are two ways a user can tell Terragrunt that it needs to download Terraform configurations from a specific
+// URL: via a command-line option or via an entry in the Terragrunt configuration. If the user used one of these, this
+// method returns the source URL or an empty string if there is no source url
+func GetTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragruntConfig *TerragruntConfig) string {
+	if terragruntOptions.Source != "" {
+		return terragruntOptions.Source
+	} else if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.Source != nil {
+		return *terragruntConfig.Terraform.Source
+	} else {
+		return ""
+	}
+}
+
 // Return the default hcl path to use for the Terragrunt configuration file in the given directory
 func DefaultConfigPath(workingDir string) string {
 	return util.JoinPath(workingDir, DefaultTerragruntConfigPath)
@@ -342,7 +355,7 @@ func containsTerragruntModule(path string, info os.FileInfo, terragruntOptions *
 
 // Read the Terragrunt config file from its default location
 func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*TerragruntConfig, error) {
-	terragruntOptions.Logger.Printf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
+	terragruntOptions.Logger.Debugf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
 	return ParseConfigFile(terragruntOptions.TerragruntConfigPath, terragruntOptions, nil)
 }
 
@@ -610,7 +623,7 @@ func mergeHooks(terragruntOptions *options.TerragruntOptions, childHooks []Hook,
 		if parentHookWithSameName != -1 {
 			// If the parent contains a hook with the same name as the child,
 			// then override the parent's hook with the child's.
-			terragruntOptions.Logger.Printf("hook '%v' from child overriding parent", child.Name)
+			terragruntOptions.Logger.Debugf("hook '%v' from child overriding parent", child.Name)
 			result[parentHookWithSameName] = child
 		} else {
 			// If the parent does not contain a hook with the same name as the child
@@ -649,7 +662,7 @@ func mergeExtraArgs(terragruntOptions *options.TerragruntOptions, childExtraArgs
 		if parentExtraArgsWithSameName != -1 {
 			// If the parent contains an extra_arguments with the same name as the child,
 			// then override the parent's extra_arguments with the child's.
-			terragruntOptions.Logger.Printf("extra_arguments '%v' from child overriding parent", child.Name)
+			terragruntOptions.Logger.Debugf("extra_arguments '%v' from child overriding parent", child.Name)
 			result[parentExtraArgsWithSameName] = child
 		} else {
 			// If the parent does not contain an extra_arguments with the same name as the child

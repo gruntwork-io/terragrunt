@@ -158,3 +158,11 @@ func LastArg(args []string) string {
 	}
 	return ""
 }
+
+// StringListInsert will insert the given string in to the provided string list at the specified index and return the
+// new list of strings. To insert the element, we append the item to the tail of the string and then prepend the
+// existing items.
+func StringListInsert(list []string, element string, index int) []string {
+	tail := append([]string{element}, list[index:]...)
+	return append(list[:index], tail...)
+}

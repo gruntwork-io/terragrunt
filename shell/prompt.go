@@ -11,15 +11,22 @@ import (
 
 // Prompt the user for text in the CLI. Returns the text entered by the user.
 func PromptUserForInput(prompt string, terragruntOptions *options.TerragruntOptions) (string, error) {
-	if terragruntOptions.Logger.Prefix() != "" {
-		prompt = fmt.Sprintf("%s %s", terragruntOptions.Logger.Prefix(), prompt)
-	}
-	terragruntOptions.Logger.Print(prompt)
-
+	// We are writing directly to ErrWriter so the prompt is always visible
+	// no matter what logLevel is configured. If `--non-interactive` is set, we log both prompt and
+	// a message about assuming `yes` to Debug, so
 	if terragruntOptions.NonInteractive {
-		terragruntOptions.Logger.Println()
-		terragruntOptions.Logger.Printf("The non-interactive flag is set to true, so assuming 'yes' for all prompts")
+		terragruntOptions.Logger.Debugf(prompt)
+		terragruntOptions.Logger.Debugf("The non-interactive flag is set to true, so assuming 'yes' for all prompts")
 		return "yes", nil
+	}
+	n, err := terragruntOptions.ErrWriter.Write([]byte(prompt))
+	if err != nil {
+		terragruntOptions.Logger.Error(err)
+		return "", errors.WithStackTrace(err)
+	}
+	if n != len(prompt) {
+		terragruntOptions.Logger.Errorln("Failed to write data")
+		return "", errors.WithStackTrace(err)
 	}
 
 	reader := bufio.NewReader(os.Stdin)

@@ -3,16 +3,18 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/util"
+	"io/ioutil"
+	"path/filepath"
+	"strings"
+
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/mattn/go-zglob"
 	"github.com/zclconf/go-cty/cty"
-	"io/ioutil"
-	"path/filepath"
-	"strings"
+
+	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // applyAwsProviderPatch finds all Terraform modules nested in the current code (i.e., in the .terraform/modules
@@ -53,7 +55,7 @@ func applyAwsProviderPatch(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	for _, terraformFile := range terraformFilesInModules {
-		util.Debugf(terragruntOptions.Logger, "Looking at file %s", terraformFile)
+		terragruntOptions.Logger.Debugf("Looking at file %s", terraformFile)
 		originalTerraformFileContents, err := util.ReadFileAsString(terraformFile)
 		if err != nil {
 			return err
@@ -65,7 +67,7 @@ func applyAwsProviderPatch(terragruntOptions *options.TerragruntOptions) error {
 		}
 
 		if codeWasUpdated {
-			terragruntOptions.Logger.Printf("Patching AWS provider in %s", terraformFile)
+			terragruntOptions.Logger.Debugf("Patching AWS provider in %s", terraformFile)
 			if err := util.WriteFileWithSamePermissions(terraformFile, terraformFile, []byte(updatedTerraformFileContents)); err != nil {
 				return err
 			}

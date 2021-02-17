@@ -14,14 +14,14 @@ nav_title_link: /docs/
 
   - [Motivation](#motivation)
 
-  - [The apply-all, destroy-all, output-all and plan-all commands](#the-apply-all-destroy-all-output-all-and-plan-all-commands)
+  - [The run-all command](#the-run-all-command)
 
   - [Passing outputs between modules](#passing-outputs-between-modules)
 
   - [Dependencies between modules](#dependencies-between-modules)
 
   - [Testing multiple modules locally](#testing-multiple-modules-locally)
-  
+
   - [Limiting the module execution parallelism](#limiting-the-module-execution-parallelism)
 
 ### Motivation
@@ -42,7 +42,7 @@ Let’s say your infrastructure is defined across multiple Terraform modules:
 
 There is one module to deploy a frontend-app, another to deploy a backend-app, another for the MySQL database, and so on. To deploy such an environment, you’d have to manually run `terraform apply` in each of the subfolder, wait for it to complete, and then run `terraform apply` in the next subfolder. How do you avoid this tedious and time-consuming process?
 
-### The apply-all, destroy-all, output-all and plan-all commands
+### The run-all command
 
 To be able to deploy multiple Terraform modules in a single command, add a `terragrunt.hcl` file to each module:
 
@@ -63,35 +63,37 @@ To be able to deploy multiple Terraform modules in a single command, add a `terr
         ├── main.tf
         └── terragrunt.hcl
 
-Now you can go into the `root` folder and deploy all the modules within it by using the `apply-all` command:
+Now you can go into the `root` folder and deploy all the modules within it by using the `run-all` command with
+`apply`:
 
     cd root
-    terragrunt apply-all
+    terragrunt run-all apply
 
 When you run this command, Terragrunt will recursively look through all the subfolders of the current working directory, find all folders with a `terragrunt.hcl` file, and run `terragrunt apply` in each of those folders concurrently.
 
-Similarly, to undeploy all the Terraform modules, you can use the `destroy-all` command:
+Similarly, to undeploy all the Terraform modules, you can use the `run-all` command with `destroy`:
 
     cd root
-    terragrunt destroy-all
+    terragrunt run-all destroy
 
-To see the currently applied outputs of all of the subfolders, you can use the `output-all` command:
+To see the currently applied outputs of all of the subfolders, you can use the `run-all` command with `output`:
 
     cd root
-    terragrunt output-all
+    terragrunt run-all output
 
-Finally, if you make some changes to your project, you could evaluate the impact by using `plan-all` command:
+Finally, if you make some changes to your project, you could evaluate the impact by using `run-all` command with `plan`:
 
-Note: It is important to realize that you could get errors running `plan-all` if you have dependencies between your projects and some of those dependencies haven’t been applied yet.
+Note: It is important to realize that you could get errors running `run-all plan` if you have dependencies between your
+projects and some of those dependencies haven’t been applied yet.
 
 *Ex: If module A depends on module B and module B hasn’t been applied yet, then plan-all will show the plan for B, but exit with an error when trying to show the plan for A.*
 
     cd root
-    terragrunt plan-all
+    terragrunt run-all plan
 
 If your modules have dependencies between them—for example, you can’t deploy the backend-app until MySQL and redis are deployed—you’ll need to express those dependencies in your Terragrunt configuration as explained in the next section.
 
-Additional note: If your modules have dependencies between them, and you run a `terragrunt destroy-all` command, Terragrunt will destroy all the modules under the current working directory, *as well as each of the module dependencies* (that is, modules you depend on via `dependencies` and `dependency` blocks)! If you wish to use exclude dependencies from being destroyed, add the `--terragrunt-ignore-external-dependencies` flag, or use the `--terragrunt-exclude-dir` once for each directory you wish to exclude.
+Additional note: If your modules have dependencies between them, and you run a `terragrunt run-all destroy` command, Terragrunt will destroy all the modules under the current working directory, *as well as each of the module dependencies* (that is, modules you depend on via `dependencies` and `dependency` blocks)! If you wish to use exclude dependencies from being destroyed, add the `--terragrunt-ignore-external-dependencies` flag, or use the `--terragrunt-exclude-dir` once for each directory you wish to exclude.
 
 ### Passing outputs between modules
 
@@ -142,7 +144,7 @@ You can also specify multiple `dependency` blocks to access multiple different m
       redis_url = dependency.redis.outputs.domain
     }
 
-Note that each `dependency` is automatically considered a dependency in Terragrunt. This means that when you run `apply-all` on a config that has `dependency` blocks, Terragrunt will not attempt to deploy the config until all the modules referenced in `dependency` blocks have been applied. So for the above example, the order for the `apply-all` command would be:
+Note that each `dependency` is automatically considered a dependency in Terragrunt. This means that when you run `run-all apply` on a config that has `dependency` blocks, Terragrunt will not attempt to deploy the config until all the modules referenced in `dependency` blocks have been applied. So for the above example, the order for the `run-all apply` command would be:
 
 1.  Deploy the VPC
 
@@ -264,7 +266,7 @@ dependencies {
 }
 ```
 
-Once you’ve specified the dependencies in each `terragrunt.hcl` file, when you run the `terragrunt apply-all` or `terragrunt destroy-all`, Terragrunt will ensure that the dependencies are applied or destroyed, respectively, in the correct order. For the example at the start of this section, the order for the `apply-all` command would be:
+Once you’ve specified the dependencies in each `terragrunt.hcl` file, when you run the `terragrunt run-all apply` or `terragrunt run-all destroy`, Terragrunt will ensure that the dependencies are applied or destroyed, respectively, in the correct order. For the example at the start of this section, the order for the `run-all apply` command would be:
 
 1.  Deploy the VPC
 
@@ -274,7 +276,7 @@ Once you’ve specified the dependencies in each `terragrunt.hcl` file, when you
 
 4.  Deploy the frontend-app
 
-If any of the modules fail to deploy, then Terragrunt will not attempt to deploy the modules that depend on them. Once you’ve fixed the error, it’s usually safe to re-run the `apply-all` or `destroy-all` command again, since it’ll be a no-op for the modules that already deployed successfully, and should only affect the ones that had an error the last time around.
+If any of the modules fail to deploy, then Terragrunt will not attempt to deploy the modules that depend on them. Once you’ve fixed the error, it’s usually safe to re-run the `run-all apply` or `run-all destroy` command again, since it’ll be a no-op for the modules that already deployed successfully, and should only affect the ones that had an error the last time around.
 
 To check all of your dependencies and validate the code in them, you can use the `validate-all` command.
 
@@ -295,9 +297,9 @@ in reverse order (bottom up)
 If you are using Terragrunt to configure [remote Terraform configurations]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry/#remote-terraform-configurations) and all of your modules have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--terragrunt-source` parameter:
 
     cd root
-    terragrunt plan-all --terragrunt-source /source/modules
+    terragrunt run-all plan --terragrunt-source /source/modules
 
-If you set the `--terragrunt-source` parameter, the `xxx-all` commands will assume that parameter is pointing to a folder on your local file system that has a local checkout of all of your Terraform modules. For each module that is being processed via a `xxx-all` command, Terragrunt will read in the `source` parameter in that module’s `terragrunt.hcl` file, parse out the path (the portion after the double-slash), and append the path to the `--terragrunt-source` parameter to create the final local path for that module.
+If you set the `--terragrunt-source` parameter, the `run-all` commands will assume that parameter is pointing to a folder on your local file system that has a local checkout of all of your Terraform modules. For each module that is being processed via a `run-all` command, Terragrunt will read in the `source` parameter in that module’s `terragrunt.hcl` file, parse out the path (the portion after the double-slash), and append the path to the `--terragrunt-source` parameter to create the final local path for that module.
 
 For example, consider the following `terragrunt.hcl` file:
 
@@ -307,7 +309,7 @@ terraform {
 }
 ```
 
-If you run `terragrunt apply-all --terragrunt-source /source/infrastructure-modules`, then the local path Terragrunt will compute for the module above will be `/source/infrastructure-modules//networking/vpc`.
+If you run `terragrunt run-all apply --terragrunt-source /source/infrastructure-modules`, then the local path Terragrunt will compute for the module above will be `/source/infrastructure-modules//networking/vpc`.
 
 ### Limiting the module execution parallelism
 
@@ -319,5 +321,5 @@ cloud provider.
 To limit the maximum number of module executions at any given time use the `--terragrunt-parallelism [number]` flag
 
 ```sh
-terragrunt apply-all --terragrunt-parallelism 4
+terragrunt run-all apply --terragrunt-parallelism 4
 ```

@@ -179,17 +179,17 @@ terraform {
 
 See the [get\_terragrunt\_dir()]({{site.baseurl}}/docs/reference/built-in-functions/#get_terragrunt_dir) and [get\_parent\_terragrunt\_dir()]({{site.baseurl}}/docs/reference/built-in-functions/#get_parent_terragrunt_dir) documentation for more details.
 
-With the configuration above, when you run `terragrunt apply-all`, Terragrunt will call Terraform as follows:
+With the configuration above, when you run `terragrunt run-all apply`, Terragrunt will call Terraform as follows:
 
-    $ terragrunt apply-all
+    $ terragrunt run-all apply
     [backend-app]  terraform apply -var-file=/my/tf/terraform.tfvars -var-file=/my/tf/backend-app/dev.tfvars
     [frontend-app] terraform apply -var-file=/my/tf/terraform.tfvars -var-file=/my/tf/frontend-app/us-east-1.tfvars
 
-    $ TF_VAR_env=prod terragrunt apply-all
+    $ TF_VAR_env=prod terragrunt run-all apply
     [backend-app]  terraform apply -var-file=/my/tf/terraform.tfvars -var-file=/my/tf/prod.tfvars
     [frontend-app] terraform apply -var-file=/my/tf/terraform.tfvars -var-file=/my/tf/prod.tfvars -var-file=/my/tf/frontend-app/us-east-1.tfvars
 
-    $ TF_VAR_env=prod TF_VAR_region=us-west-2 terragrunt apply-all
+    $ TF_VAR_env=prod TF_VAR_region=us-west-2 terragrunt run-all apply
     [backend-app]  terraform apply -var-file=/my/tf/terraform.tfvars -var-file=/my/tf/prod.tfvars -var-file=/my/tf/us-west-2.tfvars
     [frontend-app] terraform apply -var-file=/my/tf/terraform.tfvars -var-file=/my/tf/prod.tfvars -var-file=/my/tf/us-west-2.tfvars
 

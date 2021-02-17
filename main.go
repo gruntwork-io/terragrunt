@@ -3,8 +3,6 @@ package main
 import (
 	"os"
 
-	"github.com/fatih/color"
-
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -19,7 +17,7 @@ var VERSION string
 func main() {
 	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of
 	// terragrunt used.
-	util.Debugf(util.CreateLogger(""), "Terragrunt Version: %s", VERSION)
+	util.GlobalFallbackLogEntry.Debugf("Terragrunt Version: %s", VERSION)
 
 	defer errors.Recover(checkForErrorsAndExit)
 
@@ -34,18 +32,14 @@ func checkForErrorsAndExit(err error) {
 	if err == nil {
 		os.Exit(0)
 	} else {
-		logger := util.CreateLogger("")
-		if os.Getenv("TERRAGRUNT_DEBUG") != "" {
-			logger.Println(errors.PrintErrorWithStackTrace(err))
-		} else {
-			// Log error in red so that it is highlighted
-			util.ColorLogf(logger, color.New(color.FgRed), err.Error())
-		}
+		util.GlobalFallbackLogEntry.Debugf(errors.PrintErrorWithStackTrace(err))
+		util.GlobalFallbackLogEntry.Errorf(err.Error())
+
 		// exit with the underlying error code
 		exitCode, exitCodeErr := shell.GetExitCode(err)
 		if exitCodeErr != nil {
 			exitCode = 1
-			logger.Println("Unable to determine underlying exit code, so Terragrunt will exit with error code 1")
+			util.GlobalFallbackLogEntry.Errorf("Unable to determine underlying exit code, so Terragrunt will exit with error code 1")
 		}
 		os.Exit(exitCode)
 	}
