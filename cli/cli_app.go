@@ -460,6 +460,7 @@ func checkVersionConstraints(terragruntOptions *options.TerragruntOptions) error
 		terragruntOptions,
 		nil,
 		[]config.PartialDecodeSectionType{config.TerragruntVersionConstraints},
+		false,
 	)
 	if err != nil {
 		return err

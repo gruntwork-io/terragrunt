@@ -253,6 +253,7 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 			config.DependenciesBlock,
 			config.DependencyBlock,
 		},
+		true,
 	)
 	if err != nil {
 		return nil, errors.WithStackTrace(ErrorProcessingModule{UnderlyingError: err, HowThisModuleWasFound: howThisModuleWasFound, ModulePath: terragruntConfigPath})
