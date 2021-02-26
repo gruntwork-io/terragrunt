@@ -594,7 +594,7 @@ inputs = {
 `sops_decrypt_file(file_path)` decrypts a yaml or json file encrypted with `sops`.
 
 [sops](https://github.com/mozilla/sops) is an editor of encrypted files that supports YAML, JSON, ENV, INI and
-BINARY formats and encrypts with AWS KMS, GCP KMS, Azure Key Vault and PGP.
+BINARY formats and encrypts with AWS KMS, GCP KMS, Azure Key Vault, Hashicorp Vault and PGP.
 
 This allows static secrets to be stored encrypted within your Terragrunt repository.
 
