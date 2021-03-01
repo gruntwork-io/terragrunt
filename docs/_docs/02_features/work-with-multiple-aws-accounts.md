@@ -14,7 +14,7 @@ nav_title_link: /docs/
 
 ### Motivation
 
-The most secure way to manage infrastructure in AWS is to use [multiple AWS accounts](https://aws.amazon.com/answers/account-management/aws-multi-account-security-strategy/). You define all your IAM users in one account (e.g., the "security" account) and deploy all of your infrastructure into a number of other accounts (e.g., the "dev", "stage", and "prod" accounts). To access those accounts, you login to the security account and [assume an IAM role](http://docs.aws.amazon.com/cli/latest/userguide/cli-roles.html) in the other accounts.
+The most secure way to manage infrastructure in AWS is to use [multiple AWS accounts](https://aws.amazon.com/organizations/getting-started/best-practices/). You define all your IAM users in one account (e.g., the "security" account) and deploy all of your infrastructure into a number of other accounts (e.g., the "dev", "stage", and "prod" accounts). To access those accounts, you login to the security account and [assume an IAM role](http://docs.aws.amazon.com/cli/latest/userguide/cli-roles.html) in the other accounts.
 
 There are a few ways to assume IAM roles when using AWS CLI tools, such as Terraform:
 
