@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"gotest.tools/assert"
 )
 
@@ -56,15 +58,11 @@ func TestCreateCustomResolver(t *testing.T) {
 
 			// Grab the endpoint for S3 that our custom resolver is returning
 			resolvedS3Endpoint, err := resolver("s3", testCase.region)
-			if err != nil {
-				t.Fatalf("Failed to resolve endpoint for S3: %v", err)
-			}
+			require.NoError(t, err)
 
 			// Grab the endpoint for STS that our custom resolver is returning
 			resolvedStsEndpoint, err := resolver("sts", testCase.region)
-			if err != nil {
-				t.Fatalf("Failed to resolve endpoint for STS: %v", err)
-			}
+			require.NoError(t, err)
 
 			// If we defined a custom endpoint for STS, let's check it. Otherwise,
 			// check that the value is the default provided by the SDK

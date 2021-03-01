@@ -216,7 +216,7 @@ GLOBAL OPTIONS:
    terragrunt-source                            Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.
    terragrunt-source-update                     Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it.
    terragrunt-iam-role                          Assume the specified IAM role before executing Terraform. Can also be set via the TERRAGRUNT_IAM_ROLE environment variable.
-   terragrunt-sts-endpoint                  	Use a custom endpoint for Terragrunt calls to STS for built-in helper functions. Can also be set by TERRAGRUNT_STS_ENDPOINT environment variable.
+   terragrunt-sts-endpoint                      Use a custom endpoint for Terragrunt calls to STS for built-in helper functions. Can also be set by TERRAGRUNT_STS_ENDPOINT environment variable.
    terragrunt-ignore-dependency-errors          *-all commands continue processing components even if a dependency fails.
    terragrunt-ignore-dependency-order           *-all commands will be run disregarding the dependencies
    terragrunt-ignore-external-dependencies      *-all commands will not attempt to include external dependencies
