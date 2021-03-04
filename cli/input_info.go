@@ -33,7 +33,7 @@ func printTerragruntInputInfo(terragruntOptions *options.TerragruntOptions, work
 		}
 	}
 
-	// Missing variables are those that are required by the terraform config, but is not defined in terragrunt.
+	// Missing variables are those that are required by the terraform config, but not defined in terragrunt.
 	missingVars := []string{}
 	for _, varName := range required {
 		if !util.ListContainsElement(allInputs, varName) {
@@ -83,7 +83,7 @@ func getDefinedTerragruntInputs(terragruntOptions *options.TerragruntOptions, wo
 		return nil, err
 	}
 
-	// Dedup the input vars. We use a map as a set to accomplish this.
+	// Dedupe the input vars. We use a map as a set to accomplish this.
 	tmpOut := map[string]bool{}
 	for _, varName := range envVarTFVars {
 		tmpOut[varName] = true
