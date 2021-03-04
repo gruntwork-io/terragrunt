@@ -220,23 +220,9 @@ func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 				}
 
 				if !skipVars {
-					// If RequiredVarFiles is specified, add -var-file=<file> for each specified files
-					if arg.RequiredVarFiles != nil {
-						for _, file := range util.RemoveDuplicatesFromListKeepLast(*arg.RequiredVarFiles) {
-							out = append(out, fmt.Sprintf("-var-file=%s", file))
-						}
-					}
-
-					// If OptionalVarFiles is specified, check for each file if it exists and if so, add -var-file=<file>
-					// It is possible that many files resolve to the same path, so we remove duplicates.
-					if arg.OptionalVarFiles != nil {
-						for _, file := range util.RemoveDuplicatesFromListKeepLast(*arg.OptionalVarFiles) {
-							if util.FileExists(file) {
-								out = append(out, fmt.Sprintf("-var-file=%s", file))
-							} else {
-								terragruntOptions.Logger.Debugf("Skipping var-file %s as it does not exist", file)
-							}
-						}
+					varFiles := arg.GetVarFiles(terragruntOptions.Logger)
+					for _, file := range varFiles {
+						out = append(out, fmt.Sprintf("-var-file=%s", file))
 					}
 				}
 			}
@@ -434,7 +420,7 @@ func toTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) 
 	out := map[string]string{}
 
 	for varName, varValue := range vars {
-		envVarName := fmt.Sprintf("TF_VAR_%s", varName)
+		envVarName := fmt.Sprintf("%s_%s", TFVarPrefix, varName)
 
 		envVarValue, err := asTerraformEnvVarJsonValue(varValue)
 		if err != nil {

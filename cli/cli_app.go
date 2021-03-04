@@ -81,6 +81,7 @@ const CMD_INIT_FROM_MODULE = "init-from-module"
 const CMD_PROVIDERS = "providers"
 const CMD_LOCK = "lock"
 const CMD_TERRAGRUNT_INFO = "terragrunt-info"
+const CMD_TERRAGRUNT_INPUT_INFO = "terragrunt-input-info"
 const CMD_TERRAGRUNT_GRAPH_DEPENDENCIES = "graph-dependencies"
 const CMD_TERRAGRUNT_READ_CONFIG = "terragrunt-read-config"
 const CMD_HCLFMT = "hclfmt"
@@ -197,12 +198,13 @@ USAGE:
    {{.Usage}}
 
 COMMANDS:
-   run-all              Run a terraform command against a 'stack' by running the specified command in each subfolder. E.g., to run 'terragrunt apply' in each subfolder, use 'terragrunt run-all apply'.
-   terragrunt-info      Emits limited terragrunt state on stdout and exits
-   graph-dependencies   Prints the terragrunt dependency graph to stdout
-   hclfmt               Recursively find terragrunt.hcl files and rewrite them into a canonical format.
-   aws-provider-patch   Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018)
-   *                    Terragrunt forwards all other commands directly to Terraform
+   run-all               Run a terraform command against a 'stack' by running the specified command in each subfolder. E.g., to run 'terragrunt apply' in each subfolder, use 'terragrunt run-all apply'.
+   terragrunt-info       Emits limited terragrunt state on stdout and exits
+   terragrunt-input-info Checks if the terragrunt configured inputs align with the terraform defined variables.
+   graph-dependencies    Prints the terragrunt dependency graph to stdout
+   hclfmt                Recursively find terragrunt.hcl files and rewrite them into a canonical format.
+   aws-provider-patch    Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018)
+   *                     Terragrunt forwards all other commands directly to Terraform
 
 GLOBAL OPTIONS:
    terragrunt-config                            Path to the Terragrunt config file. Default is terragrunt.hcl.
@@ -243,6 +245,9 @@ var MODULE_REGEX = regexp.MustCompile(`module[[:blank:]]+".+"`)
 const DEFAULT_TERRAFORM_VERSION_CONSTRAINT = ">= v0.12.0"
 
 const TERRAFORM_EXTENSION_GLOB = "*.tf"
+
+// Prefix to use for terraform variables set with environment variables.
+const TFVarPrefix = "TF_VAR"
 
 // The supported flags to show help of terraform commands
 var TERRAFORM_HELP_FLAGS = []string{
@@ -437,6 +442,12 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
+	// We do the terragrunt input info printing here, after all the terragrunt generated terraform files are created so
+	// that we can ensure the necessary information is available.
+	if shouldPrintTerragruntInputInfo(updatedTerragruntOptions) {
+		return printTerragruntInputInfo(updatedTerragruntOptions, terragruntConfig)
+	}
+
 	// We do the debug file generation here, after all the terragrunt generated terraform files are created so that we
 	// can ensure the tfvars json file only includes the vars that are defined in the module.
 	if updatedTerragruntOptions.Debug {
@@ -517,6 +528,10 @@ func shouldRunGraphDependencies(terragruntOptions *options.TerragruntOptions) bo
 
 func shouldPrintTerragruntInfo(terragruntOptions *options.TerragruntOptions) bool {
 	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_TERRAGRUNT_INFO)
+}
+
+func shouldPrintTerragruntInputInfo(terragruntOptions *options.TerragruntOptions) bool {
+	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_TERRAGRUNT_INPUT_INFO)
 }
 
 func shouldRunHCLFmt(terragruntOptions *options.TerragruntOptions) bool {

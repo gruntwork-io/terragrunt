@@ -31,6 +31,7 @@ Terragrunt supports the following CLI commands:
   - [destroy-all (DEPRECATED: use run-all)](#destroy-all-deprecated-use-run-all)
   - [validate-all (DEPRECATED: use run-all)](#validate-all-deprecated-use-run-all)
   - [terragrunt-info](#terragrunt-info)
+  - [terragrunt-input-info](#terragrunt-input-info)
   - [graph-dependencies](#graph-dependencies)
   - [hclfmt](#hclfmt)
   - [aws-provider-patch](#aws-provider-patch)
@@ -216,6 +217,33 @@ Might produce output such as:
   "WorkingDir": "/example/path"
 }
 ```
+
+### terragrunt-input-info
+
+Emits information about the input variables that are configured with the given
+terragrunt configuration. Specifically, this command will print out unused
+inputs (inputs that are not defined as a terraform variable in the
+corresponding module) and undefined required inputs (required terraform
+variables that are not currently being passed in).
+
+This command will exit with an error if terragrunt detects any unused inputs or undefined required inputs.
+
+Example:
+
+```bash
+> terragrunt terragrunt-input-info
+The following inputs passed in by terragrunt are unused:
+
+    - foo
+    - bar
+
+
+The following required inputs are missing:
+
+    - baz
+
+```
+
 
 ### graph-dependencies
 

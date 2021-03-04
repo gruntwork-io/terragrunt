@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/sirupsen/logrus"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/codegen"
@@ -246,6 +246,32 @@ func (conf *TerraformExtraArguments) String() string {
 		conf.Arguments,
 		conf.Commands,
 		conf.EnvVars)
+}
+
+func (conf *TerraformExtraArguments) GetVarFiles(logger *logrus.Entry) []string {
+	varFiles := []string{}
+
+	// Include all specified RequiredVarFiles.
+	if conf.RequiredVarFiles != nil {
+		for _, file := range util.RemoveDuplicatesFromListKeepLast(*conf.RequiredVarFiles) {
+			varFiles = append(varFiles, file)
+		}
+	}
+
+	// If OptionalVarFiles is specified, check for each file if it exists and if so, include in the var
+	// files list. Note that it is possible that many files resolve to the same path, so we remove
+	// duplicates.
+	if conf.OptionalVarFiles != nil {
+		for _, file := range util.RemoveDuplicatesFromListKeepLast(*conf.OptionalVarFiles) {
+			if util.FileExists(file) {
+				varFiles = append(varFiles, file)
+			} else {
+				logger.Debugf("Skipping var-file %s as it does not exist", file)
+			}
+		}
+	}
+
+	return varFiles
 }
 
 // There are two ways a user can tell Terragrunt that it needs to download Terraform configurations from a specific
@@ -485,59 +511,6 @@ func decodeAsTerragruntConfigFile(
 		return nil, err
 	}
 	return &terragruntConfig, nil
-}
-
-// decodeHcl uses the HCL2 parser to decode the parsed HCL into the struct specified by out.
-func decodeHcl(
-	file *hcl.File,
-	filename string,
-	out interface{},
-	terragruntOptions *options.TerragruntOptions,
-	extensions EvalContextExtensions,
-) (err error) {
-	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
-	// those panics here and convert them to normal errors
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = errors.WithStackTrace(PanicWhileParsingConfig{RecoveredValue: recovered, ConfigFile: filename})
-		}
-	}()
-
-	evalContext := CreateTerragruntEvalContext(filename, terragruntOptions, extensions)
-
-	decodeDiagnostics := gohcl.DecodeBody(file.Body, evalContext, out)
-	if decodeDiagnostics != nil && decodeDiagnostics.HasErrors() {
-		return decodeDiagnostics
-	}
-
-	return nil
-}
-
-// parseHcl uses the HCL2 parser to parse the given string into an HCL file body.
-func parseHcl(parser *hclparse.Parser, hcl string, filename string) (file *hcl.File, err error) {
-	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
-	// those panics here and convert them to normal errors
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = errors.WithStackTrace(PanicWhileParsingConfig{RecoveredValue: recovered, ConfigFile: filename})
-		}
-	}()
-
-	if filepath.Ext(filename) == ".json" {
-		file, parseDiagnostics := parser.ParseJSON([]byte(hcl), filename)
-		if parseDiagnostics != nil && parseDiagnostics.HasErrors() {
-			return nil, parseDiagnostics
-		}
-
-		return file, nil
-	}
-
-	file, parseDiagnostics := parser.ParseHCL([]byte(hcl), filename)
-	if parseDiagnostics != nil && parseDiagnostics.HasErrors() {
-		return nil, parseDiagnostics
-	}
-
-	return file, nil
 }
 
 // Merge the given config with an included config. Anything specified in the current config will override the contents
