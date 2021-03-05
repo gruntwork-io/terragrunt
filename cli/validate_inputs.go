@@ -10,10 +10,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-// printTerragruntInputInfo will collect all the terraform variables defined in the target module, and the terragrunt
+// validateTerragruntInputs will collect all the terraform variables defined in the target module, and the terragrunt
 // inputs that are configured, and compare the two to determine if there are any unused inputs or undefined required
 // inputs.
-func printTerragruntInputInfo(terragruntOptions *options.TerragruntOptions, workingConfig *config.TerragruntConfig) error {
+func validateTerragruntInputs(terragruntOptions *options.TerragruntOptions, workingConfig *config.TerragruntConfig) error {
 	required, optional, err := terraformModuleVariables(terragruntOptions)
 	if err != nil {
 		return err

@@ -31,7 +31,7 @@ Terragrunt supports the following CLI commands:
   - [destroy-all (DEPRECATED: use run-all)](#destroy-all-deprecated-use-run-all)
   - [validate-all (DEPRECATED: use run-all)](#validate-all-deprecated-use-run-all)
   - [terragrunt-info](#terragrunt-info)
-  - [terragrunt-input-info](#terragrunt-input-info)
+  - [validate-inputs](#validate-inputs)
   - [graph-dependencies](#graph-dependencies)
   - [hclfmt](#hclfmt)
   - [aws-provider-patch](#aws-provider-patch)
@@ -218,7 +218,7 @@ Might produce output such as:
 }
 ```
 
-### terragrunt-input-info
+### validate-inputs
 
 Emits information about the input variables that are configured with the given
 terragrunt configuration. Specifically, this command will print out unused
@@ -231,7 +231,7 @@ This command will exit with an error if terragrunt detects any unused inputs or 
 Example:
 
 ```bash
-> terragrunt terragrunt-input-info
+> terragrunt validate-inputs
 The following inputs passed in by terragrunt are unused:
 
     - foo

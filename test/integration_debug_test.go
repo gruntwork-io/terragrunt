@@ -62,10 +62,10 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	assert.False(t, isDefined)
 }
 
-func TestTerragruntInputInfo(t *testing.T) {
+func TestTerragruntValidateInputs(t *testing.T) {
 	t.Parallel()
 
-	moduleDirs, err := filepath.Glob(filepath.Join("fixture-input-info", "*"))
+	moduleDirs, err := filepath.Glob(filepath.Join("fixture-validate-inputs", "*"))
 	require.NoError(t, err)
 
 	for _, module := range moduleDirs {
@@ -78,12 +78,12 @@ func TestTerragruntInputInfo(t *testing.T) {
 			t.Parallel()
 
 			nameDashSplit := strings.Split(name, "-")
-			runTerragruntInputInfo(t, module, nameDashSplit[0] == "success")
+			runTerragruntValidateInputs(t, module, nameDashSplit[0] == "success")
 		})
 	}
 }
 
-func runTerragruntInputInfo(t *testing.T, moduleDir string, isSuccessTest bool) {
+func runTerragruntValidateInputs(t *testing.T, moduleDir string, isSuccessTest bool) {
 	maybeNested := filepath.Join(moduleDir, "module")
 	if util.FileExists(maybeNested) {
 		// Nested module test case with included file, so run terragrunt from the nested module.
@@ -92,7 +92,7 @@ func runTerragruntInputInfo(t *testing.T, moduleDir string, isSuccessTest bool) 
 
 	_, _, err := runTerragruntCommandWithOutput(
 		t,
-		fmt.Sprintf("terragrunt terragrunt-input-info --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", moduleDir),
+		fmt.Sprintf("terragrunt validate-inputs --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", moduleDir),
 	)
 	if isSuccessTest {
 		require.NoError(t, err)

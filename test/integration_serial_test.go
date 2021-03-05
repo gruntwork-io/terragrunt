@@ -192,18 +192,18 @@ func TestPriorityOrderOfArgument(t *testing.T) {
 	assert.Contains(t, out.String(), fmt.Sprintf(`test = "%s"`, injectedValue))
 }
 
-func TestTerragruntInputInfoWithEnvVar(t *testing.T) {
+func TestTerragruntValidateInputsWithEnvVar(t *testing.T) {
 	os.Setenv("TF_VAR_input", "from the env")
 	defer os.Unsetenv("TF_VAR_input")
 
-	moduleDir := filepath.Join("fixture-input-info", "fail-no-inputs")
-	runTerragruntInputInfo(t, moduleDir, true)
+	moduleDir := filepath.Join("fixture-validate-inputs", "fail-no-inputs")
+	runTerragruntValidateInputs(t, moduleDir, true)
 }
 
-func TestTerragruntInputInfoWithUnusedEnvVar(t *testing.T) {
+func TestTerragruntValidateInputsWithUnusedEnvVar(t *testing.T) {
 	os.Setenv("TF_VAR_unused", "from the env")
 	defer os.Unsetenv("TF_VAR_unused")
 
-	moduleDir := filepath.Join("fixture-input-info", "success-inputs-only")
-	runTerragruntInputInfo(t, moduleDir, false)
+	moduleDir := filepath.Join("fixture-validate-inputs", "success-inputs-only")
+	runTerragruntValidateInputs(t, moduleDir, false)
 }
