@@ -115,6 +115,7 @@ func CreateTerragruntEvalContext(
 		"get_terraform_commands_that_need_input":       wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_INPUT),
 		"get_terraform_commands_that_need_parallelism": wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_PARALLELISM),
 		"sops_decrypt_file":                            wrapStringSliceToStringAsFuncImpl(sopsDecryptFile, extensions.Include, terragruntOptions),
+		"get_terragrunt_source":                        wrapVoidToStringAsFuncImpl(getTerragruntSource, extensions.Include, terragruntOptions),
 	}
 
 	functions := map[string]function.Function{}
@@ -332,7 +333,7 @@ func getTerraformCommand(include *IncludeConfig, terragruntOptions *options.Terr
 	return terragruntOptions.TerraformCommand, nil
 }
 
-// getTerraformCommand returns the current terraform command in execution
+// getTerraformCliArgs returns cli args for terraform
 func getTerraformCliArgs(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) ([]string, error) {
 	return terragruntOptions.TerraformCliArgs, nil
 }
@@ -557,6 +558,11 @@ func sopsDecryptFile(params []string, include *IncludeConfig, terragruntOptions 
 	}
 
 	return "", errors.WithStackTrace(InvalidSopsFormat{SourceFilePath: sourceFile})
+}
+
+// Return the directory where the Terraform configuration files live
+func getTerragruntSource(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	return terragruntOptions.Source, nil
 }
 
 // Custom error types
