@@ -156,9 +156,9 @@ func getTerragruntDir(include *IncludeConfig, terragruntOptions *options.Terragr
 
 // Return the directory in the git repoisitory where the Terragrunt configuration file lives
 func getTerragruntGitDir(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	args := []string {
-		"/bin/bash", 
-		"-c", 
+	args := []string{
+		"/bin/bash",
+		"-c",
 		"echo -n $(git rev-parse --show-prefix)",
 	}
 
