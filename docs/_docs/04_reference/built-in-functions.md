@@ -26,6 +26,8 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
 
   - [get\_terragrunt\_dir()](#get_terragrunt_dir)
 
+  - [get\_terragrunt\_git\_dir()](#get_terragrunt_git_dir)
+
   - [get\_parent\_terragrunt\_dir()](#get_parent_terragrunt_dir)
 
   - [get\_terraform\_commands\_that\_need\_vars()](#get_terraform_commands_that_need_vars)
@@ -318,6 +320,10 @@ terraform {
 ```
 
 For the example above, this path will resolve to `/terraform-code/frontend-app/../common.tfvars`, which is exactly what you want.
+
+## get\_terragrunt\_git\_dir
+
+`get_terragrunt_git_dir()` is similar to `get_terragrunt_dir()`, but instead of returning the full local path it returns the directory path within the git repository. This is useful when setting up CI pipelines with git triggers/hooks.
 
 ## get\_parent\_terragrunt\_dir
 

@@ -104,6 +104,7 @@ func CreateTerragruntEvalContext(
 		"read_terragrunt_config":                       readTerragruntConfigAsFuncImpl(terragruntOptions),
 		"get_platform":                                 wrapVoidToStringAsFuncImpl(getPlatform, extensions.Include, terragruntOptions),
 		"get_terragrunt_dir":                           wrapVoidToStringAsFuncImpl(getTerragruntDir, extensions.Include, terragruntOptions),
+		"get_terragrunt_git_dir":                       wrapVoidToStringAsFuncImpl(getTerragruntGitDir, extensions.Include, terragruntOptions),
 		"get_terraform_command":                        wrapVoidToStringAsFuncImpl(getTerraformCommand, extensions.Include, terragruntOptions),
 		"get_terraform_cli_args":                       wrapVoidToStringSliceAsFuncImpl(getTerraformCliArgs, extensions.Include, terragruntOptions),
 		"get_parent_terragrunt_dir":                    wrapVoidToStringAsFuncImpl(getParentTerragruntDir, extensions.Include, terragruntOptions),
@@ -151,6 +152,27 @@ func getTerragruntDir(include *IncludeConfig, terragruntOptions *options.Terragr
 	}
 
 	return filepath.ToSlash(filepath.Dir(terragruntConfigFileAbsPath)), nil
+}
+
+// Return the directory in the git repoisitory where the Terragrunt configuration file lives
+func getTerragruntGitDir(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	args := []string {
+		"/bin/bash", 
+		"-c", 
+		"echo -n $(git rev-parse --show-prefix)",
+	}
+
+	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+
+	cmdOutput, err := shell.RunShellCommandWithOutput(terragruntOptions, currentPath, true, false, args[0], args[1:]...)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	value := strings.TrimSuffix(cmdOutput.Stdout, "\n")
+	value = strings.TrimSuffix(value, "/")
+
+	return value, nil
 }
 
 // Return the parent directory where the Terragrunt configuration file lives
