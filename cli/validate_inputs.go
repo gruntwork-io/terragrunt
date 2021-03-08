@@ -53,11 +53,11 @@ func validateTerragruntInputs(terragruntOptions *options.TerragruntOptions, work
 	}
 
 	if len(missingVars) > 0 {
-		terragruntOptions.Logger.Warn("The following required inputs are missing:\n")
+		terragruntOptions.Logger.Error("The following required inputs are missing:\n")
 		for _, varName := range missingVars {
-			terragruntOptions.Logger.Warnf("\t- %s", varName)
+			terragruntOptions.Logger.Errorf("\t- %s", varName)
 		}
-		terragruntOptions.Logger.Warn("")
+		terragruntOptions.Logger.Error("")
 	} else {
 		terragruntOptions.Logger.Info("All required inputs are passed in by terragrunt.")
 	}
