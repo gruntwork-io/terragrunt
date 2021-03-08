@@ -226,6 +226,21 @@ inputs (inputs that are not defined as a terraform variable in the
 corresponding module) and undefined required inputs (required terraform
 variables that are not currently being passed in).
 
+Note that this only checks for variables passed in in the following ways:
+
+- Configured `inputs` attribute.
+
+- var files defined on `terraform.extra_arguments` blocks using `required_var_files` and `optional_var_files`.
+
+- `-var-file` and `-var` CLI arguments defined on `terraform.extra_arguments` using `arguments`.
+
+- `TF_VAR` environment variables defined on `terraform.extra_arguments` blocks.
+
+- `TF_VAR` environment variables defined in the environment.
+
+Be aware that other ways to pass variables to `terraform` (e.g., using automatically loaded var files in the module) are
+not checked by this command.
+
 This command will exit with an error if terragrunt detects any unused inputs or undefined required inputs.
 
 Example:

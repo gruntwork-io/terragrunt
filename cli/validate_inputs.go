@@ -72,6 +72,7 @@ func validateTerragruntInputs(terragruntOptions *options.TerragruntOptions, work
 // getDefinedTerragruntInputs will return a list of names of all variables that are configured by terragrunt to be
 // passed into terraform. Terragrunt can pass in inputs from:
 // - var files defined on terraform.extra_arguments blocks.
+// - -var and -var-file args passed in on extra_arguments CLI args.
 // - env vars defined on terraform.extra_arguments blocks.
 // - env vars from the external runtime calling terragrunt.
 // - inputs blocks.
@@ -79,6 +80,10 @@ func getDefinedTerragruntInputs(terragruntOptions *options.TerragruntOptions, wo
 	envVarTFVars := getTerraformInputNamesFromEnvVar(terragruntOptions, workingConfig)
 	inputsTFVars := getTerraformInputNamesFromConfig(workingConfig)
 	varFileTFVars, err := getTerraformInputNamesFromVarFiles(terragruntOptions, workingConfig)
+	if err != nil {
+		return nil, err
+	}
+	cliArgsTFVars, err := getTerraformInputNamesFromCLIArgs(workingConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -92,6 +97,9 @@ func getDefinedTerragruntInputs(terragruntOptions *options.TerragruntOptions, wo
 		tmpOut[varName] = true
 	}
 	for _, varName := range varFileTFVars {
+		tmpOut[varName] = true
+	}
+	for _, varName := range cliArgsTFVars {
 		tmpOut[varName] = true
 	}
 
@@ -165,6 +173,38 @@ func getTerraformInputNamesFromVarFiles(terragruntOptions *options.TerragruntOpt
 	}
 
 	return varNames, nil
+}
+
+// getTerraformInputNamesFromCLIArgs will return the list of names of variables configured by -var and -var-file CLI
+// args that are passed in via the configured arguments attribute in the extra_arguments block of the given terragrunt
+// config.
+func getTerraformInputNamesFromCLIArgs(terragruntConfig *config.TerragruntConfig) ([]string, error) {
+	if terragruntConfig.Terraform == nil {
+		return nil, nil
+	}
+
+	inputNames := []string{}
+	varFiles := []string{}
+	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
+		// only focus on plan args
+		if util.ListContainsElement(arg.Commands, "plan") {
+			vars, rawVarFiles, err := arg.GetVarFlags()
+			if err != nil {
+				return inputNames, err
+			}
+			inputNames = append(inputNames, vars...)
+			varFiles = append(varFiles, rawVarFiles...)
+		}
+	}
+
+	for _, varFile := range varFiles {
+		fileVars, err := getVarNamesFromVarFile(varFile)
+		if err != nil {
+			return inputNames, err
+		}
+		inputNames = append(inputNames, fileVars...)
+	}
+	return inputNames, nil
 }
 
 // getVarNamesFromVarFile will parse the given terraform var file and return a list of names of variables that are
