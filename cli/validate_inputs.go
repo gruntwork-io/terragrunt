@@ -25,7 +25,7 @@ func validateTerragruntInputs(terragruntOptions *options.TerragruntOptions, work
 		return err
 	}
 
-	// Unused variables are those that are passed in by terragrunt, but is not defined in terraform.
+	// Unused variables are those that are passed in by terragrunt, but are not defined in terraform.
 	unusedVars := []string{}
 	for _, varName := range allInputs {
 		if !util.ListContainsElement(allVars, varName) {
