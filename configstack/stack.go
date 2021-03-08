@@ -81,6 +81,12 @@ func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
 func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.TerragruntOptions, errorStreams []bytes.Buffer) {
 	for i, errorStream := range errorStreams {
 		output := errorStream.String()
+
+		if len(output) == 0 {
+			// We get empty buffer if stack execution completed without errors, so skip that to avoid logging too much
+			continue
+		}
+
 		terragruntOptions.Logger.Infoln(output)
 		if strings.Contains(output, "Error running plan:") {
 			if strings.Contains(output, ": Resource 'data.terraform_remote_state.") {
