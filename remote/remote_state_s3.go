@@ -21,7 +21,8 @@ import (
 )
 
 const (
-	lockTableDeprecationMessage = "Remote state configuration 'lock_table' attribute is deprecated; use 'dynamodb_table' instead."
+	lockTableDeprecationMessage       = "Remote state configuration 'lock_table' attribute is deprecated; use 'dynamodb_table' instead."
+	s3BucketAccessLoggingTargetPrefix = "TFStatelogs"
 )
 
 /*
@@ -313,6 +314,10 @@ func parseExtendedS3Config(config map[string]interface{}) (*ExtendedRemoteStateC
 
 	if err := mapstructure.Decode(config, &extendedConfig); err != nil {
 		return nil, errors.WithStackTrace(err)
+	}
+
+	if config["accesslogging_target_prefix"] == "" {
+		config["accesslogging_target_prefix"] = s3BucketAccessLoggingTargetPrefix
 	}
 
 	extendedConfig.remoteStateConfigS3 = s3Config
@@ -679,10 +684,6 @@ func EnableSSEForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions, logsBucket string, logsBucketPrefix string) error {
 	if err := configureBucketAccessLoggingAcl(s3Client, aws.String(logsBucket), terragruntOptions); err != nil {
 		return errors.WithStackTrace(err)
-	}
-
-	if logsBucketPrefix == "" {
-		logsBucketPrefix = "TFStatelogs/"
 	}
 
 	terragruntOptions.Logger.Debugf("Putting bucket logging on S3 bucket %s with TargetBucket %s and TargetPrefix %s", config.Bucket, logsBucket, logsBucketPrefix)
