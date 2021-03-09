@@ -17,6 +17,7 @@ import (
 type AwsSessionConfig struct {
 	Region                  string
 	CustomS3Endpoint        string
+	CustomDynamoDBEndpoint  string
 	Profile                 string
 	RoleArn                 string
 	CredsFilename           string
@@ -34,6 +35,11 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 		if service == "s3" && config.CustomS3Endpoint != "" {
 			return endpoints.ResolvedEndpoint{
 				URL:           config.CustomS3Endpoint,
+				SigningRegion: config.Region,
+			}, nil
+		} else if service == "dynamodb" && config.CustomDynamoDBEndpoint != "" {
+			return endpoints.ResolvedEndpoint{
+				URL:           config.CustomDynamoDBEndpoint,
 				SigningRegion: config.Region,
 			}, nil
 		}
