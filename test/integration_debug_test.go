@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -78,22 +79,40 @@ func TestTerragruntValidateInputs(t *testing.T) {
 			t.Parallel()
 
 			nameDashSplit := strings.Split(name, "-")
-			runTerragruntValidateInputs(t, module, nameDashSplit[0] == "success")
+			runTerragruntValidateInputs(t, module, nil, nameDashSplit[0] == "success")
 		})
 	}
 }
 
-func runTerragruntValidateInputs(t *testing.T, moduleDir string, isSuccessTest bool) {
+func TestTerragruntValidateInputsWithCLIVars(t *testing.T) {
+	t.Parallel()
+
+	moduleDir := filepath.Join("fixture-validate-inputs", "fail-no-inputs")
+	args := []string{"-var=input=from_env"}
+	runTerragruntValidateInputs(t, moduleDir, args, true)
+}
+
+func TestTerragruntValidateInputsWithCLIVarFile(t *testing.T) {
+	t.Parallel()
+
+	curdir, err := os.Getwd()
+	require.NoError(t, err)
+
+	moduleDir := filepath.Join("fixture-validate-inputs", "fail-no-inputs")
+	args := []string{fmt.Sprintf("-var-file=%s/fixture-validate-inputs/success-var-file/varfiles/main.tfvars", curdir)}
+	runTerragruntValidateInputs(t, moduleDir, args, true)
+}
+
+func runTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []string, isSuccessTest bool) {
 	maybeNested := filepath.Join(moduleDir, "module")
 	if util.FileExists(maybeNested) {
 		// Nested module test case with included file, so run terragrunt from the nested module.
 		moduleDir = maybeNested
 	}
 
-	_, _, err := runTerragruntCommandWithOutput(
-		t,
-		fmt.Sprintf("terragrunt validate-inputs --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", moduleDir),
-	)
+	cmd := fmt.Sprintf("terragrunt validate-inputs %s --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", strings.Join(extraArgs, " "), moduleDir)
+	t.Logf("Command: %s", cmd)
+	_, _, err := runTerragruntCommandWithOutput(t, cmd)
 	if isSuccessTest {
 		require.NoError(t, err)
 	} else {

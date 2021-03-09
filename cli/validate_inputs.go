@@ -5,6 +5,8 @@ import (
 	"io/ioutil"
 	"strings"
 
+	"github.com/google/shlex"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -83,7 +85,7 @@ func getDefinedTerragruntInputs(terragruntOptions *options.TerragruntOptions, wo
 	if err != nil {
 		return nil, err
 	}
-	cliArgsTFVars, err := getTerraformInputNamesFromCLIArgs(workingConfig)
+	cliArgsTFVars, err := getTerraformInputNamesFromCLIArgs(terragruntOptions, workingConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -177,23 +179,26 @@ func getTerraformInputNamesFromVarFiles(terragruntOptions *options.TerragruntOpt
 
 // getTerraformInputNamesFromCLIArgs will return the list of names of variables configured by -var and -var-file CLI
 // args that are passed in via the configured arguments attribute in the extra_arguments block of the given terragrunt
-// config.
-func getTerraformInputNamesFromCLIArgs(terragruntConfig *config.TerragruntConfig) ([]string, error) {
-	if terragruntConfig.Terraform == nil {
-		return nil, nil
+// config and those that are directly passed in via the CLI.
+func getTerraformInputNamesFromCLIArgs(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) ([]string, error) {
+	inputNames, varFiles, err := getVarFlagsFromArgList(terragruntOptions.TerraformCliArgs)
+	if err != nil {
+		return inputNames, err
 	}
 
-	inputNames := []string{}
-	varFiles := []string{}
-	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
-		// only focus on plan args
-		if util.ListContainsElement(arg.Commands, "plan") {
-			vars, rawVarFiles, err := arg.GetVarFlags()
-			if err != nil {
-				return inputNames, err
+	if terragruntConfig.Terraform != nil {
+		for _, arg := range terragruntConfig.Terraform.ExtraArgs {
+			// only focus on plan args
+			if util.ListContainsElement(arg.Commands, "plan") {
+				if arg.Arguments != nil {
+					vars, rawVarFiles, err := getVarFlagsFromArgList(*arg.Arguments)
+					if err != nil {
+						return inputNames, err
+					}
+					inputNames = append(inputNames, vars...)
+					varFiles = append(varFiles, rawVarFiles...)
+				}
 			}
-			inputNames = append(inputNames, vars...)
-			varFiles = append(varFiles, rawVarFiles...)
 		}
 	}
 
@@ -225,4 +230,40 @@ func getVarNamesFromVarFile(varFile string) ([]string, error) {
 		out = append(out, varName)
 	}
 	return out, nil
+}
+
+// Returns the CLI flags defined on the provided arguments list that correspond to -var and -var-file. Returns two
+// slices, one for `-var` args (the first one) and one for `-var-file` args (the second one).
+func getVarFlagsFromArgList(argList []string) ([]string, []string, error) {
+	vars := []string{}
+	varFiles := []string{}
+
+	for _, arg := range argList {
+		// Use shlex to handle shell style quoting rules. This will reduce quoted args to remove quoting rules. For
+		// example, the string:
+		// -var="'"foo"'"='bar'
+		// becomes:
+		// -var='foo'=bar
+		shlexedArgSlice, err := shlex.Split(arg)
+		if err != nil {
+			return vars, varFiles, err
+		}
+		// Since we expect each element in extra_args.arguments to correspond to a single arg for terraform, we join
+		// back the shlex split slice even if it thinks there are multiple.
+		shlexedArg := strings.Join(shlexedArgSlice, " ")
+
+		if strings.HasPrefix(shlexedArg, "-var=") {
+			// -var is passed in in the format -var=VARNAME=VALUE, so we split on '=' and take the middle value.
+			splitArg := strings.Split(shlexedArg, "=")
+			if len(splitArg) < 2 {
+				return vars, varFiles, fmt.Errorf("Unexpected -var arg format in terraform.extra_arguments.arguments. Expected '-var=VARNAME=VALUE', got %s.", arg)
+			}
+			vars = append(vars, splitArg[1])
+		}
+		if strings.HasPrefix(shlexedArg, "-var-file=") {
+			varFiles = append(varFiles, strings.TrimPrefix(shlexedArg, "-var-file="))
+		}
+	}
+
+	return vars, varFiles, nil
 }

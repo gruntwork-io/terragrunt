@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/google/shlex"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/sirupsen/logrus"
@@ -273,44 +272,6 @@ func (conf *TerraformExtraArguments) GetVarFiles(logger *logrus.Entry) []string 
 	}
 
 	return varFiles
-}
-
-// Returns the CLI flags defined on `arguments` that correspond to -var and -var-file. Returns two slices, one for
-// `-var` args (the first one) and one for `-var-file` args (the second one).
-func (conf *TerraformExtraArguments) GetVarFlags() ([]string, []string, error) {
-	vars := []string{}
-	varFiles := []string{}
-
-	if conf.Arguments != nil {
-		for _, arg := range *conf.Arguments {
-			// Use shlex to handle shell style quoting rules. This will reduce quoted args to remove quoting rules. For
-			// example, the string:
-			// -var="'"foo"'"='bar'
-			// becomes:
-			// -var='foo'=bar
-			shlexedArgSlice, err := shlex.Split(arg)
-			if err != nil {
-				return vars, varFiles, err
-			}
-			// Since we expect each element in extra_args.arguments to correspond to a single arg for terraform, we join
-			// back the shlex split slice even if it thinks there are multiple.
-			shlexedArg := strings.Join(shlexedArgSlice, " ")
-
-			if strings.HasPrefix(shlexedArg, "-var=") {
-				// -var is passed in in the format -var=VARNAME=VALUE, so we split on '=' and take the middle value.
-				splitArg := strings.Split(shlexedArg, "=")
-				if len(splitArg) < 2 {
-					return vars, varFiles, fmt.Errorf("Unexpected -var arg format in terraform.extra_arguments.arguments. Expected '-var=VARNAME=VALUE', got %s.", arg)
-				}
-				vars = append(vars, splitArg[1])
-			}
-			if strings.HasPrefix(shlexedArg, "-var-file=") {
-				varFiles = append(varFiles, strings.TrimPrefix(shlexedArg, "-var-file="))
-			}
-		}
-	}
-
-	return vars, varFiles, nil
 }
 
 // There are two ways a user can tell Terragrunt that it needs to download Terraform configurations from a specific
