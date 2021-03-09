@@ -237,7 +237,7 @@ remote_state {
   skip_bucket_enforced_tls       = true # use only if you need to access the S3 bucket without TLS being enforced
   enable_lock_table_ssencryption = true # use only if non-encrypted DynamoDB Lock Table for the Terraform State is required and/or the NoSQL database service does not support server-side encryption
   accesslogging_bucket_name      = <string> # use only if you need server access logging to be enabled for your terraform state S3 bucket. Provide a <string> value representing the name of the target bucket to be used for logs output.
-  accesslogging_target_prefix    = <string> # use only if you want to set a specific prefix for your terraform state S3 bucket access logs when these are enabled. Provide a <string> value representing the TargetPrefix to be used for logs output objects.
+  accesslogging_target_prefix    = <string> # use only if you want to set a specific prefix for your terraform state S3 bucket access logs when these are enabled. Provide a <string> value representing the TargetPrefix to be used for logs output objects. If no value is provided, then default value is `TFStatelogs`.
 
   shared_credentials_file     = "/path/to/credentials/file"
   skip_credentials_validation = true
