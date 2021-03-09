@@ -81,14 +81,20 @@ func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
 func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.TerragruntOptions, errorStreams []bytes.Buffer) {
 	for i, errorStream := range errorStreams {
 		output := errorStream.String()
-		terragruntOptions.Logger.Println(output)
+
+		if len(output) == 0 {
+			// We get empty buffer if stack execution completed without errors, so skip that to avoid logging too much
+			continue
+		}
+
+		terragruntOptions.Logger.Infoln(output)
 		if strings.Contains(output, "Error running plan:") {
 			if strings.Contains(output, ": Resource 'data.terraform_remote_state.") {
 				var dependenciesMsg string
 				if len(stack.Modules[i].Dependencies) > 0 {
 					dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", stack.Modules[i].Config.Dependencies.Paths)
 				}
-				terragruntOptions.Logger.Printf("%v%v refers to remote state "+
+				terragruntOptions.Logger.Infof("%v%v refers to remote state "+
 					"you may have to apply your changes in the dependencies prior running terragrunt plan-all.\n",
 					stack.Modules[i].Path,
 					dependenciesMsg,
