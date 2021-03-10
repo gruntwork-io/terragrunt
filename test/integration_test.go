@@ -630,21 +630,19 @@ func TestTerragruntHonorsS3RemoteStateSkipFlagsRegression(t *testing.T) {
 }
 
 // Regression test to ensure that `accesslogging_bucket_name` and `accesslogging_target_prefix` are taken into account
-// & the TargetLock bucket is set to a new S3 bucket, different from the origin S3 bucket
+// & the TargetLogs bucket is set to a new S3 bucket, different from the origin S3 bucket
 // & the logs objects are prefixed with the `accesslogging_target_prefix` value
-func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucket(t *testing.T) {
+func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGivenTargetPrefix(t *testing.T) {
 	t.Parallel()
 
-	examplePath := filepath.Join(TEST_FIXTURE_REGRESSIONS, "accesslogging-bucket")
+	examplePath := filepath.Join(TEST_FIXTURE_REGRESSIONS, "accesslogging-bucket/with-target-prefix-input")
 	cleanupTerraformFolder(t, examplePath)
 	// Also clean up generated backend file
 	removeFile(t, filepath.Join(examplePath, "backend.tf"))
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 	s3BucketLogsName := fmt.Sprintf("%s-tf-state-logs", s3BucketName)
-	// Do not change this value - it's expected from the terragrunt config for this test too.
-	// If there's no value provided in the config, the TargetPrefix will be set to empty string.
-	s3BucketLogsTargetPrefix := "TFStatelogs/"
+	s3BucketLogsTargetPrefix := "logs/"
 	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
@@ -671,6 +669,46 @@ func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucket(t *testi
 
 	assert.Equal(t, s3BucketLogsName, targetLoggingBucket)
 	assert.Equal(t, s3BucketLogsTargetPrefix, targetLoggingBucketPrefix)
+}
+
+// Regression test to ensure that `accesslogging_bucket_name` is taken into account
+// & when no `accesslogging_target_prefix` provided, then **default** value is used for TargetPrefix
+func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithDefaultTargetPrefix(t *testing.T) {
+	t.Parallel()
+
+	examplePath := filepath.Join(TEST_FIXTURE_REGRESSIONS, "accesslogging-bucket/no-target-prefix-input")
+	cleanupTerraformFolder(t, examplePath)
+	// Also clean up generated backend file
+	removeFile(t, filepath.Join(examplePath, "backend.tf"))
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	s3BucketLogsName := fmt.Sprintf("%s-tf-state-logs", s3BucketName)
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+
+	tmpTerragruntConfigPath := createTmpTerragruntConfig(
+		t,
+		examplePath,
+		s3BucketName,
+		lockTableName,
+		"remote_terragrunt.hcl",
+	)
+	localBackendTerragruntConfigPath := filepath.Join(examplePath, "local_terragrunt.hcl")
+
+	// Pass 1 with local backend. This should only download and setup the terragrunt-cache. Note that the first pass has
+	// to be an apply so that the state file is created. Otherwise, terragrunt short circuits the problematic routine.
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", localBackendTerragruntConfigPath, examplePath))
+
+	// Pass 2 with remote backend. This should setup the remote backend and create the s3 bucket.
+	runTerragrunt(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, examplePath))
+
+	targetLoggingBucket := terraws.GetS3BucketLoggingTarget(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	targetLoggingBucketPrefix := terraws.GetS3BucketLoggingTargetPrefix(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+
+	assert.Equal(t, s3BucketLogsName, targetLoggingBucket)
+	assert.Equal(t, remote.DefaultS3BucketAccessLoggingTargetPrefix, targetLoggingBucketPrefix)
 }
 
 func TestTerragruntWorksWithGCSBackend(t *testing.T) {
