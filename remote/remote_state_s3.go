@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	lockTableDeprecationMessage       = "Remote state configuration 'lock_table' attribute is deprecated; use 'dynamodb_table' instead."
-	s3BucketAccessLoggingTargetPrefix = "TFStatelogs"
+	lockTableDeprecationMessage              = "Remote state configuration 'lock_table' attribute is deprecated; use 'dynamodb_table' instead."
+	DefaultS3BucketAccessLoggingTargetPrefix = "TFStateLogs/"
 )
 
 /*
@@ -316,8 +316,9 @@ func parseExtendedS3Config(config map[string]interface{}) (*ExtendedRemoteStateC
 		return nil, errors.WithStackTrace(err)
 	}
 
-	if config["accesslogging_target_prefix"] == "" {
-		config["accesslogging_target_prefix"] = s3BucketAccessLoggingTargetPrefix
+	_, targetPrefixExists := config["accesslogging_target_prefix"]
+	if !targetPrefixExists {
+		extendedConfig.AccessLoggingTargetPrefix = DefaultS3BucketAccessLoggingTargetPrefix
 	}
 
 	extendedConfig.remoteStateConfigS3 = s3Config
