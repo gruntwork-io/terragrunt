@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
 	"strings"
 
 	"github.com/google/shlex"
@@ -78,6 +80,7 @@ func validateTerragruntInputs(terragruntOptions *options.TerragruntOptions, work
 // - env vars defined on terraform.extra_arguments blocks.
 // - env vars from the external runtime calling terragrunt.
 // - inputs blocks.
+// - automatically injected terraform vars (terraform.tfvars, terraform.tfvars.json, *.auto.tfvars, *.auto.tfvars.json)
 func getDefinedTerragruntInputs(terragruntOptions *options.TerragruntOptions, workingConfig *config.TerragruntConfig) ([]string, error) {
 	envVarTFVars := getTerraformInputNamesFromEnvVar(terragruntOptions, workingConfig)
 	inputsTFVars := getTerraformInputNamesFromConfig(workingConfig)
@@ -86,6 +89,10 @@ func getDefinedTerragruntInputs(terragruntOptions *options.TerragruntOptions, wo
 		return nil, err
 	}
 	cliArgsTFVars, err := getTerraformInputNamesFromCLIArgs(terragruntOptions, workingConfig)
+	if err != nil {
+		return nil, err
+	}
+	autoVarFileTFVars, err := getTerraformInputNamesFromAutomaticVarFiles(terragruntOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -102,6 +109,9 @@ func getDefinedTerragruntInputs(terragruntOptions *options.TerragruntOptions, wo
 		tmpOut[varName] = true
 	}
 	for _, varName := range cliArgsTFVars {
+		tmpOut[varName] = true
+	}
+	for _, varName := range autoVarFileTFVars {
 		tmpOut[varName] = true
 	}
 
@@ -165,16 +175,7 @@ func getTerraformInputNamesFromVarFiles(terragruntOptions *options.TerragruntOpt
 		}
 	}
 
-	varNames := []string{}
-	for _, varFile := range varFiles {
-		fileVars, err := getVarNamesFromVarFile(varFile)
-		if err != nil {
-			return nil, err
-		}
-		varNames = append(varNames, fileVars...)
-	}
-
-	return varNames, nil
+	return getVarNamesFromVarFiles(varFiles)
 }
 
 // getTerraformInputNamesFromCLIArgs will return the list of names of variables configured by -var and -var-file CLI
@@ -202,6 +203,47 @@ func getTerraformInputNamesFromCLIArgs(terragruntOptions *options.TerragruntOpti
 		}
 	}
 
+	fileVars, err := getVarNamesFromVarFiles(varFiles)
+	if err != nil {
+		return inputNames, err
+	}
+	inputNames = append(inputNames, fileVars...)
+
+	return inputNames, nil
+}
+
+// getTerraformInputNamesFromAutomaticVarFiles returns all the variables names
+func getTerraformInputNamesFromAutomaticVarFiles(terragruntOptions *options.TerragruntOptions) ([]string, error) {
+	base := terragruntOptions.WorkingDir
+	automaticVarFiles := []string{}
+
+	tfTFVarsFile := filepath.Join(base, "terraform.tfvars")
+	if util.FileExists(tfTFVarsFile) {
+		automaticVarFiles = append(automaticVarFiles, tfTFVarsFile)
+	}
+
+	tfTFVarsJsonFile := filepath.Join(base, "terraform.tfvars.json")
+	if util.FileExists(tfTFVarsJsonFile) {
+		automaticVarFiles = append(automaticVarFiles, tfTFVarsJsonFile)
+	}
+
+	varFiles, err := filepath.Glob(filepath.Join(base, "*.auto.tfvars"))
+	if err != nil {
+		return nil, err
+	}
+	automaticVarFiles = append(automaticVarFiles, varFiles...)
+	jsonVarFiles, err := filepath.Glob(filepath.Join(base, "*.auto.tfvars.json"))
+	if err != nil {
+		return nil, err
+	}
+	automaticVarFiles = append(automaticVarFiles, jsonVarFiles...)
+	return getVarNamesFromVarFiles(automaticVarFiles)
+}
+
+// getVarNamesFromVarFiles will parse all the given var files and returns a list of names of variables that are
+// configured in all of them combined together.
+func getVarNamesFromVarFiles(varFiles []string) ([]string, error) {
+	inputNames := []string{}
 	for _, varFile := range varFiles {
 		fileVars, err := getVarNamesFromVarFile(varFile)
 		if err != nil {
@@ -221,8 +263,14 @@ func getVarNamesFromVarFile(varFile string) ([]string, error) {
 	}
 
 	var variables map[string]interface{}
-	if err := config.ParseAndDecodeVarFile(string(fileContents), varFile, &variables); err != nil {
-		return nil, err
+	if strings.HasSuffix(varFile, "json") {
+		if err := json.Unmarshal(fileContents, &variables); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := config.ParseAndDecodeVarFile(string(fileContents), varFile, &variables); err != nil {
+			return nil, err
+		}
 	}
 
 	out := []string{}

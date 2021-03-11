@@ -234,12 +234,15 @@ Note that this only checks for variables passed in in the following ways:
 
 - `-var-file` and `-var` CLI arguments defined on `terraform.extra_arguments` using `arguments`.
 
+- `-var-file` and `-var` CLI arguments passed to terragrunt.
+
+- Automatically loaded var files (`terraform.tfvars`, `terraform.tfvars.json`, `*.auto.tfvars`, `*.auto.tfvars.json`)
+
 - `TF_VAR` environment variables defined on `terraform.extra_arguments` blocks.
 
 - `TF_VAR` environment variables defined in the environment.
 
-Be aware that other ways to pass variables to `terraform` (e.g., using automatically loaded var files in the module) are
-not checked by this command.
+Be aware that other ways to pass variables to `terraform` are not checked by this command.
 
 This command will exit with an error if terragrunt detects any unused inputs or undefined required inputs.
 
