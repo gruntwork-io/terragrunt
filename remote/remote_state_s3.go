@@ -21,7 +21,8 @@ import (
 )
 
 const (
-	lockTableDeprecationMessage = "Remote state configuration 'lock_table' attribute is deprecated; use 'dynamodb_table' instead."
+	lockTableDeprecationMessage              = "Remote state configuration 'lock_table' attribute is deprecated; use 'dynamodb_table' instead."
+	DefaultS3BucketAccessLoggingTargetPrefix = "TFStateLogs/"
 )
 
 /*
@@ -42,6 +43,7 @@ type ExtendedRemoteStateConfigS3 struct {
 	EnableLockTableSSEncryption bool              `mapstructure:"enable_lock_table_ssencryption"`
 	DisableAWSClientChecksums   bool              `mapstructure:"disable_aws_client_checksums"`
 	AccessLoggingBucketName     string            `mapstructure:"accesslogging_bucket_name"`
+	AccessLoggingTargetPrefix   string            `mapstructure:"accesslogging_target_prefix"`
 }
 
 // These are settings that can appear in the remote_state config that are ONLY used by Terragrunt and NOT forwarded
@@ -57,6 +59,7 @@ var terragruntOnlyConfigs = []string{
 	"enable_lock_table_ssencryption",
 	"disable_aws_client_checksums",
 	"accesslogging_bucket_name",
+	"accesslogging_target_prefix",
 }
 
 // A representation of the configuration options available for S3 remote state
@@ -313,6 +316,11 @@ func parseExtendedS3Config(config map[string]interface{}) (*ExtendedRemoteStateC
 		return nil, errors.WithStackTrace(err)
 	}
 
+	_, targetPrefixExists := config["accesslogging_target_prefix"]
+	if !targetPrefixExists {
+		extendedConfig.AccessLoggingTargetPrefix = DefaultS3BucketAccessLoggingTargetPrefix
+	}
+
 	extendedConfig.remoteStateConfigS3 = s3Config
 
 	return &extendedConfig, nil
@@ -448,7 +456,7 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 			return err
 		}
 
-		if err := EnableAccessLoggingForS3BucketWide(s3Client, &config.remoteStateConfigS3, terragruntOptions, config.AccessLoggingBucketName); err != nil {
+		if err := EnableAccessLoggingForS3BucketWide(s3Client, &config.remoteStateConfigS3, terragruntOptions, config.AccessLoggingBucketName, config.AccessLoggingTargetPrefix); err != nil {
 			return err
 		}
 	} else {
@@ -674,20 +682,19 @@ func EnableSSEForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 }
 
 // Enable bucket-wide Access Logging for the AWS S3 bucket specified in the given config
-func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions, logsBucket string) error {
+func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions, logsBucket string, logsBucketPrefix string) error {
 	if err := configureBucketAccessLoggingAcl(s3Client, aws.String(logsBucket), terragruntOptions); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	targetPrefix := "TFStateLogs/"
-	terragruntOptions.Logger.Debugf("Putting bucket logging on S3 bucket %s with TargetBucket %s and TargetPrefix %s", config.Bucket, logsBucket, targetPrefix)
+	terragruntOptions.Logger.Debugf("Putting bucket logging on S3 bucket %s with TargetBucket %s and TargetPrefix %s", config.Bucket, logsBucket, logsBucketPrefix)
 
 	loggingInput := s3.PutBucketLoggingInput{
 		Bucket: aws.String(config.Bucket),
 		BucketLoggingStatus: &s3.BucketLoggingStatus{
 			LoggingEnabled: &s3.LoggingEnabled{
 				TargetBucket: aws.String(logsBucket),
-				TargetPrefix: aws.String(targetPrefix),
+				TargetPrefix: aws.String(logsBucketPrefix),
 			},
 		},
 	}

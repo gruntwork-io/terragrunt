@@ -237,6 +237,7 @@ remote_state {
   skip_bucket_enforced_tls       = true # use only if you need to access the S3 bucket without TLS being enforced
   enable_lock_table_ssencryption = true # use only if non-encrypted DynamoDB Lock Table for the Terraform State is required and/or the NoSQL database service does not support server-side encryption
   accesslogging_bucket_name      = <string> # use only if you need server access logging to be enabled for your terraform state S3 bucket. Provide a <string> value representing the name of the target bucket to be used for logs output.
+  accesslogging_target_prefix    = <string> # use only if you want to set a specific prefix for your terraform state S3 bucket access logs when Server Access Logging is enabled. Provide a <string> value representing the TargetPrefix to be used for the logs output objects. If set to empty <string>, then TargetPrefix will be set to empty <string>. If attribute is not provided at all, then TargetPrefix will be set to default value `TFStateLogs/`.
 
   shared_credentials_file     = "/path/to/credentials/file"
   skip_credentials_validation = true
@@ -247,7 +248,7 @@ remote_state {
 
 If you experience an error for any of these configurations, confirm you are using Terraform v0.12.2 or greater.
 
-Further, the config options `s3_bucket_tags`, `dynamodb_table_tags`, `skip_bucket_versioning`, `skip_bucket_ssencryption`, `skip_bucket_root_access`, `skip_bucket_enforced_tls`, `accesslogging_bucket_name`, and `enable_lock_table_ssencryption` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).
+Further, the config options `s3_bucket_tags`, `dynamodb_table_tags`, `skip_bucket_versioning`, `skip_bucket_ssencryption`, `skip_bucket_root_access`, `skip_bucket_enforced_tls`, `accesslogging_bucket_name`, `accesslogging_target_prefix`, and `enable_lock_table_ssencryption` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).
 
 ### GCS-specific remote state settings
 
