@@ -98,6 +98,7 @@ func DecodeBaseBlocks(
 	hclFile *hcl.File,
 	filename string,
 	includeFromChild *IncludeConfig,
+	parseLocals bool,
 ) (*cty.Value, *terragruntInclude, *IncludeConfig, error) {
 	// Decode just the `include` block, and verify that it's allowed here
 	terragruntInclude, err := decodeAsTerragruntInclude(
@@ -116,13 +117,18 @@ func DecodeBaseBlocks(
 
 	// Evaluate all the expressions in the locals block separately and generate the variables list to use in the
 	// evaluation context.
-	locals, err := evaluateLocalsBlock(terragruntOptions, parser, hclFile, filename, includeForDecode)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	localsAsCty, err := convertValuesMapToCtyVal(locals)
-	if err != nil {
-		return nil, nil, nil, err
+	var localsAsCty cty.Value
+	if parseLocals {
+		locals, err := evaluateLocalsBlock(terragruntOptions, parser, hclFile, filename, includeForDecode)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		localsAsCty, err = convertValuesMapToCtyVal(locals)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	} else {
+		localsAsCty = cty.Value{}
 	}
 
 	return &localsAsCty, terragruntInclude, includeForDecode, nil
@@ -133,13 +139,14 @@ func PartialParseConfigFile(
 	terragruntOptions *options.TerragruntOptions,
 	include *IncludeConfig,
 	decodeList []PartialDecodeSectionType,
+	parseLocals bool,
 ) (*TerragruntConfig, error) {
 	configString, err := util.ReadFileAsString(filename)
 	if err != nil {
 		return nil, err
 	}
 
-	config, err := PartialParseConfigString(configString, terragruntOptions, include, filename, decodeList)
+	config, err := PartialParseConfigString(configString, terragruntOptions, include, filename, decodeList, parseLocals)
 	if err != nil {
 		return nil, err
 	}
@@ -168,6 +175,7 @@ func PartialParseConfigString(
 	includeFromChild *IncludeConfig,
 	filename string,
 	decodeList []PartialDecodeSectionType,
+	parseLocals bool,
 ) (*TerragruntConfig, error) {
 	// Parse the HCL string into an AST body that can be decoded multiple times later without having to re-parse
 	parser := hclparse.NewParser()
@@ -177,7 +185,7 @@ func PartialParseConfigString(
 	}
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
-	localsAsCty, terragruntInclude, includeForDecode, err := DecodeBaseBlocks(terragruntOptions, parser, file, filename, includeFromChild)
+	localsAsCty, terragruntInclude, includeForDecode, err := DecodeBaseBlocks(terragruntOptions, parser, file, filename, includeFromChild, parseLocals)
 	if err != nil {
 		return nil, err
 	}
@@ -321,6 +329,7 @@ func partialParseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions
 		terragruntOptions,
 		includedConfig,
 		decodeList,
+		true,
 	)
 }
 

@@ -125,6 +125,7 @@ const (
 	TERRAFORM_STATE_BACKUP                                  = "terraform.tfstate.backup"
 	TERRAGRUNT_CACHE                                        = ".terragrunt-cache"
 	TERRAGRUNT_DEBUG_FILE                                   = "terragrunt-debug.tfvars.json"
+	TEST_FIXTURE_LOCAL_RUN_ONCE                             = "fixture-locals/run-once"
 )
 
 func init() {
@@ -4117,4 +4118,19 @@ func TestTerragruntRunAllCommandPrompt(t *testing.T) {
 	logBufferContentsLineByLine(t, stderr, "stderr")
 	assert.Contains(t, stderr.String(), "Are you sure you want to run 'terragrunt apply' in each folder of the stack described above? (y/n)")
 	assert.Error(t, err)
+}
+
+// See https://github.com/gruntwork-io/terragrunt/issues/1427
+func TestTerragruntInitRunOnce(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_RUN_ONCE)
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_RUN_ONCE), &stdout, &stderr)
+
+	errout := string(stderr.Bytes())
+
+	assert.Equal(t, 1, strings.Count(errout, "aaa"))
 }

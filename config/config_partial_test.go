@@ -20,7 +20,7 @@ dependencies {
 }
 `
 
-	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependenciesBlock})
+	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependenciesBlock}, true)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
@@ -48,10 +48,10 @@ dependencies {
 prevent_destroy = false
 `
 
-	_, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{TerragruntFlags})
+	_, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{TerragruntFlags}, true)
 	assert.NoError(t, err)
 
-	_, err = PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependenciesBlock})
+	_, err = PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependenciesBlock}, true)
 	assert.Error(t, err)
 }
 
@@ -67,7 +67,7 @@ prevent_destroy = true
 skip = true
 `
 
-	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependenciesBlock, TerragruntFlags})
+	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependenciesBlock, TerragruntFlags}, true)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
@@ -87,7 +87,7 @@ skip = true
 func TestPartialParseOmittedItems(t *testing.T) {
 	t.Parallel()
 
-	terragruntConfig, err := PartialParseConfigString("", mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependenciesBlock, TerragruntFlags})
+	terragruntConfig, err := PartialParseConfigString("", mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependenciesBlock, TerragruntFlags}, true)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 	assert.Nil(t, terragruntConfig.Dependencies)
@@ -103,10 +103,10 @@ func TestPartialParseDoesNotResolveIgnoredBlockEvenInParent(t *testing.T) {
 	t.Parallel()
 
 	opts := mockOptionsForTestWithConfigPath(t, "../test/fixture-partial-parse/ignore-bad-block-in-parent/child/"+DefaultTerragruntConfigPath)
-	_, err := PartialParseConfigFile(opts.TerragruntConfigPath, opts, nil, []PartialDecodeSectionType{TerragruntFlags})
+	_, err := PartialParseConfigFile(opts.TerragruntConfigPath, opts, nil, []PartialDecodeSectionType{TerragruntFlags}, true)
 	assert.NoError(t, err)
 
-	_, err = PartialParseConfigFile(opts.TerragruntConfigPath, opts, nil, []PartialDecodeSectionType{DependenciesBlock})
+	_, err = PartialParseConfigFile(opts.TerragruntConfigPath, opts, nil, []PartialDecodeSectionType{DependenciesBlock}, true)
 	assert.Error(t, err)
 }
 
@@ -114,7 +114,7 @@ func TestPartialParseOnlyInheritsSelectedBlocksFlags(t *testing.T) {
 	t.Parallel()
 
 	opts := mockOptionsForTestWithConfigPath(t, "../test/fixture-partial-parse/partial-inheritance/child/"+DefaultTerragruntConfigPath)
-	terragruntConfig, err := PartialParseConfigFile(opts.TerragruntConfigPath, opts, nil, []PartialDecodeSectionType{TerragruntFlags})
+	terragruntConfig, err := PartialParseConfigFile(opts.TerragruntConfigPath, opts, nil, []PartialDecodeSectionType{TerragruntFlags}, true)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 	assert.Nil(t, terragruntConfig.Dependencies)
@@ -130,7 +130,7 @@ func TestPartialParseOnlyInheritsSelectedBlocksDependencies(t *testing.T) {
 	t.Parallel()
 
 	opts := mockOptionsForTestWithConfigPath(t, "../test/fixture-partial-parse/partial-inheritance/child/"+DefaultTerragruntConfigPath)
-	terragruntConfig, err := PartialParseConfigFile(opts.TerragruntConfigPath, opts, nil, []PartialDecodeSectionType{DependenciesBlock})
+	terragruntConfig, err := PartialParseConfigFile(opts.TerragruntConfigPath, opts, nil, []PartialDecodeSectionType{DependenciesBlock}, true)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
@@ -155,7 +155,7 @@ dependency "vpc" {
 }
 `
 
-	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependencyBlock})
+	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependencyBlock}, true)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
@@ -178,7 +178,7 @@ dependency "sql" {
 }
 `
 
-	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependencyBlock})
+	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependencyBlock}, true)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
@@ -203,7 +203,7 @@ dependency "sql" {
 }
 `
 
-	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependencyBlock})
+	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependencyBlock}, true)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
@@ -229,7 +229,7 @@ dependency "sql" {
 }
 `
 
-	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependenciesBlock, DependencyBlock})
+	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependenciesBlock, DependencyBlock}, true)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
@@ -255,7 +255,7 @@ dependency "sql" {
 }
 `
 
-	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependencyBlock, DependenciesBlock})
+	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependencyBlock, DependenciesBlock}, true)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
@@ -281,7 +281,7 @@ dependency "sql" {
 }
 `
 
-	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependencyBlock, DependenciesBlock})
+	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependencyBlock, DependenciesBlock}, true)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
@@ -307,7 +307,7 @@ terraform {
 }
 `
 
-	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{TerraformSource})
+	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{TerraformSource}, true)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 

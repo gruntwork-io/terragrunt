@@ -162,7 +162,7 @@ func getDependencyBlockConfigPathsByFilepath(configPath string, terragruntOption
 	// TerragruntConfig.Dependencies. Note that since we aren't passing in `DependenciesBlock` to the
 	// PartialDecodeSectionType list, the Dependencies attribute will not include any dependencies specified via the
 	// dependencies block.
-	tgConfig, err := PartialParseConfigFile(configPath, terragruntOptions, nil, []PartialDecodeSectionType{DependencyBlock})
+	tgConfig, err := PartialParseConfigFile(configPath, terragruntOptions, nil, []PartialDecodeSectionType{DependencyBlock}, true)
 	if err != nil {
 		return nil, err
 	}
@@ -368,6 +368,7 @@ func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.Terrag
 			targetOptions,
 			nil,
 			[]PartialDecodeSectionType{TerraformBlock},
+			true,
 		)
 		if err != nil {
 			return nil, err
@@ -402,10 +403,10 @@ func getTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targe
 		return nil, err
 	}
 
-	// First attempt to parse the `remote_state` blocks without parsing/getting dependency outputs. If this is possible,
-	// proceed to routine that fetches remote state directly. Otherwise, fallback to calling `terragrunt output`
-	// directly.
-	remoteStateTGConfig, err := PartialParseConfigFile(targetConfig, targetTGOptions, nil, []PartialDecodeSectionType{RemoteStateBlock, TerragruntFlags})
+	// First, attempt to parse the `remote_state` blocks without parsing/getting dependency outputs. If this is
+	// possible, proceed to routine that fetches remote state directly. Otherwise, fallback to calling
+	// `terragrunt output` directly.
+	remoteStateTGConfig, err := PartialParseConfigFile(targetConfig, targetTGOptions, nil, []PartialDecodeSectionType{RemoteStateBlock, TerragruntFlags}, true)
 	if err != nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {
 		terragruntOptions.Logger.Warningf("Could not parse remote_state block from target config %s", targetConfig)
 		terragruntOptions.Logger.Warningf("Falling back to terragrunt output.")
@@ -435,7 +436,7 @@ func canGetRemoteState(remoteState *remote.RemoteState) bool {
 func terragruntAlreadyInit(terragruntOptions *options.TerragruntOptions, configPath string) (bool, string, error) {
 	// We need to first determine the working directory where the terraform source should be located. This is dependent
 	// on the source field of the terraform block in the config.
-	terraformBlockTGConfig, err := PartialParseConfigFile(configPath, terragruntOptions, nil, []PartialDecodeSectionType{TerraformSource})
+	terraformBlockTGConfig, err := PartialParseConfigFile(configPath, terragruntOptions, nil, []PartialDecodeSectionType{TerraformSource}, true)
 	if err != nil {
 		return false, "", err
 	}
