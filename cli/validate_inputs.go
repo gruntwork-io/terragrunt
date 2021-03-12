@@ -160,7 +160,7 @@ func getTerraformInputNamesFromConfig(terragruntConfig *config.TerragruntConfig)
 }
 
 // getTerraformInputNamesFromVarFiles will return the list of names of variables configured by var files set in the
-// extra_arguments block of the given terragrunt config.
+// extra_arguments block required_var_files and optional_var_files settings of the given terragrunt config.
 func getTerraformInputNamesFromVarFiles(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) ([]string, error) {
 	if terragruntConfig.Terraform == nil {
 		return nil, nil
