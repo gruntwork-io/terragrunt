@@ -8,6 +8,7 @@ require (
 	github.com/creack/pty v1.1.9
 	github.com/fatih/structs v1.1.0
 	github.com/go-errors/errors v1.0.2-0.20180813162953-d98b870cc4e0
+	github.com/google/shlex v0.0.0-20181106134648-c34317bd91bf
 	github.com/gruntwork-io/terratest v0.32.6
 	github.com/hashicorp/go-getter v1.4.2-0.20200106182914-9813cbd4eb02
 	github.com/hashicorp/go-version v1.2.0
@@ -26,5 +27,4 @@ require (
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
 	golang.org/x/sys v0.0.0-20200930185726-fdedc70b468f
 	google.golang.org/api v0.35.0
-	gotest.tools v2.2.0+incompatible
 )

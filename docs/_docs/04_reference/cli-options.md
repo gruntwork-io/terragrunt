@@ -31,6 +31,7 @@ Terragrunt supports the following CLI commands:
   - [destroy-all (DEPRECATED: use run-all)](#destroy-all-deprecated-use-run-all)
   - [validate-all (DEPRECATED: use run-all)](#validate-all-deprecated-use-run-all)
   - [terragrunt-info](#terragrunt-info)
+  - [validate-inputs](#validate-inputs)
   - [graph-dependencies](#graph-dependencies)
   - [hclfmt](#hclfmt)
   - [aws-provider-patch](#aws-provider-patch)
@@ -216,6 +217,51 @@ Might produce output such as:
   "WorkingDir": "/example/path"
 }
 ```
+
+### validate-inputs
+
+Emits information about the input variables that are configured with the given
+terragrunt configuration. Specifically, this command will print out unused
+inputs (inputs that are not defined as a terraform variable in the
+corresponding module) and undefined required inputs (required terraform
+variables that are not currently being passed in).
+
+Example:
+
+```bash
+> terragrunt validate-inputs
+The following inputs passed in by terragrunt are unused:
+
+    - foo
+    - bar
+
+
+The following required inputs are missing:
+
+    - baz
+
+```
+
+Note that this only checks for variables passed in in the following ways:
+
+- Configured `inputs` attribute.
+
+- var files defined on `terraform.extra_arguments` blocks using `required_var_files` and `optional_var_files`.
+
+- `-var-file` and `-var` CLI arguments defined on `terraform.extra_arguments` using `arguments`.
+
+- `-var-file` and `-var` CLI arguments passed to terragrunt.
+
+- Automatically loaded var files (`terraform.tfvars`, `terraform.tfvars.json`, `*.auto.tfvars`, `*.auto.tfvars.json`)
+
+- `TF_VAR` environment variables defined on `terraform.extra_arguments` blocks.
+
+- `TF_VAR` environment variables defined in the environment.
+
+Be aware that other ways to pass variables to `terraform` are not checked by this command.
+
+This command will exit with an error if terragrunt detects any unused inputs or undefined required inputs.
+
 
 ### graph-dependencies
 
