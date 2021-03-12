@@ -132,8 +132,7 @@ func getTerraformInputNamesFromEnvVar(terragruntOptions *options.TerragruntOptio
 	// Make sure to check if there are configured env vars in the parsed terragrunt config.
 	if terragruntConfig.Terraform != nil {
 		for _, arg := range terragruntConfig.Terraform.ExtraArgs {
-			// only focus on plan args
-			if arg.EnvVars != nil && util.ListContainsElement(arg.Commands, "plan") {
+			if arg.EnvVars != nil {
 				for key, val := range *arg.EnvVars {
 					envVars[key] = val
 				}
@@ -169,10 +168,7 @@ func getTerraformInputNamesFromVarFiles(terragruntOptions *options.TerragruntOpt
 
 	varFiles := []string{}
 	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
-		// only focus on plan args
-		if util.ListContainsElement(arg.Commands, "plan") {
-			varFiles = append(varFiles, arg.GetVarFiles(terragruntOptions.Logger)...)
-		}
+		varFiles = append(varFiles, arg.GetVarFiles(terragruntOptions.Logger)...)
 	}
 
 	return getVarNamesFromVarFiles(varFiles)
@@ -189,16 +185,13 @@ func getTerraformInputNamesFromCLIArgs(terragruntOptions *options.TerragruntOpti
 
 	if terragruntConfig.Terraform != nil {
 		for _, arg := range terragruntConfig.Terraform.ExtraArgs {
-			// only focus on plan args
-			if util.ListContainsElement(arg.Commands, "plan") {
-				if arg.Arguments != nil {
-					vars, rawVarFiles, err := getVarFlagsFromArgList(*arg.Arguments)
-					if err != nil {
-						return inputNames, err
-					}
-					inputNames = append(inputNames, vars...)
-					varFiles = append(varFiles, rawVarFiles...)
+			if arg.Arguments != nil {
+				vars, rawVarFiles, err := getVarFlagsFromArgList(*arg.Arguments)
+				if err != nil {
+					return inputNames, err
 				}
+				inputNames = append(inputNames, vars...)
+				varFiles = append(varFiles, rawVarFiles...)
 			}
 		}
 	}
