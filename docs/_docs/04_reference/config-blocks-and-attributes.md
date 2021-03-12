@@ -52,12 +52,16 @@ The `terraform` block supports the following arguments:
 
 - `before_hook` (block): Nested blocks used to specify command hooks that should be run before `terraform` is called.
   Hooks run from the directory with the terraform module, except for hooks related to `terragrunt-read-config` and
-  `init-from-module`. These hooks run in the terragrunt configuration directory (the directory where `terragrunt.hcl`
-  lives).
+  `init-from-module`, and if `execute_terragrunt` is set. These hooks run in the terragrunt configuration directory (the
+  directory where `terragrunt.hcl` lives).
   Supports the following arguments:
     - `commands` (required) : A list of `terraform` sub commands for which the hook should run before.
     - `execute` (required) : A list of command and arguments that should be run as the hook. For example, if `execute` is set as
-      `["echo", "Foo"]`, the command `echo Foo` will be run.
+      `["echo", "Foo"]`, the command `echo Foo` will be run. Mutually exclusive with `execute_terragrunt`.
+    - `execute_terragrunt` (required) : A list of terragrunt command and arguments that should be run as the hook. Only
+      supports terragrunt specific commands other than `run-all` (e.g., `aws-provider-patch`). For example, if
+      `execute_terragrunt` is set as `["aws-provider-patch", "--terragrunt-override-attr", "region=us-east-2"]`,
+      terragrunt will run the `aws-provider-patch` command. Mutually exclusive with `execute`.
     - `run_on_error` (optional) : If set to true, this hook will run even if a previous hook hit an error, or in the
       case of "after" hooks, if the Terraform command hit an error. Default is false.
 
