@@ -52,6 +52,8 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
 
   - [sops\_decrypt\_file()](#sops_decrypt_file)
 
+  - [get\_terragrunt\_source()](#get_terragrunt_source)
+
 ## Terraform built-in functions
 
 All [Terraform built-in functions](https://www.terraform.io/docs/configuration/functions.html) are supported in Terragrunt config files:
@@ -610,3 +612,7 @@ inputs = merge(
   }
 )
 ```
+
+## get\_terragrunt\_source
+
+`get_terragrunt_source()` returns the location of the Terraform files. This location can be provided via CLI `--terragrunt-source`, an environment variable `TERRAGRUNT_SOURCE` or in the `terragrunt.hcl` file. Calling this function will return the value of that field.

@@ -560,7 +560,7 @@ func sopsDecryptFile(params []string, include *IncludeConfig, terragruntOptions 
 	return "", errors.WithStackTrace(InvalidSopsFormat{SourceFilePath: sourceFile})
 }
 
-// Return the directory where the Terraform configuration files live
+// Return the location of the Terraform files
 func getTerragruntSource(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	return terragruntOptions.Source, nil
 }
