@@ -226,6 +226,22 @@ inputs (inputs that are not defined as a terraform variable in the
 corresponding module) and undefined required inputs (required terraform
 variables that are not currently being passed in).
 
+Example:
+
+```bash
+> terragrunt validate-inputs
+The following inputs passed in by terragrunt are unused:
+
+    - foo
+    - bar
+
+
+The following required inputs are missing:
+
+    - baz
+
+```
+
 Note that this only checks for variables passed in in the following ways:
 
 - Configured `inputs` attribute.
@@ -245,22 +261,6 @@ Note that this only checks for variables passed in in the following ways:
 Be aware that other ways to pass variables to `terraform` are not checked by this command.
 
 This command will exit with an error if terragrunt detects any unused inputs or undefined required inputs.
-
-Example:
-
-```bash
-> terragrunt validate-inputs
-The following inputs passed in by terragrunt are unused:
-
-    - foo
-    - bar
-
-
-The following required inputs are missing:
-
-    - baz
-
-```
 
 
 ### graph-dependencies
