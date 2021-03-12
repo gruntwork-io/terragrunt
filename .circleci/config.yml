@@ -1,6 +1,7 @@
 defaults: &defaults
   docker:
-    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:tf14.4
+    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.16-tf14.4-tg28.8
+
 version: 2
 jobs:
   # We're running unit tests separately from integration tests - with no parallelization.
@@ -58,16 +59,12 @@ jobs:
     <<: *defaults
     steps:
       - checkout
-      # Build amd64 and 386 separately, as darwin/386 is no longer supported in later versions of go
-      - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG" --arch 'amd64'
-      - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG" --os 'linux windows' --arch 386
+      - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG"
   deploy:
     <<: *defaults
     steps:
       - checkout
-      # Build amd64 and 386 separately, as darwin/386 is no longer supported in later versions of go
-      - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG" --arch 'amd64'
-      - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG" --os 'linux windows' --arch 386
+      - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG"
       - run: cd bin && sha256sum * > SHA256SUMS
       - run: upload-github-release-assets bin/*
 workflows:
