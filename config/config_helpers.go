@@ -115,7 +115,7 @@ func CreateTerragruntEvalContext(
 		"get_terraform_commands_that_need_input":       wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_INPUT),
 		"get_terraform_commands_that_need_parallelism": wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_PARALLELISM),
 		"sops_decrypt_file":                            wrapStringSliceToStringAsFuncImpl(sopsDecryptFile, extensions.Include, terragruntOptions),
-		"get_terragrunt_source":                        wrapVoidToStringAsFuncImpl(getTerragruntSource, extensions.Include, terragruntOptions),
+		"get_terragrunt_source_cli_flag":               wrapVoidToStringAsFuncImpl(getTerragruntSourceCliFlag, extensions.Include, terragruntOptions),
 	}
 
 	functions := map[string]function.Function{}
@@ -560,8 +560,8 @@ func sopsDecryptFile(params []string, include *IncludeConfig, terragruntOptions 
 	return "", errors.WithStackTrace(InvalidSopsFormat{SourceFilePath: sourceFile})
 }
 
-// Return the location of the Terraform files
-func getTerragruntSource(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+// Return the location of the Terraform files provided via --terragrunt-source
+func getTerragruntSourceCliFlag(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	return terragruntOptions.Source, nil
 }
 

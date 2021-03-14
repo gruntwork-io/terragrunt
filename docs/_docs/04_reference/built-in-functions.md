@@ -52,7 +52,7 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
 
   - [sops\_decrypt\_file()](#sops_decrypt_file)
 
-  - [get\_terragrunt\_source()](#get_terragrunt_source)
+  - [get\_terragrunt\_source\_cli\_flag()](#get_terragrunt_source_cli_flag)
 
 ## Terraform built-in functions
 
@@ -613,6 +613,8 @@ inputs = merge(
 )
 ```
 
-## get\_terragrunt\_source
+## get\_terragrunt\_source\_cli\_flag
 
-`get_terragrunt_source()` returns the location of the Terraform files. This location can be provided via CLI `--terragrunt-source`, an environment variable `TERRAGRUNT_SOURCE` or in the `terragrunt.hcl` file. Calling this function will return the value of that field.
+`get_terragrunt_source_cli_flag()` returns the value passed in via the CLI `--terragrunt-source` or an environment variable `TERRAGRUNT_SOURCE`. Note that this will return an empty string when either of those values are not provided.
+
+This is useful for constructing before and after hooks, or TF flags that only apply to local development (e.g., setting up debug flags, or adjusting the `iam_role` parameter).
