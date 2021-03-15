@@ -181,6 +181,7 @@ type Hook struct {
 	Commands   []string `hcl:"commands,attr" cty:"commands"`
 	Execute    []string `hcl:"execute,attr" cty:"execute"`
 	RunOnError *bool    `hcl:"run_on_error,attr" cty:"run_on_error"`
+	WorkingDir *string  `hcl:"working_dir,attr" cty:"working_dir"`
 }
 
 func (conf *Hook) String() string {

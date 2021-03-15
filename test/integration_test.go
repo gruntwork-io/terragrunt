@@ -290,6 +290,17 @@ func TestTerragruntBeforeHook(t *testing.T) {
 	assert.NoError(t, exception)
 }
 
+func TestTerragruntHookWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	fixturePath := "fixture-hooks/working_dir"
+	cleanupTerraformFolder(t, fixturePath)
+	tmpEnvPath := copyEnvironment(t, fixturePath)
+	rootPath := util.JoinPath(tmpEnvPath, fixturePath)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+}
+
 func TestTerragruntAfterHook(t *testing.T) {
 	t.Parallel()
 
