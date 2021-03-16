@@ -555,10 +555,20 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 		allPreviousErrors := append(previousExecError, errorsOccurred...)
 		if shouldRunHook(curHook, terragruntOptions, allPreviousErrors...) {
 			terragruntOptions.Logger.Infof("Executing hook: %s", curHook.Name)
+			workingDir := ""
+			if curHook.WorkingDir != nil {
+				workingDir = *curHook.WorkingDir
+			}
+
 			actionToExecute := curHook.Execute[0]
 			actionParams := curHook.Execute[1:]
-			possibleError := shell.RunShellCommand(terragruntOptions, actionToExecute, actionParams...)
-
+			_, possibleError := shell.RunShellCommandWithOutput(
+				terragruntOptions,
+				workingDir,
+				false,
+				false,
+				actionToExecute, actionParams...,
+			)
 			if possibleError != nil {
 				terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
 				errorsOccurred = append(errorsOccurred, possibleError)

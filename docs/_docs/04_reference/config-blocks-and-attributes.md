@@ -58,6 +58,9 @@ The `terraform` block supports the following arguments:
     - `commands` (required) : A list of `terraform` sub commands for which the hook should run before.
     - `execute` (required) : A list of command and arguments that should be run as the hook. For example, if `execute` is set as
       `["echo", "Foo"]`, the command `echo Foo` will be run.
+    - `working_dir` (optional) : The path to set as the working directory of the hook. Terragrunt will switch directory
+      to this path prior to running the hook command. Defaults to the terragrunt configuration directory for
+      `terragrunt-read-config` and `init-from-module` hooks, and the terraform module directory for other command hooks.
     - `run_on_error` (optional) : If set to true, this hook will run even if a previous hook hit an error, or in the
       case of "after" hooks, if the Terraform command hit an error. Default is false.
 
