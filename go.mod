@@ -5,7 +5,7 @@ go 1.13
 require (
 	cloud.google.com/go/storage v1.10.0
 	github.com/aws/aws-sdk-go v1.37.7
-	github.com/creack/pty v1.1.9
+	github.com/creack/pty v1.1.11
 	github.com/fatih/structs v1.1.0
 	github.com/go-errors/errors v1.0.2-0.20180813162953-d98b870cc4e0
 	github.com/google/shlex v0.0.0-20181106134648-c34317bd91bf
