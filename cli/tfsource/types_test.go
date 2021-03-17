@@ -58,3 +58,21 @@ func TestSplitSourceUrl(t *testing.T) {
 		})
 	}
 }
+
+func TestRegressionSupportForGitRemoteCodecommit(t *testing.T) {
+	t.Parallel()
+
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("testing")
+	require.NoError(t, err)
+
+	source := "git::codecommit::ap-northeast-1://my_app_modules//my-app/modules/main-module"
+	sourceURL, err := toSourceUrl(source, ".")
+	require.NoError(t, err)
+	require.Equal(t, "git::codecommit::ap-northeast-1", sourceURL.Scheme)
+
+	actualRootRepo, actualModulePath, err := splitSourceUrl(sourceURL, terragruntOptions.Logger)
+	require.NoError(t, err)
+
+	require.Equal(t, "git::codecommit::ap-northeast-1://my_app_modules", actualRootRepo.String())
+	require.Equal(t, "my-app/modules/main-module", actualModulePath)
+}

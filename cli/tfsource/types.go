@@ -142,7 +142,15 @@ func toSourceUrl(source string, workingDir string) (*url.URL, error) {
 // Parse the given source URL into a URL struct. This method can handle source URLs that include go-getter's "forced
 // getter" prefixes, such as git::.
 func parseSourceUrl(source string) (*url.URL, error) {
+	forcedGetters := []string{}
+	// Continuously strip the forced getters until there is no more. This is to handle complex URL schemes like the
+	// git-remote-codecommit style URL.
 	forcedGetter, rawSourceUrl := getForcedGetter(source)
+	for forcedGetter != "" {
+		// Prepend like a stack, so that we prepend to the URL scheme in the right order.
+		forcedGetters = append([]string{forcedGetter}, forcedGetters...)
+		forcedGetter, rawSourceUrl = getForcedGetter(rawSourceUrl)
+	}
 
 	// Parse the URL without the getter prefix
 	canonicalSourceUrl, err := urlhelper.Parse(rawSourceUrl)
@@ -151,7 +159,7 @@ func parseSourceUrl(source string) (*url.URL, error) {
 	}
 
 	// Reattach the "getter" prefix as part of the scheme
-	if forcedGetter != "" {
+	for _, forcedGetter := range forcedGetters {
 		canonicalSourceUrl.Scheme = fmt.Sprintf("%s::%s", forcedGetter, canonicalSourceUrl.Scheme)
 	}
 
