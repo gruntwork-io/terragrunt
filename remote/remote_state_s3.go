@@ -69,6 +69,7 @@ type RemoteStateConfigS3 struct {
 	Key              string `mapstructure:"key"`
 	Region           string `mapstructure:"region"`
 	Endpoint         string `mapstructure:"endpoint"`
+	DynamoDBEndpoint string `mapstructure:"dynamodb_endpoint"`
 	Profile          string `mapstructure:"profile"`
 	RoleArn          string `mapstructure:"role_arn"`
 	ExternalID       string `mapstructure:"external_id"`
@@ -84,6 +85,7 @@ func (c *ExtendedRemoteStateConfigS3) GetAwsSessionConfig() *aws_helper.AwsSessi
 	return &aws_helper.AwsSessionConfig{
 		Region:                  c.remoteStateConfigS3.Region,
 		CustomS3Endpoint:        c.remoteStateConfigS3.Endpoint,
+		CustomDynamoDBEndpoint:  c.remoteStateConfigS3.DynamoDBEndpoint,
 		Profile:                 c.remoteStateConfigS3.Profile,
 		RoleArn:                 c.remoteStateConfigS3.RoleArn,
 		ExternalID:              c.remoteStateConfigS3.ExternalID,
