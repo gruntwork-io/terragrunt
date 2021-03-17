@@ -453,9 +453,15 @@ When passed in, don't automatically retry commands which fail with transient err
 **CLI Arg**: `--terragrunt-non-interactive`<br/>
 **Environment Variable**: `TF_INPUT` (set to `false`)
 
-When passed in, don't show interactive user prompts. This will default the answer for all prompts to 'yes'. Useful if
-you need to run Terragrunt in an automated setting (e.g. from a script). May also be specified with the
-[TF\_INPUT](https://www.terraform.io/docs/configuration/environment-variables.html#tf_input) environment variable.
+When passed in, don't show interactive user prompts. This will default the answer for all prompts to `yes` except for
+the listed cases below. This is useful if you need to run Terragrunt in an automated setting (e.g. from a script). May
+also be specified with the [TF\_INPUT](https://www.terraform.io/docs/configuration/environment-variables.html#tf_input)
+environment variable.
+
+This setting will default to `no` for the following cases:
+
+- Prompts related to pulling in external dependencies. You can force include external dependencies using the
+  [--terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies) option.
 
 
 ### terragrunt-working-dir
