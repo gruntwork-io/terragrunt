@@ -115,6 +115,8 @@ const (
 	TEST_FIXTURE_READ_CONFIG                                = "fixture-read-config"
 	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                    = "fixture-get-aws-caller-identity"
 	TEST_FIXTURE_GET_PLATFORM                               = "fixture-get-platform"
+	TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_HCL                  = "fixture-get-terragrunt-source-hcl"
+	TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_CLI                  = "fixture-get-terragrunt-source-cli"
 	TEST_FIXTURE_REGRESSIONS                                = "fixture-regressions"
 	TEST_FIXTURE_DIRS_PATH                                  = "fixture-dirs"
 	TEST_FIXTURE_PARALLELISM                                = "fixture-parallelism"
@@ -2766,6 +2768,56 @@ func TestAWSGetCallerIdentityFunctions(t *testing.T) {
 	assert.Equal(t, outputs["account"].Value, *identity.Account)
 	assert.Equal(t, outputs["arn"].Value, *identity.Arn)
 	assert.Equal(t, outputs["user_id"].Value, *identity.UserId)
+}
+
+func TestGetTerragruntSourceHCL(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_HCL)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_HCL)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_HCL)
+	terraformSource := "" // get_terragrunt_source_cli_flag() only returns the source when it is passed in via the CLI
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	assert.Equal(t, fmt.Sprintf("HCL: %s", terraformSource), outputs["terragrunt_source"].Value)
+}
+
+func TestGetTerragruntSourceCLI(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_CLI)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_CLI)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_CLI)
+	terraformSource := "terraform_config_cli"
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", rootPath, terraformSource))
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", rootPath, terraformSource), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	assert.Equal(t, fmt.Sprintf("CLI: %s", terraformSource), outputs["terragrunt_source"].Value)
 }
 
 func TestGetPlatform(t *testing.T) {
