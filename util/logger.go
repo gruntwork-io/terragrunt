@@ -1,8 +1,6 @@
 package util
 
 import (
-	"fmt"
-	"io"
 	"os"
 
 	"github.com/hashicorp/hcl/v2"
@@ -46,18 +44,6 @@ func CreateLogEntry(prefix string, level logrus.Level) *logrus.Entry {
 		fields = logrus.Fields{}
 	}
 	return logger.WithFields(fields)
-}
-
-// CreateLoggerWithWriter Create a logger around the given output stream and prefix
-func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Level) *logrus.Entry {
-	if prefix != "" {
-		prefix = fmt.Sprintf("[%s] ", prefix)
-	} else {
-		prefix = fmt.Sprintf("[terragrunt] %s", prefix)
-	}
-	logger := CreateLogEntry(prefix, level)
-	logger.Logger.SetOutput(writer)
-	return logger
 }
 
 // GetDiagnosticsWriter returns a hcl2 parsing diagnostics emitter for the current terminal.
