@@ -2136,7 +2136,7 @@ func TestYamlDecodeRegressions(t *testing.T) {
 // module has been destroyed.
 func TestDependencyOutputOptimization(t *testing.T) {
 	expectOutputLogs := []string{
-		`Running command: terraform init -get=false -get-plugins=false prefix=\[.*fixture-get-output/nested-optimization/dep\]`,
+		`Running command: terraform init -get=false prefix=\[.*fixture-get-output/nested-optimization/dep\]`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization", true, expectOutputLogs)
 }
@@ -2150,7 +2150,7 @@ func TestDependencyOutputOptimizationSkipInit(t *testing.T) {
 
 func TestDependencyOutputOptimizationNoGenerate(t *testing.T) {
 	expectOutputLogs := []string{
-		`Running command: terraform init -get=false -get-plugins=false prefix=\[.*fixture-get-output/nested-optimization-nogen/dep\]`,
+		`Running command: terraform init -get=false prefix=\[.*fixture-get-output/nested-optimization-nogen/dep\]`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization-nogen", true, expectOutputLogs)
 }

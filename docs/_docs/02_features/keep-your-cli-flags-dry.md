@@ -129,7 +129,6 @@ terraform {
     ]
 
     arguments = [
-      "-get-plugins=false",
       "-plugin-dir=/my/terraform/plugin/dir",
     ]
   }
