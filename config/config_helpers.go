@@ -107,6 +107,7 @@ func CreateTerragruntEvalContext(
 		"get_terraform_command":                        wrapVoidToStringAsFuncImpl(getTerraformCommand, extensions.Include, terragruntOptions),
 		"get_terraform_cli_args":                       wrapVoidToStringSliceAsFuncImpl(getTerraformCliArgs, extensions.Include, terragruntOptions),
 		"get_parent_terragrunt_dir":                    wrapVoidToStringAsFuncImpl(getParentTerragruntDir, extensions.Include, terragruntOptions),
+		"get_aws_account_alias":                        wrapVoidToStringAsFuncImpl(GetAWSAccountAlias, extensions.Include, terragruntOptions),
 		"get_aws_account_id":                           wrapVoidToStringAsFuncImpl(getAWSAccountID, extensions.Include, terragruntOptions),
 		"get_aws_caller_identity_arn":                  wrapVoidToStringAsFuncImpl(getAWSCallerIdentityARN, extensions.Include, terragruntOptions),
 		"get_aws_caller_identity_user_id":              wrapVoidToStringAsFuncImpl(getAWSCallerIdentityUserID, extensions.Include, terragruntOptions),
@@ -336,6 +337,15 @@ func getTerraformCommand(include *IncludeConfig, terragruntOptions *options.Terr
 // getTerraformCliArgs returns cli args for terraform
 func getTerraformCliArgs(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) ([]string, error) {
 	return terragruntOptions.TerraformCliArgs, nil
+}
+
+// Return the AWS account id associated to the current set of credentials
+func GetAWSAccountAlias(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	accountID, err := aws_helper.GetAWSAccountAlias(terragruntOptions)
+	if err == nil {
+		return accountID, nil
+	}
+	return "", err
 }
 
 // Return the AWS account id associated to the current set of credentials

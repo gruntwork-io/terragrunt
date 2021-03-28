@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -121,6 +122,28 @@ func AssumeIamRole(iamRoleArn string) (*sts.Credentials, error) {
 	}
 
 	return output.Credentials, nil
+}
+
+// Get the AWS account Alias of the current session configuration
+func GetAWSAccountAlias(terragruntOptions *options.TerragruntOptions) (string, error) {
+	sess, err := session.NewSession()
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	if terragruntOptions.IamRole != "" {
+		sess.Config.Credentials = stscreds.NewCredentials(sess, terragruntOptions.IamRole)
+	}
+
+	svc := iam.New(sess)
+	input := &iam.ListAccountAliasesInput{}
+
+	account, err := svc.ListAccountAliases(input)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	return *account.AccountAliases[0], nil
 }
 
 // Return the AWS caller identity associated with the current set of credentials

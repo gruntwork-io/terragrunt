@@ -413,6 +413,19 @@ terraform {
 }
 ```
 
+## get\_aws\_account\_alias
+
+`get_aws_account_alias()` returns the AWS account alias associated with the current set of credentials. Example:
+
+``` hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = "mycompany-${get_aws_account_alias()}"
+  }
+}
+```
+
 ## get\_aws\_account\_id
 
 `get_aws_account_id()` returns the AWS account id associated with the current set of credentials. Example:

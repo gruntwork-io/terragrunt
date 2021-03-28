@@ -2,6 +2,10 @@ variable "account" {
   type = string
 }
 
+variable "account_alias" {
+  type = string
+}
+
 variable "arn" {
   type = string
 }
@@ -12,6 +16,10 @@ variable "user_id" {
 
 output "account" {
   value = var.account
+}
+
+output "account_alias" {
+  value = var.account_alias
 }
 
 output "arn" {
