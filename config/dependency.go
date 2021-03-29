@@ -639,7 +639,7 @@ func runTerraformInitForDependencyOutput(terragruntOptions *options.TerragruntOp
 	initTGOptions := terragruntOptions.Clone(targetConfig)
 	initTGOptions.WorkingDir = workingDir
 	initTGOptions.ErrWriter = &stderr
-	err := shell.RunTerraformCommand(initTGOptions, "init", "-get=false", "-get-plugins=false")
+	err := shell.RunTerraformCommand(initTGOptions, "init", "-get=false")
 	if err != nil {
 		terragruntOptions.Logger.Debugf("Ignoring expected error from dependency init call")
 		terragruntOptions.Logger.Debugf("Init call stderr:")
