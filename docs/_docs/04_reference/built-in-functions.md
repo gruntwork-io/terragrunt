@@ -116,6 +116,25 @@ include {
 }
 ```
 
+Note that this function searches relative to the child `terragrunt.hcl` file when called from a parent config. For
+example, if you had the following folder structure:
+
+    ├── terragrunt.hcl
+    └── prod
+        ├── env.hcl
+        └── mysql
+            └── terragrunt.hcl
+
+And the root `terragrunt.hcl` contained the following:
+
+    locals {
+      env_vars = read_terragrunt_config(find_in_parent_folders("env.hcl"))
+    }
+
+The `find_in_parent_folders` will search from the __child `terragrunt.hcl`__ (`prod/mysql/terragrunt.hcl`) config,
+finding the `env.hcl` file in the `prod` directory.
+
+
 ## path\_relative\_to\_include
 
 `path_relative_to_include()` returns the relative path between the current `terragrunt.hcl` file and the `path` specified in its `include` block. For example, consider the following folder structure:
