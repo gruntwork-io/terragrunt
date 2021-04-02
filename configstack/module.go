@@ -141,7 +141,7 @@ func flagIncludedDirs(modules []*TerraformModule, terragruntOptions *options.Ter
 	if len(terragruntOptions.IncludeDirs) == 0 {
 		// If we aren't given any include directories, but are given the strict include flag,
 		// return no modules.
-		if terragruntOptions.StrictInclude) {
+		if terragruntOptions.StrictInclude {
 			return []*TerraformModule{}, nil
 		}
 		return modules, nil
