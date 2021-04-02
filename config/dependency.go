@@ -407,8 +407,8 @@ func getTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targe
 	// directly.
 	remoteStateTGConfig, err := PartialParseConfigFile(targetConfig, targetTGOptions, nil, []PartialDecodeSectionType{RemoteStateBlock, TerragruntFlags})
 	if err != nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {
-		terragruntOptions.Logger.Warningf("Could not parse remote_state block from target config %s", targetConfig)
-		terragruntOptions.Logger.Warningf("Falling back to terragrunt output.")
+		terragruntOptions.Logger.Infof("Could not parse remote_state block from target config %s", targetConfig)
+		terragruntOptions.Logger.Infof("Falling back to terragrunt output.")
 		return runTerragruntOutputJson(targetTGOptions, targetConfig)
 	}
 
