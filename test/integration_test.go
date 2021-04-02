@@ -3915,22 +3915,22 @@ func fileIsInFolder(t *testing.T, name string, path string) bool {
 }
 
 func runValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath string, includeModulePaths []string, strictInclude bool) []string {
-	cmd := []string{
+	cmd_parts := []string{
 		"terragrunt", "run-all", "validate",
 		"--terragrunt-non-interactive",
 		"--terragrunt-log-level", "debug",
 		"--terragrunt-working-dir", rootModulePath,
 	}
 
-	for module := range includeModulePaths {
-		cmd = append(cmd, "--terragrunt-include-dir", module)
+	for _, module := range includeModulePaths {
+		cmd_parts = append(cmd_parts, "--terragrunt-include-dir", module)
 	}
 
 	if strictInclude {
-		cmd = append(cmd, "--terragrunt-strict-include")
+		cmd_parts = append(cmd_parts, "--terragrunt-strict-include")
 	}
 
-	cmd = strings.Join(cmd, " ")
+	cmd := strings.Join(cmd_parts, " ")
 
 	validateAllStdout := bytes.Buffer{}
 	validateAllStderr := bytes.Buffer{}
