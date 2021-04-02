@@ -391,22 +391,20 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		terragruntOptions.RetryableErrors = terragruntConfig.RetryableErrors
 	}
 
-	// Override the default value of the max retry attempts using the value set in the config file
 	if val := terragruntConfig.RetryMaxAttempts; val != nil {
 		if *val < 1 {
 			terragruntOptions.Logger.Warnf("%s", "Cannot have less than 1 max retry, so we're using 1.")
 			*val = 1
 		}
-		terragruntOptions.MaxRetryAttempts = *val
+		terragruntOptions.RetryMaxAttempts = *val
 	}
 
-	// Override the default value of the max retry attempts using the value set in the config file
 	if val := terragruntConfig.RetrySleepInterval; val != nil {
 		if *val < 0 {
 			terragruntOptions.Logger.Warnf("%s", "Cannot sleep for less than 0 seconds, so we're using 0.")
 			*val = 0
 		}
-		terragruntOptions.Sleep = time.Duration(*terragruntConfig.RetrySleepInterval) * time.Second
+		terragruntOptions.RetrySleepInterval = time.Duration(*terragruntConfig.RetrySleepInterval) * time.Second
 	}
 
 	updatedTerragruntOptions := terragruntOptions
@@ -748,11 +746,11 @@ func setTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, 
 
 func runTerraformWithRetry(terragruntOptions *options.TerragruntOptions) error {
 	// Retry the command configurable time with sleep in between
-	for i := 0; i < terragruntOptions.MaxRetryAttempts; i++ {
+	for i := 0; i < terragruntOptions.RetryMaxAttempts; i++ {
 		if out, tferr := shell.RunTerraformCommandWithOutput(terragruntOptions, terragruntOptions.TerraformCliArgs...); tferr != nil {
 			if out != nil && isRetryable(out.Stderr, tferr, terragruntOptions) {
-				terragruntOptions.Logger.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.Sleep)
-				time.Sleep(terragruntOptions.Sleep)
+				terragruntOptions.Logger.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.RetrySleepInterval)
+				time.Sleep(terragruntOptions.RetrySleepInterval)
 			} else {
 				return tferr
 			}
@@ -1053,7 +1051,7 @@ type MaxRetriesExceeded struct {
 }
 
 func (err MaxRetriesExceeded) Error() string {
-	return fmt.Sprintf("Exhausted retries (%v) for command %v %v", err.Opts.MaxRetryAttempts, err.Opts.TerraformPath, strings.Join(err.Opts.TerraformCliArgs, " "))
+	return fmt.Sprintf("Exhausted retries (%v) for command %v %v", err.Opts.RetryMaxAttempts, err.Opts.TerraformPath, strings.Join(err.Opts.TerraformCliArgs, " "))
 }
 
 type RunAllDisabledErr struct {
