@@ -391,6 +391,24 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		terragruntOptions.RetryableErrors = terragruntConfig.RetryableErrors
 	}
 
+	// Override the default value of the max retry attempts using the value set in the config file
+	if val := terragruntConfig.RetryMaxAttempts; val != nil {
+		if *val < 1 {
+			terragruntOptions.Logger.Warnf("%s", "Cannot have less than 1 max retry, so we're using 1.")
+			*val = 1
+		}
+		terragruntOptions.MaxRetryAttempts = *val
+	}
+
+	// Override the default value of the max retry attempts using the value set in the config file
+	if val := terragruntConfig.RetrySleepInterval; val != nil {
+		if *val < 0 {
+			terragruntOptions.Logger.Warnf("%s", "Cannot sleep for less than 0 seconds, so we're using 0.")
+			*val = 0
+		}
+		terragruntOptions.Sleep = time.Duration(*terragruntConfig.RetrySleepInterval) * time.Second
+	}
+
 	updatedTerragruntOptions := terragruntOptions
 	if sourceUrl := config.GetTerraformSourceUrl(terragruntOptions, terragruntConfig); sourceUrl != "" {
 		updatedTerragruntOptions, err = downloadTerraformSource(sourceUrl, terragruntOptions, terragruntConfig)

@@ -105,6 +105,7 @@ const (
 	TEST_FIXTURE_AUTO_RETRY_CUSTOM_ERRORS                   = "fixture-auto-retry/custom-errors"
 	TEST_FIXTURE_AUTO_RETRY_CUSTOM_ERRORS_NOT_SET           = "fixture-auto-retry/custom-errors-not-set"
 	TEST_FIXTURE_AUTO_RETRY_APPLY_ALL_RETRIES               = "fixture-auto-retry/apply-all"
+	TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES            = "fixture-auto-retry/configurable-retries"
 	TEST_FIXTURE_AWS_PROVIDER_PATCH                         = "fixture-aws-provider-patch"
 	TEST_FIXTURE_INPUTS                                     = "fixture-inputs"
 	TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL               = "fixture-locals-errors/undefined-local"
@@ -1306,7 +1307,21 @@ func TestAutoRetryApplyAllDependentModuleRetries(t *testing.T) {
 	assert.Contains(t, s, "app2 output")
 	assert.Contains(t, s, "app3 output")
 	assert.Contains(t, s, "Apply complete!")
+}
 
+func TestAutoRetryConfigurableRetries(t *testing.T) {
+	t.Parallel()
+
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), stdout, stderr)
+	sleeps := regexp.MustCompile("Sleeping 0s before retrying.").FindAllStringIndex(stderr.String(), -1)
+
+	assert.Nil(t, err)
+	assert.Equal(t, 4, len(sleeps)) // 5 retries, so 4 sleeps
+	assert.Contains(t, stdout.String(), "Apply complete!")
 }
 
 func TestAwsProviderPatch(t *testing.T) {

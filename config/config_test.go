@@ -158,10 +158,12 @@ func TestParseTerragruntJsonConfigRemoteStateFullConfig(t *testing.T) {
 	}
 }
 
-func TestParseTerragruntHclConfigRetryableErrors(t *testing.T) {
+func TestParseTerragruntHclConfigRetryConfiguration(t *testing.T) {
 	t.Parallel()
 
 	config := `
+retry_max_attempts = 10
+retry_sleep_interval = 60
 retryable_errors = [
     "My own little error",
     "Another one of my errors"
@@ -173,16 +175,21 @@ retryable_errors = [
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Empty(t, terragruntConfig.IamRole)
 
+	assert.Equal(t, 10, *terragruntConfig.RetryMaxAttempts)
+	assert.Equal(t, 60, *terragruntConfig.RetrySleepInterval)
+
 	if assert.NotNil(t, terragruntConfig.RetryableErrors) {
 		assert.Equal(t, []string{"My own little error", "Another one of my errors"}, terragruntConfig.RetryableErrors)
 	}
 }
 
-func TestParseTerragruntJsonConfigRetryableErrors(t *testing.T) {
+func TestParseTerragruntJsonConfigRetryConfiguration(t *testing.T) {
 	t.Parallel()
 
 	config := `
 {
+	"retry_max_attempts": 10,
+	"retry_sleep_interval": 60,
 	"retryable_errors": [
         "My own little error"
 	]
@@ -194,6 +201,9 @@ func TestParseTerragruntJsonConfigRetryableErrors(t *testing.T) {
 
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Empty(t, terragruntConfig.IamRole)
+
+	assert.Equal(t, *terragruntConfig.RetryMaxAttempts, 10)
+	assert.Equal(t, *terragruntConfig.RetrySleepInterval, 60)
 
 	if assert.NotNil(t, terragruntConfig.RetryableErrors) {
 		assert.Equal(t, []string{"My own little error"}, terragruntConfig.RetryableErrors)
@@ -615,6 +625,9 @@ func TestParseTerragruntConfigEmptyConfig(t *testing.T) {
 	assert.Nil(t, cfg.PreventDestroy)
 	assert.False(t, cfg.Skip)
 	assert.Empty(t, cfg.IamRole)
+	assert.Nil(t, cfg.RetryMaxAttempts)
+	assert.Nil(t, cfg.RetrySleepInterval)
+	assert.Nil(t, cfg.RetryableErrors)
 }
 
 func TestParseTerragruntConfigEmptyConfigOldConfig(t *testing.T) {
@@ -852,12 +865,12 @@ terraform {
 		arguments = ["-json"]
 		commands = ["output"]
 	}
-	
+
 	extra_arguments "fmt_diff" {
 		arguments = ["-diff=true"]
 		commands = ["fmt"]
 	}
-	
+
 	extra_arguments "required_tfvars" {
 		required_var_files = [
 			"file1.tfvars",
@@ -865,7 +878,7 @@ terraform {
 		]
 		commands = get_terraform_commands_that_need_vars()
 	}
-	
+
 	extra_arguments "optional_tfvars" {
 		optional_var_files = [
 			"opt1.tfvars",

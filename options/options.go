@@ -117,7 +117,7 @@ type TerragruntOptions struct {
 	// exposed here primarily so we can set it to a low value at test time.
 	MaxFoldersToCheck int
 
-	// Whether we should automatically run terraform init if necessary when executing other commands
+	// Whether we should automatically retry errored Terraform command
 	AutoRetry bool
 
 	// Maximum number of times to retry errors matching RetryableErrors
