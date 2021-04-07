@@ -41,7 +41,7 @@ type TerragruntConfig struct {
 	GenerateConfigs             map[string]codegen.GenerateConfig
 	RetryableErrors             []string
 	RetryMaxAttempts            *int
-	RetrySleepInterval          *int
+	RetrySleepIntervalSec       *int
 
 	// Indicates whether or not this is the result of a partial evaluation
 	IsPartial bool
@@ -70,7 +70,7 @@ type terragruntConfigFile struct {
 	GenerateBlocks              []terragruntGenerateBlock `hcl:"generate,block"`
 	RetryableErrors             []string                  `hcl:"retryable_errors,optional"`
 	RetryMaxAttempts            *int                      `hcl:"retry_max_attempts,optional"`
-	RetrySleepInterval          *int                      `hcl:"retry_sleep_interval,optional"`
+	RetrySleepIntervalSec       *int                      `hcl:"retry_sleep_interval_sec,optional"`
 
 	// This struct is used for validating and parsing the entire terragrunt config. Since locals are evaluated in a
 	// completely separate cycle, it should not be evaluated here. Otherwise, we can't support self referencing other
@@ -574,8 +574,8 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 		includedConfig.RetryMaxAttempts = config.RetryMaxAttempts
 	}
 
-	if config.RetrySleepInterval != nil {
-		includedConfig.RetrySleepInterval = config.RetrySleepInterval
+	if config.RetrySleepIntervalSec != nil {
+		includedConfig.RetrySleepIntervalSec = config.RetrySleepIntervalSec
 	}
 
 	if config.TerragruntVersionConstraint != "" {
@@ -749,8 +749,8 @@ func convertToTerragruntConfig(
 		terragruntConfig.RetryMaxAttempts = terragruntConfigFromFile.RetryMaxAttempts
 	}
 
-	if terragruntConfigFromFile.RetrySleepInterval != nil {
-		terragruntConfig.RetrySleepInterval = terragruntConfigFromFile.RetrySleepInterval
+	if terragruntConfigFromFile.RetrySleepIntervalSec != nil {
+		terragruntConfig.RetrySleepIntervalSec = terragruntConfigFromFile.RetrySleepIntervalSec
 	}
 
 	if terragruntConfigFromFile.DownloadDir != nil {

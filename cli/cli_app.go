@@ -391,20 +391,18 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		terragruntOptions.RetryableErrors = terragruntConfig.RetryableErrors
 	}
 
-	if val := terragruntConfig.RetryMaxAttempts; val != nil {
-		if *val < 1 {
-			terragruntOptions.Logger.Warnf("%s", "Cannot have less than 1 max retry, so we're using 1.")
-			*val = 1
+	if terragruntConfig.RetryMaxAttempts != nil {
+		if *terragruntConfig.RetryMaxAttempts < 1 {
+			return fmt.Errorf("Cannot have less than 1 max retry, but you specified %d", *terragruntConfig.RetryMaxAttempts)
 		}
-		terragruntOptions.RetryMaxAttempts = *val
+		terragruntOptions.RetryMaxAttempts = *terragruntConfig.RetryMaxAttempts
 	}
 
-	if val := terragruntConfig.RetrySleepInterval; val != nil {
-		if *val < 0 {
-			terragruntOptions.Logger.Warnf("%s", "Cannot sleep for less than 0 seconds, so we're using 0.")
-			*val = 0
+	if terragruntConfig.RetrySleepIntervalSec != nil {
+		if *terragruntConfig.RetrySleepIntervalSec < 0 {
+			return fmt.Errorf("Cannot sleep for less than 0 seconds, but you specified %d", *terragruntConfig.RetrySleepIntervalSec)
 		}
-		terragruntOptions.RetrySleepInterval = time.Duration(*terragruntConfig.RetrySleepInterval) * time.Second
+		terragruntOptions.RetrySleepIntervalSec = time.Duration(*terragruntConfig.RetrySleepIntervalSec) * time.Second
 	}
 
 	updatedTerragruntOptions := terragruntOptions
@@ -749,8 +747,8 @@ func runTerraformWithRetry(terragruntOptions *options.TerragruntOptions) error {
 	for i := 0; i < terragruntOptions.RetryMaxAttempts; i++ {
 		if out, tferr := shell.RunTerraformCommandWithOutput(terragruntOptions, terragruntOptions.TerraformCliArgs...); tferr != nil {
 			if out != nil && isRetryable(out.Stderr, tferr, terragruntOptions) {
-				terragruntOptions.Logger.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.RetrySleepInterval)
-				time.Sleep(terragruntOptions.RetrySleepInterval)
+				terragruntOptions.Logger.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.RetrySleepIntervalSec)
+				time.Sleep(terragruntOptions.RetrySleepIntervalSec)
 			} else {
 				return tferr
 			}

@@ -163,7 +163,7 @@ func TestParseTerragruntHclConfigRetryConfiguration(t *testing.T) {
 
 	config := `
 retry_max_attempts = 10
-retry_sleep_interval = 60
+retry_sleep_interval_sec = 60
 retryable_errors = [
     "My own little error",
     "Another one of my errors"
@@ -176,7 +176,7 @@ retryable_errors = [
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	assert.Equal(t, 10, *terragruntConfig.RetryMaxAttempts)
-	assert.Equal(t, 60, *terragruntConfig.RetrySleepInterval)
+	assert.Equal(t, 60, *terragruntConfig.RetrySleepIntervalSec)
 
 	if assert.NotNil(t, terragruntConfig.RetryableErrors) {
 		assert.Equal(t, []string{"My own little error", "Another one of my errors"}, terragruntConfig.RetryableErrors)
@@ -189,7 +189,7 @@ func TestParseTerragruntJsonConfigRetryConfiguration(t *testing.T) {
 	config := `
 {
 	"retry_max_attempts": 10,
-	"retry_sleep_interval": 60,
+	"retry_sleep_interval_sec": 60,
 	"retryable_errors": [
         "My own little error"
 	]
@@ -203,7 +203,7 @@ func TestParseTerragruntJsonConfigRetryConfiguration(t *testing.T) {
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	assert.Equal(t, *terragruntConfig.RetryMaxAttempts, 10)
-	assert.Equal(t, *terragruntConfig.RetrySleepInterval, 60)
+	assert.Equal(t, *terragruntConfig.RetrySleepIntervalSec, 60)
 
 	if assert.NotNil(t, terragruntConfig.RetryableErrors) {
 		assert.Equal(t, []string{"My own little error"}, terragruntConfig.RetryableErrors)
@@ -626,7 +626,7 @@ func TestParseTerragruntConfigEmptyConfig(t *testing.T) {
 	assert.False(t, cfg.Skip)
 	assert.Empty(t, cfg.IamRole)
 	assert.Nil(t, cfg.RetryMaxAttempts)
-	assert.Nil(t, cfg.RetrySleepInterval)
+	assert.Nil(t, cfg.RetrySleepIntervalSec)
 	assert.Nil(t, cfg.RetryableErrors)
 }
 

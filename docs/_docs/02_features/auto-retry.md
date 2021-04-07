@@ -45,11 +45,11 @@ retryable_errors = [
 ```
 
 By default, `auto-retry` tries a maximum of three times to re-run a command, pausing for five seconds between each retry, at which point it will deem the error as not transient, and accept the `terraform` failure.
-However, we can override these defaults too. For example, the following retries up to five times, with 60 seconds in between each retry:
+However, you can override these defaults. For example, the following retries up to five times, with 60 seconds in between each retry:
 
 ```hcl
 retry_max_attempts = 5
-retry_sleep_interval = 60
+retry_sleep_interval_sec = 60
 ```
 
 To disable `auto-retry`, use the `--terragrunt-no-auto-retry` command line option or set the `TERRAGRUNT_AUTO_RETRY` environment variable to `false`.

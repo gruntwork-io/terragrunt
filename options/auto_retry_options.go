@@ -3,7 +3,7 @@ package options
 import "time"
 
 const DEFAULT_RETRY_MAX_ATTEMPTS = 3
-const DEFAULT_RETRY_SLEEP_INTERVAL = 5 * time.Second
+const DEFAULT_RETRY_SLEEP_INTERVAL_SEC = 5 * time.Second
 
 // List of recurring transient errors encountered when calling terraform
 // If any of these match, we'll retry the command
