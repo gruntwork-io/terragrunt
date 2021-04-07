@@ -334,7 +334,7 @@ remote_state {
 The `include` block is used to specify inheritance of Terragrunt configuration files. The included config (also called
 the `parent`) will be merged with the current configuration (also called the `child`) before processing. You can learn
 more about the inheritance properties of Terragrunt in the [Filling in remote state settings with Terragrunt
-section](/use-cases/keep-your-remote-state-configuration-dry/#filling-in-remote-state-settings-with-terragrunt) of the
+section](/docs/features/keep-your-remote-state-configuration-dry/#filling-in-remote-state-settings-with-terragrunt) of the
 "Keep your remote state configuration DRY" use case overview.
 
 The `include` block supports the following arguments:
