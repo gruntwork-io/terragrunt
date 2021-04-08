@@ -117,14 +117,14 @@ type TerragruntOptions struct {
 	// exposed here primarily so we can set it to a low value at test time.
 	MaxFoldersToCheck int
 
-	// Whether we should automatically run terraform init if necessary when executing other commands
+	// Whether we should automatically retry errored Terraform commands
 	AutoRetry bool
 
 	// Maximum number of times to retry errors matching RetryableErrors
-	MaxRetryAttempts int
+	RetryMaxAttempts int
 
-	// Sleep is the duration in seconds to wait before retrying
-	Sleep time.Duration
+	// The duration in seconds to wait before retrying
+	RetrySleepIntervalSec time.Duration
 
 	// RetryableErrors is an array of regular expressions with RE2 syntax (https://github.com/google/re2/wiki/Syntax) that qualify for retrying
 	RetryableErrors []string
@@ -195,8 +195,8 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		ErrWriter:                   os.Stderr,
 		MaxFoldersToCheck:           DEFAULT_MAX_FOLDERS_TO_CHECK,
 		AutoRetry:                   true,
-		MaxRetryAttempts:            DEFAULT_MAX_RETRY_ATTEMPTS,
-		Sleep:                       DEFAULT_SLEEP,
+		RetryMaxAttempts:            DEFAULT_RETRY_MAX_ATTEMPTS,
+		RetrySleepIntervalSec:       DEFAULT_RETRY_SLEEP_INTERVAL_SEC,
 		RetryableErrors:             util.CloneStringList(DEFAULT_RETRYABLE_ERRORS),
 		ExcludeDirs:                 []string{},
 		IncludeDirs:                 []string{},
@@ -271,8 +271,8 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		ErrWriter:                   terragruntOptions.ErrWriter,
 		MaxFoldersToCheck:           terragruntOptions.MaxFoldersToCheck,
 		AutoRetry:                   terragruntOptions.AutoRetry,
-		MaxRetryAttempts:            terragruntOptions.MaxRetryAttempts,
-		Sleep:                       terragruntOptions.Sleep,
+		RetryMaxAttempts:            terragruntOptions.RetryMaxAttempts,
+		RetrySleepIntervalSec:       terragruntOptions.RetrySleepIntervalSec,
 		RetryableErrors:             util.CloneStringList(terragruntOptions.RetryableErrors),
 		ExcludeDirs:                 terragruntOptions.ExcludeDirs,
 		IncludeDirs:                 terragruntOptions.IncludeDirs,

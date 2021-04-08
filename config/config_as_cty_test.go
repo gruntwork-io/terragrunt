@@ -199,6 +199,10 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "", false
 	case "RetryableErrors":
 		return "retryable_errors", true
+	case "RetryMaxAttempts":
+		return "retry_max_attempts", true
+	case "RetrySleepIntervalSec":
+		return "retry_sleep_interval_sec", true
 	default:
 		t.Fatalf("Unknown struct property: %s", fieldName)
 		// This should not execute
