@@ -557,7 +557,8 @@ relative from `--terragrunt-working-dir`. Flag can be specified multiple times.
 
 When passed in, only modules under the directories passed in with [--terragrunt-include-dir](#terragrunt-include-dir)
 will be included. All dependencies of the included directories will be excluded if they are not in the included
-directories.
+directories. If no [--terragrunt-include-dir](#terragrunt-include-dir) are included, terragrunt will not include any
+modules during the execution of the commands.
 
 
 ### terragrunt-ignore-dependency-order
