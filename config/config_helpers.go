@@ -104,6 +104,7 @@ func CreateTerragruntEvalContext(
 		"read_terragrunt_config":                       readTerragruntConfigAsFuncImpl(terragruntOptions),
 		"get_platform":                                 wrapVoidToStringAsFuncImpl(getPlatform, extensions.Include, terragruntOptions),
 		"get_terragrunt_dir":                           wrapVoidToStringAsFuncImpl(getTerragruntDir, extensions.Include, terragruntOptions),
+		"get_original_terragrunt_dir":                  wrapVoidToStringAsFuncImpl(getOriginalTerragruntDir, extensions.Include, terragruntOptions),
 		"get_terraform_command":                        wrapVoidToStringAsFuncImpl(getTerraformCommand, extensions.Include, terragruntOptions),
 		"get_terraform_cli_args":                       wrapVoidToStringSliceAsFuncImpl(getTerraformCliArgs, extensions.Include, terragruntOptions),
 		"get_parent_terragrunt_dir":                    wrapVoidToStringAsFuncImpl(getParentTerragruntDir, extensions.Include, terragruntOptions),
@@ -147,6 +148,19 @@ func getPlatform(include *IncludeConfig, terragruntOptions *options.TerragruntOp
 // Return the directory where the Terragrunt configuration file lives
 func getTerragruntDir(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	terragruntConfigFileAbsPath, err := filepath.Abs(terragruntOptions.TerragruntConfigPath)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	return filepath.ToSlash(filepath.Dir(terragruntConfigFileAbsPath)), nil
+}
+
+// Return the directory where the original Terragrunt configuration file lives. This is primarily useful when one
+// Terragrunt config is being read from anothere.g., if /terraform-code/terragrunt.hcl
+// calls read_terragrunt_config("/foo/bar.hcl"), and within bar.hcl, you call get_original_terragrunt_dir(), you'll
+// get back /terraform-code.
+func getOriginalTerragruntDir(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	terragruntConfigFileAbsPath, err := filepath.Abs(terragruntOptions.OriginalTerragruntConfigPath)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
@@ -380,7 +394,7 @@ func readTerragruntConfig(configPath string, defaultVal *cty.Value, terragruntOp
 	}
 
 	// We update the context of terragruntOptions to the config being read in.
-	targetOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	targetOptions := terragruntOptions.Clone(targetConfig)
 	config, err := ParseConfigFile(targetConfig, targetOptions, nil)
 	if err != nil {
 		return cty.NilVal, err

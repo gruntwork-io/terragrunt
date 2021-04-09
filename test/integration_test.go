@@ -3034,6 +3034,35 @@ func TestReadTerragruntConfigWithDefault(t *testing.T) {
 	assert.Equal(t, outputs["data"].Value, "default value")
 }
 
+func TestReadTerragruntConfigWithOriginalTerragruntDir(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_READ_CONFIG)
+	rootPath := util.JoinPath(TEST_FIXTURE_READ_CONFIG, "with_original_terragrunt_dir")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// check the outputs to make sure they are as expected
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	expectedOriginalTerragruntDir, err := filepath.Abs(rootPath)
+	require.NoError(t, err)
+
+	expectedTerragruntDir := filepath.Join(expectedOriginalTerragruntDir, "foo")
+
+	assert.Equal(t, outputs["terragrunt_dir"].Value, expectedTerragruntDir)
+	assert.Equal(t, outputs["original_terragrunt_dir"].Value, expectedOriginalTerragruntDir)
+}
+
 func TestReadTerragruntConfigFull(t *testing.T) {
 	t.Parallel()
 
