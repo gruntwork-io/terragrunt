@@ -380,7 +380,7 @@ func readTerragruntConfig(configPath string, defaultVal *cty.Value, terragruntOp
 	}
 
 	// We update the context of terragruntOptions to the config being read in.
-	targetOptions := terragruntOptions.Clone(targetConfig)
+	targetOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	config, err := ParseConfigFile(targetConfig, targetOptions, nil)
 	if err != nil {
 		return cty.NilVal, err
