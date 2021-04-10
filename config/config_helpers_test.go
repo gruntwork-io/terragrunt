@@ -636,6 +636,43 @@ func TestGetParentTerragruntDir(t *testing.T) {
 	}
 }
 
+func TestGetParentTerragruntGitDir(t *testing.T) {
+	t.Parallel()
+
+	currentDir, err := os.Getwd()
+	assert.Nil(t, err, "Could not get current working dir: %v", err)
+
+	testCases := []struct {
+		terragruntOptions *options.TerragruntOptions
+		expectedOutput    string
+		expectedErr       error
+	}{
+		{
+			terragruntOptionsForTest(t, currentDir),
+			"",
+			nil,
+		},
+		{
+			terragruntOptionsForTest(t, currentDir+"/config"),
+			"config",
+			nil,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.terragruntOptions.TerragruntConfigPath, func(t *testing.T) {
+			actualOutput, actualErr := getTerragruntGitDir(nil, testCase.terragruntOptions)
+			if testCase.expectedErr != nil {
+				if assert.Error(t, actualErr) {
+					assert.IsType(t, testCase.expectedErr, errors.Unwrap(actualErr))
+				}
+			} else {
+				assert.Nil(t, actualErr)
+				assert.Equal(t, testCase.expectedOutput, actualOutput)
+			}
+		})
+	}
+}
+
 func TestTerraformBuiltInFunctions(t *testing.T) {
 	t.Parallel()
 
