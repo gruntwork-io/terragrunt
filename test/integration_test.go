@@ -3040,27 +3040,44 @@ func TestReadTerragruntConfigWithOriginalTerragruntDir(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_READ_CONFIG)
 	rootPath := util.JoinPath(TEST_FIXTURE_READ_CONFIG, "with_original_terragrunt_dir")
 
+	// Run apply and make sure we get the outputs we expect
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
-	// check the outputs to make sure they are as expected
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
+	originalStdout := bytes.Buffer{}
+	originalStderr := bytes.Buffer{}
 
 	require.NoError(
 		t,
-		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &originalStdout, &originalStderr),
 	)
 
-	outputs := map[string]TerraformOutput{}
-	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	originalOutputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(originalStdout.String()), &originalOutputs))
 
 	expectedOriginalTerragruntDir, err := filepath.Abs(rootPath)
 	require.NoError(t, err)
 
 	expectedTerragruntDir := filepath.Join(expectedOriginalTerragruntDir, "foo")
 
-	assert.Equal(t, outputs["terragrunt_dir"].Value, expectedTerragruntDir)
-	assert.Equal(t, outputs["original_terragrunt_dir"].Value, expectedOriginalTerragruntDir)
+	assert.Equal(t, originalOutputs["terragrunt_dir"].Value, expectedTerragruntDir)
+	assert.Equal(t, originalOutputs["original_terragrunt_dir"].Value, expectedOriginalTerragruntDir)
+
+	// Now use run-all apply and make sure the outputs are exactly the same
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	runAllStdout := bytes.Buffer{}
+	runAllStderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &runAllStdout, &runAllStderr),
+	)
+
+	runAllOutputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(runAllStdout.String()), &runAllOutputs))
+
+	assert.Equal(t, runAllOutputs["terragrunt_dir"].Value, expectedTerragruntDir)
+	assert.Equal(t, runAllOutputs["original_terragrunt_dir"].Value, expectedOriginalTerragruntDir)
 }
 
 func TestReadTerragruntConfigFull(t *testing.T) {
