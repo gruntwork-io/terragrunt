@@ -30,8 +30,7 @@ require (
 	github.com/hashicorp/hcl/v2 v2.9.1
 	github.com/hashicorp/terraform v0.12.24
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20210318070130-9a80970d6b34
-	github.com/hashicorp/vault/api v1.0.5-0.20210210214158-405eced08457 // indirect
-	github.com/hashicorp/vault/sdk v0.1.14-0.20210322210658-b52b8b8c1264 // indirect
+    github.com/hashicorp/vault v1.7.0
 	github.com/kr/pretty v0.2.1 // indirect
 	github.com/lib/pq v1.8.0 // indirect
 	github.com/mattn/go-colorable v0.1.7 // indirect
