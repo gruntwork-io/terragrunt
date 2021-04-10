@@ -25,8 +25,8 @@ func (remoteState *RemoteState) String() string {
 
 // Code gen configuration for Terraform remote state
 type RemoteStateGenerate struct {
-	Path     string `cty:"path"`
-	IfExists string `cty:"if_exists"`
+	Path     string `cty:"path" mapstructure:"path"`
+	IfExists string `cty:"if_exists" mapstructure:"if_exists"`
 }
 
 type RemoteStateInitializer interface {
