@@ -346,6 +346,18 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
+	if terragruntOptions.IamRole == "" {
+		terragruntFlags, err := config.PartialParseConfigFile(terragruntOptions.TerragruntConfigPath, terragruntOptions, nil, []config.PartialDecodeSectionType{config.TerragruntFlags})
+		if err != nil {
+			return err
+		}
+		terragruntOptions.IamRole = terragruntFlags.IamRole
+	}
+
+	if err := aws_helper.AssumeRoleAndUpdateEnvIfNecessary(terragruntOptions); err != nil {
+		return err
+	}
+
 	terragruntConfig, err := config.ReadTerragruntConfig(terragruntOptions)
 	if err != nil {
 		return err
@@ -364,14 +376,6 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 			terragruntOptions.TerragruntConfigPath,
 		)
 		return nil
-	}
-
-	if terragruntOptions.IamRole == "" {
-		terragruntOptions.IamRole = terragruntConfig.IamRole
-	}
-
-	if err := aws_helper.AssumeRoleAndUpdateEnvIfNecessary(terragruntOptions); err != nil {
-		return err
 	}
 
 	// get the default download dir
