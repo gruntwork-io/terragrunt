@@ -55,12 +55,12 @@ func (conf *TerragruntConfig) String() string {
 // terragruntConfigFile represents the configuration supported in a Terragrunt configuration file (i.e.
 // terragrunt.hcl)
 type terragruntConfigFile struct {
-	Terraform                   *TerraformConfig          `hcl:"terraform,block"`
-	TerraformBinary             *string                   `hcl:"terraform_binary,attr"`
-	TerraformVersionConstraint  *string                   `hcl:"terraform_version_constraint,attr"`
-	TerragruntVersionConstraint *string                   `hcl:"terragrunt_version_constraint,attr"`
-	Inputs                      *cty.Value                `hcl:"inputs,attr"`
-	Include                     *IncludeConfig            `hcl:"include,block"`
+	Terraform                   *TerraformConfig `hcl:"terraform,block"`
+	TerraformBinary             *string          `hcl:"terraform_binary,attr"`
+	TerraformVersionConstraint  *string          `hcl:"terraform_version_constraint,attr"`
+	TerragruntVersionConstraint *string          `hcl:"terragrunt_version_constraint,attr"`
+	Inputs                      *cty.Value       `hcl:"inputs,attr"`
+	Include                     *IncludeConfig   `hcl:"include,block"`
 
 	// We allow users to configure remote state (backend) via blocks:
 	//
@@ -75,15 +75,15 @@ type terragruntConfigFile struct {
 	//   backend = "s3"
 	//   config  = { ... }
 	// }
-	RemoteState                 *remoteStateConfigFile    `hcl:"remote_state,block"`
-	RemoteStateAttr             *cty.Value                `hcl:"remote_state,optional"`
+	RemoteState     *remoteStateConfigFile `hcl:"remote_state,block"`
+	RemoteStateAttr *cty.Value             `hcl:"remote_state,optional"`
 
-	Dependencies                *ModuleDependencies       `hcl:"dependencies,block"`
-	DownloadDir                 *string                   `hcl:"download_dir,attr"`
-	PreventDestroy              *bool                     `hcl:"prevent_destroy,attr"`
-	Skip                        *bool                     `hcl:"skip,attr"`
-	IamRole                     *string                   `hcl:"iam_role,attr"`
-	TerragruntDependencies      []Dependency              `hcl:"dependency,block"`
+	Dependencies           *ModuleDependencies `hcl:"dependencies,block"`
+	DownloadDir            *string             `hcl:"download_dir,attr"`
+	PreventDestroy         *bool               `hcl:"prevent_destroy,attr"`
+	Skip                   *bool               `hcl:"skip,attr"`
+	IamRole                *string             `hcl:"iam_role,attr"`
+	TerragruntDependencies []Dependency        `hcl:"dependency,block"`
 
 	// We allow users to configure code generation via blocks:
 	//
@@ -100,12 +100,12 @@ type terragruntConfigFile struct {
 	//     contents = "example"
 	//   }
 	// }
-	GenerateAttrs               *cty.Value                `hcl:"generate,optional"`
-	GenerateBlocks              []terragruntGenerateBlock `hcl:"generate,block"`
+	GenerateAttrs  *cty.Value                `hcl:"generate,optional"`
+	GenerateBlocks []terragruntGenerateBlock `hcl:"generate,block"`
 
-	RetryableErrors             []string                  `hcl:"retryable_errors,optional"`
-	RetryMaxAttempts            *int                      `hcl:"retry_max_attempts,optional"`
-	RetrySleepIntervalSec       *int                      `hcl:"retry_sleep_interval_sec,optional"`
+	RetryableErrors       []string `hcl:"retryable_errors,optional"`
+	RetryMaxAttempts      *int     `hcl:"retry_max_attempts,optional"`
+	RetrySleepIntervalSec *int     `hcl:"retry_sleep_interval_sec,optional"`
 
 	// This struct is used for validating and parsing the entire terragrunt config. Since locals are evaluated in a
 	// completely separate cycle, it should not be evaluated here. Otherwise, we can't support self referencing other
