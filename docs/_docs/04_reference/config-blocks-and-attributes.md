@@ -229,14 +229,12 @@ Note that `remote_state` can also be set as an attribute. This is useful if you 
 For example, if in `common.hcl` you had:
 
 ```hcl
-locals {
-  remote_state = {
-    backend = "s3"
-    config = {
-      bucket = "mybucket"
-      key    = "path/to/my/key"
-      region = "us-east-1"
-    }
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = "mybucket"
+    key    = "path/to/my/key"
+    region = "us-east-1"
   }
 }
 ```
@@ -250,7 +248,7 @@ locals {
 }
 
 # Set the remote_state config dynamically to the remote_state config in common.hcl
-remote_state = local.common.locals.remote_state
+remote_state = local.common.remote_state
 ```
 
 Note that Terragrunt does special processing of the `config` attribute for the `s3` and `gcs` remote state backends, and
@@ -563,20 +561,16 @@ Note that `generate` can also be set as an attribute. This is useful if you want
 For example, if in `common.hcl` you had:
 
 ```hcl
-locals {
-  generate = {
-    provider = {
-      path      = "provider.tf"
-      if_exists = "overwrite"
-      contents = <<EOF
+  generate "provider" {
+    path      = "provider.tf"
+    if_exists = "overwrite"
+    contents = <<EOF
 provider "aws" {
   region              = "us-east-1"
   version             = "= 2.3.1"
   allowed_account_ids = ["1234567890"]
 }
 EOF
-    }
-  }
 }
 ```
 
@@ -589,7 +583,7 @@ locals {
 }
 
 # Set the generate config dynamically to the generate config in common.hcl
-generate = local.common.locals.generate
+generate = local.common.generate
 ```
 
 ## Attributes
