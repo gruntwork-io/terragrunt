@@ -242,7 +242,14 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 		return nil, err
 	}
 
+	// Clone the options struct so we don't modify the original one. This is especially important as run-all operations
+	// happen concurrently.
 	opts := terragruntOptions.Clone(terragruntConfigPath)
+
+	// We need to reset the original path for each module. Otherwise, this path will be set to wherever you ran run-all
+	// from, which is not what any of the modules will want.
+	opts.OriginalTerragruntConfigPath = terragruntConfigPath
+
 	// We only partially parse the config, only using the pieces that we need in this section. This config will be fully
 	// parsed at a later stage right before the action is run. This is to delay interpolation of functions until right
 	// before we call out to terraform.
