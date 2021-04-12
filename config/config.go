@@ -830,12 +830,12 @@ func convertToTerragruntConfig(
 	generateBlocks = append(generateBlocks, terragruntConfigFromFile.GenerateBlocks...)
 
 	if terragruntConfigFromFile.GenerateAttrs != nil {
-		remoteStateMap, err := parseCtyValueToMap(*terragruntConfigFromFile.GenerateAttrs)
+		generateMap, err := parseCtyValueToMap(*terragruntConfigFromFile.GenerateAttrs)
 		if err != nil {
 			return nil, err
 		}
 
-		for name, block := range remoteStateMap {
+		for name, block := range generateMap {
 			var generateBlock terragruntGenerateBlock
 			if err := mapstructure.Decode(block, &generateBlock); err != nil {
 				return nil, err
