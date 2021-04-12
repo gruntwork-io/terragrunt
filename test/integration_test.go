@@ -3040,44 +3040,86 @@ func TestReadTerragruntConfigWithOriginalTerragruntDir(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_READ_CONFIG)
 	rootPath := util.JoinPath(TEST_FIXTURE_READ_CONFIG, "with_original_terragrunt_dir")
 
-	// Run apply and make sure we get the outputs we expect
+	rootPathAbs, err := filepath.Abs(rootPath)
+	require.NoError(t, err)
+	fooPathAbs := filepath.Join(rootPathAbs, "foo")
+	depPathAbs := filepath.Join(rootPathAbs, "dep")
+
+	// Run apply on the dependency module and make sure we get the outputs we expect
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", depPathAbs))
+
+	depStdout := bytes.Buffer{}
+	depStderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", depPathAbs), &depStdout, &depStderr),
+	)
+
+	depOutputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(depStdout.String()), &depOutputs))
+
+	assert.Equal(t, depPathAbs, depOutputs["terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, depOutputs["original_terragrunt_dir"].Value)
+	assert.Equal(t, fooPathAbs, depOutputs["bar_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, depOutputs["bar_original_terragrunt_dir"].Value)
+
+	// Run apply on the root module and make sure we get the expected outputs
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
-	originalStdout := bytes.Buffer{}
-	originalStderr := bytes.Buffer{}
+	rootStdout := bytes.Buffer{}
+	rootStderr := bytes.Buffer{}
 
 	require.NoError(
 		t,
-		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &originalStdout, &originalStderr),
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &rootStdout, &rootStderr),
 	)
 
-	originalOutputs := map[string]TerraformOutput{}
-	require.NoError(t, json.Unmarshal([]byte(originalStdout.String()), &originalOutputs))
+	rootOutputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(rootStdout.String()), &rootOutputs))
 
-	expectedOriginalTerragruntDir, err := filepath.Abs(rootPath)
-	require.NoError(t, err)
+	assert.Equal(t, fooPathAbs, rootOutputs["terragrunt_dir"].Value)
+	assert.Equal(t, rootPathAbs, rootOutputs["original_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, rootOutputs["dep_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, rootOutputs["dep_original_terragrunt_dir"].Value)
+	assert.Equal(t, fooPathAbs, rootOutputs["dep_bar_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, rootOutputs["dep_bar_original_terragrunt_dir"].Value)
 
-	expectedTerragruntDir := filepath.Join(expectedOriginalTerragruntDir, "foo")
-
-	assert.Equal(t, originalOutputs["terragrunt_dir"].Value, expectedTerragruntDir)
-	assert.Equal(t, originalOutputs["original_terragrunt_dir"].Value, expectedOriginalTerragruntDir)
-
-	// Now use run-all apply and make sure the outputs are exactly the same
+	// Run 'run-all apply' and make sure all the outputs are identical in the root module and the dependency module
 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
-	runAllStdout := bytes.Buffer{}
-	runAllStderr := bytes.Buffer{}
+	runAllRootStdout := bytes.Buffer{}
+	runAllRootStderr := bytes.Buffer{}
 
 	require.NoError(
 		t,
-		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &runAllStdout, &runAllStderr),
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &runAllRootStdout, &runAllRootStderr),
 	)
 
-	runAllOutputs := map[string]TerraformOutput{}
-	require.NoError(t, json.Unmarshal([]byte(runAllStdout.String()), &runAllOutputs))
+	runAllRootOutputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(runAllRootStdout.String()), &runAllRootOutputs))
 
-	assert.Equal(t, runAllOutputs["terragrunt_dir"].Value, expectedTerragruntDir)
-	assert.Equal(t, runAllOutputs["original_terragrunt_dir"].Value, expectedOriginalTerragruntDir)
+	runAllDepStdout := bytes.Buffer{}
+	runAllDepStderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", depPathAbs), &runAllDepStdout, &runAllDepStderr),
+	)
+
+	runAllDepOutputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(runAllDepStdout.String()), &runAllDepOutputs))
+
+	assert.Equal(t, fooPathAbs, runAllRootOutputs["terragrunt_dir"].Value)
+	assert.Equal(t, rootPathAbs, runAllRootOutputs["original_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, runAllRootOutputs["dep_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, runAllRootOutputs["dep_original_terragrunt_dir"].Value)
+	assert.Equal(t, fooPathAbs, runAllRootOutputs["dep_bar_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, runAllRootOutputs["dep_bar_original_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, runAllDepOutputs["terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, runAllDepOutputs["original_terragrunt_dir"].Value)
+	assert.Equal(t, fooPathAbs, runAllDepOutputs["bar_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, runAllDepOutputs["bar_original_terragrunt_dir"].Value)
 }
 
 func TestReadTerragruntConfigFull(t *testing.T) {
