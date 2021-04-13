@@ -3278,6 +3278,20 @@ func TestTerragruntGenerateBlockOverwrite(t *testing.T) {
 	assert.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
 }
 
+func TestTerragruntGenerateAttr(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "generate-attr")
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
+	text := "test-terragrunt-generate-attr-hello-world"
+
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s -var text=\"%s\"", generateTestCase, text))
+	require.NoError(t, err)
+	require.Contains(t, stdout, text)
+}
+
 func TestTerragruntGenerateBlockOverwriteTerragruntSuccess(t *testing.T) {
 	t.Parallel()
 
@@ -3575,12 +3589,9 @@ func runTerragruntCommandWithOutput(t *testing.T, command string) (string, strin
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, command, &stdout, &stderr)
-	if err != nil {
-		return "", "", err
-	}
 	logBufferContentsLineByLine(t, stdout, "stdout")
 	logBufferContentsLineByLine(t, stderr, "stderr")
-	return stdout.String(), stderr.String(), nil
+	return stdout.String(), stderr.String(), err
 }
 
 func runTerragruntRedirectOutput(t *testing.T, command string, writer io.Writer, errwriter io.Writer) {
