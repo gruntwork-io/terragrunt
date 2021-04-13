@@ -113,7 +113,7 @@ func terraformModuleVariables(terragruntOptions *options.TerragruntOptions) ([]s
 	required := []string{}
 	optional := []string{}
 	for _, variable := range module.Variables {
-		if variable.Default == nil {
+		if variable.Required {
 			required = append(required, variable.Name)
 		} else {
 			optional = append(optional, variable.Name)

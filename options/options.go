@@ -40,6 +40,11 @@ type TerragruntOptions struct {
 	// Location of the Terragrunt config file
 	TerragruntConfigPath string
 
+	// Location of the original Terragrunt config file. This is primarily useful when one Terragrunt config is being
+	// read from another: e.g., if /terraform-code/terragrunt.hcl calls read_terragrunt_config("/foo/bar.hcl"),
+	// and within bar.hcl, you call get_original_terragrunt_dir(), you'll get back /terraform-code.
+	OriginalTerragruntConfigPath string
+
 	// Version of terragrunt
 	TerragruntVersion *version.Version
 
@@ -117,14 +122,14 @@ type TerragruntOptions struct {
 	// exposed here primarily so we can set it to a low value at test time.
 	MaxFoldersToCheck int
 
-	// Whether we should automatically run terraform init if necessary when executing other commands
+	// Whether we should automatically retry errored Terraform commands
 	AutoRetry bool
 
 	// Maximum number of times to retry errors matching RetryableErrors
-	MaxRetryAttempts int
+	RetryMaxAttempts int
 
-	// Sleep is the duration in seconds to wait before retrying
-	Sleep time.Duration
+	// The duration in seconds to wait before retrying
+	RetrySleepIntervalSec time.Duration
 
 	// RetryableErrors is an array of regular expressions with RE2 syntax (https://github.com/google/re2/wiki/Syntax) that qualify for retrying
 	RetryableErrors []string
@@ -195,8 +200,8 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		ErrWriter:                   os.Stderr,
 		MaxFoldersToCheck:           DEFAULT_MAX_FOLDERS_TO_CHECK,
 		AutoRetry:                   true,
-		MaxRetryAttempts:            DEFAULT_MAX_RETRY_ATTEMPTS,
-		Sleep:                       DEFAULT_SLEEP,
+		RetryMaxAttempts:            DEFAULT_RETRY_MAX_ATTEMPTS,
+		RetrySleepIntervalSec:       DEFAULT_RETRY_SLEEP_INTERVAL_SEC,
 		RetryableErrors:             util.CloneStringList(DEFAULT_RETRYABLE_ERRORS),
 		ExcludeDirs:                 []string{},
 		IncludeDirs:                 []string{},
@@ -245,41 +250,42 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367
 	// for more info.
 	return &TerragruntOptions{
-		TerragruntConfigPath:        terragruntConfigPath,
-		TerraformPath:               terragruntOptions.TerraformPath,
-		OriginalTerraformCommand:    terragruntOptions.OriginalTerraformCommand,
-		TerraformCommand:            terragruntOptions.TerraformCommand,
-		TerraformVersion:            terragruntOptions.TerraformVersion,
-		TerragruntVersion:           terragruntOptions.TerragruntVersion,
-		AutoInit:                    terragruntOptions.AutoInit,
-		NonInteractive:              terragruntOptions.NonInteractive,
-		TerraformCliArgs:            util.CloneStringList(terragruntOptions.TerraformCliArgs),
-		WorkingDir:                  workingDir,
-		Logger:                      terragruntOptions.Logger.WithField("prefix", workingDir),
-		LogLevel:                    terragruntOptions.LogLevel,
-		Env:                         util.CloneStringMap(terragruntOptions.Env),
-		Source:                      terragruntOptions.Source,
-		SourceUpdate:                terragruntOptions.SourceUpdate,
-		DownloadDir:                 terragruntOptions.DownloadDir,
-		Debug:                       terragruntOptions.Debug,
-		IamRole:                     terragruntOptions.IamRole,
-		IgnoreDependencyErrors:      terragruntOptions.IgnoreDependencyErrors,
-		IgnoreDependencyOrder:       terragruntOptions.IgnoreDependencyOrder,
-		IgnoreExternalDependencies:  terragruntOptions.IgnoreExternalDependencies,
-		IncludeExternalDependencies: terragruntOptions.IncludeExternalDependencies,
-		Writer:                      terragruntOptions.Writer,
-		ErrWriter:                   terragruntOptions.ErrWriter,
-		MaxFoldersToCheck:           terragruntOptions.MaxFoldersToCheck,
-		AutoRetry:                   terragruntOptions.AutoRetry,
-		MaxRetryAttempts:            terragruntOptions.MaxRetryAttempts,
-		Sleep:                       terragruntOptions.Sleep,
-		RetryableErrors:             util.CloneStringList(terragruntOptions.RetryableErrors),
-		ExcludeDirs:                 terragruntOptions.ExcludeDirs,
-		IncludeDirs:                 terragruntOptions.IncludeDirs,
-		Parallelism:                 terragruntOptions.Parallelism,
-		StrictInclude:               terragruntOptions.StrictInclude,
-		RunTerragrunt:               terragruntOptions.RunTerragrunt,
-		AwsProviderPatchOverrides:   terragruntOptions.AwsProviderPatchOverrides,
+		TerragruntConfigPath:         terragruntConfigPath,
+		OriginalTerragruntConfigPath: terragruntOptions.OriginalTerragruntConfigPath,
+		TerraformPath:                terragruntOptions.TerraformPath,
+		OriginalTerraformCommand:     terragruntOptions.OriginalTerraformCommand,
+		TerraformCommand:             terragruntOptions.TerraformCommand,
+		TerraformVersion:             terragruntOptions.TerraformVersion,
+		TerragruntVersion:            terragruntOptions.TerragruntVersion,
+		AutoInit:                     terragruntOptions.AutoInit,
+		NonInteractive:               terragruntOptions.NonInteractive,
+		TerraformCliArgs:             util.CloneStringList(terragruntOptions.TerraformCliArgs),
+		WorkingDir:                   workingDir,
+		Logger:                       terragruntOptions.Logger.WithField("prefix", workingDir),
+		LogLevel:                     terragruntOptions.LogLevel,
+		Env:                          util.CloneStringMap(terragruntOptions.Env),
+		Source:                       terragruntOptions.Source,
+		SourceUpdate:                 terragruntOptions.SourceUpdate,
+		DownloadDir:                  terragruntOptions.DownloadDir,
+		Debug:                        terragruntOptions.Debug,
+		IamRole:                      terragruntOptions.IamRole,
+		IgnoreDependencyErrors:       terragruntOptions.IgnoreDependencyErrors,
+		IgnoreDependencyOrder:        terragruntOptions.IgnoreDependencyOrder,
+		IgnoreExternalDependencies:   terragruntOptions.IgnoreExternalDependencies,
+		IncludeExternalDependencies:  terragruntOptions.IncludeExternalDependencies,
+		Writer:                       terragruntOptions.Writer,
+		ErrWriter:                    terragruntOptions.ErrWriter,
+		MaxFoldersToCheck:            terragruntOptions.MaxFoldersToCheck,
+		AutoRetry:                    terragruntOptions.AutoRetry,
+		RetryMaxAttempts:             terragruntOptions.RetryMaxAttempts,
+		RetrySleepIntervalSec:        terragruntOptions.RetrySleepIntervalSec,
+		RetryableErrors:              util.CloneStringList(terragruntOptions.RetryableErrors),
+		ExcludeDirs:                  terragruntOptions.ExcludeDirs,
+		IncludeDirs:                  terragruntOptions.IncludeDirs,
+		Parallelism:                  terragruntOptions.Parallelism,
+		StrictInclude:                terragruntOptions.StrictInclude,
+		RunTerragrunt:                terragruntOptions.RunTerragrunt,
+		AwsProviderPatchOverrides:    terragruntOptions.AwsProviderPatchOverrides,
 	}
 }
 

@@ -79,6 +79,22 @@ func terragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output["retryable_errors"] = retryableCty
 	}
 
+	retryMaxAttemptsCty, err := goTypeToCty(config.RetryMaxAttempts)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	if retryMaxAttemptsCty != cty.NilVal {
+		output["retry_max_attempts"] = retryMaxAttemptsCty
+	}
+
+	retrySleepIntervalSecCty, err := goTypeToCty(config.RetrySleepIntervalSec)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	if retrySleepIntervalSecCty != cty.NilVal {
+		output["retry_sleep_interval_sec"] = retrySleepIntervalSecCty
+	}
+
 	inputsCty, err := convertToCtyWithJson(config.Inputs)
 	if err != nil {
 		return cty.NilVal, err

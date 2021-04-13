@@ -111,7 +111,7 @@ func checkForDependencyBlockCycles(filename string, decodedDependency terragrunt
 	currentTraversalPaths := []string{filename}
 	for _, dependency := range decodedDependency.Dependencies {
 		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath, filename)
-		dependencyOptions := terragruntOptions.Clone(dependencyPath)
+		dependencyOptions := cloneTerragruntOptionsForDependency(terragruntOptions, dependencyPath)
 		if err := checkForDependencyBlockCyclesUsingDFS(dependencyPath, &visitedPaths, &currentTraversalPaths, dependencyOptions); err != nil {
 			return err
 		}
@@ -144,7 +144,7 @@ func checkForDependencyBlockCyclesUsingDFS(
 	}
 	for _, dependency := range dependencyPaths {
 		nextPath := getCleanedTargetConfigPath(dependency, currentConfigPath)
-		nextOptions := terragruntOptions.Clone(nextPath)
+		nextOptions := cloneTerragruntOptionsForDependency(terragruntOptions, nextPath)
 		if err := checkForDependencyBlockCyclesUsingDFS(nextPath, visitedPaths, currentTraversalPaths, nextOptions); err != nil {
 			return err
 		}
@@ -339,9 +339,21 @@ func getOutputJsonWithCaching(targetConfig string, terragruntOptions *options.Te
 	return newJsonBytes, nil
 }
 
+// Whenever executing a dependency module, we clone the original options, and reset:
+//
+// - The config path to the dependency module's config
+// - The original config path to the dependency module's config
+//
+// That way, everything in that dependnecy happens within its own context.
+func cloneTerragruntOptionsForDependency(terragruntOptions *options.TerragruntOptions, targetConfig string) *options.TerragruntOptions {
+	targetOptions := terragruntOptions.Clone(targetConfig)
+	targetOptions.OriginalTerragruntConfigPath = targetConfig
+	return targetOptions
+}
+
 // Clone terragrunt options and update context for dependency block so that the outputs can be read correctly
 func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.TerragruntOptions, targetConfig string) (*options.TerragruntOptions, error) {
-	targetOptions := terragruntOptions.Clone(targetConfig)
+	targetOptions := cloneTerragruntOptionsForDependency(terragruntOptions, targetConfig)
 	targetOptions.TerraformCommand = "output"
 	targetOptions.TerraformCliArgs = []string{"output", "-json"}
 
@@ -407,8 +419,8 @@ func getTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targe
 	// directly.
 	remoteStateTGConfig, err := PartialParseConfigFile(targetConfig, targetTGOptions, nil, []PartialDecodeSectionType{RemoteStateBlock, TerragruntFlags})
 	if err != nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {
-		terragruntOptions.Logger.Warningf("Could not parse remote_state block from target config %s", targetConfig)
-		terragruntOptions.Logger.Warningf("Falling back to terragrunt output.")
+		terragruntOptions.Logger.Debugf("Could not parse remote_state block from target config %s", targetConfig)
+		terragruntOptions.Logger.Debugf("Falling back to terragrunt output.")
 		return runTerragruntOutputJson(targetTGOptions, targetConfig)
 	}
 
@@ -556,7 +568,7 @@ func setupTerragruntOptionsForBareTerraform(originalOptions *options.TerragruntO
 	// terraform directly.
 	// Set the terraform working dir to the tempdir, and set stdout writer to ioutil.Discard so that output content is
 	// not logged.
-	targetTGOptions := originalOptions.Clone(configPath)
+	targetTGOptions := cloneTerragruntOptionsForDependency(originalOptions, configPath)
 	targetTGOptions.WorkingDir = workingDir
 	targetTGOptions.Writer = ioutil.Discard
 
@@ -636,10 +648,10 @@ func ClearOutputCache() {
 // To help with debuggability, the errors will be printed to the console when TG_LOG=debug is set.
 func runTerraformInitForDependencyOutput(terragruntOptions *options.TerragruntOptions, workingDir string, targetConfig string) {
 	stderr := bytes.Buffer{}
-	initTGOptions := terragruntOptions.Clone(targetConfig)
+	initTGOptions := cloneTerragruntOptionsForDependency(terragruntOptions, targetConfig)
 	initTGOptions.WorkingDir = workingDir
 	initTGOptions.ErrWriter = &stderr
-	err := shell.RunTerraformCommand(initTGOptions, "init", "-get=false", "-get-plugins=false")
+	err := shell.RunTerraformCommand(initTGOptions, "init", "-get=false")
 	if err != nil {
 		terragruntOptions.Logger.Debugf("Ignoring expected error from dependency init call")
 		terragruntOptions.Logger.Debugf("Init call stderr:")

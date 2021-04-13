@@ -105,6 +105,9 @@ const (
 	TEST_FIXTURE_AUTO_RETRY_CUSTOM_ERRORS                   = "fixture-auto-retry/custom-errors"
 	TEST_FIXTURE_AUTO_RETRY_CUSTOM_ERRORS_NOT_SET           = "fixture-auto-retry/custom-errors-not-set"
 	TEST_FIXTURE_AUTO_RETRY_APPLY_ALL_RETRIES               = "fixture-auto-retry/apply-all"
+	TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES            = "fixture-auto-retry/configurable-retries"
+	TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES_ERROR_1    = "fixture-auto-retry/configurable-retries-incorrect-retry-attempts"
+	TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES_ERROR_2    = "fixture-auto-retry/configurable-retries-incorrect-sleep-interval"
 	TEST_FIXTURE_AWS_PROVIDER_PATCH                         = "fixture-aws-provider-patch"
 	TEST_FIXTURE_INPUTS                                     = "fixture-inputs"
 	TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL               = "fixture-locals-errors/undefined-local"
@@ -1306,7 +1309,49 @@ func TestAutoRetryApplyAllDependentModuleRetries(t *testing.T) {
 	assert.Contains(t, s, "app2 output")
 	assert.Contains(t, s, "app3 output")
 	assert.Contains(t, s, "Apply complete!")
+}
 
+func TestAutoRetryConfigurableRetries(t *testing.T) {
+	t.Parallel()
+
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), stdout, stderr)
+	sleeps := regexp.MustCompile("Sleeping 0s before retrying.").FindAllStringIndex(stderr.String(), -1)
+
+	assert.Nil(t, err)
+	assert.Equal(t, 4, len(sleeps)) // 5 retries, so 4 sleeps
+	assert.Contains(t, stdout.String(), "Apply complete!")
+}
+
+func TestAutoRetryConfigurableRetriesErrors(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		fixture      string
+		errorMessage string
+	}{
+		{TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES_ERROR_1, "Cannot have less than 1 max retry"},
+		{TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES_ERROR_2, "Cannot sleep for less than 0 seconds"},
+	}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.fixture, func(t *testing.T) {
+			t.Parallel()
+
+			stdout := new(bytes.Buffer)
+			stderr := new(bytes.Buffer)
+			rootPath := copyEnvironment(t, tc.fixture)
+			modulePath := util.JoinPath(rootPath, tc.fixture)
+
+			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), stdout, stderr)
+			assert.NotNil(t, err)
+			assert.NotContains(t, stdout.String(), "Apply complete!")
+			assert.Contains(t, err.Error(), tc.errorMessage)
+		})
+	}
 }
 
 func TestAwsProviderPatch(t *testing.T) {
@@ -1891,10 +1936,13 @@ func TestIncludeDirsDependencyConsistencyRegression(t *testing.T) {
 		cleanupTerragruntFolder(t, filepath.Join(testPath, modulePath))
 	}
 
-	includedModulesWithAmzApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, "amazing-app/k8s", false)
+	includedModulesWithNone := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{}, false)
+	assert.Greater(t, len(includedModulesWithNone), 0)
+
+	includedModulesWithAmzApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"amazing-app/k8s"}, false)
 	assert.Equal(t, includedModulesWithAmzApp, []string{"amazing-app/k8s", "clusters/eks"})
 
-	includedModulesWithTestApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, "testapp/k8s", false)
+	includedModulesWithTestApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"testapp/k8s"}, false)
 	assert.Equal(t, includedModulesWithTestApp, []string{"clusters/eks", "testapp/k8s"})
 }
 
@@ -1913,10 +1961,13 @@ func TestIncludeDirsStrict(t *testing.T) {
 		cleanupTerragruntFolder(t, filepath.Join(testPath, modulePath))
 	}
 
-	includedModulesWithAmzApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, "amazing-app/k8s", true)
+	includedModulesWithNone := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{}, true)
+	assert.Equal(t, includedModulesWithNone, []string{})
+
+	includedModulesWithAmzApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"amazing-app/k8s"}, true)
 	assert.Equal(t, includedModulesWithAmzApp, []string{"amazing-app/k8s"})
 
-	includedModulesWithTestApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, "testapp/k8s", true)
+	includedModulesWithTestApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"testapp/k8s"}, true)
 	assert.Equal(t, includedModulesWithTestApp, []string{"testapp/k8s"})
 }
 
@@ -2136,7 +2187,7 @@ func TestYamlDecodeRegressions(t *testing.T) {
 // module has been destroyed.
 func TestDependencyOutputOptimization(t *testing.T) {
 	expectOutputLogs := []string{
-		`Running command: terraform init -get=false -get-plugins=false prefix=\[.*fixture-get-output/nested-optimization/dep\]`,
+		`Running command: terraform init -get=false prefix=\[.*fixture-get-output/nested-optimization/dep\]`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization", true, expectOutputLogs)
 }
@@ -2150,7 +2201,7 @@ func TestDependencyOutputOptimizationSkipInit(t *testing.T) {
 
 func TestDependencyOutputOptimizationNoGenerate(t *testing.T) {
 	expectOutputLogs := []string{
-		`Running command: terraform init -get=false -get-plugins=false prefix=\[.*fixture-get-output/nested-optimization-nogen/dep\]`,
+		`Running command: terraform init -get=false prefix=\[.*fixture-get-output/nested-optimization-nogen/dep\]`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization-nogen", true, expectOutputLogs)
 }
@@ -2987,6 +3038,94 @@ func TestReadTerragruntConfigWithDefault(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
 
 	assert.Equal(t, outputs["data"].Value, "default value")
+}
+
+func TestReadTerragruntConfigWithOriginalTerragruntDir(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_READ_CONFIG)
+	rootPath := util.JoinPath(TEST_FIXTURE_READ_CONFIG, "with_original_terragrunt_dir")
+
+	rootPathAbs, err := filepath.Abs(rootPath)
+	require.NoError(t, err)
+	fooPathAbs := filepath.Join(rootPathAbs, "foo")
+	depPathAbs := filepath.Join(rootPathAbs, "dep")
+
+	// Run apply on the dependency module and make sure we get the outputs we expect
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", depPathAbs))
+
+	depStdout := bytes.Buffer{}
+	depStderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", depPathAbs), &depStdout, &depStderr),
+	)
+
+	depOutputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(depStdout.String()), &depOutputs))
+
+	assert.Equal(t, depPathAbs, depOutputs["terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, depOutputs["original_terragrunt_dir"].Value)
+	assert.Equal(t, fooPathAbs, depOutputs["bar_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, depOutputs["bar_original_terragrunt_dir"].Value)
+
+	// Run apply on the root module and make sure we get the expected outputs
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	rootStdout := bytes.Buffer{}
+	rootStderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &rootStdout, &rootStderr),
+	)
+
+	rootOutputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(rootStdout.String()), &rootOutputs))
+
+	assert.Equal(t, fooPathAbs, rootOutputs["terragrunt_dir"].Value)
+	assert.Equal(t, rootPathAbs, rootOutputs["original_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, rootOutputs["dep_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, rootOutputs["dep_original_terragrunt_dir"].Value)
+	assert.Equal(t, fooPathAbs, rootOutputs["dep_bar_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, rootOutputs["dep_bar_original_terragrunt_dir"].Value)
+
+	// Run 'run-all apply' and make sure all the outputs are identical in the root module and the dependency module
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	runAllRootStdout := bytes.Buffer{}
+	runAllRootStderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &runAllRootStdout, &runAllRootStderr),
+	)
+
+	runAllRootOutputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(runAllRootStdout.String()), &runAllRootOutputs))
+
+	runAllDepStdout := bytes.Buffer{}
+	runAllDepStderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", depPathAbs), &runAllDepStdout, &runAllDepStderr),
+	)
+
+	runAllDepOutputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(runAllDepStdout.String()), &runAllDepOutputs))
+
+	assert.Equal(t, fooPathAbs, runAllRootOutputs["terragrunt_dir"].Value)
+	assert.Equal(t, rootPathAbs, runAllRootOutputs["original_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, runAllRootOutputs["dep_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, runAllRootOutputs["dep_original_terragrunt_dir"].Value)
+	assert.Equal(t, fooPathAbs, runAllRootOutputs["dep_bar_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, runAllRootOutputs["dep_bar_original_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, runAllDepOutputs["terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, runAllDepOutputs["original_terragrunt_dir"].Value)
+	assert.Equal(t, fooPathAbs, runAllDepOutputs["bar_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, runAllDepOutputs["bar_original_terragrunt_dir"].Value)
 }
 
 func TestReadTerragruntConfigFull(t *testing.T) {
@@ -3908,15 +4047,24 @@ func fileIsInFolder(t *testing.T, name string, path string) bool {
 	return found
 }
 
-func runValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath string, includeModulePath string, strictInclude bool) []string {
-	cmd := fmt.Sprintf(
-		"terragrunt validate-all --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-include-dir %s",
-		rootModulePath,
-		includeModulePath,
-	)
-	if strictInclude {
-		cmd = cmd + " --terragrunt-strict-include"
+func runValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath string, includeModulePaths []string, strictInclude bool) []string {
+	cmd_parts := []string{
+		"terragrunt", "run-all", "validate",
+		"--terragrunt-non-interactive",
+		"--terragrunt-log-level", "debug",
+		"--terragrunt-working-dir", rootModulePath,
 	}
+
+	for _, module := range includeModulePaths {
+		cmd_parts = append(cmd_parts, "--terragrunt-include-dir", module)
+	}
+
+	if strictInclude {
+		cmd_parts = append(cmd_parts, "--terragrunt-strict-include")
+	}
+
+	cmd := strings.Join(cmd_parts, " ")
+
 	validateAllStdout := bytes.Buffer{}
 	validateAllStderr := bytes.Buffer{}
 	err := runTerragruntCommand(
