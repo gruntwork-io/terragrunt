@@ -28,7 +28,6 @@ var TERRAFORM_COMMANDS_NEED_LOCKING = []string{
 	"apply",
 	"destroy",
 	"import",
-	"init",
 	"plan",
 	"refresh",
 	"taint",
