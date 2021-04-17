@@ -352,29 +352,50 @@ func GetDefaultConfigPath(workingDir string) string {
 func FindConfigFilesInPath(rootPath string, terragruntOptions *options.TerragruntOptions) ([]string, error) {
 	configFiles := []string{}
 
-	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
+	// Determine the set of file paths that we need to walk over, if strict include is not set default to walk over the
+	// entire root path (working directory).
+	directories := []string{rootPath}
+
+	// If struct include is set, rebuild the set of directories to only include those specified by the Terragrunt
+	// include dir flags.
+	if terragruntOptions.StrictInclude {
+		directories = []string{}
+		for _, directory := range terragruntOptions.IncludeDirs {
+			directories = append(directories, filepath.Join(rootPath, directory))
+		}
+	}
+
+	for _, directory := range directories {
+		terragruntOptions.Logger.Logf(logrus.InfoLevel, "walking over directory for terragrunt modules: %s", directory)
+		err := filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			// Skip the Terragrunt cache dir entirely
+			if info.IsDir() && info.Name() == options.TerragruntCacheDir {
+				return filepath.SkipDir
+			}
+
+			isTerragruntModule, err := containsTerragruntModule(path, info, terragruntOptions)
+			if err != nil {
+				return err
+			}
+
+			if isTerragruntModule {
+				terragruntOptions.Logger.Logf(logrus.InfoLevel, "found terragrunt module: %s", path)
+				configFiles = append(configFiles, GetDefaultConfigPath(path))
+			}
+
+			return nil
+		})
+
 		if err != nil {
-			return err
+			return configFiles, err
 		}
+	}
 
-		// Skip the Terragrunt cache dir entirely
-		if info.IsDir() && info.Name() == options.TerragruntCacheDir {
-			return filepath.SkipDir
-		}
-
-		isTerragruntModule, err := containsTerragruntModule(path, info, terragruntOptions)
-		if err != nil {
-			return err
-		}
-
-		if isTerragruntModule {
-			configFiles = append(configFiles, GetDefaultConfigPath(path))
-		}
-
-		return nil
-	})
-
-	return configFiles, err
+	return configFiles, nil
 }
 
 // Returns true if the given path with the given FileInfo contains a Terragrunt module and false otherwise. A path
