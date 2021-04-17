@@ -352,17 +352,15 @@ func GetDefaultConfigPath(workingDir string) string {
 func FindConfigFilesInPath(rootPath string, terragruntOptions *options.TerragruntOptions) ([]string, error) {
 	configFiles := []string{}
 
-	// Determine the set of file paths that we need to walk over, if strict include is not set default to walk over the
-	// entire root path (working directory).
+	// Start from the given root path, unless we're given specific directories to include or strict include is on.
 	directories := []string{rootPath}
-
-	// If struct include is set, rebuild the set of directories to only include those specified by the Terragrunt
-	// include dir flags.
-	if terragruntOptions.StrictInclude {
+	if terragruntOptions.StrictInclude || len(terragruntOptions.IncludeDirs) > 0 {
 		directories = []string{}
-		for _, directory := range terragruntOptions.IncludeDirs {
-			directories = append(directories, filepath.Join(rootPath, directory))
-		}
+	}
+
+	// Build a collection of directories based off of any included directories from the given terragrunt options.
+	for _, directory := range terragruntOptions.IncludeDirs {
+		directories = append(directories, filepath.Join(rootPath, directory))
 	}
 
 	for _, directory := range directories {
