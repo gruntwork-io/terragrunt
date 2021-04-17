@@ -139,6 +139,8 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		return nil, err
 	}
 
+	opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
+
 	debug := parseBooleanArg(args, OPT_TERRAGRUNT_DEBUG, false)
 	if debug {
 		opts.Debug = true

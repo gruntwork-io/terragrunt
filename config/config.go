@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/mitchellh/mapstructure"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -40,6 +41,8 @@ type TerragruntConfig struct {
 	TerragruntDependencies      []Dependency
 	GenerateConfigs             map[string]codegen.GenerateConfig
 	RetryableErrors             []string
+	RetryMaxAttempts            *int
+	RetrySleepIntervalSec       *int
 
 	// Indicates whether or not this is the result of a partial evaluation
 	IsPartial bool
@@ -52,21 +55,57 @@ func (conf *TerragruntConfig) String() string {
 // terragruntConfigFile represents the configuration supported in a Terragrunt configuration file (i.e.
 // terragrunt.hcl)
 type terragruntConfigFile struct {
-	Terraform                   *TerraformConfig          `hcl:"terraform,block"`
-	TerraformBinary             *string                   `hcl:"terraform_binary,attr"`
-	TerraformVersionConstraint  *string                   `hcl:"terraform_version_constraint,attr"`
-	TerragruntVersionConstraint *string                   `hcl:"terragrunt_version_constraint,attr"`
-	Inputs                      *cty.Value                `hcl:"inputs,attr"`
-	Include                     *IncludeConfig            `hcl:"include,block"`
-	RemoteState                 *remoteStateConfigFile    `hcl:"remote_state,block"`
-	Dependencies                *ModuleDependencies       `hcl:"dependencies,block"`
-	DownloadDir                 *string                   `hcl:"download_dir,attr"`
-	PreventDestroy              *bool                     `hcl:"prevent_destroy,attr"`
-	Skip                        *bool                     `hcl:"skip,attr"`
-	IamRole                     *string                   `hcl:"iam_role,attr"`
-	TerragruntDependencies      []Dependency              `hcl:"dependency,block"`
-	GenerateBlocks              []terragruntGenerateBlock `hcl:"generate,block"`
-	RetryableErrors             []string                  `hcl:"retryable_errors,optional"`
+	Terraform                   *TerraformConfig `hcl:"terraform,block"`
+	TerraformBinary             *string          `hcl:"terraform_binary,attr"`
+	TerraformVersionConstraint  *string          `hcl:"terraform_version_constraint,attr"`
+	TerragruntVersionConstraint *string          `hcl:"terragrunt_version_constraint,attr"`
+	Inputs                      *cty.Value       `hcl:"inputs,attr"`
+	Include                     *IncludeConfig   `hcl:"include,block"`
+
+	// We allow users to configure remote state (backend) via blocks:
+	//
+	// remote_state {
+	//   backend = "s3"
+	//   config  = { ... }
+	// }
+	//
+	// Or as attributes:
+	//
+	// remote_state = {
+	//   backend = "s3"
+	//   config  = { ... }
+	// }
+	RemoteState     *remoteStateConfigFile `hcl:"remote_state,block"`
+	RemoteStateAttr *cty.Value             `hcl:"remote_state,optional"`
+
+	Dependencies           *ModuleDependencies `hcl:"dependencies,block"`
+	DownloadDir            *string             `hcl:"download_dir,attr"`
+	PreventDestroy         *bool               `hcl:"prevent_destroy,attr"`
+	Skip                   *bool               `hcl:"skip,attr"`
+	IamRole                *string             `hcl:"iam_role,attr"`
+	TerragruntDependencies []Dependency        `hcl:"dependency,block"`
+
+	// We allow users to configure code generation via blocks:
+	//
+	// generate "example" {
+	//   path     = "example.tf"
+	//   contents = "example"
+	// }
+	//
+	// Or via attributes:
+	//
+	// generate = {
+	//   example = {
+	//     path     = "example.tf"
+	//     contents = "example"
+	//   }
+	// }
+	GenerateAttrs  *cty.Value                `hcl:"generate,optional"`
+	GenerateBlocks []terragruntGenerateBlock `hcl:"generate,block"`
+
+	RetryableErrors       []string `hcl:"retryable_errors,optional"`
+	RetryMaxAttempts      *int     `hcl:"retry_max_attempts,optional"`
+	RetrySleepIntervalSec *int     `hcl:"retry_sleep_interval_sec,optional"`
 
 	// This struct is used for validating and parsing the entire terragrunt config. Since locals are evaluated in a
 	// completely separate cycle, it should not be evaluated here. Otherwise, we can't support self referencing other
@@ -135,11 +174,11 @@ type remoteStateConfigGenerate struct {
 // through the codegen routine.
 type terragruntGenerateBlock struct {
 	Name             string  `hcl:",label"`
-	Path             string  `hcl:"path,attr"`
-	IfExists         string  `hcl:"if_exists,attr"`
-	CommentPrefix    *string `hcl:"comment_prefix,attr"`
-	Contents         string  `hcl:"contents,attr"`
-	DisableSignature *bool   `hcl:"disable_signature,attr"`
+	Path             string  `hcl:"path,attr" mapstructure:"path"`
+	IfExists         string  `hcl:"if_exists,attr" mapstructure:"if_exists"`
+	CommentPrefix    *string `hcl:"comment_prefix,attr" mapstructure:"comment_prefix"`
+	Contents         string  `hcl:"contents,attr" mapstructure:"contents"`
+	DisableSignature *bool   `hcl:"disable_signature,attr" mapstructure:"disable_signature"`
 }
 
 // IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
@@ -566,6 +605,14 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 		includedConfig.RetryableErrors = config.RetryableErrors
 	}
 
+	if config.RetryMaxAttempts != nil {
+		includedConfig.RetryMaxAttempts = config.RetryMaxAttempts
+	}
+
+	if config.RetrySleepIntervalSec != nil {
+		includedConfig.RetrySleepIntervalSec = config.RetrySleepIntervalSec
+	}
+
 	if config.TerragruntVersionConstraint != "" {
 		includedConfig.TerragruntVersionConstraint = config.TerragruntVersionConstraint
 	}
@@ -717,6 +764,20 @@ func convertToTerragruntConfig(
 		terragruntConfig.RemoteState = remoteState
 	}
 
+	if terragruntConfigFromFile.RemoteStateAttr != nil {
+		remoteStateMap, err := parseCtyValueToMap(*terragruntConfigFromFile.RemoteStateAttr)
+		if err != nil {
+			return nil, err
+		}
+
+		var remoteState *remote.RemoteState
+		if err := mapstructure.Decode(remoteStateMap, &remoteState); err != nil {
+			return nil, err
+		}
+
+		terragruntConfig.RemoteState = remoteState
+	}
+
 	if err := terragruntConfigFromFile.Terraform.ValidateHooks(); err != nil {
 		return nil, err
 	}
@@ -731,6 +792,14 @@ func convertToTerragruntConfig(
 
 	if terragruntConfigFromFile.RetryableErrors != nil {
 		terragruntConfig.RetryableErrors = terragruntConfigFromFile.RetryableErrors
+	}
+
+	if terragruntConfigFromFile.RetryMaxAttempts != nil {
+		terragruntConfig.RetryMaxAttempts = terragruntConfigFromFile.RetryMaxAttempts
+	}
+
+	if terragruntConfigFromFile.RetrySleepIntervalSec != nil {
+		terragruntConfig.RetrySleepIntervalSec = terragruntConfigFromFile.RetrySleepIntervalSec
 	}
 
 	if terragruntConfigFromFile.DownloadDir != nil {
@@ -757,7 +826,26 @@ func convertToTerragruntConfig(
 		terragruntConfig.IamRole = *terragruntConfigFromFile.IamRole
 	}
 
-	for _, block := range terragruntConfigFromFile.GenerateBlocks {
+	generateBlocks := []terragruntGenerateBlock{}
+	generateBlocks = append(generateBlocks, terragruntConfigFromFile.GenerateBlocks...)
+
+	if terragruntConfigFromFile.GenerateAttrs != nil {
+		generateMap, err := parseCtyValueToMap(*terragruntConfigFromFile.GenerateAttrs)
+		if err != nil {
+			return nil, err
+		}
+
+		for name, block := range generateMap {
+			var generateBlock terragruntGenerateBlock
+			if err := mapstructure.Decode(block, &generateBlock); err != nil {
+				return nil, err
+			}
+			generateBlock.Name = name
+			generateBlocks = append(generateBlocks, generateBlock)
+		}
+	}
+
+	for _, block := range generateBlocks {
 		ifExists, err := codegen.GenerateConfigExistsFromString(block.IfExists)
 		if err != nil {
 			return nil, err
