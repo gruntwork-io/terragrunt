@@ -2,11 +2,12 @@ package config
 
 import (
 	"fmt"
-	"github.com/mitchellh/mapstructure"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
+
+	"github.com/mitchellh/mapstructure"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
