@@ -416,7 +416,7 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 
 	if config.SkipBucketRootAccess {
 		terragruntOptions.Logger.Debugf("Root access is disabled for the remote state S3 bucket %s using 'skip_bucket_root_access' config.", config.remoteStateConfigS3.Bucket)
-	} else if err := EnableRootAccesstoS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
+	} else if err := EnableRootAccesstoS3Bucket(s3Client, config, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -560,10 +560,11 @@ func isBucketAlreadyOwnedByYouError(err error) bool {
 }
 
 // Add a policy to allow root access to the bucket
-func EnableRootAccesstoS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Debugf("Enabling root access to S3 bucket %s", config.Bucket)
+func EnableRootAccesstoS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	bucket := config.remoteStateConfigS3.Bucket
+	terragruntOptions.Logger.Debugf("Enabling root access to S3 bucket %s", bucket)
 
-	accountID, err := aws_helper.GetAWSAccountID(terragruntOptions)
+	accountID, err := aws_helper.GetAWSAccountID(config.GetAwsSessionConfig(), terragruntOptions)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -576,8 +577,8 @@ func EnableRootAccesstoS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, te
 				"Effect": "Allow",
 				"Action": "s3:*",
 				"Resource": []string{
-					"arn:aws:s3:::" + config.Bucket,
-					"arn:aws:s3:::" + config.Bucket + "/*",
+					"arn:aws:s3:::" + bucket,
+					"arn:aws:s3:::" + bucket + "/*",
 				},
 				"Principal": map[string][]string{
 					"AWS": []string{
@@ -594,14 +595,14 @@ func EnableRootAccesstoS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, te
 	}
 
 	_, err = s3Client.PutBucketPolicy(&s3.PutBucketPolicyInput{
-		Bucket: aws.String(config.Bucket),
+		Bucket: aws.String(bucket),
 		Policy: aws.String(string(policy)),
 	})
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	terragruntOptions.Logger.Debugf("Enabled root access to bucket %s", config.Bucket)
+	terragruntOptions.Logger.Debugf("Enabled root access to bucket %s", bucket)
 	return nil
 }
 
