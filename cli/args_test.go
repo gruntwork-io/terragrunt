@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"strings"
@@ -373,18 +374,19 @@ func TestTerraformHelp(t *testing.T) {
 		args     []string
 		expected string
 	}{
-		{[]string{"terragrunt", "plan", "--help"}, "Usage: terraform plan"},
-		{[]string{"terragrunt", "apply", "-help"}, "Usage: terraform apply"},
-		{[]string{"terragrunt", "apply", "-h"}, "Usage: terraform apply"},
+		{[]string{"terragrunt", "plan", "--help"}, "Usage: terraform .* plan"},
+		{[]string{"terragrunt", "apply", "-help"}, "Usage: terraform .* apply"},
+		{[]string{"terragrunt", "apply", "-h"}, "Usage: terraform .* apply"},
 	}
 
 	for _, testCase := range testCases {
 		err := app.Run(testCase.args)
-
 		require.NoError(t, err)
-		if !strings.Contains(output.String(), testCase.expected) {
-			t.Errorf("expected output to include help text; got stdout: %v.", output.String())
-		}
+
+		expectedRegex, err := regexp.Compile(testCase.expected)
+		require.NoError(t, err)
+
+		assert.Regexp(t, expectedRegex, output.String())
 	}
 }
 
