@@ -40,7 +40,7 @@ The `terraform` block supports the following arguments:
   local file paths, Git URLs, and Git URLS with `ref` parameters. Terragrunt will download all the code in the repo
   (i.e. the part before the double-slash `//`) so that relative paths work correctly between modules in that repo.
 - `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `terraform` CLI. Learn more
-  about its usage in the [Keep your CLI flags DRY](/use-cases/keep-your-cli-flags-dry/) use case overview. Supports
+  about its usage in the [Keep your CLI flags DRY](/docs/features/keep-your-cli-flags-dry/) use case overview. Supports
   the following arguments:
     - `arguments` (required) : A list of CLI arguments to pass to `terraform`.
     - `commands` (required) : A list of `terraform` sub commands that the arguments will be passed to.
