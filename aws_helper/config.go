@@ -86,9 +86,12 @@ func CreateAwsSessionFromConfig(config *AwsSessionConfig, terragruntOptions *opt
 	return sess, nil
 }
 
-// Returns an AWS session object for the given config region (required), profile name (optional), and IAM role to assume
-// (optional), ensuring that the credentials are available. If the config is nil, then this will return the default
-// session credentials.
+// Returns an AWS session object. The session is configured by either:
+// - The provided AwsSessionConfig struct, which specifies region (required), profile name (optional), and IAM role to
+//   assume (optional).
+// - The provided TerragruntOptions struct, which specifies any IAM role to assume (optional).
+// Note that if the AwsSessionConfig object is null, this will return default session credentials using the default
+// credentials chain of the AWS SDK.
 func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*session.Session, error) {
 	var sess *session.Session
 	var err error
