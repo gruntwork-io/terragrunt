@@ -353,7 +353,7 @@ func getTerraformCliArgs(include *IncludeConfig, terragruntOptions *options.Terr
 
 // Return the AWS account id associated to the current set of credentials
 func getAWSAccountID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	accountID, err := aws_helper.GetAWSAccountID(terragruntOptions)
+	accountID, err := aws_helper.GetAWSAccountID(nil, terragruntOptions)
 	if err == nil {
 		return accountID, nil
 	}
@@ -362,7 +362,7 @@ func getAWSAccountID(include *IncludeConfig, terragruntOptions *options.Terragru
 
 // Return the ARN of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityARN(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	identityARN, err := aws_helper.GetAWSIdentityArn(terragruntOptions)
+	identityARN, err := aws_helper.GetAWSIdentityArn(nil, terragruntOptions)
 	if err == nil {
 		return identityARN, nil
 	}
@@ -371,7 +371,7 @@ func getAWSCallerIdentityARN(include *IncludeConfig, terragruntOptions *options.
 
 // Return the UserID of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityUserID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	userID, err := aws_helper.GetAWSUserID(terragruntOptions)
+	userID, err := aws_helper.GetAWSUserID(nil, terragruntOptions)
 	if err == nil {
 		return userID, nil
 	}
