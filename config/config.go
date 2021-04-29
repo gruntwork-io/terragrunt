@@ -5,8 +5,10 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 
+	zglob "github.com/mattn/go-zglob"
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/hashicorp/hcl/v2"
@@ -360,8 +362,16 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 
 	// Build a collection of directories based off of any included directories from the given terragrunt options.
 	for _, directory := range terragruntOptions.IncludeDirs {
-		directories = append(directories, filepath.Join(rootPath, directory))
+		matches, err := zglob.Glob(filepath.Join(rootPath, directory))
+		if err != nil {
+			return nil, err
+		}
+
+		directories = append(directories, matches...)
 	}
+
+	// TODO: since the terragrunt include directories can be specified as globs, we need to expand
+	// those globs before walking over them.
 
 	for _, directory := range directories {
 		terragruntOptions.Logger.Logf(logrus.InfoLevel, "walking over directory for terragrunt modules: %s", directory)
@@ -393,6 +403,10 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 		}
 	}
 
+	// NOTE: we're sorting the configuration files as I found that very rarely the order returned by zglob wasn't
+	// always determinate. I don't know if this is a bug in the zglob module or just side-effect of a race in the module.
+	// @celestialorb, 2021/04/29
+	sort.Strings(configFiles)
 	return configFiles, nil
 }
 
