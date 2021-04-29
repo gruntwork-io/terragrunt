@@ -1215,6 +1215,26 @@ func TestFindConfigFilesIgnoresDownloadDir(t *testing.T) {
 	assert.Equal(t, expected, actual)
 }
 
+func TestFindConfigFilesInPathWithGlob(t *testing.T) {
+	t.Parallel()
+
+	expected := []string{
+		"../test/fixture-config-files/multiple-mixed-configs/subdir-2/subdir/terragrunt.hcl",
+		"../test/fixture-config-files/multiple-mixed-configs/subdir-3/terragrunt.hcl.json",
+	}
+
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
+	require.NoError(t, err)
+
+	terragruntOptions.StrictInclude = true
+	terragruntOptions.IncludeDirs = []string{"subdir-*"}
+
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/multiple-mixed-configs", terragruntOptions)
+	assert.Nil(t, err, "Unexpected error: %v", err)
+
+	assert.Equal(t, expected, actual)
+}
+
 func mockOptionsForTestWithConfigPath(t *testing.T, configPath string) *options.TerragruntOptions {
 	opts, err := options.NewTerragruntOptionsForTest(configPath)
 	if err != nil {
