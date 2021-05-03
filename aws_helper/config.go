@@ -96,7 +96,8 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 	var sess *session.Session
 	var err error
 	if config == nil {
-		sess, err = session.NewSession()
+		sessionOptions := session.Options{SharedConfigState: session.SharedConfigEnable}
+		sess, err = session.NewSessionWithOptions(sessionOptions)
 		if err != nil {
 			return nil, errors.WithStackTrace(err)
 		}
