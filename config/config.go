@@ -2,11 +2,14 @@ package config
 
 import (
 	"fmt"
-	"github.com/mitchellh/mapstructure"
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
+
+	zglob "github.com/mattn/go-zglob"
+	"github.com/mitchellh/mapstructure"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
@@ -351,29 +354,60 @@ func GetDefaultConfigPath(workingDir string) string {
 func FindConfigFilesInPath(rootPath string, terragruntOptions *options.TerragruntOptions) ([]string, error) {
 	configFiles := []string{}
 
-	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
+	// Start from the given root path, unless we're given specific directories to include or strict include is on.
+	directories := []string{rootPath}
+	if terragruntOptions.StrictInclude || len(terragruntOptions.IncludeDirs) > 0 {
+		directories = []string{}
+	}
+
+	// Build a collection of directories based off of any included directories from the given terragrunt options.
+	for _, directory := range terragruntOptions.IncludeDirs {
+		matches, err := zglob.Glob(filepath.Join(rootPath, directory))
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		// Skip the Terragrunt cache dir entirely
-		if info.IsDir() && info.Name() == options.TerragruntCacheDir {
-			return filepath.SkipDir
-		}
+		directories = append(directories, matches...)
+	}
 
-		isTerragruntModule, err := containsTerragruntModule(path, info, terragruntOptions)
+	// TODO: since the terragrunt include directories can be specified as globs, we need to expand
+	// those globs before walking over them.
+
+	for _, directory := range directories {
+		terragruntOptions.Logger.Logf(logrus.InfoLevel, "walking over directory for terragrunt modules: %s", directory)
+		err := filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			// Skip the Terragrunt cache dir entirely
+			if info.IsDir() && info.Name() == options.TerragruntCacheDir {
+				return filepath.SkipDir
+			}
+
+			isTerragruntModule, err := containsTerragruntModule(path, info, terragruntOptions)
+			if err != nil {
+				return err
+			}
+
+			if isTerragruntModule {
+				terragruntOptions.Logger.Logf(logrus.InfoLevel, "found terragrunt module: %s", path)
+				configFiles = append(configFiles, GetDefaultConfigPath(path))
+			}
+
+			return nil
+		})
+
 		if err != nil {
-			return err
+			return configFiles, err
 		}
+	}
 
-		if isTerragruntModule {
-			configFiles = append(configFiles, GetDefaultConfigPath(path))
-		}
-
-		return nil
-	})
-
-	return configFiles, err
+	// NOTE: we're sorting the configuration files as I found that very rarely the order returned by zglob wasn't
+	// always determinate. I don't know if this is a bug in the zglob module or just side-effect of a race in the module.
+	// @celestialorb, 2021/04/29
+	sort.Strings(configFiles)
+	return configFiles, nil
 }
 
 // Returns true if the given path with the given FileInfo contains a Terragrunt module and false otherwise. A path

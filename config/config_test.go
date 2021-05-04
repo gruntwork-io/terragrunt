@@ -1019,9 +1019,9 @@ func TestFindConfigFilesInPathMultipleConfigs(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{
-		"../test/fixture-config-files/multiple-configs/terragrunt.hcl",
 		"../test/fixture-config-files/multiple-configs/subdir-2/subdir/terragrunt.hcl",
 		"../test/fixture-config-files/multiple-configs/subdir-3/terragrunt.hcl",
+		"../test/fixture-config-files/multiple-configs/terragrunt.hcl",
 	}
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
 	require.NoError(t, err)
@@ -1036,9 +1036,9 @@ func TestFindConfigFilesInPathMultipleJsonConfigs(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{
-		"../test/fixture-config-files/multiple-json-configs/terragrunt.hcl.json",
 		"../test/fixture-config-files/multiple-json-configs/subdir-2/subdir/terragrunt.hcl.json",
 		"../test/fixture-config-files/multiple-json-configs/subdir-3/terragrunt.hcl.json",
+		"../test/fixture-config-files/multiple-json-configs/terragrunt.hcl.json",
 	}
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
 	require.NoError(t, err)
@@ -1053,9 +1053,9 @@ func TestFindConfigFilesInPathMultipleMixedConfigs(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{
-		"../test/fixture-config-files/multiple-mixed-configs/terragrunt.hcl.json",
 		"../test/fixture-config-files/multiple-mixed-configs/subdir-2/subdir/terragrunt.hcl",
 		"../test/fixture-config-files/multiple-mixed-configs/subdir-3/terragrunt.hcl.json",
+		"../test/fixture-config-files/multiple-mixed-configs/terragrunt.hcl.json",
 	}
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
 	require.NoError(t, err)
@@ -1063,6 +1063,45 @@ func TestFindConfigFilesInPathMultipleMixedConfigs(t *testing.T) {
 	actual, err := FindConfigFilesInPath("../test/fixture-config-files/multiple-mixed-configs", terragruntOptions)
 
 	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.Equal(t, expected, actual)
+}
+
+func TestFindConfigFilesInPathIncludeDirs(t *testing.T) {
+	t.Parallel()
+
+	expected := []string{
+		"../test/fixture-config-files/multiple-mixed-configs/subdir-2/subdir/terragrunt.hcl",
+		"../test/fixture-config-files/multiple-mixed-configs/subdir-3/terragrunt.hcl.json",
+	}
+
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
+	require.NoError(t, err)
+
+	terragruntOptions.StrictInclude = true
+	terragruntOptions.IncludeDirs = []string{"subdir-2", "subdir-3"}
+
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/multiple-mixed-configs", terragruntOptions)
+	assert.Nil(t, err, "Unexpected error: %v", err)
+
+	assert.Equal(t, expected, actual)
+}
+
+func TestFindConfigFilesInPathStrictInclude(t *testing.T) {
+	t.Parallel()
+
+	expected := []string{
+		"../test/fixture-config-files/multiple-mixed-configs/subdir-2/subdir/terragrunt.hcl",
+	}
+
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
+	require.NoError(t, err)
+
+	terragruntOptions.StrictInclude = true
+	terragruntOptions.IncludeDirs = []string{"subdir-2"}
+
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/multiple-mixed-configs", terragruntOptions)
+	assert.Nil(t, err, "Unexpected error: %v", err)
+
 	assert.Equal(t, expected, actual)
 }
 
@@ -1085,10 +1124,10 @@ func TestFindConfigFilesIgnoresTerraformDataDir(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{
-		"../test/fixture-config-files/ignore-terraform-data-dir/terragrunt.hcl",
 		"../test/fixture-config-files/ignore-terraform-data-dir/.tf_data/modules/mod/terragrunt.hcl",
-		"../test/fixture-config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
 		"../test/fixture-config-files/ignore-terraform-data-dir/subdir/.tf_data/modules/mod/terragrunt.hcl",
+		"../test/fixture-config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
+		"../test/fixture-config-files/ignore-terraform-data-dir/terragrunt.hcl",
 	}
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
 	require.NoError(t, err)
@@ -1103,9 +1142,9 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnv(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{
-		"../test/fixture-config-files/ignore-terraform-data-dir/terragrunt.hcl",
-		"../test/fixture-config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
 		"../test/fixture-config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl",
+		"../test/fixture-config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
+		"../test/fixture-config-files/ignore-terraform-data-dir/terragrunt.hcl",
 	}
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
 	require.NoError(t, err)
@@ -1121,10 +1160,10 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvPath(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{
-		"../test/fixture-config-files/ignore-terraform-data-dir/terragrunt.hcl",
 		"../test/fixture-config-files/ignore-terraform-data-dir/.tf_data/modules/mod/terragrunt.hcl",
-		"../test/fixture-config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
 		"../test/fixture-config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl",
+		"../test/fixture-config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
+		"../test/fixture-config-files/ignore-terraform-data-dir/terragrunt.hcl",
 	}
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
 	require.NoError(t, err)
@@ -1143,10 +1182,10 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvRoot(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := []string{
-		filepath.Join(cwd, "../test/fixture-config-files/ignore-terraform-data-dir/terragrunt.hcl"),
-		filepath.Join(cwd, "../test/fixture-config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl"),
 		filepath.Join(cwd, "../test/fixture-config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl"),
 		filepath.Join(cwd, "../test/fixture-config-files/ignore-terraform-data-dir/subdir/.tf_data/modules/mod/terragrunt.hcl"),
+		filepath.Join(cwd, "../test/fixture-config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl"),
+		filepath.Join(cwd, "../test/fixture-config-files/ignore-terraform-data-dir/terragrunt.hcl"),
 	}
 	workingDir := filepath.Join(cwd, "../test/fixture-config-files/ignore-terraform-data-dir/")
 	terragruntOptions, err := options.NewTerragruntOptionsForTest(workingDir)
@@ -1163,8 +1202,8 @@ func TestFindConfigFilesIgnoresDownloadDir(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{
-		"../test/fixture-config-files/multiple-configs/terragrunt.hcl",
 		"../test/fixture-config-files/multiple-configs/subdir-3/terragrunt.hcl",
+		"../test/fixture-config-files/multiple-configs/terragrunt.hcl",
 	}
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
 	require.NoError(t, err)
@@ -1173,6 +1212,26 @@ func TestFindConfigFilesIgnoresDownloadDir(t *testing.T) {
 	actual, err := FindConfigFilesInPath("../test/fixture-config-files/multiple-configs", terragruntOptions)
 
 	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.Equal(t, expected, actual)
+}
+
+func TestFindConfigFilesInPathWithGlob(t *testing.T) {
+	t.Parallel()
+
+	expected := []string{
+		"../test/fixture-config-files/multiple-mixed-configs/subdir-2/subdir/terragrunt.hcl",
+		"../test/fixture-config-files/multiple-mixed-configs/subdir-3/terragrunt.hcl.json",
+	}
+
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
+	require.NoError(t, err)
+
+	terragruntOptions.StrictInclude = true
+	terragruntOptions.IncludeDirs = []string{"subdir-*"}
+
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/multiple-mixed-configs", terragruntOptions)
+	assert.Nil(t, err, "Unexpected error: %v", err)
+
 	assert.Equal(t, expected, actual)
 }
 
