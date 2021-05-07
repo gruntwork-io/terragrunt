@@ -12,12 +12,12 @@ RUN go mod download -x
 
 COPY . .
 
-RUN make build
+RUN CGO_ENABLED=0 make build
 
 ###
 
-FROM alpine:latest
+FROM scratch
 
-COPY --from=builder /go/src/terragrunt/terragrunt /usr/local/bin/
+COPY --from=builder /go/src/terragrunt/terragrunt /app/
 
-ENTRYPOINT ["terragrunt"]
+ENTRYPOINT ["/app/terragrunt"]
