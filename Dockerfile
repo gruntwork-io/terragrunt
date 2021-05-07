@@ -20,4 +20,4 @@ FROM alpine:latest
 
 COPY --from=builder /go/src/terragrunt/terragrunt /usr/local/bin/
 
-ENTRYPOINT terragrunt
+ENTRYPOINT ["terragrunt"]
