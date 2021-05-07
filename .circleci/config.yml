@@ -60,6 +60,19 @@ jobs:
     steps:
       - checkout
       - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG"
+  build_container:
+    <<: *defaults
+    steps:
+      - checkout
+      # Build the container
+      - run: docker build -t terragrunt-test -f Dockerfile .
+      # Run the container, outputting the terragrunt version and checking that it is correct
+      - run:
+          command: |
+            set -xe
+            vtag_maybe_extra=$(git describe --tags --abbrev=12 --dirty --broken)
+            docker run --rm terragrunt-test --version
+            docker run --rm terragrunt-test --version | grep $vtag_maybe_extra
   deploy:
     <<: *defaults
     steps:
@@ -86,6 +99,16 @@ workflows:
             - Gruntwork Admin
             - Gruntwork GCP
       - build:
+          requires:
+            - unit_test
+            - integration_test
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - Gruntwork Admin
+            - Gruntwork GCP
+      - build_container:
           requires:
             - unit_test
             - integration_test
