@@ -37,6 +37,29 @@ remote_state {
 	}
 }
 
+func TestParseTerragruntConfigRemoteStateAttrMinimalConfig(t *testing.T) {
+	t.Parallel()
+
+	config := `
+remote_state = {
+  backend = "s3"
+  config  = {}
+}
+`
+
+	terragruntConfig, err := ParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath)
+	require.NoError(t, err)
+
+	assert.Nil(t, terragruntConfig.Terraform)
+
+	assert.Empty(t, terragruntConfig.IamRole)
+
+	if assert.NotNil(t, terragruntConfig.RemoteState) {
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
+		assert.Empty(t, terragruntConfig.RemoteState.Config)
+	}
+}
+
 func TestParseTerragruntJsonConfigRemoteStateMinimalConfig(t *testing.T) {
 	t.Parallel()
 
@@ -70,20 +93,6 @@ remote_state {}
 `
 
 	_, err := ParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "Missing required argument; The argument \"backend\" is required")
-}
-
-func TestParseTerragruntJsonConfigRemoteStateMissingBackend(t *testing.T) {
-	t.Parallel()
-
-	config := `
-{
-	"remote_state": {}
-}
-`
-
-	_, err := ParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntJsonConfigPath)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "Missing required argument; The argument \"backend\" is required")
 }

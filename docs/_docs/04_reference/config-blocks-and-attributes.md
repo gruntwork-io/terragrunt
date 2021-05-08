@@ -40,7 +40,7 @@ The `terraform` block supports the following arguments:
   local file paths, Git URLs, and Git URLS with `ref` parameters. Terragrunt will download all the code in the repo
   (i.e. the part before the double-slash `//`) so that relative paths work correctly between modules in that repo.
 - `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `terraform` CLI. Learn more
-  about its usage in the [Keep your CLI flags DRY](/use-cases/keep-your-cli-flags-dry/) use case overview. Supports
+  about its usage in the [Keep your CLI flags DRY](/docs/features/keep-your-cli-flags-dry/) use case overview. Supports
   the following arguments:
     - `arguments` (required) : A list of CLI arguments to pass to `terraform`.
     - `commands` (required) : A list of `terraform` sub commands that the arguments will be passed to.
@@ -224,6 +224,32 @@ The `remote_state` block supports the following arguments:
       }
     }
     ```
+
+Note that `remote_state` can also be set as an attribute. This is useful if you want to set `remote_state` dynamically.
+For example, if in `common.hcl` you had:
+
+```hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = "mybucket"
+    key    = "path/to/my/key"
+    region = "us-east-1"
+  }
+}
+```
+
+Then in a `terragrunt.hcl` file, you could dynamically set `remote_state` as an attribute as follows:
+
+```hcl
+locals {
+  # Load the data from common.hcl
+  common = read_terragrunt_config(find_in_parent_folders("common.hcl"))
+}
+
+# Set the remote_state config dynamically to the remote_state config in common.hcl
+remote_state = local.common.remote_state
+```
 
 Note that Terragrunt does special processing of the `config` attribute for the `s3` and `gcs` remote state backends, and
 supports additional keys that are used to configure the automatic initialization feature of Terragrunt.
@@ -531,6 +557,34 @@ EOF
 }
 ```
 
+Note that `generate` can also be set as an attribute. This is useful if you want to set `generate` dynamically.
+For example, if in `common.hcl` you had:
+
+```hcl
+  generate "provider" {
+    path      = "provider.tf"
+    if_exists = "overwrite"
+    contents = <<EOF
+provider "aws" {
+  region              = "us-east-1"
+  version             = "= 2.3.1"
+  allowed_account_ids = ["1234567890"]
+}
+EOF
+}
+```
+
+Then in a `terragrunt.hcl` file, you could dynamically set `generate` as an attribute as follows:
+
+```hcl
+locals {
+  # Load the data from common.hcl
+  common = read_terragrunt_config(find_in_parent_folders("common.hcl"))
+}
+
+# Set the generate config dynamically to the generate config in common.hcl
+generate = local.common.generate
+```
 
 ## Attributes
 

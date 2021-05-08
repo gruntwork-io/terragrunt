@@ -27,6 +27,8 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
   - [get\_terragrunt\_dir()](#get_terragrunt_dir)
 
   - [get\_parent\_terragrunt\_dir()](#get_parent_terragrunt_dir)
+  
+  - [get\_original\_terragrunt\_dir()](#get_original_terragrunt_dir)
 
   - [get\_terraform\_commands\_that\_need\_vars()](#get_terraform_commands_that_need_vars)
 
@@ -377,6 +379,13 @@ terraform {
 
 The common.tfvars located in the terraform root folder will be included by all applications, whatever their relative location to the root.
 
+## get\_original\_terragrunt\_dir
+
+`get_original_terragrunt_dir()` returns the directory where the original Terragrunt configuration file (by default 
+`terragrunt.hcl`) lives. This is primarily useful when one Terragrunt config is being read from another: e.g., if 
+`/terraform-code/terragrunt.hcl` calls `read_terragrunt_config("/foo/bar.hcl")`, and within `bar.hcl`, you call 
+`get_original_terragrunt_dir()`, you'll get back `/terraform-code`.
+
 ## get\_terraform\_commands\_that\_need\_vars
 
 `get_terraform_commands_that_need_vars()` returns the list of terraform commands that accept `-var` and `-var-file` parameters. This function is used when defining [extra\_arguments]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#multiple-extra_arguments-blocks).
@@ -594,7 +603,7 @@ inputs = {
 `sops_decrypt_file(file_path)` decrypts a yaml or json file encrypted with `sops`.
 
 [sops](https://github.com/mozilla/sops) is an editor of encrypted files that supports YAML, JSON, ENV, INI and
-BINARY formats and encrypts with AWS KMS, GCP KMS, Azure Key Vault and PGP.
+BINARY formats and encrypts with AWS KMS, GCP KMS, Azure Key Vault, Hashicorp Vault and PGP.
 
 This allows static secrets to be stored encrypted within your Terragrunt repository.
 

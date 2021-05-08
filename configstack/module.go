@@ -139,6 +139,11 @@ func flagIncludedDirs(modules []*TerraformModule, terragruntOptions *options.Ter
 
 	// If no IncludeDirs is specified return the modules list instantly
 	if len(terragruntOptions.IncludeDirs) == 0 {
+		// If we aren't given any include directories, but are given the strict include flag,
+		// return no modules.
+		if terragruntOptions.StrictInclude {
+			return []*TerraformModule{}, nil
+		}
 		return modules, nil
 	}
 
@@ -237,7 +242,14 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 		return nil, err
 	}
 
+	// Clone the options struct so we don't modify the original one. This is especially important as run-all operations
+	// happen concurrently.
 	opts := terragruntOptions.Clone(terragruntConfigPath)
+
+	// We need to reset the original path for each module. Otherwise, this path will be set to wherever you ran run-all
+	// from, which is not what any of the modules will want.
+	opts.OriginalTerragruntConfigPath = terragruntConfigPath
+
 	// We only partially parse the config, only using the pieces that we need in this section. This config will be fully
 	// parsed at a later stage right before the action is run. This is to delay interpolation of functions until right
 	// before we call out to terraform.
