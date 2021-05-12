@@ -588,15 +588,25 @@ generate = local.common.generate
 
 ## Attributes
 
-- [inputs](#inputs)
-- [download_dir](#download_dir)
-- [prevent_destroy](#prevent_destroy)
-- [skip](#skip)
-- [iam_role](#iam_role)
-- [terraform_binary](#terraform_binary)
-- [terraform_version_constraint](#terraform_version_constraint)
-- [terragrunt_version_constraint](#terragrunt_version_constraint)
-- [retryable_errors](#retryable_errors)
+- [Blocks](#blocks)
+  - [terraform](#terraform)
+  - [remote_state](#remote_state)
+  - [include](#include)
+  - [locals](#locals)
+  - [dependency](#dependency)
+  - [dependencies](#dependencies)
+  - [generate](#generate)
+- [Attributes](#attributes)
+  - [inputs](#inputs)
+  - [download_dir](#download_dir)
+  - [prevent_destroy](#prevent_destroy)
+  - [skip](#skip)
+  - [iam_role](#iam_role)
+  - [sts_duration](#sts_duration)
+  - [terraform_binary](#terraform_binary)
+  - [terraform_version_constraint](#terraform_version_constraint)
+  - [terragrunt_version_constraint](#terragrunt_version_constraint)
+  - [retryable_errors](#retryable_errors)
 
 
 ### inputs
@@ -709,7 +719,6 @@ The `skip` flag must be set explicitly in terragrunt modules that should be skip
 `terragrunt.hcl` file that is included by another `terragrunt.hcl` file, only the `terragrunt.hcl` file that explicitly
 set `skip = true` will be skipped.
 
-
 ### iam_role
 
 The `iam_role` attribute can be used to specify an IAM role that Terragrunt should assume prior to invoking Terraform.
@@ -724,6 +733,19 @@ Example:
 iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 ```
 
+### sts_duration
+
+The `sts_duration` attribute can be used to specify an IAM role that Terragrunt should assume prior to invoking Terraform.
+
+The precedence is as follows: `--terragrunt-sts-duration` command line option → `TERRAGRUNT_STS_DURATION` env variable →
+`sts_duration` attribute of the `terragrunt.hcl` file in the module directory → `sts_duration` attribute of the included
+`terragrunt.hcl`.
+
+Example:
+
+```hcl
+sts_duration = 14400
+```
 
 ### terraform_binary
 

@@ -38,6 +38,7 @@ type TerragruntConfig struct {
 	PreventDestroy              *bool
 	Skip                        bool
 	IamRole                     string
+	StsDuration                 *int64
 	Inputs                      map[string]interface{}
 	Locals                      map[string]interface{}
 	TerragruntDependencies      []Dependency
@@ -85,6 +86,7 @@ type terragruntConfigFile struct {
 	PreventDestroy         *bool               `hcl:"prevent_destroy,attr"`
 	Skip                   *bool               `hcl:"skip,attr"`
 	IamRole                *string             `hcl:"iam_role,attr"`
+	StsDuration            *int64              `hcl:"sts_duration,attr"`
 	TerragruntDependencies []Dependency        `hcl:"dependency,block"`
 
 	// We allow users to configure code generation via blocks:
@@ -660,6 +662,10 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 		includedConfig.IamRole = config.IamRole
 	}
 
+	if config.StsDuration != nil {
+		includedConfig.StsDuration = config.StsDuration
+	}
+
 	if config.TerraformVersionConstraint != "" {
 		includedConfig.TerraformVersionConstraint = config.TerraformVersionConstraint
 	}
@@ -891,6 +897,10 @@ func convertToTerragruntConfig(
 
 	if terragruntConfigFromFile.IamRole != nil {
 		terragruntConfig.IamRole = *terragruntConfigFromFile.IamRole
+	}
+
+	if terragruntConfigFromFile.StsDuration != nil {
+		terragruntConfig.StsDuration = terragruntConfigFromFile.StsDuration
 	}
 
 	generateBlocks := []terragruntGenerateBlock{}

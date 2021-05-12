@@ -104,6 +104,9 @@ type TerragruntOptions struct {
 	// The ARN of an IAM Role to assume before running Terraform
 	IamRole string
 
+	// Duration of the STS Session
+	StsDuration int64
+
 	// If set to true, continue running *-all commands even if a dependency has errors. This is mostly useful for 'output-all <some_variable>'. See https://github.com/gruntwork-io/terragrunt/issues/193
 	IgnoreDependencyErrors bool
 

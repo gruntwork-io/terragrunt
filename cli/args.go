@@ -115,6 +115,12 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		return nil, err
 	}
 
+	envValue, envProvided := os.LookupEnv("TERRAGRUNT_STS_DURATION")
+	stsDuration, err := parseIntArg(args, OPT_TERRAGRUNT_STS_DURATION, envValue, envProvided, 3600)
+	if err != nil {
+		return nil, err
+	}
+
 	excludeDirs, err := parseMultiStringArg(args, OPT_TERRAGRUNT_EXCLUDE_DIR, []string{})
 	if err != nil {
 		return nil, err
@@ -151,7 +157,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		opts.Debug = true
 	}
 
-	envValue, envProvided := os.LookupEnv("TERRAGRUNT_PARALLELISM")
+	envValue, envProvided = os.LookupEnv("TERRAGRUNT_PARALLELISM")
 	parallelism, err := parseIntArg(args, OPT_TERRAGRUNT_PARALLELISM, envValue, envProvided, options.DEFAULT_PARALLELISM)
 	if err != nil {
 		return nil, err
@@ -189,6 +195,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.ErrWriter = errWriter
 	opts.Env = parseEnvironmentVariables(os.Environ())
 	opts.IamRole = iamRole
+	opts.StsDuration = int64(stsDuration)
 	opts.ExcludeDirs = excludeDirs
 	opts.IncludeDirs = includeDirs
 	opts.StrictInclude = strictInclude

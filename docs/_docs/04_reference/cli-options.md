@@ -381,29 +381,45 @@ This should allow you to run `import` on the module and work around those Terraf
 Terragrunt forwards all options to Terraform. The only exceptions are `--version` and arguments that start with the
 prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available options are:
 
-- [terragrunt-config](#terragrunt-config)
-- [terragrunt-tfpath](#terragrunt-tfpath)
-- [terragrunt-no-auto-init](#terragrunt-no-auto-init)
-- [terragrunt-no-auto-retry](#terragrunt-no-auto-retry)
-- [terragrunt-non-interactive](#terragrunt-non-interactive)
-- [terragrunt-working-dir](#terragrunt-working-dir)
-- [terragrunt-download-dir](#terragrunt-download-dir)
-- [terragrunt-source](#terragrunt-source)
-- [terragrunt-source-map](#terragrunt-source-map)
-- [terragrunt-source-update](#terragrunt-source-update)
-- [terragrunt-ignore-dependency-errors](#terragrunt-ignore-dependency-errors)
-- [terragrunt-iam-role](#terragrunt-iam-role)
-- [terragrunt-exclude-dir](#terragrunt-exclude-dir)
-- [terragrunt-include-dir](#terragrunt-include-dir)
-- [terragrunt-strict-include](#terragrunt-strict-include)
-- [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
-- [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
-- [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
-- [terragrunt-parallelism](#terragrunt-parallelism)
-- [terragrunt-debug](#terragrunt-debug)
-- [terragrunt-check](#terragrunt-check)
-- [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
-- [terragrunt-override-attr](#terragrunt-override-attr)
+- [CLI commands](#cli-commands)
+  - [All Terraform built-in commands](#all-terraform-built-in-commands)
+  - [run-all](#run-all)
+  - [plan-all (DEPRECATED: use run-all)](#plan-all-deprecated-use-run-all)
+  - [apply-all (DEPRECATED: use run-all)](#apply-all-deprecated-use-run-all)
+  - [output-all (DEPRECATED: use run-all)](#output-all-deprecated-use-run-all)
+  - [destroy-all (DEPRECATED: use run-all)](#destroy-all-deprecated-use-run-all)
+  - [validate-all (DEPRECATED: use run-all)](#validate-all-deprecated-use-run-all)
+  - [terragrunt-info](#terragrunt-info)
+  - [validate-inputs](#validate-inputs)
+  - [graph-dependencies](#graph-dependencies)
+  - [hclfmt](#hclfmt)
+  - [aws-provider-patch](#aws-provider-patch)
+- [CLI options](#cli-options)
+  - [terragrunt-config](#terragrunt-config)
+  - [terragrunt-tfpath](#terragrunt-tfpath)
+  - [terragrunt-no-auto-init](#terragrunt-no-auto-init)
+  - [terragrunt-no-auto-retry](#terragrunt-no-auto-retry)
+  - [terragrunt-non-interactive](#terragrunt-non-interactive)
+  - [terragrunt-working-dir](#terragrunt-working-dir)
+  - [terragrunt-download-dir](#terragrunt-download-dir)
+  - [terragrunt-source](#terragrunt-source)
+  - [terragrunt-source-map](#terragrunt-source-map)
+  - [terragrunt-source-update](#terragrunt-source-update)
+  - [terragrunt-ignore-dependency-errors](#terragrunt-ignore-dependency-errors)
+  - [terragrunt-iam-role](#terragrunt-iam-role)
+  - [terragrunt-sts-duration](#terragrunt-sts-duration)
+  - [terragrunt-exclude-dir](#terragrunt-exclude-dir)
+  - [terragrunt-include-dir](#terragrunt-include-dir)
+  - [terragrunt-strict-include](#terragrunt-strict-include)
+  - [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
+  - [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
+  - [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
+  - [terragrunt-parallelism](#terragrunt-parallelism)
+  - [terragrunt-debug](#terragrunt-debug)
+  - [terragrunt-log-level](#terragrunt-log-level)
+  - [terragrunt-check](#terragrunt-check)
+  - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
+  - [terragrunt-override-attr](#terragrunt-override-attr)
 
 
 ### terragrunt-config
@@ -554,6 +570,14 @@ When passed in, the `*-all` commands continue processing components even if a de
 
 Assume the specified IAM role ARN before running Terraform or AWS commands. This is a convenient way to use Terragrunt
 and Terraform with multiple AWS accounts.
+
+### terragrunt-sts-duration
+
+**CLI Arg**: `--terragrunt-sts-duration`<br/>
+**Environment Variable**: `TERRAGRUNT_STS_DURATION`<br/>
+**Requires an argument**: `--terragrunt-sts-duration 3600`
+
+Uses the specified duration as the session duration of the STS credentials assumed for the role defined in `--terragrunt-iam-role`
 
 
 ### terragrunt-exclude-dir
