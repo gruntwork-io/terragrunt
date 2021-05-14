@@ -1,5 +1,5 @@
 terraform {
-  source = "git::ssh://git@github.com/gruntwork-io/i-dont-exist.git//test/fixture-source-map/modules/app?ref=master"
+  source = "git::ssh://git@github.com/gruntwork-io/i-dont-exist.git//fixture-source-map/modules/app?ref=master"
 }
 
 dependency "vpc" {

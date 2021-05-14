@@ -95,6 +95,11 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		return nil, err
 	}
 
+	terraformSourceMap, err := parseMutliStringKeyValueArg(args, OPT_TERRAGRUNT_SOURCE_MAP, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	sourceUpdate := parseBooleanArg(args, OPT_TERRAGRUNT_SOURCE_UPDATE, os.Getenv("TERRAGRUNT_SOURCE_UPDATE") == "true" || os.Getenv("TERRAGRUNT_SOURCE_UPDATE") == "1")
 
 	ignoreDependencyErrors := parseBooleanArg(args, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, false)
@@ -166,6 +171,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.Logger.Logger.SetOutput(errWriter)
 	opts.RunTerragrunt = RunTerragrunt
 	opts.Source = terraformSource
+	opts.SourceMap = terraformSourceMap
 	opts.SourceUpdate = sourceUpdate
 	opts.TerragruntVersion, err = version.NewVersion(terragruntVersion)
 	if err != nil {
