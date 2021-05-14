@@ -331,12 +331,12 @@ func GetTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragr
 
 // adjustSourceWithMap implements the --terragrunt-source-map feature. This function will check if the URL portion of a
 // terraform source matches any entry in the provided source map and if it does, replace it with the configured source
-// in the map.
+// in the map. Note that this only performs literal matches with the URL portion.
 //
 // Example:
 // Suppose terragrunt is called with:
 //
-//   --terragrunt-source-map ssh://git@github.com/gruntwork-io/i-dont-exist.git=/path/to/local-modules
+//   --terragrunt-source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=/path/to/local-modules
 //
 // and the terraform source is:
 //
