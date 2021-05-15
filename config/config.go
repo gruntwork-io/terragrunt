@@ -2,14 +2,16 @@ package config
 
 import (
 	"fmt"
-	"github.com/mitchellh/mapstructure"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 
+	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/mitchellh/mapstructure"
 	"github.com/sirupsen/logrus"
 	"github.com/zclconf/go-cty/cty"
 
@@ -317,14 +319,79 @@ func (conf *TerraformExtraArguments) GetVarFiles(logger *logrus.Entry) []string 
 // There are two ways a user can tell Terragrunt that it needs to download Terraform configurations from a specific
 // URL: via a command-line option or via an entry in the Terragrunt configuration. If the user used one of these, this
 // method returns the source URL or an empty string if there is no source url
-func GetTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragruntConfig *TerragruntConfig) string {
+func GetTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragruntConfig *TerragruntConfig) (string, error) {
 	if terragruntOptions.Source != "" {
-		return terragruntOptions.Source
+		return terragruntOptions.Source, nil
 	} else if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.Source != nil {
-		return *terragruntConfig.Terraform.Source
+		return adjustSourceWithMap(terragruntOptions.SourceMap, *terragruntConfig.Terraform.Source, terragruntOptions.OriginalTerragruntConfigPath)
 	} else {
-		return ""
+		return "", nil
 	}
+}
+
+// adjustSourceWithMap implements the --terragrunt-source-map feature. This function will check if the URL portion of a
+// terraform source matches any entry in the provided source map and if it does, replace it with the configured source
+// in the map. Note that this only performs literal matches with the URL portion.
+//
+// Example:
+// Suppose terragrunt is called with:
+//
+//   --terragrunt-source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=/path/to/local-modules
+//
+// and the terraform source is:
+//
+//   git::ssh://git@github.com/gruntwork-io/i-dont-exist.git//fixture-source-map/modules/app?ref=master
+//
+// This function will take that source and transform it to:
+//
+//   /path/to/local-modules/fixture-source-map/modules/app
+//
+func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath string) (string, error) {
+	// Skip logic if source map is not configured
+	if len(sourceMap) == 0 {
+		return source, nil
+	}
+
+	// use go-getter to split the module source string into a valid URL and subdirectory (if // is present)
+	moduleUrl, moduleSubdir := getter.SourceDirSubdir(source)
+
+	// if both URL and subdir are missing, something went terribly wrong
+	if moduleUrl == "" && moduleSubdir == "" {
+		return "", errors.WithStackTrace(InvalidSourceUrlWithMap{ModulePath: modulePath, ModuleSourceUrl: source})
+	}
+
+	// If module URL is missing, return the source as is as it will not match anything in the map.
+	if moduleUrl == "" {
+		return source, nil
+	}
+
+	// Before looking up in sourceMap, make sure to drop any query parameters.
+	moduleUrlParsed, err := url.Parse(moduleUrl)
+	if err != nil {
+		return source, err
+	}
+	moduleUrlParsed.RawQuery = ""
+	moduleUrlQuery := moduleUrlParsed.String()
+
+	// Check if there is an entry to replace the URL portion in the map. Return the source as is if there is no entry in
+	// the map.
+	sourcePath, hasKey := sourceMap[moduleUrlQuery]
+	if hasKey == false {
+		return source, nil
+	}
+
+	// Since there is a source mapping, replace the module URL portion with the entry in the map, and join with the
+	// subdir.
+	// If subdir is missing, check if we can obtain a valid module name from the URL portion.
+	if moduleSubdir == "" {
+		moduleSubdirFromUrl, err := getModulePathFromSourceUrl(moduleUrl)
+		if err != nil {
+			return moduleSubdirFromUrl, err
+		}
+		moduleSubdir = moduleSubdirFromUrl
+	}
+	return util.JoinTerraformModulePath(sourcePath, moduleSubdir), nil
+
 }
 
 // Return the default hcl path to use for the Terragrunt configuration file in the given directory

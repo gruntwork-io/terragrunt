@@ -91,6 +91,10 @@ type TerragruntOptions struct {
 	// Terraform in that temporary folder
 	Source string
 
+	// Map to replace terraform source locations. This will replace occurences of the given source with the target
+	// value.
+	SourceMap map[string]string
+
 	// If set to true, delete the contents of the temporary folder before downloading Terraform source code into it
 	SourceUpdate bool
 
@@ -190,6 +194,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		LogLevel:                    DEFAULT_LOG_LEVEL,
 		Env:                         map[string]string{},
 		Source:                      "",
+		SourceMap:                   map[string]string{},
 		SourceUpdate:                false,
 		DownloadDir:                 downloadDir,
 		IgnoreDependencyErrors:      false,
@@ -265,6 +270,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		LogLevel:                     terragruntOptions.LogLevel,
 		Env:                          util.CloneStringMap(terragruntOptions.Env),
 		Source:                       terragruntOptions.Source,
+		SourceMap:                    terragruntOptions.SourceMap,
 		SourceUpdate:                 terragruntOptions.SourceUpdate,
 		DownloadDir:                  terragruntOptions.DownloadDir,
 		Debug:                        terragruntOptions.Debug,

@@ -32,6 +32,7 @@ const OPT_NON_INTERACTIVE = "terragrunt-non-interactive"
 const OPT_WORKING_DIR = "terragrunt-working-dir"
 const OPT_DOWNLOAD_DIR = "terragrunt-download-dir"
 const OPT_TERRAGRUNT_SOURCE = "terragrunt-source"
+const OPT_TERRAGRUNT_SOURCE_MAP = "terragrunt-source-map"
 const OPT_TERRAGRUNT_SOURCE_UPDATE = "terragrunt-source-update"
 const OPT_TERRAGRUNT_IAM_ROLE = "terragrunt-iam-role"
 const OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS = "terragrunt-ignore-dependency-errors"
@@ -67,6 +68,7 @@ var ALL_TERRAGRUNT_STRING_OPTS = []string{
 	OPT_WORKING_DIR,
 	OPT_DOWNLOAD_DIR,
 	OPT_TERRAGRUNT_SOURCE,
+	OPT_TERRAGRUNT_SOURCE_MAP,
 	OPT_TERRAGRUNT_IAM_ROLE,
 	OPT_TERRAGRUNT_EXCLUDE_DIR,
 	OPT_TERRAGRUNT_INCLUDE_DIR,
@@ -406,7 +408,11 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	updatedTerragruntOptions := terragruntOptions
-	if sourceUrl := config.GetTerraformSourceUrl(terragruntOptions, terragruntConfig); sourceUrl != "" {
+	sourceUrl, err := config.GetTerraformSourceUrl(terragruntOptions, terragruntConfig)
+	if err != nil {
+		return err
+	}
+	if sourceUrl != "" {
 		updatedTerragruntOptions, err = downloadTerraformSource(sourceUrl, terragruntOptions, terragruntConfig)
 		if err != nil {
 			return err
