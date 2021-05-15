@@ -283,7 +283,7 @@ func TestParseMutliStringKeyValueArg(t *testing.T) {
 		{[]string{"aws-provider-patch", "--other", "arg"}, "foo", map[string]string{"default": "value"}, map[string]string{"default": "value"}, nil},
 		{[]string{"aws-provider-patch", "--foo", "key=value"}, "foo", map[string]string{"default": "value"}, map[string]string{"key": "value"}, nil},
 		{[]string{"aws-provider-patch", "--foo", "key1=value1", "--foo", "key2=value2", "--foo", "key3=value3"}, "foo", map[string]string{"default": "value"}, map[string]string{"key1": "value1", "key2": "value2", "key3": "value3"}, nil},
-		{[]string{"aws-provider-patch", "--foo", "invalidvalue"}, "foo", map[string]string{"default": "value"}, nil, InvalidKeyValue("invalidvalue")},
+		{[]string{"aws-provider-patch", "--foo", "invalidvalue"}, "foo", map[string]string{"default": "value"}, nil, util.InvalidKeyValue("invalidvalue")},
 	}
 
 	for _, testCase := range testCases {

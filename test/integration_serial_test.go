@@ -207,3 +207,24 @@ func TestTerragruntValidateInputsWithUnusedEnvVar(t *testing.T) {
 	moduleDir := filepath.Join("fixture-validate-inputs", "success-inputs-only")
 	runTerragruntValidateInputs(t, moduleDir, nil, false)
 }
+
+func TestTerragruntSourceMapEnvArg(t *testing.T) {
+	fixtureSourceMapPath := "fixture-source-map"
+	cleanupTerraformFolder(t, fixtureSourceMapPath)
+	tmpEnvPath := copyEnvironment(t, fixtureSourceMapPath)
+	rootPath := filepath.Join(tmpEnvPath, fixtureSourceMapPath)
+
+	os.Setenv(
+		"TERRAGRUNT_SOURCE_MAP",
+		strings.Join(
+			[]string{
+				fmt.Sprintf("git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=%s", tmpEnvPath),
+				fmt.Sprintf("git::ssh://git@github.com/gruntwork-io/another-dont-exist.git=%s", tmpEnvPath),
+			},
+			",",
+		),
+	)
+	tgPath := filepath.Join(rootPath, "multiple-match")
+	tgArgs := fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", tgPath)
+	runTerragrunt(t, tgArgs)
+}
