@@ -452,7 +452,10 @@ func terragruntAlreadyInit(terragruntOptions *options.TerragruntOptions, configP
 		return false, "", err
 	}
 	var workingDir string
-	sourceUrl := GetTerraformSourceUrl(terragruntOptions, terraformBlockTGConfig)
+	sourceUrl, err := GetTerraformSourceUrl(terragruntOptions, terraformBlockTGConfig)
+	if err != nil {
+		return false, "", err
+	}
 	if sourceUrl == "" || sourceUrl == "." {
 		// When there is no source URL, there is no download process and the working dir is the same as the directory
 		// where the config is.

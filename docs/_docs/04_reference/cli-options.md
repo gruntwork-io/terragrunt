@@ -389,6 +389,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-working-dir](#terragrunt-working-dir)
 - [terragrunt-download-dir](#terragrunt-download-dir)
 - [terragrunt-source](#terragrunt-source)
+- [terragrunt-source-map](#terragrunt-source-map)
 - [terragrunt-source-update](#terragrunt-source-update)
 - [terragrunt-ignore-dependency-errors](#terragrunt-ignore-dependency-errors)
 - [terragrunt-iam-role](#terragrunt-iam-role)
@@ -499,6 +500,35 @@ source](https://www.terraform.io/docs/modules/sources.html) parameter. If you sp
 `destroy-all`, `output-all`, `validate-all`, or `plan-all` commands, Terragrunt will assume this is the local file path
 for all of your Terraform modules, and for each module processed by the `xxx-all` command, Terragrunt will automatically
 append the path of `source` parameter in each module to the `--terragrunt-source` parameter you passed in.
+
+
+### terragrunt-source-map
+
+**CLI Arg**: `--terragrunt-source-map`<br/>
+**Requires an argument**: `--terragrunt-source-map git::ssh://github.com=/path/to/local-terraform-code`
+
+Can be supplied multiple times: `--terragrunt-source-map source1=dest1 --terragrunt-source-map source2=dest2`
+
+The `--terragrunt-source-map source=dest` param replaces any `source` URL (including the source URL of a config pulled
+in with `dependency` blocks) that has root `source` with `dest`.
+
+For example:
+
+```
+terragrunt apply --terragrunt-source-map github.com/org/modules.git:/local/path/to/modules
+```
+
+The above would replace `terraform { source = "github.com/org/modules.git//xxx" }` with `terraform { source = /local/path/to/modules//xxx }` regardless of
+whether you were running `apply`, or `run-all`, or using a `dependency`.
+
+**NOTE**: This setting is ignored if you pass in `--terragrunt-source`.
+
+Note that this only performs literal matches on the URL portion. For example, a map key of
+`ssh://git@github.com/gruntwork-io/terragrunt.git` will only match terragrunt configurations with source `source =
+"ssh://git@github.com/gruntwork-io/terragrunt.git//xxx"` and not sources of the form `source =
+"git::ssh://git@github.com/gruntwork-io/terragrunt.git//xxx"`. The latter requires a map key of
+`git::ssh://git@github.com/gruntwork-io/terragrunt.git`.
+
 
 
 ### terragrunt-source-update
