@@ -4084,6 +4084,8 @@ func TestTerragruntIamRoleProperty(t *testing.T) {
 
 	// run unit test
 	time.Sleep(5 * time.Second)
+	stdout.Reset()
+	stderr.Reset()
 	iamRoleTest := filepath.Join(TEST_FIXTURE_IAM_ROLE, "iam-role-property")
 	cleanupTerragruntFolder(t, iamRoleTest)
 	tmpIamRolePath := copyEnvironment(t, iamRoleTest)
