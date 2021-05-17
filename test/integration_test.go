@@ -124,6 +124,7 @@ const (
 	TEST_FIXTURE_DIRS_PATH                                  = "fixture-dirs"
 	TEST_FIXTURE_PARALLELISM                                = "fixture-parallelism"
 	TEST_FIXTURE_SOPS                                       = "fixture-sops"
+	TEST_FIXTURE_IAM_ROLE                                   = "fixture-iam-role"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -4106,4 +4107,50 @@ func TestTerragruntRunAllCommandPrompt(t *testing.T) {
 	logBufferContentsLineByLine(t, stderr, "stderr")
 	assert.Contains(t, stderr.String(), "Are you sure you want to run 'terragrunt apply' in each folder of the stack described above? (y/n)")
 	assert.Error(t, err)
+}
+
+func TestTerragruntIamRoleProperty(t *testing.T) {
+	t.Parallel()
+
+	// setup unit test
+	iamRoleName := fmt.Sprintf("terragrunt-test-iam-role-%s", strings.ToLower(uniqueId()))
+	setUpTestCase := filepath.Join(TEST_FIXTURE_IAM_ROLE, "set-up")
+	cleanupTerragruntFolder(t, setUpTestCase)
+	tmpSetUpPath := copyEnvironment(t, setUpTestCase)
+	setUpPath := util.JoinPath(tmpSetUpPath, setUpTestCase)
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --var test_role_name=%s", setUpPath, iamRoleName))
+	defer runTerragrunt(t, fmt.Sprintf("terragrunt destroy -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", setUpPath))
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", setUpPath), &stdout, &stderr)
+	require.NoError(t, err)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.Bytes()), &outputs))
+	iamRoleArn := string(outputs["role_terragrunt_test_arn"].Value.(string))
+
+	// run unit test
+	time.Sleep(5 * time.Second)
+	iamRoleTest := filepath.Join(TEST_FIXTURE_IAM_ROLE, "iam-role-property")
+	cleanupTerragruntFolder(t, iamRoleTest)
+	tmpIamRolePath := copyEnvironment(t, iamRoleTest)
+	iamRolePath := util.JoinPath(tmpIamRolePath, iamRoleTest)
+	configDestPath := util.JoinPath(iamRolePath, config.DefaultTerragruntConfigPath)
+
+	contents, err := util.ReadFileAsString(configDestPath)
+	if err != nil {
+		t.Fatalf("Error reading Terragrunt config at %s: %v", configDestPath, err)
+	}
+	contents = strings.Replace(contents, "__IAM_ROLE_ARN__", iamRoleArn, -1)
+
+	if err := ioutil.WriteFile(configDestPath, []byte(contents), 0444); err != nil {
+		t.Fatalf("Error writing temp Terragrunt config to %s: %v", configDestPath, err)
+	}
+
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", iamRolePath), &stdout, &stderr)
+	output := stdout.String()
+	assert.True(t, strings.Contains(output, iamRoleName))
 }
