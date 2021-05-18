@@ -124,7 +124,7 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 }
 
 // Make API calls to AWS to assume the IAM role specified and return the temporary AWS credentials to use that role
-func AssumeIamRole(iamRoleArn string, duration int64) (*sts.Credentials, error) {
+func AssumeIamRole(iamRoleArn string, sessionDurationSeconds int64) (*sts.Credentials, error) {
 	sess, err := session.NewSession()
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
@@ -140,7 +140,7 @@ func AssumeIamRole(iamRoleArn string, duration int64) (*sts.Credentials, error) 
 	input := sts.AssumeRoleInput{
 		RoleArn:         aws.String(iamRoleArn),
 		RoleSessionName: aws.String(fmt.Sprintf("terragrunt-%d", time.Now().UTC().UnixNano())),
-		DurationSeconds: aws.Int64(duration),
+		DurationSeconds: aws.Int64(sessionDurationSeconds),
 	}
 
 	output, err := stsClient.AssumeRole(&input)
@@ -203,7 +203,7 @@ func AssumeRoleAndUpdateEnvIfNecessary(terragruntOptions *options.TerragruntOpti
 		return nil
 	}
 
-	terragruntOptions.Logger.Debugf("Assuming IAM role %s with duration %d", terragruntOptions.IamRole, terragruntOptions.StsDuration)
+	terragruntOptions.Logger.Debugf("Assuming IAM role %s with a session duration of %d seconds.", terragruntOptions.IamRole, terragruntOptions.StsDuration)
 	creds, err := AssumeIamRole(terragruntOptions.IamRole, terragruntOptions.StsDuration)
 	if err != nil {
 		return err
