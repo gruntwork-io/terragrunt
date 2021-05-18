@@ -563,7 +563,7 @@ and Terraform with multiple AWS accounts.
 **Environment Variable**: `TERRAGRUNT_STS_DURATION`<br/>
 **Requires an argument**: `--terragrunt-sts-duration 3600`
 
-Uses the specified duration as the session duration of the STS credentials assumed for the role defined in `--terragrunt-iam-role`
+Uses the specified duration as the session duration (in seconds) for the STS session which assumes the role defined in `--terragrunt-iam-role`.
 
 
 ### terragrunt-exclude-dir
