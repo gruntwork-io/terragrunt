@@ -83,7 +83,7 @@ func terragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	if err != nil {
 		return cty.NilVal, err
 	}
-	fmt.Println(stsDurationCty)
+	
 	if stsDurationCty != cty.NilVal {
 		output["sts_duration"] = stsDurationCty
 	}
