@@ -35,6 +35,8 @@ const TerragruntCacheDir = ".terragrunt-cache"
 
 const DefaultTFDataDir = ".terraform"
 
+const DEFAULT_STS_DURATION = 3600
+
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
 	// Location of the Terragrunt config file
@@ -200,6 +202,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		SourceMap:                   map[string]string{},
 		SourceUpdate:                false,
 		DownloadDir:                 downloadDir,
+		StsDuration:                 DEFAULT_STS_DURATION,
 		IgnoreDependencyErrors:      false,
 		IgnoreDependencyOrder:       false,
 		IgnoreExternalDependencies:  false,
