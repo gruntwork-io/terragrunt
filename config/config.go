@@ -38,7 +38,7 @@ type TerragruntConfig struct {
 	PreventDestroy              *bool
 	Skip                        bool
 	IamRole                     string
-	StsDuration                 *int64
+	IamAssumeRoleDuration                 *int64
 	Inputs                      map[string]interface{}
 	Locals                      map[string]interface{}
 	TerragruntDependencies      []Dependency
@@ -86,7 +86,7 @@ type terragruntConfigFile struct {
 	PreventDestroy         *bool               `hcl:"prevent_destroy,attr"`
 	Skip                   *bool               `hcl:"skip,attr"`
 	IamRole                *string             `hcl:"iam_role,attr"`
-	StsDuration            *int64              `hcl:"sts_duration,attr"`
+	IamAssumeRoleDuration            *int64              `hcl:"iam_assume_role_duration,attr"`
 	TerragruntDependencies []Dependency        `hcl:"dependency,block"`
 
 	// We allow users to configure code generation via blocks:
@@ -662,8 +662,8 @@ func mergeConfigWithIncludedConfig(config *TerragruntConfig, includedConfig *Ter
 		includedConfig.IamRole = config.IamRole
 	}
 
-	if config.StsDuration != nil {
-		includedConfig.StsDuration = config.StsDuration
+	if config.IamAssumeRoleDuration != nil {
+		includedConfig.IamAssumeRoleDuration = config.IamAssumeRoleDuration
 	}
 
 	if config.TerraformVersionConstraint != "" {
@@ -899,8 +899,8 @@ func convertToTerragruntConfig(
 		terragruntConfig.IamRole = *terragruntConfigFromFile.IamRole
 	}
 
-	if terragruntConfigFromFile.StsDuration != nil {
-		terragruntConfig.StsDuration = terragruntConfigFromFile.StsDuration
+	if terragruntConfigFromFile.IamAssumeRoleDuration != nil {
+		terragruntConfig.IamAssumeRoleDuration = terragruntConfigFromFile.IamAssumeRoleDuration
 	}
 
 	generateBlocks := []terragruntGenerateBlock{}

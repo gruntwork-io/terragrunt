@@ -237,10 +237,10 @@ func TestParseIamRole(t *testing.T) {
 	assert.Equal(t, "terragrunt-iam-role", terragruntConfig.IamRole)
 }
 
-func TestParseStsDuration(t *testing.T) {
+func TestParseIamAssumeRoleDuration(t *testing.T) {
 	t.Parallel()
 
-	config := `sts_duration = 36000`
+	config := `iam_assume_role_duration = 36000`
 
 	terragruntConfig, err := ParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath)
 	if err != nil {
@@ -252,7 +252,7 @@ func TestParseStsDuration(t *testing.T) {
 	assert.Nil(t, terragruntConfig.Dependencies)
 	assert.Nil(t, terragruntConfig.RetryableErrors)
 
-	assert.Equal(t, int64(36000), *terragruntConfig.StsDuration)
+	assert.Equal(t, int64(36000), *terragruntConfig.IamAssumeRoleDuration)
 }
 
 func TestParseTerragruntConfigDependenciesOnePath(t *testing.T) {
