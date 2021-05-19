@@ -376,7 +376,8 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	// replace default sts duration if set in config
-	if terragruntOptions.IamAssumeRoleDuration == 3600 && terragruntConfig.IamAssumeRoleDuration != nil {
+	defaultIamAssumeRoleDuration := 3600 // Default duration for IAM Assume role session is 3600s (1hr)
+	if terragruntOptions.IamAssumeRoleDuration == defaultIamAssumeRoleDuration && terragruntConfig.IamAssumeRoleDuration != nil {
 		terragruntOptions.IamAssumeRoleDuration = *terragruntConfig.IamAssumeRoleDuration
 	}
 
