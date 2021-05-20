@@ -38,7 +38,7 @@ type TerragruntConfig struct {
 	PreventDestroy              *bool
 	Skip                        bool
 	IamRole                     string
-	IamAssumeRoleDuration                 *int64
+	IamAssumeRoleDuration       *int64
 	Inputs                      map[string]interface{}
 	Locals                      map[string]interface{}
 	TerragruntDependencies      []Dependency
@@ -86,7 +86,7 @@ type terragruntConfigFile struct {
 	PreventDestroy         *bool               `hcl:"prevent_destroy,attr"`
 	Skip                   *bool               `hcl:"skip,attr"`
 	IamRole                *string             `hcl:"iam_role,attr"`
-	IamAssumeRoleDuration            *int64              `hcl:"iam_assume_role_duration,attr"`
+	IamAssumeRoleDuration  *int64              `hcl:"iam_assume_role_duration,attr"`
 	TerragruntDependencies []Dependency        `hcl:"dependency,block"`
 
 	// We allow users to configure code generation via blocks:
