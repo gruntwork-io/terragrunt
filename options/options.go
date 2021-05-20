@@ -35,6 +35,8 @@ const TerragruntCacheDir = ".terragrunt-cache"
 
 const DefaultTFDataDir = ".terraform"
 
+const DEFAULT_IAM_ASSUME_ROLE_DURATION = 3600
+
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
 	// Location of the Terragrunt config file
@@ -103,6 +105,9 @@ type TerragruntOptions struct {
 
 	// The ARN of an IAM Role to assume before running Terraform
 	IamRole string
+
+	// Duration of the STS Session
+	IamAssumeRoleDuration int64
 
 	// If set to true, continue running *-all commands even if a dependency has errors. This is mostly useful for 'output-all <some_variable>'. See https://github.com/gruntwork-io/terragrunt/issues/193
 	IgnoreDependencyErrors bool
@@ -197,6 +202,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		SourceMap:                   map[string]string{},
 		SourceUpdate:                false,
 		DownloadDir:                 downloadDir,
+		IamAssumeRoleDuration:       DEFAULT_IAM_ASSUME_ROLE_DURATION,
 		IgnoreDependencyErrors:      false,
 		IgnoreDependencyOrder:       false,
 		IgnoreExternalDependencies:  false,
@@ -275,6 +281,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		DownloadDir:                  terragruntOptions.DownloadDir,
 		Debug:                        terragruntOptions.Debug,
 		IamRole:                      terragruntOptions.IamRole,
+		IamAssumeRoleDuration:        terragruntOptions.IamAssumeRoleDuration,
 		IgnoreDependencyErrors:       terragruntOptions.IgnoreDependencyErrors,
 		IgnoreDependencyOrder:        terragruntOptions.IgnoreDependencyOrder,
 		IgnoreExternalDependencies:   terragruntOptions.IgnoreExternalDependencies,

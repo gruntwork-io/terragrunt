@@ -116,6 +116,12 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
+			[]string{"--terragrunt-iam-assume-role-duration", "36000"},
+			mockOptionsWithIamAssumeRoleDuration(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, 36000),
+			nil,
+		},
+
+		{
 			[]string{"--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "--terragrunt-non-interactive"},
 			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, true, "", false, false, defaultLogLevel, false),
 			nil,
@@ -211,6 +217,12 @@ func mockOptionsWithIamRole(t *testing.T, terragruntConfigPath string, workingDi
 	return opts
 }
 
+func mockOptionsWithIamAssumeRoleDuration(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, IamAssumeRoleDuration int64) *options.TerragruntOptions {
+	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
+	opts.IamAssumeRoleDuration = IamAssumeRoleDuration
+
+	return opts
+}
 func mockOptionsWithOverrideAttrs(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, overrideAttrs map[string]string) *options.TerragruntOptions {
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, false, "", false, false, defaultLogLevel, false)
 	opts.AwsProviderPatchOverrides = overrideAttrs

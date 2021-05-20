@@ -187,6 +187,8 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "skip", true
 	case "IamRole":
 		return "iam_role", true
+	case "IamAssumeRoleDuration":
+		return "iam_assume_role_duration", true
 	case "Inputs":
 		return "inputs", true
 	case "Locals":

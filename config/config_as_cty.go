@@ -2,7 +2,6 @@ package config
 
 import (
 	"encoding/json"
-
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -77,6 +76,15 @@ func terragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	}
 	if retryableCty != cty.NilVal {
 		output["retryable_errors"] = retryableCty
+	}
+
+	iamAssumeRoleDurationCty, err := goTypeToCty(config.IamAssumeRoleDuration)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	if iamAssumeRoleDurationCty != cty.NilVal {
+		output["iam_assume_role_duration"] = iamAssumeRoleDurationCty
 	}
 
 	retryMaxAttemptsCty, err := goTypeToCty(config.RetryMaxAttempts)

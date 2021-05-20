@@ -393,6 +393,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-source-update](#terragrunt-source-update)
 - [terragrunt-ignore-dependency-errors](#terragrunt-ignore-dependency-errors)
 - [terragrunt-iam-role](#terragrunt-iam-role)
+- [terragrunt-iam-assume-role-duration](#terragrunt-iam-assume-role-duration)
 - [terragrunt-exclude-dir](#terragrunt-exclude-dir)
 - [terragrunt-include-dir](#terragrunt-include-dir)
 - [terragrunt-strict-include](#terragrunt-strict-include)
@@ -554,6 +555,15 @@ When passed in, the `*-all` commands continue processing components even if a de
 
 Assume the specified IAM role ARN before running Terraform or AWS commands. This is a convenient way to use Terragrunt
 and Terraform with multiple AWS accounts.
+
+
+### terragrunt-iam-assume-role-duration
+
+**CLI Arg**: `--terragrunt-iam-assume-role-duration`<br/>
+**Environment Variable**: `TERRAGRUNT_IAM_ASSUME_ROLE_DURATION`<br/>
+**Requires an argument**: `--terragrunt-iam-assume-role-duration 3600`
+
+Uses the specified duration as the session duration (in seconds) for the STS session which assumes the role defined in `--terragrunt-iam-role`.
 
 
 ### terragrunt-exclude-dir
