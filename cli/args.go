@@ -116,8 +116,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	}
 
 	envValue, envProvided := os.LookupEnv("TERRAGRUNT_IAM_ASSUME_ROLE_DURATION")
-	defaultIamAssumeRoleDuration := 3600 // Default STS sessions are 1 hour long (3600 seconds)
-	IamAssumeRoleDuration, err := parseIntArg(args, OPT_TERRAGRUNT_IAM_ASSUME_ROLE_DURATION, envValue, envProvided, defaultIamAssumeRoleDuration)
+	IamAssumeRoleDuration, err := parseIntArg(args, OPT_TERRAGRUNT_IAM_ASSUME_ROLE_DURATION, envValue, envProvided, options.DEFAULT_IAM_ASSUME_ROLE_DURATION)
 	if err != nil {
 		return nil, err
 	}
