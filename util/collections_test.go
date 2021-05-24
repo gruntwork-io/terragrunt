@@ -235,3 +235,44 @@ func TestStringListInsert(t *testing.T) {
 		t.Logf("%v passed", testCase.list)
 	}
 }
+
+func TestKeyValuePairStringListToMap(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		input  []string
+		output map[string]string
+	}{
+		{
+			"base",
+			[]string{"foo=bar", "baz=carol"},
+			map[string]string{
+				"foo": "bar",
+				"baz": "carol",
+			},
+		},
+		{
+			"special_chars",
+			[]string{"ssh://git@github.com=/path/to/local"},
+			map[string]string{"ssh://git@github.com": "/path/to/local"},
+		},
+		{
+			"empty",
+			[]string{},
+			map[string]string{},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			actualOutput, err := KeyValuePairStringListToMap(testCase.input)
+			assert.NoError(t, err)
+			assert.Equal(
+				t,
+				testCase.output,
+				actualOutput,
+			)
+		})
+	}
+}

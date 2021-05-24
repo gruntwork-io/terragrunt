@@ -506,6 +506,7 @@ append the path of `source` parameter in each module to the `--terragrunt-source
 ### terragrunt-source-map
 
 **CLI Arg**: `--terragrunt-source-map`<br/>
+**Environment Variable**: `TERRAGRUNT_SOURCE_MAP` (encoded as comma separated value, e.g., `source1=dest1,source2=dest2`)<br/>
 **Requires an argument**: `--terragrunt-source-map git::ssh://github.com=/path/to/local-terraform-code`
 
 Can be supplied multiple times: `--terragrunt-source-map source1=dest1 --terragrunt-source-map source2=dest2`

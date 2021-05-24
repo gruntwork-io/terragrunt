@@ -95,7 +95,11 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		return nil, err
 	}
 
-	terraformSourceMap, err := parseMutliStringKeyValueArg(args, OPT_TERRAGRUNT_SOURCE_MAP, nil)
+	terraformSourceMapEnvVar, err := parseMultiStringKeyValueEnvVar("TERRAGRUNT_SOURCE_MAP")
+	if err != nil {
+		return nil, err
+	}
+	terraformSourceMap, err := parseMutliStringKeyValueArg(args, OPT_TERRAGRUNT_SOURCE_MAP, terraformSourceMapEnvVar)
 	if err != nil {
 		return nil, err
 	}
@@ -407,25 +411,22 @@ func parseMutliStringKeyValueArg(args []string, argName string, defaultValue map
 	if err != nil {
 		return nil, err
 	}
-
 	if asList == nil {
 		return defaultValue, nil
 	}
+	return util.KeyValuePairStringListToMap(asList)
+}
 
-	asMap := map[string]string{}
-	for _, arg := range asList {
-		parts := strings.Split(arg, "=")
-		if len(parts) != 2 {
-			return nil, errors.WithStackTrace(InvalidKeyValue(arg))
-		}
-
-		key := parts[0]
-		value := parts[1]
-
-		asMap[key] = value
+// Parses an environment variable that is encoded as a comma separated kv pair (e.g.,
+// `key1=value1,key2=value2,key3=value3`) and converts it to a map. Returns empty map if the environnment variable is
+// not set, and error if the environment variable is not encoded as a comma separated kv pair.
+func parseMultiStringKeyValueEnvVar(envVarName string) (map[string]string, error) {
+	rawEnvVarVal := os.Getenv(envVarName)
+	if rawEnvVarVal == "" {
+		return map[string]string{}, nil
 	}
-
-	return asMap, nil
+	mappingsAsList := strings.Split(rawEnvVarVal, ",")
+	return util.KeyValuePairStringListToMap(mappingsAsList)
 }
 
 // Convert the given variables to a map of environment variables that will expose those variables to Terraform. The
@@ -471,10 +472,4 @@ type ArgMissingValue string
 
 func (err ArgMissingValue) Error() string {
 	return fmt.Sprintf("You must specify a value for the --%s option", string(err))
-}
-
-type InvalidKeyValue string
-
-func (err InvalidKeyValue) Error() string {
-	return fmt.Sprintf("Invalid key-value pair. Expected format KEY=VALUE, got %s.", string(err))
 }
