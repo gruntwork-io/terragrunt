@@ -517,7 +517,7 @@ in with `dependency` blocks) that has root `source` with `dest`.
 For example:
 
 ```
-terragrunt apply --terragrunt-source-map github.com/org/modules.git:/local/path/to/modules
+terragrunt apply --terragrunt-source-map github.com/org/modules.git=/local/path/to/modules
 ```
 
 The above would replace `terraform { source = "github.com/org/modules.git//xxx" }` with `terraform { source = /local/path/to/modules//xxx }` regardless of
