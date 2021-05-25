@@ -276,7 +276,7 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 	app.Author = "Gruntwork <www.gruntwork.io>"
 	app.Version = version
 	app.Action = runApp
-	app.Usage = "terragrunt <COMMAND>"
+	app.Usage = "terragrunt <COMMAND> [GLOBAL OPTIONS]"
 	app.Writer = writer
 	app.ErrWriter = errwriter
 	app.UsageText = `Terragrunt is a thin wrapper for Terraform that provides extra tools for working with multiple
