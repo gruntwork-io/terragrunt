@@ -125,7 +125,8 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 
 // Make API calls to AWS to assume the IAM role specified and return the temporary AWS credentials to use that role
 func AssumeIamRole(iamRoleArn string, sessionDurationSeconds int64) (*sts.Credentials, error) {
-	sess, err := session.NewSession()
+	sessionOptions := session.Options{SharedConfigState: session.SharedConfigEnable}
+	sess, err := session.NewSessionWithOptions(sessionOptions)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
