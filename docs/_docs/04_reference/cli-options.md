@@ -638,7 +638,8 @@ When passed in, limit the number of modules that are run concurrently to this nu
 
 ### terragrunt-debug
 
-**CLI Arg**: `--terragrunt-debug`
+**CLI Arg**: `--terragrunt-debug`<br/>
+**Environment Variable**: `TERRAGRUNT_DEBUG`
 
 When passed in, Terragrunt will create a tfvars file that can be used to invoke the terraform module in the same way
 that Terragrunt invokes the module, so that you can debug issues with the terragrunt config. See
