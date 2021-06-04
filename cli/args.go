@@ -112,7 +112,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 
 	ignoreExternalDependencies := parseBooleanArg(args, OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES, false)
 
-	includeExternalDependencies := parseBooleanArg(args, OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES, func() bool { _, b := os.LookupEnv("TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES"); return b }())
+	includeExternalDependencies := parseBooleanArg(args, OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES, os.Getenv("TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES") == "true")
 
 	iamRole, err := parseStringArg(args, OPT_TERRAGRUNT_IAM_ROLE, os.Getenv("TERRAGRUNT_IAM_ROLE"))
 	if err != nil {
