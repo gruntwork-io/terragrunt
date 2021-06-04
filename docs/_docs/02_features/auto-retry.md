@@ -28,8 +28,6 @@ Error installing provider "template": error fetching checksums: Get https://rele
 
 Terragrunt sees this error, and knows it is a transient error that can be addressed by re-running the `apply` command.
 
-`auto-retry` will try a maximum of three times to re-run the command, at which point it will deem the error as not transient, and accept the terraform failure. Retries will occur when the error is encountered, pausing for 5 seconds between retries.
-
 Terragrunt has a small list of default known errors built-in. You can override these defaults with your own custom retryable errors in your `terragrunt.hcl` configuration:
 ```hcl
 retryable_errors = [
@@ -46,6 +44,12 @@ retryable_errors = [
 ]
 ```
 
-Future upgrades to `terragrunt` may include the ability to configure max retries and retry intervals in the `terragrunt` config (PRs welcome\!).
+By default, `auto-retry` tries a maximum of three times to re-run a command, pausing for five seconds between each retry, at which point it will deem the error as not transient, and accept the `terraform` failure.
+However, you can override these defaults. For example, the following retries up to five times, with 60 seconds in between each retry:
+
+```hcl
+retry_max_attempts = 5
+retry_sleep_interval_sec = 60
+```
 
 To disable `auto-retry`, use the `--terragrunt-no-auto-retry` command line option or set the `TERRAGRUNT_AUTO_RETRY` environment variable to `false`.

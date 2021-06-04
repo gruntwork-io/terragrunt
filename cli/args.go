@@ -95,6 +95,15 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		return nil, err
 	}
 
+	terraformSourceMapEnvVar, err := parseMultiStringKeyValueEnvVar("TERRAGRUNT_SOURCE_MAP")
+	if err != nil {
+		return nil, err
+	}
+	terraformSourceMap, err := parseMutliStringKeyValueArg(args, OPT_TERRAGRUNT_SOURCE_MAP, terraformSourceMapEnvVar)
+	if err != nil {
+		return nil, err
+	}
+
 	sourceUpdate := parseBooleanArg(args, OPT_TERRAGRUNT_SOURCE_UPDATE, os.Getenv("TERRAGRUNT_SOURCE_UPDATE") == "true" || os.Getenv("TERRAGRUNT_SOURCE_UPDATE") == "1")
 
 	ignoreDependencyErrors := parseBooleanArg(args, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, false)
@@ -106,6 +115,12 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	includeExternalDependencies := parseBooleanArg(args, OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES, func() bool { _, b := os.LookupEnv("TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES"); return b }())
 
 	iamRole, err := parseStringArg(args, OPT_TERRAGRUNT_IAM_ROLE, os.Getenv("TERRAGRUNT_IAM_ROLE"))
+	if err != nil {
+		return nil, err
+	}
+
+	envValue, envProvided := os.LookupEnv("TERRAGRUNT_IAM_ASSUME_ROLE_DURATION")
+	IamAssumeRoleDuration, err := parseIntArg(args, OPT_TERRAGRUNT_IAM_ASSUME_ROLE_DURATION, envValue, envProvided, options.DEFAULT_IAM_ASSUME_ROLE_DURATION)
 	if err != nil {
 		return nil, err
 	}
@@ -139,12 +154,14 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		return nil, err
 	}
 
-	debug := parseBooleanArg(args, OPT_TERRAGRUNT_DEBUG, false)
+	opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
+
+	debug := parseBooleanArg(args, OPT_TERRAGRUNT_DEBUG, os.Getenv("TERRAGRUNT_DEBUG") == "true" || os.Getenv("TERRAGRUNT_DEBUG") == "1")
 	if debug {
 		opts.Debug = true
 	}
 
-	envValue, envProvided := os.LookupEnv("TERRAGRUNT_PARALLELISM")
+	envValue, envProvided = os.LookupEnv("TERRAGRUNT_PARALLELISM")
 	parallelism, err := parseIntArg(args, OPT_TERRAGRUNT_PARALLELISM, envValue, envProvided, options.DEFAULT_PARALLELISM)
 	if err != nil {
 		return nil, err
@@ -164,6 +181,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.Logger.Logger.SetOutput(errWriter)
 	opts.RunTerragrunt = RunTerragrunt
 	opts.Source = terraformSource
+	opts.SourceMap = terraformSourceMap
 	opts.SourceUpdate = sourceUpdate
 	opts.TerragruntVersion, err = version.NewVersion(terragruntVersion)
 	if err != nil {
@@ -181,6 +199,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.ErrWriter = errWriter
 	opts.Env = parseEnvironmentVariables(os.Environ())
 	opts.IamRole = iamRole
+	opts.IamAssumeRoleDuration = int64(IamAssumeRoleDuration)
 	opts.ExcludeDirs = excludeDirs
 	opts.IncludeDirs = includeDirs
 	opts.StrictInclude = strictInclude
@@ -220,23 +239,9 @@ func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 				}
 
 				if !skipVars {
-					// If RequiredVarFiles is specified, add -var-file=<file> for each specified files
-					if arg.RequiredVarFiles != nil {
-						for _, file := range util.RemoveDuplicatesFromListKeepLast(*arg.RequiredVarFiles) {
-							out = append(out, fmt.Sprintf("-var-file=%s", file))
-						}
-					}
-
-					// If OptionalVarFiles is specified, check for each file if it exists and if so, add -var-file=<file>
-					// It is possible that many files resolve to the same path, so we remove duplicates.
-					if arg.OptionalVarFiles != nil {
-						for _, file := range util.RemoveDuplicatesFromListKeepLast(*arg.OptionalVarFiles) {
-							if util.FileExists(file) {
-								out = append(out, fmt.Sprintf("-var-file=%s", file))
-							} else {
-								terragruntOptions.Logger.Debugf("Skipping var-file %s as it does not exist", file)
-							}
-						}
+					varFiles := arg.GetVarFiles(terragruntOptions.Logger)
+					for _, file := range varFiles {
+						out = append(out, fmt.Sprintf("-var-file=%s", file))
 					}
 				}
 			}
@@ -406,25 +411,22 @@ func parseMutliStringKeyValueArg(args []string, argName string, defaultValue map
 	if err != nil {
 		return nil, err
 	}
-
 	if asList == nil {
 		return defaultValue, nil
 	}
+	return util.KeyValuePairStringListToMap(asList)
+}
 
-	asMap := map[string]string{}
-	for _, arg := range asList {
-		parts := strings.Split(arg, "=")
-		if len(parts) != 2 {
-			return nil, errors.WithStackTrace(InvalidKeyValue(arg))
-		}
-
-		key := parts[0]
-		value := parts[1]
-
-		asMap[key] = value
+// Parses an environment variable that is encoded as a comma separated kv pair (e.g.,
+// `key1=value1,key2=value2,key3=value3`) and converts it to a map. Returns empty map if the environnment variable is
+// not set, and error if the environment variable is not encoded as a comma separated kv pair.
+func parseMultiStringKeyValueEnvVar(envVarName string) (map[string]string, error) {
+	rawEnvVarVal := os.Getenv(envVarName)
+	if rawEnvVarVal == "" {
+		return map[string]string{}, nil
 	}
-
-	return asMap, nil
+	mappingsAsList := strings.Split(rawEnvVarVal, ",")
+	return util.KeyValuePairStringListToMap(mappingsAsList)
 }
 
 // Convert the given variables to a map of environment variables that will expose those variables to Terraform. The
@@ -434,7 +436,7 @@ func toTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) 
 	out := map[string]string{}
 
 	for varName, varValue := range vars {
-		envVarName := fmt.Sprintf("TF_VAR_%s", varName)
+		envVarName := fmt.Sprintf("%s_%s", TFVarPrefix, varName)
 
 		envVarValue, err := asTerraformEnvVarJsonValue(varValue)
 		if err != nil {
@@ -470,10 +472,4 @@ type ArgMissingValue string
 
 func (err ArgMissingValue) Error() string {
 	return fmt.Sprintf("You must specify a value for the --%s option", string(err))
-}
-
-type InvalidKeyValue string
-
-func (err InvalidKeyValue) Error() string {
-	return fmt.Sprintf("Invalid key-value pair. Expected format KEY=VALUE, got %s.", string(err))
 }

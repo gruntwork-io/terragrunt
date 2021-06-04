@@ -27,10 +27,12 @@ func writeTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terr
 		terragruntOptions.WorkingDir,
 	)
 
-	variables, err := terraformModuleVariables(terragruntOptions)
+	required, optional, err := terraformModuleVariables(terragruntOptions)
 	if err != nil {
 		return err
 	}
+	variables := append(required, optional...)
+
 	terragruntOptions.Logger.Debugf("The following variables were detected in the terraform module:")
 	terragruntOptions.Logger.Debugf("%v", variables)
 
@@ -71,7 +73,7 @@ func terragruntDebugFileContents(
 
 	jsonValuesByKey := make(map[string]interface{})
 	for varName, varValue := range terragruntConfig.Inputs {
-		nameAsEnvVar := fmt.Sprintf("TF_VAR_%s", varName)
+		nameAsEnvVar := fmt.Sprintf("%s_%s", TFVarPrefix, varName)
 		_, varIsInEnv := envVars[nameAsEnvVar]
 		varIsDefined := util.ListContainsElement(moduleVariables, varName)
 
@@ -100,17 +102,22 @@ func terragruntDebugFileContents(
 }
 
 // terraformModuleVariables will return all the variables defined in the downloaded terraform modules, taking into
-// account all the generated sources.
-func terraformModuleVariables(terragruntOptions *options.TerragruntOptions) ([]string, error) {
+// account all the generated sources. This function will return the required and optional variables separately.
+func terraformModuleVariables(terragruntOptions *options.TerragruntOptions) ([]string, []string, error) {
 	modulePath := terragruntOptions.WorkingDir
 	module, diags := tfconfig.LoadModule(modulePath)
 	if diags.HasErrors() {
-		return nil, errors.WithStackTrace(diags)
+		return nil, nil, errors.WithStackTrace(diags)
 	}
 
-	variables := []string{}
+	required := []string{}
+	optional := []string{}
 	for _, variable := range module.Variables {
-		variables = append(variables, variable.Name)
+		if variable.Required {
+			required = append(required, variable.Name)
+		} else {
+			optional = append(optional, variable.Name)
+		}
 	}
-	return variables, nil
+	return required, optional, nil
 }

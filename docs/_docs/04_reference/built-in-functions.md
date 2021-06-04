@@ -27,6 +27,8 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
   - [get\_terragrunt\_dir()](#get_terragrunt_dir)
 
   - [get\_parent\_terragrunt\_dir()](#get_parent_terragrunt_dir)
+  
+  - [get\_original\_terragrunt\_dir()](#get_original_terragrunt_dir)
 
   - [get\_terraform\_commands\_that\_need\_vars()](#get_terraform_commands_that_need_vars)
 
@@ -51,6 +53,8 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
   - [read\_terragrunt\_config()](#read_terragrunt_config)
 
   - [sops\_decrypt\_file()](#sops_decrypt_file)
+
+  - [get\_terragrunt\_source\_cli\_flag()](#get_terragrunt_source_cli_flag)
 
 ## Terraform built-in functions
 
@@ -113,6 +117,25 @@ include {
   path = find_in_parent_folders("some-other-file-name.hcl", "fallback.hcl")
 }
 ```
+
+Note that this function searches relative to the child `terragrunt.hcl` file when called from a parent config. For
+example, if you had the following folder structure:
+
+    ├── terragrunt.hcl
+    └── prod
+        ├── env.hcl
+        └── mysql
+            └── terragrunt.hcl
+
+And the root `terragrunt.hcl` contained the following:
+
+    locals {
+      env_vars = read_terragrunt_config(find_in_parent_folders("env.hcl"))
+    }
+
+The `find_in_parent_folders` will search from the __child `terragrunt.hcl`__ (`prod/mysql/terragrunt.hcl`) config,
+finding the `env.hcl` file in the `prod` directory.
+
 
 ## path\_relative\_to\_include
 
@@ -356,6 +379,13 @@ terraform {
 
 The common.tfvars located in the terraform root folder will be included by all applications, whatever their relative location to the root.
 
+## get\_original\_terragrunt\_dir
+
+`get_original_terragrunt_dir()` returns the directory where the original Terragrunt configuration file (by default 
+`terragrunt.hcl`) lives. This is primarily useful when one Terragrunt config is being read from another: e.g., if 
+`/terraform-code/terragrunt.hcl` calls `read_terragrunt_config("/foo/bar.hcl")`, and within `bar.hcl`, you call 
+`get_original_terragrunt_dir()`, you'll get back `/terraform-code`.
+
 ## get\_terraform\_commands\_that\_need\_vars
 
 `get_terraform_commands_that_need_vars()` returns the list of terraform commands that accept `-var` and `-var-file` parameters. This function is used when defining [extra\_arguments]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#multiple-extra_arguments-blocks).
@@ -573,7 +603,7 @@ inputs = {
 `sops_decrypt_file(file_path)` decrypts a yaml or json file encrypted with `sops`.
 
 [sops](https://github.com/mozilla/sops) is an editor of encrypted files that supports YAML, JSON, ENV, INI and
-BINARY formats and encrypts with AWS KMS, GCP KMS, Azure Key Vault and PGP.
+BINARY formats and encrypts with AWS KMS, GCP KMS, Azure Key Vault, Hashicorp Vault and PGP.
 
 This allows static secrets to be stored encrypted within your Terragrunt repository.
 
@@ -610,3 +640,15 @@ inputs = merge(
   }
 )
 ```
+
+## get\_terragrunt\_source\_cli\_flag
+
+`get_terragrunt_source_cli_flag()` returns the value passed in via the CLI `--terragrunt-source` or an environment variable `TERRAGRUNT_SOURCE`. Note that this will return an empty string when either of those values are not provided.
+
+This is useful for constructing before and after hooks, or TF flags that only apply to local development (e.g., setting up debug flags, or adjusting the `iam_role` parameter).
+
+Some example use cases are:
+
+- Setting debug logging when doing local development.
+- Adjusting the kubernetes provider configuration so that it targets minikube instead of real clusters.
+- Providing special mocks pulled in from the local dev source (e.g., something like `mock_outputs = jsondecode(file("${get_terragrunt_source_cli_arg()}/dependency_mocks/vpc.json"))`).

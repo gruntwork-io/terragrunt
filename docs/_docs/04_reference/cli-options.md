@@ -31,6 +31,7 @@ Terragrunt supports the following CLI commands:
   - [destroy-all (DEPRECATED: use run-all)](#destroy-all-deprecated-use-run-all)
   - [validate-all (DEPRECATED: use run-all)](#validate-all-deprecated-use-run-all)
   - [terragrunt-info](#terragrunt-info)
+  - [validate-inputs](#validate-inputs)
   - [graph-dependencies](#graph-dependencies)
   - [hclfmt](#hclfmt)
   - [aws-provider-patch](#aws-provider-patch)
@@ -217,6 +218,51 @@ Might produce output such as:
 }
 ```
 
+### validate-inputs
+
+Emits information about the input variables that are configured with the given
+terragrunt configuration. Specifically, this command will print out unused
+inputs (inputs that are not defined as a terraform variable in the
+corresponding module) and undefined required inputs (required terraform
+variables that are not currently being passed in).
+
+Example:
+
+```bash
+> terragrunt validate-inputs
+The following inputs passed in by terragrunt are unused:
+
+    - foo
+    - bar
+
+
+The following required inputs are missing:
+
+    - baz
+
+```
+
+Note that this only checks for variables passed in in the following ways:
+
+- Configured `inputs` attribute.
+
+- var files defined on `terraform.extra_arguments` blocks using `required_var_files` and `optional_var_files`.
+
+- `-var-file` and `-var` CLI arguments defined on `terraform.extra_arguments` using `arguments`.
+
+- `-var-file` and `-var` CLI arguments passed to terragrunt.
+
+- Automatically loaded var files (`terraform.tfvars`, `terraform.tfvars.json`, `*.auto.tfvars`, `*.auto.tfvars.json`)
+
+- `TF_VAR` environment variables defined on `terraform.extra_arguments` blocks.
+
+- `TF_VAR` environment variables defined in the environment.
+
+Be aware that other ways to pass variables to `terraform` are not checked by this command.
+
+This command will exit with an error if terragrunt detects any unused inputs or undefined required inputs.
+
+
 ### graph-dependencies
 
 Prints the terragrunt dependency graph, in DOT format, to `stdout`. You can generate charts from DOT format using tools
@@ -335,42 +381,45 @@ This should allow you to run `import` on the module and work around those Terraf
 Terragrunt forwards all options to Terraform. The only exceptions are `--version` and arguments that start with the
 prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available options are:
 
-- [CLI commands](#cli-commands)
-  - [All Terraform built-in commands](#all-terraform-built-in-commands)
-  - [run-all](#run-all)
-  - [plan-all (DEPRECATED: use run-all)](#plan-all-deprecated-use-run-all)
-  - [apply-all (DEPRECATED: use run-all)](#apply-all-deprecated-use-run-all)
-  - [output-all (DEPRECATED: use run-all)](#output-all-deprecated-use-run-all)
-  - [destroy-all (DEPRECATED: use run-all)](#destroy-all-deprecated-use-run-all)
-  - [validate-all (DEPRECATED: use run-all)](#validate-all-deprecated-use-run-all)
-  - [terragrunt-info](#terragrunt-info)
-  - [graph-dependencies](#graph-dependencies)
-  - [hclfmt](#hclfmt)
-  - [aws-provider-patch](#aws-provider-patch)
-- [CLI options](#cli-options)
-  - [terragrunt-config](#terragrunt-config)
-  - [terragrunt-tfpath](#terragrunt-tfpath)
-  - [terragrunt-no-auto-init](#terragrunt-no-auto-init)
-  - [terragrunt-no-auto-retry](#terragrunt-no-auto-retry)
-  - [terragrunt-non-interactive](#terragrunt-non-interactive)
-  - [terragrunt-working-dir](#terragrunt-working-dir)
-  - [terragrunt-download-dir](#terragrunt-download-dir)
-  - [terragrunt-source](#terragrunt-source)
-  - [terragrunt-source-update](#terragrunt-source-update)
-  - [terragrunt-ignore-dependency-errors](#terragrunt-ignore-dependency-errors)
-  - [terragrunt-iam-role](#terragrunt-iam-role)
-  - [terragrunt-exclude-dir](#terragrunt-exclude-dir)
-  - [terragrunt-include-dir](#terragrunt-include-dir)
-  - [terragrunt-strict-include](#terragrunt-strict-include)
-  - [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
-  - [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
-  - [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
-  - [terragrunt-parallelism](#terragrunt-parallelism)
-  - [terragrunt-debug](#terragrunt-debug)
-  - [terragrunt-log-level](#terragrunt-log-level)
-  - [terragrunt-check](#terragrunt-check)
-  - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
-  - [terragrunt-override-attr](#terragrunt-override-attr)
+- [terragrunt-config](#terragrunt-config)
+- [terragrunt-tfpath](#terragrunt-tfpath)
+- [terragrunt-no-auto-init](#terragrunt-no-auto-init)
+- [terragrunt-no-auto-retry](#terragrunt-no-auto-retry)
+- [terragrunt-non-interactive](#terragrunt-non-interactive)
+- [terragrunt-working-dir](#terragrunt-working-dir)
+- [terragrunt-download-dir](#terragrunt-download-dir)
+- [terragrunt-source](#terragrunt-source)
+- [terragrunt-source-map](#terragrunt-source-map)
+- [terragrunt-source-update](#terragrunt-source-update)
+- [terragrunt-ignore-dependency-errors](#terragrunt-ignore-dependency-errors)
+- [terragrunt-iam-role](#terragrunt-iam-role)
+- [terragrunt-iam-assume-role-duration](#terragrunt-iam-assume-role-duration)
+- [terragrunt-exclude-dir](#terragrunt-exclude-dir)
+- [terragrunt-include-dir](#terragrunt-include-dir)
+- [terragrunt-strict-include](#terragrunt-strict-include)
+- [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
+- [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
+- [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
+- [terragrunt-parallelism](#terragrunt-parallelism)
+- [terragrunt-debug](#terragrunt-debug)
+- [terragrunt-check](#terragrunt-check)
+- [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
+- [terragrunt-override-attr](#terragrunt-override-attr)
+
+
+### terragrunt-config
+
+**CLI Arg**: `--terragrunt-config`<br/>
+**Environment Variable**: `TERRAGRUNT_CONFIG`<br/>
+**Requires an argument**: `--terragrunt-config /path/to/terragrunt.hcl`
+
+A custom path to the `terragrunt.hcl` or `terragrunt.hcl.json` file. The
+default path is `terragrunt.hcl` (preferred) or `terragrunt.hcl.json` in the current directory (see
+[Configuration]({{site.baseurl}}/docs/getting-started/configuration/#configuration) for a slightly more nuanced
+explanation). This argument is not used with the `apply-all`, `destroy-all`, `output-all`, `validate-all`, and
+`plan-all` commands.
+
+
 
 
 ### terragrunt-config
@@ -421,9 +470,15 @@ When passed in, don't automatically retry commands which fail with transient err
 **CLI Arg**: `--terragrunt-non-interactive`<br/>
 **Environment Variable**: `TF_INPUT` (set to `false`)
 
-When passed in, don't show interactive user prompts. This will default the answer for all prompts to 'yes'. Useful if
-you need to run Terragrunt in an automated setting (e.g. from a script). May also be specified with the
-[TF\_INPUT](https://www.terraform.io/docs/configuration/environment-variables.html#tf_input) environment variable.
+When passed in, don't show interactive user prompts. This will default the answer for all prompts to `yes` except for
+the listed cases below. This is useful if you need to run Terragrunt in an automated setting (e.g. from a script). May
+also be specified with the [TF\_INPUT](https://www.terraform.io/docs/configuration/environment-variables.html#tf_input)
+environment variable.
+
+This setting will default to `no` for the following cases:
+
+- Prompts related to pulling in external dependencies. You can force include external dependencies using the
+  [--terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies) option.
 
 
 ### terragrunt-working-dir
@@ -463,6 +518,36 @@ for all of your Terraform modules, and for each module processed by the `xxx-all
 append the path of `source` parameter in each module to the `--terragrunt-source` parameter you passed in.
 
 
+### terragrunt-source-map
+
+**CLI Arg**: `--terragrunt-source-map`<br/>
+**Environment Variable**: `TERRAGRUNT_SOURCE_MAP` (encoded as comma separated value, e.g., `source1=dest1,source2=dest2`)<br/>
+**Requires an argument**: `--terragrunt-source-map git::ssh://github.com=/path/to/local-terraform-code`
+
+Can be supplied multiple times: `--terragrunt-source-map source1=dest1 --terragrunt-source-map source2=dest2`
+
+The `--terragrunt-source-map source=dest` param replaces any `source` URL (including the source URL of a config pulled
+in with `dependency` blocks) that has root `source` with `dest`.
+
+For example:
+
+```
+terragrunt apply --terragrunt-source-map github.com/org/modules.git=/local/path/to/modules
+```
+
+The above would replace `terraform { source = "github.com/org/modules.git//xxx" }` with `terraform { source = /local/path/to/modules//xxx }` regardless of
+whether you were running `apply`, or `run-all`, or using a `dependency`.
+
+**NOTE**: This setting is ignored if you pass in `--terragrunt-source`.
+
+Note that this only performs literal matches on the URL portion. For example, a map key of
+`ssh://git@github.com/gruntwork-io/terragrunt.git` will only match terragrunt configurations with source `source =
+"ssh://git@github.com/gruntwork-io/terragrunt.git//xxx"` and not sources of the form `source =
+"git::ssh://git@github.com/gruntwork-io/terragrunt.git//xxx"`. The latter requires a map key of
+`git::ssh://git@github.com/gruntwork-io/terragrunt.git`.
+
+
+
 ### terragrunt-source-update
 
 **CLI Arg**: `--terragrunt-source-update`<br/>
@@ -486,6 +571,15 @@ When passed in, the `*-all` commands continue processing components even if a de
 
 Assume the specified IAM role ARN before running Terraform or AWS commands. This is a convenient way to use Terragrunt
 and Terraform with multiple AWS accounts.
+
+
+### terragrunt-iam-assume-role-duration
+
+**CLI Arg**: `--terragrunt-iam-assume-role-duration`<br/>
+**Environment Variable**: `TERRAGRUNT_IAM_ASSUME_ROLE_DURATION`<br/>
+**Requires an argument**: `--terragrunt-iam-assume-role-duration 3600`
+
+Uses the specified duration as the session duration (in seconds) for the STS session which assumes the role defined in `--terragrunt-iam-role`.
 
 
 ### terragrunt-exclude-dir
@@ -519,7 +613,8 @@ relative from `--terragrunt-working-dir`. Flag can be specified multiple times.
 
 When passed in, only modules under the directories passed in with [--terragrunt-include-dir](#terragrunt-include-dir)
 will be included. All dependencies of the included directories will be excluded if they are not in the included
-directories.
+directories. If no [--terragrunt-include-dir](#terragrunt-include-dir) flags are included, terragrunt will not include
+any modules during the execution of the commands.
 
 
 ### terragrunt-ignore-dependency-order
@@ -560,7 +655,8 @@ When passed in, limit the number of modules that are run concurrently to this nu
 
 ### terragrunt-debug
 
-**CLI Arg**: `--terragrunt-debug`
+**CLI Arg**: `--terragrunt-debug`<br/>
+**Environment Variable**: `TERRAGRUNT_DEBUG`
 
 When passed in, Terragrunt will create a tfvars file that can be used to invoke the terraform module in the same way
 that Terragrunt invokes the module, so that you can debug issues with the terragrunt config. See

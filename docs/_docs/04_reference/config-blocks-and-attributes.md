@@ -40,7 +40,7 @@ The `terraform` block supports the following arguments:
   local file paths, Git URLs, and Git URLS with `ref` parameters. Terragrunt will download all the code in the repo
   (i.e. the part before the double-slash `//`) so that relative paths work correctly between modules in that repo.
 - `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `terraform` CLI. Learn more
-  about its usage in the [Keep your CLI flags DRY](/use-cases/keep-your-cli-flags-dry/) use case overview. Supports
+  about its usage in the [Keep your CLI flags DRY](/docs/features/keep-your-cli-flags-dry/) use case overview. Supports
   the following arguments:
     - `arguments` (required) : A list of CLI arguments to pass to `terraform`.
     - `commands` (required) : A list of `terraform` sub commands that the arguments will be passed to.
@@ -58,6 +58,9 @@ The `terraform` block supports the following arguments:
     - `commands` (required) : A list of `terraform` sub commands for which the hook should run before.
     - `execute` (required) : A list of command and arguments that should be run as the hook. For example, if `execute` is set as
       `["echo", "Foo"]`, the command `echo Foo` will be run.
+    - `working_dir` (optional) : The path to set as the working directory of the hook. Terragrunt will switch directory
+      to this path prior to running the hook command. Defaults to the terragrunt configuration directory for
+      `terragrunt-read-config` and `init-from-module` hooks, and the terraform module directory for other command hooks.
     - `run_on_error` (optional) : If set to true, this hook will run even if a previous hook hit an error, or in the
       case of "after" hooks, if the Terraform command hit an error. Default is false.
 
@@ -222,6 +225,32 @@ The `remote_state` block supports the following arguments:
     }
     ```
 
+Note that `remote_state` can also be set as an attribute. This is useful if you want to set `remote_state` dynamically.
+For example, if in `common.hcl` you had:
+
+```hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = "mybucket"
+    key    = "path/to/my/key"
+    region = "us-east-1"
+  }
+}
+```
+
+Then in a `terragrunt.hcl` file, you could dynamically set `remote_state` as an attribute as follows:
+
+```hcl
+locals {
+  # Load the data from common.hcl
+  common = read_terragrunt_config(find_in_parent_folders("common.hcl"))
+}
+
+# Set the remote_state config dynamically to the remote_state config in common.hcl
+remote_state = local.common.remote_state
+```
+
 Note that Terragrunt does special processing of the `config` attribute for the `s3` and `gcs` remote state backends, and
 supports additional keys that are used to configure the automatic initialization feature of Terragrunt.
 
@@ -248,6 +277,7 @@ For the `s3` backend, the following additional properties are supported in the `
   such as the CRC32 check for DynamoDB. This can be used to workaround
   https://github.com/gruntwork-io/terragrunt/issues/1059.
 - `accesslogging_bucket_name`: (Optional) When provided as a valid `string`, create an S3 bucket with this name to store the access logs for the S3 bucket used to store Terraform state. If not provided, or string is empty or invalid S3 bucket name, then server access logging for the S3 bucket storing the terraform state will be disabled.
+- `accesslogging_target_prefix`: (Optional) When provided as a valid `string`, set the `TargetPrefix` for the access log objects in the S3 bucket used to store Terraform state. If set to **empty**`string`, then `TargetPrefix` will be set to **empty** `string`. If attribute is not provided at all, then `TargetPrefix` will be set to **default** value `TFStateLogs/`. This attribute won't take effect if the `accesslogging_bucket_name` attribute is not present.
 
 For the `gcs` backend, the following additional properties are supported in the `config` attribute:
 
@@ -330,7 +360,7 @@ remote_state {
 The `include` block is used to specify inheritance of Terragrunt configuration files. The included config (also called
 the `parent`) will be merged with the current configuration (also called the `child`) before processing. You can learn
 more about the inheritance properties of Terragrunt in the [Filling in remote state settings with Terragrunt
-section](/use-cases/keep-your-remote-state-configuration-dry/#filling-in-remote-state-settings-with-terragrunt) of the
+section](/docs/features/keep-your-remote-state-configuration-dry/#filling-in-remote-state-settings-with-terragrunt) of the
 "Keep your remote state configuration DRY" use case overview.
 
 The `include` block supports the following arguments:
@@ -527,6 +557,34 @@ EOF
 }
 ```
 
+Note that `generate` can also be set as an attribute. This is useful if you want to set `generate` dynamically.
+For example, if in `common.hcl` you had:
+
+```hcl
+  generate "provider" {
+    path      = "provider.tf"
+    if_exists = "overwrite"
+    contents = <<EOF
+provider "aws" {
+  region              = "us-east-1"
+  version             = "= 2.3.1"
+  allowed_account_ids = ["1234567890"]
+}
+EOF
+}
+```
+
+Then in a `terragrunt.hcl` file, you could dynamically set `generate` as an attribute as follows:
+
+```hcl
+locals {
+  # Load the data from common.hcl
+  common = read_terragrunt_config(find_in_parent_folders("common.hcl"))
+}
+
+# Set the generate config dynamically to the generate config in common.hcl
+generate = local.common.generate
+```
 
 ## Attributes
 
@@ -535,6 +593,7 @@ EOF
 - [prevent_destroy](#prevent_destroy)
 - [skip](#skip)
 - [iam_role](#iam_role)
+- [iam_assume_role_duration](#iam_assume_role_duration)
 - [terraform_binary](#terraform_binary)
 - [terraform_version_constraint](#terraform_version_constraint)
 - [terragrunt_version_constraint](#terragrunt_version_constraint)
@@ -664,6 +723,21 @@ Example:
 
 ```hcl
 iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+```
+
+
+### iam_assume_role_duration
+
+The `iam_assume_role_duration` attribute can be used to specify the STS session duration, in seconds, for the IAM role that Terragrunt should assume prior to invoking Terraform.
+
+The precedence is as follows: `--terragrunt-iam-assume-role-duration` command line option → `TERRAGRUNT_IAM_ASSUME_ROLE_DURATION` env variable →
+`iam_assume_role_duration` attribute of the `terragrunt.hcl` file in the module directory → `iam_assume_role_duration` attribute of the included
+`terragrunt.hcl`.
+
+Example:
+
+```hcl
+iam_assume_role_duration = 14400
 ```
 
 

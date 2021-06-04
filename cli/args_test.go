@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"strings"
@@ -115,6 +116,12 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
+			[]string{"--terragrunt-iam-assume-role-duration", "36000"},
+			mockOptionsWithIamAssumeRoleDuration(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, 36000),
+			nil,
+		},
+
+		{
 			[]string{"--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "--terragrunt-non-interactive"},
 			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, true, "", false, false, defaultLogLevel, false),
 			nil,
@@ -210,6 +217,12 @@ func mockOptionsWithIamRole(t *testing.T, terragruntConfigPath string, workingDi
 	return opts
 }
 
+func mockOptionsWithIamAssumeRoleDuration(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, IamAssumeRoleDuration int64) *options.TerragruntOptions {
+	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
+	opts.IamAssumeRoleDuration = IamAssumeRoleDuration
+
+	return opts
+}
 func mockOptionsWithOverrideAttrs(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, overrideAttrs map[string]string) *options.TerragruntOptions {
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, false, "", false, false, defaultLogLevel, false)
 	opts.AwsProviderPatchOverrides = overrideAttrs
@@ -282,7 +295,7 @@ func TestParseMutliStringKeyValueArg(t *testing.T) {
 		{[]string{"aws-provider-patch", "--other", "arg"}, "foo", map[string]string{"default": "value"}, map[string]string{"default": "value"}, nil},
 		{[]string{"aws-provider-patch", "--foo", "key=value"}, "foo", map[string]string{"default": "value"}, map[string]string{"key": "value"}, nil},
 		{[]string{"aws-provider-patch", "--foo", "key1=value1", "--foo", "key2=value2", "--foo", "key3=value3"}, "foo", map[string]string{"default": "value"}, map[string]string{"key1": "value1", "key2": "value2", "key3": "value3"}, nil},
-		{[]string{"aws-provider-patch", "--foo", "invalidvalue"}, "foo", map[string]string{"default": "value"}, nil, InvalidKeyValue("invalidvalue")},
+		{[]string{"aws-provider-patch", "--foo", "invalidvalue"}, "foo", map[string]string{"default": "value"}, nil, util.InvalidKeyValue("invalidvalue")},
 	}
 
 	for _, testCase := range testCases {
@@ -373,18 +386,19 @@ func TestTerraformHelp(t *testing.T) {
 		args     []string
 		expected string
 	}{
-		{[]string{"terragrunt", "plan", "--help"}, "Usage: terraform plan"},
-		{[]string{"terragrunt", "apply", "-help"}, "Usage: terraform apply"},
-		{[]string{"terragrunt", "apply", "-h"}, "Usage: terraform apply"},
+		{[]string{"terragrunt", "plan", "--help"}, "Usage: terraform .* plan"},
+		{[]string{"terragrunt", "apply", "-help"}, "Usage: terraform .* apply"},
+		{[]string{"terragrunt", "apply", "-h"}, "Usage: terraform .* apply"},
 	}
 
 	for _, testCase := range testCases {
 		err := app.Run(testCase.args)
-
 		require.NoError(t, err)
-		if !strings.Contains(output.String(), testCase.expected) {
-			t.Errorf("expected output to include help text; got stdout: %v.", output.String())
-		}
+
+		expectedRegex, err := regexp.Compile(testCase.expected)
+		require.NoError(t, err)
+
+		assert.Regexp(t, expectedRegex, output.String())
 	}
 }
 

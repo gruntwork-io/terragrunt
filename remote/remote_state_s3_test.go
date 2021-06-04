@@ -185,7 +185,7 @@ func TestGetAwsSessionConfig(t *testing.T) {
 		},
 		{
 			"extra-values",
-			map[string]interface{}{"something": "unexpected", "region": "foo", "endpoint": "bar", "profile": "baz", "role_arn": "arn::it", "shared_credentials_file": "my-file", "force_path_style": false},
+			map[string]interface{}{"something": "unexpected", "region": "foo", "endpoint": "bar", "dynamodb_endpoint": "foobar", "profile": "baz", "role_arn": "arn::it", "shared_credentials_file": "my-file", "force_path_style": false},
 		},
 	}
 
@@ -203,6 +203,7 @@ func TestGetAwsSessionConfig(t *testing.T) {
 			expected := &aws_helper.AwsSessionConfig{
 				Region:                  s3ConfigExtended.remoteStateConfigS3.Region,
 				CustomS3Endpoint:        s3ConfigExtended.remoteStateConfigS3.Endpoint,
+				CustomDynamoDBEndpoint:  s3ConfigExtended.remoteStateConfigS3.DynamoDBEndpoint,
 				Profile:                 s3ConfigExtended.remoteStateConfigS3.Profile,
 				RoleArn:                 s3ConfigExtended.remoteStateConfigS3.RoleArn,
 				CredsFilename:           s3ConfigExtended.remoteStateConfigS3.CredsFilename,
@@ -278,6 +279,7 @@ func TestGetTerraformInitArgs(t *testing.T) {
 				"enable_lock_table_ssencryption": true,
 				"disable_aws_client_checksums":   false,
 				"accesslogging_bucket_name":      "test",
+				"accesslogging_target_prefix":    "test",
 			},
 			map[string]interface{}{},
 			true,

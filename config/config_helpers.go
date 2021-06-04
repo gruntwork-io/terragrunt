@@ -28,7 +28,6 @@ var TERRAFORM_COMMANDS_NEED_LOCKING = []string{
 	"apply",
 	"destroy",
 	"import",
-	"init",
 	"plan",
 	"refresh",
 	"taint",
@@ -104,6 +103,7 @@ func CreateTerragruntEvalContext(
 		"read_terragrunt_config":                       readTerragruntConfigAsFuncImpl(terragruntOptions),
 		"get_platform":                                 wrapVoidToStringAsFuncImpl(getPlatform, extensions.Include, terragruntOptions),
 		"get_terragrunt_dir":                           wrapVoidToStringAsFuncImpl(getTerragruntDir, extensions.Include, terragruntOptions),
+		"get_original_terragrunt_dir":                  wrapVoidToStringAsFuncImpl(getOriginalTerragruntDir, extensions.Include, terragruntOptions),
 		"get_terraform_command":                        wrapVoidToStringAsFuncImpl(getTerraformCommand, extensions.Include, terragruntOptions),
 		"get_terraform_cli_args":                       wrapVoidToStringSliceAsFuncImpl(getTerraformCliArgs, extensions.Include, terragruntOptions),
 		"get_parent_terragrunt_dir":                    wrapVoidToStringAsFuncImpl(getParentTerragruntDir, extensions.Include, terragruntOptions),
@@ -115,6 +115,7 @@ func CreateTerragruntEvalContext(
 		"get_terraform_commands_that_need_input":       wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_INPUT),
 		"get_terraform_commands_that_need_parallelism": wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_PARALLELISM),
 		"sops_decrypt_file":                            wrapStringSliceToStringAsFuncImpl(sopsDecryptFile, extensions.Include, terragruntOptions),
+		"get_terragrunt_source_cli_flag":               wrapVoidToStringAsFuncImpl(getTerragruntSourceCliFlag, extensions.Include, terragruntOptions),
 	}
 
 	functions := map[string]function.Function{}
@@ -146,6 +147,19 @@ func getPlatform(include *IncludeConfig, terragruntOptions *options.TerragruntOp
 // Return the directory where the Terragrunt configuration file lives
 func getTerragruntDir(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	terragruntConfigFileAbsPath, err := filepath.Abs(terragruntOptions.TerragruntConfigPath)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	return filepath.ToSlash(filepath.Dir(terragruntConfigFileAbsPath)), nil
+}
+
+// Return the directory where the original Terragrunt configuration file lives. This is primarily useful when one
+// Terragrunt config is being read from anothere.g., if /terraform-code/terragrunt.hcl
+// calls read_terragrunt_config("/foo/bar.hcl"), and within bar.hcl, you call get_original_terragrunt_dir(), you'll
+// get back /terraform-code.
+func getOriginalTerragruntDir(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	terragruntConfigFileAbsPath, err := filepath.Abs(terragruntOptions.OriginalTerragruntConfigPath)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
@@ -332,14 +346,14 @@ func getTerraformCommand(include *IncludeConfig, terragruntOptions *options.Terr
 	return terragruntOptions.TerraformCommand, nil
 }
 
-// getTerraformCommand returns the current terraform command in execution
+// getTerraformCliArgs returns cli args for terraform
 func getTerraformCliArgs(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) ([]string, error) {
 	return terragruntOptions.TerraformCliArgs, nil
 }
 
 // Return the AWS account id associated to the current set of credentials
 func getAWSAccountID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	accountID, err := aws_helper.GetAWSAccountID(terragruntOptions)
+	accountID, err := aws_helper.GetAWSAccountID(nil, terragruntOptions)
 	if err == nil {
 		return accountID, nil
 	}
@@ -348,7 +362,7 @@ func getAWSAccountID(include *IncludeConfig, terragruntOptions *options.Terragru
 
 // Return the ARN of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityARN(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	identityARN, err := aws_helper.GetAWSIdentityArn(terragruntOptions)
+	identityARN, err := aws_helper.GetAWSIdentityArn(nil, terragruntOptions)
 	if err == nil {
 		return identityARN, nil
 	}
@@ -357,7 +371,7 @@ func getAWSCallerIdentityARN(include *IncludeConfig, terragruntOptions *options.
 
 // Return the UserID of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityUserID(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	userID, err := aws_helper.GetAWSUserID(terragruntOptions)
+	userID, err := aws_helper.GetAWSUserID(nil, terragruntOptions)
 	if err == nil {
 		return userID, nil
 	}
@@ -559,6 +573,11 @@ func sopsDecryptFile(params []string, include *IncludeConfig, terragruntOptions 
 	return "", errors.WithStackTrace(InvalidSopsFormat{SourceFilePath: sourceFile})
 }
 
+// Return the location of the Terraform files provided via --terragrunt-source
+func getTerragruntSourceCliFlag(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	return terragruntOptions.Source, nil
+}
+
 // Custom error types
 type WrongNumberOfParams struct {
 	Func     string
@@ -636,6 +655,15 @@ type InvalidSourceUrl struct {
 
 func (err InvalidSourceUrl) Error() string {
 	return fmt.Sprintf("The --terragrunt-source parameter is set to '%s', but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!", err.TerragruntSource, err.ModulePath, err.ModuleSourceUrl)
+}
+
+type InvalidSourceUrlWithMap struct {
+	ModulePath      string
+	ModuleSourceUrl string
+}
+
+func (err InvalidSourceUrlWithMap) Error() string {
+	return fmt.Sprintf("The --terragrunt-source-map parameter was passed in, but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!", err.ModulePath, err.ModuleSourceUrl)
 }
 
 type ErrorParsingModulePath struct {
