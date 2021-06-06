@@ -8,11 +8,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/mattn/go-zglob"
 
-	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -52,15 +52,15 @@ func runHCLFmt(terragruntOptions *options.TerragruntOptions) error {
 
 	terragruntOptions.Logger.Debugf("Found %d terragrunt.hcl files", len(filteredTgHclFiles))
 
-	formatErrors := []error{}
+	var formatErrors *multierror.Error
 	for _, tgHclFile := range filteredTgHclFiles {
 		err := formatTgHCL(terragruntOptions, tgHclFile)
 		if err != nil {
-			formatErrors = append(formatErrors, err)
+			formatErrors = multierror.Append(formatErrors, err)
 		}
 	}
 
-	return errors.NewMultiError(formatErrors...)
+	return formatErrors.ErrorOrNil()
 }
 
 // formatTgHCL uses the hcl2 library to format the terragrunt.hcl file. This will attempt to parse the HCL file first to
