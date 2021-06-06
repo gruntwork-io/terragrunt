@@ -2,11 +2,11 @@ package configstack
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/hashicorp/go-multierror"
 )
 
 // Represents the status of a module that we are trying to apply as part of the apply-all or destroy-all command
@@ -181,18 +181,14 @@ func runModules(modules map[string]*runningModule, parallelism int) error {
 // Collect the errors from the given modules and return a single error object to represent them, or nil if no errors
 // occurred
 func collectErrors(modules map[string]*runningModule) error {
-	errs := []error{}
+	var result *multierror.Error
 	for _, module := range modules {
 		if module.Err != nil {
-			errs = append(errs, module.Err)
+			result = multierror.Append(result, module.Err)
 		}
 	}
 
-	if len(errs) == 0 {
-		return nil
-	} else {
-		return errors.WithStackTrace(MultiError{Errors: errs})
-	}
+	return result.ErrorOrNil()
 }
 
 // Run a module once all of its dependencies have finished executing.
@@ -277,30 +273,6 @@ func (this DependencyFinishedWithError) ExitStatus() (int, error) {
 		return exitCode, nil
 	}
 	return -1, this
-}
-
-type MultiError struct {
-	Errors []error
-}
-
-func (err MultiError) Error() string {
-	errorStrings := []string{}
-	for _, err := range err.Errors {
-		errorStrings = append(errorStrings, err.Error())
-	}
-	return fmt.Sprintf("Encountered the following errors:\n%s", strings.Join(errorStrings, "\n"))
-}
-
-func (this MultiError) ExitStatus() (int, error) {
-	exitCode := 0
-	for i := range this.Errors {
-		if code, err := shell.GetExitCode(this.Errors[i]); err != nil {
-			return -1, this
-		} else if code > exitCode {
-			exitCode = code
-		}
-	}
-	return exitCode, nil
 }
 
 type DependencyNotFoundWhileCrossLinking struct {

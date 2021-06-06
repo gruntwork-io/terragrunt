@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -172,7 +173,7 @@ func optionsWithMockTerragruntCommand(t *testing.T, terragruntConfigPath string,
 
 func assertMultiErrorContains(t *testing.T, actualError error, expectedErrors ...error) {
 	actualError = errors.Unwrap(actualError)
-	multiError, isMultiError := actualError.(MultiError)
+	multiError, isMultiError := actualError.(*multierror.Error)
 	if assert.True(t, isMultiError, "Expected a MutliError, but got: %v", actualError) {
 		assert.Equal(t, len(expectedErrors), len(multiError.Errors))
 		for _, expectedErr := range expectedErrors {
