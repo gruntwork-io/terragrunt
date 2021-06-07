@@ -621,6 +621,7 @@ included directories with `terragrunt-include-dir`.
 ### terragrunt-include-external-dependencies
 
 **CLI Arg**: `--terragrunt-include-external-dependencies`
+**Environment Variable**: `TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES`
 
 When passed in, include any external dependencies when running `*-all` without asking. Note that an external
 dependency is a dependency that is outside the current terragrunt working directory, and is not respective to the
