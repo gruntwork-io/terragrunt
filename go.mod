@@ -30,7 +30,7 @@ require (
 	github.com/hashicorp/hcl/v2 v2.9.1
 	github.com/hashicorp/terraform v0.12.24
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20210318070130-9a80970d6b34
-	github.com/hashicorp/vault v1.7.0
+	github.com/hashicorp/vault v1.7.0 // indirect
 	github.com/kr/pretty v0.2.1 // indirect
 	github.com/lib/pq v1.8.0 // indirect
 	github.com/mattn/go-colorable v0.1.7 // indirect
@@ -48,6 +48,7 @@ require (
 	github.com/ulikunitz/xz v0.5.7 // indirect
 	github.com/urfave/cli v1.22.3
 	github.com/zclconf/go-cty v1.8.1
+	github.com/zclconf/go-cty-yaml v1.0.2 // indirect
 	go.mozilla.org/sops/v3 v3.7.0
 	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83
 	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
