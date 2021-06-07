@@ -2123,6 +2123,7 @@ func TestYamlDecodeRegressions(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
 	assert.Equal(t, outputs["test1"].Value, "003")
 	assert.Equal(t, outputs["test2"].Value, "1.00")
+	assert.Equal(t, outputs["test3"].Value, "0ba")
 }
 
 // We test the path with remote_state blocks by:
