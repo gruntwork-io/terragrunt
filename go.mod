@@ -24,6 +24,7 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-getter v1.4.2-0.20200106182914-9813cbd4eb02
 	github.com/hashicorp/go-hclog v0.15.0 // indirect
+	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-retryablehttp v0.6.7 // indirect
 	github.com/hashicorp/go-version v1.2.1
 	github.com/hashicorp/hcl v1.0.1-vault // indirect

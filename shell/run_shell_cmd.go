@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/go-multierror"
 	"github.com/sirupsen/logrus"
 )
 
@@ -140,7 +141,7 @@ func isTerraformCommandThatNeedsPty(command string) bool {
 }
 
 // Return the exit code of a command. If the error does not implement errors.IErrorCode or is not an exec.ExitError
-// or errors.MultiError type, the error is returned.
+// or *multierror.Error type, the error is returned.
 func GetExitCode(err error) (int, error) {
 	if exiterr, ok := errors.Unwrap(err).(errors.IErrorCode); ok {
 		return exiterr.ExitStatus()
@@ -151,7 +152,7 @@ func GetExitCode(err error) (int, error) {
 		return status.ExitStatus(), nil
 	}
 
-	if exiterr, ok := errors.Unwrap(err).(errors.MultiError); ok {
+	if exiterr, ok := errors.Unwrap(err).(*multierror.Error); ok {
 		for _, err := range exiterr.Errors {
 			exitCode, exitCodeErr := GetExitCode(err)
 			if exitCodeErr == nil {
