@@ -616,8 +616,6 @@ func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOption
 	//Skip execution if there was an error AND we care about errors
 
 	//resolves: https://github.com/gruntwork-io/terragrunt/issues/459
-	//by helping to filter out nil errors that were acting as false positives
-	//for the len(previousExecErrors) == 0 check that used to be here
 	hasErrors := previousExecErrors.ErrorOrNil() != nil
 	isCommandInHook := util.ListContainsElement(hook.Commands, terragruntOptions.TerraformCommand)
 
