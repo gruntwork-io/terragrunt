@@ -78,11 +78,11 @@ The results of this pass are then used to build the dependency graph of the modu
 
 This allows Terragrunt to avoid resolving `dependency` on modules that haven’t been applied yet when doing a clean deployment from scratch with `run-all apply`.
 
-## Formatting terragrunt.hcl
+## Formatting hcl files
 
-You can rewrite `terragrunt.hcl` files to a canonical format using the `hclfmt` command built into `terragrunt`. Similar to `terraform fmt`, this command applies a subset of [the Terraform language style conventions](https://www.terraform.io/docs/configuration/style.html), along with other minor adjustments for readability.
+You can rewrite the hcl files to a canonical format using the `hclfmt` command built into `terragrunt`. Similar to `terraform fmt`, this command applies a subset of [the Terraform language style conventions](https://www.terraform.io/docs/configuration/style.html), along with other minor adjustments for readability.
 
-This command will recursively search for `terragrunt.hcl` files and format all of them under a given directory tree. Consider the following file structure:
+This command will recursively search for hcl files and format all of them under a given directory tree. Consider the following file structure:
 
     root
     ├── terragrunt.hcl
@@ -91,7 +91,11 @@ This command will recursively search for `terragrunt.hcl` files and format all o
     ├── dev
     │   └── terragrunt.hcl
     └── qa
-        └── terragrunt.hcl
+        ├── terragrunt.hcl
+        └── services
+            ├── services.hcl
+            └── service01
+                └── terragrunt.hcl
 
 If you run `terragrunt hclfmt` at the `root`, this will update:
 
@@ -102,5 +106,9 @@ If you run `terragrunt hclfmt` at the `root`, this will update:
   - `root/dev/terragrunt.hcl`
 
   - `root/qa/terragrunt.hcl`
+
+  - `root/qa/services/services.hcl`
+
+  - `root/qa/services/service01/terragrunt.hcl`
 
 Additionally, there’s a flag `--terragrunt-check`. `terragrunt hclfmt --terragrunt-check` will only verify if the files are correctly formatted **without rewriting** them. The command will return exit status 1 if any matching files are improperly formatted, or 0 if all matching .hcl files are correctly formatted.

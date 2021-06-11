@@ -14,7 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-// manifest for files coped from terragrunt module folder (i.e., the folder that contains the current terragrunt.hcl)
+// manifest for files copied from terragrunt module folder (i.e., the folder that contains the current terragrunt.hcl)
 const MODULE_MANIFEST_NAME = ".terragrunt-module-manifest"
 
 // 1. Download the given source URL, which should use Terraform's module source syntax, into a temporary folder

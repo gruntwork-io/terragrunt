@@ -155,7 +155,7 @@ func getTerragruntDir(include *IncludeConfig, terragruntOptions *options.Terragr
 }
 
 // Return the directory where the original Terragrunt configuration file lives. This is primarily useful when one
-// Terragrunt config is being read from anothere.g., if /terraform-code/terragrunt.hcl
+// Terragrunt config is being read from another e.g., if /terraform-code/terragrunt.hcl
 // calls read_terragrunt_config("/foo/bar.hcl"), and within bar.hcl, you call get_original_terragrunt_dir(), you'll
 // get back /terraform-code.
 func getOriginalTerragruntDir(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {

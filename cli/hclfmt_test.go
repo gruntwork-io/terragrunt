@@ -36,6 +36,8 @@ func TestHCLFmt(t *testing.T) {
 			"terragrunt.hcl",
 			"a/terragrunt.hcl",
 			"a/b/c/terragrunt.hcl",
+			"a/b/c/d/services.hcl",
+			"a/b/c/d/e/terragrunt.hcl",
 		}
 		for _, dir := range dirs {
 			// Capture range variable into for block so it doesn't change while looping
@@ -128,6 +130,8 @@ func TestHCLFmtCheck(t *testing.T) {
 		"terragrunt.hcl",
 		"a/terragrunt.hcl",
 		"a/b/c/terragrunt.hcl",
+		"a/b/c/d/services.hcl",
+		"a/b/c/d/e/terragrunt.hcl",
 	}
 
 	for _, dir := range dirs {
@@ -171,6 +175,8 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 		"terragrunt.hcl",
 		"a/terragrunt.hcl",
 		"a/b/c/terragrunt.hcl",
+		"a/b/c/d/services.hcl",
+		"a/b/c/d/e/terragrunt.hcl",
 	}
 
 	for _, dir := range dirs {
