@@ -1499,7 +1499,7 @@ func TestPreventDestroyDependencies(t *testing.T) {
 
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		assert.IsType(t, multierror.Error{}, underlying)
+		assert.IsType(t, &multierror.Error{}, underlying)
 	}
 
 	// Check that modules C, D and E were deleted and modules A and B weren't.
@@ -1708,7 +1708,7 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		assert.IsType(t, multierror.Error{}, underlying)
+		assert.IsType(t, &multierror.Error{}, underlying)
 	}
 
 	// Check that modules C, D and E were deleted and modules A and B weren't.
