@@ -308,7 +308,7 @@ digraph {
 
 ### hclfmt
 
-Recursively find `terragrunt.hcl` files and rewrite them into a canonical format.
+Recursively find hcl files and rewrite them into a canonical format.
 
 Example:
 
@@ -317,7 +317,7 @@ terragrunt hclfmt
 ```
 
 This will recursively search the current working directory for any folders that contain Terragrunt configuration files
-(`terragrunt.hcl`) and run the equivalent of `terraform fmt` on them.
+and run the equivalent of `terraform fmt` on them.
 
 
 ### aws-provider-patch
@@ -678,7 +678,7 @@ command to exit with exit code 1 if there are any files that are not formatted.
 **CLI Arg**: `--terragrunt-hclfmt-file`
 **Requires an argument**: `--terragrunt-hclfmt-file /path/to/terragrunt.hcl`
 
-When passed in, run `hclfmt` only on specified `*/terragrunt.hcl` file.
+When passed in, run `hclfmt` only on specified hcl file.
 
 
 ### terragrunt-override-attr
