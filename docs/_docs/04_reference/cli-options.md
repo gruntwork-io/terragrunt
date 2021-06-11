@@ -330,13 +330,17 @@ This command is a hacky attempt at working around this problem by allowing you t
 attributes so `import` can work.
 
 You specify which attributes to hard-code using the [`--terragrunt-override-attr`](#terragrunt-override-attr) option,
-passing it `ATTR=VALUE`, where `ATTR` is the attribute name and `VALUE` is the new value. Note that `ATTR` can specify
-attributes within a nested block by specifying `<BLOCK>.<ATTR>`, where `<BLOCK>` is the block name. For example, let's
-say you had a `provider` block in a module that looked like this:
+passing it `ATTR=VALUE`, where `ATTR` is the attribute name and `VALUE` is the new value. `VALUE` is assumed to be a
+json encoded string, which means that you must have quotes (e.g., `--terragrunt-override-attr 'region="eu-west-1"'`).
+Additionally, note that `ATTR` can specify attributes within a nested block by specifying `<BLOCK>.<ATTR>`, where
+`<BLOCK>` is the block name.
+
+For example, let's say you had a `provider` block in a module that looked like this:
 
 ```hcl
 provider "aws" {
-  region = var.aws_region
+  region              = var.aws_region
+  allowed_account_ids = var.allowed_account_ids
   assume_role {
     role_arn = var.role_arn
   }
@@ -347,9 +351,12 @@ Both the `region` and `role_arn` parameters are set to dynamic values, which wil
 around it, run the following command:
 
 ```bash
+# NOTE: The single quotes around the args is to allow you to pass through the " character in the args via bash quoting
+# rules.
 terragrunt aws-provider-patch \
-  --terragrunt-override-attr region=eu-west-1 \
-  --terragrunt-override-attr assume_role.role_arn=""
+  --terragrunt-override-attr 'region="eu-west-1"' \
+  --terragrunt-override-attr 'assume_role.role_arn=""' \
+  --terragrunt-override-attr 'allowed_account_ids=["00000000"]'
 ```
 
 When you run the command above, Terragrunt will:
@@ -358,12 +365,14 @@ When you run the command above, Terragrunt will:
 1. Scan all the Terraform code in `.terraform/modules`, find AWS `provider` blocks, and for each one, hard-code:
     1. The `region` param to `"eu-west-1"`.
     1. The `role_arn` within the `assume_role` block to `""`.
+    1. The `allowed_account_ids` param to `["0000000"]`.
 
 The result will look like this:
 
 ```hcl
 provider "aws" {
-  region = "eu-west-1"
+  region              = "eu-west-1"
+  allowed_account_ids = ["0000000"]
   assume_role {
     role_arn = ""
   }
