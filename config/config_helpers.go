@@ -147,7 +147,7 @@ func CreateTerragruntEvalContext(
 	if extensions.DecodedDependencies != nil {
 		ctx.Variables["dependency"] = *extensions.DecodedDependencies
 	}
-	if extensions.TrackInclude.Current != nil {
+	if extensions.TrackInclude.Current != nil && extensions.TrackInclude.Current.GetExpose() {
 		includedConfig, err := parseIncludedConfig(extensions.TrackInclude.Current, terragruntOptions)
 		if err != nil {
 			return ctx, err

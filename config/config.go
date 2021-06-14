@@ -188,11 +188,19 @@ type terragruntGenerateBlock struct {
 // IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
 // "include" in a child Terragrunt configuration file
 type IncludeConfig struct {
-	Path string `hcl:"path,attr"`
+	Path   string `hcl:"path,attr"`
+	Expose *bool  `hcl:"expose,attr"`
 }
 
 func (cfg *IncludeConfig) String() string {
-	return fmt.Sprintf("IncludeConfig{Path = %s}", cfg.Path)
+	return fmt.Sprintf("IncludeConfig{Path = %s, Expose = %v}", cfg.Path, cfg.Expose)
+}
+
+func (cfg *IncludeConfig) GetExpose() bool {
+	if cfg == nil || cfg.Expose == nil {
+		return false
+	}
+	return *cfg.Expose
 }
 
 // ModuleDependencies represents the paths to other Terraform modules that must be applied before the current module

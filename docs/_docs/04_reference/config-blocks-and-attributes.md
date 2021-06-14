@@ -367,6 +367,9 @@ The `include` block supports the following arguments:
 
 - `path` (attribute): Specifies the path to a Terragrunt configuration file (the `parent` config) that should be merged
   with this configuration (the `child` config).
+- `expose` (attribute, optional): Specifies whether or not the included config should be parsed and exposed as a
+  variable. When `true`, you can reference the data of the included config under the variable `include`. Defaults to
+  `false`.
 
 Example:
 
@@ -379,7 +382,12 @@ Example:
 # └── child
 #     └── terragrunt.hcl
 include {
-  path = find_in_parent_folders()
+  path   = find_in_parent_folders()
+  expose = true
+}
+
+inputs = {
+  remote_state_config = include.remote_state
 }
 ```
 
