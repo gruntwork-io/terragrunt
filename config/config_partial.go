@@ -328,7 +328,8 @@ func PartialParseConfigString(
 		if err != nil {
 			return nil, err
 		}
-		return mergeConfigWithIncludedConfig(&output, includedConfig, terragruntOptions)
+		includedConfig.Merge(&output, terragruntOptions)
+		return includedConfig, nil
 	}
 	return &output, nil
 }
