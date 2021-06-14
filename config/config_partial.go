@@ -110,17 +110,9 @@ func DecodeBaseBlocks(
 		return nil, nil, TrackInclude{}, err
 	}
 
-	// Assert that only single level is inherited
-	if terragruntInclude.Include != nil && includeFromChild != nil {
-		return nil, nil, TrackInclude{}, errors.WithStackTrace(TooManyLevelsOfInheritance{
-			ConfigPath:             terragruntOptions.TerragruntConfigPath,
-			FirstLevelIncludePath:  includeFromChild.Path,
-			SecondLevelIncludePath: terragruntInclude.Include.Path,
-		})
-	}
-	trackInclude := TrackInclude{
-		Current:  terragruntInclude.Include,
-		Original: includeFromChild,
+	trackInclude, err := getTrackInclude(terragruntInclude, includeFromChild, terragruntOptions)
+	if err != nil {
+		return nil, nil, TrackInclude{}, err
 	}
 
 	// Evaluate all the expressions in the locals block separately and generate the variables list to use in the
@@ -141,6 +133,27 @@ func DecodeBaseBlocks(
 	}
 
 	return &localsAsCty, terragruntInclude, trackInclude, nil
+}
+
+func getTrackInclude(terragruntInclude *terragruntInclude, includeFromChild *IncludeConfig, terragruntOptions *options.TerragruntOptions) (TrackInclude, error) {
+	if terragruntInclude.Include != nil && includeFromChild != nil {
+		return TrackInclude{}, errors.WithStackTrace(TooManyLevelsOfInheritance{
+			ConfigPath:             terragruntOptions.TerragruntConfigPath,
+			FirstLevelIncludePath:  includeFromChild.Path,
+			SecondLevelIncludePath: terragruntInclude.Include.Path,
+		})
+	} else if terragruntInclude.Include != nil && includeFromChild == nil {
+		return TrackInclude{
+			Current:  terragruntInclude.Include,
+			Original: terragruntInclude.Include,
+		}, nil
+
+	} else {
+		return TrackInclude{
+			Current:  terragruntInclude.Include,
+			Original: includeFromChild,
+		}, nil
+	}
 }
 
 func PartialParseConfigFile(
