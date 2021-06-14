@@ -534,7 +534,12 @@ func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptio
 //      - dependency
 // 5. Merge the included config with the parsed config. Note that all the config data is mergable except for `locals`
 //    blocks, which are only scoped to be available within the defining config.
-func ParseConfigString(configString string, terragruntOptions *options.TerragruntOptions, includeFromChild *IncludeConfig, filename string) (*TerragruntConfig, error) {
+func ParseConfigString(
+	configString string,
+	terragruntOptions *options.TerragruntOptions,
+	includeFromChild *IncludeConfig,
+	filename string,
+) (*TerragruntConfig, error) {
 	// Parse the HCL string into an AST body that can be decoded multiple times later without having to re-parse
 	parser := hclparse.NewParser()
 	file, err := parseHcl(parser, configString, filename)
@@ -543,15 +548,15 @@ func ParseConfigString(configString string, terragruntOptions *options.Terragrun
 	}
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
-	localsAsCty, terragruntInclude, includeForDecode, err := DecodeBaseBlocks(terragruntOptions, parser, file, filename, includeFromChild)
+	localsAsCty, terragruntInclude, trackInclude, err := DecodeBaseBlocks(terragruntOptions, parser, file, filename, includeFromChild)
 	if err != nil {
 		return nil, err
 	}
 
 	// Initialize evaluation context extensions from base blocks.
 	contextExtensions := EvalContextExtensions{
-		Locals:  localsAsCty,
-		Include: includeForDecode,
+		Locals:       localsAsCty,
+		TrackInclude: trackInclude,
 	}
 
 	// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
@@ -587,25 +592,6 @@ func ParseConfigString(configString string, terragruntOptions *options.Terragrun
 	} else {
 		return config, nil
 	}
-}
-
-func getIncludedConfigForDecode(
-	parsedTerragruntInclude *terragruntInclude,
-	terragruntOptions *options.TerragruntOptions,
-	includeFromChild *IncludeConfig,
-) (*IncludeConfig, error) {
-	if parsedTerragruntInclude.Include != nil && includeFromChild != nil {
-		return nil, errors.WithStackTrace(TooManyLevelsOfInheritance{
-			ConfigPath:             terragruntOptions.TerragruntConfigPath,
-			FirstLevelIncludePath:  includeFromChild.Path,
-			SecondLevelIncludePath: parsedTerragruntInclude.Include.Path,
-		})
-	} else if parsedTerragruntInclude.Include != nil {
-		return parsedTerragruntInclude.Include, nil
-	} else if includeFromChild != nil {
-		return includeFromChild, nil
-	}
-	return nil, nil
 }
 
 func decodeAsTerragruntConfigFile(

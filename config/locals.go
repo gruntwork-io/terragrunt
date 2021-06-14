@@ -45,7 +45,7 @@ func evaluateLocalsBlock(
 	parser *hclparse.Parser,
 	hclFile *hcl.File,
 	filename string,
-	included *IncludeConfig,
+	trackInclude TrackInclude,
 ) (map[string]cty.Value, error) {
 	diagsWriter := util.GetDiagnosticsWriter(parser)
 
@@ -85,8 +85,8 @@ func evaluateLocalsBlock(
 			terragruntOptions,
 			filename,
 			locals,
-			included,
 			evaluatedLocals,
+			trackInclude,
 			diagsWriter,
 		)
 		if err != nil {
@@ -116,8 +116,8 @@ func attemptEvaluateLocals(
 	terragruntOptions *options.TerragruntOptions,
 	filename string,
 	locals []*Local,
-	included *IncludeConfig,
 	evaluatedLocals map[string]cty.Value,
+	trackInclude TrackInclude,
 	diagsWriter hcl.DiagnosticWriter,
 ) (unevaluatedLocals []*Local, newEvaluatedLocals map[string]cty.Value, evaluated bool, err error) {
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
@@ -138,11 +138,18 @@ func attemptEvaluateLocals(
 		terragruntOptions.Logger.Errorf("Could not convert evaluated locals to the execution context to evaluate additional locals")
 		return nil, evaluatedLocals, false, err
 	}
-	evalCtx := CreateTerragruntEvalContext(
+	evalCtx, err := CreateTerragruntEvalContext(
 		filename,
 		terragruntOptions,
-		EvalContextExtensions{Include: included, Locals: &evaluatedLocalsAsCty},
+		EvalContextExtensions{
+			TrackInclude: trackInclude,
+			Locals:       &evaluatedLocalsAsCty,
+		},
 	)
+	if err != nil {
+		terragruntOptions.Logger.Errorf("Could not convert include to the execution context to evaluate additional locals")
+		return nil, evaluatedLocals, false, err
+	}
 
 	// Track the locals that were evaluated for logging purposes
 	newlyEvaluatedLocalNames := []string{}

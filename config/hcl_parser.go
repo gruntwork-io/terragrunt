@@ -55,7 +55,10 @@ func decodeHcl(
 		}
 	}()
 
-	evalContext := CreateTerragruntEvalContext(filename, terragruntOptions, extensions)
+	evalContext, err := CreateTerragruntEvalContext(filename, terragruntOptions, extensions)
+	if err != nil {
+		return err
+	}
 
 	decodeDiagnostics := gohcl.DecodeBody(file.Body, evalContext, out)
 	if decodeDiagnostics != nil && decodeDiagnostics.HasErrors() {
