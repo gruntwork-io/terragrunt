@@ -2,6 +2,7 @@ package aws_helper
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -165,6 +166,17 @@ func GetAWSCallerIdentity(config *AwsSessionConfig, terragruntOptions *options.T
 	}
 
 	return *identity, nil
+}
+
+// Get the AWS Partition of the current session configuration
+func GetAWSPartition(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	identity, err := GetAWSCallerIdentity(config, terragruntOptions)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	arn_slice := strings.Split(*identity.Arn, ":")
+	return arn_slice[1], nil
 }
 
 // Get the AWS account ID of the current session configuration
