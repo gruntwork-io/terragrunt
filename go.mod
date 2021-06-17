@@ -24,14 +24,15 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-getter v1.4.2-0.20200106182914-9813cbd4eb02
 	github.com/hashicorp/go-hclog v0.15.0 // indirect
-	github.com/hashicorp/go-multierror v1.1.1 // indirect
+	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-retryablehttp v0.6.7 // indirect
 	github.com/hashicorp/go-version v1.2.1
 	github.com/hashicorp/hcl v1.0.1-vault // indirect
 	github.com/hashicorp/hcl/v2 v2.9.1
 	github.com/hashicorp/terraform v0.12.24
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20210318070130-9a80970d6b34
-	github.com/hashicorp/vault v1.7.0 // indirect
+	github.com/hashicorp/vault/api v1.0.5-0.20210210214158-405eced08457 // indirect
+	github.com/hashicorp/vault/sdk v0.1.14-0.20210322210658-b52b8b8c1264 // indirect
 	github.com/kr/pretty v0.2.1 // indirect
 	github.com/lib/pq v1.8.0 // indirect
 	github.com/mattn/go-colorable v0.1.7 // indirect
@@ -41,8 +42,6 @@ require (
 	github.com/mitchellh/mapstructure v1.3.3
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/opencontainers/runc v1.0.0-rc9 // indirect
-	github.com/ory/dockertest v3.3.5+incompatible // indirect
-	github.com/pquerna/otp v1.2.1-0.20191009055518-468c2dd2b58d // indirect
 	github.com/sirupsen/logrus v1.6.0
 	github.com/smartystreets/goconvey v1.6.4 // indirect
 	github.com/stretchr/testify v1.6.1
@@ -60,3 +59,7 @@ require (
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )
+
+// This is necessary to workaround go modules error with terraform importing vault incorrectly.
+// See https://github.com/hashicorp/vault/issues/7848 for more info
+replace github.com/hashicorp/vault => github.com/hashicorp/vault v1.4.2
