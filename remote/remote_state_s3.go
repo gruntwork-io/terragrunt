@@ -600,7 +600,6 @@ func EnableRootAccesstoS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConf
 	}
 
 	_, err = s3Client.PutBucketPolicy(&s3.PutBucketPolicyInput{
-
 		Bucket: aws.String(bucket),
 		Policy: aws.String(string(policy)),
 	})

@@ -2,10 +2,10 @@ package aws_helper
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -175,8 +175,11 @@ func GetAWSPartition(config *AwsSessionConfig, terragruntOptions *options.Terrag
 		return "", errors.WithStackTrace(err)
 	}
 
-	arn_slice := strings.Split(*identity.Arn, ":")
-	return arn_slice[1], nil
+	arn, err := arn.Parse(*identity.Arn)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+	return arn.Partition, nil
 }
 
 // Get the AWS account ID of the current session configuration
