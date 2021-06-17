@@ -371,7 +371,8 @@ The `include` block supports the following arguments:
   variable. When `true`, you can reference the data of the included config under the variable `include`. Defaults to
   `false`.
 - `merge_strategy` (attribute, optional): Specifies how the included config should be merged. Valid values are:
-  `no_merge` (do not merge the included config), `shallow` (do a shallow merge - default).
+  `no_merge` (do not merge the included config), `shallow` (do a shallow merge - default), `deep` (do a deep merge of
+  the included config).
 
 Example:
 
@@ -392,6 +393,63 @@ inputs = {
   remote_state_config = include.remote_state
 }
 ```
+
+**What is deep merge?**
+
+When the `merge_strategy` for the `include` block is set to `deep`, Terragrunt will perform a deep merge of the included
+config. For Terragrunt config, deep merge is defined as follows:
+
+- For simple types, the source overrides the target.
+- For lists, the two attribute lists are combined together in concatenation.
+- For maps, the two maps are combined together recursively. That is, if the map keys overlap, then a deep merge is
+  performed on the map value.
+- For blocks, if the label is the same, the two blocks are combined together recursively. Otherwise, the blocks are
+  appended like a list. This is similar to maps, with block labels treated as keys.
+
+However, due to internal implementation details, some blocks are not deep mergeable. This will change in the future, but
+for now, terragrunt performs a shallow merge (that is, block definitions in the child completely override the parent
+definition). The following blocks have this limitation:
+    - `remote_state`
+    - `generate`
+
+Similarly, the `locals` block is deliberately omitted from the merge operation by design. That is, you will not be able
+to access parent config `locals` in the child config, and vice versa in a merge. However, you can access the parent
+locals in child config if you use the `expose` feature.
+
+Finally, `dependency` blocks have special treatment. When doing a `deep` merge, `dependency` blocks from **both** child
+and parent config are accessible in **both** places. For example, consider the following setup:
+
+_parent config_
+```hcl
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+  db_id = dependency.mysql.outputs.db_id
+}
+```
+
+_child config_
+```hcl
+include {
+  path           = find_in_parent_folders()
+  merge_strategy = "deep"
+}
+
+dependency "mysql" {
+  config_path = "../mysql"
+}
+
+inputs = {
+  security_group_id = dependency.vpc.outputs.security_group_id
+}
+```
+
+In the example, note how the parent is accessing the outputs of the `mysql` dependency even though it is not defined in
+the parent. Similarly, the child is accessing the outputs of the `vpc` dependency even though it is not defined in the
+child.
 
 
 ### locals

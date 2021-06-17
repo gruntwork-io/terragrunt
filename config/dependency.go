@@ -40,6 +40,46 @@ type Dependency struct {
 	RenderedOutputs *cty.Value `cty:"outputs"`
 }
 
+// DeepMerge will deep merge two Dependency configs, updating the target. Deep merge for Dependency configs is defined
+// as follows:
+// - For simple attributes (bools and strings), the source will override the target.
+// - For MockOutputs, the two maps will be deeply merged together. This means that maps are recursively merged, while
+//   lists are concatenated together.
+// - For MockOutputsAllowedTerraformCommands, the source will be concatenated to the target.
+// Note that RenderedOutputs is ignored in the deep merge operation.
+func (targetDepConfig *Dependency) DeepMerge(sourceDepConfig Dependency) error {
+	if sourceDepConfig.ConfigPath != "" {
+		targetDepConfig.ConfigPath = sourceDepConfig.ConfigPath
+	}
+
+	if sourceDepConfig.SkipOutputs != nil {
+		targetDepConfig.SkipOutputs = sourceDepConfig.SkipOutputs
+	}
+
+	if sourceDepConfig.MockOutputs != nil {
+		if targetDepConfig.MockOutputs == nil {
+			targetDepConfig.MockOutputs = sourceDepConfig.MockOutputs
+		} else {
+			newMockOutputs, err := deepMergeCtyMaps(*targetDepConfig.MockOutputs, *sourceDepConfig.MockOutputs)
+			if err != nil {
+				return err
+			}
+			targetDepConfig.MockOutputs = newMockOutputs
+		}
+	}
+
+	if sourceDepConfig.MockOutputsAllowedTerraformCommands != nil {
+		if targetDepConfig.MockOutputsAllowedTerraformCommands == nil {
+			targetDepConfig.MockOutputsAllowedTerraformCommands = sourceDepConfig.MockOutputsAllowedTerraformCommands
+		} else {
+			mergedCmds := append(*targetDepConfig.MockOutputsAllowedTerraformCommands, *sourceDepConfig.MockOutputsAllowedTerraformCommands...)
+			targetDepConfig.MockOutputsAllowedTerraformCommands = &mergedCmds
+		}
+	}
+
+	return nil
+}
+
 // Given a dependency config, we should only attempt to get the outputs if SkipOutputs is nil or false
 func (dependencyConfig Dependency) shouldGetOutputs() bool {
 	return dependencyConfig.SkipOutputs == nil || !(*dependencyConfig.SkipOutputs)
@@ -73,12 +113,23 @@ func decodeAndRetrieveOutputs(
 	file *hcl.File,
 	filename string,
 	terragruntOptions *options.TerragruntOptions,
+	includeConfig *IncludeConfig,
 	extensions EvalContextExtensions,
 ) (*cty.Value, error) {
 	decodedDependency := terragruntDependency{}
 	if err := decodeHcl(file, filename, &decodedDependency, terragruntOptions, extensions); err != nil {
 		return nil, err
 	}
+
+	// Merge in included dependencies
+	if includeConfig != nil {
+		mergedDecodedDependency, err := handleIncludeForDependency(decodedDependency, *includeConfig, terragruntOptions)
+		if err != nil {
+			return nil, err
+		}
+		decodedDependency = *mergedDecodedDependency
+	}
+
 	if err := checkForDependencyBlockCycles(filename, decodedDependency, terragruntOptions); err != nil {
 		return nil, err
 	}

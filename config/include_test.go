@@ -5,6 +5,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 func TestMergeConfigIntoIncludedConfig(t *testing.T) {
@@ -131,4 +133,130 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 		testCase.includedConfig.Merge(testCase.config, mockOptionsForTest(t))
 		assert.Equal(t, testCase.expected, testCase.includedConfig)
 	}
+}
+
+func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
+	t.Parallel()
+
+	// The following maps are convenience vars for setting up deep merge map tests
+	overrideMap := map[string]interface{}{
+		"simple_string_override": "hello, mock",
+		"simple_string_append":   "new val",
+		"list_attr":              []string{"mock"},
+		"map_attr": map[string]interface{}{
+			"simple_string_override": "hello, mock",
+			"simple_string_append":   "new val",
+			"list_attr":              []string{"mock"},
+			"map_attr": map[string]interface{}{
+				"simple_string_override": "hello, mock",
+				"simple_string_append":   "new val",
+				"list_attr":              []string{"mock"},
+			},
+		},
+	}
+	originalMap := map[string]interface{}{
+		"simple_string_override": "hello, world",
+		"original_string":        "original val",
+		"list_attr":              []string{"hello"},
+		"map_attr": map[string]interface{}{
+			"simple_string_override": "hello, world",
+			"original_string":        "original val",
+			"list_attr":              []string{"hello"},
+			"map_attr": map[string]interface{}{
+				"simple_string_override": "hello, world",
+				"original_string":        "original val",
+				"list_attr":              []string{"hello"},
+			},
+		},
+	}
+	mergedMap := map[string]interface{}{
+		"simple_string_override": "hello, mock",
+		"original_string":        "original val",
+		"simple_string_append":   "new val",
+		"list_attr":              []string{"hello", "mock"},
+		"map_attr": map[string]interface{}{
+			"simple_string_override": "hello, mock",
+			"original_string":        "original val",
+			"simple_string_append":   "new val",
+			"list_attr":              []string{"hello", "mock"},
+			"map_attr": map[string]interface{}{
+				"simple_string_override": "hello, mock",
+				"original_string":        "original val",
+				"simple_string_append":   "new val",
+				"list_attr":              []string{"hello", "mock"},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name     string
+		source   *TerragruntConfig
+		target   *TerragruntConfig
+		expected *TerragruntConfig
+	}{
+		// Base case: empty config
+		{
+			"base case",
+			&TerragruntConfig{},
+			&TerragruntConfig{},
+			&TerragruntConfig{},
+		},
+		// Simple attribute in target
+		{
+			"simple in target",
+			&TerragruntConfig{},
+			&TerragruntConfig{IamRole: "foo"},
+			&TerragruntConfig{IamRole: "foo"},
+		},
+		// Simple attribute in source
+		{
+			"simple in source",
+			&TerragruntConfig{IamRole: "foo"},
+			&TerragruntConfig{},
+			&TerragruntConfig{IamRole: "foo"},
+		},
+		// Simple attribute in both
+		{
+			"simple in both",
+			&TerragruntConfig{IamRole: "foo"},
+			&TerragruntConfig{IamRole: "bar"},
+			&TerragruntConfig{IamRole: "foo"},
+		},
+		// Deep merge dependencies
+		{
+			"dependencies",
+			&TerragruntConfig{Dependencies: &ModuleDependencies{Paths: []string{"../vpc"}}},
+			&TerragruntConfig{Dependencies: &ModuleDependencies{Paths: []string{"../mysql"}}},
+			&TerragruntConfig{Dependencies: &ModuleDependencies{Paths: []string{"../mysql", "../vpc"}}},
+		},
+		// Deep merge retryable errors
+		{
+			"retryable errors",
+			&TerragruntConfig{RetryableErrors: []string{"error", "override"}},
+			&TerragruntConfig{RetryableErrors: []string{"original", "error"}},
+			&TerragruntConfig{RetryableErrors: []string{"original", "error", "error", "override"}},
+		},
+		// Deep merge inputs
+		{
+			"inputs",
+			&TerragruntConfig{Inputs: overrideMap},
+			&TerragruntConfig{Inputs: originalMap},
+			&TerragruntConfig{Inputs: mergedMap},
+		},
+	}
+
+	for _, testCase := range testCases {
+		// No need to capture range var because tests are run sequentially
+		t.Run(testCase.name, func(t *testing.T) {
+			err := testCase.target.DeepMerge(testCase.source, mockOptionsForTest(t))
+			require.NoError(t, err)
+			assert.Equal(t, testCase.expected, testCase.target)
+		})
+	}
+}
+
+func mapToCty(t *testing.T, valMap map[string]interface{}) *cty.Value {
+	outCty, err := convertToCtyWithJson(valMap)
+	require.NoError(t, err)
+	return &outCty
 }

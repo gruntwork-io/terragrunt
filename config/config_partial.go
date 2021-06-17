@@ -324,12 +324,7 @@ func PartialParseConfigString(
 
 	// If this file includes another, parse and merge the partial blocks.  Otherwise just return this config.
 	if terragruntInclude.Include != nil {
-		includedConfig, err := partialParseIncludedConfig(terragruntInclude.Include, terragruntOptions, decodeList)
-		if err != nil {
-			return nil, err
-		}
-		includedConfig.Merge(&output, terragruntOptions)
-		return includedConfig, nil
+		return handleIncludePartial(&output, terragruntInclude.Include, terragruntOptions, decodeList)
 	}
 	return &output, nil
 }

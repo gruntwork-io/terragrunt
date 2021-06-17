@@ -14,11 +14,13 @@ import (
 )
 
 const (
-	includeFixturePath        = "fixture-include/"
-	includeShallowFixturePath = "stage/my-app"
-	includeNoMergeFixturePath = "qa/my-app"
-	includeExposeFixturePath  = "fixture-include-expose/"
-	includeChildFixturePath   = "child"
+	includeDeepFixturePath      = "fixture-include-deep/"
+	includeDeepFixtureChildPath = "child"
+	includeFixturePath          = "fixture-include/"
+	includeShallowFixturePath   = "stage/my-app"
+	includeNoMergeFixturePath   = "qa/my-app"
+	includeExposeFixturePath    = "fixture-include-expose/"
+	includeChildFixturePath     = "child"
 )
 
 func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
@@ -66,6 +68,44 @@ func TestTerragruntWorksWithIncludeNoMerge(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
 	validateIncludeRemoteStateReflection(t, s3BucketName, includeNoMergeFixturePath, tmpTerragruntConfigPath, childPath)
+}
+
+func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
+	t.Parallel()
+
+	childPath := util.JoinPath(includeDeepFixturePath, "child")
+	cleanupTerraformFolder(t, childPath)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath))
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+	require.NoError(t, err)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	assert.Equal(t, "mock", outputs["attribute"].Value.(string))
+	assert.Equal(t, "new val", outputs["new_attribute"].Value.(string))
+	assert.Equal(t, "old val", outputs["old_attribute"].Value.(string))
+	assert.Equal(t, []interface{}{"hello", "mock"}, outputs["list_attr"].Value.([]interface{}))
+	assert.Equal(t, map[string]interface{}{"foo": "bar", "bar": "baz", "test": "new val"}, outputs["map_attr"].Value.(map[string]interface{}))
+
+	assert.Equal(
+		t,
+		map[string]interface{}{
+			"attribute":     "mock",
+			"new_attribute": "new val",
+			"old_attribute": "old val",
+			"list_attr":     []interface{}{"hello", "mock"},
+			"map_attr": map[string]interface{}{
+				"foo": "bar",
+				"bar": "baz",
+			},
+		},
+		outputs["dep_out"].Value.(map[string]interface{}),
+	)
 }
 
 func validateIncludeRemoteStateReflection(t *testing.T, s3BucketName string, keyPath string, configPath string, workingDir string) {
