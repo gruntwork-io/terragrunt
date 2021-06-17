@@ -640,7 +640,33 @@ func TestTerragruntWorksWithIncludes(t *testing.T) {
 
 	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_INCLUDE_PATH, TEST_FIXTURE_INCLUDE_CHILD_REL_PATH, s3BucketName, config.DefaultTerragruntConfigPath, config.DefaultTerragruntConfigPath)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath), &stdout, &stderr)
+	require.NoError(t, err)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	remoteStateOut := map[string]interface{}{}
+	require.NoError(t, json.Unmarshal([]byte(outputs["reflect"].Value.(string)), &remoteStateOut))
+	assert.Equal(
+		t,
+		remoteStateOut,
+		map[string]interface{}{
+			"backend":                         "s3",
+			"disable_init":                    false,
+			"disable_dependency_optimization": false,
+			"generate":                        nil,
+			"config": map[string]interface{}{
+				"encrypt": true,
+				"bucket":  s3BucketName,
+				"key":     "qa/my-app/terraform.tfstate",
+				"region":  "us-west-2",
+			},
+		},
+	)
 }
 
 func TestTerragruntWorksWithSingleJsonConfig(t *testing.T) {
