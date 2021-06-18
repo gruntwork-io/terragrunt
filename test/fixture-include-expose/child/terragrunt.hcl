@@ -4,7 +4,8 @@ include {
 }
 
 locals {
-  parent_region = include.locals.region
+  environment   = "test"
+  parent_region = "${include.locals.region}-${local.environment}"
 }
 
 inputs = {

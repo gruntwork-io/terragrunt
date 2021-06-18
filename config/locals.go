@@ -207,7 +207,7 @@ func canEvaluate(
 
 		// If the variable is `include`, then we can evaluate it now
 		if var_.RootName() == "include" {
-			return true
+			continue
 		}
 
 		// We can't evaluate any variable other than `local`
