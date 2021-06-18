@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -165,6 +166,20 @@ func GetAWSCallerIdentity(config *AwsSessionConfig, terragruntOptions *options.T
 	}
 
 	return *identity, nil
+}
+
+// Get the AWS Partition of the current session configuration
+func GetAWSPartition(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	identity, err := GetAWSCallerIdentity(config, terragruntOptions)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	arn, err := arn.Parse(*identity.Arn)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+	return arn.Partition, nil
 }
 
 // Get the AWS account ID of the current session configuration
