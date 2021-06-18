@@ -14,7 +14,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/hashicorp/terraform/helper/pathorcontents"
 	"github.com/mitchellh/mapstructure"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
@@ -436,7 +435,7 @@ func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, err
 		var account accountFile
 		// to mirror how Terraform works, we have to accept either the file path or the contents
 		creds := os.Getenv("GOOGLE_CREDENTIALS")
-		contents, _, err := pathorcontents.Read(creds)
+		contents, err := util.FileOrData(creds)
 		if err != nil {
 			return nil, fmt.Errorf("Error loading credentials: %s", err)
 		}
