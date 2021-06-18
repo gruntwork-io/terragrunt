@@ -669,6 +669,23 @@ func TestTerragruntWorksWithIncludes(t *testing.T) {
 	)
 }
 
+func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
+	t.Parallel()
+
+	childPath := util.JoinPath("fixture-include-expose", "child")
+	cleanupTerraformFolder(t, childPath)
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath))
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+	require.NoError(t, err)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	assert.Equal(t, "us-west-1", outputs["region"].Value.(string))
+}
+
 func TestTerragruntWorksWithSingleJsonConfig(t *testing.T) {
 	t.Parallel()
 
