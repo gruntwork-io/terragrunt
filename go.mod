@@ -10,7 +10,7 @@ require (
 	github.com/Azure/go-autorest/autorest/validation v0.3.1 // indirect
 	github.com/Microsoft/go-winio v0.4.16-0.20201130162521-d1ffc52c7331 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
-	github.com/aws/aws-sdk-go v1.37.19
+	github.com/aws/aws-sdk-go v1.38.28
 	github.com/containerd/continuity v0.0.0-20200710164510-efbc4488d8fe // indirect
 	github.com/creack/pty v1.1.11
 	github.com/fatih/structs v1.1.0
@@ -19,7 +19,8 @@ require (
 	github.com/golang/snappy v0.0.2 // indirect
 	github.com/google/go-cmp v0.5.5 // indirect
 	github.com/google/shlex v0.0.0-20181106134648-c34317bd91bf
-	github.com/gruntwork-io/terratest v0.32.6
+	github.com/gruntwork-io/gruntwork-cli v0.7.0 // indirect
+	github.com/gruntwork-io/terratest v0.35.7
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-getter v1.4.2-0.20200106182914-9813cbd4eb02
@@ -52,7 +53,7 @@ require (
 	go.mozilla.org/sops/v3 v3.7.0
 	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83
 	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
-	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
+	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
 	golang.org/x/sys v0.0.0-20210220050731-9a76102bfb43
 	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e // indirect
 	google.golang.org/api v0.35.0
