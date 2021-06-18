@@ -1,6 +1,6 @@
 defaults: &defaults
   docker:
-    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.16-tf15.0-tg28.24
+    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.16-tf1.0-tg0.30
 
 version: 2
 jobs:
@@ -12,7 +12,6 @@ jobs:
     <<: *defaults
     steps:
       - checkout
-      - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.30.0'
       # Run pre-commit hooks and fail the build if any hook finds required changes.
       - run:
           name: run precommit
