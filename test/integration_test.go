@@ -683,7 +683,7 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
-	assert.Equal(t, "us-west-1", outputs["region"].Value.(string))
+	assert.Equal(t, "us-west-1-test", outputs["region"].Value.(string))
 }
 
 func TestTerragruntWorksWithSingleJsonConfig(t *testing.T) {
