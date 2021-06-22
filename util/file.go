@@ -13,9 +13,32 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/mattn/go-zglob"
+	homedir "github.com/mitchellh/go-homedir"
 )
 
 const TerraformLockFile = ".terraform.lock.hcl"
+
+// FileOrData will read the contents of the data of the given arg if it is a file, and otherwise return the contents by
+// itself. This will return an error if the given path is a directory.
+func FileOrData(maybePath string) (string, error) {
+	// We can blindly pass in maybePath to homedir.Expand, because homedir.Expand only does something if the first
+	// character is ~, and if it is, there is a high chance of it being a path instead of data contents.
+	expandedMaybePath, err := homedir.Expand(maybePath)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	if IsFile(expandedMaybePath) {
+		contents, err := ioutil.ReadFile(expandedMaybePath)
+		if err != nil {
+			return "", errors.WithStackTrace(err)
+		}
+		return string(contents), nil
+	} else if IsDir(expandedMaybePath) {
+		return "", errors.WithStackTrace(PathIsNotFile{path: expandedMaybePath})
+	}
+	return expandedMaybePath, nil
+}
 
 // Return true if the given file exists
 func FileExists(path string) bool {
@@ -424,4 +447,13 @@ type PathIsNotDirectory struct {
 
 func (err PathIsNotDirectory) Error() string {
 	return fmt.Sprintf("%s is not a directory", err.path)
+}
+
+// PathIsNotFile is returned when the given path is unexpectedly not a file.
+type PathIsNotFile struct {
+	path string
+}
+
+func (err PathIsNotFile) Error() string {
+	return fmt.Sprintf("%s is not a file", err.path)
 }
