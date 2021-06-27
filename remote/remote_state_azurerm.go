@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2021-02-01/storage"
+	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 	"github.com/mitchellh/mapstructure"
 
@@ -277,8 +278,10 @@ func WaitUntilAzureRMBucketExists(armClient *storage.AccountsClient, config *Rem
 func DoesStorageAccountExist(armClient *storage.AccountsClient, config *RemoteStateConfigAzureRM) (bool, error) {
 	ctx := context.Background()
 
+	storageAccountResourceType := "Microsoft.Storage/storageAccounts"
 	accountCheckNameAvailabilityParameters := storage.AccountCheckNameAvailabilityParameters{
 		Name: &config.StorageAccountName,
+		Type: &storageAccountResourceType,
 	}
 
 	result, err := armClient.CheckNameAvailability(ctx, accountCheckNameAvailabilityParameters)
@@ -297,10 +300,19 @@ func DoesStorageAccountExist(armClient *storage.AccountsClient, config *RemoteSt
 
 // CreateAzureRMClient creates an authenticated client for AzureRM
 func CreateAzureRMClient(armConfigRemote RemoteStateConfigAzureRM) (*storage.AccountsClient, error) {
-	authorizer, err := auth.NewAuthorizerFromEnvironment()
+	var authorizer autorest.Authorizer
+	var err error
+
+	// Allow environment variables to override credentials sourced from the Azure CLI credentials file
+	authorizer, err = auth.NewAuthorizerFromEnvironment()
 	if err != nil {
-		return nil, err
+		authorizer, err = auth.NewAuthorizerFromCLI()
 	}
+
+	if err != nil {
+		return nil, fmt.Errorf("authentication to the Azure Resource Manager failed")
+	}
+
 	storageAccountsClient := storage.NewAccountsClient(armConfigRemote.SubscriptionId)
 	storageAccountsClient.Authorizer = authorizer
 	storageAccountsClient.AddToUserAgent("terragrunt-cli")
