@@ -7,13 +7,16 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2020-06-01/resources"
 	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2021-02-01/storage"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 	"github.com/mitchellh/mapstructure"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -24,14 +27,14 @@ import (
  */
 type ExtendedRemoteStateConfigAzureRM struct {
 	remoteStateConfigAzureRM RemoteStateConfigAzureRM
-	Location                 string            `mapstructure:"location"`
-	Tags                     map[string]string `mapstructure:"tags"`
-	SKU                      string            `mapstructure:"sku"`
-	Kind                     string            `mapstructure:"kind"`
-	AccessTier               string            `mapstructure:"access_tier"`
-	SkipVersioning           bool              `mapstructure:"skip_versioning"`
-	SkipCreate               bool              `mapstructure:"skip_create"`
-	SkipAzureRBAC            bool              `mapstructure:"skip_azure_rbac"`
+	Location                 string             `mapstructure:"location"`
+	Tags                     map[string]*string `mapstructure:"tags"`
+	SKU                      string             `mapstructure:"sku"`
+	Kind                     string             `mapstructure:"kind"`
+	AccessTier               string             `mapstructure:"access_tier"`
+	SkipVersioning           bool               `mapstructure:"skip_versioning"`
+	SkipCreate               bool               `mapstructure:"skip_create"`
+	SkipAzureRBAC            bool               `mapstructure:"skip_azure_rbac"`
 }
 
 // A representation of the configuration options available for AzureRM remote state
@@ -59,6 +62,12 @@ type RemoteStateConfigAzureRM struct {
 
 	Endpoint    string `mapstructure:"endpoint"`    // Set when using Azure Stack
 	Environment string `mapstructure:"environment"` // Set when using an environment other than "public"
+}
+
+type AzureRMClients struct {
+	resourceGroups  *resources.GroupsClient
+	storageAccounts *storage.AccountsClient
+	blobContainers  *storage.BlobContainersClient
 }
 
 // These are settings that can appear in the remote_state config that are ONLY used by Terragrunt and NOT forwarded
@@ -93,17 +102,22 @@ func (armInitializer AzureRMInitializer) NeedsInitialization(remoteState *Remote
 		return false, err
 	}
 
-	armClient, err := CreateAzureRMClient(*armConfig)
+	armClients, err := CreateAzureRMClients(*armConfig)
 	if err != nil {
 		return false, err
 	}
 
-	exists, err := DoesStorageAccountExist(armClient, armConfig)
+	storageAccountExists, err := DoesStorageAccountExist(armClients, armConfig)
 	if err != nil {
 		return false, err
 	}
 
-	if !exists {
+	blobContainerExists, err := DoesBlobContainerExist(armClients, armConfig)
+	if err != nil {
+		return false, err
+	}
+
+	if !storageAccountExists || !blobContainerExists {
 		return true, nil
 	}
 
@@ -166,23 +180,28 @@ func (armInitializer AzureRMInitializer) Initialize(remoteState *RemoteState, te
 
 	var armConfig = armConfigExtended.remoteStateConfigAzureRM
 
-	armClient, err := CreateAzureRMClient(armConfig)
+	armClients, err := CreateAzureRMClients(armConfig)
 
-	//armClient, err := CreateAzureRMClient(armConfig)
 	if err != nil {
 		return err
 	}
 
 	// If storage_account_name is specified and skip_create is false then check if the Storage Account needs to be created
 	if !armConfigExtended.SkipCreate && armConfig.StorageAccountName != "" {
-		if err := createStorageAccountIfNecessary(armClient, armConfigExtended, terragruntOptions); err != nil {
+		if err := createResourceGroup(armClients, armConfigExtended, terragruntOptions); err != nil {
+			return err
+		}
+		if err := createStorageAccountIfNecessary(armClients, armConfigExtended, terragruntOptions); err != nil {
+			return err
+		}
+		if err := createBlobContainerIfNecessary(armClients, armConfigExtended, terragruntOptions); err != nil {
 			return err
 		}
 	}
 
 	// If bucket is specified and skip_bucket_versioning is false then warn user if versioning is disabled on bucket
 	if !armConfigExtended.SkipVersioning && armConfig.StorageAccountName != "" {
-		if err := checkIfAzureRMVersioningEnabled(armClient, &armConfig, terragruntOptions); err != nil {
+		if err := checkIfAzureRMVersioningEnabled(armClients, &armConfig, terragruntOptions); err != nil {
 			return err
 		}
 	}
@@ -235,8 +254,28 @@ func parseExtendedAzureRMConfig(config map[string]interface{}) (*ExtendedRemoteS
 func validateAzureRMConfig(extendedConfig *ExtendedRemoteStateConfigAzureRM, terragruntOptions *options.TerragruntOptions) error {
 	var config = extendedConfig.remoteStateConfigAzureRM
 
-	if config.StorageAccountName == "" {
-		return errors.WithStackTrace(MissingRequiredAzureRMRemoteStateConfig("prefix"))
+	if config.SubscriptionId == "" {
+		return errors.WithStackTrace(MissingRequiredAzureRMRemoteStateConfig("subscription_id"))
+	}
+
+	if config.ResourceGroupName == "" {
+		return errors.WithStackTrace(MissingRequiredAzureRMRemoteStateConfig("resource_group_name"))
+	}
+
+	if extendedConfig.Location == "" {
+		return errors.WithStackTrace(MissingRequiredAzureRMRemoteStateConfig("location"))
+	}
+
+	if extendedConfig.AccessTier == "" {
+		return errors.WithStackTrace(MissingRequiredAzureRMRemoteStateConfig("access_tier"))
+	}
+
+	if extendedConfig.SKU == "" {
+		return errors.WithStackTrace(MissingRequiredAzureRMRemoteStateConfig("sku"))
+	}
+
+	if extendedConfig.Kind == "" {
+		return errors.WithStackTrace(MissingRequiredAzureRMRemoteStateConfig("kind"))
 	}
 
 	return nil
@@ -244,38 +283,216 @@ func validateAzureRMConfig(extendedConfig *ExtendedRemoteStateConfigAzureRM, ter
 
 // If the storage account specified in the given config doesn't already exist, prompt the user to create it, and if the user
 // confirms, create the storage account and enable versioning for it.
-func createStorageAccountIfNecessary(armClient *storage.AccountsClient, config *ExtendedRemoteStateConfigAzureRM, terragruntOptions *options.TerragruntOptions) error {
+func createStorageAccountIfNecessary(armClients *AzureRMClients, config *ExtendedRemoteStateConfigAzureRM, terragruntOptions *options.TerragruntOptions) error {
+	doesStorageAccountExist, err := DoesStorageAccountExist(armClients, &config.remoteStateConfigAzureRM)
+	if err != nil {
+		return err
+	}
+
+	if !doesStorageAccountExist {
+		terragruntOptions.Logger.Debugf("Remote state Azure Storage Account %s does not exist. Attempting to create it", config.remoteStateConfigAzureRM.StorageAccountName)
+
+		if err := validateAzureRMConfig(config, terragruntOptions); err != nil {
+			return err
+		}
+
+		prompt := fmt.Sprintf("Remote state Azure Storage Account %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", config.remoteStateConfigAzureRM.StorageAccountName)
+		shouldCreateStorageAccount, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
+		if err != nil {
+			return err
+		}
+
+		if shouldCreateStorageAccount {
+			// To avoid any eventual consistency issues with creating a GCS bucket we use a retry loop.
+			description := fmt.Sprintf("Create Azure Storage Account %s", config.remoteStateConfigAzureRM.StorageAccountName)
+			maxRetries := 3
+			sleepBetweenRetries := 10 * time.Second
+
+			return util.DoWithRetry(description, maxRetries, sleepBetweenRetries, terragruntOptions.Logger, logrus.DebugLevel, func() error {
+				return createStorageAccountWithVersioning(armClients, config, terragruntOptions)
+			})
+		}
+	}
+
+	return nil
+}
+
+func createBlobContainerIfNecessary(armClients *AzureRMClients, extendedConfig *ExtendedRemoteStateConfigAzureRM, terragruntOptions *options.TerragruntOptions) error {
+	config := extendedConfig.remoteStateConfigAzureRM
+
+	// doesBlobContainerExist, err := DoesBlobContainerExist(armClients, &config)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// if !doesBlobContainerExist {
+	terragruntOptions.Logger.Debugf("Remote state Blob Container %s does not exist. Attempting to create it", config.ContainerName)
+
+	if err := validateAzureRMConfig(extendedConfig, terragruntOptions); err != nil {
+		return err
+	}
+
+	prompt := fmt.Sprintf("Remote state Blob Container %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", config.ContainerName)
+	shouldCreateBlobContainer, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
+	if err != nil {
+		return err
+	}
+
+	if shouldCreateBlobContainer {
+		// To avoid any eventual consistency issues with creating a GCS bucket we use a retry loop.
+		description := fmt.Sprintf("Create Azure Storage Account %s", config.ContainerName)
+		maxRetries := 3
+		sleepBetweenRetries := 10 * time.Second
+
+		return util.DoWithRetry(description, maxRetries, sleepBetweenRetries, terragruntOptions.Logger, logrus.DebugLevel, func() error {
+			return createBlobContainer(armClients, extendedConfig, terragruntOptions)
+		})
+	}
+	// }
+
 	return nil
 }
 
 // Check if versioning is enabled for the AzureRM storage account specified in the given config and warn the user if it is not
-func checkIfAzureRMVersioningEnabled(armClient *storage.AccountsClient, config *RemoteStateConfigAzureRM, terragruntOptions *options.TerragruntOptions) error {
+func checkIfAzureRMVersioningEnabled(armClients *AzureRMClients, config *RemoteStateConfigAzureRM, terragruntOptions *options.TerragruntOptions) error {
 	return nil
 }
 
 // createStorageAccountWithVersioning creates the given AzureRM storage account and enables versioning for it.
-func createStorageAccountWithVersioning(armClient *storage.AccountsClient, config *ExtendedRemoteStateConfigAzureRM, terragruntOptions *options.TerragruntOptions) error {
+func createStorageAccountWithVersioning(armClients *AzureRMClients, config *ExtendedRemoteStateConfigAzureRM, terragruntOptions *options.TerragruntOptions) error {
+	err := createStorageAccount(armClients, config, terragruntOptions)
+
+	if err != nil {
+		return err
+	}
+
+	// if err := AddTagsToStorageAccount(armClient, config, terragruntOptions); err != nil {
+	// 	return err
+	// }
+
 	return nil
 }
 
-func AddLabelsToAzureRMBucket(armClient *storage.AccountsClient, config *ExtendedRemoteStateConfigAzureRM, terragruntOptions *options.TerragruntOptions) error {
+func AddTagsToStorageAccount(armClients *AzureRMClients, config *ExtendedRemoteStateConfigAzureRM, terragruntOptions *options.TerragruntOptions) error {
 	return nil
 }
 
-// Create the AzureRM storage account specified in the given config
-func CreateAzureRMBucket(armClient *storage.AccountsClient, config *ExtendedRemoteStateConfigAzureRM, terragruntOptions *options.TerragruntOptions) error {
+func GetStorageAccountSku(name string) storage.SkuName {
+	skus := make(map[string]storage.SkuName)
+	for _, sku := range storage.PossibleSkuNameValues() {
+		skus[string(sku)] = sku
+	}
+	return skus[name]
+}
+
+func GetStorageAccountKind(name string) storage.Kind {
+	kinds := make(map[string]storage.Kind)
+	for _, kind := range storage.PossibleKindValues() {
+		kinds[string(kind)] = kind
+	}
+	return kinds[name]
+}
+
+func GetStorageAccountAccessTier(name string) storage.AccessTier {
+	accessTiers := make(map[string]storage.AccessTier)
+	for _, accessTier := range storage.PossibleAccessTierValues() {
+		accessTiers[string(accessTier)] = accessTier
+	}
+	return accessTiers[name]
+}
+
+func createResourceGroup(armClients *AzureRMClients, config *ExtendedRemoteStateConfigAzureRM, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Debugf("Creating Azure resource group %s in subscription: %s / region: %s", config.remoteStateConfigAzureRM.SubscriptionId, config.remoteStateConfigAzureRM.ResourceGroupName, config.Location)
+
+	resourceGroupName := config.remoteStateConfigAzureRM.ResourceGroupName
+	location := config.Location
+
+	ctx := context.Background()
+
+	_, err := armClients.resourceGroups.CreateOrUpdate(ctx, resourceGroupName, resources.Group{
+		Location: &location,
+	})
+
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
-// GCP is eventually consistent, so after creating a AzureRM storage account, this method can be used to wait until the information
-// about that AzureRM storage account has propagated everywhere.
-func WaitUntilAzureRMBucketExists(armClient *storage.AccountsClient, config *RemoteStateConfigAzureRM, terragruntOptions *options.TerragruntOptions) error {
+// Create the Azure Storage Account specified in the given config
+func createStorageAccount(armClients *AzureRMClients, config *ExtendedRemoteStateConfigAzureRM, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Debugf("Creating Azure storage account %s in subscription: %s / resource group: %s / region: %s", config.remoteStateConfigAzureRM.StorageAccountName, config.remoteStateConfigAzureRM.SubscriptionId, config.remoteStateConfigAzureRM.ResourceGroupName, config.Location)
+
+	resourceGroupName := config.remoteStateConfigAzureRM.ResourceGroupName
+	storageAccountName := config.remoteStateConfigAzureRM.StorageAccountName
+	sku := GetStorageAccountSku(config.SKU)
+	kind := GetStorageAccountKind(config.Kind)
+	accessTier := GetStorageAccountAccessTier(config.AccessTier)
+
+	location := config.Location
+
+	ctx := context.Background()
+
+	params := storage.AccountCreateParameters{
+		Sku: &storage.Sku{
+			Name: sku,
+			Tier: storage.SkuTierStandard,
+		},
+		Kind:     kind,
+		Location: &location,
+		AccountPropertiesCreateParameters: &storage.AccountPropertiesCreateParameters{
+			AccessTier: accessTier,
+		},
+		Tags: config.Tags,
+	}
+
+	json, _ := params.MarshalJSON()
+	terragruntOptions.Logger.Warn("%s", string(json))
+
+	handle, createErr := armClients.storageAccounts.Create(ctx, resourceGroupName, storageAccountName, params)
+	if createErr != nil {
+		return createErr
+	}
+
+	waitErr := handle.WaitForCompletionRef(ctx, armClients.storageAccounts.Client)
+	if waitErr != nil {
+		return waitErr
+	}
+
+	if config.SkipVersioning {
+		terragruntOptions.Logger.Debugf("Versioning is disabled for the remote state Azure storage account %s using 'skip_versioning' config.", config.remoteStateConfigAzureRM.StorageAccountName)
+	} else {
+		terragruntOptions.Logger.Debugf("Enabling versioning on Azure storage account %s", config.remoteStateConfigAzureRM.StorageAccountName)
+		// bucketAttrs.VersioningEnabled = true
+	}
+
+	return nil
+}
+
+// Create the Azure Storage Account specified in the given config
+func createBlobContainer(armClients *AzureRMClients, extendedConfig *ExtendedRemoteStateConfigAzureRM, terragruntOptions *options.TerragruntOptions) error {
+	config := extendedConfig.remoteStateConfigAzureRM
+
+	terragruntOptions.Logger.Debugf("Creating Blob Container %s in subscription: %s / resource group: %s / region: %s", config.StorageAccountName, config.SubscriptionId, config.ResourceGroupName, extendedConfig.Location)
+
+	resourceGroupName := config.ResourceGroupName
+	storageAccountName := config.StorageAccountName
+	containerName := config.ContainerName
+
+	ctx := context.Background()
+
+	_, createErr := armClients.blobContainers.Create(ctx, resourceGroupName, storageAccountName, containerName, storage.BlobContainer{})
+	if createErr != nil {
+		return createErr
+	}
+
 	return nil
 }
 
 // DoesStorageAccountExist returns true if the AzureRM storage account specified in the given config exists and the current user has the
 // ability to access it.
-func DoesStorageAccountExist(armClient *storage.AccountsClient, config *RemoteStateConfigAzureRM) (bool, error) {
+func DoesStorageAccountExist(armClients *AzureRMClients, config *RemoteStateConfigAzureRM) (bool, error) {
 	ctx := context.Background()
 
 	storageAccountResourceType := "Microsoft.Storage/storageAccounts"
@@ -284,7 +501,7 @@ func DoesStorageAccountExist(armClient *storage.AccountsClient, config *RemoteSt
 		Type: &storageAccountResourceType,
 	}
 
-	result, err := armClient.CheckNameAvailability(ctx, accountCheckNameAvailabilityParameters)
+	result, err := armClients.storageAccounts.CheckNameAvailability(ctx, accountCheckNameAvailabilityParameters)
 	if err != nil {
 		// If the name check fails, we'll assume the storage account exists by returning true.
 		// The error will contain the reason the name check failed, which will be returned to the caller.
@@ -298,8 +515,15 @@ func DoesStorageAccountExist(armClient *storage.AccountsClient, config *RemoteSt
 	return true, nil
 }
 
-// CreateAzureRMClient creates an authenticated client for AzureRM
-func CreateAzureRMClient(armConfigRemote RemoteStateConfigAzureRM) (*storage.AccountsClient, error) {
+// DoesBlobContainerExist returns true if the AzureRM storage account specified in the given config exists and the current user has the
+// ability to access it.
+func DoesBlobContainerExist(armClients *AzureRMClients, config *RemoteStateConfigAzureRM) (bool, error) {
+	return false, nil
+}
+
+// CreateAzureRMClients creates an authenticated client for AzureRM
+func CreateAzureRMClients(armConfig RemoteStateConfigAzureRM) (*AzureRMClients, error) {
+	var armClients *AzureRMClients
 	var authorizer autorest.Authorizer
 	var err error
 
@@ -313,11 +537,25 @@ func CreateAzureRMClient(armConfigRemote RemoteStateConfigAzureRM) (*storage.Acc
 		return nil, fmt.Errorf("authentication to the Azure Resource Manager failed")
 	}
 
-	storageAccountsClient := storage.NewAccountsClient(armConfigRemote.SubscriptionId)
-	storageAccountsClient.Authorizer = authorizer
-	storageAccountsClient.AddToUserAgent("terragrunt-cli")
+	resourceGroupsClient := resources.NewGroupsClient(armConfig.SubscriptionId)
+	storageAccountsClient := storage.NewAccountsClient(armConfig.SubscriptionId)
+	blobContainersClient := storage.NewBlobContainersClient(armConfig.SubscriptionId)
 
-	return &storageAccountsClient, nil
+	resourceGroupsClient.Authorizer = authorizer
+	storageAccountsClient.Authorizer = authorizer
+	blobContainersClient.Authorizer = authorizer
+
+	resourceGroupsClient.AddToUserAgent("terragrunt-cli")
+	storageAccountsClient.AddToUserAgent("terragrunt-cli")
+	blobContainersClient.AddToUserAgent("terragrunt-cli")
+
+	armClients = &AzureRMClients{
+		resourceGroups:  &resourceGroupsClient,
+		storageAccounts: &storageAccountsClient,
+		blobContainers:  &blobContainersClient,
+	}
+
+	return armClients, nil
 }
 
 // Custom error types
