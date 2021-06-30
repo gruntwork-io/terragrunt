@@ -55,7 +55,7 @@ func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
 	case "apply", "destroy":
 		// to support potential positional args in the args list, we append the input=false arg after the first element,
 		// which is the target command.
-		if !terragruntOptions.DisableApplyExtend { // check disable apply extend flag for apply/destroy command
+		if !(stackCmd == "apply" && terragruntOptions.DisableApplyExtend) { // check disable apply extend flag for apply/destroy command
 			terragruntOptions.TerraformCliArgs = util.StringListInsert(terragruntOptions.TerraformCliArgs, "-auto-approve", 1)
 			stack.syncTerraformCliArgs(terragruntOptions)
 		}
