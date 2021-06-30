@@ -237,7 +237,7 @@ GLOBAL OPTIONS:
    terragrunt-override-attr                     A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.
    terragrunt-debug                             Write terragrunt-debug.tfvars to working folder to help root-cause issues.
    terragrunt-log-level                         Sets the logging level for Terragrunt. Supported levels: panic, fatal, error, warn (default), info, debug, trace.
-   terragrunt-disable-apply-extend              Disable implicit add of -input=false and -auto-approve to apply/destroy commands
+   terragrunt-disable-apply-extend              Disable implicit add of -input=false and -auto-approve to apply command
 
 VERSION:
    {{.Version}}{{if len .Authors}}
