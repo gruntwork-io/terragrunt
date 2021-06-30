@@ -50,7 +50,7 @@ const OPT_TERRAGRUNT_HCLFMT_FILE = "terragrunt-hclfmt-file"
 const OPT_TERRAGRUNT_DEBUG = "terragrunt-debug"
 const OPT_TERRAGRUNT_OVERRIDE_ATTR = "terragrunt-override-attr"
 const OPT_TERRAGRUNT_LOGLEVEL = "terragrunt-log-level"
-const OPT_TERRAGRUNT_DISABLE_APPLY_EXTEND = "disable-apply-extend"
+const OPT_TERRAGRUNT_DISABLE_APPLY_EXTEND = "terragrunt-disable-apply-extend"
 
 var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{
 	OPT_NON_INTERACTIVE,
