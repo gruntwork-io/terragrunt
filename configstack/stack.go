@@ -42,10 +42,8 @@ func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
 	if util.ListContainsElement(config.TERRAFORM_COMMANDS_NEED_INPUT, stackCmd) {
 		// to support potential positional args in the args list, we append the input=false arg after the first element,
 		// which is the target command.
-		if !(stackCmd == "apply" && terragruntOptions.DisableApplyExtend) {
-			terragruntOptions.TerraformCliArgs = util.StringListInsert(terragruntOptions.TerraformCliArgs, "-input=false", 1)
-			stack.syncTerraformCliArgs(terragruntOptions)
-		}
+		terragruntOptions.TerraformCliArgs = util.StringListInsert(terragruntOptions.TerraformCliArgs, "-input=false", 1)
+		stack.syncTerraformCliArgs(terragruntOptions)
 	}
 
 	// For apply and destroy, run with auto-approve due to the co-mingling of the prompts. This is not ideal, but until
@@ -55,10 +53,8 @@ func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
 	case "apply", "destroy":
 		// to support potential positional args in the args list, we append the input=false arg after the first element,
 		// which is the target command.
-		if !(stackCmd == "apply" && terragruntOptions.DisableApplyExtend) { // check disable apply extend flag for apply/destroy command
-			terragruntOptions.TerraformCliArgs = util.StringListInsert(terragruntOptions.TerraformCliArgs, "-auto-approve", 1)
-			stack.syncTerraformCliArgs(terragruntOptions)
-		}
+		terragruntOptions.TerraformCliArgs = util.StringListInsert(terragruntOptions.TerraformCliArgs, "-auto-approve", 1)
+		stack.syncTerraformCliArgs(terragruntOptions)
 	}
 
 	if stackCmd == "plan" {

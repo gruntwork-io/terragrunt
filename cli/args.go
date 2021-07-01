@@ -137,8 +137,6 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 
 	strictInclude := parseBooleanArg(args, OPT_TERRAGRUNT_STRICT_INCLUDE, false)
 
-	disableApplyExtend := parseBooleanArg(args, OPT_TERRAGRUNT_DISABLE_APPLY_EXTEND, false)
-
 	// Those correspond to logrus levels
 	logLevel, err := parseStringArg(args, OPT_TERRAGRUNT_LOGLEVEL, util.DEFAULT_LOG_LEVEL.String())
 	if err != nil {
@@ -205,7 +203,6 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.ExcludeDirs = excludeDirs
 	opts.IncludeDirs = includeDirs
 	opts.StrictInclude = strictInclude
-	opts.DisableApplyExtend = disableApplyExtend
 	opts.Parallelism = parallelism
 	opts.Check = parseBooleanArg(args, OPT_TERRAGRUNT_CHECK, os.Getenv("TERRAGRUNT_CHECK") == "true")
 	opts.HclFile = filepath.ToSlash(terragruntHclFilePath)

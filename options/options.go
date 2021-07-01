@@ -175,10 +175,6 @@ type TerragruntOptions struct {
 	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command. See that
 	// command for more info.
 	AwsProviderPatchOverrides map[string]string
-
-	// True if terragrunt shouldn't add -input=false and -auto-approve to apply command
-	// automatically
-	DisableApplyExtend bool
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage

@@ -50,7 +50,6 @@ const OPT_TERRAGRUNT_HCLFMT_FILE = "terragrunt-hclfmt-file"
 const OPT_TERRAGRUNT_DEBUG = "terragrunt-debug"
 const OPT_TERRAGRUNT_OVERRIDE_ATTR = "terragrunt-override-attr"
 const OPT_TERRAGRUNT_LOGLEVEL = "terragrunt-log-level"
-const OPT_TERRAGRUNT_DISABLE_APPLY_EXTEND = "terragrunt-disable-apply-extend"
 
 var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{
 	OPT_NON_INTERACTIVE,
@@ -64,7 +63,6 @@ var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{
 	OPT_TERRAGRUNT_CHECK,
 	OPT_TERRAGRUNT_STRICT_INCLUDE,
 	OPT_TERRAGRUNT_DEBUG,
-	OPT_TERRAGRUNT_DISABLE_APPLY_EXTEND,
 }
 var ALL_TERRAGRUNT_STRING_OPTS = []string{
 	OPT_TERRAGRUNT_CONFIG,
@@ -237,7 +235,6 @@ GLOBAL OPTIONS:
    terragrunt-override-attr                     A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.
    terragrunt-debug                             Write terragrunt-debug.tfvars to working folder to help root-cause issues.
    terragrunt-log-level                         Sets the logging level for Terragrunt. Supported levels: panic, fatal, error, warn (default), info, debug, trace.
-   terragrunt-disable-apply-extend              Disable implicit add of -input=false and -auto-approve to apply command
 
 VERSION:
    {{.Version}}{{if len .Authors}}
