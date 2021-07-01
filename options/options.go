@@ -315,19 +315,19 @@ func checkIfPlanfile(arg string) bool {
 
 // Extract planfile from arguments list
 func extractPlanFile(argsToInsert []string) (*string, []string) {
-	planfile := ""
-	filteredArgs := []string{}
+	planFile := ""
+	var filteredArgs []string
 
 	for _, arg := range argsToInsert {
 		if checkIfPlanfile(arg) {
-			planfile = arg
+			planFile = arg
 		} else {
 			filteredArgs = append(filteredArgs, arg)
 		}
 	}
 
-	if planfile != "" {
-		return &planfile, filteredArgs
+	if planFile != "" {
+		return &planFile, filteredArgs
 	}
 
 	return nil, filteredArgs
