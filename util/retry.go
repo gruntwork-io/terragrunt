@@ -2,8 +2,9 @@ package util
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 // DoWithRetry runs the specified action. If it returns a value, return that value. If it returns an error, sleep for

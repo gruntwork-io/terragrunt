@@ -2,6 +2,7 @@ package errors
 
 import (
 	"fmt"
+
 	goerrors "github.com/go-errors/errors"
 )
 

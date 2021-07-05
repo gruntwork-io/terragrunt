@@ -2,10 +2,11 @@ package configstack
 
 import (
 	"bytes"
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/stretchr/testify/assert"
 	"strings"
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGraph(t *testing.T) {
