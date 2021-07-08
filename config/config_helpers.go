@@ -94,6 +94,40 @@ type EvalContextExtensions struct {
 	DecodedDependencies *cty.Value
 }
 
+type ProviderHandler struct {
+	Param cty.Type
+	Impl  func(args []cty.Value, retType cty.Type) (cty.Value, error)
+}
+
+var providerImpls = map[string]ProviderHandler{
+	"aws": {
+		Param: cty.ObjectWithOptionalAttrs(map[string]cty.Type{
+			"access_key":              cty.String,
+			"secret_key":              cty.String,
+			"region":                  cty.String,
+			"profile":                 cty.String,
+			"shared_credentials_file": cty.String,
+			"token":                   cty.String,
+			"max_retries":             cty.String,
+			"allowed_account_ids":     cty.List(cty.String),
+			"forbidden_account_ids":   cty.List(cty.String),
+		}, []string{
+			"access_key",
+			"secret_key",
+			"region",
+			"profile",
+			"shared_credentials_file",
+			"token",
+			"max_retries",
+			"allowed_account_ids",
+			"forbidden_account_ids",
+		}),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			return cty.StringVal(""), nil
+		},
+	},
+}
+
 // Create an EvalContext for the HCL2 parser. We can define functions and variables in this context that the HCL2 parser
 // will make available to the Terragrunt configuration during parsing.
 func CreateTerragruntEvalContext(
@@ -127,6 +161,7 @@ func CreateTerragruntEvalContext(
 		"get_terraform_commands_that_need_parallelism": wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_PARALLELISM),
 		"sops_decrypt_file":                            wrapStringSliceToStringAsFuncImpl(sopsDecryptFile, extensions.TrackInclude.Original, terragruntOptions),
 		"get_terragrunt_source_cli_flag":               wrapVoidToStringAsFuncImpl(getTerragruntSourceCliFlag, extensions.TrackInclude.Original, terragruntOptions),
+		"make_aws_provider":                            wrapObjectToStringAsFuncImpl(makeProvider, providerImpls["aws"], extensions.TrackInclude.Original, terragruntOptions),
 	}
 
 	functions := map[string]function.Function{}
@@ -595,6 +630,11 @@ func sopsDecryptFile(params []string, include *IncludeConfig, terragruntOptions 
 	}
 
 	return "", errors.WithStackTrace(InvalidSopsFormat{SourceFilePath: sourceFile})
+}
+
+// Makes new provider configuration
+func makeProvider(config map[string]interface{}, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
+	return "", nil
 }
 
 // Return the location of the Terraform files provided via --terragrunt-source

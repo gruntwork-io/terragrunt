@@ -123,6 +123,7 @@ const (
 	TEST_FIXTURE_REGRESSIONS                                = "fixture-regressions"
 	TEST_FIXTURE_DIRS_PATH                                  = "fixture-dirs"
 	TEST_FIXTURE_PARALLELISM                                = "fixture-parallelism"
+	TEST_FIXTURE_PROVIDERS                                  = "fixture-providers"
 	TEST_FIXTURE_SOPS                                       = "fixture-sops"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
@@ -1013,6 +1014,13 @@ func TestTerragruntStackCommandsWithPlanFile(t *testing.T) {
 	cleanupTerraformFolder(t, disjointEnvironmentPath)
 	runTerragrunt(t, fmt.Sprintf("terragrunt plan-all -out=plan.tfplan --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir %s", disjointEnvironmentPath))
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all plan.tfplan --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir %s", disjointEnvironmentPath))
+}
+
+func TestProvidersGeneration(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_PROVIDERS)
+	runTerragrunt(t, fmt.Sprintf("terragrunt init --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_PROVIDERS))
 }
 
 func TestLocalDownload(t *testing.T) {
