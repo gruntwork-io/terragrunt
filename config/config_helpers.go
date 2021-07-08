@@ -123,6 +123,23 @@ var providerImpls = map[string]ProviderHandler{
 			"skip_requesting_account_id":  cty.Bool,
 			"skip_metadata_api_check":     cty.Bool,
 			"s3_force_path_style":         cty.Bool,
+
+			// assume role config
+			"assume_role": cty.ObjectWithOptionalAttrs(map[string]cty.Type{
+				"duration_seconds":    cty.Number,
+				"external_id":         cty.String,
+				"policy_arns":         cty.List(cty.String),
+				"role_arn":            cty.String,
+				"transitive_tag_keys": cty.String,
+				//"tags": cty.String,
+			}, []string{
+				"duration_seconds",
+				"external_id",
+				"policy_arns",
+				"role_arn",
+				"transitive_tag_keys",
+				//"tags",
+			}),
 		}, []string{
 			"alias",
 			"access_key",
@@ -134,7 +151,7 @@ var providerImpls = map[string]ProviderHandler{
 			"max_retries",
 			"allowed_account_ids",
 			"forbidden_account_ids",
-			"default_tags",
+			//"default_tags",
 			"ignore_tags",
 			"insecure",
 
@@ -145,6 +162,8 @@ var providerImpls = map[string]ProviderHandler{
 			"skip_requesting_account_id",
 			"skip_metadata_api_check",
 			"s3_force_path_style",
+
+			"assume_role",
 		}),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			return cty.StringVal(""), nil
