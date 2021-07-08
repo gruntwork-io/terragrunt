@@ -103,6 +103,7 @@ var providerImpls = map[string]ProviderHandler{
 	"aws": {
 		Param: cty.ObjectWithOptionalAttrs(map[string]cty.Type{
 			"alias":                   cty.String,
+			"version":                 cty.String,
 			"access_key":              cty.String,
 			"secret_key":              cty.String,
 			"region":                  cty.String,
@@ -142,6 +143,7 @@ var providerImpls = map[string]ProviderHandler{
 			}),
 		}, []string{
 			"alias",
+			"version",
 			"access_key",
 			"secret_key",
 			"region",
