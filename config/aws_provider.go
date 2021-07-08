@@ -2,10 +2,13 @@ package config
 
 import "github.com/zclconf/go-cty/cty"
 
+// awsProviderImplementation "Renders" AWS provider
 func awsProviderImplementation(args []cty.Value, retType cty.Type) (cty.Value, error) {
 	return cty.StringVal(""), nil
 }
 
+// GetAwsProviderHandler Returns AWS provider handler which describes
+// provider attributes and provider "rendering" function
 func GetAwsProviderHandler() ProviderHandler {
 	providerAttrs := cty.ObjectWithOptionalAttrs(map[string]cty.Type{
 		"alias":                   cty.String,
