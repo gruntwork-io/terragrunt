@@ -99,80 +99,6 @@ type ProviderHandler struct {
 	Impl  func(args []cty.Value, retType cty.Type) (cty.Value, error)
 }
 
-var providerImpls = map[string]ProviderHandler{
-	"aws": {
-		Param: cty.ObjectWithOptionalAttrs(map[string]cty.Type{
-			"alias":                   cty.String,
-			"version":                 cty.String,
-			"access_key":              cty.String,
-			"secret_key":              cty.String,
-			"region":                  cty.String,
-			"profile":                 cty.String,
-			"shared_credentials_file": cty.String,
-			"token":                   cty.String,
-			"max_retries":             cty.String,
-			"allowed_account_ids":     cty.List(cty.String),
-			"forbidden_account_ids":   cty.List(cty.String),
-			//"default_tags":            cty.List(cty.String),
-			"ignore_tags": cty.List(cty.String),
-			"insecure":    cty.Bool,
-
-			// boolean flags block
-			"skip_credentials_validation": cty.Bool,
-			"skip_get_ec2_platforms":      cty.Bool,
-			"skip_region_validation":      cty.Bool,
-			"skip_requesting_account_id":  cty.Bool,
-			"skip_metadata_api_check":     cty.Bool,
-			"s3_force_path_style":         cty.Bool,
-
-			// assume role config
-			"assume_role": cty.ObjectWithOptionalAttrs(map[string]cty.Type{
-				"duration_seconds":    cty.Number,
-				"external_id":         cty.String,
-				"policy_arns":         cty.List(cty.String),
-				"role_arn":            cty.String,
-				"transitive_tag_keys": cty.String,
-				//"tags": cty.String,
-			}, []string{
-				"duration_seconds",
-				"external_id",
-				"policy_arns",
-				"role_arn",
-				"transitive_tag_keys",
-				//"tags",
-			}),
-		}, []string{
-			"alias",
-			"version",
-			"access_key",
-			"secret_key",
-			"region",
-			"profile",
-			"shared_credentials_file",
-			"token",
-			"max_retries",
-			"allowed_account_ids",
-			"forbidden_account_ids",
-			//"default_tags",
-			"ignore_tags",
-			"insecure",
-
-			// boolean flags block
-			"skip_credentials_validation",
-			"skip_get_ec2_platforms",
-			"skip_region_validation",
-			"skip_requesting_account_id",
-			"skip_metadata_api_check",
-			"s3_force_path_style",
-
-			"assume_role",
-		}),
-		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			return cty.StringVal(""), nil
-		},
-	},
-}
-
 // Create an EvalContext for the HCL2 parser. We can define functions and variables in this context that the HCL2 parser
 // will make available to the Terragrunt configuration during parsing.
 func CreateTerragruntEvalContext(
@@ -206,7 +132,7 @@ func CreateTerragruntEvalContext(
 		"get_terraform_commands_that_need_parallelism": wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_PARALLELISM),
 		"sops_decrypt_file":                            wrapStringSliceToStringAsFuncImpl(sopsDecryptFile, extensions.TrackInclude.Original, terragruntOptions),
 		"get_terragrunt_source_cli_flag":               wrapVoidToStringAsFuncImpl(getTerragruntSourceCliFlag, extensions.TrackInclude.Original, terragruntOptions),
-		"make_aws_provider":                            wrapObjectToStringAsFuncImpl(makeProvider, providerImpls["aws"], extensions.TrackInclude.Original, terragruntOptions),
+		"make_aws_provider":                            wrapObjectToStringAsFuncImpl(makeProvider, GetAwsProviderHandler, extensions.TrackInclude.Original, terragruntOptions),
 	}
 
 	functions := map[string]function.Function{}
