@@ -1,9 +1,8 @@
 package config
 
 import (
-	"bytes"
+	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
-	"html/template"
 )
 
 type AwsProvider struct {
@@ -38,46 +37,36 @@ type AssumeRole struct {
 
 // awsProviderImplementation "Renders" AWS provider
 func awsProviderImplementation(args []cty.Value, retType cty.Type) (cty.Value, error) {
-	tpl, err := template.New("aws").Parse(`provider "aws" {
-{{if .Alias }}
-    alias = "{{.Alias}}"
-{{end}}
-{{if .Profile }}
-    profile = "{{.Profile}}"
-{{end}}
-{{if .Version }}
-    version = "{{.Version}}"
-{{end}}
-{{if .Region }}
-    region = "{{.Region}}"
-{{end}}
-{{if .SkipCredentialsValidation }}
-    skip_credentials_validation = {{.SkipCredentialsValidation}}
-{{end}}
-}
-	`)
-
-	if err != nil {
-		panic(err)
-	}
-
 	awsProvider := parseProvider(args)
+	hclFile := hclwrite.NewEmptyFile()
+	hclBody := hclFile.Body()
 
-	var tplOutput bytes.Buffer
-	err = tpl.Execute(&tplOutput, awsProvider)
-	if err != nil {
-		panic(err)
+	providerRoot := hclBody.AppendNewBlock("provider", []string{"aws"})
+	providerRootBody := providerRoot.Body()
+
+	if awsProvider.Profile != nil {
+		providerRootBody.SetAttributeValue("profile", cty.StringVal(awsProvider.Profile.(string)))
 	}
 
-	renderedOutput := tplOutput.String()
-	return cty.StringVal(renderedOutput), nil
+	if awsProvider.Region != nil {
+		providerRootBody.SetAttributeValue("region", cty.StringVal(awsProvider.Region.(string)))
+	}
+
+	hclOutput := string(hclFile.Bytes())
+	return cty.StringVal(hclOutput), nil
 }
 
 // parseProvider parse AwsProvider struct from cty args
 func parseProvider(args []cty.Value) AwsProvider {
 	var provider AwsProvider
-	providerArg := args[0]
 	var assumeRole AssumeRole
+
+	if len(args) < 1 {
+		panic("provider parameters not passed")
+	}
+
+	providerArg := args[0]
+	assumeRoleArg := providerArg.GetAttr("assume_role")
 
 	bindString(providerArg, &provider.Alias, "alias")
 	bindString(providerArg, &provider.Version, "version")
@@ -97,8 +86,6 @@ func parseProvider(args []cty.Value) AwsProvider {
 	bindBool(providerArg, &provider.SkipRequestingAccountId, "skip_requesting_account_id")
 	bindBool(providerArg, &provider.SkipMetadataApiCheck, "skip_metadata_api_check")
 	bindBool(providerArg, &provider.S3ForcePathStyle, "s3_force_path_style")
-
-	assumeRoleArg := providerArg.GetAttr("assume_role")
 
 	if !assumeRoleArg.IsNull() {
 		bindNumber(assumeRoleArg, &assumeRole.DurationSeconds, "duration_seconds")
