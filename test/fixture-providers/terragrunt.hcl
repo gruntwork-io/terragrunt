@@ -4,7 +4,11 @@ generate "test-provider" {
 
   contents = make_aws_provider({
     region              = "us-east-1"
-    version             = "2.3.1"
     allowed_account_ids = ["1234567890"]
+    skip_credentials_validation = true
+    assume_role = {
+      external_id = "1"
+      duration_seconds = 3600
+    }
   })
 }
