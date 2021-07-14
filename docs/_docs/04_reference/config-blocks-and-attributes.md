@@ -370,6 +370,8 @@ The `include` block supports the following arguments:
 - `expose` (attribute, optional): Specifies whether or not the included config should be parsed and exposed as a
   variable. When `true`, you can reference the data of the included config under the variable `include`. Defaults to
   `false`.
+- `merge_strategy` (attribute, optional): Specifies how the included config should be merged. Valid values are:
+  `no_merge` (do not merge the included config), `shallow` (do a shallow merge - default).
 
 Example:
 
