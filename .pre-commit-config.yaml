@@ -3,4 +3,4 @@ repos:
     rev:  v0.1.10
     hooks:
       - id: terraform-fmt
-      - id: gofmt
+      - id: goimports

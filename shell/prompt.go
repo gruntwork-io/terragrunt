@@ -3,10 +3,11 @@ package shell
 import (
 	"bufio"
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/options"
 	"os"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/options"
 )
 
 // Prompt the user for text in the CLI. Returns the text entered by the user.

@@ -1,10 +1,11 @@
 package util
 
 import (
-	"github.com/stretchr/testify/assert"
 	"math"
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestKindOf(t *testing.T) {

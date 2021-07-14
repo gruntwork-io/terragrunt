@@ -2,10 +2,11 @@ package configstack
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/options"
 	"io"
 	"path/filepath"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/options"
 )
 
 // WriteDot is used to emit a GraphViz compatible definition
