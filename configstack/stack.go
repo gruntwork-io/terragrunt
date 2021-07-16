@@ -3,6 +3,7 @@ package configstack
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 
@@ -61,7 +62,7 @@ func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
 		// We capture the out stream for each module
 		errorStreams := make([]bytes.Buffer, len(stack.Modules))
 		for n, module := range stack.Modules {
-			module.TerragruntOptions.ErrWriter = &errorStreams[n]
+			module.TerragruntOptions.ErrWriter = io.MultiWriter(module.TerragruntOptions.ErrWriter, &errorStreams[n])
 		}
 		defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
 	}
