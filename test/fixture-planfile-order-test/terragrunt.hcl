@@ -1,9 +1,4 @@
 # Configure Terragrunt to automatically store tfstate files in an S3 bucket
-remote_state {
-  backend = "local"
-  config = {}
-}
-
 generate "test-null-provider" {
   path      = "test-provider.tf"
   if_exists = "overwrite_terragrunt"
@@ -23,6 +18,7 @@ terraform {
     arguments = [
       "-out=${get_terragrunt_dir()}/default.tfplan",
       "-var-file=${get_terragrunt_dir()}/vars/variables.tfvars",
+      "-no-color",
     ]
   }
 
@@ -33,7 +29,7 @@ terraform {
 
     arguments = [
       "${get_terragrunt_dir()}/default.tfplan",
-      "-var-file=${get_terragrunt_dir()}/vars/variables.tfvars",
+      "-no-color",
     ]
   }
 }
