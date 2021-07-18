@@ -303,7 +303,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 }
 
 // Check if argument is planfile TODO check file format
-func checkIfPlanfile(arg string) bool {
+func checkIfPlanFile(arg string) bool {
 	return util.IsFile(arg)
 }
 
@@ -313,7 +313,7 @@ func extractPlanFile(argsToInsert []string) (*string, []string) {
 	var filteredArgs []string
 
 	for _, arg := range argsToInsert {
-		if checkIfPlanfile(arg) {
+		if checkIfPlanFile(arg) {
 			planFile = arg
 		} else {
 			filteredArgs = append(filteredArgs, arg)
