@@ -101,8 +101,15 @@ func CreateTerragruntEvalContext(
 	terragruntOptions *options.TerragruntOptions,
 	extensions EvalContextExtensions,
 ) (*hcl.EvalContext, error) {
+	baseDir := filepath.Dir(filename)
+	absBaseDirPath, err := filepath.Abs(baseDir)
+
+	if err != nil {
+		return nil, err
+	}
+
 	tfscope := tflang.Scope{
-		BaseDir: filepath.Dir(filename),
+		BaseDir: baseDir,
 	}
 
 	terragruntFunctions := map[string]function.Function{
@@ -127,6 +134,7 @@ func CreateTerragruntEvalContext(
 		"get_terraform_commands_that_need_parallelism": wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_PARALLELISM),
 		"sops_decrypt_file":                            wrapStringSliceToStringAsFuncImpl(sopsDecryptFile, extensions.TrackInclude.Original, terragruntOptions),
 		"get_terragrunt_source_cli_flag":               wrapVoidToStringAsFuncImpl(getTerragruntSourceCliFlag, extensions.TrackInclude.Original, terragruntOptions),
+		"templatefile":                                 templateFileFunctionImpl(absBaseDirPath),
 	}
 
 	functions := map[string]function.Function{}

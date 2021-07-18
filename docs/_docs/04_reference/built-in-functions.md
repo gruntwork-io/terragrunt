@@ -14,6 +14,8 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
 
   - [All Terraform built-in functions](#terraform-built-in-functions)
 
+  - [templatefile()](#templatefile)
+
   - [find\_in\_parent\_folders()](#find_in_parent_folders)
 
   - [path\_relative\_to\_include()](#path_relative_to_include)
@@ -90,6 +92,66 @@ Then `assets.txt` could be read with the following function call:
 
 ``` hcl
 file("assets/mysql/assets.txt")
+```
+
+## templatefile
+
+`templatefile(path, vars)` reads the file content and renders its content as a template like [the same terraform function does](https://www.terraform.io/docs/language/functions/templatefile.html)
+
+```hcl
+generate "test-provider" {
+  path      = "test-provider.tf"
+  if_exists = "overwrite_terragrunt"
+
+  contents = templatefile("${path_relative_to_include()}/providers.tmpl", {
+    aws_region      = local.aws_region,
+    assume_role_arn = local.assume_role_arn
+  })
+}
+```
+
+This function takes filename and vars map argument then renders taken template. For example, for template
+
+```hcl
+provider "aws" {
+  alias = "standard"
+
+  region                      = "${aws_region}"
+  allowed_account_ids         = ["1234567890"]
+  skip_credentials_validation = true
+}
+
+provider "aws" {
+  alias = "assume-provider"
+
+  assume_role {
+    external_id      = "1"
+    duration_seconds = 3600
+    role_arn         = "${assume_role_arn}"
+  }
+}
+```
+
+output will be
+
+```hcl
+provider "aws" {
+  alias = "standard"
+
+  region                      = "us-east-1"
+  allowed_account_ids         = ["1234567890"]
+  skip_credentials_validation = true
+}
+
+provider "aws" {
+  alias = "assume-provider"
+
+  assume_role {
+    external_id      = "1"
+    duration_seconds = 3600
+    role_arn         = "arn:aws:iam::1234567890:role/assume-role"
+  }
+}
 ```
 
 ## find\_in\_parent\_folders

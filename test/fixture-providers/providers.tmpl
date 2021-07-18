@@ -1,0 +1,17 @@
+provider "aws" {
+  alias = "standard"
+
+  region                      = "${aws_region}"
+  allowed_account_ids         = ["1234567890"]
+  skip_credentials_validation = true
+}
+
+provider "aws" {
+  alias = "assume-provider"
+
+  assume_role {
+    external_id      = "1"
+    duration_seconds = 3600
+    role_arn         = "${assume_role_arn}"
+  }
+}
