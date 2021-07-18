@@ -94,11 +94,6 @@ type EvalContextExtensions struct {
 	DecodedDependencies *cty.Value
 }
 
-type ProviderHandler struct {
-	Param cty.Type
-	Impl  func(args []cty.Value, retType cty.Type) (cty.Value, error)
-}
-
 // Create an EvalContext for the HCL2 parser. We can define functions and variables in this context that the HCL2 parser
 // will make available to the Terragrunt configuration during parsing.
 func CreateTerragruntEvalContext(

@@ -35,19 +35,6 @@ func wrapStringSliceToStringAsFuncImpl(toWrap func(params []string, include *Inc
 	})
 }
 
-// Create a cty Function that takes as input parameters an object and returns as output a string.
-// The implementation of the function calls the given toWrap function, passing
-// it the input parameters string slice as well as the given include and terragruntOptions.
-func wrapObjectToStringAsFuncImpl(handlerCall func() ProviderHandler) function.Function {
-	handler := handlerCall()
-
-	return function.New(&function.Spec{
-		VarParam: &function.Parameter{Type: handler.Param},
-		Type:     function.StaticReturnType(cty.String),
-		Impl:     handler.Impl,
-	})
-}
-
 // Create a cty Function that takes no input parameters and returns as output a string. The implementation of the
 // function calls the given toWrap function, passing it the given include and terragruntOptions.
 func wrapVoidToStringAsFuncImpl(toWrap func(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error), include *IncludeConfig, terragruntOptions *options.TerragruntOptions) function.Function {
