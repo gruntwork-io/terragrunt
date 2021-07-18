@@ -121,6 +121,7 @@ const (
 	TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_HCL                  = "fixture-get-terragrunt-source-hcl"
 	TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_CLI                  = "fixture-get-terragrunt-source-cli"
 	TEST_FIXTURE_REGRESSIONS                                = "fixture-regressions"
+	TEST_FIXTURE_PLANFILE_ORDER                             = "fixture-planfile-order-test"
 	TEST_FIXTURE_DIRS_PATH                                  = "fixture-dirs"
 	TEST_FIXTURE_PARALLELISM                                = "fixture-parallelism"
 	TEST_FIXTURE_SOPS                                       = "fixture-sops"
@@ -1219,6 +1220,19 @@ func TestAutoRetrySkip(t *testing.T) {
 
 	assert.NotNil(t, err)
 	assert.NotContains(t, out.String(), "Apply complete!")
+}
+
+func TestPlanfileOrder(t *testing.T) {
+	t.Parallel()
+
+	rootPath := copyEnvironment(t, TEST_FIXTURE_PLANFILE_ORDER)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_PLANFILE_ORDER)
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-working-dir %s", modulePath), os.Stdout, os.Stderr)
+	assert.NotNil(t, err)
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-working-dir %s", modulePath), os.Stdout, os.Stderr)
+	assert.NotNil(t, err)
 }
 
 func TestAutoRetryExhaustRetries(t *testing.T) {
