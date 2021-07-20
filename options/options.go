@@ -304,7 +304,14 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 
 // Check if argument is planfile TODO check file format
 func checkIfPlanFile(arg string) bool {
-	return util.IsFile(arg)
+	isFile := util.IsFile(arg)
+
+	if isFile {
+		ext := filepath.Ext(arg)
+		return ext == ".tfplan"
+	}
+
+	return false
 }
 
 // Extract planfile from arguments list

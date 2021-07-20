@@ -17,7 +17,8 @@ terraform {
 
     arguments = [
       "-out=${get_terragrunt_dir()}/default.tfplan",
-      "-var-file=${get_terragrunt_dir()}/vars/variables.tfvars",
+      "-var-file",
+      "${get_terragrunt_dir()}/vars/variables.tfvars",
       "-no-color",
     ]
   }
