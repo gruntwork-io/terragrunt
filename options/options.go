@@ -302,8 +302,34 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 	}
 }
 
+// Check if argument is planfile TODO check file format
+func checkIfPlanFile(arg string) bool {
+	return util.IsFile(arg) && filepath.Ext(arg) == ".tfplan"
+}
+
+// Extract planfile from arguments list
+func extractPlanFile(argsToInsert []string) (*string, []string) {
+	planFile := ""
+	var filteredArgs []string
+
+	for _, arg := range argsToInsert {
+		if checkIfPlanFile(arg) {
+			planFile = arg
+		} else {
+			filteredArgs = append(filteredArgs, arg)
+		}
+	}
+
+	if planFile != "" {
+		return &planFile, filteredArgs
+	}
+
+	return nil, filteredArgs
+}
+
 // Inserts the given argsToInsert after the terraform command argument, but before the remaining args
 func (terragruntOptions *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
+	planFile, restArgs := extractPlanFile(argsToInsert)
 
 	commandLength := 1
 	if util.ListContainsElement(TERRAFORM_COMMANDS_WITH_SUBCOMMAND, terragruntOptions.TerraformCliArgs[0]) {
@@ -316,8 +342,14 @@ func (terragruntOptions *TerragruntOptions) InsertTerraformCliArgs(argsToInsert 
 	// command is either 1 word or 2 words
 	var args []string
 	args = append(args, terragruntOptions.TerraformCliArgs[:commandLength]...)
-	args = append(args, argsToInsert...)
+	args = append(args, restArgs...)
 	args = append(args, terragruntOptions.TerraformCliArgs[commandLength:]...)
+
+	// check if planfile was extracted
+	if planFile != nil {
+		args = append(args, *planFile)
+	}
+
 	terragruntOptions.TerraformCliArgs = args
 }
 

@@ -631,7 +631,8 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 
 	// Add extra_arguments to the command
 	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExtraArgs != nil && len(terragruntConfig.Terraform.ExtraArgs) > 0 {
-		terragruntOptions.InsertTerraformCliArgs(filterTerraformExtraArgs(terragruntOptions, terragruntConfig)...)
+		args := filterTerraformExtraArgs(terragruntOptions, terragruntConfig)
+		terragruntOptions.InsertTerraformCliArgs(args...)
 		for k, v := range filterTerraformEnvVarsFromExtraArgs(terragruntOptions, terragruntConfig) {
 			terragruntOptions.Env[k] = v
 		}
