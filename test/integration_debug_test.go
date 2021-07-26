@@ -127,6 +127,22 @@ func TestTerragruntValidateInputsWithStrictModeEnabledAndUnusedVar(t *testing.T)
 	runTerragruntValidateInputs(t, moduleDir, args, false)
 }
 
+func TestTerragruntValidateInputsWithStrictModeEnabledAndUnusedInputs(t *testing.T) {
+	t.Parallel()
+
+	moduleDir := filepath.Join("fixture-validate-inputs", "fail-unused-inputs")
+	args := []string{"--terragrunt-strict"}
+	runTerragruntValidateInputs(t, moduleDir, args, false)
+}
+
+func TestTerragruntValidateInputsWithStrictModeDisabledAndUnusedInputs(t *testing.T) {
+	t.Parallel()
+
+	moduleDir := filepath.Join("fixture-validate-inputs", "fail-unused-inputs")
+	args := []string{}
+	runTerragruntValidateInputs(t, moduleDir, args, true)
+}
+
 func runTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []string, isSuccessTest bool) {
 	maybeNested := filepath.Join(moduleDir, "module")
 	if util.FileExists(maybeNested) {
