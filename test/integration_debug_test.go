@@ -150,7 +150,7 @@ func runTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []str
 		moduleDir = maybeNested
 	}
 
-	cmd := fmt.Sprintf("terragrunt validate-inputs %s --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", strings.Join(extraArgs, " "), moduleDir)
+	cmd := fmt.Sprintf("terragrunt validate-inputs %s --terragrunt-strict --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", strings.Join(extraArgs, " "), moduleDir)
 	t.Logf("Command: %s", cmd)
 	_, _, err := runTerragruntCommandWithOutput(t, cmd)
 	if isSuccessTest {
