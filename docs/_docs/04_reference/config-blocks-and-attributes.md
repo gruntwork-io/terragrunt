@@ -399,7 +399,7 @@ inputs = {
 When the `merge_strategy` for the `include` block is set to `deep`, Terragrunt will perform a deep merge of the included
 config. For Terragrunt config, deep merge is defined as follows:
 
-- For simple types, the source overrides the target.
+- For simple types, the child overrides the parent.
 - For lists, the two attribute lists are combined together in concatenation.
 - For maps, the two maps are combined together recursively. That is, if the map keys overlap, then a deep merge is
   performed on the map value.
@@ -450,6 +450,128 @@ inputs = {
 In the example, note how the parent is accessing the outputs of the `mysql` dependency even though it is not defined in
 the parent. Similarly, the child is accessing the outputs of the `vpc` dependency even though it is not defined in the
 child.
+
+Full example:
+
+_parent terragrunt.hcl_
+```hcl
+remote_state {
+  backend = "s3"
+  config = {
+    encrypt = true
+    bucket = "__FILL_IN_BUCKET_NAME__"
+    key = "${path_relative_to_include()}/terraform.tfstate"
+    region = "us-west-2"
+  }
+}
+
+dependency "vpc" {
+  # This will get overridden by child terragrunt.hcl configs
+  config_path = ""
+
+  mock_outputs = {
+    attribute     = "hello"
+    old_attribute = "old val"
+    list_attr     = ["hello"]
+    map_attr = {
+      foo = "bar"
+    }
+  }
+  mock_outputs_allowed_terraform_commands = ["apply", "plan", "destroy", "output"]
+}
+
+inputs = {
+  attribute     = "hello"
+  old_attribute = "old val"
+  list_attr     = ["hello"]
+  map_attr = {
+    foo = "bar"
+    test = dependency.vpc.outputs.new_attribute
+  }
+}
+```
+
+_child terragrunt.hcl_
+```hcl
+include {
+  path           = find_in_parent_folders()
+  merge_strategy = "deep"
+}
+
+remote_state {
+  backend = "local"
+}
+
+dependency "vpc" {
+  config_path = "../vpc"
+  mock_outputs = {
+    attribute     = "mock"
+    new_attribute = "new val"
+    list_attr     = ["mock"]
+    map_attr = {
+      bar = "baz"
+    }
+  }
+}
+
+inputs = {
+  attribute     = "mock"
+  new_attribute = "new val"
+  list_attr     = ["mock"]
+  map_attr = {
+    bar = "baz"
+  }
+
+  dep_out = dependency.vpc.outputs
+}
+```
+
+_merged terragrunt.hcl_
+```hcl
+# Child override parent completely due to deep merge limitation
+remote_state {
+  backend = "local"
+}
+
+# mock_outputs are merged together with deep merge
+dependency "vpc" {
+  config_path = "../vpc"       # Child overrides parent
+  mock_outputs = {
+    attribute     = "mock"     # Child overrides parent
+    old_attribute = "old val"  # From parent
+    new_attribute = "new val"  # From child
+    list_attr     = [
+      "hello",                 # From parent
+      "mock",                  # From child
+    ]
+    map_attr = {
+      foo = "bar"              # From parent
+      bar = "baz"              # From child
+    }
+  }
+
+  # From parent
+  mock_outputs_allowed_terraform_commands = ["apply", "plan", "destroy", "output"]
+}
+
+# inputs are merged together with deep merge
+inputs = {
+  attribute     = "mock"       # Child overrides parent
+  old_attribute = "old val"    # From parent
+  new_attribute = "new val"    # From child
+  list_attr     = [
+    "hello",                 # From parent
+    "mock",                  # From child
+  ]
+  map_attr = {
+    foo = "bar"                                   # From parent
+    bar = "baz"                                   # From child
+    test = dependency.vpc.outputs.new_attribute   # From parent, referencing dependency mock output from child
+  }
+
+  dep_out = dependency.vpc.outputs                # From child
+}
+```
 
 
 ### locals
