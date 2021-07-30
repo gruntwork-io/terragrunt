@@ -90,7 +90,7 @@ type terragruntRemoteState struct {
 }
 
 // Map with cached evaluated locals to avoid re-evaluation
-var localsCache = make(map[string]cty.Value)
+var localsCache = map[string]cty.Value{}
 
 // Mutex for single access to locals cache map
 var localsCacheMutex = &sync.Mutex{}
