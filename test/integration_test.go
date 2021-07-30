@@ -113,6 +113,7 @@ const (
 	TEST_FIXTURE_LOCALS_CANONICAL                           = "fixture-locals/canonical"
 	TEST_FIXTURE_LOCALS_IN_INCLUDE                          = "fixture-locals/local-in-include"
 	TEST_FIXTURE_LOCAL_RUN_ONCE                             = "fixture-locals/run-once"
+	TEST_FIXTURE_LOCAL_RUN_TWICE                            = "fixture-locals/run-twice"
 	TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH           = "qa/my-app"
 	TEST_FIXTURE_READ_CONFIG                                = "fixture-read-config"
 	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                    = "fixture-get-aws-caller-identity"
@@ -4071,5 +4072,23 @@ func TestTerragruntInitOnce(t *testing.T) {
 
 	errout := string(stderr.Bytes())
 
+	assert.Equal(t, 1, strings.Count(errout, "foo"))
+}
+
+func TestTerragruntInitRunCmd(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_RUN_TWICE)
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_RUN_TWICE), &stdout, &stderr)
+
+	errout := string(stderr.Bytes())
+
+	fmt.Printf("%v\n", errout)
+
+	assert.Equal(t, 2, strings.Count(errout, "potato"))
+	assert.Equal(t, 1, strings.Count(errout, "bar"))
 	assert.Equal(t, 1, strings.Count(errout, "foo"))
 }
