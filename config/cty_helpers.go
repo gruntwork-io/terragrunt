@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 
+	"github.com/imdario/mergo"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 	"github.com/zclconf/go-cty/cty/gocty"
@@ -93,6 +94,35 @@ func ctySliceToStringSlice(args []cty.Value) ([]string, error) {
 		out = append(out, arg.AsString())
 	}
 	return out, nil
+}
+
+// deepMergeCtyMaps implements a deep merge of two cty value objects. We can't directly merge two cty.Value objects, so
+// we cheat by using map[string]interface{} as an intermediary. Note that this assumes the provided cty value objects
+// are already maps or objects in HCL land.
+func deepMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
+	outMap := make(map[string]interface{})
+	targetMap, err := parseCtyValueToMap(target)
+	if err != nil {
+		return nil, err
+	}
+	sourceMap, err := parseCtyValueToMap(source)
+	if err != nil {
+		return nil, err
+	}
+
+	for key, val := range targetMap {
+		outMap[key] = val
+	}
+
+	if err := mergo.Merge(&outMap, sourceMap, mergo.WithAppendSlice, mergo.WithOverride); err != nil {
+		return nil, err
+	}
+
+	outCty, err := convertToCtyWithJson(outMap)
+	if err != nil {
+		return nil, err
+	}
+	return &outCty, nil
 }
 
 // This is a hacky workaround to convert a cty Value to a Go map[string]interface{}. cty does not support this directly

@@ -148,7 +148,7 @@ func CreateTerragruntEvalContext(
 		ctx.Variables["dependency"] = *extensions.DecodedDependencies
 	}
 	if extensions.TrackInclude.Current != nil && extensions.TrackInclude.Current.GetExpose() {
-		includedConfig, err := parseIncludedConfig(extensions.TrackInclude.Current, terragruntOptions)
+		includedConfig, err := parseIncludedConfig(extensions.TrackInclude.Current, terragruntOptions, extensions.DecodedDependencies)
 		if err != nil {
 			return ctx, err
 		}
@@ -418,7 +418,7 @@ func readTerragruntConfig(configPath string, defaultVal *cty.Value, terragruntOp
 
 	// We update the context of terragruntOptions to the config being read in.
 	targetOptions := terragruntOptions.Clone(targetConfig)
-	config, err := ParseConfigFile(targetConfig, targetOptions, nil)
+	config, err := ParseConfigFile(targetConfig, targetOptions, nil, nil)
 	if err != nil {
 		return cty.NilVal, err
 	}

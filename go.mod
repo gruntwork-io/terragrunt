@@ -30,6 +30,7 @@ require (
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20210318070130-9a80970d6b34
 	github.com/hashicorp/vault/api v1.0.5-0.20210210214158-405eced08457 // indirect
 	github.com/hashicorp/vault/sdk v0.1.14-0.20210322210658-b52b8b8c1264 // indirect
+	github.com/imdario/mergo v0.3.11
 	github.com/kr/pretty v0.2.1 // indirect
 	github.com/mattn/go-colorable v0.1.7 // indirect
 	github.com/mattn/go-zglob v0.0.2-0.20190814121620-e3c945676326

@@ -215,6 +215,8 @@ func (cfg *IncludeConfig) GetMergeStrategy() (MergeStrategyType, error) {
 		return NoMerge, nil
 	case string(ShallowMerge):
 		return ShallowMerge, nil
+	case string(DeepMerge):
+		return DeepMerge, nil
 	default:
 		return NoMerge, errors.WithStackTrace(InvalidMergeStrategyType(strategy))
 	}
@@ -225,6 +227,7 @@ type MergeStrategyType string
 const (
 	NoMerge      MergeStrategyType = "no_merge"
 	ShallowMerge MergeStrategyType = "shallow"
+	DeepMerge    MergeStrategyType = "deep"
 )
 
 // ModuleDependencies represents the paths to other Terraform modules that must be applied before the current module
@@ -523,18 +526,18 @@ func containsTerragruntModule(path string, info os.FileInfo, terragruntOptions *
 // Read the Terragrunt config file from its default location
 func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*TerragruntConfig, error) {
 	terragruntOptions.Logger.Debugf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
-	return ParseConfigFile(terragruntOptions.TerragruntConfigPath, terragruntOptions, nil)
+	return ParseConfigFile(terragruntOptions.TerragruntConfigPath, terragruntOptions, nil, nil)
 }
 
 // Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
-func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig) (*TerragruntConfig, error) {
+func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig, dependencyOutputs *cty.Value) (*TerragruntConfig, error) {
 	configString, err := util.ReadFileAsString(filename)
 	if err != nil {
 		return nil, err
 	}
 
-	config, err := ParseConfigString(configString, terragruntOptions, include, filename)
+	config, err := ParseConfigString(configString, terragruntOptions, include, filename, dependencyOutputs)
 	if err != nil {
 		return nil, err
 	}
@@ -557,6 +560,8 @@ func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptio
 // 3. Parse dependency blocks. This includes running `terragrunt output` to fetch the output data from another
 //    terragrunt config, so that it is accessible within the config. See PartialParseConfigString for a way to parse the
 //    blocks but avoid decoding.
+//    Note that this step is skipped if we already retrieved all the dependencies (which is the case when parsing
+//    included config files). This is determined by the dependencyOutputs input parameter.
 //    Allowed References:
 //      - locals
 // 4. Parse everything else. At this point, all the necessary building blocks for parsing the rest of the config are
@@ -571,6 +576,7 @@ func ParseConfigString(
 	terragruntOptions *options.TerragruntOptions,
 	includeFromChild *IncludeConfig,
 	filename string,
+	dependencyOutputs *cty.Value,
 ) (*TerragruntConfig, error) {
 	// Parse the HCL string into an AST body that can be decoded multiple times later without having to re-parse
 	parser := hclparse.NewParser()
@@ -587,17 +593,20 @@ func ParseConfigString(
 
 	// Initialize evaluation context extensions from base blocks.
 	contextExtensions := EvalContextExtensions{
-		Locals:       localsAsCty,
-		TrackInclude: trackInclude,
+		Locals:              localsAsCty,
+		TrackInclude:        trackInclude,
+		DecodedDependencies: dependencyOutputs,
 	}
 
-	// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
-	// process.
-	retrievedOutputs, err := decodeAndRetrieveOutputs(file, filename, terragruntOptions, contextExtensions)
-	if err != nil {
-		return nil, err
+	if dependencyOutputs == nil {
+		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
+		// process.
+		retrievedOutputs, err := decodeAndRetrieveOutputs(file, filename, terragruntOptions, terragruntInclude.Include, contextExtensions)
+		if err != nil {
+			return nil, err
+		}
+		contextExtensions.DecodedDependencies = retrievedOutputs
 	}
-	contextExtensions.DecodedDependencies = retrievedOutputs
 
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
 	// is appropriate
@@ -616,7 +625,7 @@ func ParseConfigString(
 
 	// If this file includes another, parse and merge it.  Otherwise just return this config.
 	if terragruntInclude.Include != nil {
-		return handleInclude(config, terragruntInclude, terragruntOptions)
+		return handleInclude(config, terragruntInclude.Include, terragruntOptions, contextExtensions.DecodedDependencies)
 	} else {
 		return config, nil
 	}
@@ -877,9 +886,10 @@ type InvalidMergeStrategyType string
 
 func (err InvalidMergeStrategyType) Error() string {
 	return fmt.Sprintf(
-		"Include merge strategy %s is unknown. Valid strategies are: %s, %s",
+		"Include merge strategy %s is unknown. Valid strategies are: %s, %s, %s",
 		string(err),
 		NoMerge,
 		ShallowMerge,
+		DeepMerge,
 	)
 }
