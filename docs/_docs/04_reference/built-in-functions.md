@@ -531,6 +531,16 @@ super_secret_value = run_cmd("--terragrunt-quiet", "./decrypt_secret.sh", "foo")
 
 **Note:** This will prevent terragrunt from displaying the output from the command in its output. However, the value could still be displayed in the Terraform output if Terraform does not treat it as a [sensitive value](https://www.terraform.io/docs/configuration/outputs.html#sensitive-suppressing-values-in-cli-output).
 
+If the command you are running is in locals, it will be executed only once, value cached and re-used later:
+
+```hcl
+locals {
+  bar = run_cmd("echo", "foo")
+}
+```
+
+**Note:** will be printed "foo" only once and output will be cached in for future usage.
+
 
 ## read\_terragrunt\_config
 

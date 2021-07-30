@@ -402,6 +402,8 @@ You can learn more about locals in the [feature overview](/docs/features/locals/
 The `locals` block does not have a defined set of arguments that are supported. Instead, all the arguments passed into
 `locals` are available under the reference `local.ARG_NAME` throughout the Terragrunt configuration.
 
+**Note:** `locals` are evaluated only once, when the HCL file is parsed and later cached value is used.
+
 Example:
 
 ```hcl

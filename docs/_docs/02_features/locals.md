@@ -37,6 +37,8 @@ locals {
 }
 ```
 
+**Notes:** `local` variables are evaluated only once when the HCL file is parsed and later cached value is used.
+
 ### Including globally defined locals
 
 Currently you can only reference `locals` defined in the same config file. `terragrunt` does not automatically include
