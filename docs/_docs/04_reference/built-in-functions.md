@@ -535,11 +535,10 @@ If the command you are running is in locals, it will be executed only once, valu
 
 ```hcl
 locals {
-  bar = run_cmd("echo", "foo")
+  uuid = run_cmd("echo", "uuid()")
 }
 ```
-
-**Note:** will be printed "foo" only once and output will be cached in for future usage.
+**Note:** `echo uuid()` will be executed only once, and later used cached value in variable `uuid`.
 
 
 ## read\_terragrunt\_config
