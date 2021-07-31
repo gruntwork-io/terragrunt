@@ -2414,6 +2414,161 @@ func TestDependencyMockOutput(t *testing.T) {
 	assert.Equal(t, outputs["truth"].Value, "The answer is 42")
 }
 
+// Test default behavior when mock_outputs_merge_with_state is not set. It should behave, as before this parameter was added
+// It will fail on any command if the parent state is not applied, because the state of the parent exists and it alread has an output
+// but not the newly added output.
+func TestDependencyMockOutputMergeWithStateDefault(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-with-state", "merge-with-state-default", "live")
+	parentPath := filepath.Join(rootPath, "parent")
+	childPath := filepath.Join(rootPath, "child")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", parentPath), &stdout, &stderr)
+	assert.NoError(t, err)
+	logBufferContentsLineByLine(t, stdout, "plan stdout")
+	logBufferContentsLineByLine(t, stderr, "plan stderr")
+
+	// Verify we have the default behavior if mock_outputs_merge_with_state is not set
+	stdout.Reset()
+	stderr.Reset()
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+	assert.Error(t, err)
+	// Verify that we fail because the dependency is not applied yet, and the new attribue is not available and in
+	// this case, mocked outputs are not used.
+	assert.Contains(t, err.Error(), "This object does not have an attribute named \"test_output2\"")
+
+	logBufferContentsLineByLine(t, stdout, "plan stdout")
+	logBufferContentsLineByLine(t, stderr, "plan stderr")
+
+}
+
+// Test when mock_outputs_merge_with_state is explicitly set to false. It should behave, as before this parameter was added
+// It will fail on any command if the parent state is not applied, because the state of the parent exists and it alread has an output
+// but not the newly added output.
+func TestDependencyMockOutputMergeWithStateFalse(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-with-state", "merge-with-state-false", "live")
+	parentPath := filepath.Join(rootPath, "parent")
+	childPath := filepath.Join(rootPath, "child")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", parentPath), &stdout, &stderr)
+	assert.NoError(t, err)
+	logBufferContentsLineByLine(t, stdout, "plan stdout")
+	logBufferContentsLineByLine(t, stderr, "plan stderr")
+
+	// Verify we have the default behavior if mock_outputs_merge_with_state is set to false
+	stdout.Reset()
+	stderr.Reset()
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+	assert.Error(t, err)
+	// Verify that we fail because the dependency is not applied yet, and the new attribue is not available and in
+	// this case, mocked outputs are not used.
+	assert.Contains(t, err.Error(), "This object does not have an attribute named \"test_output2\"")
+
+	logBufferContentsLineByLine(t, stdout, "plan stdout")
+	logBufferContentsLineByLine(t, stderr, "plan stderr")
+
+}
+
+// Test when mock_outputs_merge_with_state is explicitly set to true.
+// It will mock the newly added output from the parent as it was not already applied to the state.
+func TestDependencyMockOutputMergeWithStateTrue(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-with-state", "merge-with-state-true", "live")
+	parentPath := filepath.Join(rootPath, "parent")
+	childPath := filepath.Join(rootPath, "child")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", parentPath), &stdout, &stderr)
+	assert.NoError(t, err)
+	logBufferContentsLineByLine(t, stdout, "plan stdout")
+	logBufferContentsLineByLine(t, stderr, "plan stderr")
+
+	// Verify mocked outputs are used if mock_outputs_merge_with_state is set to true and some output in the parent are not applied yet.
+	stdout.Reset()
+	stderr.Reset()
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, stdout, "apply stdout")
+	logBufferContentsLineByLine(t, stderr, "apply stderr")
+	// Now check the outputs to make sure they are as expected
+	stdout.Reset()
+	stderr.Reset()
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	assert.Equal(t, outputs["test_output1_from_parent"].Value, "value1")
+	assert.Equal(t, outputs["test_output2_from_parent"].Value, "fake-data2")
+
+	logBufferContentsLineByLine(t, stdout, "output stdout")
+	logBufferContentsLineByLine(t, stderr, "output stderr")
+
+}
+
+// Test when mock_outputs_merge_with_state is explicitly set to true.
+// Mock should not be used as the parent state was already fully applied.
+func TestDependencyMockOutputMergeWithStateNoOverride(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-with-state", "merge-with-state-no-override", "live")
+	parentPath := filepath.Join(rootPath, "parent")
+	childPath := filepath.Join(rootPath, "child")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", parentPath), &stdout, &stderr)
+	assert.NoError(t, err)
+	logBufferContentsLineByLine(t, stdout, "show stdout")
+	logBufferContentsLineByLine(t, stderr, "show stderr")
+
+	// Verify mocked outputs are not used if mock_outputs_merge_with_state is set to true and all outputs in the parent have been applied.
+	stdout.Reset()
+	stderr.Reset()
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	// Now check the outputs to make sure they are as expected
+	stdout.Reset()
+	stderr.Reset()
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	assert.Equal(t, outputs["test_output1_from_parent"].Value, "value1")
+	assert.Equal(t, outputs["test_output2_from_parent"].Value, "value2")
+
+	logBufferContentsLineByLine(t, stdout, "show stdout")
+	logBufferContentsLineByLine(t, stderr, "show stderr")
+}
+
 // Test that when you have a mock_output on a dependency, the dependency will use the mock as the output instead
 // of erroring out when running an allowed command.
 func TestDependencyMockOutputRestricted(t *testing.T) {
