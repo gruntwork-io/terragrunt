@@ -1,12 +1,14 @@
 package config
 
 import (
+	"crypto/md5"
 	"fmt"
 	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/hashicorp/go-getter"
@@ -227,6 +229,12 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 	return envVariable, nil
 }
 
+// runCommandCache - map with cached results from runCommand invocations
+var runCommandCache = map[string]string{}
+
+// runCommandCacheMutex - mutex for single access to runCommandCache
+var runCommandCacheMutex = &sync.Mutex{}
+
 // runCommand is a helper function that runs a command and returns the stdout as the interporation
 // result
 func runCommand(args []string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
@@ -242,6 +250,18 @@ func runCommand(args []string, include *IncludeConfig, terragruntOptions *option
 
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 
+	md5Sum := md5.Sum([]byte(fmt.Sprintf("%v-%v", currentPath, args)))
+	cacheKey := fmt.Sprintf("%x", md5Sum)
+	cachedValue, foundInCache := runCommandCache[cacheKey]
+	if foundInCache {
+		if suppressOutput {
+			terragruntOptions.Logger.Debugf("run_cmd, cached output: [REDACTED]")
+		} else {
+			terragruntOptions.Logger.Debugf("run_cmd, cached output: [%s]", cachedValue)
+		}
+		return cachedValue, nil
+	}
+
 	cmdOutput, err := shell.RunShellCommandWithOutput(terragruntOptions, currentPath, suppressOutput, false, args[0], args[1:]...)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
@@ -254,6 +274,10 @@ func runCommand(args []string, include *IncludeConfig, terragruntOptions *option
 	} else {
 		terragruntOptions.Logger.Debugf("run_cmd output: [%s]", value)
 	}
+
+	runCommandCacheMutex.Lock()
+	runCommandCache[cacheKey] = value
+	runCommandCacheMutex.Unlock()
 
 	return value, nil
 }
