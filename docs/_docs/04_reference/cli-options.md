@@ -406,6 +406,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-exclude-dir](#terragrunt-exclude-dir)
 - [terragrunt-include-dir](#terragrunt-include-dir)
 - [terragrunt-strict-include](#terragrunt-strict-include)
+- [terragrunt-strict-validate](#terragrunt-strict-validate)
 - [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
 - [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
 - [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
@@ -610,6 +611,11 @@ will be included. All dependencies of the included directories will be excluded 
 directories. If no [--terragrunt-include-dir](#terragrunt-include-dir) flags are included, terragrunt will not include
 any modules during the execution of the commands.
 
+### terragrunt-strict-validate
+
+**CLI Arg**: `--terragrunt-strict-validate`
+
+When passed in, and running `terragrunt validate-inputs`, enables strict mode for the `validate-inputs` command. When strict mode is enabled, an error will be returned if any variables required by the underlying Terraform configuration are not passed in, OR if any unused variables are passed in. By default, `terragrunt validate-inputs` runs in relaxed mode. In relaxed mode, an error is only returned when a variable required by the underlying Terraform configuration is not passed in.
 
 ### terragrunt-ignore-dependency-order
 

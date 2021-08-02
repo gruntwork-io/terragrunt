@@ -79,7 +79,7 @@ func TestTerragruntValidateInputs(t *testing.T) {
 			t.Parallel()
 
 			nameDashSplit := strings.Split(name, "-")
-			runTerragruntValidateInputs(t, module, []string{"--terragrunt-strict"}, nameDashSplit[0] == "success")
+			runTerragruntValidateInputs(t, module, []string{"--terragrunt-strict-validate"}, nameDashSplit[0] == "success")
 		})
 	}
 }
@@ -107,7 +107,7 @@ func TestTerragruntValidateInputsWithStrictMode(t *testing.T) {
 	t.Parallel()
 
 	moduleDir := filepath.Join("fixture-validate-inputs", "success-inputs-only")
-	args := []string{"--terragrunt-strict"}
+	args := []string{"--terragrunt-strict-validate"}
 	runTerragruntValidateInputs(t, moduleDir, args, true)
 }
 
@@ -123,7 +123,7 @@ func TestTerragruntValidateInputsWithStrictModeEnabledAndUnusedVar(t *testing.T)
 	t.Parallel()
 
 	moduleDir := filepath.Join("fixture-validate-inputs", "success-inputs-only")
-	args := []string{"-var=testvariable=testvalue", "--terragrunt-strict"}
+	args := []string{"-var=testvariable=testvalue", "--terragrunt-strict-validate"}
 	runTerragruntValidateInputs(t, moduleDir, args, false)
 }
 
@@ -131,7 +131,7 @@ func TestTerragruntValidateInputsWithStrictModeEnabledAndUnusedInputs(t *testing
 	t.Parallel()
 
 	moduleDir := filepath.Join("fixture-validate-inputs", "fail-unused-inputs")
-	args := []string{"--terragrunt-strict"}
+	args := []string{"--terragrunt-strict-validate"}
 	runTerragruntValidateInputs(t, moduleDir, args, false)
 }
 

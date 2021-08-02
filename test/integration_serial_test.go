@@ -205,7 +205,7 @@ func TestTerragruntValidateInputsWithUnusedEnvVar(t *testing.T) {
 	defer os.Unsetenv("TF_VAR_unused")
 
 	moduleDir := filepath.Join("fixture-validate-inputs", "success-inputs-only")
-	args := []string{"--terragrunt-strict"}
+	args := []string{"--terragrunt-strict-validate"}
 	runTerragruntValidateInputs(t, moduleDir, args, false)
 }
 

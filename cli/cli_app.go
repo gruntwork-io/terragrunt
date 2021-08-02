@@ -50,7 +50,7 @@ const OPT_TERRAGRUNT_HCLFMT_FILE = "terragrunt-hclfmt-file"
 const OPT_TERRAGRUNT_DEBUG = "terragrunt-debug"
 const OPT_TERRAGRUNT_OVERRIDE_ATTR = "terragrunt-override-attr"
 const OPT_TERRAGRUNT_LOGLEVEL = "terragrunt-log-level"
-const OPT_TERRAGRUNT_STRICT = "terragrunt-strict"
+const OPT_TERRAGRUNT_STRICT = "terragrunt-strict-validate"
 
 var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{
 	OPT_NON_INTERACTIVE,
@@ -237,7 +237,7 @@ GLOBAL OPTIONS:
    terragrunt-override-attr                     A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.
    terragrunt-debug                             Write terragrunt-debug.tfvars to working folder to help root-cause issues.
    terragrunt-log-level                         Sets the logging level for Terragrunt. Supported levels: panic, fatal, error, warn (default), info, debug, trace.
-   terragrunt-strict                            Sets strict mode for the validate-inputs command. By default, strict mode is off. When this flag is passed, strict mode is turned on. When strict mode is turned off, the validate-inputs command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When strict mode is turned on, an error will be returned if required inputs are missing OR if unused variables are passed to Terragrunt.
+   terragrunt-strict-validate                   Sets strict mode for the validate-inputs command. By default, strict mode is off. When this flag is passed, strict mode is turned on. When strict mode is turned off, the validate-inputs command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When strict mode is turned on, an error will be returned if required inputs are missing OR if unused variables are passed to Terragrunt.
 
 VERSION:
    {{.Version}}{{if len .Authors}}
