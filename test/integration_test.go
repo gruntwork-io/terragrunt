@@ -4090,6 +4090,10 @@ func TestTerragruntInitRunCmd(t *testing.T) {
 
 	// "potato" will be printed only once, since run_cmd result was executed only once and cached second time
 	assert.Equal(t, 1, strings.Count(errout, "potato"))
+	assert.Equal(t, 1, strings.Count(errout, "carrot"))
 	assert.Equal(t, 1, strings.Count(errout, "bar"))
 	assert.Equal(t, 1, strings.Count(errout, "foo"))
+
+	assert.Equal(t, 2, strings.Count(errout, "uuid"))
+	assert.Equal(t, 2, strings.Count(errout, "random_arg"))
 }
