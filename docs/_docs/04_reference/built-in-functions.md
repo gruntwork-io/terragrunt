@@ -545,7 +545,7 @@ locals {
 ```
 **Notes:**
   * In the output will be printed once `carrot` and `potato`, second invocation of `run_cmd("echo", "potato")` will be cached
-  * in the output will be printed **twice** different UUIDs because as arguments to `run_cmd` will be passed different UUIDs
+  * In the output will be printed **twice** different UUIDs because as arguments to `run_cmd` will be passed different UUIDs
 
 
 ## read\_terragrunt\_config
