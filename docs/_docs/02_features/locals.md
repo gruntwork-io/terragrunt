@@ -37,7 +37,7 @@ locals {
 }
 ```
 
-**Notes:** `local` variables are evaluated only once when the HCL file is parsed and later cached value is used.
+**Notes:** `local` variables are evaluated only once when the HCL file is parsed and later cached values are used.
 
 ### Including globally defined locals
 
