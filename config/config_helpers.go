@@ -250,6 +250,7 @@ func runCommand(args []string, include *IncludeConfig, terragruntOptions *option
 
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 
+	// caching key based on path and arguments
 	md5Sum := md5.Sum([]byte(fmt.Sprintf("%v-%v", currentPath, args)))
 	cacheKey := fmt.Sprintf("%x", md5Sum)
 	cachedValue, foundInCache := runCommandCache[cacheKey]
