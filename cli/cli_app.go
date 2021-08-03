@@ -50,7 +50,7 @@ const OPT_TERRAGRUNT_HCLFMT_FILE = "terragrunt-hclfmt-file"
 const OPT_TERRAGRUNT_DEBUG = "terragrunt-debug"
 const OPT_TERRAGRUNT_OVERRIDE_ATTR = "terragrunt-override-attr"
 const OPT_TERRAGRUNT_LOGLEVEL = "terragrunt-log-level"
-const OPT_TERRAGRUNT_STRICT = "terragrunt-strict-validate"
+const OPT_TERRAGRUNT_STRICT_VALIDATE = "terragrunt-strict-validate"
 
 var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{
 	OPT_NON_INTERACTIVE,
@@ -80,7 +80,7 @@ var ALL_TERRAGRUNT_STRING_OPTS = []string{
 	OPT_TERRAGRUNT_HCLFMT_FILE,
 	OPT_TERRAGRUNT_OVERRIDE_ATTR,
 	OPT_TERRAGRUNT_LOGLEVEL,
-	OPT_TERRAGRUNT_STRICT,
+	OPT_TERRAGRUNT_STRICT_VALIDATE,
 }
 
 const CMD_INIT = "init"
