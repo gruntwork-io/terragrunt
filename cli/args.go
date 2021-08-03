@@ -179,7 +179,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.WorkingDir = filepath.ToSlash(workingDir)
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
 	opts.LogLevel = loggingLevel
-	opts.Strict = validateStrictMode
+	opts.ValidateStrict = validateStrictMode
 	opts.Logger = util.CreateLogEntry("", loggingLevel)
 	opts.Logger.Logger.SetOutput(errWriter)
 	opts.RunTerragrunt = RunTerragrunt
