@@ -74,7 +74,7 @@ func validateTerragruntInputs(terragruntOptions *options.TerragruntOptions, work
 	if len(missingVars) > 0 || len(unusedVars) > 0 && terragruntOptions.Strict {
 		return fmt.Errorf(fmt.Sprintf("Terragrunt configuration has misaligned inputs. Strict mode enabled: %t.", terragruntOptions.Strict))
 	} else if len(unusedVars) > 0 {
-		terragruntOptions.Logger.Info("Terragrunt configuration has misaligned inputs, but running in relaxed mode so ignoring.")
+		terragruntOptions.Logger.Warn("Terragrunt configuration has misaligned inputs, but running in relaxed mode so ignoring.")
 	}
 
 	return nil
