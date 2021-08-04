@@ -4086,8 +4086,6 @@ func TestTerragruntInitRunCmd(t *testing.T) {
 
 	errout := string(stderr.Bytes())
 
-	fmt.Printf("%v\n", errout)
-
 	// Check for cached values between locals and inputs sections
 	assert.Equal(t, 1, strings.Count(errout, "potato"))
 	assert.Equal(t, 1, strings.Count(errout, "carrot"))
