@@ -4088,12 +4088,16 @@ func TestTerragruntInitRunCmd(t *testing.T) {
 
 	fmt.Printf("%v\n", errout)
 
-	// "potato" will be printed only once, since run_cmd result was executed only once and cached second time
+	// Check for cached values between locals and inputs sections
 	assert.Equal(t, 1, strings.Count(errout, "potato"))
 	assert.Equal(t, 1, strings.Count(errout, "carrot"))
 	assert.Equal(t, 1, strings.Count(errout, "bar"))
 	assert.Equal(t, 1, strings.Count(errout, "foo"))
 
+	assert.Equal(t, 1, strings.Count(errout, "input_variable"))
+
+	// Executed twice commands because of random arguments
 	assert.Equal(t, 2, strings.Count(errout, "uuid"))
 	assert.Equal(t, 2, strings.Count(errout, "random_arg"))
+	assert.Equal(t, 2, strings.Count(errout, "another_arg"))
 }

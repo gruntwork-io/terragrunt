@@ -12,9 +12,14 @@ locals {
 
   uuid = run_cmd("echo", "uuid",  uuid())
 
+  another_arg = run_cmd("echo", "another_arg",  uuid())
+
 }
 
 inputs = {
   fileName = run_cmd("echo", "carrot")
   uuid2 = run_cmd("echo", "uuid", uuid())
+  another_arg2 = run_cmd("echo", "another_arg",  uuid())
+
+  input_variable = run_cmd("echo", "input_variable", uuid())
 }
