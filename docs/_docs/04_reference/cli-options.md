@@ -260,8 +260,20 @@ Note that this only checks for variables passed in in the following ways:
 
 Be aware that other ways to pass variables to `terraform` are not checked by this command.
 
-This command will exit with an error if terragrunt detects any unused inputs or undefined required inputs.
+Additionally, there are <b>two modes</b> in which the `validate-inputs` command can be run: <b>relaxed</b> (default) and <b>strict</b>.
 
+If you run the `validate-inputs` command without flags, relaxed mode will be enabled by default. In relaxed mode, any unused variables
+that are passed, but not used by the underlying Terraform configuration, will generate a warning, but not an error. Missing required variables will <em>always</em> return an error, whether `validate-inputs` is running in relaxed or strict mode.
+
+To enable strict mode, you can pass the `--terragrunt-strict-validate` flag like so:
+
+```bash
+> terragrunt validate-inputs --terragrunt-strict-validate
+```
+
+When running in strict mode, `validate-inputs` will return an error if there are unused inputs.
+
+This command will exit with an error if terragrunt detects any unused inputs or undefined required inputs.
 
 ### graph-dependencies
 
