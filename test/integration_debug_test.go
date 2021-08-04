@@ -79,7 +79,7 @@ func TestTerragruntValidateInputs(t *testing.T) {
 			t.Parallel()
 
 			nameDashSplit := strings.Split(name, "-")
-			runTerragruntValidateInputs(t, module, nil, nameDashSplit[0] == "success")
+			runTerragruntValidateInputs(t, module, []string{"--terragrunt-strict-validate"}, nameDashSplit[0] == "success")
 		})
 	}
 }
@@ -100,6 +100,46 @@ func TestTerragruntValidateInputsWithCLIVarFile(t *testing.T) {
 
 	moduleDir := filepath.Join("fixture-validate-inputs", "fail-no-inputs")
 	args := []string{fmt.Sprintf("-var-file=%s/fixture-validate-inputs/success-var-file/varfiles/main.tfvars", curdir)}
+	runTerragruntValidateInputs(t, moduleDir, args, true)
+}
+
+func TestTerragruntValidateInputsWithStrictMode(t *testing.T) {
+	t.Parallel()
+
+	moduleDir := filepath.Join("fixture-validate-inputs", "success-inputs-only")
+	args := []string{"--terragrunt-strict-validate"}
+	runTerragruntValidateInputs(t, moduleDir, args, true)
+}
+
+func TestTerragruntValidateInputsWithStrictModeDisabledAndUnusedVar(t *testing.T) {
+	t.Parallel()
+
+	moduleDir := filepath.Join("fixture-validate-inputs", "success-inputs-only")
+	args := []string{"-var=testvariable=testvalue"}
+	runTerragruntValidateInputs(t, moduleDir, args, true)
+}
+
+func TestTerragruntValidateInputsWithStrictModeEnabledAndUnusedVar(t *testing.T) {
+	t.Parallel()
+
+	moduleDir := filepath.Join("fixture-validate-inputs", "success-inputs-only")
+	args := []string{"-var=testvariable=testvalue", "--terragrunt-strict-validate"}
+	runTerragruntValidateInputs(t, moduleDir, args, false)
+}
+
+func TestTerragruntValidateInputsWithStrictModeEnabledAndUnusedInputs(t *testing.T) {
+	t.Parallel()
+
+	moduleDir := filepath.Join("fixture-validate-inputs", "fail-unused-inputs")
+	args := []string{"--terragrunt-strict-validate"}
+	runTerragruntValidateInputs(t, moduleDir, args, false)
+}
+
+func TestTerragruntValidateInputsWithStrictModeDisabledAndUnusedInputs(t *testing.T) {
+	t.Parallel()
+
+	moduleDir := filepath.Join("fixture-validate-inputs", "fail-unused-inputs")
+	args := []string{}
 	runTerragruntValidateInputs(t, moduleDir, args, true)
 }
 

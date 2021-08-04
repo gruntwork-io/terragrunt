@@ -86,6 +86,9 @@ type TerragruntOptions struct {
 	// Log level
 	LogLevel logrus.Level
 
+	// ValidateStrict mode for the validate-inputs command
+	ValidateStrict bool
+
 	// Environment variables at runtime
 	Env map[string]string
 
@@ -197,6 +200,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		WorkingDir:                  workingDir,
 		Logger:                      logger,
 		LogLevel:                    DEFAULT_LOG_LEVEL,
+		ValidateStrict:              false,
 		Env:                         map[string]string{},
 		Source:                      "",
 		SourceMap:                   map[string]string{},

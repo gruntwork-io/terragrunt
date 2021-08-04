@@ -149,6 +149,8 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		return nil, err
 	}
 
+	validateStrictMode := parseBooleanArg(args, OPT_TERRAGRUNT_STRICT_VALIDATE, false)
+
 	opts, err := options.NewTerragruntOptions(filepath.ToSlash(terragruntConfigPath))
 	if err != nil {
 		return nil, err
@@ -177,6 +179,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.WorkingDir = filepath.ToSlash(workingDir)
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
 	opts.LogLevel = loggingLevel
+	opts.ValidateStrict = validateStrictMode
 	opts.Logger = util.CreateLogEntry("", loggingLevel)
 	opts.Logger.Logger.SetOutput(errWriter)
 	opts.RunTerragrunt = RunTerragrunt

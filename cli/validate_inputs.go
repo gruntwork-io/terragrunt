@@ -54,6 +54,7 @@ func validateTerragruntInputs(terragruntOptions *options.TerragruntOptions, work
 		terragruntOptions.Logger.Warn("")
 	} else {
 		terragruntOptions.Logger.Info("All variables passed in by terragrunt are in use.")
+		terragruntOptions.Logger.Debug(fmt.Sprintf("Strict mode enabled: %t", terragruntOptions.ValidateStrict))
 	}
 
 	if len(missingVars) > 0 {
@@ -63,13 +64,19 @@ func validateTerragruntInputs(terragruntOptions *options.TerragruntOptions, work
 		}
 		terragruntOptions.Logger.Error("")
 	} else {
-		terragruntOptions.Logger.Info("All required inputs are passed in by terragrunt.")
+		terragruntOptions.Logger.Info("All required inputs are passed in by terragrunt")
+		terragruntOptions.Logger.Debug(fmt.Sprintf("Strict mode enabled: %t", terragruntOptions.ValidateStrict))
 	}
 
-	// Return an error when there are misaligned inputs.
-	if len(unusedVars) > 0 || len(missingVars) > 0 {
-		return fmt.Errorf("Terragrunt configuration has misaligned inputs")
+	// Return an error when there are misaligned inputs. Terragrunt strict mode defaults to false. When it is false,
+	// an error will only be returned if required inputs are missing. When strict mode is true, an error will be
+	// returned if required inputs are missing OR if any unused variables are passed
+	if len(missingVars) > 0 || len(unusedVars) > 0 && terragruntOptions.ValidateStrict {
+		return fmt.Errorf(fmt.Sprintf("Terragrunt configuration has misaligned inputs. Strict mode enabled: %t.", terragruntOptions.ValidateStrict))
+	} else if len(unusedVars) > 0 {
+		terragruntOptions.Logger.Warn("Terragrunt configuration has misaligned inputs, but running in relaxed mode so ignoring.")
 	}
+
 	return nil
 }
 
