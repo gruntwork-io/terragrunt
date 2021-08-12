@@ -39,6 +39,9 @@ The `terraform` block supports the following arguments:
   [module source](https://www.terraform.io/docs/modules/sources.html) parameter for Terraform `module` blocks, including
   local file paths, Git URLs, and Git URLS with `ref` parameters. Terragrunt will download all the code in the repo
   (i.e. the part before the double-slash `//`) so that relative paths work correctly between modules in that repo.
+    - NOTE: the `source` parameter can be configured to pull terraform modules from any module registry using the `tfr`
+      protocol. For example, to pull the `terraform-aws-modules/vpc/aws` module from the public Terraform registry, you
+      can use the following as the source parameter: `tfr://registry.terraform.io/terraform-aws-modules/vpc/aws?version=3.3.0`
 - `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `terraform` CLI. Learn more
   about its usage in the [Keep your CLI flags DRY](/docs/features/keep-your-cli-flags-dry/) use case overview. Supports
   the following arguments:

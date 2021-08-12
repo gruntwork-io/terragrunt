@@ -40,6 +40,11 @@ Terragrunt figures out the path to its config file according to the following ru
 
 5.  If none of these are found, exit with an error.
 
+Refer to the following pages for a complete reference of supported features in the terragrunt configuration file:
+
+- [Config blocks and attributes]({{site.baseurl}}/docs/reference/config-blocks-and-attributes/)
+- [Built-in functions]({{site.baseurl}}/docs/reference/built-in-functions/)
+
 ## Configuration parsing order
 
 It is important to be aware of the terragrunt configuration parsing order when using features like [locals]({{site.baseurl}}/docs/features/locals/#locals) and [dependency outputs]({{site.baseurl}}/docs/features/execute-terraform-commands-on-multiple-modules-at-once/#passing-outputs-between-modules), where you can reference attributes of other blocks in the config in your `inputs`. For example, because `locals` are evaluated before `dependency` blocks, you can not bind outputs from `dependency` into `locals`. On the other hand, for the same reason, you can use `locals` in the `dependency` blocks.
