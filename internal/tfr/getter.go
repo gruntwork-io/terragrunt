@@ -88,12 +88,10 @@ func (tfrGetter *TerraformRegistryGetter) Get(dstPath string, srcURL *url.URL) e
 
 	versionList, hasVersion := queryValues[versionQueryKey]
 	if !hasVersion {
-		err := fmt.Errorf("tfr getter URL missing version query")
-		return errors.WithStackTrace(err)
+		return errors.WithStackTrace(MalformedRegistryURLErr{reason: "missing version query"})
 	}
 	if len(versionList) != 1 {
-		err := fmt.Errorf("tfr getter URL has more than one version query")
-		return errors.WithStackTrace(err)
+		return errors.WithStackTrace(MalformedRegistryURLErr{reason: "more than one version query"})
 	}
 	version := versionList[0]
 
@@ -161,7 +159,8 @@ func (tfrGetter *TerraformRegistryGetter) getSubdir(ctx context.Context, dstPath
 
 	// Make sure the subdir path actually exists
 	if _, err := os.Stat(sourcePath); err != nil {
-		return fmt.Errorf("Error downloading %s: %s", sourceURL, err)
+		details := fmt.Sprintf("could not stat download path %s (error: %s)", sourcePath, err)
+		return errors.WithStackTrace(ModuleDownloadErr{sourceURL: sourceURL, details: details})
 	}
 
 	// Copy the subdirectory into our actual destination.
@@ -204,13 +203,13 @@ func getModuleRegistryURLBasePath(ctx context.Context, domain string) (string, e
 
 	modulePathRaw, hasModulePath := respJSON[sdModulesKey]
 	if !hasModulePath {
-		err := fmt.Errorf("response body does not contain modules.v1 key: %s", string(bodyData))
-		return "", errors.WithStackTrace(err)
+		reason := fmt.Sprintf("response body does not contain modules.v1 key: %s", string(bodyData))
+		return "", errors.WithStackTrace(ServiceDiscoveryErr{reason: reason})
 	}
 	modulePath, isString := modulePathRaw.(string)
 	if !isString {
-		err := fmt.Errorf("modules.v1 key is not a string: %s", string(bodyData))
-		return "", errors.WithStackTrace(err)
+		reason := fmt.Sprintf("modules.v1 key is not a string: %s", string(bodyData))
+		return "", errors.WithStackTrace(ServiceDiscoveryErr{reason: reason})
 	}
 	return modulePath, nil
 }
@@ -224,8 +223,8 @@ func getDownloadURLFromRegistry(ctx context.Context, url url.URL) (string, error
 	}
 	terraformGet := header.Get("X-Terraform-Get")
 	if terraformGet == "" {
-		err := fmt.Errorf("no source URL was returned from download URL %s", url.String())
-		return "", errors.WithStackTrace(err)
+		details := "no source URL was returned in header X-Terraform-Get from download URL"
+		return "", errors.WithStackTrace(ModuleDownloadErr{sourceURL: url.String(), details: details})
 	}
 	return terraformGet, nil
 }
@@ -252,8 +251,7 @@ func httpGETAndGetResponse(ctx context.Context, getURL url.URL) ([]byte, *http.H
 
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		err := fmt.Errorf("failed to fetch url %s: %d", getURL.String(), resp.StatusCode)
-		return nil, nil, errors.WithStackTrace(err)
+		return nil, nil, errors.WithStackTrace(RegistryAPIErr{url: getURL.String(), statusCode: resp.StatusCode})
 	}
 
 	bodyData, err := ioutil.ReadAll(resp.Body)
