@@ -44,13 +44,13 @@ const (
 // it.
 //
 // Authentication to private module registries is handled via environment variables. The authorization API token is
-// expected to be provided to Terragrunt via the TG_TF_REGISTRY_TOKEN environment variable.
-// TODO: expand on what this token is and how one should get it
+// expected to be provided to Terragrunt via the TG_TF_REGISTRY_TOKEN environment variable. This token can be any
+// registry API token generated on Terraform Cloud / Enterprise.
 //
-// MAINTAINER'S NOTE: Ideally we implement the full credential system that terraform uses as part of login, but all the
-// relevant packages are internal to the terraform repository, thus making it difficult to use as a library. For now, we
-// keep things simple by supporting providing tokens via env vars and in the future, we can consider implementing
-// functionality to load credentials from terraform.
+// MAINTAINER'S NOTE: Ideally we implement the full credential system that terraform uses as part of `terraform login`,
+// but all the relevant packages are internal to the terraform repository, thus making it difficult to use as a
+// library. For now, we keep things simple by supporting providing tokens via env vars and in the future, we can
+// consider implementing functionality to load credentials from terraform.
 type TerraformRegistryGetter struct {
 	client *getter.Client
 }
