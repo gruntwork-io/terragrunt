@@ -270,6 +270,7 @@ func runCommand(args []string, include *IncludeConfig, terragruntOptions *option
 	} else {
 		terragruntOptions.Logger.Debugf("run_cmd output: [%s]", value)
 	}
+
 	// Persisting result in cache to avoid future re-evaluation
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
 	runCommandCache.Put(cacheKey, value)
