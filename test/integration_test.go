@@ -113,7 +113,7 @@ const (
 	TEST_FIXTURE_LOCALS_CANONICAL                           = "fixture-locals/canonical"
 	TEST_FIXTURE_LOCALS_IN_INCLUDE                          = "fixture-locals/local-in-include"
 	TEST_FIXTURE_LOCAL_RUN_ONCE                             = "fixture-locals/run-once"
-	TEST_FIXTURE_LOCAL_RUN_TWICE                            = "fixture-locals/run-twice"
+	TEST_FIXTURE_LOCAL_RUN_MULTIPLE                         = "fixture-locals/run-multiple"
 	TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH           = "qa/my-app"
 	TEST_FIXTURE_READ_CONFIG                                = "fixture-read-config"
 	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                    = "fixture-get-aws-caller-identity"
@@ -4078,11 +4078,11 @@ func TestTerragruntInitOnce(t *testing.T) {
 func TestTerragruntInitRunCmd(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_RUN_TWICE)
+	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_RUN_MULTIPLE)
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_RUN_TWICE), &stdout, &stderr)
+	runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_RUN_MULTIPLE), &stdout, &stderr)
 
 	errout := string(stderr.Bytes())
 
@@ -4094,8 +4094,8 @@ func TestTerragruntInitRunCmd(t *testing.T) {
 
 	assert.Equal(t, 1, strings.Count(errout, "input_variable"))
 
-	// Executed twice commands because of random arguments
-	assert.Equal(t, 2, strings.Count(errout, "uuid"))
-	assert.Equal(t, 2, strings.Count(errout, "random_arg"))
-	assert.Equal(t, 2, strings.Count(errout, "another_arg"))
+	// Commands executed multiple times because of different arguments
+	assert.Equal(t, 3, strings.Count(errout, "uuid"))
+	assert.Equal(t, 4, strings.Count(errout, "random_arg"))
+	assert.Equal(t, 3, strings.Count(errout, "another_arg"))
 }
