@@ -624,6 +624,7 @@ The `dependency` block supports the following arguments:
 - `mock_outputs_allowed_terraform_commands` (attribute): A list of Terraform commands for which `mock_outputs` are
   allowed. If a command is used where `mock_outputs` is not allowed, and no outputs are available in the target module,
   Terragrunt will throw an error when processing this dependency.
+- `mock_outputs_merge_with_state` (attribute): When `true`, `mock_outputs` and the state outputs will be merged.
 
 Example:
 

@@ -18,6 +18,7 @@ import (
 func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 	testSource := "./foo"
 	testTrue := true
+	testFalse := false
 	mockOutputs := cty.Zero
 	mockOutputsAllowedTerraformCommands := []string{"init"}
 	testConfig := TerragruntConfig{
@@ -75,6 +76,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 				SkipOutputs:                         &testTrue,
 				MockOutputs:                         &mockOutputs,
 				MockOutputsAllowedTerraformCommands: &mockOutputsAllowedTerraformCommands,
+				MockOutputsMergeWithState:           &testFalse,
 				RenderedOutputs:                     &mockOutputs,
 			},
 		},
