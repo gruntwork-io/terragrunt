@@ -228,7 +228,6 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 }
 
 // runCommandCache - cache of evaluated `run_cmd` invocations
-// see: https://github.com/gruntwork-io/terragrunt/issues/1427
 var runCommandCache = NewStringCache()
 
 // runCommand is a helper function that runs a command and returns the stdout as the interporation
@@ -246,7 +245,8 @@ func runCommand(args []string, include *IncludeConfig, terragruntOptions *option
 
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 
-	// caching key based on path and arguments
+	// Cache lookup for already evaluated run_cmd invocations
+	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
 	cacheKey := fmt.Sprintf("%v-%v", currentPath, args)
 	cachedValue, foundInCache := runCommandCache.Get(cacheKey)
 	if foundInCache {
@@ -270,6 +270,8 @@ func runCommand(args []string, include *IncludeConfig, terragruntOptions *option
 	} else {
 		terragruntOptions.Logger.Debugf("run_cmd output: [%s]", value)
 	}
+	// Persisting result in cache to avoid future re-evaluation
+	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
 	runCommandCache.Put(cacheKey, value)
 	return value, nil
 }
