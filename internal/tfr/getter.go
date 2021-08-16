@@ -25,10 +25,14 @@ var httpClient = cleanhttp.DefaultClient()
 // Constants relevant to the module registry
 const (
 	serviceDiscoveryPath = "/.well-known/terraform.json"
-	sdModulesKey         = "modules.v1"
 	versionQueryKey      = "version"
 	authTokenEnvVarName  = "TG_TF_REGISTRY_TOKEN"
 )
+
+// TerraformRegistryServicePath is a struct for extracting the modules service path in the Registry.
+type TerraformRegistryServicePath struct {
+	ModulesPath string `json:"modules.v1"`
+}
 
 // TerraformRegistryGetter is a Getter (from go-getter) implementation that will download from the terraform module
 // registry. This supports getter URLs encoded in the following manner:
@@ -196,22 +200,12 @@ func getModuleRegistryURLBasePath(ctx context.Context, domain string) (string, e
 		return "", err
 	}
 
-	var respJSON map[string]interface{}
+	var respJSON TerraformRegistryServicePath
 	if err := json.Unmarshal(bodyData, &respJSON); err != nil {
-		return "", errors.WithStackTrace(err)
-	}
-
-	modulePathRaw, hasModulePath := respJSON[sdModulesKey]
-	if !hasModulePath {
-		reason := fmt.Sprintf("response body does not contain modules.v1 key: %s", string(bodyData))
+		reason := fmt.Sprintf("Error parsing response body %s: %s", string(bodyData), err)
 		return "", errors.WithStackTrace(ServiceDiscoveryErr{reason: reason})
 	}
-	modulePath, isString := modulePathRaw.(string)
-	if !isString {
-		reason := fmt.Sprintf("modules.v1 key is not a string: %s", string(bodyData))
-		return "", errors.WithStackTrace(ServiceDiscoveryErr{reason: reason})
-	}
-	return modulePath, nil
+	return respJSON.ModulesPath, nil
 }
 
 // getDownloadURLFromRegistry makes an http GET call to the given registry URL and return the contents of the header
