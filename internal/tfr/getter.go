@@ -24,9 +24,10 @@ var httpClient = cleanhttp.DefaultClient()
 
 // Constants relevant to the module registry
 const (
-	serviceDiscoveryPath = "/.well-known/terraform.json"
-	versionQueryKey      = "version"
-	authTokenEnvVarName  = "TG_TF_REGISTRY_TOKEN"
+	defaultRegistryDomain = "registry.terraform.io"
+	serviceDiscoveryPath  = "/.well-known/terraform.json"
+	versionQueryKey       = "version"
+	authTokenEnvVarName   = "TG_TF_REGISTRY_TOKEN"
 )
 
 // TerraformRegistryServicePath is a struct for extracting the modules service path in the Registry.
@@ -87,6 +88,9 @@ func (tfrGetter *TerraformRegistryGetter) Get(dstPath string, srcURL *url.URL) e
 	ctx := tfrGetter.Context()
 
 	registryDomain := srcURL.Host
+	if registryDomain == "" {
+		registryDomain = defaultRegistryDomain
+	}
 	queryValues := srcURL.Query()
 	modulePath, moduleSubDir := getter.SourceDirSubdir(srcURL.Path)
 

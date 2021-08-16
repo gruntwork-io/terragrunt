@@ -14,6 +14,7 @@ import (
 const (
 	registryFixturePath                          = "fixture-tfr"
 	registryFixtureRootModulePath                = "root"
+	registryFixtureRootShorthandModulePath       = "root-shorthand"
 	registryFixtureSubdirModulePath              = "subdir"
 	registryFixtureSubdirWithReferenceModulePath = "subdir-with-reference"
 )
@@ -21,6 +22,11 @@ const (
 func TestTerraformRegistryFetchingRootModule(t *testing.T) {
 	t.Parallel()
 	testTerraformRegistryFetching(t, registryFixtureRootModulePath, "root_null_resource")
+}
+
+func TestTerraformRegistryFetchingRootShorthandModule(t *testing.T) {
+	t.Parallel()
+	testTerraformRegistryFetching(t, registryFixtureRootShorthandModulePath, "root_null_resource")
 }
 
 func TestTerraformRegistryFetchingSubdirModule(t *testing.T) {
