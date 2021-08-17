@@ -3,7 +3,7 @@ $TerraformTmpPath = "C:\Terraformtmp"
 $TerraformTmpBinaryPath = "C:\Terraformtmp\terraform.exe"
 $TerraformPath = "C:\Program Files\Terraform"
 # Remove any old terraform installation, if present
-if (Test-Path $TerraformInstallPath)
+if (Test-Path -Path $TerraformInstallPath)
 {
 	Remove-Item $TerraformInstallPath -Recurse
 }
