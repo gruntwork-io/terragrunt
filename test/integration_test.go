@@ -3631,6 +3631,8 @@ func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwri
 func runTerragruntVersionCommand(t *testing.T, version string, command string, writer io.Writer, errwriter io.Writer) error {
 	args := strings.Split(command, " ")
 
+	fmt.Println("runTerragruntVersionCommand after split")
+	fmt.Println(args)
 	app := cli.CreateTerragruntCli(version, writer, errwriter)
 	return app.Run(args)
 }
