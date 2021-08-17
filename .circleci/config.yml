@@ -27,7 +27,7 @@ jobs:
           shell: powershell.exe
           no_output_timeout: 45m
           command: |
-            go test -v ./... -timeout 45m
+            go test -v ./... -run TestTerragruntSourceMapDebug -timeout 45m
   # We're running unit tests separately from integration tests - with no parallelization.
   # With heavy parallelization coupled with re-use of test fixtures we've witnessed slight
   # instability with the tests. The unit tests are fast to execute, so there is negligible

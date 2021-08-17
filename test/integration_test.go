@@ -3675,6 +3675,16 @@ func copyEnvironment(t *testing.T, environmentPath string) string {
 	return tmpDir
 }
 
+func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
+	if err := os.MkdirAll(targetPath, 0777); err != nil {
+		t.Fatalf("Failed to create temp dir %s due to error %v", targetPath, err)
+	}
+
+	t.Logf("Copying %s to %s", environmentPath, targetPath)
+
+	require.NoError(t, util.CopyFolderContents(environmentPath, targetPath, ".terragrunt-test"))
+}
+
 func copyFile(srcPath string, destPath string) error {
 	contents, err := ioutil.ReadFile(srcPath)
 	if err != nil {

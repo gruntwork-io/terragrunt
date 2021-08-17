@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -228,4 +229,33 @@ func TestTerragruntSourceMapEnvArg(t *testing.T) {
 	tgPath := filepath.Join(rootPath, "multiple-match")
 	tgArgs := fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", tgPath)
 	runTerragrunt(t, tgArgs)
+}
+
+func TestTerragruntSourceMapDebug(t *testing.T) {
+	fixtureSourceMapPath := "fixture-source-map"
+	cleanupTerraformFolder(t, fixtureSourceMapPath)
+	targetPath := "C:\\test\\infrastructure-modules"
+	copyEnvironmentToPath(t, fixtureSourceMapPath, targetPath)
+
+	rootPath := filepath.Join(targetPath, fixtureSourceMapPath)
+	files, err := ioutil.ReadDir(targetPath)
+	require.NoError(t, err)
+	for _, f := range files {
+		fmt.Println(f.Name())
+	}
+	os.Setenv(
+		"TERRAGRUNT_SOURCE_MAP",
+		strings.Join(
+			[]string{
+				fmt.Sprintf("git::ssh://git@github.com/gruntwork-io/i-dont-exist.git//=%s", targetPath),
+				fmt.Sprintf("git::ssh://git@github.com/gruntwork-io/another-dont-exist.git=%s", targetPath),
+			},
+			",",
+		),
+	)
+	tgPath := filepath.Join(rootPath, "multiple-match")
+	fmt.Println(tgPath)
+	tgArgs := fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", tgPath)
+	runTerragrunt(t, tgArgs)
+
 }
