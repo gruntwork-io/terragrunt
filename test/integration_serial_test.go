@@ -265,6 +265,7 @@ func TestTerragruntSourceMapDebug(t *testing.T) {
 	tgPath := filepath.Join(rootPath, "multiple-match")
 	fmt.Println(tgPath)
 	tgArgs := fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", tgPath)
+	fmt.Println(tgArgs)
 	runTerragrunt(t, tgArgs)
 
 }
