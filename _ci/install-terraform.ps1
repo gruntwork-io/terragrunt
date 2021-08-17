@@ -17,7 +17,7 @@ New-Item -ItemType "directory" -Path $TerraformTmpPath
 Expand-Archive -LiteralPath $output -DestinationPath $TerraformTmpPath
 # Make new Terraform directory to hold binary
 New-Item -ItemType "directory" -Path $TerraformPath
-Move-Item $TerraformTmpBinaryPath $TerraformInstallPath
+Move-Item $TerraformTmpBinaryPath $TerraformPath
 # Add new Terraform path to system
 $OldPath = [System.Environment]::GetEnvironmentVariable('PATH', "Machine")
 $NewPath = "$OldPath;$TerraformPath"
