@@ -17,53 +17,11 @@ jobs:
       - run:
           name: Install golang
           shell: powershell.exe
-          command: |
-            # Remove the old go installation
-            Remove-Item "C:\Go" -Recurse
-            # Download golang, unpack it, and then update the PATH to include gobin
-            $golangURI = "https://golang.org/dl/go1.14.7.windows-amd64.zip"
-            $output = "go1.14.7.zip"
-            # The SilentlyContinue is needed to handle access denied error. See
-            # https://discuss.circleci.com/t/access-denied-error-while-trying-to-download-software-on-windows-cirlcleci-environment/32809/2
-            $ProgressPreference = "SilentlyContinue"
-            Invoke-WebRequest -Uri $golangURI -OutFile $output
-            Expand-Archive -LiteralPath $output -DestinationPath "C:\Gotmp"
-            Move-Item "C:\Gotmp\go" "C:\Go"
-            # Verify installation
-            go version
+          command: ./_ci/install-golang.ps1
       - run:
           name: Install Terraform
           shell: powershell.exe
-          command: |
-            $TerraformInstallPath = "C:\Program Files\Terraform\terraform.exe"
-            $TerraformTmpPath = "C:\Terraformtmp"
-            $TerraformTmpBinaryPath = "C:\Terraformtmp\terraform.exe"
-            $TerraformPath = "C:\Program Files\Terraform"
-            # Remove any old terraform installation, if present
-            if (Test-Path $TerraformInstallPath)
-            {
-              Remove-Item $TerraformInstallPath -Recurse
-            }
-            # Download terraform and unpack it
-            $terraformURI = "https://releases.hashicorp.com/terraform/1.0.4/terraform_1.0.4_windows_amd64.zip"
-            $output = "terraform.1.0.4.zip"
-            $ProgressPreference = "SilentlyContinue"
-            Invoke-WebRequest -Uri $terraformURI -OutFile $output
-            New-Item -ItemType "directory" -Path $TerraformTmpPath
-            # Unpack Terraform to temp directory
-            Expand-Archive -LiteralPath $output -DestinationPath $TerraformTmpPath
-            # Make new Terraform directory to hold binary
-            New-Item -ItemType "directory" -Path $TerraformPath
-            Move-Item $TerraformTmpBinaryPath $TerraformInstallPath
-            # Add new Terraform path to system
-            $OldPath = [System.Environment]::GetEnvironmentVariable('PATH', "Machine")
-            $NewPath = "$OldPath;$TerraformPath"
-            [Environment]::SetEnvironmentVariable("PATH", "$NewPath", "Machine")
-            # Load System and User PATHs into latest $env:Path, which has the effect of "refreshing" the latest path 
-            # in the current PowerShell session
-            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User") 
-            # Verify installation
-            terraform version
+          command: ./_ci/install-terraform.ps1
       - run:
           name: Run go tests
           shell: powershell.exe
