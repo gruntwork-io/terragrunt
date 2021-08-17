@@ -235,6 +235,7 @@ func TestTerragruntSourceMapDebug(t *testing.T) {
 	cleanupTerraformFolder(t, fixtureSourceMapPath)
 	targetPath := "C:\\test\\infrastructure-modules"
 	copyEnvironmentToPath(t, fixtureSourceMapPath, targetPath)
+	rootPath := filepath.Join(targetPath, fixtureSourceMapPath)
 
 	os.Setenv(
 		"TERRAGRUNT_SOURCE_MAP",
@@ -246,8 +247,7 @@ func TestTerragruntSourceMapDebug(t *testing.T) {
 			",",
 		),
 	)
-	tgPath := "C:\\test\\infrastructure-modules\\multiple-match"
-	fmt.Println(tgPath)
+	tgPath := filepath.Join(rootPath, "multiple-match")
 	tgArgs := fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", tgPath)
 	fmt.Println(tgArgs)
 	runTerragrunt(t, tgArgs)

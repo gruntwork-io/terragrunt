@@ -3686,7 +3686,7 @@ func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
 
 	t.Logf("Copying %s to %s", environmentPath, targetPath)
 
-	copyErr := util.CopyFolderContents(environmentPath, targetPath, ".terragrunt-test")
+	copyErr := util.CopyFolderContents(environmentPath, util.JoinPath(targetPath, environmentPath), ".terragrunt-test")
 	fmt.Println(copyErr)
 }
 
