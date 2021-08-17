@@ -243,6 +243,11 @@ func TestTerragruntSourceMapDebug(t *testing.T) {
 	for _, f := range files {
 		fmt.Println(f.Name())
 	}
+
+	// DEBUG
+	if _, pathErr := os.Stat("C:\\test\\infrastructure-modules\\fixture-source-map"); os.IsNotExist(pathErr) {
+		fmt.Println("Could not find target path on system")
+	}
 	os.Setenv(
 		"TERRAGRUNT_SOURCE_MAP",
 		strings.Join(
