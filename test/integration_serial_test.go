@@ -237,6 +237,10 @@ func TestTerragruntSourceMapDebug(t *testing.T) {
 	targetPath := "C:\\test\\infrastructure-modules"
 	copyEnvironmentToPath(t, fixtureSourceMapPath, targetPath)
 
+	makePathErr := osMkdirAll("C:\\test\\infrastructure-modules\\fixture-source-map"); makePathErr != nil {
+		fmt.Println("Failed to create full path")
+	}
+
 	rootPath := filepath.Join(targetPath, fixtureSourceMapPath)
 	files, err := ioutil.ReadDir(targetPath)
 	require.NoError(t, err)
