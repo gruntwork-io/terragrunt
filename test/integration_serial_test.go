@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -237,17 +236,11 @@ func TestTerragruntSourceMapDebug(t *testing.T) {
 	targetPath := "C:\\test\\infrastructure-modules"
 	copyEnvironmentToPath(t, fixtureSourceMapPath, targetPath)
 
-	files, err := ioutil.ReadDir(targetPath)
-	require.NoError(t, err)
-	for _, f := range files {
-		fmt.Println(f.Name())
-	}
-
 	os.Setenv(
 		"TERRAGRUNT_SOURCE_MAP",
 		strings.Join(
 			[]string{
-				fmt.Sprintf("git::ssh://git@github.com/gruntwork-io/i-dont-exist.git//=%s", targetPath),
+				fmt.Sprintf("git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=%s", targetPath),
 				fmt.Sprintf("git::ssh://git@github.com/gruntwork-io/another-dont-exist.git=%s", targetPath),
 			},
 			",",
