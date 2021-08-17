@@ -237,10 +237,6 @@ func TestTerragruntSourceMapDebug(t *testing.T) {
 	targetPath := "C:\\test\\infrastructure-modules"
 	copyEnvironmentToPath(t, fixtureSourceMapPath, targetPath)
 
-	if err := os.MkdirAll("C:\\test\\infrastructure-modules\\fixture-source-map", 0777); err != nil {
-		t.Errorf("Error creating full path manually: %+v\n", err)
-	}
-
 	rootPath := filepath.Join(targetPath, fixtureSourceMapPath)
 	files, err := ioutil.ReadDir(targetPath)
 	require.NoError(t, err)
@@ -248,10 +244,6 @@ func TestTerragruntSourceMapDebug(t *testing.T) {
 		fmt.Println(f.Name())
 	}
 
-	// DEBUG
-	if _, pathErr := os.Stat("C:\\test\\infrastructure-modules\\fixture-source-map"); os.IsNotExist(pathErr) {
-		fmt.Println("Could not find target path on system")
-	}
 	os.Setenv(
 		"TERRAGRUNT_SOURCE_MAP",
 		strings.Join(
@@ -262,7 +254,7 @@ func TestTerragruntSourceMapDebug(t *testing.T) {
 			",",
 		),
 	)
-	tgPath := filepath.Join(rootPath, "multiple-match")
+	tgPath := "C:\\test\\infrastructure-modules\\multiple-match"
 	fmt.Println(tgPath)
 	tgArgs := fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", tgPath)
 	fmt.Println(tgArgs)
