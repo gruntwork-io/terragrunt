@@ -233,7 +233,7 @@ func TestTerragruntSourceMapEnvArg(t *testing.T) {
 func TestTerragruntSourceMapDebug(t *testing.T) {
 	fixtureSourceMapPath := "fixture-source-map"
 	cleanupTerraformFolder(t, fixtureSourceMapPath)
-	targetPath := "C:\\test\\infrastructure-modules"
+	targetPath := "C:\\test\\infrastructure-modules/"
 	copyEnvironmentToPath(t, fixtureSourceMapPath, targetPath)
 	rootPath := filepath.Join(targetPath, fixtureSourceMapPath)
 
