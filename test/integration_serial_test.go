@@ -237,7 +237,6 @@ func TestTerragruntSourceMapDebug(t *testing.T) {
 	targetPath := "C:\\test\\infrastructure-modules"
 	copyEnvironmentToPath(t, fixtureSourceMapPath, targetPath)
 
-	rootPath := filepath.Join(targetPath, fixtureSourceMapPath)
 	files, err := ioutil.ReadDir(targetPath)
 	require.NoError(t, err)
 	for _, f := range files {
