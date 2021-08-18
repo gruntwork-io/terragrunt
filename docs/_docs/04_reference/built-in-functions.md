@@ -556,7 +556,7 @@ ec5ebaa1-f953-1513-7425-2d8986bfdbac
 ```
 **Notes:**
   * In the output will be printed once `carrot` and `potato`, second invocation of `run_cmd("echo", "potato")` will be cached
-  * In the output will be printed **twice** different UUIDs because as arguments to `run_cmd` will be passed different UUIDs
+  * In the output will be printed **four**(2 during parsing of file, 2 during evaluation) different UUIDs because as arguments to `run_cmd` will be passed different values from `uuid()` result
 
 
 ## read\_terragrunt\_config
