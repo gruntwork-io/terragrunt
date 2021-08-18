@@ -36,9 +36,23 @@ before or after calling Terraform.
 The `terraform` block supports the following arguments:
 
 - `source` (attribute): Specifies where to find Terraform configuration files. This parameter supports the exact same syntax as the
-  [module source](https://www.terraform.io/docs/modules/sources.html) parameter for Terraform `module` blocks, including
-  local file paths, Git URLs, and Git URLS with `ref` parameters. Terragrunt will download all the code in the repo
-  (i.e. the part before the double-slash `//`) so that relative paths work correctly between modules in that repo.
+  [module source](https://www.terraform.io/docs/modules/sources.html) parameter for Terraform `module` blocks **except
+  for the Terraform registry** (see below note), including local file paths, Git URLs, and Git URLS with `ref`
+  parameters. Terragrunt will download all the code in the repo (i.e. the part before the double-slash `//`) so that
+  relative paths work correctly between modules in that repo.
+    - The `source` parameter can be configured to pull Terraform modules from any Terraform module registry using
+      the `tfr` protocol. The `tfr` protocol expects URLs to be provided in the format
+      `tfr://REGISTRY_HOST/MODULE_SOURCE?version=VERSION`. For example, to pull the `terraform-aws-modules/vpc/aws`
+      module from the public Terraform registry, you can use the following as the source parameter:
+      `tfr://registry.terraform.io/terraform-aws-modules/vpc/aws?version=3.3.0`.
+    - If you wish to access a private module registry (e.g., [Terraform Cloud/Enterprise](https://www.terraform.io/docs/cloud/registry/index.html)),
+      you can provide the authentication to Terragrunt as an environment variable with the key `TG_TF_REGISTRY_TOKEN`.
+      This token can be any registry API token.
+    - The `tfr` protocol supports a shorthand notation where the `REGISTRY_HOST` can be omitted to default to the public
+      registry (`registry.terraform.io`) if you use `tfr:///` (note the three `/`). For example, the following will
+      fetch the `terraform-aws-modules/vpc/aws` module from the public registry:
+      `tfr:///terraform-aws-modules/vpc/aws?version=3.3.0`.
+
 - `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `terraform` CLI. Learn more
   about its usage in the [Keep your CLI flags DRY](/docs/features/keep-your-cli-flags-dry/) use case overview. Supports
   the following arguments:

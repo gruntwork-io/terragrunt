@@ -30,7 +30,70 @@ To use it, you:
     terragrunt output
     terragrunt destroy
 
-Terragrunt will forward almost all commands, arguments, and options directly to Terraform, but based on the settings in your `terragrunt.hcl` file, Terragrunt can help you accomplish the following:
+Terragrunt will forward almost all commands, arguments, and options directly to Terraform, but based on the settings in your `terragrunt.hcl` file.
+
+## Example
+
+Here is an example configuration you can use to get started. The following configuration can be used to deploy the
+[terraform-aws-modules/vpc](https://registry.terraform.io/modules/terraform-aws-modules/vpc/aws/latest) module from the
+[Terraform Registry](https://registry.terraform.io/):
+
+_terragrunt.hcl_
+```
+# Indicate where to source the terraform module from.
+# The URL used here is a shorthand for
+# "tfr://registry.terraform.io/terraform-aws-modules/vpc/aws?version=3.5.0".
+# Note the extra `/` after the protocol is required for the shorthand
+# notation.
+terraform {
+  source = "tfr:///terraform-aws-modules/vpc/aws?version=3.5.0"
+}
+
+# Indicate the input values to use for the variables of the module.
+inputs = {
+  name = "my-vpc"
+  cidr = "10.0.0.0/16"
+
+  azs             = ["eu-west-1a", "eu-west-1b", "eu-west-1c"]
+  private_subnets = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+  public_subnets  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
+
+  enable_nat_gateway = true
+  enable_vpn_gateway = false
+
+  tags = {
+    Terraform = "true"
+    Environment = "dev"
+  }
+}
+```
+
+In the configuration, the `terraform` block is used to configure how Terragrunt will interact with Terraform. You can
+configure things like before and after hooks for indicating custom commands to run before and after each terraform call,
+or what CLI args to pass in for each commands. Here we only use it to indicate where terragrunt should fetch the
+terraform code using the `source` attribute. We indicate that terragrunt should fetch the code from the
+`terraform-aws-modules/vpc/aws` module hosted in the [Public Terraform Registry](registry.terraform.io), version
+`3.5.0`. This is indicated by using the `tfr://` protocol in the source URL, which takes the form:
+
+```
+tfr://REGISTRY_DOMAIN/MODULE?version=VERSION
+```
+
+Note that you can omit the `REGISTRY_DOMAIN` to default to the Public Terraform Registry.
+
+The `inputs` block is used to indicate what variable values should be passed to terraform. This is equivalent to having
+the contents of the map in a tfvars file and passing that to terraform.
+
+You can read more about all the supported blocks of the terragrunt configuration in the [reference
+documentation](https://terragrunt.gruntwork.io/docs/reference/config-blocks-and-attributes), including additional
+sources that terragrunt supports.
+
+You can deploy this example by copy pasting it into a folder and running `terragrunt apply`.
+
+
+## Key features
+
+Terragrunt can help you accomplish the following:
 
 1.  [Keep your backend configuration DRY](#keep-your-backend-configuration-dry)
 
@@ -40,7 +103,7 @@ Terragrunt will forward almost all commands, arguments, and options directly to 
 
 1.  [Promote immutable, versioned Terraform modules across environments](#promote-immutable-versioned-terraform-modules-across-environments)
 
-## Keep your backend configuration DRY
+### Keep your backend configuration DRY
 
 *Terraform* backends allow you to store Terraform state in a shared location that everyone on your team can access, such as an S3 bucket, and provide locking around your state files to protect against race conditions. To use a Terraform backend, you add a `backend` configuration to your Terraform code:
 
@@ -156,7 +219,7 @@ Terragrunt will automatically find the `mysql` module’s `terragrunt.hcl` file,
 
 You can now add as many child modules as you want, each with a `terragrunt.hcl` with the `include { …​ }` block, and each of those modules will automatically inherit the proper `backend` configuration\!
 
-## Keep your provider configuration DRY
+### Keep your provider configuration DRY
 
 Unifying provider configurations across all your modules can be a pain, especially when you want to customize
 authentication credentials. To configure Terraform to assume an IAM role before calling out to AWS, you need to add a
@@ -233,7 +296,7 @@ $ find . -name "provider.tf"
 ```
 
 
-## Keep your Terraform CLI arguments DRY
+### Keep your Terraform CLI arguments DRY
 
 CLI flags are another common source of copy/paste in the Terraform world. For example, a typical pattern with Terraform is to define common account-level variables in an `account.tfvars` file:
 
@@ -300,7 +363,7 @@ terraform {
 }
 ```
 
-## Promote immutable, versioned Terraform modules across environments
+### Promote immutable, versioned Terraform modules across environments
 
 One of the most important [lessons we’ve learned from writing hundreds of thousands of lines of infrastructure code](https://blog.gruntwork.io/5-lessons-learned-from-writing-over-300-000-lines-of-infrastructure-code-36ba7fadeac1) is that large modules should be considered harmful. That is, it is a Bad Idea to define all of your environments (dev, stage, prod, etc), or even a large amount of infrastructure (servers, databases, load balancers, DNS, etc), in a single Terraform module. Large modules are slow, insecure, hard to update, hard to code review, hard to test, and brittle (i.e., you have all your eggs in one basket).
 

@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/tfsource"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/internal/tfr"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -140,6 +141,9 @@ var copyFiles = func(client *getter.Client) error {
 			client.Getters[getterName] = getterValue
 		}
 	}
+
+	// Load in custom getters that are only supported in Terragrunt
+	client.Getters["tfr"] = &tfr.TerraformRegistryGetter{}
 
 	return nil
 }
