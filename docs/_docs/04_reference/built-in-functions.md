@@ -531,7 +531,7 @@ super_secret_value = run_cmd("--terragrunt-quiet", "./decrypt_secret.sh", "foo")
 
 **Note:** This will prevent terragrunt from displaying the output from the command in its output. However, the value could still be displayed in the Terraform output if Terraform does not treat it as a [sensitive value](https://www.terraform.io/docs/configuration/outputs.html#sensitive-suppressing-values-in-cli-output).
 
-Invocations of `run_cmd` are cached based on directory and executed command, cached values are re-used later, example:
+Invocations of `run_cmd` are cached based on directory and executed command, so cached values are re-used later, rather than executed multiple times. Here's an example:
 ```hcl
 locals {
 
@@ -542,6 +542,17 @@ locals {
   uuid = run_cmd("echo", uuid())
   uuid2 = run_cmd("echo", uuid())
 }
+```
+
+Output:
+```
+$ terragrunt init
+29239cdc-56b0-b87f-78f3-f754bc028fd8
+e5516123-af94-e09a-7e69-be5615205ee6
+potato
+carrot
+ec5ebaa1-f953-1513-7425-2d8986bfdbac
+69be81a8-7f27-d7b2-50c7-aea1af60fe1a
 ```
 **Notes:**
   * In the output will be printed once `carrot` and `potato`, second invocation of `run_cmd("echo", "potato")` will be cached
