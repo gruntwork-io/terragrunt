@@ -227,7 +227,12 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 	return envVariable, nil
 }
 
+// runCommandCache - cache of evaluated `run_cmd` invocations
+// see: https://github.com/gruntwork-io/terragrunt/issues/1427
+var runCommandCache = NewStringCache()
+
 // runCommand is a helper function that runs a command and returns the stdout as the interporation
+// for each `run_cmd` in locals section, function is called twice
 // result
 func runCommand(args []string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	if len(args) == 0 {
@@ -242,6 +247,19 @@ func runCommand(args []string, include *IncludeConfig, terragruntOptions *option
 
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 
+	// To avoid re-run of the same run_cmd command, is used in memory cache for command results, with caching key path + arguments
+	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
+	cacheKey := fmt.Sprintf("%v-%v", currentPath, args)
+	cachedValue, foundInCache := runCommandCache.Get(cacheKey)
+	if foundInCache {
+		if suppressOutput {
+			terragruntOptions.Logger.Debugf("run_cmd, cached output: [REDACTED]")
+		} else {
+			terragruntOptions.Logger.Debugf("run_cmd, cached output: [%s]", cachedValue)
+		}
+		return cachedValue, nil
+	}
+
 	cmdOutput, err := shell.RunShellCommandWithOutput(terragruntOptions, currentPath, suppressOutput, false, args[0], args[1:]...)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
@@ -255,6 +273,9 @@ func runCommand(args []string, include *IncludeConfig, terragruntOptions *option
 		terragruntOptions.Logger.Debugf("run_cmd output: [%s]", value)
 	}
 
+	// Persisting result in cache to avoid future re-evaluation
+	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
+	runCommandCache.Put(cacheKey, value)
 	return value, nil
 }
 

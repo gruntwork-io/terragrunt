@@ -112,6 +112,8 @@ const (
 	TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL_BUT_INPUT     = "fixture-locals-errors/undefined-local-but-input"
 	TEST_FIXTURE_LOCALS_CANONICAL                           = "fixture-locals/canonical"
 	TEST_FIXTURE_LOCALS_IN_INCLUDE                          = "fixture-locals/local-in-include"
+	TEST_FIXTURE_LOCAL_RUN_ONCE                             = "fixture-locals/run-once"
+	TEST_FIXTURE_LOCAL_RUN_MULTIPLE                         = "fixture-locals/run-multiple"
 	TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH           = "qa/my-app"
 	TEST_FIXTURE_READ_CONFIG                                = "fixture-read-config"
 	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                    = "fixture-get-aws-caller-identity"
@@ -4212,4 +4214,43 @@ func TestTerragruntRunAllCommandPrompt(t *testing.T) {
 	logBufferContentsLineByLine(t, stderr, "stderr")
 	assert.Contains(t, stderr.String(), "Are you sure you want to run 'terragrunt apply' in each folder of the stack described above? (y/n)")
 	assert.Error(t, err)
+}
+
+func TestTerragruntInitOnce(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_RUN_ONCE)
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_RUN_ONCE), &stdout, &stderr)
+
+	errout := string(stderr.Bytes())
+
+	assert.Equal(t, 1, strings.Count(errout, "foo"))
+}
+
+func TestTerragruntInitRunCmd(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_RUN_MULTIPLE)
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_RUN_MULTIPLE), &stdout, &stderr)
+
+	errout := string(stderr.Bytes())
+
+	// Check for cached values between locals and inputs sections
+	assert.Equal(t, 1, strings.Count(errout, "potato"))
+	assert.Equal(t, 1, strings.Count(errout, "carrot"))
+	assert.Equal(t, 1, strings.Count(errout, "bar"))
+	assert.Equal(t, 1, strings.Count(errout, "foo"))
+
+	assert.Equal(t, 1, strings.Count(errout, "input_variable"))
+
+	// Commands executed multiple times because of different arguments
+	assert.Equal(t, 3, strings.Count(errout, "uuid"))
+	assert.Equal(t, 4, strings.Count(errout, "random_arg"))
+	assert.Equal(t, 3, strings.Count(errout, "another_arg"))
 }
