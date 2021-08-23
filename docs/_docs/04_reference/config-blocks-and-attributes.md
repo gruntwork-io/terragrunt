@@ -52,15 +52,16 @@ The `terraform` block supports the following arguments:
       registry (`registry.terraform.io`) if you use `tfr:///` (note the three `/`). For example, the following will
       fetch the `terraform-aws-modules/vpc/aws` module from the public registry:
       `tfr:///terraform-aws-modules/vpc/aws?version=3.3.0`.
-    - NOTE: Terragrunt is designed to deploy modules that are root modules in terraform (those that can be directly
-      called with terraform). Although terragrunt is able to deploy a submodule of a module in a registry directly (just
-      like terraform), this is generally not recommended. Registry submodules are generally intended and designed for
-      internal consumption within the module repo and not for direct consumption. If you wish to use a submodule, the
-      recommendation is to create a wrapper module that consumes the submodule as a library. The one exception to this
-      is for certain monorepo setups where the submodules are the root module.
+    - You can also use submodules from the registry using `//`. For example, to use the `iam-policy` submodule from the
+      registry module
+      [terraform-aws-modules/iam](https://registry.terraform.io/modules/terraform-aws-modules/iam/aws/latest), you can
+      use the following: `tfr:///terraform-aws-modules/iam/aws//modules/iam-policy?version=4.3.0`.
+    - Refer to [A note about using modules from the
+      registry]({{site.baseurl}}/docs/getting-started/quick-start#a-note-about-using-modules-from-the-registry) for more
+      information about using modules from the Terraform Registry with Terragrunt.
 
 - `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `terraform` CLI. Learn more
-  about its usage in the [Keep your CLI flags DRY](/docs/features/keep-your-cli-flags-dry/) use case overview. Supports
+  about its usage in the [Keep your CLI flags DRY]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/) use case overview. Supports
   the following arguments:
     - `arguments` (required) : A list of CLI arguments to pass to `terraform`.
     - `commands` (required) : A list of `terraform` sub commands that the arguments will be passed to.

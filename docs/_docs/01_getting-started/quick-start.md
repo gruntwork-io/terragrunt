@@ -49,6 +49,17 @@ terraform {
   source = "tfr:///terraform-aws-modules/vpc/aws?version=3.5.0"
 }
 
+# Indicate what region to deploy the resources into
+generate "provider" {
+  path = "provider.tf"
+  if_exists = "overwrite_terragrunt"
+  contents = <<EOF
+provider "aws" {
+  region = "us-east-1"
+}
+EOF
+}
+
 # Indicate the input values to use for the variables of the module.
 inputs = {
   name = "my-vpc"
@@ -81,6 +92,9 @@ tfr://REGISTRY_DOMAIN/MODULE?version=VERSION
 
 Note that you can omit the `REGISTRY_DOMAIN` to default to the Public Terraform Registry.
 
+The `generate` block is used to inject the provider configuration into the active Terraform module. This can be used to
+customize how Terraform interacts with the cloud APIs, including configuring authentication parameters.
+
 The `inputs` block is used to indicate what variable values should be passed to terraform. This is equivalent to having
 the contents of the map in a tfvars file and passing that to terraform.
 
@@ -89,6 +103,29 @@ documentation](https://terragrunt.gruntwork.io/docs/reference/config-blocks-and-
 sources that terragrunt supports.
 
 You can deploy this example by copy pasting it into a folder and running `terragrunt apply`.
+
+
+## A note about using modules from the registry
+
+The key design of Terragrunt is to act as a preprocessor to convert **shared modules** in the registry into a **root
+module**. In Terraform, modules can be loosely categorized into two types:
+
+* **Root Module**: A Terraform module that is designed for running `terraform init` and the other workflow commands
+  (`apply`, `plan`, etc). This is the entrypoint module for deploying your infrastructure. Root modules are identified
+  by the presence of key blocks that setup configuration about how Terraform behaves, like `backend` blocks (for
+  configuring state) and `provider` blocks (for configuring how Terraform interacts with the cloud APIs).
+* **Shared Module**: A Terraform module that is designed to be included in other Terraform modules through `module`
+  blocks. These modules are missing many of the key blocks that are required for running the workflow commands of
+  terraform.
+
+Terragrunt started off with features that help directly deploy **Root Modules**, but over the years have implemented
+many features that allow you to turn **Shared Modules** into **Root Modules**  by injecting the key configuration
+blocks that are necessary for Terraform modules to act as **Root Modules**.
+
+Modules on the Terraform Registry are primarily designed to be used as **Shared Modules**. That is, you won't be able to
+`git clone` the underlying repository and run `terraform init` or `apply` directly on the module without modification.
+When using modules in the registry, it helps to think about what blocks and resources are necessary to operate the
+module, and translating those into Terragrunt blocks that generate them.
 
 
 ## Key features
