@@ -534,30 +534,40 @@ super_secret_value = run_cmd("--terragrunt-quiet", "./decrypt_secret.sh", "foo")
 Invocations of `run_cmd` are cached based on directory and executed command, so cached values are re-used later, rather than executed multiple times. Here's an example:
 ```hcl
 locals {
-
+  uuid = run_cmd("echo", "uuid1",  uuid())
+  uuid2 = run_cmd("echo", "uuid2", uuid())
+  uuid3 = run_cmd("echo", "uuid3", uuid())
   potato = run_cmd("echo", "potato")
   potato2 = run_cmd("echo", "potato")
   carrot = run_cmd("echo", "carrot")
-
-  uuid = run_cmd("echo", uuid())
-  uuid2 = run_cmd("echo", uuid())
+}
+inputs = {
+  potato3 = run_cmd("echo", "potato")
+  uuid3 = run_cmd("echo", "uuid3", uuid())
+  uuid4 = run_cmd("echo", "uuid4", uuid())
+  carrot2 = run_cmd("echo", "carrot")
 }
 ```
 
 Output:
 ```
 $ terragrunt init
-29239cdc-56b0-b87f-78f3-f754bc028fd8
-e5516123-af94-e09a-7e69-be5615205ee6
+uuid1 b48379e1-924d-2403-8789-c72d50be964c
+uuid1 9f3a8398-b11f-5314-7783-dad176ee487d
+uuid2 2d65972b-3fa9-181f-64fe-dcd574d944d0
+uuid3 e345de60-9cfa-0455-79b7-af0d053a15a5
 potato
+uuid3 7f90a4ed-96e3-1dd8-5fee-91b8c8e07650
+uuid2 8638fe79-c589-bebd-2a2a-3e6b96f7fc34
+uuid3 310d0447-f0a6-3f67-efda-e6b1521fa1fb
+uuid4 f8e80cc6-1892-8db7-bd63-6089fef00c01
 carrot
-ec5ebaa1-f953-1513-7425-2d8986bfdbac
-69be81a8-7f27-d7b2-50c7-aea1af60fe1a
 ```
 **Notes:**
-  * In the output will be printed once `carrot` and `potato`, second invocation of `run_cmd("echo", "potato")` will be cached
-  * In the output will be printed **four**(2 during parsing of file, 2 during evaluation) different UUIDs because as arguments to `run_cmd` will be passed different values from `uuid()` result
-
+  * Output contains only once `carrot` and `potato`, because other invocations got cached, caching works for all sections
+  * Output contains twice `uuid1` and `uuid2` because during HCL evaluation each `run_cmd` in `locals` section is evaluated twice, and value is cached under different key since `uuid()` add random value in key
+  * Output contains three times `uuid3` - 2 prints because `uuid3` was declared in `locals`, once because it is declared in `inputs`
+  * Output contains only once `uuid4` since it is declared only once in `inputs`, `inputs` is not evaluated twice
 
 ## read\_terragrunt\_config
 
