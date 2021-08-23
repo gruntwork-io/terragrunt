@@ -232,6 +232,7 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 var runCommandCache = NewStringCache()
 
 // runCommand is a helper function that runs a command and returns the stdout as the interporation
+// for each `run_cmd` in locals section, function is called twice
 // result
 func runCommand(args []string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	if len(args) == 0 {
