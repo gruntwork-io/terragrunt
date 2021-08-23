@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math"
 	"math/rand"
 	"os"
 	"path"
@@ -859,70 +858,6 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 	}
 
 	return stdout.String(), testStart, nil
-}
-
-func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules int, timeToDeployEachModule time.Duration, expectedTimings []int) {
-	output, testStart, err := testRemoteFixtureParallelism(t, parallelism, numberOfModules, timeToDeployEachModule)
-	require.NoError(t, err)
-
-	// parse output and sort the times, the regex captures a string in the format time.RFC3339 emitted by terraform's timestamp function
-	r, err := regexp.Compile(`out = "([-:\w]+)"`)
-	require.NoError(t, err)
-
-	matches := r.FindAllStringSubmatch(output, -1)
-	require.True(t, len(matches) == numberOfModules)
-	var times []int
-	for _, v := range matches {
-		// timestamp() is parsed
-		parsed, err := time.Parse(time.RFC3339, v[1])
-		require.NoError(t, err)
-		times = append(times, int(parsed.Unix())-testStart)
-	}
-	sort.Slice(times, func(i, j int) bool {
-		return times[i] < times[j]
-	})
-
-	// the reported times are skewed (running terragrunt/terraform apply adds a little bit of overhead)
-	// we apply a simple scaling algorithm on the times based on the last expected time and the last actual time
-	k := float64(times[len(times)-1]) / float64(expectedTimings[len(expectedTimings)-1])
-
-	scaledTimes := make([]float64, len(times))
-	for i := 0; i < len(times); i += 1 {
-		scaledTimes[i] = float64(times[i]) / k
-	}
-
-	t.Logf("Parallelism test numberOfModules=%d p=%d expectedTimes=%v times=%v scaledTimes=%v scaleFactor=%f", numberOfModules, parallelism, expectedTimings, times, scaledTimes, k)
-
-	maxDiffInSeconds := 3.0
-	isEqual := func(x, y float64) bool {
-		return math.Abs(x-y) <= maxDiffInSeconds
-	}
-	for i := 0; i < len(times); i += 1 {
-		// it's impossible to know when will the first test finish however once a test finishes
-		// we know that all the other times are relative to the first one
-		assert.True(t, isEqual(scaledTimes[i], float64(expectedTimings[i])))
-	}
-}
-
-func TestTerragruntParallelism(t *testing.T) {
-	t.Parallel()
-	testCases := []struct {
-		parallelism            int
-		numberOfModules        int
-		timeToDeployEachModule time.Duration
-		expectedTimings        []int
-	}{
-		{1, 10, 5 * time.Second, []int{5, 10, 15, 20, 25, 30, 35, 40, 45, 50}},
-		{3, 10, 5 * time.Second, []int{5, 5, 5, 10, 10, 10, 15, 15, 15, 20}},
-		{5, 10, 5 * time.Second, []int{5, 5, 5, 5, 5, 5, 5, 5, 5, 5}},
-	}
-	for _, tc := range testCases {
-		tc := tc // shadow and force execution with this case
-		t.Run(fmt.Sprintf("parallelism=%d numberOfModules=%d timeToDeployEachModule=%v expectedTimings=%v", tc.parallelism, tc.numberOfModules, tc.timeToDeployEachModule, tc.expectedTimings), func(t *testing.T) {
-			// t.Parallel()
-			testTerragruntParallelism(t, tc.parallelism, tc.numberOfModules, tc.timeToDeployEachModule, tc.expectedTimings)
-		})
-	}
 }
 
 func TestTerragruntStackCommands(t *testing.T) {
