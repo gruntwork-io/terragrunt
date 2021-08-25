@@ -3683,6 +3683,7 @@ func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
 	}
 
 	copyErr := util.CopyFolderContents(environmentPath, util.JoinPath(targetPath, environmentPath), ".terragrunt-test")
+	require.NoError(t, copyErr)
 }
 
 func copyFile(srcPath string, destPath string) error {
