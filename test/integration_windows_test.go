@@ -14,7 +14,7 @@ const (
 	TEST_FIXTURE_LOCAL_RELATIVE_ARGS_WINDOWS_DOWNLOAD_PATH = "fixture-download/local-relative-extra-args-windows"
 )
 
-func TestLocalWithRelativeExtraArgsWindows(t *testing.T) {
+func TestWindowsLocalWithRelativeExtraArgsWindows(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_RELATIVE_ARGS_WINDOWS_DOWNLOAD_PATH)
@@ -27,7 +27,7 @@ func TestLocalWithRelativeExtraArgsWindows(t *testing.T) {
 
 // TestTerragruntSourceMapDebug copies the test/fixture-source-map directory to a new Windows path
 // and then ensures that the TERRAGRUNT_SOURCE_MAP env var can be used to swap out git sources for local modules
-func TestTerragruntSourceMapDebug(t *testing.T) {
+func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 	fixtureSourceMapPath := "fixture-source-map"
 	cleanupTerraformFolder(t, fixtureSourceMapPath)
 	targetPath := "C:\\test\\infrastructure-modules/"
