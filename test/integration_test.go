@@ -3623,8 +3623,6 @@ func removeFolder(t *testing.T, path string) {
 }
 
 func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {
-	fmt.Println("runTerragruntCommand")
-	fmt.Println(command)
 	return runTerragruntVersionCommand(t, "TEST", command, writer, errwriter)
 }
 
