@@ -3566,6 +3566,8 @@ func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwri
 func runTerragruntVersionCommand(t *testing.T, version string, command string, writer io.Writer, errwriter io.Writer) error {
 	args := strings.Split(command, " ")
 
+	fmt.Println("runTerragruntVersionCommand after split")
+	fmt.Println(args)
 	app := cli.CreateTerragruntCli(version, writer, errwriter)
 	return app.Run(args)
 }
@@ -3610,6 +3612,15 @@ func copyEnvironment(t *testing.T, environmentPath string) string {
 	require.NoError(t, util.CopyFolderContents(environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test"))
 
 	return tmpDir
+}
+
+func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
+	if err := os.MkdirAll(targetPath, 0777); err != nil {
+		t.Fatalf("Failed to create temp dir %s due to error %v", targetPath, err)
+	}
+
+	copyErr := util.CopyFolderContents(environmentPath, util.JoinPath(targetPath, environmentPath), ".terragrunt-test")
+	require.NoError(t, copyErr)
 }
 
 func copyFile(srcPath string, destPath string) error {

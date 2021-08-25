@@ -1,9 +1,35 @@
+orbs:
+  # The Windows orb gives us everything we need to start using the Windows executor.
+  win: circleci/windows@2.4.0
+
 defaults: &defaults
   docker:
     - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.16-tf1.0-tg0.30
 
-version: 2
+version: 2.1
 jobs:
+  test_windows:
+    executor:
+      name: win/default
+      size: "large"
+    steps:
+      - checkout
+      - run:
+          name: Install golang
+          shell: powershell.exe
+          command: ./_ci/install-golang.ps1
+      - run:
+          name: Install Terraform
+          shell: powershell.exe
+          command: ./_ci/install-terraform.ps1
+      - run:
+          name: Run go tests
+          shell: powershell.exe
+          no_output_timeout: 45m
+          command: |
+            # We're running this test only on Windows currently to provide a convenient 
+            # means of reproducing Terragrunt issues that only occur on that platform
+            go test -v ./... -run TestTerragruntSourceMapDebug -timeout 45m
   # We're running unit tests separately from integration tests - with no parallelization.
   # With heavy parallelization coupled with re-use of test fixtures we've witnessed slight
   # instability with the tests. The unit tests are fast to execute, so there is negligible
@@ -21,7 +47,7 @@ jobs:
             # with any python < 3.6.
             pip3 install pre-commit==1.21.0 cfgv==2.0.1 zipp==1.1.0
             go get golang.org/x/tools/cmd/goimports
-            export GOPATH=~/go/bin && export PATH=$PATH:$GOPATH 
+            export GOPATH=~/go/bin && export PATH=$PATH:$GOPATH
             pre-commit install
             pre-commit run --all-files
       - run:
@@ -72,6 +98,13 @@ workflows:
   version: 2
   build-and-test:
     jobs:
+      - test_windows:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - Gruntwork Admin
+            - Gruntwork GCP
       - unit_test:
           filters:
             tags:
