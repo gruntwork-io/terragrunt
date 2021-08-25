@@ -3682,7 +3682,6 @@ func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
 		t.Fatalf("Failed to create temp dir %s due to error %v", targetPath, err)
 	}
 
-
 	copyErr := util.CopyFolderContents(environmentPath, util.JoinPath(targetPath, environmentPath), ".terragrunt-test")
 	fmt.Println(copyErr)
 }
