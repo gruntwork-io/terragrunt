@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/hashicorp/go-getter"
@@ -230,6 +231,15 @@ func getDownloadURLFromRegistry(ctx context.Context, url url.URL) (string, error
 		details := "no source URL was returned in header X-Terraform-Get from download URL"
 		return "", errors.WithStackTrace(ModuleDownloadErr{sourceURL: url.String(), details: details})
 	}
+
+	// If url from X-Terrafrom-Get Header seems to be a relative url,
+	// append scheme and host from url used for getting the download url
+	// because third-party registry implementations may not "know" their own absolute URLs if
+	// e.g. they are running behind a reverse proxy frontend, or such.
+	if strings.HasPrefix(terraformGet, "/") || strings.HasPrefix(terraformGet, "./") || strings.HasPrefix(terraformGet, "../") {
+		terraformGet = fmt.Sprintf("%v://%v%v", url.Scheme, url.Host, terraformGet)
+	}
+
 	return terraformGet, nil
 }
 
