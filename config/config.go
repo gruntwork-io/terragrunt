@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -715,7 +716,7 @@ func convertToTerragruntConfig(
 	}
 
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
-	if err := validateDependencies(terragruntConfigFromFile.Dependencies); err != nil {
+	if err := validateDependencies(terragruntOptions, terragruntConfigFromFile.Dependencies); err != nil {
 		return nil, err
 	}
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
@@ -828,10 +829,10 @@ func convertToTerragruntConfig(
 	return terragruntConfig, nil
 }
 
-func validateDependencies(dependencies *ModuleDependencies) error {
+func validateDependencies(terragruntOptions *options.TerragruntOptions, dependencies *ModuleDependencies) error {
 	var missingDependencies []string
 	for _, dependencyPath := range dependencies.Paths {
-		fileInfo, err := os.Stat(dependencyPath)
+		fileInfo, err := os.Stat(path.Join(terragruntOptions.WorkingDir, dependencyPath))
 		if err != nil || !fileInfo.IsDir() {
 			missingDependencies = append(missingDependencies, dependencyPath)
 		}
