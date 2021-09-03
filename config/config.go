@@ -832,9 +832,10 @@ func convertToTerragruntConfig(
 func validateDependencies(terragruntOptions *options.TerragruntOptions, dependencies *ModuleDependencies) error {
 	var missingDependencies []string
 	for _, dependencyPath := range dependencies.Paths {
-		fileInfo, err := os.Stat(path.Join(terragruntOptions.WorkingDir, dependencyPath))
+		fullPath := path.Join(terragruntOptions.WorkingDir, dependencyPath)
+		fileInfo, err := os.Stat(fullPath)
 		if err != nil || !fileInfo.IsDir() {
-			missingDependencies = append(missingDependencies, dependencyPath)
+			missingDependencies = append(missingDependencies, fmt.Sprintf("%s (%s)", dependencyPath, fullPath))
 		}
 	}
 	if len(missingDependencies) != 0 {
