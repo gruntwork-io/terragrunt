@@ -915,11 +915,11 @@ func (err InvalidMergeStrategyType) Error() string {
 }
 
 type DependencyDirNotFound struct {
-	dir []string
+	Dir []string
 }
 
 func (err DependencyDirNotFound) Error() string {
 	return fmt.Sprintf(
-		"Not found dependencies: %v", err.dir,
+		"Not found dependencies: %v", err.Dir,
 	)
 }
