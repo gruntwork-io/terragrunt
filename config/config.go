@@ -781,14 +781,10 @@ func convertToTerragruntConfig(
 		}
 	}
 
-	var duplicateGenerateBlockNames []string
+	if err := validateGenerateBlocks(&generateBlocks); err != nil {
+		return nil, err
+	}
 	for _, block := range generateBlocks {
-		_, found := terragruntConfig.GenerateConfigs[block.Name]
-		if found {
-			duplicateGenerateBlockNames = append(duplicateGenerateBlockNames, block.Name)
-			continue
-		}
-
 		ifExists, err := codegen.GenerateConfigExistsFromString(block.IfExists)
 		if err != nil {
 			return nil, err
@@ -812,10 +808,6 @@ func convertToTerragruntConfig(
 		terragruntConfig.GenerateConfigs[block.Name] = genConfig
 	}
 
-	if len(duplicateGenerateBlockNames) != 0 {
-		return nil, DuplicatedGenerateBlocks{duplicateGenerateBlockNames}
-	}
-
 	if terragruntConfigFromFile.Inputs != nil {
 		inputs, err := parseCtyValueToMap(*terragruntConfigFromFile.Inputs)
 		if err != nil {
@@ -834,6 +826,24 @@ func convertToTerragruntConfig(
 	}
 
 	return terragruntConfig, nil
+}
+
+func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
+	var blockNames = map[string]bool{}
+	var duplicatedGenerateBlockNames []string
+
+	for _, block := range *blocks {
+		_, found := blockNames[block.Name]
+		if found {
+			duplicatedGenerateBlockNames = append(duplicatedGenerateBlockNames, block.Name)
+			continue
+		}
+		blockNames[block.Name] = true
+	}
+	if len(duplicatedGenerateBlockNames) != 0 {
+		return DuplicatedGenerateBlocks{duplicatedGenerateBlockNames}
+	}
+	return nil
 }
 
 // Custom error types
