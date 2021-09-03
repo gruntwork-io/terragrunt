@@ -715,6 +715,9 @@ func convertToTerragruntConfig(
 	}
 
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
+	if err := validateDependencies(terragruntConfigFromFile.Dependencies); err != nil {
+		return nil, err
+	}
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
 	terragruntConfig.TerragruntDependencies = terragruntConfigFromFile.TerragruntDependencies
 
@@ -825,6 +828,21 @@ func convertToTerragruntConfig(
 	return terragruntConfig, nil
 }
 
+func validateDependencies(dependencies *ModuleDependencies) error {
+	var missingDependencies []string
+	for _, dependencyPath := range dependencies.Paths {
+		fileInfo, err := os.Stat(dependencyPath)
+		if err != nil || !fileInfo.IsDir() {
+			missingDependencies = append(missingDependencies, dependencyPath)
+		}
+	}
+	if len(missingDependencies) != 0 {
+		return DependencyDirNotFound{missingDependencies}
+	}
+
+	return nil
+}
+
 // Custom error types
 
 type InvalidArgError string
@@ -891,5 +909,15 @@ func (err InvalidMergeStrategyType) Error() string {
 		NoMerge,
 		ShallowMerge,
 		DeepMerge,
+	)
+}
+
+type DependencyDirNotFound struct {
+	dir []string
+}
+
+func (err DependencyDirNotFound) Error() string {
+	return fmt.Sprintf(
+		"Not found dependencies: %v", err.dir,
 	)
 }
