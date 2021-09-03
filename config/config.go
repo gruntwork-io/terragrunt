@@ -781,7 +781,14 @@ func convertToTerragruntConfig(
 		}
 	}
 
+	var duplicateGenerateBlockNames []string
 	for _, block := range generateBlocks {
+		_, found := terragruntConfig.GenerateConfigs[block.Name]
+		if found {
+			duplicateGenerateBlockNames = append(duplicateGenerateBlockNames, block.Name)
+			continue
+		}
+
 		ifExists, err := codegen.GenerateConfigExistsFromString(block.IfExists)
 		if err != nil {
 			return nil, err
@@ -803,6 +810,10 @@ func convertToTerragruntConfig(
 			genConfig.DisableSignature = *block.DisableSignature
 		}
 		terragruntConfig.GenerateConfigs[block.Name] = genConfig
+	}
+
+	if len(duplicateGenerateBlockNames) != 0 {
+		return nil, DuplicatedGenerateBlocks{duplicateGenerateBlockNames}
 	}
 
 	if terragruntConfigFromFile.Inputs != nil {
@@ -891,5 +902,15 @@ func (err InvalidMergeStrategyType) Error() string {
 		NoMerge,
 		ShallowMerge,
 		DeepMerge,
+	)
+}
+
+type DuplicatedGenerateBlocks struct {
+	BlockName []string
+}
+
+func (err DuplicatedGenerateBlocks) Error() string {
+	return fmt.Sprintf(
+		"Detected generate blocks with the same name: %v", err.BlockName,
 	)
 }
