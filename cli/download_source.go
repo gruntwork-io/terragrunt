@@ -34,15 +34,6 @@ func downloadTerraformSource(source string, terragruntOptions *options.Terragrun
 		return nil, err
 	}
 
-	fileInfo, err := os.Stat(terraformSource.WorkingDir)
-	if err != nil {
-		return nil, WorkingDirNotFound{terraformSource.WorkingDir}
-	}
-
-	if !fileInfo.IsDir() {
-		return nil, WorkingDirNotDir{terraformSource.WorkingDir}
-	}
-
 	terragruntOptions.Logger.Debugf("Copying files from %s into %s", terragruntOptions.WorkingDir, terraformSource.WorkingDir)
 	if err := util.CopyFolderContents(terragruntOptions.WorkingDir, terraformSource.WorkingDir, MODULE_MANIFEST_NAME); err != nil {
 		return nil, err
@@ -71,6 +62,9 @@ func downloadTerraformSourceIfNecessary(terraformSource *tfsource.TerraformSourc
 	}
 
 	if alreadyLatest {
+		if err := validateWorkingDir(terraformSource); err != nil {
+			return err
+		}
 		terragruntOptions.Logger.Debugf("Terraform files in %s are up to date. Will not download again.", terraformSource.WorkingDir)
 		return nil
 	}
@@ -89,6 +83,10 @@ func downloadTerraformSourceIfNecessary(terraformSource *tfsource.TerraformSourc
 	}
 
 	if err := terraformSource.WriteVersionFile(); err != nil {
+		return err
+	}
+
+	if err := validateWorkingDir(terraformSource); err != nil {
 		return err
 	}
 
@@ -165,6 +163,19 @@ func downloadSource(terraformSource *tfsource.TerraformSource, terragruntOptions
 		return errors.WithStackTrace(err)
 	}
 
+	return nil
+}
+
+// Check if working terraformSource.WorkingDir exists and is directory
+func validateWorkingDir(terraformSource *tfsource.TerraformSource) error {
+	fileInfo, err := os.Stat(terraformSource.WorkingDir)
+	if err != nil {
+		return WorkingDirNotFound{terraformSource.WorkingDir}
+	}
+
+	if !fileInfo.IsDir() {
+		return WorkingDirNotDir{terraformSource.WorkingDir}
+	}
 	return nil
 }
 
