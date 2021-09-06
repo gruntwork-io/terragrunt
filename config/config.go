@@ -828,6 +828,7 @@ func convertToTerragruntConfig(
 	return terragruntConfig, nil
 }
 
+// Iterate over generate blocks and detect duplicate names, return error with list of duplicated names
 func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 	var blockNames = map[string]bool{}
 	var duplicatedGenerateBlockNames []string
