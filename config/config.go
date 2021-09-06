@@ -831,6 +831,9 @@ func convertToTerragruntConfig(
 
 func validateDependencies(terragruntOptions *options.TerragruntOptions, dependencies *ModuleDependencies) error {
 	var missingDependencies []string
+	if dependencies == nil {
+		return nil
+	}
 	for _, dependencyPath := range dependencies.Paths {
 		fullPath := path.Join(terragruntOptions.WorkingDir, dependencyPath)
 		fileInfo, err := os.Stat(fullPath)
