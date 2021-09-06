@@ -836,13 +836,15 @@ func validateDependencies(terragruntOptions *options.TerragruntOptions, dependen
 		return nil
 	}
 	for _, dependencyPath := range dependencies.Paths {
-		fullPath := path.Join(terragruntOptions.WorkingDir, dependencyPath)
-		fileInfo, err := os.Stat(fullPath)
-		if err != nil || !fileInfo.IsDir() {
+		fullPath := dependencyPath
+		if !filepath.IsAbs(dependencyPath) {
+			fullPath = path.Join(terragruntOptions.WorkingDir, dependencyPath)
+		}
+		if !util.IsDir(fullPath) {
 			missingDependencies = append(missingDependencies, fmt.Sprintf("%s (%s)", dependencyPath, fullPath))
 		}
 	}
-	if len(missingDependencies) != 0 {
+	if len(missingDependencies) > 0 {
 		return DependencyDirNotFound{missingDependencies}
 	}
 
@@ -924,6 +926,6 @@ type DependencyDirNotFound struct {
 
 func (err DependencyDirNotFound) Error() string {
 	return fmt.Sprintf(
-		"Not found dependencies: %v", err.Dir,
+		"Found paths in the 'dependencies' block that do not exist: %v", err.Dir,
 	)
 }
