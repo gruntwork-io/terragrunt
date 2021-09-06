@@ -184,7 +184,7 @@ type WorkingDirNotFound struct {
 }
 
 func (err WorkingDirNotFound) Error() string {
-	return fmt.Sprintf("Not found directory: %s", err.Dir)
+	return fmt.Sprintf("Directory not found: %s", err.Dir)
 }
 
 type WorkingDirNotDir struct {
@@ -192,5 +192,5 @@ type WorkingDirNotDir struct {
 }
 
 func (err WorkingDirNotDir) Error() string {
-	return fmt.Sprintf("Not a directory: %s", err.Dir)
+	return fmt.Sprintf("Invalid directory: %s", err.Dir)
 }
