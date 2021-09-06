@@ -2,10 +2,9 @@ package cli
 
 import (
 	"fmt"
+	"github.com/hashicorp/go-getter"
 	"os"
 	"path/filepath"
-
-	"github.com/hashicorp/go-getter"
 
 	"github.com/gruntwork-io/terragrunt/cli/tfsource"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -19,8 +18,9 @@ import (
 const MODULE_MANIFEST_NAME = ".terragrunt-module-manifest"
 
 // 1. Download the given source URL, which should use Terraform's module source syntax, into a temporary folder
-// 2. Copy the contents of terragruntOptions.WorkingDir into the temporary folder.
-// 3. Set terragruntOptions.WorkingDir to the temporary folder.
+// 2. Check if module directory exists in temporary folder
+// 3. Copy the contents of terragruntOptions.WorkingDir into the temporary folder.
+// 4. Set terragruntOptions.WorkingDir to the temporary folder.
 //
 // See the NewTerraformSource method for how we determine the temporary folder so we can reuse it across multiple
 // runs of Terragrunt to avoid downloading everything from scratch every time.
@@ -32,6 +32,15 @@ func downloadTerraformSource(source string, terragruntOptions *options.Terragrun
 
 	if err := downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions, terragruntConfig); err != nil {
 		return nil, err
+	}
+
+	fileInfo, err := os.Stat(terraformSource.WorkingDir)
+	if err != nil {
+		return nil, WorkingDirNotFound{terraformSource.WorkingDir}
+	}
+
+	if !fileInfo.IsDir() {
+		return nil, WorkingDirNotDir{terraformSource.WorkingDir}
 	}
 
 	terragruntOptions.Logger.Debugf("Copying files from %s into %s", terragruntOptions.WorkingDir, terraformSource.WorkingDir)
@@ -157,4 +166,24 @@ func downloadSource(terraformSource *tfsource.TerraformSource, terragruntOptions
 	}
 
 	return nil
+}
+
+type WorkingDirNotFound struct {
+	Dir string
+}
+
+func (err WorkingDirNotFound) Error() string {
+	return fmt.Sprintf(
+		"Not found directory: %s", err.Dir,
+	)
+}
+
+type WorkingDirNotDir struct {
+	Dir string
+}
+
+func (err WorkingDirNotDir) Error() string {
+	return fmt.Sprintf(
+		"Not a directory: %s", err.Dir,
+	)
 }
