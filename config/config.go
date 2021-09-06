@@ -829,6 +829,7 @@ func convertToTerragruntConfig(
 	return terragruntConfig, nil
 }
 
+// Iterate over dependencies paths and check if directories exists, return error with all missing dependencies
 func validateDependencies(terragruntOptions *options.TerragruntOptions, dependencies *ModuleDependencies) error {
 	var missingDependencies []string
 	if dependencies == nil {
