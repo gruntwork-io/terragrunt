@@ -5,6 +5,7 @@ import (
 	"github.com/hashicorp/go-getter"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/cli/tfsource"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -62,7 +63,7 @@ func downloadTerraformSourceIfNecessary(terraformSource *tfsource.TerraformSourc
 	}
 
 	if alreadyLatest {
-		if err := validateWorkingDir(terraformSource); err != nil {
+		if err := validateWorkingDir(terraformSource, terragruntOptions); err != nil {
 			return err
 		}
 		terragruntOptions.Logger.Debugf("Terraform files in %s are up to date. Will not download again.", terraformSource.WorkingDir)
@@ -86,7 +87,7 @@ func downloadTerraformSourceIfNecessary(terraformSource *tfsource.TerraformSourc
 		return err
 	}
 
-	if err := validateWorkingDir(terraformSource); err != nil {
+	if err := validateWorkingDir(terraformSource, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -167,30 +168,32 @@ func downloadSource(terraformSource *tfsource.TerraformSource, terragruntOptions
 }
 
 // Check if working terraformSource.WorkingDir exists and is directory
-func validateWorkingDir(terraformSource *tfsource.TerraformSource) error {
-	fileInfo, err := os.Stat(terraformSource.WorkingDir)
-	if err != nil {
-		return WorkingDirNotFound{terraformSource.WorkingDir}
+func validateWorkingDir(terraformSource *tfsource.TerraformSource, terragruntOptions *options.TerragruntOptions) error {
+	workingLocalDir := strings.Replace(terraformSource.WorkingDir, terraformSource.DownloadDir+"/", "", -1)
+	if util.IsFile(terraformSource.WorkingDir) {
+		return WorkingDirNotDir{Dir: workingLocalDir, Source: terraformSource.CanonicalSourceURL.String()}
+	}
+	if !util.IsDir(terraformSource.WorkingDir) {
+		return WorkingDirNotFound{Dir: workingLocalDir, Source: terraformSource.CanonicalSourceURL.String()}
 	}
 
-	if !fileInfo.IsDir() {
-		return WorkingDirNotDir{terraformSource.WorkingDir}
-	}
 	return nil
 }
 
 type WorkingDirNotFound struct {
-	Dir string
+	Source string
+	Dir    string
 }
 
 func (err WorkingDirNotFound) Error() string {
-	return fmt.Sprintf("Directory not found: %s", err.Dir)
+	return fmt.Sprintf("Working dir %s from source %s does not exist", err.Dir, err.Source)
 }
 
 type WorkingDirNotDir struct {
-	Dir string
+	Source string
+	Dir    string
 }
 
 func (err WorkingDirNotDir) Error() string {
-	return fmt.Sprintf("Invalid directory: %s", err.Dir)
+	return fmt.Sprintf("Valid working dir %s from source %s", err.Dir, err.Source)
 }
