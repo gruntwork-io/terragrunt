@@ -63,7 +63,7 @@ func downloadTerraformSourceIfNecessary(terraformSource *tfsource.TerraformSourc
 	}
 
 	if alreadyLatest {
-		if err := validateWorkingDir(terraformSource, terragruntOptions); err != nil {
+		if err := validateWorkingDir(terraformSource); err != nil {
 			return err
 		}
 		terragruntOptions.Logger.Debugf("Terraform files in %s are up to date. Will not download again.", terraformSource.WorkingDir)
@@ -87,7 +87,7 @@ func downloadTerraformSourceIfNecessary(terraformSource *tfsource.TerraformSourc
 		return err
 	}
 
-	if err := validateWorkingDir(terraformSource, terragruntOptions); err != nil {
+	if err := validateWorkingDir(terraformSource); err != nil {
 		return err
 	}
 
@@ -168,8 +168,8 @@ func downloadSource(terraformSource *tfsource.TerraformSource, terragruntOptions
 }
 
 // Check if working terraformSource.WorkingDir exists and is directory
-func validateWorkingDir(terraformSource *tfsource.TerraformSource, terragruntOptions *options.TerragruntOptions) error {
-	workingLocalDir := strings.Replace(terraformSource.WorkingDir, terraformSource.DownloadDir+"/", "", -1)
+func validateWorkingDir(terraformSource *tfsource.TerraformSource) error {
+	workingLocalDir := strings.Replace(terraformSource.WorkingDir, terraformSource.DownloadDir+filepath.FromSlash("/"), "", -1)
 	if util.IsFile(terraformSource.WorkingDir) {
 		return WorkingDirNotDir{Dir: workingLocalDir, Source: terraformSource.CanonicalSourceURL.String()}
 	}
