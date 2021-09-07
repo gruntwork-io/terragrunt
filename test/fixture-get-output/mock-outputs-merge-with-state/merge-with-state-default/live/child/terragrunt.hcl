@@ -5,7 +5,7 @@ include {
 dependency "x" {
   config_path = "../parent"
 
-  mock_outputs_allowed_terraform_commands = ["validate", "init", "destroy", "plan", "apply", "terragrunt-info"]
+  mock_outputs_allowed_terraform_commands = ["output", "validate", "init", "destroy", "plan", "apply", "terragrunt-info"]
   mock_outputs = {
     test_output1 = "fake-data"
     test_output2 = "fake-data2"
