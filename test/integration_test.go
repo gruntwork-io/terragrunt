@@ -2414,7 +2414,6 @@ func TestDependencyMockOutputMergeWithStateFalse(t *testing.T) {
 
 	logBufferContentsLineByLine(t, stdout, "plan stdout")
 	logBufferContentsLineByLine(t, stderr, "plan stderr")
-
 }
 
 // Test when mock_outputs_merge_with_state is explicitly set to true.
@@ -2460,7 +2459,49 @@ func TestDependencyMockOutputMergeWithStateTrue(t *testing.T) {
 
 	logBufferContentsLineByLine(t, stdout, "output stdout")
 	logBufferContentsLineByLine(t, stderr, "output stderr")
+}
 
+// Test when mock_outputs_merge_with_state is explicitly set to true, but using an unallowed command. It should ignore
+// the mock output.
+func TestDependencyMockOutputMergeWithStateTrueNotAllowed(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-with-state", "merge-with-state-true", "live")
+	parentPath := filepath.Join(rootPath, "parent")
+	childPath := filepath.Join(rootPath, "child")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", parentPath), &stdout, &stderr)
+	assert.NoError(t, err)
+	logBufferContentsLineByLine(t, stdout, "plan stdout")
+	logBufferContentsLineByLine(t, stderr, "plan stderr")
+
+	// Verify mocked outputs are used if mock_outputs_merge_with_state is set to true with an allowed command and some
+	// output in the parent are not applied yet.
+	stdout.Reset()
+	stderr.Reset()
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, stdout, "apply stdout")
+	logBufferContentsLineByLine(t, stderr, "apply stderr")
+	// Now check the outputs to make sure they are as expected
+	stdout.Reset()
+	stderr.Reset()
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr),
+	)
+
+	// ... but not when an unallowed command is used
+	require.Error(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr),
+	)
 }
 
 // Test when mock_outputs_merge_with_state is explicitly set to true.
