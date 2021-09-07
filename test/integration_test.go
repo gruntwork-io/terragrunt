@@ -2468,7 +2468,7 @@ func TestDependencyMockOutputMergeWithStateTrueNotAllowed(t *testing.T) {
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-with-state", "merge-with-state-true", "live")
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-with-state", "merge-with-state-true-validate-only", "live")
 	parentPath := filepath.Join(rootPath, "parent")
 	childPath := filepath.Join(rootPath, "child")
 
@@ -2483,15 +2483,6 @@ func TestDependencyMockOutputMergeWithStateTrueNotAllowed(t *testing.T) {
 	// output in the parent are not applied yet.
 	stdout.Reset()
 	stderr.Reset()
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
-	assert.NoError(t, err)
-
-	logBufferContentsLineByLine(t, stdout, "apply stdout")
-	logBufferContentsLineByLine(t, stderr, "apply stderr")
-	// Now check the outputs to make sure they are as expected
-	stdout.Reset()
-	stderr.Reset()
-
 	require.NoError(
 		t,
 		runTerragruntCommand(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr),
