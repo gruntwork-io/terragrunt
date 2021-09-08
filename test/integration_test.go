@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math/rand"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -1264,7 +1265,11 @@ func TestAwsProviderPatch(t *testing.T) {
 	// fill in branch so we can test against updates to the test case file
 	mainContents, err := util.ReadFileAsString(mainTFFile)
 	require.NoError(t, err)
-	mainContents = strings.Replace(mainContents, "__BRANCH_NAME__", git.GetCurrentBranchName(t), -1)
+	branchName := git.GetCurrentBranchName(t)
+	// https://www.terraform.io/docs/language/modules/sources.html#modules-in-package-sub-directories
+	// https://github.com/gruntwork-io/terragrunt/issues/1778
+	branchName = url.QueryEscape(branchName)
+	mainContents = strings.Replace(mainContents, "__BRANCH_NAME__", branchName, -1)
 	require.NoError(t, ioutil.WriteFile(mainTFFile, []byte(mainContents), 0444))
 
 	assert.NoError(
