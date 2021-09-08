@@ -121,7 +121,13 @@ func (tfrGetter *TerraformRegistryGetter) Get(dstPath string, srcURL *url.URL) e
 		Host:   registryDomain,
 		Path:   moduleFullPath,
 	}
-	downloadURL, err := getDownloadURLFromRegistry(ctx, moduleURL)
+
+	terraformGet, err := getTerraformGetHeader(ctx, moduleURL)
+	if err != nil {
+		return err
+	}
+
+	downloadURL, err := getDownloadURLFromHeader(ctx, moduleURL, terraformGet)
 	if err != nil {
 		return err
 	}
@@ -219,19 +225,26 @@ func getModuleRegistryURLBasePath(ctx context.Context, domain string) (string, e
 	return respJSON.ModulesPath, nil
 }
 
-// getDownloadURLFromRegistry makes an http GET call to the given registry URL and return the contents of the header
+// getTerraformGetHeader makes an http GET call to the given registry URL and return the contents of the header
 // X-Terraform-Get. This function will return an error if the response does not contain the header.
-func getDownloadURLFromRegistry(ctx context.Context, url url.URL) (string, error) {
+func getTerraformGetHeader(ctx context.Context, url url.URL) (string, error) {
 	_, header, err := httpGETAndGetResponse(ctx, url)
 	if err != nil {
-		return "", err
+		details := "error recieving HTTP data"
+		return "", errors.WithStackTrace(ModuleDownloadErr{sourceURL: url.String(), details: details})
 	}
+
 	terraformGet := header.Get("X-Terraform-Get")
 	if terraformGet == "" {
 		details := "no source URL was returned in header X-Terraform-Get from download URL"
 		return "", errors.WithStackTrace(ModuleDownloadErr{sourceURL: url.String(), details: details})
 	}
+	return terraformGet, nil
+}
 
+// getDownloadURLFromHeader checks if the content of the X-Terraform-GET header contains the base url
+// and prepends it if not
+func getDownloadURLFromHeader(ctx context.Context, url url.URL, terraformGet string) (string, error) {
 	// If url from X-Terrafrom-Get Header seems to be a relative url,
 	// append scheme and host from url used for getting the download url
 	// because third-party registry implementations may not "know" their own absolute URLs if
@@ -239,7 +252,6 @@ func getDownloadURLFromRegistry(ctx context.Context, url url.URL) (string, error
 	if strings.HasPrefix(terraformGet, "/") || strings.HasPrefix(terraformGet, "./") || strings.HasPrefix(terraformGet, "../") {
 		terraformGet = fmt.Sprintf("%v://%v%v", url.Scheme, url.Host, terraformGet)
 	}
-
 	return terraformGet, nil
 }
 
