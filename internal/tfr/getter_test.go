@@ -21,7 +21,7 @@ func TestGetModuleRegistryURLBasePath(t *testing.T) {
 	assert.Equal(t, "/v1/modules/", basePath)
 }
 
-func TestGetDownloadURLFromRegistry(t *testing.T) {
+func TestGetTerraformHeader(t *testing.T) {
 	t.Parallel()
 
 	testModuleURL := url.URL{
@@ -29,9 +29,34 @@ func TestGetDownloadURLFromRegistry(t *testing.T) {
 		Host:   "registry.terraform.io",
 		Path:   "/v1/modules/terraform-aws-modules/vpc/aws/3.3.0/download",
 	}
-	downloadURL, err := getDownloadURLFromRegistry(context.Background(), testModuleURL)
+	terraformGetHeader, err := getTerraformGetHeader(context.Background(), testModuleURL)
 	require.NoError(t, err)
-	assert.Contains(t, downloadURL, "github.com/terraform-aws-modules/terraform-aws-vpc")
+	assert.Contains(t, terraformGetHeader, "github.com/terraform-aws-modules/terraform-aws-vpc")
+}
+
+func TestGetDownloadURLFromHeaderWithPrefixedURL(t *testing.T) {
+	t.Parallel()
+
+	testTerraformGet := "github.com/terraform-aws-modules/terraform-aws-vpc"
+
+	downloadURL, err := getDownloadURLFromHeader(context.Background(), url.URL{}, testTerraformGet)
+	require.NoError(t, err)
+	assert.Equal(t, "github.com/terraform-aws-modules/terraform-aws-vpc", downloadURL)
+}
+
+func TestGetDownloadURLFromHeaderWithoutPrefixedURL(t *testing.T) {
+	t.Parallel()
+
+	testTerraformGet := "/terraform-aws-modules/terraform-aws-vpc"
+
+	testBaseURL := url.URL{
+		Scheme: "https",
+		Host:   "registry.terraform.io",
+	}
+
+	downloadURL, err := getDownloadURLFromHeader(context.Background(), testBaseURL, testTerraformGet)
+	require.NoError(t, err)
+	assert.Equal(t, "https://registry.terraform.io/terraform-aws-modules/terraform-aws-vpc", downloadURL)
 }
 
 func TestTFRGetterRootDir(t *testing.T) {
