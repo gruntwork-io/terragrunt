@@ -451,10 +451,6 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return nil
 	}
 
-	if err := checkFolderContainsTerraformCode(updatedTerragruntOptions); err != nil {
-		return err
-	}
-
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
 	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
 	for _, config := range terragruntConfig.GenerateConfigs {
@@ -487,6 +483,10 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	if err := checkFolderContainsTerraformCode(updatedTerragruntOptions); err != nil {
+		return err
 	}
 
 	return runTerragruntWithConfig(terragruntOptions, updatedTerragruntOptions, terragruntConfig, false)
