@@ -5,7 +5,7 @@ category: features
 categories_url: features
 excerpt: Learn how to create and manage remote state configuration.
 tags: ["DRY", "remote", "Use cases", "CLI"]
-order: 201
+order: 205
 nav_title: Documentation
 nav_title_link: /docs/
 ---

@@ -5,7 +5,7 @@ category: features
 categories_url: features
 excerpt: Learn how to avoid tedious tasks of running commands on each module separately.
 tags: ["DRY", "Modules", "Use cases", "CLI"]
-order: 203
+order: 220
 nav_title: Documentation
 nav_title_link: /docs/
 ---

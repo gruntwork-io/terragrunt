@@ -5,7 +5,7 @@ category: features
 categories_url: features
 excerpt: Learn how to Terragrunt handles the Terraform lock file
 tags: ["CLI", "DRY"]
-order: 230
+order: 270
 nav_title: Documentation
 nav_title_link: /docs/
 ---
