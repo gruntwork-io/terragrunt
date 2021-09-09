@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/errors"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -10,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/errors"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

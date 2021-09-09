@@ -2,10 +2,11 @@ package cli
 
 import (
 	"fmt"
-	"github.com/hashicorp/go-getter"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/hashicorp/go-getter"
 
 	"github.com/gruntwork-io/terragrunt/cli/tfsource"
 	"github.com/gruntwork-io/terragrunt/config"
