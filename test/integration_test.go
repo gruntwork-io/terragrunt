@@ -82,6 +82,7 @@ const (
 	TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES = "fixture-download/local-include-with-prevent-destroy-dependencies"
 	TEST_FIXTURE_NOT_EXISTING_SOURCE                        = "fixture-download/invalid-path"
 	TEST_FIXTURE_EXTERNAL_DEPENDENCIE                       = "fixture-external-dependencies"
+	TEST_FIXTURE_MISSING_DEPENDENCIE                        = "fixture-missing-dependencies/main"
 	TEST_FIXTURE_GET_OUTPUT                                 = "fixture-get-output"
 	TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH                     = "fixture-hooks/before-only"
 	TEST_FIXTURE_HOOKS_ALL_PATH                             = "fixture-hooks/all"
@@ -1910,6 +1911,23 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 	}
 }
 
+func TestTerragruntMissingDependenciesFail(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := TEST_FIXTURE_MISSING_DEPENDENCIE
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
+	require.Error(t, err)
+	parsedError, ok := errors.Unwrap(err).(config.DependencyDirNotFound)
+	assert.True(t, ok)
+	assert.True(t, len(parsedError.Dir) == 1)
+	assert.Contains(t, parsedError.Dir[0], "hl3-release")
+}
+
 func TestTerragruntExcludeExternalDependencies(t *testing.T) {
 	t.Parallel()
 
@@ -3182,7 +3200,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 		t,
 		depsOut,
 		map[string]interface{}{
-			"paths": []interface{}{"../module-a"},
+			"paths": []interface{}{"../../fixture"},
 		},
 	)
 	generateOut := map[string]interface{}{}

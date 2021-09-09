@@ -49,7 +49,7 @@ terraform {
 }
 
 dependencies {
-  paths = ["../module-a"]
+  paths = ["../../fixture"]
 }
 
 terraform_binary = "terragrunt"

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -715,6 +716,9 @@ func convertToTerragruntConfig(
 	}
 
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
+	if err := validateDependencies(terragruntOptions, terragruntConfigFromFile.Dependencies); err != nil {
+		return nil, err
+	}
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
 	terragruntConfig.TerragruntDependencies = terragruntConfigFromFile.TerragruntDependencies
 
@@ -780,7 +784,6 @@ func convertToTerragruntConfig(
 			generateBlocks = append(generateBlocks, generateBlock)
 		}
 	}
-
 	if err := validateGenerateBlocks(&generateBlocks); err != nil {
 		return nil, err
 	}
@@ -826,6 +829,28 @@ func convertToTerragruntConfig(
 	}
 
 	return terragruntConfig, nil
+}
+
+// Iterate over dependencies paths and check if directories exists, return error with all missing dependencies
+func validateDependencies(terragruntOptions *options.TerragruntOptions, dependencies *ModuleDependencies) error {
+	var missingDependencies []string
+	if dependencies == nil {
+		return nil
+	}
+	for _, dependencyPath := range dependencies.Paths {
+		fullPath := dependencyPath
+		if !filepath.IsAbs(dependencyPath) {
+			fullPath = path.Join(terragruntOptions.WorkingDir, dependencyPath)
+		}
+		if !util.IsDir(fullPath) {
+			missingDependencies = append(missingDependencies, fmt.Sprintf("%s (%s)", dependencyPath, fullPath))
+		}
+	}
+	if len(missingDependencies) > 0 {
+		return DependencyDirNotFound{missingDependencies}
+	}
+
+	return nil
 }
 
 // Iterate over generate blocks and detect duplicate names, return error with list of duplicated names
@@ -913,6 +938,16 @@ func (err InvalidMergeStrategyType) Error() string {
 		NoMerge,
 		ShallowMerge,
 		DeepMerge,
+	)
+}
+
+type DependencyDirNotFound struct {
+	Dir []string
+}
+
+func (err DependencyDirNotFound) Error() string {
+	return fmt.Sprintf(
+		"Found paths in the 'dependencies' block that do not exist: %v", err.Dir,
 	)
 }
 

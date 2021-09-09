@@ -259,7 +259,7 @@ func TestParseTerragruntConfigDependenciesOnePath(t *testing.T) {
 
 	config := `
 dependencies {
-	paths = ["../vpc"]
+	paths = ["../test/fixture-parent-folders/multiple-terragrunt-in-parents"]
 }
 `
 
@@ -275,7 +275,7 @@ dependencies {
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.Dependencies) {
-		assert.Equal(t, []string{"../vpc"}, terragruntConfig.Dependencies.Paths)
+		assert.Equal(t, []string{"../test/fixture-parent-folders/multiple-terragrunt-in-parents"}, terragruntConfig.Dependencies.Paths)
 	}
 }
 
@@ -284,7 +284,7 @@ func TestParseTerragruntConfigDependenciesMultiplePaths(t *testing.T) {
 
 	config := `
 dependencies {
-	paths = ["../vpc", "../mysql", "../backend-app"]
+	paths = ["../test/fixture", "../test/fixture-dirs", "../test/fixture-inputs"]
 }
 `
 
@@ -299,7 +299,7 @@ dependencies {
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.Dependencies) {
-		assert.Equal(t, []string{"../vpc", "../mysql", "../backend-app"}, terragruntConfig.Dependencies.Paths)
+		assert.Equal(t, []string{"../test/fixture", "../test/fixture-dirs", "../test/fixture-inputs"}, terragruntConfig.Dependencies.Paths)
 	}
 }
 
@@ -322,7 +322,7 @@ remote_state {
 }
 
 dependencies {
-	paths = ["../vpc", "../mysql", "../backend-app"]
+	paths = ["../test/fixture", "../test/fixture-dirs", "../test/fixture-inputs"]
 }
 `
 
@@ -347,7 +347,7 @@ dependencies {
 	}
 
 	if assert.NotNil(t, terragruntConfig.Dependencies) {
-		assert.Equal(t, []string{"../vpc", "../mysql", "../backend-app"}, terragruntConfig.Dependencies.Paths)
+		assert.Equal(t, []string{"../test/fixture", "../test/fixture-dirs", "../test/fixture-inputs"}, terragruntConfig.Dependencies.Paths)
 	}
 }
 
@@ -369,7 +369,7 @@ func TestParseTerragruntJsonConfigRemoteStateDynamoDbTerraformConfigAndDependenc
 		}
 	},
 	"dependencies":{
-		"paths": ["../vpc", "../mysql", "../backend-app"]
+		"paths": ["../test/fixture", "../test/fixture-dirs", "../test/fixture-inputs"]
 	}
 }
 `
@@ -395,7 +395,7 @@ func TestParseTerragruntJsonConfigRemoteStateDynamoDbTerraformConfigAndDependenc
 	}
 
 	if assert.NotNil(t, terragruntConfig.Dependencies) {
-		assert.Equal(t, []string{"../vpc", "../mysql", "../backend-app"}, terragruntConfig.Dependencies.Paths)
+		assert.Equal(t, []string{"../test/fixture", "../test/fixture-dirs", "../test/fixture-inputs"}, terragruntConfig.Dependencies.Paths)
 	}
 }
 
