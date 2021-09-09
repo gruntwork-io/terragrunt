@@ -65,7 +65,7 @@ type terragruntConfigFile struct {
 	TerragruntVersionConstraint *string          `hcl:"terragrunt_version_constraint,attr"`
 	Inputs                      *cty.Value       `hcl:"inputs,attr"`
 	Include                     *IncludeConfig   `hcl:"include,block"`
-	Import                      *ImportConfig  `hcl:"import,block"`
+	Import                      *ImportConfig    `hcl:"import,block"`
 
 	// We allow users to configure remote state (backend) via blocks:
 	//
