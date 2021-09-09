@@ -151,7 +151,7 @@ func CreateTerragruntEvalContext(
 	if extensions.DecodedDependencies != nil {
 		ctx.Variables["dependency"] = *extensions.DecodedDependencies
 	}
-	if len(extensions.TrackInclude.CurrentMap) > 0 {
+	if extensions.TrackInclude != nil && len(extensions.TrackInclude.CurrentList) > 0 {
 		// For each include block, check if we want to expose the included config, and if so, add under the include
 		// variable.
 		exposedIncludeMap := map[string]cty.Value{}

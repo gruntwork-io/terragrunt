@@ -75,7 +75,7 @@ func ParseAndDecodeVarFile(hclContents string, filename string, out interface{})
 	// those panics here and convert them to normal errors
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = PanicWhileParsingConfig{RecoveredValue: recovered, ConfigFile: filename}
+			err = errors.WithStackTrace(PanicWhileParsingConfig{RecoveredValue: recovered, ConfigFile: filename})
 		}
 	}()
 
