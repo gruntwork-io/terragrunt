@@ -111,7 +111,7 @@ func CreateTerragruntEvalContext(
 
 	terragruntFunctions := map[string]function.Function{
 		"find_in_parent_folders":                       wrapStringSliceToStringAsFuncImpl(findInParentFolders, extensions.TrackInclude, terragruntOptions),
-		"path_relative_to_include":                     wrapVoidToStringAsFuncImpl(pathRelativeToInclude, extensions.TrackInclude, terragruntOptions),
+		"path_relative_to_include":                     wrapStringSliceToStringAsFuncImpl(pathRelativeToInclude, extensions.TrackInclude, terragruntOptions),
 		"path_relative_from_include":                   wrapStringSliceToStringAsFuncImpl(pathRelativeFromInclude, extensions.TrackInclude, terragruntOptions),
 		"get_env":                                      wrapStringSliceToStringAsFuncImpl(getEnvironmentVariable, extensions.TrackInclude, terragruntOptions),
 		"run_cmd":                                      wrapStringSliceToStringAsFuncImpl(runCommand, extensions.TrackInclude, terragruntOptions),
@@ -342,11 +342,11 @@ func findInParentFolders(
 	}
 
 	previousDir, err := filepath.Abs(filepath.Dir(terragruntOptions.TerragruntConfigPath))
-	previousDir = filepath.ToSlash(previousDir)
-
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
+
+	previousDir = filepath.ToSlash(previousDir)
 
 	fileToFindStr := DefaultTerragruntConfigPath
 	if fileToFindParam != "" {
@@ -380,13 +380,28 @@ func findInParentFolders(
 }
 
 // Return the relative path between the included Terragrunt configuration file and the current Terragrunt configuration
-// file
-func pathRelativeToInclude(trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (string, error) {
-	if trackInclude == nil || trackInclude.Original == nil {
+// file. Name param is required and used to lookup the relevant import block when called in a child config with multiple
+// import blocks.
+func pathRelativeToInclude(params []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (string, error) {
+	if trackInclude == nil {
 		return ".", nil
 	}
 
-	includePath := filepath.Dir(trackInclude.Original.Path)
+	var included ImportConfig
+	if trackInclude.Original != nil {
+		included = *trackInclude.Original
+	} else if len(trackInclude.CurrentList) > 0 {
+		// Called in child context, so we need to select the right include file.
+		selected, err := getSelectedImportBlock(trackInclude.CurrentMap, params)
+		if err != nil {
+			return "", err
+		}
+		included = *selected
+	} else {
+		return ".", nil
+	}
+
+	includePath := filepath.Dir(included.Path)
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 
 	if !filepath.IsAbs(includePath) {
@@ -402,7 +417,7 @@ func pathRelativeFromInclude(params []string, trackInclude *TrackInclude, terrag
 		return ".", nil
 	}
 
-	included, err := getSelectedIncludeBlock(trackInclude.CurrentMap, params)
+	included, err := getSelectedImportBlock(trackInclude.CurrentMap, params)
 	if err != nil {
 		return "", err
 	} else if included == nil {
@@ -661,11 +676,11 @@ func getTerragruntSourceCliFlag(trackInclude *TrackInclude, terragruntOptions *o
 // - If there is only one include block, no param is required and that is automatically returned.
 // - If there is more than one include block, 1 param is required to use as the label name to lookup the include block
 //   to use.
-func getSelectedIncludeBlock(includeMap map[string]ImportConfig, params []string) (*ImportConfig, error) {
-	if len(includeMap) == 0 {
+func getSelectedImportBlock(importMap map[string]ImportConfig, params []string) (*ImportConfig, error) {
+	if len(importMap) == 0 {
 		return nil, nil
-	} else if len(includeMap) == 1 {
-		for _, val := range includeMap {
+	} else if len(importMap) == 1 {
+		for _, val := range importMap {
 			return &val, nil
 		}
 	}
@@ -675,12 +690,12 @@ func getSelectedIncludeBlock(includeMap map[string]ImportConfig, params []string
 		return nil, errors.WithStackTrace(WrongNumberOfParams{Func: "path_relative_from_include", Expected: "1", Actual: numParams})
 	}
 
-	includeName := params[0]
-	included, hasKey := includeMap[includeName]
+	importName := params[0]
+	imported, hasKey := importMap[importName]
 	if !hasKey {
-		return nil, errors.WithStackTrace(InvalidIncludeKey{name: includeName})
+		return nil, errors.WithStackTrace(InvalidIncludeKey{name: importName})
 	}
-	return &included, nil
+	return &imported, nil
 }
 
 // Custom error types

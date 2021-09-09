@@ -70,7 +70,8 @@ func TestPathRelativeToInclude(t *testing.T) {
 				Original: testCase.include,
 			}
 		}
-		actualPath, actualErr := pathRelativeToInclude(trackInclude, testCase.terragruntOptions)
+		// TODO: update to test for multiple include blocks
+		actualPath, actualErr := pathRelativeToInclude([]string{}, trackInclude, testCase.terragruntOptions)
 		assert.Nil(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
 		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
 	}
