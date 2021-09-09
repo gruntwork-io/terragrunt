@@ -851,6 +851,25 @@ func validateDependencies(terragruntOptions *options.TerragruntOptions, dependen
 	return nil
 }
 
+// Iterate over generate blocks and detect duplicate names, return error with list of duplicated names
+func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
+	var blockNames = map[string]bool{}
+	var duplicatedGenerateBlockNames []string
+
+	for _, block := range *blocks {
+		_, found := blockNames[block.Name]
+		if found {
+			duplicatedGenerateBlockNames = append(duplicatedGenerateBlockNames, block.Name)
+			continue
+		}
+		blockNames[block.Name] = true
+	}
+	if len(duplicatedGenerateBlockNames) != 0 {
+		return DuplicatedGenerateBlocks{duplicatedGenerateBlockNames}
+	}
+	return nil
+}
+
 // Custom error types
 
 type InvalidArgError string
@@ -927,5 +946,15 @@ type DependencyDirNotFound struct {
 func (err DependencyDirNotFound) Error() string {
 	return fmt.Sprintf(
 		"Found paths in the 'dependencies' block that do not exist: %v", err.Dir,
+	)
+}
+
+type DuplicatedGenerateBlocks struct {
+	BlockName []string
+}
+
+func (err DuplicatedGenerateBlocks) Error() string {
+	return fmt.Sprintf(
+		"Detected generate blocks with the same name: %v", err.BlockName,
 	)
 }
