@@ -3184,7 +3184,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 		t,
 		depsOut,
 		map[string]interface{}{
-			"paths": []interface{}{"../module-a"},
+			"paths": []interface{}{"../../fixture"},
 		},
 	)
 	generateOut := map[string]interface{}{}
