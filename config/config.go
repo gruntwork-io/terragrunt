@@ -781,6 +781,9 @@ func convertToTerragruntConfig(
 		}
 	}
 
+	if err := validateGenerateBlocks(&generateBlocks); err != nil {
+		return nil, err
+	}
 	for _, block := range generateBlocks {
 		ifExists, err := codegen.GenerateConfigExistsFromString(block.IfExists)
 		if err != nil {
@@ -823,6 +826,25 @@ func convertToTerragruntConfig(
 	}
 
 	return terragruntConfig, nil
+}
+
+// Iterate over generate blocks and detect duplicate names, return error with list of duplicated names
+func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
+	var blockNames = map[string]bool{}
+	var duplicatedGenerateBlockNames []string
+
+	for _, block := range *blocks {
+		_, found := blockNames[block.Name]
+		if found {
+			duplicatedGenerateBlockNames = append(duplicatedGenerateBlockNames, block.Name)
+			continue
+		}
+		blockNames[block.Name] = true
+	}
+	if len(duplicatedGenerateBlockNames) != 0 {
+		return DuplicatedGenerateBlocks{duplicatedGenerateBlockNames}
+	}
+	return nil
 }
 
 // Custom error types
@@ -891,5 +913,15 @@ func (err InvalidMergeStrategyType) Error() string {
 		NoMerge,
 		ShallowMerge,
 		DeepMerge,
+	)
+}
+
+type DuplicatedGenerateBlocks struct {
+	BlockName []string
+}
+
+func (err DuplicatedGenerateBlocks) Error() string {
+	return fmt.Sprintf(
+		"Detected generate blocks with the same name: %v", err.BlockName,
 	)
 }
