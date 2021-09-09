@@ -784,7 +784,9 @@ func convertToTerragruntConfig(
 			generateBlocks = append(generateBlocks, generateBlock)
 		}
 	}
-
+	if err := validateGenerateBlocks(&generateBlocks); err != nil {
+		return nil, err
+	}
 	for _, block := range generateBlocks {
 		ifExists, err := codegen.GenerateConfigExistsFromString(block.IfExists)
 		if err != nil {
