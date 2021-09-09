@@ -31,82 +31,96 @@ func parseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *optio
 // user.
 func handleInclude(
 	config *TerragruntConfig,
-	includeConfig *IncludeConfig,
+	trackInclude *TrackInclude,
 	terragruntOptions *options.TerragruntOptions,
 	dependencyOutputs *cty.Value,
 ) (*TerragruntConfig, error) {
-	if includeConfig == nil {
+	if trackInclude == nil {
 		return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_NIL_INCLUDE_CONFIG")
 	}
 
-	mergeStrategy, err := includeConfig.GetMergeStrategy()
-	if err != nil {
-		return config, err
-	}
+	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override
+	// those in earlier includes, so we need to merge bottom up instead of top down to ensure this.
+	includeList := trackInclude.CurrentList
+	baseConfig := config
+	for i := len(includeList) - 1; i >= 0; i-- {
+		includeConfig := includeList[i]
+		mergeStrategy, err := includeConfig.GetMergeStrategy()
+		if err != nil {
+			return config, err
+		}
 
-	includedConfig, err := parseIncludedConfig(includeConfig, terragruntOptions, dependencyOutputs)
-	if err != nil {
-		return nil, err
-	}
-
-	switch mergeStrategy {
-	case NoMerge:
-		terragruntOptions.Logger.Debugf("Included config %s has strategy no merge: not merging config in.", includeConfig.Path)
-		return config, nil
-	case ShallowMerge:
-		terragruntOptions.Logger.Debugf("Included config %s has strategy shallow merge: merging config in (shallow).", includeConfig.Path)
-		includedConfig.Merge(config, terragruntOptions)
-		return includedConfig, nil
-	case DeepMerge:
-		terragruntOptions.Logger.Debugf("Included config %s has strategy deep merge: merging config in (deep).", includeConfig.Path)
-		if err := includedConfig.DeepMerge(config, terragruntOptions); err != nil {
+		parsedIncludeConfig, err := parseIncludedConfig(&includeConfig, terragruntOptions, dependencyOutputs)
+		if err != nil {
 			return nil, err
 		}
-		return includedConfig, nil
-	}
 
-	return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s", mergeStrategy)
+		switch mergeStrategy {
+		case NoMerge:
+			terragruntOptions.Logger.Debugf("Included config %s has strategy no merge: not merging config in.", includeConfig.Path)
+		case ShallowMerge:
+			terragruntOptions.Logger.Debugf("Included config %s has strategy shallow merge: merging config in (shallow).", includeConfig.Path)
+			parsedIncludeConfig.Merge(baseConfig, terragruntOptions)
+			baseConfig = parsedIncludeConfig
+		case DeepMerge:
+			terragruntOptions.Logger.Debugf("Included config %s has strategy deep merge: merging config in (deep).", includeConfig.Path)
+			if err := parsedIncludeConfig.DeepMerge(baseConfig, terragruntOptions); err != nil {
+				return nil, err
+			}
+			baseConfig = parsedIncludeConfig
+		default:
+			return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s", mergeStrategy)
+		}
+	}
+	return baseConfig, nil
 }
 
 // handleIncludePartial merges the a partially parsed include config into the child config according to the strategy
 // specified by the user.
 func handleIncludePartial(
 	config *TerragruntConfig,
-	includeConfig *IncludeConfig,
+	trackInclude *TrackInclude,
 	terragruntOptions *options.TerragruntOptions,
 	decodeList []PartialDecodeSectionType,
 ) (*TerragruntConfig, error) {
-	if includeConfig == nil {
+	if trackInclude == nil {
 		return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_PARTIAL_NIL_INCLUDE_CONFIG")
 	}
 
-	mergeStrategy, err := includeConfig.GetMergeStrategy()
-	if err != nil {
-		return config, err
-	}
-
-	includedConfig, err := partialParseIncludedConfig(includeConfig, terragruntOptions, decodeList)
-	if err != nil {
-		return nil, err
-	}
-
-	switch mergeStrategy {
-	case NoMerge:
-		terragruntOptions.Logger.Debugf("[Partial] Included config %s has strategy no merge: not merging config in.", includeConfig.Path)
-		return config, nil
-	case ShallowMerge:
-		terragruntOptions.Logger.Debugf("[Partial] Included config %s has strategy shallow merge: merging config in (shallow).", includeConfig.Path)
-		includedConfig.Merge(config, terragruntOptions)
-		return includedConfig, nil
-	case DeepMerge:
-		terragruntOptions.Logger.Debugf("[Partial] Included config %s has strategy deep merge: merging config in (deep).", includeConfig.Path)
-		if err := includedConfig.DeepMerge(config, terragruntOptions); err != nil {
+	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override
+	// those in earlier includes, so we need to merge bottom up instead of top down to ensure this.
+	includeList := trackInclude.CurrentList
+	baseConfig := config
+	for i := len(includeList) - 1; i >= 0; i-- {
+		includeConfig := includeList[i]
+		mergeStrategy, err := includeConfig.GetMergeStrategy()
+		if err != nil {
 			return nil, err
 		}
-		return includedConfig, nil
-	}
 
-	return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s_PARTIAL", mergeStrategy)
+		parsedIncludeConfig, err := partialParseIncludedConfig(&includeConfig, terragruntOptions, decodeList)
+		if err != nil {
+			return nil, err
+		}
+
+		switch mergeStrategy {
+		case NoMerge:
+			terragruntOptions.Logger.Debugf("[Partial] Included config %s has strategy no merge: not merging config in.", includeConfig.Path)
+		case ShallowMerge:
+			terragruntOptions.Logger.Debugf("[Partial] Included config %s has strategy shallow merge: merging config in (shallow).", includeConfig.Path)
+			parsedIncludeConfig.Merge(baseConfig, terragruntOptions)
+			baseConfig = parsedIncludeConfig
+		case DeepMerge:
+			terragruntOptions.Logger.Debugf("[Partial] Included config %s has strategy deep merge: merging config in (deep).", includeConfig.Path)
+			if err := parsedIncludeConfig.DeepMerge(baseConfig, terragruntOptions); err != nil {
+				return nil, err
+			}
+			baseConfig = parsedIncludeConfig
+		default:
+			return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s_PARTIAL", mergeStrategy)
+		}
+	}
+	return baseConfig, nil
 }
 
 // handleIncludeForDependency is a partial merge of the included config to handle dependencies. This only merges the
@@ -115,34 +129,47 @@ func handleIncludePartial(
 // child.
 func handleIncludeForDependency(
 	childDecodedDependency terragruntDependency,
-	includeConfig IncludeConfig,
+	trackInclude *TrackInclude,
 	terragruntOptions *options.TerragruntOptions,
 ) (*terragruntDependency, error) {
-	mergeStrategy, err := includeConfig.GetMergeStrategy()
-	if err != nil {
-		return nil, err
+	if trackInclude == nil {
+		return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_DEPENDENCY_NIL_INCLUDE_CONFIG")
 	}
+	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override
+	// those in earlier includes, so we need to merge bottom up instead of top down to ensure this.
+	includeList := trackInclude.CurrentList
+	baseDependencyBlock := childDecodedDependency.Dependencies
+	for i := len(includeList) - 1; i >= 0; i-- {
+		includeConfig := includeList[i]
+		mergeStrategy, err := includeConfig.GetMergeStrategy()
+		if err != nil {
+			return nil, err
+		}
 
-	includedPartialParse, err := partialParseIncludedConfig(&includeConfig, terragruntOptions, []PartialDecodeSectionType{DependencyBlock})
-	if err != nil {
-		return nil, err
+		includedPartialParse, err := partialParseIncludedConfig(&includeConfig, terragruntOptions, []PartialDecodeSectionType{DependencyBlock})
+		if err != nil {
+			return nil, err
+		}
+
+		switch mergeStrategy {
+		case NoMerge:
+			terragruntOptions.Logger.Debugf("Included config %s has strategy no merge: not merging config in for dependency.", includeConfig.Path)
+		case ShallowMerge:
+			terragruntOptions.Logger.Debugf("Included config %s has strategy shallow merge: merging config in (shallow) for dependency.", includeConfig.Path)
+			mergedDependencyBlock := mergeDependencyBlocks(includedPartialParse.TerragruntDependencies, baseDependencyBlock)
+			baseDependencyBlock = mergedDependencyBlock
+		case DeepMerge:
+			terragruntOptions.Logger.Debugf("Included config %s has strategy deep merge: merging config in (deep) for dependency.", includeConfig.Path)
+			mergedDependencyBlock, err := deepMergeDependencyBlocks(includedPartialParse.TerragruntDependencies, baseDependencyBlock)
+			if err != nil {
+				return nil, err
+			}
+			baseDependencyBlock = mergedDependencyBlock
+		default:
+			return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s_DEPENDENCY", mergeStrategy)
+		}
 	}
-
-	switch mergeStrategy {
-	case NoMerge:
-		terragruntOptions.Logger.Debugf("Included config %s has strategy no merge: not merging config in for dependency.", includeConfig.Path)
-		return &childDecodedDependency, nil
-	case ShallowMerge:
-		terragruntOptions.Logger.Debugf("Included config %s has strategy shallow merge: merging config in (shallow) for dependency.", includeConfig.Path)
-		mergedDependencyBlock := mergeDependencyBlocks(includedPartialParse.TerragruntDependencies, childDecodedDependency.Dependencies)
-		return &terragruntDependency{Dependencies: mergedDependencyBlock}, nil
-	case DeepMerge:
-		terragruntOptions.Logger.Debugf("Included config %s has strategy deep merge: merging config in (deep) for dependency.", includeConfig.Path)
-		mergedDependencyBlock, err := deepMergeDependencyBlocks(includedPartialParse.TerragruntDependencies, childDecodedDependency.Dependencies)
-		return &terragruntDependency{Dependencies: mergedDependencyBlock}, err
-	}
-
-	return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s_DEPENDENCY", mergeStrategy)
+	return &terragruntDependency{Dependencies: baseDependencyBlock}, nil
 }
 
 // Merge performs a shallow merge of the given sourceConfig into the targetConfig. sourceConfig will override common

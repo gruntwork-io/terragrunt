@@ -16,7 +16,11 @@ import (
 // Create a cty Function that takes as input parameters a slice of strings (var args, so this slice could be of any
 // length) and returns as output a string. The implementation of the function calls the given toWrap function, passing
 // it the input parameters string slice as well as the given include and terragruntOptions.
-func wrapStringSliceToStringAsFuncImpl(toWrap func(params []string, include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error), include *IncludeConfig, terragruntOptions *options.TerragruntOptions) function.Function {
+func wrapStringSliceToStringAsFuncImpl(
+	toWrap func(params []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (string, error),
+	trackInclude *TrackInclude,
+	terragruntOptions *options.TerragruntOptions,
+) function.Function {
 	return function.New(&function.Spec{
 		VarParam: &function.Parameter{Type: cty.String},
 		Type:     function.StaticReturnType(cty.String),
@@ -25,7 +29,7 @@ func wrapStringSliceToStringAsFuncImpl(toWrap func(params []string, include *Inc
 			if err != nil {
 				return cty.StringVal(""), err
 			}
-			out, err := toWrap(params, include, terragruntOptions)
+			out, err := toWrap(params, trackInclude, terragruntOptions)
 			if err != nil {
 				return cty.StringVal(""), err
 			}
@@ -36,11 +40,15 @@ func wrapStringSliceToStringAsFuncImpl(toWrap func(params []string, include *Inc
 
 // Create a cty Function that takes no input parameters and returns as output a string. The implementation of the
 // function calls the given toWrap function, passing it the given include and terragruntOptions.
-func wrapVoidToStringAsFuncImpl(toWrap func(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) (string, error), include *IncludeConfig, terragruntOptions *options.TerragruntOptions) function.Function {
+func wrapVoidToStringAsFuncImpl(
+	toWrap func(trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (string, error),
+	trackInclude *TrackInclude,
+	terragruntOptions *options.TerragruntOptions,
+) function.Function {
 	return function.New(&function.Spec{
 		Type: function.StaticReturnType(cty.String),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			out, err := toWrap(include, terragruntOptions)
+			out, err := toWrap(trackInclude, terragruntOptions)
 			if err != nil {
 				return cty.StringVal(""), err
 			}
@@ -51,11 +59,15 @@ func wrapVoidToStringAsFuncImpl(toWrap func(include *IncludeConfig, terragruntOp
 
 // Create a cty Function that takes no input parameters and returns as output a string slice. The implementation of the
 // function calls the given toWrap function, passing it the given include and terragruntOptions.
-func wrapVoidToStringSliceAsFuncImpl(toWrap func(include *IncludeConfig, terragruntOptions *options.TerragruntOptions) ([]string, error), include *IncludeConfig, terragruntOptions *options.TerragruntOptions) function.Function {
+func wrapVoidToStringSliceAsFuncImpl(
+	toWrap func(trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) ([]string, error),
+	trackInclude *TrackInclude,
+	terragruntOptions *options.TerragruntOptions,
+) function.Function {
 	return function.New(&function.Spec{
 		Type: function.StaticReturnType(cty.List(cty.String)),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			outVals, err := toWrap(include, terragruntOptions)
+			outVals, err := toWrap(trackInclude, terragruntOptions)
 			if err != nil || len(outVals) == 0 {
 				return cty.ListValEmpty(cty.String), err
 			}

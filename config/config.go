@@ -189,6 +189,7 @@ type terragruntGenerateBlock struct {
 // IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
 // "include" in a child Terragrunt configuration file
 type IncludeConfig struct {
+	Name          string  `hcl:",label"`
 	Path          string  `hcl:"path,attr"`
 	Expose        *bool   `hcl:"expose,attr"`
 	MergeStrategy *string `hcl:"merge_strategy,attr"`
@@ -587,7 +588,7 @@ func ParseConfigString(
 	}
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
-	localsAsCty, terragruntInclude, trackInclude, err := DecodeBaseBlocks(terragruntOptions, parser, file, filename, includeFromChild)
+	localsAsCty, trackInclude, err := DecodeBaseBlocks(terragruntOptions, parser, file, filename, includeFromChild)
 	if err != nil {
 		return nil, err
 	}
@@ -602,7 +603,7 @@ func ParseConfigString(
 	if dependencyOutputs == nil {
 		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
 		// process.
-		retrievedOutputs, err := decodeAndRetrieveOutputs(file, filename, terragruntOptions, terragruntInclude.Include, contextExtensions)
+		retrievedOutputs, err := decodeAndRetrieveOutputs(file, filename, terragruntOptions, trackInclude, contextExtensions)
 		if err != nil {
 			return nil, err
 		}
@@ -625,11 +626,10 @@ func ParseConfigString(
 	}
 
 	// If this file includes another, parse and merge it.  Otherwise just return this config.
-	if terragruntInclude.Include != nil {
-		return handleInclude(config, terragruntInclude.Include, terragruntOptions, contextExtensions.DecodedDependencies)
-	} else {
-		return config, nil
+	if trackInclude != nil {
+		return handleInclude(config, trackInclude, terragruntOptions, contextExtensions.DecodedDependencies)
 	}
+	return config, nil
 }
 
 func decodeAsTerragruntConfigFile(
