@@ -18,7 +18,7 @@ func TestPathRelativeToInclude(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		include           *IncludeConfig
+		include           *ImportConfig
 		terragruntOptions *options.TerragruntOptions
 		expectedPath      string
 	}{
@@ -28,39 +28,49 @@ func TestPathRelativeToInclude(t *testing.T) {
 			".",
 		},
 		{
-			&IncludeConfig{Path: "../" + DefaultTerragruntConfigPath},
+			&ImportConfig{Path: "../" + DefaultTerragruntConfigPath},
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+DefaultTerragruntConfigPath),
 			"child",
 		},
 		{
-			&IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath},
+			&ImportConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath},
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+DefaultTerragruntConfigPath),
 			"child",
 		},
 		{
-			&IncludeConfig{Path: "../../../" + DefaultTerragruntConfigPath},
+			&ImportConfig{Path: "../../../" + DefaultTerragruntConfigPath},
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
 			"child/sub-child/sub-sub-child",
 		},
 		{
-			&IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath},
+			&ImportConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath},
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
 			"child/sub-child/sub-sub-child",
 		},
 		{
-			&IncludeConfig{Path: "../../other-child/" + DefaultTerragruntConfigPath},
+			&ImportConfig{Path: "../../other-child/" + DefaultTerragruntConfigPath},
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+DefaultTerragruntConfigPath),
 			"../child/sub-child",
 		},
 		{
-			&IncludeConfig{Path: "../../" + DefaultTerragruntConfigPath},
+			&ImportConfig{Path: "../../" + DefaultTerragruntConfigPath},
 			terragruntOptionsForTest(t, "../child/sub-child/"+DefaultTerragruntConfigPath),
 			"child/sub-child",
 		},
 	}
 
 	for _, testCase := range testCases {
-		actualPath, actualErr := pathRelativeToInclude(testCase.include, testCase.terragruntOptions)
+		var trackInclude *TrackInclude = nil
+		if testCase.include != nil {
+			trackInclude = &TrackInclude{
+				CurrentList: []ImportConfig{*testCase.include},
+				CurrentMap: map[string]ImportConfig{
+					"": *testCase.include,
+				},
+				Original: testCase.include,
+			}
+		}
+		actualPath, actualErr := pathRelativeToInclude(trackInclude, testCase.terragruntOptions)
 		assert.Nil(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
 		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
 	}
@@ -70,7 +80,7 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		include           *IncludeConfig
+		include           *ImportConfig
 		terragruntOptions *options.TerragruntOptions
 		expectedPath      string
 	}{
@@ -80,39 +90,50 @@ func TestPathRelativeFromInclude(t *testing.T) {
 			".",
 		},
 		{
-			&IncludeConfig{Path: "../" + DefaultTerragruntConfigPath},
+			&ImportConfig{Path: "../" + DefaultTerragruntConfigPath},
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+DefaultTerragruntConfigPath),
 			"..",
 		},
 		{
-			&IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath},
+			&ImportConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath},
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+DefaultTerragruntConfigPath),
 			"..",
 		},
 		{
-			&IncludeConfig{Path: "../../../" + DefaultTerragruntConfigPath},
+			&ImportConfig{Path: "../../../" + DefaultTerragruntConfigPath},
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
 			"../../..",
 		},
 		{
-			&IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath},
+			&ImportConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath},
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
 			"../../..",
 		},
 		{
-			&IncludeConfig{Path: "../../other-child/" + DefaultTerragruntConfigPath},
+			&ImportConfig{Path: "../../other-child/" + DefaultTerragruntConfigPath},
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+DefaultTerragruntConfigPath),
 			"../../other-child",
 		},
 		{
-			&IncludeConfig{Path: "../../" + DefaultTerragruntConfigPath},
+			&ImportConfig{Path: "../../" + DefaultTerragruntConfigPath},
 			terragruntOptionsForTest(t, "../child/sub-child/"+DefaultTerragruntConfigPath),
 			"../..",
 		},
 	}
 
 	for _, testCase := range testCases {
-		actualPath, actualErr := pathRelativeFromInclude(testCase.include, testCase.terragruntOptions)
+		var trackInclude *TrackInclude = nil
+		if testCase.include != nil {
+			trackInclude = &TrackInclude{
+				CurrentList: []ImportConfig{*testCase.include},
+				CurrentMap: map[string]ImportConfig{
+					"": *testCase.include,
+				},
+				Original: testCase.include,
+			}
+		}
+		// TODO: update to test for multiple include blocks
+		actualPath, actualErr := pathRelativeFromInclude([]string{}, trackInclude, testCase.terragruntOptions)
 		assert.Nil(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
 		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
 	}
@@ -271,7 +292,7 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 
 	testCases := []struct {
 		str               string
-		include           *IncludeConfig
+		include           *ImportConfig
 		terragruntOptions *options.TerragruntOptions
 		expectedOut       string
 		expectedErr       string
@@ -285,7 +306,7 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 		},
 		{
 			"terraform { source = path_relative_to_include() }",
-			&IncludeConfig{Path: "../" + DefaultTerragruntConfigPath},
+			&ImportConfig{Path: "../" + DefaultTerragruntConfigPath},
 			terragruntOptionsForTest(t, "/root/child/"+DefaultTerragruntConfigPath),
 			"child",
 			"",
@@ -338,7 +359,7 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 
 	testCases := []struct {
 		str               string
-		include           *IncludeConfig
+		include           *ImportConfig
 		terragruntOptions *options.TerragruntOptions
 		expectedOut       string
 		expectedErr       string
@@ -430,7 +451,7 @@ func TestResolveCommandsInterpolationConfigString(t *testing.T) {
 
 	testCases := []struct {
 		str               string
-		include           *IncludeConfig
+		include           *ImportConfig
 		terragruntOptions *options.TerragruntOptions
 		expectedFooInput  []string
 	}{
@@ -492,7 +513,7 @@ func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
 		}
 		testCase := struct {
 			str               string
-			include           *IncludeConfig
+			include           *ImportConfig
 			terragruntOptions *options.TerragruntOptions
 			expectedFooInput  []string
 		}{
@@ -588,7 +609,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 	parentDir := filepath.ToSlash(filepath.Dir(currentDir))
 
 	testCases := []struct {
-		include           *IncludeConfig
+		include           *ImportConfig
 		terragruntOptions *options.TerragruntOptions
 		expectedPath      string
 	}{
@@ -598,39 +619,50 @@ func TestGetParentTerragruntDir(t *testing.T) {
 			helpers.RootFolder + "child",
 		},
 		{
-			&IncludeConfig{Path: "../" + DefaultTerragruntConfigPath},
+			&ImportConfig{Path: "../" + DefaultTerragruntConfigPath},
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+DefaultTerragruntConfigPath),
 			helpers.RootFolder,
 		},
 		{
-			&IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath},
+			&ImportConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath},
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+DefaultTerragruntConfigPath),
 			helpers.RootFolder,
 		},
 		{
-			&IncludeConfig{Path: "../../../" + DefaultTerragruntConfigPath},
+			&ImportConfig{Path: "../../../" + DefaultTerragruntConfigPath},
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
 			helpers.RootFolder,
 		},
 		{
-			&IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath},
+			&ImportConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath},
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
 			helpers.RootFolder,
 		},
 		{
-			&IncludeConfig{Path: "../../other-child/" + DefaultTerragruntConfigPath},
+			&ImportConfig{Path: "../../other-child/" + DefaultTerragruntConfigPath},
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+DefaultTerragruntConfigPath),
 			fmt.Sprintf("%s/other-child", filepath.VolumeName(parentDir)),
 		},
 		{
-			&IncludeConfig{Path: "../../" + DefaultTerragruntConfigPath},
+			&ImportConfig{Path: "../../" + DefaultTerragruntConfigPath},
 			terragruntOptionsForTest(t, "../child/sub-child/"+DefaultTerragruntConfigPath),
 			parentDir,
 		},
 	}
 
 	for _, testCase := range testCases {
-		actualPath, actualErr := getParentTerragruntDir(testCase.include, testCase.terragruntOptions)
+		var trackInclude *TrackInclude = nil
+		if testCase.include != nil {
+			trackInclude = &TrackInclude{
+				CurrentList: []ImportConfig{*testCase.include},
+				CurrentMap: map[string]ImportConfig{
+					"": *testCase.include,
+				},
+				Original: testCase.include,
+			}
+		}
+		// TODO: update to test for multiple include blocks
+		actualPath, actualErr := getParentTerragruntDir([]string{}, trackInclude, testCase.terragruntOptions)
 		assert.Nil(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
 		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
 	}

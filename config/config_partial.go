@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
@@ -30,8 +29,9 @@ const (
 
 // terragruntInclude is a struct that can be used to only decode the include block.
 type terragruntInclude struct {
-	Include []IncludeConfig `hcl:"include,block"`
-	Remain  hcl.Body        `hcl:",remain"`
+	Include *IncludeConfig `hcl:"include,block"`
+	Import  []ImportConfig `hcl:"import,block"`
+	Remain  hcl.Body       `hcl:",remain"`
 }
 
 // terragruntDependencies is a struct that can be used to only decode the dependencies block.
@@ -98,9 +98,9 @@ func DecodeBaseBlocks(
 	parser *hclparse.Parser,
 	hclFile *hcl.File,
 	filename string,
-	includeFromChild *IncludeConfig,
+	includeFromChild *ImportConfig,
 ) (*cty.Value, *TrackInclude, error) {
-	// Decode just the `include` blocks, and verify that it's allowed here
+	// Decode just the `include` and `import` blocks, and verify that it's allowed here
 	terragruntIncludeList, err := decodeAsTerragruntInclude(
 		hclFile,
 		filename,
@@ -136,54 +136,10 @@ func DecodeBaseBlocks(
 	return &localsAsCty, trackInclude, nil
 }
 
-// getTrackInclude converts the terragrunt include blocks into TrackInclude structs that differentiate between an
-// included config in the current parsing context, and an included config that was passed through from a previous
-// parsing context.
-func getTrackInclude(
-	terragruntIncludeList []IncludeConfig,
-	includeFromChild *IncludeConfig,
-	terragruntOptions *options.TerragruntOptions,
-) (*TrackInclude, error) {
-	includedPaths := []string{}
-	terragruntIncludeMap := make(map[string]IncludeConfig, len(terragruntIncludeList))
-	for _, tgInc := range terragruntIncludeList {
-		includedPaths = append(includedPaths, tgInc.Path)
-		terragruntIncludeMap[tgInc.Name] = tgInc
-	}
-
-	hasInclude := len(terragruntIncludeList) > 0
-	if hasInclude && includeFromChild != nil {
-		// tgInc appears in a parent that is already included, which means a nested include block. This is not
-		// something we currently support.
-		err := errors.WithStackTrace(TooManyLevelsOfInheritance{
-			ConfigPath:             terragruntOptions.TerragruntConfigPath,
-			FirstLevelIncludePath:  includeFromChild.Path,
-			SecondLevelIncludePath: strings.Join(includedPaths, ","),
-		})
-		return nil, err
-	} else if hasInclude && includeFromChild == nil {
-		// Current parsing context where there is no included config already loaded.
-		trackInc := TrackInclude{
-			CurrentList: terragruntIncludeList,
-			CurrentMap:  terragruntIncludeMap,
-			Original:    nil,
-		}
-		return &trackInc, nil
-	} else {
-		// Parsing context where there is an included config already loaded.
-		trackInc := TrackInclude{
-			CurrentList: terragruntIncludeList,
-			CurrentMap:  terragruntIncludeMap,
-			Original:    includeFromChild,
-		}
-		return &trackInc, nil
-	}
-}
-
 func PartialParseConfigFile(
 	filename string,
 	terragruntOptions *options.TerragruntOptions,
-	include *IncludeConfig,
+	include *ImportConfig,
 	decodeList []PartialDecodeSectionType,
 ) (*TerragruntConfig, error) {
 	configString, err := util.ReadFileAsString(filename)
@@ -217,7 +173,7 @@ func PartialParseConfigFile(
 func PartialParseConfigString(
 	configString string,
 	terragruntOptions *options.TerragruntOptions,
-	includeFromChild *IncludeConfig,
+	includeFromChild *ImportConfig,
 	filename string,
 	decodeList []PartialDecodeSectionType,
 ) (*TerragruntConfig, error) {
@@ -353,7 +309,7 @@ func PartialParseConfigString(
 	return &output, nil
 }
 
-func partialParseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *options.TerragruntOptions, decodeList []PartialDecodeSectionType) (*TerragruntConfig, error) {
+func partialParseIncludedConfig(includedConfig *ImportConfig, terragruntOptions *options.TerragruntOptions, decodeList []PartialDecodeSectionType) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
 		return nil, errors.WithStackTrace(IncludedConfigMissingPath(terragruntOptions.TerragruntConfigPath))
 	}
@@ -372,23 +328,34 @@ func partialParseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions
 	)
 }
 
-// This decodes only the `include` block of a terragrunt config, so its value can be used while decoding the rest of the
-// config.
-// For consistency, `include` in the call to `decodeHcl` is always assumed to be nil.
-// Either it really is nil (parsing the child config), or it shouldn't be used anyway (the parent config shouldn't have
-// an include block)
+// This decodes only the `include` and `import` blocks of a terragrunt config, so its value can be used while decoding
+// the rest of the config.
+// For consistency, `include` in the call to `decodeHcl` is always assumed to be nil. Either it really is nil (parsing
+// the child config), or it shouldn't be used anyway (the parent config shouldn't have an include block).
 func decodeAsTerragruntInclude(
 	file *hcl.File,
 	filename string,
 	terragruntOptions *options.TerragruntOptions,
 	extensions EvalContextExtensions,
-) ([]IncludeConfig, error) {
+) ([]ImportConfig, error) {
 	tgInc := terragruntInclude{}
 	err := decodeHcl(file, filename, &tgInc, terragruntOptions, extensions)
 	if err != nil {
 		return nil, err
 	}
-	return tgInc.Include, nil
+
+	// Convert the legacy include block into an ImportConfig with no label ("" for label). include blocks are always the
+	// top most import block.
+	if tgInc.Include != nil {
+		includeAsImport := ImportConfig{
+			Name:          "",
+			Path:          tgInc.Include.Path,
+			Expose:        tgInc.Include.Expose,
+			MergeStrategy: tgInc.Include.MergeStrategy,
+		}
+		tgInc.Import = append([]ImportConfig{includeAsImport}, tgInc.Import...)
+	}
+	return tgInc.Import, nil
 }
 
 // Custom error types

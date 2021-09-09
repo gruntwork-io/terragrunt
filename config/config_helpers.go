@@ -73,14 +73,14 @@ type TrackInclude struct {
 	// CurrentList is used to track the list of configs that should be imported and merged before the final
 	// TerragruntConfig is returned. This preserves the order of the blocks as they appear in the config, so that we can
 	// merge the included config in the right order.
-	CurrentList []IncludeConfig
+	CurrentList []ImportConfig
 
 	// CurrentMap is the map version of CurrentList that maps the block labels to the included config.
-	CurrentMap map[string]IncludeConfig
+	CurrentMap map[string]ImportConfig
 
 	// Original is used to track the original included config, and is used for resolving the include related
 	// functions.
-	Original *IncludeConfig
+	Original *ImportConfig
 }
 
 // EvalContextExtensions provides various extensions to the evaluation context to enhance the parsing capabilities.
@@ -661,7 +661,7 @@ func getTerragruntSourceCliFlag(trackInclude *TrackInclude, terragruntOptions *o
 // - If there is only one include block, no param is required and that is automatically returned.
 // - If there is more than one include block, 1 param is required to use as the label name to lookup the include block
 //   to use.
-func getSelectedIncludeBlock(includeMap map[string]IncludeConfig, params []string) (*IncludeConfig, error) {
+func getSelectedIncludeBlock(includeMap map[string]ImportConfig, params []string) (*ImportConfig, error) {
 	if len(includeMap) == 0 {
 		return nil, nil
 	} else if len(includeMap) == 1 {

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/imdario/mergo"
 	"github.com/zclconf/go-cty/cty"
@@ -13,7 +14,7 @@ import (
 )
 
 // Parse the config of the given include, if one is specified
-func parseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *options.TerragruntOptions, dependencyOutputs *cty.Value) (*TerragruntConfig, error) {
+func parseIncludedConfig(includedConfig *ImportConfig, terragruntOptions *options.TerragruntOptions, dependencyOutputs *cty.Value) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
 		return nil, errors.WithStackTrace(IncludedConfigMissingPath(terragruntOptions.TerragruntConfigPath))
 	}
@@ -50,7 +51,7 @@ func handleInclude(
 			return config, err
 		}
 
-		parsedIncludeConfig, err := parseIncludedConfig(&includeConfig, terragruntOptions, dependencyOutputs)
+		parsedImportConfig, err := parseIncludedConfig(&includeConfig, terragruntOptions, dependencyOutputs)
 		if err != nil {
 			return nil, err
 		}
@@ -60,14 +61,14 @@ func handleInclude(
 			terragruntOptions.Logger.Debugf("Included config %s has strategy no merge: not merging config in.", includeConfig.Path)
 		case ShallowMerge:
 			terragruntOptions.Logger.Debugf("Included config %s has strategy shallow merge: merging config in (shallow).", includeConfig.Path)
-			parsedIncludeConfig.Merge(baseConfig, terragruntOptions)
-			baseConfig = parsedIncludeConfig
+			parsedImportConfig.Merge(baseConfig, terragruntOptions)
+			baseConfig = parsedImportConfig
 		case DeepMerge:
 			terragruntOptions.Logger.Debugf("Included config %s has strategy deep merge: merging config in (deep).", includeConfig.Path)
-			if err := parsedIncludeConfig.DeepMerge(baseConfig, terragruntOptions); err != nil {
+			if err := parsedImportConfig.DeepMerge(baseConfig, terragruntOptions); err != nil {
 				return nil, err
 			}
-			baseConfig = parsedIncludeConfig
+			baseConfig = parsedImportConfig
 		default:
 			return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s", mergeStrategy)
 		}
@@ -98,7 +99,7 @@ func handleIncludePartial(
 			return nil, err
 		}
 
-		parsedIncludeConfig, err := partialParseIncludedConfig(&includeConfig, terragruntOptions, decodeList)
+		parsedImportConfig, err := partialParseIncludedConfig(&includeConfig, terragruntOptions, decodeList)
 		if err != nil {
 			return nil, err
 		}
@@ -108,14 +109,14 @@ func handleIncludePartial(
 			terragruntOptions.Logger.Debugf("[Partial] Included config %s has strategy no merge: not merging config in.", includeConfig.Path)
 		case ShallowMerge:
 			terragruntOptions.Logger.Debugf("[Partial] Included config %s has strategy shallow merge: merging config in (shallow).", includeConfig.Path)
-			parsedIncludeConfig.Merge(baseConfig, terragruntOptions)
-			baseConfig = parsedIncludeConfig
+			parsedImportConfig.Merge(baseConfig, terragruntOptions)
+			baseConfig = parsedImportConfig
 		case DeepMerge:
 			terragruntOptions.Logger.Debugf("[Partial] Included config %s has strategy deep merge: merging config in (deep).", includeConfig.Path)
-			if err := parsedIncludeConfig.DeepMerge(baseConfig, terragruntOptions); err != nil {
+			if err := parsedImportConfig.DeepMerge(baseConfig, terragruntOptions); err != nil {
 				return nil, err
 			}
-			baseConfig = parsedIncludeConfig
+			baseConfig = parsedImportConfig
 		default:
 			return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s_PARTIAL", mergeStrategy)
 		}
@@ -496,4 +497,48 @@ func mergeHooks(terragruntOptions *options.TerragruntOptions, childHooks []Hook,
 		}
 	}
 	*parentHooks = result
+}
+
+// getTrackInclude converts the terragrunt include blocks into TrackInclude structs that differentiate between an
+// included config in the current parsing context, and an included config that was passed through from a previous
+// parsing context.
+func getTrackInclude(
+	terragruntIncludeList []ImportConfig,
+	includeFromChild *ImportConfig,
+	terragruntOptions *options.TerragruntOptions,
+) (*TrackInclude, error) {
+	includedPaths := []string{}
+	terragruntIncludeMap := make(map[string]ImportConfig, len(terragruntIncludeList))
+	for _, tgInc := range terragruntIncludeList {
+		includedPaths = append(includedPaths, tgInc.Path)
+		terragruntIncludeMap[tgInc.Name] = tgInc
+	}
+
+	hasInclude := len(terragruntIncludeList) > 0
+	if hasInclude && includeFromChild != nil {
+		// tgInc appears in a parent that is already included, which means a nested include block. This is not
+		// something we currently support.
+		err := errors.WithStackTrace(TooManyLevelsOfInheritance{
+			ConfigPath:             terragruntOptions.TerragruntConfigPath,
+			FirstLevelIncludePath:  includeFromChild.Path,
+			SecondLevelIncludePath: strings.Join(includedPaths, ","),
+		})
+		return nil, err
+	} else if hasInclude && includeFromChild == nil {
+		// Current parsing context where there is no included config already loaded.
+		trackInc := TrackInclude{
+			CurrentList: terragruntIncludeList,
+			CurrentMap:  terragruntIncludeMap,
+			Original:    nil,
+		}
+		return &trackInc, nil
+	} else {
+		// Parsing context where there is an included config already loaded.
+		trackInc := TrackInclude{
+			CurrentList: terragruntIncludeList,
+			CurrentMap:  terragruntIncludeMap,
+			Original:    includeFromChild,
+		}
+		return &trackInc, nil
+	}
 }

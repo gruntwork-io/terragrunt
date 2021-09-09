@@ -65,6 +65,7 @@ type terragruntConfigFile struct {
 	TerragruntVersionConstraint *string          `hcl:"terragrunt_version_constraint,attr"`
 	Inputs                      *cty.Value       `hcl:"inputs,attr"`
 	Include                     *IncludeConfig   `hcl:"include,block"`
+	Import                      *ImportConfig  `hcl:"import,block"`
 
 	// We allow users to configure remote state (backend) via blocks:
 	//
@@ -187,26 +188,37 @@ type terragruntGenerateBlock struct {
 }
 
 // IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
-// "include" in a child Terragrunt configuration file
+// "include" in a child Terragrunt configuration file.
+// This exists for backward compatibility reasons, and is equivalent to an import block with no label ("" for the
+// label). You can only have one include block per terragrunt config.
 type IncludeConfig struct {
+	Path          string  `hcl:"path,attr"`
+	Expose        *bool   `hcl:"expose,attr"`
+	MergeStrategy *string `hcl:"merge_strategy,attr"`
+}
+
+// ImportConfig represents the configuration settings for a parent Terragrunt configuration file that you can
+// import into a child Terragrunt configuration file. You can have more than one import config. Note that this replaces
+// "include".
+type ImportConfig struct {
 	Name          string  `hcl:",label"`
 	Path          string  `hcl:"path,attr"`
 	Expose        *bool   `hcl:"expose,attr"`
 	MergeStrategy *string `hcl:"merge_strategy,attr"`
 }
 
-func (cfg *IncludeConfig) String() string {
-	return fmt.Sprintf("IncludeConfig{Path = %s, Expose = %v, MergeStrategy = %v}", cfg.Path, cfg.Expose, cfg.MergeStrategy)
+func (cfg *ImportConfig) String() string {
+	return fmt.Sprintf("ImportConfig{Path = %s, Expose = %v, MergeStrategy = %v}", cfg.Path, cfg.Expose, cfg.MergeStrategy)
 }
 
-func (cfg *IncludeConfig) GetExpose() bool {
+func (cfg *ImportConfig) GetExpose() bool {
 	if cfg == nil || cfg.Expose == nil {
 		return false
 	}
 	return *cfg.Expose
 }
 
-func (cfg *IncludeConfig) GetMergeStrategy() (MergeStrategyType, error) {
+func (cfg *ImportConfig) GetMergeStrategy() (MergeStrategyType, error) {
 	if cfg.MergeStrategy == nil {
 		return ShallowMerge, nil
 	}
@@ -533,7 +545,7 @@ func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*Terrag
 
 // Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
-func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig, dependencyOutputs *cty.Value) (*TerragruntConfig, error) {
+func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptions, include *ImportConfig, dependencyOutputs *cty.Value) (*TerragruntConfig, error) {
 	configString, err := util.ReadFileAsString(filename)
 	if err != nil {
 		return nil, err
@@ -576,7 +588,7 @@ func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptio
 func ParseConfigString(
 	configString string,
 	terragruntOptions *options.TerragruntOptions,
-	includeFromChild *IncludeConfig,
+	includeFromChild *ImportConfig,
 	filename string,
 	dependencyOutputs *cty.Value,
 ) (*TerragruntConfig, error) {
