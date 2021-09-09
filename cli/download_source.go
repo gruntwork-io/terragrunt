@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/hashicorp/go-getter"
 
@@ -19,8 +20,9 @@ import (
 const MODULE_MANIFEST_NAME = ".terragrunt-module-manifest"
 
 // 1. Download the given source URL, which should use Terraform's module source syntax, into a temporary folder
-// 2. Copy the contents of terragruntOptions.WorkingDir into the temporary folder.
-// 3. Set terragruntOptions.WorkingDir to the temporary folder.
+// 2. Check if module directory exists in temporary folder
+// 3. Copy the contents of terragruntOptions.WorkingDir into the temporary folder.
+// 4. Set terragruntOptions.WorkingDir to the temporary folder.
 //
 // See the NewTerraformSource method for how we determine the temporary folder so we can reuse it across multiple
 // runs of Terragrunt to avoid downloading everything from scratch every time.
@@ -62,6 +64,9 @@ func downloadTerraformSourceIfNecessary(terraformSource *tfsource.TerraformSourc
 	}
 
 	if alreadyLatest {
+		if err := validateWorkingDir(terraformSource); err != nil {
+			return err
+		}
 		terragruntOptions.Logger.Debugf("Terraform files in %s are up to date. Will not download again.", terraformSource.WorkingDir)
 		return nil
 	}
@@ -80,6 +85,10 @@ func downloadTerraformSourceIfNecessary(terraformSource *tfsource.TerraformSourc
 	}
 
 	if err := terraformSource.WriteVersionFile(); err != nil {
+		return err
+	}
+
+	if err := validateWorkingDir(terraformSource); err != nil {
 		return err
 	}
 
@@ -157,4 +166,35 @@ func downloadSource(terraformSource *tfsource.TerraformSource, terragruntOptions
 	}
 
 	return nil
+}
+
+// Check if working terraformSource.WorkingDir exists and is directory
+func validateWorkingDir(terraformSource *tfsource.TerraformSource) error {
+	workingLocalDir := strings.Replace(terraformSource.WorkingDir, terraformSource.DownloadDir+filepath.FromSlash("/"), "", -1)
+	if util.IsFile(terraformSource.WorkingDir) {
+		return WorkingDirNotDir{Dir: workingLocalDir, Source: terraformSource.CanonicalSourceURL.String()}
+	}
+	if !util.IsDir(terraformSource.WorkingDir) {
+		return WorkingDirNotFound{Dir: workingLocalDir, Source: terraformSource.CanonicalSourceURL.String()}
+	}
+
+	return nil
+}
+
+type WorkingDirNotFound struct {
+	Source string
+	Dir    string
+}
+
+func (err WorkingDirNotFound) Error() string {
+	return fmt.Sprintf("Working dir %s from source %s does not exist", err.Dir, err.Source)
+}
+
+type WorkingDirNotDir struct {
+	Source string
+	Dir    string
+}
+
+func (err WorkingDirNotDir) Error() string {
+	return fmt.Sprintf("Valid working dir %s from source %s", err.Dir, err.Source)
 }
