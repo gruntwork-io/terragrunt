@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const defaultLogLevel = options.DEFAULT_LOG_LEVEL
+var defaultLogLevel = util.GetDefaultLogLevel()
 
 func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 	t.Parallel()

@@ -28,9 +28,6 @@ const DEFAULT_PARALLELISM = math.MaxInt32
 // TERRAFORM_DEFAULT_PATH just takes terraform from the path
 const TERRAFORM_DEFAULT_PATH = "terraform"
 
-// DEFAULT_LOG_LEVEL defines default log level for Terragrunt
-const DEFAULT_LOG_LEVEL = util.DEFAULT_LOG_LEVEL
-
 const TerragruntCacheDir = ".terragrunt-cache"
 
 const DefaultTFDataDir = ".terraform"
@@ -182,7 +179,8 @@ type TerragruntOptions struct {
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage
 func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, error) {
-	logger := util.CreateLogEntry("", DEFAULT_LOG_LEVEL)
+	defaultLogLevel := util.GetDefaultLogLevel()
+	logger := util.CreateLogEntry("", defaultLogLevel)
 
 	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(terragruntConfigPath)
 	if err != nil {
@@ -199,7 +197,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		TerraformCliArgs:            []string{},
 		WorkingDir:                  workingDir,
 		Logger:                      logger,
-		LogLevel:                    DEFAULT_LOG_LEVEL,
+		LogLevel:                    defaultLogLevel,
 		ValidateStrict:              false,
 		Env:                         map[string]string{},
 		Source:                      "",
@@ -246,7 +244,7 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string) (*TerragruntOption
 	opts, err := NewTerragruntOptions(terragruntConfigPath)
 
 	if err != nil {
-		logger := util.CreateLogEntry("", DEFAULT_LOG_LEVEL)
+		logger := util.CreateLogEntry("", util.GetDefaultLogLevel())
 		logger.Errorf("%v\n", errors.WithStackTrace(err))
 		return nil, err
 	}
