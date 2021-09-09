@@ -392,7 +392,7 @@ func pathRelativeToInclude(params []string, trackInclude *TrackInclude, terragru
 		included = *trackInclude.Original
 	} else if len(trackInclude.CurrentList) > 0 {
 		// Called in child context, so we need to select the right include file.
-		selected, err := getSelectedImportBlock(trackInclude.CurrentMap, params)
+		selected, err := getSelectedImportBlock(*trackInclude, params)
 		if err != nil {
 			return "", err
 		}
@@ -417,7 +417,7 @@ func pathRelativeFromInclude(params []string, trackInclude *TrackInclude, terrag
 		return ".", nil
 	}
 
-	included, err := getSelectedImportBlock(trackInclude.CurrentMap, params)
+	included, err := getSelectedImportBlock(*trackInclude, params)
 	if err != nil {
 		return "", err
 	} else if included == nil {
@@ -672,14 +672,23 @@ func getTerragruntSourceCliFlag(trackInclude *TrackInclude, terragruntOptions *o
 }
 
 // Return the selected include block based on a label passed in as a function param. Note that the assumption is that:
+// - If the Original attribute is set, we are in the parent context so return that.
 // - If there are no include blocks, no param is required and nil is returned.
 // - If there is only one include block, no param is required and that is automatically returned.
 // - If there is more than one include block, 1 param is required to use as the label name to lookup the include block
 //   to use.
-func getSelectedImportBlock(importMap map[string]ImportConfig, params []string) (*ImportConfig, error) {
+func getSelectedImportBlock(trackInclude TrackInclude, params []string) (*ImportConfig, error) {
+	importMap := trackInclude.CurrentMap
+
+	if trackInclude.Original != nil {
+		return trackInclude.Original, nil
+	}
+
 	if len(importMap) == 0 {
 		return nil, nil
-	} else if len(importMap) == 1 {
+	}
+
+	if len(importMap) == 1 {
 		for _, val := range importMap {
 			return &val, nil
 		}
