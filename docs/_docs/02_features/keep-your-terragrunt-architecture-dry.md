@@ -14,7 +14,7 @@ nav_title_link: /docs/
 
   - [Motivation](#motivation)
 
-  - [Using import to DRY common Terragrunt config](#using-import-to-dry-common-terragrunt-config)
+  - [Using include to DRY common Terragrunt config](#using-include-to-dry-common-terragrunt-config)
 
   - [Using read\_terragrunt\_config to DRY parent configurations](#using-read_terragrunt_config-to-dry-parent-configurations)
 
@@ -60,7 +60,7 @@ include {
 }
 ```
 
-This pattern is useful for global configuration blocks that need to be imported in all of your modules, but what if you
+This pattern is useful for global configuration blocks that need to be included in all of your modules, but what if you
 have Terragrunt configurations that are only relevant to subsets of your module? For example, consider the following
 terragrunt file structure, which defines three environments (`prod`, `qa`, and `stage`) with the same infrastructure in
 each one (an app, a MySQL database, and a VPC):
@@ -95,11 +95,9 @@ adjustment to the `instance_type` parameter for each environment. These identica
 `terragrunt.hcl` configuration because they are only relevant to the `app` configurations, and not `mysql` or `vpc`.
 However, it is cumbersome to copy paste these settings across all three environments.
 
-To solve this, you can use [import instead of
-include]({{site.baseurl}}/docs/reference/config-blocks-and-attributes#import-include), which supports merging multiple
-included configurations unlike `include` blocks.
+To solve this, you can use [multiple include blocks]({{site.baseurl}}/docs/reference/config-blocks-and-attributes#include).
 
-### Using import to DRY common Terragrunt config
+### Using include to DRY common Terragrunt config
 
 Suppose your `qa/app/terragrunt.hcl` configuration looks like the following:
 
@@ -186,16 +184,16 @@ inputs = {
 }
 ```
 
-Note that everything is defined except for the `env` input variable. We now modify `qa/app/terragrunt.hcl` to import
-this alongside the root configuration by using `import` blocks instead of `include`, significantly reducing our per
+Note that everything is defined except for the `env` input variable. We now modify `qa/app/terragrunt.hcl` to include
+this alongside the root configuration by using multiple `include` blocks, significantly reducing our per
 environment configuration:
 
 ```hcl
-import "root" {
+include "root" {
   path = find_in_parent_folders()
 }
 
-import "env" {
+include "env" {
   path = "${get_terragrunt_dir()}/../../_env/app.hcl"
 }
 
@@ -206,8 +204,8 @@ inputs = {
 
 ### Using read\_terragrunt\_config to DRY parent configurations
 
-In the previous section, we covered using `import` to DRY common component configurations. While powerful, `import` has
-a limitation where the imported configuration is statically merged into the child configuration.
+In the previous section, we covered using `include` to DRY common component configurations. While powerful, `include` has
+a limitation where the included configuration is statically merged into the child configuration.
 
 In our example, note that the `_env/app.hcl` file hardcodes the `app `module version to `v0.1.0` (relevant section
 pasted below for convenience):
@@ -225,11 +223,11 @@ What if we want to deploy a different version for each environment? One way you 
 the following:
 
 ```hcl
-import "root" {
+include "root" {
   path = find_in_parent_folders()
 }
 
-import "env" {
+include "env" {
   path = "${get_terragrunt_dir()}/../../_env/app.hcl"
 }
 
@@ -337,11 +335,11 @@ Now we can keep the same child config even if we have different versions to depl
 further reduce our child config to eliminate the `env` input variable since that is loaded in the `env.hcl` context:
 
 ```hcl
-import "root" {
+include "root" {
   path = find_in_parent_folders()
 }
 
-import "env" {
+include "env" {
   path = "${get_terragrunt_dir()}/../../_env/app.hcl"
 }
 ```

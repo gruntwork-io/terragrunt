@@ -172,16 +172,16 @@ remote_state {
 
 The resulting `key` will be `prod/mysql/terraform.tfstate` for the prod `mysql` module and `stage/mysql/terraform.tfstate` for the stage `mysql` module.
 
-If you have `import` blocks, this function requires a `name` parameter when used in the child config to specify which
-`import` block to base the relative path on.
+If you have `include` blocks, this function requires a `name` parameter when used in the child config to specify which
+`include` block to base the relative path on.
 
 Example:
 
 ```hcl
-import "root" {
+include "root" {
   path = find_in_parent_folders()
 }
-import "region" {
+include "region" {
   path = find_in_parent_folders("region.hcl")
 }
 
@@ -249,16 +249,16 @@ Another use case would be to add extra argument to include the `common.tfvars` f
 
 This allows proper retrieval of the `common.tfvars` from whatever the level of subdirectories we have.
 
-If you have `import` blocks, this function requires a `name` parameter when used in the child config to specify which
-`import` block to base the relative path on.
+If you have `include` blocks, this function requires a `name` parameter when used in the child config to specify which
+`include` block to base the relative path on.
 
 Example:
 
 ```hcl
-import "root" {
+include "root" {
   path = find_in_parent_folders()
 }
-import "region" {
+include "region" {
   path = find_in_parent_folders("region.hcl")
 }
 
