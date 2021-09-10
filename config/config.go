@@ -64,8 +64,6 @@ type terragruntConfigFile struct {
 	TerraformVersionConstraint  *string          `hcl:"terraform_version_constraint,attr"`
 	TerragruntVersionConstraint *string          `hcl:"terragrunt_version_constraint,attr"`
 	Inputs                      *cty.Value       `hcl:"inputs,attr"`
-	Include                     *IncludeConfig   `hcl:"include,block"`
-	Import                      *ImportConfig    `hcl:"import,block"`
 
 	// We allow users to configure remote state (backend) via blocks:
 	//
@@ -113,15 +111,19 @@ type terragruntConfigFile struct {
 	RetryMaxAttempts      *int     `hcl:"retry_max_attempts,optional"`
 	RetrySleepIntervalSec *int     `hcl:"retry_sleep_interval_sec,optional"`
 
-	// This struct is used for validating and parsing the entire terragrunt config. Since locals are evaluated in a
-	// completely separate cycle, it should not be evaluated here. Otherwise, we can't support self referencing other
-	// elements in the same block.
-	Locals *terragruntLocal `hcl:"locals,block"`
+	// This struct is used for validating and parsing the entire terragrunt config. Since locals and include are
+	// evaluated in a completely separate cycle, it should not be evaluated here. Otherwise, we can't support self
+	// referencing other elements in the same block.
+	Locals  *terragruntLocal         `hcl:"locals,block"`
+	Include *terragruntIncludeIgnore `hcl:"include,block"`
 }
 
-// We use a struct designed to not parse the block, as locals are parsed and decoded using a special routine that allows
-// references to the other locals in the same block.
+// We use a struct designed to not parse the block, as locals and includes are parsed and decoded using a special
+// routine that allows references to the other locals in the same block.
 type terragruntLocal struct {
+	Remain hcl.Body `hcl:",remain"`
+}
+type terragruntIncludeIgnore struct {
 	Remain hcl.Body `hcl:",remain"`
 }
 
@@ -188,37 +190,26 @@ type terragruntGenerateBlock struct {
 }
 
 // IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
-// "include" in a child Terragrunt configuration file.
-// This exists for backward compatibility reasons, and is equivalent to an import block with no label ("" for the
-// label). You can only have one include block per terragrunt config.
+// include into a child Terragrunt configuration file. You can have more than one include config.
 type IncludeConfig struct {
+	Name          string  `hcl:"name,label"`
 	Path          string  `hcl:"path,attr"`
 	Expose        *bool   `hcl:"expose,attr"`
 	MergeStrategy *string `hcl:"merge_strategy,attr"`
 }
 
-// ImportConfig represents the configuration settings for a parent Terragrunt configuration file that you can
-// import into a child Terragrunt configuration file. You can have more than one import config. Note that this replaces
-// "include".
-type ImportConfig struct {
-	Name          string  `hcl:",label"`
-	Path          string  `hcl:"path,attr"`
-	Expose        *bool   `hcl:"expose,attr"`
-	MergeStrategy *string `hcl:"merge_strategy,attr"`
+func (cfg *IncludeConfig) String() string {
+	return fmt.Sprintf("IncludeConfig{Path = %s, Expose = %v, MergeStrategy = %v}", cfg.Path, cfg.Expose, cfg.MergeStrategy)
 }
 
-func (cfg *ImportConfig) String() string {
-	return fmt.Sprintf("ImportConfig{Path = %s, Expose = %v, MergeStrategy = %v}", cfg.Path, cfg.Expose, cfg.MergeStrategy)
-}
-
-func (cfg *ImportConfig) GetExpose() bool {
+func (cfg *IncludeConfig) GetExpose() bool {
 	if cfg == nil || cfg.Expose == nil {
 		return false
 	}
 	return *cfg.Expose
 }
 
-func (cfg *ImportConfig) GetMergeStrategy() (MergeStrategyType, error) {
+func (cfg *IncludeConfig) GetMergeStrategy() (MergeStrategyType, error) {
 	if cfg.MergeStrategy == nil {
 		return ShallowMerge, nil
 	}
@@ -545,7 +536,7 @@ func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*Terrag
 
 // Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
-func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptions, include *ImportConfig, dependencyOutputs *cty.Value) (*TerragruntConfig, error) {
+func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptions, include *IncludeConfig, dependencyOutputs *cty.Value) (*TerragruntConfig, error) {
 	configString, err := util.ReadFileAsString(filename)
 	if err != nil {
 		return nil, err
@@ -588,7 +579,7 @@ func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptio
 func ParseConfigString(
 	configString string,
 	terragruntOptions *options.TerragruntOptions,
-	includeFromChild *ImportConfig,
+	includeFromChild *IncludeConfig,
 	filename string,
 	dependencyOutputs *cty.Value,
 ) (*TerragruntConfig, error) {

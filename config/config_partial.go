@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -27,11 +28,10 @@ const (
 	RemoteStateBlock
 )
 
-// terragruntInclude is a struct that can be used to only decode the include block.
-type terragruntInclude struct {
-	Include *IncludeConfig `hcl:"include,block"`
-	Import  []ImportConfig `hcl:"import,block"`
-	Remain  hcl.Body       `hcl:",remain"`
+// terragruntIncludeMultiple is a struct that can be used to only decode the include block with labels.
+type terragruntIncludeMultiple struct {
+	Include []IncludeConfig `hcl:"include,block"`
+	Remain  hcl.Body        `hcl:",remain"`
 }
 
 // terragruntDependencies is a struct that can be used to only decode the dependencies block.
@@ -98,7 +98,7 @@ func DecodeBaseBlocks(
 	parser *hclparse.Parser,
 	hclFile *hcl.File,
 	filename string,
-	includeFromChild *ImportConfig,
+	includeFromChild *IncludeConfig,
 ) (*cty.Value, *TrackInclude, error) {
 	// Decode just the `include` and `import` blocks, and verify that it's allowed here
 	terragruntIncludeList, err := decodeAsTerragruntInclude(
@@ -139,7 +139,7 @@ func DecodeBaseBlocks(
 func PartialParseConfigFile(
 	filename string,
 	terragruntOptions *options.TerragruntOptions,
-	include *ImportConfig,
+	include *IncludeConfig,
 	decodeList []PartialDecodeSectionType,
 ) (*TerragruntConfig, error) {
 	configString, err := util.ReadFileAsString(filename)
@@ -173,7 +173,7 @@ func PartialParseConfigFile(
 func PartialParseConfigString(
 	configString string,
 	terragruntOptions *options.TerragruntOptions,
-	includeFromChild *ImportConfig,
+	includeFromChild *IncludeConfig,
 	filename string,
 	decodeList []PartialDecodeSectionType,
 ) (*TerragruntConfig, error) {
@@ -309,7 +309,7 @@ func PartialParseConfigString(
 	return &output, nil
 }
 
-func partialParseIncludedConfig(includedConfig *ImportConfig, terragruntOptions *options.TerragruntOptions, decodeList []PartialDecodeSectionType) (*TerragruntConfig, error) {
+func partialParseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *options.TerragruntOptions, decodeList []PartialDecodeSectionType) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
 		return nil, errors.WithStackTrace(IncludedConfigMissingPath(terragruntOptions.TerragruntConfigPath))
 	}
@@ -328,34 +328,65 @@ func partialParseIncludedConfig(includedConfig *ImportConfig, terragruntOptions 
 	)
 }
 
-// This decodes only the `include` and `import` blocks of a terragrunt config, so its value can be used while decoding
-// the rest of the config.
+// This decodes only the `include` blocks of a terragrunt config, so its value can be used while decoding the rest of
+// the config.
 // For consistency, `include` in the call to `decodeHcl` is always assumed to be nil. Either it really is nil (parsing
 // the child config), or it shouldn't be used anyway (the parent config shouldn't have an include block).
+//
+// We take a two pass approach to parsing include blocks to support include blocks without a label. Ideally we can parse
+// include blocks with and without labels in a single pass, but the HCL parser is fairly restrictive when it comes to
+// parsing blocks with labels, requiring the exact number of expected labels in the parsing step.
+// To handle this restriction, we first see if there are any include blocks without any labels, and if there is, we
+// modify it in the file object to inject the label as "".
 func decodeAsTerragruntInclude(
 	file *hcl.File,
 	filename string,
 	terragruntOptions *options.TerragruntOptions,
 	extensions EvalContextExtensions,
-) ([]ImportConfig, error) {
-	tgInc := terragruntInclude{}
-	err := decodeHcl(file, filename, &tgInc, terragruntOptions, extensions)
+) ([]IncludeConfig, error) {
+	updatedBytes, isUpdated, err := updateBareIncludeBlock(file, filename)
 	if err != nil {
 		return nil, err
 	}
-
-	// Convert the legacy include block into an ImportConfig with no label ("" for label). include blocks are always the
-	// top most import block.
-	if tgInc.Include != nil {
-		includeAsImport := ImportConfig{
-			Name:          "",
-			Path:          tgInc.Include.Path,
-			Expose:        tgInc.Include.Expose,
-			MergeStrategy: tgInc.Include.MergeStrategy,
+	if isUpdated {
+		// Code was updated, so we need to reparse the new updated contents. This is necessarily because the blocks
+		// returned by hclparse does not support editing, and so we have to go through hclwrite, which leads to a
+		// different AST representation.
+		file, err = parseHcl(hclparse.NewParser(), string(updatedBytes), filename)
+		if err != nil {
+			return nil, err
 		}
-		tgInc.Import = append([]ImportConfig{includeAsImport}, tgInc.Import...)
 	}
-	return tgInc.Import, nil
+
+	tgInc := terragruntIncludeMultiple{}
+	if err := decodeHcl(file, filename, &tgInc, terragruntOptions, extensions); err != nil {
+		return nil, err
+	}
+	return tgInc.Include, nil
+}
+
+// updateBareIncludeBlock searches the parsed terragrunt contents for a bare include block (include without a label),
+// and convert it to one with empty string as the label. This is necessary because the hcl parser is strictly enforces
+// label counts when parsing out labels with a go struct.
+//
+// Returns the updated contents, a boolean indicated whether anything changed, and an error (if any).
+func updateBareIncludeBlock(file *hcl.File, filename string) ([]byte, bool, error) {
+	hclFile, err := hclwrite.ParseConfig(file.Bytes, filename, hcl.InitialPos)
+	if err != nil {
+		return nil, false, errors.WithStackTrace(err)
+	}
+
+	codeWasUpdated := false
+	for _, block := range hclFile.Body().Blocks() {
+		if block.Type() == "include" && len(block.Labels()) == 0 {
+			if codeWasUpdated {
+				return nil, false, errors.WithStackTrace(MultipleBareIncludeBlocksErr{})
+			}
+			block.SetLabels([]string{""})
+			codeWasUpdated = true
+		}
+	}
+	return hclFile.Bytes(), codeWasUpdated, nil
 }
 
 // Custom error types
@@ -366,4 +397,10 @@ type InvalidPartialBlockName struct {
 
 func (err InvalidPartialBlockName) Error() string {
 	return fmt.Sprintf("Unrecognized partial block code %d. This is most likely an error in terragrunt. Please file a bug report on the project repository.", err.sectionCode)
+}
+
+type MultipleBareIncludeBlocksErr struct{}
+
+func (err MultipleBareIncludeBlocksErr) Error() string {
+	return "Multiple bare include blocks (include blocks without label) is not supported."
 }
