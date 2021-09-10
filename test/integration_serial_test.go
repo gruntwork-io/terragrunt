@@ -234,6 +234,59 @@ func TestTerragruntSourceMapEnvArg(t *testing.T) {
 	runTerragrunt(t, tgArgs)
 }
 
+func TestTerragruntLogLevelEnvVarOverridesDefault(t *testing.T) {
+	// NOTE: this matches logLevelEnvVar const in util/logger.go
+	envVarName := "TERRAGRUNT_LOG_LEVEL"
+	oldVal := os.Getenv(envVarName)
+	defer func() {
+		if oldVal != "" {
+			os.Setenv(envVarName, oldVal)
+		} else {
+			os.Unsetenv(envVarName)
+		}
+	}()
+	os.Setenv("TERRAGRUNT_LOG_LEVEL", "debug")
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
+	tmpEnvPath := copyEnvironment(t, ".")
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+	output := stderr.String()
+	assert.Contains(t, output, "level=debug")
+}
+
+func TestTerragruntLogLevelEnvVarUnparsableLogsErrorButContinues(t *testing.T) {
+	// NOTE: this matches logLevelEnvVar const in util/logger.go
+	envVarName := "TERRAGRUNT_LOG_LEVEL"
+	oldVal := os.Getenv(envVarName)
+	defer func() {
+		if oldVal != "" {
+			os.Setenv(envVarName, oldVal)
+		} else {
+			os.Unsetenv(envVarName)
+		}
+	}()
+	os.Setenv("TERRAGRUNT_LOG_LEVEL", "unparsable")
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
+	tmpEnvPath := copyEnvironment(t, ".")
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
+
+	// Ideally, we would check stderr to introspect the error message, but the global fallback logger only logs to real
+	// stderr and we can't capture the output, so in this case we only make sure that the command runs successfully to
+	// completion.
+	runTerragrunt(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+}
+
 // NOTE: the following test requires precise timing for determining parallelism. As such, it can not be run in parallel
 // with all the other tests as the system load could impact the duration in which the parallel terragrunt goroutines
 // run.
