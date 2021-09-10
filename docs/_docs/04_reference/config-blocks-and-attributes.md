@@ -389,9 +389,7 @@ no label (`include {}`) is a short hand for an `include` block that uses the lab
   with this configuration (the `child` config).
 - `expose` (attribute, optional): Specifies whether or not the included config should be parsed and exposed as a
   variable. When `true`, you can reference the data of the included config under the variable `include`. Defaults to
-  `false`. Note that the `include` variable is a map of `include` labels to the parsed configuration value when there are
-  multiple `include` blocks, while it will be the actual parsed configuration value when there is only one
-  `include` block.
+  `false`. Note that the `include` variable is a map of `include` labels to the parsed configuration value.
 - `merge_strategy` (attribute, optional): Specifies how the included config should be merged. Valid values are:
   `no_merge` (do not merge the included config), `shallow` (do a shallow merge - default), `deep` (do a deep merge of
   the included config).
@@ -413,7 +411,7 @@ include {
 }
 
 inputs = {
-  remote_state_config = include.remote_state
+  remote_state_config = include[""].remote_state
 }
 ```
 

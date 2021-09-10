@@ -189,3 +189,22 @@ func generateTypeFromValuesMap(valMap map[string]cty.Value) cty.Type {
 	}
 	return cty.Object(outType)
 }
+
+// includeMapAsCtyVal converts the include map into a cty.Value struct that can be exposed to the child config.
+func includeMapAsCtyVal(includeMap map[string]IncludeConfig, terragruntOptions *options.TerragruntOptions, decodedDependencies *cty.Value) (cty.Value, error) {
+	exposedIncludeMap := map[string]cty.Value{}
+	for key, included := range includeMap {
+		if included.GetExpose() {
+			parsedIncluded, err := parseIncludedConfig(&included, terragruntOptions, decodedDependencies)
+			if err != nil {
+				return cty.NilVal, err
+			}
+			parsedIncludedCty, err := terragruntConfigAsCty(parsedIncluded)
+			if err != nil {
+				return cty.NilVal, err
+			}
+			exposedIncludeMap[key] = parsedIncludedCty
+		}
+	}
+	return convertValuesMapToCtyVal(exposedIncludeMap)
+}

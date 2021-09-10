@@ -4,5 +4,5 @@ include {
 }
 
 inputs = {
-  reflect = include.remote_state
+  reflect = include[""].remote_state
 }

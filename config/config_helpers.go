@@ -154,33 +154,11 @@ func CreateTerragruntEvalContext(
 	if extensions.TrackInclude != nil && len(extensions.TrackInclude.CurrentList) > 0 {
 		// For each include block, check if we want to expose the included config, and if so, add under the include
 		// variable.
-		exposedIncludeMap := map[string]cty.Value{}
-		for key, included := range extensions.TrackInclude.CurrentMap {
-			if included.GetExpose() {
-				parsedIncluded, err := parseIncludedConfig(&included, terragruntOptions, extensions.DecodedDependencies)
-				if err != nil {
-					return ctx, err
-				}
-				parsedIncludedCty, err := terragruntConfigAsCty(parsedIncluded)
-				if err != nil {
-					return ctx, err
-				}
-				exposedIncludeMap[key] = parsedIncludedCty
-			}
+		exposedInclude, err := includeMapAsCtyVal(extensions.TrackInclude.CurrentMap, terragruntOptions, extensions.DecodedDependencies)
+		if err != nil {
+			return ctx, err
 		}
-
-		if len(exposedIncludeMap) == 1 {
-			// If we have only one exposed include map, then flatten the map as a shorthand
-			for _, val := range exposedIncludeMap {
-				ctx.Variables["include"] = val
-			}
-		} else {
-			var err error
-			ctx.Variables["include"], err = convertValuesMapToCtyVal(exposedIncludeMap)
-			if err != nil {
-				return ctx, err
-			}
-		}
+		ctx.Variables["include"] = exposedInclude
 	}
 	return ctx, nil
 }
