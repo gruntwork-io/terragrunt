@@ -3,7 +3,7 @@ inputs = {
   old_attribute = "old val"
   list_attr     = ["hello"]
   map_attr = {
-    foo = "bar"
+    foo  = "bar"
     test = dependency.vpc.outputs.new_attribute
   }
 }
