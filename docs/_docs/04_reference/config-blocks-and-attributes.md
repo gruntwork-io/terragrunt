@@ -21,7 +21,7 @@ The following is a reference of all the supported blocks and attributes in the c
 
 - [terraform](#terraform)
 - [remote_state](#remote_state)
-- [import/include](#import-include)
+- [include](#include)
 - [locals](#locals)
 - [dependency](#dependency)
 - [dependencies](#dependencies)
@@ -369,38 +369,36 @@ remote_state {
 
 
 
-### import/include
+### include
 
-The `import` and `include` blocks are used to specify inheritance of Terragrunt configuration files. The included config (also called
+The `include` block is used to specify inheritance of Terragrunt configuration files. The included config (also called
 the `parent`) will be merged with the current configuration (also called the `child`) before processing. You can learn
 more about the inheritance properties of Terragrunt in the [Filling in remote state settings with Terragrunt
 section](/docs/features/keep-your-remote-state-configuration-dry/#filling-in-remote-state-settings-with-terragrunt) of the
 "Keep your remote state configuration DRY" use case overview.
 
-`include` blocks are a special case of the `import` block, where there is no label associated with it (equivalent to
-`import "" {}`). This is a special shorthand you can use if you only have a single import. While you can have multiple
-`import` blocks in a single config, you can only have one `include` block per config.
+You can have more than one `include` block, but each one must have a unique label. Note that a bare `include` block with
+no label (`include {}`) is a short hand for an `include` block that uses the label `""` (equivalent to `include "" {}`).
 
-Both `import` and `include` blocks supports the following arguments:
+`include` blocks support the following arguments:
 
-- `name` (label; only for `import`): You can define multiple `import` blocks in a single terragrunt config. Each import
-  must be labeled with a unique name to differentiate it from the other imports. E.g., if you had a block `import
-  "remote" {}`, you can reference the relevant exposed data with the expression `include.remote`. Defaults to `""` for
-  `include` blocks.
+- `name` (label): You can define multiple `include` blocks in a single terragrunt config. Each include block
+  must be labeled with a unique name to differentiate it from the other includes. E.g., if you had a block `include
+  "remote" {}`, you can reference the relevant exposed data with the expression `include.remote`.
 - `path` (attribute): Specifies the path to a Terragrunt configuration file (the `parent` config) that should be merged
   with this configuration (the `child` config).
-- `expose` (attribute, optional): Specifies whether or not the imported config should be parsed and exposed as a
-  variable. When `true`, you can reference the data of the imported config under the variable `include`. Defaults to
-  `false`. Note that the `include` variable is a map of `import` labels to the parsed configuration value when there are
-  multiple `import` blocks, while it will be the actual parsed configuration value when there is only one
-  `import`/`include` block.
+- `expose` (attribute, optional): Specifies whether or not the included config should be parsed and exposed as a
+  variable. When `true`, you can reference the data of the included config under the variable `include`. Defaults to
+  `false`. Note that the `include` variable is a map of `include` labels to the parsed configuration value when there are
+  multiple `include` blocks, while it will be the actual parsed configuration value when there is only one
+  `include` block.
 - `merge_strategy` (attribute, optional): Specifies how the included config should be merged. Valid values are:
   `no_merge` (do not merge the included config), `shallow` (do a shallow merge - default), `deep` (do a deep merge of
   the included config).
 
 Examples:
 
-_Single import_
+_Single include_
 ```hcl
 # If you have the following folder structure, and the following contents for ./child/terragrunt.hcl, this will include
 # and merge the items in the terragrunt.hcl file at the root.
@@ -419,9 +417,9 @@ inputs = {
 }
 ```
 
-_Multiple imports_
+_Multiple includes_
 ```hcl
-# If you have the following folder structure, and the following contents for ./child/terragrunt.hcl, this will import
+# If you have the following folder structure, and the following contents for ./child/terragrunt.hcl, this will include
 # and merge the items in the terragrunt.hcl file at the root, while only loading the data in the region.hcl
 # configuration.
 #
@@ -430,12 +428,12 @@ _Multiple imports_
 # ├── region.hcl
 # └── child
 #     └── terragrunt.hcl
-import "remote_state" {
+include "remote_state" {
   path   = find_in_parent_folders()
   expose = true
 }
 
-import "region" {
+include "region" {
   path           = find_in_parent_folders("region.hcl")
   expose         = true
   merge_strategy = "no_merge"
