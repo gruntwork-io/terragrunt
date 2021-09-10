@@ -114,8 +114,10 @@ type terragruntConfigFile struct {
 	// This struct is used for validating and parsing the entire terragrunt config. Since locals and include are
 	// evaluated in a completely separate cycle, it should not be evaluated here. Otherwise, we can't support self
 	// referencing other elements in the same block.
-	Locals  *terragruntLocal         `hcl:"locals,block"`
-	Include *terragruntIncludeIgnore `hcl:"include,block"`
+	// We don't want to use the special Remain keyword here, as that would cause the checker to support parsing config
+	// that have extraneous, unsupported blocks and attributes.
+	Locals  *terragruntLocal          `hcl:"locals,block"`
+	Include []terragruntIncludeIgnore `hcl:"include,block"`
 }
 
 // We use a struct designed to not parse the block, as locals and includes are parsed and decoded using a special
@@ -124,6 +126,7 @@ type terragruntLocal struct {
 	Remain hcl.Body `hcl:",remain"`
 }
 type terragruntIncludeIgnore struct {
+	Name   string   `hcl:"name,label"`
 	Remain hcl.Body `hcl:",remain"`
 }
 
