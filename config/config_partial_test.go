@@ -27,13 +27,13 @@ dependencies {
 	require.NotNil(t, terragruntConfig.Dependencies)
 	assert.Equal(t, len(terragruntConfig.Dependencies.Paths), 1)
 	assert.Equal(t, terragruntConfig.Dependencies.Paths[0], "../app1")
+	assert.Equal(t, map[string]interface{}{"app1": "../app1"}, terragruntConfig.Locals)
 
 	assert.False(t, terragruntConfig.Skip)
 	assert.Nil(t, terragruntConfig.PreventDestroy)
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Inputs)
-	assert.Nil(t, terragruntConfig.Locals)
 }
 
 func TestPartialParseDoesNotResolveIgnoredBlock(t *testing.T) {
