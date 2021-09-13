@@ -57,7 +57,7 @@ You can then include this in each of your **child** `terragrunt.hcl` files using
 infrastructure module you need to deploy:
 
 ```hcl
-include {
+include "root" {
   path = find_in_parent_folders()
 }
 ```
@@ -104,7 +104,7 @@ To solve this, you can use [multiple include blocks]({{site.baseurl}}/docs/refer
 Suppose your `qa/app/terragrunt.hcl` configuration looks like the following:
 
 ```hcl
-include {
+include "root" {
   path = find_in_parent_folders()
 }
 

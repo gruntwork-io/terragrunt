@@ -309,7 +309,7 @@ To include this in the child configurations (e.g `mysql/terragrunt.hcl`), you wo
 include this configuration using the `include` block:
 
 ```hcl
-include {
+include "root" {
   path = find_in_parent_folders()
 }
 ```

@@ -97,7 +97,7 @@ file("assets/mysql/assets.txt")
 `find_in_parent_folders()` searches up the directory tree from the current `terragrunt.hcl` file and returns the absolute path to the first `terragrunt.hcl` in a parent folder or exit with an error if no such file is found. This is primarily useful in an `include` block to automatically find the path to a parent `terragrunt.hcl` file:
 
 ``` hcl
-include {
+include "root" {
   path = find_in_parent_folders()
 }
 ```
@@ -105,7 +105,7 @@ include {
 The function takes an optional `name` parameter that allows you to specify a different filename to search for:
 
 ``` hcl
-include {
+include "root" {
   path = find_in_parent_folders("some-other-file-name.hcl")
 }
 ```
@@ -113,7 +113,7 @@ include {
 You can also pass an optional second `fallback` parameter which causes the function to return the fallback value (instead of exiting with an error) if the file in the `name` parameter cannot be found:
 
 ``` hcl
-include {
+include "root" {
   path = find_in_parent_folders("some-other-file-name.hcl", "fallback.hcl")
 }
 ```
@@ -152,7 +152,7 @@ finding the `env.hcl` file in the `prod` directory.
 Imagine `prod/mysql/terragrunt.hcl` and `stage/mysql/terragrunt.hcl` include all settings from the root `terragrunt.hcl` file:
 
 ``` hcl
-include {
+include "root" {
   path = find_in_parent_folders()
 }
 ```
@@ -212,7 +212,7 @@ terraform {
 Imagine `terragrunt/mysql/terragrunt.hcl` and `terragrunt/secrets/mysql/terragrunt.hcl` include all settings from the root `terragrunt.hcl` file:
 
 ``` hcl
-include {
+include "root" {
   path = find_in_parent_folders()
 }
 ```

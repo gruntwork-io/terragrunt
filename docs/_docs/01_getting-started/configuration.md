@@ -17,7 +17,7 @@ Terragrunt configuration is defined in a `terragrunt.hcl` file. This uses the sa
 Here’s an example:
 
 ``` hcl
-include {
+include "root" {
   path = find_in_parent_folders()
 }
 

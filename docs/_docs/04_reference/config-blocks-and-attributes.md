@@ -377,8 +377,9 @@ more about the inheritance properties of Terragrunt in the [Filling in remote st
 section](/docs/features/keep-your-remote-state-configuration-dry/#filling-in-remote-state-settings-with-terragrunt) of the
 "Keep your remote state configuration DRY" use case overview.
 
-You can have more than one `include` block, but each one must have a unique label. Note that a bare `include` block with
-no label (`include {}`) is a short hand for an `include` block that uses the label `""` (equivalent to `include "" {}`).
+You can have more than one `include` block, but each one must have a unique label. It is recommended to always label
+your `include` blocks. Bare includes (`include` block with no label - e.g., `include {}`) are currently supported for
+backward compatibility, but is deprecated usage and support may be removed in the future.
 
 `include` blocks support the following arguments:
 
@@ -487,7 +488,7 @@ inputs = {
 
 _child config_
 ```hcl
-include {
+include "root" {
   path           = find_in_parent_folders()
   merge_strategy = "deep"
 }
@@ -547,7 +548,7 @@ inputs = {
 
 _child terragrunt.hcl_
 ```hcl
-include {
+include "root" {
   path           = find_in_parent_folders()
   merge_strategy = "deep"
 }

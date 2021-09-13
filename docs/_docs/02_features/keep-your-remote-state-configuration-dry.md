@@ -94,7 +94,7 @@ remote_state {
 In each of the **child** `terragrunt.hcl` files, such as `mysql/terragrunt.hcl`, you can tell Terragrunt to automatically include all the settings from the root `terragrunt.hcl` file as follows:
 
 ``` hcl
-include {
+include "root" {
   path = find_in_parent_folders()
 }
 ```
