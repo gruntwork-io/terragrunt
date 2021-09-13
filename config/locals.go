@@ -46,6 +46,7 @@ func evaluateLocalsBlock(
 	hclFile *hcl.File,
 	filename string,
 	trackInclude *TrackInclude,
+	decodeList []PartialDecodeSectionType,
 ) (map[string]cty.Value, error) {
 	diagsWriter := util.GetDiagnosticsWriter(parser)
 
@@ -87,6 +88,7 @@ func evaluateLocalsBlock(
 			locals,
 			evaluatedLocals,
 			trackInclude,
+			decodeList,
 			diagsWriter,
 		)
 		if err != nil {
@@ -118,6 +120,7 @@ func attemptEvaluateLocals(
 	locals []*Local,
 	evaluatedLocals map[string]cty.Value,
 	trackInclude *TrackInclude,
+	decodeList []PartialDecodeSectionType,
 	diagsWriter hcl.DiagnosticWriter,
 ) (unevaluatedLocals []*Local, newEvaluatedLocals map[string]cty.Value, evaluated bool, err error) {
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
@@ -142,8 +145,9 @@ func attemptEvaluateLocals(
 		filename,
 		terragruntOptions,
 		EvalContextExtensions{
-			TrackInclude: trackInclude,
-			Locals:       &evaluatedLocalsAsCty,
+			TrackInclude:           trackInclude,
+			Locals:                 &evaluatedLocalsAsCty,
+			PartialParseDecodeList: decodeList,
 		},
 	)
 	if err != nil {

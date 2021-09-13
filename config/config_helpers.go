@@ -96,6 +96,11 @@ type EvalContextExtensions struct {
 	// - outputs: The map of outputs from the terraform state obtained by running `terragrunt output` on that target
 	//            config.
 	DecodedDependencies *cty.Value
+
+	// PartialParseDecodeList is the list of sections that are being decoded in the current config. This can be used to
+	// indicate/detect that the current parsing context is partial, meaning that not all configuration values are
+	// expected to be available.
+	PartialParseDecodeList []PartialDecodeSectionType
 }
 
 // Create an EvalContext for the HCL2 parser. We can define functions and variables in this context that the HCL2 parser
@@ -154,7 +159,7 @@ func CreateTerragruntEvalContext(
 	if extensions.TrackInclude != nil && len(extensions.TrackInclude.CurrentList) > 0 {
 		// For each include block, check if we want to expose the included config, and if so, add under the include
 		// variable.
-		exposedInclude, err := includeMapAsCtyVal(extensions.TrackInclude.CurrentMap, terragruntOptions, extensions.DecodedDependencies)
+		exposedInclude, err := includeMapAsCtyVal(extensions.TrackInclude.CurrentMap, terragruntOptions, extensions.DecodedDependencies, extensions.PartialParseDecodeList)
 		if err != nil {
 			return ctx, err
 		}

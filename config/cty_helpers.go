@@ -193,16 +193,24 @@ func generateTypeFromValuesMap(valMap map[string]cty.Value) cty.Type {
 // includeMapAsCtyVal converts the include map into a cty.Value struct that can be exposed to the child config. For
 // backward compatibility, this function will return the included config object if the config only defines a single bare
 // include block that is exposed.
-func includeMapAsCtyVal(includeMap map[string]IncludeConfig, terragruntOptions *options.TerragruntOptions, decodedDependencies *cty.Value) (cty.Value, error) {
+// NOTE: When evaluated in a partial parse context, only the partially parsed context is available in the expose. This
+// ensures that we can parse the child config without having access to dependencies when constructing the dependency
+// graph.
+func includeMapAsCtyVal(
+	includeMap map[string]IncludeConfig,
+	terragruntOptions *options.TerragruntOptions,
+	decodedDependencies *cty.Value,
+	decodeList []PartialDecodeSectionType,
+) (cty.Value, error) {
 	bareInclude, hasBareInclude := includeMap[bareIncludeKey]
 	if len(includeMap) == 1 && hasBareInclude {
 		terragruntOptions.Logger.Debug("Detected single bare include block - exposing as top level")
-		return includeConfigAsCtyVal(bareInclude, terragruntOptions, decodedDependencies)
+		return includeConfigAsCtyVal(bareInclude, terragruntOptions, decodedDependencies, decodeList)
 	}
 
 	exposedIncludeMap := map[string]cty.Value{}
 	for key, included := range includeMap {
-		parsedIncludedCty, err := includeConfigAsCtyVal(included, terragruntOptions, decodedDependencies)
+		parsedIncludedCty, err := includeConfigAsCtyVal(included, terragruntOptions, decodedDependencies, decodeList)
 		if err != nil {
 			return cty.NilVal, err
 		}
@@ -216,9 +224,14 @@ func includeMapAsCtyVal(includeMap map[string]IncludeConfig, terragruntOptions *
 
 // includeConfigAsCtyVal returns the parsed include block as a cty.Value object if expose is true. Otherwise, return
 // the nil representation of cty.Value.
-func includeConfigAsCtyVal(includeConfig IncludeConfig, terragruntOptions *options.TerragruntOptions, decodedDependencies *cty.Value) (cty.Value, error) {
+func includeConfigAsCtyVal(
+	includeConfig IncludeConfig,
+	terragruntOptions *options.TerragruntOptions,
+	decodedDependencies *cty.Value,
+	decodeList []PartialDecodeSectionType,
+) (cty.Value, error) {
 	if includeConfig.GetExpose() {
-		parsedIncluded, err := parseIncludedConfig(&includeConfig, terragruntOptions, decodedDependencies)
+		parsedIncluded, err := parseIncludedConfig(&includeConfig, terragruntOptions, decodedDependencies, decodeList)
 		if err != nil {
 			return cty.NilVal, err
 		}

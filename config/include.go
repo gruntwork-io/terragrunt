@@ -19,7 +19,12 @@ import (
 const bareIncludeKey = ""
 
 // Parse the config of the given include, if one is specified
-func parseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *options.TerragruntOptions, dependencyOutputs *cty.Value) (*TerragruntConfig, error) {
+func parseIncludedConfig(
+	includedConfig *IncludeConfig,
+	terragruntOptions *options.TerragruntOptions,
+	dependencyOutputs *cty.Value,
+	decodeList []PartialDecodeSectionType,
+) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
 		return nil, errors.WithStackTrace(IncludedConfigMissingPath(terragruntOptions.TerragruntConfigPath))
 	}
@@ -30,6 +35,9 @@ func parseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *optio
 		includePath = util.JoinPath(filepath.Dir(terragruntOptions.TerragruntConfigPath), includePath)
 	}
 
+	if len(decodeList) > 0 {
+		return PartialParseConfigFile(includePath, terragruntOptions, includedConfig, decodeList)
+	}
 	return ParseConfigFile(includePath, terragruntOptions, includedConfig, dependencyOutputs)
 }
 
@@ -56,7 +64,7 @@ func handleInclude(
 			return config, err
 		}
 
-		parsedIncludeConfig, err := parseIncludedConfig(&includeConfig, terragruntOptions, dependencyOutputs)
+		parsedIncludeConfig, err := parseIncludedConfig(&includeConfig, terragruntOptions, dependencyOutputs, nil)
 		if err != nil {
 			return nil, err
 		}
