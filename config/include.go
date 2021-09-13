@@ -683,7 +683,6 @@ func jsonIsIncludeBlock(jsonData interface{}) bool {
 			_, pathIsString := pathAttr.(string)
 			return pathIsString
 		}
-		return false
 	}
 	return false
 }
