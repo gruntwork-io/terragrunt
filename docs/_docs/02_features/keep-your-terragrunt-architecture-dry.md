@@ -16,6 +16,8 @@ nav_title_link: /docs/
 
   - [Using include to DRY common Terragrunt config](#using-include-to-dry-common-terragrunt-config)
 
+  - [Using exposed includes to override common configurations](#using-exposed-includes-to-override-common-configurations)
+
   - [Using read\_terragrunt\_config to DRY parent configurations](#using-read_terragrunt_config-to-dry-parent-configurations)
 
 
@@ -202,12 +204,12 @@ inputs = {
 }
 ```
 
-### Using read\_terragrunt\_config to DRY parent configurations
+### Using exposed includes to override common configurations
 
 In the previous section, we covered using `include` to DRY common component configurations. While powerful, `include` has
 a limitation where the included configuration is statically merged into the child configuration.
 
-In our example, note that the `_env/app.hcl` file hardcodes the `app `module version to `v0.1.0` (relevant section
+In our example, note that the `_env/app.hcl` file hardcodes the `app` module version to `v0.1.0` (relevant section
 pasted below for convenience):
 
 ```hcl
@@ -241,9 +243,79 @@ inputs = {
 }
 ```
 
-While this works, we now have duplicated the source URL. To avoid repeating the source URL, we can use
-`read_terragrunt_config` to load additional context into the the parent configuration by taking advantage of the folder
-structure.
+While this works, we now have duplicated the source URL. To avoid repeating the source URL, we can use exposed includes
+to reference data defined in the parent configurations. To do this, we will refactor our parent configuration to expose
+the source URL as a local variable instead of defining it into the `terraform` block:
+
+```hcl
+locals {
+  source_base_url = "github.com/<org>/modules.git//app"
+}
+
+# ... other blocks and attributes omitted for brevity ...
+```
+
+We then set the `expose` attribute to `true` on the `include` block in the child configuration so that we can reference
+the defined data in the parent configuration. Using that, we can construct the terraform source URL without having to
+repeat the module source:
+
+```hcl
+include "root" {
+  path = find_in_parent_folders()
+}
+
+include "env" {
+  path   = "${get_terragrunt_dir()}/../../_env/app.hcl"
+  expose = true
+}
+
+# Construct the terraform.source attribute using the source_base_url and custom version v0.2.0
+terraform {
+  source = "${include.env.locals.source_base_url}?ref=v0.2.0"
+}
+
+inputs = {
+  env = "qa"
+}
+```
+
+
+### Using read\_terragrunt\_config to DRY parent configurations
+
+In the previous two sections, we covered using `include` to DRY common component configurations through static merges
+with the child configuration. What if you want to dynamically update the parent configuration without having to define
+the override blocks in the child config?
+
+In our example, the child configuration defines the `env` input in its configuration (pasted below for convenience):
+
+```hcl
+# ... other blocks omitted for brevity ...
+
+inputs = {
+  env = "qa"
+}
+```
+
+What if some inputs depend on this `env` input? For example, what if we want to append the `env` to the `name` input
+prior to passing to terraform? One way is to define the override parameters in the child config instead of the parent:
+
+```hcl
+# ... other blocks omitted for brevity ...
+
+include "env" {
+  path   = "${get_terragrunt_dir()}/../../_env/app.hcl"
+  expose = true
+}
+
+inputs = {
+  env      = "qa"
+  basename = "${include.env.locals.basename}-qa"
+}
+```
+
+While this works, you could lose all the DRY advantages of the include block if you have many configurations that depend
+on the `env` input. Instead, you can use `read_terragrunt_config` to load additional context into the the parent
+configuration by taking advantage of the folder structure, and define the env based logic in the parent configuration.
 
 To do this, we will introduce a new `env.hcl` configuration in each environment:
 
@@ -287,8 +359,7 @@ locals {
 }
 ```
 
-We can then load the `env.hcl` file in the `_env/app.hcl` file to change the version based on which environment is
-loaded:
+We can then load the `env.hcl` file in the `_env/app.hcl` file to load the `env` string:
 
 ```hcl
 locals {
@@ -297,17 +368,7 @@ locals {
   env_vars = read_terragrunt_config(find_in_parent_folders("env.hcl"))
   env_name = local.env_vars.locals.env
 
-  # Centrally manage what version of the app module is used in each environment. This makes it easier to promote
-  # a version from dev -> stage -> prod.
-  module_version = {
-    qa    = "v0.2.0"
-    stage = "v0.1.0"
-    prod  = "v0.1.0"
-  }
-}
-
-terraform {
-  source = "github.com/<org>/modules.git//app?ref=${local.module_version[local.env_name]}"
+  source_base_url = "github.com/<org>/modules.git//app"
 }
 
 dependency "vpc" {
@@ -320,7 +381,7 @@ dependency "mysql" {
 
 inputs = {
   env            = local.env_name
-  basename       = "example-app"
+  basename       = "example-app-${local.env_name}"
   vpc_id         = dependency.vpc.outputs.vpc_id
   subnet_ids     = dependency.vpc.outputs.subnet_ids
   mysql_endpoint = dependency.mysql.outputs.endpoint
@@ -331,8 +392,7 @@ With this configuration, `env_vars` is loaded based on which folder is being inv
 invoked in the `prod/app/terragrunt.hcl` folder, `prod/env.hcl` is loaded, while `qa/env.hcl` is loaded when
 Terragrunt is invoked in the `qa/app/terragrunt.hcl` folder.
 
-Now we can keep the same child config even if we have different versions to deploy per environment. As a bonus, we can
-further reduce our child config to eliminate the `env` input variable since that is loaded in the `env.hcl` context:
+Now we can clean up the child config to eliminate the `env` input variable since that is loaded in the `env.hcl` context:
 
 ```hcl
 include "root" {
@@ -340,6 +400,12 @@ include "root" {
 }
 
 include "env" {
-  path = "${get_terragrunt_dir()}/../../_env/app.hcl"
+  path   = "${get_terragrunt_dir()}/../../_env/app.hcl"
+  expose = true
+}
+
+# Construct the terraform.source attribute using the source_base_url and custom version v0.2.0
+terraform {
+  source = "${include.env.locals.source_base_url}?ref=v0.2.0"
 }
 ```
