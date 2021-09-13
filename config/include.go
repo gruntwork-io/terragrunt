@@ -16,6 +16,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+const bareIncludeKey = ""
+
 // Parse the config of the given include, if one is specified
 func parseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions *options.TerragruntOptions, dependencyOutputs *cty.Value) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
@@ -567,7 +569,7 @@ func updateBareIncludeBlock(file *hcl.File, filename string) ([]byte, bool, erro
 			if codeWasUpdated {
 				return nil, false, errors.WithStackTrace(MultipleBareIncludeBlocksErr{})
 			}
-			block.SetLabels([]string{""})
+			block.SetLabels([]string{bareIncludeKey})
 			codeWasUpdated = true
 		}
 	}
@@ -663,7 +665,7 @@ func updateBareIncludeBlockJSON(fileBytes []byte) ([]byte, bool, error) {
 // can directly assign to the map with the single "" key without worrying about the possibility of other include blocks
 // since we will only call this function if there is only one include block, and that is a bare block with no labels.
 func updateSingleBareIncludeInParsedJSON(parsed map[string]interface{}, newVal interface{}) ([]byte, bool, error) {
-	parsed["include"] = map[string]interface{}{"": newVal}
+	parsed["include"] = map[string]interface{}{bareIncludeKey: newVal}
 	updatedBytes, err := json.Marshal(parsed)
 	return updatedBytes, true, errors.WithStackTrace(err)
 }

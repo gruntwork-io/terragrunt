@@ -29,18 +29,35 @@ const (
 func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 	t.Parallel()
 
-	childPath := util.JoinPath(includeExposeFixturePath, includeChildFixturePath)
-	cleanupTerraformFolder(t, childPath)
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath))
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+	files, err := ioutil.ReadDir(includeExposeFixturePath)
 	require.NoError(t, err)
 
-	outputs := map[string]TerraformOutput{}
-	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
-	assert.Equal(t, "us-west-1-test", outputs["region"].Value.(string))
+	testCases := []string{}
+	for _, finfo := range files {
+		if finfo.IsDir() {
+			testCases = append(testCases, finfo.Name())
+		}
+	}
+
+	for _, testCase := range testCases {
+		// Capture range variable to avoid it changing across parallel test runs
+		testCase := testCase
+
+		t.Run(filepath.Base(testCase), func(t *testing.T) {
+			childPath := filepath.Join(includeExposeFixturePath, testCase, includeChildFixturePath)
+			cleanupTerraformFolder(t, childPath)
+			runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath))
+
+			stdout := bytes.Buffer{}
+			stderr := bytes.Buffer{}
+			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+			require.NoError(t, err)
+
+			outputs := map[string]TerraformOutput{}
+			require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+			assert.Equal(t, "us-west-1-test", outputs["region"].Value.(string))
+		})
+	}
 }
 
 func TestTerragruntWorksWithIncludeShallowMerge(t *testing.T) {
