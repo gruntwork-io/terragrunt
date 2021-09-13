@@ -46,7 +46,7 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 		t.Run(filepath.Base(testCase), func(t *testing.T) {
 			childPath := filepath.Join(includeExposeFixturePath, testCase, includeChildFixturePath)
 			cleanupTerraformFolder(t, childPath)
-			runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath))
+			runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-include-external-dependencies --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath))
 
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
