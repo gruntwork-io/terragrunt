@@ -394,6 +394,11 @@ no label (`include {}`) is a short hand for an `include` block that uses the lab
   `no_merge` (do not merge the included config), `shallow` (do a shallow merge - default), `deep` (do a deep merge of
   the included config).
 
+**NOTE**: At this time, Terragrunt only supports a single level of `include` blocks. That is, Terragrunt will error out
+if an included config also has an `include` block defined. If you are interested in this feature, please follow
+https://github.com/gruntwork-io/terragrunt/issues/1566 to be notified when nested `include` blocks are supported.
+
+
 Examples:
 
 _Single include_
