@@ -11,7 +11,8 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-const DEFAULT_LOG_LEVEL = logrus.InfoLevel
+const defaultLogLevel = logrus.InfoLevel
+const logLevelEnvVar = "TERRAGRUNT_LOG_LEVEL"
 
 // GlobalFallbackLogEntry is a global fallback logentry for the application
 // Should be used in cases when more specific logger can't be created (like in the very beginning, when we have not yet
@@ -22,7 +23,8 @@ const DEFAULT_LOG_LEVEL = logrus.InfoLevel
 var GlobalFallbackLogEntry *logrus.Entry
 
 func init() {
-	GlobalFallbackLogEntry = CreateLogEntry("", DEFAULT_LOG_LEVEL)
+	defaultLogLevel := GetDefaultLogLevel()
+	GlobalFallbackLogEntry = CreateLogEntry("", defaultLogLevel)
 }
 
 // CreateLogger creates a logger. If debug is set, we use ErrorLevel to enable verbose output, otherwise - only errors are shown
@@ -68,4 +70,25 @@ func GetDiagnosticsWriter(parser *hclparse.Parser) hcl.DiagnosticWriter {
 		termWidth = 80
 	}
 	return hcl.NewDiagnosticTextWriter(os.Stderr, parser.Files(), uint(termWidth), termColor)
+}
+
+// GetDefaultLogLevel returns the default log level to use. The log level is resolved based on the environment variable
+// with name from LogLevelEnvVar, falling back to info if unspecified or there is an error parsing the given log level.
+func GetDefaultLogLevel() logrus.Level {
+	defaultLogLevelStr := os.Getenv(logLevelEnvVar)
+	if defaultLogLevelStr == "" {
+		return defaultLogLevel
+	}
+
+	parsedLogLevel, err := logrus.ParseLevel(defaultLogLevelStr)
+	if err != nil {
+		CreateLogEntry("", defaultLogLevel).Errorf(
+			"Could not parse log level from environment variable %s (%s) - falling back to default %s",
+			logLevelEnvVar,
+			defaultLogLevelStr,
+			defaultLogLevel,
+		)
+		return defaultLogLevel
+	}
+	return parsedLogLevel
 }
