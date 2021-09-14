@@ -118,6 +118,7 @@ const (
 	TEST_FIXTURE_LOCAL_RUN_MULTIPLE                         = "fixture-locals/run-multiple"
 	TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH           = "qa/my-app"
 	TEST_FIXTURE_READ_CONFIG                                = "fixture-read-config"
+	TEST_FIXTURE_READ_IAM_ROLE                              = "fixture-read-config/iam_role_in_file"
 	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                    = "fixture-get-aws-caller-identity"
 	TEST_FIXTURE_GET_PLATFORM                               = "fixture-get-platform"
 	TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_HCL                  = "fixture-get-terragrunt-source-hcl"
@@ -3587,6 +3588,43 @@ func TestTerragruntVersionConstraints(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestReadTerragruntConfigIamRole(t *testing.T) {
+	t.Parallel()
+
+	identityArn, err := aws_helper.GetAWSIdentityArn(nil, &options.TerragruntOptions {
+		IamRole: "",
+	})
+	assert.NoError(t, err)
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_READ_IAM_ROLE)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_READ_IAM_ROLE)
+
+	// Replace current IAM role in test file
+	hclFile := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
+	contents, err := util.ReadFileAsString(hclFile)
+	if err != nil {
+		t.Fatalf("Error reading Terragrunt config at %s: %v", hclFile, err)
+	}
+	contents = strings.Replace(contents, "__IAM_PLACEHOLDER__", identityArn, -1)
+	if err := ioutil.WriteFile(hclFile, []byte(contents), 0444); err != nil {
+		t.Fatalf("Error writing temp Terragrunt config to %s: %v", hclFile, err)
+	}
+
+	// execution outputs to be verified
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	// run terragrunt with explicit `terragrunt-iam-role`
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-iam-role arn:aws:iam::1111111111:role/admin --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+
+	// since are used not existing AWS accounts, for validation are used success and error outputs
+	output := fmt.Sprintf("%v %v %v", string(stderr.Bytes()), string(stdout.Bytes()), err.Error())
+
+	// Check that output doesn't contain passed as argument IAM role, and value from file is referenced
+	assert.Equal(t, 0, strings.Count(output, "1111111111"))
+	assert.NotEqual(t, 0, strings.Count(output, identityArn))
 }
 
 func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
