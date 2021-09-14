@@ -119,7 +119,7 @@ func decodeAndRetrieveOutputs(
 	file *hcl.File,
 	filename string,
 	terragruntOptions *options.TerragruntOptions,
-	includeConfig *IncludeConfig,
+	trackInclude *TrackInclude,
 	extensions EvalContextExtensions,
 ) (*cty.Value, error) {
 	decodedDependency := terragruntDependency{}
@@ -128,8 +128,8 @@ func decodeAndRetrieveOutputs(
 	}
 
 	// Merge in included dependencies
-	if includeConfig != nil {
-		mergedDecodedDependency, err := handleIncludeForDependency(decodedDependency, *includeConfig, terragruntOptions)
+	if trackInclude != nil {
+		mergedDecodedDependency, err := handleIncludeForDependency(decodedDependency, trackInclude, terragruntOptions)
 		if err != nil {
 			return nil, err
 		}

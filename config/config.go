@@ -64,7 +64,6 @@ type terragruntConfigFile struct {
 	TerraformVersionConstraint  *string          `hcl:"terraform_version_constraint,attr"`
 	TerragruntVersionConstraint *string          `hcl:"terragrunt_version_constraint,attr"`
 	Inputs                      *cty.Value       `hcl:"inputs,attr"`
-	Include                     *IncludeConfig   `hcl:"include,block"`
 
 	// We allow users to configure remote state (backend) via blocks:
 	//
@@ -112,15 +111,22 @@ type terragruntConfigFile struct {
 	RetryMaxAttempts      *int     `hcl:"retry_max_attempts,optional"`
 	RetrySleepIntervalSec *int     `hcl:"retry_sleep_interval_sec,optional"`
 
-	// This struct is used for validating and parsing the entire terragrunt config. Since locals are evaluated in a
-	// completely separate cycle, it should not be evaluated here. Otherwise, we can't support self referencing other
-	// elements in the same block.
-	Locals *terragruntLocal `hcl:"locals,block"`
+	// This struct is used for validating and parsing the entire terragrunt config. Since locals and include are
+	// evaluated in a completely separate cycle, it should not be evaluated here. Otherwise, we can't support self
+	// referencing other elements in the same block.
+	// We don't want to use the special Remain keyword here, as that would cause the checker to support parsing config
+	// that have extraneous, unsupported blocks and attributes.
+	Locals  *terragruntLocal          `hcl:"locals,block"`
+	Include []terragruntIncludeIgnore `hcl:"include,block"`
 }
 
-// We use a struct designed to not parse the block, as locals are parsed and decoded using a special routine that allows
-// references to the other locals in the same block.
+// We use a struct designed to not parse the block, as locals and includes are parsed and decoded using a special
+// routine that allows references to the other locals in the same block.
 type terragruntLocal struct {
+	Remain hcl.Body `hcl:",remain"`
+}
+type terragruntIncludeIgnore struct {
+	Name   string   `hcl:"name,label"`
 	Remain hcl.Body `hcl:",remain"`
 }
 
@@ -187,8 +193,9 @@ type terragruntGenerateBlock struct {
 }
 
 // IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
-// "include" in a child Terragrunt configuration file
+// include into a child Terragrunt configuration file. You can have more than one include config.
 type IncludeConfig struct {
+	Name          string  `hcl:"name,label"`
 	Path          string  `hcl:"path,attr"`
 	Expose        *bool   `hcl:"expose,attr"`
 	MergeStrategy *string `hcl:"merge_strategy,attr"`
@@ -587,7 +594,7 @@ func ParseConfigString(
 	}
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
-	localsAsCty, terragruntInclude, trackInclude, err := DecodeBaseBlocks(terragruntOptions, parser, file, filename, includeFromChild)
+	localsAsCty, trackInclude, err := DecodeBaseBlocks(terragruntOptions, parser, file, filename, includeFromChild, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -602,7 +609,7 @@ func ParseConfigString(
 	if dependencyOutputs == nil {
 		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
 		// process.
-		retrievedOutputs, err := decodeAndRetrieveOutputs(file, filename, terragruntOptions, terragruntInclude.Include, contextExtensions)
+		retrievedOutputs, err := decodeAndRetrieveOutputs(file, filename, terragruntOptions, trackInclude, contextExtensions)
 		if err != nil {
 			return nil, err
 		}
@@ -625,11 +632,10 @@ func ParseConfigString(
 	}
 
 	// If this file includes another, parse and merge it.  Otherwise just return this config.
-	if terragruntInclude.Include != nil {
-		return handleInclude(config, terragruntInclude.Include, terragruntOptions, contextExtensions.DecodedDependencies)
-	} else {
-		return config, nil
+	if trackInclude != nil {
+		return handleInclude(config, trackInclude, terragruntOptions, contextExtensions.DecodedDependencies)
 	}
+	return config, nil
 }
 
 func decodeAsTerragruntConfigFile(

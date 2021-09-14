@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -21,23 +23,41 @@ const (
 	includeNoMergeFixturePath   = "qa/my-app"
 	includeExposeFixturePath    = "fixture-include-expose/"
 	includeChildFixturePath     = "child"
+	includeMultipleFixturePath  = "fixture-include-multiple/"
 )
 
 func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 	t.Parallel()
 
-	childPath := util.JoinPath(includeExposeFixturePath, includeChildFixturePath)
-	cleanupTerraformFolder(t, childPath)
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath))
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+	files, err := ioutil.ReadDir(includeExposeFixturePath)
 	require.NoError(t, err)
 
-	outputs := map[string]TerraformOutput{}
-	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
-	assert.Equal(t, "us-west-1-test", outputs["region"].Value.(string))
+	testCases := []string{}
+	for _, finfo := range files {
+		if finfo.IsDir() {
+			testCases = append(testCases, finfo.Name())
+		}
+	}
+
+	for _, testCase := range testCases {
+		// Capture range variable to avoid it changing across parallel test runs
+		testCase := testCase
+
+		t.Run(filepath.Base(testCase), func(t *testing.T) {
+			childPath := filepath.Join(includeExposeFixturePath, testCase, includeChildFixturePath)
+			cleanupTerraformFolder(t, childPath)
+			runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-include-external-dependencies --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath))
+
+			stdout := bytes.Buffer{}
+			stderr := bytes.Buffer{}
+			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+			require.NoError(t, err)
+
+			outputs := map[string]TerraformOutput{}
+			require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+			assert.Equal(t, "us-west-1-test", outputs["region"].Value.(string))
+		})
+	}
 }
 
 func TestTerragruntWorksWithIncludeShallowMerge(t *testing.T) {
@@ -99,6 +119,65 @@ func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 			"new_attribute": "new val",
 			"old_attribute": "old val",
 			"list_attr":     []interface{}{"hello", "mock"},
+			"map_attr": map[string]interface{}{
+				"foo": "bar",
+				"bar": "baz",
+			},
+		},
+		outputs["dep_out"].Value.(map[string]interface{}),
+	)
+}
+
+func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
+	t.Parallel()
+
+	files, err := ioutil.ReadDir(includeMultipleFixturePath)
+	require.NoError(t, err)
+
+	testCases := []string{}
+	for _, finfo := range files {
+		if finfo.IsDir() && filepath.Base(finfo.Name()) != "modules" {
+			testCases = append(testCases, finfo.Name())
+		}
+	}
+
+	for _, testCase := range testCases {
+		// Capture range variable to avoid it changing across parallel test runs
+		testCase := testCase
+
+		t.Run(filepath.Base(testCase), func(t *testing.T) {
+			t.Parallel()
+
+			childPath := filepath.Join(includeMultipleFixturePath, testCase, includeDeepFixtureChildPath)
+			cleanupTerraformFolder(t, childPath)
+			runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath))
+
+			stdout := bytes.Buffer{}
+			stderr := bytes.Buffer{}
+			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+			require.NoError(t, err)
+
+			outputs := map[string]TerraformOutput{}
+			require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+			validateMultipleIncludeTestOutput(t, outputs)
+		})
+	}
+}
+
+func validateMultipleIncludeTestOutput(t *testing.T, outputs map[string]TerraformOutput) {
+	assert.Equal(t, "mock", outputs["attribute"].Value.(string))
+	assert.Equal(t, "new val", outputs["new_attribute"].Value.(string))
+	assert.Equal(t, "old val", outputs["old_attribute"].Value.(string))
+	assert.Equal(t, []interface{}{"hello", "mock", "foo"}, outputs["list_attr"].Value.([]interface{}))
+	assert.Equal(t, map[string]interface{}{"foo": "bar", "bar": "baz", "test": "new val"}, outputs["map_attr"].Value.(map[string]interface{}))
+
+	assert.Equal(
+		t,
+		map[string]interface{}{
+			"attribute":     "mock",
+			"new_attribute": "new val",
+			"old_attribute": "old val",
+			"list_attr":     []interface{}{"hello", "mock", "foo"},
 			"map_attr": map[string]interface{}{
 				"foo": "bar",
 				"bar": "baz",

@@ -97,7 +97,7 @@ file("assets/mysql/assets.txt")
 `find_in_parent_folders()` searches up the directory tree from the current `terragrunt.hcl` file and returns the absolute path to the first `terragrunt.hcl` in a parent folder or exit with an error if no such file is found. This is primarily useful in an `include` block to automatically find the path to a parent `terragrunt.hcl` file:
 
 ``` hcl
-include {
+include "root" {
   path = find_in_parent_folders()
 }
 ```
@@ -105,7 +105,7 @@ include {
 The function takes an optional `name` parameter that allows you to specify a different filename to search for:
 
 ``` hcl
-include {
+include "root" {
   path = find_in_parent_folders("some-other-file-name.hcl")
 }
 ```
@@ -113,7 +113,7 @@ include {
 You can also pass an optional second `fallback` parameter which causes the function to return the fallback value (instead of exiting with an error) if the file in the `name` parameter cannot be found:
 
 ``` hcl
-include {
+include "root" {
   path = find_in_parent_folders("some-other-file-name.hcl", "fallback.hcl")
 }
 ```
@@ -152,7 +152,7 @@ finding the `env.hcl` file in the `prod` directory.
 Imagine `prod/mysql/terragrunt.hcl` and `stage/mysql/terragrunt.hcl` include all settings from the root `terragrunt.hcl` file:
 
 ``` hcl
-include {
+include "root" {
   path = find_in_parent_folders()
 }
 ```
@@ -171,6 +171,24 @@ remote_state {
 ```
 
 The resulting `key` will be `prod/mysql/terraform.tfstate` for the prod `mysql` module and `stage/mysql/terraform.tfstate` for the stage `mysql` module.
+
+If you have `include` blocks, this function requires a `name` parameter when used in the child config to specify which
+`include` block to base the relative path on.
+
+Example:
+
+```hcl
+include "root" {
+  path = find_in_parent_folders()
+}
+include "region" {
+  path = find_in_parent_folders("region.hcl")
+}
+
+terraform {
+  source = "../modules/${path_relative_to_include("root")}"
+}
+```
 
 ## path\_relative\_from\_include
 
@@ -194,7 +212,7 @@ The resulting `key` will be `prod/mysql/terraform.tfstate` for the prod `mysql` 
 Imagine `terragrunt/mysql/terragrunt.hcl` and `terragrunt/secrets/mysql/terragrunt.hcl` include all settings from the root `terragrunt.hcl` file:
 
 ``` hcl
-include {
+include "root" {
   path = find_in_parent_folders()
 }
 ```
@@ -230,6 +248,25 @@ Another use case would be to add extra argument to include the `common.tfvars` f
 ```
 
 This allows proper retrieval of the `common.tfvars` from whatever the level of subdirectories we have.
+
+If you have `include` blocks, this function requires a `name` parameter when used in the child config to specify which
+`include` block to base the relative path on.
+
+Example:
+
+```hcl
+include "root" {
+  path = find_in_parent_folders()
+}
+include "region" {
+  path = find_in_parent_folders("region.hcl")
+}
+
+terraform {
+  source = "../modules/${path_relative_from_include("root")}"
+}
+```
+
 
 ## get\_env
 

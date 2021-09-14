@@ -5,7 +5,7 @@ category: features
 categories_url: features
 excerpt: Learn how to use locals.
 tags: ["locals"]
-order: 206
+order: 235
 nav_title: Documentation
 nav_title_link: /docs/
 ---

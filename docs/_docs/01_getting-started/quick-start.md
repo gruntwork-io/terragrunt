@@ -201,7 +201,7 @@ The final step is to update each of the child `terragrunt.hcl` files to tell the
 
 ``` hcl
 # stage/mysql/terragrunt.hcl
-include {
+include "root" {
   path = find_in_parent_folders()
 }
 ```
@@ -217,7 +217,7 @@ $ terragrunt apply
 
 Terragrunt will automatically find the `mysql` module’s `terragrunt.hcl` file, configure the `backend` using the settings from the root `terragrunt.hcl` file, and, thanks to the `path_relative_to_include()` function, will set the `key` to `stage/mysql/terraform.tfstate`. If you run `terragrunt apply` in `stage/frontend-app`, it’ll do the same, except it will set the `key` to `stage/frontend-app/terraform.tfstate`.
 
-You can now add as many child modules as you want, each with a `terragrunt.hcl` with the `include { …​ }` block, and each of those modules will automatically inherit the proper `backend` configuration\!
+You can now add as many child modules as you want, each with a `terragrunt.hcl` with the `include "root" { …​ }` block, and each of those modules will automatically inherit the proper `backend` configuration\!
 
 ### Keep your provider configuration DRY
 
