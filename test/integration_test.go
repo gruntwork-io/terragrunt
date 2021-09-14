@@ -3616,13 +3616,13 @@ func TestReadTerragruntConfigIamRole(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	// run terragrunt with explicit `terragrunt-iam-role`
+	// explicit run with --terragrunt-iam-role
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-iam-role arn:aws:iam::1111111111:role/admin --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 
 	// since are used not existing AWS accounts, for validation are used success and error outputs
 	output := fmt.Sprintf("%v %v %v", string(stderr.Bytes()), string(stdout.Bytes()), err.Error())
 
-	// Check that output doesn't contain passed as argument IAM role, and value from file is referenced
+	// Check that output doesn't contain passed as argument IAM role, and value identityArn is referenced
 	assert.Equal(t, 0, strings.Count(output, "1111111111"))
 	assert.NotEqual(t, 0, strings.Count(output, identityArn))
 }
