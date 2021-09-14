@@ -2,11 +2,10 @@ package config
 
 import (
 	"fmt"
-	"path/filepath"
-
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/zclconf/go-cty/cty"
+	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -99,6 +98,16 @@ func DecodeBaseBlocks(
 	filename string,
 	includeFromChild *IncludeConfig,
 ) (*cty.Value, *terragruntInclude, TrackInclude, error) {
+	// first decode of IamRole which can be referenced in other blocks
+	contextExtensions := EvalContextExtensions{}
+	flags := terragruntFlags{}
+	err := decodeHcl(hclFile, filename, &flags, terragruntOptions, contextExtensions)
+	if err != nil {
+		return nil, nil, TrackInclude{}, err
+	}
+	if flags.IamRole != nil {
+		terragruntOptions.IamRole = *flags.IamRole
+	}
 	// Decode just the `include` block, and verify that it's allowed here
 	terragruntInclude, err := decodeAsTerragruntInclude(
 		hclFile,
