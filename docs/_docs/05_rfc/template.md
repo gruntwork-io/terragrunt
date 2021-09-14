@@ -1,7 +1,7 @@
 ---
 layout: collection-browser-doc
 title: RFC Template for Contributors
-category: RFC
+category: rfc
 categories_url: rfc
 excerpt: This is a template you can use for proposing new major features to Terragrunt.
 tags: ["rfc", "contributing", "community"]
