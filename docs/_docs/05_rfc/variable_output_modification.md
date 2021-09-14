@@ -126,7 +126,13 @@ prior to invoking Terraform. That is, the following will happen when `terragrunt
 - Terragrunt invokes `terraform apply` on the modified module.
 
 In this way, Terragrunt can convert the underlying shared module into a root module that can be deployed directly.
-Under the hood, this transformation is implemented in the same way that the `aws-provider-patch` command works.
+Under the hood, this transformation is implemented in the same way that the `aws-provider-patch` command works. This
+should be feasible by doing the following:
+
+- Scan all `.tf` files in the directory.
+- For each file found, parse using the `hclwrite` parser.
+- Walk the AST, looking for `variable` or `output` blocks that match the `transform` sub blocks.
+- If we encounter one, use `SetAttributeValue` to merge in the attributes from the `transform` sub blocks.
 
 
 ## Alternatives
