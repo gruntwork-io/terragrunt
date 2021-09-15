@@ -4329,7 +4329,7 @@ func TestTerragruntInitRunCmd(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(errout, "input_variable"))
 
 	// Commands executed multiple times because of different arguments
-	assert.Equal(t, 3, strings.Count(errout, "uuid"))
-	assert.Equal(t, 4, strings.Count(errout, "random_arg"))
-	assert.Equal(t, 3, strings.Count(errout, "another_arg"))
+	assert.Equal(t, 4, strings.Count(errout, "uuid"))
+	assert.Equal(t, 6, strings.Count(errout, "random_arg"))
+	assert.Equal(t, 4, strings.Count(errout, "another_arg"))
 }
