@@ -101,19 +101,6 @@ func DecodeBaseBlocks(
 	decodeList []PartialDecodeSectionType,
 ) (*cty.Value, *TrackInclude, error) {
 
-	// first decode of IamRole which can be referenced in other blocks
-	if terragruntOptions.IamRole == "" {
-		contextExtensions := EvalContextExtensions{}
-		flags := terragruntFlags{}
-		err := decodeHcl(hclFile, filename, &flags, terragruntOptions, contextExtensions)
-		if err != nil {
-			return nil, nil, err
-		}
-		if flags.IamRole != nil {
-			terragruntOptions.IamRole = *flags.IamRole
-		}
-	}
-
 	// Decode just the `include` and `import` blocks, and verify that it's allowed here
 	terragruntIncludeList, err := decodeAsTerragruntInclude(
 		hclFile,
