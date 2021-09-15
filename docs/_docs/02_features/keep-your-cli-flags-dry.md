@@ -5,7 +5,7 @@ category: features
 categories_url: features
 excerpt: Learn how to keep CLI flags DRY with "extra_arguments" block in your "terragrunt.hcl".
 tags: ["DRY", "Use cases", "CLI"]
-order: 202
+order: 215
 nav_title: Documentation
 nav_title_link: /docs/
 ---

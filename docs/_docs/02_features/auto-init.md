@@ -5,7 +5,7 @@ category: features
 categories_url: features
 excerpt: Auto-Init is a feature of Terragrunt that makes it so that terragrunt init does not need to be called explicitly before other terragrunt commands.
 tags: ["CLI"]
-order: 209
+order: 245
 nav_title: Documentation
 nav_title_link: /docs/
 ---

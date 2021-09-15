@@ -5,7 +5,7 @@ category: features
 categories_url: features
 excerpt: Learn how to use inputs.
 tags: ["inputs"]
-order: 205
+order: 230
 nav_title: Documentation
 nav_title_link: /docs/
 ---

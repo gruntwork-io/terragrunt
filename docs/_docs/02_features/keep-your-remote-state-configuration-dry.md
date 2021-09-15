@@ -5,7 +5,7 @@ category: features
 categories_url: features
 excerpt: Learn how to create and manage remote state configuration.
 tags: ["DRY", "remote", "Use cases", "CLI"]
-order: 201
+order: 205
 nav_title: Documentation
 nav_title_link: /docs/
 ---
@@ -94,7 +94,7 @@ remote_state {
 In each of the **child** `terragrunt.hcl` files, such as `mysql/terragrunt.hcl`, you can tell Terragrunt to automatically include all the settings from the root `terragrunt.hcl` file as follows:
 
 ``` hcl
-include {
+include "root" {
   path = find_in_parent_folders()
 }
 ```

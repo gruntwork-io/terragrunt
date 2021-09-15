@@ -377,19 +377,32 @@ more about the inheritance properties of Terragrunt in the [Filling in remote st
 section](/docs/features/keep-your-remote-state-configuration-dry/#filling-in-remote-state-settings-with-terragrunt) of the
 "Keep your remote state configuration DRY" use case overview.
 
-The `include` block supports the following arguments:
+You can have more than one `include` block, but each one must have a unique label. It is recommended to always label
+your `include` blocks. Bare includes (`include` block with no label - e.g., `include {}`) are currently supported for
+backward compatibility, but is deprecated usage and support may be removed in the future.
 
+`include` blocks support the following arguments:
+
+- `name` (label): You can define multiple `include` blocks in a single terragrunt config. Each include block
+  must be labeled with a unique name to differentiate it from the other includes. E.g., if you had a block `include
+  "remote" {}`, you can reference the relevant exposed data with the expression `include.remote`.
 - `path` (attribute): Specifies the path to a Terragrunt configuration file (the `parent` config) that should be merged
   with this configuration (the `child` config).
 - `expose` (attribute, optional): Specifies whether or not the included config should be parsed and exposed as a
   variable. When `true`, you can reference the data of the included config under the variable `include`. Defaults to
-  `false`.
+  `false`. Note that the `include` variable is a map of `include` labels to the parsed configuration value.
 - `merge_strategy` (attribute, optional): Specifies how the included config should be merged. Valid values are:
   `no_merge` (do not merge the included config), `shallow` (do a shallow merge - default), `deep` (do a deep merge of
   the included config).
 
-Example:
+**NOTE**: At this time, Terragrunt only supports a single level of `include` blocks. That is, Terragrunt will error out
+if an included config also has an `include` block defined. If you are interested in this feature, please follow
+https://github.com/gruntwork-io/terragrunt/issues/1566 to be notified when nested `include` blocks are supported.
 
+
+Examples:
+
+_Single include_
 ```hcl
 # If you have the following folder structure, and the following contents for ./child/terragrunt.hcl, this will include
 # and merge the items in the terragrunt.hcl file at the root.
@@ -398,13 +411,41 @@ Example:
 # ├── terragrunt.hcl
 # └── child
 #     └── terragrunt.hcl
-include {
+include "root" {
   path   = find_in_parent_folders()
   expose = true
 }
 
 inputs = {
-  remote_state_config = include.remote_state
+  remote_state_config = include.root.remote_state
+}
+```
+
+_Multiple includes_
+```hcl
+# If you have the following folder structure, and the following contents for ./child/terragrunt.hcl, this will include
+# and merge the items in the terragrunt.hcl file at the root, while only loading the data in the region.hcl
+# configuration.
+#
+# .
+# ├── terragrunt.hcl
+# ├── region.hcl
+# └── child
+#     └── terragrunt.hcl
+include "remote_state" {
+  path   = find_in_parent_folders()
+  expose = true
+}
+
+include "region" {
+  path           = find_in_parent_folders("region.hcl")
+  expose         = true
+  merge_strategy = "no_merge"
+}
+
+inputs = {
+  remote_state_config = include.remote_state.remote_state
+  region              = include.region.region
 }
 ```
 
@@ -447,7 +488,7 @@ inputs = {
 
 _child config_
 ```hcl
-include {
+include "root" {
   path           = find_in_parent_folders()
   merge_strategy = "deep"
 }
@@ -507,7 +548,7 @@ inputs = {
 
 _child terragrunt.hcl_
 ```hcl
-include {
+include "root" {
   path           = find_in_parent_folders()
   merge_strategy = "deep"
 }

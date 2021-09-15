@@ -87,12 +87,21 @@ func (dependencyConfig Dependency) shouldGetOutputs() bool {
 }
 
 // Given a dependency config, we should only attempt to merge mocks outputs with the outputs if MockOutputsMergeWithState is not nil or true
-func (dependencyConfig Dependency) shouldMergeMockOutputsWithState() bool {
-	return dependencyConfig.MockOutputsMergeWithState != nil && (*dependencyConfig.MockOutputsMergeWithState)
+func (dependencyConfig Dependency) shouldMergeMockOutputsWithState(terragruntOptions *options.TerragruntOptions) bool {
+	shouldMergeMocksAttr := dependencyConfig.MockOutputsMergeWithState != nil && (*dependencyConfig.MockOutputsMergeWithState)
+	allowedCommand :=
+		dependencyConfig.MockOutputsAllowedTerraformCommands == nil ||
+			len(*dependencyConfig.MockOutputsAllowedTerraformCommands) == 0 ||
+			util.ListContainsElement(*dependencyConfig.MockOutputsAllowedTerraformCommands, terragruntOptions.OriginalTerraformCommand)
+	return shouldMergeMocksAttr && allowedCommand
 }
 
 func (dependencyConfig *Dependency) setRenderedOutputs(terragruntOptions *options.TerragruntOptions) error {
-	if (*dependencyConfig).shouldGetOutputs() || shouldReturnMockOutputs(*dependencyConfig, terragruntOptions) {
+	if dependencyConfig == nil {
+		return nil
+	}
+
+	if (*dependencyConfig).shouldGetOutputs() || (*dependencyConfig).shouldReturnMockOutputs(terragruntOptions) {
 		outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(*dependencyConfig, terragruntOptions)
 		if err != nil {
 			return err
@@ -119,7 +128,7 @@ func decodeAndRetrieveOutputs(
 	file *hcl.File,
 	filename string,
 	terragruntOptions *options.TerragruntOptions,
-	includeConfig *IncludeConfig,
+	trackInclude *TrackInclude,
 	extensions EvalContextExtensions,
 ) (*cty.Value, error) {
 	decodedDependency := terragruntDependency{}
@@ -128,8 +137,8 @@ func decodeAndRetrieveOutputs(
 	}
 
 	// Merge in included dependencies
-	if includeConfig != nil {
-		mergedDecodedDependency, err := handleIncludeForDependency(decodedDependency, *includeConfig, terragruntOptions)
+	if trackInclude != nil {
+		mergedDecodedDependency, err := handleIncludeForDependency(decodedDependency, trackInclude, terragruntOptions)
 		if err != nil {
 			return nil, err
 		}
@@ -301,27 +310,25 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 			return nil, err
 		}
 
-		if !isEmpty {
-			if dependencyConfig.shouldMergeMockOutputsWithState() {
-				stateOutputsMap, err := parseCtyValueToMap(*outputVal)
-				if err != nil {
-					return outputVal, err
-				}
-				mockOutputsMap, err := parseCtyValueToMap(*dependencyConfig.MockOutputs)
-				if err != nil {
-					return outputVal, err
-				}
-				for key, mockValue := range mockOutputsMap {
-					_, ok := stateOutputsMap[key]
-					if !ok {
-						stateOutputsMap[key] = mockValue
-					}
-				}
-				mergeOutputVal, err := convertToCtyWithJson(stateOutputsMap)
-				return &mergeOutputVal, err
-			} else {
+		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(terragruntOptions) {
+			stateOutputsMap, err := parseCtyValueToMap(*outputVal)
+			if err != nil {
 				return outputVal, err
 			}
+			mockOutputsMap, err := parseCtyValueToMap(*dependencyConfig.MockOutputs)
+			if err != nil {
+				return outputVal, err
+			}
+			for key, mockValue := range mockOutputsMap {
+				_, ok := stateOutputsMap[key]
+				if !ok {
+					stateOutputsMap[key] = mockValue
+				}
+			}
+			mergeOutputVal, err := convertToCtyWithJson(stateOutputsMap)
+			return &mergeOutputVal, err
+		} else if !isEmpty {
+			return outputVal, err
 		}
 	}
 
@@ -330,7 +337,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 	// return error.
 	targetConfig := getCleanedTargetConfigPath(dependencyConfig.ConfigPath, terragruntOptions.TerragruntConfigPath)
 	currentConfig := terragruntOptions.TerragruntConfigPath
-	if shouldReturnMockOutputs(dependencyConfig, terragruntOptions) {
+	if dependencyConfig.shouldReturnMockOutputs(terragruntOptions) {
 		terragruntOptions.Logger.Debugf("WARNING: config %s is a dependency of %s that has no outputs, but mock outputs provided and returning those in dependency output.",
 			targetConfig,
 			currentConfig,
@@ -347,7 +354,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 
 // We should only return default outputs if the mock_outputs attribute is set, and if we are running one of the
 // allowed commands when `mock_outputs_allowed_terraform_commands` is set as well.
-func shouldReturnMockOutputs(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) bool {
+func (dependencyConfig Dependency) shouldReturnMockOutputs(terragruntOptions *options.TerragruntOptions) bool {
 	defaultOutputsSet := dependencyConfig.MockOutputs != nil
 	allowedCommand :=
 		dependencyConfig.MockOutputsAllowedTerraformCommands == nil ||
