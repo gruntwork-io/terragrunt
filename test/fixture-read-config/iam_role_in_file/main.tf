@@ -1,1 +1,3 @@
-
+terraform {
+  backend "local" {}
+}

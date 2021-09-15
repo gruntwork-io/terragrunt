@@ -1,5 +1,13 @@
-iam_role = "__IAM_PLACEHOLDER__"
+iam_role = "arn:aws:iam::666666666666:role/terragrunttest"
 
-locals {
-  iam_text = run_cmd("echo", "${get_aws_account_id()}")
+remote_state {
+  backend = "local"
+  generate = {
+    // state file should load value from iam_role
+    path      = "${get_aws_account_id()}.txt"
+    if_exists = "overwrite"
+  }
+  config = {
+    path = "terraform.tfstate"
+  }
 }

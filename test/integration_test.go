@@ -3630,33 +3630,22 @@ func TestReadTerragruntConfigIamRole(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_READ_IAM_ROLE)
-	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_READ_IAM_ROLE)
+	cleanupTerraformFolder(t, TEST_FIXTURE_READ_IAM_ROLE)
 
-	// Replace current IAM role in test file
-	hclFile := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
-	contents, err := util.ReadFileAsString(hclFile)
-	if err != nil {
-		t.Fatalf("Error reading Terragrunt config at %s: %v", hclFile, err)
-	}
-	contents = strings.Replace(contents, "__IAM_PLACEHOLDER__", identityArn, -1)
-	if err := ioutil.WriteFile(hclFile, []byte(contents), 0444); err != nil {
-		t.Fatalf("Error writing temp Terragrunt config to %s: %v", hclFile, err)
-	}
-
-	// execution outputs to be verified
+	// Execution outputs to be verified
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	// explicit run with --terragrunt-iam-role
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-iam-role arn:aws:iam::1111111111:role/admin --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	// Invoke terragrunt and verify used IAM role
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", TEST_FIXTURE_READ_IAM_ROLE), &stdout, &stderr)
 
-	// since are used not existing AWS accounts, for validation are used success and error outputs
+	// Since are used not existing AWS accounts, for validation are used success and error outputs
 	output := fmt.Sprintf("%v %v %v", string(stderr.Bytes()), string(stdout.Bytes()), err.Error())
 
-	// Check that output doesn't contain passed as argument IAM role, and value identityArn is referenced
-	assert.Equal(t, 0, strings.Count(output, "1111111111"))
-	assert.NotEqual(t, 0, strings.Count(output, identityArn))
+	// Check that output contains value defined in IAM role
+	assert.Equal(t, 1, strings.Count(output, "666666666666"))
+	// Ensure that state file wasn't created with default IAM value
+	assert.True(t, util.FileNotExists(util.JoinPath(TEST_FIXTURE_READ_IAM_ROLE, identityArn+".txt")))
 }
 
 func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
