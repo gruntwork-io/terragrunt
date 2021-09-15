@@ -546,6 +546,7 @@ func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptio
 	}
 
 	// If IamRole wasn't provided, and if it is config file, try first to decode IamRole
+	// https://github.com/gruntwork-io/terragrunt/issues/667
 	if include == nil && terragruntOptions.IamRole == "" {
 		iamConfig, err := PartialParseConfigString(configString, terragruntOptions, include, filename, []PartialDecodeSectionType{TerragruntFlags})
 		if err != nil {
