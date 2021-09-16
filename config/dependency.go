@@ -346,7 +346,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 
 	// In case of init, and empty output, skip generating error about missing outputs
 	// https://github.com/gruntwork-io/terragrunt/issues/1499
-	if dependencyConfig.shouldGetOutputs() && terragruntOptions.TerraformCommand == "init" {
+	if dependencyConfig.shouldGetOutputs() && terragruntOptions.AutoInit {
 		return nil, nil
 	}
 
