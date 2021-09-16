@@ -970,7 +970,9 @@ Example:
 ```hcl
 iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 ```
-
+**Notes:**
+  * Definitions of `iam_role` can be included from other HCL files
+  * Value of `iam_role` can reference locals variable
 
 ### iam_assume_role_duration
 

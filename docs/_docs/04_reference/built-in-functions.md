@@ -591,6 +591,7 @@ Output:
 $ terragrunt init
 uuid1 b48379e1-924d-2403-8789-c72d50be964c
 uuid1 9f3a8398-b11f-5314-7783-dad176ee487d
+uuid1 649ac501-e5db-c935-1499-c59fb7a75625
 uuid2 2d65972b-3fa9-181f-64fe-dcd574d944d0
 uuid3 e345de60-9cfa-0455-79b7-af0d053a15a5
 potato
@@ -598,12 +599,14 @@ uuid3 7f90a4ed-96e3-1dd8-5fee-91b8c8e07650
 uuid2 8638fe79-c589-bebd-2a2a-3e6b96f7fc34
 uuid3 310d0447-f0a6-3f67-efda-e6b1521fa1fb
 uuid4 f8e80cc6-1892-8db7-bd63-6089fef00c01
+uuid2 289ff371-8021-54c6-2254-72de9d11392a
+uuid3 baa19863-1d99-e0ef-11f2-ede830d1c58a
 carrot
 ```
 **Notes:**
   * Output contains only once `carrot` and `potato`, because other invocations got cached, caching works for all sections
-  * Output contains twice `uuid1` and `uuid2` because during HCL evaluation each `run_cmd` in `locals` section is evaluated twice, and value is cached under different key since `uuid()` add random value in key
-  * Output contains three times `uuid3` - 2 prints because `uuid3` was declared in `locals`, once because it is declared in `inputs`
+  * Output contains multiple times `uuid1` and `uuid2` because during HCL evaluation each `run_cmd` in `locals` is evaluated multiple times and random argument generated from `uuid()` save cached value under different key each time
+  * Output contains multiple times `uuid3`, +1 more output comparing to `uuid1` and `uuid2` - because `uuid3` is declared in locals and inputs which add one more evaluation 
   * Output contains only once `uuid4` since it is declared only once in `inputs`, `inputs` is not evaluated twice
 
 ## read\_terragrunt\_config
