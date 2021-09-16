@@ -2265,7 +2265,7 @@ func TestDependencyOutputErrorBeforeApply(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", app3Path), &showStdout, &showStderr)
 	assert.Error(t, err)
 	// Verify that we fail because the dependency is not applied yet
-	assert.Contains(t, err.Error(), "has not been applied yet")
+	assert.Contains(t, err.Error(), "object does not have an attribute named \"outputs\"")
 
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
 	logBufferContentsLineByLine(t, showStderr, "show stderr")
@@ -2594,7 +2594,7 @@ func TestDependencyMockOutputRestricted(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", dependent2Path), &showStdout, &showStderr)
 	assert.Error(t, err)
 	// Verify that we fail because the dependency is not applied yet
-	assert.Contains(t, err.Error(), "has not been applied yet")
+	assert.Contains(t, err.Error(), "object does not have an attribute named \"outputs\"")
 
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
 	logBufferContentsLineByLine(t, showStderr, "show stderr")
