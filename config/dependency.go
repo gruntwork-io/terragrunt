@@ -309,7 +309,11 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 		if err != nil {
 			return nil, err
 		}
-
+		// Skip output variables verification in case of initialization
+		// https://github.com/gruntwork-io/terragrunt/issues/1499
+		if terragruntOptions.AutoInit && isEmpty {
+			return outputVal, err
+		}
 		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(terragruntOptions) {
 			stateOutputsMap, err := parseCtyValueToMap(*outputVal)
 			if err != nil {
