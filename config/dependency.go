@@ -309,6 +309,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 		if err != nil {
 			return nil, err
 		}
+
 		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(terragruntOptions) {
 			stateOutputsMap, err := parseCtyValueToMap(*outputVal)
 			if err != nil {
