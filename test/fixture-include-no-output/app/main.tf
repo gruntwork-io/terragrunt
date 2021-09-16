@@ -1,7 +1,7 @@
 
 resource "local_file" "main_file" {
   content     = "main_file"
-  filename = "${path.module}/main_file.txt"
+  filename = "${path.module}/test_file.tfstate"
 }
 
 output "main_file" {
