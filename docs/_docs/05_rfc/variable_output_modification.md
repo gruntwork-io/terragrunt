@@ -104,6 +104,7 @@ transform {
   # the terraform module.
   # For example, in this first variable subblock, the 'type' attribute is merged into the upstream terraform module
   # before terragrunt invokes terraform.
+  # Note that these attributes are shallow merged into the definitions in the terraform module.
   variable "my_list" {
     type = list(string)
   }
