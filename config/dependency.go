@@ -309,11 +309,6 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 		if err != nil {
 			return nil, err
 		}
-		// Skip output variables verification in case of initialization
-		// https://github.com/gruntwork-io/terragrunt/issues/1499
-		if terragruntOptions.AutoInit && isEmpty {
-			return outputVal, err
-		}
 		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(terragruntOptions) {
 			stateOutputsMap, err := parseCtyValueToMap(*outputVal)
 			if err != nil {
@@ -347,6 +342,12 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 			currentConfig,
 		)
 		return dependencyConfig.MockOutputs, nil
+	}
+
+	// In case of init, and empty output, skip generating error about missing outputs
+	// https://github.com/gruntwork-io/terragrunt/issues/1499
+	if dependencyConfig.shouldGetOutputs() && terragruntOptions.TerraformCommand == "init" {
+		return nil, nil
 	}
 
 	err := TerragruntOutputTargetNoOutputs{
