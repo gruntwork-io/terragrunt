@@ -127,6 +127,7 @@ const (
 	TEST_FIXTURE_DIRS_PATH                                  = "fixture-dirs"
 	TEST_FIXTURE_PARALLELISM                                = "fixture-parallelism"
 	TEST_FIXTURE_SOPS                                       = "fixture-sops"
+	TEST_FIXTURE_INCLUDE_NO_OUTPUT                          = "fixture-include-no-output"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -2264,7 +2265,7 @@ func TestDependencyOutputErrorBeforeApply(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", app3Path), &showStdout, &showStderr)
 	assert.Error(t, err)
 	// Verify that we fail because the dependency is not applied yet
-	assert.Contains(t, err.Error(), "has not been applied yet")
+	assert.Contains(t, err.Error(), "object does not have an attribute named \"outputs\"")
 
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
 	logBufferContentsLineByLine(t, showStderr, "show stderr")
@@ -2593,7 +2594,7 @@ func TestDependencyMockOutputRestricted(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", dependent2Path), &showStdout, &showStderr)
 	assert.Error(t, err)
 	// Verify that we fail because the dependency is not applied yet
-	assert.Contains(t, err.Error(), "has not been applied yet")
+	assert.Contains(t, err.Error(), "object does not have an attribute named \"outputs\"")
 
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
 	logBufferContentsLineByLine(t, showStderr, "show stderr")
@@ -4305,4 +4306,22 @@ func TestTerragruntInitRunCmd(t *testing.T) {
 	assert.Equal(t, 3, strings.Count(errout, "uuid"))
 	assert.Equal(t, 4, strings.Count(errout, "random_arg"))
 	assert.Equal(t, 3, strings.Count(errout, "another_arg"))
+}
+
+func TestNoFailureForModulesWithoutOutputs(t *testing.T) {
+
+	appPath := util.JoinPath(TEST_FIXTURE_INCLUDE_NO_OUTPUT, "app")
+
+	cleanupTerraformFolder(t, appPath)
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all init --terragrunt-non-interactive --terragrunt-working-dir %s", appPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir %s", appPath), &stdout, &stderr)
+	assert.NoError(t, err)
 }
