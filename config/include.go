@@ -35,7 +35,16 @@ func parseIncludedConfig(
 		includePath = util.JoinPath(filepath.Dir(terragruntOptions.TerragruntConfigPath), includePath)
 	}
 
-	if len(decodeList) > 0 {
+	// We need to do a partial parse if we are in a parsing stage that is performing a partial parse to honor the
+	// configuration parsing order. However, strictly speaking, the only case where we can't do a full parse of the
+	// included config is if the included config has any `dependency` or `dependencies` blocks defined. So any config
+	// that does not have any dependency or dependencies blocks can be fully parsed without issue, regardless of parsing
+	// stage.
+	hasDependency, err := configFileHasDependencyBlock(includePath, terragruntOptions)
+	if err != nil {
+		return nil, err
+	}
+	if hasDependency && len(decodeList) > 0 {
 		return PartialParseConfigFile(includePath, terragruntOptions, includedConfig, decodeList)
 	}
 	return ParseConfigFile(includePath, terragruntOptions, includedConfig, dependencyOutputs)
