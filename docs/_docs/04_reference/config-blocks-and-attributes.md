@@ -508,6 +508,32 @@ inputs = {
 }
 ```
 
+**Limitations on accessing exposed config**
+
+Note that exposed config attributes are subject to [the Terragrunt configuration parsing order]({{ site.baseurl
+}}/docs/getting-started/configuration/#configuration-parsing-order). This means that exposed attributes that are not
+available at that parsing stage are not usually available even across the `include`.
+
+For example, you can not access `inputs` from the exposed config from `include` in `dependency` blocks. The following
+config will fail:
+
+```hcl
+include "root" {
+  path   = find_in_parent_folders()
+  expose = true
+}
+
+dependency "dep" {
+  # inputs is not available when parsing this block!
+  config_path = include.root.inputs.dep_dir
+}
+```
+
+However, there is an exception to this rule. If the included config does not define any `dependency` or `dependencies`
+blocks, then Terragrunt will expose ALL the attributes from the included config regardless of the configuration parsing
+order.
+
+
 **What is deep merge?**
 
 When the `merge_strategy` for the `include` block is set to `deep`, Terragrunt will perform a deep merge of the included
