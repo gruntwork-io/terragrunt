@@ -49,6 +49,17 @@ terraform {
   source = "tfr:///terraform-aws-modules/vpc/aws?version=3.5.0"
 }
 
+# Indicate what region to deploy the resources into
+generate "provider" {
+  path = "provider.tf"
+  if_exists = "overwrite_terragrunt"
+  contents = <<EOF
+provider "aws" {
+  region = "us-east-1"
+}
+EOF
+}
+
 # Indicate the input values to use for the variables of the module.
 inputs = {
   name = "my-vpc"
@@ -81,6 +92,9 @@ tfr://REGISTRY_DOMAIN/MODULE?version=VERSION
 
 Note that you can omit the `REGISTRY_DOMAIN` to default to the Public Terraform Registry.
 
+The `generate` block is used to inject the provider configuration into the active Terraform module. This can be used to
+customize how Terraform interacts with the cloud APIs, including configuring authentication parameters.
+
 The `inputs` block is used to indicate what variable values should be passed to terraform. This is equivalent to having
 the contents of the map in a tfvars file and passing that to terraform.
 
@@ -90,6 +104,8 @@ sources that terragrunt supports.
 
 You can deploy this example by copy pasting it into a folder and running `terragrunt apply`.
 
+NOTE: Heads up, not all Registry modules can be deployed with Terragrunt, see [A note aboud using modules from the
+registry]({{ site.baseurl }}/docs/reference/config-blocks-and-attributes#a-note-about-using-modules-from-the-registry) for details.
 
 ## Key features
 

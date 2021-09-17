@@ -52,9 +52,16 @@ The `terraform` block supports the following arguments:
       registry (`registry.terraform.io`) if you use `tfr:///` (note the three `/`). For example, the following will
       fetch the `terraform-aws-modules/vpc/aws` module from the public registry:
       `tfr:///terraform-aws-modules/vpc/aws?version=3.3.0`.
+    - You can also use submodules from the registry using `//`. For example, to use the `iam-policy` submodule from the
+      registry module
+      [terraform-aws-modules/iam](https://registry.terraform.io/modules/terraform-aws-modules/iam/aws/latest), you can
+      use the following: `tfr:///terraform-aws-modules/iam/aws//modules/iam-policy?version=4.3.0`.
+    - Refer to [A note about using modules from the
+      registry]({{site.baseurl}}/docs/getting-started/quick-start#a-note-about-using-modules-from-the-registry) for more
+      information about using modules from the Terraform Registry with Terragrunt.
 
 - `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `terraform` CLI. Learn more
-  about its usage in the [Keep your CLI flags DRY](/docs/features/keep-your-cli-flags-dry/) use case overview. Supports
+  about its usage in the [Keep your CLI flags DRY]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/) use case overview. Supports
   the following arguments:
     - `arguments` (required) : A list of CLI arguments to pass to `terraform`.
     - `commands` (required) : A list of `terraform` sub commands that the arguments will be passed to.
@@ -184,6 +191,58 @@ terraform {
   }
 }
 ```
+
+#### A note about using modules from the registry
+
+The key design of Terragrunt is to act as a preprocessor to convert **shared service modules** in the registry into a **root
+module**. In Terraform, modules can be loosely categorized into two types:
+
+* **Root Module**: A Terraform module that is designed for running `terraform init` and the other workflow commands
+  (`apply`, `plan`, etc). This is the entrypoint module for deploying your infrastructure. Root modules are identified
+  by the presence of key blocks that setup configuration about how Terraform behaves, like `backend` blocks (for
+  configuring state) and `provider` blocks (for configuring how Terraform interacts with the cloud APIs).
+* **Shared Module**: A Terraform module that is designed to be included in other Terraform modules through `module`
+  blocks. These modules are missing many of the key blocks that are required for running the workflow commands of
+  terraform.
+
+Terragrunt further distinguishes shared modules between **service modules** and **modules**:
+
+* **Shared Service Module**: A Terraform module that is designed to be standalone and applied directly. These modules
+  are not root modules in that they are still missing the key blocks like `backend` and `provider`, but aside from that
+  do not need any additional configuration or composition to deploy. For example, the
+  [terraform-aws-modules/vpc](https://registry.terraform.io/modules/terraform-aws-modules/vpc/aws/latest) module can be
+  deployed by itself without composing with other modules or resources.
+* **Shared Module**: A Terraform module that is designed to be composed with other modules. That is, these modules must
+  be embedded in another Terraform module and combined with other resources or modules. For example, the
+  [consul-security-group-rules
+  module](https://registry.terraform.io/modules/hashicorp/consul/aws/latest/submodules/consul-security-group-rules)
+
+Terragrunt started off with features that help directly deploy **Root Modules**, but over the years have implemented
+many features that allow you to turn **Shared Service Modules** into **Root Modules**  by injecting the key configuration
+blocks that are necessary for Terraform modules to act as **Root Modules**.
+
+Modules on the Terraform Registry are primarily designed to be used as **Shared Modules**. That is, you won't be able to
+`git clone` the underlying repository and run `terraform init` or `apply` directly on the module without modification.
+Unless otherwise specified, almost all the modules will require composition with other modules/resources to deploy.
+When using modules in the registry, it helps to think about what blocks and resources are necessary to operate the
+module, and translating those into Terragrunt blocks that generate them.
+
+Note that in many cases, Terragrunt may not be able to deploy modules from the registry. While Terragrunt has features
+to turn any **Shared Module** into a **Root Module**, there are two key technical limitations that prevent Terragrunt
+from converting ALL shared modules:
+
+- Every complex input must have a `type` associated with it. Otherwise, Terraform will interpret the input that
+  Terragrunt passes through as `string`. This includes `list` and `map`.
+- Derived sensitive outputs must be marked as `sensitive`. Refer to the [terraform tutorial on sensitive
+  variables](https://learn.hashicorp.com/tutorials/terraform/sensitive-variables#reference-sensitive-variables) for more
+  information on this requirement.
+
+**If you run into issues deploying a module from the registry, chances are that module is not a Shared Service Module,
+and thus not designed for use with Terragrunt. Depending on the technical limitation, Terragrunt may be able to
+support the transition to root module. Please always file [an issue on the terragrunt
+repository](https://github.com/gruntwork-io/terragrunt/issues) with the module + error message you are encountering,
+instead of the module repository.**
+
 
 
 ### remote_state
