@@ -575,9 +575,9 @@ func updateBareIncludeBlock(file *hcl.File, filename string) ([]byte, bool, erro
 		return updateBareIncludeBlockJSON(file.Bytes)
 	}
 
-	hclFile, err := hclwrite.ParseConfig(file.Bytes, filename, hcl.InitialPos)
-	if err != nil {
-		return nil, false, errors.WithStackTrace(err)
+	hclFile, diags := hclwrite.ParseConfig(file.Bytes, filename, hcl.InitialPos)
+	if diags.HasErrors() {
+		return nil, false, errors.WithStackTrace(diags)
 	}
 
 	codeWasUpdated := false

@@ -892,9 +892,9 @@ func configFileHasDependencyBlock(configPath string, terragruntOptions *options.
 	// We use hclwrite to parse the config instead of the normal parser because the normal parser doesn't give us an AST
 	// that we can walk and scan, and requires structured data to map against. This makes the parsing strict, so to
 	// avoid weird parsing errors due to missing dependency data, we do a structural scan here.
-	hclFile, err := hclwrite.ParseConfig(configBytes, configPath, hcl.InitialPos)
-	if err != nil {
-		return false, errors.WithStackTrace(err)
+	hclFile, diags := hclwrite.ParseConfig(configBytes, configPath, hcl.InitialPos)
+	if diags.HasErrors() {
+		return false, errors.WithStackTrace(diags)
 	}
 	for _, block := range hclFile.Body().Blocks() {
 		if block.Type() == "dependency" || block.Type() == "dependencies" {
