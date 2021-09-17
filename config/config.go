@@ -844,9 +844,9 @@ func validateDependencies(terragruntOptions *options.TerragruntOptions, dependen
 		return nil
 	}
 	for _, dependencyPath := range dependencies.Paths {
-		fullPath := dependencyPath
-		if !filepath.IsAbs(dependencyPath) {
-			fullPath = path.Join(terragruntOptions.WorkingDir, dependencyPath)
+		fullPath := filepath.FromSlash(dependencyPath)
+		if !filepath.IsAbs(fullPath) {
+			fullPath = path.Join(terragruntOptions.WorkingDir, fullPath)
 		}
 		if !util.IsDir(fullPath) {
 			missingDependencies = append(missingDependencies, fmt.Sprintf("%s (%s)", dependencyPath, fullPath))
