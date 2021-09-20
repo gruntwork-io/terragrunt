@@ -35,11 +35,18 @@ func parseIncludedConfig(
 		includePath = util.JoinPath(filepath.Dir(terragruntOptions.TerragruntConfigPath), includePath)
 	}
 
-	// We need to do a partial parse if we are in a parsing stage that is performing a partial parse to honor the
-	// configuration parsing order. However, strictly speaking, the only case where we can't do a full parse of the
-	// included config is if the included config has any `dependency` or `dependencies` blocks defined. So any config
-	// that does not have any dependency or dependencies blocks can be fully parsed without issue, regardless of parsing
-	// stage.
+	// These condition are here to specifically handle the `run-all apply` command on a new deployment. During
+	// `run-all apply`, terragrunt needs to first build up the dependency graph to know what order to apply the modules
+	// in. For a completely new deployment, no outputs are available. This means that we can't parse anything that
+	// relies on a `dependency` during this stage, as the outputs are not materialized until later in the process when
+	// terragrunt actually starts applying the modules. To support this, we implement the following conditions for when
+	// terragrunt can fully parse the included config (only one needs to be true):
+	// - Included config does NOT have a dependency block.
+	// - Terragrunt is NOT performing a partial parse (which indicates whether or not Terragrunt is building a module
+	//   graph).
+	// To make the logic easier to implement, we implement the inverse here, where we check whether the included config
+	// has a dependency block, and if we are in the middle of a partial parse, we perform a partial parse of the
+	// included config.
 	hasDependency, err := configFileHasDependencyBlock(includePath, terragruntOptions)
 	if err != nil {
 		return nil, err
