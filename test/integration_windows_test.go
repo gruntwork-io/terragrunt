@@ -28,9 +28,15 @@ func TestWindowsLocalWithRelativeExtraArgsWindows(t *testing.T) {
 // TestWindowsTerragruntSourceMapDebug copies the test/fixture-source-map directory to a new Windows path
 // and then ensures that the TERRAGRUNT_SOURCE_MAP env var can be used to swap out git sources for local modules
 func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
-	testCases := []string{
-		"multiple-match",
-		"multiple-with-dependency",
+	testCases := []struct {
+		name string
+	}{
+		{
+			name: "multiple-match",
+		},
+		{
+			name: "multiple-with-dependency",
+		},
 	}
 	for _, testCase := range testCases {
 		testCase := testCase
@@ -51,7 +57,7 @@ func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 					",",
 				),
 			)
-			tgPath := filepath.Join(rootPath, testCase)
+			tgPath := filepath.Join(rootPath, testCase.name)
 			tgArgs := fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", tgPath)
 			runTerragrunt(t, tgArgs)
 		})
