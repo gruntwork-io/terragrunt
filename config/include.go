@@ -35,17 +35,49 @@ func parseIncludedConfig(
 		includePath = util.JoinPath(filepath.Dir(terragruntOptions.TerragruntConfigPath), includePath)
 	}
 
-	// These condition are here to specifically handle the `run-all apply` command on a new deployment. During
-	// `run-all apply`, terragrunt needs to first build up the dependency graph to know what order to apply the modules
-	// in. For a completely new deployment, no outputs are available. This means that we can't parse anything that
-	// relies on a `dependency` during this stage, as the outputs are not materialized until later in the process when
-	// terragrunt actually starts applying the modules. To support this, we implement the following conditions for when
-	// terragrunt can fully parse the included config (only one needs to be true):
+	// These condition are here to specifically handle the `run-all` command. During any `run-all` call, terragrunt
+	// needs to first build up the dependency graph to know what order to process the modules in. We want to limit users
+	// from creating a dependency between the dependency path for graph generation, and a module output. This is because
+	// the outputs may not be available yet during the graph generation. E.g., consider a completely new deployment and
+	// `terragrunt run-all apply` is called. In this case, the outputs are expected to be materialized while terragrunt
+	// is running `apply` through the graph, but NOT when the dependency graph is first being formulated.
+	//
+	// To support this, we implement the following conditions for when terragrunt can fully parse the included config
+	// (only one needs to be true):
 	// - Included config does NOT have a dependency block.
 	// - Terragrunt is NOT performing a partial parse (which indicates whether or not Terragrunt is building a module
 	//   graph).
-	// To make the logic easier to implement, we implement the inverse here, where we check whether the included config
-	// has a dependency block, and if we are in the middle of a partial parse, we perform a partial parse of the
+	//
+	// These conditions are sufficient to avoid a situation where dependency block parsing relies on output fetching.
+	// Note that the user does not have to have a dynamic dependency path that directly depends on dependency outputs to
+	// cause this! For example, suppose the user has a dependency path that depends on an included input:
+	//
+	// include "root" {
+	//   path = find_in_parent_folders()
+	//   expose = true
+	// }
+	// dependency "dep" {
+	//   config_path = include.root.inputs.vpc_dir
+	// }
+	//
+	// In this example, the user the vpc_dir input may not directly depend on a dependency. However, what if the root
+	// config had other inputs that depended on a dependency? E.g.:
+	//
+	// inputs = {
+	//   vpc_dir = "../vpc"
+	//   vpc_id  = dependency.vpc.outputs.id
+	// }
+	//
+	// In this situation, terragrunt can not parse the included inputs attribute unless it fetches the `vpc` dependency
+	// outputs. Since the block parsing is transitive, it leads to a situation where terragrunt cannot parse the `dep`
+	// dependency block unless the `vpc` dependency has outputs (since we can't partially parse the `inputs` attribute).
+	// OTOH, if we know the included config has no `dependency` defined, then no matter what attribute is pulled in, we
+	// know that the `dependency` block path will never depend on dependency outputs. Hence, we perform a full
+	// parse of the included config in the graph generation stage only if the included config does NOT have a dependency
+	// block, but resort to a partial parse otherwise.
+	//
+	// NOTE: To make the logic easier to implement, we implement the inverse here, where we check whether the included
+	// config has a dependency block, and if we are in the middle of a partial parse, we perform a partial parse of the
 	// included config.
 	hasDependency, err := configFileHasDependencyBlock(includePath, terragruntOptions)
 	if err != nil {
