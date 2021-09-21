@@ -84,6 +84,10 @@ func parseIncludedConfig(
 		return nil, err
 	}
 	if hasDependency && len(decodeList) > 0 {
+		terragruntOptions.Logger.Warnf(
+			"Included config %s can only be partially parsed during dependency graph formation for run-all command as it has a dependency block.",
+			includePath,
+		)
 		return PartialParseConfigFile(includePath, terragruntOptions, includedConfig, decodeList)
 	}
 	return ParseConfigFile(includePath, terragruntOptions, includedConfig, dependencyOutputs)
