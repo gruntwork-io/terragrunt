@@ -479,6 +479,55 @@ func getSortedKeys(modules map[string]*TerraformModule) []string {
 	return keys
 }
 
+// FindWhereWorkingDirIsIncluded - find where working directory is included, flow:
+// 1. Find root git top level directory and build list of modules
+// 2. Iterate over includes from terragruntOptions if git top level directory detection failed
+// 3. Filter found module only items which has in dependencies working directory
+func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions) ([]*TerraformModule, error) {
+	var pathsToCheck []string
+	var matchedModulesMap = make(map[string]*TerraformModule)
+	var gitTopLevelDir = ""
+	gitTopLevelDir, err := shell.GitTopLevelDir(terragruntOptions.WorkingDir)
+	if err == nil { // top level detection worked
+		pathsToCheck = append(pathsToCheck, gitTopLevelDir)
+	} else { // detection failed, taking include directories
+		pathsToCheck = terragruntOptions.IncludeDirs
+	}
+	for _, dir := range pathsToCheck { // iterate over detected paths, build stacks and filter modules by working dir
+		dir = dir + filepath.FromSlash("/")
+		cfgOptions, err := options.NewTerragruntOptions(dir)
+		if err != nil {
+			return nil, err
+		}
+		stack, err := FindStackInSubfolders(cfgOptions)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, module := range stack.Modules {
+			for _, dep := range module.Dependencies {
+				var foundWorkingDir = false
+				if dep.Path == terragruntOptions.WorkingDir { // include in dependencies module which have in dependencies WorkingDir
+					matchedModulesMap[module.Path] = module
+					foundWorkingDir = true
+					break
+				}
+				if foundWorkingDir {
+					break
+				}
+			}
+		}
+	}
+
+	// extract modules as list
+	var matchedModules []*TerraformModule
+	for _, module := range matchedModulesMap {
+		matchedModules = append(matchedModules, module)
+	}
+
+	return matchedModules, nil
+}
+
 // Custom error types
 
 type UnrecognizedDependency struct {

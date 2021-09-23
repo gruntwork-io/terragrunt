@@ -207,9 +207,9 @@ func GitTopLevelDir(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	cmd, err := RunShellCommandWithOutput(opts, path, false, false, "git", "rev-parse", "--show-toplevel")
+	cmd, err := RunShellCommandWithOutput(opts, path, true, false, "git", "rev-parse", "--show-toplevel")
 	if err != nil {
 		return "", err
 	}
-	return cmd.Stdout, nil
+	return strings.TrimSpace(cmd.Stdout), nil
 }

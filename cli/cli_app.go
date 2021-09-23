@@ -665,6 +665,29 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 	}
 
 	return runActionWithHooks("terraform", terragruntOptions, terragruntConfig, func() error {
+		if terragruntOptions.TerraformCommand == "destroy" {
+			modules, err := configstack.FindWhereWorkingDirIsIncluded(terragruntOptions)
+			if err != nil {
+				terragruntOptions.Logger.Warnf("Failed to detect where module is used %v", err)
+			}
+			if len(modules) != 0 {
+				terragruntOptions.ErrWriter.Write([]byte("Detected dependent modules:\n"))
+				for _, module := range modules {
+					terragruntOptions.ErrWriter.Write([]byte(fmt.Sprintf("%s\n", module.Path)))
+				}
+
+				var prompt string
+				prompt = "WARNING: Are you sure you want to run `terragrunt destroy` ? Destroying current module may cause issues for dependent modules"
+				shouldRun, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
+				if err != nil {
+					return err
+				}
+				if shouldRun == false {
+					return nil
+				}
+			}
+		}
+
 		runTerraformError := runTerraformWithRetry(terragruntOptions)
 
 		var lockFileError error
