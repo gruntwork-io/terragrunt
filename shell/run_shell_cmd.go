@@ -200,3 +200,16 @@ type CmdOutput struct {
 	Stdout string
 	Stderr string
 }
+
+// GitTopLevelDir - fetch git repository path from passed directory
+func GitTopLevelDir(path string) (string, error) {
+	opts, err := options.NewTerragruntOptions(path)
+	if err != nil {
+		return "", err
+	}
+	cmd, err := RunShellCommandWithOutput(opts, path, false, false, "git", "rev-parse", "--show-toplevel")
+	if err != nil {
+		return "", err
+	}
+	return cmd.Stdout, nil
+}
