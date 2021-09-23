@@ -462,6 +462,20 @@ func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.Terrag
 		targetOptions.DownloadDir = downloadDir
 	}
 
+	// Validate and use TerragruntVersionConstraints.TerraformBinary for dependency
+	partialTerragruntConfig, err := PartialParseConfigFile(
+		targetConfig,
+		targetOptions,
+		nil,
+		[]PartialDecodeSectionType{TerragruntVersionConstraints},
+	)
+	if err != nil {
+		return nil, err
+	}
+	if terragruntOptions.TerraformPath == options.TERRAFORM_DEFAULT_PATH && partialTerragruntConfig.TerraformBinary != "" {
+		targetOptions.TerraformPath = partialTerragruntConfig.TerraformBinary
+	}
+
 	// If the Source is set, then we need to recompute it in the context of the target config.
 	if terragruntOptions.Source != "" {
 		// We need the terraform source of the target config to compute the actual source to use
