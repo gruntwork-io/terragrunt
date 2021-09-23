@@ -19,6 +19,13 @@ import (
 
 const (
 	TERRAGRUNT_DEBUG_FILE = "terragrunt-debug.tfvars.json"
+
+	fixtureRenderJSON = "fixture-render-json"
+)
+
+var (
+	fixtureRenderJSONMainModulePath = filepath.Join(fixtureRenderJSON, "main")
+	fixtureRenderJSONDepModulePath  = filepath.Join(fixtureRenderJSON, "dep")
 )
 
 func TestDebugGeneratedInputs(t *testing.T) {
@@ -141,6 +148,92 @@ func TestTerragruntValidateInputsWithStrictModeDisabledAndUnusedInputs(t *testin
 	moduleDir := filepath.Join("fixture-validate-inputs", "fail-unused-inputs")
 	args := []string{}
 	runTerragruntValidateInputs(t, moduleDir, args, true)
+}
+
+func TestRenderJSONConfig(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, err := ioutil.TempDir("", "terragrunt-render-json-*")
+	require.NoError(t, err)
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+	defer os.RemoveAll(tmpDir)
+
+	cleanupTerraformFolder(t, fixtureRenderJSONMainModulePath)
+	cleanupTerraformFolder(t, fixtureRenderJSONDepModulePath)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", fixtureRenderJSON))
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-json-out %s", fixtureRenderJSONMainModulePath, jsonOut))
+
+	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var rendered map[string]interface{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &rendered))
+
+	// Make sure all terraform block is visible
+	terraformBlock, hasTerraform := rendered["terraform"]
+	if assert.True(t, hasTerraform) {
+		source, hasSource := terraformBlock.(map[string]interface{})["source"]
+		require.True(t, hasSource)
+		assert.Equal(t, "./module", source)
+	}
+
+	// Make sure included remote_state is rendered out
+	remote_state, hasRemoteState := rendered["remote_state"]
+	if assert.True(t, hasRemoteState) {
+		assert.Equal(
+			t,
+			map[string]interface{}{
+				"backend": "local",
+				"generate": map[string]interface{}{
+					"path":      "backend.tf",
+					"if_exists": "overwrite_terragrunt",
+				},
+				"config": map[string]interface{}{
+					"path": "foo.tfstate",
+				},
+				"disable_init":                    false,
+				"disable_dependency_optimization": false,
+			},
+			remote_state.(map[string]interface{}),
+		)
+	}
+
+	// Make sure included dependency block is rendered out
+	generateBlocks, hasGenerate := rendered["generate"]
+	if assert.True(t, hasGenerate) {
+		assert.Equal(
+			t,
+			map[string]interface{}{
+				"provider": map[string]interface{}{
+					"path":              "provider.tf",
+					"comment_prefix":    "# ",
+					"disable_signature": false,
+					"if_exists":         "overwrite_terragrunt",
+					"contents": `provider "aws" {
+  region = "us-east-1"
+}
+`,
+				},
+			},
+			generateBlocks.(map[string]interface{}),
+		)
+	}
+
+	// Make sure all inputs are merged together
+	inputsBlock, hasInputs := rendered["inputs"]
+	if assert.True(t, hasInputs) {
+		assert.Equal(
+			t,
+			map[string]interface{}{
+				"env":        "qa",
+				"name":       "dep",
+				"type":       "main",
+				"aws_region": "us-east-1",
+			},
+			inputsBlock.(map[string]interface{}),
+		)
+	}
 }
 
 func runTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []string, isSuccessTest bool) {
