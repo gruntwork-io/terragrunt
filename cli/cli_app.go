@@ -52,6 +52,7 @@ const (
 	optTerragruntOverrideAttr                = "terragrunt-override-attr"
 	optTerragruntLogLevel                    = "terragrunt-log-level"
 	optTerragruntStrictValidate              = "terragrunt-strict-validate"
+	optTerragruntJSONOut                     = "terragrunt-json-out"
 )
 
 var allTerragruntBooleanOpts = []string{
@@ -83,6 +84,7 @@ var allTerragruntStringOpts = []string{
 	optTerragruntOverrideAttr,
 	optTerragruntLogLevel,
 	optTerragruntStrictValidate,
+	optTerragruntJSONOut,
 }
 
 const CMD_INIT = "init"
@@ -95,6 +97,7 @@ const CMD_TERRAGRUNT_GRAPH_DEPENDENCIES = "graph-dependencies"
 const CMD_TERRAGRUNT_READ_CONFIG = "terragrunt-read-config"
 const CMD_HCLFMT = "hclfmt"
 const CMD_AWS_PROVIDER_PATCH = "aws-provider-patch"
+const CMD_RENDER_JSON = "render-json"
 
 // START: Constants useful for multimodule command handling
 const CMD_RUN_ALL = "run-all"
@@ -213,6 +216,7 @@ COMMANDS:
    graph-dependencies    Prints the terragrunt dependency graph to stdout
    hclfmt                Recursively find hcl files and rewrite them into a canonical format.
    aws-provider-patch    Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018)
+   render-json           Render the final interpretted terragrunt config (including running functions and merging included configs) as json. This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.
    *                     Terragrunt forwards all other commands directly to Terraform
 
 GLOBAL OPTIONS:
@@ -240,6 +244,7 @@ GLOBAL OPTIONS:
    terragrunt-debug                             Write terragrunt-debug.tfvars to working folder to help root-cause issues.
    terragrunt-log-level                         Sets the logging level for Terragrunt. Supported levels: panic, fatal, error, warn (default), info, debug, trace.
    terragrunt-strict-validate                   Sets strict mode for the validate-inputs command. By default, strict mode is off. When this flag is passed, strict mode is turned on. When strict mode is turned off, the validate-inputs command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When strict mode is turned on, an error will be returned if required inputs are missing OR if unused variables are passed to Terragrunt.
+   terragrunt-json-out                          The file path that terragrunt should use when rendering the terragrunt.hcl config as json. Only used in the render-json command. Defaults to terragrunt_rendered.json.
 
 VERSION:
    {{.Version}}{{if len .Authors}}
@@ -363,6 +368,10 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	terragruntConfig, err := config.ReadTerragruntConfig(terragruntOptions)
 	if err != nil {
 		return err
+	}
+
+	if shouldRunRenderJSON(terragruntOptions) {
+		return runRenderJSON(terragruntOptions, terragruntConfig)
 	}
 
 	terragruntOptionsClone := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
@@ -579,6 +588,10 @@ func shouldValidateTerragruntInputs(terragruntOptions *options.TerragruntOptions
 
 func shouldRunHCLFmt(terragruntOptions *options.TerragruntOptions) bool {
 	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_HCLFMT)
+}
+
+func shouldRunRenderJSON(terragruntOptions *options.TerragruntOptions) bool {
+	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_RENDER_JSON)
 }
 
 func shouldApplyAwsProviderPatch(terragruntOptions *options.TerragruntOptions) bool {
