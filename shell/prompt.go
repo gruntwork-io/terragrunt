@@ -55,3 +55,16 @@ func PromptUserForYesNo(prompt string, terragruntOptions *options.TerragruntOpti
 		return false, nil
 	}
 }
+
+func PrintErrorOutput(prompt string, terragruntOptions *options.TerragruntOptions) error {
+	n, err := terragruntOptions.ErrWriter.Write([]byte(prompt))
+	if err != nil {
+		terragruntOptions.Logger.Error(err)
+		return errors.WithStackTrace(err)
+	}
+	if n != len(prompt) {
+		terragruntOptions.Logger.Errorln("Failed to write data")
+		return errors.WithStackTrace(err)
+	}
+	return nil
+}

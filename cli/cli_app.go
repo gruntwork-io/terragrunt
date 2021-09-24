@@ -666,26 +666,9 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 
 	return runActionWithHooks("terraform", terragruntOptions, terragruntConfig, func() error {
 		if terragruntOptions.TerraformCommand == "destroy" {
-
-			modules, err := configstack.FindWhereWorkingDirIsIncluded(terragruntOptions, terragruntConfig)
-			if err != nil {
-				terragruntOptions.Logger.Warnf("Failed to detect where module is used %v", err)
-			}
-			if len(modules) != 0 {
-				terragruntOptions.ErrWriter.Write([]byte("Detected dependent modules:\n"))
-				for _, module := range modules {
-					terragruntOptions.ErrWriter.Write([]byte(fmt.Sprintf("%s\n", module.Path)))
-				}
-
-				var prompt string
-				prompt = "WARNING: Are you sure you want to run `terragrunt destroy` ? Destroying current module may cause issues for dependent modules"
-				shouldRun, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
-				if err != nil {
-					return err
-				}
-				if shouldRun == false {
-					return nil
-				}
+			allowDestroy := warnDependentModulesBeforeDestroy(terragruntOptions, terragruntConfig)
+			if !allowDestroy {
+				return nil
 			}
 		}
 
@@ -705,6 +688,37 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 
 		return multierror.Append(runTerraformError, lockFileError).ErrorOrNil()
 	})
+}
+
+// warnDependentModulesBeforeDestroy - Show warning with list of dependent modules from current module before destroy
+func warnDependentModulesBeforeDestroy(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) bool {
+	modules, err := configstack.FindWhereWorkingDirIsIncluded(terragruntOptions, terragruntConfig)
+	if err != nil {
+		terragruntOptions.Logger.Warnf("Failed to detect where module is used %v", err)
+		return true
+	}
+	if len(modules) != 0 {
+		err = shell.PrintErrorOutput("Detected dependent modules:\n", terragruntOptions)
+		if err != nil {
+			terragruntOptions.Logger.Error(err)
+			return false
+		}
+		for _, module := range modules {
+			err = shell.PrintErrorOutput(fmt.Sprintf("%s\n", module.Path), terragruntOptions)
+			if err != nil {
+				terragruntOptions.Logger.Error(err)
+				return false
+			}
+		}
+		prompt := "WARNING: Are you sure you want to run `terragrunt destroy` ? Destroying current module may cause issues for dependent modules"
+		shouldRun, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
+		if err != nil {
+			terragruntOptions.Logger.Error(err)
+			return false
+		}
+		return shouldRun
+	}
+	return true
 }
 
 // Terraform 0.14 now manages a lock file for providers. This can be updated
