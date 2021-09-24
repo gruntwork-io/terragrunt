@@ -69,6 +69,11 @@ func handleInclude(
 			return nil, err
 		}
 
+		if config.ProcessedIncludes == nil {
+			config.ProcessedIncludes = make(map[string]string)
+		}
+		config.ProcessedIncludes[includeConfig.Name] = includeConfig.Path
+
 		switch mergeStrategy {
 		case NoMerge:
 			terragruntOptions.Logger.Debugf("Included config %s has strategy no merge: not merging config in.", includeConfig.Path)
@@ -264,6 +269,15 @@ func (targetConfig *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terr
 	if sourceConfig.Inputs != nil {
 		targetConfig.Inputs = mergeInputs(sourceConfig.Inputs, targetConfig.Inputs)
 	}
+
+	if sourceConfig.ProcessedIncludes != nil {
+		if targetConfig.ProcessedIncludes == nil {
+			targetConfig.ProcessedIncludes = make(map[string]string)
+		}
+		for key, val := range sourceConfig.ProcessedIncludes {
+			targetConfig.ProcessedIncludes[key] = val
+		}
+	}
 }
 
 // DeepMerge performs a deep merge of the given sourceConfig into the targetConfig. Deep merge is defined as follows:
@@ -367,6 +381,18 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 	for key, val := range sourceConfig.GenerateConfigs {
 		targetConfig.GenerateConfigs[key] = val
 	}
+
+	if sourceConfig.ProcessedIncludes != nil {
+
+		if targetConfig.ProcessedIncludes == nil {
+			targetConfig.ProcessedIncludes = make(map[string]string)
+		}
+
+		for key, val := range sourceConfig.ProcessedIncludes {
+			targetConfig.ProcessedIncludes[key] = val
+		}
+	}
+
 	return nil
 }
 

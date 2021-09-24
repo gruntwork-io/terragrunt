@@ -666,7 +666,8 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 
 	return runActionWithHooks("terraform", terragruntOptions, terragruntConfig, func() error {
 		if terragruntOptions.TerraformCommand == "destroy" {
-			modules, err := configstack.FindWhereWorkingDirIsIncluded(terragruntOptions)
+
+			modules, err := configstack.FindWhereWorkingDirIsIncluded(terragruntOptions, terragruntConfig)
 			if err != nil {
 				terragruntOptions.Logger.Warnf("Failed to detect where module is used %v", err)
 			}

@@ -47,7 +47,7 @@ type TerragruntConfig struct {
 	RetryableErrors             []string
 	RetryMaxAttempts            *int
 	RetrySleepIntervalSec       *int
-
+	ProcessedIncludes           map[string]string // Map of processed includes include_name:path
 	// Indicates whether or not this is the result of a partial evaluation
 	IsPartial bool
 }

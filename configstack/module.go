@@ -483,15 +483,21 @@ func getSortedKeys(modules map[string]*TerraformModule) []string {
 // 1. Find root git top level directory and build list of modules
 // 2. Iterate over includes from terragruntOptions if git top level directory detection failed
 // 3. Filter found module only items which has in dependencies working directory
-func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions) ([]*TerraformModule, error) {
+func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) ([]*TerraformModule, error) {
 	var pathsToCheck []string
 	var matchedModulesMap = make(map[string]*TerraformModule)
 	var gitTopLevelDir = ""
 	gitTopLevelDir, err := shell.GitTopLevelDir(terragruntOptions.WorkingDir)
 	if err == nil { // top level detection worked
 		pathsToCheck = append(pathsToCheck, gitTopLevelDir)
-	} else { // detection failed, taking include directories
-		pathsToCheck = terragruntOptions.IncludeDirs
+	} else { // detection failed, trying to use include directories as source for stacks
+		uniquePaths := make(map[string]bool)
+		for _, includePath := range terragruntConfig.ProcessedIncludes {
+			uniquePaths[filepath.Dir(includePath)] = true
+		}
+		for path := range uniquePaths {
+			pathsToCheck = append(pathsToCheck, path)
+		}
 	}
 	for _, dir := range pathsToCheck { // iterate over detected paths, build stacks and filter modules by working dir
 		dir = dir + filepath.FromSlash("/")

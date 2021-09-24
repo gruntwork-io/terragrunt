@@ -120,6 +120,14 @@ func terragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output["locals"] = localsCty
 	}
 
+	processedIncludes, err := goTypeToCty(config.ProcessedIncludes)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	if processedIncludes != cty.NilVal {
+		output["processedIncludes"] = processedIncludes
+	}
+
 	return convertValuesMapToCtyVal(output)
 }
 
