@@ -4354,6 +4354,5 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	assert.NoError(t, err)
 
 	output := string(stderr.Bytes())
-	fmt.Printf("stdout: %s\n", output)
 	assert.Equal(t, 1, strings.Count(output, appPath))
 }
