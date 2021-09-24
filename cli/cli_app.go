@@ -333,6 +333,9 @@ func runCommand(command string, terragruntOptions *options.TerragruntOptions) (f
 	if command == CMD_RUN_ALL {
 		return runAll(terragruntOptions)
 	}
+	if command == "destroy" {
+		terragruntOptions.CheckDependentModules = true
+	}
 	return RunTerragrunt(terragruntOptions)
 }
 
@@ -489,6 +492,12 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
+	if terragruntOptions.CheckDependentModules {
+		allowDestroy := confirmActionWithDependentModules(terragruntOptions, terragruntConfig)
+		if !allowDestroy {
+			return nil
+		}
+	}
 	return runTerragruntWithConfig(terragruntOptions, updatedTerragruntOptions, terragruntConfig, false)
 }
 
@@ -665,13 +674,6 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 	}
 
 	return runActionWithHooks("terraform", terragruntOptions, terragruntConfig, func() error {
-		if terragruntOptions.TerraformCommand == "destroy" {
-			allowDestroy := warnDependentModulesBeforeDestroy(terragruntOptions, terragruntConfig)
-			if !allowDestroy {
-				return nil
-			}
-		}
-
 		runTerraformError := runTerraformWithRetry(terragruntOptions)
 
 		var lockFileError error
@@ -690,8 +692,8 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 	})
 }
 
-// warnDependentModulesBeforeDestroy - Show warning with list of dependent modules from current module before destroy
-func warnDependentModulesBeforeDestroy(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) bool {
+// confirmActionWithDependentModules - Show warning with list of dependent modules from current module before destroy
+func confirmActionWithDependentModules(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) bool {
 	modules, err := configstack.FindWhereWorkingDirIsIncluded(terragruntOptions, terragruntConfig)
 	if err != nil {
 		terragruntOptions.Logger.Warnf("Failed to detect where module is used %v", err)
@@ -710,7 +712,7 @@ func warnDependentModulesBeforeDestroy(terragruntOptions *options.TerragruntOpti
 				return false
 			}
 		}
-		prompt := "WARNING: Are you sure you want to run `terragrunt destroy` ? Destroying current module may cause issues for dependent modules"
+		prompt := "WARNING: Are you sure you want to continue?"
 		shouldRun, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
 		if err != nil {
 			terragruntOptions.Logger.Error(err)
