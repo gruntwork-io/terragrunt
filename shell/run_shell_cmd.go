@@ -202,12 +202,14 @@ type CmdOutput struct {
 }
 
 // GitTopLevelDir - fetch git repository path from passed directory
-func GitTopLevelDir(path string) (string, error) {
+func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (string, error) {
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
 	opts, err := options.NewTerragruntOptions(path)
-	if err != nil {
-		return "", err
-	}
+	opts.Writer = &stdout
+	opts.ErrWriter = &stderr
 	cmd, err := RunShellCommandWithOutput(opts, path, true, false, "git", "rev-parse", "--show-toplevel")
+	terragruntOptions.Logger.Debugf("git show-toplevel result: \n%v\n%v\n", (string)(stdout.Bytes()), (string)(stderr.Bytes()))
 	if err != nil {
 		return "", err
 	}

@@ -487,7 +487,7 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 	var pathsToCheck []string
 	var matchedModulesMap = make(map[string]*TerraformModule)
 	var gitTopLevelDir = ""
-	gitTopLevelDir, err := shell.GitTopLevelDir(terragruntOptions.WorkingDir)
+	gitTopLevelDir, err := shell.GitTopLevelDir(terragruntOptions, terragruntOptions.WorkingDir)
 	if err == nil { // top level detection worked
 		pathsToCheck = append(pathsToCheck, gitTopLevelDir)
 	} else { // detection failed, trying to use include directories as source for stacks
