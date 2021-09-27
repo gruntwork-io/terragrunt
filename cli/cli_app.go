@@ -462,9 +462,9 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		if err := terragruntConfig.RemoteState.GenerateTerraformCode(updatedTerragruntOptions); err != nil {
 			return err
 		}
-	}
-
-	if terragruntConfig.RemoteState != nil {
+	} else if terragruntConfig.RemoteState != nil {
+		// We use else if here because we don't need to check the backend configuration is defined when the remote state
+		// block has a `generate` attribute configured.
 		if err := checkTerraformCodeDefinesBackend(updatedTerragruntOptions, terragruntConfig.RemoteState.Backend); err != nil {
 			return err
 		}
