@@ -700,17 +700,9 @@ func confirmActionWithDependentModules(terragruntOptions *options.TerragruntOpti
 		return true
 	}
 	if len(modules) != 0 {
-		err = shell.PrintErrorOutput("Detected dependent modules:\n", terragruntOptions)
-		if err != nil {
-			terragruntOptions.Logger.Error(err)
-			return false
-		}
+		terragruntOptions.ErrWriter.Write([]byte("Detected dependent modules:\n"))
 		for _, module := range modules {
-			err = shell.PrintErrorOutput(fmt.Sprintf("%s\n", module.Path), terragruntOptions)
-			if err != nil {
-				terragruntOptions.Logger.Error(err)
-				return false
-			}
+			terragruntOptions.ErrWriter.Write([]byte(fmt.Sprintf("%s\n", module.Path)))
 		}
 		prompt := "WARNING: Are you sure you want to continue?"
 		shouldRun, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
