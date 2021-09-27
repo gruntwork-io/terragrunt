@@ -47,9 +47,13 @@ type TerragruntConfig struct {
 	RetryableErrors             []string
 	RetryMaxAttempts            *int
 	RetrySleepIntervalSec       *int
-	ProcessedIncludes           map[string]string // Map of processed includes include_name:path
+
+	// Fields used for internal tracking
 	// Indicates whether or not this is the result of a partial evaluation
 	IsPartial bool
+
+	// Map of processed includes
+	ProcessedIncludes map[string]IncludeConfig
 }
 
 func (conf *TerragruntConfig) String() string {
@@ -633,7 +637,10 @@ func ParseConfigString(
 
 	// If this file includes another, parse and merge it.  Otherwise just return this config.
 	if trackInclude != nil {
-		return handleInclude(config, trackInclude, terragruntOptions, contextExtensions.DecodedDependencies)
+		config, err := handleInclude(config, trackInclude, terragruntOptions, contextExtensions.DecodedDependencies)
+		// Saving processed includes into configuration, direct assignment since nested includes aren't supported
+		config.ProcessedIncludes = trackInclude.CurrentMap
+		return config, err
 	}
 	return config, nil
 }

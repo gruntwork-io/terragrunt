@@ -493,7 +493,7 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 	} else { // detection failed, trying to use include directories as source for stacks
 		uniquePaths := make(map[string]bool)
 		for _, includePath := range terragruntConfig.ProcessedIncludes {
-			uniquePaths[filepath.Dir(includePath)] = true
+			uniquePaths[filepath.Dir(includePath.Path)] = true
 		}
 		for path := range uniquePaths {
 			pathsToCheck = append(pathsToCheck, path)
@@ -512,13 +512,8 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 
 		for _, module := range stack.Modules {
 			for _, dep := range module.Dependencies {
-				var foundWorkingDir = false
 				if dep.Path == terragruntOptions.WorkingDir { // include in dependencies module which have in dependencies WorkingDir
 					matchedModulesMap[module.Path] = module
-					foundWorkingDir = true
-					break
-				}
-				if foundWorkingDir {
 					break
 				}
 			}
