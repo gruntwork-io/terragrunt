@@ -371,7 +371,6 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 	}
 
 	targetConfig.ProcessedIncludes = sourceConfig.ProcessedIncludes
-
 	return nil
 }
 
