@@ -216,7 +216,7 @@ COMMANDS:
    graph-dependencies    Prints the terragrunt dependency graph to stdout
    hclfmt                Recursively find hcl files and rewrite them into a canonical format.
    aws-provider-patch    Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018)
-   render-json           Render the final interpretted terragrunt config (including running functions and merging included configs) as json. This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.
+   render-json           Render the final terragrunt config, with all variables, includes, and functions resolved, as json. This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.
    *                     Terragrunt forwards all other commands directly to Terraform
 
 GLOBAL OPTIONS:
