@@ -201,6 +201,8 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "generate", true
 	case "IsPartial":
 		return "", false
+	case "ProcessedIncludes":
+		return "", false
 	case "RetryableErrors":
 		return "retryable_errors", true
 	case "RetryMaxAttempts":
