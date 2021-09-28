@@ -100,7 +100,6 @@ func DecodeBaseBlocks(
 	includeFromChild *IncludeConfig,
 	decodeList []PartialDecodeSectionType,
 ) (*cty.Value, *TrackInclude, error) {
-
 	// Decode just the `include` and `import` blocks, and verify that it's allowed here
 	terragruntIncludeList, err := decodeAsTerragruntInclude(
 		hclFile,
