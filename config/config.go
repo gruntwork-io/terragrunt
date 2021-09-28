@@ -601,17 +601,8 @@ func ParseConfigString(
 
 	// Initial evaluation of configuration to load flags like IamRole which will be used for final parsing
 	// https://github.com/gruntwork-io/terragrunt/issues/667
-	if terragruntOptions.IamRole == "" {
-		iamConfig, err := PartialParseConfigString(configString, terragruntOptions, nil, filename, []PartialDecodeSectionType{TerragruntFlags})
-		if err != nil {
-			return nil, err
-		}
-		if iamConfig.IamRole != "" {
-			terragruntOptions.IamRole = iamConfig.IamRole
-		}
-		if iamConfig.IamAssumeRoleDuration != nil {
-			terragruntOptions.IamAssumeRoleDuration = *iamConfig.IamAssumeRoleDuration
-		}
+	if err := extractIamRole(configString, terragruntOptions, filename); err != nil {
+		return nil, err
 	}
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
@@ -660,6 +651,23 @@ func ParseConfigString(
 		return config, err
 	}
 	return config, nil
+}
+
+// extractIamRole - extract IAM role details from Terragrunt flags block
+func extractIamRole(configString string, terragruntOptions *options.TerragruntOptions, filename string) error {
+	if terragruntOptions.IamRole == "" {
+		iamConfig, err := PartialParseConfigString(configString, terragruntOptions, nil, filename, []PartialDecodeSectionType{TerragruntFlags})
+		if err != nil {
+			return err
+		}
+		if iamConfig.IamRole != "" {
+			terragruntOptions.IamRole = iamConfig.IamRole
+		}
+		if iamConfig.IamAssumeRoleDuration != nil {
+			terragruntOptions.IamAssumeRoleDuration = *iamConfig.IamAssumeRoleDuration
+		}
+	}
+	return nil
 }
 
 func decodeAsTerragruntConfigFile(
