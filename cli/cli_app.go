@@ -25,62 +25,64 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-const OPT_TERRAGRUNT_CONFIG = "terragrunt-config"
-const OPT_TERRAGRUNT_TFPATH = "terragrunt-tfpath"
-const OPT_TERRAGRUNT_NO_AUTO_INIT = "terragrunt-no-auto-init"
-const OPT_TERRAGRUNT_NO_AUTO_RETRY = "terragrunt-no-auto-retry"
-const OPT_NON_INTERACTIVE = "terragrunt-non-interactive"
-const OPT_WORKING_DIR = "terragrunt-working-dir"
-const OPT_DOWNLOAD_DIR = "terragrunt-download-dir"
-const OPT_TERRAGRUNT_SOURCE = "terragrunt-source"
-const OPT_TERRAGRUNT_SOURCE_MAP = "terragrunt-source-map"
-const OPT_TERRAGRUNT_SOURCE_UPDATE = "terragrunt-source-update"
-const OPT_TERRAGRUNT_IAM_ROLE = "terragrunt-iam-role"
-const OPT_TERRAGRUNT_IAM_ASSUME_ROLE_DURATION = "terragrunt-iam-assume-role-duration"
-const OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS = "terragrunt-ignore-dependency-errors"
-const OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ORDER = "terragrunt-ignore-dependency-order"
-const OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES = "terragrunt-ignore-external-dependencies"
-const OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES = "terragrunt-include-external-dependencies"
-const OPT_TERRAGRUNT_EXCLUDE_DIR = "terragrunt-exclude-dir"
-const OPT_TERRAGRUNT_INCLUDE_DIR = "terragrunt-include-dir"
-const OPT_TERRAGRUNT_STRICT_INCLUDE = "terragrunt-strict-include"
-const OPT_TERRAGRUNT_PARALLELISM = "terragrunt-parallelism"
-const OPT_TERRAGRUNT_CHECK = "terragrunt-check"
-const OPT_TERRAGRUNT_HCLFMT_FILE = "terragrunt-hclfmt-file"
-const OPT_TERRAGRUNT_DEBUG = "terragrunt-debug"
-const OPT_TERRAGRUNT_OVERRIDE_ATTR = "terragrunt-override-attr"
-const OPT_TERRAGRUNT_LOGLEVEL = "terragrunt-log-level"
-const OPT_TERRAGRUNT_STRICT_VALIDATE = "terragrunt-strict-validate"
+const (
+	optTerragruntConfig                      = "terragrunt-config"
+	optTerragruntTFPath                      = "terragrunt-tfpath"
+	optTerragruntNoAutoInit                  = "terragrunt-no-auto-init"
+	optTerragruntNoAutoRetry                 = "terragrunt-no-auto-retry"
+	optNonInteractive                        = "terragrunt-non-interactive"
+	optWorkingDir                            = "terragrunt-working-dir"
+	optDownloadDir                           = "terragrunt-download-dir"
+	optTerragruntSource                      = "terragrunt-source"
+	optTerragruntSourceMap                   = "terragrunt-source-map"
+	optTerragruntSourceUpdate                = "terragrunt-source-update"
+	optTerragruntIAMRole                     = "terragrunt-iam-role"
+	optTerragruntIAMAssumeRoleDuration       = "terragrunt-iam-assume-role-duration"
+	optTerragruntIgnoreDependencyErrors      = "terragrunt-ignore-dependency-errors"
+	optTerragruntIgnoreDependencyOrder       = "terragrunt-ignore-dependency-order"
+	optTerragruntIgnoreExternalDependencies  = "terragrunt-ignore-external-dependencies"
+	optTerragruntIncludeExternalDependencies = "terragrunt-include-external-dependencies"
+	optTerragruntExcludeDir                  = "terragrunt-exclude-dir"
+	optTerragruntIncludeDir                  = "terragrunt-include-dir"
+	optTerragruntStrictInclude               = "terragrunt-strict-include"
+	optTerragruntParallelism                 = "terragrunt-parallelism"
+	optTerragruntCheck                       = "terragrunt-check"
+	optTerragruntHCLFmt                      = "terragrunt-hclfmt-file"
+	optTerragruntDebug                       = "terragrunt-debug"
+	optTerragruntOverrideAttr                = "terragrunt-override-attr"
+	optTerragruntLogLevel                    = "terragrunt-log-level"
+	optTerragruntStrictValidate              = "terragrunt-strict-validate"
+)
 
-var ALL_TERRAGRUNT_BOOLEAN_OPTS = []string{
-	OPT_NON_INTERACTIVE,
-	OPT_TERRAGRUNT_SOURCE_UPDATE,
-	OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS,
-	OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ORDER,
-	OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES,
-	OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES,
-	OPT_TERRAGRUNT_NO_AUTO_INIT,
-	OPT_TERRAGRUNT_NO_AUTO_RETRY,
-	OPT_TERRAGRUNT_CHECK,
-	OPT_TERRAGRUNT_STRICT_INCLUDE,
-	OPT_TERRAGRUNT_DEBUG,
+var allTerragruntBooleanOpts = []string{
+	optNonInteractive,
+	optTerragruntSourceUpdate,
+	optTerragruntIgnoreDependencyErrors,
+	optTerragruntIgnoreDependencyOrder,
+	optTerragruntIgnoreExternalDependencies,
+	optTerragruntIncludeExternalDependencies,
+	optTerragruntNoAutoInit,
+	optTerragruntNoAutoRetry,
+	optTerragruntCheck,
+	optTerragruntStrictInclude,
+	optTerragruntDebug,
 }
-var ALL_TERRAGRUNT_STRING_OPTS = []string{
-	OPT_TERRAGRUNT_CONFIG,
-	OPT_TERRAGRUNT_TFPATH,
-	OPT_WORKING_DIR,
-	OPT_DOWNLOAD_DIR,
-	OPT_TERRAGRUNT_SOURCE,
-	OPT_TERRAGRUNT_SOURCE_MAP,
-	OPT_TERRAGRUNT_IAM_ROLE,
-	OPT_TERRAGRUNT_IAM_ASSUME_ROLE_DURATION,
-	OPT_TERRAGRUNT_EXCLUDE_DIR,
-	OPT_TERRAGRUNT_INCLUDE_DIR,
-	OPT_TERRAGRUNT_PARALLELISM,
-	OPT_TERRAGRUNT_HCLFMT_FILE,
-	OPT_TERRAGRUNT_OVERRIDE_ATTR,
-	OPT_TERRAGRUNT_LOGLEVEL,
-	OPT_TERRAGRUNT_STRICT_VALIDATE,
+var allTerragruntStringOpts = []string{
+	optTerragruntConfig,
+	optTerragruntTFPath,
+	optWorkingDir,
+	optDownloadDir,
+	optTerragruntSource,
+	optTerragruntSourceMap,
+	optTerragruntIAMRole,
+	optTerragruntIAMAssumeRoleDuration,
+	optTerragruntExcludeDir,
+	optTerragruntIncludeDir,
+	optTerragruntParallelism,
+	optTerragruntHCLFmt,
+	optTerragruntOverrideAttr,
+	optTerragruntLogLevel,
+	optTerragruntStrictValidate,
 }
 
 const CMD_INIT = "init"

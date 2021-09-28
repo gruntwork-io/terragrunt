@@ -46,7 +46,7 @@ import (
 // temporarily hard-coding them, we can allow 'import' to work.
 func applyAwsProviderPatch(terragruntOptions *options.TerragruntOptions) error {
 	if len(terragruntOptions.AwsProviderPatchOverrides) == 0 {
-		return errors.WithStackTrace(MissingOverrides(OPT_TERRAGRUNT_OVERRIDE_ATTR))
+		return errors.WithStackTrace(MissingOverrides(optTerragruntOverrideAttr))
 	}
 
 	terraformFilesInModules, err := findAllTerraformFilesInModules(terragruntOptions)
