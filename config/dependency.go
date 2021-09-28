@@ -345,6 +345,12 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 		return dependencyConfig.MockOutputs, nil
 	}
 
+	// In case of init, and empty output, skip generating error about missing outputs
+	// https://github.com/gruntwork-io/terragrunt/issues/1499
+	if dependencyConfig.shouldGetOutputs() && terragruntOptions.AutoInit {
+		return nil, nil
+	}
+
 	err := TerragruntOutputTargetNoOutputs{
 		targetConfig:  targetConfig,
 		currentConfig: currentConfig,
@@ -454,6 +460,20 @@ func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.Terrag
 			return nil, errors.WithStackTrace(err)
 		}
 		targetOptions.DownloadDir = downloadDir
+	}
+
+	// Validate and use TerragruntVersionConstraints.TerraformBinary for dependency
+	partialTerragruntConfig, err := PartialParseConfigFile(
+		targetConfig,
+		targetOptions,
+		nil,
+		[]PartialDecodeSectionType{TerragruntVersionConstraints},
+	)
+	if err != nil {
+		return nil, err
+	}
+	if terragruntOptions.TerraformPath == options.TERRAFORM_DEFAULT_PATH && partialTerragruntConfig.TerraformBinary != "" {
+		targetOptions.TerraformPath = partialTerragruntConfig.TerraformBinary
 	}
 
 	// If the Source is set, then we need to recompute it in the context of the target config.

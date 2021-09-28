@@ -52,9 +52,16 @@ The `terraform` block supports the following arguments:
       registry (`registry.terraform.io`) if you use `tfr:///` (note the three `/`). For example, the following will
       fetch the `terraform-aws-modules/vpc/aws` module from the public registry:
       `tfr:///terraform-aws-modules/vpc/aws?version=3.3.0`.
+    - You can also use submodules from the registry using `//`. For example, to use the `iam-policy` submodule from the
+      registry module
+      [terraform-aws-modules/iam](https://registry.terraform.io/modules/terraform-aws-modules/iam/aws/latest), you can
+      use the following: `tfr:///terraform-aws-modules/iam/aws//modules/iam-policy?version=4.3.0`.
+    - Refer to [A note about using modules from the
+      registry]({{site.baseurl}}/docs/getting-started/quick-start#a-note-about-using-modules-from-the-registry) for more
+      information about using modules from the Terraform Registry with Terragrunt.
 
 - `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `terraform` CLI. Learn more
-  about its usage in the [Keep your CLI flags DRY](/docs/features/keep-your-cli-flags-dry/) use case overview. Supports
+  about its usage in the [Keep your CLI flags DRY]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/) use case overview. Supports
   the following arguments:
     - `arguments` (required) : A list of CLI arguments to pass to `terraform`.
     - `commands` (required) : A list of `terraform` sub commands that the arguments will be passed to.
@@ -184,6 +191,58 @@ terraform {
   }
 }
 ```
+
+#### A note about using modules from the registry
+
+The key design of Terragrunt is to act as a preprocessor to convert **shared service modules** in the registry into a **root
+module**. In Terraform, modules can be loosely categorized into two types:
+
+* **Root Module**: A Terraform module that is designed for running `terraform init` and the other workflow commands
+  (`apply`, `plan`, etc). This is the entrypoint module for deploying your infrastructure. Root modules are identified
+  by the presence of key blocks that setup configuration about how Terraform behaves, like `backend` blocks (for
+  configuring state) and `provider` blocks (for configuring how Terraform interacts with the cloud APIs).
+* **Shared Module**: A Terraform module that is designed to be included in other Terraform modules through `module`
+  blocks. These modules are missing many of the key blocks that are required for running the workflow commands of
+  terraform.
+
+Terragrunt further distinguishes shared modules between **service modules** and **modules**:
+
+* **Shared Service Module**: A Terraform module that is designed to be standalone and applied directly. These modules
+  are not root modules in that they are still missing the key blocks like `backend` and `provider`, but aside from that
+  do not need any additional configuration or composition to deploy. For example, the
+  [terraform-aws-modules/vpc](https://registry.terraform.io/modules/terraform-aws-modules/vpc/aws/latest) module can be
+  deployed by itself without composing with other modules or resources.
+* **Shared Module**: A Terraform module that is designed to be composed with other modules. That is, these modules must
+  be embedded in another Terraform module and combined with other resources or modules. For example, the
+  [consul-security-group-rules
+  module](https://registry.terraform.io/modules/hashicorp/consul/aws/latest/submodules/consul-security-group-rules)
+
+Terragrunt started off with features that help directly deploy **Root Modules**, but over the years have implemented
+many features that allow you to turn **Shared Service Modules** into **Root Modules**  by injecting the key configuration
+blocks that are necessary for Terraform modules to act as **Root Modules**.
+
+Modules on the Terraform Registry are primarily designed to be used as **Shared Modules**. That is, you won't be able to
+`git clone` the underlying repository and run `terraform init` or `apply` directly on the module without modification.
+Unless otherwise specified, almost all the modules will require composition with other modules/resources to deploy.
+When using modules in the registry, it helps to think about what blocks and resources are necessary to operate the
+module, and translating those into Terragrunt blocks that generate them.
+
+Note that in many cases, Terragrunt may not be able to deploy modules from the registry. While Terragrunt has features
+to turn any **Shared Module** into a **Root Module**, there are two key technical limitations that prevent Terragrunt
+from converting ALL shared modules:
+
+- Every complex input must have a `type` associated with it. Otherwise, Terraform will interpret the input that
+  Terragrunt passes through as `string`. This includes `list` and `map`.
+- Derived sensitive outputs must be marked as `sensitive`. Refer to the [terraform tutorial on sensitive
+  variables](https://learn.hashicorp.com/tutorials/terraform/sensitive-variables#reference-sensitive-variables) for more
+  information on this requirement.
+
+**If you run into issues deploying a module from the registry, chances are that module is not a Shared Service Module,
+and thus not designed for use with Terragrunt. Depending on the technical limitation, Terragrunt may be able to
+support the transition to root module. Please always file [an issue on the terragrunt
+repository](https://github.com/gruntwork-io/terragrunt/issues) with the module + error message you are encountering,
+instead of the module repository.**
+
 
 
 ### remote_state
@@ -448,6 +507,105 @@ inputs = {
   region              = include.region.region
 }
 ```
+
+**Limitations on accessing exposed config**
+
+In general, you can access all attributes on `include` when they are exposed (e.g., `include.locals`, `include.inputs`,
+etc).
+
+However, to support `run-all`, Terragrunt is unable to expose all attributes when the included config has a `dependency`
+block. To understand this, consider the following example:
+
+_root terragrunt.hcl_
+```hcl
+dependency "vpc" {
+  config_path = "${get_terragrunt_dir()}/../vpc"
+}
+
+inputs = {
+  vpc_name = dependency.vpc.outputs.name
+}
+```
+
+_child terragrunt.hcl_
+```hcl
+include "root" {
+  path   = find_in_parent_folders()
+  expose = true
+}
+
+dependency "alb" {
+  config_path = (
+    include.root.inputs.vpc_name == "mgmt"
+    ? "../alb-public"
+    : "../alb-private"
+  )
+}
+
+input = {
+  alb_id = dependency.alb.outputs.id
+}
+```
+
+In the child `terragrunt.hcl`, the `dependency` path for the `alb` depends on whether the VPC is the `mgmt` VPC or not,
+which is determined by the `dependency.vpc` in the root config. This means that the ourput from `dependency.vpc` must be
+available to parse the `dependency.alb` config.
+
+This causes problems when performing a `run-all apply` operation. During a `run-all` operation, Terragrunt first parses
+all the `dependency` blocks to build a dependency tree of the Terragrunt modules to figure out the order of operations.
+If all the paths are static references, then Terragrunt can determine all the dependency paths before any module has
+been applied. In this case there is no problem even if other config blocks access `dependency`, as by the time
+Terragrunt needs to parse those blocks, the upstream dependencies would have been applied during the `run-all apply`.
+
+However, if those `dependency` blocks depend on upstream dependencies, then there is a problem as Terragrunt would not
+be able to build the dependency tree without the upstream dependencies being applied.
+
+Therefore, to ensure that Terragrunt can build the dependency tree in a `run-all` operation, Terragrunt enforces the
+following limitation to exposed `include` config:
+
+If the included configuration has any `dependency` blocks, only `locals` and `include` are exposed and available to the
+child `include` and `dependency` blocks. There are no restrictions for other blocks in the child config (e.g., you can
+reference `inputs` from the included config in child `inputs`).
+
+Otherwise, if the included config has no `dependency` blocks, there is no restriction on which exposed attributes you
+can access.
+
+For example, the following alternative configuration is valid even if the alb dependency is still accessing the `inputs`
+attribute from the included config:
+
+_root terragrunt.hcl_
+```hcl
+inputs = {
+  vpc_name = "mgmt"
+}
+```
+
+_child terragrunt.hcl_
+```hcl
+include "root" {
+  path   = find_in_parent_folders()
+  expose = true
+}
+
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+dependency "alb" {
+  config_path = (
+    include.root.inputs.vpc_name == "mgmt"
+    ? "../alb-public"
+    : "../alb-private"
+  )
+}
+
+input = {
+  vpc_name = dependency.vpc.outputs.name
+  alb_id   = dependency.alb.outputs.id
+}
+```
+
+
 
 **What is deep merge?**
 

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"os"
 	"path"
@@ -12,6 +13,7 @@ import (
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/mitchellh/mapstructure"
 	"github.com/sirupsen/logrus"
 	"github.com/zclconf/go-cty/cty"
@@ -856,9 +858,9 @@ func validateDependencies(terragruntOptions *options.TerragruntOptions, dependen
 		return nil
 	}
 	for _, dependencyPath := range dependencies.Paths {
-		fullPath := dependencyPath
-		if !filepath.IsAbs(dependencyPath) {
-			fullPath = path.Join(terragruntOptions.WorkingDir, dependencyPath)
+		fullPath := filepath.FromSlash(dependencyPath)
+		if !filepath.IsAbs(fullPath) {
+			fullPath = path.Join(terragruntOptions.WorkingDir, fullPath)
 		}
 		if !util.IsDir(fullPath) {
 			missingDependencies = append(missingDependencies, fmt.Sprintf("%s (%s)", dependencyPath, fullPath))
@@ -888,6 +890,30 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 		return DuplicatedGenerateBlocks{duplicatedGenerateBlockNames}
 	}
 	return nil
+}
+
+// configFileHasDependencyBlock statically checks the terrragrunt config file at the given path and checks if it has any
+// dependency or dependencies blocks defined. Note that this does not do any decoding of the blocks, as it is only meant
+// to check for block presence.
+func configFileHasDependencyBlock(configPath string, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	configBytes, err := ioutil.ReadFile(configPath)
+	if err != nil {
+		return false, errors.WithStackTrace(err)
+	}
+
+	// We use hclwrite to parse the config instead of the normal parser because the normal parser doesn't give us an AST
+	// that we can walk and scan, and requires structured data to map against. This makes the parsing strict, so to
+	// avoid weird parsing errors due to missing dependency data, we do a structural scan here.
+	hclFile, diags := hclwrite.ParseConfig(configBytes, configPath, hcl.InitialPos)
+	if diags.HasErrors() {
+		return false, errors.WithStackTrace(diags)
+	}
+	for _, block := range hclFile.Body().Blocks() {
+		if block.Type() == "dependency" || block.Type() == "dependencies" {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // Custom error types
