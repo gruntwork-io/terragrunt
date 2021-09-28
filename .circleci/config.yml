@@ -27,7 +27,7 @@ jobs:
           shell: powershell.exe
           no_output_timeout: 45m
           command: |
-            # We're running this test only on Windows currently to provide a convenient 
+            # We're running this test only on Windows currently to provide a convenient
             # means of reproducing Terragrunt issues that only occur on that platform
             go test -v ./... -run TestWindowsTerragruntSourceMapDebug -timeout 45m
   # We're running unit tests separately from integration tests - with no parallelization.
@@ -120,9 +120,6 @@ workflows:
             - Gruntwork Admin
             - Gruntwork GCP
       - build:
-          requires:
-            - unit_test
-            - integration_test
           filters:
             tags:
               only: /^v.*/
