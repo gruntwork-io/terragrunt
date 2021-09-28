@@ -128,6 +128,7 @@ const (
 	TEST_FIXTURE_PARALLELISM                                = "fixture-parallelism"
 	TEST_FIXTURE_SOPS                                       = "fixture-sops"
 	TEST_FIXTURE_INCLUDE_NO_OUTPUT                          = "fixture-include-no-output"
+	TEST_FIXTURE_DESTROY_WARNING                            = "fixture-destroy-warning"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -4324,4 +4325,34 @@ func TestNoFailureForModulesWithoutOutputs(t *testing.T) {
 
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir %s", appPath), &stdout, &stderr)
 	assert.NoError(t, err)
+}
+
+func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
+
+	rootPath := copyEnvironment(t, TEST_FIXTURE_DESTROY_WARNING)
+
+	rootPath = util.JoinPath(rootPath, TEST_FIXTURE_DESTROY_WARNING)
+	vpcPath := util.JoinPath(rootPath, "vpc")
+	appPath := util.JoinPath(rootPath, "app")
+
+	cleanupTerraformFolder(t, rootPath)
+	cleanupTerraformFolder(t, vpcPath)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all init --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	assert.NoError(t, err)
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	// try to destroy vpc module and check if warning is printed in output
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy --terragrunt-non-interactive --terragrunt-working-dir %s", vpcPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	output := string(stderr.Bytes())
+	assert.Equal(t, 1, strings.Count(output, appPath))
 }

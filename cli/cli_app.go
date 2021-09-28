@@ -333,6 +333,9 @@ func runCommand(command string, terragruntOptions *options.TerragruntOptions) (f
 	if command == CMD_RUN_ALL {
 		return runAll(terragruntOptions)
 	}
+	if command == "destroy" {
+		terragruntOptions.CheckDependentModules = true
+	}
 	return RunTerragrunt(terragruntOptions)
 }
 
@@ -489,6 +492,12 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
+	if terragruntOptions.CheckDependentModules {
+		allowDestroy := confirmActionWithDependentModules(terragruntOptions, terragruntConfig)
+		if !allowDestroy {
+			return nil
+		}
+	}
 	return runTerragruntWithConfig(terragruntOptions, updatedTerragruntOptions, terragruntConfig, false)
 }
 
@@ -681,6 +690,35 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 
 		return multierror.Append(runTerraformError, lockFileError).ErrorOrNil()
 	})
+}
+
+// confirmActionWithDependentModules - Show warning with list of dependent modules from current module before destroy
+func confirmActionWithDependentModules(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) bool {
+	modules, err := configstack.FindWhereWorkingDirIsIncluded(terragruntOptions, terragruntConfig)
+	if err != nil {
+		terragruntOptions.Logger.Warnf("Failed to detect where module is used %v", err)
+		return true
+	}
+	if len(modules) != 0 {
+		if _, err := terragruntOptions.ErrWriter.Write([]byte("Detected dependent modules:\n")); err != nil {
+			terragruntOptions.Logger.Error(err)
+			return false
+		}
+		for _, module := range modules {
+			if _, err := terragruntOptions.ErrWriter.Write([]byte(fmt.Sprintf("%s\n", module.Path))); err != nil {
+				terragruntOptions.Logger.Error(err)
+				return false
+			}
+		}
+		prompt := "WARNING: Are you sure you want to continue?"
+		shouldRun, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
+		if err != nil {
+			terragruntOptions.Logger.Error(err)
+			return false
+		}
+		return shouldRun
+	}
+	return true
 }
 
 // Terraform 0.14 now manages a lock file for providers. This can be updated

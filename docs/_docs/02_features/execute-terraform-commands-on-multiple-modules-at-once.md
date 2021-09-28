@@ -306,6 +306,8 @@ In the example above it'll generate this graph
 Note that this graph shows the dependency relationship in the direction of the arrow (top down), however terragrunt will run the action
 in reverse order (bottom up)
 
+**Note:** During execution of `destroy` command, Terragrunt will try to find all dependent modules and show a confirmation prompt with a list of all detected dependencies, because once resources will be destroyed, any commands on dependent modules will fail with missing dependencies. For example, if `destroy` was called on the `redis` module, you will be asked to confirm the action because `backend-app` depends on `redis`. You can avoid the prompt by using `--terragrunt-non-interactive`.
+
 ### Testing multiple modules locally
 
 If you are using Terragrunt to configure [remote Terraform configurations]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry/#remote-terraform-configurations) and all of your modules have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--terragrunt-source` parameter:
