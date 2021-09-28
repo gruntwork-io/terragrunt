@@ -264,8 +264,6 @@ func (targetConfig *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terr
 	if sourceConfig.Inputs != nil {
 		targetConfig.Inputs = mergeInputs(sourceConfig.Inputs, targetConfig.Inputs)
 	}
-
-	targetConfig.ProcessedIncludes = sourceConfig.ProcessedIncludes
 }
 
 // DeepMerge performs a deep merge of the given sourceConfig into the targetConfig. Deep merge is defined as follows:
