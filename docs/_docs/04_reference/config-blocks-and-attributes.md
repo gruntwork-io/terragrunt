@@ -508,6 +508,105 @@ inputs = {
 }
 ```
 
+**Limitations on accessing exposed config**
+
+In general, you can access all attributes on `include` when they are exposed (e.g., `include.locals`, `include.inputs`,
+etc).
+
+However, to support `run-all`, Terragrunt is unable to expose all attributes when the included config has a `dependency`
+block. To understand this, consider the following example:
+
+_root terragrunt.hcl_
+```hcl
+dependency "vpc" {
+  config_path = "${get_terragrunt_dir()}/../vpc"
+}
+
+inputs = {
+  vpc_name = dependency.vpc.outputs.name
+}
+```
+
+_child terragrunt.hcl_
+```hcl
+include "root" {
+  path   = find_in_parent_folders()
+  expose = true
+}
+
+dependency "alb" {
+  config_path = (
+    include.root.inputs.vpc_name == "mgmt"
+    ? "../alb-public"
+    : "../alb-private"
+  )
+}
+
+input = {
+  alb_id = dependency.alb.outputs.id
+}
+```
+
+In the child `terragrunt.hcl`, the `dependency` path for the `alb` depends on whether the VPC is the `mgmt` VPC or not,
+which is determined by the `dependency.vpc` in the root config. This means that the ourput from `dependency.vpc` must be
+available to parse the `dependency.alb` config.
+
+This causes problems when performing a `run-all apply` operation. During a `run-all` operation, Terragrunt first parses
+all the `dependency` blocks to build a dependency tree of the Terragrunt modules to figure out the order of operations.
+If all the paths are static references, then Terragrunt can determine all the dependency paths before any module has
+been applied. In this case there is no problem even if other config blocks access `dependency`, as by the time
+Terragrunt needs to parse those blocks, the upstream dependencies would have been applied during the `run-all apply`.
+
+However, if those `dependency` blocks depend on upstream dependencies, then there is a problem as Terragrunt would not
+be able to build the dependency tree without the upstream dependencies being applied.
+
+Therefore, to ensure that Terragrunt can build the dependency tree in a `run-all` operation, Terragrunt enforces the
+following limitation to exposed `include` config:
+
+If the included configuration has any `dependency` blocks, only `locals` and `include` are exposed and available to the
+child `include` and `dependency` blocks. There are no restrictions for other blocks in the child config (e.g., you can
+reference `inputs` from the included config in child `inputs`).
+
+Otherwise, if the included config has no `dependency` blocks, there is no restriction on which exposed attributes you
+can access.
+
+For example, the following alternative configuration is valid even if the alb dependency is still accessing the `inputs`
+attribute from the included config:
+
+_root terragrunt.hcl_
+```hcl
+inputs = {
+  vpc_name = "mgmt"
+}
+```
+
+_child terragrunt.hcl_
+```hcl
+include "root" {
+  path   = find_in_parent_folders()
+  expose = true
+}
+
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+dependency "alb" {
+  config_path = (
+    include.root.inputs.vpc_name == "mgmt"
+    ? "../alb-public"
+    : "../alb-private"
+  )
+}
+
+input = {
+  vpc_name = dependency.vpc.outputs.name
+  alb_id   = dependency.alb.outputs.id
+}
+```
+
+
+
 **What is deep merge?**
 
 When the `merge_strategy` for the `include` block is set to `deep`, Terragrunt will perform a deep merge of the included
