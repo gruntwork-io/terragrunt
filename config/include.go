@@ -367,8 +367,6 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 	for key, val := range sourceConfig.GenerateConfigs {
 		targetConfig.GenerateConfigs[key] = val
 	}
-
-	targetConfig.ProcessedIncludes = sourceConfig.ProcessedIncludes
 	return nil
 }
 
