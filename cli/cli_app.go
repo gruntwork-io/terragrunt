@@ -1008,6 +1008,9 @@ func remoteStateNeedsInit(remoteState *remote.RemoteState, terragruntOptions *op
 
 // runAll runs the provided terraform command against all the modules that are found in the directory tree.
 func runAll(terragruntOptions *options.TerragruntOptions) error {
+	if terragruntOptions.TerraformCommand == "" {
+		return MissingCommand{}
+	}
 	reason, isDisabled := runAllDisabledCommands[terragruntOptions.TerraformCommand]
 	if isDisabled {
 		return RunAllDisabledErr{
@@ -1119,4 +1122,10 @@ type RunAllDisabledErr struct {
 
 func (err RunAllDisabledErr) Error() string {
 	return fmt.Sprintf("%s with run-all is disabled: %s", err.command, err.reason)
+}
+
+type MissingCommand struct{}
+
+func (commandName MissingCommand) Error() string {
+	return fmt.Sprintf("Missing run-all command argument")
 }
