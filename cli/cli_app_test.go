@@ -3,6 +3,8 @@ package cli
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/errors"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
@@ -134,4 +136,18 @@ func TestTerragruntHandlesCatastrophicTerraformFailure(t *testing.T) {
 	tgOptions.TerraformPath = "i-dont-exist"
 	err = runTerraformWithRetry(tgOptions)
 	require.Error(t, err)
+}
+
+func TestMissingRunAllArguments(t *testing.T) {
+	t.Parallel()
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	tgOptions.TerraformCommand = ""
+
+	err = runAll(tgOptions)
+	require.Error(t, err)
+	_, ok := errors.Unwrap(err).(MissingCommand)
+	assert.True(t, ok)
 }

@@ -4356,3 +4356,17 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	output := string(stderr.Bytes())
 	assert.Equal(t, 1, strings.Count(output, appPath))
 }
+
+func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
+
+	appPath := util.JoinPath(TEST_FIXTURE_INCLUDE_NO_OUTPUT, "app")
+
+	cleanupTerraformFolder(t, appPath)
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all --terragrunt-non-interactive --terragrunt-working-dir %s", appPath), &stdout, &stderr)
+	require.Error(t, err)
+	_, ok := errors.Unwrap(err).(cli.MissingCommand)
+	assert.True(t, ok)
+}
