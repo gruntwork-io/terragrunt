@@ -47,12 +47,12 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		}
 		defaultWorkingDir = currentDir
 	}
-	workingDir, err := parseStringArg(args, OPT_WORKING_DIR, defaultWorkingDir)
+	workingDir, err := parseStringArg(args, optWorkingDir, defaultWorkingDir)
 	if err != nil {
 		return nil, err
 	}
 
-	downloadDirRaw, err := parseStringArg(args, OPT_DOWNLOAD_DIR, os.Getenv("TERRAGRUNT_DOWNLOAD"))
+	downloadDirRaw, err := parseStringArg(args, optDownloadDir, os.Getenv("TERRAGRUNT_DOWNLOAD"))
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		return nil, errors.WithStackTrace(err)
 	}
 
-	terragruntConfigPath, err := parseStringArg(args, OPT_TERRAGRUNT_CONFIG, os.Getenv("TERRAGRUNT_CONFIG"))
+	terragruntConfigPath, err := parseStringArg(args, optTerragruntConfig, os.Getenv("TERRAGRUNT_CONFIG"))
 	if err != nil {
 		return nil, err
 	}
@@ -72,17 +72,17 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		terragruntConfigPath = config.GetDefaultConfigPath(workingDir)
 	}
 
-	terragruntHclFilePath, err := parseStringArg(args, OPT_TERRAGRUNT_HCLFMT_FILE, "")
+	terragruntHclFilePath, err := parseStringArg(args, optTerragruntHCLFmt, "")
 	if err != nil {
 		return nil, err
 	}
 
-	awsProviderPatchOverrides, err := parseMutliStringKeyValueArg(args, OPT_TERRAGRUNT_OVERRIDE_ATTR, nil)
+	awsProviderPatchOverrides, err := parseMutliStringKeyValueArg(args, optTerragruntOverrideAttr, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	terraformPath, err := parseStringArg(args, OPT_TERRAGRUNT_TFPATH, os.Getenv("TERRAGRUNT_TFPATH"))
+	terraformPath, err := parseStringArg(args, optTerragruntTFPath, os.Getenv("TERRAGRUNT_TFPATH"))
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		terraformPath = options.TERRAFORM_DEFAULT_PATH
 	}
 
-	terraformSource, err := parseStringArg(args, OPT_TERRAGRUNT_SOURCE, os.Getenv("TERRAGRUNT_SOURCE"))
+	terraformSource, err := parseStringArg(args, optTerragruntSource, os.Getenv("TERRAGRUNT_SOURCE"))
 	if err != nil {
 		return nil, err
 	}
@@ -99,46 +99,46 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	if err != nil {
 		return nil, err
 	}
-	terraformSourceMap, err := parseMutliStringKeyValueArg(args, OPT_TERRAGRUNT_SOURCE_MAP, terraformSourceMapEnvVar)
+	terraformSourceMap, err := parseMutliStringKeyValueArg(args, optTerragruntSourceMap, terraformSourceMapEnvVar)
 	if err != nil {
 		return nil, err
 	}
 
-	sourceUpdate := parseBooleanArg(args, OPT_TERRAGRUNT_SOURCE_UPDATE, os.Getenv("TERRAGRUNT_SOURCE_UPDATE") == "true" || os.Getenv("TERRAGRUNT_SOURCE_UPDATE") == "1")
+	sourceUpdate := parseBooleanArg(args, optTerragruntSourceUpdate, os.Getenv("TERRAGRUNT_SOURCE_UPDATE") == "true" || os.Getenv("TERRAGRUNT_SOURCE_UPDATE") == "1")
 
-	ignoreDependencyErrors := parseBooleanArg(args, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS, false)
+	ignoreDependencyErrors := parseBooleanArg(args, optTerragruntIgnoreDependencyErrors, false)
 
-	ignoreDependencyOrder := parseBooleanArg(args, OPT_TERRAGRUNT_IGNORE_DEPENDENCY_ORDER, false)
+	ignoreDependencyOrder := parseBooleanArg(args, optTerragruntIgnoreDependencyOrder, false)
 
-	ignoreExternalDependencies := parseBooleanArg(args, OPT_TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES, false)
+	ignoreExternalDependencies := parseBooleanArg(args, optTerragruntIgnoreExternalDependencies, false)
 
-	includeExternalDependencies := parseBooleanArg(args, OPT_TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES, os.Getenv("TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES") == "true")
+	includeExternalDependencies := parseBooleanArg(args, optTerragruntIncludeExternalDependencies, os.Getenv("TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES") == "true")
 
-	iamRole, err := parseStringArg(args, OPT_TERRAGRUNT_IAM_ROLE, os.Getenv("TERRAGRUNT_IAM_ROLE"))
+	iamRole, err := parseStringArg(args, optTerragruntIAMRole, os.Getenv("TERRAGRUNT_IAM_ROLE"))
 	if err != nil {
 		return nil, err
 	}
 
 	envValue, envProvided := os.LookupEnv("TERRAGRUNT_IAM_ASSUME_ROLE_DURATION")
-	IamAssumeRoleDuration, err := parseIntArg(args, OPT_TERRAGRUNT_IAM_ASSUME_ROLE_DURATION, envValue, envProvided, options.DEFAULT_IAM_ASSUME_ROLE_DURATION)
+	IamAssumeRoleDuration, err := parseIntArg(args, optTerragruntIAMAssumeRoleDuration, envValue, envProvided, options.DEFAULT_IAM_ASSUME_ROLE_DURATION)
 	if err != nil {
 		return nil, err
 	}
 
-	excludeDirs, err := parseMultiStringArg(args, OPT_TERRAGRUNT_EXCLUDE_DIR, []string{})
+	excludeDirs, err := parseMultiStringArg(args, optTerragruntExcludeDir, []string{})
 	if err != nil {
 		return nil, err
 	}
 
-	includeDirs, err := parseMultiStringArg(args, OPT_TERRAGRUNT_INCLUDE_DIR, []string{})
+	includeDirs, err := parseMultiStringArg(args, optTerragruntIncludeDir, []string{})
 	if err != nil {
 		return nil, err
 	}
 
-	strictInclude := parseBooleanArg(args, OPT_TERRAGRUNT_STRICT_INCLUDE, false)
+	strictInclude := parseBooleanArg(args, optTerragruntStrictInclude, false)
 
 	// Those correspond to logrus levels
-	logLevel, err := parseStringArg(args, OPT_TERRAGRUNT_LOGLEVEL, util.GetDefaultLogLevel().String())
+	logLevel, err := parseStringArg(args, optTerragruntLogLevel, util.GetDefaultLogLevel().String())
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		return nil, err
 	}
 
-	validateStrictMode := parseBooleanArg(args, OPT_TERRAGRUNT_STRICT_VALIDATE, false)
+	validateStrictMode := parseBooleanArg(args, optTerragruntStrictValidate, false)
 
 	opts, err := options.NewTerragruntOptions(filepath.ToSlash(terragruntConfigPath))
 	if err != nil {
@@ -158,21 +158,21 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 
 	opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
 
-	debug := parseBooleanArg(args, OPT_TERRAGRUNT_DEBUG, os.Getenv("TERRAGRUNT_DEBUG") == "true" || os.Getenv("TERRAGRUNT_DEBUG") == "1")
+	debug := parseBooleanArg(args, optTerragruntDebug, os.Getenv("TERRAGRUNT_DEBUG") == "true" || os.Getenv("TERRAGRUNT_DEBUG") == "1")
 	if debug {
 		opts.Debug = true
 	}
 
 	envValue, envProvided = os.LookupEnv("TERRAGRUNT_PARALLELISM")
-	parallelism, err := parseIntArg(args, OPT_TERRAGRUNT_PARALLELISM, envValue, envProvided, options.DEFAULT_PARALLELISM)
+	parallelism, err := parseIntArg(args, optTerragruntParallelism, envValue, envProvided, options.DEFAULT_PARALLELISM)
 	if err != nil {
 		return nil, err
 	}
 
 	opts.TerraformPath = filepath.ToSlash(terraformPath)
-	opts.AutoInit = !parseBooleanArg(args, OPT_TERRAGRUNT_NO_AUTO_INIT, os.Getenv("TERRAGRUNT_AUTO_INIT") == "false")
-	opts.AutoRetry = !parseBooleanArg(args, OPT_TERRAGRUNT_NO_AUTO_RETRY, os.Getenv("TERRAGRUNT_AUTO_RETRY") == "false")
-	opts.NonInteractive = parseBooleanArg(args, OPT_NON_INTERACTIVE, os.Getenv("TF_INPUT") == "false" || os.Getenv("TF_INPUT") == "0")
+	opts.AutoInit = !parseBooleanArg(args, optTerragruntNoAutoInit, os.Getenv("TERRAGRUNT_AUTO_INIT") == "false")
+	opts.AutoRetry = !parseBooleanArg(args, optTerragruntNoAutoRetry, os.Getenv("TERRAGRUNT_AUTO_RETRY") == "false")
+	opts.NonInteractive = parseBooleanArg(args, optNonInteractive, os.Getenv("TF_INPUT") == "false" || os.Getenv("TF_INPUT") == "0")
 	opts.TerraformCliArgs = filterTerragruntArgs(args)
 	opts.OriginalTerraformCommand = util.FirstArg(opts.TerraformCliArgs)
 	opts.TerraformCommand = util.FirstArg(opts.TerraformCliArgs)
@@ -207,7 +207,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.IncludeDirs = includeDirs
 	opts.StrictInclude = strictInclude
 	opts.Parallelism = parallelism
-	opts.Check = parseBooleanArg(args, OPT_TERRAGRUNT_CHECK, os.Getenv("TERRAGRUNT_CHECK") == "true")
+	opts.Check = parseBooleanArg(args, optTerragruntCheck, os.Getenv("TERRAGRUNT_CHECK") == "true")
 	opts.HclFile = filepath.ToSlash(terragruntHclFilePath)
 	opts.AwsProviderPatchOverrides = awsProviderPatchOverrides
 
@@ -300,12 +300,12 @@ func filterTerragruntArgs(args []string) []string {
 			continue
 		}
 
-		if util.ListContainsElement(ALL_TERRAGRUNT_STRING_OPTS, argWithoutPrefix) {
+		if util.ListContainsElement(allTerragruntStringOpts, argWithoutPrefix) {
 			// String flags have the argument and the value, so skip both
 			i = i + 1
 			continue
 		}
-		if util.ListContainsElement(ALL_TERRAGRUNT_BOOLEAN_OPTS, argWithoutPrefix) {
+		if util.ListContainsElement(allTerragruntBooleanOpts, argWithoutPrefix) {
 			// Just skip the boolean flag
 			continue
 		}
