@@ -1127,5 +1127,5 @@ func (err RunAllDisabledErr) Error() string {
 type MissingCommand struct{}
 
 func (commandName MissingCommand) Error() string {
-	return fmt.Sprintf("Missing run-all command argument")
+	return "Missing run-all command argument (Example: terragrunt run-all plan)"
 }
