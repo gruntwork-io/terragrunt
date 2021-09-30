@@ -483,7 +483,7 @@ func readTerragruntConfig(configPath string, defaultVal *cty.Value, terragruntOp
 		config.TerragruntDependencies[i].setRenderedOutputs(targetOptions)
 	}
 
-	return terragruntConfigAsCty(config)
+	return TerragruntConfigAsCty(config)
 }
 
 // Create a cty Function that can be used to for calling read_terragrunt_config.

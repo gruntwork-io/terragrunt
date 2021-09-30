@@ -210,6 +210,10 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.Check = parseBooleanArg(args, optTerragruntCheck, os.Getenv("TERRAGRUNT_CHECK") == "true")
 	opts.HclFile = filepath.ToSlash(terragruntHclFilePath)
 	opts.AwsProviderPatchOverrides = awsProviderPatchOverrides
+	opts.JSONOut, err = parseStringArg(args, optTerragruntJSONOut, "terragrunt_rendered.json")
+	if err != nil {
+		return nil, err
+	}
 
 	return opts, nil
 }

@@ -161,6 +161,9 @@ type TerragruntOptions struct {
 	// The file which hclfmt should be specifically run on
 	HclFile string
 
+	// The file path that terragrunt should use when rendering the terragrunt.hcl config as json.
+	JSONOut string
+
 	// A command that can be used to run Terragrunt with the given options. This is useful for running Terragrunt
 	// multiple times (e.g. when spinning up a stack of Terraform modules). The actual command is normally defined
 	// in the cli package, which depends on almost all other packages, so we declare it here so that other
@@ -304,6 +307,8 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		StrictInclude:                terragruntOptions.StrictInclude,
 		RunTerragrunt:                terragruntOptions.RunTerragrunt,
 		AwsProviderPatchOverrides:    terragruntOptions.AwsProviderPatchOverrides,
+		HclFile:                      terragruntOptions.HclFile,
+		JSONOut:                      terragruntOptions.JSONOut,
 	}
 }
 

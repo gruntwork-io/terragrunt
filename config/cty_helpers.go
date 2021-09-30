@@ -235,7 +235,7 @@ func includeConfigAsCtyVal(
 		if err != nil {
 			return cty.NilVal, err
 		}
-		parsedIncludedCty, err := terragruntConfigAsCty(parsedIncluded)
+		parsedIncludedCty, err := TerragruntConfigAsCty(parsedIncluded)
 		if err != nil {
 			return cty.NilVal, err
 		}

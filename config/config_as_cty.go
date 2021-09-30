@@ -16,7 +16,7 @@ import (
 // Specifically, we want to reference blocks by named attributes, but blocks are rendered to lists in the
 // TerragruntConfig struct, so we need to do some massaging of the data to convert the list of blocks in to a map going
 // from the block name label to the block value.
-func terragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
+func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	output := map[string]cty.Value{}
 
 	// Convert attributes that are primitive types

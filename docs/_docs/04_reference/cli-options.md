@@ -35,6 +35,7 @@ Terragrunt supports the following CLI commands:
   - [graph-dependencies](#graph-dependencies)
   - [hclfmt](#hclfmt)
   - [aws-provider-patch](#aws-provider-patch)
+  - [render-json](#render-json)
 
 ### All Terraform built-in commands
 
@@ -395,6 +396,34 @@ This should allow you to run `import` on the module and work around those Terraf
 `import`, remember to delete your overridden code! E.g., Delete the `.terraform` or `.terragrunt-cache` folders.
 
 
+### render-json
+
+Render out the final interpretted `terragrunt.hcl` file (that is, with all the includes merged, dependencies
+resolved/interpolated, function calls executed, etc) as json.
+
+Example:
+
+_terragrunt.hcl_
+```hcl
+locals {
+  aws_region = "us-east-1"
+}
+
+inputs = {
+  aws_region = local.aws_region
+}
+```
+
+_terragrunt_rendered.json_
+```json
+{
+  "locals": {"aws_region": "us-east-1"},
+  "inputs": {"aws_region": "us-east-1"},
+  // NOTE: other attributes are omitted for brevity
+}
+```
+
+You can use the CLI option `--terragrunt-json-out` to configure where terragrunt renders out the json representation.
 
 
 ## CLI options
@@ -427,6 +456,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-check](#terragrunt-check)
 - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
 - [terragrunt-override-attr](#terragrunt-override-attr)
+- [terragrunt-json-out](#terragrunt-json-out)
 
 
 ### terragrunt-config
@@ -718,3 +748,10 @@ Override the attribute named `ATTR` with the value `VALUE` in a `provider` block
 command](#aws-provider-patch). May be specified multiple times. Also, `ATTR` can specify attributes within a nested
 block by specifying `<BLOCK>.<ATTR>`, where `<BLOCK>` is the block name: e.g., `assume_role.role` arn will override the
 `role_arn` attribute of the `assume_role { ... }` block.
+
+### terragrunt-json-out
+
+**CLI Arg**: `--terragrunt-json-out`
+**Requires an argument**: `--terragrunt-json-out /path/to/terragrunt_rendered.json`
+
+When passed in, render the json representation in this file.

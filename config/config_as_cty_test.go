@@ -92,7 +92,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 			},
 		},
 	}
-	ctyVal, err := terragruntConfigAsCty(&testConfig)
+	ctyVal, err := TerragruntConfigAsCty(&testConfig)
 	require.NoError(t, err)
 
 	ctyMap, err := parseCtyValueToMap(ctyVal)
