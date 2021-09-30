@@ -490,7 +490,7 @@ remote_state {
   }
 }
 ```
-** Note: ** value returned by `get_aws_account_id()` can change during parsing of HCL code, for example after evaluation of `iam_role` attribute.
+**Note:** value returned by `get_aws_account_id()` can change during parsing of HCL code, for example after evaluation of `iam_role` attribute.
 
 ## get\_aws\_caller\_identity\_arn
 
@@ -501,7 +501,7 @@ inputs = {
   caller_arn = get_aws_caller_identity_arn()
 }
 ```
-** Note: ** value returned by `get_aws_caller_identity_arn()` can change during parsing of HCL code, for example after evaluation of `iam_role` attribute.
+**Note:** value returned by `get_aws_caller_identity_arn()` can change during parsing of HCL code, for example after evaluation of `iam_role` attribute.
 
 ## get\_terraform\_command
 
@@ -545,7 +545,7 @@ terraform {
   }
 }
 ```
-** Note: ** value returned by `get_aws_caller_identity_user_id()` can change during parsing of HCL code, for example after evaluation of `iam_role` attribute.
+**Note:** value returned by `get_aws_caller_identity_user_id()` can change during parsing of HCL code, for example after evaluation of `iam_role` attribute.
 
 ## run\_cmd
 
