@@ -345,12 +345,9 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 		return dependencyConfig.MockOutputs, nil
 	}
 
-	// In case of init, and empty output, skip generating error about missing outputs
-	// https://github.com/gruntwork-io/terragrunt/issues/1499
-	if dependencyConfig.shouldGetOutputs() && terragruntOptions.AutoInit {
-		return nil, nil
-	}
-
+	// At this point, we expect outputs to exist because there is a `dependency` block without skip_outputs = true, and
+	// returning mocks is not allowed. So return a useful error message indicating that we expected outputs, but they
+	// did not exist.
 	err := TerragruntOutputTargetNoOutputs{
 		targetConfig:  targetConfig,
 		currentConfig: currentConfig,
