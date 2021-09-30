@@ -4339,13 +4339,12 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 }
 
 func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
+	t.Parallel()
 
-	appPath := util.JoinPath(TEST_FIXTURE_INCLUDE_NO_OUTPUT, "app")
+	appPath := TEST_FIXTURE_STACK
 
-	cleanupTerraformFolder(t, appPath)
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all --terragrunt-non-interactive --terragrunt-working-dir %s", appPath), &stdout, &stderr)
 	require.Error(t, err)
 	_, ok := errors.Unwrap(err).(cli.MissingCommand)
