@@ -118,6 +118,7 @@ const (
 	TEST_FIXTURE_LOCAL_RUN_MULTIPLE                         = "fixture-locals/run-multiple"
 	TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH           = "qa/my-app"
 	TEST_FIXTURE_READ_CONFIG                                = "fixture-read-config"
+	TEST_FIXTURE_READ_IAM_ROLE                              = "fixture-read-config/iam_role_in_file"
 	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                    = "fixture-get-aws-caller-identity"
 	TEST_FIXTURE_GET_PLATFORM                               = "fixture-get-platform"
 	TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_HCL                  = "fixture-get-terragrunt-source-hcl"
@@ -3622,6 +3623,32 @@ func TestTerragruntVersionConstraints(t *testing.T) {
 	}
 }
 
+func TestReadTerragruntConfigIamRole(t *testing.T) {
+	t.Parallel()
+
+	identityArn, err := aws_helper.GetAWSIdentityArn(nil, &options.TerragruntOptions{
+		IamRole: "",
+	})
+	assert.NoError(t, err)
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_READ_IAM_ROLE)
+
+	// Execution outputs to be verified
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	// Invoke terragrunt and verify used IAM role
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", TEST_FIXTURE_READ_IAM_ROLE), &stdout, &stderr)
+
+	// Since are used not existing AWS accounts, for validation are used success and error outputs
+	output := fmt.Sprintf("%v %v %v", string(stderr.Bytes()), string(stdout.Bytes()), err.Error())
+
+	// Check that output contains value defined in IAM role
+	assert.Equal(t, 1, strings.Count(output, "666666666666"))
+	// Ensure that state file wasn't created with default IAM value
+	assert.True(t, util.FileNotExists(util.JoinPath(TEST_FIXTURE_READ_IAM_ROLE, identityArn+".txt")))
+}
+
 func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
 	fixturePath := "fixture-partial-parse/terragrunt-version-constraint"
 	cleanupTerragruntFolder(t, fixturePath)
@@ -4303,9 +4330,9 @@ func TestTerragruntInitRunCmd(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(errout, "input_variable"))
 
 	// Commands executed multiple times because of different arguments
-	assert.Equal(t, 3, strings.Count(errout, "uuid"))
-	assert.Equal(t, 4, strings.Count(errout, "random_arg"))
-	assert.Equal(t, 3, strings.Count(errout, "another_arg"))
+	assert.Equal(t, 4, strings.Count(errout, "uuid"))
+	assert.Equal(t, 6, strings.Count(errout, "random_arg"))
+	assert.Equal(t, 4, strings.Count(errout, "another_arg"))
 }
 
 func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
