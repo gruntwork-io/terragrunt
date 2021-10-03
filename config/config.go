@@ -42,6 +42,7 @@ type TerragruntConfig struct {
 	Skip                        bool
 	IamRole                     string
 	IamAssumeRoleDuration       *int64
+	IamAssumeRoleSessionName    string
 	Inputs                      map[string]interface{}
 	Locals                      map[string]interface{}
 	TerragruntDependencies      []Dependency
@@ -87,13 +88,14 @@ type terragruntConfigFile struct {
 	RemoteState     *remoteStateConfigFile `hcl:"remote_state,block"`
 	RemoteStateAttr *cty.Value             `hcl:"remote_state,optional"`
 
-	Dependencies           *ModuleDependencies `hcl:"dependencies,block"`
-	DownloadDir            *string             `hcl:"download_dir,attr"`
-	PreventDestroy         *bool               `hcl:"prevent_destroy,attr"`
-	Skip                   *bool               `hcl:"skip,attr"`
-	IamRole                *string             `hcl:"iam_role,attr"`
-	IamAssumeRoleDuration  *int64              `hcl:"iam_assume_role_duration,attr"`
-	TerragruntDependencies []Dependency        `hcl:"dependency,block"`
+	Dependencies             *ModuleDependencies `hcl:"dependencies,block"`
+	DownloadDir              *string             `hcl:"download_dir,attr"`
+	PreventDestroy           *bool               `hcl:"prevent_destroy,attr"`
+	Skip                     *bool               `hcl:"skip,attr"`
+	IamRole                  *string             `hcl:"iam_role,attr"`
+	IamAssumeRoleDuration    *int64              `hcl:"iam_assume_role_duration,attr"`
+	IamAssumeRoleSessionName *string             `hcl:"iam_assume_role_session_name,attr"`
+	TerragruntDependencies   []Dependency        `hcl:"dependency,block"`
 
 	// We allow users to configure code generation via blocks:
 	//
@@ -666,6 +668,9 @@ func setIAMRole(configString string, terragruntOptions *options.TerragruntOption
 		if iamConfig.IamAssumeRoleDuration != nil {
 			terragruntOptions.IamAssumeRoleDuration = *iamConfig.IamAssumeRoleDuration
 		}
+		if iamConfig.IamAssumeRoleSessionName != "" {
+			terragruntOptions.IamAssumeRoleSessionName = iamConfig.IamAssumeRoleSessionName
+		}
 	}
 	return nil
 }
@@ -802,6 +807,10 @@ func convertToTerragruntConfig(
 
 	if terragruntConfigFromFile.IamAssumeRoleDuration != nil {
 		terragruntConfig.IamAssumeRoleDuration = terragruntConfigFromFile.IamAssumeRoleDuration
+	}
+
+	if terragruntConfigFromFile.IamAssumeRoleSessionName != nil {
+		terragruntConfig.IamAssumeRoleSessionName = *terragruntConfigFromFile.IamAssumeRoleSessionName
 	}
 
 	generateBlocks := []terragruntGenerateBlock{}

@@ -125,6 +125,11 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		return nil, err
 	}
 
+	iamAssumeRoleSessionName, err := parseStringArg(args, optTerragruntIAMAssumeRoleSessionName, os.Getenv("TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME"))
+	if err != nil {
+		return nil, err
+	}
+
 	excludeDirs, err := parseMultiStringArg(args, optTerragruntExcludeDir, []string{})
 	if err != nil {
 		return nil, err
@@ -203,6 +208,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.Env = parseEnvironmentVariables(os.Environ())
 	opts.IamRole = iamRole
 	opts.IamAssumeRoleDuration = int64(IamAssumeRoleDuration)
+	opts.IamAssumeRoleSessionName = iamAssumeRoleSessionName
 	opts.ExcludeDirs = excludeDirs
 	opts.IncludeDirs = includeDirs
 	opts.StrictInclude = strictInclude

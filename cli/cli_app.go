@@ -38,6 +38,7 @@ const (
 	optTerragruntSourceUpdate                = "terragrunt-source-update"
 	optTerragruntIAMRole                     = "terragrunt-iam-role"
 	optTerragruntIAMAssumeRoleDuration       = "terragrunt-iam-assume-role-duration"
+	optTerragruntIAMAssumeRoleSessionName    = "terragrunt-iam-assume-role-session-name"
 	optTerragruntIgnoreDependencyErrors      = "terragrunt-ignore-dependency-errors"
 	optTerragruntIgnoreDependencyOrder       = "terragrunt-ignore-dependency-order"
 	optTerragruntIgnoreExternalDependencies  = "terragrunt-ignore-external-dependencies"
@@ -77,6 +78,7 @@ var allTerragruntStringOpts = []string{
 	optTerragruntSourceMap,
 	optTerragruntIAMRole,
 	optTerragruntIAMAssumeRoleDuration,
+	optTerragruntIAMAssumeRoleSessionName,
 	optTerragruntExcludeDir,
 	optTerragruntIncludeDir,
 	optTerragruntParallelism,
@@ -396,6 +398,10 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	// replace default sts duration if set in config
 	if terragruntOptions.IamAssumeRoleDuration == int64(options.DEFAULT_IAM_ASSUME_ROLE_DURATION) && terragruntConfig.IamAssumeRoleDuration != nil {
 		terragruntOptions.IamAssumeRoleDuration = *terragruntConfig.IamAssumeRoleDuration
+	}
+
+	if terragruntOptions.IamAssumeRoleSessionName == "" {
+		terragruntOptions.IamAssumeRoleSessionName = terragruntConfig.IamAssumeRoleSessionName
 	}
 
 	if err := aws_helper.AssumeRoleAndUpdateEnvIfNecessary(terragruntOptions); err != nil {

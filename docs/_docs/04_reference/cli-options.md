@@ -619,6 +619,15 @@ and Terraform with multiple AWS accounts.
 Uses the specified duration as the session duration (in seconds) for the STS session which assumes the role defined in `--terragrunt-iam-role`.
 
 
+### terragrunt-iam-assume-role-session-name
+
+**CLI Arg**: `--terragrunt-iam-assume-role-session-name`<br/>
+**Environment Variable**: `TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME`<br/>
+**Requires an argument**: `--terragrunt-iam-assume-role-session-name "terragrunt-iam-role-session-name"`
+
+Used as the session name for the STS session which assumes the role defined in `--terragrunt-iam-role`.
+
+
 ### terragrunt-exclude-dir
 
 **CLI Arg**: `--terragrunt-exclude-dir`<br/>
