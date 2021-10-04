@@ -59,7 +59,7 @@ func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
 
 	if stackCmd == "plan" {
 		// We capture the out stream for each module
-		errorStreams := make([]CachingRedirectBuffer, len(stack.Modules))
+		errorStreams := make([]RedirectBuffer, len(stack.Modules))
 		for n, module := range stack.Modules {
 			errorStreams[n].Writer = module.TerragruntOptions.ErrWriter
 			errorStreams[n].CachedData = []byte{}
@@ -79,7 +79,7 @@ func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
 // We inspect the error streams to give an explicit message if the plan failed because there were references to
 // remote states. `terraform plan` will fail if it tries to access remote state from dependencies and the plan
 // has never been applied on the dependency.
-func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.TerragruntOptions, errorStreams []CachingRedirectBuffer) {
+func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.TerragruntOptions, errorStreams []RedirectBuffer) {
 	for i, errorStream := range errorStreams {
 		output := errorStream.String()
 
@@ -149,20 +149,20 @@ func createStackForTerragruntConfigPaths(path string, terragruntConfigPaths []st
 	return stack, nil
 }
 
-// CachingRedirectBuffer - structure used as io.Writer which cache written data and redirect to another writer
-type CachingRedirectBuffer struct {
+// RedirectBuffer - structure used as io.Writer which cache written data and redirect to another writer
+type RedirectBuffer struct {
 	CachedData []byte
-	Writer io.Writer
+	Writer     io.Writer
 }
 
 // Write - implementation which cache data and redirect to provided Writer
-func (buffer *CachingRedirectBuffer) Write(b []byte)(int, error)  {
+func (buffer *RedirectBuffer) Write(b []byte) (int, error) {
 	buffer.CachedData = append(buffer.CachedData, b...)
 	return buffer.Writer.Write(b)
 }
 
 // String - fetch cached data as string
-func (buffer *CachingRedirectBuffer) String() string {
+func (buffer *RedirectBuffer) String() string {
 	return string(buffer.CachedData)
 }
 
