@@ -149,7 +149,7 @@ func createStackForTerragruntConfigPaths(path string, terragruntConfigPaths []st
 	return stack, nil
 }
 
-// RedirectBuffer - structure used as io.Writer which cache written data and redirect to another writer
+// RedirectBuffer - structure used as io.Writer which cache written data and redirect to configured writer
 type RedirectBuffer struct {
 	CachedData []byte
 	Writer     io.Writer
