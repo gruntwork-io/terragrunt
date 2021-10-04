@@ -61,7 +61,9 @@ func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
 		// We capture the out stream for each module
 		errorStreams := make([]RedirectBuffer, len(stack.Modules))
 		for n, module := range stack.Modules {
-			errorStreams[n].Writer = module.TerragruntOptions.ErrWriter
+			if !terragruntOptions.NonInteractive { // redirect output to ErrWriter in case of not NonInteractive mode
+				errorStreams[n].Writer = &module.TerragruntOptions.ErrWriter
+			}
 			errorStreams[n].CachedData = []byte{}
 			module.TerragruntOptions.ErrWriter = &errorStreams[n]
 		}
@@ -152,13 +154,17 @@ func createStackForTerragruntConfigPaths(path string, terragruntConfigPaths []st
 // RedirectBuffer - structure used as io.Writer which cache written data and redirect to configured writer
 type RedirectBuffer struct {
 	CachedData []byte
-	Writer     io.Writer
+	Writer     *io.Writer
 }
 
 // Write - implementation which cache data and redirect to provided Writer
 func (buffer *RedirectBuffer) Write(b []byte) (int, error) {
 	buffer.CachedData = append(buffer.CachedData, b...)
-	return buffer.Writer.Write(b)
+	if buffer.Writer == nil {
+		return len(b), nil
+	}
+	writer := buffer.Writer
+	return (*writer).Write(b)
 }
 
 // String - fetch cached data as string
