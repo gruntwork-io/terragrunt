@@ -1,8 +1,8 @@
 package configstack
 
 import (
-	"bytes"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 
@@ -59,13 +59,14 @@ func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
 
 	if stackCmd == "plan" {
 		// We capture the out stream for each module
-		errorStreams := make([]bytes.Buffer, len(stack.Modules))
+		errorStreams := make([]CachingRedirectBuffer, len(stack.Modules))
 		for n, module := range stack.Modules {
+			errorStreams[n].Writer = module.TerragruntOptions.ErrWriter
+			errorStreams[n].CachedData = []byte{}
 			module.TerragruntOptions.ErrWriter = &errorStreams[n]
 		}
 		defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
 	}
-
 	if terragruntOptions.IgnoreDependencyOrder {
 		return RunModulesIgnoreOrder(stack.Modules, terragruntOptions.Parallelism)
 	} else if stackCmd == "destroy" {
@@ -78,7 +79,7 @@ func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
 // We inspect the error streams to give an explicit message if the plan failed because there were references to
 // remote states. `terraform plan` will fail if it tries to access remote state from dependencies and the plan
 // has never been applied on the dependency.
-func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.TerragruntOptions, errorStreams []bytes.Buffer) {
+func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.TerragruntOptions, errorStreams []CachingRedirectBuffer) {
 	for i, errorStream := range errorStreams {
 		output := errorStream.String()
 
@@ -146,6 +147,23 @@ func createStackForTerragruntConfigPaths(path string, terragruntConfigPaths []st
 	}
 
 	return stack, nil
+}
+
+// CachingRedirectBuffer - structure used as io.Writer which cache written data and redirect to another writer
+type CachingRedirectBuffer struct {
+	CachedData []byte
+	Writer io.Writer
+}
+
+// Write - implementation which cache data and redirect to provided Writer
+func (buffer *CachingRedirectBuffer) Write(b []byte)(int, error)  {
+	buffer.CachedData = append(buffer.CachedData, b...)
+	return buffer.Writer.Write(b)
+}
+
+// String - fetch cached data as string
+func (buffer *CachingRedirectBuffer) String() string {
+	return string(buffer.CachedData)
 }
 
 // Custom error types
