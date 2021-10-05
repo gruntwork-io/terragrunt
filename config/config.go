@@ -601,7 +601,7 @@ func ParseConfigString(
 
 	// Initial evaluation of configuration to load flags like IamRole which will be used for final parsing
 	// https://github.com/gruntwork-io/terragrunt/issues/667
-	if err := setIAMRole(configString, terragruntOptions, filename); err != nil {
+	if err := setIAMRole(configString, terragruntOptions, includeFromChild, filename); err != nil {
 		return nil, err
 	}
 
@@ -654,9 +654,9 @@ func ParseConfigString(
 }
 
 // setIAMRole - extract IAM role details from Terragrunt flags block
-func setIAMRole(configString string, terragruntOptions *options.TerragruntOptions, filename string) error {
+func setIAMRole(configString string, terragruntOptions *options.TerragruntOptions, includeFromChild *IncludeConfig, filename string) error {
 	if terragruntOptions.IamRole == "" {
-		iamConfig, err := PartialParseConfigString(configString, terragruntOptions, nil, filename, []PartialDecodeSectionType{TerragruntFlags})
+		iamConfig, err := PartialParseConfigString(configString, terragruntOptions, includeFromChild, filename, []PartialDecodeSectionType{TerragruntFlags})
 		if err != nil {
 			return err
 		}
