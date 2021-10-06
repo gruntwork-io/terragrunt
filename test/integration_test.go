@@ -119,6 +119,7 @@ const (
 	TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH           = "qa/my-app"
 	TEST_FIXTURE_READ_CONFIG                                = "fixture-read-config"
 	TEST_FIXTURE_READ_IAM_ROLE                              = "fixture-read-config/iam_role_in_file"
+	TEST_FIXTURE_RELATIVE_INCLUDE_CMD                       = "fixture-relative-include-cmd"
 	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                    = "fixture-get-aws-caller-identity"
 	TEST_FIXTURE_GET_PLATFORM                               = "fixture-get-platform"
 	TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_HCL                  = "fixture-get-terragrunt-source-hcl"
@@ -4376,4 +4377,18 @@ func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
 	require.Error(t, err)
 	_, ok := errors.Unwrap(err).(cli.MissingCommand)
 	assert.True(t, ok)
+}
+
+func TestPathRelativeToIncludeInvokedInCorrectPathFromChild(t *testing.T) {
+	t.Parallel()
+
+	appPath := path.Join(TEST_FIXTURE_RELATIVE_INCLUDE_CMD, "app")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt version --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", appPath), &stdout, &stderr)
+	require.NoError(t, err)
+	errout := string(stderr.Bytes())
+	assert.Equal(t, 1, strings.Count(errout, "\npath_relative_to_inclue: app\n"))
+	assert.Equal(t, 0, strings.Count(errout, "\npath_relative_to_inclue: .\n"))
 }
