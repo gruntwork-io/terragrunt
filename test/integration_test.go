@@ -4389,7 +4389,6 @@ func TestPathRelativeToIncludeInvokedInCorrectPathFromChild(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt version --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", appPath), &stdout, &stderr)
 	require.NoError(t, err)
 	errout := string(stderr.Bytes())
-	fmt.Printf("%v", errout)
 	assert.Equal(t, 1, strings.Count(errout, "\npath_relative_to_inclue: app\n"))
 	assert.Equal(t, 0, strings.Count(errout, "\npath_relative_to_inclue: .\n"))
 }
