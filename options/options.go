@@ -256,6 +256,8 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string) (*TerragruntOption
 	}
 
 	opts.NonInteractive = true
+	opts.Logger = util.CreateLogEntry("", logrus.DebugLevel)
+	opts.LogLevel = logrus.DebugLevel
 
 	return opts, nil
 }

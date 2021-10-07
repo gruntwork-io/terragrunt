@@ -167,8 +167,8 @@ func attemptEvaluateLocals(
 		newEvaluatedLocals[key] = val
 	}
 	for _, local := range locals {
-		evaluated, _ := canEvaluate(terragruntOptions, local.Expr, evaluatedLocals)
-		if evaluated {
+		localEvaluated, _ := canEvaluate(terragruntOptions, local.Expr, evaluatedLocals)
+		if localEvaluated {
 			evaluatedVal, diags := local.Expr.Value(evalCtx)
 			if diags.HasErrors() {
 				diagsWriter.WriteDiagnostics(diags)
