@@ -225,7 +225,7 @@ func canEvaluate(
 		// We can't evaluate any variable other than `local`
 		if rootName != "local" {
 			reason := fmt.Sprintf(
-				"Can't evalute expression at %s because of non-local variable reference (%s is not defined)",
+				"Can't evaluate expression at %s: you can only reference other local variables here, but it looks like you're referencing something else (%s is not defined)",
 				expression.Range(),
 				rootName,
 			)
@@ -236,7 +236,7 @@ func canEvaluate(
 		localName := getLocalName(terragruntOptions, var_)
 		if localName == "" {
 			reason := fmt.Sprintf(
-				"Can't evalute expression at %s because local var name can not be determined",
+				"Can't evaluate expression at %s because local var name can not be determined",
 				expression.Range(),
 			)
 			return false, reason
@@ -246,7 +246,7 @@ func canEvaluate(
 		_, hasEvaluated := evaluatedLocals[localName]
 		if !hasEvaluated {
 			reason := fmt.Sprintf(
-				"Can't evalute expression at %s because local reference '%s' is not evaluated",
+				"Can't evaluate expression at %s because local reference '%s' is not evaluated",
 				expression.Range(),
 				localName,
 			)
