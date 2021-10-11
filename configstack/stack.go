@@ -70,6 +70,7 @@ func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
 		}
 		defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
 	}
+
 	if terragruntOptions.IgnoreDependencyOrder {
 		return RunModulesIgnoreOrder(stack.Modules, terragruntOptions.Parallelism)
 	} else if stackCmd == "destroy" {
