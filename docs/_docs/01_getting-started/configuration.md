@@ -55,15 +55,17 @@ Currently terragrunt parses the config in the following order:
 
 2.  `locals` block
 
-3.  `dependencies` block
+3.  Evaluation of values for `iam_role` and `iam_assume_role_duration` attributes, if defined
 
-4.  `dependency` blocks, including calling `terragrunt output` on the dependent modules to retrieve the outputs
+4.  `dependencies` block
 
-5.  Everything else
+5.  `dependency` blocks, including calling `terragrunt output` on the dependent modules to retrieve the outputs
 
-6.  The config referenced by `include`
+6.  Everything else
 
-7.  A merge operation between the config referenced by `include` and the current config.
+7.  The config referenced by `include`
+
+8.  A merge operation between the config referenced by `include` and the current config.
 
 Blocks that are parsed earlier in the process will be made available for use in the parsing of later blocks. Similarly, you cannot use blocks that are parsed later earlier in the process (e.g you can’t reference `dependency` in `locals`, `include`, or `dependencies` blocks).
 
