@@ -29,11 +29,11 @@ func runHCLFmt(terragruntOptions *options.TerragruntOptions) error {
 		if !filepath.IsAbs(targetFile) {
 			targetFile = util.JoinPath(workingDir, targetFile)
 		}
-		terragruntOptions.Logger.Infof("Formatting hcl file at: %s.", targetFile)
+		terragruntOptions.Logger.Debugf("Formatting hcl file at: %s.", targetFile)
 		return formatTgHCL(terragruntOptions, targetFile)
 	}
 
-	terragruntOptions.Logger.Infof("Formatting hcl files from the directory tree %s.", terragruntOptions.WorkingDir)
+	terragruntOptions.Logger.Debugf("Formatting hcl files from the directory tree %s.", terragruntOptions.WorkingDir)
 	// zglob normalizes paths to "/"
 	tgHclFiles, err := zglob.Glob(util.JoinPath(workingDir, "**", "*.hcl"))
 	if err != nil {
@@ -66,7 +66,7 @@ func runHCLFmt(terragruntOptions *options.TerragruntOptions) error {
 // formatTgHCL uses the hcl2 library to format the hcl file. This will attempt to parse the HCL file first to
 // ensure that there are no syntax errors, before attempting to format it.
 func formatTgHCL(terragruntOptions *options.TerragruntOptions, tgHclFile string) error {
-	terragruntOptions.Logger.Infof("Formatting %s", tgHclFile)
+	terragruntOptions.Logger.Debugf("Formatting %s", tgHclFile)
 
 	info, err := os.Stat(tgHclFile)
 	if err != nil {
@@ -89,14 +89,18 @@ func formatTgHCL(terragruntOptions *options.TerragruntOptions, tgHclFile string)
 
 	newContents := hclwrite.Format(contents)
 
-	if terragruntOptions.Check {
-		if !bytes.Equal(newContents, contents) {
-			return fmt.Errorf("Invalid file format %s", tgHclFile)
-		}
-		return nil
+	fileUpdated := !bytes.Equal(newContents, contents)
+
+	if terragruntOptions.Check && fileUpdated {
+		return fmt.Errorf("Invalid file format %s", tgHclFile)
 	}
 
-	return ioutil.WriteFile(tgHclFile, newContents, info.Mode())
+	if fileUpdated {
+		terragruntOptions.Logger.Infof("%s was updated", tgHclFile)
+		return ioutil.WriteFile(tgHclFile, newContents, info.Mode())
+	}
+
+	return nil
 }
 
 // checkErrors takes in the contents of a hcl file and looks for syntax errors.
