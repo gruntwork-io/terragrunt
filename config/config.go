@@ -63,6 +63,19 @@ func (conf *TerragruntConfig) String() string {
 	return fmt.Sprintf("TerragruntConfig{Terraform = %v, RemoteState = %v, Dependencies = %v, PreventDestroy = %v}", conf.Terraform, conf.RemoteState, conf.Dependencies, conf.PreventDestroy)
 }
 
+// GetIAMRoleOptions is a helper function that converts the Terragrunt config IAM role attributes to
+// options.IAMRoleOptions struct.
+func (conf *TerragruntConfig) GetIAMRoleOptions() options.IAMRoleOptions {
+	configIAMRoleOptions := options.IAMRoleOptions{
+		RoleARN:               conf.IamRole,
+		AssumeRoleSessionName: conf.IamAssumeRoleSessionName,
+	}
+	if conf.IamAssumeRoleDuration != nil {
+		configIAMRoleOptions.AssumeRoleDuration = *conf.IamAssumeRoleDuration
+	}
+	return configIAMRoleOptions
+}
+
 // terragruntConfigFile represents the configuration supported in a Terragrunt configuration file (i.e.
 // terragrunt.hcl)
 type terragruntConfigFile struct {
@@ -657,21 +670,16 @@ func ParseConfigString(
 
 // setIAMRole - extract IAM role details from Terragrunt flags block
 func setIAMRole(configString string, terragruntOptions *options.TerragruntOptions, includeFromChild *IncludeConfig, filename string) error {
-	if terragruntOptions.IamRole == "" {
-		iamConfig, err := PartialParseConfigString(configString, terragruntOptions, includeFromChild, filename, []PartialDecodeSectionType{TerragruntFlags})
-		if err != nil {
-			return err
-		}
-		if iamConfig.IamRole != "" {
-			terragruntOptions.IamRole = iamConfig.IamRole
-		}
-		if iamConfig.IamAssumeRoleDuration != nil {
-			terragruntOptions.IamAssumeRoleDuration = *iamConfig.IamAssumeRoleDuration
-		}
-		if iamConfig.IamAssumeRoleSessionName != "" {
-			terragruntOptions.IamAssumeRoleSessionName = iamConfig.IamAssumeRoleSessionName
-		}
+	iamConfig, err := PartialParseConfigString(configString, terragruntOptions, includeFromChild, filename, []PartialDecodeSectionType{TerragruntFlags})
+	if err != nil {
+		return err
 	}
+	// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
+	// precedence.
+	terragruntOptions.IAMRoleOptions = options.MergeIAMRoleOptions(
+		iamConfig.GetIAMRoleOptions(),
+		terragruntOptions.OriginalIAMRoleOptions,
+	)
 	return nil
 }
 

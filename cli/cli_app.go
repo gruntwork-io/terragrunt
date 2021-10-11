@@ -392,18 +392,12 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return nil
 	}
 
-	if terragruntOptions.IamRole == "" {
-		terragruntOptions.IamRole = terragruntConfig.IamRole
-	}
-
-	// replace default sts duration if set in config
-	if terragruntOptions.IamAssumeRoleDuration == int64(options.DEFAULT_IAM_ASSUME_ROLE_DURATION) && terragruntConfig.IamAssumeRoleDuration != nil {
-		terragruntOptions.IamAssumeRoleDuration = *terragruntConfig.IamAssumeRoleDuration
-	}
-
-	if terragruntOptions.IamAssumeRoleSessionName == "" {
-		terragruntOptions.IamAssumeRoleSessionName = terragruntConfig.IamAssumeRoleSessionName
-	}
+	// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
+	// precedence.
+	terragruntOptions.IAMRoleOptions = options.MergeIAMRoleOptions(
+		terragruntConfig.GetIAMRoleOptions(),
+		terragruntOptions.OriginalIAMRoleOptions,
+	)
 
 	if err := aws_helper.AssumeRoleAndUpdateEnvIfNecessary(terragruntOptions); err != nil {
 		return err
@@ -458,7 +452,7 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		group := TerragruntInfoGroup{
 			ConfigPath:       updatedTerragruntOptions.TerragruntConfigPath,
 			DownloadDir:      updatedTerragruntOptions.DownloadDir,
-			IamRole:          updatedTerragruntOptions.IamRole,
+			IamRole:          updatedTerragruntOptions.IAMRoleOptions.RoleARN,
 			TerraformBinary:  updatedTerragruntOptions.TerraformPath,
 			TerraformCommand: updatedTerragruntOptions.TerraformCommand,
 			WorkingDir:       updatedTerragruntOptions.WorkingDir,

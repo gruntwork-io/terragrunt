@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -115,26 +114,6 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 
 	includeExternalDependencies := parseBooleanArg(args, optTerragruntIncludeExternalDependencies, os.Getenv("TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES") == "true")
 
-	iamRole, err := parseStringArg(args, optTerragruntIAMRole, os.Getenv("TERRAGRUNT_IAM_ROLE"))
-	if err != nil {
-		return nil, err
-	}
-
-	envValue, envProvided := os.LookupEnv("TERRAGRUNT_IAM_ASSUME_ROLE_DURATION")
-	IamAssumeRoleDuration, err := parseIntArg(args, optTerragruntIAMAssumeRoleDuration, envValue, envProvided, options.DEFAULT_IAM_ASSUME_ROLE_DURATION)
-	if err != nil {
-		return nil, err
-	}
-
-	defaultIamAssumeRoleSessionName := os.Getenv("TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME")
-	if defaultIamAssumeRoleSessionName == "" {
-		defaultIamAssumeRoleSessionName = fmt.Sprintf("terragrunt-%d", time.Now().UTC().UnixNano())
-	}
-	iamAssumeRoleSessionName, err := parseStringArg(args, optTerragruntIAMAssumeRoleSessionName, defaultIamAssumeRoleSessionName)
-	if err != nil {
-		return nil, err
-	}
-
 	excludeDirs, err := parseMultiStringArg(args, optTerragruntExcludeDir, []string{})
 	if err != nil {
 		return nil, err
@@ -173,11 +152,20 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		opts.Debug = true
 	}
 
-	envValue, envProvided = os.LookupEnv("TERRAGRUNT_PARALLELISM")
+	envValue, envProvided := os.LookupEnv("TERRAGRUNT_PARALLELISM")
 	parallelism, err := parseIntArg(args, optTerragruntParallelism, envValue, envProvided, options.DEFAULT_PARALLELISM)
 	if err != nil {
 		return nil, err
 	}
+
+	iamRoleOpts, err := parseIAMRoleOptions(args)
+	if err != nil {
+		return nil, err
+	}
+	// We don't need to check for nil, because parseIAMRoleOptions always returns a valid pointer when no error is
+	// returned.
+	opts.OriginalIAMRoleOptions = *iamRoleOpts
+	opts.IAMRoleOptions = *iamRoleOpts
 
 	opts.TerraformPath = filepath.ToSlash(terraformPath)
 	opts.AutoInit = !parseBooleanArg(args, optTerragruntNoAutoInit, os.Getenv("TERRAGRUNT_AUTO_INIT") == "false")
@@ -211,10 +199,6 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.Writer = writer
 	opts.ErrWriter = errWriter
 	opts.Env = parseEnvironmentVariables(os.Environ())
-	opts.IamRole = iamRole
-	opts.OriginalIamRole = iamRole
-	opts.IamAssumeRoleDuration = int64(IamAssumeRoleDuration)
-	opts.IamAssumeRoleSessionName = iamAssumeRoleSessionName
 	opts.ExcludeDirs = excludeDirs
 	opts.IncludeDirs = includeDirs
 	opts.StrictInclude = strictInclude
@@ -339,6 +323,35 @@ func isDeprecatedOption(optionName string) (string, bool) {
 		return newOption, true
 	}
 	return optionName, false
+}
+
+// parseIAMRoleOptions parses the Terragrunt CLI args and converts them to the IAMRoleOptions struct. Note that this
+// will always return the struct, even if none of the args were passed in. This is to ensure that we can correctly
+// handle the case where the assume role parameters were passed in via CLI, but not the role ARN.
+func parseIAMRoleOptions(args []string) (*options.IAMRoleOptions, error) {
+	iamRole, err := parseStringArg(args, optTerragruntIAMRole, os.Getenv("TERRAGRUNT_IAM_ROLE"))
+	if err != nil {
+		return nil, err
+	}
+
+	envValue, envProvided := os.LookupEnv("TERRAGRUNT_IAM_ASSUME_ROLE_DURATION")
+	iamAssumeRoleDuration, err := parseIntArg(args, optTerragruntIAMAssumeRoleDuration, envValue, envProvided, options.DefaultIAMAssumeRoleDuration)
+	if err != nil {
+		return nil, err
+	}
+
+	defaultIamAssumeRoleSessionName := os.Getenv("TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME")
+	iamAssumeRoleSessionName, err := parseStringArg(args, optTerragruntIAMAssumeRoleSessionName, defaultIamAssumeRoleSessionName)
+	if err != nil {
+		return nil, err
+	}
+
+	optsOut := &options.IAMRoleOptions{
+		RoleARN:               iamRole,
+		AssumeRoleDuration:    int64(iamAssumeRoleDuration),
+		AssumeRoleSessionName: iamAssumeRoleSessionName,
+	}
+	return optsOut, nil
 }
 
 // Find a boolean argument (e.g. --foo) of the given name in the given list of arguments. If it's present, return true.

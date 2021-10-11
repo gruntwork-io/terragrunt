@@ -193,8 +193,8 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 	assert.Equal(t, expected.WorkingDir, actual.WorkingDir, msgAndArgs...)
 	assert.Equal(t, expected.Source, actual.Source, msgAndArgs...)
 	assert.Equal(t, expected.IgnoreDependencyErrors, actual.IgnoreDependencyErrors, msgAndArgs...)
-	assert.Equal(t, expected.IamRole, actual.IamRole, msgAndArgs...)
-	assert.Equal(t, expected.IamRole, actual.OriginalIamRole, msgAndArgs...)
+	assert.Equal(t, expected.IAMRoleOptions, actual.IAMRoleOptions, msgAndArgs...)
+	assert.Equal(t, expected.OriginalIAMRoleOptions, actual.OriginalIAMRoleOptions, msgAndArgs...)
 	assert.Equal(t, expected.Debug, actual.Debug, msgAndArgs...)
 	assert.Equal(t, expected.AwsProviderPatchOverrides, actual.AwsProviderPatchOverrides, msgAndArgs...)
 }
@@ -219,21 +219,24 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 
 func mockOptionsWithIamRole(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, iamRole string) *options.TerragruntOptions {
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
-	opts.IamRole = iamRole
+	opts.OriginalIAMRoleOptions.RoleARN = iamRole
+	opts.IAMRoleOptions.RoleARN = iamRole
 
 	return opts
 }
 
 func mockOptionsWithIamAssumeRoleDuration(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, IamAssumeRoleDuration int64) *options.TerragruntOptions {
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
-	opts.IamAssumeRoleDuration = IamAssumeRoleDuration
+	opts.OriginalIAMRoleOptions.AssumeRoleDuration = IamAssumeRoleDuration
+	opts.IAMRoleOptions.AssumeRoleDuration = IamAssumeRoleDuration
 
 	return opts
 }
 
 func mockOptionsWithIamAssumeRoleSessionName(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, IamAssumeRoleSessionName string) *options.TerragruntOptions {
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
-	opts.IamAssumeRoleSessionName = IamAssumeRoleSessionName
+	opts.OriginalIAMRoleOptions.AssumeRoleSessionName = IamAssumeRoleSessionName
+	opts.IAMRoleOptions.AssumeRoleSessionName = IamAssumeRoleSessionName
 
 	return opts
 }
