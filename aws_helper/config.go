@@ -96,6 +96,8 @@ func getSTSCredentialsFromIAMRoleOptions(sess *session.Session, iamRoleOptions o
 	optFns = append(optFns, func(p *stscreds.AssumeRoleProvider) {
 		if iamRoleOptions.AssumeRoleDuration > 0 {
 			p.Duration = time.Second * time.Duration(iamRoleOptions.AssumeRoleDuration)
+		} else {
+			p.Duration = time.Second * time.Duration(options.DefaultIAMAssumeRoleDuration)
 		}
 		if iamRoleOptions.AssumeRoleSessionName != "" {
 			p.RoleSessionName = iamRoleOptions.AssumeRoleSessionName

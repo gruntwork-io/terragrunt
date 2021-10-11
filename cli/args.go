@@ -335,7 +335,7 @@ func parseIAMRoleOptions(args []string) (*options.IAMRoleOptions, error) {
 	}
 
 	envValue, envProvided := os.LookupEnv("TERRAGRUNT_IAM_ASSUME_ROLE_DURATION")
-	iamAssumeRoleDuration, err := parseIntArg(args, optTerragruntIAMAssumeRoleDuration, envValue, envProvided, options.DefaultIAMAssumeRoleDuration)
+	iamAssumeRoleDuration, err := parseIntArg(args, optTerragruntIAMAssumeRoleDuration, envValue, envProvided, 0)
 	if err != nil {
 		return nil, err
 	}

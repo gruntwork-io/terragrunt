@@ -3628,9 +3628,7 @@ func TestTerragruntVersionConstraints(t *testing.T) {
 func TestReadTerragruntConfigIamRole(t *testing.T) {
 	t.Parallel()
 
-	identityArn, err := aws_helper.GetAWSIdentityArn(nil, &options.TerragruntOptions{
-		IamRole: "",
-	})
+	identityArn, err := aws_helper.GetAWSIdentityArn(nil, &options.TerragruntOptions{})
 	assert.NoError(t, err)
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_READ_IAM_ROLE)
