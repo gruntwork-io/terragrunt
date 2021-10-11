@@ -294,6 +294,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		Debug:                        terragruntOptions.Debug,
 		IamRole:                      terragruntOptions.IamRole,
 		IamAssumeRoleDuration:        terragruntOptions.IamAssumeRoleDuration,
+		IamAssumeRoleSessionName:     terragruntOptions.IamAssumeRoleSessionName,
 		IgnoreDependencyErrors:       terragruntOptions.IgnoreDependencyErrors,
 		IgnoreDependencyOrder:        terragruntOptions.IgnoreDependencyOrder,
 		IgnoreExternalDependencies:   terragruntOptions.IgnoreExternalDependencies,
