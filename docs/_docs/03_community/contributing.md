@@ -34,7 +34,8 @@ Before starting any work, we recommend filing a GitHub issue in this repo. This 
 get feedback from the maintainers and the community before you sink a lot of time into writing (possibly the wrong)
 code. If there is anything you're unsure about, just ask!
 
-We don't use the `help wanted` or `prs welcome` labels, because all issues are open for community contributions!
+We no longer explicitly use the `help wanted` or `prs welcome` labels, because _all_ issues are open for community
+contributions.
 
 Sometimes, the scope of the feature proposal is large enough that it requires major updates to the code base to
 implement. In these situations, a maintainer may suggest writing up an RFC that describes the feature in more details
