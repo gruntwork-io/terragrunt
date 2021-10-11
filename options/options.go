@@ -103,7 +103,7 @@ type TerragruntOptions struct {
 	// Download Terraform configurations specified in the Source parameter into this folder
 	DownloadDir string
 
-	// ARN of an IAM Role set from command line
+	// ARN of an IAM Role set from command line. This is used to differentiate between the IAM role set from the config and CLI.
 	OriginalIamRole string
 
 	// The ARN of an IAM Role to assume before running Terraform
