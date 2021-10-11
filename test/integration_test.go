@@ -119,6 +119,7 @@ const (
 	TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH           = "qa/my-app"
 	TEST_FIXTURE_READ_CONFIG                                = "fixture-read-config"
 	TEST_FIXTURE_READ_IAM_ROLE                              = "fixture-read-config/iam_role_in_file"
+	TEST_FIXTURE_IAM_ROLES_MULTIPLE_MODULES                 = "fixture-read-config/iam_roles_multiple_modules"
 	TEST_FIXTURE_RELATIVE_INCLUDE_CMD                       = "fixture-relative-include-cmd"
 	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                    = "fixture-get-aws-caller-identity"
 	TEST_FIXTURE_GET_PLATFORM                               = "fixture-get-platform"
@@ -3648,6 +3649,42 @@ func TestReadTerragruntConfigIamRole(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(output, "666666666666"))
 	// Ensure that state file wasn't created with default IAM value
 	assert.True(t, util.FileNotExists(util.JoinPath(TEST_FIXTURE_READ_IAM_ROLE, identityArn+".txt")))
+}
+
+func TestIamRolesLoadingFromDifferentModules(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_IAM_ROLES_MULTIPLE_MODULES)
+
+	// Execution outputs to be verified
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	// Invoke terragrunt and verify used IAM roles for each dependency
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-log-level debug --terragrunt-debugreset --terragrunt-working-dir %s", TEST_FIXTURE_IAM_ROLES_MULTIPLE_MODULES), &stdout, &stderr)
+
+	// Taking all outputs in one string
+	output := fmt.Sprintf("%v %v %v", string(stderr.Bytes()), string(stdout.Bytes()), err.Error())
+
+	component1 := ""
+	component2 := ""
+
+	// scan each output line and get lines for component1 and component2
+	for _, line := range strings.Split(output, "\n") {
+		if strings.Contains(line, "Assuming IAM role arn:aws:iam::component1:role/terragrunt") {
+			component1 = line
+			continue
+		}
+		if strings.Contains(line, "Assuming IAM role arn:aws:iam::component2:role/terragrunt") {
+			component2 = line
+			continue
+		}
+	}
+	assert.NotEmptyf(t, component1, "Missing role for component 1")
+	assert.NotEmptyf(t, component2, "Missing role for component 2")
+
+	assert.Contains(t, component1, "iam_roles_multiple_modules/component")
+	assert.Contains(t, component2, "iam_roles_multiple_modules/component2")
 }
 
 func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
