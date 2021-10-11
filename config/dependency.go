@@ -435,17 +435,17 @@ func getOutputJsonWithCaching(targetConfig string, terragruntOptions *options.Te
 func cloneTerragruntOptionsForDependency(terragruntOptions *options.TerragruntOptions, targetConfig string) *options.TerragruntOptions {
 	targetOptions := terragruntOptions.Clone(targetConfig)
 	targetOptions.OriginalTerragruntConfigPath = targetConfig
+	// clear IamRole in case if it is different from one passed through CLI to allow dependencies to define own iam roles
+	// https://github.com/gruntwork-io/terragrunt/issues/1853#issuecomment-940102676
+	if targetOptions.IamRole != targetOptions.OriginalIamRole {
+		targetOptions.IamRole = ""
+	}
 	return targetOptions
 }
 
 // Clone terragrunt options and update context for dependency block so that the outputs can be read correctly
 func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.TerragruntOptions, targetConfig string) (*options.TerragruntOptions, error) {
 	targetOptions := cloneTerragruntOptionsForDependency(terragruntOptions, targetConfig)
-	// clear IamRole in case if it is different from one passed through CLI to allow dependencies to define own iam roles
-	// https://github.com/gruntwork-io/terragrunt/issues/1853#issuecomment-940102676
-	if targetOptions.IamRole != targetOptions.OriginalIamRole {
-		targetOptions.IamRole = ""
-	}
 	targetOptions.TerraformCommand = "output"
 	targetOptions.TerraformCliArgs = []string{"output", "-json"}
 
