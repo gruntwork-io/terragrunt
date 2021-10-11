@@ -1,6 +1,7 @@
 package configstack
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"sort"
@@ -59,13 +60,13 @@ func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
 
 	if stackCmd == "plan" {
 		// We capture the out stream for each module
-		errorStreams := make([]RedirectBuffer, len(stack.Modules))
+		errorStreams := make([]bytes.Buffer, len(stack.Modules))
 		for n, module := range stack.Modules {
 			if !terragruntOptions.NonInteractive { // redirect output to ErrWriter in case of not NonInteractive mode
-				errorStreams[n].Writer = module.TerragruntOptions.ErrWriter
+				module.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], module.TerragruntOptions.ErrWriter)
+			} else {
+				module.TerragruntOptions.ErrWriter = &errorStreams[n]
 			}
-			errorStreams[n].CachedData = []byte{}
-			module.TerragruntOptions.ErrWriter = &errorStreams[n]
 		}
 		defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
 	}
@@ -81,7 +82,7 @@ func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
 // We inspect the error streams to give an explicit message if the plan failed because there were references to
 // remote states. `terraform plan` will fail if it tries to access remote state from dependencies and the plan
 // has never been applied on the dependency.
-func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.TerragruntOptions, errorStreams []RedirectBuffer) {
+func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.TerragruntOptions, errorStreams []bytes.Buffer) {
 	for i, errorStream := range errorStreams {
 		output := errorStream.String()
 
@@ -149,26 +150,6 @@ func createStackForTerragruntConfigPaths(path string, terragruntConfigPaths []st
 	}
 
 	return stack, nil
-}
-
-// RedirectBuffer - structure used as io.Writer which cache written data and redirect to configured writer
-type RedirectBuffer struct {
-	CachedData []byte
-	Writer     io.Writer
-}
-
-// Write - implementation which cache data and redirect to provided Writer
-func (buffer *RedirectBuffer) Write(b []byte) (int, error) {
-	buffer.CachedData = append(buffer.CachedData, b...)
-	if buffer.Writer == nil {
-		return len(b), nil
-	}
-	return buffer.Writer.Write(b)
-}
-
-// String - fetch cached data as string
-func (buffer *RedirectBuffer) String() string {
-	return string(buffer.CachedData)
 }
 
 // Custom error types

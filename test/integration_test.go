@@ -4410,4 +4410,3 @@ func TestTerragruntInitConfirmation(t *testing.T) {
 	errout := string(stderr.Bytes())
 	assert.Equal(t, 1, strings.Count(errout, "does not exist or you don't have permissions to access it. Would you like Terragrunt to create it? (y/n)"))
 }
-
