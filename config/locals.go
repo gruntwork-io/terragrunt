@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
@@ -100,7 +101,8 @@ func evaluateLocalsBlock(
 		// This is an error because we couldn't evaluate all locals
 		terragruntOptions.Logger.Errorf("Not all locals could be evaluated:")
 		for _, local := range locals {
-			terragruntOptions.Logger.Errorf("\t- %s", local.Name)
+			_, reason := canEvaluate(terragruntOptions, local.Expr, evaluatedLocals)
+			terragruntOptions.Logger.Errorf("\t- %s [REASON: %s]", local.Name, reason)
 		}
 		return nil, errors.WithStackTrace(CouldNotEvaluateAllLocalsError{})
 	}
@@ -165,7 +167,8 @@ func attemptEvaluateLocals(
 		newEvaluatedLocals[key] = val
 	}
 	for _, local := range locals {
-		if canEvaluate(terragruntOptions, local.Expr, evaluatedLocals) {
+		localEvaluated, _ := canEvaluate(terragruntOptions, local.Expr, evaluatedLocals)
+		if localEvaluated {
 			evaluatedVal, diags := local.Expr.Value(evalCtx)
 			if diags.HasErrors() {
 				diagsWriter.WriteDiagnostics(diags)
@@ -192,49 +195,68 @@ func attemptEvaluateLocals(
 // following is true:
 // - It has no references to other locals.
 // - It has references to other locals that have already been evaluated.
+// Note that the second return value is a human friendly reason for why the expression can not be evaluated, and is
+// useful for error reporting.
 func canEvaluate(
 	terragruntOptions *options.TerragruntOptions,
 	expression hcl.Expression,
 	evaluatedLocals map[string]cty.Value,
-) bool {
+) (bool, string) {
 	vars := expression.Variables()
 	if len(vars) == 0 {
 		// If there are no local variable references, we can evaluate this expression.
-		return true
+		return true, ""
 	}
 
 	for _, var_ := range vars {
 		// This should never happen, but if it does, we can't evaluate this expression.
 		if var_.IsRelative() {
-			return false
+			reason := "You've reached an impossible condition and is almost certainly a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl file that caused this."
+			return false, reason
 		}
 
+		rootName := var_.RootName()
+
 		// If the variable is `include`, then we can evaluate it now
-		if var_.RootName() == "include" {
+		if rootName == "include" {
 			continue
 		}
 
 		// We can't evaluate any variable other than `local`
-		if var_.RootName() != "local" {
-			return false
+		if rootName != "local" {
+			reason := fmt.Sprintf(
+				"Can't evaluate expression at %s: you can only reference other local variables here, but it looks like you're referencing something else (%s is not defined)",
+				expression.Range(),
+				rootName,
+			)
+			return false, reason
 		}
 
 		// If we can't get any local name, we can't evaluate it.
 		localName := getLocalName(terragruntOptions, var_)
 		if localName == "" {
-			return false
+			reason := fmt.Sprintf(
+				"Can't evaluate expression at %s because local var name can not be determined.",
+				expression.Range(),
+			)
+			return false, reason
 		}
 
 		// If the referenced local isn't evaluated, we can't evaluate this expression.
 		_, hasEvaluated := evaluatedLocals[localName]
 		if !hasEvaluated {
-			return false
+			reason := fmt.Sprintf(
+				"Can't evaluate expression at %s because local reference '%s' is not evaluated. Either it is not ready yet in the current pass, or there was an error evaluating it in an earlier stage.",
+				expression.Range(),
+				localName,
+			)
+			return false, reason
 		}
 	}
 
 	// If we made it this far, this means all the variables referenced are accounted for and we can evaluate this
 	// expression.
-	return true
+	return true, ""
 }
 
 // getLocalName takes a variable reference encoded as a HCL tree traversal that is rooted at the name `local` and
