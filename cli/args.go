@@ -202,6 +202,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.ErrWriter = errWriter
 	opts.Env = parseEnvironmentVariables(os.Environ())
 	opts.IamRole = iamRole
+	opts.OriginalIamRole = iamRole
 	opts.IamAssumeRoleDuration = int64(IamAssumeRoleDuration)
 	opts.ExcludeDirs = excludeDirs
 	opts.IncludeDirs = includeDirs
