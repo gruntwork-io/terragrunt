@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -125,6 +126,15 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		return nil, err
 	}
 
+	defaultIamAssumeRoleSessionName := os.Getenv("TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME")
+	if defaultIamAssumeRoleSessionName == "" {
+		defaultIamAssumeRoleSessionName = fmt.Sprintf("terragrunt-%d", time.Now().UTC().UnixNano())
+	}
+	iamAssumeRoleSessionName, err := parseStringArg(args, optTerragruntIAMAssumeRoleSessionName, defaultIamAssumeRoleSessionName)
+	if err != nil {
+		return nil, err
+	}
+
 	excludeDirs, err := parseMultiStringArg(args, optTerragruntExcludeDir, []string{})
 	if err != nil {
 		return nil, err
@@ -204,6 +214,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.IamRole = iamRole
 	opts.OriginalIamRole = iamRole
 	opts.IamAssumeRoleDuration = int64(IamAssumeRoleDuration)
+	opts.IamAssumeRoleSessionName = iamAssumeRoleSessionName
 	opts.ExcludeDirs = excludeDirs
 	opts.IncludeDirs = includeDirs
 	opts.StrictInclude = strictInclude

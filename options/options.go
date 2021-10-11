@@ -112,6 +112,9 @@ type TerragruntOptions struct {
 	// Duration of the STS Session
 	IamAssumeRoleDuration int64
 
+	// STS Session name
+	IamAssumeRoleSessionName string
+
 	// If set to true, continue running *-all commands even if a dependency has errors. This is mostly useful for 'output-all <some_variable>'. See https://github.com/gruntwork-io/terragrunt/issues/193
 	IgnoreDependencyErrors bool
 
@@ -214,6 +217,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		SourceUpdate:                false,
 		DownloadDir:                 downloadDir,
 		IamAssumeRoleDuration:       DEFAULT_IAM_ASSUME_ROLE_DURATION,
+		IamAssumeRoleSessionName:    "",
 		IgnoreDependencyErrors:      false,
 		IgnoreDependencyOrder:       false,
 		IgnoreExternalDependencies:  false,
@@ -296,6 +300,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		OriginalIamRole:              terragruntOptions.OriginalIamRole,
 		IamRole:                      terragruntOptions.IamRole,
 		IamAssumeRoleDuration:        terragruntOptions.IamAssumeRoleDuration,
+		IamAssumeRoleSessionName:     terragruntOptions.IamAssumeRoleSessionName,
 		IgnoreDependencyErrors:       terragruntOptions.IgnoreDependencyErrors,
 		IgnoreDependencyOrder:        terragruntOptions.IgnoreDependencyOrder,
 		IgnoreExternalDependencies:   terragruntOptions.IgnoreExternalDependencies,

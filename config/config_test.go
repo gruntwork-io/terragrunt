@@ -254,6 +254,24 @@ func TestParseIamAssumeRoleDuration(t *testing.T) {
 	assert.Equal(t, int64(36000), *terragruntConfig.IamAssumeRoleDuration)
 }
 
+func TestParseIamAssumeRoleSessionName(t *testing.T) {
+	t.Parallel()
+
+	config := `iam_assume_role_session_name = "terragrunt-iam-assume-role-session-name"`
+
+	terragruntConfig, err := ParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Nil(t, terragruntConfig.RemoteState)
+	assert.Nil(t, terragruntConfig.Terraform)
+	assert.Nil(t, terragruntConfig.Dependencies)
+	assert.Nil(t, terragruntConfig.RetryableErrors)
+
+	assert.Equal(t, "terragrunt-iam-assume-role-session-name", terragruntConfig.IamAssumeRoleSessionName)
+}
+
 func TestParseTerragruntConfigDependenciesOnePath(t *testing.T) {
 	t.Parallel()
 

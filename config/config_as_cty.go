@@ -26,6 +26,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	output["download_dir"] = gostringToCty(config.DownloadDir)
 	output["iam_role"] = gostringToCty(config.IamRole)
 	output["skip"] = goboolToCty(config.Skip)
+	output["iam_assume_role_session_name"] = gostringToCty(config.IamAssumeRoleSessionName)
 
 	terraformConfigCty, err := terraformConfigAsCty(config.Terraform)
 	if err != nil {

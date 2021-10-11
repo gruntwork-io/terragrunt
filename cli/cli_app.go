@@ -38,6 +38,7 @@ const (
 	optTerragruntSourceUpdate                = "terragrunt-source-update"
 	optTerragruntIAMRole                     = "terragrunt-iam-role"
 	optTerragruntIAMAssumeRoleDuration       = "terragrunt-iam-assume-role-duration"
+	optTerragruntIAMAssumeRoleSessionName    = "terragrunt-iam-assume-role-session-name"
 	optTerragruntIgnoreDependencyErrors      = "terragrunt-ignore-dependency-errors"
 	optTerragruntIgnoreDependencyOrder       = "terragrunt-ignore-dependency-order"
 	optTerragruntIgnoreExternalDependencies  = "terragrunt-ignore-external-dependencies"
@@ -77,6 +78,7 @@ var allTerragruntStringOpts = []string{
 	optTerragruntSourceMap,
 	optTerragruntIAMRole,
 	optTerragruntIAMAssumeRoleDuration,
+	optTerragruntIAMAssumeRoleSessionName,
 	optTerragruntExcludeDir,
 	optTerragruntIncludeDir,
 	optTerragruntParallelism,
@@ -231,6 +233,7 @@ GLOBAL OPTIONS:
    terragrunt-source-update                     Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it.
    terragrunt-iam-role                          Assume the specified IAM role before executing Terraform. Can also be set via the TERRAGRUNT_IAM_ROLE environment variable.
    terragrunt-iam-assume-role-duration          Session duration for IAM Assume Role session. Can also be set via the TERRAGRUNT_IAM_ASSUME_ROLE_DURATION environment variable.
+   terragrunt-iam-assume-role-session-name      Name for the IAM Assummed Role session. Can also be set via TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME environment variable.
    terragrunt-ignore-dependency-errors          *-all commands continue processing components even if a dependency fails.
    terragrunt-ignore-dependency-order           *-all commands will be run disregarding the dependencies
    terragrunt-ignore-external-dependencies      *-all commands will not attempt to include external dependencies
@@ -396,6 +399,10 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	// replace default sts duration if set in config
 	if terragruntOptions.IamAssumeRoleDuration == int64(options.DEFAULT_IAM_ASSUME_ROLE_DURATION) && terragruntConfig.IamAssumeRoleDuration != nil {
 		terragruntOptions.IamAssumeRoleDuration = *terragruntConfig.IamAssumeRoleDuration
+	}
+
+	if terragruntOptions.IamAssumeRoleSessionName == "" {
+		terragruntOptions.IamAssumeRoleSessionName = terragruntConfig.IamAssumeRoleSessionName
 	}
 
 	if err := aws_helper.AssumeRoleAndUpdateEnvIfNecessary(terragruntOptions); err != nil {
