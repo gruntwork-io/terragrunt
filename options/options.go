@@ -103,6 +103,9 @@ type TerragruntOptions struct {
 	// Download Terraform configurations specified in the Source parameter into this folder
 	DownloadDir string
 
+	// ARN of an IAM Role set from command line. This is used to differentiate between the IAM role set from the config and CLI.
+	OriginalIamRole string
+
 	// The ARN of an IAM Role to assume before running Terraform
 	IamRole string
 
@@ -290,6 +293,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		SourceUpdate:                 terragruntOptions.SourceUpdate,
 		DownloadDir:                  terragruntOptions.DownloadDir,
 		Debug:                        terragruntOptions.Debug,
+		OriginalIamRole:              terragruntOptions.OriginalIamRole,
 		IamRole:                      terragruntOptions.IamRole,
 		IamAssumeRoleDuration:        terragruntOptions.IamAssumeRoleDuration,
 		IgnoreDependencyErrors:       terragruntOptions.IgnoreDependencyErrors,

@@ -188,6 +188,7 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 	assert.Equal(t, expected.Source, actual.Source, msgAndArgs...)
 	assert.Equal(t, expected.IgnoreDependencyErrors, actual.IgnoreDependencyErrors, msgAndArgs...)
 	assert.Equal(t, expected.IamRole, actual.IamRole, msgAndArgs...)
+	assert.Equal(t, expected.IamRole, actual.OriginalIamRole, msgAndArgs...)
 	assert.Equal(t, expected.Debug, actual.Debug, msgAndArgs...)
 	assert.Equal(t, expected.AwsProviderPatchOverrides, actual.AwsProviderPatchOverrides, msgAndArgs...)
 }
