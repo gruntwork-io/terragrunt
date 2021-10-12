@@ -41,7 +41,7 @@ func (stack *Stack) LogModuleDeployOrder(logger *logrus.Entry, terraformCommand 
 		return err
 	}
 	for i, group := range runGraph {
-		outStr += fmt.Sprintf("Group %d\n", i)
+		outStr += fmt.Sprintf("Group %d\n", i+1)
 		for _, module := range group {
 			outStr += fmt.Sprintf("- Module %s\n", module.Path)
 		}
@@ -222,7 +222,9 @@ func (stack *Stack) getModuleRunGraph(terraformCommand string) ([][]*TerraformMo
 
 		// Finally, update the trackers so that the next iteration runs.
 		moduleRunGraph = next
-		groups = append(groups, currentIterationDeploy)
+		if len(currentIterationDeploy) > 0 {
+			groups = append(groups, currentIterationDeploy)
+		}
 	}
 	return groups, nil
 }
