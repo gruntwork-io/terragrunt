@@ -1046,7 +1046,10 @@ func runAll(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
-	terragruntOptions.Logger.Infof("%s", stack.String())
+	terragruntOptions.Logger.Debugf("%s", stack.String())
+	if err := stack.LogModuleDeployOrder(terragruntOptions.Logger, terragruntOptions.TerraformCommand); err != nil {
+		return err
+	}
 
 	var prompt string
 	switch terragruntOptions.TerraformCommand {

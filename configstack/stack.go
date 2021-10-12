@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/sirupsen/logrus"
 )
 
 // Represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or
@@ -28,6 +29,26 @@ func (stack *Stack) String() string {
 	}
 	sort.Strings(modules)
 	return fmt.Sprintf("Stack at %s:\n%s", stack.Path, strings.Join(modules, "\n"))
+}
+
+// LogModuleDeployOrder will log the modules that will be deployed by this operation, in the order that the operations
+// happen. For plan and apply, the order will be bottom to top (dependencies first), while for destroy the order will be
+// in reverse.
+func (stack *Stack) LogModuleDeployOrder(logger *logrus.Entry, terraformCommand string) error {
+	outStr := fmt.Sprintf("The stack at %s will be processed in the following order for command %s:\n", stack.Path, terraformCommand)
+	runGraph, err := stack.getModuleRunGraph(terraformCommand)
+	if err != nil {
+		return err
+	}
+	for i, group := range runGraph {
+		outStr += fmt.Sprintf("Group %d\n", i)
+		for _, module := range group {
+			outStr += fmt.Sprintf("- Module %s\n", module.Path)
+		}
+		outStr += "\n"
+	}
+	logger.Info(outStr)
+	return nil
 }
 
 // Graph creates a graphviz representation of the modules
@@ -131,6 +152,79 @@ func (stack *Stack) syncTerraformCliArgs(terragruntOptions *options.TerragruntOp
 	for _, module := range stack.Modules {
 		module.TerragruntOptions.TerraformCliArgs = terragruntOptions.TerraformCliArgs
 	}
+}
+
+// getModuleRunGraph converts the module list to a graph that shows the order in which the modules will be
+// applied/destroyed. The return structure is a list of lists, where the nested list represents modules that can be
+// deployed concurrently, and the outer list indicates the order. This will only include those modules that do NOT have
+// the exclude flag set.
+func (stack *Stack) getModuleRunGraph(terraformCommand string) ([][]*TerraformModule, error) {
+	var moduleRunGraph map[string]*runningModule
+	var graphErr error
+	switch terraformCommand {
+	case "destroy":
+		moduleRunGraph, graphErr = toRunningModules(stack.Modules, ReverseOrder)
+	default:
+		moduleRunGraph, graphErr = toRunningModules(stack.Modules, NormalOrder)
+	}
+	if graphErr != nil {
+		return nil, graphErr
+	}
+
+	// Set maxDepth for the graph so that we don't get stuck in an infinite loop.
+	const maxDepth = 1000
+
+	// Walk the graph in run order, capturing which groups will run at each iteration. In each iteration, this pops out
+	// the modules that have no dependencies and captures that as a run group.
+	groups := [][]*TerraformModule{}
+	for len(moduleRunGraph) > 0 && len(groups) < maxDepth {
+		currentIterationDeploy := []*TerraformModule{}
+
+		// next tracks which modules are being deferred to a later run.
+		next := map[string]*runningModule{}
+		// removeDep tracks which modules are run in the current iteration so that they need to be removed in the
+		// dependency list for the next iteration. This is separately tracked from currentIterationDeploy for
+		// convenience: this tracks the map key of the Dependencies attribute.
+		removeDep := []string{}
+
+		// Iterate the modules, looking for those that have no dependencies and select them for "running". In the
+		// process, track those that still need to run in a separate map for further processing.
+		for path, module := range moduleRunGraph {
+			// Anything that is already applied is culled from the graph when running, so we ignore them here as well.
+			if module.Module.AssumeAlreadyApplied {
+				removeDep = append(removeDep, path)
+			} else if len(module.Dependencies) == 0 {
+				currentIterationDeploy = append(currentIterationDeploy, module.Module)
+				removeDep = append(removeDep, path)
+			} else {
+				next[path] = module
+			}
+		}
+
+		// Go through the remaining module and remove the dependencies that were selected to run in this curent
+		// iteration.
+		for _, module := range next {
+			for _, path := range removeDep {
+				_, hasDep := module.Dependencies[path]
+				if hasDep {
+					delete(module.Dependencies, path)
+				}
+			}
+		}
+
+		// Sort the group by path so that it is easier to read and test.
+		sort.Slice(
+			currentIterationDeploy,
+			func(i, j int) bool {
+				return currentIterationDeploy[i].Path < currentIterationDeploy[j].Path
+			},
+		)
+
+		// Finally, update the trackers so that the next iteration runs.
+		moduleRunGraph = next
+		groups = append(groups, currentIterationDeploy)
+	}
+	return groups, nil
 }
 
 // Find all the Terraform modules in the folders that contain the given Terragrunt config files and assemble those
