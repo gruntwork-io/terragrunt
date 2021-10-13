@@ -3707,7 +3707,7 @@ func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE))
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE_BACKUP))
-	removeFile(t, util.JoinPath(templatesPath, TERRAGRUNT_DEBUG_FILE))
+	removeFile(t, util.JoinPath(templatesPath, terragruntDebugFile))
 	removeFolder(t, util.JoinPath(templatesPath, TERRAFORM_FOLDER))
 }
 
