@@ -248,9 +248,8 @@ func TestDependencyGraphWithMultiInclude(t *testing.T) {
 	stderr := bytes.Buffer{}
 	require.NoError(
 		t,
-		runTerragruntCommand(t, fmt.Sprintf("terragrunt graph-dependencies --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt graph-dependencies --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
 	)
-	logBufferContentsLineByLine(t, stderr, "stderr")
 	stdoutStr := stdout.String()
 
 	assert.Contains(t, stdoutStr, `"main" -> "depa";`)

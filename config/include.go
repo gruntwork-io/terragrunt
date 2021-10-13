@@ -240,6 +240,14 @@ func handleIncludeForDependency(
 
 // Merge performs a shallow merge of the given sourceConfig into the targetConfig. sourceConfig will override common
 // attributes defined in the targetConfig. Note that this will modify the targetConfig.
+// NOTE: the following attributes are deliberately omitted from the merge operation, as they are handled differently in
+// the parser:
+//     - dependency blocks (TerragruntDependencies) [These blocks need to retrieve outputs, so we need to merge during
+//       the parsing step, not after the full config is decoded]
+//     - locals [These blocks are not merged by design]
+// NOTE: dependencies block is a special case and is merged deeply. This is necessary to ensure the configstack system
+// works correctly, as it uses the `Dependencies` list to track the dependencies of modules for graph building purposes.
+// This list includes the dependencies added from dependency blocks, which is handled in a different stage.
 func (targetConfig *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terragruntOptions *options.TerragruntOptions) {
 	// Merge simple attributes first
 	if sourceConfig.DownloadDir != "" {
@@ -299,8 +307,14 @@ func (targetConfig *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terr
 		}
 	}
 
+	// Deep merge the dependencies list. This is different from dependency blocks, and refers to the deprecated
+	// dependencies block!
 	if sourceConfig.Dependencies != nil {
-		targetConfig.Dependencies = sourceConfig.Dependencies
+		if targetConfig.Dependencies == nil {
+			targetConfig.Dependencies = sourceConfig.Dependencies
+		} else {
+			targetConfig.Dependencies.Merge(sourceConfig.Dependencies)
+		}
 	}
 
 	if sourceConfig.RetryableErrors != nil {
