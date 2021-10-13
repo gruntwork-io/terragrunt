@@ -18,9 +18,10 @@ import (
 )
 
 const (
-	TERRAGRUNT_DEBUG_FILE = "terragrunt-debug.tfvars.json"
+	terragruntDebugFile = "terragrunt-debug.tfvars.json"
 
-	fixtureRenderJSON = "fixture-render-json"
+	fixtureMultiIncludeDependency = "fixture-multiinclude-dependency"
+	fixtureRenderJSON             = "fixture-render-json"
 )
 
 var (
@@ -37,7 +38,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-debug --terragrunt-working-dir %s", rootPath))
 
-	debugFile := util.JoinPath(rootPath, TERRAGRUNT_DEBUG_FILE)
+	debugFile := util.JoinPath(rootPath, terragruntDebugFile)
 	assert.True(t, util.FileExists(debugFile))
 
 	// If the debug file is generated correctly, we should be able to run terraform apply using the generated var file
@@ -234,6 +235,27 @@ func TestRenderJSONConfig(t *testing.T) {
 			inputsBlock.(map[string]interface{}),
 		)
 	}
+}
+
+func TestDependencyGraphWithMultiInclude(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, fixtureMultiIncludeDependency)
+	tmpEnvPath := copyEnvironment(t, fixtureMultiIncludeDependency)
+	rootPath := util.JoinPath(tmpEnvPath, fixtureMultiIncludeDependency)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt graph-dependencies --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+	logBufferContentsLineByLine(t, stderr, "stderr")
+	stdoutStr := stdout.String()
+
+	assert.Contains(t, stdoutStr, `"main" -> "depa";`)
+	assert.Contains(t, stdoutStr, `"main" -> "depb";`)
+	assert.Contains(t, stdoutStr, `"main" -> "depc";`)
 }
 
 func runTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []string, isSuccessTest bool) {
