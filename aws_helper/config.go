@@ -72,13 +72,16 @@ func CreateAwsSessionFromConfig(config *AwsSessionConfig, terragruntOptions *opt
 	}
 
 	// Merge the config based IAMRole options into the original one, as the config has higher precedence than CLI.
-	iamRoleOptions := options.MergeIAMRoleOptions(
-		terragruntOptions.OriginalIAMRoleOptions,
-		options.IAMRoleOptions{
-			RoleARN:               config.RoleArn,
-			AssumeRoleSessionName: config.SessionName,
-		},
-	)
+	iamRoleOptions := terragruntOptions.IAMRoleOptions
+	if config.RoleArn != "" {
+		iamRoleOptions = options.MergeIAMRoleOptions(
+			iamRoleOptions,
+			options.IAMRoleOptions{
+				RoleARN:               config.RoleArn,
+				AssumeRoleSessionName: config.SessionName,
+			},
+		)
+	}
 
 	credentialOptFn := func(p *stscreds.AssumeRoleProvider) {
 		if config.ExternalID != "" {
@@ -122,6 +125,7 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 			return nil, errors.WithStackTrace(err)
 		}
 		if terragruntOptions.IAMRoleOptions.RoleARN != "" {
+			terragruntOptions.Logger.Debugf("Assuming role %s", terragruntOptions.IAMRoleOptions.RoleARN)
 			sess.Config.Credentials = getSTSCredentialsFromIAMRoleOptions(sess, terragruntOptions.IAMRoleOptions)
 		}
 	} else {
