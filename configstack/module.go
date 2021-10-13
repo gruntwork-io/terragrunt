@@ -386,6 +386,9 @@ func resolveExternalDependenciesForModule(module *TerraformModule, moduleMap map
 
 // Confirm with the user whether they want Terragrunt to assume the given dependency of the given module is already
 // applied. If the user selects "yes", then Terragrunt will apply that module as well.
+// Note that we skip the prompt for `run-all destroy` calls. Given the destructive and irreversible nature of destroy, we don't
+// want to provide any risk to the user of accidentally destroying an external dependency unless explicitly included
+// with the --terragrunt-include-external-dependencies or --terragrunt-include-dir flags.
 func confirmShouldApplyExternalDependency(module *TerraformModule, dependency *TerraformModule, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	if terragruntOptions.IncludeExternalDependencies {
 		terragruntOptions.Logger.Debugf("The --terragrunt-include-external-dependencies flag is set, so automatically including all external dependencies, and will run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
@@ -393,7 +396,13 @@ func confirmShouldApplyExternalDependency(module *TerraformModule, dependency *T
 	}
 
 	if terragruntOptions.NonInteractive {
-		terragruntOptions.Logger.Debugf("The --non-interactive flag is set. To avoid accidentally affecting external dependencies with an xxx-all command, will not run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
+		terragruntOptions.Logger.Debugf("The --non-interactive flag is set. To avoid accidentally affecting external dependencies with a run-all command, will not run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
+		return false, nil
+	}
+
+	stackCmd := terragruntOptions.TerraformCommand
+	if stackCmd == "destroy" {
+		terragruntOptions.Logger.Debugf("run-all command called with destroy. To avoid accidentally having destructive effects on external dependencies with run-all command, will not run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
 		return false, nil
 	}
 
