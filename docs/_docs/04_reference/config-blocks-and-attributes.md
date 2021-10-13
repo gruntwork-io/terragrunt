@@ -17,6 +17,9 @@ where `terragrunt.hcl` is mentioned you can always use `terragrunt.hcl.json` ins
 
 The following is a reference of all the supported blocks and attributes in the configuration file:
 
+  - [Blocks](#blocks)
+  - [Attributes](#attributes)
+
 ## Blocks
 
 - [terraform](#terraform)
@@ -457,6 +460,10 @@ backward compatibility, but is deprecated usage and support may be removed in th
 **NOTE**: At this time, Terragrunt only supports a single level of `include` blocks. That is, Terragrunt will error out
 if an included config also has an `include` block defined. If you are interested in this feature, please follow
 https://github.com/gruntwork-io/terragrunt/issues/1566 to be notified when nested `include` blocks are supported.
+
+**Special case for shallow merge**: When performing a shallow merge, all attributes and blocks are merged shallowly with
+replacement, except for `dependencies` blocks (NOT `dependency` block). `dependencies` blocks are deep merged: that is,
+all the lists of paths from included configurations are concatenated together, rather than replaced in override fashion.
 
 
 Examples:
