@@ -32,7 +32,7 @@ const TerragruntCacheDir = ".terragrunt-cache"
 
 const DefaultTFDataDir = ".terraform"
 
-const DEFAULT_IAM_ASSUME_ROLE_DURATION = 3600
+const DefaultIAMAssumeRoleDuration = 3600
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
@@ -103,17 +103,12 @@ type TerragruntOptions struct {
 	// Download Terraform configurations specified in the Source parameter into this folder
 	DownloadDir string
 
-	// ARN of an IAM Role set from command line. This is used to differentiate between the IAM role set from the config and CLI.
-	OriginalIamRole string
+	// IAM Role options set from command line. This is used to differentiate between the options set from the config and
+	// CLI.
+	OriginalIAMRoleOptions IAMRoleOptions
 
-	// The ARN of an IAM Role to assume before running Terraform
-	IamRole string
-
-	// Duration of the STS Session
-	IamAssumeRoleDuration int64
-
-	// STS Session name
-	IamAssumeRoleSessionName string
+	// IAM Role options that should be used when authenticating to AWS.
+	IAMRoleOptions IAMRoleOptions
 
 	// If set to true, continue running *-all commands even if a dependency has errors. This is mostly useful for 'output-all <some_variable>'. See https://github.com/gruntwork-io/terragrunt/issues/193
 	IgnoreDependencyErrors bool
@@ -189,6 +184,36 @@ type TerragruntOptions struct {
 	CheckDependentModules bool
 }
 
+// IAMOptions represents options that are used by Terragrunt to assume an IAM role.
+type IAMRoleOptions struct {
+	// The ARN of an IAM Role to assume. Used when accessing AWS, both internally and through terraform.
+	RoleARN string
+
+	// Duration of the STS Session when assuming the role.
+	AssumeRoleDuration int64
+
+	// STS Session name when assuming the role.
+	AssumeRoleSessionName string
+}
+
+func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOptions {
+	out := target
+
+	if source.RoleARN != "" {
+		out.RoleARN = source.RoleARN
+	}
+
+	if source.AssumeRoleDuration != 0 {
+		out.AssumeRoleDuration = source.AssumeRoleDuration
+	}
+
+	if source.AssumeRoleSessionName != "" {
+		out.AssumeRoleSessionName = source.AssumeRoleSessionName
+	}
+
+	return out
+}
+
 // Create a new TerragruntOptions object with reasonable defaults for real usage
 func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, error) {
 	defaultLogLevel := util.GetDefaultLogLevel()
@@ -216,8 +241,6 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		SourceMap:                   map[string]string{},
 		SourceUpdate:                false,
 		DownloadDir:                 downloadDir,
-		IamAssumeRoleDuration:       DEFAULT_IAM_ASSUME_ROLE_DURATION,
-		IamAssumeRoleSessionName:    "",
 		IgnoreDependencyErrors:      false,
 		IgnoreDependencyOrder:       false,
 		IgnoreExternalDependencies:  false,
@@ -250,6 +273,11 @@ func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string,
 	}
 
 	return filepath.ToSlash(workingDir), filepath.ToSlash(downloadDir), nil
+}
+
+// Get the default IAM assume role session name.
+func GetDefaultIAMAssumeRoleSessionName() string {
+	return fmt.Sprintf("terragrunt-%d", time.Now().UTC().UnixNano())
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for test usage
@@ -297,10 +325,8 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		SourceUpdate:                 terragruntOptions.SourceUpdate,
 		DownloadDir:                  terragruntOptions.DownloadDir,
 		Debug:                        terragruntOptions.Debug,
-		OriginalIamRole:              terragruntOptions.OriginalIamRole,
-		IamRole:                      terragruntOptions.IamRole,
-		IamAssumeRoleDuration:        terragruntOptions.IamAssumeRoleDuration,
-		IamAssumeRoleSessionName:     terragruntOptions.IamAssumeRoleSessionName,
+		OriginalIAMRoleOptions:       terragruntOptions.OriginalIAMRoleOptions,
+		IAMRoleOptions:               terragruntOptions.IAMRoleOptions,
 		IgnoreDependencyErrors:       terragruntOptions.IgnoreDependencyErrors,
 		IgnoreDependencyOrder:        terragruntOptions.IgnoreDependencyOrder,
 		IgnoreExternalDependencies:   terragruntOptions.IgnoreExternalDependencies,
