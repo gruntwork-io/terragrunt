@@ -661,9 +661,12 @@ func ParseConfigString(
 	// If this file includes another, parse and merge it.  Otherwise just return this config.
 	if trackInclude != nil {
 		config, err := handleInclude(config, trackInclude, terragruntOptions, contextExtensions.DecodedDependencies)
+		if err != nil {
+			return nil, err
+		}
 		// Saving processed includes into configuration, direct assignment since nested includes aren't supported
 		config.ProcessedIncludes = trackInclude.CurrentMap
-		return config, err
+		return config, nil
 	}
 	return config, nil
 }
