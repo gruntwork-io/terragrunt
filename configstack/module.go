@@ -33,7 +33,10 @@ func (module *TerraformModule) String() string {
 	for _, dependency := range module.Dependencies {
 		dependencies = append(dependencies, dependency.Path)
 	}
-	return fmt.Sprintf("Module %s (excluded: %v, dependencies: [%s])", module.Path, module.FlagExcluded, strings.Join(dependencies, ", "))
+	return fmt.Sprintf(
+		"Module %s (excluded: %v, assume applied: %v, dependencies: [%s])",
+		module.Path, module.FlagExcluded, module.AssumeAlreadyApplied, strings.Join(dependencies, ", "),
+	)
 }
 
 // Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents

@@ -52,7 +52,104 @@ func TestFindStackInSubfolders(t *testing.T) {
 		filePathFound := util.ListContainsElement(modulePaths, filePath)
 		assert.True(t, filePathFound, "The filePath %s was not found by Terragrunt.\n", filePath)
 	}
+}
 
+func TestGetModuleRunGraphApplyOrder(t *testing.T) {
+	t.Parallel()
+
+	stack := createTestStack()
+	runGraph, err := stack.getModuleRunGraph("apply")
+	require.NoError(t, err)
+
+	assert.Equal(
+		t,
+		[][]*TerraformModule{
+			{
+				stack.Modules[1],
+			},
+			{
+				stack.Modules[3],
+				stack.Modules[4],
+			},
+			{
+				stack.Modules[5],
+			},
+		},
+		runGraph,
+	)
+}
+
+func TestGetModuleRunGraphDestroyOrder(t *testing.T) {
+	t.Parallel()
+
+	stack := createTestStack()
+	runGraph, err := stack.getModuleRunGraph("destroy")
+	require.NoError(t, err)
+
+	assert.Equal(
+		t,
+		[][]*TerraformModule{
+			{
+				stack.Modules[5],
+			},
+			{
+				stack.Modules[3],
+				stack.Modules[4],
+			},
+			{
+				stack.Modules[1],
+			},
+		},
+		runGraph,
+	)
+
+}
+
+func createTestStack() *Stack {
+	// Create the following module stack:
+	// - account-baseline (excluded)
+	// - vpc; depends on account-baseline
+	// - lambdafunc; depends on vpc (assume already applied)
+	// - mysql; depends on vpc
+	// - redis; depends on vpc
+	// - myapp; depends on mysql and redis
+	basePath := "/stage/mystack"
+	accountBaseline := &TerraformModule{
+		Path:         filepath.Join(basePath, "account-baseline"),
+		FlagExcluded: true,
+	}
+	vpc := &TerraformModule{
+		Path:         filepath.Join(basePath, "vpc"),
+		Dependencies: []*TerraformModule{accountBaseline},
+	}
+	lambda := &TerraformModule{
+		Path:                 filepath.Join(basePath, "lambda"),
+		Dependencies:         []*TerraformModule{vpc},
+		AssumeAlreadyApplied: true,
+	}
+	mysql := &TerraformModule{
+		Path:         filepath.Join(basePath, "mysql"),
+		Dependencies: []*TerraformModule{vpc},
+	}
+	redis := &TerraformModule{
+		Path:         filepath.Join(basePath, "redis"),
+		Dependencies: []*TerraformModule{vpc},
+	}
+	myapp := &TerraformModule{
+		Path:         filepath.Join(basePath, "myapp"),
+		Dependencies: []*TerraformModule{mysql, redis},
+	}
+	return &Stack{
+		Path: "/stage/mystack",
+		Modules: []*TerraformModule{
+			accountBaseline,
+			vpc,
+			lambda,
+			mysql,
+			redis,
+			myapp,
+		},
+	}
 }
 
 func createTempFolder(t *testing.T) string {
