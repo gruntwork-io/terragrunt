@@ -111,6 +111,11 @@ transform {
   output "my_password_hashed" {
     sensitive = true
   }
+
+  # The following are additional transform blocks that we should support.
+  required_providers "aws" {
+    version = "~> 3.0"
+  }
 }
 ```
 
@@ -134,6 +139,16 @@ should be feasible by doing the following:
 - For each file found, parse using the `hclwrite` parser.
 - Walk the AST, looking for `variable` or `output` blocks that match the `transform` sub blocks.
 - If we encounter one, use `SetAttributeValue` to merge in the attributes from the `transform` sub blocks.
+
+### Additional transforms
+
+The following additional transforms should be supported as well:
+
+- `required_providers`, where the label matches the provider key (e.g., `required_providers "kubernetes"` or
+  `required_providers "aws"`): Currently there is no way for `terragrunt` to override a provider version when a module
+  defines a `required_providers` block on the `terraform` block. Terraform only supports a single `required_providers`
+  configuration. This makes it hard to work around provider bugs such as
+  https://github.com/hashicorp/terraform-provider-kubernetes/issues/1464.
 
 
 ## Alternatives
