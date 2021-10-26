@@ -595,8 +595,8 @@ func NewLogReductionHook() *LogReductionHook {
 }
 
 // AddMessage - add log message and log level to which will be set log message if log message will contain configured message
-func (hook *LogReductionHook) AddMessage(message string, reductionLevel logrus.Level) {
-	hook.LogMessages[message] = reductionLevel
+func (hook *LogReductionHook) AddMessage(messageSubstring string, reductionLevel logrus.Level) {
+	hook.LogMessages[messageSubstring] = reductionLevel
 }
 
 // Levels - return log levels on which hook will be triggered

@@ -1,9 +1,12 @@
 package configstack
 
 import (
+	"bytes"
 	"os"
+	"strings"
 	"testing"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -772,4 +775,45 @@ func TestResolveTerraformModuleNoTerraformConfig(t *testing.T) {
 
 func ptr(str string) *string {
 	return &str
+}
+
+func TestLogReductionHook(t *testing.T) {
+	t.Parallel()
+	var hook = NewLogReductionHook()
+	hook.AddMessage("tomato", logrus.ErrorLevel)
+	hook.AddMessage("potato", logrus.DebugLevel)
+
+	stdout := bytes.Buffer{}
+
+	var testLogger = logrus.New()
+	testLogger.Out = &stdout
+	testLogger.AddHook(hook)
+	testLogger.Level = logrus.DebugLevel
+
+	logrus.NewEntry(testLogger).Info("Test tomato")
+	logrus.NewEntry(testLogger).Error("666 potato 111")
+
+	out := string(stdout.Bytes())
+
+	// test that in output logs lines are logged with different log levels:
+	// tomato -> error
+	// potato -> debug
+
+	var errorLine = ""
+	var debugLine = ""
+
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, "level=error") {
+			errorLine = line
+			continue
+		}
+		if strings.Contains(line, "level=debug") {
+			debugLine = line
+			continue
+		}
+	}
+
+	assert.Contains(t, errorLine, "Test tomato")
+	assert.Contains(t, debugLine, "666 potato 111")
+
 }
