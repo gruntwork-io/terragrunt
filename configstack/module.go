@@ -2,18 +2,17 @@ package configstack
 
 import (
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"path/filepath"
 	"sort"
 	"strings"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/mattn/go-zglob"
+	zglob "github.com/mattn/go-zglob"
 )
 
 const maxLevelsOfRecursion = 20
