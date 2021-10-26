@@ -521,8 +521,7 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 		}
 		cfgOptions.LogLevel = terragruntOptions.LogLevel
 		if terragruntOptions.TerraformCommand == "destroy" {
-			var hook = NewLogReductionHook()
-			hook.AddMessage("Encountered error while evaluating locals", logrus.DebugLevel)
+			var hook = NewForceLogLevelHook(logrus.DebugLevel)
 			cfgOptions.Logger.Logger.AddHook(hook)
 		}
 		stack, err := FindStackInSubfolders(cfgOptions)
@@ -580,39 +579,31 @@ func (err InfiniteRecursion) Error() string {
 	return fmt.Sprintf("Hit what seems to be an infinite recursion after going %d levels deep. Please check for a circular dependency! Modules involved: %v", err.RecursionLevel, err.Modules)
 }
 
-// LogReductionHook - log hook which can change log level for messages which contains specific substrings
-type LogReductionHook struct {
+// ForceLogLevelHook - log hook which can change log level for messages which contains specific substrings
+type ForceLogLevelHook struct {
 	TriggerLevels []logrus.Level
-	LogMessages   map[string]logrus.Level
+	ForcedLevel   logrus.Level
 }
 
-// NewLogReductionHook - create default log reduction hook
-func NewLogReductionHook() *LogReductionHook {
-	return &LogReductionHook{
-		LogMessages:   map[string]logrus.Level{},
+// NewForceLogLevelHook - create default log reduction hook
+func NewForceLogLevelHook(forcedLevel logrus.Level) *ForceLogLevelHook {
+	return &ForceLogLevelHook{
+		ForcedLevel:   forcedLevel,
 		TriggerLevels: logrus.AllLevels,
 	}
 }
 
-// AddMessage - add log message and log level to which will be set log message if log message will contain configured message
-func (hook *LogReductionHook) AddMessage(messageSubstring string, reductionLevel logrus.Level) {
-	hook.LogMessages[messageSubstring] = reductionLevel
-}
-
 // Levels - return log levels on which hook will be triggered
-func (hook *LogReductionHook) Levels() []logrus.Level {
+func (hook *ForceLogLevelHook) Levels() []logrus.Level {
 	return hook.TriggerLevels
 }
 
 // Fire - function invoked against log entries when entry will match loglevel from Levels()
-func (hook *LogReductionHook) Fire(entry *logrus.Entry) error {
-	for message, log := range hook.LogMessages {
-		if strings.Contains(entry.Message, message) {
-			entry.Level = log
-			formatter := LogEntriesDropperFormatter{OriginalFormatter: entry.Logger.Formatter}
-			entry.Logger.Formatter = &formatter
-		}
-	}
+func (hook *ForceLogLevelHook) Fire(entry *logrus.Entry) error {
+	entry.Level = hook.ForcedLevel
+	// special formatter to skip printing of log entries since after hook evaluation, entries are printed directly
+	formatter := LogEntriesDropperFormatter{OriginalFormatter: entry.Logger.Formatter}
+	entry.Logger.Formatter = &formatter
 	return nil
 }
 

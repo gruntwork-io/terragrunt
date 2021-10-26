@@ -779,9 +779,7 @@ func ptr(str string) *string {
 
 func TestLogReductionHook(t *testing.T) {
 	t.Parallel()
-	var hook = NewLogReductionHook()
-	hook.AddMessage("tomato", logrus.ErrorLevel)
-	hook.AddMessage("potato", logrus.DebugLevel)
+	var hook = NewForceLogLevelHook(logrus.ErrorLevel)
 
 	stdout := bytes.Buffer{}
 
@@ -795,25 +793,21 @@ func TestLogReductionHook(t *testing.T) {
 
 	out := string(stdout.Bytes())
 
-	// test that in output logs lines are logged with different log levels:
-	// tomato -> error
-	// potato -> debug
-
-	var errorLine = ""
-	var debugLine = ""
+	var firstLogEntry = ""
+	var secondLogEntry = ""
 
 	for _, line := range strings.Split(out, "\n") {
-		if strings.Contains(line, "level=error") {
-			errorLine = line
+		if strings.Contains(line, "tomato") {
+			firstLogEntry = line
 			continue
 		}
-		if strings.Contains(line, "level=debug") {
-			debugLine = line
+		if strings.Contains(line, "potato") {
+			secondLogEntry = line
 			continue
 		}
 	}
-
-	assert.Contains(t, errorLine, "Test tomato")
-	assert.Contains(t, debugLine, "666 potato 111")
+	// check that both entries got logged with error level
+	assert.Contains(t, firstLogEntry, "level=error")
+	assert.Contains(t, secondLogEntry, "level=error")
 
 }
