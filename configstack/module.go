@@ -2,10 +2,11 @@ package configstack
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
