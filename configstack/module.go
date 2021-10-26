@@ -6,12 +6,14 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
-	zglob "github.com/mattn/go-zglob"
+	"github.com/mattn/go-zglob"
 )
 
 const maxLevelsOfRecursion = 20
@@ -517,6 +519,15 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 		if err != nil {
 			return nil, err
 		}
+		cfgOptions.Logger = util.CreateLogEntryWithWriter(terragruntOptions.ErrWriter, dir, logrus.ErrorLevel, terragruntOptions.Logger.Logger.Hooks)
+		cfgOptions.LogLevel = logrus.ErrorLevel
+		cfgOptions.Logger.WriterLevel(logrus.ErrorLevel)
+
+		if terragruntOptions.TerraformCommand == "destroy" {
+			var hook = NewLogReductionHook()
+			hook.AddMessage("Encountered error while evaluating locals", logrus.DebugLevel)
+			cfgOptions.Logger.Logger.AddHook(hook)
+		}
 		stack, err := FindStackInSubfolders(cfgOptions)
 		if err != nil {
 			return nil, err
@@ -570,4 +581,38 @@ type InfiniteRecursion struct {
 
 func (err InfiniteRecursion) Error() string {
 	return fmt.Sprintf("Hit what seems to be an infinite recursion after going %d levels deep. Please check for a circular dependency! Modules involved: %v", err.RecursionLevel, err.Modules)
+}
+
+// LogReductionHook - log hook which can change log level for messages which contains specific substrings
+type LogReductionHook struct {
+	TriggerLevels []logrus.Level
+	LogMessages   map[string]logrus.Level
+}
+
+// NewLogReductionHook - create default log reduction hook
+func NewLogReductionHook() *LogReductionHook {
+	return &LogReductionHook{
+		LogMessages:   map[string]logrus.Level{},
+		TriggerLevels: logrus.AllLevels,
+	}
+}
+
+// AddMessage - add log message and log level to which will be set log message if log message will contain configured message
+func (hook *LogReductionHook) AddMessage(message string, reductionLevel logrus.Level) {
+	hook.LogMessages[message] = reductionLevel
+}
+
+// Levels - return log levels on which hook will be triggered
+func (hook *LogReductionHook) Levels() []logrus.Level {
+	return hook.TriggerLevels
+}
+
+// Fire - function invoked against log entries when entry will match loglevel from Levels()
+func (hook *LogReductionHook) Fire(entry *logrus.Entry) error {
+	for message, log := range hook.LogMessages {
+		if strings.Contains(entry.Message, message) {
+			entry.Level = log
+		}
+	}
+	return nil
 }
