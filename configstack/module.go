@@ -609,20 +609,20 @@ func (hook *LogReductionHook) Fire(entry *logrus.Entry) error {
 	for message, log := range hook.LogMessages {
 		if strings.Contains(entry.Message, message) {
 			entry.Level = log
-			formatter := LogReductionFormatter{OriginalFormatter: entry.Logger.Formatter}
+			formatter := LogEntriesDropperFormatter{OriginalFormatter: entry.Logger.Formatter}
 			entry.Logger.Formatter = &formatter
 		}
 	}
 	return nil
 }
 
-// LogReductionFormatter - custom formatter which will ignore log entries which has lower level than preconfigured in logger
-type LogReductionFormatter struct {
+// LogEntriesDropperFormatter - custom formatter which will ignore log entries which has lower level than preconfigured in logger
+type LogEntriesDropperFormatter struct {
 	OriginalFormatter logrus.Formatter
 }
 
 // Format - custom entry formatting function which will drop entries with lower level than set in logger
-func (formatter *LogReductionFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+func (formatter *LogEntriesDropperFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	if entry.Logger.Level >= entry.Level {
 		return formatter.OriginalFormatter.Format(entry)
 	}
