@@ -519,10 +519,7 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 		if err != nil {
 			return nil, err
 		}
-		cfgOptions.Logger = util.CreateLogEntryWithWriter(terragruntOptions.ErrWriter, dir, logrus.ErrorLevel, terragruntOptions.Logger.Logger.Hooks)
-		cfgOptions.LogLevel = logrus.ErrorLevel
-		cfgOptions.Logger.WriterLevel(logrus.ErrorLevel)
-
+		cfgOptions.LogLevel = terragruntOptions.LogLevel
 		if terragruntOptions.TerraformCommand == "destroy" {
 			var hook = NewLogReductionHook()
 			hook.AddMessage("Encountered error while evaluating locals", logrus.DebugLevel)
@@ -612,7 +609,22 @@ func (hook *LogReductionHook) Fire(entry *logrus.Entry) error {
 	for message, log := range hook.LogMessages {
 		if strings.Contains(entry.Message, message) {
 			entry.Level = log
+			formatter := LogReductionFormatter{OriginalFormatter: entry.Logger.Formatter}
+			entry.Logger.Formatter = &formatter
 		}
 	}
 	return nil
+}
+
+// LogReductionFormatter - custom formatter which will ignore log entries which has lower level than preconfigured in logger
+type LogReductionFormatter struct {
+	OriginalFormatter logrus.Formatter
+}
+
+// Format - custom entry formatting function which will drop entries with lower level than set in logger
+func (formatter *LogReductionFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+	if entry.Logger.Level >= entry.Level {
+		return formatter.OriginalFormatter.Format(entry)
+	}
+	return []byte(""), nil
 }
