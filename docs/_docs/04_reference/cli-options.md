@@ -457,6 +457,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
 - [terragrunt-override-attr](#terragrunt-override-attr)
 - [terragrunt-json-out](#terragrunt-json-out)
+- [terragrunt-modules-that-include](#terragrunt-modules-that-include)
 
 
 ### terragrunt-config
@@ -735,6 +736,8 @@ When passed it, sets logging level for terragrunt. All supported levels are:
 
 **CLI Arg**: `--terragrunt-check`<br/>
 **Environment Variable**: `TERRAGRUNT_CHECK` (set to `true`)
+**Commands**:
+- [hclfmt](#hclfmt)
 
 When passed in, run `hclfmt` in check only mode instead of actively overwriting the files. This will cause the
 command to exit with exit code 1 if there are any files that are not formatted.
@@ -744,6 +747,8 @@ command to exit with exit code 1 if there are any files that are not formatted.
 
 **CLI Arg**: `--terragrunt-hclfmt-file`
 **Requires an argument**: `--terragrunt-hclfmt-file /path/to/terragrunt.hcl`
+**Commands**:
+- [hclfmt](#hclfmt)
 
 When passed in, run `hclfmt` only on specified hcl file.
 
@@ -762,5 +767,62 @@ block by specifying `<BLOCK>.<ATTR>`, where `<BLOCK>` is the block name: e.g., `
 
 **CLI Arg**: `--terragrunt-json-out`
 **Requires an argument**: `--terragrunt-json-out /path/to/terragrunt_rendered.json`
+**Commands**:
+- [render-json](#render-json)
 
 When passed in, render the json representation in this file.
+
+
+### terragrunt-modules-that-include
+
+**CLI Arg**: `--terragrunt-modules-that-include`
+**Requires an argument**: `--terragrunt-modules-that-include /path/to/included-terragrunt.hcl`
+**Commands**:
+- [run-all](#run-all)
+- [plan-all (DEPRECATED: use run-all)](#plan-all-deprecated-use-run-all)
+- [apply-all (DEPRECATED: use run-all)](#apply-all-deprecated-use-run-all)
+- [output-all (DEPRECATED: use run-all)](#output-all-deprecated-use-run-all)
+- [destroy-all (DEPRECATED: use run-all)](#destroy-all-deprecated-use-run-all)
+- [validate-all (DEPRECATED: use run-all)](#validate-all-deprecated-use-run-all)
+
+When passed in, `run-all` will only run the command against Terragrunt modules that include the specified file.
+
+This applies to the set of modules that are identified based on all the existing criteria for deciding which modules to
+include. For example, consider the following folder structure:
+
+```
+.
+├── _envcommon
+│   └── data-stores
+│       └── aurora.hcl
+├── dev
+│   └── us-west-2
+│       └── dev
+│           ├── data-stores
+│           │   └── aurora
+│           │       └── terragrunt.hcl
+│           └── networking
+│               └── vpc
+│                   └── terragrunt.hcl
+└── stage
+    └── us-west-2
+        └── stage
+            ├── data-stores
+            │   └── aurora
+            │       └── terragrunt.hcl
+            └── networking
+                └── vpc
+                    └── terragrunt.hcl
+```
+
+If you run the command `run-all init --terragrunt-modules-that-include ../_envcommon/data-stores/aurora.hcl` from the
+`dev` folder, only `dev/us-west-2/dev/data-stores/aurora` will be run; not `stage/us-west-2/stage/data-stores/aurora`.
+This is because `run-all` by default restricts the modules to only those that are direct descendents of the current
+folder you are running from. If you also pass in `--terragrunt-include-dir ../stage`, then it will now include
+`stage/us-west-2/stage/data-stores/aurora` because now the `stage` folder is in consideration.
+
+In other words, Terragrunt will always first find all the modules that should be included before applying this filter,
+and then will apply this filter on the set of modules that it found.
+
+You can pass this argument in multiple times to provide a list of include files to consider. When multiple files are
+passed in, the set will be the union of modules that includes at least one of the files in the list.
