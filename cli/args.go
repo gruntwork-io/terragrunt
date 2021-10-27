@@ -126,6 +126,11 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 
 	strictInclude := parseBooleanArg(args, optTerragruntStrictInclude, false)
 
+	modulesThatInclude, err := parseMultiStringArg(args, optTerragruntModulesThatInclude, []string{})
+	if err != nil {
+		return nil, err
+	}
+
 	// Those correspond to logrus levels
 	logLevel, err := parseStringArg(args, optTerragruntLogLevel, util.GetDefaultLogLevel().String())
 	if err != nil {
@@ -201,6 +206,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.Env = parseEnvironmentVariables(os.Environ())
 	opts.ExcludeDirs = excludeDirs
 	opts.IncludeDirs = includeDirs
+	opts.ModulesThatInclude = modulesThatInclude
 	opts.StrictInclude = strictInclude
 	opts.Parallelism = parallelism
 	opts.Check = parseBooleanArg(args, optTerragruntCheck, os.Getenv("TERRAGRUNT_CHECK") == "true")

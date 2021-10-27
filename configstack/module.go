@@ -67,7 +67,12 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 		return []*TerraformModule{}, err
 	}
 
-	finalModules, err := flagExcludedDirs(includedModules, terragruntOptions)
+	includedModulesWithExcluded, err := flagExcludedDirs(includedModules, terragruntOptions)
+	if err != nil {
+		return []*TerraformModule{}, err
+	}
+
+	finalModules, err := flagModulesThatDontInclude(includedModulesWithExcluded, terragruntOptions)
 	if err != nil {
 		return []*TerraformModule{}, err
 	}
@@ -215,6 +220,61 @@ func findModuleinPath(module *TerraformModule, targetDirs []string) bool {
 		}
 	}
 	return false
+}
+
+// flagModulesThatDontInclude iterates over a module slice and flags all modules that don't include at least one file in
+// the specified include list on the TerragruntOptions ModulesThatInclude attribute. Flagged modules will be filtered
+// out of the set.
+func flagModulesThatDontInclude(modules []*TerraformModule, terragruntOptions *options.TerragruntOptions) ([]*TerraformModule, error) {
+
+	// If no ModulesThatInclude is specified return the modules list instantly
+	if len(terragruntOptions.ModulesThatInclude) == 0 {
+		return modules, nil
+	}
+
+	modulesThatIncludeCanonicalPath := []string{}
+	for _, includePath := range terragruntOptions.ModulesThatInclude {
+		canonicalPath, err := util.CanonicalPath(includePath, terragruntOptions.WorkingDir)
+		if err != nil {
+			return nil, err
+		}
+
+		modulesThatIncludeCanonicalPath = append(modulesThatIncludeCanonicalPath, canonicalPath)
+	}
+
+	for _, module := range modules {
+		// Ignore modules that are already excluded because this feature is a filter for excluding the subset, not
+		// including modules that have already been excluded through other means.
+		if module.FlagExcluded {
+			continue
+		}
+
+		// Mark modules that don't include any of the specified paths as excluded. To do this, we first flag the module
+		// as excluded, and if it includes any path in the set, we set the exclude flag back to false.
+		module.FlagExcluded = true
+		for _, includeConfig := range module.Config.ProcessedIncludes {
+			if util.ListContainsElement(modulesThatIncludeCanonicalPath, includeConfig.Path) {
+				module.FlagExcluded = false
+			}
+		}
+
+		// Also search module dependencies and exclude if the dependency path doesn't include any of the specified
+		// paths, using a similar logic.
+		for _, dependency := range module.Dependencies {
+			if dependency.FlagExcluded {
+				continue
+			}
+
+			dependency.FlagExcluded = true
+			for _, includeConfig := range dependency.Config.ProcessedIncludes {
+				if util.ListContainsElement(modulesThatIncludeCanonicalPath, includeConfig.Path) {
+					dependency.FlagExcluded = false
+				}
+			}
+		}
+	}
+
+	return modules, nil
 }
 
 // Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents
