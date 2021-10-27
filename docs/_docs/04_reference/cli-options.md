@@ -826,3 +826,6 @@ and then will apply this filter on the set of modules that it found.
 
 You can pass this argument in multiple times to provide a list of include files to consider. When multiple files are
 passed in, the set will be the union of modules that includes at least one of the files in the list.
+
+NOTE: When using relative paths, the paths are relative to the working directory. This is either the current working
+directory, or any path passed in to [terragrunt-working-dir](#terragrunt-working-dir).
