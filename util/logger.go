@@ -51,7 +51,7 @@ func CreateLogEntry(prefix string, level logrus.Level) *logrus.Entry {
 }
 
 // CreateLoggerWithWriter Create a logger around the given output stream and prefix
-func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Level) *logrus.Entry {
+func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Level, hooks logrus.LevelHooks) *logrus.Entry {
 	if prefix != "" {
 		prefix = fmt.Sprintf("[%s] ", prefix)
 	} else {
@@ -59,17 +59,19 @@ func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Leve
 	}
 	logger := CreateLogEntry(prefix, level)
 	logger.Logger.SetOutput(writer)
+	logger.Logger.ReplaceHooks(hooks)
 	return logger
 }
 
 // GetDiagnosticsWriter returns a hcl2 parsing diagnostics emitter for the current terminal.
-func GetDiagnosticsWriter(parser *hclparse.Parser) hcl.DiagnosticWriter {
+func GetDiagnosticsWriter(logger *logrus.Entry, parser *hclparse.Parser) hcl.DiagnosticWriter {
 	termColor := terminal.IsTerminal(int(os.Stderr.Fd()))
 	termWidth, _, err := terminal.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
 		termWidth = 80
 	}
-	return hcl.NewDiagnosticTextWriter(os.Stderr, parser.Files(), uint(termWidth), termColor)
+	var writer = LogWriter{Logger: logger, Level: logrus.ErrorLevel}
+	return hcl.NewDiagnosticTextWriter(&writer, parser.Files(), uint(termWidth), termColor)
 }
 
 // GetDefaultLogLevel returns the default log level to use. The log level is resolved based on the environment variable
@@ -91,4 +93,15 @@ func GetDefaultLogLevel() logrus.Level {
 		return defaultLogLevel
 	}
 	return parsedLogLevel
+}
+
+// LogWriter - Writer implementation which redirect Write requests to configured logger and level
+type LogWriter struct {
+	Logger *logrus.Entry
+	Level  logrus.Level
+}
+
+func (w *LogWriter) Write(p []byte) (n int, err error) {
+	w.Logger.Log(w.Level, string(p))
+	return len(p), nil
 }

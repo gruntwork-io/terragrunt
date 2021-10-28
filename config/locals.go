@@ -49,7 +49,7 @@ func evaluateLocalsBlock(
 	trackInclude *TrackInclude,
 	decodeList []PartialDecodeSectionType,
 ) (map[string]cty.Value, error) {
-	diagsWriter := util.GetDiagnosticsWriter(parser)
+	diagsWriter := util.GetDiagnosticsWriter(terragruntOptions.Logger, parser)
 
 	localsBlock, diags := getLocalsBlock(hclFile)
 	if diags.HasErrors() {
