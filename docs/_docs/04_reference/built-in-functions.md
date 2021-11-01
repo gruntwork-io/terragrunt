@@ -27,7 +27,7 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
   - [get\_terragrunt\_dir()](#get_terragrunt_dir)
 
   - [get\_parent\_terragrunt\_dir()](#get_parent_terragrunt_dir)
-  
+
   - [get\_original\_terragrunt\_dir()](#get_original_terragrunt_dir)
 
   - [get\_terraform\_commands\_that\_need\_vars()](#get_terraform_commands_that_need_vars)
@@ -418,9 +418,9 @@ The common.tfvars located in the terraform root folder will be included by all a
 
 ## get\_original\_terragrunt\_dir
 
-`get_original_terragrunt_dir()` returns the directory where the original Terragrunt configuration file (by default 
-`terragrunt.hcl`) lives. This is primarily useful when one Terragrunt config is being read from another: e.g., if 
-`/terraform-code/terragrunt.hcl` calls `read_terragrunt_config("/foo/bar.hcl")`, and within `bar.hcl`, you call 
+`get_original_terragrunt_dir()` returns the directory where the original Terragrunt configuration file (by default
+`terragrunt.hcl`) lives. This is primarily useful when one Terragrunt config is being read from another: e.g., if
+`/terraform-code/terragrunt.hcl` calls `read_terragrunt_config("/foo/bar.hcl")`, and within `bar.hcl`, you call
 `get_original_terragrunt_dir()`, you'll get back `/terraform-code`.
 
 ## get\_terraform\_commands\_that\_need\_vars
@@ -609,7 +609,7 @@ carrot
 **Notes:**
   * Output contains only once `carrot` and `potato`, because other invocations got cached, caching works for all sections
   * Output contains multiple times `uuid1` and `uuid2` because during HCL evaluation each `run_cmd` in `locals` is evaluated multiple times and random argument generated from `uuid()` save cached value under different key each time
-  * Output contains multiple times `uuid3`, +1 more output comparing to `uuid1` and `uuid2` - because `uuid3` is declared in locals and inputs which add one more evaluation 
+  * Output contains multiple times `uuid3`, +1 more output comparing to `uuid1` and `uuid2` - because `uuid3` is declared in locals and inputs which add one more evaluation
   * Output contains only once `uuid4` since it is declared only once in `inputs`, `inputs` is not evaluated twice
 
 ## read\_terragrunt\_config
