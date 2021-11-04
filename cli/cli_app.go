@@ -985,8 +985,10 @@ func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terr
 	err = runTerragruntWithConfig(originalTerragruntOptions, initOptions, terragruntConfig, terraformSource != nil)
 
 	if err == nil {
-		initExecuted := util.JoinPath(terragruntOptions.WorkingDir, MODULE_NEED_INIT)
-		return os.Remove(initExecuted)
+		moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, MODULE_NEED_INIT)
+		if util.FileExists(moduleNeedInit) {
+			return os.Remove(moduleNeedInit)
+		}
 	}
 	return err
 }
@@ -1013,8 +1015,8 @@ func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error)
 	if util.FileExists(modulesPath) {
 		return false, nil
 	}
-	initExecuted := util.JoinPath(terragruntOptions.WorkingDir, MODULE_NEED_INIT)
-	if util.FileExists(initExecuted) {
+	moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, MODULE_NEED_INIT)
+	if util.FileExists(moduleNeedInit) {
 		return true, nil
 	}
 
