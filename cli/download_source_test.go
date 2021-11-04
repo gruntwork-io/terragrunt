@@ -91,7 +91,7 @@ func TestDownloadTerraformSourceIfNecessaryLocalDirToEmptyDir(t *testing.T) {
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World")
+	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World", true)
 }
 
 func TestDownloadTerraformSourceIfNecessaryLocalDirToAlreadyDownloadedDir(t *testing.T) {
@@ -103,7 +103,7 @@ func TestDownloadTerraformSourceIfNecessaryLocalDirToAlreadyDownloadedDir(t *tes
 
 	copyFolder(t, "../test/fixture-download-source/hello-world-2", downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World")
+	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World", true)
 }
 
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlToEmptyDir(t *testing.T) {
@@ -113,7 +113,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToEmptyDir(t *testing.T) {
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World")
+	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World", true)
 }
 
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDir(t *testing.T) {
@@ -125,7 +125,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDir(t *te
 
 	copyFolder(t, "../test/fixture-download-source/hello-world-2", downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World 2")
+	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World 2", false)
 }
 
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirDifferentVersion(t *testing.T) {
@@ -137,7 +137,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirDiffer
 
 	copyFolder(t, "../test/fixture-download-source/hello-world-2", downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World")
+	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World", true)
 }
 
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVersion(t *testing.T) {
@@ -149,7 +149,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVe
 
 	copyFolder(t, "../test/fixture-download-source/hello-world-version-remote", downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World version remote")
+	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World version remote", false)
 }
 
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlOverrideSource(t *testing.T) {
@@ -161,7 +161,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlOverrideSource(t *testing.T)
 
 	copyFolder(t, "../test/fixture-download-source/hello-world-version-remote", downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, true, "# Hello, World")
+	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, true, "# Hello, World", true)
 }
 
 func TestInvalidModulePath(t *testing.T) {
@@ -266,7 +266,7 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 
 }
 
-func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool, expectedFileContents string) {
+func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool, expectedFileContents string, requireInitFile bool) {
 	terraformSource, terragruntOptions, terragruntConfig, err := createConfig(t, canonicalUrl, downloadDir, sourceUpdate)
 
 	err = downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions, terragruntConfig)
@@ -276,6 +276,11 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 	if assert.True(t, util.FileExists(expectedFilePath), "For terraform source %v", terraformSource) {
 		actualFileContents := readFile(t, expectedFilePath)
 		assert.Equal(t, expectedFileContents, actualFileContents, "For terraform source %v", terraformSource)
+	}
+
+	if requireInitFile {
+		existsInitFile := util.FileExists(util.JoinPath(terraformSource.WorkingDir, MODULE_NEED_INIT))
+		assert.True(t, existsInitFile)
 	}
 }
 
