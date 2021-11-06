@@ -387,11 +387,19 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 	// Skip has to be set specifically in each file that should be skipped
 	targetConfig.Skip = sourceConfig.Skip
 
-	// Handle list attributes by concatenatenation
+	// Copy only dependencies which doesn't exist in source
 	if sourceConfig.Dependencies != nil {
 		resultModuleDependencies := &ModuleDependencies{}
 		if targetConfig.Dependencies != nil {
-			resultModuleDependencies.Paths = targetConfig.Dependencies.Paths
+			targetPathMap := fetchDependencyPaths(targetConfig)
+			sourcePathMap := fetchDependencyPaths(sourceConfig)
+			// take in result dependencies only paths which aren't defined in source
+			for key, value := range targetPathMap {
+				_, found := sourcePathMap[key]
+				if !found {
+					resultModuleDependencies.Paths = append(resultModuleDependencies.Paths, value)
+				}
+			}
 		}
 		resultModuleDependencies.Paths = append(resultModuleDependencies.Paths, sourceConfig.Dependencies.Paths...)
 		targetConfig.Dependencies = resultModuleDependencies
@@ -434,6 +442,15 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 		targetConfig.GenerateConfigs[key] = val
 	}
 	return nil
+}
+
+// fetchDependencyMap - return from configuration map with dependency_name: path
+func fetchDependencyPaths(config *TerragruntConfig) map[string]string{
+	var m = make(map[string]string)
+	for _, dependency := range config.TerragruntDependencies {
+		m[dependency.Name] = dependency.ConfigPath
+	}
+	return m
 }
 
 // Merge dependency blocks shallowly. If the source list has the same name as the target, it will override the
