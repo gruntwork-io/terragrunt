@@ -1069,7 +1069,14 @@ func runAll(terragruntOptions *options.TerragruntOptions) error {
 
 // checkProtectedModule checks if module is protected via the "prevent_destroy" flag
 func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	if util.FirstArg(terragruntOptions.TerraformCliArgs) != "destroy" {
+	var destroyFlag = false
+	if util.FirstArg(terragruntOptions.TerraformCliArgs) == "destroy" {
+		destroyFlag = true
+	}
+	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, "-destroy") {
+		destroyFlag = true
+	}
+	if !destroyFlag {
 		return nil
 	}
 	if terragruntConfig.PreventDestroy != nil && *terragruntConfig.PreventDestroy {
