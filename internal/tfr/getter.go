@@ -98,6 +98,12 @@ func (tfrGetter *TerraformRegistryGetter) Get(dstPath string, srcURL *url.URL) e
 	if registryDomain == "" {
 		registryDomain = defaultRegistryDomain
 	}
+
+	moduleRegistryBasePath, err := getModuleRegistryURLBasePath(ctx, registryDomain)
+	if err != nil {
+		return err
+	}
+
 	queryValues := srcURL.Query()
 	modulePath, moduleSubDir := getter.SourceDirSubdir(srcURL.Path)
 
@@ -110,29 +116,9 @@ func (tfrGetter *TerraformRegistryGetter) Get(dstPath string, srcURL *url.URL) e
 	}
 	version := versionList[0]
 
-	moduleRegistryBasePath, err := getModuleRegistryURLBasePath(ctx, registryDomain)
+	moduleURL, err := buildRequestUrl(registryDomain, moduleRegistryBasePath, modulePath, version)
 	if err != nil {
 		return err
-	}
-
-	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
-	modulePath = strings.TrimSuffix(modulePath, "/")
-	modulePath = strings.TrimPrefix(modulePath, "/")
-
-	moduleFullPath := fmt.Sprintf("%s/%s/%s/download", moduleRegistryBasePath, modulePath, version)
-
-	var moduleURL *url.URL
-	if strings.HasPrefix(moduleFullPath, "https") {
-		moduleURL, err = url.Parse(modulePath)
-		if err != nil {
-			return err
-		}
-	} else {
-		moduleURL = &url.URL{
-			Scheme: "https",
-			Host:   registryDomain,
-			Path:   moduleFullPath,
-		}
 	}
 
 	terraformGet, err := getTerraformGetHeader(ctx, *moduleURL)
@@ -295,4 +281,26 @@ func httpGETAndGetResponse(ctx context.Context, getURL url.URL) ([]byte, *http.H
 
 	bodyData, err := ioutil.ReadAll(resp.Body)
 	return bodyData, &resp.Header, errors.WithStackTrace(err)
+}
+
+// buildRequestUrl - create url to download module using moduleRegistryBasePath
+func buildRequestUrl(registryDomain string, moduleRegistryBasePath string, modulePath string, version string) (*url.URL, error) {
+	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
+	modulePath = strings.TrimSuffix(modulePath, "/")
+	modulePath = strings.TrimPrefix(modulePath, "/")
+
+	moduleFullPath := fmt.Sprintf("%s/%s/%s/download", moduleRegistryBasePath, modulePath, version)
+
+	if strings.HasPrefix(moduleFullPath, "https") {
+		moduleURL, err := url.Parse(moduleFullPath)
+		if err != nil {
+			return nil, err
+		}
+		return moduleURL, nil
+	}
+	return &url.URL{
+		Scheme: "https",
+		Host:   registryDomain,
+		Path:   moduleFullPath,
+	}, nil
 }
