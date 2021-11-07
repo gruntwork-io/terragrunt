@@ -98,7 +98,6 @@ func (tfrGetter *TerraformRegistryGetter) Get(dstPath string, srcURL *url.URL) e
 	if registryDomain == "" {
 		registryDomain = defaultRegistryDomain
 	}
-
 	queryValues := srcURL.Query()
 	modulePath, moduleSubDir := getter.SourceDirSubdir(srcURL.Path)
 
