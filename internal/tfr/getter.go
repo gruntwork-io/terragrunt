@@ -115,7 +115,8 @@ func (tfrGetter *TerraformRegistryGetter) Get(dstPath string, srcURL *url.URL) e
 		return err
 	}
 
-	moduleFullPath := path.Join(moduleRegistryBasePath, modulePath, version, "download")
+	moduleFullPath := fmt.Sprintf("%s/%s/%s/download", moduleRegistryBasePath, modulePath, version)
+		//path.Join(moduleRegistryBasePath, modulePath, version, "download")
 	moduleURL := url.URL{
 		Scheme: "https",
 		Host:   registryDomain,
