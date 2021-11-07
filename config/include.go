@@ -445,7 +445,7 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 }
 
 // fetchDependencyMap - return from configuration map with dependency_name: path
-func fetchDependencyPaths(config *TerragruntConfig) map[string]string{
+func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
 	var m = make(map[string]string)
 	for _, dependency := range config.TerragruntDependencies {
 		m[dependency.Name] = dependency.ConfigPath

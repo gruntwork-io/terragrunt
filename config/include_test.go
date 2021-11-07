@@ -227,11 +227,11 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 			"dependencies",
 			&TerragruntConfig{Dependencies: &ModuleDependencies{Paths: []string{"../vpc"}},
 				TerragruntDependencies: []Dependency{
-				{
-					Name:       "vpc",
-					ConfigPath: "../vpc",
-				},
-			}},
+					{
+						Name:       "vpc",
+						ConfigPath: "../vpc",
+					},
+				}},
 			&TerragruntConfig{Dependencies: &ModuleDependencies{Paths: []string{"../mysql"}},
 				TerragruntDependencies: []Dependency{
 					{
@@ -245,7 +245,6 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 						Name:       "mysql",
 						ConfigPath: "../mysql",
 					},
-
 				}},
 		},
 		// Deep merge retryable errors
