@@ -104,7 +104,6 @@ func TestBuildRequestUrlFullPath(t *testing.T) {
 	assert.Equal(t, "https://gruntwork.io/registry/modules/v1/tfr-project/terraform-aws-tfr/6.6.6/download", requestUrl.String())
 }
 
-
 func TestBuildRequestUrlRelativePath(t *testing.T) {
 	t.Parallel()
 	requestUrl, err := buildRequestUrl("gruntwork.io", "/registry/modules/v1", "/tfr-project/terraform-aws-tfr", "6.6.6")
