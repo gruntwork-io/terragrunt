@@ -3,7 +3,6 @@ package configstack
 import (
 	"fmt"
 	"path/filepath"
-	"runtime/debug"
 	"sort"
 	"strings"
 
@@ -273,7 +272,6 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 		},
 	)
 	if err != nil {
-		debug.PrintStack()
 		return nil, errors.WithStackTrace(ErrorProcessingModule{UnderlyingError: err, HowThisModuleWasFound: howThisModuleWasFound, ModulePath: terragruntConfigPath})
 	}
 
