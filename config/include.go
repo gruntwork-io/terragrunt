@@ -391,9 +391,10 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 	if sourceConfig.Dependencies != nil {
 		resultModuleDependencies := &ModuleDependencies{}
 		if targetConfig.Dependencies != nil {
+			// take in result dependencies only paths which aren't defined in source
+			// Fix for issue: https://github.com/gruntwork-io/terragrunt/issues/1900
 			targetPathMap := fetchDependencyPaths(targetConfig)
 			sourcePathMap := fetchDependencyPaths(sourceConfig)
-			// take in result dependencies only paths which aren't defined in source
 			for key, value := range targetPathMap {
 				_, found := sourcePathMap[key]
 				if !found {
