@@ -115,20 +115,32 @@ func (tfrGetter *TerraformRegistryGetter) Get(dstPath string, srcURL *url.URL) e
 		return err
 	}
 
+	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
+	modulePath = strings.TrimSuffix(modulePath, "/")
+	modulePath = strings.TrimPrefix(modulePath, "/")
+
 	moduleFullPath := fmt.Sprintf("%s/%s/%s/download", moduleRegistryBasePath, modulePath, version)
-		//path.Join(moduleRegistryBasePath, modulePath, version, "download")
-	moduleURL := url.URL{
-		Scheme: "https",
-		Host:   registryDomain,
-		Path:   moduleFullPath,
+
+	var moduleURL *url.URL
+	if strings.HasPrefix(moduleFullPath, "https") {
+		moduleURL, err = url.Parse(modulePath)
+		if err != nil {
+			return err
+		}
+	} else {
+		moduleURL = &url.URL{
+			Scheme: "https",
+			Host:   registryDomain,
+			Path:   moduleFullPath,
+		}
 	}
 
-	terraformGet, err := getTerraformGetHeader(ctx, moduleURL)
+	terraformGet, err := getTerraformGetHeader(ctx, *moduleURL)
 	if err != nil {
 		return err
 	}
 
-	downloadURL, err := getDownloadURLFromHeader(ctx, moduleURL, terraformGet)
+	downloadURL, err := getDownloadURLFromHeader(ctx, *moduleURL, terraformGet)
 	if err != nil {
 		return err
 	}
