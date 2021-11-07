@@ -99,11 +99,6 @@ func (tfrGetter *TerraformRegistryGetter) Get(dstPath string, srcURL *url.URL) e
 		registryDomain = defaultRegistryDomain
 	}
 
-	moduleRegistryBasePath, err := getModuleRegistryURLBasePath(ctx, registryDomain)
-	if err != nil {
-		return err
-	}
-
 	queryValues := srcURL.Query()
 	modulePath, moduleSubDir := getter.SourceDirSubdir(srcURL.Path)
 
@@ -115,6 +110,11 @@ func (tfrGetter *TerraformRegistryGetter) Get(dstPath string, srcURL *url.URL) e
 		return errors.WithStackTrace(MalformedRegistryURLErr{reason: "more than one version query"})
 	}
 	version := versionList[0]
+
+	moduleRegistryBasePath, err := getModuleRegistryURLBasePath(ctx, registryDomain)
+	if err != nil {
+		return err
+	}
 
 	moduleURL, err := buildRequestUrl(registryDomain, moduleRegistryBasePath, modulePath, version)
 	if err != nil {
