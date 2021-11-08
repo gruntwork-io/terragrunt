@@ -1418,11 +1418,12 @@ func TestPreventDestroy(t *testing.T) {
 func TestPreventDestroyApply(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_PREVENT_DESTROY)
+	tmpEnvPath := copyEnvironment(t, "fixture-download")
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_PREVENT_DESTROY))
+	fixtureRoot := util.JoinPath(tmpEnvPath, TEST_FIXTURE_LOCAL_PREVENT_DESTROY)
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", fixtureRoot))
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -destroy -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_PREVENT_DESTROY), os.Stdout, os.Stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -destroy -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", fixtureRoot), os.Stdout, os.Stderr)
 
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
