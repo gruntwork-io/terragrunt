@@ -290,16 +290,12 @@ func buildRequestUrl(registryDomain string, moduleRegistryBasePath string, modul
 
 	moduleFullPath := fmt.Sprintf("%s/%s/%s/download", moduleRegistryBasePath, modulePath, version)
 
-	if strings.HasPrefix(moduleFullPath, "https") {
-		moduleURL, err := url.Parse(moduleFullPath)
-		if err != nil {
-			return nil, err
-		}
+	moduleURL, err := url.Parse(moduleFullPath)
+	if err != nil {
+		return nil, err
+	}
+	if moduleURL.Scheme != "" {
 		return moduleURL, nil
 	}
-	return &url.URL{
-		Scheme: "https",
-		Host:   registryDomain,
-		Path:   moduleFullPath,
-	}, nil
+	return &url.URL{Scheme: "https", Host: registryDomain, Path: moduleFullPath}, nil
 }
