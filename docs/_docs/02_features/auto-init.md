@@ -19,6 +19,8 @@ When Auto-Init is enabled (the default), terragrunt will automatically call [`te
 
   - `source` needs to be downloaded, or
 
+  - exists file `.terragrunt-init-required` in downloaded module directory(`.terragrunt-cache/aaa/bbb/modules/<module>`) or
+
   - the modules or remote state used by the module have changed since the previous call to `terraform init`.
 
 As [mentioned]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#extra_arguments-for-init), `extra_arguments` can be configured to allow customization of the `terraform init` command.
