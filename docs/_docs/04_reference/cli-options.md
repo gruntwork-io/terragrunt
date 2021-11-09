@@ -815,6 +815,15 @@ include. For example, consider the following folder structure:
                     └── terragrunt.hcl
 ```
 
+Suppose that both `dev/us-west-2/dev/data-stores/aurora/terragrunt.hcl` and
+`stage/us-west-2/stage/data-stores/aurora/terragrunt.hcl` had the following contents:
+
+```
+include "envcommon" {
+  path = "../../../../../_envcommon/data-stores/aurora.hcl"
+}
+```
+
 If you run the command `run-all init --terragrunt-modules-that-include ../_envcommon/data-stores/aurora.hcl` from the
 `dev` folder, only `dev/us-west-2/dev/data-stores/aurora` will be run; not `stage/us-west-2/stage/data-stores/aurora`.
 This is because `run-all` by default restricts the modules to only those that are direct descendents of the current
