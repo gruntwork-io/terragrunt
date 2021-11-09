@@ -19,6 +19,9 @@ import (
 // manifest for files copied from terragrunt module folder (i.e., the folder that contains the current terragrunt.hcl)
 const MODULE_MANIFEST_NAME = ".terragrunt-module-manifest"
 
+// file to indicate that init should be executed
+const moduleInitRequiredFile = ".terragrunt-init-required"
+
 // 1. Download the given source URL, which should use Terraform's module source syntax, into a temporary folder
 // 2. Check if module directory exists in temporary folder
 // 3. Copy the contents of terragruntOptions.WorkingDir into the temporary folder.
@@ -91,6 +94,13 @@ func downloadTerraformSourceIfNecessary(terraformSource *tfsource.TerraformSourc
 	if err := validateWorkingDir(terraformSource); err != nil {
 		return err
 	}
+
+	initFile := util.JoinPath(terraformSource.WorkingDir, moduleInitRequiredFile)
+	f, createErr := os.Create(initFile)
+	if createErr != nil {
+		return createErr
+	}
+	defer f.Close()
 
 	return nil
 }

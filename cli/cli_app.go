@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -981,7 +982,16 @@ func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terr
 		return err
 	}
 
-	return runTerragruntWithConfig(originalTerragruntOptions, initOptions, terragruntConfig, terraformSource != nil)
+	err = runTerragruntWithConfig(originalTerragruntOptions, initOptions, terragruntConfig, terraformSource != nil)
+	if err != nil {
+		return err
+	}
+
+	moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, moduleInitRequiredFile)
+	if util.FileExists(moduleNeedInit) {
+		return os.Remove(moduleNeedInit)
+	}
+	return nil
 }
 
 func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformSource *tfsource.TerraformSource) (*options.TerragruntOptions, error) {
@@ -1005,6 +1015,10 @@ func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error)
 	modulesPath := util.JoinPath(terragruntOptions.DataDir(), "modules")
 	if util.FileExists(modulesPath) {
 		return false, nil
+	}
+	moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, moduleInitRequiredFile)
+	if util.FileExists(moduleNeedInit) {
+		return true, nil
 	}
 
 	return util.Grep(MODULE_REGEX, fmt.Sprintf("%s/%s", terragruntOptions.WorkingDir, TERRAFORM_EXTENSION_GLOB))
