@@ -387,11 +387,34 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 	// Skip has to be set specifically in each file that should be skipped
 	targetConfig.Skip = sourceConfig.Skip
 
-	// Handle list attributes by concatenatenation
+	// Copy only dependencies which doesn't exist in source
 	if sourceConfig.Dependencies != nil {
 		resultModuleDependencies := &ModuleDependencies{}
 		if targetConfig.Dependencies != nil {
-			resultModuleDependencies.Paths = targetConfig.Dependencies.Paths
+			// take in result dependencies only paths which aren't defined in source
+			// Fix for issue: https://github.com/gruntwork-io/terragrunt/issues/1900
+			targetPathMap := fetchDependencyPaths(targetConfig)
+			sourcePathMap := fetchDependencyPaths(sourceConfig)
+			for key, value := range targetPathMap {
+				_, found := sourcePathMap[key]
+				if !found {
+					resultModuleDependencies.Paths = append(resultModuleDependencies.Paths, value)
+				}
+			}
+			// copy target paths which are defined only in Dependencies and not in TerragruntDependencies
+			// if TerragruntDependencies will be empty, all targetConfig.Dependencies.Paths will be copied to resultModuleDependencies.Paths
+			for _, dependencyPath := range targetConfig.Dependencies.Paths {
+				var addPath = true
+				for _, targetPath := range targetPathMap {
+					if dependencyPath == targetPath { // path already defined in TerragruntDependencies, skip adding
+						addPath = false
+						break
+					}
+				}
+				if addPath {
+					resultModuleDependencies.Paths = append(resultModuleDependencies.Paths, dependencyPath)
+				}
+			}
 		}
 		resultModuleDependencies.Paths = append(resultModuleDependencies.Paths, sourceConfig.Dependencies.Paths...)
 		targetConfig.Dependencies = resultModuleDependencies
@@ -434,6 +457,18 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 		targetConfig.GenerateConfigs[key] = val
 	}
 	return nil
+}
+
+// fetchDependencyMap - return from configuration map with dependency_name: path
+func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
+	var m = make(map[string]string)
+	if config == nil {
+		return m
+	}
+	for _, dependency := range config.TerragruntDependencies {
+		m[dependency.Name] = dependency.ConfigPath
+	}
+	return m
 }
 
 // Merge dependency blocks shallowly. If the source list has the same name as the target, it will override the
