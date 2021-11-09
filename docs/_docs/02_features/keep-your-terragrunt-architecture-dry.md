@@ -442,3 +442,23 @@ _env/app.hcl`. This will:
   `_env/app.hcl`).
 
 Thereby allowing you to only touch those modules that need to be updated by the code change.
+
+Alternatively, you can implement a promotion workflow if you have multiple environments that depend on the
+`_env/app.hcl` configuration. In the above example, suppose you wanted to progressively roll out the changes through the
+environments, `qa`, `stage`, and `prod` in order. In this case, you can use `--terragrunt-working-dir` to scope down the
+updates from the common file:
+
+```
+# Roll out the change to the qa environment first
+terragrunt run-all plan --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir qa
+terragrunt run-all apply --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir qa
+# If the apply succeeds to qa, move on to the stage environment
+terragrunt run-all plan --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir stage
+terragrunt run-all apply --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir stage
+# And finally, prod.
+terragrunt run-all plan --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir prod
+terragrunt run-all apply --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir prod
+```
+
+This allows you to have flexibility in how changes are rolled out. For example, you can add extra validation stages
+inbetween the roll out to each environment, or add in manual approval between the stages.
