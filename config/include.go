@@ -401,6 +401,20 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 					resultModuleDependencies.Paths = append(resultModuleDependencies.Paths, value)
 				}
 			}
+			// copy target paths which are defined only in Dependencies and not in TerragruntDependencies
+			// if TerragruntDependencies will be empty, all targetConfig.Dependencies.Paths will be copied to resultModuleDependencies.Paths
+			for _, dependencyPath := range targetConfig.Dependencies.Paths {
+				var addPath = true
+				for _, targetPath := range targetPathMap {
+					if dependencyPath == targetPath { // path already defined in TerragruntDependencies, skip adding
+						addPath = false
+						break
+					}
+				}
+				if addPath {
+					resultModuleDependencies.Paths = append(resultModuleDependencies.Paths, dependencyPath)
+				}
+			}
 		}
 		resultModuleDependencies.Paths = append(resultModuleDependencies.Paths, sourceConfig.Dependencies.Paths...)
 		targetConfig.Dependencies = resultModuleDependencies
@@ -448,6 +462,9 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 // fetchDependencyMap - return from configuration map with dependency_name: path
 func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
 	var m = make(map[string]string)
+	if config == nil {
+		return m
+	}
 	for _, dependency := range config.TerragruntDependencies {
 		m[dependency.Name] = dependency.ConfigPath
 	}
