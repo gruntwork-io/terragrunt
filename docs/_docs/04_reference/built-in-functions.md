@@ -416,6 +416,26 @@ terraform {
 
 The common.tfvars located in the terraform root folder will be included by all applications, whatever their relative location to the root.
 
+If you have `include` blocks, this function requires a `name` parameter when used in the child config to specify which
+`include` block to base the parent dir on.
+
+Example:
+
+```hcl
+include "root" {
+  path = find_in_parent_folders()
+}
+include "region" {
+  path = find_in_parent_folders("region.hcl")
+}
+
+terraform {
+  source = "${get_parent_terragrunt_dir("root")}/modules/vpc"
+}
+```
+
+
+
 ## get\_original\_terragrunt\_dir
 
 `get_original_terragrunt_dir()` returns the directory where the original Terragrunt configuration file (by default
