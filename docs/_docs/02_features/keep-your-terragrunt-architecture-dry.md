@@ -462,3 +462,9 @@ terragrunt run-all apply --terragrunt-modules-that-include _env/app.hcl --terrag
 
 This allows you to have flexibility in how changes are rolled out. For example, you can add extra validation stages
 inbetween the roll out to each environment, or add in manual approval between the stages.
+
+**NOTE**: If you identify an issue with rolling out the change in a downstream environment, and want to abort, you will
+need to make sure that that environment uses the older version of the common configuration. This is because the common
+configuration is now partially rolled out, where some environments need to use the new updated common configuration,
+while other environments need the old one. The best way to handle this situation is to create a new copy of the common
+configuration at the old version and have the environments that depend on the older version point to that version.
