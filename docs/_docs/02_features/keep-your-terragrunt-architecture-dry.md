@@ -20,6 +20,8 @@ nav_title_link: /docs/
 
   - [Using read\_terragrunt\_config to DRY parent configurations](#using-read_terragrunt_config-to-dry-parent-configurations)
 
+  - [Considerations for CI/CD pipelines](#considerations-for-ci-cd-pipelines)
+
 
 ### Motivation
 
@@ -409,3 +411,60 @@ terraform {
   source = "${include.env.locals.source_base_url}?ref=v0.2.0"
 }
 ```
+
+### Considerations for CI/CD Pipelines
+
+For infrastructure CI/CD pipelines, it is common to only want to run the workflow on the modules that were updated. For
+example, if you only changed the `terragrunt.hcl` configuration for the RDS database in the dev account, then you only
+want to run `plan` and `apply` on that module, not other components or other accounts.
+
+If you did not take advantage of `include` or `read_terragrunt_config`, then implementing this pipeline is
+straightforward: you can use `git diff` to collect all the files that changed, and for those `terragrunt.hcl` files that
+were updated, you can run `terragrunt plan` or `terragrunt apply` by passing in the updated file with
+`--terragrunt-config`.
+
+However, if you use `include` or `read_terragrunt_config`, then a single file change may need to be reflected on
+multiple files that were not touched at all in the commit. In our previous example, when a configuration is updated in
+the `_env/app.hcl` file, we need to apply the change to all the modules that `include` that common environment
+configuration.
+
+Terragrunt currently does not have any features for supporting this use case when `read_terragrunt_config` is
+used. However, for `include` blocks, you can use the
+[--terragrunt-modules-that-include]({{site.baseurl}}/docs/reference/cli-options/#terragrunt-modules-that-include) CLI
+option for the `run-all` command.
+
+In the previous example, your CI/CD pipeline can run `terragrunt run-all plan --terragrunt-modules-that-include
+_env/app.hcl`. This will:
+
+- Recursively find all Terragrunt modules in the current directory tree.
+- Filter out any modules that don't include `_env/app.hcl` so that they won't be touched.
+- Run `plan` on any modules remaining (which will be the set of modules in the current tree that include
+  `_env/app.hcl`).
+
+Thereby allowing you to only touch those modules that need to be updated by the code change.
+
+Alternatively, you can implement a promotion workflow if you have multiple environments that depend on the
+`_env/app.hcl` configuration. In the above example, suppose you wanted to progressively roll out the changes through the
+environments, `qa`, `stage`, and `prod` in order. In this case, you can use `--terragrunt-working-dir` to scope down the
+updates from the common file:
+
+```
+# Roll out the change to the qa environment first
+terragrunt run-all plan --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir qa
+terragrunt run-all apply --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir qa
+# If the apply succeeds to qa, move on to the stage environment
+terragrunt run-all plan --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir stage
+terragrunt run-all apply --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir stage
+# And finally, prod.
+terragrunt run-all plan --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir prod
+terragrunt run-all apply --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir prod
+```
+
+This allows you to have flexibility in how changes are rolled out. For example, you can add extra validation stages
+inbetween the roll out to each environment, or add in manual approval between the stages.
+
+**NOTE**: If you identify an issue with rolling out the change in a downstream environment, and want to abort, you will
+need to make sure that that environment uses the older version of the common configuration. This is because the common
+configuration is now partially rolled out, where some environments need to use the new updated common configuration,
+while other environments need the old one. The best way to handle this situation is to create a new copy of the common
+configuration at the old version and have the environments that depend on the older version point to that version.

@@ -55,6 +55,7 @@ const (
 	optTerragruntLogLevel                    = "terragrunt-log-level"
 	optTerragruntStrictValidate              = "terragrunt-strict-validate"
 	optTerragruntJSONOut                     = "terragrunt-json-out"
+	optTerragruntModulesThatInclude          = "terragrunt-modules-that-include"
 )
 
 var allTerragruntBooleanOpts = []string{
@@ -88,6 +89,7 @@ var allTerragruntStringOpts = []string{
 	optTerragruntLogLevel,
 	optTerragruntStrictValidate,
 	optTerragruntJSONOut,
+	optTerragruntModulesThatInclude,
 }
 
 const CMD_INIT = "init"

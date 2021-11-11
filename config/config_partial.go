@@ -315,7 +315,13 @@ func PartialParseConfigString(
 
 	// If this file includes another, parse and merge the partial blocks.  Otherwise just return this config.
 	if len(trackInclude.CurrentList) > 0 {
-		return handleIncludePartial(&output, trackInclude, terragruntOptions, decodeList)
+		config, err := handleIncludePartial(&output, trackInclude, terragruntOptions, decodeList)
+		if err != nil {
+			return nil, err
+		}
+		// Saving processed includes into configuration, direct assignment since nested includes aren't supported
+		config.ProcessedIncludes = trackInclude.CurrentMap
+		return config, nil
 	}
 	return &output, nil
 }

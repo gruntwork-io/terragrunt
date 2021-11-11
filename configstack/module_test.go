@@ -73,6 +73,9 @@ func TestResolveTerraformModulesOneModuleWithIncludesNoDependencies(t *testing.T
 		Config: config.TerragruntConfig{
 			Terraform: &config.TerraformConfig{Source: ptr("...")},
 			IsPartial: true,
+			ProcessedIncludes: map[string]config.IncludeConfig{
+				"": {Path: canonical(t, "../test/fixture-modules/module-b/terragrunt.hcl")},
+			},
 		},
 		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/module-b/module-b-child/"+config.DefaultTerragruntConfigPath)),
 	}
@@ -94,6 +97,9 @@ func TestResolveTerraformModulesOneJsonModuleWithIncludesNoDependencies(t *testi
 		Config: config.TerragruntConfig{
 			Terraform: &config.TerraformConfig{Source: ptr("...")},
 			IsPartial: true,
+			ProcessedIncludes: map[string]config.IncludeConfig{
+				"": {Path: canonical(t, "../test/fixture-modules/json-module-b/terragrunt.hcl")},
+			},
 		},
 		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/json-module-b/module-b-child/"+config.DefaultTerragruntJsonConfigPath)),
 	}
@@ -115,6 +121,9 @@ func TestResolveTerraformModulesOneHclModuleWithIncludesNoDependencies(t *testin
 		Config: config.TerragruntConfig{
 			Terraform: &config.TerraformConfig{Source: ptr("...")},
 			IsPartial: true,
+			ProcessedIncludes: map[string]config.IncludeConfig{
+				"": {Path: canonical(t, "../test/fixture-modules/hcl-module-b/terragrunt.hcl.json")},
+			},
 		},
 		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/hcl-module-b/module-b-child/"+config.DefaultTerragruntConfigPath)),
 	}
@@ -544,6 +553,9 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 		Config: config.TerragruntConfig{
 			Terraform: &config.TerraformConfig{Source: ptr("...")},
 			IsPartial: true,
+			ProcessedIncludes: map[string]config.IncludeConfig{
+				"": {Path: canonical(t, "../test/fixture-modules/module-b/terragrunt.hcl")},
+			},
 		},
 		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/module-b/module-b-child/"+config.DefaultTerragruntConfigPath)),
 	}
@@ -593,6 +605,9 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 		Config: config.TerragruntConfig{
 			Terraform: &config.TerraformConfig{Source: ptr("...")},
 			IsPartial: true,
+			ProcessedIncludes: map[string]config.IncludeConfig{
+				"": {Path: canonical(t, "../test/fixture-modules/json-module-b/terragrunt.hcl")},
+			},
 		},
 		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/json-module-b/module-b-child/"+config.DefaultTerragruntJsonConfigPath)),
 	}
@@ -642,6 +657,9 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 		Config: config.TerragruntConfig{
 			Terraform: &config.TerraformConfig{Source: ptr("...")},
 			IsPartial: true,
+			ProcessedIncludes: map[string]config.IncludeConfig{
+				"": {Path: canonical(t, "../test/fixture-modules/module-b/terragrunt.hcl")},
+			},
 		},
 		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/module-b/module-b-child/"+config.DefaultTerragruntConfigPath)),
 	}
@@ -653,6 +671,9 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 			Dependencies: &config.ModuleDependencies{Paths: []string{"../../module-a", "../../module-b/module-b-child"}},
 			Terraform:    &config.TerraformConfig{Source: ptr("test")},
 			IsPartial:    true,
+			ProcessedIncludes: map[string]config.IncludeConfig{
+				"": {Path: canonical(t, "../test/fixture-modules/module-e/terragrunt.hcl")},
+			},
 		},
 		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/module-e/module-e-child/"+config.DefaultTerragruntConfigPath)),
 	}

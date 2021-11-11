@@ -1,0 +1,3 @@
+output "text" {
+  value = "alpha"
+}

@@ -24,6 +24,7 @@ const (
 	includeExposeFixturePath    = "fixture-include-expose/"
 	includeChildFixturePath     = "child"
 	includeMultipleFixturePath  = "fixture-include-multiple/"
+	includeRunAllFixturePath    = "fixture-include-runall/"
 )
 
 func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
@@ -88,6 +89,30 @@ func TestTerragruntWorksWithIncludeNoMerge(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
 	validateIncludeRemoteStateReflection(t, s3BucketName, includeNoMergeFixturePath, tmpTerragruntConfigPath, childPath)
+}
+
+func TestTerragruntRunAllModulesThatIncludeRestrictsSet(t *testing.T) {
+	t.Parallel()
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(
+		t,
+		fmt.Sprintf(
+			"terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-modules-that-include alpha.hcl",
+			includeRunAllFixturePath,
+		),
+		&stdout,
+		&stderr,
+	)
+	require.NoError(t, err)
+	logBufferContentsLineByLine(t, stdout, "stdout")
+	logBufferContentsLineByLine(t, stderr, "stderr")
+
+	planOutput := stdout.String()
+	assert.Contains(t, planOutput, "alpha")
+	assert.NotContains(t, planOutput, "beta")
+	assert.NotContains(t, planOutput, "charlie")
 }
 
 func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {

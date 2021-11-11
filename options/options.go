@@ -165,6 +165,10 @@ type TerragruntOptions struct {
 	// The file path that terragrunt should use when rendering the terragrunt.hcl config as json.
 	JSONOut string
 
+	// When used with `run-all`, restrict the modules in the stack to only those that include at least one of the files
+	// in this list.
+	ModulesThatInclude []string
+
 	// A command that can be used to run Terragrunt with the given options. This is useful for running Terragrunt
 	// multiple times (e.g. when spinning up a stack of Terraform modules). The actual command is normally defined
 	// in the cli package, which depends on almost all other packages, so we declare it here so that other
@@ -254,6 +258,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		RetryableErrors:             util.CloneStringList(DEFAULT_RETRYABLE_ERRORS),
 		ExcludeDirs:                 []string{},
 		IncludeDirs:                 []string{},
+		ModulesThatInclude:          []string{},
 		StrictInclude:               false,
 		Parallelism:                 DEFAULT_PARALLELISM,
 		Check:                       false,
@@ -340,6 +345,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		RetryableErrors:              util.CloneStringList(terragruntOptions.RetryableErrors),
 		ExcludeDirs:                  terragruntOptions.ExcludeDirs,
 		IncludeDirs:                  terragruntOptions.IncludeDirs,
+		ModulesThatInclude:           terragruntOptions.ModulesThatInclude,
 		Parallelism:                  terragruntOptions.Parallelism,
 		StrictInclude:                terragruntOptions.StrictInclude,
 		RunTerragrunt:                terragruntOptions.RunTerragrunt,
