@@ -28,6 +28,6 @@ If you  want the latest version, the recommended installation option is to [down
 
 * **macOS**: You can install Terragrunt on macOS using [Homebrew](https://brew.sh/): `brew install terragrunt`.
 
-* **Linux**: Most Linux users can use [Homebrew](https://docs.brew.sh/Homebrew-on-Linux): `brew install terragrunt`. Arch Linux users can either use the pre-built binaries from [`aur/terragrunt-bin`](https://aur.archlinux.org/packages/terragrunt-bin) or build Terragrunt from source from [`aur/terragrunt`](https://aur.archlinux.org/packages/terragrunt).
+* **Linux**: Most Linux users can use [Homebrew](https://docs.brew.sh/Homebrew-on-Linux): `brew install terragrunt`. Arch Linux users can use `pacman -S terragrunt` to install it [`community-terragrunt`](https://archlinux.org/packages/community/x86_64/terragrunt/).
 
 * **FreeBSD**: You can install Terragrunt on FreeBSD using [Pkg](https://www.freebsd.org/cgi/man.cgi?pkg(7)): `pkg install terragrunt`.
