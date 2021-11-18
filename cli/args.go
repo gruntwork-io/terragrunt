@@ -448,7 +448,7 @@ func parseMultiStringArg(args []string, argName string, defaultValue []string) (
 		}
 		val, hasVal, err := getOptionArgIfMatched(arg, nextArg, argName)
 		if err != nil {
-			return nil, errors.WithStackTrace(ArgMissingValue(argName))
+			return nil, err
 		} else if hasVal {
 			stringArgs = append(stringArgs, val)
 		}
