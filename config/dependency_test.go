@@ -109,3 +109,25 @@ dependency "hitchhiker" {
 	require.NotNil(t, defaultAllowedCommands)
 	assert.Equal(t, *defaultAllowedCommands, []string{"validate", "apply"})
 }
+
+func TestDecodeDependencyTerraformPath(t *testing.T) {
+	t.Parallel()
+
+	config := `
+dependency "hitchhiker" {
+  config_path = "../answers"
+	terraform_path = "/usr/local/bin/1.0.11/terraform"
+}
+`
+	filename := DefaultTerragruntConfigPath
+	parser := hclparse.NewParser()
+	file, err := parseHcl(parser, config, filename)
+	require.NoError(t, err)
+
+	decoded := terragruntDependency{}
+	require.NoError(t, decodeHcl(file, filename, &decoded, mockOptionsForTest(t), EvalContextExtensions{}))
+
+	assert.Equal(t, len(decoded.Dependencies), 1)
+	dependency := decoded.Dependencies[0]
+	assert.Equal(t, *dependency.TerraformPath, "/usr/local/bin/1.0.11/terraform")
+}

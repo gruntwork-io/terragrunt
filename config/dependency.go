@@ -36,6 +36,7 @@ type Dependency struct {
 	MockOutputs                         *cty.Value `hcl:"mock_outputs,attr" cty:"mock_outputs"`
 	MockOutputsAllowedTerraformCommands *[]string  `hcl:"mock_outputs_allowed_terraform_commands,attr" cty:"mock_outputs_allowed_terraform_commands"`
 	MockOutputsMergeWithState           *bool      `hcl:"mock_outputs_merge_with_state,attr" cty:"mock_outputs_merge_with_state"`
+	TerraformPath                       *string    `hcl:"terraform_path,attr" cty:"terraform_path"`
 
 	// Used to store the rendered outputs for use when the config is imported or read with `read_terragrunt_config`
 	RenderedOutputs *cty.Value `cty:"outputs"`
@@ -377,7 +378,15 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 		return nil, true, errors.WithStackTrace(DependencyConfigNotFound{Path: targetConfig})
 	}
 
-	jsonBytes, err := getOutputJsonWithCaching(targetConfig, terragruntOptions)
+	// target terraform_path for dependency if use differente version. check if path exists
+	targetTerraformPath := dependencyConfig.TerraformPath
+	if targetTerraformPath != nil {
+		if !util.FileExists(*targetTerraformPath) {
+			return nil, true, errors.WithStackTrace(DependencyTerraformPathNotFound{Path: *targetTerraformPath})
+		}
+	}
+
+	jsonBytes, err := getOutputJsonWithCaching(targetConfig, targetTerraformPath, terragruntOptions)
 	if err != nil {
 		return nil, true, err
 	}
@@ -397,7 +406,7 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 }
 
 // getOutputJsonWithCaching will run terragrunt output on the target config if it is not already cached.
-func getOutputJsonWithCaching(targetConfig string, terragruntOptions *options.TerragruntOptions) ([]byte, error) {
+func getOutputJsonWithCaching(targetConfig string, targetTerraformPath *string, terragruntOptions *options.TerragruntOptions) ([]byte, error) {
 	// Acquire synchronization lock to ensure only one instance of output is called per config.
 	rawActualLock, _ := outputLocks.LoadOrStore(targetConfig, &sync.Mutex{})
 	actualLock := rawActualLock.(*sync.Mutex)
@@ -418,7 +427,7 @@ func getOutputJsonWithCaching(targetConfig string, terragruntOptions *options.Te
 	}
 
 	// Cache miss, so look up the output and store in cache
-	newJsonBytes, err := getTerragruntOutputJson(terragruntOptions, targetConfig)
+	newJsonBytes, err := getTerragruntOutputJson(terragruntOptions, targetConfig, targetTerraformPath)
 	if err != nil {
 		return nil, err
 	}
@@ -444,10 +453,15 @@ func cloneTerragruntOptionsForDependency(terragruntOptions *options.TerragruntOp
 }
 
 // Clone terragrunt options and update context for dependency block so that the outputs can be read correctly
-func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.TerragruntOptions, targetConfig string) (*options.TerragruntOptions, error) {
+func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.TerragruntOptions, targetConfig string, targetTerraformPath *string) (*options.TerragruntOptions, error) {
 	targetOptions := cloneTerragruntOptionsForDependency(terragruntOptions, targetConfig)
 	targetOptions.TerraformCommand = "output"
 	targetOptions.TerraformCliArgs = []string{"output", "-json"}
+
+	// Use different terraform binary to get output if informed in dependency
+	if targetTerraformPath != nil {
+		targetOptions.TerraformPath = *targetTerraformPath
+	}
 
 	// DownloadDir needs to be updated to be in the context of the new config, if using default
 	_, originalDefaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(terragruntOptions.TerragruntConfigPath)
@@ -512,10 +526,10 @@ func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.Terrag
 // If these conditions are met, terragrunt can optimize the retrieval to avoid recursively retrieving dependency outputs
 // by directly pulling down the state file. Otherwise, terragrunt will fallback to running `terragrunt output` on the
 // target module.
-func getTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targetConfig string) ([]byte, error) {
+func getTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targetConfig string, targetTerraformPath *string) ([]byte, error) {
 	// Make a copy of the terragruntOptions so that we can reuse the same execution environment, but in the context of
 	// the target config.
-	targetTGOptions, err := cloneTerragruntOptionsForDependencyOutput(terragruntOptions, targetConfig)
+	targetTGOptions, err := cloneTerragruntOptionsForDependencyOutput(terragruntOptions, targetConfig, targetTerraformPath)
 	if err != nil {
 		return nil, err
 	}
@@ -773,6 +787,14 @@ type DependencyConfigNotFound struct {
 }
 
 func (err DependencyConfigNotFound) Error() string {
+	return fmt.Sprintf("%s does not exist", err.Path)
+}
+
+type DependencyTerraformPathNotFound struct {
+	Path string
+}
+
+func (err DependencyTerraformPathNotFound) Error() string {
 	return fmt.Sprintf("%s does not exist", err.Path)
 }
 
