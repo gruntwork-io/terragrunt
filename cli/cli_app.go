@@ -188,8 +188,8 @@ var TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT = []string{
 	"graph-dependencies",
 }
 
-// DEPRECATED_ARGUMENTS is a map of deprecated arguments to the argument that replace them.
-var DEPRECATED_ARGUMENTS = map[string]string{}
+// deprecatedArguments is a map of deprecated arguments to the argument that replace them.
+var deprecatedArguments = map[string]string{}
 
 // Struct is output as JSON by 'terragrunt-info':
 type TerragruntInfoGroup struct {

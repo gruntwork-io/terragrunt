@@ -71,6 +71,16 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	assert.False(t, isDefined)
 }
 
+func TestTerragruntInputsWithDashes(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir=%s --terragrunt-log-level=debug", rootPath))
+}
+
 func TestTerragruntValidateInputs(t *testing.T) {
 	t.Parallel()
 
