@@ -713,11 +713,7 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 
 // confirmActionWithDependentModules - Show warning with list of dependent modules from current module before destroy
 func confirmActionWithDependentModules(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) bool {
-	modules, err := configstack.FindWhereWorkingDirIsIncluded(terragruntOptions, terragruntConfig)
-	if err != nil {
-		terragruntOptions.Logger.Warnf("Failed to detect where module is used %v", err)
-		return true
-	}
+	modules := configstack.FindWhereWorkingDirIsIncluded(terragruntOptions, terragruntConfig)
 	if len(modules) != 0 {
 		if _, err := terragruntOptions.ErrWriter.Write([]byte("Detected dependent modules:\n")); err != nil {
 			terragruntOptions.Logger.Error(err)
@@ -737,6 +733,7 @@ func confirmActionWithDependentModules(terragruntOptions *options.TerragruntOpti
 		}
 		return shouldRun
 	}
+	// request user to confirm action in any case
 	return true
 }
 
