@@ -74,6 +74,16 @@ func downloadTerraformSourceIfNecessary(terraformSource *tfsource.TerraformSourc
 		return nil
 	}
 
+	var previousVersion = ""
+	// read previous source version
+	// https://github.com/gruntwork-io/terragrunt/issues/1921
+	if util.FileExists(terraformSource.VersionFile) {
+		previousVersion, err = readVersionFile(terraformSource)
+		if err != nil {
+			return err
+		}
+	}
+
 	// When downloading source, we need to process any hooks waiting on `init-from-module`. Therefore, we clone the
 	// options struct, set the command to the value the hooks are expecting, and run the download action surrounded by
 	// before and after hooks (if any).
@@ -95,12 +105,17 @@ func downloadTerraformSourceIfNecessary(terraformSource *tfsource.TerraformSourc
 		return err
 	}
 
-	initFile := util.JoinPath(terraformSource.WorkingDir, moduleInitRequiredFile)
-	f, createErr := os.Create(initFile)
-	if createErr != nil {
-		return createErr
+	currentVersion := terraformSource.EncodeSourceVersion()
+	// if source versions are different, create file to run init
+	// https://github.com/gruntwork-io/terragrunt/issues/1921
+	if previousVersion != currentVersion {
+		initFile := util.JoinPath(terraformSource.WorkingDir, moduleInitRequiredFile)
+		f, createErr := os.Create(initFile)
+		if createErr != nil {
+			return createErr
+		}
+		defer f.Close()
 	}
-	defer f.Close()
 
 	return nil
 }
