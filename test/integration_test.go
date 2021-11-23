@@ -137,7 +137,7 @@ const (
 	TERRAFORM_STATE_BACKUP                                  = "terraform.tfstate.backup"
 	TERRAGRUNT_CACHE                                        = ".terragrunt-cache"
 
-	qaMyAppRelPath = "qa/my-app"
+	qaMyAppRelPath  = "qa/my-app"
 	fixtureDownload = "fixture-download"
 )
 
