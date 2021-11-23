@@ -4469,6 +4469,7 @@ func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	require.NoError(t, err)
 	// no initialization expected for second plan run
+	// https://github.com/gruntwork-io/terragrunt/issues/1921
 	errout = string(stderr.Bytes())
 	assert.Equal(t, 0, strings.Count(errout, "Terraform has been successfully initialized!"))
 }
