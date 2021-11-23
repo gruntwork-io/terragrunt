@@ -138,6 +138,7 @@ const (
 	TERRAGRUNT_CACHE                                        = ".terragrunt-cache"
 
 	qaMyAppRelPath = "qa/my-app"
+	fixtureDownload = "fixture-download"
 )
 
 func init() {
@@ -1022,7 +1023,7 @@ func TestLocalWithBackend(t *testing.T) {
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
 
-	tmpEnvPath := copyEnvironment(t, "fixture-download")
+	tmpEnvPath := copyEnvironment(t, fixtureDownload)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_LOCAL_WITH_BACKEND)
 
 	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
@@ -1040,7 +1041,7 @@ func TestLocalWithMissingBackend(t *testing.T) {
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 	lockTableName := fmt.Sprintf("terragrunt-lock-table-%s", strings.ToLower(uniqueId()))
 
-	tmpEnvPath := copyEnvironment(t, "fixture-download")
+	tmpEnvPath := copyEnvironment(t, fixtureDownload)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_LOCAL_MISSING_BACKEND)
 
 	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
@@ -4444,4 +4445,30 @@ func TestTerragruntInitConfirmation(t *testing.T) {
 	require.Error(t, err)
 	errout := string(stderr.Bytes())
 	assert.Equal(t, 1, strings.Count(errout, "does not exist or you don't have permissions to access it. Would you like Terragrunt to create it? (y/n)"))
+}
+
+func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, fixtureDownload)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_STDOUT)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	require.NoError(t, err)
+	// providers initialization during first plan
+	errout := string(stderr.Bytes())
+	assert.Equal(t, 1, strings.Count(errout, "Terraform has been successfully initialized!"))
+
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	require.NoError(t, err)
+	// no initialization expected for second plan run
+	errout = string(stderr.Bytes())
+	assert.Equal(t, 0, strings.Count(errout, "Terraform has been successfully initialized!"))
 }
