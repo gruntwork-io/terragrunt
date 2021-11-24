@@ -398,7 +398,7 @@ This should allow you to run `import` on the module and work around those Terraf
 
 ### render-json
 
-Render out the final interpretted `terragrunt.hcl` file (that is, with all the includes merged, dependencies
+Render out the final interpreted `terragrunt.hcl` file (that is, with all the includes merged, dependencies
 resolved/interpolated, function calls executed, etc) as json.
 
 Example:
