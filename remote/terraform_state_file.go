@@ -53,10 +53,10 @@ func ParseTerraformStateFileFromLocation(backend string, config map[string]inter
 	stateFile, ok := config["path"].(string)
 	if backend == "local" && ok && util.FileExists(stateFile) {
 		return ParseTerraformStateFile(stateFile)
-	} else if util.FileExists(util.JoinPath(workingDir, DEFAULT_PATH_TO_LOCAL_STATE_FILE)) {
-		return ParseTerraformStateFile(util.JoinPath(workingDir, DEFAULT_PATH_TO_LOCAL_STATE_FILE))
 	} else if util.FileExists(util.JoinPath(dataDir, DEFAULT_PATH_TO_REMOTE_STATE_FILE)) {
 		return ParseTerraformStateFile(util.JoinPath(dataDir, DEFAULT_PATH_TO_REMOTE_STATE_FILE))
+	} else if util.FileExists(util.JoinPath(workingDir, DEFAULT_PATH_TO_LOCAL_STATE_FILE)) {
+		return ParseTerraformStateFile(util.JoinPath(workingDir, DEFAULT_PATH_TO_LOCAL_STATE_FILE))
 	} else {
 		return nil, nil
 	}
