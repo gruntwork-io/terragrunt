@@ -838,13 +838,16 @@ The `dependency` block supports the following arguments:
   as a dependency in this configuration.
 - `skip_outputs` (attribute): When `true`, skip calling `terragrunt output` when processing this dependency. If
   `mock_outputs` is configured, set `outputs` to the value of `mock_outputs`. Otherwise, `outputs` will be set to an
-  empty map.
+  empty map. Put another way, setting `skip_outputs` means "use mocks all the time if `mock_outputs` are set."
 - `mock_outputs` (attribute): A map of arbitrary key value pairs to use as the `outputs` attribute when no outputs are
-  available from the target module, or if `skip_outputs` is `true`.
+  available from the target module, or if `skip_outputs` is `true`. However, it's generally recommended not to set
+  `skip_outputs` if using `mock_outputs`, because `skip_outputs` means "use mocks all the time if they are set" whereas
+  `mock_outputs` means "use mocks only if real outputs are not available." Use `locals` instead when `skip_outputs = true`.
 - `mock_outputs_allowed_terraform_commands` (attribute): A list of Terraform commands for which `mock_outputs` are
   allowed. If a command is used where `mock_outputs` is not allowed, and no outputs are available in the target module,
   Terragrunt will throw an error when processing this dependency.
-- `mock_outputs_merge_with_state` (attribute): When `true`, `mock_outputs` and the state outputs will be merged.
+- `mock_outputs_merge_with_state` (attribute): When `true`, `mock_outputs` and the state outputs will be merged. That is,
+  the `mock_outputs` will be treated as defaults and the real state outputs will overwrite them if the keys clash.
 
 Example:
 
