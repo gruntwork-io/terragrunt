@@ -2894,7 +2894,8 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 		t,
 		terraformOut,
 		map[string]interface{}{
-			"source": "./delorean",
+			"source":          "./delorean",
+			"include_in_copy": []interface{}{"time_machine.*"},
 			"extra_arguments": map[string]interface{}{
 				"var-files": map[string]interface{}{
 					"name":               "var-files",
@@ -3385,7 +3386,7 @@ func runTerragruntRedirectOutput(t *testing.T, command string, writer io.Writer,
 			stderr = stderrAsBuffer.String()
 		}
 
-		t.Fatalf("Failed to run Terragrunt command '%s' due to error: %s\n\nStdout: %s\n\nStderr: %s", command, err, stdout, stderr)
+		t.Fatalf("Failed to run Terragrunt command '%s' due to error: %s\n\nStdout: %s\n\nStderr: %s", command, errors.PrintErrorWithStackTrace(err), stdout, stderr)
 	}
 }
 
