@@ -17,6 +17,10 @@ const SOURCE_MANIFEST_NAME = ".terragrunt-source-manifest"
 // instead.
 type FileCopyGetter struct {
 	getter.FileGetter
+
+	// List of glob paths that should be included in the copy. This can be used to override the default behavior of
+	// Terragrunt, which will skip hidden folders.
+	IncludeInCopy []string
 }
 
 // The original FileGetter does NOT know how to do folder copying (it only does symlinks), so we provide a copy
@@ -34,7 +38,7 @@ func (g *FileCopyGetter) Get(dst string, u *url.URL) error {
 		return fmt.Errorf("source path must be a directory")
 	}
 
-	return util.CopyFolderContents(path, dst, SOURCE_MANIFEST_NAME)
+	return util.CopyFolderContents(path, dst, SOURCE_MANIFEST_NAME, g.IncludeInCopy)
 }
 
 // The original FileGetter already knows how to do file copying so long as we set the Copy flag to true, so just

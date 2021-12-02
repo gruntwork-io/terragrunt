@@ -24,7 +24,7 @@ import (
 // NOTE: We don't run these tests in parallel because it modifies the environment variable, so it can affect other tests
 
 func TestTerragruntDownloadDir(t *testing.T) {
-	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_RELATIVE_DOWNLOAD_PATH)
+	cleanupTerraformFolder(t, testFixtureLocalRelativeDownloadPath)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
 
 	/* we have 2 terragrunt dirs here. One of them doesn't set the download_dir in the config,

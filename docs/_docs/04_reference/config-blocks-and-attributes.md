@@ -63,6 +63,11 @@ The `terraform` block supports the following arguments:
       registry]({{site.baseurl}}/docs/getting-started/quick-start#a-note-about-using-modules-from-the-registry) for more
       information about using modules from the Terraform Registry with Terragrunt.
 
+- `include_in_copy` (attribute): When using local file path sources, this specifies a list of glob patterns (e.g.,
+  `*.txt`) that should always be copied. The path should be specified relative to the source directory. This is useful
+  to specify a list of hidden files that should be included in the source copy that Terragrunt makes (by default,
+  Terragrunt ignores all hidden files and folders in the Terraform source path).
+
 - `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `terraform` CLI. Learn more
   about its usage in the [Keep your CLI flags DRY]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/) use case overview. Supports
   the following arguments:
@@ -117,8 +122,7 @@ supported:
       while the working directory for hooks associated with `init` will be the terraform module.
 
 
-
-Example:
+Complete Example:
 
 ```hcl
 terraform {
@@ -194,6 +198,23 @@ terraform {
   }
 }
 ```
+
+Local File Path Example with allowed hidden files:
+
+```hcl
+terraform {
+  # Pull the terraform configuration from the local file system. Terragrunt will make a copy of the source folder in the
+  # Terragrunt working directory (typically `.terragrunt-cache`).
+  source = "../modules/networking/vpc"
+
+  # Always include the following file patterns in the Terragrunt copy.
+  include_in_copy = [
+    ".security_group_rules.json",
+    "*.yaml",
+  ]
+}
+```
+
 
 #### A note about using modules from the registry
 
