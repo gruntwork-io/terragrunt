@@ -40,10 +40,9 @@ func downloadTerraformSource(source string, terragruntOptions *options.Terragrun
 	}
 
 	terragruntOptions.Logger.Debugf("Copying files from %s into %s", terragruntOptions.WorkingDir, terraformSource.WorkingDir)
-	includeInCopyPtr := terragruntConfig.Terraform.IncludeInCopy
 	var includeInCopy []string
-	if includeInCopyPtr != nil {
-		includeInCopy = *includeInCopyPtr
+	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.IncludeInCopy != nil {
+		includeInCopy = *terragruntConfig.Terraform.IncludeInCopy
 	}
 	if err := util.CopyFolderContents(terragruntOptions.WorkingDir, terraformSource.WorkingDir, MODULE_MANIFEST_NAME, includeInCopy); err != nil {
 		return nil, err
@@ -165,10 +164,9 @@ func updateGetters(terragruntConfig *config.TerragruntConfig) func(*getter.Clien
 		client.Getters = map[string]getter.Getter{}
 		for getterName, getterValue := range getter.Getters {
 			if getterName == "file" {
-				includeInCopyPtr := terragruntConfig.Terraform.IncludeInCopy
 				var includeInCopy []string
-				if includeInCopyPtr != nil {
-					includeInCopy = *includeInCopyPtr
+				if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.IncludeInCopy != nil {
+					includeInCopy = *terragruntConfig.Terraform.IncludeInCopy
 				}
 				client.Getters[getterName] = &FileCopyGetter{IncludeInCopy: includeInCopy}
 			} else {
