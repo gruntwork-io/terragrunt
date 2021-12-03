@@ -108,6 +108,35 @@ func ctySliceToStringSlice(args []cty.Value) ([]string, error) {
 	return out, nil
 }
 
+// shallowMergeCtyMaps performs a shallow merge of two cty value objects.
+func shallowMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
+	outMap := make(map[string]interface{})
+	targetMap, err := parseCtyValueToMap(target)
+	if err != nil {
+		return nil, err
+	}
+	SourceMap, err := parseCtyValueToMap(source)
+	if err != nil {
+		return nil, err
+	}
+
+	for key, val := range targetMap {
+		outMap[key] = val
+	}
+
+	for key, sourceValue := range SourceMap {
+		if _, ok := outMap[key]; !ok {
+			outMap[key] = sourceValue
+		}
+	}
+
+	outCty, err := convertToCtyWithJson(outMap)
+	if err != nil {
+		return nil, err
+	}
+	return &outCty, nil
+}
+
 // deepMergeCtyMaps implements a deep merge of two cty value objects. We can't directly merge two cty.Value objects, so
 // we cheat by using map[string]interface{} as an intermediary. Note that this assumes the provided cty value objects
 // are already maps or objects in HCL land.
