@@ -110,18 +110,13 @@ func ctySliceToStringSlice(args []cty.Value) ([]string, error) {
 
 // shallowMergeCtyMaps performs a shallow merge of two cty value objects.
 func shallowMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
-	outMap := make(map[string]interface{})
-	targetMap, err := parseCtyValueToMap(target)
+	outMap, err := parseCtyValueToMap(target)
 	if err != nil {
 		return nil, err
 	}
 	SourceMap, err := parseCtyValueToMap(source)
 	if err != nil {
 		return nil, err
-	}
-
-	for key, val := range targetMap {
-		outMap[key] = val
 	}
 
 	for key, sourceValue := range SourceMap {
@@ -140,7 +135,7 @@ func shallowMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error)
 // deepMergeCtyMaps implements a deep merge of two cty value objects. We can't directly merge two cty.Value objects, so
 // we cheat by using map[string]interface{} as an intermediary. Note that this assumes the provided cty value objects
 // are already maps or objects in HCL land.
-func deepMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
+func deepMergeCtyMaps(target cty.Value, source cty.Value, opts ...func(*mergo.Config)) (*cty.Value, error) {
 	outMap := make(map[string]interface{})
 	targetMap, err := parseCtyValueToMap(target)
 	if err != nil {
@@ -155,7 +150,7 @@ func deepMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
 		outMap[key] = val
 	}
 
-	if err := mergo.Merge(&outMap, sourceMap, mergo.WithAppendSlice, mergo.WithOverride); err != nil {
+	if err := mergo.Merge(&outMap, sourceMap, opts...); err != nil {
 		return nil, err
 	}
 

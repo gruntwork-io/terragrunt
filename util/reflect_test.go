@@ -32,3 +32,28 @@ func TestKindOf(t *testing.T) {
 		t.Logf("%v passed", testCase.value)
 	}
 }
+
+func TestMustWalkTerraformOutput(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		value    interface{}
+		path     []string
+		expected interface{}
+	}{
+		{
+			value: map[string]map[string]string{
+				"a": {
+					"b": "c",
+				},
+			},
+			path:     []string{"a", "b"},
+			expected: "c",
+		},
+	}
+
+	for _, testCase := range testCases {
+		actual := MustWalkTerraformOutput(testCase.value, testCase.path...)
+		assert.Equal(t, reflect.ValueOf(testCase.expected).String(), actual)
+	}
+}
