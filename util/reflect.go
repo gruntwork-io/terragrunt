@@ -33,8 +33,6 @@ func MustWalkTerraformOutput(value interface{}, path ...string) interface{} {
 			if err != nil {
 				return nil
 			}
-			a := v.Len()
-			_ = a
 			if v.Len()-1 < i {
 				return nil
 			}
