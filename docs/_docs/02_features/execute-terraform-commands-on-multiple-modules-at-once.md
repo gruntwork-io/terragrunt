@@ -217,7 +217,7 @@ When `skip_outputs` is used with `mock_outputs`, mocked outputs will be returned
       skip_outputs = true
     }
 
-You can also use `mock_outputs_merge_with_state` on the `dependency` block to merge the mocked outputs and the state outputs :
+You can also use `mock_outputs_merge_strategy_with_state` on the `dependency` block to merge the mocked outputs and the state outputs :
 
     dependency "vpc" {
       config_path = "../vpc"
@@ -226,7 +226,7 @@ You can also use `mock_outputs_merge_with_state` on the `dependency` block to me
         new_output = "temporary-dummy-value"
       }
 
-      mock_outputs_merge_with_state = true
+      mock_outputs_merge_strategy_with_state = "shallow"
     }
 
 If the state outputs only contains `vpc_id`, this value will be preserved. And `new_output` which is not existing, the mock value will be used.
