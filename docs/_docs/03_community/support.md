@@ -10,9 +10,9 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Stack Overflow
+## Github Discussions
 
-Many developers use Stack Overflow to find help. Use the `terragrunt` tag to find [existing questions](https://stackoverflow.com/questions/tagged/terragrunt) or [ask your own](https://stackoverflow.com/questions/ask?tags=terragrunt).
+Search our [Knowledge Base](https://github.com/gruntwork-io/knowledge-base/discussions) to find existing questions or ask your own. Github Discussions is a good place for general discussions and questions.
 
 ## Github Issues
 
