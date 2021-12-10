@@ -63,14 +63,15 @@ The `terraform` block supports the following arguments:
       registry]({{site.baseurl}}/docs/getting-started/quick-start#a-note-about-using-modules-from-the-registry) for more
       information about using modules from the Terraform Registry with Terragrunt.
 
-- `include_in_copy` (attribute): A list of glob patterns (e.g., `*.txt`) that should always be copied into the Terraform
-  working directory. When you use the `source` param in your Terragrunt config and run `terragrunt <command>`,
+- `include_in_copy` (attribute): A list of glob patterns (e.g., `["*.txt"]`) that should always be copied into the
+  Terraform working directory. When you use the `source` param in your Terragrunt config and run `terragrunt <command>`,
   Terragrunt will download the code specified at source into a scratch folder (`.terragrunt-cache`, by default), copy
   the code in your current working directory into the same scratch folder, and then run `terraform <command>` in that
   scratch folder. By default, Terragrunt excludes hidden files and folders during the copy step. This feature allows you
-  to specify glob patterns of files that should always be copied from the Terragrunt working directory. Additional notes:
+  to specify glob patterns of files that should always be copied from the Terragrunt working directory. Additional
+  notes:
     - The path should be specified relative to the source directory.
-    - This list is also use when using a local file source (e.g., `source = "../modules/vpc"`). For example, if your
+    - This list is also used when using a local file source (e.g., `source = "../modules/vpc"`). For example, if your
       terraform module source contains a hidden file that you want to copy over (e.g., a `.python-version` file), you
       can specify that in this list to ensure it gets copied over to the scratch copy
       (e.g., `include_in_copy = [".python-version"]`).
