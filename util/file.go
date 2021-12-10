@@ -172,8 +172,34 @@ func ReadFileAsString(path string) (string, error) {
 
 // Copy the files and folders within the source folder into the destination folder. Note that hidden files and folders
 // (those starting with a dot) will be skipped. Will create a specified manifest file that contains paths of all copied files.
-func CopyFolderContents(source, destination, manifestFile string) error {
+func CopyFolderContents(source, destination, manifestFile string, includeInCopy []string) error {
+	// Expand all the includeInCopy glob paths, converting the globbed results to relative paths so that they work in
+	// the copy filter.
+	includeExpandedGlobs := []string{}
+	for _, includeGlob := range includeInCopy {
+		globPath := filepath.Join(source, includeGlob)
+		expandGlob, err := zglob.Glob(globPath)
+		if err == os.ErrNotExist {
+			// we ignore not exist error as we only care about the globs that exist in the src dir
+			continue
+		} else if err != nil {
+			return errors.WithStackTrace(err)
+		}
+		for _, expandGlobPath := range expandGlob {
+			if filepath.IsAbs(expandGlobPath) {
+				expandGlobPath, err = GetPathRelativeTo(expandGlobPath, source)
+				if err != nil {
+					return err
+				}
+			}
+			includeExpandedGlobs = append(includeExpandedGlobs, expandGlobPath)
+		}
+	}
+
 	return CopyFolderContentsWithFilter(source, destination, manifestFile, func(path string) bool {
+		if ListContainsElement(includeExpandedGlobs, path) {
+			return true
+		}
 		return !TerragruntExcludes(path)
 	})
 }
