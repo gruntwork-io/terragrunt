@@ -544,7 +544,7 @@ func getDependenciesForModule(module *TerraformModule, moduleMap map[string]*Ter
 // in a consistent order (Go does not guarantee iteration order for maps, and usually makes it random)
 func getSortedKeys(modules map[string]*TerraformModule) []string {
 	keys := []string{}
-	for key, _ := range modules {
+	for key := range modules {
 		keys = append(keys, key)
 	}
 

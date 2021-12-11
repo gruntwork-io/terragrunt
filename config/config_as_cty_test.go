@@ -110,7 +110,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 			checked[mapKey] = true
 		}
 	}
-	for key, _ := range ctyMap {
+	for key := range ctyMap {
 		_, hasKey := checked[key]
 		assert.Truef(t, hasKey, "cty value key %s is not accounted for from struct field", key)
 	}
@@ -149,7 +149,7 @@ func TestRemoteStateAsCtyDrift(t *testing.T) {
 			checked[mapKey] = true
 		}
 	}
-	for key, _ := range ctyMap {
+	for key := range ctyMap {
 		_, hasKey := checked[key]
 		assert.Truef(t, hasKey, "cty value key %s is not accounted for from struct field", key)
 	}
