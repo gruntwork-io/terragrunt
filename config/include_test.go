@@ -6,7 +6,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/zclconf/go-cty/cty"
 )
 
 func TestMergeConfigIntoIncludedConfig(t *testing.T) {
@@ -271,10 +270,4 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 			assert.Equal(t, testCase.expected, testCase.target)
 		})
 	}
-}
-
-func mapToCty(t *testing.T, valMap map[string]interface{}) *cty.Value {
-	outCty, err := convertToCtyWithJson(valMap)
-	require.NoError(t, err)
-	return &outCty
 }
