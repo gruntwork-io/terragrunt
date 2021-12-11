@@ -30,45 +30,45 @@ func TestPathRelativeToInclude(t *testing.T) {
 			".",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": {Path: "../" + DefaultTerragruntConfigPath}},
 			nil,
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+DefaultTerragruntConfigPath),
 			"child",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": {Path: helpers.RootFolder + DefaultTerragruntConfigPath}},
 			nil,
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+DefaultTerragruntConfigPath),
 			"child",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../../../" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": {Path: "../../../" + DefaultTerragruntConfigPath}},
 			nil,
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
 			"child/sub-child/sub-sub-child",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": {Path: helpers.RootFolder + DefaultTerragruntConfigPath}},
 			nil,
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
 			"child/sub-child/sub-sub-child",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../../other-child/" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": {Path: "../../other-child/" + DefaultTerragruntConfigPath}},
 			nil,
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+DefaultTerragruntConfigPath),
 			"../child/sub-child",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../../" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": {Path: "../../" + DefaultTerragruntConfigPath}},
 			nil,
 			terragruntOptionsForTest(t, "../child/sub-child/"+DefaultTerragruntConfigPath),
 			"child/sub-child",
 		},
 		{
 			map[string]IncludeConfig{
-				"root":  IncludeConfig{Path: "../../" + DefaultTerragruntConfigPath},
-				"child": IncludeConfig{Path: "../../other-child/" + DefaultTerragruntConfigPath},
+				"root":  {Path: "../../" + DefaultTerragruntConfigPath},
+				"child": {Path: "../../other-child/" + DefaultTerragruntConfigPath},
 			},
 			[]string{"child"},
 			terragruntOptionsForTest(t, "../child/sub-child/"+DefaultTerragruntConfigPath),
@@ -100,45 +100,45 @@ func TestPathRelativeFromInclude(t *testing.T) {
 			".",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": {Path: "../" + DefaultTerragruntConfigPath}},
 			nil,
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+DefaultTerragruntConfigPath),
 			"..",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": {Path: helpers.RootFolder + DefaultTerragruntConfigPath}},
 			nil,
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+DefaultTerragruntConfigPath),
 			"..",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../../../" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": {Path: "../../../" + DefaultTerragruntConfigPath}},
 			nil,
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
 			"../../..",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": {Path: helpers.RootFolder + DefaultTerragruntConfigPath}},
 			nil,
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
 			"../../..",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../../other-child/" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": {Path: "../../other-child/" + DefaultTerragruntConfigPath}},
 			nil,
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+DefaultTerragruntConfigPath),
 			"../../other-child",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../../" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": {Path: "../../" + DefaultTerragruntConfigPath}},
 			nil,
 			terragruntOptionsForTest(t, "../child/sub-child/"+DefaultTerragruntConfigPath),
 			"../..",
 		},
 		{
 			map[string]IncludeConfig{
-				"root":  IncludeConfig{Path: "../../" + DefaultTerragruntConfigPath},
-				"child": IncludeConfig{Path: "../../other-child/" + DefaultTerragruntConfigPath},
+				"root":  {Path: "../../" + DefaultTerragruntConfigPath},
+				"child": {Path: "../../other-child/" + DefaultTerragruntConfigPath},
 			},
 			[]string{"child"},
 			terragruntOptionsForTest(t, "../child/sub-child/"+DefaultTerragruntConfigPath),
@@ -636,45 +636,45 @@ func TestGetParentTerragruntDir(t *testing.T) {
 			helpers.RootFolder + "child",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": {Path: "../" + DefaultTerragruntConfigPath}},
 			nil,
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+DefaultTerragruntConfigPath),
 			helpers.RootFolder,
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": {Path: helpers.RootFolder + DefaultTerragruntConfigPath}},
 			nil,
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+DefaultTerragruntConfigPath),
 			helpers.RootFolder,
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../../../" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": {Path: "../../../" + DefaultTerragruntConfigPath}},
 			nil,
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
 			helpers.RootFolder,
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": {Path: helpers.RootFolder + DefaultTerragruntConfigPath}},
 			nil,
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
 			helpers.RootFolder,
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../../other-child/" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": {Path: "../../other-child/" + DefaultTerragruntConfigPath}},
 			nil,
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+DefaultTerragruntConfigPath),
 			fmt.Sprintf("%s/other-child", filepath.VolumeName(parentDir)),
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../../" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": {Path: "../../" + DefaultTerragruntConfigPath}},
 			nil,
 			terragruntOptionsForTest(t, "../child/sub-child/"+DefaultTerragruntConfigPath),
 			parentDir,
 		},
 		{
 			map[string]IncludeConfig{
-				"root":  IncludeConfig{Path: "../../" + DefaultTerragruntConfigPath},
-				"child": IncludeConfig{Path: "../../other-child/" + DefaultTerragruntConfigPath},
+				"root":  {Path: "../../" + DefaultTerragruntConfigPath},
+				"child": {Path: "../../other-child/" + DefaultTerragruntConfigPath},
 			},
 			[]string{"child"},
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+DefaultTerragruntConfigPath),
@@ -972,7 +972,7 @@ func mockConfigWithSource(sourceUrl string) *TerragruntConfig {
 // Return keys as a map so it is treated like a set, and order doesn't matter when comparing equivalence
 func getKeys(valueMap map[string]cty.Value) map[string]bool {
 	keys := map[string]bool{}
-	for k, _ := range valueMap {
+	for k := range valueMap {
 		keys[k] = true
 	}
 	return keys
