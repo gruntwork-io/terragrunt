@@ -3810,14 +3810,6 @@ func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
 	require.NoError(t, copyErr)
 }
 
-func copyFile(srcPath string, destPath string) error {
-	contents, err := ioutil.ReadFile(srcPath)
-	if err != nil {
-		return err
-	}
-	return ioutil.WriteFile(destPath, contents, 0644)
-}
-
 func createTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string, childRelPath string, s3BucketName string, parentConfigFileName string, childConfigFileName string) string {
 	tmpDir, err := ioutil.TempDir("", "terragrunt-parent-child-test")
 	if err != nil {
