@@ -89,7 +89,7 @@ output "length_my_list" {
 Using Terragrunt with this module will run into the following issue:
 
 - Because the output `my_password_hashed` is not marked as sensitive, terraform will error out.
-- `my_list` is missing the type definition, so the input from `terragrunt` will be interpretted as a string. This means
+- `my_list` is missing the type definition, so the input from `terragrunt` will be interpreted as a string. This means
   that the output `length_my_list` will be the string length, and not the list length.
 
 We will need to transform these variables and outputs. We will introduce the `transform` block to handle this. The
