@@ -117,6 +117,7 @@ const (
 	TEST_FIXTURE_PARALLELISM                                = "fixture-parallelism"
 	TEST_FIXTURE_SOPS                                       = "fixture-sops"
 	TEST_FIXTURE_DESTROY_WARNING                            = "fixture-destroy-warning"
+	TEST_FIXTURE_INCLUDE_PARENT                             = "fixture-include-parent"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -3177,6 +3178,21 @@ func TestTerragruntValidateAllWithVersionChecks(t *testing.T) {
 	logBufferContentsLineByLine(t, stdout, "stdout")
 	logBufferContentsLineByLine(t, stderr, "stderr")
 	require.NoError(t, err)
+}
+
+func TestTerragruntIncludeParentHclFile(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INCLUDE_PARENT)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-modules-that-include parent.hcl --terragrunt-non-interactive --terragrunt-working-dir %s", tmpEnvPath), &stdout, &stderr)
+	require.NoError(t, err)
+
+	out := stderr.String()
+	assert.Equal(t, 1, strings.Count(out, "parent_hcl_file"))
 }
 
 func TestTerragruntVersionConstraints(t *testing.T) {
