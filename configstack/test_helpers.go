@@ -6,7 +6,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
@@ -144,17 +143,6 @@ func canonical(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return out
-}
-
-// Create a RemoteState struct
-func state(t *testing.T, bucket string, key string) *remote.RemoteState {
-	return &remote.RemoteState{
-		Backend: "s3",
-		Config: map[string]interface{}{
-			"bucket": bucket,
-			"key":    key,
-		},
-	}
 }
 
 // Create a mock TerragruntOptions object and configure its RunTerragrunt command to return the given error object. If
