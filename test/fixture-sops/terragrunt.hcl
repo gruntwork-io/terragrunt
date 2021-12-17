@@ -1,6 +1,7 @@
 locals {
   json = jsondecode(sops_decrypt_file("${get_terragrunt_dir()}/secrets.json"))
   yaml = yamldecode(sops_decrypt_file("${get_terragrunt_dir()}/secrets.yaml"))
+  text = sops_decrypt_file("${get_terragrunt_dir()}/secrets.txt")
 }
 
 inputs = {
@@ -14,4 +15,5 @@ inputs = {
   yaml_string       = local.yaml["example_key"]
   yaml_number       = local.yaml["example_number"]
   yaml_hello        = local.yaml["hello"]
+  text_string       = local.text
 }

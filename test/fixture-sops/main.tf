@@ -38,6 +38,10 @@ variable "yaml_hello" {
   type = string
 }
 
+variable "text_string" {
+  type = string
+}
+
 output "json_string_array" {
   value = var.json_string_array
 }
@@ -76,4 +80,8 @@ output "yaml_number" {
 
 output "yaml_hello" {
   value = var.yaml_hello
+}
+
+output "text_string" {
+  value = var.text_string
 }

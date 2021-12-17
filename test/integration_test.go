@@ -3928,6 +3928,7 @@ func TestSopsDecryptedCorrectly(t *testing.T) {
 	assert.Equal(t, outputs["yaml_number"].Value, 1234.5679)
 	assert.Equal(t, outputs["yaml_string"].Value, "example_value")
 	assert.Equal(t, outputs["yaml_hello"].Value, "Welcome to SOPS! Edit this file as you please!")
+	assert.Equal(t, outputs["text_string"].Value, "Raw Secret Example")
 }
 
 func TestTerragruntRunAllCommandPrompt(t *testing.T) {
