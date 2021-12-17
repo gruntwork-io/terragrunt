@@ -24,6 +24,10 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
 
   - [get\_platform()](#get_platform)
 
+  - [get\_path\_from\_repo\_root()](#get_path_from_repo_root)
+
+  - [get\_path\_to\_repo\_root()](#get_path_to_repo_root)
+
   - [get\_terragrunt\_dir()](#get_terragrunt_dir)
 
   - [get\_parent\_terragrunt\_dir()](#get_parent_terragrunt_dir)
@@ -317,6 +321,35 @@ darwin
 freebsd
 linux
 windows
+```
+
+## get\_path\_from\_repo\_root
+
+`get_path_from_repo_root()` returns the path from the current directory to the root of the repository:
+
+```hcl
+remote_state {
+  backend = "s3"
+
+  config = {
+    bucket         = "terraform"
+    dynamodb_table = "terraform"
+    encrypt        = true
+    key            = "${get_path_from_repo_root()}/terraform.tfstate"
+    session_name   = "terraform"
+    region         = "us-east-1"
+  }
+}
+```
+
+## get\_path\_to\_repo\_root
+
+`get_path_to_repo_root()` returns the relative path to the root of the git repository:
+
+```hcl
+terraform {
+  source = "${get_path_to_repo_root()}//modules/example"
+}
 ```
 
 ## get\_terragrunt\_dir

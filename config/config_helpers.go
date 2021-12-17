@@ -122,6 +122,8 @@ func CreateTerragruntEvalContext(
 		"run_cmd":                                      wrapStringSliceToStringAsFuncImpl(runCommand, extensions.TrackInclude, terragruntOptions),
 		"read_terragrunt_config":                       readTerragruntConfigAsFuncImpl(terragruntOptions),
 		"get_platform":                                 wrapVoidToStringAsFuncImpl(getPlatform, extensions.TrackInclude, terragruntOptions),
+		"get_path_from_repo_root":                      wrapVoidToStringAsFuncImpl(getPathFromRepoRoot, extensions.TrackInclude, terragruntOptions),
+		"get_path_to_repo_root":                        wrapVoidToStringAsFuncImpl(getPathToRepoRoot, extensions.TrackInclude, terragruntOptions),
 		"get_terragrunt_dir":                           wrapVoidToStringAsFuncImpl(getTerragruntDir, extensions.TrackInclude, terragruntOptions),
 		"get_original_terragrunt_dir":                  wrapVoidToStringAsFuncImpl(getOriginalTerragruntDir, extensions.TrackInclude, terragruntOptions),
 		"get_terraform_command":                        wrapVoidToStringAsFuncImpl(getTerraformCommand, extensions.TrackInclude, terragruntOptions),
@@ -171,6 +173,37 @@ func CreateTerragruntEvalContext(
 // Return the OS platform
 func getPlatform(trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (string, error) {
 	return runtime.GOOS, nil
+}
+
+// Return the path from the repository root
+func getPathFromRepoRoot(trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (string, error) {
+	repoAbsPath, err := shell.GitTopLevelDir(terragruntOptions, terragruntOptions.WorkingDir)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	pathFromRoot := strings.TrimSpace(strings.Replace(
+		strings.TrimSpace(terragruntOptions.WorkingDir),
+		strings.TrimSpace(string(repoAbsPath))+"/",
+		"", -1,
+	))
+
+	return pathFromRoot, nil
+}
+
+// Return the path to the repository root
+func getPathToRepoRoot(trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (string, error) {
+	repoAbsPath, err := shell.GitTopLevelDir(terragruntOptions, terragruntOptions.WorkingDir)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	repoRootPathAbs, err := filepath.Rel(terragruntOptions.WorkingDir, string(repoAbsPath))
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	return strings.TrimSpace(repoRootPathAbs) + "/", nil
 }
 
 // Return the directory where the Terragrunt configuration file lives
