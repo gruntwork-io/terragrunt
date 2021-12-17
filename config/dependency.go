@@ -474,7 +474,7 @@ func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.Terrag
 	if err != nil {
 		return nil, err
 	}
-	if terragruntOptions.TerraformPath == options.TERRAFORM_DEFAULT_PATH && partialTerragruntConfig.TerraformBinary != "" {
+	if partialTerragruntConfig.TerraformBinary != "" {
 		targetOptions.TerraformPath = partialTerragruntConfig.TerraformBinary
 	}
 
