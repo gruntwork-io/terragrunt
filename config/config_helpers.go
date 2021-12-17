@@ -616,7 +616,7 @@ func sopsDecryptFile(params []string, trackInclude *TrackInclude, terragruntOpti
 	if numParams != 1 {
 		return "", errors.WithStackTrace(WrongNumberOfParams{Func: "sops_decrypt_file", Expected: "1", Actual: numParams})
 	}
-	format, err := fetchFormat(sourceFile)
+	format, err := getSopsFileFormat(sourceFile)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
@@ -643,7 +643,8 @@ func sopsDecryptFile(params []string, trackInclude *TrackInclude, terragruntOpti
 	return "", errors.WithStackTrace(InvalidSopsFormat{SourceFilePath: sourceFile})
 }
 
-var formatToString = map[formats.Format]string{
+// Mapping of SOPS format to string
+var sopsFormatToString = map[formats.Format]string{
 	formats.Binary: "binary",
 	formats.Dotenv: "dotenv",
 	formats.Ini:    "ini",
@@ -651,9 +652,10 @@ var formatToString = map[formats.Format]string{
 	formats.Yaml:   "yaml",
 }
 
-func fetchFormat(sourceFile string) (string, error) {
+// getSopsFileFormat - Return file format for SOPS library
+func getSopsFileFormat(sourceFile string) (string, error) {
 	fileFormat := formats.FormatForPath(sourceFile)
-	format, found := formatToString[fileFormat]
+	format, found := sopsFormatToString[fileFormat]
 	if !found {
 		return "", InvalidSopsFormat{SourceFilePath: sourceFile}
 	}
