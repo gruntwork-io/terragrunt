@@ -38,6 +38,18 @@ variable "yaml_hello" {
   type = string
 }
 
+variable "text_value" {
+  type = string
+}
+
+variable "env_value" {
+  type = string
+}
+
+variable "ini_value" {
+  type = string
+}
+
 output "json_string_array" {
   value = var.json_string_array
 }
@@ -76,4 +88,16 @@ output "yaml_number" {
 
 output "yaml_hello" {
   value = var.yaml_hello
+}
+
+output "text_value" {
+  value = var.text_value
+}
+
+output "env_value" {
+  value = var.env_value
+}
+
+output "ini_value" {
+  value = var.ini_value
 }
