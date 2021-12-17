@@ -2,8 +2,8 @@ locals {
   json = jsondecode(sops_decrypt_file("${get_terragrunt_dir()}/secrets.json"))
   yaml = yamldecode(sops_decrypt_file("${get_terragrunt_dir()}/secrets.yaml"))
   text = sops_decrypt_file("${get_terragrunt_dir()}/secrets.txt")
-  env = sops_decrypt_file("${get_terragrunt_dir()}/secrets.env")
-  ini = sops_decrypt_file("${get_terragrunt_dir()}/secrets.ini")
+  env  = sops_decrypt_file("${get_terragrunt_dir()}/secrets.env")
+  ini  = sops_decrypt_file("${get_terragrunt_dir()}/secrets.ini")
 }
 
 inputs = {
