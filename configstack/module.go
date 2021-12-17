@@ -255,7 +255,13 @@ func flagModulesThatDontInclude(modules []*TerraformModule, terragruntOptions *o
 		// as excluded, and if it includes any path in the set, we set the exclude flag back to false.
 		module.FlagExcluded = true
 		for _, includeConfig := range module.Config.ProcessedIncludes {
-			if util.ListContainsElement(modulesThatIncludeCanonicalPath, includeConfig.Path) {
+			// resolve include config to canonical path to compare with modulesThatIncludeCanonicalPath
+			// https://github.com/gruntwork-io/terragrunt/issues/1944
+			canonicalPath, err := util.CanonicalPath(includeConfig.Path, module.Path)
+			if err != nil {
+				return nil, err
+			}
+			if util.ListContainsElement(modulesThatIncludeCanonicalPath, canonicalPath) {
 				module.FlagExcluded = false
 			}
 		}
