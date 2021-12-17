@@ -707,7 +707,7 @@ BINARY formats and encrypts with AWS KMS, GCP KMS, Azure Key Vault, Hashicorp Va
 
 This allows static secrets to be stored encrypted within your Terragrunt repository.
 
-Only YAML and JSON formats are supported by `sops_decrypt_file`
+Only YAML, JSON, INI, ENV and Plain text formats are supported by `sops_decrypt_file`
 
 For example, suppose you have some static secrets required to bootstrap your
 infrastructure in `secrets.yaml`, you can decrypt and merge them into the inputs
