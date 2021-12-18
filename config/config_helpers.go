@@ -182,13 +182,7 @@ func getPathFromRepoRoot(trackInclude *TrackInclude, terragruntOptions *options.
 		return "", errors.WithStackTrace(err)
 	}
 
-	pathFromRoot := strings.TrimSpace(strings.Replace(
-		strings.TrimSpace(terragruntOptions.WorkingDir),
-		strings.TrimSpace(string(repoAbsPath))+"/",
-		"", -1,
-	))
-
-	return pathFromRoot, nil
+	return filepath.Rel(repoAbsPath, terragruntOptions.WorkingDir)
 }
 
 // Return the path to the repository root
