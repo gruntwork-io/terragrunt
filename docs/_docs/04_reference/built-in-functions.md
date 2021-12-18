@@ -342,6 +342,9 @@ remote_state {
 }
 ```
 
+This function will error if the file is not located in a git repository.
+
+
 ## get\_path\_to\_repo\_root
 
 `get_path_to_repo_root()` returns the relative path to the root of the git repository:
@@ -351,6 +354,8 @@ terraform {
   source = "${get_path_to_repo_root()}//modules/example"
 }
 ```
+
+This function will error if the file is not located in a git repository.
 
 ## get\_terragrunt\_dir
 
