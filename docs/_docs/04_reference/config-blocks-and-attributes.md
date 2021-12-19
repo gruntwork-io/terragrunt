@@ -584,7 +584,7 @@ input = {
 ```
 
 In the child `terragrunt.hcl`, the `dependency` path for the `alb` depends on whether the VPC is the `mgmt` VPC or not,
-which is determined by the `dependency.vpc` in the root config. This means that the ourput from `dependency.vpc` must be
+which is determined by the `dependency.vpc` in the root config. This means that the output from `dependency.vpc` must be
 available to parse the `dependency.alb` config.
 
 This causes problems when performing a `run-all apply` operation. During a `run-all` operation, Terragrunt first parses
