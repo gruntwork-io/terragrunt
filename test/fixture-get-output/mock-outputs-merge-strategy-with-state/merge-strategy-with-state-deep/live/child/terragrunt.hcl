@@ -23,6 +23,7 @@ dependency "x" {
 
 inputs = {
   test_input1 = dependency.x.outputs.test_output1
+  test_input2 = dependency.x.outputs.test_output_map_map_string.not_in_state.abc
 
   test_input_map_map_string = dependency.x.outputs.test_output_map_map_string
 

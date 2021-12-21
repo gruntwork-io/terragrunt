@@ -2402,9 +2402,10 @@ func TestDependencyMockOutputMergeStrategyWithStateDeep(t *testing.T) {
 	logBufferContentsLineByLine(t, stderr, "output stderr")
 
 	assert.Equal(t, "value1", outputs["test_output1_from_parent"].Value)
+	assert.Equal(t, "fake-abc", outputs["test_output2_from_parent"].Value)
 	assert.Equal(t, "map_root1_sub1_value", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "map_root1", "map_root1_sub1", "value"))
 	assert.Equal(t, "fake-abc", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "not_in_state", "abc", "value"))
-	assert.Equal(t, "fake-list-data", util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "0"))
+	assert.Equal(t, "a", util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "0"))
 	assert.Equal(t, nil, util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "1"))
 }
 
