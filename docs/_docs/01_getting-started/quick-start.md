@@ -83,7 +83,7 @@ In the configuration, the `terraform` block is used to configure how Terragrunt 
 configure things like before and after hooks for indicating custom commands to run before and after each terraform call,
 or what CLI args to pass in for each commands. Here we only use it to indicate where terragrunt should fetch the
 terraform code using the `source` attribute. We indicate that terragrunt should fetch the code from the
-`terraform-aws-modules/vpc/aws` module hosted in the [Public Terraform Registry](registry.terraform.io), version
+`terraform-aws-modules/vpc/aws` module hosted in the [Public Terraform Registry](https://registry.terraform.io), version
 `3.5.0`. This is indicated by using the `tfr://` protocol in the source URL, which takes the form:
 
 ```
