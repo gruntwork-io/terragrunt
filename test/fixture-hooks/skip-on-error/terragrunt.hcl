@@ -29,5 +29,9 @@ terraform {
     execute = ["echo","AFTER_SHOULD_DISPLAY"]
     run_on_error = true
   }
-
+  error_hook "error_hook" {
+    commands  = ["apply", "plan"]
+    execute   = ["echo", "ERROR_HOOK_EXECUTED"]
+    on_errors = [".*"]
+  }
 }

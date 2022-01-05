@@ -73,7 +73,7 @@ const (
 	TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH                     = "fixture-hooks/before-only"
 	TEST_FIXTURE_HOOKS_ALL_PATH                             = "fixture-hooks/all"
 	TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH                      = "fixture-hooks/after-only"
-	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH                = "fixture-hooks/before-after-and-on-error"
+	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH                = "fixture-hooks/before-and-after"
 	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_MERGE_PATH          = "fixture-hooks/before-and-after-merge"
 	TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH                   = "fixture-hooks/skip-on-error"
 	TEST_FIXTURE_HOOKS_ONE_ARG_ACTION_PATH                  = "fixture-hooks/one-arg-action"
@@ -395,6 +395,9 @@ func TestTerragruntSkipOnError(t *testing.T) {
 
 		assert.Contains(t, output, "AFTER_SHOULD_DISPLAY")
 		assert.NotContains(t, output, "AFTER_NODISPLAY")
+
+		assert.Contains(t, output, "ERROR_HOOK_EXECUTED")
+
 	} else {
 		t.Error("Expected NO terragrunt execution due to previous errors but it did run.")
 	}
