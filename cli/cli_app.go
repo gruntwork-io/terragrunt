@@ -609,7 +609,7 @@ func processErrorHooks(hooks []config.ErrorHook, terragruntOptions *options.Terr
 
 	var errorsOccured *multierror.Error
 
-	terragruntOptions.Logger.Debugf("Detected error %d Hooks", len(hooks))
+	terragruntOptions.Logger.Debugf("Detected %d error Hooks", len(hooks))
 
 	for _, curHook := range hooks {
 		if util.MatchesAny(curHook.OnErrors, previousExecErrors.GoString()) && util.ListContainsElement(curHook.Commands, terragruntOptions.TerraformCommand){
