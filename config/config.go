@@ -291,7 +291,18 @@ type Hook struct {
 	WorkingDir *string  `hcl:"working_dir,attr" cty:"working_dir"`
 }
 
+type ErrorHook struct {
+	Name       string   `hcl:"name,label" cty:"name"`
+	Commands   []string `hcl:"commands,attr" cty:"commands"`
+	Execute    []string `hcl:"execute,attr" cty:"execute"`
+	OnErrors   []string `hcl:"on_errors,attr" cty:"on_errors"`
+	WorkingDir *string  `hcl:"working_dir,attr" cty:"working_dir"`
+}
+
 func (conf *Hook) String() string {
+	return fmt.Sprintf("Hook{Name = %s, Commands = %v}", conf.Name, len(conf.Commands))
+}
+func (conf *ErrorHook) String() string {
 	return fmt.Sprintf("Hook{Name = %s, Commands = %v}", conf.Name, len(conf.Commands))
 }
 
@@ -303,6 +314,7 @@ type TerraformConfig struct {
 	Source      *string                   `hcl:"source,attr"`
 	BeforeHooks []Hook                    `hcl:"before_hook,block"`
 	AfterHooks  []Hook                    `hcl:"after_hook,block"`
+	ErrorHooks  []ErrorHook               `hcl:"error_hook,block"`
 
 	// Ideally we can avoid the pointer to list slice, but if it is not a pointer, Terraform requires the attribute to
 	// be defined and we want to make this optional.
@@ -329,10 +341,24 @@ func (conf *TerraformConfig) GetAfterHooks() []Hook {
 	return conf.AfterHooks
 }
 
-func (conf *TerraformConfig) ValidateHooks() error {
-	allHooks := append(conf.GetBeforeHooks(), conf.GetAfterHooks()...)
+func (conf *TerraformConfig) GetErrorHooks() []ErrorHook {
+	if conf == nil {
+		return nil
+	}
 
-	for _, curHook := range allHooks {
+	return conf.ErrorHooks
+}
+
+func (conf *TerraformConfig) ValidateHooks() error {
+	before_and_after_hooks := append(conf.GetBeforeHooks(), conf.GetAfterHooks()...)
+
+	for _, curHook := range before_and_after_hooks {
+		if len(curHook.Execute) < 1 || curHook.Execute[0] == "" {
+			return InvalidArgError(fmt.Sprintf("Error with hook %s. Need at least one non-empty argument in 'execute'.", curHook.Name))
+		}
+	}
+
+	for _, curHook := range conf.GetErrorHooks() {
 		if len(curHook.Execute) < 1 || curHook.Execute[0] == "" {
 			return InvalidArgError(fmt.Sprintf("Error with hook %s. Need at least one non-empty argument in 'execute'.", curHook.Name))
 		}

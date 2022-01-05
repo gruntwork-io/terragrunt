@@ -44,6 +44,14 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 					Execute:  []string{"true"},
 				},
 			},
+			ErrorHooks: []ErrorHook{
+				ErrorHook{
+					Name:     "init",
+					Commands: []string{"init"},
+					Execute:  []string{"true"},
+					OnErrors: []string{".*"},
+				},
+			},
 		},
 		TerraformBinary:             "terraform",
 		TerraformVersionConstraint:  "= 0.12.20",

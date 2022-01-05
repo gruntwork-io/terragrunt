@@ -26,4 +26,10 @@ terraform {
     execute = ["echo", "AFTER_TERRAGRUNT_READ_CONFIG"]
     run_on_error = true
   }
+
+  error_hook "error_hook_1" {
+    commands  = ["apply"]
+    execute   = ["echo", "ON_APPLY_ERROR"]
+    on_errors = [".*"]
+  }
 }

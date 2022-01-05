@@ -602,6 +602,41 @@ func shouldApplyAwsProviderPatch(terragruntOptions *options.TerragruntOptions) b
 	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_AWS_PROVIDER_PATCH)
 }
 
+func processErrorHooks(hooks []config.ErrorHook, terragruntOptions *options.TerragruntOptions, previousExecErrors *multierror.Error) error {
+	if len(hooks) == 0 || previousExecErrors.ErrorOrNil() == nil {
+		return nil
+	}
+
+	var errorsOccured *multierror.Error
+
+	terragruntOptions.Logger.Debugf("Detected error %d Hooks", len(hooks))
+
+	for _, curHook := range hooks {
+		if util.MatchesAny(curHook.OnErrors, previousExecErrors.GoString()) {
+			terragruntOptions.Logger.Infof("Executing hook: %s", curHook.Name)
+			workingDir := ""
+			if curHook.WorkingDir != nil {
+				workingDir = *curHook.WorkingDir
+			}
+
+			actionToExecute := curHook.Execute[0]
+			actionParams := curHook.Execute[1:]
+			_, possibleError := shell.RunShellCommandWithOutput(
+				terragruntOptions,
+				workingDir,
+				false,
+				false,
+				actionToExecute, actionParams...,
+			)
+			if possibleError != nil {
+				terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
+				errorsOccured = multierror.Append(errorsOccured, possibleError)
+			}
+		}
+	}
+	return errorsOccured.ErrorOrNil()
+}
+
 func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOptions, previousExecErrors *multierror.Error) error {
 	if len(hooks) == 0 {
 		return nil
@@ -790,9 +825,9 @@ func runActionWithHooks(description string, terragruntOptions *options.Terragrun
 	} else {
 		terragruntOptions.Logger.Errorf("Errors encountered running before_hooks. Not running '%s'.", description)
 	}
-
 	postHookErrors := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, allErrors)
-	allErrors = multierror.Append(allErrors, postHookErrors)
+	errorHookErrors := processErrorHooks(terragruntConfig.Terraform.GetErrorHooks(), terragruntOptions, allErrors)
+	allErrors = multierror.Append(allErrors, postHookErrors, errorHookErrors)
 
 	return allErrors.ErrorOrNil()
 }
