@@ -1,6 +1,6 @@
 ---
 layout: collection-browser-doc
-title: Before and After Hooks
+title: Hooks
 category: features
 categories_url: features
 excerpt: Learn how to execute custom code before or after running Terraform.
@@ -58,3 +58,19 @@ to Terraform.
 
 You can learn more about all the various configuration options supported in [the reference docs for the terraform
 block](/docs/reference/config-blocks-and-attributes/#terraform).
+
+## Error Hooks
+Think of error hooks like an exception handler, they allow you to specifiy a list of expressions that can be used to catch errors and run custom commands when that occur.
+
+Here is an example:
+``` hcl
+terraform {
+  error_hook "import_resource" {
+    commands  = ["apply"]
+    execute   = ["echo", "Error Hook executed"]
+    on_errors = [
+      ".*",
+    ]
+  }
+}
+```

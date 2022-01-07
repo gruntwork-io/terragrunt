@@ -350,9 +350,9 @@ func (conf *TerraformConfig) GetErrorHooks() []ErrorHook {
 }
 
 func (conf *TerraformConfig) ValidateHooks() error {
-	before_and_after_hooks := append(conf.GetBeforeHooks(), conf.GetAfterHooks()...)
+	beforeAndAfterHooks := append(conf.GetBeforeHooks(), conf.GetAfterHooks()...)
 
-	for _, curHook := range before_and_after_hooks {
+	for _, curHook := range beforeAndAfterHooks {
 		if len(curHook.Execute) < 1 || curHook.Execute[0] == "" {
 			return InvalidArgError(fmt.Sprintf("Error with hook %s. Need at least one non-empty argument in 'execute'.", curHook.Name))
 		}
