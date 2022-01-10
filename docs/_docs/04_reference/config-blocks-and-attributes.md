@@ -104,6 +104,7 @@ The `terraform` block supports the following arguments:
 - `after_hook` (block): Nested blocks used to specify command hooks that should be run after `terraform` is called.
   Hooks run from the terragrunt configuration directory (the directory where `terragrunt.hcl` lives). Supports the same
   arguments as `before_hook`.
+- `error_hook` (block): Needed blocks used to specify command hooks that run incase of error that matches one of the expression from the list of expressions specified in `on_errors` attribute.
 
 In addition to supporting before and after hooks for all terraform commands, the following specialized hooks are also
 supported:
@@ -190,6 +191,14 @@ terraform {
     run_on_error = true
   }
 
+  # Run incase of any error that occurs during apply or plan
+  error_hook "error_hook_1" {
+    commands  = ["apply", "plan"]
+    execute   = ["echo", "Error Hook executed"]
+    on_errors = [
+      ".*",
+    ]
+  }
   # A special after hook to always run after the init-from-module step of the Terragrunt pipeline. In this case, we will
   # copy the "foo.tf" file located by the parent terragrunt.hcl file to the current working directory.
   after_hook "init_from_module" {
