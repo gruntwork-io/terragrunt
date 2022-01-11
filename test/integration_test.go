@@ -4129,7 +4129,7 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	errout := string(stderr.Bytes())
 	assert.Equal(t, 1, strings.Count(errout, "Terraform has been successfully initialized!"))
 
-	updatedHcl = strings.Replace(contents, "__TAG_VALUE__", "v0.35.2 ", -1)
+	updatedHcl = strings.Replace(contents, "__TAG_VALUE__", "v0.35.2", -1)
 	require.NoError(t, ioutil.WriteFile(terragruntHcl, []byte(updatedHcl), 0444))
 
 	stdout = bytes.Buffer{}
