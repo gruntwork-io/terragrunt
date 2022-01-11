@@ -123,7 +123,7 @@ func getDefinedTerragruntInputs(terragruntOptions *options.TerragruntOptions, wo
 	}
 
 	out := []string{}
-	for varName, _ := range tmpOut {
+	for varName := range tmpOut {
 		out = append(out, varName)
 	}
 	return out, nil
@@ -148,7 +148,7 @@ func getTerraformInputNamesFromEnvVar(terragruntOptions *options.TerragruntOptio
 	}
 
 	out := []string{}
-	for envName, _ := range envVars {
+	for envName := range envVars {
 		if strings.HasPrefix(envName, TFVarPrefix) {
 			out = append(out, strings.TrimPrefix(envName, fmt.Sprintf("%s_", TFVarPrefix)))
 		}
@@ -160,7 +160,7 @@ func getTerraformInputNamesFromEnvVar(terragruntOptions *options.TerragruntOptio
 // terragrunt config.
 func getTerraformInputNamesFromConfig(terragruntConfig *config.TerragruntConfig) []string {
 	out := []string{}
-	for inputName, _ := range terragruntConfig.Inputs {
+	for inputName := range terragruntConfig.Inputs {
 		out = append(out, inputName)
 	}
 	return out
@@ -274,7 +274,7 @@ func getVarNamesFromVarFile(varFile string) ([]string, error) {
 	}
 
 	out := []string{}
-	for varName, _ := range variables {
+	for varName := range variables {
 		out = append(out, varName)
 	}
 	return out, nil

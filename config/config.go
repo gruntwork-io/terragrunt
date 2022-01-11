@@ -303,6 +303,10 @@ type TerraformConfig struct {
 	Source      *string                   `hcl:"source,attr"`
 	BeforeHooks []Hook                    `hcl:"before_hook,block"`
 	AfterHooks  []Hook                    `hcl:"after_hook,block"`
+
+	// Ideally we can avoid the pointer to list slice, but if it is not a pointer, Terraform requires the attribute to
+	// be defined and we want to make this optional.
+	IncludeInCopy *[]string `hcl:"include_in_copy,attr"`
 }
 
 func (conf *TerraformConfig) String() string {

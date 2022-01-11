@@ -299,15 +299,14 @@ func filterTerragruntArgs(args []string) []string {
 	out := []string{}
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
-		argWithoutPrefix := strings.TrimPrefix(arg, "--")
-
 		if util.ListContainsElement(MULTI_MODULE_COMMANDS, arg) {
 			// Skip multi-module commands entirely
 			continue
 		}
 
+		argWithoutPrefix := strings.TrimPrefix(arg, "--")
 		if util.ListContainsElement(allTerragruntStringOpts, argWithoutPrefix) {
-			// String flags have the argument and the value, so skip both
+			// String flags that directly match the arg have the argument and the value, so skip both
 			i = i + 1
 			continue
 		}
@@ -316,19 +315,26 @@ func filterTerragruntArgs(args []string) []string {
 			continue
 		}
 
+		// Handle the case where the terragrunt arg is passed in as --OPTION_KEY=VALUE
+		if strings.Contains(argWithoutPrefix, "=") {
+			argWithoutValue := strings.Split(argWithoutPrefix, "=")[0]
+			if util.ListContainsElement(allTerragruntStringOpts, argWithoutValue) {
+				// String args encoded as --OPTION_KEY=VALUE only need to skip the current arg
+				continue
+			}
+		}
+
 		out = append(out, arg)
 	}
 	return out
 }
 
-// isDeprecatedOption checks if provided option is deprecated, and returns its substitution with the check
-// if option is not deprecated - we are returning same value
-func isDeprecatedOption(optionName string) (string, bool) {
-	newOption, deprecated := DEPRECATED_ARGUMENTS[optionName]
+// logIfDeprecatedOption checks if provided option is deprecated, and logs a warning message if it is.
+func logIfDeprecatedOption(optionName string) {
+	newOption, deprecated := deprecatedArguments[optionName]
 	if deprecated {
-		return newOption, true
+		util.GlobalFallbackLogEntry.Warnf("Command line option %s is deprecated, please consider using %s", optionName, newOption)
 	}
-	return optionName, false
 }
 
 // parseIAMRoleOptions parses the Terragrunt CLI args and converts them to the IAMRoleOptions struct. Note that this
@@ -360,15 +366,31 @@ func parseIAMRoleOptions(args []string) (*options.IAMRoleOptions, error) {
 	return optsOut, nil
 }
 
+// getOptionArgIfMatched returns the value to use for the option key, if the arg matches the option. This will handle
+// options passed in as --OPTION_KEY VALUE or --OPTION_KEY=VALUE. The second boolean return value indicates if the arg
+// matches the option, returning false if it does not. This will error if it expects a value in the next arg, but the
+// current arg is the end of the input.
+func getOptionArgIfMatched(arg string, nextArg *string, optionName string) (string, bool, error) {
+	optionOnly := fmt.Sprintf("--%s", optionName)
+	if arg == optionOnly {
+		logIfDeprecatedOption(optionName)
+		if nextArg == nil {
+			return "", true, errors.WithStackTrace(ArgMissingValue(optionName))
+		}
+		return *nextArg, true, nil
+	} else if strings.HasPrefix(arg, optionOnly+"=") {
+		logIfDeprecatedOption(optionName)
+		return strings.TrimPrefix(arg, fmt.Sprintf("--%s=", optionName)), true, nil
+	}
+	return "", false, nil
+}
+
 // Find a boolean argument (e.g. --foo) of the given name in the given list of arguments. If it's present, return true.
 // If it isn't, return defaultValue.
 func parseBooleanArg(args []string, argName string, defaultValue bool) bool {
 	for _, arg := range args {
 		if arg == fmt.Sprintf("--%s", argName) {
-			newOption, deprecated := isDeprecatedOption(argName)
-			if deprecated {
-				util.GlobalFallbackLogEntry.Warnf("Command line option %s is deprecated, please consider using %s", argName, newOption)
-			}
+			logIfDeprecatedOption(argName)
 			return true
 		}
 	}
@@ -379,16 +401,15 @@ func parseBooleanArg(args []string, argName string, defaultValue bool) bool {
 // return its value. If it is present, but has no value, return an error. If it isn't present, return defaultValue.
 func parseStringArg(args []string, argName string, defaultValue string) (string, error) {
 	for i, arg := range args {
-		if arg == fmt.Sprintf("--%s", argName) {
-			newOption, deprecated := isDeprecatedOption(argName)
-			if deprecated {
-				util.GlobalFallbackLogEntry.Warnf("Command line option %s is deprecated, please consider using %s", argName, newOption)
-			}
-			if (i + 1) < len(args) {
-				return args[i+1], nil
-			} else {
-				return "", errors.WithStackTrace(ArgMissingValue(argName))
-			}
+		var nextArg *string
+		if (i + 1) < len(args) {
+			nextArg = &args[i+1]
+		}
+		val, hasVal, err := getOptionArgIfMatched(arg, nextArg, argName)
+		if err != nil {
+			return "", err
+		} else if hasVal {
+			return val, nil
 		}
 	}
 	return defaultValue, nil
@@ -398,23 +419,21 @@ func parseStringArg(args []string, argName string, defaultValue string) (string,
 // return its value. If it is present, but has no value, return an error. If it isn't present, return envValue if provided. If not provided, return defaultValue.
 func parseIntArg(args []string, argName string, envValue string, envProvided bool, defaultValue int) (int, error) {
 	for i, arg := range args {
-		if arg == fmt.Sprintf("--%s", argName) {
-			newOption, deprecated := isDeprecatedOption(argName)
-			if deprecated {
-				util.GlobalFallbackLogEntry.Warnf("Command line option %s is deprecated, please consider using %s", argName, newOption)
-			}
-			if (i + 1) < len(args) {
-				return strconv.Atoi(args[i+1])
-			} else {
-				return 0, errors.WithStackTrace(ArgMissingValue(argName))
-			}
+		var nextArg *string
+		if (i + 1) < len(args) {
+			nextArg = &args[i+1]
+		}
+		val, hasVal, err := getOptionArgIfMatched(arg, nextArg, argName)
+		if err != nil {
+			return 0, err
+		} else if hasVal {
+			return strconv.Atoi(val)
 		}
 	}
 	if envProvided {
 		return strconv.Atoi(envValue)
-	} else {
-		return defaultValue, nil
 	}
+	return defaultValue, nil
 }
 
 // Find multiple string arguments of the same type (e.g. --foo "VALUE_A" --foo "VALUE_B") of the given name in the given list of arguments. If there are any present,
@@ -423,16 +442,15 @@ func parseMultiStringArg(args []string, argName string, defaultValue []string) (
 	stringArgs := []string{}
 
 	for i, arg := range args {
-		if arg == fmt.Sprintf("--%s", argName) {
-			newOption, deprecated := isDeprecatedOption(argName)
-			if deprecated {
-				util.GlobalFallbackLogEntry.Warnf("Command line option %s is deprecated, please consider using %s", argName, newOption)
-			}
-			if (i + 1) < len(args) {
-				stringArgs = append(stringArgs, args[i+1])
-			} else {
-				return nil, errors.WithStackTrace(ArgMissingValue(argName))
-			}
+		var nextArg *string
+		if (i + 1) < len(args) {
+			nextArg = &args[i+1]
+		}
+		val, hasVal, err := getOptionArgIfMatched(arg, nextArg, argName)
+		if err != nil {
+			return nil, err
+		} else if hasVal {
+			stringArgs = append(stringArgs, val)
 		}
 	}
 	if len(stringArgs) == 0 {

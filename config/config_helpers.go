@@ -2,12 +2,13 @@ package config
 
 import (
 	"fmt"
-	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
 	"unicode/utf8"
+
+	"go.mozilla.org/sops/v3/cmd/sops/formats"
 
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/hcl/v2"
@@ -615,17 +616,10 @@ func sopsDecryptFile(params []string, trackInclude *TrackInclude, terragruntOpti
 	if numParams != 1 {
 		return "", errors.WithStackTrace(WrongNumberOfParams{Func: "sops_decrypt_file", Expected: "1", Actual: numParams})
 	}
-
-	var format string
-	switch ext := path.Ext(sourceFile); ext {
-	case ".json":
-		format = "json"
-	case ".yaml", ".yml":
-		format = "yaml"
-	default:
-		return "", errors.WithStackTrace(InvalidSopsFormat{SourceFilePath: sourceFile})
+	format, err := getSopsFileFormat(sourceFile)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
 	}
-
 	canonicalSourceFile, err := util.CanonicalPath(sourceFile, terragruntOptions.WorkingDir)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
@@ -647,6 +641,25 @@ func sopsDecryptFile(params []string, trackInclude *TrackInclude, terragruntOpti
 	}
 
 	return "", errors.WithStackTrace(InvalidSopsFormat{SourceFilePath: sourceFile})
+}
+
+// Mapping of SOPS format to string
+var sopsFormatToString = map[formats.Format]string{
+	formats.Binary: "binary",
+	formats.Dotenv: "dotenv",
+	formats.Ini:    "ini",
+	formats.Json:   "json",
+	formats.Yaml:   "yaml",
+}
+
+// getSopsFileFormat - Return file format for SOPS library
+func getSopsFileFormat(sourceFile string) (string, error) {
+	fileFormat := formats.FormatForPath(sourceFile)
+	format, found := sopsFormatToString[fileFormat]
+	if !found {
+		return "", InvalidSopsFormat{SourceFilePath: sourceFile}
+	}
+	return format, nil
 }
 
 // Return the location of the Terraform files provided via --terragrunt-source

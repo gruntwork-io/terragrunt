@@ -255,7 +255,13 @@ func flagModulesThatDontInclude(modules []*TerraformModule, terragruntOptions *o
 		// as excluded, and if it includes any path in the set, we set the exclude flag back to false.
 		module.FlagExcluded = true
 		for _, includeConfig := range module.Config.ProcessedIncludes {
-			if util.ListContainsElement(modulesThatIncludeCanonicalPath, includeConfig.Path) {
+			// resolve include config to canonical path to compare with modulesThatIncludeCanonicalPath
+			// https://github.com/gruntwork-io/terragrunt/issues/1944
+			canonicalPath, err := util.CanonicalPath(includeConfig.Path, module.Path)
+			if err != nil {
+				return nil, err
+			}
+			if util.ListContainsElement(modulesThatIncludeCanonicalPath, canonicalPath) {
 				module.FlagExcluded = false
 			}
 		}
@@ -544,7 +550,7 @@ func getDependenciesForModule(module *TerraformModule, moduleMap map[string]*Ter
 // in a consistent order (Go does not guarantee iteration order for maps, and usually makes it random)
 func getSortedKeys(modules map[string]*TerraformModule) []string {
 	keys := []string{}
-	for key, _ := range modules {
+	for key := range modules {
 		keys = append(keys, key)
 	}
 
@@ -557,7 +563,7 @@ func getSortedKeys(modules map[string]*TerraformModule) []string {
 // 1. Find root git top level directory and build list of modules
 // 2. Iterate over includes from terragruntOptions if git top level directory detection failed
 // 3. Filter found module only items which has in dependencies working directory
-func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) ([]*TerraformModule, error) {
+func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []*TerraformModule {
 	var pathsToCheck []string
 	var matchedModulesMap = make(map[string]*TerraformModule)
 	var gitTopLevelDir = ""
@@ -577,7 +583,8 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 		dir = dir + filepath.FromSlash("/")
 		cfgOptions, err := options.NewTerragruntOptions(dir)
 		if err != nil {
-			return nil, err
+			terragruntOptions.Logger.Debugf("Failed to build terragrunt options from %s %v", dir, err)
+			return nil
 		}
 		cfgOptions.LogLevel = terragruntOptions.LogLevel
 		if terragruntOptions.TerraformCommand == "destroy" {
@@ -586,7 +593,10 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 		}
 		stack, err := FindStackInSubfolders(cfgOptions)
 		if err != nil {
-			return nil, err
+			// loggign error as debug since in some cases stack building may fail because parent files can be designed
+			// to work with relative paths from downstream modules
+			terragruntOptions.Logger.Debugf("Failed to build module stack %v", err)
+			return nil
 		}
 
 		for _, module := range stack.Modules {
@@ -605,7 +615,7 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 		matchedModules = append(matchedModules, module)
 	}
 
-	return matchedModules, nil
+	return matchedModules
 }
 
 // Custom error types

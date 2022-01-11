@@ -40,7 +40,11 @@ func downloadTerraformSource(source string, terragruntOptions *options.Terragrun
 	}
 
 	terragruntOptions.Logger.Debugf("Copying files from %s into %s", terragruntOptions.WorkingDir, terraformSource.WorkingDir)
-	if err := util.CopyFolderContents(terragruntOptions.WorkingDir, terraformSource.WorkingDir, MODULE_MANIFEST_NAME); err != nil {
+	var includeInCopy []string
+	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.IncludeInCopy != nil {
+		includeInCopy = *terragruntConfig.Terraform.IncludeInCopy
+	}
+	if err := util.CopyFolderContents(terragruntOptions.WorkingDir, terraformSource.WorkingDir, MODULE_MANIFEST_NAME, includeInCopy); err != nil {
 		return nil, err
 	}
 
@@ -160,33 +164,43 @@ func readVersionFile(terraformSource *tfsource.TerraformSource) (string, error) 
 	return util.ReadFileAsString(terraformSource.VersionFile)
 }
 
-// We use this code to force go-getter to copy files instead of creating symlinks.
-var copyFiles = func(client *getter.Client) error {
-
-	// We copy all the default getters from the go-getter library, but replace the "file" getter. We shallow clone the
-	// getter map here rather than using getter.Getters directly because (a) we shouldn't change the original,
-	// globally-shared getter.Getters map and (b) Terragrunt may run this code from many goroutines concurrently during
-	// xxx-all calls, so creating a new map each time ensures we don't a "concurrent map writes" error.
-	client.Getters = map[string]getter.Getter{}
-	for getterName, getterValue := range getter.Getters {
-		if getterName == "file" {
-			client.Getters[getterName] = &FileCopyGetter{}
-		} else {
-			client.Getters[getterName] = getterValue
+// updateGetters returns the customized go-getter interfaces that Terragrunt relies on. Specifically:
+// - Local file path getter is updated to copy the files instead of creating symlinks, which is what go-getter defaults
+//   to.
+// - Include the customized getter for fetching sources from the Terraform Registry.
+// This creates a closure that returns a function so that we have access to the terragrunt configuration, which is
+// necessary for customizing the behavior of the file getter.
+func updateGetters(terragruntConfig *config.TerragruntConfig) func(*getter.Client) error {
+	return func(client *getter.Client) error {
+		// We copy all the default getters from the go-getter library, but replace the "file" getter. We shallow clone the
+		// getter map here rather than using getter.Getters directly because (a) we shouldn't change the original,
+		// globally-shared getter.Getters map and (b) Terragrunt may run this code from many goroutines concurrently during
+		// xxx-all calls, so creating a new map each time ensures we don't a "concurrent map writes" error.
+		client.Getters = map[string]getter.Getter{}
+		for getterName, getterValue := range getter.Getters {
+			if getterName == "file" {
+				var includeInCopy []string
+				if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.IncludeInCopy != nil {
+					includeInCopy = *terragruntConfig.Terraform.IncludeInCopy
+				}
+				client.Getters[getterName] = &FileCopyGetter{IncludeInCopy: includeInCopy}
+			} else {
+				client.Getters[getterName] = getterValue
+			}
 		}
+
+		// Load in custom getters that are only supported in Terragrunt
+		client.Getters["tfr"] = &tfr.TerraformRegistryGetter{}
+
+		return nil
 	}
-
-	// Load in custom getters that are only supported in Terragrunt
-	client.Getters["tfr"] = &tfr.TerraformRegistryGetter{}
-
-	return nil
 }
 
 // Download the code from the Canonical Source URL into the Download Folder using the go-getter library
 func downloadSource(terraformSource *tfsource.TerraformSource, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	terragruntOptions.Logger.Debugf("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
 
-	if err := getter.GetAny(terraformSource.DownloadDir, terraformSource.CanonicalSourceURL.String(), copyFiles); err != nil {
+	if err := getter.GetAny(terraformSource.DownloadDir, terraformSource.CanonicalSourceURL.String(), updateGetters(terragruntConfig)); err != nil {
 		return errors.WithStackTrace(err)
 	}
 

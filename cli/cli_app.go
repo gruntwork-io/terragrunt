@@ -188,8 +188,8 @@ var TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT = []string{
 	"graph-dependencies",
 }
 
-// DEPRECATED_ARGUMENTS is a map of deprecated arguments to the argument that replace them.
-var DEPRECATED_ARGUMENTS = map[string]string{}
+// deprecatedArguments is a map of deprecated arguments to the argument that replace them.
+var deprecatedArguments = map[string]string{}
 
 // Struct is output as JSON by 'terragrunt-info':
 type TerragruntInfoGroup struct {
@@ -713,11 +713,7 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 
 // confirmActionWithDependentModules - Show warning with list of dependent modules from current module before destroy
 func confirmActionWithDependentModules(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) bool {
-	modules, err := configstack.FindWhereWorkingDirIsIncluded(terragruntOptions, terragruntConfig)
-	if err != nil {
-		terragruntOptions.Logger.Warnf("Failed to detect where module is used %v", err)
-		return true
-	}
+	modules := configstack.FindWhereWorkingDirIsIncluded(terragruntOptions, terragruntConfig)
 	if len(modules) != 0 {
 		if _, err := terragruntOptions.ErrWriter.Write([]byte("Detected dependent modules:\n")); err != nil {
 			terragruntOptions.Logger.Error(err)
@@ -737,6 +733,7 @@ func confirmActionWithDependentModules(terragruntOptions *options.TerragruntOpti
 		}
 		return shouldRun
 	}
+	// request user to confirm action in any case
 	return true
 }
 
@@ -1085,7 +1082,14 @@ func runAll(terragruntOptions *options.TerragruntOptions) error {
 
 // checkProtectedModule checks if module is protected via the "prevent_destroy" flag
 func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	if util.FirstArg(terragruntOptions.TerraformCliArgs) != "destroy" {
+	var destroyFlag = false
+	if util.FirstArg(terragruntOptions.TerraformCliArgs) == "destroy" {
+		destroyFlag = true
+	}
+	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, "-destroy") {
+		destroyFlag = true
+	}
+	if !destroyFlag {
 		return nil
 	}
 	if terragruntConfig.PreventDestroy != nil && *terragruntConfig.PreventDestroy {

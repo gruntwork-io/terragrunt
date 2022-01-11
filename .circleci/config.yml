@@ -53,6 +53,7 @@ jobs:
       - run:
           command: |
             mkdir -p logs
+            go mod tidy
             run-go-tests --parallelism 1 --packages "$(go list ./... | grep -v /test | tr '\n' ' ')"  | tee logs/unit.log
       - run:
           command: terratest_log_parser --testlog logs/unit.log --outputdir logs

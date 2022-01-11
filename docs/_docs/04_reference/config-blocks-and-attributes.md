@@ -63,6 +63,19 @@ The `terraform` block supports the following arguments:
       registry]({{site.baseurl}}/docs/getting-started/quick-start#a-note-about-using-modules-from-the-registry) for more
       information about using modules from the Terraform Registry with Terragrunt.
 
+- `include_in_copy` (attribute): A list of glob patterns (e.g., `["*.txt"]`) that should always be copied into the
+  Terraform working directory. When you use the `source` param in your Terragrunt config and run `terragrunt <command>`,
+  Terragrunt will download the code specified at source into a scratch folder (`.terragrunt-cache`, by default), copy
+  the code in your current working directory into the same scratch folder, and then run `terraform <command>` in that
+  scratch folder. By default, Terragrunt excludes hidden files and folders during the copy step. This feature allows you
+  to specify glob patterns of files that should always be copied from the Terragrunt working directory. Additional
+  notes:
+    - The path should be specified relative to the source directory.
+    - This list is also used when using a local file source (e.g., `source = "../modules/vpc"`). For example, if your
+      terraform module source contains a hidden file that you want to copy over (e.g., a `.python-version` file), you
+      can specify that in this list to ensure it gets copied over to the scratch copy
+      (e.g., `include_in_copy = [".python-version"]`).
+
 - `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `terraform` CLI. Learn more
   about its usage in the [Keep your CLI flags DRY]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/) use case overview. Supports
   the following arguments:
@@ -117,8 +130,7 @@ supported:
       while the working directory for hooks associated with `init` will be the terraform module.
 
 
-
-Example:
+Complete Example:
 
 ```hcl
 terraform {
@@ -194,6 +206,23 @@ terraform {
   }
 }
 ```
+
+Local File Path Example with allowed hidden files:
+
+```hcl
+terraform {
+  # Pull the terraform configuration from the local file system. Terragrunt will make a copy of the source folder in the
+  # Terragrunt working directory (typically `.terragrunt-cache`).
+  source = "../modules/networking/vpc"
+
+  # Always include the following file patterns in the Terragrunt copy.
+  include_in_copy = [
+    ".security_group_rules.json",
+    "*.yaml",
+  ]
+}
+```
+
 
 #### A note about using modules from the registry
 
@@ -555,7 +584,7 @@ input = {
 ```
 
 In the child `terragrunt.hcl`, the `dependency` path for the `alb` depends on whether the VPC is the `mgmt` VPC or not,
-which is determined by the `dependency.vpc` in the root config. This means that the ourput from `dependency.vpc` must be
+which is determined by the `dependency.vpc` in the root config. This means that the output from `dependency.vpc` must be
 available to parse the `dependency.alb` config.
 
 This causes problems when performing a `run-all apply` operation. During a `run-all` operation, Terragrunt first parses
@@ -838,13 +867,16 @@ The `dependency` block supports the following arguments:
   as a dependency in this configuration.
 - `skip_outputs` (attribute): When `true`, skip calling `terragrunt output` when processing this dependency. If
   `mock_outputs` is configured, set `outputs` to the value of `mock_outputs`. Otherwise, `outputs` will be set to an
-  empty map.
+  empty map. Put another way, setting `skip_outputs` means "use mocks all the time if `mock_outputs` are set."
 - `mock_outputs` (attribute): A map of arbitrary key value pairs to use as the `outputs` attribute when no outputs are
-  available from the target module, or if `skip_outputs` is `true`.
+  available from the target module, or if `skip_outputs` is `true`. However, it's generally recommended not to set
+  `skip_outputs` if using `mock_outputs`, because `skip_outputs` means "use mocks all the time if they are set" whereas
+  `mock_outputs` means "use mocks only if real outputs are not available." Use `locals` instead when `skip_outputs = true`.
 - `mock_outputs_allowed_terraform_commands` (attribute): A list of Terraform commands for which `mock_outputs` are
   allowed. If a command is used where `mock_outputs` is not allowed, and no outputs are available in the target module,
   Terragrunt will throw an error when processing this dependency.
-- `mock_outputs_merge_with_state` (attribute): When `true`, `mock_outputs` and the state outputs will be merged.
+- `mock_outputs_merge_with_state` (attribute): When `true`, `mock_outputs` and the state outputs will be merged. That is,
+  the `mock_outputs` will be treated as defaults and the real state outputs will overwrite them if the keys clash.
 
 Example:
 

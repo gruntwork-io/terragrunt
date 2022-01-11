@@ -700,14 +700,12 @@ inputs = {
 
 ## sops\_decrypt\_file
 
-`sops_decrypt_file(file_path)` decrypts a yaml or json file encrypted with `sops`.
+`sops_decrypt_file(file_path)` decrypts a yaml, json, ini, env or "raw text" file encrypted with `sops`.
 
 [sops](https://github.com/mozilla/sops) is an editor of encrypted files that supports YAML, JSON, ENV, INI and
 BINARY formats and encrypts with AWS KMS, GCP KMS, Azure Key Vault, Hashicorp Vault and PGP.
 
 This allows static secrets to be stored encrypted within your Terragrunt repository.
-
-Only YAML and JSON formats are supported by `sops_decrypt_file`
 
 For example, suppose you have some static secrets required to bootstrap your
 infrastructure in `secrets.yaml`, you can decrypt and merge them into the inputs

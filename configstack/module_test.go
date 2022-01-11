@@ -812,7 +812,7 @@ func TestLogReductionHook(t *testing.T) {
 	logrus.NewEntry(testLogger).Info("Test tomato")
 	logrus.NewEntry(testLogger).Error("666 potato 111")
 
-	out := string(stdout.Bytes())
+	out := stdout.String()
 
 	var firstLogEntry = ""
 	var secondLogEntry = ""

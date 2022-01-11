@@ -432,6 +432,18 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 			if sourceConfig.Terraform.Source != nil {
 				targetConfig.Terraform.Source = sourceConfig.Terraform.Source
 			}
+
+			if sourceConfig.Terraform.IncludeInCopy != nil {
+				srcList := *sourceConfig.Terraform.IncludeInCopy
+				if targetConfig.Terraform.IncludeInCopy != nil {
+					targetList := *targetConfig.Terraform.IncludeInCopy
+					combinedList := append(srcList, targetList...)
+					targetConfig.Terraform.IncludeInCopy = &combinedList
+				} else {
+					targetConfig.Terraform.IncludeInCopy = &srcList
+				}
+			}
+
 			mergeExtraArgs(terragruntOptions, sourceConfig.Terraform.ExtraArgs, &targetConfig.Terraform.ExtraArgs)
 
 			mergeHooks(terragruntOptions, sourceConfig.Terraform.BeforeHooks, &targetConfig.Terraform.BeforeHooks)
