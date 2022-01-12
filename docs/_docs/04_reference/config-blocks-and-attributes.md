@@ -192,7 +192,8 @@ terraform {
     run_on_error = true
   }
 
-  # Run incase of any error that occurs during apply or plan
+  # After an error occurs during apply or plan, run "echo Error Hook executed". This hook is configured so that it will run
+  # after any error, with the ".*" expression.
   error_hook "error_hook_1" {
     commands  = ["apply", "plan"]
     execute   = ["echo", "Error Hook executed"]
