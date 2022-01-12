@@ -275,7 +275,11 @@ func flagModulesThatDontInclude(modules []*TerraformModule, terragruntOptions *o
 
 			dependency.FlagExcluded = true
 			for _, includeConfig := range dependency.Config.ProcessedIncludes {
-				if util.ListContainsElement(modulesThatIncludeCanonicalPath, includeConfig.Path) {
+				canonicalPath, err := util.CanonicalPath(includeConfig.Path, module.Path)
+				if err != nil {
+					return nil, err
+				}
+				if util.ListContainsElement(modulesThatIncludeCanonicalPath, canonicalPath) {
 					dependency.FlagExcluded = false
 				}
 			}

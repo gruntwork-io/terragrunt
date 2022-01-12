@@ -3184,15 +3184,18 @@ func TestTerragruntIncludeParentHclFile(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INCLUDE_PARENT)
+	tmpEnvPath = path.Join(tmpEnvPath, TEST_FIXTURE_INCLUDE_PARENT)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-modules-that-include parent.hcl --terragrunt-non-interactive --terragrunt-working-dir %s", tmpEnvPath), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-modules-that-include parent.hcl --terragrunt-modules-that-include common.hcl --terragrunt-non-interactive --terragrunt-working-dir %s", tmpEnvPath), &stdout, &stderr)
 	require.NoError(t, err)
 
 	out := stderr.String()
 	assert.Equal(t, 1, strings.Count(out, "parent_hcl_file"))
+	assert.Equal(t, 1, strings.Count(out, "dependency_hcl"))
+	assert.Equal(t, 1, strings.Count(out, "common_hcl"))
 }
 
 func TestTerragruntVersionConstraints(t *testing.T) {
