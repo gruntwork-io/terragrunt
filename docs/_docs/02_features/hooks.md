@@ -60,7 +60,7 @@ You can learn more about all the various configuration options supported in [the
 block](/docs/reference/config-blocks-and-attributes/#terraform).
 
 ## Error Hooks
-Think of error hooks like an exception handler, they allow you to specifiy a list of expressions that can be used to catch errors and run custom commands when that occur.
+Think of error hooks like exception handlers. They allow you to specifiy a list of expressions that can be used to catch errors and run custom commands when those errors occur.
 
 Here is an example:
 ``` hcl
