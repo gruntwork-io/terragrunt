@@ -105,7 +105,7 @@ The `terraform` block supports the following arguments:
   Hooks run from the terragrunt configuration directory (the directory where `terragrunt.hcl` lives). Supports the same
   arguments as `before_hook`.
 - `error_hook` (block): Nested blocks used to specify command hooks that run when an error is thrown. The
-error must match one of the expressions listed in the `on_errors` attribute.
+error must match one of the expressions listed in the `on_errors` attribute. Error hooks are executed after the before/after hooks.
 
 In addition to supporting before and after hooks for all terraform commands, the following specialized hooks are also
 supported:
