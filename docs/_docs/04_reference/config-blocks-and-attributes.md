@@ -200,6 +200,7 @@ terraform {
       ".*",
     ]
   }
+  
   # A special after hook to always run after the init-from-module step of the Terragrunt pipeline. In this case, we will
   # copy the "foo.tf" file located by the parent terragrunt.hcl file to the current working directory.
   after_hook "init_from_module" {
