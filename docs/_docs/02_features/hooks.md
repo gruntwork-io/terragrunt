@@ -3,7 +3,7 @@ layout: collection-browser-doc
 title: Hooks
 category: features
 categories_url: features
-excerpt: Learn how to execute custom code before or after running Terraform.
+excerpt: Learn how to execute custom code before or after running Terraform, or when errors occur.
 tags: ["hooks"]
 order: 240
 nav_title: Documentation
