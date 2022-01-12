@@ -1,6 +1,6 @@
 ---
 layout: collection-browser-doc
-title: Hooks
+title: Before, After, and Error Hooks
 category: features
 categories_url: features
 excerpt: Learn how to execute custom code before or after running Terraform, or when errors occur.
