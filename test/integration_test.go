@@ -118,13 +118,15 @@ const (
 	TEST_FIXTURE_SOPS                                       = "fixture-sops"
 	TEST_FIXTURE_DESTROY_WARNING                            = "fixture-destroy-warning"
 	TEST_FIXTURE_INCLUDE_PARENT                             = "fixture-include-parent"
+	TEST_FIXTURE_AUTO_INIT                                  = "fixture-download/init-on-source-change"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
 	TERRAFORM_STATE_BACKUP                                  = "terraform.tfstate.backup"
 	TERRAGRUNT_CACHE                                        = ".terragrunt-cache"
 
-	qaMyAppRelPath = "qa/my-app"
+	qaMyAppRelPath  = "qa/my-app"
+	fixtureDownload = "fixture-download"
 )
 
 func init() {
@@ -4077,4 +4079,68 @@ func TestTerragruntInitConfirmation(t *testing.T) {
 	require.Error(t, err)
 	errout := string(stderr.Bytes())
 	assert.Equal(t, 1, strings.Count(errout, "does not exist or you don't have permissions to access it. Would you like Terragrunt to create it? (y/n)"))
+}
+
+func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, fixtureDownload)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_STDOUT)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	require.NoError(t, err)
+	// providers initialization during first plan
+	errout := string(stderr.Bytes())
+	assert.Equal(t, 1, strings.Count(errout, "Terraform has been successfully initialized!"))
+
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	require.NoError(t, err)
+	// no initialization expected for second plan run
+	// https://github.com/gruntwork-io/terragrunt/issues/1921
+	errout = string(stderr.Bytes())
+	assert.Equal(t, 0, strings.Count(errout, "Terraform has been successfully initialized!"))
+}
+
+func TestAutoInitWhenSourceIsChanged(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, fixtureDownload)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_AUTO_INIT)
+
+	terragruntHcl := util.JoinPath(testPath, "terragrunt.hcl")
+	contents, err := util.ReadFileAsString(terragruntHcl)
+	if err != nil {
+		require.NoError(t, err)
+	}
+	updatedHcl := strings.Replace(contents, "__TAG_VALUE__", "v0.35.1", -1)
+	require.NoError(t, ioutil.WriteFile(terragruntHcl, []byte(updatedHcl), 0444))
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	require.NoError(t, err)
+	// providers initialization during first plan
+	errout := string(stderr.Bytes())
+	assert.Equal(t, 1, strings.Count(errout, "Terraform has been successfully initialized!"))
+
+	updatedHcl = strings.Replace(contents, "__TAG_VALUE__", "v0.35.2", -1)
+	require.NoError(t, ioutil.WriteFile(terragruntHcl, []byte(updatedHcl), 0444))
+
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	require.NoError(t, err)
+	// auto initialization when source is changed
+	errout = string(stderr.Bytes())
+	assert.Equal(t, 1, strings.Count(errout, "Terraform has been successfully initialized!"))
 }
