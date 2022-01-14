@@ -3000,6 +3000,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 					"run_on_error": true,
 				},
 			},
+			"error_hook": map[string]interface{}{},
 		},
 	)
 }
