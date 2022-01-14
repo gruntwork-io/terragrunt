@@ -361,7 +361,7 @@ func TestTerragruntBeforeAfterAndErrorMergeHook(t *testing.T) {
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 
 	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_HOOKS_BEFORE_AFTER_AND_ERROR_MERGE_PATH, qaMyAppRelPath, s3BucketName, config.DefaultTerragruntConfigPath, config.DefaultTerragruntConfigPath)
-	
+
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath), &stdout, &stderr)
