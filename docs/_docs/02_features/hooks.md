@@ -1,9 +1,9 @@
 ---
 layout: collection-browser-doc
-title: Before and After Hooks
+title: Before, After, and Error Hooks
 category: features
 categories_url: features
-excerpt: Learn how to execute custom code before or after running Terraform.
+excerpt: Learn how to execute custom code before or after running Terraform, or when errors occur.
 tags: ["hooks"]
 order: 240
 nav_title: Documentation
@@ -58,3 +58,19 @@ to Terraform.
 
 You can learn more about all the various configuration options supported in [the reference docs for the terraform
 block](/docs/reference/config-blocks-and-attributes/#terraform).
+
+## Error Hooks
+*Error hooks* are a special type of after hook that act as exception handlers. They allow you to specify a list of expressions that can be used to catch errors and run custom commands when those errors occur. Error hooks are executed after the before/after hooks.
+
+Here is an example:
+``` hcl
+terraform {
+  error_hook "import_resource" {
+    commands  = ["apply"]
+    execute   = ["echo", "Error Hook executed"]
+    on_errors = [
+      ".*",
+    ]
+  }
+}
+```

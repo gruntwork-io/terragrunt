@@ -883,7 +883,7 @@ func TestReadTerragruntConfigHooks(t *testing.T) {
 	t.Parallel()
 
 	options := terragruntOptionsForTest(t, DefaultTerragruntConfigPath)
-	tgConfigCty, err := readTerragruntConfig("../test/fixture-hooks/before-and-after/terragrunt.hcl", nil, options)
+	tgConfigCty, err := readTerragruntConfig("../test/fixture-hooks/before-after-and-on-error/terragrunt.hcl", nil, options)
 	require.NoError(t, err)
 
 	tgConfigMap, err := parseCtyValueToMap(tgConfigCty)
@@ -912,6 +912,12 @@ func TestReadTerragruntConfigHooks(t *testing.T) {
 		t,
 		afterHooksMap["after_hook_2"].(map[string]interface{})["execute"].([]interface{}),
 		[]interface{}{"echo", "AFTER_TERRAGRUNT_READ_CONFIG"},
+	)
+	errorHooksMap := terraformMap["error_hook"].(map[string]interface{})
+	assert.Equal(
+		t,
+		errorHooksMap["error_hook_1"].(map[string]interface{})["execute"].([]interface{}),
+		[]interface{}{"echo", "ON_APPLY_ERROR"},
 	)
 }
 

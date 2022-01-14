@@ -132,6 +132,7 @@ type ctyTerraformConfig struct {
 	IncludeInCopy *[]string                          `cty:"include_in_copy"`
 	BeforeHooks   map[string]Hook                    `cty:"before_hook"`
 	AfterHooks    map[string]Hook                    `cty:"after_hook"`
+	ErrorHooks    map[string]ErrorHook               `cty:"error_hook"`
 }
 
 // Serialize TerraformConfig to a cty Value, but with maps instead of lists for the blocks.
@@ -146,6 +147,7 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 		ExtraArgs:     map[string]TerraformExtraArguments{},
 		BeforeHooks:   map[string]Hook{},
 		AfterHooks:    map[string]Hook{},
+		ErrorHooks:    map[string]ErrorHook{},
 	}
 
 	for _, arg := range config.ExtraArgs {
@@ -156,6 +158,9 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 	}
 	for _, hook := range config.AfterHooks {
 		configCty.AfterHooks[hook.Name] = hook
+	}
+	for _, errorHook := range config.ErrorHooks {
+		configCty.ErrorHooks[errorHook.Name] = errorHook
 	}
 
 	return goTypeToCty(configCty)

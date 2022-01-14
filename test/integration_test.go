@@ -400,6 +400,9 @@ func TestTerragruntSkipOnError(t *testing.T) {
 
 		assert.Contains(t, output, "AFTER_SHOULD_DISPLAY")
 		assert.NotContains(t, output, "AFTER_NODISPLAY")
+
+		assert.Contains(t, output, "ERROR_HOOK_EXECUTED")
+
 	} else {
 		t.Error("Expected NO terragrunt execution due to previous errors but it did run.")
 	}
