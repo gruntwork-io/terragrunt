@@ -304,6 +304,7 @@ func (targetConfig *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terr
 
 			mergeHooks(terragruntOptions, sourceConfig.Terraform.BeforeHooks, &targetConfig.Terraform.BeforeHooks)
 			mergeHooks(terragruntOptions, sourceConfig.Terraform.AfterHooks, &targetConfig.Terraform.AfterHooks)
+			mergeErrorHooks(terragruntOptions, sourceConfig.Terraform.ErrorHooks, &targetConfig.Terraform.ErrorHooks)
 		}
 	}
 
@@ -448,6 +449,7 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 
 			mergeHooks(terragruntOptions, sourceConfig.Terraform.BeforeHooks, &targetConfig.Terraform.BeforeHooks)
 			mergeHooks(terragruntOptions, sourceConfig.Terraform.AfterHooks, &targetConfig.Terraform.AfterHooks)
+			mergeErrorHooks(terragruntOptions, sourceConfig.Terraform.ErrorHooks, &targetConfig.Terraform.ErrorHooks)
 		}
 	}
 
@@ -611,6 +613,27 @@ func mergeHooks(terragruntOptions *options.TerragruntOptions, childHooks []Hook,
 	result := *parentHooks
 	for _, child := range childHooks {
 		parentHookWithSameName := getIndexOfHookWithName(result, child.Name)
+		if parentHookWithSameName != -1 {
+			// If the parent contains a hook with the same name as the child,
+			// then override the parent's hook with the child's.
+			terragruntOptions.Logger.Debugf("hook '%v' from child overriding parent", child.Name)
+			result[parentHookWithSameName] = child
+		} else {
+			// If the parent does not contain a hook with the same name as the child
+			// then add the child to the end.
+			result = append(result, child)
+		}
+	}
+	*parentHooks = result
+}
+
+// Merge the error hooks (error_hook).
+// Does the same thing as mergeHooks but for error hooks
+// TODO: Figure out more DRY way to do this
+func mergeErrorHooks(terragruntOptions *options.TerragruntOptions, childHooks []ErrorHook, parentHooks *[]ErrorHook) {
+	result := *parentHooks
+	for _, child := range childHooks {
+		parentHookWithSameName := getIndexOfErrorHookWithName(result, child.Name)
 		if parentHookWithSameName != -1 {
 			// If the parent contains a hook with the same name as the child,
 			// then override the parent's hook with the child's.

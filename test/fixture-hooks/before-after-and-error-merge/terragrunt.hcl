@@ -26,4 +26,23 @@ terraform {
     execute = ["touch","after-parent.out"]
     run_on_error = true
   }
+
+  after_hook "produce_error_to_test_error_hook" {
+    commands = ["apply"]
+    execute = ["exit", "1"]
+    run_on_error = true
+  }
+
+  # This will be overridden by the child error_hook
+  error_hook "error_hook_merge_1" {
+    commands = ["apply", "plan"]
+    execute = ["touch","error-hook-merge-parent.out"]
+    on_errors = [".*"]
+  }
+
+  error_hook "error_hook_parent" {
+    commands = ["apply", "plan"]
+    execute = ["touch","error-hook-parent.out"]
+    on_errors = [".*"]
+  }
 }

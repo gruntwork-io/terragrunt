@@ -741,6 +741,18 @@ func getIndexOfHookWithName(hooks []Hook, name string) int {
 	return -1
 }
 
+// Returns the index of the ErrorHook with the given name,
+// or -1 if no Hook have the given name.
+// TODO: Figure out more DRY way to do this
+func getIndexOfErrorHookWithName(hooks []ErrorHook, name string) int {
+	for i, hook := range hooks {
+		if hook.Name == name {
+			return i
+		}
+	}
+	return -1
+}
+
 // Returns the index of the extraArgs with the given name,
 // or -1 if no extraArgs have the given name.
 func getIndexOfExtraArgsWithName(extraArgs []TerraformExtraArguments, name string) int {

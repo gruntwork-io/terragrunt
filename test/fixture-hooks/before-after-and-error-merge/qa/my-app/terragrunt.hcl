@@ -23,6 +23,18 @@ terraform {
     execute = ["touch","after.out"]
     run_on_error = true
   }
+
+  error_hook "error_hook_merge_1" {
+    commands = ["apply", "plan"]
+    execute = ["touch","error-hook-merge-child.out"]
+    on_errors = [".*"]
+  }
+
+  error_hook "error_hook_child" {
+    commands = ["apply", "plan"]
+    execute = ["touch","error-hook-child.out"]
+    on_errors = [".*"]
+  }
 }
 
 include {
