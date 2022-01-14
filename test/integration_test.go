@@ -75,7 +75,7 @@ const (
 	TEST_FIXTURE_HOOKS_ALL_PATH                             = "fixture-hooks/all"
 	TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH                      = "fixture-hooks/after-only"
 	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH                = "fixture-hooks/before-and-after"
-	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_MERGE_PATH          = "fixture-hooks/before-and-after-merge"
+	TEST_FIXTURE_HOOKS_BEFORE_AFTER_AND_ERROR_MERGE_PATH    = "fixture-hooks/before-after-and-error-merge"
 	TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH                   = "fixture-hooks/skip-on-error"
 	TEST_FIXTURE_HOOKS_ONE_ARG_ACTION_PATH                  = "fixture-hooks/one-arg-action"
 	TEST_FIXTURE_HOOKS_EMPTY_STRING_COMMAND_PATH            = "fixture-hooks/bad-arg-action/empty-string-command"
@@ -350,33 +350,41 @@ func TestTerragruntBeforeAndAfterHook(t *testing.T) {
 	assert.NoError(t, afterException)
 }
 
-func TestTerragruntBeforeAndAfterMergeHook(t *testing.T) {
+func TestTerragruntBeforeAfterAndErrorMergeHook(t *testing.T) {
 	t.Parallel()
 
-	childPath := util.JoinPath(TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_MERGE_PATH, qaMyAppRelPath)
+	childPath := util.JoinPath(TEST_FIXTURE_HOOKS_BEFORE_AFTER_AND_ERROR_MERGE_PATH, qaMyAppRelPath)
 	cleanupTerraformFolder(t, childPath)
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 	t.Logf("bucketName: %s", s3BucketName)
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 
-	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_MERGE_PATH, qaMyAppRelPath, s3BucketName, config.DefaultTerragruntConfigPath, config.DefaultTerragruntConfigPath)
+	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_HOOKS_BEFORE_AFTER_AND_ERROR_MERGE_PATH, qaMyAppRelPath, s3BucketName, config.DefaultTerragruntConfigPath, config.DefaultTerragruntConfigPath)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath), &stdout, &stderr)
 
 	_, beforeException := ioutil.ReadFile(childPath + "/before.out")
 	_, beforeChildException := ioutil.ReadFile(childPath + "/before-child.out")
 	_, beforeOverriddenParentException := ioutil.ReadFile(childPath + "/before-parent.out")
 	_, afterException := ioutil.ReadFile(childPath + "/after.out")
 	_, afterParentException := ioutil.ReadFile(childPath + "/after-parent.out")
+	_, errorHookParentException := ioutil.ReadFile(childPath + "/error-hook-parent.out")
+	_, errorHookChildException := ioutil.ReadFile(childPath + "/error-hook-child.out")
+	_, errorHookOverridenParentException := ioutil.ReadFile(childPath + "/error-hook-merge-parent.out")
 
 	assert.NoError(t, beforeException)
 	assert.NoError(t, beforeChildException)
 	assert.NoError(t, afterException)
 	assert.NoError(t, afterParentException)
+	assert.NoError(t, errorHookParentException)
+	assert.NoError(t, errorHookChildException)
 
 	// PathError because no file found
 	assert.Error(t, beforeOverriddenParentException)
+	assert.Error(t, errorHookOverridenParentException)
 }
 
 func TestTerragruntSkipOnError(t *testing.T) {
