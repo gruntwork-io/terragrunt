@@ -4,7 +4,7 @@ orbs:
 
 defaults: &defaults
   docker:
-    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.16-tf1.0-tg0.30
+    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.16-tf1.1-tg35.20-pck1.7
 
 version: 2.1
 jobs:
