@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -63,6 +64,7 @@ const (
 	optTerragruntFetchDependencyOutputFromState = "terragrunt-fetch-dependency-output-from-state"
 	optTerragruntUsePartialParseConfigCache     = "terragrunt-use-partial-parse-config-cache"
 	optTerragruntOutputWithMetadata             = "with-metadata"
+	optTerragruntSubstituteMacros               = "terragrunt-substitute-macros"
 )
 
 var allTerragruntBooleanOpts = []string{
@@ -81,6 +83,7 @@ var allTerragruntBooleanOpts = []string{
 	optTerragruntFetchDependencyOutputFromState,
 	optTerragruntUsePartialParseConfigCache,
 	optTerragruntOutputWithMetadata,
+	optTerragruntSubstituteMacros,
 }
 var allTerragruntStringOpts = []string{
 	optTerragruntConfig,
@@ -263,6 +266,7 @@ GLOBAL OPTIONS:
    terragrunt-strict-validate                   Sets strict mode for the validate-inputs command. By default, strict mode is off. When this flag is passed, strict mode is turned on. When strict mode is turned off, the validate-inputs command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When strict mode is turned on, an error will be returned if required inputs are missing OR if unused variables are passed to Terragrunt.
    terragrunt-json-out                          The file path that terragrunt should use when rendering the terragrunt.hcl config as json. Only used in the render-json command. Defaults to terragrunt_rendered.json.
    terragrunt-use-partial-parse-config-cache    Enables caching of includes during partial parsing operations. Will also be used for the --terragrunt-iam-role option if provided.
+   terragrunt-substitute-macros                 Substitutes macros given as part of the command line with their replacements. Currently supported macros: ::TERRAGRUNT_DIR::
 
 VERSION:
    {{.Version}}{{if len .Authors}}
@@ -299,6 +303,34 @@ var terragruntHelp = map[string]string{
 
 // map to keep track of locks for source changes
 var sourceChangeLocks = sync.Map{}
+
+// Returns a map of macro placeholders to a function that returns what the placeholder should be replaced with
+func getMacroReplacements(terragruntOptions *options.TerragruntOptions) map[string]func() string {
+	return map[string]func() string{
+		"::TERRAGRUNT_DIR::": func() string { return filepath.Dir(terragruntOptions.TerragruntConfigPath) },
+	}
+}
+
+// Takes terragruntOptions and mutates the args list such that all macros are replaced with their substitutions,
+// if SubstituteMacros is true.
+func performMacroSubstitutions(terragruntOptions *options.TerragruntOptions) error {
+	if terragruntOptions.SubstituteMacros {
+		newTerraformCliArgs := []string{}
+		for _, arg := range terragruntOptions.TerraformCliArgs {
+			newArg := arg
+			for macro, replacementFunc := range getMacroReplacements(terragruntOptions) {
+				if strings.Contains(arg, macro) {
+					newArg = strings.ReplaceAll(arg, macro, replacementFunc())
+				}
+				newTerraformCliArgs = append(newTerraformCliArgs, newArg)
+			}
+		}
+		terragruntOptions.TerraformCliArgs = newTerraformCliArgs
+	}
+
+	// this doesn't currently do anything that could return an error, but maybe in the future it might
+	return nil
+}
 
 // Create the Terragrunt CLI App
 func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) *cli.App {
@@ -443,6 +475,11 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	// then use it
 	if terragruntOptions.DownloadDir == defaultDownloadDir && terragruntConfig.DownloadDir != "" {
 		terragruntOptions.DownloadDir = terragruntConfig.DownloadDir
+	}
+
+	err = performMacroSubstitutions(terragruntOptions)
+	if err != nil {
+		return err
 	}
 
 	// Override the default value of retryable errors using the value set in the config file
@@ -1088,7 +1125,7 @@ func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 //
 // If terraformSource is specified, then arguments to download the terraform source will be appended to the init command.
 //
-// This method will return an error and NOT run terraform init if the user has disabled Auto-Init
+// # This method will return an error and NOT run terraform init if the user has disabled Auto-Init
 //
 // This method takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
 // and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded

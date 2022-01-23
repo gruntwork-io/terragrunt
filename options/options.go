@@ -198,6 +198,9 @@ type TerragruntOptions struct {
 
 	// Include fields metadata in render-json
 	RenderJsonWithMetadata bool
+
+	// True if Terragrunt should replace all instances of macro placeholders
+	SubstituteMacros bool
 }
 
 // IAMOptions represents options that are used by Terragrunt to assume an IAM role.
@@ -373,6 +376,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		CheckDependentModules:          terragruntOptions.CheckDependentModules,
 		FetchDependencyOutputFromState: terragruntOptions.FetchDependencyOutputFromState,
 		UsePartialParseConfigCache:     terragruntOptions.UsePartialParseConfigCache,
+		SubstituteMacros:               terragruntOptions.SubstituteMacros,
 	}
 }
 
