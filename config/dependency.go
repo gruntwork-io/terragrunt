@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/imdario/mergo"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -65,7 +64,7 @@ func (targetDepConfig *Dependency) DeepMerge(sourceDepConfig Dependency) error {
 		if targetDepConfig.MockOutputs == nil {
 			targetDepConfig.MockOutputs = sourceDepConfig.MockOutputs
 		} else {
-			newMockOutputs, err := deepMergeCtyMaps(*targetDepConfig.MockOutputs, *sourceDepConfig.MockOutputs, mergo.WithAppendSlice, mergo.WithOverride)
+			newMockOutputs, err := deepMergeCtyMaps(*targetDepConfig.MockOutputs, *sourceDepConfig.MockOutputs)
 			if err != nil {
 				return err
 			}
@@ -337,7 +336,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 			case ShallowMerge:
 				return shallowMergeCtyMaps(*outputVal, *dependencyConfig.MockOutputs)
 			case DeepMerge:
-				return deepMergeCtyMaps(*outputVal, *dependencyConfig.MockOutputs)
+				return deepMergeCtyMapsMapOnly(*dependencyConfig.MockOutputs, *outputVal)
 			default:
 				return nil, errors.WithStackTrace(InvalidMergeStrategyType(mockMergeStrategy))
 			}
