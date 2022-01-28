@@ -76,7 +76,7 @@ jobs:
             gpg --import --no-tty --batch --yes ./test/fixture-sops/test_pgp_key.asc
             mkdir -p logs
             run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
-          no_output_timeout: 30m
+          no_output_timeout: 11m
       - run:
           command: terratest_log_parser --testlog logs/integration.log --outputdir logs
           when: always
