@@ -34,17 +34,7 @@ func TestGetTerraformHeader(t *testing.T) {
 	assert.Contains(t, terraformGetHeader, "github.com/terraform-aws-modules/terraform-aws-vpc")
 }
 
-func TestGetDownloadURLFromHeaderWithPrefixedURL(t *testing.T) {
-	t.Parallel()
-
-	testTerraformGet := "github.com/terraform-aws-modules/terraform-aws-vpc"
-
-	downloadURL, err := getDownloadURLFromHeader(context.Background(), url.URL{}, testTerraformGet)
-	require.NoError(t, err)
-	assert.Equal(t, "github.com/terraform-aws-modules/terraform-aws-vpc", downloadURL)
-}
-
-func TestGetDownloadURLFromHeaderWithoutPrefixedURL(t *testing.T) {
+func TestGetDownloadURLFromHeader(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -61,6 +51,12 @@ func TestGetDownloadURLFromHeaderWithoutPrefixedURL(t *testing.T) {
 			},
 			terraformGet:   "/terraform-aws-modules/terraform-aws-vpc",
 			expectedResult: "https://registry.terraform.io/terraform-aws-modules/terraform-aws-vpc",
+		},
+		{
+			name:           "PrefixedURL",
+			moduleURL:      url.URL{},
+			terraformGet:   "github.com/terraform-aws-modules/terraform-aws-vpc",
+			expectedResult: "github.com/terraform-aws-modules/terraform-aws-vpc",
 		},
 		{
 			name: "PathWithRoot",
@@ -96,7 +92,7 @@ func TestGetDownloadURLFromHeaderWithoutPrefixedURL(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			downloadURL, err := getDownloadURLFromHeader(context.Background(), testCase.moduleURL, testCase.terraformGet)
+			downloadURL, err := getDownloadURLFromHeader(testCase.moduleURL, testCase.terraformGet)
 			require.NoError(t, err)
 			assert.Equal(t, testCase.expectedResult, downloadURL)
 		})
