@@ -247,8 +247,11 @@ func getDownloadURLFromHeader(ctx context.Context, url url.URL, terraformGet str
 	// append scheme and host from url used for getting the download url
 	// because third-party registry implementations may not "know" their own absolute URLs if
 	// e.g. they are running behind a reverse proxy frontend, or such.
-	if strings.HasPrefix(terraformGet, "/") || strings.HasPrefix(terraformGet, "./") || strings.HasPrefix(terraformGet, "../") {
-		terraformGet = fmt.Sprintf("%v://%v%v", url.Scheme, url.Host, terraformGet)
+	if strings.HasPrefix(terraformGet, "../") {
+		terraformGet = strings.TrimPrefix(terraformGet, "..")
+	}
+	if strings.HasPrefix(terraformGet, "/") || strings.HasPrefix(terraformGet, "./") {
+		terraformGet = fmt.Sprintf("%v://%v%v", url.Scheme, url.Host, path.Join(url.Path, "..", terraformGet))
 	}
 	return terraformGet, nil
 }
