@@ -125,7 +125,7 @@ func (tfrGetter *TerraformRegistryGetter) Get(dstPath string, srcURL *url.URL) e
 		return err
 	}
 
-	downloadURL, err := getDownloadURLFromHeader(ctx, *moduleURL, terraformGet)
+	downloadURL, err := getDownloadURLFromHeader(*moduleURL, terraformGet)
 	if err != nil {
 		return err
 	}
@@ -242,13 +242,18 @@ func getTerraformGetHeader(ctx context.Context, url url.URL) (string, error) {
 
 // getDownloadURLFromHeader checks if the content of the X-Terraform-GET header contains the base url
 // and prepends it if not
-func getDownloadURLFromHeader(ctx context.Context, url url.URL, terraformGet string) (string, error) {
+func getDownloadURLFromHeader(moduleURL url.URL, terraformGet string) (string, error) {
 	// If url from X-Terrafrom-Get Header seems to be a relative url,
 	// append scheme and host from url used for getting the download url
 	// because third-party registry implementations may not "know" their own absolute URLs if
 	// e.g. they are running behind a reverse proxy frontend, or such.
 	if strings.HasPrefix(terraformGet, "/") || strings.HasPrefix(terraformGet, "./") || strings.HasPrefix(terraformGet, "../") {
-		terraformGet = fmt.Sprintf("%v://%v%v", url.Scheme, url.Host, terraformGet)
+		relativePathURL, err := url.Parse(terraformGet)
+		if err != nil {
+			return "", errors.WithStackTrace(err)
+		}
+		terraformGetURL := moduleURL.ResolveReference(relativePathURL)
+		terraformGet = terraformGetURL.String()
 	}
 	return terraformGet, nil
 }

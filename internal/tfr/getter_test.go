@@ -34,29 +34,69 @@ func TestGetTerraformHeader(t *testing.T) {
 	assert.Contains(t, terraformGetHeader, "github.com/terraform-aws-modules/terraform-aws-vpc")
 }
 
-func TestGetDownloadURLFromHeaderWithPrefixedURL(t *testing.T) {
+func TestGetDownloadURLFromHeader(t *testing.T) {
 	t.Parallel()
 
-	testTerraformGet := "github.com/terraform-aws-modules/terraform-aws-vpc"
-
-	downloadURL, err := getDownloadURLFromHeader(context.Background(), url.URL{}, testTerraformGet)
-	require.NoError(t, err)
-	assert.Equal(t, "github.com/terraform-aws-modules/terraform-aws-vpc", downloadURL)
-}
-
-func TestGetDownloadURLFromHeaderWithoutPrefixedURL(t *testing.T) {
-	t.Parallel()
-
-	testTerraformGet := "/terraform-aws-modules/terraform-aws-vpc"
-
-	testBaseURL := url.URL{
-		Scheme: "https",
-		Host:   "registry.terraform.io",
+	testCases := []struct {
+		name           string
+		moduleURL      url.URL
+		terraformGet   string
+		expectedResult string
+	}{
+		{
+			name: "BaseWithRoot",
+			moduleURL: url.URL{
+				Scheme: "https",
+				Host:   "registry.terraform.io",
+			},
+			terraformGet:   "/terraform-aws-modules/terraform-aws-vpc",
+			expectedResult: "https://registry.terraform.io/terraform-aws-modules/terraform-aws-vpc",
+		},
+		{
+			name:           "PrefixedURL",
+			moduleURL:      url.URL{},
+			terraformGet:   "github.com/terraform-aws-modules/terraform-aws-vpc",
+			expectedResult: "github.com/terraform-aws-modules/terraform-aws-vpc",
+		},
+		{
+			name: "PathWithRoot",
+			moduleURL: url.URL{
+				Scheme: "https",
+				Host:   "registry.terraform.io",
+				Path:   "modules/foo/bar",
+			},
+			terraformGet:   "/terraform-aws-modules/terraform-aws-vpc",
+			expectedResult: "https://registry.terraform.io/terraform-aws-modules/terraform-aws-vpc",
+		},
+		{
+			name: "PathWithRelativeRoot",
+			moduleURL: url.URL{
+				Scheme: "https",
+				Host:   "registry.terraform.io",
+				Path:   "modules/foo/bar",
+			},
+			terraformGet:   "./terraform-aws-modules/terraform-aws-vpc",
+			expectedResult: "https://registry.terraform.io/modules/foo/terraform-aws-modules/terraform-aws-vpc",
+		},
+		{
+			name: "PathWithRelativeParent",
+			moduleURL: url.URL{
+				Scheme: "https",
+				Host:   "registry.terraform.io",
+				Path:   "modules/foo/bar",
+			},
+			terraformGet:   "../terraform-aws-modules/terraform-aws-vpc",
+			expectedResult: "https://registry.terraform.io/modules/terraform-aws-modules/terraform-aws-vpc",
+		},
 	}
 
-	downloadURL, err := getDownloadURLFromHeader(context.Background(), testBaseURL, testTerraformGet)
-	require.NoError(t, err)
-	assert.Equal(t, "https://registry.terraform.io/terraform-aws-modules/terraform-aws-vpc", downloadURL)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			downloadURL, err := getDownloadURLFromHeader(testCase.moduleURL, testCase.terraformGet)
+			require.NoError(t, err)
+			assert.Equal(t, testCase.expectedResult, downloadURL)
+		})
+	}
 }
 
 func TestTFRGetterRootDir(t *testing.T) {
