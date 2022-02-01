@@ -21,6 +21,24 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+func TestAlreadyHaveLatestCodeLocalFilePathWithHash(t *testing.T) {
+	t.Parallel()
+
+	canonicalUrl := fmt.Sprintf("file://%s", absPath(t, "../test/fixture-download-source/hello-world-local"))
+	downloadDir := fmt.Sprintf("%s", absPath(t, "./test-fixtures/download-dir-local-no-changes"))
+
+	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, true)
+}
+
+func TestAlreadyHaveLatestCodeLocalFilePathWithHashModified(t *testing.T) {
+	t.Parallel()
+
+	canonicalUrl := fmt.Sprintf("file://%s", absPath(t, "../test/fixture-download-source/hello-world-local"))
+	downloadDir := fmt.Sprintf("%s", absPath(t, "./test-fixtures/download-dir-local-modified"))
+
+	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, false)
+}
+
 func TestAlreadyHaveLatestCodeLocalFilePath(t *testing.T) {
 	t.Parallel()
 

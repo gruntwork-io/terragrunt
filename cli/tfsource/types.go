@@ -13,6 +13,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
+
+	"golang.org/x/mod/sumdb/dirhash"
 )
 
 var forcedRegexp = regexp.MustCompile(`^([A-Za-z0-9]+)::(.+)$`)
@@ -43,7 +45,21 @@ func (src *TerraformSource) String() string {
 // so the same file path (/foo/bar) is always considered the same version. See also the encodeSourceName and
 // ProcessTerraformSource methods.
 func (terraformSource TerraformSource) EncodeSourceVersion() string {
+	if IsLocalSource(terraformSource.CanonicalSourceURL) {
+		hash, err := terraformSource.HashLocalDir()
+		fmt.Printf("\nLocal info!\n\tLocal hash: %s\n\tCanonical URL: %s\n\tCanonical path: %s\n\tWorking Dir: %s\n", hash, terraformSource.CanonicalSourceURL, terraformSource.CanonicalSourceURL.Path, terraformSource.WorkingDir)
+		if err == nil {
+			return hash
+		}
+	}
 	return util.EncodeBase64Sha1(terraformSource.CanonicalSourceURL.Query().Encode())
+}
+
+func (terraformSource TerraformSource) HashLocalDir() (string, error) {
+	if !IsLocalSource(terraformSource.CanonicalSourceURL) {
+		return "", fmt.Errorf("is not a local directory")
+	}
+	return dirhash.HashDir(terraformSource.CanonicalSourceURL.Path, "hi", dirhash.DefaultHash)
 }
 
 // Write a file into the DownloadDir that contains the version number of this source code. The version number is
