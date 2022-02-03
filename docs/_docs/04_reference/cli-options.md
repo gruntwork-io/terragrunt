@@ -85,6 +85,10 @@ deployed them, then `plan-all` will fail as it will not be possible to resolve t
 `terraform_remote_state` data sources! Please [see here for more
 information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-497888756).
 
+**[NOTE]** Using `run-all` with `apply` or `destroy` silently adds the `-auto-approve` flag to the command line
+arguments passed to Terraform due to issues with shared `stdin` making individual approvals impossible. Please
+[see here for more information](https://github.com/gruntwork-io/terragrunt/issues/386#issuecomment-358306268)
+
 
 
 
@@ -133,6 +137,11 @@ This will recursively search the current working directory for any folders that 
 [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
 [`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks.
 
+**[NOTE]** Using `apply-all` silently adds the `-auto-approve` flag to the command line arguments passed to Terraform
+due to issues with shared `stdin` making individual approvals impossible. Please [see here for more
+information](https://github.com/gruntwork-io/terragrunt/issues/386#issuecomment-358306268)
+
+
 ### output-all (DEPRECATED: use run-all)
 
 **DEPRECATED: Use `run-all output` instead.**
@@ -176,6 +185,11 @@ This will recursively search the current working directory for any folders that 
 `destroy` in each one, concurrently, while respecting ordering defined via
 [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
 [`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks.
+
+**[NOTE]** Using `destroy-all` silently adds the `-auto-approve` flag to the command line arguments passed to Terraform
+due to issues with shared `stdin` making individual approvals impossible. Please [see here for more
+information](https://github.com/gruntwork-io/terragrunt/issues/386#issuecomment-358306268)
+
 
 ### validate-all (DEPRECATED: use run-all)
 
