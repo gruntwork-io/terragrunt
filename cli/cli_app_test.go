@@ -315,15 +315,13 @@ func TestTerragruntSubstituteMacros(t *testing.T) {
 	require.NoError(t, err)
 	tgOptions.SubstituteMacros = true
 	tgOptions.TerraformCliArgs = []string{"plan", "-out=::TERRAGRUNT_DIR::/test.plan"}
-	err = performMacroSubstitutions(tgOptions)
-	require.NoError(t, err)
+	performMacroSubstitutions(tgOptions)
 	assert.EqualValues(t, tgOptions.TerraformCliArgs, []string{"plan", "-out=/not/a/real/test.plan"})
 
 	tgOptions, err = options.NewTerragruntOptionsForTest("/still/not/a/real/path.hcl")
 	require.NoError(t, err)
 	tgOptions.SubstituteMacros = false
 	tgOptions.TerraformCliArgs = []string{"plan", "-out=::TERRAGRUNT_DIR::/test.plan"}
-	err = performMacroSubstitutions(tgOptions)
-	require.NoError(t, err)
+	performMacroSubstitutions(tgOptions)
 	assert.EqualValues(t, tgOptions.TerraformCliArgs, []string{"plan", "-out=::TERRAGRUNT_DIR::/test.plan"})
 }

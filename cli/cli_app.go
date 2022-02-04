@@ -313,23 +313,22 @@ func getMacroReplacements(terragruntOptions *options.TerragruntOptions) map[stri
 
 // Takes terragruntOptions and mutates the args list such that all macros are replaced with their substitutions,
 // if SubstituteMacros is true.
-func performMacroSubstitutions(terragruntOptions *options.TerragruntOptions) error {
-	if terragruntOptions.SubstituteMacros {
-		newTerraformCliArgs := []string{}
-		for _, arg := range terragruntOptions.TerraformCliArgs {
-			newArg := arg
-			for macro, replacementFunc := range getMacroReplacements(terragruntOptions) {
-				if strings.Contains(arg, macro) {
-					newArg = strings.ReplaceAll(arg, macro, replacementFunc())
-				}
-				newTerraformCliArgs = append(newTerraformCliArgs, newArg)
-			}
-		}
-		terragruntOptions.TerraformCliArgs = newTerraformCliArgs
+func performMacroSubstitutions(terragruntOptions *options.TerragruntOptions) {
+	if !terragruntOptions.SubstituteMacros {
+		return
 	}
 
-	// this doesn't currently do anything that could return an error, but maybe in the future it might
-	return nil
+	var newTerraformCliArgs []string
+	for _, arg := range terragruntOptions.TerraformCliArgs {
+		newArg := arg
+		for macro, replacementFunc := range getMacroReplacements(terragruntOptions) {
+			if strings.Contains(newArg, macro) {
+				newArg = strings.ReplaceAll(newArg, macro, replacementFunc())
+			}
+		}
+		newTerraformCliArgs = append(newTerraformCliArgs, newArg)
+	}
+	terragruntOptions.TerraformCliArgs = newTerraformCliArgs
 }
 
 // Create the Terragrunt CLI App
@@ -477,10 +476,7 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		terragruntOptions.DownloadDir = terragruntConfig.DownloadDir
 	}
 
-	err = performMacroSubstitutions(terragruntOptions)
-	if err != nil {
-		return err
-	}
+	performMacroSubstitutions(terragruntOptions)
 
 	// Override the default value of retryable errors using the value set in the config file
 	if terragruntConfig.RetryableErrors != nil {
