@@ -21,20 +21,34 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-func TestAlreadyHaveLatestCodeLocalFilePathWithHash(t *testing.T) {
+func TestAlreadyHaveLatestCodeLocalFilePathWithHashNoChanges(t *testing.T) {
 	t.Parallel()
 
-	canonicalUrl := fmt.Sprintf("file://%s", absPath(t, "../test/fixture-download-source/hello-world-local"))
-	downloadDir := fmt.Sprintf("%s", absPath(t, "./test-fixtures/download-dir-local-no-changes"))
+	canonicalUrl := fmt.Sprintf("file://%s", absPath(t, "../test/fixture-download-source/hello-world-local-hash"))
+	downloadDir := tmpDir(t)
+	defer os.Remove(downloadDir)
 
+	copyFolder(t, "../test/fixture-download-source/download-dir-version-file-local-hash", downloadDir)
 	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, true)
 }
-
-func TestAlreadyHaveLatestCodeLocalFilePathWithHashModified(t *testing.T) {
+func TestAlreadyHaveLatestCodeLocalFilePathWithHashChanged(t *testing.T) {
 	t.Parallel()
 
-	canonicalUrl := fmt.Sprintf("file://%s", absPath(t, "../test/fixture-download-source/hello-world-local"))
-	downloadDir := fmt.Sprintf("%s", absPath(t, "./test-fixtures/download-dir-local-modified"))
+	canonicalUrl := fmt.Sprintf("file://%s", absPath(t, "../test/fixture-download-source/hello-world-local-hash"))
+	downloadDir := tmpDir(t)
+	defer os.Remove(downloadDir)
+
+	copyFolder(t, "../test/fixture-download-source/download-dir-version-file-local-hash", downloadDir)
+
+	f, err := os.OpenFile(downloadDir+"/version-file.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer f.Close()
+
+	fmt.Fprintln(f, "CHANGED")
 
 	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, false)
 }
