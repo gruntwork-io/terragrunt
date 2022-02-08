@@ -706,6 +706,7 @@ var iamRoleCache = NewIAMRoleOptionsCache()
 
 // setIAMRole - extract IAM role details from Terragrunt flags block
 func setIAMRole(configString string, terragruntOptions *options.TerragruntOptions, includeFromChild *IncludeConfig, filename string) error {
+	// as key is considered HCL code and include configuration
 	var key = fmt.Sprintf("%v-%v", configString, includeFromChild)
 	var config, found = iamRoleCache.Get(key)
 	if !found {
