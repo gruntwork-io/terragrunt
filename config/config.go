@@ -701,16 +701,25 @@ func ParseConfigString(
 	return config, nil
 }
 
+// iamRoleCache - store for cached values of IAM roles
+var iamRoleCache = NewIAMRoleOptionsCache()
+
 // setIAMRole - extract IAM role details from Terragrunt flags block
 func setIAMRole(configString string, terragruntOptions *options.TerragruntOptions, includeFromChild *IncludeConfig, filename string) error {
-	iamConfig, err := PartialParseConfigString(configString, terragruntOptions, includeFromChild, filename, []PartialDecodeSectionType{TerragruntFlags})
-	if err != nil {
-		return err
+	var key = fmt.Sprintf("%v-%v", configString, includeFromChild)
+	var config, found = iamRoleCache.Get(key)
+	if !found {
+		iamConfig, err := PartialParseConfigString(configString, terragruntOptions, includeFromChild, filename, []PartialDecodeSectionType{TerragruntFlags})
+		if err != nil {
+			return err
+		}
+		config = iamConfig.GetIAMRoleOptions()
+		iamRoleCache.Put(key, config)
 	}
 	// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
 	// precedence.
 	terragruntOptions.IAMRoleOptions = options.MergeIAMRoleOptions(
-		iamConfig.GetIAMRoleOptions(),
+		config,
 		terragruntOptions.OriginalIAMRoleOptions,
 	)
 	return nil

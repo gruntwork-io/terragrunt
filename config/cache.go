@@ -4,6 +4,8 @@ import (
 	"crypto/md5"
 	"fmt"
 	"sync"
+
+	"github.com/gruntwork-io/terragrunt/options"
 )
 
 // StringCache - structure to store cached values
@@ -32,6 +34,39 @@ func (cache *StringCache) Get(key string) (string, bool) {
 
 // Put - put value in cache, md5 hash is used as key to have fixed length keys and avoid duplicates
 func (cache *StringCache) Put(key string, value string) {
+	cache.Mutex.Lock()
+	defer cache.Mutex.Unlock()
+	md5Sum := md5.Sum([]byte(key))
+	cacheKey := fmt.Sprintf("%x", md5Sum)
+	cache.Cache[cacheKey] = value
+}
+
+// IAMRoleOptionsCache - cache for IAMRole options
+type IAMRoleOptionsCache struct {
+	Cache map[string]options.IAMRoleOptions
+	Mutex *sync.Mutex
+}
+
+// NewIAMRoleOptionsCache - create new cache for IAM roles
+func NewIAMRoleOptionsCache() *IAMRoleOptionsCache {
+	return &IAMRoleOptionsCache{
+		Cache: map[string]options.IAMRoleOptions{},
+		Mutex: &sync.Mutex{},
+	}
+}
+
+// Get - get cached value, md5 hash is used as key to have fixed length keys and avoid duplicates
+func (cache *IAMRoleOptionsCache) Get(key string) (options.IAMRoleOptions, bool) {
+	cache.Mutex.Lock()
+	defer cache.Mutex.Unlock()
+	md5Sum := md5.Sum([]byte(key))
+	cacheKey := fmt.Sprintf("%x", md5Sum)
+	value, found := cache.Cache[cacheKey]
+	return value, found
+}
+
+// Put - put value in cache, md5 hash is used as key to have fixed length keys and avoid duplicates
+func (cache *IAMRoleOptionsCache) Put(key string, value options.IAMRoleOptions) {
 	cache.Mutex.Lock()
 	defer cache.Mutex.Unlock()
 	md5Sum := md5.Sum([]byte(key))
