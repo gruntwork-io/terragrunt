@@ -1,7 +1,7 @@
 package config
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
 	"fmt"
 	"sync"
 
@@ -26,8 +26,8 @@ func NewStringCache() *StringCache {
 func (cache *StringCache) Get(key string) (string, bool) {
 	cache.Mutex.Lock()
 	defer cache.Mutex.Unlock()
-	md5Sum := md5.Sum([]byte(key))
-	cacheKey := fmt.Sprintf("%x", md5Sum)
+	keyHash := sha256.Sum256([]byte(key))
+	cacheKey := fmt.Sprintf("%x", keyHash)
 	value, found := cache.Cache[cacheKey]
 	return value, found
 }
@@ -36,8 +36,8 @@ func (cache *StringCache) Get(key string) (string, bool) {
 func (cache *StringCache) Put(key string, value string) {
 	cache.Mutex.Lock()
 	defer cache.Mutex.Unlock()
-	md5Sum := md5.Sum([]byte(key))
-	cacheKey := fmt.Sprintf("%x", md5Sum)
+	keyHash := sha256.Sum256([]byte(key))
+	cacheKey := fmt.Sprintf("%x", keyHash)
 	cache.Cache[cacheKey] = value
 }
 
@@ -59,8 +59,8 @@ func NewIAMRoleOptionsCache() *IAMRoleOptionsCache {
 func (cache *IAMRoleOptionsCache) Get(key string) (options.IAMRoleOptions, bool) {
 	cache.Mutex.Lock()
 	defer cache.Mutex.Unlock()
-	md5Sum := md5.Sum([]byte(key))
-	cacheKey := fmt.Sprintf("%x", md5Sum)
+	keyHash := sha256.Sum256([]byte(key))
+	cacheKey := fmt.Sprintf("%x", keyHash)
 	value, found := cache.Cache[cacheKey]
 	return value, found
 }
@@ -69,7 +69,7 @@ func (cache *IAMRoleOptionsCache) Get(key string) (options.IAMRoleOptions, bool)
 func (cache *IAMRoleOptionsCache) Put(key string, value options.IAMRoleOptions) {
 	cache.Mutex.Lock()
 	defer cache.Mutex.Unlock()
-	md5Sum := md5.Sum([]byte(key))
-	cacheKey := fmt.Sprintf("%x", md5Sum)
+	keyHash := sha256.Sum256([]byte(key))
+	cacheKey := fmt.Sprintf("%x", keyHash)
 	cache.Cache[cacheKey] = value
 }
