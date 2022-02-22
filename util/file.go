@@ -296,6 +296,10 @@ func TerragruntExcludes(path string) bool {
 
 // Copy a file from source to destination
 func CopyFile(source string, destination string) error {
+	if source == destination {
+		return nil
+	}
+
 	contents, err := ioutil.ReadFile(source)
 	if err != nil {
 		return errors.WithStackTrace(err)
