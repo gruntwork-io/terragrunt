@@ -896,8 +896,8 @@ The `dependency` block supports the following arguments:
     hasn't been applied yet), then the mocks will be used
   - `shallow` - the existing state will be shallow merged into the mocks. Mocks will only be used where the output does 
     not already exist in the dependency's state
-  - `deep` - the existing state will be deeply merged into the mocks. If an output is a map, the mock key will be 
-    used where that key does not exist in the state. Lists will not be merged
+  - `deep_map_only` - the existing state will be deeply merged into the mocks. If an output is a map, the mock key 
+    will be used where that key does not exist in the state. Lists will not be merged
 
 Example:
 

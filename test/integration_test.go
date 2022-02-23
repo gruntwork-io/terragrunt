@@ -2376,12 +2376,12 @@ func TestDependencyMockOutputMergeStrategyWithStateShallow(t *testing.T) {
 // Test when mock_outputs_merge_strategy_with_state = "deep" that the existing state is deeply merged into the mocks
 // so that the existing state overwrites the mocks. This allows child modules to use new dependency outputs before the
 // dependency has been applied
-func TestDependencyMockOutputMergeStrategyWithStateDeep(t *testing.T) {
+func TestDependencyMockOutputMergeStrategyWithStateDeepMapOnly(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-deep", "live")
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-deep-map-only", "live")
 	childPath := filepath.Join(rootPath, "child")
 
 	stdout := bytes.Buffer{}

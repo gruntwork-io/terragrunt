@@ -136,7 +136,7 @@ func deepMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
 	return deepMergeCtyMapsMapOnly(target, source, mergo.WithAppendSlice)
 }
 
-// deepMergeCtyMaps implements a deep merge of two cty value objects. We can't directly merge two cty.Value objects, so
+// deepMergeCtyMapsMapOnly implements a deep merge of two cty value objects. We can't directly merge two cty.Value objects, so
 // we cheat by using map[string]interface{} as an intermediary. Note that this assumes the provided cty value objects
 // are already maps or objects in HCL land.
 func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*mergo.Config)) (*cty.Value, error) {

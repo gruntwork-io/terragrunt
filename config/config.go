@@ -246,6 +246,8 @@ func (cfg *IncludeConfig) GetMergeStrategy() (MergeStrategyType, error) {
 		return ShallowMerge, nil
 	case string(DeepMerge):
 		return DeepMerge, nil
+	case string(DeepMergeMapOnly):
+		return DeepMergeMapOnly, nil
 	default:
 		return NoMerge, errors.WithStackTrace(InvalidMergeStrategyType(strategy))
 	}
@@ -254,9 +256,10 @@ func (cfg *IncludeConfig) GetMergeStrategy() (MergeStrategyType, error) {
 type MergeStrategyType string
 
 const (
-	NoMerge      MergeStrategyType = "no_merge"
-	ShallowMerge MergeStrategyType = "shallow"
-	DeepMerge    MergeStrategyType = "deep"
+	NoMerge          MergeStrategyType = "no_merge"
+	ShallowMerge     MergeStrategyType = "shallow"
+	DeepMerge        MergeStrategyType = "deep"
+	DeepMergeMapOnly MergeStrategyType = "deep_map_only"
 )
 
 // ModuleDependencies represents the paths to other Terraform modules that must be applied before the current module
@@ -1057,11 +1060,12 @@ type InvalidMergeStrategyType string
 
 func (err InvalidMergeStrategyType) Error() string {
 	return fmt.Sprintf(
-		"Include merge strategy %s is unknown. Valid strategies are: %s, %s, %s",
+		"Include merge strategy %s is unknown. Valid strategies are: %s, %s, %s, %s",
 		string(err),
 		NoMerge,
 		ShallowMerge,
 		DeepMerge,
+		DeepMergeMapOnly,
 	)
 }
 

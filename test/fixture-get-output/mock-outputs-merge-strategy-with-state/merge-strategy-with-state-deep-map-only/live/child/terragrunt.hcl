@@ -5,7 +5,7 @@ include {
 dependency "x" {
   config_path = "../parent"
 
-  mock_outputs_merge_strategy_with_state = "deep"
+  mock_outputs_merge_strategy_with_state = "deep_map_only"
   mock_outputs_allowed_terraform_commands = ["plan", "apply", "output"]
   mock_outputs = {
     test_output1 = "fake-output1"
