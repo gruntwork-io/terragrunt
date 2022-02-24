@@ -35,7 +35,10 @@ type Dependency struct {
 	SkipOutputs                         *bool      `hcl:"skip_outputs,attr" cty:"skip"`
 	MockOutputs                         *cty.Value `hcl:"mock_outputs,attr" cty:"mock_outputs"`
 	MockOutputsAllowedTerraformCommands *[]string  `hcl:"mock_outputs_allowed_terraform_commands,attr" cty:"mock_outputs_allowed_terraform_commands"`
-	MockOutputsMergeWithState           *bool      `hcl:"mock_outputs_merge_with_state,attr" cty:"mock_outputs_merge_with_state"`
+
+	// MockOutputsMergeWithState is deprecated. Use MockOutputsMergeStrategyWithState
+	MockOutputsMergeWithState         *bool              `hcl:"mock_outputs_merge_with_state,attr" cty:"mock_outputs_merge_with_state"`
+	MockOutputsMergeStrategyWithState *MergeStrategyType `hcl:"mock_outputs_merge_strategy_with_state" cty:"mock_outputs_merge_strategy_with_state"`
 
 	// Used to store the rendered outputs for use when the config is imported or read with `read_terragrunt_config`
 	RenderedOutputs *cty.Value `cty:"outputs"`
@@ -81,6 +84,22 @@ func (targetDepConfig *Dependency) DeepMerge(sourceDepConfig Dependency) error {
 	return nil
 }
 
+// getMockOutputsMergeStrategy returns the MergeStrategyType following the deprecation of mock_outputs_merge_with_state
+// - If mock_outputs_merge_strategy_with_state is not null. The value of mock_outputs_merge_strategy_with_state will be returned
+// - If mock_outputs_merge_strategy_with_state is null and mock_outputs_merge_with_state is not null:
+//   - mock_outputs_merge_with_state being true returns ShallowMerge
+//   - mock_outputs_merge_with_state being false returns NoMerge
+func (dependencyConfig Dependency) getMockOutputsMergeStrategy() MergeStrategyType {
+	if dependencyConfig.MockOutputsMergeStrategyWithState == nil {
+		if dependencyConfig.MockOutputsMergeWithState != nil && (*dependencyConfig.MockOutputsMergeWithState) {
+			return ShallowMerge
+		} else {
+			return NoMerge
+		}
+	}
+	return *dependencyConfig.MockOutputsMergeStrategyWithState
+}
+
 // Given a dependency config, we should only attempt to get the outputs if SkipOutputs is nil or false
 func (dependencyConfig Dependency) shouldGetOutputs() bool {
 	return dependencyConfig.SkipOutputs == nil || !(*dependencyConfig.SkipOutputs)
@@ -88,12 +107,11 @@ func (dependencyConfig Dependency) shouldGetOutputs() bool {
 
 // Given a dependency config, we should only attempt to merge mocks outputs with the outputs if MockOutputsMergeWithState is not nil or true
 func (dependencyConfig Dependency) shouldMergeMockOutputsWithState(terragruntOptions *options.TerragruntOptions) bool {
-	shouldMergeMocksAttr := dependencyConfig.MockOutputsMergeWithState != nil && (*dependencyConfig.MockOutputsMergeWithState)
 	allowedCommand :=
 		dependencyConfig.MockOutputsAllowedTerraformCommands == nil ||
 			len(*dependencyConfig.MockOutputsAllowedTerraformCommands) == 0 ||
 			util.ListContainsElement(*dependencyConfig.MockOutputsAllowedTerraformCommands, terragruntOptions.OriginalTerraformCommand)
-	return shouldMergeMocksAttr && allowedCommand
+	return allowedCommand && dependencyConfig.getMockOutputsMergeStrategy() != NoMerge
 }
 
 func (dependencyConfig *Dependency) setRenderedOutputs(terragruntOptions *options.TerragruntOptions) error {
@@ -301,7 +319,7 @@ func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOption
 // This will attempt to get the outputs from the target terragrunt config if it is applied. If it is not applied, the
 // behavior is different depending on the configuration of the dependency:
 // - If the dependency block indicates a mock_outputs attribute, this will return that.
-//   If the dependency block indicates a mock_outputs_merge_with_state attribute, mock_outputs and state outputs will be merged
+//   If the dependency block indicates a mock_outputs_merge_strategy_with_state attribute, mock_outputs and state outputs will be merged following the merge strategy
 // - If the dependency block does NOT indicate a mock_outputs attribute, this will return an error.
 func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
 	if dependencyConfig.shouldGetOutputs() {
@@ -311,22 +329,18 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 		}
 
 		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(terragruntOptions) {
-			stateOutputsMap, err := parseCtyValueToMap(*outputVal)
-			if err != nil {
-				return outputVal, err
+			mockMergeStrategy := dependencyConfig.getMockOutputsMergeStrategy()
+			switch mockMergeStrategy {
+			case NoMerge:
+				return outputVal, nil
+			case ShallowMerge:
+				return shallowMergeCtyMaps(*outputVal, *dependencyConfig.MockOutputs)
+			case DeepMergeMapOnly:
+				return deepMergeCtyMapsMapOnly(*dependencyConfig.MockOutputs, *outputVal)
+			default:
+				return nil, errors.WithStackTrace(InvalidMergeStrategyType(mockMergeStrategy))
 			}
-			mockOutputsMap, err := parseCtyValueToMap(*dependencyConfig.MockOutputs)
-			if err != nil {
-				return outputVal, err
-			}
-			for key, mockValue := range mockOutputsMap {
-				_, ok := stateOutputsMap[key]
-				if !ok {
-					stateOutputsMap[key] = mockValue
-				}
-			}
-			mergeOutputVal, err := convertToCtyWithJson(stateOutputsMap)
-			return &mergeOutputVal, err
+
 		} else if !isEmpty {
 			return outputVal, err
 		}
