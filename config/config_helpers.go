@@ -123,6 +123,7 @@ func CreateTerragruntEvalContext(
 		"run_cmd":                                      wrapStringSliceToStringAsFuncImpl(runCommand, extensions.TrackInclude, terragruntOptions),
 		"read_terragrunt_config":                       readTerragruntConfigAsFuncImpl(terragruntOptions),
 		"get_platform":                                 wrapVoidToStringAsFuncImpl(getPlatform, extensions.TrackInclude, terragruntOptions),
+		"get_repo_root":                                wrapVoidToStringAsFuncImpl(getRepoRoot, extensions.TrackInclude, terragruntOptions),
 		"get_path_from_repo_root":                      wrapVoidToStringAsFuncImpl(getPathFromRepoRoot, extensions.TrackInclude, terragruntOptions),
 		"get_path_to_repo_root":                        wrapVoidToStringAsFuncImpl(getPathToRepoRoot, extensions.TrackInclude, terragruntOptions),
 		"get_terragrunt_dir":                           wrapVoidToStringAsFuncImpl(getTerragruntDir, extensions.TrackInclude, terragruntOptions),
@@ -174,6 +175,11 @@ func CreateTerragruntEvalContext(
 // Return the OS platform
 func getPlatform(trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (string, error) {
 	return runtime.GOOS, nil
+}
+
+// Return the repository root as an absolute path
+func getRepoRoot(trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (string, error) {
+	return shell.GitTopLevelDir(terragruntOptions, terragruntOptions.WorkingDir)
 }
 
 // Return the path from the repository root

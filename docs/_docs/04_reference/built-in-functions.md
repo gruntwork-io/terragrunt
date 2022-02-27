@@ -24,6 +24,8 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
 
   - [get\_platform()](#get_platform)
 
+  - [get\_repo\_root()](#get_repo_root)
+  -
   - [get\_path\_from\_repo\_root()](#get_path_from_repo_root)
 
   - [get\_path\_to\_repo\_root()](#get_path_to_repo_root)
@@ -323,9 +325,22 @@ linux
 windows
 ```
 
+## get\_repo\_root
+
+`get_repo_root()` returns the absolute path to the root of the Git repository:
+
+```hcl
+inputs {
+  very_important_config = "${get_repo_root()}/config/strawberries.conf"
+}
+```
+
+This function will error if the file is not located in a Git repository.
+
+
 ## get\_path\_from\_repo\_root
 
-`get_path_from_repo_root()` returns the path from the current directory to the root of the repository:
+`get_path_from_repo_root()` returns the path from the current directory to the root of the Git repository:
 
 ```hcl
 remote_state {
@@ -342,12 +357,12 @@ remote_state {
 }
 ```
 
-This function will error if the file is not located in a git repository.
+This function will error if the file is not located in a Git repository.
 
 
 ## get\_path\_to\_repo\_root
 
-`get_path_to_repo_root()` returns the relative path to the root of the git repository:
+`get_path_to_repo_root()` returns the relative path to the root of the Git repository:
 
 ```hcl
 terraform {
@@ -355,7 +370,7 @@ terraform {
 }
 ```
 
-This function will error if the file is not located in a git repository.
+This function will error if the file is not located in a Git repository.
 
 ## get\_terragrunt\_dir
 
