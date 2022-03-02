@@ -109,6 +109,7 @@ const (
 	TEST_FIXTURE_IAM_ROLES_MULTIPLE_MODULES                 = "fixture-read-config/iam_roles_multiple_modules"
 	TEST_FIXTURE_RELATIVE_INCLUDE_CMD                       = "fixture-relative-include-cmd"
 	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                    = "fixture-get-aws-caller-identity"
+	TEST_FIXTURE_GET_REPO_ROOT                              = "fixture-get-repo-root"
 	TEST_FIXTURE_GET_PATH_FROM_REPO_ROOT                    = "fixture-get-path-from-repo-root"
 	TEST_FIXTURE_GET_PATH_TO_REPO_ROOT                      = "fixture-get-path-to-repo-root"
 	TEST_FIXTURE_GET_PLATFORM                               = "fixture-get-platform"
@@ -2761,6 +2762,38 @@ func TestAWSGetCallerIdentityFunctions(t *testing.T) {
 	assert.Equal(t, outputs["account"].Value, *identity.Account)
 	assert.Equal(t, outputs["arn"].Value, *identity.Arn)
 	assert.Equal(t, outputs["user_id"].Value, *identity.UserId)
+}
+
+func TestGetRepoRoot(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_REPO_ROOT)
+	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_GET_REPO_ROOT))
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_REPO_ROOT)
+
+	_, err := exec.Command("git", "init", rootPath).Output()
+	if err != nil {
+		t.Fatalf("Error initializing git repo: %v", err)
+	}
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	repoRoot, ok := outputs["repo_root"]
+
+	require.True(t, ok)
+	require.Regexp(t, "/tmp/terragrunt-.*/fixture-get-repo-root", repoRoot.Value)
 }
 
 func TestGetPathFromRepoRoot(t *testing.T) {
