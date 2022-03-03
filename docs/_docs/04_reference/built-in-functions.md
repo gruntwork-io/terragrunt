@@ -25,7 +25,7 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
   - [get\_platform()](#get_platform)
 
   - [get\_repo\_root()](#get_repo_root)
-  -
+
   - [get\_path\_from\_repo\_root()](#get_path_from_repo_root)
 
   - [get\_path\_to\_repo\_root()](#get_path_to_repo_root)
