@@ -340,7 +340,7 @@ This function will error if the file is not located in a Git repository.
 
 ## get\_path\_from\_repo\_root
 
-`get_path_from_repo_root()` returns the path from the current directory to the root of the Git repository:
+`get_path_from_repo_root()` returns the path from the root of the Git repository to the current directory:
 
 ```hcl
 remote_state {
