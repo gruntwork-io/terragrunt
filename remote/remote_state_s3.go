@@ -426,7 +426,7 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 		return err
 	}
 
-	if err := EnablePublicAccessBlockingForS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
+	if err := EnablePublicAccessBlockingForS3Bucket(s3Client, config.remoteStateConfigS3.Bucket, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -455,6 +455,10 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 
 		if err := CreateLogsS3BucketIfNecessary(s3Client, aws.String(config.AccessLoggingBucketName), terragruntOptions); err != nil {
 			terragruntOptions.Logger.Errorf("Could not create logs bucket %s for AWS S3 bucket %s", config.AccessLoggingBucketName, config.remoteStateConfigS3.Bucket)
+			return err
+		}
+
+		if err := EnablePublicAccessBlockingForS3Bucket(s3Client, config.AccessLoggingBucketName, terragruntOptions); err != nil {
 			return err
 		}
 
@@ -724,11 +728,11 @@ func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *RemoteStateConf
 // Block all public access policies on the bucket and objects. These settings ensure that a misconfiguration of the
 // bucket or objects will not accidentally enable public access to those items. See
 // https://docs.aws.amazon.com/AmazonS3/latest/dev/access-control-block-public-access.html for more information.
-func EnablePublicAccessBlockingForS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Debugf("Blocking all public access to S3 bucket %s", config.Bucket)
+func EnablePublicAccessBlockingForS3Bucket(s3Client *s3.S3, bucketName string, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Debugf("Blocking all public access to S3 bucket %s", bucketName)
 	_, err := s3Client.PutPublicAccessBlock(
 		&s3.PutPublicAccessBlockInput{
-			Bucket: aws.String(config.Bucket),
+			Bucket: aws.String(bucketName),
 			PublicAccessBlockConfiguration: &s3.PublicAccessBlockConfiguration{
 				BlockPublicAcls:       aws.Bool(true),
 				BlockPublicPolicy:     aws.Bool(true),
@@ -742,7 +746,7 @@ func EnablePublicAccessBlockingForS3Bucket(s3Client *s3.S3, config *RemoteStateC
 		return errors.WithStackTrace(err)
 	}
 
-	terragruntOptions.Logger.Debugf("Blocked all public access to S3 bucket %s", config.Bucket)
+	terragruntOptions.Logger.Debugf("Blocked all public access to S3 bucket %s", bucketName)
 	return nil
 }
 
