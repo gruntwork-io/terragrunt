@@ -189,7 +189,12 @@ func getPathFromRepoRoot(trackInclude *TrackInclude, terragruntOptions *options.
 		return "", errors.WithStackTrace(err)
 	}
 
-	return filepath.Rel(repoAbsPath, terragruntOptions.WorkingDir)
+	repoRelPath, err := filepath.Rel(repoAbsPath, terragruntOptions.WorkingDir)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	return filepath.ToSlash(repoRelPath), nil
 }
 
 // Return the path to the repository root
@@ -204,7 +209,7 @@ func getPathToRepoRoot(trackInclude *TrackInclude, terragruntOptions *options.Te
 		return "", errors.WithStackTrace(err)
 	}
 
-	return strings.TrimSpace(repoRootPathAbs) + "/", nil
+	return filepath.ToSlash(strings.TrimSpace(repoRootPathAbs) + "/"), nil
 }
 
 // Return the directory where the Terragrunt configuration file lives
