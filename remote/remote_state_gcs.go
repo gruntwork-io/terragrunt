@@ -18,6 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/jwt"
+	impersonate "google.golang.org/api/impersonate"
 	"google.golang.org/api/option"
 )
 
@@ -466,9 +467,16 @@ func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, err
 	}
 
 	if gcsConfigRemote.ImpersonateServiceAccount != "" {
-		opts = append(opts, option.ImpersonateCredentials(
-			gcsConfigRemote.ImpersonateServiceAccount,
-			gcsConfigRemote.ImpersonateServiceAccountDelegates...))
+		ts, err := impersonate.CredentialsTokenSource(context.Background(), impersonate.CredentialsConfig{
+			TargetPrincipal: gcsConfigRemote.ImpersonateServiceAccount,
+			// As for Terraform, hard-code the access scope: https://github.com/hashicorp/terraform/blob/032a4d083722da4369c03cc1e8dc5ae87b407e52/internal/backend/remote-state/gcs/backend.go#L169
+			Scopes:    []string{storage.ScopeReadWrite},
+			Delegates: gcsConfigRemote.ImpersonateServiceAccountDelegates,
+		})
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, option.WithTokenSource(ts))
 	}
 
 	client, err := storage.NewClient(ctx, opts...)
