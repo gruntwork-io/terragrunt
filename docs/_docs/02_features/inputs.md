@@ -35,7 +35,7 @@ Whenever you run a Terragrunt command, Terragrunt will set any inputs you pass i
     TF_VAR_tags='{"Name":"example-app"}' \
     terraform apply
 
-Note that Terragrunt will respect any `TF_VAR_xxx` variables you’ve manually set in your environment, ensuring that anything in `inputs` will NOT be override anything you’ve already set in your environment.
+Note that Terragrunt will respect any `TF_VAR_xxx` variables you’ve manually set in your environment, ensuring that anything in `inputs` will NOT override anything you’ve already set in your environment.
 
 ### Variable precedence
 
