@@ -324,6 +324,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		WorkingDir:                   workingDir,
 		Logger:                       util.CreateLogEntryWithWriter(terragruntOptions.ErrWriter, workingDir, terragruntOptions.LogLevel, terragruntOptions.Logger.Logger.Hooks),
 		LogLevel:                     terragruntOptions.LogLevel,
+		ValidateStrict:               terragruntOptions.ValidateStrict,
 		Env:                          util.CloneStringMap(terragruntOptions.Env),
 		Source:                       terragruntOptions.Source,
 		SourceMap:                    terragruntOptions.SourceMap,
@@ -352,6 +353,8 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		AwsProviderPatchOverrides:    terragruntOptions.AwsProviderPatchOverrides,
 		HclFile:                      terragruntOptions.HclFile,
 		JSONOut:                      terragruntOptions.JSONOut,
+		Check:                        terragruntOptions.Check,
+		CheckDependentModules:        terragruntOptions.CheckDependentModules,
 	}
 }
 
