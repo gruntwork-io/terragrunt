@@ -283,3 +283,27 @@ func runTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []str
 		require.Error(t, err)
 	}
 }
+
+func TestRenderRunAllCustomConfig(t *testing.T) {
+	fixtureRunAllCustomConfig := "fixture-run-all-custom-config"
+	customConfigFile := ".terragrunt.hcl"
+	tmpDir, err := ioutil.TempDir("", "terragrunt-render-json-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	cleanupTerraformFolder(t, fixtureRenderJSONMainModulePath)
+	cleanupTerraformFolder(t, fixtureRenderJSONDepModulePath)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	require.NoError(
+		t,
+		runTerragruntCommand(t,
+			fmt.Sprintf("terragrunt run-all plan --terragrunt-log-level debug --terragrunt-config %s --terragrunt-working-dir %s", customConfigFile, fixtureRunAllCustomConfig),
+			&stdout,
+			&stderr),
+	)
+
+	stdoutStr := stdout.String()
+	assert.Contains(t, stdoutStr, "No changes")
+}

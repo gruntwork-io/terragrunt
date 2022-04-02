@@ -512,6 +512,14 @@ func GetDefaultConfigPath(workingDir string) string {
 	return DefaultConfigPath(workingDir)
 }
 
+func GetConfigPath(path string, terragruntOptions *options.TerragruntOptions) string {
+	if filepath.IsAbs(terragruntOptions.TerragruntConfigPath) {
+		return GetDefaultConfigPath(path)
+	}
+
+	return util.JoinPath(path, terragruntOptions.TerragruntConfigPath)
+}
+
 // Returns a list of all Terragrunt config files in the given path or any subfolder of the path. A file is a Terragrunt
 // config file if it has a name as returned by the DefaultConfigPath method
 func FindConfigFilesInPath(rootPath string, terragruntOptions *options.TerragruntOptions) ([]string, error) {
@@ -533,7 +541,7 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 		}
 
 		if isTerragruntModule {
-			configFiles = append(configFiles, GetDefaultConfigPath(path))
+			configFiles = append(configFiles, GetConfigPath(path, terragruntOptions))
 		}
 
 		return nil
@@ -582,7 +590,7 @@ func containsTerragruntModule(path string, info os.FileInfo, terragruntOptions *
 		return false, err
 	}
 
-	return util.FileExists(GetDefaultConfigPath(path)), nil
+	return util.FileExists(GetConfigPath(path, terragruntOptions)), nil
 }
 
 // Read the Terragrunt config file from its default location
@@ -704,26 +712,16 @@ func ParseConfigString(
 	return config, nil
 }
 
-// iamRoleCache - store for cached values of IAM roles
-var iamRoleCache = NewIAMRoleOptionsCache()
-
 // setIAMRole - extract IAM role details from Terragrunt flags block
 func setIAMRole(configString string, terragruntOptions *options.TerragruntOptions, includeFromChild *IncludeConfig, filename string) error {
-	// as key is considered HCL code and include configuration
-	var key = fmt.Sprintf("%v-%v", configString, includeFromChild)
-	var config, found = iamRoleCache.Get(key)
-	if !found {
-		iamConfig, err := PartialParseConfigString(configString, terragruntOptions, includeFromChild, filename, []PartialDecodeSectionType{TerragruntFlags})
-		if err != nil {
-			return err
-		}
-		config = iamConfig.GetIAMRoleOptions()
-		iamRoleCache.Put(key, config)
+	iamConfig, err := PartialParseConfigString(configString, terragruntOptions, includeFromChild, filename, []PartialDecodeSectionType{TerragruntFlags})
+	if err != nil {
+		return err
 	}
 	// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
 	// precedence.
 	terragruntOptions.IAMRoleOptions = options.MergeIAMRoleOptions(
-		config,
+		iamConfig.GetIAMRoleOptions(),
 		terragruntOptions.OriginalIAMRoleOptions,
 	)
 	return nil
