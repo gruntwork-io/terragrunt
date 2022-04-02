@@ -284,7 +284,7 @@ func runTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []str
 	}
 }
 
-func TestRenderRunAllCustomConfig(t *testing.T) {
+func TestRunAllCustomConfig(t *testing.T) {
 	fixtureRunAllCustomConfig := "fixture-run-all-custom-config"
 	customConfigFile := ".terragrunt.hcl"
 	tmpDir, err := ioutil.TempDir("", "terragrunt-render-json-*")
