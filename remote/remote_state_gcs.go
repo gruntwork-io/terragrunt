@@ -289,7 +289,7 @@ func checkIfGCSVersioningEnabled(gcsClient *storage.Client, config *RemoteStateC
 		return errors.WithStackTrace(err)
 	}
 
-	if attrs.VersioningEnabled == false {
+	if !attrs.VersioningEnabled {
 		terragruntOptions.Logger.Warnf("Versioning is not enabled for the remote state GCS bucket %s. We recommend enabling versioning so that you can roll back to previous versions of your Terraform state in case of error.", config.Bucket)
 	}
 
@@ -326,7 +326,7 @@ func AddLabelsToGCSBucket(gcsClient *storage.Client, config *ExtendedRemoteState
 	ctx := context.Background()
 	bucket := gcsClient.Bucket(config.remoteStateConfigGCS.Bucket)
 
-	bucketAttrs := *&storage.BucketAttrsToUpdate{}
+	bucketAttrs := storage.BucketAttrsToUpdate{}
 
 	for key, value := range config.GCSBucketLabels {
 		bucketAttrs.SetLabel(key, value)

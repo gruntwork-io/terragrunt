@@ -590,7 +590,7 @@ func EnableRootAccesstoS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConf
 					"arn:" + partition + ":s3:::" + bucket + "/*",
 				},
 				"Principal": map[string][]string{
-					"AWS": []string{
+					"AWS": {
 						"arn:" + partition + ":iam::" + accountID + ":root",
 					},
 				},
