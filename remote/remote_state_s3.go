@@ -40,6 +40,7 @@ type ExtendedRemoteStateConfigS3 struct {
 	SkipBucketAccessLogging     bool              `mapstructure:"skip_bucket_accesslogging"`
 	SkipBucketRootAccess        bool              `mapstructure:"skip_bucket_root_access"`
 	SkipBucketEnforcedTLS       bool              `mapstructure:"skip_bucket_enforced_tls"`
+	DisableBucketUpdate         bool              `mapstructure:"disable_bucket_update"`
 	EnableLockTableSSEncryption bool              `mapstructure:"enable_lock_table_ssencryption"`
 	DisableAWSClientChecksums   bool              `mapstructure:"disable_aws_client_checksums"`
 	AccessLoggingBucketName     string            `mapstructure:"accesslogging_bucket_name"`
@@ -56,6 +57,7 @@ var terragruntOnlyConfigs = []string{
 	"skip_bucket_accesslogging",
 	"skip_bucket_root_access",
 	"skip_bucket_enforced_tls",
+	"disable_bucket_update",
 	"enable_lock_table_ssencryption",
 	"disable_aws_client_checksums",
 	"accesslogging_bucket_name",
@@ -258,8 +260,14 @@ func (s3Initializer S3Initializer) Initialize(remoteState *RemoteState, terragru
 		return err
 	}
 
+	if !s3ConfigExtended.DisableBucketUpdate {
+		if err := updateS3BucketIfNecessary(s3Client, s3ConfigExtended, terragruntOptions); err != nil {
+			return err
+		}
+	}
+
 	if !s3ConfigExtended.SkipBucketVersioning {
-		if err := checkIfVersioningEnabled(s3Client, &s3Config, terragruntOptions); err != nil {
+		if _, err := checkIfVersioningEnabled(s3Client, &s3Config, terragruntOptions); err != nil {
 			return err
 		}
 	}
@@ -381,20 +389,124 @@ func createS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 	return nil
 }
 
+func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	if !DoesS3BucketExist(s3Client, &config.remoteStateConfigS3.Bucket) {
+		return errors.WithStackTrace(fmt.Errorf("remote state S3 bucket %s does not exist or you don't have permissions to access it", config.remoteStateConfigS3.Bucket))
+	}
+
+	needUpdate, err := checkIfS3BucketNeedsUpdate(s3Client, config, terragruntOptions)
+	if err != nil {
+		return err
+	}
+
+	if !needUpdate {
+		terragruntOptions.Logger.Debug("S3 bucket is already up to date")
+		return nil
+	}
+
+	prompt := fmt.Sprintf("Remote state S3 bucket %s is out of date. Would you like Terragrunt to update it?", config.remoteStateConfigS3.Bucket)
+	shouldUpdateBucket, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
+	if err != nil {
+		return err
+	}
+
+	if shouldUpdateBucket {
+		if config.SkipBucketVersioning {
+			terragruntOptions.Logger.Debugf("Versioning is disabled for the remote state S3 bucket %s using 'skip_bucket_versioning' config.", config.remoteStateConfigS3.Bucket)
+		} else if err := EnableVersioningForS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
+			return err
+		}
+
+		if config.SkipBucketSSEncryption {
+			terragruntOptions.Logger.Debugf("Server-Side Encryption is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", config.remoteStateConfigS3.Bucket)
+		} else if err := EnableSSEForS3BucketWide(s3Client, config, terragruntOptions); err != nil {
+			return err
+		}
+
+		if config.SkipBucketEnforcedTLS {
+			terragruntOptions.Logger.Debugf("Enforced TLS is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_enforced_tls' config.", config.remoteStateConfigS3.Bucket)
+		} else if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, config, terragruntOptions); err != nil {
+			return err
+		}
+
+		if err := EnablePublicAccessBlockingForS3Bucket(s3Client, config.remoteStateConfigS3.Bucket, terragruntOptions); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	var needUpdate []string
+	if !config.SkipBucketVersioning {
+		enabled, err := checkIfVersioningEnabled(s3Client, &config.remoteStateConfigS3, terragruntOptions)
+		if err != nil {
+			return false, err
+		}
+
+		if !enabled {
+			needUpdate = append(needUpdate, "Bucket versioning")
+		}
+	}
+
+	if !config.SkipBucketSSEncryption {
+		enabled, err := checkIfSSEForS3Enabled(s3Client, &config.remoteStateConfigS3, terragruntOptions)
+		if err != nil {
+			return false, err
+		}
+
+		if !enabled {
+			needUpdate = append(needUpdate, "Bucket SSE Encryption")
+		}
+	}
+
+	if !config.SkipBucketEnforcedTLS {
+		enabled, err := checkIfBucketEnforcedTLS(s3Client, &config.remoteStateConfigS3, terragruntOptions)
+		if err != nil {
+			return false, err
+		}
+
+		if !enabled {
+			needUpdate = append(needUpdate, "Bucket TLS Policy")
+		}
+	}
+
+	enabled, err := checkIfS3PublicAccessBlockingEnabled(s3Client, &config.remoteStateConfigS3, terragruntOptions)
+	if err != nil {
+		return false, err
+	}
+	if !enabled {
+		needUpdate = append(needUpdate, "Bucket public access blocking")
+	}
+
+	if len(needUpdate) > 0 {
+		terragruntOptions.Logger.Warnf("The remote state S3 bucket %s needs to be updated:", config.remoteStateConfigS3.Bucket)
+		for _, update := range needUpdate {
+			terragruntOptions.Logger.Warnf("  - %s", update)
+		}
+
+		return true, nil
+	}
+
+	return false, nil
+}
+
 // Check if versioning is enabled for the S3 bucket specified in the given config and warn the user if it is not
-func checkIfVersioningEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+func checkIfVersioningEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	out, err := s3Client.GetBucketVersioning(&s3.GetBucketVersioningInput{Bucket: aws.String(config.Bucket)})
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return false, errors.WithStackTrace(err)
 	}
 
 	// NOTE: There must be a bug in the AWS SDK since out == nil when versioning is not enabled. In the future,
 	// check the AWS SDK for updates to see if we can remove "out == nil ||".
 	if out == nil || out.Status == nil || *out.Status != s3.BucketVersioningStatusEnabled {
 		terragruntOptions.Logger.Warnf("Versioning is not enabled for the remote state S3 bucket %s. We recommend enabling versioning so that you can roll back to previous versions of your Terraform state in case of error.", config.Bucket)
+		return false, nil
 	}
 
-	return nil
+	return true, nil
 }
 
 // Create the given S3 bucket and enable versioning for it
@@ -442,7 +554,7 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 
 	if config.SkipBucketSSEncryption {
 		terragruntOptions.Logger.Debugf("Server-Side Encryption is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", config.remoteStateConfigS3.Bucket)
-	} else if err := EnableSSEForS3BucketWide(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
+	} else if err := EnableSSEForS3BucketWide(s3Client, config, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -502,7 +614,9 @@ func TagS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragrun
 	putBucketTaggingInput := s3.PutBucketTaggingInput{
 		Bucket: aws.String(config.remoteStateConfigS3.Bucket),
 		Tagging: &s3.Tagging{
-			TagSet: tagsConverted}}
+			TagSet: tagsConverted,
+		},
+	}
 
 	_, err := s3Client.PutBucketTagging(&putBucketTaggingInput)
 	if err != nil {
@@ -659,8 +773,63 @@ func EnableEnforcedTLSAccesstoS3Bucket(s3Client *s3.S3, config *ExtendedRemoteSt
 		return errors.WithStackTrace(err)
 	}
 
+	tagEnforced := make(map[string]string)
+	tagEnforced["TerragruntEnforceTLS"] = "true"
+	tagsConverted := convertTags(tagEnforced)
+
+	putBucketTaggingInput := s3.PutBucketTaggingInput{
+		Bucket: aws.String(config.remoteStateConfigS3.Bucket),
+		Tagging: &s3.Tagging{
+			TagSet: tagsConverted,
+		},
+	}
+
+	_, err = s3Client.PutBucketTagging(&putBucketTaggingInput)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
 	terragruntOptions.Logger.Debugf("Enabled enforced TLS access for bucket %s", bucket)
 	return nil
+}
+
+func checkIfBucketEnforcedTLS(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	terragruntOptions.Logger.Debugf("Checking if bucket %s is enforced with TLS", config.Bucket)
+
+	policyOutput, err := s3Client.GetBucketPolicy(&s3.GetBucketPolicyInput{
+		Bucket: aws.String(config.Bucket),
+	})
+	if err != nil {
+		terragruntOptions.Logger.Debugf("Could not get policy for bucket %s", config.Bucket)
+		return false, nil
+	}
+
+	// If the bucket has no policy, it is not enforced
+	if policyOutput.Policy == nil {
+		return true, nil
+	}
+
+	taggingOutput, err := s3Client.GetBucketTagging(&s3.GetBucketTaggingInput{
+		Bucket: aws.String(config.Bucket),
+	})
+	if err != nil {
+		terragruntOptions.Logger.Debugf("Failed to get tags for bucket %s", config.Bucket)
+		return false, nil
+	}
+
+	if taggingOutput.TagSet == nil {
+		return false, nil
+	}
+
+	for _, tag := range taggingOutput.TagSet {
+		if aws.StringValue(tag.Key) == "TerragruntEnforceTLS" && aws.StringValue(tag.Value) == "true" {
+			terragruntOptions.Logger.Debugf("Bucket %s is enforced with TLS", config.Bucket)
+			return true, nil
+		}
+	}
+
+	terragruntOptions.Logger.Debugf("Bucket %s is not enforced with TLS", config.Bucket)
+	return false, nil
 }
 
 // Enable versioning for the S3 bucket specified in the given config
@@ -681,22 +850,62 @@ func EnableVersioningForS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, t
 }
 
 // Enable bucket-wide Server-Side Encryption for the AWS S3 bucket specified in the given config
-func EnableSSEForS3BucketWide(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Debugf("Enabling bucket-wide SSE on AWS S3 bucket %s", config.Bucket)
-	// Encrypt with KMS by default
-	defEnc := &s3.ServerSideEncryptionByDefault{SSEAlgorithm: aws.String(s3.ServerSideEncryptionAwsKms)}
-	rule := &s3.ServerSideEncryptionRule{ApplyServerSideEncryptionByDefault: defEnc}
-	rules := []*s3.ServerSideEncryptionRule{rule}
-	serverConfig := &s3.ServerSideEncryptionConfiguration{Rules: rules}
-	input := &s3.PutBucketEncryptionInput{Bucket: aws.String(config.Bucket), ServerSideEncryptionConfiguration: serverConfig}
+func EnableSSEForS3BucketWide(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Debugf("Enabling bucket-wide SSE on AWS S3 bucket %s", config.remoteStateConfigS3.Bucket)
 
-	_, err := s3Client.PutBucketEncryption(input)
+	// Encrypt with KMS by default
+	accountID, err := aws_helper.GetAWSAccountID(config.GetAwsSessionConfig(), terragruntOptions)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	terragruntOptions.Logger.Debugf("Enabled bucket-wide SSE on AWS S3 bucket %s", config.Bucket)
+	kmsKeyID := fmt.Sprintf("arn:aws:kms:%s:%s:alias/aws/s3", config.remoteStateConfigS3.Region, accountID)
+	defEnc := &s3.ServerSideEncryptionByDefault{
+		SSEAlgorithm:   aws.String(s3.ServerSideEncryptionAwsKms),
+		KMSMasterKeyID: aws.String(kmsKeyID),
+	}
+
+	rule := &s3.ServerSideEncryptionRule{ApplyServerSideEncryptionByDefault: defEnc}
+	rules := []*s3.ServerSideEncryptionRule{rule}
+	serverConfig := &s3.ServerSideEncryptionConfiguration{Rules: rules}
+	input := &s3.PutBucketEncryptionInput{Bucket: aws.String(config.remoteStateConfigS3.Bucket), ServerSideEncryptionConfiguration: serverConfig}
+
+	_, err = s3Client.PutBucketEncryption(input)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	terragruntOptions.Logger.Debugf("Enabled bucket-wide SSE on AWS S3 bucket %s", config.remoteStateConfigS3.Bucket)
 	return nil
+}
+
+func checkIfSSEForS3Enabled(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	terragruntOptions.Logger.Debugf("Checking if SSE is enabled for AWS S3 bucket %s", config.Bucket)
+
+	input := &s3.GetBucketEncryptionInput{Bucket: aws.String(config.Bucket)}
+	output, err := s3Client.GetBucketEncryption(input)
+	if err != nil {
+		terragruntOptions.Logger.Debugf("Error checking if SSE is enabled for AWS S3 bucket %s: %s", config.Bucket, err.Error())
+		return false, nil
+	}
+
+	if output.ServerSideEncryptionConfiguration == nil {
+		return false, nil
+	}
+
+	for _, rule := range output.ServerSideEncryptionConfiguration.Rules {
+		if rule.ApplyServerSideEncryptionByDefault != nil {
+			if rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
+				if *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm == s3.ServerSideEncryptionAwsKms {
+					return true, nil
+				}
+
+				return false, nil
+			}
+		}
+	}
+
+	return false, nil
 }
 
 // Enable bucket-wide Access Logging for the AWS S3 bucket specified in the given config
@@ -748,6 +957,36 @@ func EnablePublicAccessBlockingForS3Bucket(s3Client *s3.S3, bucketName string, t
 
 	terragruntOptions.Logger.Debugf("Blocked all public access to S3 bucket %s", bucketName)
 	return nil
+}
+
+func checkIfS3PublicAccessBlockingEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	terragruntOptions.Logger.Debugf("Checking if S3 bucket %s is configured to block public access", config.Bucket)
+	output, err := s3Client.GetPublicAccessBlock(&s3.GetPublicAccessBlockInput{
+		Bucket: aws.String(config.Bucket),
+	})
+	if err != nil {
+		terragruntOptions.Logger.Debugf("Error checking if S3 bucket %s is configured to block public access: %s", config.Bucket, err.Error())
+		return false, errors.WithStackTrace(err)
+	}
+
+	if output.PublicAccessBlockConfiguration == nil {
+		return false, nil
+	}
+
+	if !*output.PublicAccessBlockConfiguration.BlockPublicAcls {
+		return false, nil
+	}
+	if !*output.PublicAccessBlockConfiguration.BlockPublicPolicy {
+		return false, nil
+	}
+	if !*output.PublicAccessBlockConfiguration.IgnorePublicAcls {
+		return false, nil
+	}
+	if !*output.PublicAccessBlockConfiguration.RestrictPublicBuckets {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 // To enable access logging in an S3 bucket, you must grant WRITE and READ_ACP permissions to the Log Delivery
