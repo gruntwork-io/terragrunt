@@ -19,4 +19,5 @@ var DEFAULT_RETRYABLE_ERRORS = []string{
 	"(?s).*Error creating SSM parameter: TooManyUpdates:.*",
 	"(?s).*app.terraform.io.*: 429 Too Many Requests.*",
 	"(?s).*ssh_exchange_identification.*Connection closed by remote host.*",
+	"(?s).*Client\\.Timeout exceeded while awaiting headers.*",
 }
