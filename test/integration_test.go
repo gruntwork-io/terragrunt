@@ -2832,9 +2832,9 @@ func TestGetPathFromRepoRoot(t *testing.T) {
 func TestGetPathToRepoRoot(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_GET_PATH_TO_REPO_ROOT)
 	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_GET_PATH_TO_REPO_ROOT))
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_PATH_TO_REPO_ROOT)
+	cleanupTerraformFolder(t, rootPath)
 
 	_, err := exec.Command("git", "init", tmpEnvPath+"/../").Output()
 	if err != nil {
