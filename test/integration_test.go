@@ -2836,9 +2836,9 @@ func TestGetPathToRepoRoot(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_PATH_TO_REPO_ROOT)
 	cleanupTerraformFolder(t, rootPath)
 
-	_, err := exec.Command("git", "init", tmpEnvPath+"/../").Output()
+	output, err := exec.Command("git", "init", tmpEnvPath+"/../").Output()
 	if err != nil {
-		t.Fatalf("Error initializing git repo: %v", err)
+		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
 	}
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
