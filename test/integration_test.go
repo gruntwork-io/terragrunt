@@ -4196,13 +4196,11 @@ func runValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath
 	logBufferContentsLineByLine(t, validateAllStderr, "validate-all stderr")
 	require.NoError(t, err)
 
-	currentDir, err := os.Getwd()
 	require.NoError(t, err)
 
 	includedModulesRegexp, err := regexp.Compile(
 		fmt.Sprintf(
-			`=> Module %s/%s/(.+) \(excluded: (true|false)`,
-			currentDir,
+			`=> Module %s/(.+) \(excluded: (true|false)`,
 			rootModulePath,
 		),
 	)
