@@ -495,6 +495,10 @@ explanation). This argument is not used with the `apply-all`, `destroy-all`, `ou
 
 A custom path to the Terraform binary. The default is `terraform` in a directory on your PATH.
 
+**NOTE**: This will override the `terraform` binary that is used by `terragrunt` in all instances, including
+`dependency` lookups. This setting will also override any [terraform_binary]({{site.baseurl}}/docs/reference/config-blocks-and-attributes/#terraform_binary)
+configuration values specified in the `terragrunt.hcl` config for both the top level, and dependency lookups.
+
 
 ### terragrunt-no-auto-init
 
