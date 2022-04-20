@@ -411,68 +411,70 @@ func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 		return err
 	}
 
-	if shouldUpdateBucket {
-		if configBucket.Versioning != "" {
-			if config.SkipBucketVersioning {
-				terragruntOptions.Logger.Debugf("Versioning is disabled for the remote state S3 bucket %s using 'skip_bucket_versioning' config.", config.remoteStateConfigS3.Bucket)
-			} else if err := EnableVersioningForS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
-				return err
-			}
+	if !shouldUpdateBucket {
+		return nil
+	}
+
+	if configBucket.Versioning != "" {
+		if config.SkipBucketVersioning {
+			terragruntOptions.Logger.Debugf("Versioning is disabled for the remote state S3 bucket %s using 'skip_bucket_versioning' config.", config.remoteStateConfigS3.Bucket)
+		} else if err := EnableVersioningForS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
+			return err
 		}
+	}
 
-		if configBucket.SSEEncryption != "" {
-			if config.SkipBucketSSEncryption {
-				terragruntOptions.Logger.Debugf("Server-Side Encryption is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", config.remoteStateConfigS3.Bucket)
-			} else if err := EnableSSEForS3BucketWide(s3Client, config, terragruntOptions); err != nil {
-				return err
-			}
+	if configBucket.SSEEncryption != "" {
+		if config.SkipBucketSSEncryption {
+			terragruntOptions.Logger.Debugf("Server-Side Encryption is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", config.remoteStateConfigS3.Bucket)
+		} else if err := EnableSSEForS3BucketWide(s3Client, config, terragruntOptions); err != nil {
+			return err
 		}
+	}
 
-		if configBucket.RootAccess != "" {
-			if config.SkipBucketRootAccess {
-				terragruntOptions.Logger.Debugf("Root access is disabled for the remote state S3 bucket %s using 'skip_bucket_root_access' config.", config.remoteStateConfigS3.Bucket)
-			} else if err := EnableRootAccesstoS3Bucket(s3Client, config, terragruntOptions); err != nil {
-				return err
-			}
+	if configBucket.RootAccess != "" {
+		if config.SkipBucketRootAccess {
+			terragruntOptions.Logger.Debugf("Root access is disabled for the remote state S3 bucket %s using 'skip_bucket_root_access' config.", config.remoteStateConfigS3.Bucket)
+		} else if err := EnableRootAccesstoS3Bucket(s3Client, config, terragruntOptions); err != nil {
+			return err
 		}
+	}
 
-		if configBucket.EnforcedTLS != "" {
-			if config.SkipBucketEnforcedTLS {
-				terragruntOptions.Logger.Debugf("Enforced TLS is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_enforced_tls' config.", config.remoteStateConfigS3.Bucket)
-			} else if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, config, terragruntOptions); err != nil {
-				return err
-			}
+	if configBucket.EnforcedTLS != "" {
+		if config.SkipBucketEnforcedTLS {
+			terragruntOptions.Logger.Debugf("Enforced TLS is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_enforced_tls' config.", config.remoteStateConfigS3.Bucket)
+		} else if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, config, terragruntOptions); err != nil {
+			return err
 		}
+	}
 
-		if configBucket.AccessLogging != "" {
-			if config.SkipBucketAccessLogging {
-				terragruntOptions.Logger.Debugf("Access logging is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_access_logging' config.", config.remoteStateConfigS3.Bucket)
-			} else {
-				if config.AccessLoggingBucketName != "" {
-					terragruntOptions.Logger.Debugf("Enabling bucket-wide Access Logging on AWS S3 bucket %s - using as TargetBucket %s", config.remoteStateConfigS3.Bucket, config.AccessLoggingBucketName)
+	if configBucket.AccessLogging != "" {
+		if config.SkipBucketAccessLogging {
+			terragruntOptions.Logger.Debugf("Access logging is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_access_logging' config.", config.remoteStateConfigS3.Bucket)
+		} else {
+			if config.AccessLoggingBucketName != "" {
+				terragruntOptions.Logger.Debugf("Enabling bucket-wide Access Logging on AWS S3 bucket %s - using as TargetBucket %s", config.remoteStateConfigS3.Bucket, config.AccessLoggingBucketName)
 
-					if err := CreateLogsS3BucketIfNecessary(s3Client, aws.String(config.AccessLoggingBucketName), terragruntOptions); err != nil {
-						terragruntOptions.Logger.Errorf("Could not create logs bucket %s for AWS S3 bucket %s", config.AccessLoggingBucketName, config.remoteStateConfigS3.Bucket)
-						return err
-					}
-
-					if err := EnablePublicAccessBlockingForS3Bucket(s3Client, config.AccessLoggingBucketName, terragruntOptions); err != nil {
-						return err
-					}
-
-					if err := EnableAccessLoggingForS3BucketWide(s3Client, &config.remoteStateConfigS3, terragruntOptions, config.AccessLoggingBucketName, config.AccessLoggingTargetPrefix); err != nil {
-						return err
-					}
-				} else {
-					terragruntOptions.Logger.Debugf("Access Logging is disabled for the remote state AWS S3 bucket %s", config.remoteStateConfigS3.Bucket)
+				if err := CreateLogsS3BucketIfNecessary(s3Client, aws.String(config.AccessLoggingBucketName), terragruntOptions); err != nil {
+					terragruntOptions.Logger.Errorf("Could not create logs bucket %s for AWS S3 bucket %s", config.AccessLoggingBucketName, config.remoteStateConfigS3.Bucket)
+					return err
 				}
+
+				if err := EnablePublicAccessBlockingForS3Bucket(s3Client, config.AccessLoggingBucketName, terragruntOptions); err != nil {
+					return err
+				}
+
+				if err := EnableAccessLoggingForS3BucketWide(s3Client, &config.remoteStateConfigS3, terragruntOptions, config.AccessLoggingBucketName, config.AccessLoggingTargetPrefix); err != nil {
+					return err
+				}
+			} else {
+				terragruntOptions.Logger.Debugf("Access Logging is disabled for the remote state AWS S3 bucket %s", config.remoteStateConfigS3.Bucket)
 			}
 		}
+	}
 
-		if configBucket.PublicAccess != "" {
-			if err := EnablePublicAccessBlockingForS3Bucket(s3Client, config.remoteStateConfigS3.Bucket, terragruntOptions); err != nil {
-				return err
-			}
+	if configBucket.PublicAccess != "" {
+		if err := EnablePublicAccessBlockingForS3Bucket(s3Client, config.remoteStateConfigS3.Bucket, terragruntOptions); err != nil {
+			return err
 		}
 	}
 
@@ -952,11 +954,19 @@ func checkIfBucketEnforcedTLS(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 		Bucket: aws.String(config.Bucket),
 	})
 	if err != nil {
-		terragruntOptions.Logger.Debugf("Could not get policy for bucket %s", config.Bucket)
-		return false, nil
+		// S3 API error codes:
+		// http://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
+		if aerr, ok := err.(awserr.Error); ok {
+			// Enforced TLS policy if is not found bucket policy
+			if aerr.Code() == "NoSuchBucketPolicy" {
+				terragruntOptions.Logger.Debugf("Could not get policy for bucket %s", config.Bucket)
+				return false, nil
+			}
+		}
+
+		return false, errors.WithStackTrace(err)
 	}
 
-	// If the bucket has no policy, it is not enforced
 	if policyOutput.Policy == nil {
 		return true, nil
 	}
