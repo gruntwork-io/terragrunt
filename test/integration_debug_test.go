@@ -149,6 +149,7 @@ func TestTerragruntValidateInputsWithStrictModeEnabledAndUnusedInputs(t *testing
 	t.Parallel()
 
 	moduleDir := filepath.Join("fixture-validate-inputs", "fail-unused-inputs")
+	cleanupTerraformFolder(t, moduleDir)
 	args := []string{"--terragrunt-strict-validate"}
 	runTerragruntValidateInputs(t, moduleDir, args, false)
 }
@@ -157,6 +158,7 @@ func TestTerragruntValidateInputsWithStrictModeDisabledAndUnusedInputs(t *testin
 	t.Parallel()
 
 	moduleDir := filepath.Join("fixture-validate-inputs", "fail-unused-inputs")
+	cleanupTerraformFolder(t, moduleDir)
 	args := []string{}
 	runTerragruntValidateInputs(t, moduleDir, args, true)
 }
