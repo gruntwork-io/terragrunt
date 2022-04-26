@@ -901,6 +901,8 @@ go.mozilla.org/gopgagent v0.0.0-20170926210634-4d7ea76ff71a h1:N7VD+PwpJME2ZfQT8
 go.mozilla.org/gopgagent v0.0.0-20170926210634-4d7ea76ff71a/go.mod h1:YDKUvO0b//78PaaEro6CAPH6NqohCmL2Cwju5XI2HoE=
 go.mozilla.org/sops/v3 v3.7.0 h1:JuurncZrzjzirMNiQLm5WZLPyB5vcWhgre9YAWlTusA=
 go.mozilla.org/sops/v3 v3.7.0/go.mod h1:CJzeerUlKPLyVr8FxEGgEmc7LgUq4hwzqGxJqs8b+1c=
+go.mozilla.org/sops/v3 v3.7.2 h1:LNThLKe/pb80eGyAOFiWKP1Znqp1GQO2hqvuQOCmy5o=
+go.mozilla.org/sops/v3 v3.7.2/go.mod h1:OUNXNSkIrbr2wq3+RbK8s/ZCG+GaUnh8EY8IhXHI+wc=
 go.opencensus.io v0.20.1/go.mod h1:6WKK9ahsWS3RSO+PY9ZHZUfv2irvY6gN279GOPZjmmk=
 go.opencensus.io v0.20.2/go.mod h1:6WKK9ahsWS3RSO+PY9ZHZUfv2irvY6gN279GOPZjmmk=
 go.opencensus.io v0.21.0/go.mod h1:mSImk1erAIZhrmZN+AvHh14ztQfjbGwt4TtuofqLduU=
