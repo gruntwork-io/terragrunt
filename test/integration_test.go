@@ -2832,13 +2832,13 @@ func TestGetPathFromRepoRoot(t *testing.T) {
 func TestGetPathToRepoRoot(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_GET_PATH_TO_REPO_ROOT)
 	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_GET_PATH_TO_REPO_ROOT))
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_PATH_TO_REPO_ROOT)
+	cleanupTerraformFolder(t, rootPath)
 
-	_, err := exec.Command("git", "init", tmpEnvPath+"/../").Output()
+	output, err := exec.Command("git", "init", tmpEnvPath+"/../").Output()
 	if err != nil {
-		t.Fatalf("Error initializing git repo: %v", err)
+		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
 	}
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
@@ -4196,13 +4196,11 @@ func runValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath
 	logBufferContentsLineByLine(t, validateAllStderr, "validate-all stderr")
 	require.NoError(t, err)
 
-	currentDir, err := os.Getwd()
 	require.NoError(t, err)
 
 	includedModulesRegexp, err := regexp.Compile(
 		fmt.Sprintf(
-			`=> Module %s/%s/(.+) \(excluded: (true|false)`,
-			currentDir,
+			`=> Module %s/(.+) \(excluded: (true|false)`,
 			rootModulePath,
 		),
 	)
