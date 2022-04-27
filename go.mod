@@ -52,7 +52,7 @@ require (
 	github.com/ulikunitz/xz v0.5.10 // indirect
 	github.com/urfave/cli v1.22.3
 	github.com/zclconf/go-cty v1.8.3
-	go.mozilla.org/sops/v3 v3.7.0
+	go.mozilla.org/sops/v3 v3.7.2
 	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
 	golang.org/x/net v0.0.0-20210813160813-60bc85c4be6d // indirect
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
