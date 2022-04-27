@@ -205,7 +205,8 @@ type CmdOutput struct {
 func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (string, error) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	opts, err := options.NewTerragruntOptions(path)
+	opts, _ := options.NewTerragruntOptions(path)
+	opts.Env = terragruntOptions.Env
 	opts.Writer = &stdout
 	opts.ErrWriter = &stderr
 	cmd, err := RunShellCommandWithOutput(opts, path, true, false, "git", "rev-parse", "--show-toplevel")
