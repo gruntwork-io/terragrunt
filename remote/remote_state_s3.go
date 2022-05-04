@@ -395,7 +395,7 @@ func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 		return errors.WithStackTrace(fmt.Errorf("remote state S3 bucket %s does not exist or you don't have permissions to access it", config.remoteStateConfigS3.Bucket))
 	}
 
-	needUpdate, configBucket, err := checkIfS3BucketNeedsUpdate(s3Client, config, terragruntOptions)
+	needUpdate, bucketUpdatesRequired, err := checkIfS3BucketNeedsUpdate(s3Client, config, terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -415,7 +415,7 @@ func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 		return nil
 	}
 
-	if configBucket.Versioning != "" {
+	if bucketUpdatesRequired.Versioning {
 		if config.SkipBucketVersioning {
 			terragruntOptions.Logger.Debugf("Versioning is disabled for the remote state S3 bucket %s using 'skip_bucket_versioning' config.", config.remoteStateConfigS3.Bucket)
 		} else if err := EnableVersioningForS3Bucket(s3Client, &config.remoteStateConfigS3, terragruntOptions); err != nil {
@@ -423,7 +423,7 @@ func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 		}
 	}
 
-	if configBucket.SSEEncryption != "" {
+	if bucketUpdatesRequired.SSEEncryption {
 		if config.SkipBucketSSEncryption {
 			terragruntOptions.Logger.Debugf("Server-Side Encryption is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", config.remoteStateConfigS3.Bucket)
 		} else if err := EnableSSEForS3BucketWide(s3Client, config, terragruntOptions); err != nil {
@@ -431,7 +431,7 @@ func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 		}
 	}
 
-	if configBucket.RootAccess != "" {
+	if bucketUpdatesRequired.RootAccess {
 		if config.SkipBucketRootAccess {
 			terragruntOptions.Logger.Debugf("Root access is disabled for the remote state S3 bucket %s using 'skip_bucket_root_access' config.", config.remoteStateConfigS3.Bucket)
 		} else if err := EnableRootAccesstoS3Bucket(s3Client, config, terragruntOptions); err != nil {
@@ -439,7 +439,7 @@ func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 		}
 	}
 
-	if configBucket.EnforcedTLS != "" {
+	if bucketUpdatesRequired.EnforcedTLS {
 		if config.SkipBucketEnforcedTLS {
 			terragruntOptions.Logger.Debugf("Enforced TLS is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_enforced_tls' config.", config.remoteStateConfigS3.Bucket)
 		} else if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, config, terragruntOptions); err != nil {
@@ -447,7 +447,7 @@ func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 		}
 	}
 
-	if configBucket.AccessLogging != "" {
+	if bucketUpdatesRequired.AccessLogging {
 		if config.SkipBucketAccessLogging {
 			terragruntOptions.Logger.Debugf("Access logging is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_access_logging' config.", config.remoteStateConfigS3.Bucket)
 		} else {
@@ -472,7 +472,7 @@ func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 		}
 	}
 
-	if configBucket.PublicAccess != "" {
+	if bucketUpdatesRequired.PublicAccess {
 		if err := EnablePublicAccessBlockingForS3Bucket(s3Client, config.remoteStateConfigS3.Bucket, terragruntOptions); err != nil {
 			return err
 		}
@@ -481,18 +481,18 @@ func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 	return nil
 }
 
-type S3BucketConfig struct {
-	Versioning    string
-	SSEEncryption string
-	RootAccess    string
-	EnforcedTLS   string
-	AccessLogging string
-	PublicAccess  string
+type S3BucketUpdatesRequired struct {
+	Versioning    bool
+	SSEEncryption bool
+	RootAccess    bool
+	EnforcedTLS   bool
+	AccessLogging bool
+	PublicAccess  bool
 }
 
-func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, S3BucketConfig, error) {
+func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, S3BucketUpdatesRequired, error) {
 	var needUpdate []string
-	var configBucket S3BucketConfig
+	var configBucket S3BucketUpdatesRequired
 
 	if !config.SkipBucketVersioning {
 		enabled, err := checkIfVersioningEnabled(s3Client, &config.remoteStateConfigS3, terragruntOptions)
@@ -501,8 +501,8 @@ func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConf
 		}
 
 		if !enabled {
-			configBucket.Versioning = "Bucket Versioning"
-			needUpdate = append(needUpdate, configBucket.Versioning)
+			configBucket.Versioning = true
+			needUpdate = append(needUpdate, "Bucket Versioning")
 		}
 	}
 
@@ -513,8 +513,8 @@ func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConf
 		}
 
 		if !enabled {
-			configBucket.SSEEncryption = "Bucket Server-Side Encryption"
-			needUpdate = append(needUpdate, configBucket.SSEEncryption)
+			configBucket.SSEEncryption = true
+			needUpdate = append(needUpdate, "Bucket Server-Side Encryption")
 		}
 	}
 
@@ -525,8 +525,8 @@ func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConf
 		}
 
 		if !enabled {
-			configBucket.RootAccess = "Bucket Root Access"
-			needUpdate = append(needUpdate, configBucket.RootAccess)
+			configBucket.RootAccess = true
+			needUpdate = append(needUpdate, "Bucket Root Access")
 		}
 	}
 
@@ -537,8 +537,8 @@ func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConf
 		}
 
 		if !enabled {
-			configBucket.EnforcedTLS = "Bucket Enforced TLS"
-			needUpdate = append(needUpdate, configBucket.EnforcedTLS)
+			configBucket.EnforcedTLS = true
+			needUpdate = append(needUpdate, "Bucket Enforced TLS")
 		}
 	}
 
@@ -549,8 +549,8 @@ func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConf
 		}
 
 		if !enabled {
-			configBucket.AccessLogging = "Bucket Access Logging"
-			needUpdate = append(needUpdate, configBucket.AccessLogging)
+			configBucket.AccessLogging = true
+			needUpdate = append(needUpdate, "Bucket Access Logging")
 		}
 	}
 
@@ -559,8 +559,8 @@ func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConf
 		return false, configBucket, err
 	}
 	if !enabled {
-		configBucket.PublicAccess = "Bucket Public Access Blocking"
-		needUpdate = append(needUpdate, configBucket.PublicAccess)
+		configBucket.PublicAccess = true
+		needUpdate = append(needUpdate, "Bucket Public Access Blocking")
 	}
 
 	// show update message if any of the above configs are not set
