@@ -1137,7 +1137,14 @@ func checkIfS3PublicAccessBlockingEnabled(s3Client *s3.S3, config *RemoteStateCo
 		Bucket: aws.String(config.Bucket),
 	})
 	if err != nil {
-		terragruntOptions.Logger.Debugf("Error checking if S3 bucket %s is configured to block public access: %s", config.Bucket, err.Error())
+		if aerr, ok := err.(awserr.Error); ok {
+			// Enforced block public access if is not found bucket policy
+			if aerr.Code() == "NoSuchPublicAccessBlockConfiguration" {
+				terragruntOptions.Logger.Debugf("Could not get public access block for bucket %s", config.Bucket)
+				return false, nil
+			}
+		}
+
 		return false, errors.WithStackTrace(err)
 	}
 
