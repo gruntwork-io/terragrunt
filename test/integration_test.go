@@ -4010,6 +4010,9 @@ func copyTerragruntGCSConfigAndFillPlaceholders(t *testing.T, configSrcPath stri
 	contents = strings.Replace(contents, "__FILL_IN_LOCATION__", location, -1)
 	contents = strings.Replace(contents, "__FILL_IN_BUCKET_NAME__", gcsBucketName, -1)
 
+	email := os.Getenv("GOOGLE_IDENTITY_EMAIL")
+	contents = strings.Replace(contents, "__FILL_IN_GCP_EMAIL__", email, -1)
+
 	if err := ioutil.WriteFile(configDestPath, []byte(contents), 0444); err != nil {
 		t.Fatalf("Error writing temp Terragrunt config to %s: %v", configDestPath, err)
 	}
