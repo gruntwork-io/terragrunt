@@ -55,7 +55,7 @@ func (remoteState *RemoteState) FillDefaults() {
 // Validate that the remote state is configured correctly
 func (remoteState *RemoteState) Validate() error {
 	if remoteState.Backend == "" {
-		return errors.WithStackTrace(RemoteBackendMissing)
+		return errors.WithStackTrace(ErrRemoteBackendMissing)
 	}
 
 	return nil
@@ -173,7 +173,7 @@ func (remoteState RemoteState) ToTerraformInitArgs() []string {
 // Generate the terraform code for configuring remote state backend.
 func (remoteState *RemoteState) GenerateTerraformCode(terragruntOptions *options.TerragruntOptions) error {
 	if remoteState.Generate == nil {
-		return errors.WithStackTrace(GenerateCalledWithNoGenerateAttr)
+		return errors.WithStackTrace(ErrGenerateCalledWithNoGenerateAttr)
 	}
 
 	// Make sure to strip out terragrunt specific configurations from the config.
@@ -205,6 +205,6 @@ func (remoteState *RemoteState) GenerateTerraformCode(terragruntOptions *options
 
 // Custom errors
 var (
-	RemoteBackendMissing             = fmt.Errorf("The remote_state.backend field cannot be empty")
-	GenerateCalledWithNoGenerateAttr = fmt.Errorf("Generate code routine called when no generate attribute is configured.")
+	ErrRemoteBackendMissing             = fmt.Errorf("the remote_state.backend field cannot be empty")
+	ErrGenerateCalledWithNoGenerateAttr = fmt.Errorf("generate code routine called when no generate attribute is configured")
 )
