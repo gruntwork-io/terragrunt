@@ -402,19 +402,19 @@ func TestTerragruntSkipOnError(t *testing.T) {
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 
+	assert.Error(t, err)
+
 	output := stderr.String()
-	if err != nil {
-		assert.Contains(t, output, "BEFORE_SHOULD_DISPLAY")
-		assert.NotContains(t, output, "BEFORE_NODISPLAY")
 
-		assert.Contains(t, output, "AFTER_SHOULD_DISPLAY")
-		assert.NotContains(t, output, "AFTER_NODISPLAY")
+	assert.Contains(t, output, "BEFORE_SHOULD_DISPLAY")
+	assert.NotContains(t, output, "BEFORE_NODISPLAY")
 
-		assert.Contains(t, output, "ERROR_HOOK_EXECUTED")
+	assert.Contains(t, output, "AFTER_SHOULD_DISPLAY")
+	assert.NotContains(t, output, "AFTER_NODISPLAY")
 
-	} else {
-		t.Error("Expected NO terragrunt execution due to previous errors but it did run.")
-	}
+	assert.Contains(t, output, "ERROR_HOOK_EXECUTED")
+	assert.NotContains(t, output, "NOT_MATCHING_ERROR_HOOK")
+	assert.Contains(t, output, "PATTERN_MATCHING_ERROR_HOOK")
 }
 
 func TestTerragruntBeforeOneArgAction(t *testing.T) {
