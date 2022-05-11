@@ -235,3 +235,7 @@ type ProcessExecutionError struct {
 func (err ProcessExecutionError) Error() string {
 	return err.Err.Error()
 }
+
+func (err ProcessExecutionError) ExitStatus() (int, error) {
+	return GetExitCode(err.Err)
+}
