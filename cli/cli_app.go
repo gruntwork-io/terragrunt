@@ -611,8 +611,30 @@ func processErrorHooks(hooks []config.ErrorHook, terragruntOptions *options.Terr
 
 	terragruntOptions.Logger.Debugf("Detected %d error Hooks", len(hooks))
 
+	customMultierror := multierror.Error{
+		Errors: previousExecErrors.Errors,
+		ErrorFormat: func(err []error) string {
+			result := ""
+			for _, e := range err {
+				errorMessage := e.Error()
+				// Check if is process execution error and try to extract output
+				// https://github.com/gruntwork-io/terragrunt/issues/2045
+				originalError := errors.Unwrap(e)
+				if originalError != nil {
+					processError, cast := originalError.(shell.ProcessExecutionError)
+					if cast {
+						errorMessage = fmt.Sprintf("%s\n%s", processError.StdOut, processError.Stderr)
+					}
+				}
+				result = fmt.Sprintf("%s\n%s", result, errorMessage)
+			}
+			return result
+		},
+	}
+	errorMessage := customMultierror.Error()
+
 	for _, curHook := range hooks {
-		if util.MatchesAny(curHook.OnErrors, previousExecErrors.GoString()) && util.ListContainsElement(curHook.Commands, terragruntOptions.TerraformCommand) {
+		if util.MatchesAny(curHook.OnErrors, errorMessage) && util.ListContainsElement(curHook.Commands, terragruntOptions.TerraformCommand) {
 			terragruntOptions.Logger.Infof("Executing hook: %s", curHook.Name)
 			workingDir := ""
 			if curHook.WorkingDir != nil {

@@ -124,6 +124,14 @@ func RunShellCommandWithOutput(
 		Stderr: stderrBuf.String(),
 	}
 
+	if err != nil {
+		err = ProcessExecutionError{
+			Err:    err,
+			StdOut: stdoutBuf.String(),
+			Stderr: stderrBuf.String(),
+		}
+	}
+
 	return &cmdOutput, errors.WithStackTrace(err)
 }
 
@@ -215,4 +223,15 @@ func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (
 		return "", err
 	}
 	return strings.TrimSpace(cmd.Stdout), nil
+}
+
+// ProcessExecutionError - error returned when a command fails, contains StdOut and StdErr
+type ProcessExecutionError struct {
+	Err    error
+	StdOut string
+	Stderr string
+}
+
+func (err ProcessExecutionError) Error() string {
+	return err.Err.Error()
 }
