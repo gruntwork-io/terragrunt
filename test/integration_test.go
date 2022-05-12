@@ -535,6 +535,34 @@ func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
 	validateDynamoDBTableExistsAndIsTagged(t, TERRAFORM_REMOTE_STATE_S3_REGION, lockTableName, expectedDynamoDBTableTags)
 }
 
+func TestTerragruntSupportsDisableBucketUpdateFlag(t *testing.T) {
+	t.Parallel()
+
+	backwardCompatibilityFixturePath := "fixture-s3-update-backward-compatibility"
+
+	cleanupTerraformFolder(t, backwardCompatibilityFixturePath)
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+
+	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, backwardCompatibilityFixturePath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, backwardCompatibilityFixturePath))
+
+	var expectedS3Tags = map[string]string{
+		"owner": "terragrunt integration test",
+		"name":  "Terraform state storage"}
+	validateS3BucketExistsAndIsTagged(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName, expectedS3Tags)
+
+	var expectedDynamoDBTableTags = map[string]string{
+		"owner": "terragrunt integration test",
+		"name":  "Terraform lock table"}
+	validateDynamoDBTableExistsAndIsTagged(t, TERRAFORM_REMOTE_STATE_S3_REGION, lockTableName, expectedDynamoDBTableTags)
+}
+
 // Regression test to ensure that `accesslogging_bucket_name` and `accesslogging_target_prefix` are taken into account
 // & the TargetLogs bucket is set to a new S3 bucket, different from the origin S3 bucket
 // & the logs objects are prefixed with the `accesslogging_target_prefix` value

@@ -42,6 +42,7 @@ type ExtendedRemoteStateConfigS3 struct {
 	SkipBucketEnforcedTLS       bool              `mapstructure:"skip_bucket_enforced_tls"`
 	EnableLockTableSSEncryption bool              `mapstructure:"enable_lock_table_ssencryption"`
 	DisableAWSClientChecksums   bool              `mapstructure:"disable_aws_client_checksums"`
+	DisableBucketUpdate         bool              `mapstructure:"disable_bucket_update"`
 	AccessLoggingBucketName     string            `mapstructure:"accesslogging_bucket_name"`
 	AccessLoggingTargetPrefix   string            `mapstructure:"accesslogging_target_prefix"`
 }
@@ -58,6 +59,7 @@ var terragruntOnlyConfigs = []string{
 	"skip_bucket_enforced_tls",
 	"enable_lock_table_ssencryption",
 	"disable_aws_client_checksums",
+	"disable_bucket_update",
 	"accesslogging_bucket_name",
 	"accesslogging_target_prefix",
 }
