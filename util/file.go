@@ -196,18 +196,19 @@ func CopyFolderContents(source, destination, manifestFile string, includeInCopy 
 		}
 	}
 
-	return CopyFolderContentsWithFilter(source, destination, manifestFile, func(path string) bool {
-		if ListContainsElement(includeExpandedGlobs, path) {
+	return CopyFolderContentsWithFilter(source, destination, manifestFile, func(absolutePath string) bool {
+		relativePath, err := GetPathRelativeTo(absolutePath, source)
+		if err == nil && ListContainsElement(includeExpandedGlobs, relativePath) {
 			return true
 		}
-		return !TerragruntExcludes(path)
+		return !TerragruntExcludes(relativePath)
 	})
 }
 
 // Copy the files and folders within the source folder into the destination folder. Pass each file and folder through
 // the given filter function and only copy it if the filter returns true. Will create a specified manifest file
 // that contains paths of all copied files.
-func CopyFolderContentsWithFilter(source, destination, manifestFile string, filter func(path string) bool) error {
+func CopyFolderContentsWithFilter(source, destination, manifestFile string, filter func(absolutePath string) bool) error {
 	if err := os.MkdirAll(destination, 0700); err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -234,7 +235,7 @@ func CopyFolderContentsWithFilter(source, destination, manifestFile string, filt
 			return err
 		}
 
-		if !filter(fileRelativePath) {
+		if !filter(file) {
 			continue
 		}
 
