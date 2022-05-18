@@ -1148,6 +1148,10 @@ func checkIfS3PublicAccessBlockingEnabled(s3Client *s3.S3, config *RemoteStateCo
 		return false, errors.WithStackTrace(err)
 	}
 
+	return validatePublicAccessBlock(output)
+}
+
+func validatePublicAccessBlock(output *s3.GetPublicAccessBlockOutput) (bool, error) {
 	if output.PublicAccessBlockConfiguration == nil {
 		return false, nil
 	}

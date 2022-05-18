@@ -3,6 +3,8 @@ package remote
 import (
 	"testing"
 
+	"github.com/aws/aws-sdk-go/service/s3"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -336,6 +338,54 @@ func TestGetTerraformInitArgs(t *testing.T) {
 				return
 			}
 			assert.Equal(t, testCase.expected, actual)
+		})
+	}
+}
+
+func TestNegativePublicAccessResponse(t *testing.T) {
+	t.Parallel()
+	// https://github.com/gruntwork-io/terragrunt/issues/2109
+	testCases := []struct {
+		name     string
+		response *s3.GetPublicAccessBlockOutput
+	}{
+		{
+			name: "nil-response",
+			response: &s3.GetPublicAccessBlockOutput{
+				PublicAccessBlockConfiguration: nil,
+			},
+		},
+		{
+			name: "legacy-bucket",
+			response: &s3.GetPublicAccessBlockOutput{
+				PublicAccessBlockConfiguration: &s3.PublicAccessBlockConfiguration{
+					BlockPublicAcls:       nil,
+					BlockPublicPolicy:     nil,
+					IgnorePublicAcls:      nil,
+					RestrictPublicBuckets: nil,
+				},
+			},
+		},
+		{
+			name: "false-response",
+			response: &s3.GetPublicAccessBlockOutput{
+				PublicAccessBlockConfiguration: &s3.PublicAccessBlockConfiguration{
+					BlockPublicAcls:       aws.Bool(false),
+					BlockPublicPolicy:     aws.Bool(false),
+					IgnorePublicAcls:      aws.Bool(false),
+					RestrictPublicBuckets: aws.Bool(false),
+				},
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			response, err := validatePublicAccessBlock(testCase.response)
+			assert.NoError(t, err)
+			assert.False(t, response)
 		})
 	}
 }
