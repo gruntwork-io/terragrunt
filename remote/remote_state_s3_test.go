@@ -342,9 +342,10 @@ func TestGetTerraformInitArgs(t *testing.T) {
 	}
 }
 
+// Test to validate cases when is not possible to read all S3 configurations
+//https://github.com/gruntwork-io/terragrunt/issues/2109
 func TestNegativePublicAccessResponse(t *testing.T) {
 	t.Parallel()
-	// https://github.com/gruntwork-io/terragrunt/issues/2109
 	testCases := []struct {
 		name     string
 		response *s3.GetPublicAccessBlockOutput
