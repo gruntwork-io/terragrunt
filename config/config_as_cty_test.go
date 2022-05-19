@@ -16,12 +16,40 @@ import (
 // This test makes sure that all the fields from the TerragruntConfig struct are accounted for in the conversion to
 // cty.Value.
 func TestTerragruntConfigAsCtyDrift(t *testing.T) {
+	testConfig := getTerragruntConfigForTest()
+
+	ctyVal, err := TerragruntConfigAsCty(&testConfig)
+	require.NoError(t, err)
+
+	ctyMap, err := parseCtyValueToMap(ctyVal)
+	require.NoError(t, err)
+
+	// Test the root properties
+	testConfigStructInfo := structs.New(testConfig)
+	testConfigFields := testConfigStructInfo.Names()
+	checked := map[string]bool{} // used to track which fields of the ctyMap were seen
+	for _, field := range testConfigFields {
+		mapKey, isConverted := terragruntConfigStructFieldToMapKey(t, field)
+		if isConverted {
+			_, hasKey := ctyMap[mapKey]
+			assert.Truef(t, hasKey, "Struct field %s (convert of map key %s) did not convert to cty val", field, mapKey)
+			checked[mapKey] = true
+		}
+	}
+	for key := range ctyMap {
+		_, hasKey := checked[key]
+		assert.Truef(t, hasKey, "cty value key %s is not accounted for from struct field", key)
+	}
+}
+
+func getTerragruntConfigForTest() TerragruntConfig {
 	testSource := "./foo"
 	testTrue := true
 	testFalse := false
 	mockOutputs := cty.Zero
 	mockOutputsAllowedTerraformCommands := []string{"init"}
-	testConfig := TerragruntConfig{
+
+	return TerragruntConfig{
 		Terraform: &TerraformConfig{
 			Source: &testSource,
 			ExtraArgs: []TerraformExtraArguments{
@@ -100,28 +128,6 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 			},
 		},
 	}
-	ctyVal, err := TerragruntConfigAsCty(&testConfig)
-	require.NoError(t, err)
-
-	ctyMap, err := parseCtyValueToMap(ctyVal)
-	require.NoError(t, err)
-
-	// Test the root properties
-	testConfigStructInfo := structs.New(testConfig)
-	testConfigFields := testConfigStructInfo.Names()
-	checked := map[string]bool{} // used to track which fields of the ctyMap were seen
-	for _, field := range testConfigFields {
-		mapKey, isConverted := terragruntConfigStructFieldToMapKey(t, field)
-		if isConverted {
-			_, hasKey := ctyMap[mapKey]
-			assert.Truef(t, hasKey, "Struct field %s (convert of map key %s) did not convert to cty val", field, mapKey)
-			checked[mapKey] = true
-		}
-	}
-	for key := range ctyMap {
-		_, hasKey := checked[key]
-		assert.Truef(t, hasKey, "cty value key %s is not accounted for from struct field", key)
-	}
 }
 
 // This test makes sure that all the fields in RemoteState are converted to cty
@@ -169,9 +175,11 @@ func TestTerraformConfigAsCtyDrift(t *testing.T) {
 	terraformConfigStructInfo := structs.New(TerraformConfig{})
 	terraformConfigFields := terraformConfigStructInfo.Names()
 	sort.Strings(terraformConfigFields)
+
 	ctyTerraformConfigStructInfo := structs.New(ctyTerraformConfig{})
 	ctyTerraformConfigFields := ctyTerraformConfigStructInfo.Names()
 	sort.Strings(ctyTerraformConfigFields)
+
 	assert.Equal(t, terraformConfigFields, ctyTerraformConfigFields)
 }
 
@@ -243,4 +251,50 @@ func remoteStateStructFieldToMapKey(t *testing.T, fieldName string) (string, boo
 		// This should not execute
 		return "", false
 	}
+}
+
+func TestConvertToCtyWithJson(t *testing.T) {
+	testStruct := goTypeTestStruct{}
+
+	actualResult, _ := convertToCtyWithJson(testStruct)
+
+	assert.Equal(t, cty.EmptyObjectVal, actualResult)
+}
+
+func TestConvertToCtyWithJsonMarshalError(t *testing.T) {
+	testStruct := goTypeTestStruct{}
+
+	actualResult, _ := convertToCtyWithJson(testStruct)
+
+	assert.Equal(t, cty.EmptyObjectVal, actualResult)
+}
+
+func TestGoTypeToCtyImpliedTypeError(t *testing.T) {
+	testStruct := goTypeTestStruct{}
+
+	actualResult, _ := goTypeToCty(testStruct)
+
+	assert.Equal(t, cty.NilVal, actualResult)
+}
+
+type goTypeTestStruct struct {
+	testBool   bool
+	testInt    int
+	testString string
+}
+
+func TestGostringToCty(t *testing.T) {
+	testString := "StringValue"
+
+	actualResult := gostringToCty(testString)
+
+	assert.IsType(t, cty.String, actualResult.Type())
+}
+
+func TestGoboolToCty(t *testing.T) {
+	testBool := true
+
+	actualResult := goboolToCty(testBool)
+
+	assert.IsType(t, cty.Bool, actualResult.Type())
 }
