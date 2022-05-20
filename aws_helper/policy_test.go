@@ -6,9 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestUnmarshalStringActionResource(t *testing.T) {
-	t.Parallel()
-	policy := `
+const simplePolicy = `
 		{
 			"Version": "2012-10-17",
 			"Statement": [
@@ -21,33 +19,7 @@ func TestUnmarshalStringActionResource(t *testing.T) {
 			]
 		}
 	`
-	bucketPolicy, err := UnmarshalPolicy(policy)
-	assert.NoError(t, err)
-	assert.NotNil(t, bucketPolicy)
-	assert.Equal(t, 1, len(bucketPolicy.Statement))
-	assert.NotNil(t, bucketPolicy.Statement[0].Action)
-	assert.NotNil(t, bucketPolicy.Statement[0].Resource)
-
-	switch action := bucketPolicy.Statement[0].Action.(type) {
-	case string:
-		assert.Equal(t, "s3:*", action)
-		break
-	default:
-		assert.Fail(t, "Expected string type for Action")
-	}
-
-	switch resource := bucketPolicy.Statement[0].Resource.(type) {
-	case string:
-		assert.Equal(t, "*", resource)
-		break
-	default:
-		assert.Fail(t, "Expected string type for Resource")
-	}
-}
-
-func TestUnmarshalActionResourceList(t *testing.T) {
-	t.Parallel()
-	policy := `
+const arraysPolicy = `
 		{
 			"Version": "2012-10-17",
 			"Statement": [
@@ -75,7 +47,37 @@ func TestUnmarshalActionResourceList(t *testing.T) {
 			]
 		}
 	`
-	bucketPolicy, err := UnmarshalPolicy(policy)
+
+func TestUnmarshalStringActionResource(t *testing.T) {
+	t.Parallel()
+
+	bucketPolicy, err := UnmarshalPolicy(simplePolicy)
+	assert.NoError(t, err)
+	assert.NotNil(t, bucketPolicy)
+	assert.Equal(t, 1, len(bucketPolicy.Statement))
+	assert.NotNil(t, bucketPolicy.Statement[0].Action)
+	assert.NotNil(t, bucketPolicy.Statement[0].Resource)
+
+	switch action := bucketPolicy.Statement[0].Action.(type) {
+	case string:
+		assert.Equal(t, "s3:*", action)
+		break
+	default:
+		assert.Fail(t, "Expected string type for Action")
+	}
+
+	switch resource := bucketPolicy.Statement[0].Resource.(type) {
+	case string:
+		assert.Equal(t, "*", resource)
+		break
+	default:
+		assert.Fail(t, "Expected string type for Resource")
+	}
+}
+
+func TestUnmarshalActionResourceList(t *testing.T) {
+	t.Parallel()
+	bucketPolicy, err := UnmarshalPolicy(arraysPolicy)
 	assert.NoError(t, err)
 	assert.NotNil(t, bucketPolicy)
 	assert.Equal(t, 1, len(bucketPolicy.Statement))
