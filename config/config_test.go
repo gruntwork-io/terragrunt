@@ -8,10 +8,205 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
+
+func TestTerragruntConfigStringIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	testTerragruntConfig := TerragruntConfig{}
+
+	actualResult := testTerragruntConfig.String()
+
+	expectedOutput := "TerragruntConfig{Terraform = <nil>, RemoteState = <nil>, Dependencies = <nil>, PreventDestroy = <nil>}"
+
+	assert.Equal(t, expectedOutput, actualResult)
+}
+
+// Note: Incoherent IAM naming accross the code.
+func TestTerragruntConfigGetIAMRoleOptionsIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	testTerragruntConfig := TerragruntConfig{}
+
+	actualResult := testTerragruntConfig.GetIAMRoleOptions()
+
+	expectedResult := options.IAMRoleOptions{}
+
+	assert.Equal(t, expectedResult, actualResult)
+}
+
+func TestTerragruntConfigGetIAMRoleOptionsCopiesArnAndSession(t *testing.T) {
+	t.Parallel()
+
+	dummyIamRole := "my-test-role"
+	dummySessionName := "my-test-session"
+
+	testTerragruntConfig := TerragruntConfig{
+		IamRole:                  dummyIamRole,
+		IamAssumeRoleSessionName: dummySessionName,
+	}
+
+	actualResult := testTerragruntConfig.GetIAMRoleOptions()
+
+	expectedResult := options.IAMRoleOptions{
+		RoleARN:               dummyIamRole,
+		AssumeRoleSessionName: dummySessionName,
+	}
+
+	assert.Equal(t, expectedResult, actualResult)
+}
+
+func TestTerragruntConfigGetIAMRoleOptionsRoleDurationNotEmpty(t *testing.T) {
+	t.Parallel()
+
+	dummyRoleDuration := new(int64)
+
+	testTerragruntConfig := TerragruntConfig{
+		IamAssumeRoleDuration: dummyRoleDuration,
+	}
+
+	actualResult := testTerragruntConfig.GetIAMRoleOptions()
+
+	expectedResult := options.IAMRoleOptions{
+		AssumeRoleDuration: *dummyRoleDuration,
+	}
+
+	assert.Equal(t, expectedResult, actualResult)
+}
+
+func TestRemoteStateConfigFileIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	testRemoteStateConfigFile := remoteStateConfigFile{}
+
+	actualResult := testRemoteStateConfigFile.String()
+
+	expectedOutput := "remoteStateConfigFile{Backend = , Config = {{<nil>} <nil>}}"
+
+	assert.Equal(t, expectedOutput, actualResult)
+}
+
+func TestRemoteStateConfigFileToConfigDefault(t *testing.T) {
+	t.Parallel()
+
+	testBackend := "my-backend"
+
+	dummyCtyMap := make(map[string]cty.Value)
+	dummyCtyMap["Backend"] = cty.StringVal(testBackend)
+	stubCtyValue := cty.MapVal(dummyCtyMap)
+	parsedStubCtyValue, _ := parseCtyValueToMap(stubCtyValue)
+
+	testRemoteStateConfigFile := remoteStateConfigFile{
+		Backend: testBackend,
+		Config:  stubCtyValue,
+	}
+
+	actualResult, _ := testRemoteStateConfigFile.toConfig()
+
+	expectedOutput := &remote.RemoteState{
+		Backend: testBackend,
+		Config:  parsedStubCtyValue,
+	}
+	expectedOutput.FillDefaults()
+
+	assert.Equal(t, expectedOutput, actualResult)
+}
+
+func TestRemoteStateConfigFileToConfigUsesGenerate(t *testing.T) {
+	t.Parallel()
+
+	testBackend := "my-backend"
+	testGenerate := "dummy-value-for-generate"
+
+	stubGenerate := &remoteStateConfigGenerate{}
+
+	dummyCtyMap := make(map[string]cty.Value)
+	dummyCtyMap["Backend"] = cty.StringVal(testBackend)
+	dummyCtyMap["Generate"] = cty.StringVal(testGenerate)
+
+	stubCtyValue := cty.MapVal(dummyCtyMap)
+	parsedStubCtyValue, _ := parseCtyValueToMap(stubCtyValue)
+
+	testRemoteStateConfigFile := remoteStateConfigFile{
+		Backend:  testBackend,
+		Config:   stubCtyValue,
+		Generate: stubGenerate,
+	}
+
+	actualResult, _ := testRemoteStateConfigFile.toConfig()
+
+	expectedOutput := &remote.RemoteState{
+		Backend:  testBackend,
+		Config:   parsedStubCtyValue,
+		Generate: &remote.RemoteStateGenerate{},
+	}
+	expectedOutput.FillDefaults()
+
+	assert.Equal(t, expectedOutput, actualResult)
+}
+
+func TestRemoteStateConfigFileToConfigUsesDisableInit(t *testing.T) {
+	t.Parallel()
+
+	testBackend := "my-backend"
+	testDisableInit := true
+
+	dummyCtyMap := make(map[string]cty.Value)
+	dummyCtyMap["Backend"] = cty.StringVal(testBackend)
+	stubCtyValue := cty.MapVal(dummyCtyMap)
+	parsedStubCtyValue, _ := parseCtyValueToMap(stubCtyValue)
+
+	testRemoteStateConfigFile := remoteStateConfigFile{
+		Backend:     testBackend,
+		Config:      stubCtyValue,
+		DisableInit: &testDisableInit,
+	}
+
+	actualResult, _ := testRemoteStateConfigFile.toConfig()
+
+	expectedOutput := &remote.RemoteState{
+		Backend:     testBackend,
+		Config:      parsedStubCtyValue,
+		DisableInit: testDisableInit,
+	}
+	expectedOutput.FillDefaults()
+
+	assert.Equal(t, expectedOutput, actualResult)
+}
+
+func TestRemoteStateConfigFileToConfigUsesDisableDependencyOptimization(t *testing.T) {
+	t.Parallel()
+
+	testBackend := "my-backend"
+	testDisableDependencyOptimization := true
+
+	dummyCtyMap := make(map[string]cty.Value)
+	dummyCtyMap["Backend"] = cty.StringVal(testBackend)
+	stubCtyValue := cty.MapVal(dummyCtyMap)
+	parsedStubCtyValue, _ := parseCtyValueToMap(stubCtyValue)
+
+	testRemoteStateConfigFile := remoteStateConfigFile{
+		Backend:                       testBackend,
+		Config:                        stubCtyValue,
+		DisableDependencyOptimization: &testDisableDependencyOptimization,
+	}
+
+	actualResult, _ := testRemoteStateConfigFile.toConfig()
+
+	expectedOutput := &remote.RemoteState{
+		Backend:                       testBackend,
+		Config:                        parsedStubCtyValue,
+		DisableDependencyOptimization: testDisableDependencyOptimization,
+	}
+	expectedOutput.FillDefaults()
+
+	assert.Equal(t, expectedOutput, actualResult)
+}
 
 func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
 	t.Parallel()
