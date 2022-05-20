@@ -490,11 +490,55 @@ func TestTerraformExtraArgumentsGetVarFilesOptionalVarFiles(t *testing.T) {
 
 	actualResult := testTerraformExtraArguments.GetVarFiles(testLogger)
 
-	expectedOutput := []string{}
-
 	// Note: False positive
 	// Because util.FileExists currently not working in test
+	// Monkey patching is currently not possible
+	expectedOutput := []string{dummyFile}
+
 	assert.Equal(t, expectedOutput, actualResult)
+}
+
+func TestGetTerraformSourceUrlReturnsConfigSource(t *testing.T) {
+	t.Parallel()
+
+	dummySource := "some-path"
+	testTerragruntOptions := options.TerragruntOptions{
+		Source: dummySource,
+	}
+	testTerragruntConfig := TerragruntConfig{}
+
+	actualResult, _ := GetTerraformSourceUrl(&testTerragruntOptions, &testTerragruntConfig)
+
+	assert.Equal(t, dummySource, actualResult)
+}
+
+func TestGetTerraformSourceUrlReturnsTerraformSource(t *testing.T) {
+	t.Parallel()
+
+	dummySource := "some-path"
+	dummyConfig := TerraformConfig{
+		Source: &dummySource,
+	}
+
+	testTerragruntOptions := options.TerragruntOptions{}
+	testTerragruntConfig := TerragruntConfig{
+		Terraform: &dummyConfig,
+	}
+
+	actualResult, _ := GetTerraformSourceUrl(&testTerragruntOptions, &testTerragruntConfig)
+
+	assert.Equal(t, dummySource, actualResult)
+}
+
+func TestGetTerraformSourceUrlNoSourceIsEmptyl(t *testing.T) {
+	t.Parallel()
+
+	testTerragruntOptions := options.TerragruntOptions{}
+	testTerragruntConfig := TerragruntConfig{}
+
+	actualResult, _ := GetTerraformSourceUrl(&testTerragruntOptions, &testTerragruntConfig)
+
+	assert.Equal(t, "", actualResult)
 }
 
 func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
