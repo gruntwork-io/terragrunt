@@ -1,20 +1,58 @@
 package aws_helper
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestUnmarshalActionList(t *testing.T) {
+func TestUnmarshalStringActionResource(t *testing.T) {
 	t.Parallel()
 	policy := `
 		{
 			"Version": "2012-10-17",
 			"Statement": [
 				{
-					"Sid": "ArrayList",
+					"Sid": "StringValues",
+					"Effect": "Allow",
+					"Action": "s3:*",
+					"Resource": "*"
+				}
+			]
+		}
+	`
+	bucketPolicy, err := UnmarshalPolicy(policy)
+	assert.NoError(t, err)
+	assert.NotNil(t, bucketPolicy)
+	assert.Equal(t, 1, len(bucketPolicy.Statement))
+	assert.NotNil(t, bucketPolicy.Statement[0].Action)
+	assert.NotNil(t, bucketPolicy.Statement[0].Resource)
+
+	switch action := bucketPolicy.Statement[0].Action.(type) {
+	case string:
+		assert.Equal(t, "s3:*", action)
+		break
+	default:
+		assert.Fail(t, "Expected string type for Action")
+	}
+
+	switch resource := bucketPolicy.Statement[0].Resource.(type) {
+	case string:
+		assert.Equal(t, "*", resource)
+		break
+	default:
+		assert.Fail(t, "Expected string type for Resource")
+	}
+}
+
+func TestUnmarshalActionResourceList(t *testing.T) {
+	t.Parallel()
+	policy := `
+		{
+			"Version": "2012-10-17",
+			"Statement": [
+				{
+					"Sid": "Lists",
 					"Effect": "Allow",
 					"Action": [
 						"s3:ListStorageLensConfigurations",
@@ -29,7 +67,10 @@ func TestUnmarshalActionList(t *testing.T) {
 						"s3:ListMultiRegionAccessPoints",
 						"s3:ListMultipartUploadParts"
 					],
-					"Resource": "*"
+					"Resource": [
+						"arn:aws:s3:::*",
+						"arn:aws:s3:*:666:job/*"
+					]
 				}
 			]
 		}
@@ -39,14 +80,23 @@ func TestUnmarshalActionList(t *testing.T) {
 	assert.NotNil(t, bucketPolicy)
 	assert.Equal(t, 1, len(bucketPolicy.Statement))
 	assert.NotNil(t, bucketPolicy.Statement[0].Action)
+	assert.NotNil(t, bucketPolicy.Statement[0].Resource)
 
 	switch actions := bucketPolicy.Statement[0].Action.(type) {
 	case []interface{}:
 		assert.Equal(t, 11, len(actions))
+		assert.Contains(t, actions, "s3:ListJobs")
 		break
-	case string:
 	default:
-		fmt.Printf("Actions: %v \n", actions)
-		assert.Fail(t, "Expected to be []string type for Action")
+		assert.Fail(t, "Expected []string type for Action")
+	}
+
+	switch resource := bucketPolicy.Statement[0].Resource.(type) {
+	case []interface{}:
+		assert.Equal(t, 2, len(resource))
+		assert.Contains(t, resource, "arn:aws:s3:*:666:job/*")
+		break
+	default:
+		assert.Fail(t, "Expected []string type for Resource")
 	}
 }
