@@ -208,6 +208,124 @@ func TestRemoteStateConfigFileToConfigUsesDisableDependencyOptimization(t *testi
 	assert.Equal(t, expectedOutput, actualResult)
 }
 
+func TestIncludeConfigStringIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	testIncludeConfig := IncludeConfig{}
+
+	actualResult := testIncludeConfig.String()
+
+	expectedOutput := "IncludeConfig{Path = , Expose = <nil>, MergeStrategy = <nil>}"
+
+	assert.Equal(t, expectedOutput, actualResult)
+}
+
+func TestGetExposeIsFalseIfExposeIsNil(t *testing.T) {
+	t.Parallel()
+
+	testIncludeConfig := IncludeConfig{
+		Expose: nil,
+	}
+
+	actualResult := testIncludeConfig.GetExpose()
+
+	expectedOutput := false
+
+	assert.Equal(t, expectedOutput, actualResult)
+}
+
+func TestGetExpose(t *testing.T) {
+	t.Parallel()
+
+	testExpose := true
+	testIncludeConfig := IncludeConfig{
+		Expose: &testExpose,
+	}
+
+	actualResult := testIncludeConfig.GetExpose()
+
+	expectedOutput := testExpose
+
+	assert.Equal(t, expectedOutput, actualResult)
+}
+
+func TestGetMergeStrategyNilDefaultsToShallow(t *testing.T) {
+	t.Parallel()
+
+	testIncludeConfig := IncludeConfig{
+		MergeStrategy: nil,
+	}
+
+	actualResult, _ := testIncludeConfig.GetMergeStrategy()
+
+	expectedOutput := ShallowMerge
+
+	assert.Equal(t, expectedOutput, actualResult)
+}
+
+func TestGetMergeStrategyDefaultsToNoMerge(t *testing.T) {
+	t.Parallel()
+
+	testMergeStrategy := ""
+	testIncludeConfig := IncludeConfig{
+		MergeStrategy: &testMergeStrategy,
+	}
+
+	actualResult, _ := testIncludeConfig.GetMergeStrategy()
+
+	expectedOutput := NoMerge
+
+	assert.Equal(t, expectedOutput, actualResult)
+}
+
+func TestModuleDependenciesStringIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	testModuleDependencies := ModuleDependencies{}
+
+	actualResult := testModuleDependencies.String()
+
+	expectedOutput := "ModuleDependencies{Paths = []}"
+
+	assert.Equal(t, expectedOutput, actualResult)
+}
+
+func TestHookStringIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	testHook := Hook{}
+
+	actualResult := testHook.String()
+
+	expectedOutput := "Hook{Name = , Commands = 0}"
+
+	assert.Equal(t, expectedOutput, actualResult)
+}
+
+func TestErrorHookStringIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	testErrorHook := ErrorHook{}
+
+	actualResult := testErrorHook.String()
+
+	expectedOutput := "Hook{Name = , Commands = 0}"
+
+	assert.Equal(t, expectedOutput, actualResult)
+}
+
+func TestTerraformConfigStringIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	testTerraformConfig := TerraformConfig{}
+
+	actualResult := testTerraformConfig.String()
+
+	expectedOutput := "TerraformConfig{Source = <nil>}"
+
+	assert.Equal(t, expectedOutput, actualResult)
+}
+
 func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
 	t.Parallel()
 
