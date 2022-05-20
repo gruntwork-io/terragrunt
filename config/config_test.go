@@ -326,6 +326,109 @@ func TestTerraformConfigStringIsEmpty(t *testing.T) {
 	assert.Equal(t, expectedOutput, actualResult)
 }
 
+func TestTerraformConfigGetBeforeHooks(t *testing.T) {
+	t.Parallel()
+
+	testBeforeHooks := make([]Hook, 0)
+	testTerraformConfig := TerraformConfig{
+		BeforeHooks: testBeforeHooks,
+	}
+
+	actualResult := testTerraformConfig.GetBeforeHooks()
+
+	expectedOutput := testBeforeHooks
+
+	assert.Equal(t, expectedOutput, actualResult)
+}
+
+func TestTerraformConfigGetAfterHooks(t *testing.T) {
+	t.Parallel()
+
+	testAfterHooks := make([]Hook, 0)
+	testTerraformConfig := TerraformConfig{
+		AfterHooks: testAfterHooks,
+	}
+
+	actualResult := testTerraformConfig.GetAfterHooks()
+
+	expectedOutput := testAfterHooks
+
+	assert.Equal(t, expectedOutput, actualResult)
+}
+
+func TestTerraformConfigGetErrorHooks(t *testing.T) {
+	t.Parallel()
+
+	testErrorHooks := make([]ErrorHook, 0)
+	testTerraformConfig := TerraformConfig{
+		ErrorHooks: testErrorHooks,
+	}
+
+	actualResult := testTerraformConfig.GetErrorHooks()
+
+	expectedOutput := testErrorHooks
+
+	assert.Equal(t, expectedOutput, actualResult)
+}
+
+func TestTerraformConfigValidateHooksNoHooksNoError(t *testing.T) {
+	t.Parallel()
+
+	testTerraformConfig := TerraformConfig{}
+
+	actualResult := testTerraformConfig.ValidateHooks()
+
+	assert.Nil(t, actualResult)
+}
+
+func TestTerraformConfigValidateHooksBeforeHooksError(t *testing.T) {
+	t.Parallel()
+
+	stubHook := Hook{}
+
+	testBeforeHooks := make([]Hook, 1)
+	testBeforeHooks = append(testBeforeHooks, stubHook)
+	testTerraformConfig := TerraformConfig{
+		BeforeHooks: testBeforeHooks,
+	}
+
+	actualResult := testTerraformConfig.ValidateHooks()
+
+	assert.Error(t, actualResult)
+}
+
+func TestTerraformConfigValidateHooksAftereHooksError(t *testing.T) {
+	t.Parallel()
+
+	stubHook := Hook{}
+
+	testAfterHooks := make([]Hook, 1)
+	testAfterHooks = append(testAfterHooks, stubHook)
+	testTerraformConfig := TerraformConfig{
+		AfterHooks: testAfterHooks,
+	}
+
+	actualResult := testTerraformConfig.ValidateHooks()
+
+	assert.Error(t, actualResult)
+}
+
+func TestTerraformConfigValidateHooksErrorHooksError(t *testing.T) {
+	t.Parallel()
+
+	stubHook := ErrorHook{}
+
+	testErrorHooks := make([]ErrorHook, 1)
+	testErrorHooks = append(testErrorHooks, stubHook)
+	testTerraformConfig := TerraformConfig{
+		ErrorHooks: testErrorHooks,
+	}
+
+	actualResult := testTerraformConfig.ValidateHooks()
+
+	assert.Error(t, actualResult)
+}
+
 func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
 	t.Parallel()
 
