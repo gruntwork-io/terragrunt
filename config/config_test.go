@@ -493,7 +493,7 @@ func TestTerraformExtraArgumentsGetVarFilesOptionalVarFiles(t *testing.T) {
 	// Note: False positive
 	// Because util.FileExists currently not working in test
 	// Monkey patching is currently not possible
-	expectedOutput := []string{dummyFile}
+	expectedOutput := []string{}
 
 	assert.Equal(t, expectedOutput, actualResult)
 }
@@ -539,6 +539,97 @@ func TestGetTerraformSourceUrlNoSourceIsEmptyl(t *testing.T) {
 	actualResult, _ := GetTerraformSourceUrl(&testTerragruntOptions, &testTerragruntConfig)
 
 	assert.Equal(t, "", actualResult)
+}
+
+func TestAdjustSourceWithMapSourcemapEmptyReturnsSource(t *testing.T) {
+	t.Parallel()
+
+	testSourceMap := map[string]string{}
+	testSource := "test-source"
+	testModulePath := ""
+
+	actualResult, _ := adjustSourceWithMap(testSourceMap, testSource, testModulePath)
+
+	assert.Equal(t, testSource, actualResult)
+}
+
+func TestAdjustSourceWithMapModuleUrlAndSubdirEmptyError(t *testing.T) {
+	t.Parallel()
+
+	testSourceMap := map[string]string{"key": "value"}
+	testSource := "//"
+	testModulePath := ""
+
+	_, err := adjustSourceWithMap(testSourceMap, testSource, testModulePath)
+
+	assert.Error(t, err)
+}
+
+func TestAdjustSourceWithMapModuleUrlEmptyReturnsSource(t *testing.T) {
+	t.Parallel()
+
+	testSourceMap := map[string]string{"key": "value"}
+	testSource := "//not-empty"
+	testModulePath := ""
+
+	actualResult, _ := adjustSourceWithMap(testSourceMap, testSource, testModulePath)
+
+	assert.Equal(t, testSource, actualResult)
+}
+
+func TestAdjustSourceWithMapModuleUrlParseErrorReturnsSource(t *testing.T) {
+	t.Parallel()
+
+	testSourceMap := map[string]string{"key": "value"}
+	testSource := ":not-empty-but-invalid://"
+	testModulePath := ""
+
+	actualResult, err := adjustSourceWithMap(testSourceMap, testSource, testModulePath)
+
+	assert.Equal(t, testSource, actualResult)
+	assert.Error(t, err)
+}
+
+func TestAdjustSourceWithMapNoKeyInMapReturnsSource(t *testing.T) {
+	t.Parallel()
+
+	testSourceMap := map[string]string{"key": "value"}
+	testSource := "not-empty//"
+	testModulePath := ""
+
+	actualResult, err := adjustSourceWithMap(testSourceMap, testSource, testModulePath)
+
+	assert.Equal(t, testSource, actualResult)
+	assert.Error(t, err)
+}
+
+func TestAdjustSourceWithMapReplaceSubdirWithKeyInMapWithError(t *testing.T) {
+	t.Parallel()
+
+	testSourceMap := map[string]string{"not-empty": "my-path"}
+	testSource := "not-empty//"
+	testModulePath := ""
+
+	actualResult, err := adjustSourceWithMap(testSourceMap, testSource, testModulePath)
+
+	assert.Equal(t, testModulePath, actualResult)
+	assert.Error(t, err)
+}
+
+func TestAdjustSourceWithMapReplaceSubdirWithKeyInMap(t *testing.T) {
+	t.Parallel()
+
+	dummyMapPathPart := "my-path"
+	dummySourcePathPart := "not-empty"
+
+	testSourceMap := map[string]string{"http://my-url.com/not-empty": dummyMapPathPart}
+	testSource := "http://my-url.com/" + dummySourcePathPart + "//"
+	testModulePath := dummyMapPathPart + "//" + dummySourcePathPart
+
+	actualResult, err := adjustSourceWithMap(testSourceMap, testSource, testModulePath)
+
+	assert.Equal(t, testModulePath, actualResult)
+	assert.NoError(t, err)
 }
 
 func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
