@@ -600,7 +600,7 @@ func TestAdjustSourceWithMapNoKeyInMapReturnsSource(t *testing.T) {
 	actualResult, err := adjustSourceWithMap(testSourceMap, testSource, testModulePath)
 
 	assert.Equal(t, testSource, actualResult)
-	assert.Error(t, err)
+	assert.NoError(t, err)
 }
 
 func TestAdjustSourceWithMapReplaceSubdirWithKeyInMapWithError(t *testing.T) {
@@ -629,6 +629,158 @@ func TestAdjustSourceWithMapReplaceSubdirWithKeyInMap(t *testing.T) {
 	actualResult, err := adjustSourceWithMap(testSourceMap, testSource, testModulePath)
 
 	assert.Equal(t, testModulePath, actualResult)
+	assert.NoError(t, err)
+}
+
+func TestDefaultConfigPath(t *testing.T) {
+	t.Parallel()
+
+	testWorkingDir := "my/test/dir"
+
+	actualResult := DefaultConfigPath(testWorkingDir)
+
+	expectedResult := testWorkingDir + "/" + DefaultTerragruntConfigPath
+
+	assert.Equal(t, expectedResult, actualResult)
+}
+
+func TestDefaultJsonConfigPath(t *testing.T) {
+	t.Parallel()
+
+	testWorkingDir := "my/test/dir"
+
+	actualResult := DefaultJsonConfigPath(testWorkingDir)
+
+	expectedResult := testWorkingDir + "/" + DefaultTerragruntJsonConfigPath
+
+	assert.Equal(t, expectedResult, actualResult)
+}
+
+func TestGetDefaultConfigPathDefault(t *testing.T) {
+	t.Parallel()
+
+	testWorkingDir := "my/test/dir"
+
+	actualResult := GetDefaultConfigPath(testWorkingDir)
+
+	expectedResult := testWorkingDir + "/" + DefaultTerragruntConfigPath
+
+	assert.Equal(t, expectedResult, actualResult)
+}
+
+func TestFindConfigFilesInPath(t *testing.T) {
+	t.Parallel()
+
+	testRootPath := ""
+	terragruntOptions := options.TerragruntOptions{}
+
+	actualResult, err := FindConfigFilesInPath(testRootPath, &terragruntOptions)
+
+	expectedResult := []string{}
+
+	// Note: Will require monkey patching
+	// Or better mocking for all cases to be tested
+	assert.Equal(t, expectedResult, actualResult)
+	assert.Error(t, err)
+}
+
+func TestContainsTerragruntModuleNotIsDirReturnsFalse(t *testing.T) {
+	t.Parallel()
+
+	dummyIsDir := false
+
+	testPath := ""
+	testInfo := MockFileInfo{
+		isDir: dummyIsDir,
+	}
+	testTerragruntOptions := options.TerragruntOptions{}
+
+	actualResult, err := containsTerragruntModule(testPath, testInfo, &testTerragruntOptions)
+
+	expectedResult := dummyIsDir
+
+	assert.Equal(t, expectedResult, actualResult)
+	assert.NoError(t, err)
+}
+
+func TestContainsTerragruntModuleContainsPathReturnsFalse(t *testing.T) {
+	t.Parallel()
+
+	testPath := options.TerragruntCacheDir
+	testInfo := MockFileInfo{
+		isDir: true,
+	}
+	testTerragruntOptions := options.TerragruntOptions{}
+
+	actualResult, err := containsTerragruntModule(testPath, testInfo, &testTerragruntOptions)
+
+	expectedResult := false
+
+	assert.Equal(t, expectedResult, actualResult)
+	assert.NoError(t, err)
+}
+
+func TestContainsTerragruntModuleDataDirHasPathPrefixReturnsFalse(t *testing.T) {
+	t.Parallel()
+
+	dummyEnv := map[string]string{"TF_DATA_DIR": "/.terraform"}
+
+	testPath := "/.terraform/modules"
+	testInfo := MockFileInfo{
+		isDir: true,
+	}
+	testTerragruntOptions := options.TerragruntOptions{
+		Env: dummyEnv,
+	}
+
+	actualResult, err := containsTerragruntModule(testPath, testInfo, &testTerragruntOptions)
+
+	expectedResult := false
+
+	assert.Equal(t, expectedResult, actualResult)
+	assert.NoError(t, err)
+}
+
+func TestContainsTerragruntModuleDataDirNotAbsoluteReturnsFalse(t *testing.T) {
+	t.Parallel()
+
+	dummyEnv := map[string]string{"TF_DATA_DIR": "modules"}
+
+	testPath := "modules/my-module"
+	testInfo := MockFileInfo{
+		isDir: true,
+	}
+	testTerragruntOptions := options.TerragruntOptions{
+		Env: dummyEnv,
+	}
+
+	actualResult, err := containsTerragruntModule(testPath, testInfo, &testTerragruntOptions)
+
+	expectedResult := false
+
+	assert.Equal(t, expectedResult, actualResult)
+	assert.NoError(t, err)
+}
+
+func TestContainsTerragruntModuleCanonicalInDownloadPathReturnsFalse(t *testing.T) {
+	t.Parallel()
+
+	dummyPathPart := "my-module"
+
+	testPath := "/modules/" + dummyPathPart
+	testInfo := MockFileInfo{
+		isDir: true,
+	}
+	testTerragruntOptions := options.TerragruntOptions{
+		DownloadDir: "/modules/" + dummyPathPart,
+	}
+
+	actualResult, err := containsTerragruntModule(testPath, testInfo, &testTerragruntOptions)
+
+	expectedResult := false
+
+	assert.Equal(t, expectedResult, actualResult)
+	// Note: Actually this should be Error but there is a bug in the code
 	assert.NoError(t, err)
 }
 
