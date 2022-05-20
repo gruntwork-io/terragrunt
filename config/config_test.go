@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -427,6 +428,73 @@ func TestTerraformConfigValidateHooksErrorHooksError(t *testing.T) {
 	actualResult := testTerraformConfig.ValidateHooks()
 
 	assert.Error(t, actualResult)
+}
+
+func TestTerraformExtraArgumentsStringIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	testTerraformExtraArguments := TerraformExtraArguments{}
+
+	actualResult := testTerraformExtraArguments.String()
+
+	expectedOutput := "TerraformArguments{Name = , Arguments = <nil>, Commands = [], EnvVars = <nil>}"
+
+	assert.Equal(t, expectedOutput, actualResult)
+}
+
+func TestTerraformExtraArgumentsGetVarFilesIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	mockLogger := logrus.StandardLogger()
+
+	testTerraformExtraArguments := TerraformExtraArguments{}
+	testLogger := logrus.NewEntry(mockLogger)
+
+	actualResult := testTerraformExtraArguments.GetVarFiles(testLogger)
+
+	expectedOutput := make([]string, 0)
+
+	assert.Equal(t, expectedOutput, actualResult)
+}
+
+func TestTerraformExtraArgumentsGetVarFilesRequiredVarFiles(t *testing.T) {
+	t.Parallel()
+
+	dummyFile := "someFile.hcl"
+	dummyRequiredVarFiles := []string{dummyFile, dummyFile}
+	mockLogger := logrus.StandardLogger()
+
+	testTerraformExtraArguments := TerraformExtraArguments{
+		RequiredVarFiles: &dummyRequiredVarFiles,
+	}
+	testLogger := logrus.NewEntry(mockLogger)
+
+	actualResult := testTerraformExtraArguments.GetVarFiles(testLogger)
+
+	expectedOutput := []string{dummyFile}
+
+	assert.Equal(t, expectedOutput, actualResult)
+}
+
+func TestTerraformExtraArgumentsGetVarFilesOptionalVarFiles(t *testing.T) {
+	t.Parallel()
+
+	dummyFile := "someFile.hcl"
+	dummyOptionalVarFiles := []string{dummyFile, dummyFile}
+	mockLogger := logrus.StandardLogger()
+
+	testTerraformExtraArguments := TerraformExtraArguments{
+		OptionalVarFiles: &dummyOptionalVarFiles,
+	}
+	testLogger := logrus.NewEntry(mockLogger)
+
+	actualResult := testTerraformExtraArguments.GetVarFiles(testLogger)
+
+	expectedOutput := []string{}
+
+	// Note: False positive
+	// Because util.FileExists currently not working in test
+	assert.Equal(t, expectedOutput, actualResult)
 }
 
 func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
