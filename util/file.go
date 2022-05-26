@@ -170,6 +170,15 @@ func ReadFileAsString(path string) (string, error) {
 	return string(bytes), nil
 }
 
+func listContainsElementStartingWith(list []string, elementPrefix string) bool {
+	for _, element := range list {
+		if strings.HasPrefix(element, elementPrefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // Takes apbsolute glob path and returns an array of expanded relative paths
 func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 	includeExpandedGlobs := []string{}
@@ -216,7 +225,7 @@ func CopyFolderContents(source, destination, manifestFile string, includeInCopy 
 
 	return CopyFolderContentsWithFilter(source, destination, manifestFile, func(absolutePath string) bool {
 		relativePath, err := GetPathRelativeTo(absolutePath, source)
-		if err == nil && ListContainsElement(includeExpandedGlobs, relativePath) {
+		if err == nil && listContainsElementStartingWith(includeExpandedGlobs, relativePath) {
 			return true
 		}
 		return !TerragruntExcludes(relativePath)
