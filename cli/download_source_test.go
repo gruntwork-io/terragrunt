@@ -31,6 +31,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithHashNoChanges(t *testing.T) {
 	copyFolder(t, "../test/fixture-download-source/download-dir-version-file-local-hash", downloadDir)
 	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, true)
 }
+
 func TestAlreadyHaveLatestCodeLocalFilePathWithHashChanged(t *testing.T) {
 	t.Parallel()
 
@@ -41,14 +42,10 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithHashChanged(t *testing.T) {
 	copyFolder(t, "../test/fixture-download-source/download-dir-version-file-local-hash", downloadDir)
 
 	f, err := os.OpenFile(downloadDir+"/version-file.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	defer f.Close()
-
-	fmt.Fprintln(f, "CHANGED")
 
 	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, false)
 }
