@@ -2,6 +2,7 @@ package configstack
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
@@ -49,6 +50,18 @@ func (stack *Stack) LogModuleDeployOrder(logger *logrus.Entry, terraformCommand 
 	}
 	logger.Info(outStr)
 	return nil
+}
+
+func (stack *Stack) JsonModuleDeployOrder(logger *logrus.Entry, terraformCommand string) (string, error) {
+	runGraph, err := stack.getModuleRunGraph(terraformCommand)
+	if err != nil {
+		return "", err
+	}
+	j, _ := json.MarshalIndent(runGraph, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return string(j), nil
 }
 
 // Graph creates a graphviz representation of the modules

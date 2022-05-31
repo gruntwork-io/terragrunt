@@ -103,6 +103,7 @@ const CMD_TERRAGRUNT_READ_CONFIG = "terragrunt-read-config"
 const CMD_HCLFMT = "hclfmt"
 const CMD_AWS_PROVIDER_PATCH = "aws-provider-patch"
 const CMD_RENDER_JSON = "render-json"
+const CMD_OUTPUT_MODULE_GROUPS = "output-module-groups"
 
 // START: Constants useful for multimodule command handling
 const CMD_RUN_ALL = "run-all"
@@ -222,6 +223,7 @@ COMMANDS:
    hclfmt                Recursively find hcl files and rewrite them into a canonical format.
    aws-provider-patch    Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018)
    render-json           Render the final terragrunt config, with all variables, includes, and functions resolved, as json. This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.
+   output-module-groups  Output groups of modules ordered for apply as a list of list in JSON (useful for CI use cases).
    *                     Terragrunt forwards all other commands directly to Terraform
 
 GLOBAL OPTIONS:
@@ -378,6 +380,15 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 
 	if shouldRunRenderJSON(terragruntOptions) {
 		return runRenderJSON(terragruntOptions, terragruntConfig)
+	}
+
+	if shouldRunOutputModuleGroups(terragruntOptions) {
+		js, err := runGraphDependenciesGroups(terragruntOptions)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%s\n", js)
+		return nil
 	}
 
 	terragruntOptionsClone := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
@@ -569,6 +580,20 @@ func runGraphDependencies(terragruntOptions *options.TerragruntOptions) error {
 	return nil
 }
 
+// Run graph dependencies returns the dependency graph
+func runGraphDependenciesGroups(terragruntOptions *options.TerragruntOptions) (string, error) {
+	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
+	if err != nil {
+		return "", err
+	}
+
+	js, err := stack.JsonModuleDeployOrder(terragruntOptions.Logger, terragruntOptions.TerraformCommand);
+	if err != nil {
+		return "", err
+	}
+	return js, nil
+}
+
 func shouldPrintTerraformHelp(terragruntOptions *options.TerragruntOptions) bool {
 	for _, tfHelpFlag := range TERRAFORM_HELP_FLAGS {
 		if util.ListContainsElement(terragruntOptions.TerraformCliArgs, tfHelpFlag) {
@@ -596,6 +621,10 @@ func shouldRunHCLFmt(terragruntOptions *options.TerragruntOptions) bool {
 
 func shouldRunRenderJSON(terragruntOptions *options.TerragruntOptions) bool {
 	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_RENDER_JSON)
+}
+
+func shouldRunOutputModuleGroups(terragruntOptions *options.TerragruntOptions) bool {
+	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_OUTPUT_MODULE_GROUPS)
 }
 
 func shouldApplyAwsProviderPatch(terragruntOptions *options.TerragruntOptions) bool {

@@ -1,6 +1,7 @@
 package configstack
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -39,6 +40,10 @@ func (module *TerraformModule) String() string {
 		"Module %s (excluded: %v, assume applied: %v, dependencies: [%s])",
 		module.Path, module.FlagExcluded, module.AssumeAlreadyApplied, strings.Join(dependencies, ", "),
 	)
+}
+
+func (module TerraformModule) MarshalJSON() ([]byte, error){
+	return json.Marshal(module.Path)
 }
 
 // Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents
