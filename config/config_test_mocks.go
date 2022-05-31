@@ -3,9 +3,11 @@ package config
 import (
 	"os"
 	"time"
+
+	"github.com/hashicorp/hcl/v2"
 )
 
-type MockFileInfo struct {
+type MockOsFileInfo struct {
 	name    string
 	size    int64
 	mode    os.FileMode
@@ -14,26 +16,51 @@ type MockFileInfo struct {
 	sys     interface{}
 }
 
-func (mock MockFileInfo) Name() string {
+func (mock MockOsFileInfo) Name() string {
 	return mock.name
 }
 
-func (mock MockFileInfo) Size() int64 {
+func (mock MockOsFileInfo) Size() int64 {
 	return mock.size
 }
 
-func (mock MockFileInfo) Mode() os.FileMode {
+func (mock MockOsFileInfo) Mode() os.FileMode {
 	return mock.mode
 }
 
-func (mock MockFileInfo) ModTime() time.Time {
+func (mock MockOsFileInfo) ModTime() time.Time {
 	return mock.modTime
 }
 
-func (mock MockFileInfo) IsDir() bool {
+func (mock MockOsFileInfo) IsDir() bool {
 	return mock.isDir
 }
 
-func (mock MockFileInfo) Sys() interface{} {
+func (mock MockOsFileInfo) Sys() interface{} {
 	return mock.sys
+}
+
+type MockHclBody struct {
+	bodyContent *hcl.BodyContent
+	diagnostics hcl.Diagnostics
+	attributes hcl.Attributes
+	itemRange hcl.Range
+}
+
+func (mock MockHclBody) Content(schema *hcl.BodySchema) (*hcl.BodyContent, hcl.Diagnostics) {
+	return mock.bodyContent, mock.diagnostics
+}
+
+func (mock MockHclBody) PartialContent(schema *hcl.BodySchema) (*hcl.BodyContent, hcl.Body, hcl.Diagnostics) {
+	inlineBody := MockHclBody{}
+
+	return mock.bodyContent, inlineBody, mock.diagnostics
+}
+
+func (mock MockHclBody) JustAttributes() (hcl.Attributes, hcl.Diagnostics) {
+	return mock.attributes, mock.diagnostics
+}
+
+func (mock MockHclBody) MissingItemRange() hcl.Range {
+	return mock.itemRange
 }

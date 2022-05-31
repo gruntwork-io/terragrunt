@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -690,7 +691,7 @@ func TestContainsTerragruntModuleNotIsDirReturnsFalse(t *testing.T) {
 	dummyIsDir := false
 
 	testPath := ""
-	testInfo := MockFileInfo{
+	testInfo := MockOsFileInfo{
 		isDir: dummyIsDir,
 	}
 	testTerragruntOptions := options.TerragruntOptions{}
@@ -707,7 +708,7 @@ func TestContainsTerragruntModuleContainsPathReturnsFalse(t *testing.T) {
 	t.Parallel()
 
 	testPath := options.TerragruntCacheDir
-	testInfo := MockFileInfo{
+	testInfo := MockOsFileInfo{
 		isDir: true,
 	}
 	testTerragruntOptions := options.TerragruntOptions{}
@@ -726,7 +727,7 @@ func TestContainsTerragruntModuleDataDirHasPathPrefixReturnsFalse(t *testing.T) 
 	dummyEnv := map[string]string{"TF_DATA_DIR": "/.terraform"}
 
 	testPath := "/.terraform/modules"
-	testInfo := MockFileInfo{
+	testInfo := MockOsFileInfo{
 		isDir: true,
 	}
 	testTerragruntOptions := options.TerragruntOptions{
@@ -747,7 +748,7 @@ func TestContainsTerragruntModuleDataDirNotAbsoluteReturnsFalse(t *testing.T) {
 	dummyEnv := map[string]string{"TF_DATA_DIR": "modules"}
 
 	testPath := "modules/my-module"
-	testInfo := MockFileInfo{
+	testInfo := MockOsFileInfo{
 		isDir: true,
 	}
 	testTerragruntOptions := options.TerragruntOptions{
@@ -768,7 +769,7 @@ func TestContainsTerragruntModuleCanonicalInDownloadPathReturnsFalse(t *testing.
 	dummyPathPart := "my-module"
 
 	testPath := "/modules/" + dummyPathPart
-	testInfo := MockFileInfo{
+	testInfo := MockOsFileInfo{
 		isDir: true,
 	}
 	testTerragruntOptions := options.TerragruntOptions{
@@ -782,6 +783,36 @@ func TestContainsTerragruntModuleCanonicalInDownloadPathReturnsFalse(t *testing.
 	assert.Equal(t, expectedResult, actualResult)
 	// Note: Actually this should be Error but there is a bug in the code
 	assert.NoError(t, err)
+}
+
+// TODO: Test throws a SegFault because of derefenrencing a nil pointer
+//
+// func TestReadTerragruntConfigFailsReadingFile(t *testing.T) {
+// 	t.Parallel()
+
+// 	dummyFilename := ""
+// 	testTerraformOptions := options.TerragruntOptions{
+// 		TerragruntConfigPath: dummyFilename,
+// 	}
+
+// 	actualResult, err := ReadTerragruntConfig(&testTerraformOptions)
+
+// 	assert.Nil(t, actualResult)
+// 	assert.Error(t, err)
+// }
+
+func TestParseConfigFileFailsReadingFile(t *testing.T) {
+	t.Parallel()
+
+	testFilename := ""
+	testTerraformOptions := options.TerragruntOptions{}
+	testInclude := IncludeConfig{}
+	testDependencyOutputs := cty.StringVal("fill-in-something")
+
+	actualResult, err := ParseConfigFile(testFilename, &testTerraformOptions, &testInclude, &testDependencyOutputs)
+
+	assert.Nil(t, actualResult)
+	assert.Error(t, err)
 }
 
 func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
@@ -1652,6 +1683,76 @@ func TestParseTerragruntJsonConfigTerraformWithMultipleExtraArguments(t *testing
 		assert.Equal(t, &[]string{"opt1.tfvars", "opt2.tfvars"}, terragruntConfig.Terraform.ExtraArgs[3].OptionalVarFiles)
 		assert.Equal(t, TERRAFORM_COMMANDS_NEED_VARS, terragruntConfig.Terraform.ExtraArgs[3].Commands)
 	}
+}
+
+// TODO: Test throws a SegFault because of derefenrencing a nil pointer
+//
+// func TestSetIAMRole(t *testing.T) {
+// 	t.Parallel()
+
+// 	testConfigString := ""
+// 	testTerragruntOptions := options.TerragruntOptions{}
+// 	testIncludeFromChild := IncludeConfig{}
+// 	testFilename := "locals.hcl"
+
+// 	err := setIAMRole(testConfigString, &testTerragruntOptions, &testIncludeFromChild, testFilename)
+
+// 	assert.Nil(t, err)
+// }
+
+func TestDecodeAsTerragruntConfigFileError(t *testing.T) {
+	t.Parallel()
+
+	testFile := hcl.File{}
+	testFilename := ""
+	testTerragruntOptions := options.TerragruntOptions{}
+	testExtensions := EvalContextExtensions{}
+
+	actualResult, err := decodeAsTerragruntConfigFile(&testFile, testFilename, &testTerragruntOptions, testExtensions)
+
+	assert.Nil(t, actualResult)
+	assert.Error(t, err)
+}
+
+func TestDecodeAsTerragruntConfigFile(t *testing.T) {
+	t.Parallel()
+
+	mockBody := MockHclBody{}
+
+	testFile := hcl.File{
+		Body: mockBody,
+	}
+	testFilename := ""
+	testTerragruntOptions := options.TerragruntOptions{}
+	testExtensions := EvalContextExtensions{}
+
+	actualResult, err := decodeAsTerragruntConfigFile(&testFile, testFilename, &testTerragruntOptions, testExtensions)
+
+	expectedResult := terragruntConfigFile{}
+
+	assert.Equal(t, &expectedResult, actualResult)
+	assert.NoError(t, err)
+}
+
+func TestGetIndexOfHookWith(t *testing.T) {
+	dummyHook := Hook{
+		Name: "HitMe",
+	}
+	testHook := []Hook{dummyHook}
+	testName := "HitMe"
+
+	actualResult := getIndexOfHookWithName(testHook, testName)
+
+	assert.Equal(t, 0, actualResult)
+}
+
+func TestGetIndexOfHookWithNameNoElement(t *testing.T) {
+	testHook := []Hook{}
+	testName := "NotThere"
+
+	actualResult := getIndexOfHookWithName(testHook, testName)
+
+	assert.Equal(t, -1, actualResult)
 }
 
 func TestFindConfigFilesInPathNone(t *testing.T) {

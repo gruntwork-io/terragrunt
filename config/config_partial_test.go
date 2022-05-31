@@ -7,6 +7,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// func TestDecodeBaseBlocks(t *testing.T) {
+// 	ctrl := gomock.NewController(t)
+// 	defer ctrl.Finish()
+
+// 	mockBody := NewMockBody(ctrl)
+// 	mockBody.
+// 		EXPECT().
+// 		PartialContent().
+// 		Return(gomock.Any(), gomock.Any(), gomock.Any())
+
+// 	testTerragruntOptions := options.TerragruntOptions{}
+// 	testParser := hclparse.NewParser()
+// 	testHclFile := hcl.File{
+// 		Body: mockBody,
+// 	}
+// 	testFilename := "IAmAFile.hcl"
+// 	testIncludeFromChild := IncludeConfig{}
+// 	testDecodeList := make([]PartialDecodeSectionType, 0)
+
+// 	actualCtyValue, actualTrackInclude, _ := DecodeBaseBlocks(&testTerragruntOptions, testParser, &testHclFile, testFilename, &testIncludeFromChild, testDecodeList)
+
+// 	assert.Equal(t, "Lol", actualCtyValue)
+// 	assert.Equal(t, "Lol", actualTrackInclude)
+// }
+
 func TestPartialParseResolvesLocals(t *testing.T) {
 	t.Parallel()
 
