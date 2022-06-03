@@ -47,6 +47,9 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithHashChanged(t *testing.T) {
 	}
 	defer f.Close()
 
+	// Modify content of file to simulate change
+	fmt.Fprintln(f, "CHANGED")
+
 	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, false)
 }
 
