@@ -170,7 +170,7 @@ func ReadFileAsString(path string) (string, error) {
 	return string(bytes), nil
 }
 
-func listContainsElementStartingWith(list []string, elementPrefix string) bool {
+func listContainsElementWithPrefix(list []string, elementPrefix string) bool {
 	for _, element := range list {
 		if strings.HasPrefix(element, elementPrefix) {
 			return true
@@ -225,7 +225,7 @@ func CopyFolderContents(source, destination, manifestFile string, includeInCopy 
 
 	return CopyFolderContentsWithFilter(source, destination, manifestFile, func(absolutePath string) bool {
 		relativePath, err := GetPathRelativeTo(absolutePath, source)
-		if err == nil && listContainsElementStartingWith(includeExpandedGlobs, relativePath) {
+		if err == nil && listContainsElementWithPrefix(includeExpandedGlobs, relativePath) {
 			return true
 		}
 		return !TerragruntExcludes(relativePath)
