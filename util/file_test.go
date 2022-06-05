@@ -256,26 +256,18 @@ func TestIncludeInCopy(t *testing.T) {
 		{"/_module/.region2/project2-2/f2-dot-f0.txt", true},
 	}
 
-	check := func(err error) {
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	tempDir, err := os.MkdirTemp("", "TerragruntIncludeInCopyTest")
-	check(err)
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 	source := filepath.Join(tempDir, "source")
 	destination := filepath.Join(tempDir, "destination")
 
 	fileContent := []byte("source file")
 	for _, testCase := range testCases {
 		path := filepath.Join(source, testCase.path)
-		check(os.MkdirAll(filepath.Dir(path), os.ModePerm))
-		check(os.WriteFile(path, fileContent, 0644))
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), os.ModePerm))
+		require.NoError(t, os.WriteFile(path, fileContent, 0644))
 	}
 
-	check(CopyFolderContents(source, destination, ".terragrunt-test", includeInCopy))
+	require.NoError(t, CopyFolderContents(source, destination, ".terragrunt-test", includeInCopy))
 
 	for _, testCase := range testCases {
 		_, err := os.Stat(filepath.Join(destination, testCase.path))
