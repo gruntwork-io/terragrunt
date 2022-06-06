@@ -188,7 +188,7 @@ type TerragruntOptions struct {
 	CheckDependentModules bool
 
 	// This is an experimental feature, used to speed up dependency processing by getting the output from the state
-	FetchDependencyOutputFormState bool
+	FetchDependencyOutputFromState bool
 }
 
 // IAMOptions represents options that are used by Terragrunt to assume an IAM role.
@@ -265,7 +265,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		StrictInclude:                  false,
 		Parallelism:                    DEFAULT_PARALLELISM,
 		Check:                          false,
-		FetchDependencyOutputFormState: false,
+		FetchDependencyOutputFromState: false,
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
@@ -359,7 +359,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		JSONOut:                        terragruntOptions.JSONOut,
 		Check:                          terragruntOptions.Check,
 		CheckDependentModules:          terragruntOptions.CheckDependentModules,
-		FetchDependencyOutputFormState: terragruntOptions.FetchDependencyOutputFormState,
+		FetchDependencyOutputFromState: terragruntOptions.FetchDependencyOutputFromState,
 	}
 }
 

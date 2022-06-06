@@ -862,7 +862,7 @@ directory, or any path passed in to [terragrunt-working-dir](#terragrunt-working
 ### terragrunt-fetch-dependency-output-from-state
 
 **CLI Arg**: `--terragrunt-fetch-dependency-output-from-state`
-**Environment Variable**: `TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FORM_STATE` (set to `true`)
+**Environment Variable**: `TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE` (set to `true`)
 When using many dependencies, this option can speed up the dependency processing by fetching dependency output directly
 from the state file instead of init dependencies and running terraform on them.
 NOTE: This is an experimental feature, use with caution.

@@ -212,7 +212,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.Check = parseBooleanArg(args, optTerragruntCheck, os.Getenv("TERRAGRUNT_CHECK") == "true")
 	opts.HclFile = filepath.ToSlash(terragruntHclFilePath)
 	opts.AwsProviderPatchOverrides = awsProviderPatchOverrides
-	opts.FetchDependencyOutputFormState = parseBooleanArg(args, optTerragruntFetchDependencyOutputFormState, os.Getenv("TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FORM_STATE") == "true")
+	opts.FetchDependencyOutputFromState = parseBooleanArg(args, optTerragruntFetchDependencyOutputFromState, os.Getenv("TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE") == "true")
 	opts.JSONOut, err = parseStringArg(args, optTerragruntJSONOut, "terragrunt_rendered.json")
 	if err != nil {
 		return nil, err

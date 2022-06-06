@@ -657,7 +657,7 @@ func getTerragruntOutputJsonFromRemoteState(
 	}
 
 	// To speed up dependencies processing it is possible to retrieve its output directly from the backend without init dependencies
-	if terragruntOptions.FetchDependencyOutputFormState {
+	if terragruntOptions.FetchDependencyOutputFromState {
 		switch backend := remoteState.Backend; backend {
 		case "s3":
 			jsonBytes, _ := getTerragruntOutputJsonFromRemoteStateS3(
@@ -670,7 +670,7 @@ func getTerragruntOutputJsonFromRemoteState(
 			terragruntOptions.Logger.Debugf("Retrieved output from %s as json: %s using s3 bucket", targetConfig, jsonBytes)
 			return jsonBytes, nil
 		default:
-			terragruntOptions.Logger.Errorf("FetchDependencyOutputFormState is not supported for backend %s, falling back to normal method", backend)
+			terragruntOptions.Logger.Errorf("FetchDependencyOutputFromState is not supported for backend %s, falling back to normal method", backend)
 		}
 	}
 

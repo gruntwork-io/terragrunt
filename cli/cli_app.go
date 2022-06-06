@@ -56,7 +56,7 @@ const (
 	optTerragruntStrictValidate                 = "terragrunt-strict-validate"
 	optTerragruntJSONOut                        = "terragrunt-json-out"
 	optTerragruntModulesThatInclude             = "terragrunt-modules-that-include"
-	optTerragruntFetchDependencyOutputFormState = "terragrunt-fetch-dependency-output-from-state"
+	optTerragruntFetchDependencyOutputFromState = "terragrunt-fetch-dependency-output-from-state"
 )
 
 var allTerragruntBooleanOpts = []string{
@@ -71,7 +71,7 @@ var allTerragruntBooleanOpts = []string{
 	optTerragruntCheck,
 	optTerragruntStrictInclude,
 	optTerragruntDebug,
-	optTerragruntFetchDependencyOutputFormState,
+	optTerragruntFetchDependencyOutputFromState,
 }
 var allTerragruntStringOpts = []string{
 	optTerragruntConfig,
