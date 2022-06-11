@@ -228,7 +228,7 @@ func CopyFolderContents(source, destination, manifestFile string, includeInCopy 
 		if err == nil && listContainsElementWithPrefix(includeExpandedGlobs, relativePath) {
 			return true
 		}
-		return !TerragruntExcludes(relativePath)
+		return !TerragruntExcludes(filepath.FromSlash(relativePath))
 	})
 }
 
