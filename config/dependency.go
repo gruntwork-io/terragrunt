@@ -660,7 +660,7 @@ func getTerragruntOutputJsonFromRemoteState(
 	if terragruntOptions.FetchDependencyOutputFromState {
 		switch backend := remoteState.Backend; backend {
 		case "s3":
-			jsonBytes, _ := getTerragruntOutputJsonFromRemoteStateS3(
+			jsonBytes, err := getTerragruntOutputJsonFromRemoteStateS3(
 				targetTGOptions,
 				remoteState,
 			)
@@ -712,16 +712,19 @@ func getTerragruntOutputJsonFromRemoteStateS3(
 ) ([]byte, error) {
 	terragruntOptions.Logger.Debugf("Fetching outputs directly from s3://%s/%s", remoteState.Config["bucket"], remoteState.Config["key"])
 
-	sessionConfig := &aws_helper.AwsSessionConfig{
-		Region: fmt.Sprintf("%s", remoteState.Config["region"]),
-	}
-
-	svc, err := remote.CreateS3Client(sessionConfig, terragruntOptions)
+	s3ConfigExtended, err := remote.ParseExtendedS3Config(remoteState.Config)
 	if err != nil {
 		return nil, err
 	}
 
-	result, err := svc.GetObject(&s3.GetObjectInput{
+	sessionConfig := s3ConfigExtended.GetAwsSessionConfig()
+
+	s3Client, err := remote.CreateS3Client(sessionConfig, terragruntOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := s3Client.GetObject(&s3.GetObjectInput{
 		Bucket: aws.String(fmt.Sprintf("%s", remoteState.Config["bucket"])),
 		Key:    aws.String(fmt.Sprintf("%s", remoteState.Config["key"])),
 	})

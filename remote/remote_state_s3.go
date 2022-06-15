@@ -143,7 +143,7 @@ func (s3Initializer S3Initializer) NeedsInitialization(remoteState *RemoteState,
 		return true, nil
 	}
 
-	s3ConfigExtended, err := parseExtendedS3Config(remoteState.Config)
+	s3ConfigExtended, err := ParseExtendedS3Config(remoteState.Config)
 	if err != nil {
 		return false, err
 	}
@@ -235,7 +235,7 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 // Initialize the remote state S3 bucket specified in the given config. This function will validate the config
 // parameters, create the S3 bucket if it doesn't already exist, and check that versioning is enabled.
 func (s3Initializer S3Initializer) Initialize(remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error {
-	s3ConfigExtended, err := parseExtendedS3Config(remoteState.Config)
+	s3ConfigExtended, err := ParseExtendedS3Config(remoteState.Config)
 	if err != nil {
 		return err
 	}
@@ -315,7 +315,7 @@ func (s3Initializer S3Initializer) GetTerraformInitArgs(config map[string]interf
 }
 
 // Parse the given map into an extended S3 config
-func parseExtendedS3Config(config map[string]interface{}) (*ExtendedRemoteStateConfigS3, error) {
+func ParseExtendedS3Config(config map[string]interface{}) (*ExtendedRemoteStateConfigS3, error) {
 	var s3Config RemoteStateConfigS3
 	var extendedConfig ExtendedRemoteStateConfigS3
 
