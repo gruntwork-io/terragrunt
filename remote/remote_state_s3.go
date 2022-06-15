@@ -67,20 +67,22 @@ var terragruntOnlyConfigs = []string{
 
 // A representation of the configuration options available for S3 remote state
 type RemoteStateConfigS3 struct {
-	Encrypt          bool   `mapstructure:"encrypt"`
-	Bucket           string `mapstructure:"bucket"`
-	Key              string `mapstructure:"key"`
-	Region           string `mapstructure:"region"`
-	Endpoint         string `mapstructure:"endpoint"`
-	DynamoDBEndpoint string `mapstructure:"dynamodb_endpoint"`
-	Profile          string `mapstructure:"profile"`
-	RoleArn          string `mapstructure:"role_arn"`
-	ExternalID       string `mapstructure:"external_id"`
-	SessionName      string `mapstructure:"session_name"`
-	LockTable        string `mapstructure:"lock_table"` // Deprecated in Terraform version 0.13 or newer.
-	DynamoDBTable    string `mapstructure:"dynamodb_table"`
-	CredsFilename    string `mapstructure:"shared_credentials_file"`
-	S3ForcePathStyle bool   `mapstructure:"force_path_style"`
+	Encrypt          bool    `mapstructure:"encrypt"`
+	Bucket           string  `mapstructure:"bucket"`
+	Key              string  `mapstructure:"key"`
+	Region           string  `mapstructure:"region"`
+	Endpoint         string  `mapstructure:"endpoint"`
+	DynamoDBEndpoint string  `mapstructure:"dynamodb_endpoint"`
+	Profile          string  `mapstructure:"profile"`
+	RoleArn          string  `mapstructure:"role_arn"`
+	ExternalID       string  `mapstructure:"external_id"`
+	SessionName      string  `mapstructure:"session_name"`
+	LockTable        string  `mapstructure:"lock_table"` // Deprecated in Terraform version 0.13 or newer.
+	DynamoDBTable    string  `mapstructure:"dynamodb_table"`
+	CredsFilename    string  `mapstructure:"shared_credentials_file"`
+	S3ForcePathStyle bool    `mapstructure:"force_path_style"`
+	AccessKey        *string `mapstructure:"access_key"`
+	SecretKey        *string `mapstructure:"secret_key"`
 }
 
 // Builds a session config for AWS related requests from the RemoteStateConfigS3 configuration
@@ -96,6 +98,8 @@ func (c *ExtendedRemoteStateConfigS3) GetAwsSessionConfig() *aws_helper.AwsSessi
 		CredsFilename:           c.remoteStateConfigS3.CredsFilename,
 		S3ForcePathStyle:        c.remoteStateConfigS3.S3ForcePathStyle,
 		DisableComputeChecksums: c.DisableAWSClientChecksums,
+		AccessKey:               c.remoteStateConfigS3.AccessKey,
+		SecretKey:               c.remoteStateConfigS3.SecretKey,
 	}
 }
 
