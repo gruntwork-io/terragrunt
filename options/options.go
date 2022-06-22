@@ -71,6 +71,9 @@ type TerragruntOptions struct {
 	// Whether we should automatically run terraform init if necessary when executing other commands
 	AutoInit bool
 
+	// Whether we should automatically run terraform with -auto-apply in run-all mode.
+	RunAllAutoApprove bool
+
 	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
 	TerraformCliArgs []string
 
@@ -237,7 +240,8 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		OriginalTerraformCommand:       "",
 		TerraformCommand:               "",
 		AutoInit:                       true,
-		NonInteractive:                 false,
+		RunAllAutoApprove:              true,
+    NonInteractive:                 false,
 		TerraformCliArgs:               []string{},
 		WorkingDir:                     workingDir,
 		Logger:                         logger,
@@ -323,7 +327,8 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		TerraformVersion:               terragruntOptions.TerraformVersion,
 		TerragruntVersion:              terragruntOptions.TerragruntVersion,
 		AutoInit:                       terragruntOptions.AutoInit,
-		NonInteractive:                 terragruntOptions.NonInteractive,
+		RunAllAutoApprove:              terragruntOptions.RunAllAutoApprove,
+    NonInteractive:                 terragruntOptions.NonInteractive,
 		TerraformCliArgs:               util.CloneStringList(terragruntOptions.TerraformCliArgs),
 		WorkingDir:                     workingDir,
 		Logger:                         util.CreateLogEntryWithWriter(terragruntOptions.ErrWriter, workingDir, terragruntOptions.LogLevel, terragruntOptions.Logger.Logger.Hooks),

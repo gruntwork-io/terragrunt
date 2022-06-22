@@ -31,7 +31,8 @@ const (
 	optTerragruntTFPath                         = "terragrunt-tfpath"
 	optTerragruntNoAutoInit                     = "terragrunt-no-auto-init"
 	optTerragruntNoAutoRetry                    = "terragrunt-no-auto-retry"
-	optNonInteractive                           = "terragrunt-non-interactive"
+	optTerragruntNoAutoApprove                  = "terragrunt-no-auto-approve"
+  optNonInteractive                           = "terragrunt-non-interactive"
 	optWorkingDir                               = "terragrunt-working-dir"
 	optDownloadDir                              = "terragrunt-download-dir"
 	optTerragruntSource                         = "terragrunt-source"
@@ -68,6 +69,7 @@ var allTerragruntBooleanOpts = []string{
 	optTerragruntIncludeExternalDependencies,
 	optTerragruntNoAutoInit,
 	optTerragruntNoAutoRetry,
+	optTerragruntNoAutoApprove,
 	optTerragruntCheck,
 	optTerragruntStrictInclude,
 	optTerragruntDebug,

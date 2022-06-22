@@ -13,6 +13,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
+
+	"golang.org/x/mod/sumdb/dirhash"
 )
 
 var forcedRegexp = regexp.MustCompile(`^([A-Za-z0-9]+)::(.+)$`)
@@ -40,9 +42,17 @@ func (src *TerraformSource) String() string {
 // string of the source URL, calculate its sha1, and base 64 encode it. For remote URLs (e.g. Git URLs), this is
 // based on the assumption that the scheme/host/path of the URL (e.g. git::github.com/foo/bar) identifies the module
 // name and the query string (e.g. ?ref=v0.0.3) identifies the version. For local file paths, there is no query string,
-// so the same file path (/foo/bar) is always considered the same version. See also the encodeSourceName and
-// ProcessTerraformSource methods.
+// so the same file path (/foo/bar) is always considered the same version. To detect changes the file path will be hashed
+// and returned as version. In case of hash error the default encoded source version will be returned.
+// See also the encodeSourceName and ProcessTerraformSource methods.
 func (terraformSource TerraformSource) EncodeSourceVersion() string {
+	if IsLocalSource(terraformSource.CanonicalSourceURL) {
+		hash, err := dirhash.HashDir(terraformSource.CanonicalSourceURL.Path, "prefix", dirhash.DefaultHash)
+		if err == nil {
+			return hash
+		}
+		// In case of error return default source version strategy
+	}
 	return util.EncodeBase64Sha1(terraformSource.CanonicalSourceURL.Query().Encode())
 }
 

@@ -449,6 +449,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-tfpath](#terragrunt-tfpath)
 - [terragrunt-no-auto-init](#terragrunt-no-auto-init)
 - [terragrunt-no-auto-retry](#terragrunt-no-auto-retry)
+- [terragrunt-no-auto-approve](#terragrunt-no-auto-approve)
 - [terragrunt-non-interactive](#terragrunt-non-interactive)
 - [terragrunt-working-dir](#terragrunt-working-dir)
 - [terragrunt-download-dir](#terragrunt-download-dir)
@@ -512,6 +513,18 @@ if you want to pass custom arguments to `terraform init` that are specific to a 
 therefore cannot be specified as `extra_arguments`. For example, `-plugin-dir`. You must run `terragrunt init`
 yourself in this case if needed. `terragrunt` will fail if it detects that `init` is needed, but auto init is
 disabled. See [Auto-Init]({{site.baseurl}}/docs/features/auto-init#auto-init)
+
+
+### terragrunt-no-auto-approve
+
+**CLI Arg**: `--terragrunt-no-auto-approve`<br/>
+**Environment Variable**: `TERRAGRUNT_AUTO_APPROVE` (set to `false`)
+**Commands**:
+- [run-all](#run-all)
+
+When passed in, Terragrunt will no longer automatically append `-auto-approve` to the underlying Terraform commands run
+with `run-all`. Note that due to the interactive prompts, this flag will also **automatically assume
+`--terragrunt-parallelism 1`**.
 
 
 ### terragrunt-no-auto-retry
@@ -721,7 +734,6 @@ included directories with `terragrunt-include-dir`.
 **Environment Variable**: `TERRAGRUNT_PARALLELISM`
 
 When passed in, limit the number of modules that are run concurrently to this number during *-all commands.
-
 
 
 ### terragrunt-debug
