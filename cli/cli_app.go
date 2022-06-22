@@ -32,7 +32,7 @@ const (
 	optTerragruntNoAutoInit                     = "terragrunt-no-auto-init"
 	optTerragruntNoAutoRetry                    = "terragrunt-no-auto-retry"
 	optTerragruntNoAutoApprove                  = "terragrunt-no-auto-approve"
-  optNonInteractive                           = "terragrunt-non-interactive"
+	optNonInteractive                           = "terragrunt-non-interactive"
 	optWorkingDir                               = "terragrunt-working-dir"
 	optDownloadDir                              = "terragrunt-download-dir"
 	optTerragruntSource                         = "terragrunt-source"
