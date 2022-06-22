@@ -475,7 +475,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-override-attr](#terragrunt-override-attr)
 - [terragrunt-json-out](#terragrunt-json-out)
 - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
-
+- [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
 
 ### terragrunt-config
 
@@ -870,3 +870,12 @@ passed in, the set will be the union of modules that includes at least one of th
 
 NOTE: When using relative paths, the paths are relative to the working directory. This is either the current working
 directory, or any path passed in to [terragrunt-working-dir](#terragrunt-working-dir).
+
+### terragrunt-fetch-dependency-output-from-state
+
+**CLI Arg**: `--terragrunt-fetch-dependency-output-from-state`
+**Environment Variable**: `TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE` (set to `true`)
+When using many dependencies, this option can speed up the dependency processing by fetching dependency output directly
+from the state file instead of init dependencies and running terraform on them.
+NOTE: This is an experimental feature, use with caution.
+Currently only AWS S3 backend is supported.

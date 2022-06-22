@@ -27,36 +27,37 @@ import (
 )
 
 const (
-	optTerragruntConfig                      = "terragrunt-config"
-	optTerragruntTFPath                      = "terragrunt-tfpath"
-	optTerragruntNoAutoInit                  = "terragrunt-no-auto-init"
-	optTerragruntNoAutoRetry                 = "terragrunt-no-auto-retry"
-	optNonInteractive                        = "terragrunt-non-interactive"
-	optWorkingDir                            = "terragrunt-working-dir"
-	optDownloadDir                           = "terragrunt-download-dir"
-	optTerragruntSource                      = "terragrunt-source"
-	optTerragruntSourceMap                   = "terragrunt-source-map"
-	optTerragruntSourceUpdate                = "terragrunt-source-update"
-	optTerragruntIAMRole                     = "terragrunt-iam-role"
-	optTerragruntIAMAssumeRoleDuration       = "terragrunt-iam-assume-role-duration"
-	optTerragruntIAMAssumeRoleSessionName    = "terragrunt-iam-assume-role-session-name"
-	optTerragruntIgnoreDependencyErrors      = "terragrunt-ignore-dependency-errors"
-	optTerragruntIgnoreDependencyOrder       = "terragrunt-ignore-dependency-order"
-	optTerragruntIgnoreExternalDependencies  = "terragrunt-ignore-external-dependencies"
-	optTerragruntIncludeExternalDependencies = "terragrunt-include-external-dependencies"
-	optTerragruntExcludeDir                  = "terragrunt-exclude-dir"
-	optTerragruntIncludeDir                  = "terragrunt-include-dir"
-	optTerragruntStrictInclude               = "terragrunt-strict-include"
-	optTerragruntParallelism                 = "terragrunt-parallelism"
-	optTerragruntNoAutoApprove               = "terragrunt-no-auto-approve"
-	optTerragruntCheck                       = "terragrunt-check"
-	optTerragruntHCLFmt                      = "terragrunt-hclfmt-file"
-	optTerragruntDebug                       = "terragrunt-debug"
-	optTerragruntOverrideAttr                = "terragrunt-override-attr"
-	optTerragruntLogLevel                    = "terragrunt-log-level"
-	optTerragruntStrictValidate              = "terragrunt-strict-validate"
-	optTerragruntJSONOut                     = "terragrunt-json-out"
-	optTerragruntModulesThatInclude          = "terragrunt-modules-that-include"
+	optTerragruntConfig                         = "terragrunt-config"
+	optTerragruntTFPath                         = "terragrunt-tfpath"
+	optTerragruntNoAutoInit                     = "terragrunt-no-auto-init"
+	optTerragruntNoAutoRetry                    = "terragrunt-no-auto-retry"
+	optTerragruntNoAutoApprove                  = "terragrunt-no-auto-approve"
+	optNonInteractive                           = "terragrunt-non-interactive"
+	optWorkingDir                               = "terragrunt-working-dir"
+	optDownloadDir                              = "terragrunt-download-dir"
+	optTerragruntSource                         = "terragrunt-source"
+	optTerragruntSourceMap                      = "terragrunt-source-map"
+	optTerragruntSourceUpdate                   = "terragrunt-source-update"
+	optTerragruntIAMRole                        = "terragrunt-iam-role"
+	optTerragruntIAMAssumeRoleDuration          = "terragrunt-iam-assume-role-duration"
+	optTerragruntIAMAssumeRoleSessionName       = "terragrunt-iam-assume-role-session-name"
+	optTerragruntIgnoreDependencyErrors         = "terragrunt-ignore-dependency-errors"
+	optTerragruntIgnoreDependencyOrder          = "terragrunt-ignore-dependency-order"
+	optTerragruntIgnoreExternalDependencies     = "terragrunt-ignore-external-dependencies"
+	optTerragruntIncludeExternalDependencies    = "terragrunt-include-external-dependencies"
+	optTerragruntExcludeDir                     = "terragrunt-exclude-dir"
+	optTerragruntIncludeDir                     = "terragrunt-include-dir"
+	optTerragruntStrictInclude                  = "terragrunt-strict-include"
+	optTerragruntParallelism                    = "terragrunt-parallelism"
+	optTerragruntCheck                          = "terragrunt-check"
+	optTerragruntHCLFmt                         = "terragrunt-hclfmt-file"
+	optTerragruntDebug                          = "terragrunt-debug"
+	optTerragruntOverrideAttr                   = "terragrunt-override-attr"
+	optTerragruntLogLevel                       = "terragrunt-log-level"
+	optTerragruntStrictValidate                 = "terragrunt-strict-validate"
+	optTerragruntJSONOut                        = "terragrunt-json-out"
+	optTerragruntModulesThatInclude             = "terragrunt-modules-that-include"
+	optTerragruntFetchDependencyOutputFromState = "terragrunt-fetch-dependency-output-from-state"
 )
 
 var allTerragruntBooleanOpts = []string{
@@ -72,6 +73,7 @@ var allTerragruntBooleanOpts = []string{
 	optTerragruntCheck,
 	optTerragruntStrictInclude,
 	optTerragruntDebug,
+	optTerragruntFetchDependencyOutputFromState,
 }
 var allTerragruntStringOpts = []string{
 	optTerragruntConfig,

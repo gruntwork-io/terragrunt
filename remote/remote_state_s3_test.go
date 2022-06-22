@@ -156,7 +156,7 @@ func TestForcePathStyleClientSession(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			s3ConfigExtended, err := parseExtendedS3Config(testCase.config)
+			s3ConfigExtended, err := ParseExtendedS3Config(testCase.config)
 			require.Nil(t, err, "Unexpected error parsing config for test: %v", err)
 
 			s3Client, err := CreateS3Client(s3ConfigExtended.GetAwsSessionConfig(), terragruntOptions)
@@ -197,7 +197,7 @@ func TestGetAwsSessionConfig(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			s3ConfigExtended, err := parseExtendedS3Config(testCase.config)
+			s3ConfigExtended, err := ParseExtendedS3Config(testCase.config)
 			require.Nil(t, err, "Unexpected error parsing config for test: %v", err)
 
 			expected := &aws_helper.AwsSessionConfig{
