@@ -48,6 +48,7 @@ const (
 	optTerragruntIncludeDir                  = "terragrunt-include-dir"
 	optTerragruntStrictInclude               = "terragrunt-strict-include"
 	optTerragruntParallelism                 = "terragrunt-parallelism"
+	optTerragruntNoAutoApprove               = "terragrunt-no-auto-approve"
 	optTerragruntCheck                       = "terragrunt-check"
 	optTerragruntHCLFmt                      = "terragrunt-hclfmt-file"
 	optTerragruntDebug                       = "terragrunt-debug"
@@ -67,6 +68,7 @@ var allTerragruntBooleanOpts = []string{
 	optTerragruntIncludeExternalDependencies,
 	optTerragruntNoAutoInit,
 	optTerragruntNoAutoRetry,
+	optTerragruntNoAutoApprove,
 	optTerragruntCheck,
 	optTerragruntStrictInclude,
 	optTerragruntDebug,
