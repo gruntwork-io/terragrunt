@@ -112,8 +112,8 @@ const (
 	TEST_FIXTURE_RELATIVE_INCLUDE_CMD                       = "fixture-relative-include-cmd"
 	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                    = "fixture-get-aws-caller-identity"
 	TEST_FIXTURE_GET_REPO_ROOT                              = "fixture-get-repo-root"
-	TEST_FIXTURE_GET_PATH_FROM_REPO_ROOT                    = "fixture-get-path-from-repo-root"
-	TEST_FIXTURE_GET_PATH_TO_REPO_ROOT                      = "fixture-get-path-to-repo-root"
+	TEST_FIXTURE_GET_PATH_FROM_REPO_ROOT                    = "fixture-get-path/fixture-get-path-from-repo-root"
+	TEST_FIXTURE_GET_PATH_TO_REPO_ROOT                      = "fixture-get-path/fixture-get-path-to-repo-root"
 	TEST_FIXTURE_GET_PLATFORM                               = "fixture-get-platform"
 	TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_HCL                  = "fixture-get-terragrunt-source-hcl"
 	TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_CLI                  = "fixture-get-terragrunt-source-cli"
@@ -2812,9 +2812,9 @@ func TestGetRepoRoot(t *testing.T) {
 	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_GET_REPO_ROOT))
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_REPO_ROOT)
 
-	_, err := exec.Command("git", "init", rootPath).Output()
+	output, err := exec.Command("git", "init", rootPath).Output()
 	if err != nil {
-		t.Fatalf("Error initializing git repo: %v", err)
+		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
 	}
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
@@ -2844,9 +2844,9 @@ func TestGetPathFromRepoRoot(t *testing.T) {
 	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_GET_PATH_FROM_REPO_ROOT))
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_PATH_FROM_REPO_ROOT)
 
-	_, err := exec.Command("git", "init", tmpEnvPath+"/../").Output()
+	output, err := exec.Command("git", "init", tmpEnvPath+"/../").Output()
 	if err != nil {
-		t.Fatalf("Error initializing git repo: %v", err)
+		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
 	}
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
@@ -2899,7 +2899,7 @@ func TestGetPathToRepoRoot(t *testing.T) {
 	pathToRoot, hasPathToRoot := outputs["path_to_root"]
 
 	require.True(t, hasPathToRoot)
-	require.Equal(t, pathToRoot.Value, "../../")
+	require.Equal(t, pathToRoot.Value, "../../../")
 }
 
 func TestGetPlatform(t *testing.T) {
