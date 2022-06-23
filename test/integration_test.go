@@ -2848,7 +2848,7 @@ func TestGetPathFromRepoRoot(t *testing.T) {
 	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_GET_PATH_FROM_REPO_ROOT))
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_PATH_FROM_REPO_ROOT)
 
-	output, err := exec.Command("git", "init", tmpEnvPath+"/../").CombinedOutput()
+	output, err := exec.Command("git", "init", tmpEnvPath).CombinedOutput()
 	if err != nil {
 		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
 	}
@@ -2871,7 +2871,7 @@ func TestGetPathFromRepoRoot(t *testing.T) {
 	pathFromRoot, hasPathFromRoot := outputs["path_from_root"]
 
 	require.True(t, hasPathFromRoot)
-	require.Regexp(t, "terragrunt-.*/fixture-get-path-from-repo-root", pathFromRoot.Value)
+	require.Equal(t, TEST_FIXTURE_GET_PATH_FROM_REPO_ROOT, pathFromRoot.Value)
 }
 
 func TestGetPathToRepoRoot(t *testing.T) {
@@ -2881,7 +2881,7 @@ func TestGetPathToRepoRoot(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_PATH_TO_REPO_ROOT)
 	cleanupTerraformFolder(t, rootPath)
 
-	output, err := exec.Command("git", "init", tmpEnvPath+"/../").CombinedOutput()
+	output, err := exec.Command("git", "init", tmpEnvPath).CombinedOutput()
 	if err != nil {
 		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
 	}
@@ -2903,7 +2903,7 @@ func TestGetPathToRepoRoot(t *testing.T) {
 	pathToRoot, hasPathToRoot := outputs["path_to_root"]
 
 	require.True(t, hasPathToRoot)
-	require.Equal(t, pathToRoot.Value, "../../../")
+	require.Equal(t, pathToRoot.Value, "../../")
 }
 
 func TestGetPlatform(t *testing.T) {
