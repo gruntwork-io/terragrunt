@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"net/url"
 	"os"
@@ -136,6 +137,10 @@ const (
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
+	output, err := exec.Command("git", "config", "--global", "--add", "safe.directory", os.TempDir()).Output()
+	if err != nil {
+		log.Fatal(fmt.Errorf("Failed set temporary git safe directory %v\n%s", err, string(output)))
+	}
 }
 
 func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
