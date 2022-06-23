@@ -125,6 +125,7 @@ const (
 	TEST_FIXTURE_DESTROY_WARNING                            = "fixture-destroy-warning"
 	TEST_FIXTURE_INCLUDE_PARENT                             = "fixture-include-parent"
 	TEST_FIXTURE_AUTO_INIT                                  = "fixture-download/init-on-source-change"
+	TEST_FIXTURE_DISJOINT                                   = "fixture-stack/disjoint"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -942,7 +943,10 @@ func TestTerragruntStackCommands(t *testing.T) {
 func TestTerragruntStackCommandsWithPlanFile(t *testing.T) {
 	t.Parallel()
 
-	disjointEnvironmentPath := "fixture-stack/disjoint"
+	tmpEnvPath, err := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_DISJOINT))
+	assert.NoError(t, err)
+	disjointEnvironmentPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISJOINT)
+
 	cleanupTerraformFolder(t, disjointEnvironmentPath)
 	runTerragrunt(t, fmt.Sprintf("terragrunt plan-all -out=plan.tfplan --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir %s", disjointEnvironmentPath))
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all plan.tfplan --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir %s", disjointEnvironmentPath))
