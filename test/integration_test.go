@@ -2812,7 +2812,7 @@ func TestGetRepoRoot(t *testing.T) {
 	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_GET_REPO_ROOT))
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_REPO_ROOT)
 
-	output, err := exec.Command("git", "init", rootPath).Output()
+	output, err := exec.Command("git", "init", rootPath).CombinedOutput()
 	if err != nil {
 		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
 	}
@@ -2844,7 +2844,7 @@ func TestGetPathFromRepoRoot(t *testing.T) {
 	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_GET_PATH_FROM_REPO_ROOT))
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_PATH_FROM_REPO_ROOT)
 
-	output, err := exec.Command("git", "init", tmpEnvPath+"/../").Output()
+	output, err := exec.Command("git", "init", tmpEnvPath+"/../").CombinedOutput()
 	if err != nil {
 		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
 	}
@@ -2877,7 +2877,7 @@ func TestGetPathToRepoRoot(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_PATH_TO_REPO_ROOT)
 	cleanupTerraformFolder(t, rootPath)
 
-	output, err := exec.Command("git", "init", tmpEnvPath+"/../").Output()
+	output, err := exec.Command("git", "init", tmpEnvPath+"/../").CombinedOutput()
 	if err != nil {
 		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
 	}

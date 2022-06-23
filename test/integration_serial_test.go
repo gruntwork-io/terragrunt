@@ -300,7 +300,7 @@ func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules in
 	require.NoError(t, err)
 
 	matches := r.FindAllStringSubmatch(output, -1)
-	require.True(t, len(matches) == numberOfModules)
+	assert.Equal(t, numberOfModules, len(matches))
 	var times []int
 	for _, v := range matches {
 		// timestamp() is parsed
