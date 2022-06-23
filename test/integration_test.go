@@ -138,7 +138,7 @@ const (
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
-	output, err := exec.Command("git", "config", "--global", "--add", "safe.directory", os.TempDir()).Output()
+	output, err := exec.Command("git", "config", "--global", "--add", "safe.directory", os.TempDir()).CombinedOutput()
 	if err != nil {
 		log.Fatal(fmt.Errorf("Failed set temporary git safe directory %v\n%s", err, string(output)))
 	}
