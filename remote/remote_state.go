@@ -45,6 +45,7 @@ type RemoteStateInitializer interface {
 var remoteStateInitializers = map[string]RemoteStateInitializer{
 	"s3":  S3Initializer{},
 	"gcs": GCSInitializer{},
+	"cos": COSInitializer{},
 }
 
 // Fill in any default configuration for remote state
