@@ -16,9 +16,8 @@ nav_title_link: /docs/
 
   - [Filling in remote state settings with Terragrunt](#filling-in-remote-state-settings-with-terragrunt)
 
-  - [Using the generate property to generate terraform code for managing remote state](#using-the-generate-property-to-generate-terraform-code-for-managing-remote-state)
-
   - [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically)
+
 
 ### Motivation
 
@@ -49,14 +48,7 @@ Unfortunately, the `backend` configuration does not support expressions, variabl
 
 To use remote state with each of these modules, you would have to copy/paste the exact same `backend` configuration into each of the `main.tf` files. The only thing that would differ between the configurations would be the `key` parameter: e.g., the `key` for `mysql/main.tf` might be `mysql/terraform.tfstate` and the `key` for `frontend-app/main.tf` might be `frontend-app/terraform.tfstate`.
 
-To keep your remote state configuration DRY, you can use Terragrunt. You still have to specify the `backend` you want to use in each module, but instead of copying and pasting the configuration settings over and over again into each `main.tf` file, you can leave them blank (this is known as [partial configuration](https://www.terraform.io/docs/backends/config.html#partial-configuration)):
-
-``` hcl
-terraform {
-  # The configuration for this backend will be filled in by Terragrunt
-  backend "s3" {}
-}
-```
+To keep your remote state configuration DRY, you can use Terragrunt.
 
 ### Filling in remote state settings with Terragrunt
 
@@ -76,12 +68,15 @@ To fill in the settings via Terragrunt, create a `terragrunt.hcl` file in the ro
         ├── main.tf
         └── terragrunt.hcl
 
-In your **root** `terragrunt.hcl` file, you can define your entire remote state configuration just once in a `remote_state` block (which supports all the same [backend types](https://www.terraform.io/docs/backends/types/index.html) as Terraform), as follows:
+In your **root** `terragrunt.hcl` file, you can define your entire remote state configuration just once in a `generate` block, to generate a `backend.tf` file that includes the backend configuration:
 
-``` hcl
-remote_state {
-  backend = "s3"
-  config = {
+```hcl
+generate "backend" {
+  path      = "backend.tf"
+  if_exists = "overwrite_terragrunt"
+  contents = <<EOF
+terraform {
+  backend "s3" {
     bucket         = "my-terraform-state"
     key            = "${path_relative_to_include()}/terraform.tfstate"
     region         = "us-east-1"
@@ -89,9 +84,17 @@ remote_state {
     dynamodb_table = "my-lock-table"
   }
 }
+EOF
+}
 ```
 
-In each of the **child** `terragrunt.hcl` files, such as `mysql/terragrunt.hcl`, you can tell Terragrunt to automatically include all the settings from the root `terragrunt.hcl` file as follows:
+This instructs Terragrunt to create the file `backend.tf` in the working directory (where Terragrunt calls `terraform`)
+before it calls any of the Terraform commands, including `init`. This allows you to inject this backend configuration
+in all the modules that includes the root file and have `terragrunt` properly initialize the backend configuration with
+interpolated values.
+
+To inherit this configuration, in each of the **child** `terragrunt.hcl` files, such as `mysql/terragrunt.hcl`, you can
+tell Terragrunt to automatically include all the settings from the root `terragrunt.hcl` file as follows:
 
 ``` hcl
 include "root" {
@@ -99,9 +102,9 @@ include "root" {
 }
 ```
 
-The `include` block tells Terragrunt to use the exact same Terragrunt configuration from the `terragrunt.hcl` file specified via the `path` parameter. It behaves exactly as if you had copy/pasted the Terraform configuration from the included file `remote_state` configuration into `mysql/terragrunt.hcl`, but this approach is much easier to maintain\!
+The `include` block tells Terragrunt to use the exact same Terragrunt configuration from the `terragrunt.hcl` file specified via the `path` parameter. It behaves exactly as if you had copy/pasted the Terraform configuration from the included file `generate` configuration into `mysql/terragrunt.hcl`, but this approach is much easier to maintain\!
 
-The next time you run `terragrunt`, it will automatically configure all the settings in the `remote_state.config` block, if they aren’t configured already, by calling [terraform init](https://www.terraform.io/docs/commands/init.html).
+The next time you run `terragrunt`, it will automatically configure all the settings for the backend, if they aren’t configured already, by calling [terraform init](https://www.terraform.io/docs/commands/init.html).
 
 The `terragrunt.hcl` files above use two Terragrunt built-in functions:
 
@@ -111,96 +114,46 @@ The `terragrunt.hcl` files above use two Terragrunt built-in functions:
 
 See [the Built-in Functions docs]({{site.baseurl}}/docs/reference/built-in-functions/#built-in-functions) for more info.
 
-Check out the [terragrunt-infrastructure-modules-example](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example) and [terragrunt-infrastructure-live-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example) repos for fully-working sample code that demonstrates how to use Terragrunt to manage remote state.
-
-### Rules for merging parent and child configurations
-
-The child `.hcl` file’s `terraform` settings will be merged into the parent file’s `terraform` settings as follows:
-
-  - If an `extra_arguments` block in the child has the same name as an `extra_arguments` block in the parent, then the child’s block will override the parent’s.
-
-      - Specifying an empty `extra_arguments` block in a child with the same name will effectively remove the parent’s block.
-
-  - If an `extra_arguments` block in the child has a different name than `extra_arguments` blocks in the parent, then both the parent and child’s `extra_arguments` will be effective.
-
-      - The child’s `extra_arguments` will be placed *after* the parent’s `extra_arguments` on the terraform command line.
-
-      - Therefore, if a child’s and parent’s `extra_arguments` include `.tfvars` files with the same variable defined, the value from the `.tfvars` file from the child’s `extra_arguments` will be used by terraform.
-
-  - If a `before_hook` or `after_hook` block in the child has the same name as the hook block in the parent, then the child’s block will override the parent’s.
-
-      - Specifying an empty hook block in a child with the same name will effectively remove the parent’s block.
-
-  - If a `before_hook` or `after_hook` block in the child has a different name than hook blocks in the parent, then both the parent and child’s hook blocks will be effective.
-
-  - The `source` field in the child will override `source` field in the parent
-
-Other settings in the child `.hcl` file override the respective settings in the parent.
-
-
-### Using the generate property to generate terraform code for managing remote state
-
-While the default way terragrunt manages remote state is through `terraform init` with `-backend-config`, you can also
-use the `generate` property to configure terragrunt to generate a `.tf` file in the terraform working directory with the
-backend configuration.
-
-The `generate` property is an object that accepts two parameters:
-
-- `path`: The path where the generated file should be written. If a relative path, it'll be relative to the Terragrunt
-  working dir (where the terraform code lives).
-- `if_exists`: What to do if a file already exists at `path`. Valid values are: `overwrite` (overwrite the existing
-  file), `skip` (skip code generation and leave the existing file as-is), `error` (exit with an error).
-
-For example, here is a version of the root `remote_state` configuration with the `generate` property:
-
-```hcl
-remote_state {
-  backend = "s3"
-  generate = {
-    path      = "backend.tf"
-    if_exists = "overwrite"
-  }
-  config = {
-    bucket         = "my-terraform-state"
-    key            = "${path_relative_to_include()}/terraform.tfstate"
-    region         = "us-east-1"
-    encrypt        = true
-    dynamodb_table = "my-lock-table"
-  }
-}
-```
-
-With this configuration, `terragrunt` will generate a new file `backend.tf` in the working directory before it calls out
-to any `terraform` command with the following contents:
-
-```hcl
-# Generated by Terragrunt. Sig: nIlQXj57tbuaRZEa
-terraform {
-  backend "s3" {
-    bucket         = "my-terraform-state"
-    key            = "path/to/child/from/parent/terraform.tfstate"
-    region         = "us-east-1"
-    encrypt        = true
-    dynamodb_table = "my-lock-table"
-  }
-}
-```
-
-Terragrunt will also skip including the `-backend-config` arguments when calling `terraform`.
-
 
 ### Create remote state and locking resources automatically
 
-When you run `terragrunt` with `remote_state` configuration, it will automatically create the following resources if they don’t already exist:
+The `generate` block is useful for allowing you to setup the remote state backend configuration in a DRY manner, but
+this introduces a bootstrapping problem: how do you create and manage the underlying storage resources for the remote
+state? For example, when using the [s3 backend](https://www.terraform.io/language/settings/backends/s3), Terraform
+expects the S3 bucket to already exist for it to upload the state objects.
+
+Ideally you can manage the S3 bucket using Terraform, but what about the state object for the module managing the S3
+bucket? How do you create the S3 bucket, before you run `terraform`, if you need to run `terraform` to create the
+bucket?
+
+To handle this, Terragrunt supports a different block for managing the backend configuration: the [remote_state
+block](https://terragrunt.gruntwork.io/docs/reference/config-blocks-and-attributes/#remote_state).
+
+> **NOTE**
+>
+> `remote_state` is an alternative way of managing the Terraform backend compared to `generate`. You can not use both
+> methods at the same time to manage the remote state configuration. When implementing `remote_state`, be sure to remove
+> the corresponding `generate` block for managing the backend.
+
+The following backends are currently supported by `remote_state`:
+
+- [s3 backend](https://www.terraform.io/language/settings/backends/s3)
+- [gcs backend](https://www.terraform.io/language/settings/backends/gcs)
+
+For all other backends, the `remote_state` block operates in the same manner as `generate`. However, we may add
+support for additional backends to `remote_state` blocks, which may disrupt your environment. If you do not want support
+for automated management of remote state resources, we recommend sticking to `generate` blocks to configure the backend.
+
+When you run `terragrunt` with a `remote_state` configuration, it will automatically create the following resources if they don’t already exist:
 
   - **S3 bucket**: If you are using the [S3 backend](https://www.terraform.io/docs/backends/types/s3.html) for remote state storage and the `bucket` you specify in `remote_state.config` doesn’t already exist, Terragrunt will create it automatically, with [versioning](https://docs.aws.amazon.com/AmazonS3/latest/dev/Versioning.html), [server-side encryption](https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html), and [access logging](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerLogs.html) enabled.
 
     In addition, you can let terragrunt tag the bucket with custom tags that you specify in `remote_state.config.s3_bucket_tags`.
 
   - **DynamoDB table**: If you are using the [S3 backend](https://www.terraform.io/docs/backends/types/s3.html) for remote state storage and you specify a `dynamodb_table` (a [DynamoDB table used for locking](https://www.terraform.io/docs/backends/types/s3.html#dynamodb_table)) in `remote_state.config`, if that table doesn’t already exist, Terragrunt will create it automatically, with [server-side encryption](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/EncryptionAtRest.html) enabled, including a primary key called `LockID`.
-  
+
     You may configure custom endpoint for the AWS DynamoDB API using `remote_state.config.dynamodb_endpoint`.
-    
+
     In addition, you can let terragrunt tag the DynamoDB table with custom tags that you specify in `remote_state.config.dynamodb_table_tags`.
 
   - **GCS bucket**: If you are using the [GCS backend](https://www.terraform.io/docs/backends/types/gcs.html) for remote state storage and the `bucket` you specify in `remote_state.config` doesn’t already exist, Terragrunt will create it automatically, with [versioning](https://cloud.google.com/storage/docs/object-versioning) enabled. For this to work correctly you must also specify `project` and `location` keys in `remote_state.config`, so Terragrunt knows where to create the bucket. You will also need to supply valid credentials using either `remote_state.config.credentials` or by setting the `GOOGLE_APPLICATION_CREDENTIALS` environment variable. If you want to skip creating the bucket entirely, simply set `skip_bucket_creation` to `true` and Terragrunt will assume the bucket has already been created. If you don’t specify `bucket` in `remote_state` then terragrunt will assume that you will pass `bucket` through `-backend-config` in `extra_arguments`.
@@ -222,6 +175,50 @@ remote_state {
   disable_init = tobool(get_env("TERRAGRUNT_DISABLE_INIT", "false"))
 }
 ```
+
+Here is an example of using the `remote_state` block to configure the S3 backend:
+
+```hcl
+remote_state {
+  backend = "s3"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    bucket         = "my-terraform-state"
+    key            = "${path_relative_to_include()}/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "my-lock-table"
+  }
+}
+```
+
+Like the approach with `generate` blocks, this will generate a `backend.tf` file that contains the remote state
+configuration. However, in addition to that, `terragrunt` will also now manage the S3 bucket and DynamoDB table for you.
+This means that if the S3 bucket `my-terraform-state` and DynamoDB table `my-lock-table` does not exist in your account,
+Terragrunt will automatically create these resources before calling `terraform` and configure them based on the
+specified configuration parameters.
+
+Additionally, for **the S3 backend only**, Terragrunt will automatically update the S3 resource to match the
+configuration specified in the `remote_state` bucket. For example, if you require versioning in the `remote_state`
+block, but the underlying state bucket doesn't have versioning enabled, Terragrunt will automatically turn on versioning
+on the bucket to match the configuration.
+
+If you do not want `terragrunt` to automatically apply changes, you can configuret the following:
+
+```hcl
+remote_state {
+  # ... other args omitted for brevity ...
+  config = {
+    # ... other config omitted for brevity ...
+    disable_bucket_update = true
+  }
+}
+```
+
+Check out the [terragrunt-infrastructure-modules-example](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example) and [terragrunt-infrastructure-live-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example) repos for fully-working sample code that demonstrates how to use Terragrunt to manage remote state.
 
 ### S3-specific remote state settings
 

@@ -109,8 +109,8 @@ func TestToTerraformInitArgsNoBackendConfigs(t *testing.T) {
 	t.Parallel()
 
 	remoteStates := []RemoteState{
-		RemoteState{Backend: "s3"},
-		RemoteState{Backend: "gcs"},
+		{Backend: "s3"},
+		{Backend: "gcs"},
 	}
 
 	for _, state := range remoteStates {

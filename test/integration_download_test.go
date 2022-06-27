@@ -367,8 +367,8 @@ func TestIncludeDirsDependencyConsistencyRegression(t *testing.T) {
 		"testapp/k8s",
 	}
 
-	testPath := filepath.Join(TEST_FIXTURE_REGRESSIONS, "exclude-dependency")
-	cleanupTerragruntFolder(t, testPath)
+	tmpPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_REGRESSIONS))
+	testPath := filepath.Join(tmpPath, TEST_FIXTURE_REGRESSIONS, "exclude-dependency")
 	for _, modulePath := range modulePaths {
 		cleanupTerragruntFolder(t, filepath.Join(testPath, modulePath))
 	}
@@ -377,10 +377,10 @@ func TestIncludeDirsDependencyConsistencyRegression(t *testing.T) {
 	assert.Greater(t, len(includedModulesWithNone), 0)
 
 	includedModulesWithAmzApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"amazing-app/k8s"}, false)
-	assert.Equal(t, includedModulesWithAmzApp, []string{"amazing-app/k8s", "clusters/eks"})
+	assert.Equal(t, []string{"amazing-app/k8s", "clusters/eks"}, includedModulesWithAmzApp)
 
 	includedModulesWithTestApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"testapp/k8s"}, false)
-	assert.Equal(t, includedModulesWithTestApp, []string{"clusters/eks", "testapp/k8s"})
+	assert.Equal(t, []string{"clusters/eks", "testapp/k8s"}, includedModulesWithTestApp)
 }
 
 func TestIncludeDirsStrict(t *testing.T) {
@@ -392,20 +392,21 @@ func TestIncludeDirsStrict(t *testing.T) {
 		"testapp/k8s",
 	}
 
-	testPath := filepath.Join(TEST_FIXTURE_REGRESSIONS, "exclude-dependency")
+	tmpPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_REGRESSIONS))
+	testPath := filepath.Join(tmpPath, TEST_FIXTURE_REGRESSIONS, "exclude-dependency")
 	cleanupTerragruntFolder(t, testPath)
 	for _, modulePath := range modulePaths {
 		cleanupTerragruntFolder(t, filepath.Join(testPath, modulePath))
 	}
 
 	includedModulesWithNone := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{}, true)
-	assert.Equal(t, includedModulesWithNone, []string{})
+	assert.Equal(t, []string{}, includedModulesWithNone)
 
 	includedModulesWithAmzApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"amazing-app/k8s"}, true)
-	assert.Equal(t, includedModulesWithAmzApp, []string{"amazing-app/k8s"})
+	assert.Equal(t, []string{"amazing-app/k8s"}, includedModulesWithAmzApp)
 
 	includedModulesWithTestApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"testapp/k8s"}, true)
-	assert.Equal(t, includedModulesWithTestApp, []string{"testapp/k8s"})
+	assert.Equal(t, []string{"testapp/k8s"}, includedModulesWithTestApp)
 }
 
 func TestTerragruntExternalDependencies(t *testing.T) {

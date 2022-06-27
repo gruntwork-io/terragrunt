@@ -156,7 +156,7 @@ func TestForcePathStyleClientSession(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			s3ConfigExtended, err := parseExtendedS3Config(testCase.config)
+			s3ConfigExtended, err := ParseExtendedS3Config(testCase.config)
 			require.Nil(t, err, "Unexpected error parsing config for test: %v", err)
 
 			s3Client, err := CreateS3Client(s3ConfigExtended.GetAwsSessionConfig(), terragruntOptions)
@@ -197,7 +197,7 @@ func TestGetAwsSessionConfig(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			s3ConfigExtended, err := parseExtendedS3Config(testCase.config)
+			s3ConfigExtended, err := ParseExtendedS3Config(testCase.config)
 			require.Nil(t, err, "Unexpected error parsing config for test: %v", err)
 
 			expected := &aws_helper.AwsSessionConfig{
@@ -276,6 +276,7 @@ func TestGetTerraformInitArgs(t *testing.T) {
 				"skip_bucket_ssencryption":       false,
 				"skip_bucket_root_access":        false,
 				"skip_bucket_enforced_tls":       false,
+				"disable_bucket_update":          true,
 				"enable_lock_table_ssencryption": true,
 				"disable_aws_client_checksums":   false,
 				"accesslogging_bucket_name":      "test",

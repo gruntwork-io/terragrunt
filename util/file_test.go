@@ -1,7 +1,9 @@
 package util
 
 import (
+	"errors"
 	"io/ioutil"
+	"os"
 	"path"
 	"path/filepath"
 	"testing"
@@ -206,6 +208,7 @@ func TestContainsPath(t *testing.T) {
 		assert.Equal(t, testCase.expected, actual, "For path %s and subpath %s", testCase.path, testCase.subpath)
 	}
 }
+
 func TestHasPathPrefix(t *testing.T) {
 	t.Parallel()
 
@@ -232,5 +235,45 @@ func TestHasPathPrefix(t *testing.T) {
 	for _, testCase := range testCases {
 		actual := HasPathPrefix(testCase.path, testCase.prefix)
 		assert.Equal(t, testCase.expected, actual, "For path %s and prefix %s", testCase.path, testCase.prefix)
+	}
+}
+
+func TestIncludeInCopy(t *testing.T) {
+	includeInCopy := []string{"_module/.region2", "**/app2", "**/.include-me-too"}
+
+	testCases := []struct {
+		path         string
+		copyExpected bool
+	}{
+		{"/app/terragrunt.hcl", true},
+		{"/_module/main.tf", true},
+		{"/_module/.region1/info.txt", false},
+		{"/_module/.region3/project3-1/f1-2-levels.txt", false},
+		{"/_module/.region3/project3-1/app1/.include-me-too/file.txt", true},
+		{"/_module/.region3/project3-2/.f0/f0-3-levels.txt", false},
+		{"/_module/.region2/.project2-1/app2/f2-dot-f2.txt", true},
+		{"/_module/.region2/.project2-1/readme.txt", true},
+		{"/_module/.region2/project2-2/f2-dot-f0.txt", true},
+	}
+
+	tempDir := t.TempDir()
+	source := filepath.Join(tempDir, "source")
+	destination := filepath.Join(tempDir, "destination")
+
+	fileContent := []byte("source file")
+	for _, testCase := range testCases {
+		path := filepath.Join(source, testCase.path)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), os.ModePerm))
+		require.NoError(t, os.WriteFile(path, fileContent, 0644))
+	}
+
+	require.NoError(t, CopyFolderContents(source, destination, ".terragrunt-test", includeInCopy))
+
+	for _, testCase := range testCases {
+		_, err := os.Stat(filepath.Join(destination, testCase.path))
+		assert.True(t,
+			testCase.copyExpected && err == nil ||
+				!testCase.copyExpected && errors.Is(err, os.ErrNotExist),
+			"Unexpected copy result for file '%s' (should be copied: '%t') - got error: %s", testCase.path, testCase.copyExpected, err)
 	}
 }

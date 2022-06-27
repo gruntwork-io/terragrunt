@@ -21,6 +21,38 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+func TestAlreadyHaveLatestCodeLocalFilePathWithHashNoChanges(t *testing.T) {
+	t.Parallel()
+
+	canonicalUrl := fmt.Sprintf("file://%s", absPath(t, "../test/fixture-download-source/hello-world-local-hash"))
+	downloadDir := tmpDir(t)
+	defer os.Remove(downloadDir)
+
+	copyFolder(t, "../test/fixture-download-source/download-dir-version-file-local-hash", downloadDir)
+	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, true)
+}
+
+func TestAlreadyHaveLatestCodeLocalFilePathWithHashChanged(t *testing.T) {
+	t.Parallel()
+
+	canonicalUrl := fmt.Sprintf("file://%s", absPath(t, "../test/fixture-download-source/hello-world-local-hash"))
+	downloadDir := tmpDir(t)
+	defer os.Remove(downloadDir)
+
+	copyFolder(t, "../test/fixture-download-source/download-dir-version-file-local-hash", downloadDir)
+
+	f, err := os.OpenFile(downloadDir+"/version-file.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	// Modify content of file to simulate change
+	fmt.Fprintln(f, "CHANGED")
+
+	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, false)
+}
+
 func TestAlreadyHaveLatestCodeLocalFilePath(t *testing.T) {
 	t.Parallel()
 

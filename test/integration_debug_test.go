@@ -149,16 +149,24 @@ func TestTerragruntValidateInputsWithStrictModeEnabledAndUnusedInputs(t *testing
 	t.Parallel()
 
 	moduleDir := filepath.Join("fixture-validate-inputs", "fail-unused-inputs")
+	cleanupTerraformFolder(t, moduleDir)
+	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, moduleDir))
+	rootPath := util.JoinPath(tmpEnvPath, moduleDir)
+
 	args := []string{"--terragrunt-strict-validate"}
-	runTerragruntValidateInputs(t, moduleDir, args, false)
+	runTerragruntValidateInputs(t, rootPath, args, false)
 }
 
 func TestTerragruntValidateInputsWithStrictModeDisabledAndUnusedInputs(t *testing.T) {
 	t.Parallel()
 
 	moduleDir := filepath.Join("fixture-validate-inputs", "fail-unused-inputs")
+	cleanupTerraformFolder(t, moduleDir)
+	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, moduleDir))
+	rootPath := util.JoinPath(tmpEnvPath, moduleDir)
+
 	args := []string{}
-	runTerragruntValidateInputs(t, moduleDir, args, true)
+	runTerragruntValidateInputs(t, rootPath, args, true)
 }
 
 func TestRenderJSONConfig(t *testing.T) {
