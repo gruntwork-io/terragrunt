@@ -49,6 +49,7 @@ require (
 	github.com/sirupsen/logrus v1.6.0
 	github.com/smartystreets/goconvey v1.6.4 // indirect
 	github.com/stretchr/testify v1.6.1
+	github.com/tencentyun/cos-go-sdk-v5 v0.7.33
 	github.com/ulikunitz/xz v0.5.10 // indirect
 	github.com/urfave/cli v1.22.3
 	github.com/zclconf/go-cty v1.8.3
