@@ -34,4 +34,17 @@ terraform {
     execute   = ["echo", "ERROR_HOOK_EXECUTED"]
     on_errors = [".*"]
   }
+
+  error_hook "not_matching_error_hook" {
+    commands  = ["apply", "plan"]
+    execute   = ["echo", "NOT_MATCHING_ERROR_HOOK"]
+    on_errors = [".*custom-matcher.*"]
+  }
+
+  # hook to match error "executable file not found in $PATH"
+  error_hook "e" {
+    commands  = ["apply", "plan"]
+    execute   = ["echo", "PATTERN_MATCHING_ERROR_HOOK"]
+    on_errors = [".*executable file not found.*"]
+  }
 }

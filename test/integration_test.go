@@ -78,6 +78,7 @@ const (
 	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH                = "fixture-hooks/before-and-after"
 	TEST_FIXTURE_HOOKS_BEFORE_AFTER_AND_ERROR_MERGE_PATH    = "fixture-hooks/before-after-and-error-merge"
 	TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH                   = "fixture-hooks/skip-on-error"
+	TEST_FIXTURE_ERROR_HOOKS_PATH                           = "fixture-hooks/error-hooks"
 	TEST_FIXTURE_HOOKS_ONE_ARG_ACTION_PATH                  = "fixture-hooks/one-arg-action"
 	TEST_FIXTURE_HOOKS_EMPTY_STRING_COMMAND_PATH            = "fixture-hooks/bad-arg-action/empty-string-command"
 	TEST_FIXTURE_HOOKS_EMPTY_COMMAND_LIST_PATH              = "fixture-hooks/bad-arg-action/empty-command-list"
@@ -403,19 +404,43 @@ func TestTerragruntSkipOnError(t *testing.T) {
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 
+	assert.Error(t, err)
+
 	output := stderr.String()
-	if err != nil {
-		assert.Contains(t, output, "BEFORE_SHOULD_DISPLAY")
-		assert.NotContains(t, output, "BEFORE_NODISPLAY")
 
-		assert.Contains(t, output, "AFTER_SHOULD_DISPLAY")
-		assert.NotContains(t, output, "AFTER_NODISPLAY")
+	assert.Contains(t, output, "BEFORE_SHOULD_DISPLAY")
+	assert.NotContains(t, output, "BEFORE_NODISPLAY")
 
-		assert.Contains(t, output, "ERROR_HOOK_EXECUTED")
+	assert.Contains(t, output, "AFTER_SHOULD_DISPLAY")
+	assert.NotContains(t, output, "AFTER_NODISPLAY")
 
-	} else {
-		t.Error("Expected NO terragrunt execution due to previous errors but it did run.")
-	}
+	assert.Contains(t, output, "ERROR_HOOK_EXECUTED")
+	assert.NotContains(t, output, "NOT_MATCHING_ERROR_HOOK")
+	assert.Contains(t, output, "PATTERN_MATCHING_ERROR_HOOK")
+}
+
+func TestTerragruntCatchErrorsInTerraformExecution(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_ERROR_HOOKS_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_ERROR_HOOKS_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_ERROR_HOOKS_PATH)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+
+	assert.Error(t, err)
+
+	output := stderr.String()
+
+	assert.Contains(t, output, "pattern_matching_hook")
+	assert.Contains(t, output, "catch_all_matching_hook")
+	assert.NotContains(t, output, "not_matching_hook")
+
 }
 
 func TestTerragruntBeforeOneArgAction(t *testing.T) {
