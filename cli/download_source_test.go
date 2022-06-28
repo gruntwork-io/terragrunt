@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/sirupsen/logrus"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-func TestAlreadyHaveLatestCodeLocalFilePathWithHashNoChanges(t *testing.T) {
+func TestAlreadyHaveLatestCodeLocalFilePathWithHashSameFilesCopied(t *testing.T) {
 	t.Parallel()
 
 	canonicalUrl := fmt.Sprintf("file://%s", absPath(t, "../test/fixture-download-source/hello-world-local-hash"))
@@ -29,7 +30,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithHashNoChanges(t *testing.T) {
 	defer os.Remove(downloadDir)
 
 	copyFolder(t, "../test/fixture-download-source/download-dir-version-file-local-hash", downloadDir)
-	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, true)
+	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, false)
 }
 
 func TestAlreadyHaveLatestCodeLocalFilePathWithHashChanged(t *testing.T) {
@@ -317,11 +318,14 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 }
 
 func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool) (*tfsource.TerraformSource, *options.TerragruntOptions, *config.TerragruntConfig, error) {
+	logger := logrus.New()
+	logger.Out = ioutil.Discard
 	terraformSource := &tfsource.TerraformSource{
 		CanonicalSourceURL: parseUrl(t, canonicalUrl),
 		DownloadDir:        downloadDir,
 		WorkingDir:         downloadDir,
 		VersionFile:        util.JoinPath(downloadDir, "version-file.txt"),
+		Logger:             logger,
 	}
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
@@ -343,11 +347,14 @@ func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceU
 }
 
 func testAlreadyHaveLatestCode(t *testing.T, canonicalUrl string, downloadDir string, expected bool) {
+	logger := logrus.New()
+	logger.Out = ioutil.Discard
 	terraformSource := &tfsource.TerraformSource{
 		CanonicalSourceURL: parseUrl(t, canonicalUrl),
 		DownloadDir:        downloadDir,
 		WorkingDir:         downloadDir,
 		VersionFile:        util.JoinPath(downloadDir, "version-file.txt"),
+		Logger:             logger,
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")

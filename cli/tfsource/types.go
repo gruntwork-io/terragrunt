@@ -1,9 +1,12 @@
 package tfsource
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"io/ioutil"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -13,8 +16,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
-
-	"golang.org/x/mod/sumdb/dirhash"
 )
 
 var forcedRegexp = regexp.MustCompile(`^([A-Za-z0-9]+)::(.+)$`)
@@ -32,6 +33,8 @@ type TerraformSource struct {
 
 	// The path to a file in DownloadDir that stores the version number of the code
 	VersionFile string
+
+	Logger logrus.FieldLogger
 }
 
 func (src *TerraformSource) String() string {
@@ -47,12 +50,38 @@ func (src *TerraformSource) String() string {
 // See also the encodeSourceName and ProcessTerraformSource methods.
 func (terraformSource TerraformSource) EncodeSourceVersion() string {
 	if IsLocalSource(terraformSource.CanonicalSourceURL) {
-		hash, err := dirhash.HashDir(terraformSource.CanonicalSourceURL.Path, "prefix", dirhash.DefaultHash)
+		sourceHash := sha256.New()
+		sourceDir := filepath.Clean(terraformSource.CanonicalSourceURL.Path)
+
+		err := filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				// If we've encountered an error while walking the tree, give up
+				return err
+			}
+
+			if info.IsDir() {
+				// We don't use any info from directories to calculate our hash
+				return nil
+			}
+
+			fileModified := info.ModTime().UnixMicro()
+			hashContents := fmt.Sprintf("%s:%d", path, fileModified)
+
+			sourceHash.Write([]byte(hashContents))
+
+			return nil
+		})
+
 		if err == nil {
+			hash := fmt.Sprintf("%x", sourceHash.Sum(nil))
+
 			return hash
+		} else {
+			terraformSource.Logger.WithError(err).Warningf("Could not encode version for local source")
 		}
 		// In case of error return default source version strategy
 	}
+
 	return util.EncodeBase64Sha1(terraformSource.CanonicalSourceURL.Query().Encode())
 }
 
@@ -133,6 +162,7 @@ func NewTerraformSource(source string, downloadDir string, workingDir string, lo
 		DownloadDir:        updatedDownloadDir,
 		WorkingDir:         updatedWorkingDir,
 		VersionFile:        versionFile,
+		Logger:             logger,
 	}, nil
 }
 
