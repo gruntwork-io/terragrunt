@@ -1161,20 +1161,24 @@ func checkIfS3PublicAccessBlockingEnabled(s3Client *s3.S3, config *RemoteStateCo
 		return false, errors.WithStackTrace(err)
 	}
 
+	return validatePublicAccessBlock(output)
+}
+
+func validatePublicAccessBlock(output *s3.GetPublicAccessBlockOutput) (bool, error) {
 	if output.PublicAccessBlockConfiguration == nil {
 		return false, nil
 	}
 
-	if !*output.PublicAccessBlockConfiguration.BlockPublicAcls {
+	if !aws.BoolValue(output.PublicAccessBlockConfiguration.BlockPublicAcls) {
 		return false, nil
 	}
-	if !*output.PublicAccessBlockConfiguration.BlockPublicPolicy {
+	if !aws.BoolValue(output.PublicAccessBlockConfiguration.BlockPublicAcls) {
 		return false, nil
 	}
-	if !*output.PublicAccessBlockConfiguration.IgnorePublicAcls {
+	if !aws.BoolValue(output.PublicAccessBlockConfiguration.BlockPublicAcls) {
 		return false, nil
 	}
-	if !*output.PublicAccessBlockConfiguration.RestrictPublicBuckets {
+	if !aws.BoolValue(output.PublicAccessBlockConfiguration.BlockPublicAcls) {
 		return false, nil
 	}
 
