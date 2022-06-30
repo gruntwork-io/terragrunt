@@ -2,18 +2,22 @@ package aws_helper
 
 import "encoding/json"
 
-// A representation of the polciy for AWS
+// Policy - representation of the policy for AWS
 type Policy struct {
 	Version   string      `json:"Version"`
 	Statement []Statement `json:"Statement"`
 }
 
+// Statement - AWS policy statement
+// Action and Resource - can be string OR array of strings
+// https://docs.aws.amazon.com/IAM//latest/UserGuide/reference_policies_elements_action.html
+// https://docs.aws.amazon.com/IAM//latest/UserGuide/reference_policies_elements_resource.html
 type Statement struct {
 	Sid       string                  `json:"Sid"`
 	Effect    string                  `json:"Effect"`
 	Principal interface{}             `json:"Principal"`
-	Action    string                  `json:"Action"`
-	Resource  []string                `json:"Resource"`
+	Action    interface{}             `json:"Action"`
+	Resource  interface{}             `json:"Resource"`
 	Condition *map[string]interface{} `json:"Condition,omitempty"`
 }
 
