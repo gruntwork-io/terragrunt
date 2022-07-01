@@ -3740,7 +3740,7 @@ func TestLogFailingDependencies(t *testing.T) {
 	output := stderr.String()
 
 	assert.Error(t, err)
-	assert.Contains(t, output, "Terraform invocation failed fixture-broken-dependency/dependency")
+	assert.Contains(t, output, "Terraform invocation failed in fixture-broken-dependency/dependency")
 }
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
