@@ -93,7 +93,7 @@ func evaluateLocalsBlock(
 			diagsWriter,
 		)
 		if err != nil {
-			terragruntOptions.Logger.Errorf("Encountered error while evaluating locals.")
+			terragruntOptions.Logger.Errorf("Encountered error while evaluating locals in file %s", filename)
 			return nil, err
 		}
 	}
