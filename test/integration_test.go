@@ -3715,7 +3715,7 @@ func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
 	assert.True(t, isTgVersionError)
 }
 
-func TestLogFailingEvaluationOfLocals(t *testing.T) {
+func TestLogFailedLocalsEvaluation(t *testing.T) {
 	var (
 		stdout bytes.Buffer
 		stderr bytes.Buffer
@@ -3726,6 +3726,21 @@ func TestLogFailingEvaluationOfLocals(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, output, "Encountered error while evaluating locals in file fixture-broken-locals/terragrunt.hcl")
+}
+
+func TestLogFailingDependencies(t *testing.T) {
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	path := filepath.Join(TEST_FIXTURE_BROKEN_DEPENDENCY, "app")
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", path), &stdout, &stderr)
+	output := stderr.String()
+
+	assert.Error(t, err)
+	assert.Contains(t, output, "Terraform invocation failed fixture-broken-dependency/dependency")
 }
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
