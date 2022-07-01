@@ -157,11 +157,21 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		opts.Debug = true
 	}
 
-	envValue, envProvided := os.LookupEnv("TERRAGRUNT_PARALLELISM")
-	parallelism, err := parseIntArg(args, optTerragruntParallelism, envValue, envProvided, options.DEFAULT_PARALLELISM)
-	if err != nil {
-		return nil, err
+	opts.RunAllAutoApprove = !parseBooleanArg(args, optTerragruntNoAutoApprove, os.Getenv("TERRAGRUNT_AUTO_APPROVE") == "false")
+
+	var parallelism int
+	if !opts.RunAllAutoApprove {
+		// When running in no-auto-approve mode, set parallelism to 1 so that interactive prompts work.
+		parallelism = 1
+	} else {
+		envValue, envProvided := os.LookupEnv("TERRAGRUNT_PARALLELISM")
+		parsedParallelism, err := parseIntArg(args, optTerragruntParallelism, envValue, envProvided, options.DEFAULT_PARALLELISM)
+		if err != nil {
+			return nil, err
+		}
+		parallelism = parsedParallelism
 	}
+	opts.Parallelism = parallelism
 
 	iamRoleOpts, err := parseIAMRoleOptions(args)
 	if err != nil {
@@ -208,10 +218,10 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.IncludeDirs = includeDirs
 	opts.ModulesThatInclude = modulesThatInclude
 	opts.StrictInclude = strictInclude
-	opts.Parallelism = parallelism
 	opts.Check = parseBooleanArg(args, optTerragruntCheck, os.Getenv("TERRAGRUNT_CHECK") == "true")
 	opts.HclFile = filepath.ToSlash(terragruntHclFilePath)
 	opts.AwsProviderPatchOverrides = awsProviderPatchOverrides
+	opts.FetchDependencyOutputFromState = parseBooleanArg(args, optTerragruntFetchDependencyOutputFromState, os.Getenv("TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE") == "true")
 	opts.JSONOut, err = parseStringArg(args, optTerragruntJSONOut, "terragrunt_rendered.json")
 	if err != nil {
 		return nil, err

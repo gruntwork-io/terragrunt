@@ -46,6 +46,8 @@ type ExtendedRemoteStateConfigS3 struct {
 	DisableAWSClientChecksums   bool              `mapstructure:"disable_aws_client_checksums"`
 	AccessLoggingBucketName     string            `mapstructure:"accesslogging_bucket_name"`
 	AccessLoggingTargetPrefix   string            `mapstructure:"accesslogging_target_prefix"`
+	BucketSSEAlgorithm          string            `mapstructure:"bucket_sse_algorithm"`
+	BucketSSEKMSKeyID           string            `mapstructure:"bucket_sse_kms_key_id"`
 }
 
 // These are settings that can appear in the remote_state config that are ONLY used by Terragrunt and NOT forwarded
@@ -63,6 +65,8 @@ var terragruntOnlyConfigs = []string{
 	"disable_aws_client_checksums",
 	"accesslogging_bucket_name",
 	"accesslogging_target_prefix",
+	"bucket_sse_algorithm",
+	"bucket_sse_kms_key_id",
 }
 
 // A representation of the configuration options available for S3 remote state
@@ -143,7 +147,7 @@ func (s3Initializer S3Initializer) NeedsInitialization(remoteState *RemoteState,
 		return true, nil
 	}
 
-	s3ConfigExtended, err := parseExtendedS3Config(remoteState.Config)
+	s3ConfigExtended, err := ParseExtendedS3Config(remoteState.Config)
 	if err != nil {
 		return false, err
 	}
@@ -235,7 +239,7 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 // Initialize the remote state S3 bucket specified in the given config. This function will validate the config
 // parameters, create the S3 bucket if it doesn't already exist, and check that versioning is enabled.
 func (s3Initializer S3Initializer) Initialize(remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error {
-	s3ConfigExtended, err := parseExtendedS3Config(remoteState.Config)
+	s3ConfigExtended, err := ParseExtendedS3Config(remoteState.Config)
 	if err != nil {
 		return err
 	}
@@ -315,7 +319,7 @@ func (s3Initializer S3Initializer) GetTerraformInitArgs(config map[string]interf
 }
 
 // Parse the given map into an extended S3 config
-func parseExtendedS3Config(config map[string]interface{}) (*ExtendedRemoteStateConfigS3, error) {
+func ParseExtendedS3Config(config map[string]interface{}) (*ExtendedRemoteStateConfigS3, error) {
 	var s3Config RemoteStateConfigS3
 	var extendedConfig ExtendedRemoteStateConfigS3
 
@@ -1008,16 +1012,25 @@ func EnableVersioningForS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, t
 func EnableSSEForS3BucketWide(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Debugf("Enabling bucket-wide SSE on AWS S3 bucket %s", config.remoteStateConfigS3.Bucket)
 
-	// Encrypt with KMS by default
 	accountID, err := aws_helper.GetAWSAccountID(config.GetAwsSessionConfig(), terragruntOptions)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	kmsKeyID := fmt.Sprintf("arn:aws:kms:%s:%s:alias/aws/s3", config.remoteStateConfigS3.Region, accountID)
+	// Encrypt with KMS by default
+	algorithm := s3.ServerSideEncryptionAwsKms
+	if config.BucketSSEAlgorithm != "" {
+		algorithm = config.BucketSSEAlgorithm
+	}
+
 	defEnc := &s3.ServerSideEncryptionByDefault{
-		SSEAlgorithm:   aws.String(s3.ServerSideEncryptionAwsKms),
-		KMSMasterKeyID: aws.String(kmsKeyID),
+		SSEAlgorithm: aws.String(algorithm),
+	}
+	if algorithm == s3.ServerSideEncryptionAwsKms && config.BucketSSEKMSKeyID != "" {
+		defEnc.KMSMasterKeyID = aws.String(config.BucketSSEKMSKeyID)
+	} else if algorithm == s3.ServerSideEncryptionAwsKms {
+		kmsKeyID := fmt.Sprintf("arn:aws:kms:%s:%s:alias/aws/s3", config.remoteStateConfigS3.Region, accountID)
+		defEnc.KMSMasterKeyID = aws.String(kmsKeyID)
 	}
 
 	rule := &s3.ServerSideEncryptionRule{ApplyServerSideEncryptionByDefault: defEnc}
@@ -1148,20 +1161,24 @@ func checkIfS3PublicAccessBlockingEnabled(s3Client *s3.S3, config *RemoteStateCo
 		return false, errors.WithStackTrace(err)
 	}
 
+	return validatePublicAccessBlock(output)
+}
+
+func validatePublicAccessBlock(output *s3.GetPublicAccessBlockOutput) (bool, error) {
 	if output.PublicAccessBlockConfiguration == nil {
 		return false, nil
 	}
 
-	if !*output.PublicAccessBlockConfiguration.BlockPublicAcls {
+	if !aws.BoolValue(output.PublicAccessBlockConfiguration.BlockPublicAcls) {
 		return false, nil
 	}
-	if !*output.PublicAccessBlockConfiguration.BlockPublicPolicy {
+	if !aws.BoolValue(output.PublicAccessBlockConfiguration.BlockPublicAcls) {
 		return false, nil
 	}
-	if !*output.PublicAccessBlockConfiguration.IgnorePublicAcls {
+	if !aws.BoolValue(output.PublicAccessBlockConfiguration.BlockPublicAcls) {
 		return false, nil
 	}
-	if !*output.PublicAccessBlockConfiguration.RestrictPublicBuckets {
+	if !aws.BoolValue(output.PublicAccessBlockConfiguration.BlockPublicAcls) {
 		return false, nil
 	}
 

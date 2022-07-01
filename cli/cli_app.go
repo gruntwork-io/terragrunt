@@ -27,35 +27,37 @@ import (
 )
 
 const (
-	optTerragruntConfig                      = "terragrunt-config"
-	optTerragruntTFPath                      = "terragrunt-tfpath"
-	optTerragruntNoAutoInit                  = "terragrunt-no-auto-init"
-	optTerragruntNoAutoRetry                 = "terragrunt-no-auto-retry"
-	optNonInteractive                        = "terragrunt-non-interactive"
-	optWorkingDir                            = "terragrunt-working-dir"
-	optDownloadDir                           = "terragrunt-download-dir"
-	optTerragruntSource                      = "terragrunt-source"
-	optTerragruntSourceMap                   = "terragrunt-source-map"
-	optTerragruntSourceUpdate                = "terragrunt-source-update"
-	optTerragruntIAMRole                     = "terragrunt-iam-role"
-	optTerragruntIAMAssumeRoleDuration       = "terragrunt-iam-assume-role-duration"
-	optTerragruntIAMAssumeRoleSessionName    = "terragrunt-iam-assume-role-session-name"
-	optTerragruntIgnoreDependencyErrors      = "terragrunt-ignore-dependency-errors"
-	optTerragruntIgnoreDependencyOrder       = "terragrunt-ignore-dependency-order"
-	optTerragruntIgnoreExternalDependencies  = "terragrunt-ignore-external-dependencies"
-	optTerragruntIncludeExternalDependencies = "terragrunt-include-external-dependencies"
-	optTerragruntExcludeDir                  = "terragrunt-exclude-dir"
-	optTerragruntIncludeDir                  = "terragrunt-include-dir"
-	optTerragruntStrictInclude               = "terragrunt-strict-include"
-	optTerragruntParallelism                 = "terragrunt-parallelism"
-	optTerragruntCheck                       = "terragrunt-check"
-	optTerragruntHCLFmt                      = "terragrunt-hclfmt-file"
-	optTerragruntDebug                       = "terragrunt-debug"
-	optTerragruntOverrideAttr                = "terragrunt-override-attr"
-	optTerragruntLogLevel                    = "terragrunt-log-level"
-	optTerragruntStrictValidate              = "terragrunt-strict-validate"
-	optTerragruntJSONOut                     = "terragrunt-json-out"
-	optTerragruntModulesThatInclude          = "terragrunt-modules-that-include"
+	optTerragruntConfig                         = "terragrunt-config"
+	optTerragruntTFPath                         = "terragrunt-tfpath"
+	optTerragruntNoAutoInit                     = "terragrunt-no-auto-init"
+	optTerragruntNoAutoRetry                    = "terragrunt-no-auto-retry"
+	optTerragruntNoAutoApprove                  = "terragrunt-no-auto-approve"
+	optNonInteractive                           = "terragrunt-non-interactive"
+	optWorkingDir                               = "terragrunt-working-dir"
+	optDownloadDir                              = "terragrunt-download-dir"
+	optTerragruntSource                         = "terragrunt-source"
+	optTerragruntSourceMap                      = "terragrunt-source-map"
+	optTerragruntSourceUpdate                   = "terragrunt-source-update"
+	optTerragruntIAMRole                        = "terragrunt-iam-role"
+	optTerragruntIAMAssumeRoleDuration          = "terragrunt-iam-assume-role-duration"
+	optTerragruntIAMAssumeRoleSessionName       = "terragrunt-iam-assume-role-session-name"
+	optTerragruntIgnoreDependencyErrors         = "terragrunt-ignore-dependency-errors"
+	optTerragruntIgnoreDependencyOrder          = "terragrunt-ignore-dependency-order"
+	optTerragruntIgnoreExternalDependencies     = "terragrunt-ignore-external-dependencies"
+	optTerragruntIncludeExternalDependencies    = "terragrunt-include-external-dependencies"
+	optTerragruntExcludeDir                     = "terragrunt-exclude-dir"
+	optTerragruntIncludeDir                     = "terragrunt-include-dir"
+	optTerragruntStrictInclude                  = "terragrunt-strict-include"
+	optTerragruntParallelism                    = "terragrunt-parallelism"
+	optTerragruntCheck                          = "terragrunt-check"
+	optTerragruntHCLFmt                         = "terragrunt-hclfmt-file"
+	optTerragruntDebug                          = "terragrunt-debug"
+	optTerragruntOverrideAttr                   = "terragrunt-override-attr"
+	optTerragruntLogLevel                       = "terragrunt-log-level"
+	optTerragruntStrictValidate                 = "terragrunt-strict-validate"
+	optTerragruntJSONOut                        = "terragrunt-json-out"
+	optTerragruntModulesThatInclude             = "terragrunt-modules-that-include"
+	optTerragruntFetchDependencyOutputFromState = "terragrunt-fetch-dependency-output-from-state"
 )
 
 var allTerragruntBooleanOpts = []string{
@@ -67,9 +69,11 @@ var allTerragruntBooleanOpts = []string{
 	optTerragruntIncludeExternalDependencies,
 	optTerragruntNoAutoInit,
 	optTerragruntNoAutoRetry,
+	optTerragruntNoAutoApprove,
 	optTerragruntCheck,
 	optTerragruntStrictInclude,
 	optTerragruntDebug,
+	optTerragruntFetchDependencyOutputFromState,
 }
 var allTerragruntStringOpts = []string{
 	optTerragruntConfig,
@@ -611,8 +615,30 @@ func processErrorHooks(hooks []config.ErrorHook, terragruntOptions *options.Terr
 
 	terragruntOptions.Logger.Debugf("Detected %d error Hooks", len(hooks))
 
+	customMultierror := multierror.Error{
+		Errors: previousExecErrors.Errors,
+		ErrorFormat: func(err []error) string {
+			result := ""
+			for _, e := range err {
+				errorMessage := e.Error()
+				// Check if is process execution error and try to extract output
+				// https://github.com/gruntwork-io/terragrunt/issues/2045
+				originalError := errors.Unwrap(e)
+				if originalError != nil {
+					processError, cast := originalError.(shell.ProcessExecutionError)
+					if cast {
+						errorMessage = fmt.Sprintf("%s\n%s", processError.StdOut, processError.Stderr)
+					}
+				}
+				result = fmt.Sprintf("%s\n%s", result, errorMessage)
+			}
+			return result
+		},
+	}
+	errorMessage := customMultierror.Error()
+
 	for _, curHook := range hooks {
-		if util.MatchesAny(curHook.OnErrors, previousExecErrors.GoString()) && util.ListContainsElement(curHook.Commands, terragruntOptions.TerraformCommand) {
+		if util.MatchesAny(curHook.OnErrors, errorMessage) && util.ListContainsElement(curHook.Commands, terragruntOptions.TerraformCommand) {
 			terragruntOptions.Logger.Infof("Executing hook: %s", curHook.Name)
 			workingDir := ""
 			if curHook.WorkingDir != nil {

@@ -3,6 +3,8 @@ package remote
 import (
 	"testing"
 
+	"github.com/aws/aws-sdk-go/service/s3"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -156,7 +158,7 @@ func TestForcePathStyleClientSession(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			s3ConfigExtended, err := parseExtendedS3Config(testCase.config)
+			s3ConfigExtended, err := ParseExtendedS3Config(testCase.config)
 			require.Nil(t, err, "Unexpected error parsing config for test: %v", err)
 
 			s3Client, err := CreateS3Client(s3ConfigExtended.GetAwsSessionConfig(), terragruntOptions)
@@ -197,7 +199,7 @@ func TestGetAwsSessionConfig(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			s3ConfigExtended, err := parseExtendedS3Config(testCase.config)
+			s3ConfigExtended, err := ParseExtendedS3Config(testCase.config)
 			require.Nil(t, err, "Unexpected error parsing config for test: %v", err)
 
 			expected := &aws_helper.AwsSessionConfig{
@@ -336,6 +338,55 @@ func TestGetTerraformInitArgs(t *testing.T) {
 				return
 			}
 			assert.Equal(t, testCase.expected, actual)
+		})
+	}
+}
+
+// Test to validate cases when is not possible to read all S3 configurations
+//https://github.com/gruntwork-io/terragrunt/issues/2109
+func TestNegativePublicAccessResponse(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name     string
+		response *s3.GetPublicAccessBlockOutput
+	}{
+		{
+			name: "nil-response",
+			response: &s3.GetPublicAccessBlockOutput{
+				PublicAccessBlockConfiguration: nil,
+			},
+		},
+		{
+			name: "legacy-bucket",
+			response: &s3.GetPublicAccessBlockOutput{
+				PublicAccessBlockConfiguration: &s3.PublicAccessBlockConfiguration{
+					BlockPublicAcls:       nil,
+					BlockPublicPolicy:     nil,
+					IgnorePublicAcls:      nil,
+					RestrictPublicBuckets: nil,
+				},
+			},
+		},
+		{
+			name: "false-response",
+			response: &s3.GetPublicAccessBlockOutput{
+				PublicAccessBlockConfiguration: &s3.PublicAccessBlockConfiguration{
+					BlockPublicAcls:       aws.Bool(false),
+					BlockPublicPolicy:     aws.Bool(false),
+					IgnorePublicAcls:      aws.Bool(false),
+					RestrictPublicBuckets: aws.Bool(false),
+				},
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			response, err := validatePublicAccessBlock(testCase.response)
+			assert.NoError(t, err)
+			assert.False(t, response)
 		})
 	}
 }

@@ -201,7 +201,7 @@ terraform {
       ".*",
     ]
   }
-  
+
   # A special after hook to always run after the init-from-module step of the Terragrunt pipeline. In this case, we will
   # copy the "foo.tf" file located by the parent terragrunt.hcl file to the current working directory.
   after_hook "init_from_module" {
@@ -387,7 +387,7 @@ For the `s3` backend, the following additional properties are supported in the `
 - `skip_bucket_accesslogging`: _DEPRECATED_ If provided, will be ignored. A log warning will be issued in the console output to notify the user.
 - `skip_bucket_root_access`: When `true`, the S3 bucket that is created will not be configured with bucket policies that allow access to the root AWS user.
 - `skip_bucket_enforced_tls`: When `true`, the S3 bucket that is created will not be configured with a bucket policy that enforces access to the bucket via a TLS connection.
-- `disable_bucket_update`: When `true`, disable update S3 bucket if not equal configured in config block 
+- `disable_bucket_update`: When `true`, disable update S3 bucket if not equal configured in config block
 - `enable_lock_table_ssencryption`: When `true`, the synchronization lock table in DynamoDB used for remote state concurrent access will not be configured with server side encryption.
 - `s3_bucket_tags`: A map of key value pairs to associate as tags on the created S3 bucket.
 - `dynamodb_table_tags`: A map of key value pairs to associate as tags on the created DynamoDB remote state lock table.
@@ -396,6 +396,8 @@ For the `s3` backend, the following additional properties are supported in the `
   https://github.com/gruntwork-io/terragrunt/issues/1059.
 - `accesslogging_bucket_name`: (Optional) When provided as a valid `string`, create an S3 bucket with this name to store the access logs for the S3 bucket used to store Terraform state. If not provided, or string is empty or invalid S3 bucket name, then server access logging for the S3 bucket storing the terraform state will be disabled.
 - `accesslogging_target_prefix`: (Optional) When provided as a valid `string`, set the `TargetPrefix` for the access log objects in the S3 bucket used to store Terraform state. If set to **empty**`string`, then `TargetPrefix` will be set to **empty** `string`. If attribute is not provided at all, then `TargetPrefix` will be set to **default** value `TFStateLogs/`. This attribute won't take effect if the `accesslogging_bucket_name` attribute is not present.
+- `bucket_sse_algorithm`: (Optional) The algorithm to use for server side encryption of the state bucket. Defaults to `aws:kms`.
+- `bucket_sse_kms_key_id`: (Optional) The KMS Key to use when the encryption algorithm is `aws:kms`. Defaults to the AWS Managed `aws/s3` key.
 
 For the `gcs` backend, the following additional properties are supported in the `config` attribute:
 
@@ -888,16 +890,16 @@ The `dependency` block supports the following arguments:
 - `mock_outputs_allowed_terraform_commands` (attribute): A list of Terraform commands for which `mock_outputs` are
   allowed. If a command is used where `mock_outputs` is not allowed, and no outputs are available in the target module,
   Terragrunt will throw an error when processing this dependency.
-- `mock_outputs_merge_with_state` (attribute): DEPRECATED. Use `mock_outputs_merge_strategy_with_state`. When `true`, 
+- `mock_outputs_merge_with_state` (attribute): DEPRECATED. Use `mock_outputs_merge_strategy_with_state`. When `true`,
   `mock_outputs` and the state outputs will be merged. That is, the `mock_outputs` will be treated as defaults and the
   real state outputs will overwrite them if the keys clash.
-- `mock_outputs_merge_strategy_with_state` (attribute): Specifies how any existing state should be merged into the 
+- `mock_outputs_merge_strategy_with_state` (attribute): Specifies how any existing state should be merged into the
   mocks. Valid values are
-  - `no_merge` (default) - any existing state will be used as is. If the dependency does not have an existing state (it 
+  - `no_merge` (default) - any existing state will be used as is. If the dependency does not have an existing state (it
     hasn't been applied yet), then the mocks will be used
-  - `shallow` - the existing state will be shallow merged into the mocks. Mocks will only be used where the output does 
+  - `shallow` - the existing state will be shallow merged into the mocks. Mocks will only be used where the output does
     not already exist in the dependency's state
-  - `deep_map_only` - the existing state will be deeply merged into the mocks. If an output is a map, the mock key 
+  - `deep_map_only` - the existing state will be deeply merged into the mocks. If an output is a map, the mock key
     will be used where that key does not exist in the state. Lists will not be merged
 
 Example:
