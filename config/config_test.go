@@ -1468,12 +1468,19 @@ func TestParseTerragruntConfigEmptyConfig(t *testing.T) {
 	assert.Nil(t, cfg.Terraform)
 	assert.Nil(t, cfg.RemoteState)
 	assert.Nil(t, cfg.Dependencies)
-	assert.Nil(t, cfg.PreventDestroy)
-	assert.False(t, cfg.Skip)
-	assert.Empty(t, cfg.IamRole)
+
+	assert.Empty(t, cfg.TerraformBinary)
 	assert.Nil(t, cfg.RetryMaxAttempts)
 	assert.Nil(t, cfg.RetrySleepIntervalSec)
 	assert.Nil(t, cfg.RetryableErrors)
+	assert.Empty(t, cfg.DownloadDir)
+	assert.Empty(t, cfg.TerraformVersionConstraint)
+	assert.Empty(t, cfg.TerragruntVersionConstraint)
+	assert.Nil(t, cfg.PreventDestroy)
+	assert.False(t, cfg.Skip)
+	assert.Empty(t, cfg.IamRole)
+	assert.Empty(t, cfg.IamAssumeRoleDuration)
+	assert.Empty(t, cfg.IamAssumeRoleSessionName)
 }
 
 func TestParseTerragruntConfigEmptyConfigOldConfig(t *testing.T) {
@@ -1735,6 +1742,8 @@ func TestDecodeAsTerragruntConfigFile(t *testing.T) {
 }
 
 func TestGetIndexOfHookWith(t *testing.T) {
+	t.Parallel()
+
 	dummyHook := Hook{
 		Name: "HitMe",
 	}
@@ -1747,12 +1756,155 @@ func TestGetIndexOfHookWith(t *testing.T) {
 }
 
 func TestGetIndexOfHookWithNameNoElement(t *testing.T) {
+	t.Parallel()
+
 	testHook := []Hook{}
 	testName := "NotThere"
 
 	actualResult := getIndexOfHookWithName(testHook, testName)
 
 	assert.Equal(t, -1, actualResult)
+}
+
+func TestGetIndexOfErrorHookWithName(t *testing.T) {
+	t.Parallel()
+
+	dummyErrorHook := ErrorHook{
+		Name: "HitMe",
+	}
+	testErrorHook := []ErrorHook{dummyErrorHook}
+	testName := "HitMe"
+
+	actualResult := getIndexOfErrorHookWithName(testErrorHook, testName)
+
+	assert.Equal(t, 0, actualResult)
+}
+
+func TestGetIndexOfErrorHookWithNameNoElement(t *testing.T) {
+	t.Parallel()
+
+	testErrorHook := []ErrorHook{}
+	testName := "NotThere"
+
+	actualResult := getIndexOfErrorHookWithName(testErrorHook, testName)
+
+	assert.Equal(t, -1, actualResult)
+}
+
+func TestGetIndexOfExtraArgsWithName(t *testing.T) {
+	t.Parallel()
+
+	dummyTerraformExtraArguments := TerraformExtraArguments{
+		Name: "HitMe",
+	}
+	testTerraformExtraArguments := []TerraformExtraArguments{dummyTerraformExtraArguments}
+	testName := "HitMe"
+
+	actualResult := getIndexOfExtraArgsWithName(testTerraformExtraArguments, testName)
+
+	assert.Equal(t, 0, actualResult)
+}
+
+func TestGetIndexOfExtraArgsWithNameNoElement(t *testing.T) {
+	t.Parallel()
+
+	testTerraformExtraArguments := []TerraformExtraArguments{}
+	testName := "NotThere"
+
+	actualResult := getIndexOfExtraArgsWithName(testTerraformExtraArguments, testName)
+
+	assert.Equal(t, -1, actualResult)
+}
+
+func TestConvertToTerragruntConfigRemoteStateFailsParsing(t *testing.T) {
+	t.Parallel()
+
+	dummyRemoteStateConfigFile := remoteStateConfigFile{
+		Config: cty.StringVal("breakMe"),
+	}
+
+	testTerragruntConfigFromFile := terragruntConfigFile{
+		RemoteState: &dummyRemoteStateConfigFile,
+	}
+	testConfigPath := ""
+	testTerragruntOptions := options.TerragruntOptions{}
+	testContextExtensions := EvalContextExtensions{}
+
+	actualResult, err := convertToTerragruntConfig(&testTerragruntConfigFromFile, testConfigPath, &testTerragruntOptions, testContextExtensions)
+
+	assert.Nil(t, actualResult)
+	assert.Error(t, err)
+}
+
+func TestConvertToTerragruntConfigRemoteStateAttrFailsParsing(t *testing.T) {
+	t.Parallel()
+
+	dummyRemoteStateAttr := cty.StringVal("BreakMe")
+
+	testTerragruntConfigFromFile := terragruntConfigFile{
+		RemoteStateAttr: &dummyRemoteStateAttr,
+	}
+	testConfigPath := ""
+	testTerragruntOptions := options.TerragruntOptions{}
+	testContextExtensions := EvalContextExtensions{}
+
+	actualResult, err := convertToTerragruntConfig(&testTerragruntConfigFromFile, testConfigPath, &testTerragruntOptions, testContextExtensions)
+
+	assert.Nil(t, actualResult)
+	assert.Error(t, err)
+}
+
+func TestConvertToTerragruntConfigHooksFailValidation(t *testing.T) {
+	t.Parallel()
+
+	testBackend := "my-backend"
+
+	dummyCtyMap := make(map[string]cty.Value)
+	dummyCtyMap["Backend"] = cty.StringVal(testBackend)
+	stubCtyValue := cty.MapVal(dummyCtyMap)
+
+	dummyRemoteStateConfigFile := remoteStateConfigFile{
+		Backend: testBackend,
+		Config:  stubCtyValue,
+	}
+	dummyRemoteStateAttr := stubCtyValue
+
+	stubHook := Hook{}
+
+	testBeforeHooks := make([]Hook, 1)
+	testBeforeHooks = append(testBeforeHooks, stubHook)
+	dummyTerraformConfig := TerraformConfig{
+		BeforeHooks: testBeforeHooks,
+	}
+
+	testTerragruntConfigFromFile := terragruntConfigFile{
+		RemoteState:     &dummyRemoteStateConfigFile,
+		RemoteStateAttr: &dummyRemoteStateAttr,
+		Terraform:       &dummyTerraformConfig,
+	}
+	testConfigPath := ""
+	testTerragruntOptions := options.TerragruntOptions{}
+	testContextExtensions := EvalContextExtensions{}
+
+	actualResult, err := convertToTerragruntConfig(&testTerragruntConfigFromFile, testConfigPath, &testTerragruntOptions, testContextExtensions)
+
+	assert.Nil(t, actualResult)
+	assert.Error(t, err)
+}
+
+// TODO: Add more error testing tests above
+func TestConvertToTerragruntEmptyConfigPasses(t *testing.T) {
+	t.Parallel()
+
+	testTerragruntConfigFromFile := terragruntConfigFile{}
+	testConfigPath := ""
+	testTerragruntOptions := options.TerragruntOptions{}
+	testContextExtensions := EvalContextExtensions{}
+
+	actualResult, err := convertToTerragruntConfig(&testTerragruntConfigFromFile, testConfigPath, &testTerragruntOptions, testContextExtensions)
+
+	assert.NotNil(t, actualResult)
+	assert.NoError(t, err)
 }
 
 func TestFindConfigFilesInPathNone(t *testing.T) {
