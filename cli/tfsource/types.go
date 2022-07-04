@@ -48,7 +48,7 @@ func (src *TerraformSource) String() string {
 // so the same file path (/foo/bar) is always considered the same version. To detect changes the file path will be hashed
 // and returned as version. In case of hash error the default encoded source version will be returned.
 // See also the encodeSourceName and ProcessTerraformSource methods.
-func (terraformSource TerraformSource) EncodeSourceVersion() string {
+func (terraformSource TerraformSource) EncodeSourceVersion() (string, error) {
 	if IsLocalSource(terraformSource.CanonicalSourceURL) {
 		sourceHash := sha256.New()
 		sourceDir := filepath.Clean(terraformSource.CanonicalSourceURL.Path)
@@ -75,20 +75,31 @@ func (terraformSource TerraformSource) EncodeSourceVersion() string {
 		if err == nil {
 			hash := fmt.Sprintf("%x", sourceHash.Sum(nil))
 
-			return hash
-		} else {
-			terraformSource.Logger.WithError(err).Warningf("Could not encode version for local source")
+			return hash, nil
 		}
-		// In case of error return default source version strategy
+
+		terraformSource.Logger.WithError(err).Warningf("Could not encode version for local source")
+		return "", err
 	}
 
-	return util.EncodeBase64Sha1(terraformSource.CanonicalSourceURL.Query().Encode())
+	return util.EncodeBase64Sha1(terraformSource.CanonicalSourceURL.Query().Encode()), nil
 }
 
 // Write a file into the DownloadDir that contains the version number of this source code. The version number is
 // calculated using the EncodeSourceVersion method.
 func (terraformSource TerraformSource) WriteVersionFile() error {
-	version := terraformSource.EncodeSourceVersion()
+	version, err := terraformSource.EncodeSourceVersion()
+	if err != nil {
+		// If we failed to calculate a SHA of the downloaded source, write a SHA of
+		// some random data into the version file.
+		//
+		// This ensures we attempt to redownload the source next time.
+		version, err = util.GenerateRandomSha256()
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+	}
+
 	return errors.WithStackTrace(ioutil.WriteFile(terraformSource.VersionFile, []byte(version), 0640))
 }
 

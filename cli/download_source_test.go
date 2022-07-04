@@ -33,6 +33,34 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithHashSameFilesCopied(t *testing.T)
 	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, false)
 }
 
+func TestHashingLocalSourceFailedDownloadSourceAgain(t *testing.T) {
+	t.Parallel()
+
+	fixturePath := absPath(t, "../test/fixture-download-source/hello-world-local-hash-failed")
+	canonicalUrl := fmt.Sprintf("file://%s", fixturePath)
+	downloadDir := tmpDir(t)
+	defer os.Remove(downloadDir)
+
+	copyFolder(t, "../test/fixture-download-source/hello-world-local-hash-failed", downloadDir)
+
+	fileInfo, err := os.Stat(fixturePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = os.Chmod(fixturePath, 0000)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, false)
+
+	err = os.Chmod(fixturePath, fileInfo.Mode())
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestAlreadyHaveLatestCodeLocalFilePathWithHashChanged(t *testing.T) {
 	t.Parallel()
 

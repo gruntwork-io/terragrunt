@@ -109,10 +109,10 @@ func downloadTerraformSourceIfNecessary(terraformSource *tfsource.TerraformSourc
 		return err
 	}
 
-	currentVersion := terraformSource.EncodeSourceVersion()
-	// if source versions are different, create file to run init
+	currentVersion, err := terraformSource.EncodeSourceVersion()
+	// if source versions are different or calculating version failed, create file to run init
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
-	if previousVersion != currentVersion {
+	if previousVersion != currentVersion || err != nil {
 		initFile := util.JoinPath(terraformSource.WorkingDir, moduleInitRequiredFile)
 		f, createErr := os.Create(initFile)
 		if createErr != nil {
@@ -144,7 +144,16 @@ func alreadyHaveLatestCode(terraformSource *tfsource.TerraformSource, terragrunt
 		return false, nil
 	}
 
-	currentVersion := terraformSource.EncodeSourceVersion()
+	currentVersion, err := terraformSource.EncodeSourceVersion()
+	// If we fail to calculate the source version (e.g. because walking the
+	// directory tree failed) use a random version instead, bypassing the cache.
+	if err != nil {
+		currentVersion, err = util.GenerateRandomSha256()
+		if err != nil {
+			return false, err
+		}
+	}
+
 	previousVersion, err := readVersionFile(terraformSource)
 
 	if err != nil {
