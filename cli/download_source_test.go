@@ -22,7 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-func TestAlreadyHaveLatestCodeLocalFilePathWithHashSameFilesCopied(t *testing.T) {
+func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
 	t.Parallel()
 
 	canonicalUrl := fmt.Sprintf("file://%s", absPath(t, "../test/fixture-download-source/hello-world-local-hash"))
@@ -31,9 +31,21 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithHashSameFilesCopied(t *testing.T)
 
 	copyFolder(t, "../test/fixture-download-source/download-dir-version-file-local-hash", downloadDir)
 	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, false)
+
+	// Write out a version file so we can test a cache hit
+	terraformSource, _, _, err := createConfig(t, canonicalUrl, downloadDir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = terraformSource.WriteVersionFile()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, true)
 }
 
-func TestHashingLocalSourceFailedDownloadSourceAgain(t *testing.T) {
+func TestAlreadyHaveLatestCodeLocalFilePathHashingFailure(t *testing.T) {
 	t.Parallel()
 
 	fixturePath := absPath(t, "../test/fixture-download-source/hello-world-local-hash-failed")
