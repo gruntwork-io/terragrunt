@@ -1,6 +1,6 @@
 module github.com/gruntwork-io/terragrunt
 
-go 1.16
+go 1.17
 
 require (
 	cloud.google.com/go v0.93.3 // indirect
