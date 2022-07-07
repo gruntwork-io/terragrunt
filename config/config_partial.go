@@ -156,6 +156,30 @@ func PartialParseConfigFile(
 	return config, nil
 }
 
+var terragruntConfigCache = NewTerragruntConfigCache()
+
+func PartialParseConfigString(
+	configString string,
+	terragruntOptions *options.TerragruntOptions,
+	includeFromChild *IncludeConfig,
+	filename string,
+	decodeList []PartialDecodeSectionType,
+) (*TerragruntConfig, error) {
+	var cacheKey = fmt.Sprintf("%v-%v-%v", configString, includeFromChild, decodeList)
+	var config, found = terragruntConfigCache.Get(cacheKey)
+
+	if !found {
+		tgConfig, err := OriginalPartialParseConfigString(configString, terragruntOptions, includeFromChild, filename, decodeList)
+		if err != nil {
+			return nil, err
+		}
+		config = *tgConfig
+		terragruntConfigCache.Put(cacheKey, config)
+	}
+
+	return &config, nil
+}
+
 // ParitalParseConfigString partially parses and decodes the provided string. Which blocks/attributes to decode is
 // controlled by the function parameter decodeList. These blocks/attributes are parsed and set on the output
 // TerragruntConfig. Valid values are:
@@ -171,7 +195,7 @@ func PartialParseConfigFile(
 // - include
 // Note also that the following blocks are never decoded in a partial parse:
 // - inputs
-func PartialParseConfigString(
+func OriginalPartialParseConfigString(
 	configString string,
 	terragruntOptions *options.TerragruntOptions,
 	includeFromChild *IncludeConfig,
