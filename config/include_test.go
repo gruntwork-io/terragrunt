@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/remote"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -270,4 +271,46 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 			assert.Equal(t, testCase.expected, testCase.target)
 		})
 	}
+}
+
+func TestUpdateBareIncludeBlockBlockWithLabelParsed(t *testing.T) {
+	t.Parallel()
+
+	stubIncludeString := `include "root" {
+		path   = find_in_parent_folders()
+		expose = true
+	}`
+
+	testFile := hcl.File{
+		Body:  MockHclBody{},
+		Bytes: []byte(stubIncludeString),
+	}
+	testFilename := "my-test.hcl"
+
+	actualResult, _, err := updateBareIncludeBlock(&testFile, testFilename)
+
+	assert.NotNil(t, actualResult)
+	assert.NotEmpty(t, actualResult)
+	assert.NoError(t, err)
+}
+
+func TestUpdateBareIncludeBlockBlockWithoutLabelParsedAndUpdated(t *testing.T) {
+	t.Parallel()
+
+	stubIncludeString := `include {
+		path   = find_in_parent_folders()
+		expose = true
+	}`
+
+	testFile := hcl.File{
+		Body:  MockHclBody{},
+		Bytes: []byte(stubIncludeString),
+	}
+	testFilename := "my-test.hcl"
+
+	actualResult, _, err := updateBareIncludeBlock(&testFile, testFilename)
+
+	assert.NotNil(t, actualResult)
+	assert.NotEmpty(t, actualResult)
+	assert.NoError(t, err)
 }

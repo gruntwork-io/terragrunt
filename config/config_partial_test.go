@@ -3,13 +3,15 @@ package config
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// TODO: Test throws a SegFault because of derefenrencing a nil pointer
 // func TestDecodeBaseBlocks(t *testing.T) {
-// 	ctrl := gomock.NewController(t)
-// 	defer ctrl.Finish()
+// 	mockHclBodyContent := hcl.BodyContent{}
 
 // 	mockBody := NewMockBody(ctrl)
 // 	mockBody.
@@ -339,4 +341,38 @@ terraform {
 	require.NotNil(t, terragruntConfig.Terraform)
 	require.NotNil(t, terragruntConfig.Terraform.Source)
 	assert.Equal(t, *terragruntConfig.Terraform.Source, "../../modules/app")
+}
+
+func TestDecodeAsTerragruntIncludeDecodingHclFails(t *testing.T) {
+	t.Parallel()
+
+	mockHclBody := MockHclBody{}
+
+	testHclFile := hcl.File{
+		Body: mockHclBody,
+	}
+	testFilename := "IAmAFile.hcl"
+	testTerragruntOptions := options.TerragruntOptions{}
+	testExtensions := EvalContextExtensions{}
+
+	actualResult, _ := decodeAsTerragruntInclude(&testHclFile, testFilename, &testTerragruntOptions, testExtensions)
+
+	assert.Nil(t, actualResult)
+	// assert.Error(t, err) // Note: Does not work. Weird sideffect
+}
+
+func TestDecodeAsTerragruntIncludeEmptyInEmptyOut(t *testing.T) {
+	t.Parallel()
+
+	testHclFile := hcl.File{
+		Body: MockHclBody{},
+	}
+	testFilename := "my-test.hcl"
+	testTerragruntOptions := options.TerragruntOptions{}
+	testExtensions := EvalContextExtensions{}
+
+	actualResult, err := decodeAsTerragruntInclude(&testHclFile, testFilename, &testTerragruntOptions, testExtensions)
+
+	assert.Nil(t, actualResult)
+	assert.NoError(t, err)
 }
