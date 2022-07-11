@@ -206,7 +206,7 @@ configuration specified in the `remote_state` bucket. For example, if you requir
 block, but the underlying state bucket doesn't have versioning enabled, Terragrunt will automatically turn on versioning
 on the bucket to match the configuration.
 
-If you do not want `terragrunt` to automatically apply changes, you can configuret the following:
+If you do not want `terragrunt` to automatically apply changes, you can configure the following:
 
 ```hcl
 remote_state {
