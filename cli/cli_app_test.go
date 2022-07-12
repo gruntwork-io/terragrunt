@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -150,4 +152,34 @@ func TestMissingRunAllArguments(t *testing.T) {
 	require.Error(t, err)
 	_, ok := errors.Unwrap(err).(MissingCommand)
 	assert.True(t, ok)
+}
+
+// Run a benchmark on runGraphDependencies for all fixtures possible.
+// This should reveal regression on execution time due to new, changed or removed features.
+func BenchmarkRunGraphDependencies(b *testing.B) {
+	// Setup
+	cwd, err := os.Getwd()
+	require.NoError(b, err)
+
+	testDir := "../test"
+
+	fixtureDirs := []struct {
+		description string
+		workingDir  string
+	}{
+		{"PartialParseBenchmarkRegression", "fixture-regressions/benchmark-parsing/production/deployment-group-1"},
+	}
+
+	// Run benchmarks
+	for _, fixture := range fixtureDirs {
+		b.Run(fixture.description, func(b *testing.B) {
+			workingDir := filepath.Join(cwd, testDir, fixture.workingDir)
+			terragruntOptions, err := options.NewTerragruntOptionsForTest(workingDir)
+			require.NoError(b, err)
+
+			b.ResetTimer()
+			err = runGraphDependencies(terragruntOptions)
+			require.NoError(b, err)
+		})
+	}
 }

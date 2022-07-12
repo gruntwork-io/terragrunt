@@ -137,6 +137,7 @@ func DecodeBaseBlocks(
 	return &localsAsCty, trackInclude, nil
 }
 
+// TODO: Consider renaming as well
 func PartialParseConfigFile(
 	filename string,
 	terragruntOptions *options.TerragruntOptions,
@@ -148,7 +149,7 @@ func PartialParseConfigFile(
 		return nil, err
 	}
 
-	config, err := PartialParseConfigString(configString, terragruntOptions, include, filename, decodeList)
+	config, err := TerragruntConfigFromPartialConfig(configString, terragruntOptions, include, filename, decodeList)
 	if err != nil {
 		return nil, err
 	}
@@ -158,29 +159,36 @@ func PartialParseConfigFile(
 
 var terragruntConfigCache = NewTerragruntConfigCache()
 
-func PartialParseConfigString(
+// Wrapper of PartialParseConfigString which checks for cached configs.
+// configString, includeFromChild and decodeList are used for the cache key,
+// by getting the default value (%#v) through fmt.
+// TODO: Challenge the new funciton name
+func TerragruntConfigFromPartialConfig(
 	configString string,
 	terragruntOptions *options.TerragruntOptions,
 	includeFromChild *IncludeConfig,
 	filename string,
 	decodeList []PartialDecodeSectionType,
 ) (*TerragruntConfig, error) {
-	var cacheKey = fmt.Sprintf("%v-%v-%v", configString, includeFromChild, decodeList)
+	var cacheKey = fmt.Sprintf("%#v-%#v-%#v", configString, includeFromChild, decodeList)
 	var config, found = terragruntConfigCache.Get(cacheKey)
 
 	if !found {
-		tgConfig, err := OriginalPartialParseConfigString(configString, terragruntOptions, includeFromChild, filename, decodeList)
+		terragruntOptions.Logger.Debugf("Cache miss for '%s' (partial parsing).", filename)
+		tgConfig, err := PartialParseConfigString(configString, terragruntOptions, includeFromChild, filename, decodeList)
 		if err != nil {
 			return nil, err
 		}
 		config = *tgConfig
 		terragruntConfigCache.Put(cacheKey, config)
+	} else {
+		terragruntOptions.Logger.Debugf("Cache hit for '%s' (partial parsing).", filename)
 	}
 
 	return &config, nil
 }
 
-// ParitalParseConfigString partially parses and decodes the provided string. Which blocks/attributes to decode is
+// PartialParseConfigString partially parses and decodes the provided string. Which blocks/attributes to decode is
 // controlled by the function parameter decodeList. These blocks/attributes are parsed and set on the output
 // TerragruntConfig. Valid values are:
 // - DependenciesBlock: Parses the `dependencies` block in the config
@@ -195,7 +203,7 @@ func PartialParseConfigString(
 // - include
 // Note also that the following blocks are never decoded in a partial parse:
 // - inputs
-func OriginalPartialParseConfigString(
+func PartialParseConfigString(
 	configString string,
 	terragruntOptions *options.TerragruntOptions,
 	includeFromChild *IncludeConfig,
