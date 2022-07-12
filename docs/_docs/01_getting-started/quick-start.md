@@ -104,7 +104,7 @@ sources that terragrunt supports.
 
 You can deploy this example by copy pasting it into a folder and running `terragrunt apply`.
 
-NOTE: Heads up, not all Registry modules can be deployed with Terragrunt, see [A note aboud using modules from the
+NOTE: Heads up, not all Registry modules can be deployed with Terragrunt, see [A note about using modules from the
 registry]({{ site.baseurl }}/docs/reference/config-blocks-and-attributes#a-note-about-using-modules-from-the-registry) for details.
 
 ## Key features
