@@ -242,8 +242,6 @@ func handleIncludeForDependency(
 // attributes defined in the targetConfig. Note that this will modify the targetConfig.
 // NOTE: the following attributes are deliberately omitted from the merge operation, as they are handled differently in
 // the parser:
-//     - dependency blocks (TerragruntDependencies) [These blocks need to retrieve outputs, so we need to merge during
-//       the parsing step, not after the full config is decoded]
 //     - locals [These blocks are not merged by design]
 // NOTE: dependencies block is a special case and is merged deeply. This is necessary to ensure the configstack system
 // works correctly, as it uses the `Dependencies` list to track the dependencies of modules for graph building purposes.
@@ -307,6 +305,9 @@ func (targetConfig *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terr
 			mergeErrorHooks(terragruntOptions, sourceConfig.Terraform.ErrorHooks, &targetConfig.Terraform.ErrorHooks)
 		}
 	}
+
+	// Dependency blocks are shallow merged by name
+	targetConfig.TerragruntDependencies = mergeDependencyBlocks(targetConfig.TerragruntDependencies, sourceConfig.TerragruntDependencies)
 
 	// Deep merge the dependencies list. This is different from dependency blocks, and refers to the deprecated
 	// dependencies block!
@@ -420,6 +421,13 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 		resultModuleDependencies.Paths = append(resultModuleDependencies.Paths, sourceConfig.Dependencies.Paths...)
 		targetConfig.Dependencies = resultModuleDependencies
 	}
+
+	// Dependency blocks are deep merged by name
+	mergedDeps, err := deepMergeDependencyBlocks(targetConfig.TerragruntDependencies, sourceConfig.TerragruntDependencies)
+	if err != nil {
+		return err
+	}
+	targetConfig.TerragruntDependencies = mergedDeps
 
 	if sourceConfig.RetryableErrors != nil {
 		targetConfig.RetryableErrors = append(targetConfig.RetryableErrors, sourceConfig.RetryableErrors...)
