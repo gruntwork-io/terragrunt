@@ -226,11 +226,9 @@ func TestRenderJSONConfig(t *testing.T) {
 			t,
 			map[string]interface{}{
 				"dep": map[string]interface{}{
-					"name":        "dep",
-					"config_path": "../dep",
-					"outputs": map[string]interface{}{
-						"name": "dep",
-					},
+					"name":         "dep",
+					"config_path":  "../dep",
+					"outputs":      nil,
 					"mock_outputs": nil,
 					"mock_outputs_allowed_terraform_commands": nil,
 					"mock_outputs_merge_strategy_with_state":  nil,
@@ -324,11 +322,9 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 			t,
 			map[string]interface{}{
 				"baz": map[string]interface{}{
-					"name":        "baz",
-					"config_path": "./baz",
-					"outputs": map[string]interface{}{
-						"baz": "baz",
-					},
+					"name":         "baz",
+					"config_path":  "./baz",
+					"outputs":      nil,
 					"mock_outputs": nil,
 					"mock_outputs_allowed_terraform_commands": nil,
 					"mock_outputs_merge_strategy_with_state":  nil,
