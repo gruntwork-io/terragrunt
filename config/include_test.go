@@ -129,6 +129,11 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
+		// if nil, initialize to empty dependency list
+		if testCase.expected.TerragruntDependencies == nil {
+			testCase.expected.TerragruntDependencies = []Dependency{}
+		}
+
 		testCase.includedConfig.Merge(testCase.config, mockOptionsForTest(t))
 		assert.Equal(t, testCase.expected, testCase.includedConfig)
 	}
@@ -244,6 +249,10 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 						Name:       "mysql",
 						ConfigPath: "../mysql",
 					},
+					{
+						Name:       "vpc",
+						ConfigPath: "../vpc",
+					},
 				}},
 		},
 		// Deep merge retryable errors
@@ -267,6 +276,11 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			err := testCase.target.DeepMerge(testCase.source, mockOptionsForTest(t))
 			require.NoError(t, err)
+
+			// if nil, initialize to empty dependency list
+			if testCase.expected.TerragruntDependencies == nil {
+				testCase.expected.TerragruntDependencies = []Dependency{}
+			}
 			assert.Equal(t, testCase.expected, testCase.target)
 		})
 	}
