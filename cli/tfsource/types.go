@@ -1,9 +1,12 @@
 package tfsource
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"io/ioutil"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -13,8 +16,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
-
-	"golang.org/x/mod/sumdb/dirhash"
 )
 
 var forcedRegexp = regexp.MustCompile(`^([A-Za-z0-9]+)::(.+)$`)
@@ -32,6 +33,8 @@ type TerraformSource struct {
 
 	// The path to a file in DownloadDir that stores the version number of the code
 	VersionFile string
+
+	Logger logrus.FieldLogger
 }
 
 func (src *TerraformSource) String() string {
@@ -45,21 +48,58 @@ func (src *TerraformSource) String() string {
 // so the same file path (/foo/bar) is always considered the same version. To detect changes the file path will be hashed
 // and returned as version. In case of hash error the default encoded source version will be returned.
 // See also the encodeSourceName and ProcessTerraformSource methods.
-func (terraformSource TerraformSource) EncodeSourceVersion() string {
+func (terraformSource TerraformSource) EncodeSourceVersion() (string, error) {
 	if IsLocalSource(terraformSource.CanonicalSourceURL) {
-		hash, err := dirhash.HashDir(terraformSource.CanonicalSourceURL.Path, "prefix", dirhash.DefaultHash)
+		sourceHash := sha256.New()
+		sourceDir := filepath.Clean(terraformSource.CanonicalSourceURL.Path)
+
+		err := filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				// If we've encountered an error while walking the tree, give up
+				return err
+			}
+
+			if info.IsDir() {
+				// We don't use any info from directories to calculate our hash
+				return nil
+			}
+
+			fileModified := info.ModTime().UnixMicro()
+			hashContents := fmt.Sprintf("%s:%d", path, fileModified)
+
+			sourceHash.Write([]byte(hashContents))
+
+			return nil
+		})
+
 		if err == nil {
-			return hash
+			hash := fmt.Sprintf("%x", sourceHash.Sum(nil))
+
+			return hash, nil
 		}
-		// In case of error return default source version strategy
+
+		terraformSource.Logger.WithError(err).Warningf("Could not encode version for local source")
+		return "", err
 	}
-	return util.EncodeBase64Sha1(terraformSource.CanonicalSourceURL.Query().Encode())
+
+	return util.EncodeBase64Sha1(terraformSource.CanonicalSourceURL.Query().Encode()), nil
 }
 
 // Write a file into the DownloadDir that contains the version number of this source code. The version number is
 // calculated using the EncodeSourceVersion method.
 func (terraformSource TerraformSource) WriteVersionFile() error {
-	version := terraformSource.EncodeSourceVersion()
+	version, err := terraformSource.EncodeSourceVersion()
+	if err != nil {
+		// If we failed to calculate a SHA of the downloaded source, write a SHA of
+		// some random data into the version file.
+		//
+		// This ensures we attempt to redownload the source next time.
+		version, err = util.GenerateRandomSha256()
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+	}
+
 	return errors.WithStackTrace(ioutil.WriteFile(terraformSource.VersionFile, []byte(version), 0640))
 }
 
@@ -133,6 +173,7 @@ func NewTerraformSource(source string, downloadDir string, workingDir string, lo
 		DownloadDir:        updatedDownloadDir,
 		WorkingDir:         updatedWorkingDir,
 		VersionFile:        versionFile,
+		Logger:             logger,
 	}, nil
 }
 
