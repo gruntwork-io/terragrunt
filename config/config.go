@@ -693,13 +693,19 @@ func ParseConfigString(
 
 	// If this file includes another, parse and merge it.  Otherwise just return this config.
 	if trackInclude != nil {
-		config, err := handleInclude(config, trackInclude, terragruntOptions, contextExtensions.DecodedDependencies)
+		mergedConfig, err := handleInclude(config, trackInclude, terragruntOptions, contextExtensions.DecodedDependencies)
 		if err != nil {
 			return nil, err
 		}
 		// Saving processed includes into configuration, direct assignment since nested includes aren't supported
-		config.ProcessedIncludes = trackInclude.CurrentMap
-		return config, nil
+		mergedConfig.ProcessedIncludes = trackInclude.CurrentMap
+		// Make sure the top level information that is not automatically merged in is captured on the merged config to
+		// ensure the proper representation of the config is captured.
+		// - Locals are deliberately not merged in so that they remain local in scope. Here, we directly set it to the
+		//   original locals for the current config being handled, as that is the locals list that is in scope for this
+		//   config.
+		mergedConfig.Locals = config.Locals
+		return mergedConfig, nil
 	}
 	return config, nil
 }

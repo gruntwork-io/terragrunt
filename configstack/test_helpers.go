@@ -4,6 +4,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -47,7 +48,16 @@ func assertModuleListsEqual(t *testing.T, expectedModules []*TerraformModule, ac
 // be compared directly
 func assertModulesEqual(t *testing.T, expected *TerraformModule, actual *TerraformModule, messageAndArgs ...interface{}) {
 	if assert.NotNil(t, actual, messageAndArgs...) {
+		// When comparing the TerragruntConfig objects, we need to normalize the dependency list to explicitly set the
+		// expected to empty list when nil, as the parsing routine will set it to empty list instead of nil.
+		if expected.Config.TerragruntDependencies == nil {
+			expected.Config.TerragruntDependencies = []config.Dependency{}
+		}
+		if actual.Config.TerragruntDependencies == nil {
+			actual.Config.TerragruntDependencies = []config.Dependency{}
+		}
 		assert.Equal(t, expected.Config, actual.Config, messageAndArgs...)
+
 		assert.Equal(t, expected.Path, actual.Path, messageAndArgs...)
 		assert.Equal(t, expected.AssumeAlreadyApplied, actual.AssumeAlreadyApplied, messageAndArgs...)
 		assert.Equal(t, expected.FlagExcluded, actual.FlagExcluded, messageAndArgs...)
