@@ -126,6 +126,8 @@ const (
 	TEST_FIXTURE_INCLUDE_PARENT                             = "fixture-include-parent"
 	TEST_FIXTURE_AUTO_INIT                                  = "fixture-download/init-on-source-change"
 	TEST_FIXTURE_DISJOINT                                   = "fixture-stack/disjoint"
+	TEST_FIXTURE_BROKEN_LOCALS                              = "fixture-broken-locals"
+	TEST_FIXTURE_BROKEN_DEPENDENCY                          = "fixture-broken-dependency"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -3711,6 +3713,34 @@ func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
 
 	_, isTgVersionError := errors.Unwrap(err).(cli.InvalidTerragruntVersion)
 	assert.True(t, isTgVersionError)
+}
+
+func TestLogFailedLocalsEvaluation(t *testing.T) {
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", TEST_FIXTURE_BROKEN_LOCALS), &stdout, &stderr)
+	output := stderr.String()
+
+	assert.Error(t, err)
+	assert.Contains(t, output, "Encountered error while evaluating locals in file fixture-broken-locals/terragrunt.hcl")
+}
+
+func TestLogFailingDependencies(t *testing.T) {
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	path := filepath.Join(TEST_FIXTURE_BROKEN_DEPENDENCY, "app")
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", path), &stdout, &stderr)
+	output := stderr.String()
+
+	assert.Error(t, err)
+	assert.Contains(t, output, "Terraform invocation failed in fixture-broken-dependency/dependency")
 }
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
