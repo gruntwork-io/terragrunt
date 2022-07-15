@@ -1023,7 +1023,6 @@ func configFileHasDependencyBlock(configPath string, terragruntOptions *options.
 
 // AddFieldMetadata persist "generic" mtedata
 func (conf *TerragruntConfig) AddFieldMetadata(field string, m map[string]interface{}) {
-
 	if conf.FieldsMetadata == nil {
 		conf.FieldsMetadata = map[string]map[string]interface{}{}
 	}
@@ -1038,19 +1037,21 @@ func (conf *TerragruntConfig) AddFieldMetadata(field string, m map[string]interf
 	conf.FieldsMetadata[field] = meta
 }
 
-func (conf *TerragruntConfig) AddLocalsMetadata(locals map[string]interface{}, metadata map[string]interface{}) {
+func (conf *TerragruntConfig) GetFieldMetadata(field string) (map[string]interface{}, bool) {
+	value, found := conf.FieldsMetadata[field]
+	return value, found
+}
 
+func (conf *TerragruntConfig) AddLocalsMetadata(locals map[string]interface{}, metadata map[string]interface{}) {
 	for localName, _ := range locals {
 		key := fmt.Sprintf("locals-%s", localName)
 		conf.AddFieldMetadata(key, metadata)
 	}
-
 }
 
 func (conf *TerragruntConfig) GetLocalsMetadata(name string) (map[string]interface{}, bool) {
 	key := fmt.Sprintf("locals-%s", name)
-	value, found := conf.FieldsMetadata[key]
-	return value, found
+	return conf.GetFieldMetadata(key)
 }
 
 // Custom error types
