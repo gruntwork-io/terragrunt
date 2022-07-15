@@ -57,6 +57,9 @@ type TerragruntConfig struct {
 
 	// Map of processed includes
 	ProcessedIncludes map[string]IncludeConfig
+
+	// Map to store fields metadata
+	FieldsMetadata map[string]map[string]interface{}
 }
 
 func (conf *TerragruntConfig) String() string {
@@ -705,6 +708,8 @@ func ParseConfigString(
 		//   original locals for the current config being handled, as that is the locals list that is in scope for this
 		//   config.
 		mergedConfig.Locals = config.Locals
+		mergedConfig.AddLocalsMetadata(config.Locals, map[string]interface{}{"found_in_file": filename})
+
 		return mergedConfig, nil
 	}
 	return config, nil
@@ -945,6 +950,7 @@ func convertToTerragruntConfig(
 			return nil, err
 		}
 		terragruntConfig.Locals = localsParsed
+		terragruntConfig.AddLocalsMetadata(localsParsed, map[string]interface{}{"found_in_file": configPath})
 	}
 
 	return terragruntConfig, nil
@@ -1013,6 +1019,38 @@ func configFileHasDependencyBlock(configPath string, terragruntOptions *options.
 		}
 	}
 	return false, nil
+}
+
+// AddFieldMetadata persist "generic" mtedata
+func (conf *TerragruntConfig) AddFieldMetadata(field string, m map[string]interface{}) {
+
+	if conf.FieldsMetadata == nil {
+		conf.FieldsMetadata = map[string]map[string]interface{}{}
+	}
+
+	meta, found := conf.FieldsMetadata[field]
+	if !found {
+		meta = make(map[string]interface{})
+	}
+	for key, value := range m {
+		meta[key] = value
+	}
+	conf.FieldsMetadata[field] = meta
+}
+
+func (conf *TerragruntConfig) AddLocalsMetadata(locals map[string]interface{}, metadata map[string]interface{}) {
+
+	for localName, _ := range locals {
+		key := fmt.Sprintf("locals-%s", localName)
+		conf.AddFieldMetadata(key, metadata)
+	}
+
+}
+
+func (conf *TerragruntConfig) GetLocalsMetadata(name string) (map[string]interface{}, bool) {
+	key := fmt.Sprintf("locals-%s", name)
+	value, found := conf.FieldsMetadata[key]
+	return value, found
 }
 
 // Custom error types

@@ -58,6 +58,7 @@ const (
 	optTerragruntJSONOut                        = "terragrunt-json-out"
 	optTerragruntModulesThatInclude             = "terragrunt-modules-that-include"
 	optTerragruntFetchDependencyOutputFromState = "terragrunt-fetch-dependency-output-from-state"
+	optTerragruntOutputWithMetadata             = "with-metadata"
 )
 
 var allTerragruntBooleanOpts = []string{
@@ -74,6 +75,7 @@ var allTerragruntBooleanOpts = []string{
 	optTerragruntStrictInclude,
 	optTerragruntDebug,
 	optTerragruntFetchDependencyOutputFromState,
+	optTerragruntOutputWithMetadata,
 }
 var allTerragruntStringOpts = []string{
 	optTerragruntConfig,

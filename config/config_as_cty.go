@@ -124,6 +124,128 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	return convertValuesMapToCtyVal(output)
 }
 
+func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, error) {
+	output := map[string]cty.Value{}
+
+	// Convert attributes that are primitive types
+	output["terraform_binary"] = gostringToCty(config.TerraformBinary)
+	output["terraform_version_constraint"] = gostringToCty(config.TerraformVersionConstraint)
+	output["terragrunt_version_constraint"] = gostringToCty(config.TerragruntVersionConstraint)
+	output["download_dir"] = gostringToCty(config.DownloadDir)
+	output["iam_role"] = gostringToCty(config.IamRole)
+	output["skip"] = goboolToCty(config.Skip)
+	output["iam_assume_role_session_name"] = gostringToCty(config.IamAssumeRoleSessionName)
+
+	terraformConfigCty, err := terraformConfigAsCty(config.Terraform)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	if terraformConfigCty != cty.NilVal {
+		output["terraform"] = terraformConfigCty
+	}
+
+	remoteStateCty, err := remoteStateAsCty(config.RemoteState)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	if remoteStateCty != cty.NilVal {
+		output["remote_state"] = remoteStateCty
+	}
+
+	dependenciesCty, err := goTypeToCty(config.Dependencies)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	if dependenciesCty != cty.NilVal {
+		output["dependencies"] = dependenciesCty
+	}
+
+	if config.PreventDestroy != nil {
+		output["prevent_destroy"] = goboolToCty(*config.PreventDestroy)
+	}
+
+	dependencyCty, err := dependencyBlocksAsCty(config.TerragruntDependencies)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	if dependencyCty != cty.NilVal {
+		output["dependency"] = dependencyCty
+	}
+
+	generateCty, err := goTypeToCty(config.GenerateConfigs)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	if generateCty != cty.NilVal {
+		output["generate"] = generateCty
+	}
+
+	retryableCty, err := goTypeToCty(config.RetryableErrors)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	if retryableCty != cty.NilVal {
+		output["retryable_errors"] = retryableCty
+	}
+
+	iamAssumeRoleDurationCty, err := goTypeToCty(config.IamAssumeRoleDuration)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	if iamAssumeRoleDurationCty != cty.NilVal {
+		output["iam_assume_role_duration"] = iamAssumeRoleDurationCty
+	}
+
+	retryMaxAttemptsCty, err := goTypeToCty(config.RetryMaxAttempts)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	if retryMaxAttemptsCty != cty.NilVal {
+		output["retry_max_attempts"] = retryMaxAttemptsCty
+	}
+
+	retrySleepIntervalSecCty, err := goTypeToCty(config.RetrySleepIntervalSec)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	if retrySleepIntervalSecCty != cty.NilVal {
+		output["retry_sleep_interval_sec"] = retrySleepIntervalSecCty
+	}
+
+	inputsCty, err := convertToCtyWithJson(config.Inputs)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	if inputsCty != cty.NilVal {
+		output["inputs"] = inputsCty
+	}
+
+	// render locals with metadata
+	var localsWithMeta = map[string]ValueWithMetadata{}
+	for key, value := range config.Locals {
+		var data = ValueWithMetadata{}
+		data.Value = value
+		metadata, found := config.GetLocalsMetadata(key)
+		if found {
+			data.Metadata = metadata
+		}
+		localsWithMeta[key] = data
+	}
+	localsCty, _ := convertToCtyWithJson(localsWithMeta)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	output["locals"] = localsCty
+
+	return convertValuesMapToCtyVal(output)
+}
+
+type ValueWithMetadata struct {
+	Value    interface{}            `json:"value"`
+	Metadata map[string]interface{} `json:"metadata"`
+}
+
 // ctyTerraformConfig is an alternate representation of TerraformConfig that converts internal blocks into a map that
 // maps the name to the underlying struct, as opposed to a list representation.
 type ctyTerraformConfig struct {

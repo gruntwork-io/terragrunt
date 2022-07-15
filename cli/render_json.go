@@ -25,9 +25,20 @@ func runRenderJSON(terragruntOptions *options.TerragruntOptions, terragruntConfi
 		return fmt.Errorf("Terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl.")
 	}
 
-	terragruntConfigCty, err := config.TerragruntConfigAsCty(terragruntConfig)
-	if err != nil {
-		return err
+	var terragruntConfigCty cty.Value
+
+	if terragruntOptions.RenderJsonWithMetadata {
+		cty, err := config.TerragruntConfigAsCtyWithMetadata(terragruntConfig)
+		if err != nil {
+			return err
+		}
+		terragruntConfigCty = cty
+	} else {
+		cty, err := config.TerragruntConfigAsCty(terragruntConfig)
+		if err != nil {
+			return err
+		}
+		terragruntConfigCty = cty
 	}
 
 	jsonBytes, err := marshalCtyValueJSONWithoutType(terragruntConfigCty)

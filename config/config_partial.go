@@ -207,6 +207,7 @@ func PartialParseConfigString(
 			return nil, err
 		}
 		output.Locals = localsParsed
+		output.AddLocalsMetadata(localsParsed, map[string]interface{}{"found_in_file": filename})
 	}
 
 	// Now loop through each requested block / component to decode from the terragrunt config, decode them, and merge
