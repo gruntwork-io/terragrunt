@@ -836,6 +836,7 @@ func convertToTerragruntConfig(
 	}
 
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
+	terragruntConfig.Metadata(MetadataTerraform, map[string]interface{}{"found_in_file": configPath})
 	if err := validateDependencies(terragruntOptions, terragruntConfigFromFile.Dependencies); err != nil {
 		return nil, err
 	}
@@ -1021,37 +1022,68 @@ func configFileHasDependencyBlock(configPath string, terragruntOptions *options.
 	return false, nil
 }
 
-// AddFieldMetadata persist "generic" mtedata
-func (conf *TerragruntConfig) AddFieldMetadata(field string, m map[string]interface{}) {
+const (
+	MetadataTerraform                   = "terraform"
+	MetadataTerraformBinary             = "terraform_binary"
+	MetadataTerraformVersionConstraint  = "terraform_version_constraint"
+	MetadataTerragruntVersionConstraint = "terragrunt_version_constraint"
+	MetadataRemoteState                 = "remote_state"
+	MetadataDependencies                = "dependency"
+	MetadataDownloadDir                 = "download_dir"
+	MetadataPreventDestroy              = "prevent_destroy"
+	MetadataSkip                        = "skip"
+	MetadataIamRole                     = "iam_role"
+	MetadataIamAssumeRoleDuration       = "iam_assume_role_duration"
+	MetadataIamAssumeRoleSessionName    = "iam_assume_role_session_name"
+	MetadataInputs                      = "inputs"
+	MetadataLocals                      = "locals"
+	MetadataTerragruntDependencies      = "terragrunt_dependencies"
+	MetadataGenerateConfigs             = "generate"
+	MetadataRetryableErrors             = "retryable_errors"
+	MetadataRetryMaxAttempts            = "retry_max_attempts"
+	MetadataRetrySleepIntervalSec       = "retry_sleep_interval_sec"
+)
+
+// AddFieldMetadata persist "generic" metadata
+func (conf *TerragruntConfig) MetadataWithType(fieldType, fieldName string, m map[string]interface{}) {
 	if conf.FieldsMetadata == nil {
 		conf.FieldsMetadata = map[string]map[string]interface{}{}
 	}
 
-	meta, found := conf.FieldsMetadata[field]
+	field := fmt.Sprintf("%s-%s", fieldType, fieldName)
+
+	metadata, found := conf.FieldsMetadata[field]
 	if !found {
-		meta = make(map[string]interface{})
+		metadata = make(map[string]interface{})
 	}
 	for key, value := range m {
-		meta[key] = value
+		metadata[key] = value
 	}
-	conf.FieldsMetadata[field] = meta
+	conf.FieldsMetadata[field] = metadata
 }
 
-func (conf *TerragruntConfig) GetFieldMetadata(field string) (map[string]interface{}, bool) {
+func (conf *TerragruntConfig) Metadata(fieldName string, m map[string]interface{}) {
+	conf.MetadataWithType(fieldName, fieldName, m)
+}
+
+func (conf *TerragruntConfig) GetFieldMetadata(fieldName string) (map[string]interface{}, bool) {
+	return conf.GetMapFieldMetadata(fieldName, fieldName)
+}
+
+func (conf *TerragruntConfig) GetMapFieldMetadata(fieldType, fieldName string) (map[string]interface{}, bool) {
+	if conf.FieldsMetadata == nil {
+		return nil, false
+	}
+	field := fmt.Sprintf("%s-%s", fieldType, fieldName)
+
 	value, found := conf.FieldsMetadata[field]
 	return value, found
 }
 
 func (conf *TerragruntConfig) AddLocalsMetadata(locals map[string]interface{}, metadata map[string]interface{}) {
-	for localName, _ := range locals {
-		key := fmt.Sprintf("locals-%s", localName)
-		conf.AddFieldMetadata(key, metadata)
+	for name, _ := range locals {
+		conf.MetadataWithType(MetadataLocals, name, metadata)
 	}
-}
-
-func (conf *TerragruntConfig) GetLocalsMetadata(name string) (map[string]interface{}, bool) {
-	key := fmt.Sprintf("locals-%s", name)
-	return conf.GetFieldMetadata(key)
 }
 
 // Custom error types

@@ -128,28 +128,50 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 	output := map[string]cty.Value{}
 
 	// Convert attributes that are primitive types
-	output["terraform_binary"] = gostringToCty(config.TerraformBinary)
-	output["terraform_version_constraint"] = gostringToCty(config.TerraformVersionConstraint)
-	output["terragrunt_version_constraint"] = gostringToCty(config.TerragruntVersionConstraint)
-	output["download_dir"] = gostringToCty(config.DownloadDir)
-	output["iam_role"] = gostringToCty(config.IamRole)
-	output["skip"] = goboolToCty(config.Skip)
-	output["iam_assume_role_session_name"] = gostringToCty(config.IamAssumeRoleSessionName)
+	if err := wrapCtyWithMetadata(&output, config, gostringToCty(config.TerraformBinary), MetadataTerraformBinary); err != nil {
+		return cty.NilVal, err
+	}
 
+	if err := wrapCtyWithMetadata(&output, config, gostringToCty(config.TerraformVersionConstraint), MetadataTerraformVersionConstraint); err != nil {
+		return cty.NilVal, err
+	}
+
+	if err := wrapCtyWithMetadata(&output, config, gostringToCty(config.TerragruntVersionConstraint), MetadataTerragruntVersionConstraint); err != nil {
+		return cty.NilVal, err
+	}
+
+	if err := wrapCtyWithMetadata(&output, config, gostringToCty(config.DownloadDir), MetadataDownloadDir); err != nil {
+		return cty.NilVal, err
+	}
+
+	if err := wrapCtyWithMetadata(&output, config, gostringToCty(config.IamRole), MetadataIamRole); err != nil {
+		return cty.NilVal, err
+	}
+
+	if err := wrapCtyWithMetadata(&output, config, goboolToCty(config.Skip), MetadataSkip); err != nil {
+		return cty.NilVal, err
+	}
+
+	if err := wrapCtyWithMetadata(&output, config, gostringToCty(config.IamAssumeRoleSessionName), MetadataIamAssumeRoleSessionName); err != nil {
+		return cty.NilVal, err
+	}
+
+	// Terraform
 	terraformConfigCty, err := terraformConfigAsCty(config.Terraform)
 	if err != nil {
 		return cty.NilVal, err
 	}
-	if terraformConfigCty != cty.NilVal {
-		output["terraform"] = terraformConfigCty
+	if err := wrapCtyWithMetadata(&output, config, terraformConfigCty, MetadataTerraform); err != nil {
+		return cty.NilVal, err
 	}
 
+	// Remote state
 	remoteStateCty, err := remoteStateAsCty(config.RemoteState)
 	if err != nil {
 		return cty.NilVal, err
 	}
-	if remoteStateCty != cty.NilVal {
-		output["remote_state"] = remoteStateCty
+	if err := wrapCtyWithMetadata(&output, config, remoteStateCty, MetadataRemoteState); err != nil {
+		return cty.NilVal, err
 	}
 
 	dependenciesCty, err := goTypeToCty(config.Dependencies)
@@ -222,23 +244,49 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 	}
 
 	// render locals with metadata
+
+	//_, err := config.TerragruntConfigAsCty(terragruntConfig)
+	//if err != nil {
+	//	return cty.NilVal, err
+	//}
+
 	var localsWithMeta = map[string]ValueWithMetadata{}
 	for key, value := range config.Locals {
 		var data = ValueWithMetadata{}
 		data.Value = value
-		metadata, found := config.GetLocalsMetadata(key)
+		metadata, found := config.GetMapFieldMetadata(MetadataLocals, key)
 		if found {
 			data.Metadata = metadata
 		}
 		localsWithMeta[key] = data
 	}
-	localsCty, _ := convertToCtyWithJson(localsWithMeta)
+	localsCty, err := convertToCtyWithJson(localsWithMeta)
 	if err != nil {
 		return cty.NilVal, err
 	}
 	output["locals"] = localsCty
 
 	return convertValuesMapToCtyVal(output)
+}
+
+func wrapCtyWithMetadata(output *map[string]cty.Value, config *TerragruntConfig, value cty.Value, metadataName string) error {
+	if value == cty.NilVal {
+		return nil
+	}
+	var valueWithMetadata = ValueWithMetadata{}
+	valueWithMetadata.Value = value
+	metadata, found := config.GetFieldMetadata(metadataName)
+	if found {
+		valueWithMetadata.Metadata = metadata
+	}
+	ctyJson, err := convertToCtyWithJson(valueWithMetadata)
+	if err != nil {
+		return err
+	}
+	if ctyJson != cty.NilVal {
+		(*output)[metadataName] = ctyJson
+	}
+	return nil
 }
 
 type ValueWithMetadata struct {
