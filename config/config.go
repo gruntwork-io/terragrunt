@@ -708,7 +708,7 @@ func ParseConfigString(
 		//   original locals for the current config being handled, as that is the locals list that is in scope for this
 		//   config.
 		mergedConfig.Locals = config.Locals
-		mergedConfig.AddLocalsMetadata(config.Locals, map[string]interface{}{"found_in_file": filename})
+		mergedConfig.AddMapMetadata(MetadataLocals, config.Locals, map[string]interface{}{"found_in_file": filename})
 
 		return mergedConfig, nil
 	}
@@ -951,7 +951,7 @@ func convertToTerragruntConfig(
 			return nil, err
 		}
 		terragruntConfig.Locals = localsParsed
-		terragruntConfig.AddLocalsMetadata(localsParsed, map[string]interface{}{"found_in_file": configPath})
+		terragruntConfig.AddMapMetadata(MetadataLocals, localsParsed, map[string]interface{}{"found_in_file": configPath})
 	}
 
 	return terragruntConfig, nil
@@ -1028,7 +1028,8 @@ const (
 	MetadataTerraformVersionConstraint  = "terraform_version_constraint"
 	MetadataTerragruntVersionConstraint = "terragrunt_version_constraint"
 	MetadataRemoteState                 = "remote_state"
-	MetadataDependencies                = "dependency"
+	MetadataDependencies                = "dependencies"
+	MetadataDependency                  = "dependency"
 	MetadataDownloadDir                 = "download_dir"
 	MetadataPreventDestroy              = "prevent_destroy"
 	MetadataSkip                        = "skip"
@@ -1037,7 +1038,6 @@ const (
 	MetadataIamAssumeRoleSessionName    = "iam_assume_role_session_name"
 	MetadataInputs                      = "inputs"
 	MetadataLocals                      = "locals"
-	MetadataTerragruntDependencies      = "terragrunt_dependencies"
 	MetadataGenerateConfigs             = "generate"
 	MetadataRetryableErrors             = "retryable_errors"
 	MetadataRetryMaxAttempts            = "retry_max_attempts"
@@ -1080,9 +1080,9 @@ func (conf *TerragruntConfig) GetMapFieldMetadata(fieldType, fieldName string) (
 	return value, found
 }
 
-func (conf *TerragruntConfig) AddLocalsMetadata(locals map[string]interface{}, metadata map[string]interface{}) {
-	for name, _ := range locals {
-		conf.MetadataWithType(MetadataLocals, name, metadata)
+func (conf *TerragruntConfig) AddMapMetadata(fielType string, data map[string]interface{}, metadata map[string]interface{}) {
+	for name, _ := range data {
+		conf.MetadataWithType(fielType, name, metadata)
 	}
 }
 
