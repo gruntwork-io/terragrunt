@@ -207,7 +207,7 @@ func PartialParseConfigString(
 			return nil, err
 		}
 		output.Locals = localsParsed
-		output.AddMapMetadata(MetadataLocals, localsParsed, map[string]interface{}{"found_in_file": filename})
+		output.MetadataMap(MetadataLocals, localsParsed, map[string]interface{}{"found_in_file": filename})
 	}
 
 	// Now loop through each requested block / component to decode from the terragrunt config, decode them, and merge
@@ -227,6 +227,9 @@ func PartialParseConfigString(
 			} else {
 				output.Dependencies = decoded.Dependencies
 			}
+			for _, item := range decoded.Dependencies.Paths {
+				output.MetadataWithType(MetadataDependencies, item, map[string]interface{}{"found_in_file": filename})
+			}
 
 		case TerraformBlock:
 			decoded := terragruntTerraform{}
@@ -235,6 +238,7 @@ func PartialParseConfigString(
 				return nil, err
 			}
 			output.Terraform = decoded.Terraform
+			output.Metadata(MetadataTerraform, map[string]interface{}{"found_in_file": filename})
 
 		case TerraformSource:
 			decoded := terragruntTerraformSource{}
@@ -244,6 +248,7 @@ func PartialParseConfigString(
 			}
 			if decoded.Terraform != nil {
 				output.Terraform = &TerraformConfig{Source: decoded.Terraform.Source}
+				output.Metadata(MetadataTerraform, map[string]interface{}{"found_in_file": filename})
 			}
 
 		case DependencyBlock:
@@ -253,6 +258,7 @@ func PartialParseConfigString(
 				return nil, err
 			}
 			output.TerragruntDependencies = decoded.Dependencies
+			//TODO: pass terragrunt dependencies
 
 			// Convert dependency blocks into module depenency lists. If we already decoded some dependencies,
 			// merge them in. Otherwise, set as the new list.
@@ -261,6 +267,9 @@ func PartialParseConfigString(
 				output.Dependencies.Merge(dependencies)
 			} else {
 				output.Dependencies = dependencies
+			}
+			for _, item := range dependencies.Paths {
+				output.MetadataWithType(MetadataDependencies, item, map[string]interface{}{"found_in_file": filename})
 			}
 
 		case TerragruntFlags:
@@ -271,12 +280,15 @@ func PartialParseConfigString(
 			}
 			if decoded.PreventDestroy != nil {
 				output.PreventDestroy = decoded.PreventDestroy
+				output.Metadata(MetadataPreventDestroy, map[string]interface{}{"found_in_file": filename})
 			}
 			if decoded.Skip != nil {
 				output.Skip = *decoded.Skip
+				output.Metadata(MetadataSkip, map[string]interface{}{"found_in_file": filename})
 			}
 			if decoded.IamRole != nil {
 				output.IamRole = *decoded.IamRole
+				output.Metadata(MetadataIamRole, map[string]interface{}{"found_in_file": filename})
 			}
 
 		case TerragruntVersionConstraints:
@@ -287,12 +299,15 @@ func PartialParseConfigString(
 			}
 			if decoded.TerragruntVersionConstraint != nil {
 				output.TerragruntVersionConstraint = *decoded.TerragruntVersionConstraint
+				output.Metadata(MetadataTerragruntVersionConstraint, map[string]interface{}{"found_in_file": filename})
 			}
 			if decoded.TerraformVersionConstraint != nil {
 				output.TerraformVersionConstraint = *decoded.TerraformVersionConstraint
+				output.Metadata(MetadataTerraformVersionConstraint, map[string]interface{}{"found_in_file": filename})
 			}
 			if decoded.TerraformBinary != nil {
 				output.TerraformBinary = *decoded.TerraformBinary
+				output.Metadata(MetadataTerraformBinary, map[string]interface{}{"found_in_file": filename})
 			}
 
 		case RemoteStateBlock:
@@ -307,6 +322,7 @@ func PartialParseConfigString(
 					return nil, err
 				}
 				output.RemoteState = remoteState
+				output.Metadata(MetadataRemoteState, map[string]interface{}{"found_in_file": filename})
 			}
 
 		default:

@@ -174,13 +174,22 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 		return cty.NilVal, err
 	}
 
-	dependenciesCty, err := goTypeToCty(config.Dependencies)
+	// remder dependencies as list of maps with "value" and "metadata"
+	var dependencyWithMetadata = make([]ValueWithMetadata, 0, len(config.Dependencies.Paths))
+	for _, dependency := range config.Dependencies.Paths {
+		var content = ValueWithMetadata{}
+		content.Value = dependency
+		metadata, found := config.GetMapFieldMetadata(MetadataDependencies, dependency)
+		if found {
+			content.Metadata = metadata
+		}
+		dependencyWithMetadata = append(dependencyWithMetadata, content)
+	}
+	dependenciesCty, err := convertToCtyWithJson(dependencyWithMetadata)
 	if err != nil {
 		return cty.NilVal, err
 	}
-	if err := wrapCtyWithMetadata(config, dependenciesCty, MetadataDependencies, &output); err != nil {
-		return cty.NilVal, err
-	}
+	output[MetadataDependencies] = dependenciesCty
 
 	if config.PreventDestroy != nil {
 		if err := wrapCtyWithMetadata(config, goboolToCty(*config.PreventDestroy), MetadataPreventDestroy, &output); err != nil {
