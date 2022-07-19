@@ -341,14 +341,14 @@ func (targetConfig *TerragruntConfig) Merge(fileName string, sourceConfig *Terra
 
 	if sourceConfig.RetryableErrors != nil {
 		targetConfig.RetryableErrors = sourceConfig.RetryableErrors
-		//TODO:
+		targetConfig.Metadata(MetadataRetryableErrors, defaultMetadata)
 	}
 
 	// Merge the generate configs. This is a shallow merge. Meaning, if the child has the same name generate block, then the
 	// child's generate block will override the parent's block.
 	for key, val := range sourceConfig.GenerateConfigs {
 		targetConfig.GenerateConfigs[key] = val
-		//TODO: generate configs
+		targetConfig.MetadataWithType(MetadataGenerateConfigs, key, defaultMetadata)
 	}
 
 	if sourceConfig.Inputs != nil {
@@ -519,7 +519,7 @@ func (targetConfig *TerragruntConfig) DeepMerge(fileName string, sourceConfig *T
 	}
 	for key, val := range sourceConfig.GenerateConfigs {
 		targetConfig.GenerateConfigs[key] = val
-		//TODO generate config
+		targetConfig.MetadataWithType(MetadataGenerateConfigs, key, defaultMetadata)
 	}
 	return nil
 }

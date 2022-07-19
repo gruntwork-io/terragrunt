@@ -175,21 +175,23 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 	}
 
 	// remder dependencies as list of maps with "value" and "metadata"
-	var dependencyWithMetadata = make([]ValueWithMetadata, 0, len(config.Dependencies.Paths))
-	for _, dependency := range config.Dependencies.Paths {
-		var content = ValueWithMetadata{}
-		content.Value = dependency
-		metadata, found := config.GetMapFieldMetadata(MetadataDependencies, dependency)
-		if found {
-			content.Metadata = metadata
+	if config.Dependencies != nil {
+		var dependencyWithMetadata = make([]ValueWithMetadata, 0, len(config.Dependencies.Paths))
+		for _, dependency := range config.Dependencies.Paths {
+			var content = ValueWithMetadata{}
+			content.Value = dependency
+			metadata, found := config.GetMapFieldMetadata(MetadataDependencies, dependency)
+			if found {
+				content.Metadata = metadata
+			}
+			dependencyWithMetadata = append(dependencyWithMetadata, content)
 		}
-		dependencyWithMetadata = append(dependencyWithMetadata, content)
+		dependenciesCty, err := convertToCtyWithJson(dependencyWithMetadata)
+		if err != nil {
+			return cty.NilVal, err
+		}
+		output[MetadataDependencies] = dependenciesCty
 	}
-	dependenciesCty, err := convertToCtyWithJson(dependencyWithMetadata)
-	if err != nil {
-		return cty.NilVal, err
-	}
-	output[MetadataDependencies] = dependenciesCty
 
 	if config.PreventDestroy != nil {
 		if err := wrapCtyWithMetadata(config, goboolToCty(*config.PreventDestroy), MetadataPreventDestroy, &output); err != nil {
@@ -204,13 +206,24 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 		return cty.NilVal, err
 	}
 
-	generateCty, err := goTypeToCty(config.GenerateConfigs)
+	var generateConfigsWithMetadata = map[string]ValueWithMetadata{}
+
+	for key, value := range config.GenerateConfigs {
+		var content = ValueWithMetadata{}
+		content.Value = value
+		metadata, found := config.GetMapFieldMetadata(MetadataGenerateConfigs, key)
+		if found {
+			content.Metadata = metadata
+		}
+		generateConfigsWithMetadata[key] = content
+	}
+
+	dependenciesCty, err := convertToCtyWithJson(generateConfigsWithMetadata)
 	if err != nil {
 		return cty.NilVal, err
 	}
-	if err := wrapCtyWithMetadata(config, generateCty, MetadataGenerateConfigs, &output); err != nil {
-		return cty.NilVal, err
-	}
+	output[MetadataGenerateConfigs] = dependenciesCty
+
 	retryableCty, err := goTypeToCty(config.RetryableErrors)
 	if err != nil {
 		return cty.NilVal, err
