@@ -713,7 +713,7 @@ func setIAMRole(configString string, terragruntOptions *options.TerragruntOption
 	var key = fmt.Sprintf("%v-%v", configString, includeFromChild)
 	var config, found = iamRoleCache.Get(key)
 	if !found {
-		iamConfig, err := TerragruntConfigFromPartialConfig(configString, terragruntOptions, includeFromChild, filename, []PartialDecodeSectionType{TerragruntFlags})
+		iamConfig, err := TerragruntConfigFromPartialConfigString(configString, terragruntOptions, includeFromChild, filename, []PartialDecodeSectionType{TerragruntFlags})
 		if err != nil {
 			return err
 		}

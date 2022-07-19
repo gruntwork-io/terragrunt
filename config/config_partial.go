@@ -137,7 +137,6 @@ func DecodeBaseBlocks(
 	return &localsAsCty, trackInclude, nil
 }
 
-// TODO: Consider renaming as well
 func PartialParseConfigFile(
 	filename string,
 	terragruntOptions *options.TerragruntOptions,
@@ -149,7 +148,7 @@ func PartialParseConfigFile(
 		return nil, err
 	}
 
-	config, err := TerragruntConfigFromPartialConfig(configString, terragruntOptions, include, filename, decodeList)
+	config, err := TerragruntConfigFromPartialConfigString(configString, terragruntOptions, include, filename, decodeList)
 	if err != nil {
 		return nil, err
 	}
@@ -162,30 +161,33 @@ var terragruntConfigCache = NewTerragruntConfigCache()
 // Wrapper of PartialParseConfigString which checks for cached configs.
 // configString, includeFromChild and decodeList are used for the cache key,
 // by getting the default value (%#v) through fmt.
-// TODO: Challenge the new funciton name
-func TerragruntConfigFromPartialConfig(
+func TerragruntConfigFromPartialConfigString(
 	configString string,
 	terragruntOptions *options.TerragruntOptions,
 	includeFromChild *IncludeConfig,
 	filename string,
 	decodeList []PartialDecodeSectionType,
 ) (*TerragruntConfig, error) {
-	var cacheKey = fmt.Sprintf("%#v-%#v-%#v", configString, includeFromChild, decodeList)
-	var config, found = terragruntConfigCache.Get(cacheKey)
+	if terragruntOptions.UsePartialParseConfigCache {
+		var cacheKey = fmt.Sprintf("%#v-%#v-%#v", configString, includeFromChild, decodeList)
+		var config, found = terragruntConfigCache.Get(cacheKey)
 
-	if !found {
-		terragruntOptions.Logger.Debugf("Cache miss for '%s' (partial parsing).", filename)
-		tgConfig, err := PartialParseConfigString(configString, terragruntOptions, includeFromChild, filename, decodeList)
-		if err != nil {
-			return nil, err
+		if !found {
+			terragruntOptions.Logger.Debugf("Cache miss for '%s' (partial parsing).", filename)
+			tgConfig, err := PartialParseConfigString(configString, terragruntOptions, includeFromChild, filename, decodeList)
+			if err != nil {
+				return nil, err
+			}
+			config = *tgConfig
+			terragruntConfigCache.Put(cacheKey, config)
+		} else {
+			terragruntOptions.Logger.Debugf("Cache hit for '%s' (partial parsing).", filename)
 		}
-		config = *tgConfig
-		terragruntConfigCache.Put(cacheKey, config)
-	} else {
-		terragruntOptions.Logger.Debugf("Cache hit for '%s' (partial parsing).", filename)
-	}
 
-	return &config, nil
+		return &config, nil
+	} else {
+		return PartialParseConfigString(configString, terragruntOptions, includeFromChild, filename, decodeList)
+	}
 }
 
 // PartialParseConfigString partially parses and decodes the provided string. Which blocks/attributes to decode is
