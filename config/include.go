@@ -250,59 +250,60 @@ func handleIncludeForDependency(
 // This list includes the dependencies added from dependency blocks, which is handled in a different stage.
 func (targetConfig *TerragruntConfig) Merge(fileName string, sourceConfig *TerragruntConfig, terragruntOptions *options.TerragruntOptions) {
 	// Merge simple attributes first
+	defaultMetadata := map[string]interface{}{"found_in_file": fileName}
 	if sourceConfig.DownloadDir != "" {
 		targetConfig.DownloadDir = sourceConfig.DownloadDir
-		targetConfig.Metadata(MetadataDownloadDir, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataDownloadDir, defaultMetadata)
 	}
 
 	if sourceConfig.IamRole != "" {
 		targetConfig.IamRole = sourceConfig.IamRole
-		targetConfig.Metadata(MetadataIamRole, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataIamRole, defaultMetadata)
 
 	}
 
 	if sourceConfig.IamAssumeRoleDuration != nil {
 		targetConfig.IamAssumeRoleDuration = sourceConfig.IamAssumeRoleDuration
-		targetConfig.Metadata(MetadataIamAssumeRoleDuration, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataIamAssumeRoleDuration, defaultMetadata)
 	}
 
 	if sourceConfig.TerraformVersionConstraint != "" {
 		targetConfig.TerraformVersionConstraint = sourceConfig.TerraformVersionConstraint
-		targetConfig.Metadata(MetadataIamAssumeRoleDuration, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataIamAssumeRoleDuration, defaultMetadata)
 	}
 
 	if sourceConfig.TerraformBinary != "" {
 		targetConfig.TerraformBinary = sourceConfig.TerraformBinary
-		targetConfig.Metadata(MetadataTerraformBinary, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataTerraformBinary, defaultMetadata)
 	}
 
 	if sourceConfig.PreventDestroy != nil {
 		targetConfig.PreventDestroy = sourceConfig.PreventDestroy
-		targetConfig.Metadata(MetadataPreventDestroy, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataPreventDestroy, defaultMetadata)
 	}
 
 	if sourceConfig.RetryMaxAttempts != nil {
 		targetConfig.RetryMaxAttempts = sourceConfig.RetryMaxAttempts
-		targetConfig.Metadata(MetadataRetryMaxAttempts, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataRetryMaxAttempts, defaultMetadata)
 	}
 
 	if sourceConfig.RetrySleepIntervalSec != nil {
 		targetConfig.RetrySleepIntervalSec = sourceConfig.RetrySleepIntervalSec
-		targetConfig.Metadata(MetadataRetrySleepIntervalSec, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataRetrySleepIntervalSec, defaultMetadata)
 	}
 
 	if sourceConfig.TerragruntVersionConstraint != "" {
 		targetConfig.TerragruntVersionConstraint = sourceConfig.TerragruntVersionConstraint
-		targetConfig.Metadata(MetadataTerraformVersionConstraint, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataTerraformVersionConstraint, defaultMetadata)
 	}
 
 	// Skip has to be set specifically in each file that should be skipped
 	targetConfig.Skip = sourceConfig.Skip
-	targetConfig.Metadata(MetadataSkip, map[string]interface{}{"found_in_file": fileName})
+	targetConfig.Metadata(MetadataSkip, defaultMetadata)
 
 	if sourceConfig.RemoteState != nil {
 		targetConfig.RemoteState = sourceConfig.RemoteState
-		targetConfig.Metadata(MetadataRemoteState, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataRemoteState, defaultMetadata)
 	}
 
 	if sourceConfig.Terraform != nil {
@@ -318,7 +319,7 @@ func (targetConfig *TerragruntConfig) Merge(fileName string, sourceConfig *Terra
 			mergeHooks(terragruntOptions, sourceConfig.Terraform.AfterHooks, &targetConfig.Terraform.AfterHooks)
 			mergeErrorHooks(terragruntOptions, sourceConfig.Terraform.ErrorHooks, &targetConfig.Terraform.ErrorHooks)
 		}
-		targetConfig.Metadata(MetadataTerraform, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataTerraform, defaultMetadata)
 	}
 
 	// Dependency blocks are shallow merged by name
@@ -334,7 +335,7 @@ func (targetConfig *TerragruntConfig) Merge(fileName string, sourceConfig *Terra
 			targetConfig.Dependencies.Merge(sourceConfig.Dependencies)
 		}
 		for _, item := range sourceConfig.Dependencies.Paths {
-			targetConfig.MetadataWithType(MetadataDependencies, item, map[string]interface{}{"found_in_file": fileName})
+			targetConfig.MetadataWithType(MetadataDependencies, item, defaultMetadata)
 		}
 	}
 
@@ -352,7 +353,7 @@ func (targetConfig *TerragruntConfig) Merge(fileName string, sourceConfig *Terra
 
 	if sourceConfig.Inputs != nil {
 		targetConfig.Inputs = mergeInputs(sourceConfig.Inputs, targetConfig.Inputs)
-		targetConfig.MetadataMap(MetadataInputs, targetConfig.Inputs, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.MetadataMap(MetadataInputs, targetConfig.Inputs, defaultMetadata)
 	}
 }
 
@@ -372,54 +373,55 @@ func (targetConfig *TerragruntConfig) Merge(fileName string, sourceConfig *Terra
 //     - locals [These blocks are not merged by design]
 func (targetConfig *TerragruntConfig) DeepMerge(fileName string, sourceConfig *TerragruntConfig, terragruntOptions *options.TerragruntOptions) error {
 	// Merge simple attributes first
+	defaultMetadata := map[string]interface{}{"found_in_file": fileName}
 	if sourceConfig.DownloadDir != "" {
 		targetConfig.DownloadDir = sourceConfig.DownloadDir
-		targetConfig.Metadata(MetadataDownloadDir, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataDownloadDir, defaultMetadata)
 	}
 
 	if sourceConfig.IamRole != "" {
 		targetConfig.IamRole = sourceConfig.IamRole
-		targetConfig.Metadata(MetadataIamRole, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataIamRole, defaultMetadata)
 	}
 
 	if sourceConfig.IamAssumeRoleDuration != nil {
 		targetConfig.IamAssumeRoleDuration = sourceConfig.IamAssumeRoleDuration
-		targetConfig.Metadata(MetadataIamAssumeRoleDuration, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataIamAssumeRoleDuration, defaultMetadata)
 	}
 
 	if sourceConfig.TerraformVersionConstraint != "" {
 		targetConfig.TerraformVersionConstraint = sourceConfig.TerraformVersionConstraint
-		targetConfig.Metadata(MetadataTerragruntVersionConstraint, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataTerragruntVersionConstraint, defaultMetadata)
 	}
 
 	if sourceConfig.TerraformBinary != "" {
 		targetConfig.TerraformBinary = sourceConfig.TerraformBinary
-		targetConfig.Metadata(MetadataTerraformBinary, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataTerraformBinary, defaultMetadata)
 	}
 
 	if sourceConfig.PreventDestroy != nil {
 		targetConfig.PreventDestroy = sourceConfig.PreventDestroy
-		targetConfig.Metadata(MetadataPreventDestroy, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataPreventDestroy, defaultMetadata)
 	}
 
 	if sourceConfig.RetryMaxAttempts != nil {
 		targetConfig.RetryMaxAttempts = sourceConfig.RetryMaxAttempts
-		targetConfig.Metadata(MetadataRetryMaxAttempts, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataRetryMaxAttempts, defaultMetadata)
 	}
 
 	if sourceConfig.RetrySleepIntervalSec != nil {
 		targetConfig.RetrySleepIntervalSec = sourceConfig.RetrySleepIntervalSec
-		targetConfig.Metadata(MetadataRetrySleepIntervalSec, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataRetrySleepIntervalSec, defaultMetadata)
 	}
 
 	if sourceConfig.TerragruntVersionConstraint != "" {
 		targetConfig.TerragruntVersionConstraint = sourceConfig.TerragruntVersionConstraint
-		targetConfig.Metadata(MetadataTerraformVersionConstraint, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataTerraformVersionConstraint, defaultMetadata)
 	}
 
 	// Skip has to be set specifically in each file that should be skipped
 	targetConfig.Skip = sourceConfig.Skip
-	targetConfig.Metadata(MetadataSkip, map[string]interface{}{"found_in_file": fileName})
+	targetConfig.Metadata(MetadataSkip, defaultMetadata)
 
 	// Copy only dependencies which doesn't exist in source
 	if sourceConfig.Dependencies != nil {
@@ -453,7 +455,7 @@ func (targetConfig *TerragruntConfig) DeepMerge(fileName string, sourceConfig *T
 		resultModuleDependencies.Paths = append(resultModuleDependencies.Paths, sourceConfig.Dependencies.Paths...)
 		targetConfig.Dependencies = resultModuleDependencies
 		for _, item := range resultModuleDependencies.Paths {
-			targetConfig.MetadataWithType(MetadataDependencies, item, map[string]interface{}{"found_in_file": fileName})
+			targetConfig.MetadataWithType(MetadataDependencies, item, defaultMetadata)
 		}
 	}
 
@@ -467,7 +469,7 @@ func (targetConfig *TerragruntConfig) DeepMerge(fileName string, sourceConfig *T
 
 	if sourceConfig.RetryableErrors != nil {
 		targetConfig.RetryableErrors = append(targetConfig.RetryableErrors, sourceConfig.RetryableErrors...)
-		targetConfig.Metadata(MetadataRetryableErrors, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataRetryableErrors, defaultMetadata)
 	}
 
 	// Handle complex structs by recursively merging the structs together
@@ -496,7 +498,7 @@ func (targetConfig *TerragruntConfig) DeepMerge(fileName string, sourceConfig *T
 			mergeHooks(terragruntOptions, sourceConfig.Terraform.AfterHooks, &targetConfig.Terraform.AfterHooks)
 			mergeErrorHooks(terragruntOptions, sourceConfig.Terraform.ErrorHooks, &targetConfig.Terraform.ErrorHooks)
 		}
-		targetConfig.Metadata(MetadataTerraform, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataTerraform, defaultMetadata)
 	}
 
 	if sourceConfig.Inputs != nil {
@@ -505,7 +507,7 @@ func (targetConfig *TerragruntConfig) DeepMerge(fileName string, sourceConfig *T
 			return err
 		}
 		targetConfig.Inputs = mergedInputs
-		targetConfig.MetadataMap(MetadataInputs, targetConfig.Inputs, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.MetadataMap(MetadataInputs, targetConfig.Inputs, defaultMetadata)
 	}
 
 	// MAINTAINER'S NOTE: The following structs cannot be deep merged due to an implementation detail (they do not
@@ -513,7 +515,7 @@ func (targetConfig *TerragruntConfig) DeepMerge(fileName string, sourceConfig *T
 	// unspecified - this is especially problematic for bool attributes).
 	if sourceConfig.RemoteState != nil {
 		targetConfig.RemoteState = sourceConfig.RemoteState
-		targetConfig.Metadata(MetadataRemoteState, map[string]interface{}{"found_in_file": fileName})
+		targetConfig.Metadata(MetadataRemoteState, defaultMetadata)
 	}
 	for key, val := range sourceConfig.GenerateConfigs {
 		targetConfig.GenerateConfigs[key] = val

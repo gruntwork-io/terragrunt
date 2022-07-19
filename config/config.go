@@ -809,13 +809,14 @@ func convertToTerragruntConfig(
 		GenerateConfigs: map[string]codegen.GenerateConfig{},
 	}
 
+	defaultMetadata := map[string]interface{}{"found_in_file": configPath}
 	if terragruntConfigFromFile.RemoteState != nil {
 		remoteState, err := terragruntConfigFromFile.RemoteState.toConfig()
 		if err != nil {
 			return nil, err
 		}
 		terragruntConfig.RemoteState = remoteState
-		terragruntConfig.Metadata(MetadataRemoteState, map[string]interface{}{"found_in_file": configPath})
+		terragruntConfig.Metadata(MetadataRemoteState, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.RemoteStateAttr != nil {
@@ -830,7 +831,7 @@ func convertToTerragruntConfig(
 		}
 
 		terragruntConfig.RemoteState = remoteState
-		terragruntConfig.Metadata(MetadataRemoteState, map[string]interface{}{"found_in_file": configPath})
+		terragruntConfig.Metadata(MetadataRemoteState, defaultMetadata)
 	}
 
 	if err := terragruntConfigFromFile.Terraform.ValidateHooks(); err != nil {
@@ -838,7 +839,7 @@ func convertToTerragruntConfig(
 	}
 
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
-	terragruntConfig.Metadata(MetadataTerraform, map[string]interface{}{"found_in_file": configPath})
+	terragruntConfig.Metadata(MetadataTerraform, defaultMetadata)
 
 	if err := validateDependencies(terragruntOptions, terragruntConfigFromFile.Dependencies); err != nil {
 		return nil, err
@@ -846,71 +847,71 @@ func convertToTerragruntConfig(
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
 	if terragruntConfig.Dependencies != nil {
 		for _, item := range terragruntConfig.Dependencies.Paths {
-			terragruntConfig.MetadataWithType(MetadataDependencies, item, map[string]interface{}{"found_in_file": configPath})
+			terragruntConfig.MetadataWithType(MetadataDependencies, item, defaultMetadata)
 		}
 	}
 
 	terragruntConfig.TerragruntDependencies = terragruntConfigFromFile.TerragruntDependencies
-	terragruntConfig.Metadata(MetadataDependency, map[string]interface{}{"found_in_file": configPath})
+	terragruntConfig.Metadata(MetadataDependency, defaultMetadata)
 
 	if terragruntConfigFromFile.TerraformBinary != nil {
 		terragruntConfig.TerraformBinary = *terragruntConfigFromFile.TerraformBinary
-		terragruntConfig.Metadata(MetadataTerraformBinary, map[string]interface{}{"found_in_file": configPath})
+		terragruntConfig.Metadata(MetadataTerraformBinary, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.RetryableErrors != nil {
 		terragruntConfig.RetryableErrors = terragruntConfigFromFile.RetryableErrors
-		terragruntConfig.Metadata(MetadataRetryableErrors, map[string]interface{}{"found_in_file": configPath})
+		terragruntConfig.Metadata(MetadataRetryableErrors, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.RetryMaxAttempts != nil {
 		terragruntConfig.RetryMaxAttempts = terragruntConfigFromFile.RetryMaxAttempts
-		terragruntConfig.Metadata(MetadataRetryMaxAttempts, map[string]interface{}{"found_in_file": configPath})
+		terragruntConfig.Metadata(MetadataRetryMaxAttempts, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.RetrySleepIntervalSec != nil {
 		terragruntConfig.RetrySleepIntervalSec = terragruntConfigFromFile.RetrySleepIntervalSec
-		terragruntConfig.Metadata(MetadataRetrySleepIntervalSec, map[string]interface{}{"found_in_file": configPath})
+		terragruntConfig.Metadata(MetadataRetrySleepIntervalSec, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.DownloadDir != nil {
 		terragruntConfig.DownloadDir = *terragruntConfigFromFile.DownloadDir
-		terragruntConfig.Metadata(MetadataDownloadDir, map[string]interface{}{"found_in_file": configPath})
+		terragruntConfig.Metadata(MetadataDownloadDir, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.TerraformVersionConstraint != nil {
 		terragruntConfig.TerraformVersionConstraint = *terragruntConfigFromFile.TerraformVersionConstraint
-		terragruntConfig.Metadata(MetadataTerraformVersionConstraint, map[string]interface{}{"found_in_file": configPath})
+		terragruntConfig.Metadata(MetadataTerraformVersionConstraint, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.TerragruntVersionConstraint != nil {
 		terragruntConfig.TerragruntVersionConstraint = *terragruntConfigFromFile.TerragruntVersionConstraint
-		terragruntConfig.Metadata(MetadataTerragruntVersionConstraint, map[string]interface{}{"found_in_file": configPath})
+		terragruntConfig.Metadata(MetadataTerragruntVersionConstraint, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.PreventDestroy != nil {
 		terragruntConfig.PreventDestroy = terragruntConfigFromFile.PreventDestroy
-		terragruntConfig.Metadata(MetadataPreventDestroy, map[string]interface{}{"found_in_file": configPath})
+		terragruntConfig.Metadata(MetadataPreventDestroy, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.Skip != nil {
 		terragruntConfig.Skip = *terragruntConfigFromFile.Skip
-		terragruntConfig.Metadata(MetadataSkip, map[string]interface{}{"found_in_file": configPath})
+		terragruntConfig.Metadata(MetadataSkip, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.IamRole != nil {
 		terragruntConfig.IamRole = *terragruntConfigFromFile.IamRole
-		terragruntConfig.Metadata(MetadataIamRole, map[string]interface{}{"found_in_file": configPath})
+		terragruntConfig.Metadata(MetadataIamRole, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.IamAssumeRoleDuration != nil {
 		terragruntConfig.IamAssumeRoleDuration = terragruntConfigFromFile.IamAssumeRoleDuration
-		terragruntConfig.Metadata(MetadataIamAssumeRoleDuration, map[string]interface{}{"found_in_file": configPath})
+		terragruntConfig.Metadata(MetadataIamAssumeRoleDuration, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.IamAssumeRoleSessionName != nil {
 		terragruntConfig.IamAssumeRoleSessionName = *terragruntConfigFromFile.IamAssumeRoleSessionName
-		terragruntConfig.Metadata(MetadataIamAssumeRoleSessionName, map[string]interface{}{"found_in_file": configPath})
+		terragruntConfig.Metadata(MetadataIamAssumeRoleSessionName, defaultMetadata)
 	}
 
 	generateBlocks := []terragruntGenerateBlock{}
@@ -956,7 +957,7 @@ func convertToTerragruntConfig(
 			genConfig.DisableSignature = *block.DisableSignature
 		}
 		terragruntConfig.GenerateConfigs[block.Name] = genConfig
-		terragruntConfig.MetadataWithType(MetadataGenerateConfigs, block.Name, map[string]interface{}{"found_in_file": configPath})
+		terragruntConfig.MetadataWithType(MetadataGenerateConfigs, block.Name, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.Inputs != nil {
@@ -966,7 +967,7 @@ func convertToTerragruntConfig(
 		}
 
 		terragruntConfig.Inputs = inputs
-		terragruntConfig.MetadataMap(MetadataInputs, terragruntConfig.Inputs, map[string]interface{}{"found_in_file": configPath})
+		terragruntConfig.MetadataMap(MetadataInputs, terragruntConfig.Inputs, defaultMetadata)
 	}
 
 	if contextExtensions.Locals != nil && *contextExtensions.Locals != cty.NilVal {
@@ -975,7 +976,7 @@ func convertToTerragruntConfig(
 			return nil, err
 		}
 		terragruntConfig.Locals = localsParsed
-		terragruntConfig.MetadataMap(MetadataLocals, localsParsed, map[string]interface{}{"found_in_file": configPath})
+		terragruntConfig.MetadataMap(MetadataLocals, localsParsed, defaultMetadata)
 	}
 
 	return terragruntConfig, nil
