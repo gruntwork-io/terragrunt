@@ -696,7 +696,7 @@ func ParseConfigString(
 
 	// If this file includes another, parse and merge it.  Otherwise just return this config.
 	if trackInclude != nil {
-		mergedConfig, err := handleInclude(filename, config, trackInclude, terragruntOptions, contextExtensions.DecodedDependencies)
+		mergedConfig, err := handleInclude(config, trackInclude, terragruntOptions, contextExtensions.DecodedDependencies)
 		if err != nil {
 			return nil, err
 		}
