@@ -258,6 +258,9 @@ func PartialParseConfigString(
 				return nil, err
 			}
 			output.TerragruntDependencies = decoded.Dependencies
+			for _, item := range output.TerragruntDependencies {
+				output.MetadataWithType(MetadataDependency, item.Name, map[string]interface{}{"found_in_file": filename})
+			}
 			//TODO: pass terragrunt dependencies
 
 			// Convert dependency blocks into module depenency lists. If we already decoded some dependencies,
@@ -265,11 +268,16 @@ func PartialParseConfigString(
 			dependencies := dependencyBlocksToModuleDependencies(decoded.Dependencies)
 			if output.Dependencies != nil {
 				output.Dependencies.Merge(dependencies)
+				for _, item := range dependencies.Paths {
+					output.MetadataWithType(MetadataDependencies, item, map[string]interface{}{"found_in_file": filename})
+				}
 			} else {
 				output.Dependencies = dependencies
-			}
-			for _, item := range dependencies.Paths {
-				output.MetadataWithType(MetadataDependencies, item, map[string]interface{}{"found_in_file": filename})
+				if output.Dependencies != nil {
+					for _, item := range output.Dependencies.Paths {
+						output.MetadataWithType(MetadataDependencies, item, map[string]interface{}{"found_in_file": filename})
+					}
+				}
 			}
 
 		case TerragruntFlags:
@@ -332,7 +340,7 @@ func PartialParseConfigString(
 
 	// If this file includes another, parse and merge the partial blocks.  Otherwise just return this config.
 	if len(trackInclude.CurrentList) > 0 {
-		config, err := handleIncludePartial(&output, trackInclude, terragruntOptions, decodeList)
+		config, err := handleIncludePartial(filename, &output, trackInclude, terragruntOptions, decodeList)
 		if err != nil {
 			return nil, err
 		}

@@ -696,7 +696,7 @@ func ParseConfigString(
 
 	// If this file includes another, parse and merge it.  Otherwise just return this config.
 	if trackInclude != nil {
-		mergedConfig, err := handleInclude(config, trackInclude, terragruntOptions, contextExtensions.DecodedDependencies)
+		mergedConfig, err := handleInclude(filename, config, trackInclude, terragruntOptions, contextExtensions.DecodedDependencies)
 		if err != nil {
 			return nil, err
 		}
@@ -844,8 +844,10 @@ func convertToTerragruntConfig(
 		return nil, err
 	}
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
-	for _, item := range terragruntConfigFromFile.Dependencies.Paths {
-		terragruntConfig.MetadataWithType(MetadataDependencies, item, map[string]interface{}{"found_in_file": configPath})
+	if terragruntConfig.Dependencies != nil {
+		for _, item := range terragruntConfig.Dependencies.Paths {
+			terragruntConfig.MetadataWithType(MetadataDependencies, item, map[string]interface{}{"found_in_file": configPath})
+		}
 	}
 
 	terragruntConfig.TerragruntDependencies = terragruntConfigFromFile.TerragruntDependencies
