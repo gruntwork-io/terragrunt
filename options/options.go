@@ -369,6 +369,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		Check:                          terragruntOptions.Check,
 		CheckDependentModules:          terragruntOptions.CheckDependentModules,
 		FetchDependencyOutputFromState: terragruntOptions.FetchDependencyOutputFromState,
+		UsePartialParseConfigCache:     terragruntOptions.UsePartialParseConfigCache,
 	}
 }
 
