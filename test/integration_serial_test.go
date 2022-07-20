@@ -79,11 +79,8 @@ func TestTerragruntDownloadDir(t *testing.T) {
 		testCase := testCase
 
 		t.Run(testCase.name, func(t *testing.T) {
-			// make sure the env var doesn't leak outside of this test case
-			defer os.Unsetenv("TERRAGRUNT_DOWNLOAD")
-
 			if testCase.downloadDirEnv != "" {
-				require.NoError(t, os.Setenv("TERRAGRUNT_DOWNLOAD", testCase.downloadDirEnv))
+				t.Setenv("TERRAGRUNT_DOWNLOAD", testCase.downloadDirEnv)
 			} else {
 				// Clear the variable if it's not set. This is clearing the variable in case the variable is set outside the test process.
 				require.NoError(t, os.Unsetenv("TERRAGRUNT_DOWNLOAD"))
@@ -110,9 +107,9 @@ func TestTerragruntCorrectlyMirrorsTerraformGCPAuth(t *testing.T) {
 	// There is no true way to properly unset env vars from the environment, but we still try
 	// to unset the CI credentials during this test.
 	defaultCreds := os.Getenv("GCLOUD_SERVICE_KEY")
-	defer os.Setenv("GCLOUD_SERVICE_KEY", defaultCreds)
+	defer t.Setenv("GCLOUD_SERVICE_KEY", defaultCreds)
 	os.Unsetenv("GCLOUD_SERVICE_KEY")
-	os.Setenv("GOOGLE_CREDENTIALS", defaultCreds)
+	t.Setenv("GOOGLE_CREDENTIALS", defaultCreds)
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_GCS_PATH)
 
@@ -140,8 +137,7 @@ func TestExtraArguments(t *testing.T) {
 
 func TestExtraArgumentsWithEnv(t *testing.T) {
 	out := new(bytes.Buffer)
-	os.Setenv("TF_VAR_env", "prod")
-	defer os.Unsetenv("TF_VAR_env")
+	t.Setenv("TF_VAR_env", "prod")
 	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_EXTRA_ARGS_PATH), out, os.Stderr)
 	t.Log(out.String())
 	assert.Contains(t, out.String(), "Hello, World!")
@@ -156,16 +152,14 @@ func TestExtraArgumentsWithEnvVarBlock(t *testing.T) {
 
 func TestExtraArgumentsWithRegion(t *testing.T) {
 	out := new(bytes.Buffer)
-	os.Setenv("TF_VAR_region", "us-west-2")
-	defer os.Unsetenv("TF_VAR_region")
+	t.Setenv("TF_VAR_region", "us-west-2")
 	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_EXTRA_ARGS_PATH), out, os.Stderr)
 	t.Log(out.String())
 	assert.Contains(t, out.String(), "Hello, World from Oregon!")
 }
 
 func TestPreserveEnvVarApplyAll(t *testing.T) {
-	os.Setenv("TF_VAR_seed", "from the env")
-	defer os.Unsetenv("TF_VAR_seed")
+	t.Setenv("TF_VAR_seed", "from the env")
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_REGRESSIONS)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_REGRESSIONS)
@@ -197,16 +191,14 @@ func TestPriorityOrderOfArgument(t *testing.T) {
 }
 
 func TestTerragruntValidateInputsWithEnvVar(t *testing.T) {
-	os.Setenv("TF_VAR_input", "from the env")
-	defer os.Unsetenv("TF_VAR_input")
+	t.Setenv("TF_VAR_input", "from the env")
 
 	moduleDir := filepath.Join("fixture-validate-inputs", "fail-no-inputs")
 	runTerragruntValidateInputs(t, moduleDir, nil, true)
 }
 
 func TestTerragruntValidateInputsWithUnusedEnvVar(t *testing.T) {
-	os.Setenv("TF_VAR_unused", "from the env")
-	defer os.Unsetenv("TF_VAR_unused")
+	t.Setenv("TF_VAR_unused", "from the env")
 
 	moduleDir := filepath.Join("fixture-validate-inputs", "success-inputs-only")
 	args := []string{"--terragrunt-strict-validate"}
@@ -219,7 +211,7 @@ func TestTerragruntSourceMapEnvArg(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, fixtureSourceMapPath)
 	rootPath := filepath.Join(tmpEnvPath, fixtureSourceMapPath)
 
-	os.Setenv(
+	t.Setenv(
 		"TERRAGRUNT_SOURCE_MAP",
 		strings.Join(
 			[]string{
@@ -236,16 +228,7 @@ func TestTerragruntSourceMapEnvArg(t *testing.T) {
 
 func TestTerragruntLogLevelEnvVarOverridesDefault(t *testing.T) {
 	// NOTE: this matches logLevelEnvVar const in util/logger.go
-	envVarName := "TERRAGRUNT_LOG_LEVEL"
-	oldVal := os.Getenv(envVarName)
-	defer func() {
-		if oldVal != "" {
-			os.Setenv(envVarName, oldVal)
-		} else {
-			os.Unsetenv(envVarName)
-		}
-	}()
-	os.Setenv("TERRAGRUNT_LOG_LEVEL", "debug")
+	t.Setenv("TERRAGRUNT_LOG_LEVEL", "debug")
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
 	tmpEnvPath := copyEnvironment(t, ".")
@@ -266,16 +249,7 @@ func TestTerragruntLogLevelEnvVarOverridesDefault(t *testing.T) {
 
 func TestTerragruntLogLevelEnvVarUnparsableLogsErrorButContinues(t *testing.T) {
 	// NOTE: this matches logLevelEnvVar const in util/logger.go
-	envVarName := "TERRAGRUNT_LOG_LEVEL"
-	oldVal := os.Getenv(envVarName)
-	defer func() {
-		if oldVal != "" {
-			os.Setenv(envVarName, oldVal)
-		} else {
-			os.Unsetenv(envVarName)
-		}
-	}()
-	os.Setenv("TERRAGRUNT_LOG_LEVEL", "unparsable")
+	t.Setenv("TERRAGRUNT_LOG_LEVEL", "unparsable")
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
 	tmpEnvPath := copyEnvironment(t, ".")
@@ -354,16 +328,13 @@ func TestTerragruntParallelism(t *testing.T) {
 }
 
 func TestTerragruntWorksWithImpersonateGCSBackend(t *testing.T) {
-	defaultCreds := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
-	defer os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", defaultCreds)
-
 	impersonatorKey := os.Getenv("GCLOUD_SERVICE_KEY_IMPERSONATOR")
 	if impersonatorKey == "" {
 		t.Fatalf("Required environment variable `%s` - not found", "GCLOUD_SERVICE_KEY_IMPERSONATOR")
 	}
 	tmpImpersonatorCreds := createTmpTerragruntConfigContent(t, impersonatorKey, "impersonator-key.json")
 	defer removeFile(t, tmpImpersonatorCreds)
-	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", tmpImpersonatorCreds)
+	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", tmpImpersonatorCreds)
 
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
 	gcsBucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
