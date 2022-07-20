@@ -273,7 +273,7 @@ func wrapCtyMapWithMetadata(config *TerragruntConfig, data *map[string]interface
 }
 
 func wrapWithMetadata(config *TerragruntConfig, value interface{}, metadataName string, output *map[string]cty.Value) error {
-	if value == nil || value == cty.NilVal {
+	if value == nil {
 		return nil
 	}
 	var valueWithMetadata = ValueWithMetadata{}
