@@ -20,20 +20,20 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	output := map[string]cty.Value{}
 
 	// Convert attributes that are primitive types
-	output["terraform_binary"] = gostringToCty(config.TerraformBinary)
-	output["terraform_version_constraint"] = gostringToCty(config.TerraformVersionConstraint)
-	output["terragrunt_version_constraint"] = gostringToCty(config.TerragruntVersionConstraint)
-	output["download_dir"] = gostringToCty(config.DownloadDir)
-	output["iam_role"] = gostringToCty(config.IamRole)
-	output["skip"] = goboolToCty(config.Skip)
-	output["iam_assume_role_session_name"] = gostringToCty(config.IamAssumeRoleSessionName)
+	output[MetadataTerraformBinary] = gostringToCty(config.TerraformBinary)
+	output[MetadataTerraformVersionConstraint] = gostringToCty(config.TerraformVersionConstraint)
+	output[MetadataTerragruntVersionConstraint] = gostringToCty(config.TerragruntVersionConstraint)
+	output[MetadataDownloadDir] = gostringToCty(config.DownloadDir)
+	output[MetadataIamRole] = gostringToCty(config.IamRole)
+	output[MetadataSkip] = goboolToCty(config.Skip)
+	output[MetadataIamAssumeRoleSessionName] = gostringToCty(config.IamAssumeRoleSessionName)
 
 	terraformConfigCty, err := terraformConfigAsCty(config.Terraform)
 	if err != nil {
 		return cty.NilVal, err
 	}
 	if terraformConfigCty != cty.NilVal {
-		output["terraform"] = terraformConfigCty
+		output[MetadataTerraform] = terraformConfigCty
 	}
 
 	remoteStateCty, err := remoteStateAsCty(config.RemoteState)
@@ -41,7 +41,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		return cty.NilVal, err
 	}
 	if remoteStateCty != cty.NilVal {
-		output["remote_state"] = remoteStateCty
+		output[MetadataRemoteState] = remoteStateCty
 	}
 
 	dependenciesCty, err := goTypeToCty(config.Dependencies)
@@ -49,11 +49,11 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		return cty.NilVal, err
 	}
 	if dependenciesCty != cty.NilVal {
-		output["dependencies"] = dependenciesCty
+		output[MetadataDependencies] = dependenciesCty
 	}
 
 	if config.PreventDestroy != nil {
-		output["prevent_destroy"] = goboolToCty(*config.PreventDestroy)
+		output[MetadataPreventDestroy] = goboolToCty(*config.PreventDestroy)
 	}
 
 	dependencyCty, err := dependencyBlocksAsCty(config.TerragruntDependencies)
@@ -61,7 +61,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		return cty.NilVal, err
 	}
 	if dependencyCty != cty.NilVal {
-		output["dependency"] = dependencyCty
+		output[MetadataDependency] = dependencyCty
 	}
 
 	generateCty, err := goTypeToCty(config.GenerateConfigs)
@@ -69,7 +69,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		return cty.NilVal, err
 	}
 	if generateCty != cty.NilVal {
-		output["generate"] = generateCty
+		output[MetadataGenerateConfigs] = generateCty
 	}
 
 	retryableCty, err := goTypeToCty(config.RetryableErrors)
@@ -77,7 +77,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		return cty.NilVal, err
 	}
 	if retryableCty != cty.NilVal {
-		output["retryable_errors"] = retryableCty
+		output[MetadataRetryableErrors] = retryableCty
 	}
 
 	iamAssumeRoleDurationCty, err := goTypeToCty(config.IamAssumeRoleDuration)
@@ -86,7 +86,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	}
 
 	if iamAssumeRoleDurationCty != cty.NilVal {
-		output["iam_assume_role_duration"] = iamAssumeRoleDurationCty
+		output[MetadataIamAssumeRoleDuration] = iamAssumeRoleDurationCty
 	}
 
 	retryMaxAttemptsCty, err := goTypeToCty(config.RetryMaxAttempts)
@@ -94,7 +94,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		return cty.NilVal, err
 	}
 	if retryMaxAttemptsCty != cty.NilVal {
-		output["retry_max_attempts"] = retryMaxAttemptsCty
+		output[MetadataRetryMaxAttempts] = retryMaxAttemptsCty
 	}
 
 	retrySleepIntervalSecCty, err := goTypeToCty(config.RetrySleepIntervalSec)
@@ -102,7 +102,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		return cty.NilVal, err
 	}
 	if retrySleepIntervalSecCty != cty.NilVal {
-		output["retry_sleep_interval_sec"] = retrySleepIntervalSecCty
+		output[MetadataRetrySleepIntervalSec] = retrySleepIntervalSecCty
 	}
 
 	inputsCty, err := convertToCtyWithJson(config.Inputs)
@@ -110,7 +110,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		return cty.NilVal, err
 	}
 	if inputsCty != cty.NilVal {
-		output["inputs"] = inputsCty
+		output[MetadataInputs] = inputsCty
 	}
 
 	localsCty, err := convertToCtyWithJson(config.Locals)
@@ -118,7 +118,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		return cty.NilVal, err
 	}
 	if localsCty != cty.NilVal {
-		output["locals"] = localsCty
+		output[MetadataLocals] = localsCty
 	}
 
 	return convertValuesMapToCtyVal(output)
@@ -292,7 +292,7 @@ func wrapWithMetadata(config *TerragruntConfig, value interface{}, metadataName 
 	return nil
 }
 
-//
+// ValueWithMetadata stores value and metadata used in render-json with metadata.
 type ValueWithMetadata struct {
 	Value    interface{}            `json:"value"`
 	Metadata map[string]interface{} `json:"metadata"`
