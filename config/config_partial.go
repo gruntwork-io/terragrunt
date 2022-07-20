@@ -289,7 +289,6 @@ func PartialParseConfigString(
 			}
 			if decoded.TerraformVersionConstraint != nil {
 				output.TerraformVersionConstraint = *decoded.TerraformVersionConstraint
-
 			}
 			if decoded.TerraformBinary != nil {
 				output.TerraformBinary = *decoded.TerraformBinary

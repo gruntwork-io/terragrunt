@@ -333,15 +333,7 @@ func (targetConfig *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terr
 		targetConfig.Inputs = mergeInputs(sourceConfig.Inputs, targetConfig.Inputs)
 	}
 
-	if sourceConfig.FieldsMetadata != nil {
-		if targetConfig.FieldsMetadata == nil {
-			targetConfig.FieldsMetadata = map[string]map[string]interface{}{}
-		}
-		for k, v := range sourceConfig.FieldsMetadata {
-			targetConfig.FieldsMetadata[k] = v
-		}
-	}
-
+	copyFieldsMetadata(sourceConfig, targetConfig)
 }
 
 // DeepMerge performs a deep merge of the given sourceConfig into the targetConfig. Deep merge is defined as follows:
@@ -430,7 +422,6 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 		}
 		resultModuleDependencies.Paths = append(resultModuleDependencies.Paths, sourceConfig.Dependencies.Paths...)
 		targetConfig.Dependencies = resultModuleDependencies
-
 	}
 
 	// Dependency blocks are deep merged by name
@@ -487,14 +478,7 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 		targetConfig.RemoteState = sourceConfig.RemoteState
 	}
 
-	if sourceConfig.FieldsMetadata != nil {
-		if targetConfig.FieldsMetadata == nil {
-			targetConfig.FieldsMetadata = map[string]map[string]interface{}{}
-		}
-		for k, v := range sourceConfig.FieldsMetadata {
-			targetConfig.FieldsMetadata[k] = v
-		}
-	}
+	copyFieldsMetadata(sourceConfig, targetConfig)
 	return nil
 }
 
@@ -854,6 +838,18 @@ func jsonIsIncludeBlock(jsonData interface{}) bool {
 		}
 	}
 	return false
+}
+
+// copyFieldsMetadata Copy fields metadata between TerragruntConfig instances.
+func copyFieldsMetadata(sourceConfig *TerragruntConfig, targetConfig *TerragruntConfig) {
+	if sourceConfig.FieldsMetadata != nil {
+		if targetConfig.FieldsMetadata == nil {
+			targetConfig.FieldsMetadata = map[string]map[string]interface{}{}
+		}
+		for k, v := range sourceConfig.FieldsMetadata {
+			targetConfig.FieldsMetadata[k] = v
+		}
+	}
 }
 
 // Custom error types
