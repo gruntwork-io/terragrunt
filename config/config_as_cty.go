@@ -157,16 +157,41 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 	}
 
 	// Terraform
-	terraformConfigCty, err := terraformConfigAsCty(config.Terraform)
-	if err != nil {
-		return cty.NilVal, err
-	}
-	if err := wrapWithMetadata(config, terraformConfigCty, MetadataTerraform, &output); err != nil {
+	if err := wrapWithMetadata(config, config.Terraform, MetadataTerraform, &output); err != nil {
 		return cty.NilVal, err
 	}
 
 	// Remote state
 	if err := wrapWithMetadata(config, config.RemoteState, MetadataRemoteState, &output); err != nil {
+		return cty.NilVal, err
+	}
+
+	if config.PreventDestroy != nil {
+		if err := wrapWithMetadata(config, *config.PreventDestroy, MetadataPreventDestroy, &output); err != nil {
+			return cty.NilVal, err
+		}
+	}
+
+	if err := wrapWithMetadata(config, config.RetryableErrors, MetadataRetryableErrors, &output); err != nil {
+		return cty.NilVal, err
+	}
+
+	if err := wrapWithMetadata(config, config.IamAssumeRoleDuration, MetadataIamAssumeRoleDuration, &output); err != nil {
+		return cty.NilVal, err
+	}
+
+	if err := wrapWithMetadata(config, config.RetryMaxAttempts, MetadataRetryMaxAttempts, &output); err != nil {
+		return cty.NilVal, err
+	}
+	if err := wrapWithMetadata(config, config.RetrySleepIntervalSec, MetadataRetrySleepIntervalSec, &output); err != nil {
+		return cty.NilVal, err
+	}
+
+	if err := wrapCtyMapWithMetadata(config, &config.Inputs, MetadataInputs, &output); err != nil {
+		return cty.NilVal, err
+	}
+
+	if err := wrapCtyMapWithMetadata(config, &config.Locals, MetadataLocals, &output); err != nil {
 		return cty.NilVal, err
 	}
 
@@ -187,12 +212,6 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 			return cty.NilVal, err
 		}
 		output[MetadataDependencies] = dependenciesCty
-	}
-
-	if config.PreventDestroy != nil {
-		if err := wrapWithMetadata(config, *config.PreventDestroy, MetadataPreventDestroy, &output); err != nil {
-			return cty.NilVal, err
-		}
 	}
 
 	if config.TerragruntDependencies != nil {
@@ -229,31 +248,6 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 			return cty.NilVal, err
 		}
 		output[MetadataGenerateConfigs] = dependenciesCty
-	}
-
-	if err := wrapWithMetadata(config, config.RetryableErrors, MetadataRetryableErrors, &output); err != nil {
-		return cty.NilVal, err
-	}
-
-	if err := wrapWithMetadata(config, config.IamAssumeRoleDuration, MetadataIamAssumeRoleDuration, &output); err != nil {
-		return cty.NilVal, err
-	}
-
-	if err := wrapWithMetadata(config, config.RetryMaxAttempts, MetadataRetryMaxAttempts, &output); err != nil {
-		return cty.NilVal, err
-	}
-	if err := wrapWithMetadata(config, config.RetrySleepIntervalSec, MetadataRetrySleepIntervalSec, &output); err != nil {
-		return cty.NilVal, err
-	}
-
-	err = wrapCtyMapWithMetadata(config, &config.Inputs, MetadataInputs, &output)
-	if err != nil {
-		return cty.NilVal, err
-	}
-
-	err = wrapCtyMapWithMetadata(config, &config.Locals, MetadataLocals, &output)
-	if err != nil {
-		return cty.NilVal, err
 	}
 
 	return convertValuesMapToCtyVal(output)

@@ -839,7 +839,9 @@ func convertToTerragruntConfig(
 	}
 
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
-	terragruntConfig.Metadata(MetadataTerraform, defaultMetadata)
+	if terragruntConfig.Terraform != nil { // since Terraform is nil each time avoid saving metadata when it is nil
+		terragruntConfig.Metadata(MetadataTerraform, defaultMetadata)
+	}
 
 	if err := validateDependencies(terragruntOptions, terragruntConfigFromFile.Dependencies); err != nil {
 		return nil, err
