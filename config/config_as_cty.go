@@ -166,11 +166,7 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 	}
 
 	// Remote state
-	remoteStateCty, err := remoteStateAsCty(config.RemoteState)
-	if err != nil {
-		return cty.NilVal, err
-	}
-	if err := wrapWithMetadata(config, remoteStateCty, MetadataRemoteState, &output); err != nil {
+	if err := wrapWithMetadata(config, config.RemoteState, MetadataRemoteState, &output); err != nil {
 		return cty.NilVal, err
 	}
 

@@ -308,7 +308,6 @@ func (targetConfig *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terr
 
 	// Dependency blocks are shallow merged by name
 	targetConfig.TerragruntDependencies = mergeDependencyBlocks(targetConfig.TerragruntDependencies, sourceConfig.TerragruntDependencies)
-	//TODO: add dependencies
 
 	// Deep merge the dependencies list. This is different from dependency blocks, and refers to the deprecated
 	// dependencies block!

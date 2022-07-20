@@ -201,14 +201,12 @@ func PartialParseConfigString(
 	output := TerragruntConfig{IsPartial: true}
 
 	// Set parsed Locals on the parsed config
-	defaultMetadata := map[string]interface{}{"found_in_file": filename}
 	if contextExtensions.Locals != nil && *contextExtensions.Locals != cty.NilVal {
 		localsParsed, err := parseCtyValueToMap(*contextExtensions.Locals)
 		if err != nil {
 			return nil, err
 		}
 		output.Locals = localsParsed
-		output.MetadataMap(MetadataLocals, localsParsed, defaultMetadata)
 	}
 
 	// Now loop through each requested block / component to decode from the terragrunt config, decode them, and merge
@@ -228,9 +226,6 @@ func PartialParseConfigString(
 			} else {
 				output.Dependencies = decoded.Dependencies
 			}
-			for _, item := range decoded.Dependencies.Paths {
-				output.MetadataWithType(MetadataDependencies, item, defaultMetadata)
-			}
 
 		case TerraformBlock:
 			decoded := terragruntTerraform{}
@@ -239,7 +234,6 @@ func PartialParseConfigString(
 				return nil, err
 			}
 			output.Terraform = decoded.Terraform
-			output.Metadata(MetadataTerraform, defaultMetadata)
 
 		case TerraformSource:
 			decoded := terragruntTerraformSource{}
@@ -249,7 +243,6 @@ func PartialParseConfigString(
 			}
 			if decoded.Terraform != nil {
 				output.Terraform = &TerraformConfig{Source: decoded.Terraform.Source}
-				output.Metadata(MetadataTerraform, defaultMetadata)
 			}
 
 		case DependencyBlock:
@@ -259,26 +252,14 @@ func PartialParseConfigString(
 				return nil, err
 			}
 			output.TerragruntDependencies = decoded.Dependencies
-			for _, item := range output.TerragruntDependencies {
-				output.MetadataWithType(MetadataDependency, item.Name, defaultMetadata)
-			}
-			//TODO: pass terragrunt dependencies
 
 			// Convert dependency blocks into module depenency lists. If we already decoded some dependencies,
 			// merge them in. Otherwise, set as the new list.
 			dependencies := dependencyBlocksToModuleDependencies(decoded.Dependencies)
 			if output.Dependencies != nil {
 				output.Dependencies.Merge(dependencies)
-				for _, item := range dependencies.Paths {
-					output.MetadataWithType(MetadataDependencies, item, defaultMetadata)
-				}
 			} else {
 				output.Dependencies = dependencies
-				if output.Dependencies != nil {
-					for _, item := range output.Dependencies.Paths {
-						output.MetadataWithType(MetadataDependencies, item, defaultMetadata)
-					}
-				}
 			}
 
 		case TerragruntFlags:
@@ -289,15 +270,12 @@ func PartialParseConfigString(
 			}
 			if decoded.PreventDestroy != nil {
 				output.PreventDestroy = decoded.PreventDestroy
-				output.Metadata(MetadataPreventDestroy, defaultMetadata)
 			}
 			if decoded.Skip != nil {
 				output.Skip = *decoded.Skip
-				output.Metadata(MetadataSkip, defaultMetadata)
 			}
 			if decoded.IamRole != nil {
 				output.IamRole = *decoded.IamRole
-				output.Metadata(MetadataIamRole, defaultMetadata)
 			}
 
 		case TerragruntVersionConstraints:
@@ -308,15 +286,13 @@ func PartialParseConfigString(
 			}
 			if decoded.TerragruntVersionConstraint != nil {
 				output.TerragruntVersionConstraint = *decoded.TerragruntVersionConstraint
-				output.Metadata(MetadataTerragruntVersionConstraint, defaultMetadata)
 			}
 			if decoded.TerraformVersionConstraint != nil {
 				output.TerraformVersionConstraint = *decoded.TerraformVersionConstraint
-				output.Metadata(MetadataTerraformVersionConstraint, defaultMetadata)
+
 			}
 			if decoded.TerraformBinary != nil {
 				output.TerraformBinary = *decoded.TerraformBinary
-				output.Metadata(MetadataTerraformBinary, defaultMetadata)
 			}
 
 		case RemoteStateBlock:
@@ -331,7 +307,6 @@ func PartialParseConfigString(
 					return nil, err
 				}
 				output.RemoteState = remoteState
-				output.Metadata(MetadataRemoteState, defaultMetadata)
 			}
 
 		default:
