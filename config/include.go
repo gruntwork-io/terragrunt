@@ -477,6 +477,9 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 	if sourceConfig.RemoteState != nil {
 		targetConfig.RemoteState = sourceConfig.RemoteState
 	}
+	for key, val := range sourceConfig.GenerateConfigs {
+		targetConfig.GenerateConfigs[key] = val
+	}
 
 	copyFieldsMetadata(sourceConfig, targetConfig)
 	return nil

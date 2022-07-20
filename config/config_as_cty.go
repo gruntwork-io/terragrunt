@@ -292,6 +292,7 @@ func wrapWithMetadata(config *TerragruntConfig, value interface{}, metadataName 
 	return nil
 }
 
+//
 type ValueWithMetadata struct {
 	Value    interface{}            `json:"value"`
 	Metadata map[string]interface{} `json:"metadata"`
