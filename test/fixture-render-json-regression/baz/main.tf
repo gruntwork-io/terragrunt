@@ -1,0 +1,3 @@
+output "baz" {
+  value = "baz"
+}

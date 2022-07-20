@@ -22,6 +22,7 @@ const (
 
 	fixtureMultiIncludeDependency = "fixture-multiinclude-dependency"
 	fixtureRenderJSON             = "fixture-render-json"
+	fixtureRenderJSONRegression   = "fixture-render-json-regression"
 )
 
 var (
@@ -218,7 +219,28 @@ func TestRenderJSONConfig(t *testing.T) {
 		)
 	}
 
-	// Make sure included dependency block is rendered out
+	// Make sure dependency blocks are rendered out
+	dependencyBlocks, hasDependency := rendered["dependency"]
+	if assert.True(t, hasDependency) {
+		assert.Equal(
+			t,
+			map[string]interface{}{
+				"dep": map[string]interface{}{
+					"name":         "dep",
+					"config_path":  "../dep",
+					"outputs":      nil,
+					"mock_outputs": nil,
+					"mock_outputs_allowed_terraform_commands": nil,
+					"mock_outputs_merge_strategy_with_state":  nil,
+					"mock_outputs_merge_with_state":           nil,
+					"skip":                                    nil,
+				},
+			},
+			dependencyBlocks.(map[string]interface{}),
+		)
+	}
+
+	// Make sure included generate block is rendered out
 	generateBlocks, hasGenerate := rendered["generate"]
 	if assert.True(t, hasGenerate) {
 		assert.Equal(
@@ -249,6 +271,99 @@ func TestRenderJSONConfig(t *testing.T) {
 				"name":       "dep",
 				"type":       "main",
 				"aws_region": "us-east-1",
+			},
+			inputsBlock.(map[string]interface{}),
+		)
+	}
+}
+
+func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, err := ioutil.TempDir("", "terragrunt-render-json-*")
+	require.NoError(t, err)
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+	defer os.RemoveAll(tmpDir)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", fixtureRenderJSONRegression))
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-json-out %s", fixtureRenderJSONRegression, jsonOut))
+
+	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var rendered map[string]interface{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &rendered))
+
+	// Make sure all terraform block is visible
+	terraformBlock, hasTerraform := rendered["terraform"]
+	if assert.True(t, hasTerraform) {
+		source, hasSource := terraformBlock.(map[string]interface{})["source"]
+		require.True(t, hasSource)
+		assert.Equal(t, "./foo", source)
+	}
+
+	// Make sure top level locals are rendered out
+	locals, hasLocals := rendered["locals"]
+	if assert.True(t, hasLocals) {
+		assert.Equal(
+			t,
+			map[string]interface{}{
+				"foo": "bar",
+			},
+			locals.(map[string]interface{}),
+		)
+	}
+
+	// Make sure included dependency block is rendered out, and with the outputs rendered
+	dependencyBlocks, hasDependency := rendered["dependency"]
+	if assert.True(t, hasDependency) {
+		assert.Equal(
+			t,
+			map[string]interface{}{
+				"baz": map[string]interface{}{
+					"name":         "baz",
+					"config_path":  "./baz",
+					"outputs":      nil,
+					"mock_outputs": nil,
+					"mock_outputs_allowed_terraform_commands": nil,
+					"mock_outputs_merge_strategy_with_state":  nil,
+					"mock_outputs_merge_with_state":           nil,
+					"skip":                                    nil,
+				},
+			},
+			dependencyBlocks.(map[string]interface{}),
+		)
+	}
+
+	// Make sure generate block is rendered out
+	generateBlocks, hasGenerate := rendered["generate"]
+	if assert.True(t, hasGenerate) {
+		assert.Equal(
+			t,
+			map[string]interface{}{
+				"provider": map[string]interface{}{
+					"path":              "provider.tf",
+					"comment_prefix":    "# ",
+					"disable_signature": false,
+					"if_exists":         "overwrite",
+					"contents":          "# This is just a test",
+				},
+			},
+			generateBlocks.(map[string]interface{}),
+		)
+	}
+
+	// Make sure all inputs are merged together
+	inputsBlock, hasInputs := rendered["inputs"]
+	if assert.True(t, hasInputs) {
+		assert.Equal(
+			t,
+			map[string]interface{}{
+				"foo":       "bar",
+				"baz":       "blah",
+				"another":   "baz",
+				"from_root": "Hi",
 			},
 			inputsBlock.(map[string]interface{}),
 		)
