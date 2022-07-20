@@ -852,7 +852,9 @@ func convertToTerragruntConfig(
 	}
 
 	terragruntConfig.TerragruntDependencies = terragruntConfigFromFile.TerragruntDependencies
-	terragruntConfig.Metadata(MetadataDependency, defaultMetadata)
+	for _, dep := range terragruntConfig.TerragruntDependencies {
+		terragruntConfig.MetadataWithType(MetadataDependency, dep.Name, defaultMetadata)
+	}
 
 	if terragruntConfigFromFile.TerraformBinary != nil {
 		terragruntConfig.TerraformBinary = *terragruntConfigFromFile.TerraformBinary

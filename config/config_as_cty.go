@@ -194,31 +194,42 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 			return cty.NilVal, err
 		}
 	}
-	dependencyCty, err := dependencyBlocksAsCty(config.TerragruntDependencies)
-	if err != nil {
-		return cty.NilVal, err
-	}
-	if err := wrapWithMetadata(config, dependencyCty, MetadataDependency, &output); err != nil {
-		return cty.NilVal, err
-	}
 
-	var generateConfigsWithMetadata = map[string]ValueWithMetadata{}
-
-	for key, value := range config.GenerateConfigs {
-		var content = ValueWithMetadata{}
-		content.Value = value
-		metadata, found := config.GetMapFieldMetadata(MetadataGenerateConfigs, key)
-		if found {
-			content.Metadata = metadata
+	if config.TerragruntDependencies != nil {
+		var dependenciesMap = map[string]ValueWithMetadata{}
+		for _, block := range config.TerragruntDependencies {
+			var content = ValueWithMetadata{}
+			content.Value = block
+			metadata, found := config.GetMapFieldMetadata(MetadataDependency, block.Name)
+			if found {
+				content.Metadata = metadata
+			}
+			dependenciesMap[block.Name] = content
 		}
-		generateConfigsWithMetadata[key] = content
+		dependenciesCty, err := convertToCtyWithJson(dependenciesMap)
+		if err != nil {
+			return cty.NilVal, err
+		}
+		output[MetadataDependency] = dependenciesCty
 	}
 
-	dependenciesCty, err := convertToCtyWithJson(generateConfigsWithMetadata)
-	if err != nil {
-		return cty.NilVal, err
+	if config.GenerateConfigs != nil {
+		var generateConfigsWithMetadata = map[string]ValueWithMetadata{}
+		for key, value := range config.GenerateConfigs {
+			var content = ValueWithMetadata{}
+			content.Value = value
+			metadata, found := config.GetMapFieldMetadata(MetadataGenerateConfigs, key)
+			if found {
+				content.Metadata = metadata
+			}
+			generateConfigsWithMetadata[key] = content
+		}
+		dependenciesCty, err := convertToCtyWithJson(generateConfigsWithMetadata)
+		if err != nil {
+			return cty.NilVal, err
+		}
+		output[MetadataGenerateConfigs] = dependenciesCty
 	}
-	output[MetadataGenerateConfigs] = dependenciesCty
 
 	if err := wrapWithMetadata(config, config.RetryableErrors, MetadataRetryableErrors, &output); err != nil {
 		return cty.NilVal, err
