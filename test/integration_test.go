@@ -4697,5 +4697,115 @@ func TestRenderJsonMetadataDependencies(t *testing.T) {
 		},
 	}
 	assert.True(t, reflect.DeepEqual(expectedDependencies, dependencies))
+}
 
+func TestRenderJsonMetadataIncludes(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_RENDER_JSON_METADATA)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "includes", "app")
+
+	terragruntHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "includes", "app", "terragrunt.hcl")
+	localsHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "includes", "app", "locals.hcl")
+	inputHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "includes", "app", "inputs.hcl")
+	generateHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "includes", "app", "generate.hcl")
+	commonHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "includes", "common", "common.hcl")
+
+	var terragruntMetadata = map[string]interface{}{
+		"found_in_file": terragruntHcl,
+	}
+	var localsMetadata = map[string]interface{}{
+		"found_in_file": localsHcl,
+	}
+	var inputMetadata = map[string]interface{}{
+		"found_in_file": inputHcl,
+	}
+	var generateMetadata = map[string]interface{}{
+		"found_in_file": generateHcl,
+	}
+	var commonMetadata = map[string]interface{}{
+		"found_in_file": commonHcl,
+	}
+
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+
+	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	var inputs = renderedJson[config.MetadataInputs]
+	var expectedInputs = map[string]interface{}{
+		"content": map[string]interface{}{
+			"metadata": localsMetadata,
+			"value":    "test",
+		},
+		"qwe": map[string]interface{}{
+			"metadata": inputMetadata,
+			"value":    "123",
+		},
+	}
+	assert.True(t, reflect.DeepEqual(expectedInputs, inputs))
+
+	var locals = renderedJson[config.MetadataLocals]
+	var expectedLocals = map[string]interface{}{
+		"abc": map[string]interface{}{
+			"metadata": terragruntMetadata,
+			"value":    "xyz",
+		},
+	}
+	assert.True(t, reflect.DeepEqual(expectedLocals, locals))
+
+	var generate = renderedJson[config.MetadataGenerateConfigs]
+	var expectedGenerate = map[string]interface{}{
+		"provider": map[string]interface{}{
+			"metadata": generateMetadata,
+			"value": map[string]interface{}{
+				"CommentPrefix":    "# ",
+				"Contents":         "# test\n",
+				"DisableSignature": false,
+				"IfExists":         2,
+				"IfExistsStr":      "overwrite",
+				"Path":             "provider.tf",
+			},
+		},
+	}
+
+	// compare fields by serialization in json since map from "value" field is not deterministic
+	serializedGenerate, err := json.Marshal(generate)
+	assert.NoError(t, err)
+
+	serializedExpectedGenerate, err := json.Marshal(expectedGenerate)
+	assert.NoError(t, err)
+
+	assert.Equal(t, string(serializedExpectedGenerate), string(serializedGenerate))
+
+	var remoteState = renderedJson[config.MetadataRemoteState]
+	var expectedRemoteState = map[string]interface{}{
+		"metadata": commonMetadata,
+		"value": map[string]interface{}{
+			"Backend":                       "s3",
+			"DisableDependencyOptimization": false,
+			"DisableInit":                   false,
+			"Generate":                      nil,
+			"Config": map[string]interface{}{
+				"bucket": "mybucket",
+				"key":    "path/to/my/key",
+				"region": "us-east-1",
+			},
+		},
+	}
+
+	// compare fields by serialization in json since map from "value" field is not deterministic
+	serializedRemoteState, err := json.Marshal(remoteState)
+	assert.NoError(t, err)
+
+	serializedExpectedRemoteState, err := json.Marshal(expectedRemoteState)
+	assert.NoError(t, err)
+
+	assert.Equal(t, string(serializedExpectedRemoteState), string(serializedRemoteState))
 }
