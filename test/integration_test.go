@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime"
 	"sort"
@@ -128,6 +129,7 @@ const (
 	TEST_FIXTURE_DISJOINT                                   = "fixture-stack/disjoint"
 	TEST_FIXTURE_BROKEN_LOCALS                              = "fixture-broken-locals"
 	TEST_FIXTURE_BROKEN_DEPENDENCY                          = "fixture-broken-dependency"
+	TEST_FIXTURE_RENDER_JSON_METADATA                       = "fixture-render-json-metadata"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -4542,4 +4544,51 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	// auto initialization when source is changed
 	errout = string(stderr.Bytes())
 	assert.Equal(t, 1, strings.Count(errout, "Terraform has been successfully initialized!"))
+}
+
+func TestRenderJsonAttributes(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_RENDER_JSON_METADATA)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "attributes")
+
+	terragruntHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "attributes", "terragrunt.hcl")
+
+	var expectedMetadata = map[string]interface{}{
+		"found_in_file": terragruntHcl,
+	}
+
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+
+	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	var inputs = renderedJson[config.MetadataInputs]
+	var expectedInputs = map[string]interface{}{
+		"name": map[string]interface{}{
+			"metadata": expectedMetadata,
+			"value":    "us-east-1-bucket",
+		},
+		"region": map[string]interface{}{
+			"metadata": expectedMetadata,
+			"value":    "us-east-1",
+		},
+	}
+	assert.True(t, reflect.DeepEqual(expectedInputs, inputs))
+
+	var locals = renderedJson[config.MetadataLocals]
+	var expectedLocals = map[string]interface{}{
+		"aws_region": map[string]interface{}{
+			"metadata": expectedMetadata,
+			"value":    "us-east-1",
+		},
+	}
+	assert.True(t, reflect.DeepEqual(expectedLocals, locals))
+
 }
