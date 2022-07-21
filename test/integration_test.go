@@ -4636,7 +4636,7 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 	var terraformBinary = renderedJson[config.MetadataTerraformBinary]
 	expectedTerraformBinary := map[string]interface{}{
 		"metadata": expectedMetadata,
-		"value":    "/home/ubuntu/.tfenv/bin/terraform",
+		"value":    "terraform",
 	}
 	assert.True(t, reflect.DeepEqual(expectedTerraformBinary, terraformBinary))
 
@@ -4808,4 +4808,68 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, string(serializedExpectedRemoteState), string(serializedRemoteState))
+}
+
+func TestRenderJsonMetadataDepenency(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_RENDER_JSON_METADATA)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "dependency", "app")
+
+	terragruntHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "dependency", "app", "terragrunt.hcl")
+
+	var terragruntMetadata = map[string]interface{}{
+		"found_in_file": terragruntHcl,
+	}
+
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+
+	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	var dependency = renderedJson[config.MetadataDependency]
+
+	var expectedDependency = map[string]interface{}{
+		"dep": map[string]interface{}{
+			"metadata": terragruntMetadata,
+			"value": map[string]interface{}{
+				"ConfigPath":                          "../dependency",
+				"MockOutputs":                         map[string]interface{}{},
+				"MockOutputsAllowedTerraformCommands": nil,
+				"MockOutputsMergeStrategyWithState":   nil,
+				"MockOutputsMergeWithState":           nil,
+				"Name":                                "dep",
+				"RenderedOutputs":                     nil,
+				"SkipOutputs":                         nil,
+			},
+		},
+		"dep2": map[string]interface{}{
+			"metadata": terragruntMetadata,
+			"value": map[string]interface{}{
+				"ConfigPath":                          "../dependency2",
+				"MockOutputs":                         map[string]interface{}{},
+				"MockOutputsAllowedTerraformCommands": nil,
+				"MockOutputsMergeStrategyWithState":   nil,
+				"MockOutputsMergeWithState":           nil,
+				"Name":                                "dep2",
+				"RenderedOutputs":                     nil,
+				"SkipOutputs":                         nil,
+			},
+		},
+	}
+
+	// compare fields by serialization in json since map from "value" field is not deterministic
+	serializedDependency, err := json.Marshal(dependency)
+	assert.NoError(t, err)
+
+	serializedExpectedDependency, err := json.Marshal(expectedDependency)
+	assert.NoError(t, err)
+
+	assert.Equal(t, string(serializedExpectedDependency), string(serializedDependency))
 }
