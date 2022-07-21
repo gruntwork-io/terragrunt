@@ -4546,7 +4546,7 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(errout, "Terraform has been successfully initialized!"))
 }
 
-func TestRenderJsonAttributes(t *testing.T) {
+func TestRenderJsonAttributesMetadata(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_RENDER_JSON_METADATA)
@@ -4646,4 +4646,56 @@ func TestRenderJsonAttributes(t *testing.T) {
 		"value":    ">= 0.11",
 	}
 	assert.True(t, reflect.DeepEqual(expectedTerraformVersionConstraint, terraformVersionConstraint))
+}
+
+func TestRenderJsonMetadataDependencies(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_RENDER_JSON_METADATA)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "dependencies", "app")
+
+	terragruntHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "dependencies", "app", "terragrunt.hcl")
+	includeHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "dependencies", "app", "include.hcl")
+
+	var includeMetadata = map[string]interface{}{
+		"found_in_file": includeHcl,
+	}
+
+	var terragruntMetadata = map[string]interface{}{
+		"found_in_file": terragruntHcl,
+	}
+
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+
+	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	var inputs = renderedJson[config.MetadataInputs]
+	var expectedInputs = map[string]interface{}{
+		"test_input": map[string]interface{}{
+			"metadata": includeMetadata,
+			"value":    "test_value",
+		},
+	}
+	assert.True(t, reflect.DeepEqual(expectedInputs, inputs))
+
+	var dependencies = renderedJson[config.MetadataDependencies]
+	var expectedDependencies = []interface{}{
+		map[string]interface{}{
+			"metadata": includeMetadata,
+			"value":    "../dependency2",
+		},
+		map[string]interface{}{
+			"metadata": terragruntMetadata,
+			"value":    "../dependency1",
+		},
+	}
+	assert.True(t, reflect.DeepEqual(expectedDependencies, dependencies))
+
 }
