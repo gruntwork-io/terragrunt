@@ -156,16 +156,6 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 		return cty.NilVal, err
 	}
 
-	// Terraform
-	if err := wrapWithMetadata(config, config.Terraform, MetadataTerraform, &output); err != nil {
-		return cty.NilVal, err
-	}
-
-	// Remote state
-	if err := wrapWithMetadata(config, config.RemoteState, MetadataRemoteState, &output); err != nil {
-		return cty.NilVal, err
-	}
-
 	if config.PreventDestroy != nil {
 		if err := wrapWithMetadata(config, *config.PreventDestroy, MetadataPreventDestroy, &output); err != nil {
 			return cty.NilVal, err
@@ -185,6 +175,28 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 	}
 	if err := wrapWithMetadata(config, config.RetrySleepIntervalSec, MetadataRetrySleepIntervalSec, &output); err != nil {
 		return cty.NilVal, err
+	}
+
+	// Terraform
+	terraformConfigCty, err := terraformConfigAsCty(config.Terraform)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	if terraformConfigCty != cty.NilVal {
+		if err := wrapWithMetadata(config, terraformConfigCty.AsValueMap(), MetadataTerraform, &output); err != nil {
+			return cty.NilVal, err
+		}
+	}
+
+	// Remote state
+	remoteStateCty, err := remoteStateAsCty(config.RemoteState)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	if remoteStateCty != cty.NilVal {
+		if err := wrapWithMetadata(config, remoteStateCty.AsValueMap(), MetadataRemoteState, &output); err != nil {
+			return cty.NilVal, err
+		}
 	}
 
 	if err := wrapCtyMapWithMetadata(config, &config.Inputs, MetadataInputs, &output); err != nil {
@@ -215,17 +227,28 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 	}
 
 	if config.TerragruntDependencies != nil {
-		var dependenciesMap = map[string]ValueWithMetadata{}
+		var dependenciesMap = map[string]cty.Value{}
 		for _, block := range config.TerragruntDependencies {
+			ctyValue, err := goTypeToCty(block)
+			if err != nil {
+				continue
+			}
+			if ctyValue == cty.NilVal {
+				continue
+			}
 			var content = ValueWithMetadata{}
-			content.Value = block
+			content.Value = ctyValue.AsValueMap()
 			metadata, found := config.GetMapFieldMetadata(MetadataDependency, block.Name)
 			if found {
 				content.Metadata = metadata
 			}
-			dependenciesMap[block.Name] = content
+			value, err := goTypeToCty(block)
+			if err != nil {
+				continue
+			}
+			dependenciesMap[block.Name] = value
 		}
-		dependenciesCty, err := convertToCtyWithJson(dependenciesMap)
+		dependenciesCty, err := convertValuesMapToCtyVal(dependenciesMap)
 		if err != nil {
 			return cty.NilVal, err
 		}
@@ -235,8 +258,15 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 	if config.GenerateConfigs != nil {
 		var generateConfigsWithMetadata = map[string]ValueWithMetadata{}
 		for key, value := range config.GenerateConfigs {
+			ctyValue, err := goTypeToCty(value)
+			if err != nil {
+				continue
+			}
+			if ctyValue == cty.NilVal {
+				continue
+			}
 			var content = ValueWithMetadata{}
-			content.Value = value
+			content.Value = ctyValue.AsValueMap()
 			metadata, found := config.GetMapFieldMetadata(MetadataGenerateConfigs, key)
 			if found {
 				content.Metadata = metadata
