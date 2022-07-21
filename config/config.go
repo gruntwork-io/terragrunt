@@ -1107,19 +1107,27 @@ func (conf *TerragruntConfig) SetFieldMetadataMap(field string, data map[string]
 }
 
 // GetFieldMetadata return field metadata by field name.
-func (conf *TerragruntConfig) GetFieldMetadata(fieldName string) (map[string]interface{}, bool) {
+func (conf *TerragruntConfig) GetFieldMetadata(fieldName string) (map[string]string, bool) {
 	return conf.GetMapFieldMetadata(fieldName, fieldName)
 }
 
 // GetMapFieldMetadata return field metadata by field type and name.
-func (conf *TerragruntConfig) GetMapFieldMetadata(fieldType, fieldName string) (map[string]interface{}, bool) {
+func (conf *TerragruntConfig) GetMapFieldMetadata(fieldType, fieldName string) (map[string]string, bool) {
 	if conf.FieldsMetadata == nil {
 		return nil, false
 	}
 	field := fmt.Sprintf("%s-%s", fieldType, fieldName)
 
 	value, found := conf.FieldsMetadata[field]
-	return value, found
+	if !found {
+		return nil, false
+	}
+	var result = make(map[string]string)
+	for key, value := range value {
+		result[key] = fmt.Sprintf("%v", value)
+	}
+
+	return result, found
 }
 
 // Custom error types
