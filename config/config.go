@@ -28,6 +28,30 @@ import (
 const DefaultTerragruntConfigPath = "terragrunt.hcl"
 const DefaultTerragruntJsonConfigPath = "terragrunt.hcl.json"
 
+const foundInFile = "found_in_file"
+
+const (
+	MetadataTerraform                   = "terraform"
+	MetadataTerraformBinary             = "terraform_binary"
+	MetadataTerraformVersionConstraint  = "terraform_version_constraint"
+	MetadataTerragruntVersionConstraint = "terragrunt_version_constraint"
+	MetadataRemoteState                 = "remote_state"
+	MetadataDependencies                = "dependencies"
+	MetadataDependency                  = "dependency"
+	MetadataDownloadDir                 = "download_dir"
+	MetadataPreventDestroy              = "prevent_destroy"
+	MetadataSkip                        = "skip"
+	MetadataIamRole                     = "iam_role"
+	MetadataIamAssumeRoleDuration       = "iam_assume_role_duration"
+	MetadataIamAssumeRoleSessionName    = "iam_assume_role_session_name"
+	MetadataInputs                      = "inputs"
+	MetadataLocals                      = "locals"
+	MetadataGenerateConfigs             = "generate"
+	MetadataRetryableErrors             = "retryable_errors"
+	MetadataRetryMaxAttempts            = "retry_max_attempts"
+	MetadataRetrySleepIntervalSec       = "retry_sleep_interval_sec"
+)
+
 // TerragruntConfig represents a parsed and expanded configuration
 // NOTE: if any attributes are added, make sure to update terragruntConfigAsCty in config_as_cty.go
 type TerragruntConfig struct {
@@ -808,7 +832,7 @@ func convertToTerragruntConfig(
 		GenerateConfigs: map[string]codegen.GenerateConfig{},
 	}
 
-	defaultMetadata := map[string]interface{}{"found_in_file": configPath}
+	defaultMetadata := map[string]interface{}{foundInFile: configPath}
 	if terragruntConfigFromFile.RemoteState != nil {
 		remoteState, err := terragruntConfigFromFile.RemoteState.toConfig()
 		if err != nil {
@@ -1049,28 +1073,6 @@ func configFileHasDependencyBlock(configPath string, terragruntOptions *options.
 	}
 	return false, nil
 }
-
-const (
-	MetadataTerraform                   = "terraform"
-	MetadataTerraformBinary             = "terraform_binary"
-	MetadataTerraformVersionConstraint  = "terraform_version_constraint"
-	MetadataTerragruntVersionConstraint = "terragrunt_version_constraint"
-	MetadataRemoteState                 = "remote_state"
-	MetadataDependencies                = "dependencies"
-	MetadataDependency                  = "dependency"
-	MetadataDownloadDir                 = "download_dir"
-	MetadataPreventDestroy              = "prevent_destroy"
-	MetadataSkip                        = "skip"
-	MetadataIamRole                     = "iam_role"
-	MetadataIamAssumeRoleDuration       = "iam_assume_role_duration"
-	MetadataIamAssumeRoleSessionName    = "iam_assume_role_session_name"
-	MetadataInputs                      = "inputs"
-	MetadataLocals                      = "locals"
-	MetadataGenerateConfigs             = "generate"
-	MetadataRetryableErrors             = "retryable_errors"
-	MetadataRetryMaxAttempts            = "retry_max_attempts"
-	MetadataRetrySleepIntervalSec       = "retry_sleep_interval_sec"
-)
 
 // SetFieldMetadataWithType set metadata on the given field name grouped by type.
 // Example usage - setting metadata on different dependencies, locals, inputs.
