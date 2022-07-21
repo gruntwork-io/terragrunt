@@ -4591,4 +4591,59 @@ func TestRenderJsonAttributes(t *testing.T) {
 	}
 	assert.True(t, reflect.DeepEqual(expectedLocals, locals))
 
+	var downloadDir = renderedJson[config.MetadataDownloadDir]
+	var expecteDownloadDir = map[string]interface{}{
+		"metadata": expectedMetadata,
+		"value":    "/tmp",
+	}
+	assert.True(t, reflect.DeepEqual(expecteDownloadDir, downloadDir))
+
+	var iamAssumeRoleDuration = renderedJson[config.MetadataIamAssumeRoleDuration]
+	expectedIamAssumeRoleDuration := map[string]interface{}{
+		"metadata": expectedMetadata,
+		"value":    float64(666),
+	}
+	assert.True(t, reflect.DeepEqual(expectedIamAssumeRoleDuration, iamAssumeRoleDuration))
+
+	var iamAssumeRoleName = renderedJson[config.MetadataIamAssumeRoleSessionName]
+	expectedIamAssumeRoleName := map[string]interface{}{
+		"metadata": expectedMetadata,
+		"value":    "qwe",
+	}
+	assert.True(t, reflect.DeepEqual(expectedIamAssumeRoleName, iamAssumeRoleName))
+
+	var iamRole = renderedJson[config.MetadataIamRole]
+	expectedIamRole := map[string]interface{}{
+		"metadata": expectedMetadata,
+		"value":    "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME",
+	}
+	assert.True(t, reflect.DeepEqual(expectedIamRole, iamRole))
+
+	var preventDestroy = renderedJson[config.MetadataPreventDestroy]
+	expectedPreventDestroy := map[string]interface{}{
+		"metadata": expectedMetadata,
+		"value":    true,
+	}
+	assert.True(t, reflect.DeepEqual(expectedPreventDestroy, preventDestroy))
+
+	var skip = renderedJson[config.MetadataSkip]
+	expectedSkip := map[string]interface{}{
+		"metadata": expectedMetadata,
+		"value":    true,
+	}
+	assert.True(t, reflect.DeepEqual(expectedSkip, skip))
+
+	var terraformBinary = renderedJson[config.MetadataTerraformBinary]
+	expectedTerraformBinary := map[string]interface{}{
+		"metadata": expectedMetadata,
+		"value":    "/home/ubuntu/.tfenv/bin/terraform",
+	}
+	assert.True(t, reflect.DeepEqual(expectedTerraformBinary, terraformBinary))
+
+	var terraformVersionConstraint = renderedJson[config.MetadataTerraformVersionConstraint]
+	expectedTerraformVersionConstraint := map[string]interface{}{
+		"metadata": expectedMetadata,
+		"value":    ">= 0.11",
+	}
+	assert.True(t, reflect.DeepEqual(expectedTerraformVersionConstraint, terraformVersionConstraint))
 }
