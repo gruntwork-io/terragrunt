@@ -11,6 +11,6 @@ dependency "dep2" {
   config_path = "../dependency2"
 
   mock_outputs = {
-    test = "value"
+    test2 = "value2"
   }
 }

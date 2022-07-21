@@ -4765,12 +4765,11 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 		"provider": map[string]interface{}{
 			"metadata": generateMetadata,
 			"value": map[string]interface{}{
-				"CommentPrefix":    "# ",
-				"Contents":         "# test\n",
-				"DisableSignature": false,
-				"IfExists":         2,
-				"IfExistsStr":      "overwrite",
-				"Path":             "provider.tf",
+				"comment_prefix":    "# ",
+				"contents":          "# test\n",
+				"disable_signature": false,
+				"if_exists":         "overwrite",
+				"path":              "provider.tf",
 			},
 		},
 	}
@@ -4788,11 +4787,11 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 	var expectedRemoteState = map[string]interface{}{
 		"metadata": commonMetadata,
 		"value": map[string]interface{}{
-			"Backend":                       "s3",
-			"DisableDependencyOptimization": false,
-			"DisableInit":                   false,
-			"Generate":                      nil,
-			"Config": map[string]interface{}{
+			"backend":                         "s3",
+			"disable_dependency_optimization": false,
+			"disable_init":                    false,
+			"generate":                        nil,
+			"config": map[string]interface{}{
 				"bucket": "mybucket",
 				"key":    "path/to/my/key",
 				"region": "us-east-1",
@@ -4839,27 +4838,31 @@ func TestRenderJsonMetadataDepenency(t *testing.T) {
 		"dep": map[string]interface{}{
 			"metadata": terragruntMetadata,
 			"value": map[string]interface{}{
-				"ConfigPath":                          "../dependency",
-				"MockOutputs":                         map[string]interface{}{},
-				"MockOutputsAllowedTerraformCommands": nil,
-				"MockOutputsMergeStrategyWithState":   nil,
-				"MockOutputsMergeWithState":           nil,
-				"Name":                                "dep",
-				"RenderedOutputs":                     nil,
-				"SkipOutputs":                         nil,
+				"config_path": "../dependency",
+				"mock_outputs": map[string]interface{}{
+					"test": "value",
+				},
+				"mock_outputs_allowed_terraform_commands": nil,
+				"mock_outputs_merge_strategy_with_state":  nil,
+				"mock_outputs_merge_with_state":           nil,
+				"name":                                    "dep",
+				"outputs":                                 nil,
+				"skip":                                    nil,
 			},
 		},
 		"dep2": map[string]interface{}{
 			"metadata": terragruntMetadata,
 			"value": map[string]interface{}{
-				"ConfigPath":                          "../dependency2",
-				"MockOutputs":                         map[string]interface{}{},
-				"MockOutputsAllowedTerraformCommands": nil,
-				"MockOutputsMergeStrategyWithState":   nil,
-				"MockOutputsMergeWithState":           nil,
-				"Name":                                "dep2",
-				"RenderedOutputs":                     nil,
-				"SkipOutputs":                         nil,
+				"config_path": "../dependency2",
+				"mock_outputs": map[string]interface{}{
+					"test2": "value2",
+				},
+				"mock_outputs_allowed_terraform_commands": nil,
+				"mock_outputs_merge_strategy_with_state":  nil,
+				"mock_outputs_merge_with_state":           nil,
+				"name":                                    "dep2",
+				"outputs":                                 nil,
+				"skip":                                    nil,
 			},
 		},
 	}
