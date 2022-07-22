@@ -28,6 +28,30 @@ import (
 const DefaultTerragruntConfigPath = "terragrunt.hcl"
 const DefaultTerragruntJsonConfigPath = "terragrunt.hcl.json"
 
+const foundInFile = "found_in_file"
+
+const (
+	MetadataTerraform                   = "terraform"
+	MetadataTerraformBinary             = "terraform_binary"
+	MetadataTerraformVersionConstraint  = "terraform_version_constraint"
+	MetadataTerragruntVersionConstraint = "terragrunt_version_constraint"
+	MetadataRemoteState                 = "remote_state"
+	MetadataDependencies                = "dependencies"
+	MetadataDependency                  = "dependency"
+	MetadataDownloadDir                 = "download_dir"
+	MetadataPreventDestroy              = "prevent_destroy"
+	MetadataSkip                        = "skip"
+	MetadataIamRole                     = "iam_role"
+	MetadataIamAssumeRoleDuration       = "iam_assume_role_duration"
+	MetadataIamAssumeRoleSessionName    = "iam_assume_role_session_name"
+	MetadataInputs                      = "inputs"
+	MetadataLocals                      = "locals"
+	MetadataGenerateConfigs             = "generate"
+	MetadataRetryableErrors             = "retryable_errors"
+	MetadataRetryMaxAttempts            = "retry_max_attempts"
+	MetadataRetrySleepIntervalSec       = "retry_sleep_interval_sec"
+)
+
 // TerragruntConfig represents a parsed and expanded configuration
 // NOTE: if any attributes are added, make sure to update terragruntConfigAsCty in config_as_cty.go
 type TerragruntConfig struct {
@@ -57,6 +81,9 @@ type TerragruntConfig struct {
 
 	// Map of processed includes
 	ProcessedIncludes map[string]IncludeConfig
+
+	// Map to store fields metadata
+	FieldsMetadata map[string]map[string]interface{}
 }
 
 func (conf *TerragruntConfig) String() string {
@@ -705,6 +732,7 @@ func ParseConfigString(
 		//   original locals for the current config being handled, as that is the locals list that is in scope for this
 		//   config.
 		mergedConfig.Locals = config.Locals
+
 		return mergedConfig, nil
 	}
 	return config, nil
@@ -804,12 +832,14 @@ func convertToTerragruntConfig(
 		GenerateConfigs: map[string]codegen.GenerateConfig{},
 	}
 
+	defaultMetadata := map[string]interface{}{foundInFile: configPath}
 	if terragruntConfigFromFile.RemoteState != nil {
 		remoteState, err := terragruntConfigFromFile.RemoteState.toConfig()
 		if err != nil {
 			return nil, err
 		}
 		terragruntConfig.RemoteState = remoteState
+		terragruntConfig.SetFieldMetadata(MetadataRemoteState, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.RemoteStateAttr != nil {
@@ -824,6 +854,7 @@ func convertToTerragruntConfig(
 		}
 
 		terragruntConfig.RemoteState = remoteState
+		terragruntConfig.SetFieldMetadata(MetadataRemoteState, defaultMetadata)
 	}
 
 	if err := terragruntConfigFromFile.Terraform.ValidateHooks(); err != nil {
@@ -831,58 +862,83 @@ func convertToTerragruntConfig(
 	}
 
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
+	if terragruntConfig.Terraform != nil { // since Terraform is nil each time avoid saving metadata when it is nil
+		terragruntConfig.SetFieldMetadata(MetadataTerraform, defaultMetadata)
+	}
+
 	if err := validateDependencies(terragruntOptions, terragruntConfigFromFile.Dependencies); err != nil {
 		return nil, err
 	}
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
+	if terragruntConfig.Dependencies != nil {
+		for _, item := range terragruntConfig.Dependencies.Paths {
+			terragruntConfig.SetFieldMetadataWithType(MetadataDependencies, item, defaultMetadata)
+		}
+	}
+
 	terragruntConfig.TerragruntDependencies = terragruntConfigFromFile.TerragruntDependencies
+	for _, dep := range terragruntConfig.TerragruntDependencies {
+		terragruntConfig.SetFieldMetadataWithType(MetadataDependency, dep.Name, defaultMetadata)
+	}
 
 	if terragruntConfigFromFile.TerraformBinary != nil {
 		terragruntConfig.TerraformBinary = *terragruntConfigFromFile.TerraformBinary
+		terragruntConfig.SetFieldMetadata(MetadataTerraformBinary, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.RetryableErrors != nil {
 		terragruntConfig.RetryableErrors = terragruntConfigFromFile.RetryableErrors
+		terragruntConfig.SetFieldMetadata(MetadataRetryableErrors, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.RetryMaxAttempts != nil {
 		terragruntConfig.RetryMaxAttempts = terragruntConfigFromFile.RetryMaxAttempts
+		terragruntConfig.SetFieldMetadata(MetadataRetryMaxAttempts, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.RetrySleepIntervalSec != nil {
 		terragruntConfig.RetrySleepIntervalSec = terragruntConfigFromFile.RetrySleepIntervalSec
+		terragruntConfig.SetFieldMetadata(MetadataRetrySleepIntervalSec, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.DownloadDir != nil {
 		terragruntConfig.DownloadDir = *terragruntConfigFromFile.DownloadDir
+		terragruntConfig.SetFieldMetadata(MetadataDownloadDir, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.TerraformVersionConstraint != nil {
 		terragruntConfig.TerraformVersionConstraint = *terragruntConfigFromFile.TerraformVersionConstraint
+		terragruntConfig.SetFieldMetadata(MetadataTerraformVersionConstraint, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.TerragruntVersionConstraint != nil {
 		terragruntConfig.TerragruntVersionConstraint = *terragruntConfigFromFile.TerragruntVersionConstraint
+		terragruntConfig.SetFieldMetadata(MetadataTerragruntVersionConstraint, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.PreventDestroy != nil {
 		terragruntConfig.PreventDestroy = terragruntConfigFromFile.PreventDestroy
+		terragruntConfig.SetFieldMetadata(MetadataPreventDestroy, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.Skip != nil {
 		terragruntConfig.Skip = *terragruntConfigFromFile.Skip
+		terragruntConfig.SetFieldMetadata(MetadataSkip, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.IamRole != nil {
 		terragruntConfig.IamRole = *terragruntConfigFromFile.IamRole
+		terragruntConfig.SetFieldMetadata(MetadataIamRole, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.IamAssumeRoleDuration != nil {
 		terragruntConfig.IamAssumeRoleDuration = terragruntConfigFromFile.IamAssumeRoleDuration
+		terragruntConfig.SetFieldMetadata(MetadataIamAssumeRoleDuration, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.IamAssumeRoleSessionName != nil {
 		terragruntConfig.IamAssumeRoleSessionName = *terragruntConfigFromFile.IamAssumeRoleSessionName
+		terragruntConfig.SetFieldMetadata(MetadataIamAssumeRoleSessionName, defaultMetadata)
 	}
 
 	generateBlocks := []terragruntGenerateBlock{}
@@ -928,6 +984,7 @@ func convertToTerragruntConfig(
 			genConfig.DisableSignature = *block.DisableSignature
 		}
 		terragruntConfig.GenerateConfigs[block.Name] = genConfig
+		terragruntConfig.SetFieldMetadataWithType(MetadataGenerateConfigs, block.Name, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.Inputs != nil {
@@ -937,6 +994,7 @@ func convertToTerragruntConfig(
 		}
 
 		terragruntConfig.Inputs = inputs
+		terragruntConfig.SetFieldMetadataMap(MetadataInputs, terragruntConfig.Inputs, defaultMetadata)
 	}
 
 	if contextExtensions.Locals != nil && *contextExtensions.Locals != cty.NilVal {
@@ -945,6 +1003,7 @@ func convertToTerragruntConfig(
 			return nil, err
 		}
 		terragruntConfig.Locals = localsParsed
+		terragruntConfig.SetFieldMetadataMap(MetadataLocals, localsParsed, defaultMetadata)
 	}
 
 	return terragruntConfig, nil
@@ -1013,6 +1072,62 @@ func configFileHasDependencyBlock(configPath string, terragruntOptions *options.
 		}
 	}
 	return false, nil
+}
+
+// SetFieldMetadataWithType set metadata on the given field name grouped by type.
+// Example usage - setting metadata on different dependencies, locals, inputs.
+func (conf *TerragruntConfig) SetFieldMetadataWithType(fieldType, fieldName string, m map[string]interface{}) {
+	if conf.FieldsMetadata == nil {
+		conf.FieldsMetadata = map[string]map[string]interface{}{}
+	}
+
+	field := fmt.Sprintf("%s-%s", fieldType, fieldName)
+
+	metadata, found := conf.FieldsMetadata[field]
+	if !found {
+		metadata = make(map[string]interface{})
+	}
+	for key, value := range m {
+		metadata[key] = value
+	}
+	conf.FieldsMetadata[field] = metadata
+}
+
+// SetFieldMetadata set metadata on the given field name.
+func (conf *TerragruntConfig) SetFieldMetadata(fieldName string, m map[string]interface{}) {
+	conf.SetFieldMetadataWithType(fieldName, fieldName, m)
+}
+
+// SetFieldMetadataMap set metadata on fields from map keys.
+// Example usage - setting metadata on all variables from inputs.
+func (conf *TerragruntConfig) SetFieldMetadataMap(field string, data map[string]interface{}, metadata map[string]interface{}) {
+	for name, _ := range data {
+		conf.SetFieldMetadataWithType(field, name, metadata)
+	}
+}
+
+// GetFieldMetadata return field metadata by field name.
+func (conf *TerragruntConfig) GetFieldMetadata(fieldName string) (map[string]string, bool) {
+	return conf.GetMapFieldMetadata(fieldName, fieldName)
+}
+
+// GetMapFieldMetadata return field metadata by field type and name.
+func (conf *TerragruntConfig) GetMapFieldMetadata(fieldType, fieldName string) (map[string]string, bool) {
+	if conf.FieldsMetadata == nil {
+		return nil, false
+	}
+	field := fmt.Sprintf("%s-%s", fieldType, fieldName)
+
+	value, found := conf.FieldsMetadata[field]
+	if !found {
+		return nil, false
+	}
+	var result = make(map[string]string)
+	for key, value := range value {
+		result[key] = fmt.Sprintf("%v", value)
+	}
+
+	return result, found
 }
 
 // Custom error types
