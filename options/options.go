@@ -163,7 +163,7 @@ type TerragruntOptions struct {
 	Check bool
 
 	// The file which hclfmt should be specifically run on
-	HclFile string
+	HclFiles []string
 
 	// The file path that terragrunt should use when rendering the terragrunt.hcl config as json.
 	JSONOut string
@@ -363,7 +363,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		StrictInclude:                  terragruntOptions.StrictInclude,
 		RunTerragrunt:                  terragruntOptions.RunTerragrunt,
 		AwsProviderPatchOverrides:      terragruntOptions.AwsProviderPatchOverrides,
-		HclFile:                        terragruntOptions.HclFile,
+		HclFiles:                       util.CloneStringList(terragruntOptions.HclFiles),
 		JSONOut:                        terragruntOptions.JSONOut,
 		Check:                          terragruntOptions.Check,
 		CheckDependentModules:          terragruntOptions.CheckDependentModules,

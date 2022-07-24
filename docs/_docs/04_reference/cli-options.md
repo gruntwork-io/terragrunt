@@ -806,7 +806,7 @@ command to exit with exit code 1 if there are any files that are not formatted.
 **Commands**:
 - [hclfmt](#hclfmt)
 
-When passed in, run `hclfmt` only on specified hcl file.
+When passed in, run `hclfmt` only on specified hcl file. May be specified multiple times to include multiple files.
 
 
 ### terragrunt-override-attr
