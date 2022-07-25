@@ -209,7 +209,7 @@ func getPathToRepoRoot(trackInclude *TrackInclude, terragruntOptions *options.Te
 		return "", errors.WithStackTrace(err)
 	}
 
-	return filepath.ToSlash(strings.TrimSpace(repoRootPathAbs) + "/"), nil
+	return filepath.ToSlash(strings.TrimSpace(repoRootPathAbs)), nil
 }
 
 // Return the directory where the Terragrunt configuration file lives

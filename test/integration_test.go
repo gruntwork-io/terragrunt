@@ -2927,7 +2927,7 @@ func TestGetPathToRepoRoot(t *testing.T) {
 	pathToRoot, hasPathToRoot := outputs["path_to_root"]
 
 	require.True(t, hasPathToRoot)
-	require.Equal(t, pathToRoot.Value, "../../")
+	require.Equal(t, pathToRoot.Value, "../..")
 }
 
 func TestGetPlatform(t *testing.T) {
