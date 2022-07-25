@@ -59,6 +59,7 @@ const (
 	optTerragruntModulesThatInclude             = "terragrunt-modules-that-include"
 	optTerragruntFetchDependencyOutputFromState = "terragrunt-fetch-dependency-output-from-state"
 	optTerragruntUsePartialParseConfigCache     = "terragrunt-use-partial-parse-config-cache"
+	optTerragruntOutputWithMetadata             = "with-metadata"
 )
 
 var allTerragruntBooleanOpts = []string{
@@ -76,6 +77,7 @@ var allTerragruntBooleanOpts = []string{
 	optTerragruntDebug,
 	optTerragruntFetchDependencyOutputFromState,
 	optTerragruntUsePartialParseConfigCache,
+	optTerragruntOutputWithMetadata,
 }
 var allTerragruntStringOpts = []string{
 	optTerragruntConfig,

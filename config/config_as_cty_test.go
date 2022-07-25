@@ -213,6 +213,8 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "", false
 	case "ProcessedIncludes":
 		return "", false
+	case "FieldsMetadata":
+		return "", false
 	case "RetryableErrors":
 		return "retryable_errors", true
 	case "RetryMaxAttempts":

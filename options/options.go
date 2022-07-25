@@ -193,8 +193,12 @@ type TerragruntOptions struct {
 	// This is an experimental feature, used to speed up dependency processing by getting the output from the state
 	FetchDependencyOutputFromState bool
 
+
 	// Enables caching of includes during partial parsing operations.
 	UsePartialParseConfigCache bool
+
+	// Include fields metadata in render-json
+	RenderJsonWithMetadata bool
 }
 
 // IAMOptions represents options that are used by Terragrunt to assume an IAM role.

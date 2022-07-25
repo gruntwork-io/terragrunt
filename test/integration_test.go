@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime"
 	"sort"
@@ -128,6 +129,7 @@ const (
 	TEST_FIXTURE_DISJOINT                                   = "fixture-stack/disjoint"
 	TEST_FIXTURE_BROKEN_LOCALS                              = "fixture-broken-locals"
 	TEST_FIXTURE_BROKEN_DEPENDENCY                          = "fixture-broken-dependency"
+	TEST_FIXTURE_RENDER_JSON_METADATA                       = "fixture-render-json-metadata"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -4542,4 +4544,409 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	// auto initialization when source is changed
 	errout = string(stderr.Bytes())
 	assert.Equal(t, 1, strings.Count(errout, "Terraform has been successfully initialized!"))
+}
+
+func TestRenderJsonAttributesMetadata(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_RENDER_JSON_METADATA)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "attributes")
+
+	terragruntHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "attributes", "terragrunt.hcl")
+
+	var expectedMetadata = map[string]interface{}{
+		"found_in_file": terragruntHcl,
+	}
+
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+
+	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	var inputs = renderedJson[config.MetadataInputs]
+	var expectedInputs = map[string]interface{}{
+		"name": map[string]interface{}{
+			"metadata": expectedMetadata,
+			"value":    "us-east-1-bucket",
+		},
+		"region": map[string]interface{}{
+			"metadata": expectedMetadata,
+			"value":    "us-east-1",
+		},
+	}
+	assert.True(t, reflect.DeepEqual(expectedInputs, inputs))
+
+	var locals = renderedJson[config.MetadataLocals]
+	var expectedLocals = map[string]interface{}{
+		"aws_region": map[string]interface{}{
+			"metadata": expectedMetadata,
+			"value":    "us-east-1",
+		},
+	}
+	assert.True(t, reflect.DeepEqual(expectedLocals, locals))
+
+	var downloadDir = renderedJson[config.MetadataDownloadDir]
+	var expecteDownloadDir = map[string]interface{}{
+		"metadata": expectedMetadata,
+		"value":    "/tmp",
+	}
+	assert.True(t, reflect.DeepEqual(expecteDownloadDir, downloadDir))
+
+	var iamAssumeRoleDuration = renderedJson[config.MetadataIamAssumeRoleDuration]
+	expectedIamAssumeRoleDuration := map[string]interface{}{
+		"metadata": expectedMetadata,
+		"value":    float64(666),
+	}
+	assert.True(t, reflect.DeepEqual(expectedIamAssumeRoleDuration, iamAssumeRoleDuration))
+
+	var iamAssumeRoleName = renderedJson[config.MetadataIamAssumeRoleSessionName]
+	expectedIamAssumeRoleName := map[string]interface{}{
+		"metadata": expectedMetadata,
+		"value":    "qwe",
+	}
+	assert.True(t, reflect.DeepEqual(expectedIamAssumeRoleName, iamAssumeRoleName))
+
+	var iamRole = renderedJson[config.MetadataIamRole]
+	expectedIamRole := map[string]interface{}{
+		"metadata": expectedMetadata,
+		"value":    "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME",
+	}
+	assert.True(t, reflect.DeepEqual(expectedIamRole, iamRole))
+
+	var preventDestroy = renderedJson[config.MetadataPreventDestroy]
+	expectedPreventDestroy := map[string]interface{}{
+		"metadata": expectedMetadata,
+		"value":    true,
+	}
+	assert.True(t, reflect.DeepEqual(expectedPreventDestroy, preventDestroy))
+
+	var skip = renderedJson[config.MetadataSkip]
+	expectedSkip := map[string]interface{}{
+		"metadata": expectedMetadata,
+		"value":    true,
+	}
+	assert.True(t, reflect.DeepEqual(expectedSkip, skip))
+
+	var terraformBinary = renderedJson[config.MetadataTerraformBinary]
+	expectedTerraformBinary := map[string]interface{}{
+		"metadata": expectedMetadata,
+		"value":    "terraform",
+	}
+	assert.True(t, reflect.DeepEqual(expectedTerraformBinary, terraformBinary))
+
+	var terraformVersionConstraint = renderedJson[config.MetadataTerraformVersionConstraint]
+	expectedTerraformVersionConstraint := map[string]interface{}{
+		"metadata": expectedMetadata,
+		"value":    ">= 0.11",
+	}
+	assert.True(t, reflect.DeepEqual(expectedTerraformVersionConstraint, terraformVersionConstraint))
+}
+
+func TestRenderJsonMetadataDependencies(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_RENDER_JSON_METADATA)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "dependencies", "app")
+
+	terragruntHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "dependencies", "app", "terragrunt.hcl")
+	includeHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "dependencies", "app", "include.hcl")
+
+	var includeMetadata = map[string]interface{}{
+		"found_in_file": includeHcl,
+	}
+
+	var terragruntMetadata = map[string]interface{}{
+		"found_in_file": terragruntHcl,
+	}
+
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+
+	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	var inputs = renderedJson[config.MetadataInputs]
+	var expectedInputs = map[string]interface{}{
+		"test_input": map[string]interface{}{
+			"metadata": includeMetadata,
+			"value":    "test_value",
+		},
+	}
+	assert.True(t, reflect.DeepEqual(expectedInputs, inputs))
+
+	var dependencies = renderedJson[config.MetadataDependencies]
+	var expectedDependencies = []interface{}{
+		map[string]interface{}{
+			"metadata": includeMetadata,
+			"value":    "../dependency2",
+		},
+		map[string]interface{}{
+			"metadata": terragruntMetadata,
+			"value":    "../dependency1",
+		},
+	}
+	assert.True(t, reflect.DeepEqual(expectedDependencies, dependencies))
+}
+
+func TestRenderJsonMetadataIncludes(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_RENDER_JSON_METADATA)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "includes", "app")
+
+	terragruntHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "includes", "app", "terragrunt.hcl")
+	localsHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "includes", "app", "locals.hcl")
+	inputHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "includes", "app", "inputs.hcl")
+	generateHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "includes", "app", "generate.hcl")
+	commonHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "includes", "common", "common.hcl")
+
+	var terragruntMetadata = map[string]interface{}{
+		"found_in_file": terragruntHcl,
+	}
+	var localsMetadata = map[string]interface{}{
+		"found_in_file": localsHcl,
+	}
+	var inputMetadata = map[string]interface{}{
+		"found_in_file": inputHcl,
+	}
+	var generateMetadata = map[string]interface{}{
+		"found_in_file": generateHcl,
+	}
+	var commonMetadata = map[string]interface{}{
+		"found_in_file": commonHcl,
+	}
+
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+
+	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	var inputs = renderedJson[config.MetadataInputs]
+	var expectedInputs = map[string]interface{}{
+		"content": map[string]interface{}{
+			"metadata": localsMetadata,
+			"value":    "test",
+		},
+		"qwe": map[string]interface{}{
+			"metadata": inputMetadata,
+			"value":    "123",
+		},
+	}
+	assert.True(t, reflect.DeepEqual(expectedInputs, inputs))
+
+	var locals = renderedJson[config.MetadataLocals]
+	var expectedLocals = map[string]interface{}{
+		"abc": map[string]interface{}{
+			"metadata": terragruntMetadata,
+			"value":    "xyz",
+		},
+	}
+	assert.True(t, reflect.DeepEqual(expectedLocals, locals))
+
+	var generate = renderedJson[config.MetadataGenerateConfigs]
+	var expectedGenerate = map[string]interface{}{
+		"provider": map[string]interface{}{
+			"metadata": generateMetadata,
+			"value": map[string]interface{}{
+				"comment_prefix":    "# ",
+				"contents":          "# test\n",
+				"disable_signature": false,
+				"if_exists":         "overwrite",
+				"path":              "provider.tf",
+			},
+		},
+	}
+
+	// compare fields by serialization in json since map from "value" field is not deterministic
+	serializedGenerate, err := json.Marshal(generate)
+	assert.NoError(t, err)
+
+	serializedExpectedGenerate, err := json.Marshal(expectedGenerate)
+	assert.NoError(t, err)
+
+	assert.Equal(t, string(serializedExpectedGenerate), string(serializedGenerate))
+
+	var remoteState = renderedJson[config.MetadataRemoteState]
+	var expectedRemoteState = map[string]interface{}{
+		"metadata": commonMetadata,
+		"value": map[string]interface{}{
+			"backend":                         "s3",
+			"disable_dependency_optimization": false,
+			"disable_init":                    false,
+			"generate":                        nil,
+			"config": map[string]interface{}{
+				"bucket": "mybucket",
+				"key":    "path/to/my/key",
+				"region": "us-east-1",
+			},
+		},
+	}
+
+	// compare fields by serialization in json since map from "value" field is not deterministic
+	serializedRemoteState, err := json.Marshal(remoteState)
+	assert.NoError(t, err)
+
+	serializedExpectedRemoteState, err := json.Marshal(expectedRemoteState)
+	assert.NoError(t, err)
+
+	assert.Equal(t, string(serializedExpectedRemoteState), string(serializedRemoteState))
+}
+
+func TestRenderJsonMetadataDepenency(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_RENDER_JSON_METADATA)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "dependency", "app")
+
+	terragruntHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "dependency", "app", "terragrunt.hcl")
+
+	var terragruntMetadata = map[string]interface{}{
+		"found_in_file": terragruntHcl,
+	}
+
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+
+	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	var dependency = renderedJson[config.MetadataDependency]
+
+	var expectedDependency = map[string]interface{}{
+		"dep": map[string]interface{}{
+			"metadata": terragruntMetadata,
+			"value": map[string]interface{}{
+				"config_path": "../dependency",
+				"mock_outputs": map[string]interface{}{
+					"test": "value",
+				},
+				"mock_outputs_allowed_terraform_commands": nil,
+				"mock_outputs_merge_strategy_with_state":  nil,
+				"mock_outputs_merge_with_state":           nil,
+				"name":                                    "dep",
+				"outputs":                                 nil,
+				"skip":                                    nil,
+			},
+		},
+		"dep2": map[string]interface{}{
+			"metadata": terragruntMetadata,
+			"value": map[string]interface{}{
+				"config_path": "../dependency2",
+				"mock_outputs": map[string]interface{}{
+					"test2": "value2",
+				},
+				"mock_outputs_allowed_terraform_commands": nil,
+				"mock_outputs_merge_strategy_with_state":  nil,
+				"mock_outputs_merge_with_state":           nil,
+				"name":                                    "dep2",
+				"outputs":                                 nil,
+				"skip":                                    nil,
+			},
+		},
+	}
+
+	// compare fields by serialization in json since map from "value" field is not deterministic
+	serializedDependency, err := json.Marshal(dependency)
+	assert.NoError(t, err)
+
+	serializedExpectedDependency, err := json.Marshal(expectedDependency)
+	assert.NoError(t, err)
+
+	assert.Equal(t, string(serializedExpectedDependency), string(serializedDependency))
+}
+
+func TestRenderJsonMetadataTerraform(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_RENDER_JSON_METADATA)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "terraform-remote-state", "app")
+
+	commonHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "terraform-remote-state", "common", "terraform.hcl")
+	remoteStateHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "terraform-remote-state", "common", "remote_state.hcl")
+	var terragruntMetadata = map[string]interface{}{
+		"found_in_file": commonHcl,
+	}
+	var remoteMetadata = map[string]interface{}{
+		"found_in_file": remoteStateHcl,
+	}
+
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+
+	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	var terraform = renderedJson[config.MetadataTerraform]
+	var expectedTerraform = map[string]interface{}{
+		"metadata": terragruntMetadata,
+		"value": map[string]interface{}{
+			"after_hook":      map[string]interface{}{},
+			"before_hook":     map[string]interface{}{},
+			"error_hook":      map[string]interface{}{},
+			"extra_arguments": map[string]interface{}{},
+			"include_in_copy": nil,
+			"source":          "../terraform",
+		},
+	}
+
+	// compare fields by serialization in json since map from "value" field is not deterministic
+	serializedTerraform, err := json.Marshal(terraform)
+	assert.NoError(t, err)
+
+	serializedExpectedTerraform, err := json.Marshal(expectedTerraform)
+	assert.NoError(t, err)
+
+	assert.Equal(t, string(serializedExpectedTerraform), string(serializedTerraform))
+
+	var remoteState = renderedJson[config.MetadataRemoteState]
+	var expectedRemoteState = map[string]interface{}{
+		"metadata": remoteMetadata,
+		"value": map[string]interface{}{
+			"backend": "s3",
+			"config": map[string]interface{}{
+				"bucket": "mybucket",
+				"key":    "path/to/my/key",
+				"region": "us-east-1",
+			},
+			"disable_dependency_optimization": false,
+			"disable_init":                    false,
+			"generate":                        nil,
+		},
+	}
+
+	// compare fields by serialization in json since map from "value" field is not deterministic
+	serializedRemoteState, err := json.Marshal(remoteState)
+	assert.NoError(t, err)
+
+	serializedExpectedRemoteState, err := json.Marshal(expectedRemoteState)
+	assert.NoError(t, err)
+
+	assert.Equal(t, string(serializedExpectedRemoteState), string(serializedRemoteState))
 }
