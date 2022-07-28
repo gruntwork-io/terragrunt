@@ -35,7 +35,7 @@ Terragrunt supports the following CLI commands:
   - [graph-dependencies](#graph-dependencies)
   - [hclfmt](#hclfmt)
   - [aws-provider-patch](#aws-provider-patch)
-  - [crender-json](#render-json)
+  - [render-json](#render-json)
 
 ### All Terraform built-in commands
 
