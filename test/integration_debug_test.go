@@ -370,6 +370,58 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 	}
 }
 
+func TestRenderJSONConfigRunAll(t *testing.T) {
+	t.Parallel()
+
+	// NOTE: bar is not rendered out because it is considered a parent terragrunt.hcl config.
+
+	bazJSONOut := filepath.Join(fixtureRenderJSONRegression, "baz", "terragrunt_rendered.json")
+	rootChildJSONOut := filepath.Join(fixtureRenderJSONRegression, "terragrunt_rendered.json")
+
+	defer os.Remove(bazJSONOut)
+	defer os.Remove(rootChildJSONOut)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", fixtureRenderJSONRegression))
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", fixtureRenderJSONRegression))
+
+	bazJSONBytes, err := ioutil.ReadFile(bazJSONOut)
+	require.NoError(t, err)
+
+	var bazRendered map[string]interface{}
+	require.NoError(t, json.Unmarshal(bazJSONBytes, &bazRendered))
+
+	// Make sure top level locals are rendered out
+	bazLocals, bazHasLocals := bazRendered["locals"]
+	if assert.True(t, bazHasLocals) {
+		assert.Equal(
+			t,
+			map[string]interface{}{
+				"self": "baz",
+			},
+			bazLocals.(map[string]interface{}),
+		)
+	}
+
+	rootChildJSONBytes, err := ioutil.ReadFile(rootChildJSONOut)
+	require.NoError(t, err)
+
+	var rootChildRendered map[string]interface{}
+	require.NoError(t, json.Unmarshal(rootChildJSONBytes, &rootChildRendered))
+
+	// Make sure top level locals are rendered out
+	rootChildLocals, rootChildHasLocals := rootChildRendered["locals"]
+	if assert.True(t, rootChildHasLocals) {
+		assert.Equal(
+			t,
+			map[string]interface{}{
+				"foo": "bar",
+			},
+			rootChildLocals.(map[string]interface{}),
+		)
+	}
+}
+
 func TestDependencyGraphWithMultiInclude(t *testing.T) {
 	t.Parallel()
 
