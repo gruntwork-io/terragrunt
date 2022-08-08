@@ -57,6 +57,7 @@ func runRenderJSON(terragruntOptions *options.TerragruntOptions, terragruntConfi
 	if err := util.EnsureDirectory(filepath.Dir(jsonOutPath)); err != nil {
 		return err
 	}
+	terragruntOptions.Logger.Debugf("Rendering config %s to JSON %s", terragruntOptions.TerragruntConfigPath, jsonOutPath)
 
 	if err := ioutil.WriteFile(jsonOutPath, jsonBytes, 0644); err != nil {
 		return errors.WithStackTrace(err)
