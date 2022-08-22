@@ -285,9 +285,12 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
 	defer os.RemoveAll(tmpDir)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", fixtureRenderJSONRegression))
+	tmpEnvPath := copyEnvironment(t, fixtureRenderJSONRegression)
+	workDir := filepath.Join(tmpEnvPath, fixtureRenderJSONRegression)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-json-out %s", fixtureRenderJSONRegression, jsonOut))
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", workDir))
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-json-out %s", workDir, jsonOut))
 
 	jsonBytes, err := ioutil.ReadFile(jsonOut)
 	require.NoError(t, err)
@@ -373,17 +376,20 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 func TestRenderJSONConfigRunAll(t *testing.T) {
 	t.Parallel()
 
+	tmpEnvPath := copyEnvironment(t, fixtureRenderJSONRegression)
+	workDir := filepath.Join(tmpEnvPath, fixtureRenderJSONRegression)
+
 	// NOTE: bar is not rendered out because it is considered a parent terragrunt.hcl config.
 
-	bazJSONOut := filepath.Join(fixtureRenderJSONRegression, "baz", "terragrunt_rendered.json")
-	rootChildJSONOut := filepath.Join(fixtureRenderJSONRegression, "terragrunt_rendered.json")
+	bazJSONOut := filepath.Join(workDir, "baz", "terragrunt_rendered.json")
+	rootChildJSONOut := filepath.Join(workDir, "terragrunt_rendered.json")
 
 	defer os.Remove(bazJSONOut)
 	defer os.Remove(rootChildJSONOut)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", fixtureRenderJSONRegression))
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", workDir))
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", fixtureRenderJSONRegression))
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", workDir))
 
 	bazJSONBytes, err := ioutil.ReadFile(bazJSONOut)
 	require.NoError(t, err)
