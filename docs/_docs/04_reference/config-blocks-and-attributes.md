@@ -293,7 +293,7 @@ instead of the module repository.**
 
 The `remote_state` block is used to configure how Terragrunt will set up the remote state configuration of your
 Terraform code. You can read more about Terragrunt's remote state functionality in [Keep your remote state configuration
-DRY](/use-cases/keep-your-remote-state-configuration-dry) use case overview.
+DRY](/docs/features/keep-your-remote-state-configuration-dry/) use case overview.
 
 The `remote_state` block supports the following arguments:
 
