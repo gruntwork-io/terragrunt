@@ -249,7 +249,7 @@ remote_state {
 
 If you experience an error for any of these configurations, confirm you are using Terraform v0.12.2 or greater.
 
-Further, the config options `s3_bucket_tags`, `dynamodb_table_tags`, `skip_bucket_versioning`, `skip_bucket_ssencryption`, `skip_bucket_root_access`, `skip_bucket_enforced_tls`, `accesslogging_bucket_name`, `accesslogging_target_prefix`, and `enable_lock_table_ssencryption` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).
+Further, the config options `s3_bucket_tags`, `dynamodb_table_tags`, `skip_bucket_versioning`, `skip_bucket_ssencryption`, `skip_bucket_root_access`, `skip_bucket_enforced_tls`, `skip_bucket_public_access_blocking`, `accesslogging_bucket_name`, `accesslogging_target_prefix`, and `enable_lock_table_ssencryption` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).
 
 ### GCS-specific remote state settings
 
