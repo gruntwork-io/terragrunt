@@ -222,6 +222,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.HclFile = filepath.ToSlash(terragruntHclFilePath)
 	opts.AwsProviderPatchOverrides = awsProviderPatchOverrides
 	opts.FetchDependencyOutputFromState = parseBooleanArg(args, optTerragruntFetchDependencyOutputFromState, os.Getenv("TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE") == "true")
+	opts.UsePartialParseConfigCache = parseBooleanArg(args, optTerragruntUsePartialParseConfigCache, os.Getenv("TERRAGRUNT_USE_PARTIAL_PARSE_CONFIG_CACHE") == "true")
 	opts.RenderJsonWithMetadata = parseBooleanArg(args, optTerragruntOutputWithMetadata, false)
 
 	opts.JSONOut, err = parseStringArg(args, optTerragruntJSONOut, "")

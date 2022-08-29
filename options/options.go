@@ -193,6 +193,9 @@ type TerragruntOptions struct {
 	// This is an experimental feature, used to speed up dependency processing by getting the output from the state
 	FetchDependencyOutputFromState bool
 
+	// Enables caching of includes during partial parsing operations.
+	UsePartialParseConfigCache bool
+
 	// Include fields metadata in render-json
 	RenderJsonWithMetadata bool
 }
@@ -273,6 +276,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		Parallelism:                    DEFAULT_PARALLELISM,
 		Check:                          false,
 		FetchDependencyOutputFromState: false,
+		UsePartialParseConfigCache:     false,
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
@@ -368,6 +372,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		Check:                          terragruntOptions.Check,
 		CheckDependentModules:          terragruntOptions.CheckDependentModules,
 		FetchDependencyOutputFromState: terragruntOptions.FetchDependencyOutputFromState,
+		UsePartialParseConfigCache:     terragruntOptions.UsePartialParseConfigCache,
 	}
 }
 
