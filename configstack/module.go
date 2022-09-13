@@ -590,6 +590,7 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 			terragruntOptions.Logger.Debugf("Failed to build terragrunt options from %s %v", dir, err)
 			return nil
 		}
+		cfgOptions.Env = terragruntOptions.Env
 		cfgOptions.LogLevel = terragruntOptions.LogLevel
 		if terragruntOptions.TerraformCommand == "destroy" {
 			var hook = NewForceLogLevelHook(logrus.DebugLevel)
