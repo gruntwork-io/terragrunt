@@ -1025,6 +1025,11 @@ func EnableSSEForS3BucketWide(s3Client *s3.S3, config *ExtendedRemoteStateConfig
 		return errors.WithStackTrace(err)
 	}
 
+	partition, err := aws_helper.GetAWSPartition(config.GetAwsSessionConfig(), terragruntOptions)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
 	// Encrypt with KMS by default
 	algorithm := s3.ServerSideEncryptionAwsKms
 	if config.BucketSSEAlgorithm != "" {
@@ -1037,7 +1042,7 @@ func EnableSSEForS3BucketWide(s3Client *s3.S3, config *ExtendedRemoteStateConfig
 	if algorithm == s3.ServerSideEncryptionAwsKms && config.BucketSSEKMSKeyID != "" {
 		defEnc.KMSMasterKeyID = aws.String(config.BucketSSEKMSKeyID)
 	} else if algorithm == s3.ServerSideEncryptionAwsKms {
-		kmsKeyID := fmt.Sprintf("arn:aws:kms:%s:%s:alias/aws/s3", config.remoteStateConfigS3.Region, accountID)
+		kmsKeyID := fmt.Sprintf("arn:%s:kms:%s:%s:alias/aws/s3", partition, config.remoteStateConfigS3.Region, accountID)
 		defEnc.KMSMasterKeyID = aws.String(kmsKeyID)
 	}
 
