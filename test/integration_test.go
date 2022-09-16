@@ -3452,6 +3452,23 @@ func TestTerragruntGenerateBlockSameNameFail(t *testing.T) {
 	assert.Contains(t, parsedError.BlockName, "backend")
 }
 
+func TestTerragruntGenerateBlockSameNameIncludeFail(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "generate-block", "same_name_includes_error")
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
+	require.Error(t, err)
+	parsedError, ok := errors.Unwrap(err).(config.DuplicatedGenerateBlocks)
+	assert.True(t, ok)
+	assert.True(t, len(parsedError.BlockName) == 1)
+	assert.Contains(t, parsedError.BlockName, "backend")
+}
+
 func TestTerragruntGenerateBlockMultipleSameNameFail(t *testing.T) {
 	t.Parallel()
 
