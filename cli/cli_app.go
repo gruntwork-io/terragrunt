@@ -287,6 +287,11 @@ var TERRAFORM_HELP_FLAGS = []string{
 	"-h",
 }
 
+// map of help functions for each terragrunt command
+var terraguntHelp = map[string]func(terragruntOptions *options.TerragruntOptions) error{
+	CMD_RENDER_JSON: helpRenderJson,
+}
+
 // Create the Terragrunt CLI App
 func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) *cli.App {
 	cli.OsExiter = func(exitCode int) {
@@ -364,6 +369,10 @@ func runCommand(command string, terragruntOptions *options.TerragruntOptions) (f
 // Downloads terraform source if necessary, then runs terraform with the given options and CLI args.
 // This will forward all the args and extra_arguments directly to Terraform.
 func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
+	if shouldPrintTerragruntHelp(terragruntOptions) {
+		helpFunction, _ := terraguntHelp[terragruntOptions.TerraformCommand]
+		return helpFunction(terragruntOptions)
+	}
 	if shouldPrintTerraformHelp(terragruntOptions) {
 		return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
 	}
@@ -579,6 +588,20 @@ func runGraphDependencies(terragruntOptions *options.TerragruntOptions) error {
 }
 
 func shouldPrintTerraformHelp(terragruntOptions *options.TerragruntOptions) bool {
+	for _, tfHelpFlag := range TERRAFORM_HELP_FLAGS {
+		if util.ListContainsElement(terragruntOptions.TerraformCliArgs, tfHelpFlag) {
+			return true
+		}
+	}
+	return false
+}
+
+func shouldPrintTerragruntHelp(terragruntOptions *options.TerragruntOptions) bool {
+	_, found := terraguntHelp[terragruntOptions.TerraformCommand]
+	if !found {
+		return false
+	}
+
 	for _, tfHelpFlag := range TERRAFORM_HELP_FLAGS {
 		if util.ListContainsElement(terragruntOptions.TerraformCliArgs, tfHelpFlag) {
 			return true

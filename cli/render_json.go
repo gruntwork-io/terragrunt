@@ -17,6 +17,16 @@ import (
 
 const defaultJSONOutName = "terragrunt_rendered.json"
 
+func helpRenderJson(terragruntOptions *options.TerragruntOptions) error {
+
+	terragruntOptions.Logger.Printf("Usage: terragrunt render-json [OPTIONS]")
+	terragruntOptions.Logger.Printf("")
+	terragruntOptions.Logger.Printf("Options:")
+	terragruntOptions.Logger.Printf("--with-metadata Add metadata to the rendered JSON output.")
+
+	return nil
+}
+
 // runRenderJSON takes the parsed TerragruntConfig struct and renders it out as JSON so that it can be processed by
 // other tools. To make it easier to maintain, this uses the cty representation as an intermediary.
 // NOTE: An unspecified advantage of using the cty representation is that the final block outputs would be a map
