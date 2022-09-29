@@ -31,6 +31,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+const renderJsonCommand = "render-json"
+
 type Dependency struct {
 	Name                                string     `hcl:",label" cty:"name"`
 	ConfigPath                          string     `hcl:"config_path,attr" cty:"config_path"`
@@ -379,7 +381,7 @@ func (dependencyConfig Dependency) shouldReturnMockOutputs(terragruntOptions *op
 		dependencyConfig.MockOutputsAllowedTerraformCommands == nil ||
 			len(*dependencyConfig.MockOutputsAllowedTerraformCommands) == 0 ||
 			util.ListContainsElement(*dependencyConfig.MockOutputsAllowedTerraformCommands, terragruntOptions.OriginalTerraformCommand)
-	return defaultOutputsSet && allowedCommand
+	return defaultOutputsSet && allowedCommand || isRenderJsonCommand(terragruntOptions)
 }
 
 // Return the output from the state of another module, managed by terragrunt. This function will parse the provided
@@ -395,7 +397,14 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 
 	jsonBytes, err := getOutputJsonWithCaching(targetConfig, terragruntOptions)
 	if err != nil {
-		return nil, true, err
+		if !isRenderJsonCommand(terragruntOptions) {
+			return nil, true, err
+		}
+		terragruntOptions.Logger.Warnf("Failed to read outputs from %s referenced in %s as %s, fallback to mock outputs. Error: %v", targetConfig, terragruntOptions.TerragruntConfigPath, dependencyConfig.Name, err)
+		jsonBytes, err = json.Marshal(dependencyConfig.MockOutputs)
+		if err != nil {
+			return nil, true, err
+		}
 	}
 	isEmpty := string(jsonBytes) == "{}"
 
@@ -410,6 +419,11 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 		err = TerragruntOutputEncodingError{Path: targetConfig, Err: err}
 	}
 	return &convertedOutput, isEmpty, errors.WithStackTrace(err)
+}
+
+// This function will true if terragrunt was invoked with renderJsonCommand
+func isRenderJsonCommand(terragruntOptions *options.TerragruntOptions) bool {
+	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, renderJsonCommand)
 }
 
 // getOutputJsonWithCaching will run terragrunt output on the target config if it is not already cached.

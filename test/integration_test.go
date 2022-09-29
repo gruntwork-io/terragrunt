@@ -130,6 +130,7 @@ const (
 	TEST_FIXTURE_BROKEN_LOCALS                              = "fixture-broken-locals"
 	TEST_FIXTURE_BROKEN_DEPENDENCY                          = "fixture-broken-dependency"
 	TEST_FIXTURE_RENDER_JSON_METADATA                       = "fixture-render-json-metadata"
+	TEST_FIXTURE_RENDER_JSON_MOCK_OUTPUTS                   = "fixture-render-json-mock-outputs"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -4697,6 +4698,55 @@ func TestRenderJsonMetadataDependencies(t *testing.T) {
 		},
 	}
 	assert.True(t, reflect.DeepEqual(expectedDependencies, dependencies))
+}
+
+func TestRenderJsonWithMockOutputs(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_RENDER_JSON_MOCK_OUTPUTS)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_MOCK_OUTPUTS, "app")
+
+	var expectedMetadata = map[string]interface{}{
+		"found_in_file": util.JoinPath(tmpDir, "terragrunt.hcl"),
+	}
+
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+
+	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	dependency := renderedJson[config.MetadataDependency]
+
+	var expectedDependency = map[string]interface{}{
+		"module": map[string]interface{}{
+			"metadata": expectedMetadata,
+			"value": map[string]interface{}{
+				"config_path": "../dependency",
+				"mock_outputs": map[string]interface{}{
+					"bastion_host_security_group_id": "123",
+					"security_group_id":              "sg-abcd1234",
+				},
+				"mock_outputs_allowed_terraform_commands": [1]string{"validate"},
+				"mock_outputs_merge_strategy_with_state":  nil,
+				"mock_outputs_merge_with_state":           nil,
+				"name":                                    "module",
+				"outputs":                                 nil,
+				"skip":                                    nil,
+			},
+		},
+	}
+	serializedDependency, err := json.Marshal(dependency)
+	assert.NoError(t, err)
+
+	serializedExpectedDependency, err := json.Marshal(expectedDependency)
+	assert.NoError(t, err)
+	assert.Equal(t, string(serializedExpectedDependency), string(serializedDependency))
 }
 
 func TestRenderJsonMetadataIncludes(t *testing.T) {
