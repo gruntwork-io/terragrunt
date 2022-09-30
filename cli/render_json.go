@@ -17,7 +17,7 @@ import (
 
 const defaultJSONOutName = "terragrunt_rendered.json"
 
-const RenderJsonHelp = `
+const renderJsonHelp = `
    Usage: terragrunt render-json [OPTIONS]
 
    Description:
