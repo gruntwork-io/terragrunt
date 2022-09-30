@@ -17,15 +17,23 @@ import (
 
 const defaultJSONOutName = "terragrunt_rendered.json"
 
-func helpRenderJson(terragruntOptions *options.TerragruntOptions) error {
+const RenderJsonHelp = `
+   Usage: terragrunt render-json [OPTIONS]
 
-	terragruntOptions.Logger.Printf("Usage: terragrunt render-json [OPTIONS]")
-	terragruntOptions.Logger.Printf("")
-	terragruntOptions.Logger.Printf("Options:")
-	terragruntOptions.Logger.Printf("--with-metadata Add metadata to the rendered JSON output.")
+   Description:
+   Render the final terragrunt config, with all variables, includes, and functions resolved, as json.
+   
+   Options:
+   --with-metadata 		Add metadata to the rendered JSON file.
+   --terragrunt-json-out 	The file path that terragrunt should use when rendering the terragrunt.hcl config as json.
+`
 
-	return nil
-}
+//func helpRenderJson(terragruntOptions *options.TerragruntOptions) error {
+//
+//	fmt.Fprintf(terragruntOptions.Writer, "%s\n", renderJsonHelp)
+//
+//	return nil
+//}
 
 // runRenderJSON takes the parsed TerragruntConfig struct and renders it out as JSON so that it can be processed by
 // other tools. To make it easier to maintain, this uses the cty representation as an intermediary.

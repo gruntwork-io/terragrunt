@@ -288,8 +288,8 @@ var TERRAFORM_HELP_FLAGS = []string{
 }
 
 // map of help functions for each terragrunt command
-var terraguntHelp = map[string]func(terragruntOptions *options.TerragruntOptions) error{
-	CMD_RENDER_JSON: helpRenderJson,
+var terragruntHelp = map[string]string{
+	CMD_RENDER_JSON: RenderJsonHelp,
 }
 
 // Create the Terragrunt CLI App
@@ -370,8 +370,9 @@ func runCommand(command string, terragruntOptions *options.TerragruntOptions) (f
 // This will forward all the args and extra_arguments directly to Terraform.
 func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	if shouldPrintTerragruntHelp(terragruntOptions) {
-		helpFunction, _ := terraguntHelp[terragruntOptions.TerraformCommand]
-		return helpFunction(terragruntOptions)
+		helpMessage, _ := terragruntHelp[terragruntOptions.TerraformCommand]
+		_, err := fmt.Fprintf(terragruntOptions.Writer, "%s\n", helpMessage)
+		return err
 	}
 	if shouldPrintTerraformHelp(terragruntOptions) {
 		return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
@@ -597,7 +598,8 @@ func shouldPrintTerraformHelp(terragruntOptions *options.TerragruntOptions) bool
 }
 
 func shouldPrintTerragruntHelp(terragruntOptions *options.TerragruntOptions) bool {
-	_, found := terraguntHelp[terragruntOptions.TerraformCommand]
+	// check if command is in help map
+	_, found := terragruntHelp[terragruntOptions.TerraformCommand]
 	if !found {
 		return false
 	}
