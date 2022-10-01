@@ -289,7 +289,9 @@ var TERRAFORM_HELP_FLAGS = []string{
 
 // map of help functions for each terragrunt command
 var terragruntHelp = map[string]string{
-	CMD_RENDER_JSON: renderJsonHelp,
+	CMD_RENDER_JSON:                renderJsonHelp,
+	CMD_AWS_PROVIDER_PATCH:         awsProviderPatchHelp,
+	CMD_TERRAGRUNT_VALIDATE_INPUTS: validateInputsHelp,
 }
 
 // Create the Terragrunt CLI App
