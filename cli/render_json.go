@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/configstack"
+
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
@@ -26,6 +28,15 @@ func runRenderJSON(terragruntOptions *options.TerragruntOptions, terragruntConfi
 	if terragruntConfig == nil {
 		return fmt.Errorf("Terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl.")
 	}
+
+	dependentModules := configstack.FindWhereWorkingDirIsIncluded(terragruntOptions, terragruntConfig)
+	var dependentModulesPath []*string
+	for _, module := range dependentModules {
+		dependentModulesPath = append(dependentModulesPath, &module.Path)
+	}
+
+	terragruntConfig.DependentModulesPath = dependentModulesPath
+	terragruntConfig.SetFieldMetadata(config.MetadataDependentModules, map[string]interface{}{config.FoundInFile: terragruntOptions.TerragruntConfigPath})
 
 	var terragruntConfigCty cty.Value
 

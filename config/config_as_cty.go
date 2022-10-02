@@ -121,6 +121,16 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output[MetadataLocals] = localsCty
 	}
 
+	if len(config.DependentModulesPath) > 0 {
+		dependentModulesCty, err := convertToCtyWithJson(config.DependentModulesPath)
+		if err != nil {
+			return cty.NilVal, err
+		}
+		if dependentModulesCty != cty.NilVal {
+			output[MetadataDependentModules] = dependentModulesCty
+		}
+	}
+
 	return convertValuesMapToCtyVal(output)
 }
 
@@ -174,6 +184,10 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 		return cty.NilVal, err
 	}
 	if err := wrapWithMetadata(config, config.RetrySleepIntervalSec, MetadataRetrySleepIntervalSec, &output); err != nil {
+		return cty.NilVal, err
+	}
+
+	if err := wrapWithMetadata(config, config.DependentModulesPath, MetadataDependentModules, &output); err != nil {
 		return cty.NilVal, err
 	}
 
