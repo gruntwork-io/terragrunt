@@ -5000,3 +5000,70 @@ func TestRenderJsonMetadataTerraform(t *testing.T) {
 
 	assert.Equal(t, string(serializedExpectedRemoteState), string(serializedRemoteState))
 }
+
+func TestRenderJsonDependentModulesTerraform(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DESTROY_WARNING)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "vpc")
+
+	appModule := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app")
+	var expectedDependentModules = []string{appModule}
+
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+
+	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	var dependentModules = renderedJson[config.MetadataDependentModules]
+
+	serializedDependentModules, err := json.Marshal(dependentModules)
+	assert.NoError(t, err)
+
+	serializedExceptedDependentModules, err := json.Marshal(expectedDependentModules)
+	assert.NoError(t, err)
+
+	assert.Equal(t, string(serializedExceptedDependentModules), string(serializedDependentModules))
+}
+
+func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DESTROY_WARNING)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "vpc")
+
+	appModule := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app")
+	var expectedDependentModules = map[string]interface{}{
+		"metadata": map[string]string{
+			"found_in_file": util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "vpc", "terragrunt.hcl"),
+		},
+		"value": []string{
+			appModule,
+		},
+	}
+
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+
+	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	var dependentModules = renderedJson[config.MetadataDependentModules]
+
+	serializedDependentModules, err := json.Marshal(dependentModules)
+	assert.NoError(t, err)
+
+	serializedExceptedDependentModules, err := json.Marshal(expectedDependentModules)
+	assert.NoError(t, err)
+
+	assert.Equal(t, string(serializedExceptedDependentModules), string(serializedDependentModules))
+}
