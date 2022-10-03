@@ -382,7 +382,7 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return runRenderJSON(terragruntOptions, terragruntConfig)
 	}
 
-	if shouldRunOutputModuleGroups(terragruntOptions) {
+	if shouldPrintModuleGroups(terragruntOptions) {
 		js, err := runGraphDependenciesGroups(terragruntOptions)
 		if err != nil {
 			return err
@@ -623,7 +623,7 @@ func shouldRunRenderJSON(terragruntOptions *options.TerragruntOptions) bool {
 	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_RENDER_JSON)
 }
 
-func shouldRunOutputModuleGroups(terragruntOptions *options.TerragruntOptions) bool {
+func shouldPrintModuleGroups(terragruntOptions *options.TerragruntOptions) bool {
 	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_OUTPUT_MODULE_GROUPS)
 }
 
