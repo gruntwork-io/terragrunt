@@ -4414,7 +4414,8 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 
 	rootPath = util.JoinPath(rootPath, TEST_FIXTURE_DESTROY_WARNING)
 	vpcPath := util.JoinPath(rootPath, "vpc")
-	appPath := util.JoinPath(rootPath, "app")
+	appV1Path := util.JoinPath(rootPath, "app-v1")
+	appV2Path := util.JoinPath(rootPath, "app-v2")
 
 	cleanupTerraformFolder(t, rootPath)
 	cleanupTerraformFolder(t, vpcPath)
@@ -4435,7 +4436,8 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	assert.NoError(t, err)
 
 	output := string(stderr.Bytes())
-	assert.Equal(t, 1, strings.Count(output, appPath))
+	assert.Equal(t, 1, strings.Count(output, appV1Path))
+	assert.Equal(t, 1, strings.Count(output, appV2Path))
 }
 
 func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
@@ -5008,9 +5010,6 @@ func TestRenderJsonDependentModulesTerraform(t *testing.T) {
 	cleanupTerraformFolder(t, tmpEnvPath)
 	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "vpc")
 
-	appModule := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app")
-	var expectedDependentModules = []string{appModule}
-
 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
 	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
 
@@ -5020,15 +5019,10 @@ func TestRenderJsonDependentModulesTerraform(t *testing.T) {
 	var renderedJson = map[string]interface{}{}
 	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
 
-	var dependentModules = renderedJson[config.MetadataDependentModules]
-
-	serializedDependentModules, err := json.Marshal(dependentModules)
-	assert.NoError(t, err)
-
-	serializedExceptedDependentModules, err := json.Marshal(expectedDependentModules)
-	assert.NoError(t, err)
-
-	assert.Equal(t, string(serializedExceptedDependentModules), string(serializedDependentModules))
+	var dependentModules = renderedJson[config.MetadataDependentModules].([]interface{})
+	// check if value list contains app-v1 and app-v2
+	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v1"))
+	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v2"))
 }
 
 func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
@@ -5038,32 +5032,19 @@ func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
 	cleanupTerraformFolder(t, tmpEnvPath)
 	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "vpc")
 
-	appModule := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app")
-	var expectedDependentModules = map[string]interface{}{
-		"metadata": map[string]string{
-			"found_in_file": util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "vpc", "terragrunt.hcl"),
-		},
-		"value": []string{
-			appModule,
-		},
-	}
-
 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
 	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
 
 	jsonBytes, err := ioutil.ReadFile(jsonOut)
 	require.NoError(t, err)
 
-	var renderedJson = map[string]interface{}{}
+	var renderedJson = map[string]map[string]interface{}{}
+
 	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
 
-	var dependentModules = renderedJson[config.MetadataDependentModules]
+	dependentModules := renderedJson[config.MetadataDependentModules]["value"].([]interface{})
+	// check if value list contains app-v1 and app-v2
+	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v1"))
+	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v2"))
 
-	serializedDependentModules, err := json.Marshal(dependentModules)
-	assert.NoError(t, err)
-
-	serializedExceptedDependentModules, err := json.Marshal(expectedDependentModules)
-	assert.NoError(t, err)
-
-	assert.Equal(t, string(serializedExceptedDependentModules), string(serializedDependentModules))
 }
