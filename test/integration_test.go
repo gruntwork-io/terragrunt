@@ -5000,3 +5000,24 @@ func TestRenderJsonMetadataTerraform(t *testing.T) {
 
 	assert.Equal(t, string(serializedExpectedRemoteState), string(serializedRemoteState))
 }
+
+func TestTerragruntRenderJsonHelp(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
+	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt render-json --help --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	assert.Nil(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+
+	output := showStdout.String()
+
+	assert.Contains(t, output, "Usage: terragrunt render-json [OPTIONS]")
+	assert.Contains(t, output, "--with-metadata")
+}
