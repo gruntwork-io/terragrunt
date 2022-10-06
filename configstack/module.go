@@ -2,6 +2,7 @@ package configstack
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -572,9 +573,17 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 	var matchedModulesMap = make(map[string]*TerraformModule)
 	var gitTopLevelDir = ""
 	gitTopLevelDir, err := shell.GitTopLevelDir(terragruntOptions, terragruntOptions.WorkingDir)
+	processIncludes := false
 	if err == nil { // top level detection worked
-		pathsToCheck = append(pathsToCheck, gitTopLevelDir)
-	} else { // detection failed, trying to use include directories as source for stacks
+		pathsToCheck, err = buildDirList(terragruntOptions, gitTopLevelDir)
+		if err != nil {
+			processIncludes = true
+		}
+	} else {
+		processIncludes = true
+	}
+
+	if processIncludes { // detection failed, trying to use include directories as source for stacks
 		uniquePaths := make(map[string]bool)
 		for _, includePath := range terragruntConfig.ProcessedIncludes {
 			uniquePaths[filepath.Dir(includePath.Path)] = true
@@ -588,20 +597,18 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 		cfgOptions, err := options.NewTerragruntOptions(dir)
 		if err != nil {
 			terragruntOptions.Logger.Debugf("Failed to build terragrunt options from %s %v", dir, err)
-			return nil
+			continue
 		}
 		cfgOptions.Env = terragruntOptions.Env
 		cfgOptions.LogLevel = terragruntOptions.LogLevel
-		if terragruntOptions.TerraformCommand == "destroy" {
-			var hook = NewForceLogLevelHook(logrus.DebugLevel)
-			cfgOptions.Logger.Logger.AddHook(hook)
-		}
+		var hook = NewForceLogLevelHook(logrus.DebugLevel)
+		cfgOptions.Logger.Logger.AddHook(hook)
 		stack, err := FindStackInSubfolders(cfgOptions)
 		if err != nil {
-			// loggign error as debug since in some cases stack building may fail because parent files can be designed
+			// log error as debug since in some cases stack building may fail because parent files can be designed
 			// to work with relative paths from downstream modules
 			terragruntOptions.Logger.Debugf("Failed to build module stack %v", err)
-			return nil
+			continue
 		}
 
 		for _, module := range stack.Modules {
@@ -621,6 +628,24 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 	}
 
 	return matchedModules
+}
+
+func buildDirList(terragruntOptions *options.TerragruntOptions, gitTopLevelDir string) ([]string, error) {
+	var pathsToCheck []string
+	relativePath, err := util.GetPathRelativeTo(gitTopLevelDir, terragruntOptions.WorkingDir)
+	if err != nil {
+		return pathsToCheck, err
+	}
+	// build list of directories from working directory to git top level directory
+	// from which later will be built stacks
+	pathsToCheck = append(pathsToCheck, gitTopLevelDir)
+	pathToAdd := terragruntOptions.WorkingDir
+	splits := strings.Split(relativePath, string(os.PathSeparator))
+	for _, path := range splits {
+		pathToAdd = filepath.Join(pathToAdd, path)
+		pathsToCheck = append(pathsToCheck, pathToAdd)
+	}
+	return pathsToCheck, nil
 }
 
 // Custom error types
