@@ -638,7 +638,6 @@ func buildDirList(terragruntOptions *options.TerragruntOptions, gitTopLevelDir s
 	}
 	// build list of directories from working directory to git top level directory
 	// from which later will be built stacks
-	pathsToCheck = append(pathsToCheck, gitTopLevelDir)
 	pathToAdd := terragruntOptions.WorkingDir
 	splits := strings.Split(relativePath, string(os.PathSeparator))
 	for _, path := range splits {
