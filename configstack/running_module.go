@@ -103,10 +103,10 @@ func toRunningModules(modules []*TerraformModule, dependencyOrder DependencyOrde
 
 // Loop through the map of runningModules and for each module M:
 //
-// * If dependencyOrder is NormalOrder, plug in all the modules M depends on into the Dependencies field and all the
-//   modules that depend on M into the NotifyWhenDone field.
-// * If dependencyOrder is ReverseOrder, do the reverse.
-// * If dependencyOrder is IgnoreOrder, do nothing.
+//   - If dependencyOrder is NormalOrder, plug in all the modules M depends on into the Dependencies field and all the
+//     modules that depend on M into the NotifyWhenDone field.
+//   - If dependencyOrder is ReverseOrder, do the reverse.
+//   - If dependencyOrder is IgnoreOrder, do nothing.
 func crossLinkDependencies(modules map[string]*runningModule, dependencyOrder DependencyOrder) (map[string]*runningModule, error) {
 	for _, module := range modules {
 		for _, dependency := range module.Module.Dependencies {
@@ -235,7 +235,7 @@ func (module *runningModule) runNow() error {
 		module.Module.TerragruntOptions.Logger.Debugf("Assuming module %s has already been applied and skipping it", module.Module.Path)
 		return nil
 	} else {
-		module.Module.TerragruntOptions.Logger.Debugf("Running module %s now", module.Module.Path)
+		module.Module.TerragruntOptions.Logger.Infof("Running module %s now", module.Module.Path)
 		return module.Module.TerragruntOptions.RunTerragrunt(module.Module.TerragruntOptions)
 	}
 }
@@ -243,7 +243,7 @@ func (module *runningModule) runNow() error {
 // Record that a module has finished executing and notify all of this module's dependencies
 func (module *runningModule) moduleFinished(moduleErr error) {
 	if moduleErr == nil {
-		module.Module.TerragruntOptions.Logger.Debugf("Module %s has finished successfully!", module.Module.Path)
+		module.Module.TerragruntOptions.Logger.Infof("Module %s has finished successfully!", module.Module.Path)
 	} else {
 		module.Module.TerragruntOptions.Logger.Errorf("Module %s has finished with an error: %v", module.Module.Path, moduleErr)
 	}
