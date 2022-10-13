@@ -14,6 +14,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+const validateInputsHelp = `
+   Usage: terragrunt validate-inputs [OPTIONS]
+
+   Description:
+   Checks if the terragrunt configured inputs align with the terraform defined variables.
+   
+   Options:
+   --terragrunt-strict-validate		Enable strict mode for validation. When strict mode is turned on, an error will be returned if required inputs are missing OR if unused variables are passed to Terragrunt.
+`
+
 // validateTerragruntInputs will collect all the terraform variables defined in the target module, and the terragrunt
 // inputs that are configured, and compare the two to determine if there are any unused inputs or undefined required
 // inputs.
