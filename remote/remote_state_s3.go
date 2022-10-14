@@ -46,6 +46,7 @@ type ExtendedRemoteStateConfigS3 struct {
 	EnableLockTableSSEncryption    bool              `mapstructure:"enable_lock_table_ssencryption"`
 	DisableAWSClientChecksums      bool              `mapstructure:"disable_aws_client_checksums"`
 	AccessLoggingBucketName        string            `mapstructure:"accesslogging_bucket_name"`
+	AccessLoggingBucketEncrypt     bool              `mapstructure:"accesslogging_bucket_encrypt"`
 	AccessLoggingTargetPrefix      string            `mapstructure:"accesslogging_target_prefix"`
 	BucketSSEAlgorithm             string            `mapstructure:"bucket_sse_algorithm"`
 	BucketSSEKMSKeyID              string            `mapstructure:"bucket_sse_kms_key_id"`
@@ -66,6 +67,7 @@ var terragruntOnlyConfigs = []string{
 	"enable_lock_table_ssencryption",
 	"disable_aws_client_checksums",
 	"accesslogging_bucket_name",
+	"accesslogging_bucket_encrypt",
 	"accesslogging_target_prefix",
 	"bucket_sse_algorithm",
 	"bucket_sse_kms_key_id",
@@ -672,6 +674,12 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 
 		if err := EnableAccessLoggingForS3BucketWide(s3Client, &config.remoteStateConfigS3, terragruntOptions, config.AccessLoggingBucketName, config.AccessLoggingTargetPrefix); err != nil {
 			return err
+		}
+
+		if config.AccessLoggingBucketEncrypt {
+			if err := EnableSSEForS3BucketWide(s3Client, config, terragruntOptions); err != nil {
+				return err
+			}
 		}
 	} else {
 		terragruntOptions.Logger.Debugf("Access Logging is disabled for the remote state AWS S3 bucket %s", config.remoteStateConfigS3.Bucket)
