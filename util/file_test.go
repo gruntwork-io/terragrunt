@@ -2,43 +2,18 @@ package util
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
 	"testing"
 
-	"fmt"
-
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
-
-func TestGetPathRelativeTo(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		path     string
-		basePath string
-		expected string
-	}{
-		{"", "", "."},
-		{helpers.RootFolder, helpers.RootFolder, "."},
-		{helpers.RootFolder, helpers.RootFolder + "child", ".."},
-		{helpers.RootFolder, helpers.RootFolder + "child/sub-child/sub-sub-child", "../../.."},
-		{helpers.RootFolder + "other-child", helpers.RootFolder + "child", "../other-child"},
-		{helpers.RootFolder + "other-child/sub-child", helpers.RootFolder + "child/sub-child", "../../other-child/sub-child"},
-		{helpers.RootFolder + "root", helpers.RootFolder + "other-root", "../root"},
-		{helpers.RootFolder + "root", helpers.RootFolder + "other-root/sub-child/sub-sub-child", "../../../root"},
-	}
-
-	for _, testCase := range testCases {
-		actual, err := GetPathRelativeTo(testCase.path, testCase.basePath)
-		assert.Nil(t, err, "Unexpected error for path %s and basePath %s: %v", testCase.path, testCase.basePath, err)
-		assert.Equal(t, testCase.expected, actual, "For path %s and basePath %s", testCase.path, testCase.basePath)
-	}
-}
 
 func TestCanonicalPath(t *testing.T) {
 	t.Parallel()

@@ -8,13 +8,13 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"go.mozilla.org/sops/v3/cmd/sops/formats"
-
+	"github.com/gruntwork-io/go-commons/files"
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/hcl/v2"
 	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
+	"go.mozilla.org/sops/v3/cmd/sops/formats"
 	"go.mozilla.org/sops/v3/decrypt"
 
 	"github.com/gruntwork-io/terragrunt/aws_helper"
@@ -430,7 +430,7 @@ func pathRelativeToInclude(params []string, trackInclude *TrackInclude, terragru
 		includePath = util.JoinPath(currentPath, includePath)
 	}
 
-	return util.GetPathRelativeTo(currentPath, includePath)
+	return files.GetPathRelativeTo(currentPath, includePath)
 }
 
 // Return the relative path from the current Terragrunt configuration to the included Terragrunt configuration file
@@ -453,7 +453,7 @@ func pathRelativeFromInclude(params []string, trackInclude *TrackInclude, terrag
 		includePath = util.JoinPath(currentPath, includePath)
 	}
 
-	return util.GetPathRelativeTo(includePath, currentPath)
+	return files.GetPathRelativeTo(includePath, currentPath)
 }
 
 // getTerraformCommand returns the current terraform command in execution
