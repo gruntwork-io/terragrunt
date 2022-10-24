@@ -143,8 +143,13 @@ func PartialParseConfigFile(
 	include *IncludeConfig,
 	decodeList []PartialDecodeSectionType,
 ) (*TerragruntConfig, error) {
+	// Boolean to control if we're trying to parse a DependencyBlock.
+	// If true, we don't want to return if there is an error when trying to read the file
+	// as the dependency can be disabled
+	isDependencyBlock := decodeList[0] == DependencyBlock
+
 	configString, err := util.ReadFileAsString(filename)
-	if err != nil {
+	if err != nil && !isDependencyBlock {
 		return nil, err
 	}
 
@@ -193,13 +198,14 @@ func TerragruntConfigFromPartialConfigString(
 // PartialParseConfigString partially parses and decodes the provided string. Which blocks/attributes to decode is
 // controlled by the function parameter decodeList. These blocks/attributes are parsed and set on the output
 // TerragruntConfig. Valid values are:
-// - DependenciesBlock: Parses the `dependencies` block in the config
-// - DependencyBlock: Parses the `dependency` block in the config
-// - TerraformBlock: Parses the `terraform` block in the config
-// - TerragruntFlags: Parses the boolean flags `prevent_destroy` and `skip` in the config
-// - TerragruntVersionConstraints: Parses the attributes related to constraining terragrunt and terraform versions in
-//                                 the config.
-// - RemoteStateBlock: Parses the `remote_state` block in the config
+//   - DependenciesBlock: Parses the `dependencies` block in the config
+//   - DependencyBlock: Parses the `dependency` block in the config
+//   - TerraformBlock: Parses the `terraform` block in the config
+//   - TerragruntFlags: Parses the boolean flags `prevent_destroy` and `skip` in the config
+//   - TerragruntVersionConstraints: Parses the attributes related to constraining terragrunt and terraform versions in
+//     the config.
+//   - RemoteStateBlock: Parses the `remote_state` block in the config
+//
 // Note that the following blocks are always decoded:
 // - locals
 // - include
