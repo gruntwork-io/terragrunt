@@ -880,6 +880,7 @@ The `dependency` block supports the following arguments:
   name to differentiate between the other blocks, which is what the first label of the block is used for. You can
   reference the specific dependency output by the name. E.g if you had a block `dependency "vpc"`, you can reference the
   outputs of this dependency with the expression `dependency.vpc.outputs`.
+- `enabled` (attribute): When `false`, the dependency will be optional and will prevent `terragrunt` to fail if the dependency isn't applied or present on disk. Defaults to `true`.
 - `config_path` (attribute): Path to a Terragrunt module (folder with a `terragrunt.hcl` file) that should be included
   as a dependency in this configuration.
 - `skip_outputs` (attribute): When `true`, skip calling `terragrunt output` when processing this dependency. If
@@ -1057,17 +1058,27 @@ generate = local.common.generate
 
 ## Attributes
 
-- [inputs](#inputs)
-- [download_dir](#download_dir)
-- [prevent_destroy](#prevent_destroy)
-- [skip](#skip)
-- [iam_role](#iam_role)
-- [iam_assume_role_duration](#iam_assume_role_duration)
-- [iam_assume_role_session_name](#iam_assume_role_session_name)
-- [terraform_binary](#terraform_binary)
-- [terraform_version_constraint](#terraform_version_constraint)
-- [terragrunt_version_constraint](#terragrunt_version_constraint)
-- [retryable_errors](#retryable_errors)
+- [Blocks](#blocks)
+  - [terraform](#terraform)
+    - [A note about using modules from the registry](#a-note-about-using-modules-from-the-registry)
+  - [remote_state](#remote_state)
+  - [include](#include)
+  - [locals](#locals)
+  - [dependency](#dependency)
+  - [dependencies](#dependencies)
+  - [generate](#generate)
+- [Attributes](#attributes)
+  - [inputs](#inputs)
+  - [download_dir](#download_dir)
+  - [prevent_destroy](#prevent_destroy)
+  - [skip](#skip)
+  - [iam_role](#iam_role)
+  - [iam_assume_role_duration](#iam_assume_role_duration)
+  - [iam_assume_role_session_name](#iam_assume_role_session_name)
+  - [terraform_binary](#terraform_binary)
+  - [terraform_version_constraint](#terraform_version_constraint)
+  - [terragrunt_version_constraint](#terragrunt_version_constraint)
+  - [retryable_errors](#retryable_errors)
 
 
 ### inputs
