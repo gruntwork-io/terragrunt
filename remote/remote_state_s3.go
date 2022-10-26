@@ -515,7 +515,7 @@ func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConf
 	}
 
 	if !config.SkipBucketSSEncryption {
-		enabled, err := checkIfSSEForS3Enabled(s3Client, &config.remoteStateConfigS3, terragruntOptions)
+		enabled, err := checkIfSSEForS3Enabled(s3Client, config, terragruntOptions)
 		if err != nil {
 			return false, configBucket, err
 		}
@@ -1060,13 +1060,13 @@ func EnableSSEForS3BucketWide(s3Client *s3.S3, config *ExtendedRemoteStateConfig
 	return nil
 }
 
-func checkIfSSEForS3Enabled(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	terragruntOptions.Logger.Debugf("Checking if SSE is enabled for AWS S3 bucket %s", config.Bucket)
+func checkIfSSEForS3Enabled(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	terragruntOptions.Logger.Debugf("Checking if SSE is enabled for AWS S3 bucket %s", config.remoteStateConfigS3.Bucket)
 
-	input := &s3.GetBucketEncryptionInput{Bucket: aws.String(config.Bucket)}
+	input := &s3.GetBucketEncryptionInput{Bucket: aws.String(config.remoteStateConfigS3.Bucket)}
 	output, err := s3Client.GetBucketEncryption(input)
 	if err != nil {
-		terragruntOptions.Logger.Debugf("Error checking if SSE is enabled for AWS S3 bucket %s: %s", config.Bucket, err.Error())
+		terragruntOptions.Logger.Debugf("Error checking if SSE is enabled for AWS S3 bucket %s: %s", config.remoteStateConfigS3.Bucket, err.Error())
 		return false, nil
 	}
 
@@ -1077,7 +1077,7 @@ func checkIfSSEForS3Enabled(s3Client *s3.S3, config *RemoteStateConfigS3, terrag
 	for _, rule := range output.ServerSideEncryptionConfiguration.Rules {
 		if rule.ApplyServerSideEncryptionByDefault != nil {
 			if rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
-				if *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm == s3.ServerSideEncryptionAwsKms {
+				if *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm == config.BucketSSEAlgorithm {
 					return true, nil
 				}
 
