@@ -58,7 +58,7 @@ Run `terraform --help` to get the full list.
 
 ### run-all
 
-Runs the provided terraform command against a 'stack', where a 'stack' is a
+Runs the provided terraform command against a `stack`, where a `stack` is a
 tree of terragrunt modules. The command will recursively find terragrunt
 modules in the current directory tree and run the terraform command in
 dependency order (unless the command is destroy, in which case the command is
@@ -96,7 +96,7 @@ arguments passed to Terraform due to issues with shared `stdin` making individua
 
 **DEPRECATED: Use `run-all plan` instead.**
 
-Display the plans of a 'stack' by running 'terragrunt plan' in each subfolder. Make sure to read [Execute Terraform
+Display the plans of a `stack` by running `terragrunt plan` in each subfolder. Make sure to read [Execute Terraform
 commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for
 context.
 
@@ -122,7 +122,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-
 
 **DEPRECATED: Use `run-all apply` instead.**
 
-Apply a 'stack' by running 'terragrunt apply' in each subfolder. Make sure to read [Execute Terraform
+Apply a `stack` by running `terragrunt apply` in each subfolder. Make sure to read [Execute Terraform
 commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for
 context.
 
@@ -146,7 +146,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/386#issuecomment-
 
 **DEPRECATED: Use `run-all output` instead.**
 
-Display the outputs of a 'stack' by running 'terragrunt output' in each subfolder. Make sure to read [Execute Terraform
+Display the outputs of a `stack` by running `terragrunt output` in each subfolder. Make sure to read [Execute Terraform
 commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for
 context.
 
@@ -171,7 +171,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-
 
 **DEPRECATED: Use `run-all destroy` instead.**
 
-Destroy a 'stack' by running 'terragrunt destroy' in each subfolder. Make sure to read [Execute Terraform
+Destroy a `stack` by running `terragrunt destroy` in each subfolder. Make sure to read [Execute Terraform
 commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for
 context.
 
@@ -195,7 +195,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/386#issuecomment-
 
 **DEPRECATED: Use `run-all validate` instead.**
 
-Validate 'stack' by running 'terragrunt validate' in each subfolder. Make sure to read [Execute Terraform
+Validate `stack` by running `terragrunt validate` in each subfolder. Make sure to read [Execute Terraform
 commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for
 context.
 
