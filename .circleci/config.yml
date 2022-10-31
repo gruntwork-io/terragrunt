@@ -46,7 +46,7 @@ jobs:
             # transitive dependencies that are being pulled in which released new versions that are no longer compatible
             # with any python < 3.6.
             pip3 install pre-commit==1.21.0 cfgv==2.0.1 zipp==1.1.0
-            go get golang.org/x/tools/cmd/goimports
+            go install golang.org/x/tools/cmd/goimports@latest
             export GOPATH=~/go/bin && export PATH=$PATH:$GOPATH
             pre-commit install
             pre-commit run --all-files
