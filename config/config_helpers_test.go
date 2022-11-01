@@ -189,6 +189,12 @@ func TestRunCommand(t *testing.T) {
 			nil,
 		},
 		{
+			[]string{"--terragrunt-global-cache", "/bin/bash", "-c", "echo foo"},
+			terragruntOptionsForTest(t, homeDir),
+			"foo",
+			nil,
+		},
+		{
 			nil,
 			terragruntOptionsForTest(t, homeDir),
 			"",
