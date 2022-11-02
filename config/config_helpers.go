@@ -142,11 +142,19 @@ func CreateTerragruntEvalContext(
 		"get_terragrunt_source_cli_flag":               wrapVoidToStringAsFuncImpl(getTerragruntSourceCliFlag, extensions.TrackInclude, terragruntOptions),
 	}
 
+	terraformCompatibilityFunctions := map[string]function.Function{
+		"startswith": wrapStringSliceToBoolAsFuncImpl(startsWith, extensions.TrackInclude, terragruntOptions),
+		"endswith":   wrapStringSliceToBoolAsFuncImpl(endsWith, extensions.TrackInclude, terragruntOptions),
+	}
+
 	functions := map[string]function.Function{}
 	for k, v := range tfscope.Functions() {
 		functions[k] = v
 	}
 	for k, v := range terragruntFunctions {
+		functions[k] = v
+	}
+	for k, v := range terraformCompatibilityFunctions {
 		functions[k] = v
 	}
 
@@ -739,6 +747,36 @@ func getSelectedIncludeBlock(trackInclude TrackInclude, params []string) (*Inclu
 		return nil, errors.WithStackTrace(InvalidIncludeKey{name: importName})
 	}
 	return &imported, nil
+}
+
+// startsWith Implementation of Terraform's startsWith function
+func startsWith(args []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	if len(args) == 0 {
+		return false, errors.WithStackTrace(EmptyStringNotAllowed("parameter to the startswith function"))
+	}
+	str := args[0]
+	prefix := args[1]
+
+	if strings.HasPrefix(str, prefix) {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+// endsWith Implementation of Terraform's endsWith function
+func endsWith(args []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	if len(args) == 0 {
+		return false, errors.WithStackTrace(EmptyStringNotAllowed("parameter to the endswith function"))
+	}
+	str := args[0]
+	suffix := args[1]
+
+	if strings.HasSuffix(str, suffix) {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // Custom error types
