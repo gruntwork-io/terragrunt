@@ -969,6 +969,64 @@ func TestGetTerragruntSourceForModuleHappyPath(t *testing.T) {
 	}
 }
 
+func TestStartsWith(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		config *options.TerragruntOptions
+		args   []string
+		value  bool
+	}{
+		{terragruntOptionsForTest(t, ""), []string{"hello world", "hello"}, true},
+		{terragruntOptionsForTest(t, ""), []string{"hello world", "world"}, false},
+		{terragruntOptionsForTest(t, ""), []string{"hello world", ""}, true},
+		{terragruntOptionsForTest(t, ""), []string{"hello world", " "}, false},
+		{terragruntOptionsForTest(t, ""), []string{"", ""}, true},
+		{terragruntOptionsForTest(t, ""), []string{"", " "}, false},
+		{terragruntOptionsForTest(t, ""), []string{" ", ""}, true},
+		{terragruntOptionsForTest(t, ""), []string{"", "hello"}, false},
+		{terragruntOptionsForTest(t, ""), []string{" ", "hello"}, false},
+	}
+
+	for id, testCase := range testCases {
+		testCase := testCase
+		t.Run(fmt.Sprintf("%v %v", id, testCase.args), func(t *testing.T) {
+			actual, err := startsWith(testCase.args, nil, testCase.config)
+			assert.NoError(t, err)
+			assert.Equal(t, testCase.value, actual)
+		})
+	}
+}
+
+func TestEndsWith(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		config *options.TerragruntOptions
+		args   []string
+		value  bool
+	}{
+		{terragruntOptionsForTest(t, ""), []string{"hello world", "world"}, true},
+		{terragruntOptionsForTest(t, ""), []string{"hello world", "hello"}, false},
+		{terragruntOptionsForTest(t, ""), []string{"hello world", ""}, true},
+		{terragruntOptionsForTest(t, ""), []string{"hello world", " "}, false},
+		{terragruntOptionsForTest(t, ""), []string{"", ""}, true},
+		{terragruntOptionsForTest(t, ""), []string{"", " "}, false},
+		{terragruntOptionsForTest(t, ""), []string{" ", ""}, true},
+		{terragruntOptionsForTest(t, ""), []string{"", "hello"}, false},
+		{terragruntOptionsForTest(t, ""), []string{" ", "hello"}, false},
+	}
+
+	for id, testCase := range testCases {
+		testCase := testCase
+		t.Run(fmt.Sprintf("%v %v", id, testCase.args), func(t *testing.T) {
+			actual, err := endsWith(testCase.args, nil, testCase.config)
+			assert.NoError(t, err)
+			assert.Equal(t, testCase.value, actual)
+		})
+	}
+}
+
 func mockConfigWithSource(sourceUrl string) *TerragruntConfig {
 	cfg := TerragruntConfig{IsPartial: true}
 	cfg.Terraform = &TerraformConfig{Source: &sourceUrl}
