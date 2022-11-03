@@ -142,6 +142,8 @@ func CreateTerragruntEvalContext(
 		"get_terragrunt_source_cli_flag":               wrapVoidToStringAsFuncImpl(getTerragruntSourceCliFlag, extensions.TrackInclude, terragruntOptions),
 	}
 
+	// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
+	// https://github.com/gruntwork-io/terragrunt/blob/master/go.mod#L22
 	terraformCompatibilityFunctions := map[string]function.Function{
 		"startswith": wrapStringSliceToBoolAsFuncImpl(startsWith, extensions.TrackInclude, terragruntOptions),
 		"endswith":   wrapStringSliceToBoolAsFuncImpl(endsWith, extensions.TrackInclude, terragruntOptions),
