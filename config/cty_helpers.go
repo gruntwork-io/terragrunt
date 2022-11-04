@@ -38,6 +38,28 @@ func wrapStringSliceToStringAsFuncImpl(
 	})
 }
 
+func wrapStringSliceToBoolAsFuncImpl(
+	toWrap func(params []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (bool, error),
+	trackInclude *TrackInclude,
+	terragruntOptions *options.TerragruntOptions,
+) function.Function {
+	return function.New(&function.Spec{
+		VarParam: &function.Parameter{Type: cty.String},
+		Type:     function.StaticReturnType(cty.Bool),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			params, err := ctySliceToStringSlice(args)
+			if err != nil {
+				return cty.BoolVal(false), err
+			}
+			out, err := toWrap(params, trackInclude, terragruntOptions)
+			if err != nil {
+				return cty.BoolVal(false), err
+			}
+			return cty.BoolVal(out), nil
+		},
+	})
+}
+
 // Create a cty Function that takes no input parameters and returns as output a string. The implementation of the
 // function calls the given toWrap function, passing it the given include and terragruntOptions.
 func wrapVoidToStringAsFuncImpl(

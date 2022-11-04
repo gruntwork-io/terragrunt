@@ -131,6 +131,8 @@ const (
 	TEST_FIXTURE_BROKEN_DEPENDENCY                          = "fixture-broken-dependency"
 	TEST_FIXTURE_RENDER_JSON_METADATA                       = "fixture-render-json-metadata"
 	TEST_FIXTURE_RENDER_JSON_MOCK_OUTPUTS                   = "fixture-render-json-mock-outputs"
+	TEST_FIXTURE_STARTSWITH                                 = "fixture-startswith"
+	TEST_FIXTURE_ENDSWITH                                   = "fixture-endswith"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -5020,4 +5022,77 @@ func TestTerragruntRenderJsonHelp(t *testing.T) {
 
 	assert.Contains(t, output, "Usage: terragrunt render-json [OPTIONS]")
 	assert.Contains(t, output, "--with-metadata")
+}
+
+func TestStartsWith(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_STARTSWITH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_STARTSWITH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_STARTSWITH)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	validateBoolOutput(t, outputs, "startswith1", true)
+	validateBoolOutput(t, outputs, "startswith2", false)
+	validateBoolOutput(t, outputs, "startswith3", true)
+	validateBoolOutput(t, outputs, "startswith4", false)
+	validateBoolOutput(t, outputs, "startswith5", true)
+	validateBoolOutput(t, outputs, "startswith6", false)
+	validateBoolOutput(t, outputs, "startswith7", true)
+	validateBoolOutput(t, outputs, "startswith8", false)
+	validateBoolOutput(t, outputs, "startswith9", false)
+}
+
+func TestEndsWith(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_ENDSWITH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_ENDSWITH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_ENDSWITH)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	validateBoolOutput(t, outputs, "endswith1", true)
+	validateBoolOutput(t, outputs, "endswith2", false)
+	validateBoolOutput(t, outputs, "endswith3", true)
+	validateBoolOutput(t, outputs, "endswith4", false)
+	validateBoolOutput(t, outputs, "endswith5", true)
+	validateBoolOutput(t, outputs, "endswith6", false)
+	validateBoolOutput(t, outputs, "endswith7", true)
+	validateBoolOutput(t, outputs, "endswith8", false)
+	validateBoolOutput(t, outputs, "endswith9", false)
+}
+
+func validateBoolOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value bool) {
+	t.Helper()
+	output, hasPlatform := outputs[key]
+	require.Truef(t, hasPlatform, "Expected output %s to be defined", key)
+	require.Equalf(t, output.Value, value, "Expected output %s to be %t", key, value)
 }
