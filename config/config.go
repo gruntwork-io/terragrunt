@@ -560,6 +560,11 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 		}
 
 		if isTerragruntModule {
+			// Skip Module if search file is not found in layer
+			if terragruntOptions.LayerHasFile != "" && !util.FileExists(path+terragruntOptions.LayerHasFile) {
+				return nil
+			}
+
 			configFiles = append(configFiles, GetDefaultConfigPath(path))
 		}
 

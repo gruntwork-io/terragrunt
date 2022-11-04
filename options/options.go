@@ -153,6 +153,9 @@ type TerragruntOptions struct {
 	// Unix-style glob of directories to include when running *-all commands
 	IncludeDirs []string
 
+	// LayerHasFile is files that must exist in the current layer to be considered a valid layer
+	LayerHasFile string
+
 	// If set to true, do not include dependencies when processing IncludeDirs (unless they are in the included dirs)
 	StrictInclude bool
 
@@ -262,6 +265,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		IgnoreDependencyOrder:          false,
 		IgnoreExternalDependencies:     false,
 		IncludeExternalDependencies:    false,
+		LayerHasFile:                   "",
 		Writer:                         os.Stdout,
 		ErrWriter:                      os.Stderr,
 		MaxFoldersToCheck:              DEFAULT_MAX_FOLDERS_TO_CHECK,

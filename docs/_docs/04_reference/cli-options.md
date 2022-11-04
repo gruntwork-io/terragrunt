@@ -486,6 +486,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-iam-assume-role-session-name](#terragrunt-iam-assume-role-session-name)
 - [terragrunt-exclude-dir](#terragrunt-exclude-dir)
 - [terragrunt-include-dir](#terragrunt-include-dir)
+- [terragrunt-layer-has-file](#terragrunt-layer-has-file)
 - [terragrunt-strict-include](#terragrunt-strict-include)
 - [terragrunt-strict-validate](#terragrunt-strict-validate)
 - [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
@@ -709,6 +710,14 @@ Can be supplied multiple times: `--terragrunt-include-dir /path/to/dirs/to/inclu
 Unix-style glob of directories to include when running `*-all` commands. Only modules under these directories (and all
 dependent modules) will be included during execution of the commands. If a relative path is specified, it should be
 relative from `--terragrunt-working-dir`. Flag can be specified multiple times.
+
+
+### terragrunt-layer-has-file
+
+**CLI Arg**: `--terragrunt-layer-has-file`<br/>
+**Requires an argument**: `--terragrunt-layer-has-file /path/to/file`
+
+When passed in, only run the command on the modules that have the specified file.
 
 
 ### terragrunt-strict-include
