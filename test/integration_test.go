@@ -100,6 +100,7 @@ const (
 	TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES_ERROR_2    = "fixture-auto-retry/configurable-retries-incorrect-sleep-interval"
 	TEST_FIXTURE_AWS_PROVIDER_PATCH                         = "fixture-aws-provider-patch"
 	TEST_FIXTURE_INPUTS                                     = "fixture-inputs"
+	TEST_FIXTURE_LAYER_HAS_FILE                             = "fixture-layer-has-file"
 	TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL               = "fixture-locals-errors/undefined-local"
 	TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL_BUT_INPUT     = "fixture-locals-errors/undefined-local-but-input"
 	TEST_FIXTURE_LOCALS_CANONICAL                           = "fixture-locals/canonical"
@@ -744,6 +745,29 @@ digraph {
 }
 	`)))
 }
+
+
+func TestTerragruntLayerHasFile(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_LAYER_HAS_FILE)
+
+	environmentPath := fmt.Sprintf("%s/%s", tmpEnvPath, TEST_FIXTURE_LAYER_HAS_FILE)
+	layerhasfile := "/vars/vars-d.tfvars"
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt graph-dependencies --terragrunt-working-dir %s --terragrunt-layer-has-file %s", environmentPath, layerhasfile), &stdout, &stderr)
+	output := stdout.String()
+	assert.True(t, strings.Contains(output, strings.TrimSpace(`
+digraph {
+	"module-a" ;
+}
+	`)))
+}
+
 
 func TestTerragruntRunAllCommand(t *testing.T) {
 	t.Parallel()
