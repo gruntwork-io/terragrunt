@@ -153,7 +153,7 @@ type TerragruntOptions struct {
 	// Unix-style glob of directories to include when running *-all commands
 	IncludeDirs []string
 
-	// LayerHasFile is files that must exist in the current layer to be considered a valid layer
+	// File that must exist in the current layer to be considered valid
 	LayerHasFile string
 
 	// If set to true, do not include dependencies when processing IncludeDirs (unless they are in the included dirs)
