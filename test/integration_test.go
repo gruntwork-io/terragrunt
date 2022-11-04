@@ -746,14 +746,13 @@ digraph {
 	`)))
 }
 
-
 func TestTerragruntLayerHasFile(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_LAYER_HAS_FILE)
 
 	environmentPath := fmt.Sprintf("%s/%s", tmpEnvPath, TEST_FIXTURE_LAYER_HAS_FILE)
-	layerhasfile := "/vars/vars-d.tfvars"
+	layerhasfile := "/vars/find-this-var.tfvars"
 
 	var (
 		stdout bytes.Buffer
@@ -767,7 +766,6 @@ digraph {
 }
 	`)))
 }
-
 
 func TestTerragruntRunAllCommand(t *testing.T) {
 	t.Parallel()
