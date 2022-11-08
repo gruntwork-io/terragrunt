@@ -2,6 +2,7 @@ package util
 
 import (
 	"encoding/gob"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -9,11 +10,11 @@ import (
 	"regexp"
 	"strings"
 
-	"fmt"
-
-	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/go-commons/files"
 	"github.com/mattn/go-zglob"
 	homedir "github.com/mitchellh/go-homedir"
+
+	"github.com/gruntwork-io/terragrunt/errors"
 )
 
 const TerraformLockFile = ".terraform.lock.hcl"
@@ -133,33 +134,6 @@ func IsFile(path string) bool {
 	return err == nil && !fileInfo.IsDir()
 }
 
-// Return the relative path you would have to take to get from basePath to path
-func GetPathRelativeTo(path string, basePath string) (string, error) {
-	if path == "" {
-		path = "."
-	}
-	if basePath == "" {
-		basePath = "."
-	}
-
-	inputFolderAbs, err := filepath.Abs(basePath)
-	if err != nil {
-		return "", errors.WithStackTrace(err)
-	}
-
-	fileAbs, err := filepath.Abs(path)
-	if err != nil {
-		return "", errors.WithStackTrace(err)
-	}
-
-	relPath, err := filepath.Rel(inputFolderAbs, fileAbs)
-	if err != nil {
-		return "", errors.WithStackTrace(err)
-	}
-
-	return filepath.ToSlash(relPath), nil
-}
-
 // Return the contents of the file at the given path as a string
 func ReadFileAsString(path string) (string, error) {
 	bytes, err := ioutil.ReadFile(path)
@@ -191,7 +165,7 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 		if strings.Contains(absoluteExpandGlobPath, ".terragrunt-cache") {
 			continue
 		}
-		relativeExpandGlobPath, err := GetPathRelativeTo(absoluteExpandGlobPath, source)
+		relativeExpandGlobPath, err := files.GetPathRelativeTo(absoluteExpandGlobPath, source)
 		if err != nil {
 			return nil, err
 		}
@@ -224,7 +198,7 @@ func CopyFolderContents(source, destination, manifestFile string, includeInCopy 
 	}
 
 	return CopyFolderContentsWithFilter(source, destination, manifestFile, func(absolutePath string) bool {
-		relativePath, err := GetPathRelativeTo(absolutePath, source)
+		relativePath, err := files.GetPathRelativeTo(absolutePath, source)
 		if err == nil && listContainsElementWithPrefix(includeExpandedGlobs, relativePath) {
 			return true
 		}
@@ -251,13 +225,13 @@ func CopyFolderContentsWithFilter(source, destination, manifestFile string, filt
 	// Why use filepath.Glob here? The original implementation used ioutil.ReadDir, but that method calls lstat on all
 	// the files/folders in the directory, including files/folders you may want to explicitly skip. The next attempt
 	// was to use filepath.Walk, but that doesn't work because it ignores symlinks. So, now we turn to filepath.Glob.
-	files, err := filepath.Glob(fmt.Sprintf("%s/*", source))
+	allFiles, err := filepath.Glob(fmt.Sprintf("%s/*", source))
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	for _, file := range files {
-		fileRelativePath, err := GetPathRelativeTo(file, source)
+	for _, file := range allFiles {
+		fileRelativePath, err := files.GetPathRelativeTo(file, source)
 		if err != nil {
 			return err
 		}
