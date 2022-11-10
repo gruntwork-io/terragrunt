@@ -218,7 +218,7 @@ collections:
 5. Add `index.html` file to newly create folder:
 ```
 ---
-layout: collection-browser # DO NOT CAHNGE THIS
+layout: collection-browser # DO NOT CHANGE THIS
 title: Use cases
 subtitle: Learn how to integrate Terragrunt with Terraform.
 excerpt: Learn how to integrate Terragrunt with Terraform.
@@ -293,7 +293,7 @@ The _index_ page displays the list of collection's docs. Clicking on any of them
 
 #### config.yml
 
-Collections are registred in the `_config.yml` file like other typical Jekyll collections.
+Collections are registered in the `_config.yml` file like other typical Jekyll collections.
 Additional field used in the configuration is: `sort_by: order`. It ensures that collection's documents are displayed in the right order.
 The `order` is set then in every collection document. For large collections it's recommended to split files into several folders, and then to use 3-digit numbers. So each folder would have reserved range of numbers, like: `100 - 199`, `200-299`, etc. It makes easy to add new documents without overwriting `order` fields in other docs.
 
