@@ -142,11 +142,21 @@ func CreateTerragruntEvalContext(
 		"get_terragrunt_source_cli_flag":               wrapVoidToStringAsFuncImpl(getTerragruntSourceCliFlag, extensions.TrackInclude, terragruntOptions),
 	}
 
+	// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
+	// https://github.com/gruntwork-io/terragrunt/blob/master/go.mod#L22
+	terraformCompatibilityFunctions := map[string]function.Function{
+		"startswith": wrapStringSliceToBoolAsFuncImpl(startsWith, extensions.TrackInclude, terragruntOptions),
+		"endswith":   wrapStringSliceToBoolAsFuncImpl(endsWith, extensions.TrackInclude, terragruntOptions),
+	}
+
 	functions := map[string]function.Function{}
 	for k, v := range tfscope.Functions() {
 		functions[k] = v
 	}
 	for k, v := range terragruntFunctions {
+		functions[k] = v
+	}
+	for k, v := range terraformCompatibilityFunctions {
 		functions[k] = v
 	}
 
@@ -633,14 +643,14 @@ func getModulePathFromSourceUrl(sourceUrl string) (string, error) {
 }
 
 //
-// A map that caches the results of a decrypt operation via sops. Each decryption
+// A cache of the results of a decrypt operation via sops. Each decryption
 // operation can take several seconds, so this cache speeds up terragrunt executions
 // where the same sops files are referenced multiple times.
 //
-// The keys are the canonical paths to the encrypted files, and the values are the
+// The cache keys are the canonical paths to the encrypted files, and the values are the
 // plain-text result of the decrypt operation.
 //
-var sopsCache = make(map[string]string)
+var sopsCache = NewStringCache()
 
 // decrypts and returns sops encrypted utf-8 yaml or json data as a string
 func sopsDecryptFile(params []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (string, error) {
@@ -663,7 +673,7 @@ func sopsDecryptFile(params []string, trackInclude *TrackInclude, terragruntOpti
 		return "", errors.WithStackTrace(err)
 	}
 
-	if val, ok := sopsCache[canonicalSourceFile]; ok {
+	if val, ok := sopsCache.Get(canonicalSourceFile); ok {
 		return val, nil
 	}
 
@@ -674,7 +684,7 @@ func sopsDecryptFile(params []string, trackInclude *TrackInclude, terragruntOpti
 
 	if utf8.Valid(rawData) {
 		value := string(rawData)
-		sopsCache[canonicalSourceFile] = value
+		sopsCache.Put(canonicalSourceFile, value)
 		return value, nil
 	}
 
@@ -739,6 +749,36 @@ func getSelectedIncludeBlock(trackInclude TrackInclude, params []string) (*Inclu
 		return nil, errors.WithStackTrace(InvalidIncludeKey{name: importName})
 	}
 	return &imported, nil
+}
+
+// startsWith Implementation of Terraform's startsWith function
+func startsWith(args []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	if len(args) == 0 {
+		return false, errors.WithStackTrace(EmptyStringNotAllowed("parameter to the startswith function"))
+	}
+	str := args[0]
+	prefix := args[1]
+
+	if strings.HasPrefix(str, prefix) {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+// endsWith Implementation of Terraform's endsWith function
+func endsWith(args []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	if len(args) == 0 {
+		return false, errors.WithStackTrace(EmptyStringNotAllowed("parameter to the endswith function"))
+	}
+	str := args[0]
+	suffix := args[1]
+
+	if strings.HasSuffix(str, suffix) {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // Custom error types

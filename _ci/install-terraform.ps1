@@ -8,8 +8,8 @@ if (Test-Path -Path $TerraformInstallPath)
 	Remove-Item $TerraformInstallPath -Recurse
 }
 # Download terraform and unpack it
-$terraformURI = "https://releases.hashicorp.com/terraform/1.0.4/terraform_1.0.4_windows_amd64.zip"
-$output = "terraform.1.0.4.zip"
+$terraformURI = "https://releases.hashicorp.com/terraform/1.3.2/terraform_1.3.2_windows_amd64.zip"
+$output = "terraform.1.3.2.zip"
 $ProgressPreference = "SilentlyContinue"
 Invoke-WebRequest -Uri $terraformURI -OutFile $output
 New-Item -ItemType "directory" -Path $TerraformTmpPath
