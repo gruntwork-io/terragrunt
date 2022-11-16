@@ -313,7 +313,6 @@ func (deps *ModuleDependencies) String() string {
 }
 
 // Hook specifies terraform commands (apply/plan) and array of os commands to execute
-// MARINA THIS IS IMPORTANT
 type Hook struct {
 	Name       string   `hcl:"name,label" cty:"name"`
 	Commands   []string `hcl:"commands,attr" cty:"commands"`

@@ -669,7 +669,6 @@ func processErrorHooks(hooks []config.ErrorHook, terragruntOptions *options.Terr
 	return errorsOccured.ErrorOrNil()
 }
 
-// MARINA hooks are processed here. Should it go all this way the tflint code?
 func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOptions, previousExecErrors *multierror.Error) error {
 	if len(hooks) == 0 {
 		return nil
@@ -691,7 +690,6 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 			actionToExecute := curHook.Execute[0]
 			actionParams := curHook.Execute[1:]
 
-			// MARINA all hooks are processed as shell commands.... so.... if tflint?
 			if actionToExecute == "tflint" {
 				actionParams := curHook.Execute[0:]
 
