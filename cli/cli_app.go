@@ -359,7 +359,7 @@ func runCommand(command string, terragruntOptions *options.TerragruntOptions) (f
 	if command == "destroy" {
 		terragruntOptions.CheckDependentModules = true
 	}
-	return RunTerragrunt(terragruntOptions) // HERE IT ALL STARTS
+	return RunTerragrunt(terragruntOptions)
 }
 
 // Downloads terraform source if necessary, then runs terraform with the given options and CLI args.
