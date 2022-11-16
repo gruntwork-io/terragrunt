@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/tflint"
 	"io"
 	"os"
 	"regexp"
@@ -358,7 +359,7 @@ func runCommand(command string, terragruntOptions *options.TerragruntOptions) (f
 	if command == "destroy" {
 		terragruntOptions.CheckDependentModules = true
 	}
-	return RunTerragrunt(terragruntOptions)
+	return RunTerragrunt(terragruntOptions) // HERE IT ALL STARTS
 }
 
 // Downloads terraform source if necessary, then runs terraform with the given options and CLI args.
@@ -668,6 +669,7 @@ func processErrorHooks(hooks []config.ErrorHook, terragruntOptions *options.Terr
 	return errorsOccured.ErrorOrNil()
 }
 
+// MARINA hooks are processed here. Should it go all this way the tflint code?
 func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOptions, previousExecErrors *multierror.Error) error {
 	if len(hooks) == 0 {
 		return nil
@@ -688,16 +690,27 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 
 			actionToExecute := curHook.Execute[0]
 			actionParams := curHook.Execute[1:]
-			_, possibleError := shell.RunShellCommandWithOutput(
-				terragruntOptions,
-				workingDir,
-				false,
-				false,
-				actionToExecute, actionParams...,
-			)
-			if possibleError != nil {
-				terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
-				errorsOccured = multierror.Append(errorsOccured, possibleError)
+
+			// MARINA all hooks are processed as shell commands.... so.... if tflint?
+			if actionToExecute == "tflint" {
+				actionParams := curHook.Execute[0:]
+
+				err := tflint.RunTflintWithOpts(terragruntOptions, actionParams)
+				if err != nil {
+					multierror.Append(errorsOccured, err)
+				}
+			} else {
+				_, possibleError := shell.RunShellCommandWithOutput(
+					terragruntOptions,
+					workingDir,
+					false,
+					false,
+					actionToExecute, actionParams...,
+				)
+				if possibleError != nil {
+					terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
+					errorsOccured = multierror.Append(errorsOccured, possibleError)
+				}
 			}
 
 		}
@@ -1030,7 +1043,7 @@ func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 //
 // If terraformSource is specified, then arguments to download the terraform source will be appended to the init command.
 //
-// This method will return an error and NOT run terraform init if the user has disabled Auto-Init
+// # This method will return an error and NOT run terraform init if the user has disabled Auto-Init
 //
 // This method takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
 // and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
