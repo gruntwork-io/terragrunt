@@ -26,4 +26,5 @@ $NewPath = "$OldPath;$TerraformPath"
 # in the current PowerShell session
 $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
 # Verify installation
+Get-Command terraform
 terraform version
