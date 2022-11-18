@@ -1,4 +1,4 @@
-# Usage of Chocolatey to install golang
+# Install golang using Chocolatey
 choco install golang --version 1.18.5 -y
 # Verify installation
 Get-Command go

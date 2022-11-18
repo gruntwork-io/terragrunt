@@ -27,6 +27,8 @@ jobs:
           shell: powershell.exe
           no_output_timeout: 45m
           command: |
+            go version
+            terraform version
             # We're running this test only on Windows currently to provide a convenient
             # means of reproducing Terragrunt issues that only occur on that platform
             go test -v ./... -run TestWindowsTerragruntSourceMapDebug -timeout 45m
