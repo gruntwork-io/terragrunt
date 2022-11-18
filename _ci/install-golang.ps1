@@ -1,5 +1,7 @@
 # remove the old go installation
-Remove-Item "C:\Go" -Recurse
+if (test-path "C:\Go") {
+    Remove-Item "C:\Go" -Recurse
+}
 # Download golang, unpack it, and then update the PATH to include gobin
 $golangURI = "https://golang.org/dl/go1.18.8.windows-amd64.zip"
 $output = "go1.18.8.zip"
