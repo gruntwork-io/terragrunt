@@ -432,7 +432,7 @@ func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 	if bucketUpdatesRequired.SSEEncryption {
 		if config.SkipBucketSSEncryption {
 			terragruntOptions.Logger.Debugf("Server-Side Encryption is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", config.remoteStateConfigS3.Bucket)
-		} else if err := EnableSSEForS3BucketWide(s3Client, config, terragruntOptions); err != nil {
+		} else if err := EnableSSEForS3BucketWide(s3Client, config.remoteStateConfigS3.Bucket, config, terragruntOptions); err != nil {
 			return err
 		}
 	}
@@ -448,7 +448,7 @@ func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 	if bucketUpdatesRequired.EnforcedTLS {
 		if config.SkipBucketEnforcedTLS {
 			terragruntOptions.Logger.Debugf("Enforced TLS is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_enforced_tls' config.", config.remoteStateConfigS3.Bucket)
-		} else if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, config, terragruntOptions); err != nil {
+		} else if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, config.remoteStateConfigS3.Bucket, config, terragruntOptions); err != nil {
 			return err
 		}
 	}
@@ -472,6 +472,15 @@ func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 				if err := EnableAccessLoggingForS3BucketWide(s3Client, &config.remoteStateConfigS3, terragruntOptions, config.AccessLoggingBucketName, config.AccessLoggingTargetPrefix); err != nil {
 					return err
 				}
+
+				if err := EnableSSEForS3BucketWide(s3Client, config.AccessLoggingBucketName, config, terragruntOptions); err != nil {
+					return err
+				}
+
+				if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, config.AccessLoggingBucketName, config, terragruntOptions); err != nil {
+					return err
+				}
+
 			} else {
 				terragruntOptions.Logger.Debugf("Access Logging is disabled for the remote state AWS S3 bucket %s", config.remoteStateConfigS3.Bucket)
 			}
@@ -628,7 +637,7 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 
 	if config.SkipBucketEnforcedTLS {
 		terragruntOptions.Logger.Debugf("TLS enforcement is disabled for the remote state S3 bucket %s using 'skip_bucket_enforced_tls' config.", config.remoteStateConfigS3.Bucket)
-	} else if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, config, terragruntOptions); err != nil {
+	} else if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, config.remoteStateConfigS3.Bucket, config, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -650,7 +659,7 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 
 	if config.SkipBucketSSEncryption {
 		terragruntOptions.Logger.Debugf("Server-Side Encryption is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", config.remoteStateConfigS3.Bucket)
-	} else if err := EnableSSEForS3BucketWide(s3Client, config, terragruntOptions); err != nil {
+	} else if err := EnableSSEForS3BucketWide(s3Client, config.remoteStateConfigS3.Bucket, config, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -671,6 +680,14 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 		}
 
 		if err := EnableAccessLoggingForS3BucketWide(s3Client, &config.remoteStateConfigS3, terragruntOptions, config.AccessLoggingBucketName, config.AccessLoggingTargetPrefix); err != nil {
+			return err
+		}
+
+		if err := EnableSSEForS3BucketWide(s3Client, config.AccessLoggingBucketName, config, terragruntOptions); err != nil {
+			return err
+		}
+
+		if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, config.AccessLoggingBucketName, config, terragruntOptions); err != nil {
 			return err
 		}
 	} else {
@@ -885,8 +902,7 @@ func checkIfBucketRootAccess(s3Client *s3.S3, config *RemoteStateConfigS3, terra
 }
 
 // Add a policy to enforce TLS based access to the bucket
-func EnableEnforcedTLSAccesstoS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	bucket := config.remoteStateConfigS3.Bucket
+func EnableEnforcedTLSAccesstoS3Bucket(s3Client *s3.S3, bucket string, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Debugf("Enabling enforced TLS access for S3 bucket %s", bucket)
 
 	partition, err := aws_helper.GetAWSPartition(config.GetAwsSessionConfig(), terragruntOptions)
@@ -1017,8 +1033,8 @@ func EnableVersioningForS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, t
 }
 
 // Enable bucket-wide Server-Side Encryption for the AWS S3 bucket specified in the given config
-func EnableSSEForS3BucketWide(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Debugf("Enabling bucket-wide SSE on AWS S3 bucket %s", config.remoteStateConfigS3.Bucket)
+func EnableSSEForS3BucketWide(s3Client *s3.S3, bucketName string, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Debugf("Enabling bucket-wide SSE on AWS S3 bucket %s", bucketName)
 
 	accountID, err := aws_helper.GetAWSAccountID(config.GetAwsSessionConfig(), terragruntOptions)
 	if err != nil {
@@ -1049,14 +1065,14 @@ func EnableSSEForS3BucketWide(s3Client *s3.S3, config *ExtendedRemoteStateConfig
 	rule := &s3.ServerSideEncryptionRule{ApplyServerSideEncryptionByDefault: defEnc}
 	rules := []*s3.ServerSideEncryptionRule{rule}
 	serverConfig := &s3.ServerSideEncryptionConfiguration{Rules: rules}
-	input := &s3.PutBucketEncryptionInput{Bucket: aws.String(config.remoteStateConfigS3.Bucket), ServerSideEncryptionConfiguration: serverConfig}
+	input := &s3.PutBucketEncryptionInput{Bucket: aws.String(bucketName), ServerSideEncryptionConfiguration: serverConfig}
 
 	_, err = s3Client.PutBucketEncryption(input)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	terragruntOptions.Logger.Debugf("Enabled bucket-wide SSE on AWS S3 bucket %s", config.remoteStateConfigS3.Bucket)
+	terragruntOptions.Logger.Debugf("Enabled bucket-wide SSE on AWS S3 bucket %s", bucketName)
 	return nil
 }
 
