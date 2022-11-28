@@ -363,6 +363,12 @@ func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3, terragruntOpt
 		terragruntOptions.Logger.Warnf("Encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enabling encryption!", config.Bucket)
 	}
 
+	if extendedConfig.AccessLoggingBucketName != "" && extendedConfig.BucketSSEAlgorithm != s3.ServerSideEncryptionAes256 {
+		return errors.WithStackTrace(InvalidAccessLoggingBucketEncryption{
+			BucketSSEAlgorithm: extendedConfig.BucketSSEAlgorithm,
+		})
+	}
+
 	return nil
 }
 
@@ -1346,4 +1352,12 @@ type MaxRetriesWaitingForS3ACLExceeded string
 
 func (err MaxRetriesWaitingForS3ACLExceeded) Error() string {
 	return fmt.Sprintf("Exceeded max retries waiting for bucket S3 bucket %s to have proper ACL for access logging", string(err))
+}
+
+type InvalidAccessLoggingBucketEncryption struct {
+	BucketSSEAlgorithm string
+}
+
+func (err InvalidAccessLoggingBucketEncryption) Error() string {
+	return fmt.Sprintf("Encryption algorithm %s is not supported for access logging bucket. Please use AES256", err.BucketSSEAlgorithm)
 }
