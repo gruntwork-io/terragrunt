@@ -609,7 +609,7 @@ func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGiven
 	for _, rule := range encryptionConfig.ServerSideEncryptionConfiguration.Rules {
 		if rule.ApplyServerSideEncryptionByDefault != nil {
 			if rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
-				assert.Equal(t, *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm, s3.ServerSideEncryptionAwsKms)
+				assert.Equal(t, s3.ServerSideEncryptionAes256, *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
 			}
 		}
 	}
