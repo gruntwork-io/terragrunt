@@ -661,6 +661,28 @@ func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithDefau
 	assert.Equal(t, remote.DefaultS3BucketAccessLoggingTargetPrefix, targetLoggingBucketPrefix)
 }
 
+func TestTerragruntFailWithInvalidLoggingConfiguration(t *testing.T) {
+	t.Parallel()
+
+	examplePath := filepath.Join(TEST_FIXTURE_REGRESSIONS, "accesslogging-bucket/invlid-configuration")
+	cleanupTerraformFolder(t, examplePath)
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+
+	tmpTerragruntConfigPath := createTmpTerragruntConfig(
+		t,
+		examplePath,
+		s3BucketName,
+		lockTableName,
+		"remote_terragrunt.hcl",
+	)
+
+	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, examplePath))
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), s3.ServerSideEncryptionAes256)
+}
+
 func TestTerragruntWorksWithGCSBackend(t *testing.T) {
 	t.Parallel()
 
