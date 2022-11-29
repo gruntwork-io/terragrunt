@@ -877,6 +877,16 @@ func TestReadTerragruntConfigRemoteState(t *testing.T) {
 		configMap["s3_bucket_tags"].(map[string]interface{}),
 		map[string]interface{}{"owner": "terragrunt integration test", "name": "Terraform state storage"},
 	)
+	assert.Equal(
+		t,
+		configMap["dynamodb_table_tags"].(map[string]interface{}),
+		map[string]interface{}{"owner": "terragrunt integration test", "name": "Terraform lock table"},
+	)
+	assert.Equal(
+		t,
+		configMap["accesslogging_bucket_tags"].(map[string]interface{}),
+		map[string]interface{}{"owner": "terragrunt integration test", "name": "Terraform access log storage"},
+	)
 }
 
 func TestReadTerragruntConfigHooks(t *testing.T) {

@@ -79,6 +79,12 @@ func TestConfigValuesEqual(t *testing.T) {
 			true,
 		},
 		{
+			"equal-ignore-accesslogging-bucket-tags",
+			map[string]interface{}{"accesslogging_bucket_tags": []map[string]string{{"foo": "bar"}}},
+			&TerraformBackend{Type: "s3", Config: map[string]interface{}{}},
+			true,
+		},
+		{
 			"unequal-wrong-backend",
 			map[string]interface{}{"foo": "bar"},
 			&TerraformBackend{Type: "wrong", Config: map[string]interface{}{"foo": "bar"}},
@@ -274,6 +280,7 @@ func TestGetTerraformInitArgs(t *testing.T) {
 			map[string]interface{}{
 				"s3_bucket_tags":                     map[string]string{},
 				"dynamodb_table_tags":                map[string]string{},
+				"accesslogging_bucket_tags":          map[string]string{},
 				"skip_bucket_versioning":             true,
 				"skip_bucket_ssencryption":           false,
 				"skip_bucket_root_access":            false,
