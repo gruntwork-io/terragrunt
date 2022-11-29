@@ -657,30 +657,20 @@ func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithDefau
 	targetLoggingBucket := terraws.GetS3BucketLoggingTarget(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 	targetLoggingBucketPrefix := terraws.GetS3BucketLoggingTargetPrefix(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 
+	encryptionConfig, err := bucketEncryption(t, TERRAFORM_REMOTE_STATE_S3_REGION, targetLoggingBucket)
+	assert.NoError(t, err)
+	assert.NotNil(t, encryptionConfig)
+	assert.NotNil(t, encryptionConfig.ServerSideEncryptionConfiguration)
+	for _, rule := range encryptionConfig.ServerSideEncryptionConfiguration.Rules {
+		if rule.ApplyServerSideEncryptionByDefault != nil {
+			if rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
+				assert.Equal(t, s3.ServerSideEncryptionAes256, *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
+			}
+		}
+	}
+
 	assert.Equal(t, s3BucketLogsName, targetLoggingBucket)
 	assert.Equal(t, remote.DefaultS3BucketAccessLoggingTargetPrefix, targetLoggingBucketPrefix)
-}
-
-func TestTerragruntFailWithInvalidLoggingConfiguration(t *testing.T) {
-	t.Parallel()
-
-	examplePath := filepath.Join(TEST_FIXTURE_REGRESSIONS, "accesslogging-bucket/invlid-configuration")
-	cleanupTerraformFolder(t, examplePath)
-
-	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
-
-	tmpTerragruntConfigPath := createTmpTerragruntConfig(
-		t,
-		examplePath,
-		s3BucketName,
-		lockTableName,
-		"remote_terragrunt.hcl",
-	)
-
-	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, examplePath))
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), s3.ServerSideEncryptionAes256)
 }
 
 func TestTerragruntWorksWithGCSBackend(t *testing.T) {
