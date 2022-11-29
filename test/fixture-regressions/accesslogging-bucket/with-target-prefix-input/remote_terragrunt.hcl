@@ -14,5 +14,6 @@ remote_state {
     enable_lock_table_ssencryption = true
     accesslogging_bucket_name = "__FILL_IN_LOGS_BUCKET_NAME__"
     accesslogging_target_prefix = "logs/"
+    bucket_sse_algorithm = "AES256"
   }
 }
