@@ -435,7 +435,7 @@ func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 	if bucketUpdatesRequired.SSEEncryption {
 		if config.SkipBucketSSEncryption {
 			terragruntOptions.Logger.Debugf("Server-Side Encryption is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", config.remoteStateConfigS3.Bucket)
-		} else if err := EnableSSEForS3BucketWide(s3Client, fetchEncryptionAlgorithm(config), config.remoteStateConfigS3.Bucket, config, terragruntOptions); err != nil {
+		} else if err := EnableSSEForS3BucketWide(s3Client, config.remoteStateConfigS3.Bucket, fetchEncryptionAlgorithm(config), config, terragruntOptions); err != nil {
 			return err
 		}
 	}
@@ -477,7 +477,7 @@ func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 				}
 
 				if !config.SkipBucketSSEncryption {
-					if err := EnableSSEForS3BucketWide(s3Client, s3.ServerSideEncryptionAes256, config.AccessLoggingBucketName, config, terragruntOptions); err != nil {
+					if err := EnableSSEForS3BucketWide(s3Client, config.AccessLoggingBucketName, s3.ServerSideEncryptionAes256, config, terragruntOptions); err != nil {
 						return err
 					}
 				}
@@ -664,7 +664,7 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 
 	if config.SkipBucketSSEncryption {
 		terragruntOptions.Logger.Debugf("Server-Side Encryption is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", config.remoteStateConfigS3.Bucket)
-	} else if err := EnableSSEForS3BucketWide(s3Client, fetchEncryptionAlgorithm(config), config.remoteStateConfigS3.Bucket, config, terragruntOptions); err != nil {
+	} else if err := EnableSSEForS3BucketWide(s3Client, config.remoteStateConfigS3.Bucket, fetchEncryptionAlgorithm(config), config, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -689,7 +689,7 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 		}
 
 		if !config.SkipBucketSSEncryption {
-			if err := EnableSSEForS3BucketWide(s3Client, s3.ServerSideEncryptionAes256, config.AccessLoggingBucketName, config, terragruntOptions); err != nil {
+			if err := EnableSSEForS3BucketWide(s3Client, config.AccessLoggingBucketName, s3.ServerSideEncryptionAes256, config, terragruntOptions); err != nil {
 				return err
 			}
 		}
