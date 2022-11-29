@@ -74,7 +74,11 @@ For a more minimal policy, for example when using a single bucket and DynamoDB t
                 "s3:PutBucketVersioning",
                 "s3:PutEncryptionConfiguration",
                 "s3:PutBucketAcl",
-                "s3:PutBucketLogging"
+                "s3:PutBucketLogging",
+                "s3:GetEncryptionConfiguration",
+                "s3:GetBucketPolicy",
+                "s3:GetBucketPublicAccessBlock",
+                "s3:PutLifecycleConfiguration"
             ],
             "Resource": "arn:aws:s3:::BUCKET_NAME"
         },

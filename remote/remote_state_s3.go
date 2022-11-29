@@ -27,15 +27,17 @@ const (
 )
 
 /*
- * We use this construct to separate the two config keys 's3_bucket_tags' and 'dynamodb_table_tags'
- * from the others, as they are specific to the s3 backend, but only used by terragrunt to tag
- * the s3 bucket and the dynamo db, in case it has to create them.
+ * We use this construct to separate the three config keys 's3_bucket_tags', 'dynamodb_table_tags'
+ * and 'accesslogging_bucket_tags' from the others, as they are specific to the s3 backend,
+ * but only used by terragrunt to tag the s3 bucket, the dynamo db and the s3 bucket used to the
+ * access logs, in case it has to create them.
  */
 type ExtendedRemoteStateConfigS3 struct {
 	remoteStateConfigS3 RemoteStateConfigS3
 
 	S3BucketTags                   map[string]string `mapstructure:"s3_bucket_tags"`
 	DynamotableTags                map[string]string `mapstructure:"dynamodb_table_tags"`
+	AccessLoggingBucketTags        map[string]string `mapstructure:"accesslogging_bucket_tags"`
 	SkipBucketVersioning           bool              `mapstructure:"skip_bucket_versioning"`
 	SkipBucketSSEncryption         bool              `mapstructure:"skip_bucket_ssencryption"`
 	SkipBucketAccessLogging        bool              `mapstructure:"skip_bucket_accesslogging"`
@@ -56,6 +58,7 @@ type ExtendedRemoteStateConfigS3 struct {
 var terragruntOnlyConfigs = []string{
 	"s3_bucket_tags",
 	"dynamodb_table_tags",
+	"accesslogging_bucket_tags",
 	"skip_bucket_versioning",
 	"skip_bucket_ssencryption",
 	"skip_bucket_accesslogging",
@@ -706,6 +709,10 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 		terragruntOptions.Logger.Debugf("Access Logging is disabled for the remote state AWS S3 bucket %s", config.remoteStateConfigS3.Bucket)
 	}
 
+	if err := TagS3BucketAccessLogging(s3Client, config, terragruntOptions); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -721,6 +728,34 @@ func CreateLogsS3BucketIfNecessary(s3Client *s3.S3, logsBucketName *string, terr
 			return CreateS3Bucket(s3Client, logsBucketName, terragruntOptions)
 		}
 	}
+	return nil
+}
+
+func TagS3BucketAccessLogging(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+
+	if config.AccessLoggingBucketTags == nil || len(config.AccessLoggingBucketTags) == 0 {
+		terragruntOptions.Logger.Debugf("No tags specified for bucket %s.", config.AccessLoggingBucketName)
+		return nil
+	}
+
+	// There must be one entry in the list
+	var tagsConverted = convertTags(config.AccessLoggingBucketTags)
+
+	terragruntOptions.Logger.Debugf("Tagging S3 bucket with %s", config.AccessLoggingBucketTags)
+
+	putBucketTaggingInput := s3.PutBucketTaggingInput{
+		Bucket: aws.String(config.AccessLoggingBucketName),
+		Tagging: &s3.Tagging{
+			TagSet: tagsConverted,
+		},
+	}
+
+	_, err := s3Client.PutBucketTagging(&putBucketTaggingInput)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	terragruntOptions.Logger.Debugf("Tagged S3 bucket with %s", config.AccessLoggingBucketTags)
 	return nil
 }
 
