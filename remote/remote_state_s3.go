@@ -363,14 +363,12 @@ func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3, terragruntOpt
 		terragruntOptions.Logger.Warnf("Encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enabling encryption!", config.Bucket)
 	}
 
-	if config.Encrypt {
-		// Check if SSE algorithm is AES256 since it is only one supported by AWS for access logging bucket
-		// https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html
-		if !extendedConfig.SkipBucketSSEncryption && extendedConfig.AccessLoggingBucketName != "" && extendedConfig.BucketSSEAlgorithm != s3.ServerSideEncryptionAes256 {
-			return errors.WithStackTrace(InvalidAccessLoggingBucketEncryption{
-				BucketSSEAlgorithm: extendedConfig.BucketSSEAlgorithm,
-			})
-		}
+	// Check if SSE algorithm is AES256 since it is only one supported by AWS for access logging bucket
+	// https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html
+	if !extendedConfig.SkipBucketSSEncryption && extendedConfig.AccessLoggingBucketName != "" && extendedConfig.BucketSSEAlgorithm != s3.ServerSideEncryptionAes256 {
+		return errors.WithStackTrace(InvalidAccessLoggingBucketEncryption{
+			BucketSSEAlgorithm: extendedConfig.BucketSSEAlgorithm,
+		})
 	}
 
 	return nil
