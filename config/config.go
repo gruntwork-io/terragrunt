@@ -561,7 +561,9 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 
 		if isTerragruntModule {
 			// Skip Module if search file is not found in layer
-			if terragruntOptions.LayerHasFile != "" && !util.FileExists(path+terragruntOptions.LayerHasFile) {
+			file := util.JoinPath(path, terragruntOptions.LayerHasFile)
+			if terragruntOptions.LayerHasFile != "" && !util.FileExists(file) {
+				terragruntOptions.Logger.Debugf("Skipping module %s as file %s does not exist", info.Name(), file)
 				return nil
 			}
 
