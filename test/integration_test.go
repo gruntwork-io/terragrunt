@@ -5193,12 +5193,20 @@ func TestMockOutputsMergeWithState(t *testing.T) {
 	logBufferContentsLineByLine(t, stdout, "module-executed")
 	require.NoError(t, err)
 
-	appPath := util.JoinPath(rootPath, "deep-map")
+	deepMapPath := util.JoinPath(rootPath, "deep-map")
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir %s", appPath), &stdout, &stderr)
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir %s", deepMapPath), &stdout, &stderr)
 	logBufferContentsLineByLine(t, stdout, "deep-map-executed")
 	require.NoError(t, err)
+
+	shallowPath := util.JoinPath(rootPath, "shallow")
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir %s", shallowPath), &stdout, &stderr)
+	logBufferContentsLineByLine(t, stdout, "shallow-map-executed")
+	require.NoError(t, err)
+
 }
 
 func validateBoolOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value bool) {
