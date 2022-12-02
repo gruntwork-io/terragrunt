@@ -3350,6 +3350,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 }
 
 func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
+	t.Helper()
 	t.Logf("[%s] Full contents of %s:", t.Name(), label)
 	lines := strings.Split(out.String(), "\n")
 	for _, line := range lines {
@@ -5176,6 +5177,28 @@ func TestEndsWith(t *testing.T) {
 	validateBoolOutput(t, outputs, "endswith7", true)
 	validateBoolOutput(t, outputs, "endswith8", false)
 	validateBoolOutput(t, outputs, "endswith9", false)
+}
+
+func TestMockOutputsMergeWithState(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_REGRESSIONS)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_REGRESSIONS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_REGRESSIONS, "mocks-merge-with-state")
+
+	modulePath := util.JoinPath(rootPath, "module")
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir %s", modulePath), &stdout, &stderr)
+	logBufferContentsLineByLine(t, stdout, "module-executed")
+	require.NoError(t, err)
+
+	appPath := util.JoinPath(rootPath, "deep-map")
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir %s", appPath), &stdout, &stderr)
+	logBufferContentsLineByLine(t, stdout, "deep-map-executed")
+	require.NoError(t, err)
 }
 
 func validateBoolOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value bool) {

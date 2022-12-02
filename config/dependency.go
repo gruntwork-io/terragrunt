@@ -338,8 +338,14 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 			case NoMerge:
 				return outputVal, nil
 			case ShallowMerge:
+				if dependencyConfig.MockOutputs == nil {
+					return outputVal, nil
+				}
 				return shallowMergeCtyMaps(*outputVal, *dependencyConfig.MockOutputs)
 			case DeepMergeMapOnly:
+				if dependencyConfig.MockOutputs == nil {
+					return outputVal, nil
+				}
 				return deepMergeCtyMapsMapOnly(*dependencyConfig.MockOutputs, *outputVal)
 			default:
 				return nil, errors.WithStackTrace(InvalidMergeStrategyType(mockMergeStrategy))
