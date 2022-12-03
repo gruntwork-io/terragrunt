@@ -189,6 +189,24 @@ func TestRunCommand(t *testing.T) {
 			nil,
 		},
 		{
+			[]string{"--terragrunt-global-cache", "/bin/bash", "-c", "echo foo"},
+			terragruntOptionsForTest(t, homeDir),
+			"foo",
+			nil,
+		},
+		{
+			[]string{"--terragrunt-global-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
+			terragruntOptionsForTest(t, homeDir),
+			"foo",
+			nil,
+		},
+		{
+			[]string{"--terragrunt-quiet", "--terragrunt-global-cache", "/bin/bash", "-c", "echo foo"},
+			terragruntOptionsForTest(t, homeDir),
+			"foo",
+			nil,
+		},
+		{
 			nil,
 			terragruntOptionsForTest(t, homeDir),
 			"",
@@ -876,6 +894,16 @@ func TestReadTerragruntConfigRemoteState(t *testing.T) {
 		t,
 		configMap["s3_bucket_tags"].(map[string]interface{}),
 		map[string]interface{}{"owner": "terragrunt integration test", "name": "Terraform state storage"},
+	)
+	assert.Equal(
+		t,
+		configMap["dynamodb_table_tags"].(map[string]interface{}),
+		map[string]interface{}{"owner": "terragrunt integration test", "name": "Terraform lock table"},
+	)
+	assert.Equal(
+		t,
+		configMap["accesslogging_bucket_tags"].(map[string]interface{}),
+		map[string]interface{}{"owner": "terragrunt integration test", "name": "Terraform access log storage"},
 	)
 }
 

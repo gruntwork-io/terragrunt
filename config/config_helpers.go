@@ -294,16 +294,26 @@ func runCommand(args []string, trackInclude *TrackInclude, terragruntOptions *op
 	}
 
 	suppressOutput := false
-	if args[0] == "--terragrunt-quiet" {
-		suppressOutput = true
-		args = append(args[:0], args[1:]...)
-	}
-
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+	cachePath := currentPath
+
+	checkOptions := true
+	for checkOptions && len(args) > 0 {
+		switch args[0] {
+		case "--terragrunt-quiet":
+			suppressOutput = true
+			args = append(args[:0], args[1:]...)
+		case "--terragrunt-global-cache":
+			cachePath = "_global_"
+			args = append(args[:0], args[1:]...)
+		default:
+			checkOptions = false
+		}
+	}
 
 	// To avoid re-run of the same run_cmd command, is used in memory cache for command results, with caching key path + arguments
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
-	cacheKey := fmt.Sprintf("%v-%v", currentPath, args)
+	cacheKey := fmt.Sprintf("%v-%v", cachePath, args)
 	cachedValue, foundInCache := runCommandCache.Get(cacheKey)
 	if foundInCache {
 		if suppressOutput {

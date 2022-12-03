@@ -601,6 +601,32 @@ func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGiven
 
 	assert.Equal(t, s3BucketLogsName, targetLoggingBucket)
 	assert.Equal(t, s3BucketLogsTargetPrefix, targetLoggingBucketPrefix)
+
+	encryptionConfig, err := bucketEncryption(t, TERRAFORM_REMOTE_STATE_S3_REGION, targetLoggingBucket)
+	assert.NoError(t, err)
+	assert.NotNil(t, encryptionConfig)
+	assert.NotNil(t, encryptionConfig.ServerSideEncryptionConfiguration)
+	for _, rule := range encryptionConfig.ServerSideEncryptionConfiguration.Rules {
+		if rule.ApplyServerSideEncryptionByDefault != nil {
+			if rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
+				assert.Equal(t, s3.ServerSideEncryptionAes256, *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
+			}
+		}
+	}
+
+	policy, err := bucketPolicy(t, TERRAFORM_REMOTE_STATE_S3_REGION, targetLoggingBucket)
+	assert.NoError(t, err)
+	assert.NotNil(t, policy.Policy)
+
+	policyInBucket, err := aws_helper.UnmarshalPolicy(*policy.Policy)
+	assert.NoError(t, err)
+	enforceSSE := false
+	for _, statement := range policyInBucket.Statement {
+		if statement.Sid == remote.SidEnforcedTLSPolicy {
+			enforceSSE = true
+		}
+	}
+	assert.True(t, enforceSSE)
 }
 
 // Regression test to ensure that `accesslogging_bucket_name` is taken into account
@@ -630,6 +656,18 @@ func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithDefau
 
 	targetLoggingBucket := terraws.GetS3BucketLoggingTarget(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 	targetLoggingBucketPrefix := terraws.GetS3BucketLoggingTargetPrefix(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+
+	encryptionConfig, err := bucketEncryption(t, TERRAFORM_REMOTE_STATE_S3_REGION, targetLoggingBucket)
+	assert.NoError(t, err)
+	assert.NotNil(t, encryptionConfig)
+	assert.NotNil(t, encryptionConfig.ServerSideEncryptionConfiguration)
+	for _, rule := range encryptionConfig.ServerSideEncryptionConfiguration.Rules {
+		if rule.ApplyServerSideEncryptionByDefault != nil {
+			if rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
+				assert.Equal(t, s3.ServerSideEncryptionAes256, *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
+			}
+		}
+	}
 
 	assert.Equal(t, s3BucketLogsName, targetLoggingBucket)
 	assert.Equal(t, remote.DefaultS3BucketAccessLoggingTargetPrefix, targetLoggingBucketPrefix)
@@ -4105,6 +4143,56 @@ func deleteS3BucketE(t *testing.T, awsRegion string, bucketName string) error {
 		return err
 	}
 	return nil
+}
+
+func bucketEncryption(t *testing.T, awsRegion string, bucketName string) (*s3.GetBucketEncryptionOutput, error) {
+	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
+	if err != nil {
+		t.Logf("Error creating mockOptions: %v", err)
+		return nil, err
+	}
+
+	sessionConfig := &aws_helper.AwsSessionConfig{
+		Region: awsRegion,
+	}
+
+	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
+	if err != nil {
+		t.Logf("Error creating S3 client: %v", err)
+		return nil, err
+	}
+
+	input := &s3.GetBucketEncryptionInput{Bucket: aws.String(bucketName)}
+	output, err := s3Client.GetBucketEncryption(input)
+	if err != nil {
+		return nil, nil
+	}
+
+	return output, nil
+}
+
+func bucketPolicy(t *testing.T, awsRegion string, bucketName string) (*s3.GetBucketPolicyOutput, error) {
+	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
+	if err != nil {
+		t.Logf("Error creating mockOptions: %v", err)
+		return nil, err
+	}
+
+	sessionConfig := &aws_helper.AwsSessionConfig{
+		Region: awsRegion,
+	}
+
+	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
+	if err != nil {
+		return nil, err
+	}
+	policyOutput, err := s3Client.GetBucketPolicy(&s3.GetBucketPolicyInput{
+		Bucket: aws.String(bucketName),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return policyOutput, nil
 }
 
 // Create an authenticated client for DynamoDB
