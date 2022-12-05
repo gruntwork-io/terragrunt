@@ -130,6 +130,8 @@ const (
 	TEST_FIXTURE_BROKEN_LOCALS                              = "fixture-broken-locals"
 	TEST_FIXTURE_BROKEN_DEPENDENCY                          = "fixture-broken-dependency"
 	TEST_FIXTURE_RENDER_JSON_METADATA                       = "fixture-render-json-metadata"
+	TEST_FIXTURE_RENDER_JSON_MOCK_OUTPUTS                   = "fixture-render-json-mock-outputs"
+	TEST_FIXTURE_STARTSWITH                                 = "fixture-startswith"
 	TEST_FIXTURE_TFLINT                                     = "fixture-tflint"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
@@ -599,6 +601,32 @@ func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGiven
 
 	assert.Equal(t, s3BucketLogsName, targetLoggingBucket)
 	assert.Equal(t, s3BucketLogsTargetPrefix, targetLoggingBucketPrefix)
+
+	encryptionConfig, err := bucketEncryption(t, TERRAFORM_REMOTE_STATE_S3_REGION, targetLoggingBucket)
+	assert.NoError(t, err)
+	assert.NotNil(t, encryptionConfig)
+	assert.NotNil(t, encryptionConfig.ServerSideEncryptionConfiguration)
+	for _, rule := range encryptionConfig.ServerSideEncryptionConfiguration.Rules {
+		if rule.ApplyServerSideEncryptionByDefault != nil {
+			if rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
+				assert.Equal(t, s3.ServerSideEncryptionAes256, *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
+			}
+		}
+	}
+
+	policy, err := bucketPolicy(t, TERRAFORM_REMOTE_STATE_S3_REGION, targetLoggingBucket)
+	assert.NoError(t, err)
+	assert.NotNil(t, policy.Policy)
+
+	policyInBucket, err := aws_helper.UnmarshalPolicy(*policy.Policy)
+	assert.NoError(t, err)
+	enforceSSE := false
+	for _, statement := range policyInBucket.Statement {
+		if statement.Sid == remote.SidEnforcedTLSPolicy {
+			enforceSSE = true
+		}
+	}
+	assert.True(t, enforceSSE)
 }
 
 // Regression test to ensure that `accesslogging_bucket_name` is taken into account
@@ -628,6 +656,18 @@ func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithDefau
 
 	targetLoggingBucket := terraws.GetS3BucketLoggingTarget(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 	targetLoggingBucketPrefix := terraws.GetS3BucketLoggingTargetPrefix(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+
+	encryptionConfig, err := bucketEncryption(t, TERRAFORM_REMOTE_STATE_S3_REGION, targetLoggingBucket)
+	assert.NoError(t, err)
+	assert.NotNil(t, encryptionConfig)
+	assert.NotNil(t, encryptionConfig.ServerSideEncryptionConfiguration)
+	for _, rule := range encryptionConfig.ServerSideEncryptionConfiguration.Rules {
+		if rule.ApplyServerSideEncryptionByDefault != nil {
+			if rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
+				assert.Equal(t, s3.ServerSideEncryptionAes256, *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
+			}
+		}
+	}
 
 	assert.Equal(t, s3BucketLogsName, targetLoggingBucket)
 	assert.Equal(t, remote.DefaultS3BucketAccessLoggingTargetPrefix, targetLoggingBucketPrefix)
@@ -4118,6 +4158,56 @@ func deleteS3BucketE(t *testing.T, awsRegion string, bucketName string) error {
 	return nil
 }
 
+func bucketEncryption(t *testing.T, awsRegion string, bucketName string) (*s3.GetBucketEncryptionOutput, error) {
+	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
+	if err != nil {
+		t.Logf("Error creating mockOptions: %v", err)
+		return nil, err
+	}
+
+	sessionConfig := &aws_helper.AwsSessionConfig{
+		Region: awsRegion,
+	}
+
+	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
+	if err != nil {
+		t.Logf("Error creating S3 client: %v", err)
+		return nil, err
+	}
+
+	input := &s3.GetBucketEncryptionInput{Bucket: aws.String(bucketName)}
+	output, err := s3Client.GetBucketEncryption(input)
+	if err != nil {
+		return nil, nil
+	}
+
+	return output, nil
+}
+
+func bucketPolicy(t *testing.T, awsRegion string, bucketName string) (*s3.GetBucketPolicyOutput, error) {
+	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
+	if err != nil {
+		t.Logf("Error creating mockOptions: %v", err)
+		return nil, err
+	}
+
+	sessionConfig := &aws_helper.AwsSessionConfig{
+		Region: awsRegion,
+	}
+
+	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
+	if err != nil {
+		return nil, err
+	}
+	policyOutput, err := s3Client.GetBucketPolicy(&s3.GetBucketPolicyInput{
+		Bucket: aws.String(bucketName),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return policyOutput, nil
+}
+
 // Create an authenticated client for DynamoDB
 func createDynamoDbClient(awsRegion, awsProfile string, iamRoleArn string) (*dynamodb.DynamoDB, error) {
 	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
@@ -4713,6 +4803,55 @@ func TestRenderJsonMetadataDependencies(t *testing.T) {
 	assert.True(t, reflect.DeepEqual(expectedDependencies, dependencies))
 }
 
+func TestRenderJsonWithMockOutputs(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_RENDER_JSON_MOCK_OUTPUTS)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_MOCK_OUTPUTS, "app")
+
+	var expectedMetadata = map[string]interface{}{
+		"found_in_file": util.JoinPath(tmpDir, "terragrunt.hcl"),
+	}
+
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+
+	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	dependency := renderedJson[config.MetadataDependency]
+
+	var expectedDependency = map[string]interface{}{
+		"module": map[string]interface{}{
+			"metadata": expectedMetadata,
+			"value": map[string]interface{}{
+				"config_path": "../dependency",
+				"mock_outputs": map[string]interface{}{
+					"bastion_host_security_group_id": "123",
+					"security_group_id":              "sg-abcd1234",
+				},
+				"mock_outputs_allowed_terraform_commands": [1]string{"validate"},
+				"mock_outputs_merge_strategy_with_state":  nil,
+				"mock_outputs_merge_with_state":           nil,
+				"name":                                    "module",
+				"outputs":                                 nil,
+				"skip":                                    nil,
+			},
+		},
+	}
+	serializedDependency, err := json.Marshal(dependency)
+	assert.NoError(t, err)
+
+	serializedExpectedDependency, err := json.Marshal(expectedDependency)
+	assert.NoError(t, err)
+	assert.Equal(t, string(serializedExpectedDependency), string(serializedDependency))
+}
+
 func TestRenderJsonMetadataIncludes(t *testing.T) {
 	t.Parallel()
 
@@ -4963,6 +5102,100 @@ func TestRenderJsonMetadataTerraform(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, string(serializedExpectedRemoteState), string(serializedRemoteState))
+}
+
+func TestTerragruntRenderJsonHelp(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
+	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt render-json --help --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	assert.Nil(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+
+	output := showStdout.String()
+
+	assert.Contains(t, output, "Usage: terragrunt render-json [OPTIONS]")
+	assert.Contains(t, output, "--with-metadata")
+}
+
+func TestStartsWith(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_STARTSWITH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_STARTSWITH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_STARTSWITH)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	validateBoolOutput(t, outputs, "startswith1", true)
+	validateBoolOutput(t, outputs, "startswith2", false)
+	validateBoolOutput(t, outputs, "startswith3", true)
+	validateBoolOutput(t, outputs, "startswith4", false)
+	validateBoolOutput(t, outputs, "startswith5", true)
+	validateBoolOutput(t, outputs, "startswith6", false)
+	validateBoolOutput(t, outputs, "startswith7", true)
+	validateBoolOutput(t, outputs, "startswith8", false)
+	validateBoolOutput(t, outputs, "startswith9", false)
+}
+
+func TestEndsWith(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_ENDSWITH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_ENDSWITH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_ENDSWITH)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	validateBoolOutput(t, outputs, "endswith1", true)
+	validateBoolOutput(t, outputs, "endswith2", false)
+	validateBoolOutput(t, outputs, "endswith3", true)
+	validateBoolOutput(t, outputs, "endswith4", false)
+	validateBoolOutput(t, outputs, "endswith5", true)
+	validateBoolOutput(t, outputs, "endswith6", false)
+	validateBoolOutput(t, outputs, "endswith7", true)
+	validateBoolOutput(t, outputs, "endswith8", false)
+	validateBoolOutput(t, outputs, "endswith9", false)
+}
+
+func validateBoolOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value bool) {
+	t.Helper()
+	output, hasPlatform := outputs[key]
+	require.Truef(t, hasPlatform, "Expected output %s to be defined", key)
+	require.Equalf(t, output.Value, value, "Expected output %s to be %t", key, value)
 }
 
 func TestTflintValidating(t *testing.T) {

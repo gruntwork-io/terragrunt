@@ -13,5 +13,6 @@ remote_state {
     dynamodb_table = "__FILL_IN_LOCK_TABLE_NAME__"
     enable_lock_table_ssencryption = true
     accesslogging_bucket_name = "__FILL_IN_LOGS_BUCKET_NAME__"
+    bucket_sse_algorithm = "AES256"
   }
 }

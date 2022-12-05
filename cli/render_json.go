@@ -17,6 +17,17 @@ import (
 
 const defaultJSONOutName = "terragrunt_rendered.json"
 
+const renderJsonHelp = `
+   Usage: terragrunt render-json [OPTIONS]
+
+   Description:
+   Render the final terragrunt config, with all variables, includes, and functions resolved, as json.
+   
+   Options:
+   --with-metadata 		Add metadata to the rendered JSON file.
+   --terragrunt-json-out 	The file path that terragrunt should use when rendering the terragrunt.hcl config as json.
+`
+
 // runRenderJSON takes the parsed TerragruntConfig struct and renders it out as JSON so that it can be processed by
 // other tools. To make it easier to maintain, this uses the cty representation as an intermediary.
 // NOTE: An unspecified advantage of using the cty representation is that the final block outputs would be a map

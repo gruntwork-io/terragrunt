@@ -58,7 +58,7 @@ Run `terraform --help` to get the full list.
 
 ### run-all
 
-Runs the provided terraform command against a 'stack', where a 'stack' is a
+Runs the provided terraform command against a `stack`, where a `stack` is a
 tree of terragrunt modules. The command will recursively find terragrunt
 modules in the current directory tree and run the terraform command in
 dependency order (unless the command is destroy, in which case the command is
@@ -79,10 +79,10 @@ This will recursively search the current working directory for any folders that 
 [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
 [`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks.
 
-**[WARNING] Using `run-all` with `plan` is currently broken for certain use cases**. If you have a stack of Terragrunt modules with
-dependencies between them—either via `dependency` blocks or `terraform_remote_state` data sources—and you've never
-deployed them, then `plan-all` will fail as it will not be possible to resolve the `dependency` blocks or
-`terraform_remote_state` data sources! Please [see here for more
+**[WARNING] Using `run-all` with `plan` is currently broken for certain use cases**. If you have a stack of Terragrunt 
+modules with dependencies between them—either via `dependency` blocks or `terraform_remote_state` data sources—and 
+you've never deployed them, then `run-all plan` will fail as it will not be possible to resolve the `dependency` blocks 
+or `terraform_remote_state` data sources! Please [see here for more 
 information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-497888756).
 
 **[NOTE]** Using `run-all` with `apply` or `destroy` silently adds the `-auto-approve` flag to the command line
@@ -96,14 +96,14 @@ arguments passed to Terraform due to issues with shared `stdin` making individua
 
 **DEPRECATED: Use `run-all plan` instead.**
 
-Display the plans of a 'stack' by running 'terragrunt plan' in each subfolder. Make sure to read [Execute Terraform
+Display the plans of a `stack` by running `terragrunt plan` in each subfolder. Make sure to read [Execute Terraform
 commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for
 context.
 
 Example:
 
 ```bash
-terragrunt plan-all
+terragrunt run-all plan
 ```
 
 This will recursively search the current working directory for any folders that contain Terragrunt modules and run
@@ -111,9 +111,9 @@ This will recursively search the current working directory for any folders that 
 [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
 [`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks.
 
-**[WARNING] `plan-all` is currently broken for certain use cases**. If you have a stack of Terragrunt modules with
+**[WARNING] `run-all plan` is currently broken for certain use cases**. If you have a stack of Terragrunt modules with
 dependencies between them—either via `dependency` blocks or `terraform_remote_state` data sources—and you've never
-deployed them, then `plan-all` will fail as it will not be possible to resolve the `dependency` blocks or
+deployed them, then `run-all plan` will fail as it will not be possible to resolve the `dependency` blocks or
 `terraform_remote_state` data sources! Please [see here for more
 information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-497888756).
 
@@ -122,7 +122,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-
 
 **DEPRECATED: Use `run-all apply` instead.**
 
-Apply a 'stack' by running 'terragrunt apply' in each subfolder. Make sure to read [Execute Terraform
+Apply a `stack` by running `terragrunt apply` in each subfolder. Make sure to read [Execute Terraform
 commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for
 context.
 
@@ -146,7 +146,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/386#issuecomment-
 
 **DEPRECATED: Use `run-all output` instead.**
 
-Display the outputs of a 'stack' by running 'terragrunt output' in each subfolder. Make sure to read [Execute Terraform
+Display the outputs of a `stack` by running `terragrunt output` in each subfolder. Make sure to read [Execute Terraform
 commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for
 context.
 
@@ -171,7 +171,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-
 
 **DEPRECATED: Use `run-all destroy` instead.**
 
-Destroy a 'stack' by running 'terragrunt destroy' in each subfolder. Make sure to read [Execute Terraform
+Destroy a `stack` by running `terragrunt destroy` in each subfolder. Make sure to read [Execute Terraform
 commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for
 context.
 
@@ -195,7 +195,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/386#issuecomment-
 
 **DEPRECATED: Use `run-all validate` instead.**
 
-Validate 'stack' by running 'terragrunt validate' in each subfolder. Make sure to read [Execute Terraform
+Validate `stack` by running `terragrunt validate` in each subfolder. Make sure to read [Execute Terraform
 commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for
 context.
 
@@ -511,8 +511,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 A custom path to the `terragrunt.hcl` or `terragrunt.hcl.json` file. The
 default path is `terragrunt.hcl` (preferred) or `terragrunt.hcl.json` in the current directory (see
 [Configuration]({{site.baseurl}}/docs/getting-started/configuration/#configuration) for a slightly more nuanced
-explanation). This argument is not used with the `apply-all`, `destroy-all`, `output-all`, `validate-all`, and
-`plan-all` commands.
+explanation). This argument is not used with the `run-all` commands.
 
 
 ### terragrunt-tfpath
@@ -584,9 +583,9 @@ This setting will default to `no` for the following cases:
 **Requires an argument**: `--terragrunt-working-dir /path/to/working-directory`
 
 Set the directory where Terragrunt should execute the `terraform` command. Default is the current working directory.
-Note that for the `apply-all`, `destroy-all`, `output-all`, `validate-all`, and `plan-all` commands, this parameter has
-a different meaning: Terragrunt will apply or destroy all the Terraform modules in the subfolders of the
-`terragrunt-working-dir`, running `terraform` in the root of each module it finds.
+Note that for the `run-all` commands, this parameter has a different meaning: Terragrunt will apply or destroy all the 
+Terraform modules in the subfolders of the `terragrunt-working-dir`, running `terraform` in the root of each module it
+finds.
 
 
 ### terragrunt-download-dir
@@ -608,10 +607,10 @@ Default is `.terragrunt-cache` in the working directory. We recommend adding thi
 
 Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary
 folder. The source should use the same syntax as the [Terraform module
-source](https://www.terraform.io/docs/modules/sources.html) parameter. If you specify this argument for the `apply-all`,
-`destroy-all`, `output-all`, `validate-all`, or `plan-all` commands, Terragrunt will assume this is the local file path
-for all of your Terraform modules, and for each module processed by the `xxx-all` command, Terragrunt will automatically
-append the path of `source` parameter in each module to the `--terragrunt-source` parameter you passed in.
+source](https://www.terraform.io/docs/modules/sources.html) parameter. If you specify this argument for the `run-all`
+commands, Terragrunt will assume this is the local file path for all of your Terraform modules, and for each module 
+processed by the `run-all` command, Terragrunt will automatically append the path of `source` parameter in each module 
+to the `--terragrunt-source` parameter you passed in.
 
 
 ### terragrunt-source-map
