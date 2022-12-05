@@ -3,12 +3,13 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/tflint"
 	"io"
 	"os"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/tflint"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/mattn/go-zglob"
@@ -722,6 +723,7 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 
 				err := tflint.RunTflintWithOpts(terragruntOptions, terragruntConfig, actionParams)
 				if err != nil {
+					terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
 					multierror.Append(errorsOccured, err)
 				}
 			} else {

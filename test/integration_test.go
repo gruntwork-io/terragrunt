@@ -132,6 +132,7 @@ const (
 	TEST_FIXTURE_RENDER_JSON_METADATA                       = "fixture-render-json-metadata"
 	TEST_FIXTURE_RENDER_JSON_MOCK_OUTPUTS                   = "fixture-render-json-mock-outputs"
 	TEST_FIXTURE_STARTSWITH                                 = "fixture-startswith"
+	TEST_FIXTURE_ENDSWITH                                   = "fixture-endswith"
 	TEST_FIXTURE_TFLINT                                     = "fixture-tflint"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"

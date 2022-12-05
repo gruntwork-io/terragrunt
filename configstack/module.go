@@ -82,7 +82,7 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 	return finalModules, nil
 }
 
-//flagExcludedDirs iterates over a module slice and flags all entries as excluded, which should be ignored via the terragrunt-exclude-dir CLI flag.
+// flagExcludedDirs iterates over a module slice and flags all entries as excluded, which should be ignored via the terragrunt-exclude-dir CLI flag.
 func flagExcludedDirs(modules []*TerraformModule, terragruntOptions *options.TerragruntOptions) ([]*TerraformModule, error) {
 
 	// If no ExcludeDirs is specified return the modules list instantly
@@ -144,7 +144,7 @@ func flagExcludedDirs(modules []*TerraformModule, terragruntOptions *options.Ter
 	return modules, nil
 }
 
-//flagIncludedDirs iterates over a module slice and flags all entries not in the list specified via the terragrunt-include-dir CLI flag  as excluded.
+// flagIncludedDirs iterates over a module slice and flags all entries not in the list specified via the terragrunt-include-dir CLI flag  as excluded.
 func flagIncludedDirs(modules []*TerraformModule, terragruntOptions *options.TerragruntOptions) ([]*TerraformModule, error) {
 
 	// If no IncludeDirs is specified return the modules list instantly

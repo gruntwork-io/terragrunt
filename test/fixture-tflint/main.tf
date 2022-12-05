@@ -7,12 +7,12 @@ variable "instance_class" {
 }
 
 resource "aws_db_instance" "default" {
-  allocated_storage    = 10
-  db_name              = "mydb"
-  engine               = "mysql"
-  engine_version       = "5.7"
-  instance_class       = var.instance_class
-  username             = "foo"
-  password             = "foobarbaz"
-  skip_final_snapshot  = true
+  allocated_storage   = 10
+  db_name             = "mydb"
+  engine              = "mysql"
+  engine_version      = "5.7"
+  instance_class      = var.instance_class
+  username            = "foo"
+  password            = "foobarbaz"
+  skip_final_snapshot = true
 }

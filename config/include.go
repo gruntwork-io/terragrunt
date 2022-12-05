@@ -242,7 +242,8 @@ func handleIncludeForDependency(
 // attributes defined in the targetConfig. Note that this will modify the targetConfig.
 // NOTE: the following attributes are deliberately omitted from the merge operation, as they are handled differently in
 // the parser:
-//     - locals [These blocks are not merged by design]
+//   - locals [These blocks are not merged by design]
+//
 // NOTE: dependencies block is a special case and is merged deeply. This is necessary to ensure the configstack system
 // works correctly, as it uses the `Dependencies` list to track the dependencies of modules for graph building purposes.
 // This list includes the dependencies added from dependency blocks, which is handled in a different stage.
@@ -337,19 +338,19 @@ func (targetConfig *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terr
 }
 
 // DeepMerge performs a deep merge of the given sourceConfig into the targetConfig. Deep merge is defined as follows:
-// - For simple types, the source overrides the target.
-// - For lists, the two attribute lists are combined together in concatenation.
-// - For maps, the two maps are combined together recursively. That is, if the map keys overlap, then a deep merge is
-//   performed on the map value.
-// - Note that some structs are not deep mergeable due to an implementation detail. This will change in the future. The
-//   following structs have this limitation:
-//     - remote_state
-//     - generate
-// - Note that the following attributes are deliberately omitted from the merge operation, as they are handled
-//   differently in the parser:
-//     - dependency blocks (TerragruntDependencies) [These blocks need to retrieve outputs, so we need to merge during
-//       the parsing step, not after the full config is decoded]
-//     - locals [These blocks are not merged by design]
+//   - For simple types, the source overrides the target.
+//   - For lists, the two attribute lists are combined together in concatenation.
+//   - For maps, the two maps are combined together recursively. That is, if the map keys overlap, then a deep merge is
+//     performed on the map value.
+//   - Note that some structs are not deep mergeable due to an implementation detail. This will change in the future. The
+//     following structs have this limitation:
+//   - remote_state
+//   - generate
+//   - Note that the following attributes are deliberately omitted from the merge operation, as they are handled
+//     differently in the parser:
+//   - dependency blocks (TerragruntDependencies) [These blocks need to retrieve outputs, so we need to merge during
+//     the parsing step, not after the full config is decoded]
+//   - locals [These blocks are not merged by design]
 func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, terragruntOptions *options.TerragruntOptions) error {
 	// Merge simple attributes first
 	if sourceConfig.DownloadDir != "" {
@@ -738,37 +739,42 @@ func updateBareIncludeBlock(file *hcl.File, filename string) ([]byte, bool, erro
 // block:
 //
 // Case 1: a single include block as top level:
-// {
-//   "include": {
-//     "path": "foo"
-//   }
-// }
+//
+//	{
+//	  "include": {
+//	    "path": "foo"
+//	  }
+//	}
 //
 // Case 2: a single include block in list:
-// {
-//   "include": [
-//     {"path": "foo"}
-//   ]
-// }
+//
+//	{
+//	  "include": [
+//	    {"path": "foo"}
+//	  ]
+//	}
 //
 // Case 3: mixed bare and labeled include block as list:
-// {
-//   "include": [
-//     {"path": "foo"},
-//     {
-//       "labeled": {"path": "bar"}
-//     }
-//   ]
-// }
+//
+//	{
+//	  "include": [
+//	    {"path": "foo"},
+//	    {
+//	      "labeled": {"path": "bar"}
+//	    }
+//	  ]
+//	}
 //
 // For simplicity of implementation, we focus on handling Case 1 and 2, and ignore Case 3. If we see Case 3, we will
 // error out. Instead, the user should handle this case explicitly using the object encoding instead of list encoding:
-// {
-//   "include": {
-//     "": {"path": "foo"},
-//     "labeled": {"path": "bar"}
-//   }
-// }
+//
+//	{
+//	  "include": {
+//	    "": {"path": "foo"},
+//	    "labeled": {"path": "bar"}
+//	  }
+//	}
+//
 // If the multiple include blocks are encoded in this way in the json configuration, nothing needs to be done by this
 // function.
 func updateBareIncludeBlockJSON(fileBytes []byte) ([]byte, bool, error) {
