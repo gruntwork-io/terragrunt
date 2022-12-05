@@ -130,6 +130,7 @@ const (
 	TEST_FIXTURE_BROKEN_LOCALS                              = "fixture-broken-locals"
 	TEST_FIXTURE_BROKEN_DEPENDENCY                          = "fixture-broken-dependency"
 	TEST_FIXTURE_RENDER_JSON_METADATA                       = "fixture-render-json-metadata"
+	TEST_FIXTURE_TFLINT                                     = "fixture-tflint"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -3827,6 +3828,19 @@ func copyEnvironment(t *testing.T, environmentPath string) string {
 	return tmpDir
 }
 
+func copyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
+	tmpDir, err := ioutil.TempDir("", "terragrunt-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir due to error: %v", err)
+	}
+
+	t.Logf("Copying %s to %s", environmentPath, tmpDir)
+
+	require.NoError(t, util.CopyFolderContents(environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", []string{".tflint.hcl"}))
+
+	return tmpDir
+}
+
 func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
 	if err := os.MkdirAll(targetPath, 0777); err != nil {
 		t.Fatalf("Failed to create temp dir %s due to error %v", targetPath, err)
@@ -4949,4 +4963,17 @@ func TestRenderJsonMetadataTerraform(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, string(serializedExpectedRemoteState), string(serializedRemoteState))
+}
+
+func TestTflintValidating(t *testing.T) {
+	t.Parallel()
+
+	out := new(bytes.Buffer)
+	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_TFLINT)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-working-dir %s --terragrunt-debug", modulePath), out, os.Stderr)
+
+	assert.NoError(t, err)
+
+	// TODO assertions
 }

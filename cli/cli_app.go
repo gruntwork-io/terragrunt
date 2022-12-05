@@ -393,7 +393,7 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptionsClone := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	terragruntOptionsClone.TerraformCommand = CMD_TERRAGRUNT_READ_CONFIG
 
-	if err := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone, nil); err != nil {
+	if err := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone, terragruntConfig, nil); err != nil {
 		return err
 	}
 
@@ -669,7 +669,7 @@ func processErrorHooks(hooks []config.ErrorHook, terragruntOptions *options.Terr
 	return errorsOccured.ErrorOrNil()
 }
 
-func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOptions, previousExecErrors *multierror.Error) error {
+func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, previousExecErrors *multierror.Error) error {
 	if len(hooks) == 0 {
 		return nil
 	}
@@ -693,7 +693,7 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 			if actionToExecute == "tflint" {
 				actionParams := curHook.Execute[0:]
 
-				err := tflint.RunTflintWithOpts(terragruntOptions, actionParams)
+				err := tflint.RunTflintWithOpts(terragruntOptions, terragruntConfig, actionParams)
 				if err != nil {
 					multierror.Append(errorsOccured, err)
 				}
@@ -857,7 +857,7 @@ func copyLockFile(sourceFolder string, destinationFolder string, logger *logrus.
 // errors, run the action, and finally, run the after hooks. Return any errors hit from the hooks or action.
 func runActionWithHooks(description string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, action func() error) error {
 	var allErrors *multierror.Error
-	beforeHookErrors := processHooks(terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions, allErrors)
+	beforeHookErrors := processHooks(terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions, terragruntConfig, allErrors)
 	allErrors = multierror.Append(allErrors, beforeHookErrors)
 
 	var actionErrors error
@@ -867,7 +867,7 @@ func runActionWithHooks(description string, terragruntOptions *options.Terragrun
 	} else {
 		terragruntOptions.Logger.Errorf("Errors encountered running before_hooks. Not running '%s'.", description)
 	}
-	postHookErrors := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, allErrors)
+	postHookErrors := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, terragruntConfig, allErrors)
 	errorHookErrors := processErrorHooks(terragruntConfig.Terraform.GetErrorHooks(), terragruntOptions, allErrors)
 	allErrors = multierror.Append(allErrors, postHookErrors, errorHookErrors)
 

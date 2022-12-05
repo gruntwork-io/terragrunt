@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -507,7 +506,7 @@ func toTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) 
 	for varName, varValue := range vars {
 		envVarName := fmt.Sprintf("%s_%s", TFVarPrefix, varName)
 
-		envVarValue, err := asTerraformEnvVarJsonValue(varValue)
+		envVarValue, err := util.AsTerraformEnvVarJsonValue(varValue)
 		if err != nil {
 			return nil, err
 		}
@@ -516,23 +515,6 @@ func toTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) 
 	}
 
 	return out, nil
-}
-
-// Convert the given value to a JSON value that can be passed to Terraform as an environment variable. For the most
-// part, this converts the value directly to JSON using Go's built-in json.Marshal. However, we have special handling
-// for strings, which with normal JSON conversion would be wrapped in quotes, but when passing them to Terraform via
-// env vars, we need to NOT wrap them in quotes, so this method adds special handling for that case.
-func asTerraformEnvVarJsonValue(value interface{}) (string, error) {
-	switch val := value.(type) {
-	case string:
-		return val, nil
-	default:
-		envVarValue, err := json.Marshal(val)
-		if err != nil {
-			return "", errors.WithStackTrace(err)
-		}
-		return string(envVarValue), nil
-	}
 }
 
 // Custom error types
