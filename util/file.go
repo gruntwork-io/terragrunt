@@ -2,8 +2,6 @@ package util
 
 import (
 	"encoding/gob"
-	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/options"
 	"io"
 	"io/ioutil"
 	"os"
@@ -512,42 +510,4 @@ type PathIsNotFile struct {
 
 func (err PathIsNotFile) Error() string {
 	return fmt.Sprintf("%s is not a file", err.path)
-}
-
-func FindFileInParentFolders(
-	fileToFindParam string,
-	fallbackParam string,
-	terragruntOptions *options.TerragruntOptions) (string, error) {
-
-	previousDir, err := filepath.Abs(filepath.Dir(terragruntOptions.TerragruntConfigPath))
-	if err != nil {
-		return "", errors.WithStackTrace(err)
-	}
-
-	previousDir = filepath.ToSlash(previousDir)
-
-	// To avoid getting into an accidental infinite loop (e.g. do to cyclical symlinks), set a max on the number of
-	// parent folders we'll check
-	for i := 0; i < terragruntOptions.MaxFoldersToCheck; i++ {
-		currentDir := filepath.ToSlash(filepath.Dir(previousDir))
-		if currentDir == previousDir {
-			if fallbackParam != "" {
-				return fallbackParam, nil
-			}
-			return "", errors.WithStackTrace(config.ParentFileNotFound{Path: terragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: "Traversed all the way to the root"})
-		}
-
-		fileToFind := config.GetDefaultConfigPath(currentDir)
-		if fileToFindParam != "" {
-			fileToFind = JoinPath(currentDir, fileToFindParam)
-		}
-
-		if FileExists(fileToFind) {
-			return fileToFind, nil
-		}
-
-		previousDir = currentDir
-	}
-
-	return "", errors.WithStackTrace(config.ParentFileNotFound{Path: terragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", terragruntOptions.MaxFoldersToCheck)})
 }

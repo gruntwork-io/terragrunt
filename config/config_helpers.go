@@ -383,8 +383,42 @@ func findInParentFolders(
 		return "", errors.WithStackTrace(WrongNumberOfParams{Func: "find_in_parent_folders", Expected: "0, 1, or 2", Actual: numParams})
 	}
 
+	previousDir, err := filepath.Abs(filepath.Dir(terragruntOptions.TerragruntConfigPath))
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
 
-	return util.FindFileInParentFolders(fileToFindParam, fallbackParam, terragruntOptions)
+	previousDir = filepath.ToSlash(previousDir)
+
+	fileToFindStr := DefaultTerragruntConfigPath
+	if fileToFindParam != "" {
+		fileToFindStr = fileToFindParam
+	}
+
+	// To avoid getting into an accidental infinite loop (e.g. do to cyclical symlinks), set a max on the number of
+	// parent folders we'll check
+	for i := 0; i < terragruntOptions.MaxFoldersToCheck; i++ {
+		currentDir := filepath.ToSlash(filepath.Dir(previousDir))
+		if currentDir == previousDir {
+			if numParams == 2 {
+				return fallbackParam, nil
+			}
+			return "", errors.WithStackTrace(ParentFileNotFound{Path: terragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: "Traversed all the way to the root"})
+		}
+
+		fileToFind := GetDefaultConfigPath(currentDir)
+		if fileToFindParam != "" {
+			fileToFind = util.JoinPath(currentDir, fileToFindParam)
+		}
+
+		if util.FileExists(fileToFind) {
+			return fileToFind, nil
+		}
+
+		previousDir = currentDir
+	}
+
+	return "", errors.WithStackTrace(ParentFileNotFound{Path: terragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", terragruntOptions.MaxFoldersToCheck)})
 }
 
 // Return the relative path between the included Terragrunt configuration file and the current Terragrunt configuration
