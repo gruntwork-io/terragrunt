@@ -5205,7 +5205,7 @@ func TestTflintValidating(t *testing.T) {
 	out := new(bytes.Buffer)
 	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_TFLINT)
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT)
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-working-dir %s --terragrunt-debug", modulePath), out, os.Stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-working-dir %s --terragrunt-log-level debug", modulePath), out, os.Stderr)
 
 	assert.NoError(t, err)
 
