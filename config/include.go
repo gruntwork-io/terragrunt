@@ -243,7 +243,6 @@ func handleIncludeForDependency(
 // NOTE: the following attributes are deliberately omitted from the merge operation, as they are handled differently in
 // the parser:
 //   - locals [These blocks are not merged by design]
-//
 // NOTE: dependencies block is a special case and is merged deeply. This is necessary to ensure the configstack system
 // works correctly, as it uses the `Dependencies` list to track the dependencies of modules for graph building purposes.
 // This list includes the dependencies added from dependency blocks, which is handled in a different stage.
@@ -739,7 +738,6 @@ func updateBareIncludeBlock(file *hcl.File, filename string) ([]byte, bool, erro
 // block:
 //
 // Case 1: a single include block as top level:
-//
 //	{
 //	  "include": {
 //	    "path": "foo"
@@ -755,7 +753,6 @@ func updateBareIncludeBlock(file *hcl.File, filename string) ([]byte, bool, erro
 //	}
 //
 // Case 3: mixed bare and labeled include block as list:
-//
 //	{
 //	  "include": [
 //	    {"path": "foo"},
@@ -767,14 +764,12 @@ func updateBareIncludeBlock(file *hcl.File, filename string) ([]byte, bool, erro
 //
 // For simplicity of implementation, we focus on handling Case 1 and 2, and ignore Case 3. If we see Case 3, we will
 // error out. Instead, the user should handle this case explicitly using the object encoding instead of list encoding:
-//
 //	{
 //	  "include": {
 //	    "": {"path": "foo"},
 //	    "labeled": {"path": "bar"}
 //	  }
 //	}
-//
 // If the multiple include blocks are encoded in this way in the json configuration, nothing needs to be done by this
 // function.
 func updateBareIncludeBlockJSON(fileBytes []byte) ([]byte, bool, error) {

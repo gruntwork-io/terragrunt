@@ -239,6 +239,7 @@ func patchAwsProviderInTerraformCode(terraformCode string, terraformFilePath str
 // overrideAttributeInBlock(block2, "region", "eu-west-1")
 // overrideAttributeInBlock(block2, "assume_role.role_arn", "foo")
 //
+//
 // The result would be:
 //
 // provider "aws" {}
@@ -292,19 +293,15 @@ func overrideAttributeInBlock(block *hclwrite.Block, key string, value string) (
 //	}
 //
 // traverseBlock(block, []string{"region"})
-//
 //	=> returns (<body of the current block>, "region")
 //
 // traverseBlock(block, []string{"assume_role", "role_arn"})
-//
 //	=> returns (<body of the nested assume_role block>, "role_arn")
 //
 // traverseBlock(block, []string{"foo"})
-//
 //	=> returns (nil, "")
 //
 // traverseBlock(block, []string{"assume_role", "foo"})
-//
 //	=> returns (nil, "")
 func traverseBlock(block *hclwrite.Block, keyParts []string) (*hclwrite.Body, string) {
 	if block == nil {

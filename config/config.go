@@ -471,6 +471,7 @@ func GetTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragr
 // This function will take that source and transform it to:
 //
 //	/path/to/local-modules/fixture-source-map/modules/app
+//
 func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath string) (string, error) {
 	// Skip logic if source map is not configured
 	if len(sourceMap) == 0 {

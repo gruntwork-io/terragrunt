@@ -200,7 +200,6 @@ func TerragruntConfigFromPartialConfigString(
 //   - TerragruntVersionConstraints: Parses the attributes related to constraining terragrunt and terraform versions in
 //     the config.
 //   - RemoteStateBlock: Parses the `remote_state` block in the config
-//
 // Note that the following blocks are always decoded:
 // - locals
 // - include

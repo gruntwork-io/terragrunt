@@ -54,7 +54,6 @@ type Dependency struct {
 //   - For MockOutputs, the two maps will be deeply merged together. This means that maps are recursively merged, while
 //     lists are concatenated together.
 //   - For MockOutputsAllowedTerraformCommands, the source will be concatenated to the target.
-//
 // Note that RenderedOutputs is ignored in the deep merge operation.
 func (targetDepConfig *Dependency) DeepMerge(sourceDepConfig Dependency) error {
 	if sourceDepConfig.ConfigPath != "" {
@@ -146,7 +145,6 @@ var outputLocks = sync.Map{}
 // resulting map as a cty.Value object.
 // TODO: In the future, consider allowing importing dependency blocks from included config
 // NOTE FOR MAINTAINER: When implementing importation of other config blocks (e.g referencing inputs), carefully
-//
 //	consider whether or not the implementation of the cyclic dependency detection still makes sense.
 func decodeAndRetrieveOutputs(
 	file *hcl.File,
@@ -266,7 +264,6 @@ func getDependencyBlockConfigPathsByFilepath(configPath string, terragruntOption
 // encoded dependency mapping. The encoded dependency mapping should have the attributes:
 //   - outputs: The map of outputs of the corresponding terraform module that lives at the target config of the
 //     dependency.
-//
 // This routine will go through the process of obtaining the outputs using `terragrunt output` from the target config.
 func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
 	paths := []string{}

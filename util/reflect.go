@@ -15,7 +15,6 @@ func KindOf(value interface{}) reflect.Kind {
 }
 
 // MustWalkTerraformOutput is a helper utility to deeply return a value from a terraform output.
-//
 //	nil will be returned if the path is invalid
 //
 //	Using an example terraform output:

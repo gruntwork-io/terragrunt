@@ -174,7 +174,6 @@ func readVersionFile(terraformSource *tfsource.TerraformSource) (string, error) 
 //   - Local file path getter is updated to copy the files instead of creating symlinks, which is what go-getter defaults
 //     to.
 //   - Include the customized getter for fetching sources from the Terraform Registry.
-//
 // This creates a closure that returns a function so that we have access to the terragrunt configuration, which is
 // necessary for customizing the behavior of the file getter.
 func updateGetters(terragruntConfig *config.TerragruntConfig) func(*getter.Client) error {
