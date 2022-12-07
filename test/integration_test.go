@@ -5228,10 +5228,6 @@ func TestTflintFindsIssuesWithInvalidInput(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_ISSUES_FOUND)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-working-dir %s", modulePath), io.Discard, errOut)
 	assert.NoError(t, err)
-
-	if !strings.Contains(errOut.String(), "Tflint found issues in the project. Check for the tflint logs above.") {
-		t.Fatal("tflint did not found issues")
-	}
 }
 
 func TestTflintWithoutConfigFIle(t *testing.T) {

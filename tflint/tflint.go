@@ -51,7 +51,7 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 
 	// When tflint finds issues in the project, it prints out but does not stop execution of Terragrunt.
 	if statusCode == cmd.ExitCodeIssuesFound {
-		terragruntOptions.Logger.Warnf("Tflint found issues in the project. Check for the tflint logs above.")
+		terragruntOptions.Logger.Warnf("Tflint found issues in the project. Check for the tflint logs.")
 	}
 
 	return nil
