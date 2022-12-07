@@ -1,11 +1,11 @@
 package tflint
 
 import (
-	"errors"
 	"fmt"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/terraform-linters/tflint/cmd"
@@ -13,14 +13,10 @@ import (
 
 // tflint validates the binary's version based on the ruleset version.
 func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	cli := cmd.NewCLI(terragruntOptions.Writer, terragruntOptions.ErrWriter)
-
 	configFile, err := findTflintConfigInProject(terragruntOptions)
-
 	if err != nil {
 		return err
 	}
-
 	terragruntOptions.Logger.Debugf("Found .tflint.hcl file in %s", configFile)
 
 	variables, err := inputsToTflintVar(terragruntConfig.Inputs)
@@ -29,13 +25,13 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 	}
 
 	terragruntOptions.Logger.Debugf("Initializing tflint in directory %s", terragruntOptions.WorkingDir)
+	cli := cmd.NewCLI(terragruntOptions.Writer, terragruntOptions.ErrWriter)
+
 	statusCode := cli.Run([]string{"tflint", "--init",
 		"--config", configFile,
 		terragruntOptions.WorkingDir})
-
 	if statusCode != 0 {
-		errorMsg := fmt.Sprintf("Error while running 'tflint'! Status code: %d", statusCode)
-		return errors.New(errorMsg)
+		return errors.WithStackTrace(ErrorRunningTflint("Error while running tflint --init."))
 	}
 
 	args := []string{"tflint"}
@@ -48,18 +44,15 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 	statusCode = cli.Run(args)
 	terragruntOptions.Logger.Debugf("Status code %d", statusCode)
 
-	// 1 - real error
-	// 2 - issues found
-	// TODO TEST CASE FOR REAL ERRORS, e.g. invalid argument
 	if statusCode == cmd.ExitCodeError {
-		return errors.New("error while running tflint")
+		return errors.WithStackTrace(ErrorRunningTflint("Error while running tflint."))
 	}
 
 	// export constant with the error message
 
 	if statusCode == cmd.ExitCodeIssuesFound {
 		terragruntOptions.Logger.Warnf("tflint found issues")
-		//return errors.New("issues found")
+		return errors.WithStackTrace(TflintFoundIssues("tflint found issues"))
 	}
 
 	return nil
@@ -90,7 +83,7 @@ func findTflintConfigInProject(terragruntOptions *options.TerragruntOptions) (st
 		currentDir := filepath.ToSlash(filepath.Dir(previousDir))
 		terragruntOptions.Logger.Debugf("Finding .tflint.hcl file from %s and going to %s", previousDir, currentDir)
 		if currentDir == previousDir {
-			return "", errors.New("error")
+			return "", errors.WithStackTrace(TflintConfigNotFound("Could not find .tflint.hcl in the parent folders"))
 		}
 
 		fileToFind := util.JoinPath(currentDir, ".tflint.hcl")
@@ -101,5 +94,25 @@ func findTflintConfigInProject(terragruntOptions *options.TerragruntOptions) (st
 		previousDir = currentDir
 	}
 
-	return "", errors.New("error")
+	return "", errors.WithStackTrace(TflintConfigNotFound("Could not find .tflint.hcl in the parent folders"))
+}
+
+// Custom error types
+
+type ErrorRunningTflint string
+
+func (err ErrorRunningTflint) Error() string {
+	return "TODO"
+}
+
+type TflintFoundIssues string
+
+func (err TflintFoundIssues) Error() string {
+	return "TODO"
+}
+
+type TflintConfigNotFound string
+
+func (err TflintConfigNotFound) Error() string {
+	return "TODO"
 }

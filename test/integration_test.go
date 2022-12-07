@@ -5222,14 +5222,14 @@ func TestTflintFindsNoIssuesWithValidCode(t *testing.T) {
 func TestTflintFindsIssuesWithInvalidInput(t *testing.T) {
 	t.Parallel()
 
-	out := new(bytes.Buffer)
+	errOut := new(bytes.Buffer)
 	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_TFLINT_ISSUES_FOUND)
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_ISSUES_FOUND)
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-working-dir %s", modulePath), io.Discard, out)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-working-dir %s", modulePath), io.Discard, errOut)
 	assert.NoError(t, err)
 
 	// TODO check for the constant with the error
-	if !strings.Contains(out.String(), "tflint found issues") {
+	if !strings.Contains(errOut.String(), "tflint found issues") {
 		t.Fatal("tflint did not found issues")
 	}
 }
