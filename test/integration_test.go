@@ -135,7 +135,7 @@ const (
 	TEST_FIXTURE_ENDSWITH                                   = "fixture-endswith"
 	TEST_FIXTURE_TFLINT_NO_ISSUES_FOUND                     = "fixture-tflint-no-issues-found"
 	TEST_FIXTURE_TFLINT_ISSUES_FOUND                        = "fixture-tflint-issues-found"
-	TEST_FIXTURE_TFLINT_NO_CONFIG_FILE                        = "fixture-tflint-no-config-file"
+	TEST_FIXTURE_TFLINT_NO_CONFIG_FILE                      = "fixture-tflint-no-config-file"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
