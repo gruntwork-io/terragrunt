@@ -11,7 +11,6 @@ import (
 	"github.com/terraform-linters/tflint/cmd"
 )
 
-// tflint validates the binary's version based on the ruleset version.
 func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	configFile, err := findTflintConfigInProject(terragruntOptions)
 	if err != nil {
@@ -44,10 +43,8 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 	statusCode = cli.Run(args)
 
 	if statusCode == cmd.ExitCodeError {
-		return errors.WithStackTrace(ErrorRunningTflint(fmt.Sprintf("%v", variables)))
+		return errors.WithStackTrace(ErrorRunningTflint(fmt.Sprintf("running with variables %v", variables)))
 	}
-
-	// export constant with the error message
 
 	if statusCode == cmd.ExitCodeIssuesFound {
 		return errors.WithStackTrace(TflintFoundIssues("invalid rules"))
@@ -71,7 +68,6 @@ func inputsToTflintVar(inputs map[string]interface{}) ([]string, error) {
 }
 
 // findTflintConfigInProjects looks for a .tflint.hcl file in the current folder or it's parents.
-// TODO Should it search for ~/.tflint?? this is tflint's existing behaviour
 func findTflintConfigInProject(terragruntOptions *options.TerragruntOptions) (string, error) {
 	previousDir := terragruntOptions.WorkingDir
 
