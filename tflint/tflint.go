@@ -26,11 +26,10 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 	terragruntOptions.Logger.Debugf("Initializing tflint in directory %s", terragruntOptions.WorkingDir)
 	cli := cmd.NewCLI(terragruntOptions.Writer, terragruntOptions.ErrWriter)
 
-	statusCode := cli.Run([]string{"tflint", "--init",
-		"--config", configFile,
-		terragruntOptions.WorkingDir})
+	initArgs := []string{"tflint", "--init", "--config", configFile, terragruntOptions.WorkingDir}
+	statusCode := cli.Run(initArgs)
 	if statusCode != 0 {
-		return errors.WithStackTrace(ErrorRunningTflint("--init"))
+		return errors.WithStackTrace(ErrorRunningTflint{args: initArgs})
 	}
 
 	args := []string{"tflint"}
@@ -43,11 +42,12 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 	statusCode = cli.Run(args)
 
 	if statusCode == cmd.ExitCodeError {
-		return errors.WithStackTrace(ErrorRunningTflint(fmt.Sprintf("running with variables %v", variables)))
+		return errors.WithStackTrace(ErrorRunningTflint{args: initArgs})
 	}
 
+	// When tflint finds issues in the project, it prints out but does not stop execution of Terragrunt.
 	if statusCode == cmd.ExitCodeIssuesFound {
-		return errors.WithStackTrace(TflintFoundIssues("invalid rules"))
+		terragruntOptions.Logger.Warnf("Tflint found issues in the project. Check for the tflint logs above.")
 	}
 
 	return nil
@@ -77,7 +77,7 @@ func findTflintConfigInProject(terragruntOptions *options.TerragruntOptions) (st
 		currentDir := filepath.ToSlash(filepath.Dir(previousDir))
 		terragruntOptions.Logger.Debugf("Finding .tflint.hcl file from %s and going to %s", previousDir, currentDir)
 		if currentDir == previousDir {
-			return "", errors.WithStackTrace(TflintConfigNotFound("Traversed all the day to the root"))
+			return "", errors.WithStackTrace(ConfigNotFound{cause: "Traversed all the day to the root"})
 		}
 
 		fileToFind := util.JoinPath(currentDir, ".tflint.hcl")
@@ -89,25 +89,23 @@ func findTflintConfigInProject(terragruntOptions *options.TerragruntOptions) (st
 		previousDir = currentDir
 	}
 
-	return "", errors.WithStackTrace(TflintConfigNotFound(fmt.Sprintf("Exceeded maximum folders to check (%d)", terragruntOptions.MaxFoldersToCheck)))
+	return "", errors.WithStackTrace(ConfigNotFound{cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", terragruntOptions.MaxFoldersToCheck)})
 }
 
 // Custom error types
 
-type ErrorRunningTflint string
-
-func (e ErrorRunningTflint) Error() string {
-	return fmt.Sprintf("Error while running tflint: %s", e)
+type ErrorRunningTflint struct {
+	args []string
 }
 
-type TflintFoundIssues string
-
-func (e TflintFoundIssues) Error() string {
-	return fmt.Sprintf("Tflint found issues in the project: %s")
+func (err ErrorRunningTflint) Error() string {
+	return fmt.Sprintf("Error while running tflint with args: %v", err.args)
 }
 
-type TflintConfigNotFound string
+type ConfigNotFound struct {
+	cause string
+}
 
-func (e TflintConfigNotFound) Error() string {
-	return fmt.Sprintf("Could not find .tflint.hcl config file in the parent folders: %s", e)
+func (err ConfigNotFound) Error() string {
+	return fmt.Sprintf("Could not find .tflint.hcl config file in the parent folders: %s", err.cause)
 }

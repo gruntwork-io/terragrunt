@@ -135,6 +135,7 @@ const (
 	TEST_FIXTURE_ENDSWITH                                   = "fixture-endswith"
 	TEST_FIXTURE_TFLINT_NO_ISSUES_FOUND                     = "fixture-tflint-no-issues-found"
 	TEST_FIXTURE_TFLINT_ISSUES_FOUND                        = "fixture-tflint-issues-found"
+	TEST_FIXTURE_TFLINT_NO_CONFIG_FILE                        = "fixture-tflint-no-config-file"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -5210,11 +5211,11 @@ func TestTflintFindsNoIssuesWithValidCode(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-working-dir %s", modulePath), out, errOut)
 	assert.NoError(t, err)
 
-	if strings.Contains(errOut.String(), "tflint found issues") {
+	if strings.Contains(errOut.String(), "Error while running tflint with args:") {
 		t.Fatal("tflint found issues")
 	}
 
-	if strings.Contains(errOut.String(), "error while running tflint") {
+	if strings.Contains(errOut.String(), "Tflint found issues in the project. Check for the tflint logs above.") {
 		t.Fatal("tflint execution failed")
 	}
 }
@@ -5228,8 +5229,17 @@ func TestTflintFindsIssuesWithInvalidInput(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-working-dir %s", modulePath), io.Discard, errOut)
 	assert.NoError(t, err)
 
-	// TODO check for the constant with the error
-	if !strings.Contains(errOut.String(), "tflint found issues") {
+	if !strings.Contains(errOut.String(), "Tflint found issues in the project. Check for the tflint logs above.") {
 		t.Fatal("tflint did not found issues")
 	}
+}
+
+func TestTflintWithoutConfigFIle(t *testing.T) {
+	t.Parallel()
+
+	errOut := new(bytes.Buffer)
+	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_TFLINT_NO_CONFIG_FILE)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_NO_CONFIG_FILE)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-working-dir %s", modulePath), io.Discard, errOut)
+	assert.Error(t, err, "Could not find .tflint.hcl config file in the parent folders:")
 }
