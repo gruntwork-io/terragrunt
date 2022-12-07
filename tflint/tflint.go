@@ -11,7 +11,8 @@ import (
 	"github.com/terraform-linters/tflint/cmd"
 )
 
-func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, args []string) error {
+// tflint validates the binary's version based on the ruleset version.
+func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	cli := cmd.NewCLI(terragruntOptions.Writer, terragruntOptions.ErrWriter)
 
 	configFile, err := findTflintConfigInProject(terragruntOptions)
@@ -37,6 +38,7 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 		return errors.New(errorMsg)
 	}
 
+	args := []string{"tflint"}
 	args = append(args, variables...)
 	args = append(args, "--config", configFile)
 	args = append(args, "--module")
@@ -46,10 +48,20 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 	statusCode = cli.Run(args)
 	terragruntOptions.Logger.Debugf("Status code %d", statusCode)
 
-	if statusCode != 0 {
-		errorMsg := fmt.Sprintf("Error while running 'tflint'! Status code: %d", statusCode)
-		return errors.New(errorMsg)
+	// 1 - real error
+	// 2 - issues found
+	// TODO TEST CASE FOR REAL ERRORS, e.g. invalid argument
+	if statusCode == cmd.ExitCodeError {
+		return errors.New("error while running tflint")
 	}
+
+	// export constant with the error message
+
+	if statusCode == cmd.ExitCodeIssuesFound {
+		terragruntOptions.Logger.Warnf("tflint found issues")
+		//return errors.New("issues found")
+	}
+
 	return nil
 }
 
@@ -67,10 +79,9 @@ func inputsToTflintVar(inputs map[string]interface{}) ([]string, error) {
 	return variables, nil
 }
 
-
 // findTflintConfigInProjects looks for a .tflint.hcl file in the current folder or it's parents.
 // TODO Should it search for ~/.tflint?? this is tflint's existing behaviour
-func findTflintConfigInProject( terragruntOptions *options.TerragruntOptions) (string, error) {
+func findTflintConfigInProject(terragruntOptions *options.TerragruntOptions) (string, error) {
 	previousDir := terragruntOptions.WorkingDir
 
 	// To avoid getting into an accidental infinite loop (e.g. do to cyclical symlinks), set a max on the number of

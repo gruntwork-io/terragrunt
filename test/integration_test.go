@@ -133,7 +133,8 @@ const (
 	TEST_FIXTURE_RENDER_JSON_MOCK_OUTPUTS                   = "fixture-render-json-mock-outputs"
 	TEST_FIXTURE_STARTSWITH                                 = "fixture-startswith"
 	TEST_FIXTURE_ENDSWITH                                   = "fixture-endswith"
-	TEST_FIXTURE_TFLINT                                     = "fixture-tflint"
+	TEST_FIXTURE_TFLINT_NO_ISSUES_FOUND                     = "fixture-tflint-no-issues-found"
+	TEST_FIXTURE_TFLINT_ISSUES_FOUND                        = "fixture-tflint-issues-found"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -5199,15 +5200,36 @@ func validateBoolOutput(t *testing.T, outputs map[string]TerraformOutput, key st
 	require.Equalf(t, output.Value, value, "Expected output %s to be %t", key, value)
 }
 
-func TestTflintValidating(t *testing.T) {
+func TestTflintFindsNoIssuesWithValidCode(t *testing.T) {
 	t.Parallel()
 
 	out := new(bytes.Buffer)
-	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_TFLINT)
-	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT)
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-working-dir %s --terragrunt-log-level debug", modulePath), out, os.Stderr)
-
+	errOut := new(bytes.Buffer)
+	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_TFLINT_NO_ISSUES_FOUND)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_NO_ISSUES_FOUND)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-working-dir %s", modulePath), out, errOut)
 	assert.NoError(t, err)
 
-	// TODO assertions
+	if strings.Contains(errOut.String(), "tflint found issues") {
+		t.Fatal("tflint found issues")
+	}
+
+	if strings.Contains(errOut.String(), "error while running tflint") {
+		t.Fatal("tflint execution failed")
+	}
+}
+
+func TestTflintFindsIssuesWithInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	out := new(bytes.Buffer)
+	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_TFLINT_ISSUES_FOUND)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_ISSUES_FOUND)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-working-dir %s", modulePath), io.Discard, out)
+	assert.NoError(t, err)
+
+	// TODO check for the constant with the error
+	if !strings.Contains(out.String(), "tflint found issues") {
+		t.Fatal("tflint did not found issues")
+	}
 }

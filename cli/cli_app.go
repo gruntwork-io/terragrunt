@@ -719,12 +719,10 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 			actionParams := curHook.Execute[1:]
 
 			if actionToExecute == "tflint" {
-				actionParams := curHook.Execute[0:]
-
-				err := tflint.RunTflintWithOpts(terragruntOptions, terragruntConfig, actionParams)
+				err := tflint.RunTflintWithOpts(terragruntOptions, terragruntConfig)
 				if err != nil {
 					terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
-					multierror.Append(errorsOccured, err)
+					errorsOccured = multierror.Append(errorsOccured, err)
 				}
 			} else {
 				_, possibleError := shell.RunShellCommandWithOutput(
