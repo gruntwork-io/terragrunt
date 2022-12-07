@@ -1,2 +1,2 @@
-input        = "hello world"
+input = "hello world"
 unused_input = "I am unused"

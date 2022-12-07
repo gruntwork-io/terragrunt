@@ -726,11 +726,11 @@ func getTerragruntSourceCliFlag(trackInclude *TrackInclude, terragruntOptions *o
 }
 
 // Return the selected include block based on a label passed in as a function param. Note that the assumption is that:
-//   - If the Original attribute is set, we are in the parent context so return that.
-//   - If there are no include blocks, no param is required and nil is returned.
-//   - If there is only one include block, no param is required and that is automatically returned.
-//   - If there is more than one include block, 1 param is required to use as the label name to lookup the include block
-//     to use.
+// - If the Original attribute is set, we are in the parent context so return that.
+// - If there are no include blocks, no param is required and nil is returned.
+// - If there is only one include block, no param is required and that is automatically returned.
+// - If there is more than one include block, 1 param is required to use as the label name to lookup the include block
+//   to use.
 func getSelectedIncludeBlock(trackInclude TrackInclude, params []string) (*IncludeConfig, error) {
 	importMap := trackInclude.CurrentMap
 
