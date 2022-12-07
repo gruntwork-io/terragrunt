@@ -8,5 +8,6 @@ terraform {
 }
 
 inputs = {
-  instance_class = "db.r6i.large"
+  aws_region = "eu-central-1"
+  env = "dev"
 }

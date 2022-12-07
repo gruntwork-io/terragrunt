@@ -8,5 +8,6 @@ terraform {
 }
 
 inputs = {
-  instance_class = "db.m3.invalid"
+  aws_region = "eu-central-1"
+  env = "dev"
 }
