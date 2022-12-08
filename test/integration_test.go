@@ -5202,8 +5202,6 @@ func validateBoolOutput(t *testing.T, outputs map[string]TerraformOutput, key st
 }
 
 func TestTflintFindsNoIssuesWithValidCode(t *testing.T) {
-	t.Parallel()
-
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
 	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_TFLINT_NO_ISSUES_FOUND)
@@ -5221,8 +5219,6 @@ func TestTflintFindsNoIssuesWithValidCode(t *testing.T) {
 }
 
 func TestTflintFindsIssuesWithInvalidInput(t *testing.T) {
-	t.Parallel()
-
 	errOut := new(bytes.Buffer)
 	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_TFLINT_ISSUES_FOUND)
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_ISSUES_FOUND)
@@ -5230,9 +5226,7 @@ func TestTflintFindsIssuesWithInvalidInput(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestTflintWithoutConfigFIle(t *testing.T) {
-	t.Parallel()
-
+func TestTflintWithoutConfigFile(t *testing.T) {
 	errOut := new(bytes.Buffer)
 	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_TFLINT_NO_CONFIG_FILE)
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_NO_CONFIG_FILE)
