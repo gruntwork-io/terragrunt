@@ -47,11 +47,13 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 
 	if statusCode == cmd.ExitCodeError {
 		return errors.WithStackTrace(ErrorRunningTflint{args: initArgs})
-	}
-
-	// When tflint finds issues in the project, it prints out but does not stop execution of Terragrunt.
-	if statusCode == cmd.ExitCodeIssuesFound {
+	} else if statusCode == cmd.ExitCodeIssuesFound {
+		// When tflint finds issues in the project, it prints out but does not stop execution of Terragrunt.
 		terragruntOptions.Logger.Warnf("Tflint found issues in the project. Check for the tflint logs.")
+	} else if statusCode == cmd.ExitCodeOK {
+		terragruntOptions.Logger.Info("Tflint has run successfully. No issues found.")
+	} else {
+		terragruntOptions.Logger.Warnf("Unknown status code from tflint: %d", statusCode)
 	}
 
 	return nil
