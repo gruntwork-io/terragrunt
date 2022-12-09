@@ -106,7 +106,7 @@ func (err ErrorRunningTflint) Error() string {
 	return fmt.Sprintf("Error while running tflint with args: %v", err.args)
 }
 
-type IssuesFound struct {}
+type IssuesFound struct{}
 
 func (err IssuesFound) Error() string {
 	return "Tflint found issues in the project. Check for the tflint logs."
