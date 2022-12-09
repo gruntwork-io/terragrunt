@@ -5209,13 +5209,8 @@ func TestTflintFindsNoIssuesWithValidCode(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-working-dir %s", modulePath), out, errOut)
 	assert.NoError(t, err)
 
-	if strings.Contains(errOut.String(), "Error while running tflint with args:") {
-		t.Fatal("tflint found issues")
-	}
-
-	if strings.Contains(errOut.String(), "Tflint found issues in the project. Check for the tflint logs above.") {
-		t.Fatal("tflint execution failed")
-	}
+	assert.Contains(t, errOut.String(), "Error while running tflint with args:")
+	assert.Contains(t, errOut.String(), "Tflint found issues in the project. Check for the tflint logs above.")
 }
 
 func TestTflintFindsIssuesWithInvalidInput(t *testing.T) {
