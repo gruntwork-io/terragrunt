@@ -51,7 +51,7 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 	} else if statusCode == cmd.ExitCodeOK {
 		terragruntOptions.Logger.Info("Tflint has run successfully. No issues found.")
 	} else {
-		terragruntOptions.Logger.Warnf("Unknown status code from tflint: %d", statusCode)
+		return errors.WithStackTrace(UnknownError{statusCode: statusCode})
 	}
 
 	return nil
@@ -106,11 +106,18 @@ func (err ErrorRunningTflint) Error() string {
 	return fmt.Sprintf("Error while running tflint with args: %v", err.args)
 }
 
-type IssuesFound struct {
-}
+type IssuesFound struct {}
 
 func (err IssuesFound) Error() string {
 	return "Tflint found issues in the project. Check for the tflint logs."
+}
+
+type UnknownError struct {
+	statusCode int
+}
+
+func (err UnknownError) Error() string {
+	return fmt.Sprintf("Unknown status code from tflint: %d", err.statusCode)
 }
 
 type ConfigNotFound struct {
