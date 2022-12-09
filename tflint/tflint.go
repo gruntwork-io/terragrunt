@@ -47,8 +47,7 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 	if statusCode == cmd.ExitCodeError {
 		return errors.WithStackTrace(ErrorRunningTflint{args: initArgs})
 	} else if statusCode == cmd.ExitCodeIssuesFound {
-		// When tflint finds issues in the project, it prints out but does not stop execution of Terragrunt.
-		terragruntOptions.Logger.Warnf("Tflint found issues in the project. Check for the tflint logs.")
+		return errors.WithStackTrace(IssuesFound{})
 	} else if statusCode == cmd.ExitCodeOK {
 		terragruntOptions.Logger.Info("Tflint has run successfully. No issues found.")
 	} else {
@@ -105,6 +104,13 @@ type ErrorRunningTflint struct {
 
 func (err ErrorRunningTflint) Error() string {
 	return fmt.Sprintf("Error while running tflint with args: %v", err.args)
+}
+
+type IssuesFound struct {
+}
+
+func (err IssuesFound) Error() string {
+	return "Tflint found issues in the project. Check for the tflint logs."
 }
 
 type ConfigNotFound struct {
