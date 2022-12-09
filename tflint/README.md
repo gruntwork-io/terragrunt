@@ -4,7 +4,8 @@ This package is a wrapper of the ![tflint](https://github.com/terraform-linters/
 
 ## How to use
 
-`tflint` is now built-in in Terragrunt hooks. It behaves the same way as other hooks, but instead of executing a command, it will call the built-in functionality of `tflint`.
+This package allows us to embed [tflint](https://github.com/terraform-linters/tflint) in Terragrunt, enabling it to be natively executed from the before and after hooks without having to install `tflint` separately. Since `tflint` is licensed with MPL, we are required to let you know where you can find its source code: https://github.com/terraform-linters/tflint.
+}
 
 Here's an example:
 ```hcl

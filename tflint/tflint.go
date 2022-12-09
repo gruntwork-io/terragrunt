@@ -1,6 +1,5 @@
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+// This code embeds tflint, which is under an MPL license, and you can
+// find its source code at https://github.com/terraform-linters/tflint
 
 package tflint
 
