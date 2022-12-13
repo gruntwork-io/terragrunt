@@ -88,7 +88,16 @@ plugin "aws" {
 
 The `execute` parameter only accepts `tflint`, it will ignore any other parameter. Any desired extra configuration should be added in the `.tflint.hcl` file. It will work with a `.tflint.hcl` file in the current folder or any parent folder.
 
-### Troubleshooting
+#### Authentication for tflint rulesets 
+*Public rulesets*
+
+`tflint` works without any authentication for public rulesets (hosted on public repositories).
+
+*Private rulesets*
+
+If you want to run a the `tflint` hook with custom rulesets defined in a private repository, you will need to export locally a valid `GITHUB_OAUTH_TOKEN` token. Terragrunt will take that and expose it to the `tflint`-recognised authentication token - `GITHUB_TOKEN`.
+
+#### Troubleshooting
 
 **`flag provided but not defined: -act-as-bundled-plugin` error**
 
