@@ -34,9 +34,9 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
-	}
 
-	terragruntOptions.Logger.Debugf("Setting GITHUB_TOKEN to the value of GITHUB_OAUTH_TOKEN")
+		terragruntOptions.Logger.Debugf("Setting GITHUB_TOKEN to the value of GITHUB_OAUTH_TOKEN")
+	}
 
 	terragruntOptions.Logger.Debugf("Initializing tflint in directory %s", terragruntOptions.WorkingDir)
 	cli := cmd.NewCLI(terragruntOptions.Writer, terragruntOptions.ErrWriter)
