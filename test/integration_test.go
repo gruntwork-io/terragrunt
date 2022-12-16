@@ -133,6 +133,9 @@ const (
 	TEST_FIXTURE_RENDER_JSON_MOCK_OUTPUTS                   = "fixture-render-json-mock-outputs"
 	TEST_FIXTURE_STARTSWITH                                 = "fixture-startswith"
 	TEST_FIXTURE_ENDSWITH                                   = "fixture-endswith"
+	TEST_FIXTURE_TFLINT_NO_ISSUES_FOUND                     = "fixture-tflint/no-issues-found"
+	TEST_FIXTURE_TFLINT_ISSUES_FOUND                        = "fixture-tflint/issues-found"
+	TEST_FIXTURE_TFLINT_NO_CONFIG_FILE                      = "fixture-tflint/no-config-file"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -3869,6 +3872,19 @@ func copyEnvironment(t *testing.T, environmentPath string) string {
 	return tmpDir
 }
 
+func copyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
+	tmpDir, err := ioutil.TempDir("", "terragrunt-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir due to error: %v", err)
+	}
+
+	t.Logf("Copying %s to %s", environmentPath, tmpDir)
+
+	require.NoError(t, util.CopyFolderContents(environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", []string{".tflint.hcl"}))
+
+	return tmpDir
+}
+
 func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
 	if err := os.MkdirAll(targetPath, 0777); err != nil {
 		t.Fatalf("Failed to create temp dir %s due to error %v", targetPath, err)
@@ -5214,4 +5230,32 @@ func validateBoolOutput(t *testing.T, outputs map[string]TerraformOutput, key st
 	output, hasPlatform := outputs[key]
 	require.Truef(t, hasPlatform, "Expected output %s to be defined", key)
 	require.Equalf(t, output.Value, value, "Expected output %s to be %t", key, value)
+}
+
+func TestTflintFindsNoIssuesWithValidCode(t *testing.T) {
+	out := new(bytes.Buffer)
+	errOut := new(bytes.Buffer)
+	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_TFLINT_NO_ISSUES_FOUND)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_NO_ISSUES_FOUND)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-working-dir %s", modulePath), out, errOut)
+	assert.NoError(t, err)
+
+	assert.NotContains(t, errOut.String(), "Error while running tflint with args:")
+	assert.NotContains(t, errOut.String(), "Tflint found issues in the project. Check for the tflint logs above.")
+}
+
+func TestTflintFindsIssuesWithInvalidInput(t *testing.T) {
+	errOut := new(bytes.Buffer)
+	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_TFLINT_ISSUES_FOUND)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_ISSUES_FOUND)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-working-dir %s", modulePath), os.Stdout, errOut)
+	assert.Error(t, err, "Tflint found issues in the project. Check for the tflint logs")
+}
+
+func TestTflintWithoutConfigFile(t *testing.T) {
+	errOut := new(bytes.Buffer)
+	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_TFLINT_NO_CONFIG_FILE)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_NO_CONFIG_FILE)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-working-dir %s", modulePath), io.Discard, errOut)
+	assert.Error(t, err, "Could not find .tflint.hcl config file in the parent folders:")
 }

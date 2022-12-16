@@ -173,7 +173,7 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]interfac
 	return f.Bytes(), nil
 }
 
-// GenerateConfigExistsFromString converst a string representation of if_exists into the enum, returning an error if it
+// GenerateConfigExistsFromString converts a string representation of if_exists into the enum, returning an error if it
 // is not set to one of the known values.
 func GenerateConfigExistsFromString(val string) (GenerateConfigExists, error) {
 	switch val {
