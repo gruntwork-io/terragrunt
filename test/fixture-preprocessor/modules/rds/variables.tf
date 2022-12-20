@@ -27,13 +27,7 @@ variable "vpc_id" {
   type        = string
 }
 
-variable "db_username" {
-  description = "The username for the master user of the DB"
+variable "db_credentials_secrets_manager_id" {
+  description = "The ID of a secret to read from AWS Secrets Manager to fetch the database credentials (username, password)"
   type        = string
-}
-
-variable "db_password" {
-  description = "The password for the master user of the DB"
-  type        = string
-  sensitive   = true
 }
