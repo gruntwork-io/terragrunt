@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	"os"
 	"path/filepath"
@@ -228,8 +229,6 @@ func processFiles(parsedTerraformFiles TerraformFiles, currentModuleName string,
 	// module first, then when we go to remove locals, the "does any output variable depend on this local?" check
 	// will apply only to the outputs that are relevant, rather than all outputs.
 
-	// TODO: update dependency graph when removing vars, resources, data sources, etc
-
 	backend, err := updateTerraformConfig(blocksByType["terraform"], currentModuleName, otherModuleNames, envName, dependencyGraph, terragruntOptions)
 	if err != nil {
 		return err
@@ -319,7 +318,7 @@ func updateTerraformConfig(terraformBlocks []BlockAndFile, currentModuleName str
 					return nil, err
 				}
 
-				if err := backend.UpdateConfig(currentModuleName, envName); err != nil {
+				if err := backend.UpdateConfig(currentModuleName, envName, terragruntOptions); err != nil {
 					return nil, err
 				}
 
@@ -344,7 +343,8 @@ func NewTerraformBackend(block *hclwrite.Block) (*TerraformBackend, error) {
 	return &TerraformBackend{backendType: block.Labels()[0], backendConfig: block.Body()}, nil
 }
 
-func (backend *TerraformBackend) UpdateConfig(currentModuleName string, envName *string) error {
+func (backend *TerraformBackend) UpdateConfig(currentModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Debugf("Updating backend config...")
 	// TODO! Implement this method to update the path/key values in the config accordingly.
 	switch backend.backendType {
 	case "local":
@@ -363,12 +363,27 @@ func (backend *TerraformBackend) UpdateConfig(currentModuleName string, envName 
 	return nil
 }
 
+var openBraceToken = &hclwrite.Token{
+	Type:  hclsyntax.TokenOBrace,
+	Bytes: []byte("{"),
+}
+
+var closeBraceToken = &hclwrite.Token{
+	Type:  hclsyntax.TokenCBrace,
+	Bytes: []byte("}"),
+}
+
 func (backend *TerraformBackend) ConfigureDataSource(dataSourceBody *hclwrite.Body) error {
 	dataSourceBody.SetAttributeValue("backend", cty.StringVal(backend.backendType))
 	dataSourceBody.AppendNewline()
 
 	// TODO: this needs to have the key/path/etc value updated accordingly!
-	dataSourceBody.SetAttributeRaw("config", backend.backendConfig.BuildTokens(nil))
+	configTokens := []*hclwrite.Token{}
+	configTokens = append(configTokens, openBraceToken)
+	configTokens = append(configTokens, backend.backendConfig.BuildTokens(nil)...)
+	configTokens = append(configTokens, closeBraceToken)
+
+	dataSourceBody.SetAttributeRaw("config", configTokens)
 	dataSourceBody.AppendNewline()
 
 	return nil
@@ -465,9 +480,9 @@ func removeUnneededOutputVariables(outputBlocks []BlockAndFile, currentModuleNam
 			return err
 		}
 
-		terragruntOptions.Logger.Debugf("Looking up if output %s depends on module %s and got %v", outputName, currentModuleName, dependsOn)
-
 		if !dependsOn {
+			terragruntOptions.Logger.Debugf("Removing output variable %s", outputName)
+
 			outputBlock.file.Body().RemoveBlock(outputBlock.block)
 
 			if err := dependencyGraph.RemoveOutput(outputName); err != nil {
@@ -494,6 +509,8 @@ func removeUnneededDataSources(dataSourceBlocks []BlockAndFile, currentModuleNam
 		}
 
 		if !dependsOn {
+			terragruntOptions.Logger.Debugf("Removing data source %s.%s", dataSourceType, dataSourceName)
+
 			dataSourceBlock.file.Body().RemoveBlock(dataSourceBlock.block)
 
 			if err := dependencyGraph.RemoveDataSource(dataSourceType, dataSourceName); err != nil {
@@ -527,26 +544,32 @@ func removeUnneededResources(resourceBlocks []BlockAndFile, currentModuleName st
 }
 
 func removeUnneededProviders(providerBlocks []BlockAndFile, currentModuleName string, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) error {
-	for _, providerBlock := range providerBlocks {
-		if len(providerBlock.block.Labels()) != 1 {
-			return WrongNumberOfLabels{blockType: providerBlock.block.Type(), expectedLabelCount: 1, actualLabels: providerBlock.block.Labels()}
-		}
+	// TODO: the 'terraform graph' command doesn't seem to produce the full dependency graph for providers: not all
+	// the modules that use a provider block seem to have a clear dependency on it, so if we remove it here, then we
+	// end up removing too much. Therefore, for now, disabling this logic.
 
-		providerName := providerBlock.block.Labels()[0]
-
-		dependsOn, err := dependencyGraph.DoesModuleDependOnProvider(currentModuleName, providerName)
-		if err != nil {
-			return err
-		}
-
-		if !dependsOn {
-			providerBlock.file.Body().RemoveBlock(providerBlock.block)
-
-			if err := dependencyGraph.RemoveProvider(providerName); err != nil {
-				return err
-			}
-		}
-	}
+	//for _, providerBlock := range providerBlocks {
+	//	if len(providerBlock.block.Labels()) != 1 {
+	//		return WrongNumberOfLabels{blockType: providerBlock.block.Type(), expectedLabelCount: 1, actualLabels: providerBlock.block.Labels()}
+	//	}
+	//
+	//	providerName := providerBlock.block.Labels()[0]
+	//
+	//	dependsOn, err := dependencyGraph.DoesAnythingDependOnProvider(providerName)
+	//	if err != nil {
+	//		return err
+	//	}
+	//
+	//	if !dependsOn {
+	//		terragruntOptions.Logger.Debugf("Removing provider %s", providerName)
+	//
+	//		providerBlock.file.Body().RemoveBlock(providerBlock.block)
+	//
+	//		if err := dependencyGraph.RemoveProvider(providerName); err != nil {
+	//			return err
+	//		}
+	//	}
+	//}
 
 	return nil
 }
@@ -560,12 +583,19 @@ func removeUnneededLocals(localsBlocks []BlockAndFile, currentModuleName string,
 			}
 
 			if !dependsOn {
+				terragruntOptions.Logger.Debugf("Removing local %s", localName)
+
 				localsBlock.block.Body().RemoveAttribute(localName)
 
 				if err := dependencyGraph.RemoveLocal(localName); err != nil {
 					return err
 				}
 			}
+		}
+
+		if len(localsBlock.block.Body().Attributes()) == 0 {
+			terragruntOptions.Logger.Debugf("Removing empty locals block")
+			localsBlock.file.Body().RemoveBlock(localsBlock.block)
 		}
 	}
 
@@ -586,6 +616,8 @@ func removeUnneededVariables(variableBlocks []BlockAndFile, currentModuleName st
 		}
 
 		if !dependsOn {
+			terragruntOptions.Logger.Debugf("Removing input variable %s", variableName)
+
 			variableBlock.file.Body().RemoveBlock(variableBlock.block)
 
 			if err := dependencyGraph.RemoveVariable(variableName); err != nil {

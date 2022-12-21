@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"os/exec"
 	"regexp"
+	"strings"
 )
 
 type TerraformGraph struct {
@@ -130,12 +131,6 @@ func (graph *TerraformGraph) DoesModuleDependOnVariable(fromModule string, toVar
 	return graph.doesFromDependOnTo(formatModuleNameClose(fromModule), formatVariableName(toVariable))
 }
 
-// DoesModuleDependOnProvider returns true if the module fromModule depends on the provider toProvider, and false
-// otherwise.
-func (graph *TerraformGraph) DoesModuleDependOnProvider(fromModule string, toProvider string) (bool, error) {
-	return graph.doesFromDependOnTo(formatModuleNameClose(fromModule), formatProviderName(toProvider))
-}
-
 // DoesModuleDependOnDataSource returns true if the module fromModule depends on the data source toDataSource, of type
 // toDataSourceType, and false otherwise.
 func (graph *TerraformGraph) DoesModuleDependOnDataSource(fromModule string, toDataSourceType string, toDataSourceName string) (bool, error) {
@@ -164,6 +159,12 @@ func (graph *TerraformGraph) DoesAnythingDependOnLocal(toLocal string) (bool, er
 // input variable toVariable.
 func (graph *TerraformGraph) DoesAnythingDependOnVariable(toVariable string) (bool, error) {
 	return graph.doesAnythingDependOnNode(formatVariableName(toVariable))
+}
+
+// DoesAnythingDependOnProvider returns true if anything (any module, resource, data source, etc) depends on the
+// provider toProvider.
+func (graph *TerraformGraph) DoesAnythingDependOnProvider(toProvider string) (bool, error) {
+	return graph.doesAnythingDependOnNode(formatProviderName(toProvider))
 }
 
 // The output of the 'terraform graph' command has "nodes" that we don't really care about such as:
@@ -241,8 +242,6 @@ func (graph *TerraformGraph) doesFromDependOnTo(formattedFromName string, format
 	roots[formattedFromName] = true
 
 	reachableNodes := graph.graph.reachableFrom(roots)
-
-	fmt.Printf("Looked up if %s depends on %s and got reachableNodes: %v\n", formattedFromName, formattedToName, reachableNodes)
 
 	for reachableNode, isReachable := range reachableNodes {
 		if reachableNode == formattedToName && isReachable {
