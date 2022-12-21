@@ -7,7 +7,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"os/exec"
 	"regexp"
-	"strings"
 )
 
 type TerraformGraph struct {

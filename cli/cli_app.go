@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/preprocess"
 	"io"
 	"os"
 	"regexp"
@@ -296,7 +297,7 @@ var terragruntHelp = map[string]string{
 	CMD_RENDER_JSON:                renderJsonHelp,
 	CMD_AWS_PROVIDER_PATCH:         awsProviderPatchHelp,
 	CMD_TERRAGRUNT_VALIDATE_INPUTS: validateInputsHelp,
-	CMD_PROCESS:                    processHelp,
+	CMD_PROCESS:                    preprocess.ProcessHelp,
 }
 
 // Create the Terragrunt CLI App
@@ -394,7 +395,7 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	if shouldRunProcess(terragruntOptions) {
-		return runProcess(terragruntOptions)
+		return preprocess.RunProcess(terragruntOptions)
 	}
 
 	if err := checkVersionConstraints(terragruntOptions); err != nil {
