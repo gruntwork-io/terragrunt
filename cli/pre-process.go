@@ -29,8 +29,6 @@ const processHelp = `
 
 const envsDirName = "envs"
 
-const manifestName = ".tgmanifest"
-
 func runProcess(terragruntOptions *options.TerragruntOptions) error {
 	// First arg should be "process"; second should be output dir
 	if len(terragruntOptions.TerraformCliArgs) != 2 {
@@ -161,8 +159,8 @@ func extractModuleNames(parsedTerraformFiles TerraformFiles) ([]string, error) {
 	return moduleNames, nil
 }
 
-func createModule(moduleName string, otherModuleNames []string, outPath string, envName *string, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) error {
-	modulePath := filepath.Join(outPath, moduleName)
+func createModule(currentModuleName string, otherModuleNames []string, outPath string, envName *string, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) error {
+	modulePath := filepath.Join(outPath, currentModuleName)
 	terragruntOptions.Logger.Debugf("Creating module: %s", modulePath)
 
 	if err := copyOriginalModuleFromWorkingDir(modulePath, terragruntOptions); err != nil {
@@ -181,20 +179,21 @@ func createModule(moduleName string, otherModuleNames []string, outPath string, 
 		return err
 	}
 
-	if err := replaceOtherModulesWithDataSources(parsedTerraformFiles, moduleName, envName, dependencyGraph, terragruntOptions); err != nil {
+	// We are going to modify the graph for each module, so clone it so we aren't modifying the original
+	dependencyGraphClone := dependencyGraph.Clone()
+
+	if err := processFiles(parsedTerraformFiles, currentModuleName, otherModuleNames, envName, dependencyGraphClone, terragruntOptions); err != nil {
 		return err
 	}
 
-	if err := replaceReferencesToOtherModules(parsedTerraformFiles, moduleName, otherModuleNames, envName, terragruntOptions); err != nil {
-		return err
-	}
+	for path, parsedFile := range parsedTerraformFiles {
+		fileContents := parsedFile.Bytes()
+		formattedFileContents := hclwrite.Format(fileContents)
 
-	// TODO: update backend config in each module
-
-	// TODO: write the files back out to disk
-	// TODO: format the code
-	for _, parsedFile := range parsedTerraformFiles {
-		terragruntOptions.Logger.Infof("FILE CONTENTS:\n\n%s\n\n", string(parsedFile.BuildTokens(nil).Bytes()))
+		terragruntOptions.Logger.Debugf("Writing updated contents to %s", path)
+		if err := util.WriteFileWithSamePermissions(path, path, formattedFileContents); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -202,192 +201,6 @@ func createModule(moduleName string, otherModuleNames []string, outPath string, 
 
 func buildDependencyGraph(terragruntOptions *options.TerragruntOptions) (*graph.TerraformGraph, error) {
 	return graph.GetParsedTerraformGraph(terragruntOptions.WorkingDir)
-}
-
-func buildDependencyGraph2(parsedTerraformFiles TerraformFiles, moduleName string, otherModuleNames []string, terragruntOptions *options.TerragruntOptions) error {
-	for _, parsedFile := range parsedTerraformFiles {
-		if err := buildDependencyGraphForBlocks(parsedFile.Body().Blocks(), moduleName, otherModuleNames, terragruntOptions, 0); err != nil {
-			return err
-		}
-
-		if err := buildDependencyGraphForAttrs(parsedFile.Body().Attributes(), moduleName, otherModuleNames, terragruntOptions); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func buildDependencyGraphForBlocks(blocks []*hclwrite.Block, moduleName string, otherModuleNames []string, terragruntOptions *options.TerragruntOptions, depthSearchedSoFar int) error {
-	// A simple mechanism to avoid infinite loops where we call replaceReferencesToOtherModulesInBlocks recursively
-	// over and over indefinitely. There shouldn't be any way to create loops in real HCL code (blocks that contain
-	// blocks that somehow loop around to contain their parents), but it's useful to have this as an extra sanity check
-	// in case the HCL parser has a bug, or someone creates an artificial AST with loops in it.
-	if depthSearchedSoFar > 100 {
-		return fmt.Errorf("Hit more than %d nested levels of blocks. Is there any infinite loop somewhere?", depthSearchedSoFar)
-	}
-
-	/*
-	  We care about:
-
-	  One module named "foo"
-
-	  Other modules:
-	    - If "foo" depends on them, replace them with terraform_remote_state
-	    - Otherwise, remove
-
-	  Input and local variables:
-	    - If "foo" depends on them, or output vars depend on them and those output vars depend on "foo", keep them
-	    - Otherwise, remove
-
-	  Output variables:
-	    - If they depend on "foo", keep them
-	    - Otherwise, remove
-
-	  Data sources:
-	    - If "foo" depends on them, keep them
-	    - Otherwise, remove
-
-	  Resources:
-	    - For now, just error out
-
-	  Provider and terraform blocks:
-	    - Keep all
-	*/
-
-	/*
-			To build a dependency graph:
-
-		    Identify the top-level items:
-		      - module.xxx, var.xxx, output.xxx, data.xxx, <RESOURCE>.xxx, provider.xxx, terraform, locals
-		      - Go into locals blocks and use attrs to idenfity top-level local vars
-		    Go into every attr everywhere within the top-level items and cross-link at the top level:
-		      - E.g., module.xxx depends on module.yyy and local.zzz
-		    Create a method to check if x depends on y: depends_on(x, y):
-		      - Check for a direct cross-link from x to y;
-		      - If not found, follow everything x depends on with depth-first or breadth-first search to see if you end up at y
-
-
-		    Alternative:
-
-		    Run 'terraform graph
-	*/
-
-	for _, block := range blocks {
-		if err := buildDependencyGraphForBlocks(block.Body().Blocks(), moduleName, otherModuleNames, terragruntOptions, depthSearchedSoFar+1); err != nil {
-			return err
-		}
-
-		if err := buildDependencyGraphForAttrs(block.Body().Attributes(), moduleName, otherModuleNames, terragruntOptions); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func buildDependencyGraphForAttrs(attrs map[string]*hclwrite.Attribute, moduleName string, otherModuleNames []string, terragruntOptions *options.TerragruntOptions) error {
-	for attrName, attr := range attrs {
-		terragruntOptions.Logger.Infof("For attr %s:", attrName)
-		// attr.Expr().Variables() tells us EVERYTHING this expression depends on: every input variable, local variable,
-		// resource, data source, etc.
-		for _, variable := range attr.Expr().Variables() {
-			terragruntOptions.Logger.Infof("Variable: %v", string(variable.BuildTokens(nil).Bytes()))
-		}
-	}
-
-	return nil
-}
-
-// Replace all modules other than the current module with terraform_remote_state data sources if the current module
-// depends on them, or remove the other module entirely otherwise.
-func replaceOtherModulesWithDataSources(parsedTerraformFiles TerraformFiles, moduleName string, envName *string, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) error {
-	for _, parsedFile := range parsedTerraformFiles {
-		for _, block := range parsedFile.Body().Blocks() {
-			if block.Type() != "module" || len(block.Labels()) != 1 {
-				continue
-			}
-
-			otherModuleName := block.Labels()[0]
-			if moduleName == otherModuleName {
-				continue
-			}
-
-			dependsOn, err := dependencyGraph.DoesModuleDependOnModule(moduleName, otherModuleName)
-			if err != nil {
-				return err
-			}
-
-			if dependsOn {
-				if err := replaceBlockWithDataSource(block, otherModuleName); err != nil {
-					return err
-				}
-			} else {
-				parsedFile.Body().RemoveBlock(block)
-			}
-		}
-	}
-
-	return nil
-}
-
-func replaceBlockWithDataSource(block *hclwrite.Block, blockName string) error {
-	block.SetType("data")
-	block.SetLabels([]string{"terraform_remote_state", blockName})
-
-	// TODO: read backend settings of original module and set them accordingly here
-	block.Body().Clear()
-	block.Body().AppendNewline()
-	block.Body().SetAttributeValue("backend", cty.StringVal("local"))
-
-	return nil
-}
-
-// Replace all references to modules other than the current module with references to terraform_remote_state data sources
-func replaceReferencesToOtherModules(parsedTerraformFiles TerraformFiles, moduleName string, otherModuleNames []string, envName *string, terragruntOptions *options.TerragruntOptions) error {
-	for _, parsedFile := range parsedTerraformFiles {
-		if err := replaceReferencesToOtherModulesInBlocks(parsedFile.Body().Blocks(), moduleName, otherModuleNames, 0); err != nil {
-			return err
-		}
-
-		if err := replaceReferencesToOtherModulesInAttributes(parsedFile.Body().Attributes(), otherModuleNames); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func replaceReferencesToOtherModulesInBlocks(blocks []*hclwrite.Block, moduleName string, otherModuleNames []string, depthSearchedSoFar int) error {
-	// A simple mechanism to avoid infinite loops where we call replaceReferencesToOtherModulesInBlocks recursively
-	// over and over indefinitely. There shouldn't be any way to create loops in real HCL code (blocks that contain
-	// blocks that somehow loop around to contain their parents), but it's useful to have this as an extra sanity check
-	// in case the HCL parser has a bug, or someone creates an artificial AST with loops in it.
-	if depthSearchedSoFar > 100 {
-		return fmt.Errorf("Hit more than %d nested levels of blocks. Is there any infinite loop somewhere?", depthSearchedSoFar)
-	}
-
-	for _, block := range blocks {
-		if err := replaceReferencesToOtherModulesInBlocks(block.Body().Blocks(), moduleName, otherModuleNames, depthSearchedSoFar+1); err != nil {
-			return err
-		}
-
-		if err := replaceReferencesToOtherModulesInAttributes(block.Body().Attributes(), otherModuleNames); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func replaceReferencesToOtherModulesInAttributes(attributes map[string]*hclwrite.Attribute, otherModuleNames []string) error {
-	for _, attr := range attributes {
-		for _, otherModuleName := range otherModuleNames {
-			attr.Expr().RenameVariablePrefix([]string{"module", otherModuleName}, []string{"data", fmt.Sprintf("terraform_remote_state.%s.outputs.__module__", otherModuleName)})
-		}
-	}
-
-	return nil
 }
 
 func copyOriginalModuleFromWorkingDir(modulePath string, terragruntOptions *options.TerragruntOptions) error {
@@ -407,30 +220,391 @@ func preprocessorFileCopyFilter(absolutePath string) bool {
 	return !util.TerragruntExcludes(absolutePath) && !strings.HasSuffix(absolutePath, ".tfstate") && !strings.HasSuffix(absolutePath, ".tfstate.backup")
 }
 
-func doStuff(terragruntOptions *options.TerragruntOptions) error {
-	filename := "main.tf"
-	bytes, err := os.ReadFile(filepath.Join("/Users/brikis98/src/terragrunt/test/fixture-preprocessor/before", filename))
+func processFiles(parsedTerraformFiles TerraformFiles, currentModuleName string, otherModuleNames []string, envName *string, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) error {
+	allBlocks := getAllBlocks(parsedTerraformFiles)
+	blocksByType := groupBlocksByType(allBlocks)
+
+	// The order of these steps matters! For example, if we remove output variables not relevant to the current
+	// module first, then when we go to remove locals, the "does any output variable depend on this local?" check
+	// will apply only to the outputs that are relevant, rather than all outputs.
+
+	// TODO: update dependency graph when removing vars, resources, data sources, etc
+
+	backend, err := updateTerraformConfig(blocksByType["terraform"], currentModuleName, otherModuleNames, envName, dependencyGraph, terragruntOptions)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return err
 	}
 
-	parsedFile, diags := hclwrite.ParseConfig(bytes, filename, hcl.InitialPos)
-	if diags.HasErrors() {
-		return errors.WithStackTrace(err)
+	if err := removeOrReplaceModules(blocksByType["module"], currentModuleName, otherModuleNames, envName, backend, dependencyGraph, terragruntOptions); err != nil {
+		return err
 	}
 
-	for _, block := range parsedFile.Body().Blocks() {
-		terragruntOptions.Logger.Infof("Block: type = %s, labels = %v", block.Type(), block.Labels())
-		for _, attr := range block.Body().Attributes() {
-			terragruntOptions.Logger.Infof("Attribute before: %v", string(attr.BuildTokens(nil).Bytes()))
-			terragruntOptions.Logger.Infof("Expr before: %v", string(attr.Expr().BuildTokens(nil).Bytes()))
+	if err := replaceReferencesToOtherModulesInBlocks(allBlocks, currentModuleName, otherModuleNames, 0); err != nil {
+		return err
+	}
 
-			attr.Expr().RenameVariablePrefix([]string{"module", "vpc"}, []string{"data", "terraform_remote_state.vpc.outputs.__module__."})
+	if err := removeUnneededOutputVariables(blocksByType["output"], currentModuleName, dependencyGraph, terragruntOptions); err != nil {
+		return err
+	}
 
-			terragruntOptions.Logger.Infof("Attribute after: %v", string(attr.BuildTokens(nil).Bytes()))
-			terragruntOptions.Logger.Infof("Expr after: %v", string(attr.Expr().BuildTokens(nil).Bytes()))
+	if err := removeUnneededDataSources(blocksByType["data"], currentModuleName, dependencyGraph, terragruntOptions); err != nil {
+		return err
+	}
+
+	if err := removeUnneededResources(blocksByType["resource"], currentModuleName, dependencyGraph, terragruntOptions); err != nil {
+		return err
+	}
+
+	if err := removeUnneededProviders(blocksByType["provider"], currentModuleName, dependencyGraph, terragruntOptions); err != nil {
+		return err
+	}
+
+	if err := removeUnneededLocals(blocksByType["locals"], currentModuleName, dependencyGraph, terragruntOptions); err != nil {
+		return err
+	}
+
+	if err := removeUnneededVariables(blocksByType["variable"], currentModuleName, dependencyGraph, terragruntOptions); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type BlockAndFile struct {
+	file  *hclwrite.File
+	block *hclwrite.Block
+}
+
+func getAllBlocks(parsedTerraformFiles TerraformFiles) []BlockAndFile {
+	out := []BlockAndFile{}
+
+	for _, parsedFile := range parsedTerraformFiles {
+		out = append(out, getAllBlocksFromBody(parsedFile.Body(), parsedFile)...)
+	}
+
+	return out
+}
+
+func getAllBlocksFromBody(body *hclwrite.Body, file *hclwrite.File) []BlockAndFile {
+	out := []BlockAndFile{}
+
+	for _, block := range body.Blocks() {
+		out = append(out, BlockAndFile{file: file, block: block})
+	}
+
+	return out
+}
+
+func groupBlocksByType(blocks []BlockAndFile) map[string][]BlockAndFile {
+	out := map[string][]BlockAndFile{}
+
+	for _, block := range blocks {
+		blocksOfType, ok := out[block.block.Type()]
+		if !ok {
+			blocksOfType = []BlockAndFile{}
+		}
+		blocksOfType = append(blocksOfType, block)
+		out[block.block.Type()] = blocksOfType
+	}
+
+	return out
+}
+
+func updateTerraformConfig(terraformBlocks []BlockAndFile, currentModuleName string, otherModuleNames []string, envName *string, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) (*TerraformBackend, error) {
+	for _, terraformBlock := range terraformBlocks {
+		for _, nestedBlock := range terraformBlock.block.Body().Blocks() {
+			if nestedBlock.Type() == "backend" {
+				backend, err := NewTerraformBackend(nestedBlock)
+				if err != nil {
+					return nil, err
+				}
+
+				if err := backend.UpdateConfig(currentModuleName, envName); err != nil {
+					return nil, err
+				}
+
+				return backend, nil
+			}
+		}
+	}
+
+	return nil, nil
+}
+
+type TerraformBackend struct {
+	backendType   string
+	backendConfig *hclwrite.Body
+}
+
+func NewTerraformBackend(block *hclwrite.Block) (*TerraformBackend, error) {
+	if len(block.Labels()) != 1 {
+		return nil, WrongNumberOfLabels{blockType: block.Type(), expectedLabelCount: 1, actualLabels: block.Labels()}
+	}
+
+	return &TerraformBackend{backendType: block.Labels()[0], backendConfig: block.Body()}, nil
+}
+
+func (backend *TerraformBackend) UpdateConfig(currentModuleName string, envName *string) error {
+	// TODO! Implement this method to update the path/key values in the config accordingly.
+	switch backend.backendType {
+	case "local":
+	case "remote":
+	case "azurerm":
+	case "consul":
+	case "cos":
+	case "gcs":
+	case "http":
+	case "kubernetes":
+	case "oss":
+	case "pg":
+	case "s3":
+	}
+
+	return nil
+}
+
+func (backend *TerraformBackend) ConfigureDataSource(dataSourceBody *hclwrite.Body) error {
+	dataSourceBody.SetAttributeValue("backend", cty.StringVal(backend.backendType))
+	dataSourceBody.AppendNewline()
+
+	// TODO: this needs to have the key/path/etc value updated accordingly!
+	dataSourceBody.SetAttributeRaw("config", backend.backendConfig.BuildTokens(nil))
+	dataSourceBody.AppendNewline()
+
+	return nil
+}
+
+func removeOrReplaceModules(moduleBlocks []BlockAndFile, currentModuleName string, otherModuleNames []string, envName *string, backend *TerraformBackend, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) error {
+	for _, moduleBlock := range moduleBlocks {
+		if len(moduleBlock.block.Labels()) != 1 {
+			return WrongNumberOfLabels{blockType: moduleBlock.block.Type(), expectedLabelCount: 1, actualLabels: moduleBlock.block.Labels()}
+		}
+
+		otherModuleName := moduleBlock.block.Labels()[0]
+
+		// If this isn't the current module, either turn it into a terraform_remote_state data source (if the current
+		// module depends on it) or remove it.
+		if otherModuleName != currentModuleName {
+			dependsOn, err := dependencyGraph.DoesModuleDependOnModule(currentModuleName, otherModuleName)
+			if err != nil {
+				return err
+			}
+
+			if dependsOn {
+				terragruntOptions.Logger.Debugf("Replacing module %s with a terraform_remote_state data source", otherModuleName)
+				if err := replaceBlockWithDataSource(moduleBlock.block, otherModuleName, backend); err != nil {
+					return err
+				}
+			} else {
+				terragruntOptions.Logger.Debugf("Removing module %s", otherModuleName)
+				moduleBlock.file.Body().RemoveBlock(moduleBlock.block)
+			}
+
+			// Update the graph to indicate the module is gone too
+			if err := dependencyGraph.RemoveModule(otherModuleName); err != nil {
+				return err
+			}
 		}
 	}
 
 	return nil
+}
+
+func replaceBlockWithDataSource(block *hclwrite.Block, blockName string, backend *TerraformBackend) error {
+	block.SetType("data")
+	block.SetLabels([]string{"terraform_remote_state", blockName})
+
+	block.Body().Clear()
+	block.Body().AppendNewline()
+
+	return backend.ConfigureDataSource(block.Body())
+}
+
+func replaceReferencesToOtherModulesInBlocks(blocks []BlockAndFile, currentModuleName string, otherModuleNames []string, depthSearchedSoFar int) error {
+	// A simple mechanism to avoid infinite loops where we call replaceReferencesToOtherModulesInBlocks recursively
+	// over and over indefinitely. There shouldn't be any way to create loops in real HCL code (blocks that contain
+	// blocks that somehow loop around to contain their parents), but it's useful to have this as an extra sanity check
+	// in case the HCL parser has a bug, or someone creates an artificial AST with loops in it.
+	if depthSearchedSoFar > 100 {
+		return fmt.Errorf("Hit more than %d nested levels of blocks. Is there any infinite loop somewhere?", depthSearchedSoFar)
+	}
+
+	for _, block := range blocks {
+		if err := replaceReferencesToOtherModulesInBlocks(getAllBlocksFromBody(block.block.Body(), block.file), currentModuleName, otherModuleNames, depthSearchedSoFar+1); err != nil {
+			return err
+		}
+
+		if err := replaceReferencesToOtherModulesInAttributes(block.block.Body().Attributes(), otherModuleNames); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func replaceReferencesToOtherModulesInAttributes(attributes map[string]*hclwrite.Attribute, otherModuleNames []string) error {
+	for _, attr := range attributes {
+		for _, otherModuleName := range otherModuleNames {
+			attr.Expr().RenameVariablePrefix([]string{"module", otherModuleName}, []string{"data", fmt.Sprintf("terraform_remote_state.%s.outputs.__module__", otherModuleName)})
+		}
+	}
+
+	return nil
+}
+
+func removeUnneededOutputVariables(outputBlocks []BlockAndFile, currentModuleName string, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) error {
+	for _, outputBlock := range outputBlocks {
+		if len(outputBlock.block.Labels()) != 1 {
+			return WrongNumberOfLabels{blockType: outputBlock.block.Type(), expectedLabelCount: 1, actualLabels: outputBlock.block.Labels()}
+		}
+
+		outputName := outputBlock.block.Labels()[0]
+
+		dependsOn, err := dependencyGraph.DoesOutputDependOnModule(outputName, currentModuleName)
+		if err != nil {
+			return err
+		}
+
+		terragruntOptions.Logger.Debugf("Looking up if output %s depends on module %s and got %v", outputName, currentModuleName, dependsOn)
+
+		if !dependsOn {
+			outputBlock.file.Body().RemoveBlock(outputBlock.block)
+
+			if err := dependencyGraph.RemoveOutput(outputName); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func removeUnneededDataSources(dataSourceBlocks []BlockAndFile, currentModuleName string, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) error {
+	for _, dataSourceBlock := range dataSourceBlocks {
+		if len(dataSourceBlock.block.Labels()) != 2 {
+			return WrongNumberOfLabels{blockType: dataSourceBlock.block.Type(), expectedLabelCount: 2, actualLabels: dataSourceBlock.block.Labels()}
+		}
+
+		dataSourceType := dataSourceBlock.block.Labels()[0]
+		dataSourceName := dataSourceBlock.block.Labels()[1]
+
+		dependsOn, err := dependencyGraph.DoesModuleDependOnDataSource(currentModuleName, dataSourceType, dataSourceName)
+		if err != nil {
+			return err
+		}
+
+		if !dependsOn {
+			dataSourceBlock.file.Body().RemoveBlock(dataSourceBlock.block)
+
+			if err := dependencyGraph.RemoveDataSource(dataSourceType, dataSourceName); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func removeUnneededResources(resourceBlocks []BlockAndFile, currentModuleName string, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) error {
+	resourceAddresses := []string{}
+
+	for _, resourceBlock := range resourceBlocks {
+		if len(resourceBlock.block.Labels()) != 2 {
+			return WrongNumberOfLabels{blockType: resourceBlock.block.Type(), expectedLabelCount: 2, actualLabels: resourceBlock.block.Labels()}
+		}
+
+		resourceType := resourceBlock.block.Labels()[0]
+		resourceName := resourceBlock.block.Labels()[1]
+
+		resourceAddresses = append(resourceAddresses, fmt.Sprintf("%s.%s", resourceType, resourceName))
+	}
+
+	if len(resourceAddresses) > 0 {
+		return fmt.Errorf("Top-level resources are not currently supported. That's because when splitting across multiple environments/modules, it's not clear in which one(s) the resource should go. Found %d resources: %v. Please move these into the relevant modules.", len(resourceAddresses), resourceAddresses)
+	}
+
+	return nil
+}
+
+func removeUnneededProviders(providerBlocks []BlockAndFile, currentModuleName string, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) error {
+	for _, providerBlock := range providerBlocks {
+		if len(providerBlock.block.Labels()) != 1 {
+			return WrongNumberOfLabels{blockType: providerBlock.block.Type(), expectedLabelCount: 1, actualLabels: providerBlock.block.Labels()}
+		}
+
+		providerName := providerBlock.block.Labels()[0]
+
+		dependsOn, err := dependencyGraph.DoesModuleDependOnProvider(currentModuleName, providerName)
+		if err != nil {
+			return err
+		}
+
+		if !dependsOn {
+			providerBlock.file.Body().RemoveBlock(providerBlock.block)
+
+			if err := dependencyGraph.RemoveProvider(providerName); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func removeUnneededLocals(localsBlocks []BlockAndFile, currentModuleName string, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) error {
+	for _, localsBlock := range localsBlocks {
+		for localName, _ := range localsBlock.block.Body().Attributes() {
+			dependsOn, err := dependencyGraph.DoesAnythingDependOnLocal(localName)
+			if err != nil {
+				return err
+			}
+
+			if !dependsOn {
+				localsBlock.block.Body().RemoveAttribute(localName)
+
+				if err := dependencyGraph.RemoveLocal(localName); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func removeUnneededVariables(variableBlocks []BlockAndFile, currentModuleName string, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) error {
+	for _, variableBlock := range variableBlocks {
+		if len(variableBlock.block.Labels()) != 1 {
+			return WrongNumberOfLabels{blockType: variableBlock.block.Type(), expectedLabelCount: 1, actualLabels: variableBlock.block.Labels()}
+		}
+
+		variableName := variableBlock.block.Labels()[0]
+
+		dependsOn, err := dependencyGraph.DoesAnythingDependOnVariable(variableName)
+		if err != nil {
+			return err
+		}
+
+		if !dependsOn {
+			variableBlock.file.Body().RemoveBlock(variableBlock.block)
+
+			if err := dependencyGraph.RemoveVariable(variableName); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// Custom error types
+
+type WrongNumberOfLabels struct {
+	blockType          string
+	expectedLabelCount int
+	actualLabels       []string
+}
+
+func (err WrongNumberOfLabels) Error() string {
+	return fmt.Sprintf("Expected block of type '%s' to have %d labels, but got %d: %v", err.blockType, err.expectedLabelCount, len(err.actualLabels), err.actualLabels)
 }
