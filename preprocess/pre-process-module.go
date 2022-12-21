@@ -39,14 +39,8 @@ func createModule(currentModuleName string, otherModuleNames []string, outPath s
 		return err
 	}
 
-	for path, parsedFile := range parsedTerraformFiles {
-		fileContents := parsedFile.Bytes()
-		formattedFileContents := hclwrite.Format(fileContents)
-
-		terragruntOptions.Logger.Debugf("Writing updated contents to %s", path)
-		if err := util.WriteFileWithSamePermissions(path, path, formattedFileContents); err != nil {
-			return err
-		}
+	if err := writeFiles(parsedTerraformFiles, terragruntOptions); err != nil {
+		return err
 	}
 
 	return nil
@@ -95,4 +89,18 @@ func parseAllTerraformFilesInDir(dir string) (TerraformFiles, error) {
 	}
 
 	return out, nil
+}
+
+func writeFiles(parsedTerraformFiles TerraformFiles, terragruntOptions *options.TerragruntOptions) error {
+	for path, parsedFile := range parsedTerraformFiles {
+		fileContents := parsedFile.Bytes()
+		formattedFileContents := hclwrite.Format(fileContents)
+
+		terragruntOptions.Logger.Debugf("Writing updated contents to %s", path)
+		if err := util.WriteFileWithSamePermissions(path, path, formattedFileContents); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
