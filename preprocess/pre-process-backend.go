@@ -158,7 +158,6 @@ func (backend *TerraformBackend) ConfigureDataSource(dataSourceBody *hclwrite.Bo
 	dataSourceBody.SetAttributeValue("backend", cty.StringVal(backend.backendType))
 	dataSourceBody.AppendNewline()
 
-	// TODO: this needs to have the key/path/etc value updated accordingly!
 	configTokens := []*hclwrite.Token{}
 	configTokens = append(configTokens, openBraceToken)
 	configTokens = append(configTokens, backend.backendConfig.BuildTokens(nil)...)
