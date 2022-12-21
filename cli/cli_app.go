@@ -113,6 +113,7 @@ const CMD_TERRAGRUNT_READ_CONFIG = "terragrunt-read-config"
 const CMD_HCLFMT = "hclfmt"
 const CMD_AWS_PROVIDER_PATCH = "aws-provider-patch"
 const CMD_RENDER_JSON = "render-json"
+const CMD_PROCESS = "process"
 
 // START: Constants useful for multimodule command handling
 const CMD_RUN_ALL = "run-all"
@@ -232,6 +233,7 @@ COMMANDS:
    hclfmt                Recursively find hcl files and rewrite them into a canonical format.
    aws-provider-patch    Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018)
    render-json           Render the final terragrunt config, with all variables, includes, and functions resolved, as json. This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.
+   process               Run Terragrunt as a preprocessor on the Terraform code in the current working directory.
    *                     Terragrunt forwards all other commands directly to Terraform
 
 GLOBAL OPTIONS:
@@ -294,6 +296,7 @@ var terragruntHelp = map[string]string{
 	CMD_RENDER_JSON:                renderJsonHelp,
 	CMD_AWS_PROVIDER_PATCH:         awsProviderPatchHelp,
 	CMD_TERRAGRUNT_VALIDATE_INPUTS: validateInputsHelp,
+	CMD_PROCESS:                    processHelp,
 }
 
 // Create the Terragrunt CLI App
@@ -388,6 +391,10 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 
 	if shouldRunGraphDependencies(terragruntOptions) {
 		return runGraphDependencies(terragruntOptions)
+	}
+
+	if shouldRunProcess(terragruntOptions) {
+		return runProcess(terragruntOptions)
 	}
 
 	if err := checkVersionConstraints(terragruntOptions); err != nil {
@@ -634,6 +641,10 @@ func shouldRunHCLFmt(terragruntOptions *options.TerragruntOptions) bool {
 
 func shouldRunRenderJSON(terragruntOptions *options.TerragruntOptions) bool {
 	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_RENDER_JSON)
+}
+
+func shouldRunProcess(terragruntOptions *options.TerragruntOptions) bool {
+	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_PROCESS)
 }
 
 func shouldApplyAwsProviderPatch(terragruntOptions *options.TerragruntOptions) bool {
@@ -1068,7 +1079,7 @@ func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 //
 // If terraformSource is specified, then arguments to download the terraform source will be appended to the init command.
 //
-// This method will return an error and NOT run terraform init if the user has disabled Auto-Init
+// # This method will return an error and NOT run terraform init if the user has disabled Auto-Init
 //
 // This method takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
 // and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded

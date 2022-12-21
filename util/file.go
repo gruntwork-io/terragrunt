@@ -236,17 +236,30 @@ func CopyFolderContents(source, destination, manifestFile string, includeInCopy 
 // the given filter function and only copy it if the filter returns true. Will create a specified manifest file
 // that contains paths of all copied files.
 func CopyFolderContentsWithFilter(source, destination, manifestFile string, filter func(absolutePath string) bool) error {
+	return CopyFolderContentsWithFilterImpl(source, destination, &manifestFile, true, filter)
+}
+
+// Copy the files and folders within the source folder into the destination folder. Pass each file and folder through
+// the given filter function and only copy it if the filter returns true. Will create a specified manifest file
+// that contains paths of all copied files. If manifestFile is not nil, create a manifest file of this name.
+// If includeDirs is set to true, copy the contents of directories recursively as well.
+func CopyFolderContentsWithFilterImpl(source string, destination string, manifestFile *string, includeDirs bool, filter func(absolutePath string) bool) error {
 	if err := os.MkdirAll(destination, 0700); err != nil {
 		return errors.WithStackTrace(err)
 	}
-	manifest := newFileManifest(destination, manifestFile)
-	if err := manifest.Clean(); err != nil {
-		return errors.WithStackTrace(err)
+
+	var manifest *fileManifest
+
+	if manifestFile != nil {
+		manifest = newFileManifest(destination, *manifestFile)
+		if err := manifest.Clean(); err != nil {
+			return errors.WithStackTrace(err)
+		}
+		if err := manifest.Create(); err != nil {
+			return errors.WithStackTrace(err)
+		}
+		defer manifest.Close()
 	}
-	if err := manifest.Create(); err != nil {
-		return errors.WithStackTrace(err)
-	}
-	defer manifest.Close()
 
 	// Why use filepath.Glob here? The original implementation used ioutil.ReadDir, but that method calls lstat on all
 	// the files/folders in the directory, including files/folders you may want to explicitly skip. The next attempt
@@ -269,6 +282,10 @@ func CopyFolderContentsWithFilter(source, destination, manifestFile string, filt
 		dest := filepath.Join(destination, fileRelativePath)
 
 		if IsDir(file) {
+			if !includeDirs {
+				continue
+			}
+
 			info, err := os.Lstat(file)
 			if err != nil {
 				return errors.WithStackTrace(err)
@@ -278,11 +295,14 @@ func CopyFolderContentsWithFilter(source, destination, manifestFile string, filt
 				return errors.WithStackTrace(err)
 			}
 
-			if err := CopyFolderContentsWithFilter(file, dest, manifestFile, filter); err != nil {
+			if err := CopyFolderContentsWithFilterImpl(file, dest, manifestFile, includeDirs, filter); err != nil {
 				return err
 			}
-			if err := manifest.AddDirectory(dest); err != nil {
-				return err
+
+			if manifest != nil {
+				if err := manifest.AddDirectory(dest); err != nil {
+					return err
+				}
 			}
 		} else {
 			parentDir := filepath.Dir(dest)
@@ -292,8 +312,11 @@ func CopyFolderContentsWithFilter(source, destination, manifestFile string, filt
 			if err := CopyFile(file, dest); err != nil {
 				return err
 			}
-			if err := manifest.AddFile(dest); err != nil {
-				return err
+
+			if manifest != nil {
+				if err := manifest.AddFile(dest); err != nil {
+					return err
+				}
 			}
 		}
 	}
