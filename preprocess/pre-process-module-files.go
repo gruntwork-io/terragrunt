@@ -110,7 +110,7 @@ func groupBlocksByType(blocks []BlockAndFile) map[string][]BlockAndFile {
 func updateTerraformConfig(terraformBlocks []BlockAndFile, currentModuleName string, otherModuleNames []string, envName *string, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) (*TerraformBackend, error) {
 	for _, terraformBlock := range terraformBlocks {
 		for _, nestedBlock := range terraformBlock.block.Body().Blocks() {
-			if nestedBlock.Type() == "backend" {
+			if IsBackendBlock(nestedBlock) {
 				backend, err := NewTerraformBackend(nestedBlock)
 				if err != nil {
 					return nil, err

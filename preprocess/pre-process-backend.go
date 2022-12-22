@@ -16,17 +16,28 @@ type TerraformBackend struct {
 	backendConfig *hclwrite.Body
 }
 
-func NewTerraformBackend(block *hclwrite.Block) (*TerraformBackend, error) {
-	if len(block.Labels()) != 1 {
-		return nil, WrongNumberOfLabels{blockType: block.Type(), expectedLabelCount: 1, actualLabels: block.Labels()}
-	}
+func IsBackendBlock(block *hclwrite.Block) bool {
+	return block.Type() == "backend" || block.Type() == "cloud"
+}
 
-	return &TerraformBackend{backendType: block.Labels()[0], backendConfig: block.Body()}, nil
+func NewTerraformBackend(block *hclwrite.Block) (*TerraformBackend, error) {
+	if block.Type() == "backend" {
+		if len(block.Labels()) != 1 {
+			return nil, errors.WithStackTrace(WrongNumberOfLabels{blockType: block.Type(), expectedLabelCount: 1, actualLabels: block.Labels()})
+		}
+
+		return &TerraformBackend{backendType: block.Labels()[0], backendConfig: block.Body()}, nil
+	} else if block.Type() == "cloud" {
+		// Special handling for the new cloud block, which is an alternative to the standard backend block:
+		// https://developer.hashicorp.com/terraform/cli/cloud/settings
+
+		return &TerraformBackend{backendType: "cloud", backendConfig: block.Body()}, nil
+	} else {
+		return nil, errors.WithStackTrace(fmt.Errorf("Unrecognized backend block: %s", block.Type()))
+	}
 }
 
 func (backend *TerraformBackend) UpdateConfig(currentModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Debugf("Updating backend config...")
-	// TODO: what about cloud? https://developer.hashicorp.com/terraform/cli/cloud/settings
 	switch backend.backendType {
 	case "local":
 		return backend.updateLocalConfig(currentModuleName, envName, terragruntOptions)
@@ -50,6 +61,8 @@ func (backend *TerraformBackend) UpdateConfig(currentModuleName string, envName 
 		return backend.notSupportedBackend(terragruntOptions)
 	case "s3":
 		return backend.updateS3Config(currentModuleName, envName, terragruntOptions)
+	case "cloud":
+		return backend.updateCloudConfig(currentModuleName, envName, terragruntOptions)
 	default:
 		return backend.notSupportedBackend(terragruntOptions)
 	}
@@ -64,18 +77,13 @@ func (backend *TerraformBackend) updateLocalConfig(currentModuleName string, env
 // https://developer.hashicorp.com/terraform/language/settings/backends/remote
 // TODO: this only supports named workspaces; not those using prefix
 func (backend *TerraformBackend) updateRemoteConfig(currentModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error {
-	workspacesBlock := backend.backendConfig.FirstMatchingBlock("workspaces", []string{})
-	if workspacesBlock == nil {
-		workspacesBlock = backend.backendConfig.AppendNewBlock("workspacess", []string{})
-	}
+	return backend.updateWorkspacesConfigAttr("workspaces", "name", currentModuleName, envName, terragruntOptions)
+}
 
-	originalWorkspaceNameAttr := workspacesBlock.Body().GetAttribute("name")
-	newWorkspaceName := formatWorkspace(currentModuleName, envName, attrValueAsString(originalWorkspaceNameAttr))
-
-	terragruntOptions.Logger.Debugf("Updating 'remote' backend: setting 'name' to '%s'", newWorkspaceName)
-	workspacesBlock.Body().SetAttributeValue("name", cty.StringVal(newWorkspaceName))
-
-	return nil
+// https://developer.hashicorp.com/terraform/cli/cloud/settings
+// TODO: this only supports named workspaces; not those using tags
+func (backend *TerraformBackend) updateCloudConfig(currentModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error {
+	return backend.updateWorkspacesConfigAttr("workspaces", "name", currentModuleName, envName, terragruntOptions)
 }
 
 // https://developer.hashicorp.com/terraform/language/settings/backends/azurerm
@@ -108,6 +116,21 @@ func (backend *TerraformBackend) updateBackendConfigAttr(attrName string, curren
 
 	terragruntOptions.Logger.Debugf("Updating '%s' backend: setting '%s' to '%s'", backend.backendType, attrName, newValue)
 	backend.backendConfig.SetAttributeValue(attrName, cty.StringVal(newValue))
+
+	return nil
+}
+
+func (backend *TerraformBackend) updateWorkspacesConfigAttr(workspacesBlockName string, workspacesAttrName string, currentModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error {
+	workspacesBlock := backend.backendConfig.FirstMatchingBlock(workspacesBlockName, []string{})
+	if workspacesBlock == nil {
+		workspacesBlock = backend.backendConfig.AppendNewBlock(workspacesBlockName, []string{})
+	}
+
+	originalWorkspaceNameAttr := workspacesBlock.Body().GetAttribute(workspacesAttrName)
+	newWorkspaceName := formatWorkspace(currentModuleName, envName, attrValueAsString(originalWorkspaceNameAttr))
+
+	terragruntOptions.Logger.Debugf("Updating '%s' backend: setting '%s' in '%s' block to '%s'", backend.backendType, workspacesAttrName, workspacesBlockName, newWorkspaceName)
+	workspacesBlock.Body().SetAttributeValue(workspacesAttrName, cty.StringVal(newWorkspaceName))
 
 	return nil
 }
