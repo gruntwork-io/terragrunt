@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/graph"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -56,6 +57,10 @@ func processFiles(parsedTerraformFiles TerraformFiles, modulePath string, curren
 	}
 
 	if err := removeUnneededVariables(blocksByType["variable"], currentModuleName, dependencyGraph, parsedTerraformVariableFiles, terragruntOptions); err != nil {
+		return err
+	}
+
+	if err := addModuleOutput(allBlocks, blocksByType["output"], currentModuleName, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -194,7 +199,7 @@ func replaceReferencesToOtherModulesInBlocks(blocks []BlockAndFile, currentModul
 func replaceReferencesToOtherModulesInAttributes(attributes map[string]*hclwrite.Attribute, otherModuleNames []string) error {
 	for _, attr := range attributes {
 		for _, otherModuleName := range otherModuleNames {
-			attr.Expr().RenameVariablePrefix([]string{"module", otherModuleName}, []string{"data", fmt.Sprintf("terraform_remote_state.%s.outputs.__module__", otherModuleName)})
+			attr.Expr().RenameVariablePrefix([]string{"module", otherModuleName}, []string{"data", fmt.Sprintf("terraform_remote_state.%s.outputs.%s", otherModuleName, moduleOutputName)})
 		}
 	}
 
@@ -402,6 +407,30 @@ func removeUnneededVariables(variableBlocks []BlockAndFile, currentModuleName st
 	return nil
 }
 
+func addModuleOutput(allBlocks []BlockAndFile, outputBlocks []BlockAndFile, currentModuleName string, terragruntOptions *options.TerragruntOptions) error {
+	var fileToWriteTo *hclwrite.File
+
+	if len(outputBlocks) > 0 {
+		// If there are output variables already defined somewhere, we'll add our outputs to the first file where we find
+		// outputs
+		fileToWriteTo = outputBlocks[0].file
+	} else {
+		// Otherwise, pick the first file in the list
+		fileToWriteTo = allBlocks[0].file
+	}
+
+	block := fileToWriteTo.Body().AppendNewBlock("output", []string{moduleOutputName})
+	block.Body().AppendNewline()
+	block.Body().SetAttributeValue("description", cty.StringVal("This output is added by Terragrunt so that modules that depend on each other can read all the info they need from each other's state files using this output variable and the terraform_remote_state data source."))
+	block.Body().AppendNewline()
+	block.Body().SetAttributeTraversal("value", hcl.Traversal{
+		hcl.TraverseRoot{Name: "module"},
+		hcl.TraverseAttr{Name: currentModuleName},
+	})
+
+	return nil
+}
+
 func removeVariableFromVarFiles(variableName string, parsedTerraformVariableFiles TerraformFiles) error {
 	for _, parsedFile := range parsedTerraformVariableFiles {
 		parsedFile.Body().RemoveAttribute(variableName)
@@ -409,3 +438,5 @@ func removeVariableFromVarFiles(variableName string, parsedTerraformVariableFile
 
 	return nil
 }
+
+const moduleOutputName = "__module__"
