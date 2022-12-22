@@ -2,7 +2,9 @@ package preprocess
 
 import (
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
@@ -154,13 +156,39 @@ var closeBraceToken = &hclwrite.Token{
 	Bytes: []byte("}"),
 }
 
-func (backend *TerraformBackend) ConfigureDataSource(dataSourceBody *hclwrite.Body) error {
+func (backend *TerraformBackend) ConfigureDataSource(dataSourceBody *hclwrite.Body, otherModuleName string, envName *string) error {
 	dataSourceBody.SetAttributeValue("backend", cty.StringVal(backend.backendType))
 	dataSourceBody.AppendNewline()
 
+	configBody := backend.backendConfig.BuildTokens(nil)
+
+	// For local backends, we need to set the config path to a relative path, and that need to be relative to the module
+	// we're reading state from.
+	if backend.backendType == "local" {
+		parsed, err := hclwrite.ParseConfig(configBody.Bytes(), "__internal__", hcl.InitialPos)
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+
+		// It's not clear how to set attributes that contain string interpolation with hclwrite. If you try it with
+		// the SetAttributeValue method, the interpolation parts (${ ... }) get escaped. So here, we use an ugly hack
+		// where we define what we want as a string, parse it with hclwrite, and then read out the parsed value as
+		// tokens we can use later.
+		// TODO: envName may be nil
+		// TODO: we are guaranteed the other module uses terraform.tfstate as the path... We actually have to go and read it... Or adapt the current path appropriately.
+		newPath := fmt.Sprintf(`path = "${path.module}/../%s/%s/%s/terraform.tfstate"`, otherModuleName, *envName, otherModuleName)
+		parsedPath, err := hclwrite.ParseConfig([]byte(newPath), "__internal__", hcl.InitialPos)
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+		parsed.Body().SetAttributeRaw("path", parsedPath.Body().GetAttribute("path").Expr().BuildTokens(nil))
+
+		configBody = parsed.BuildTokens(nil)
+	}
+
 	configTokens := []*hclwrite.Token{}
 	configTokens = append(configTokens, openBraceToken)
-	configTokens = append(configTokens, backend.backendConfig.BuildTokens(nil)...)
+	configTokens = append(configTokens, configBody...)
 	configTokens = append(configTokens, closeBraceToken)
 
 	dataSourceBody.SetAttributeRaw("config", configTokens)
