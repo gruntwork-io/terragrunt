@@ -142,12 +142,22 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 		basePath = "."
 	}
 
-	inputFolderAbs, err := filepath.Abs(basePath)
+	basePathEvaluated, err := filepath.EvalSymlinks(basePath)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
 
-	fileAbs, err := filepath.Abs(path)
+	inputFolderAbs, err := filepath.Abs(basePathEvaluated)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	pathEvaluated, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	fileAbs, err := filepath.Abs(pathEvaluated)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
