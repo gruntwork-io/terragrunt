@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
+	"strings"
 )
 
 type TerraformBackend struct {
@@ -156,7 +157,7 @@ var closeBraceToken = &hclwrite.Token{
 	Bytes: []byte("}"),
 }
 
-func (backend *TerraformBackend) ConfigureDataSource(dataSourceBody *hclwrite.Body, otherModuleName string, envName *string) error {
+func (backend *TerraformBackend) ConfigureDataSource(dataSourceBody *hclwrite.Body, currentModuleName string, otherModuleName string, envName *string) error {
 	dataSourceBody.SetAttributeValue("backend", cty.StringVal(backend.backendType))
 	dataSourceBody.AppendNewline()
 
@@ -170,14 +171,23 @@ func (backend *TerraformBackend) ConfigureDataSource(dataSourceBody *hclwrite.Bo
 			return errors.WithStackTrace(err)
 		}
 
+		// Take the path of the current module, which we should've already configured properly with the UpdateConfig
+		// method, and replace the current module's name with the module for which we're creating a
+		// terraform_remote_state data source. Then, make it a relative path: the path from the current module to that
+		// other module.
+		originalPath := attrValueAsString(backend.backendConfig.GetAttribute("path"))
+		if originalPath == nil {
+			return errors.WithStackTrace(fmt.Errorf("Could not find path param in config. This is most likely a bug with Terragrunt. Please report it at https://github.com/gruntwork-io/terragrunt/issues/"))
+		}
+		basePath := strings.Replace(*originalPath, currentModuleName, otherModuleName, 1)
+		newPath := fmt.Sprintf("${path.module}/../%s/%s", otherModuleName, basePath)
+
 		// It's not clear how to set attributes that contain string interpolation with hclwrite. If you try it with
 		// the SetAttributeValue method, the interpolation parts (${ ... }) get escaped. So here, we use an ugly hack
-		// where we define what we want as a string, parse it with hclwrite, and then read out the parsed value as
-		// tokens we can use later.
-		// TODO: envName may be nil
-		// TODO: we are guaranteed the other module uses terraform.tfstate as the path... We actually have to go and read it... Or adapt the current path appropriately.
-		newPath := fmt.Sprintf(`path = "${path.module}/../%s/%s/%s/terraform.tfstate"`, otherModuleName, *envName, otherModuleName)
-		parsedPath, err := hclwrite.ParseConfig([]byte(newPath), "__internal__", hcl.InitialPos)
+		// where we define what we want as a literal (string) HCL expression, parse it with hclwrite, and then read out
+		// the parsed value as hclwrite types we can use later.
+		newPathExpr := fmt.Sprintf(`path = "%s"`, newPath)
+		parsedPath, err := hclwrite.ParseConfig([]byte(newPathExpr), "__internal__", hcl.InitialPos)
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}

@@ -146,7 +146,7 @@ func removeOrReplaceModules(moduleBlocks []BlockAndFile, currentModuleName strin
 
 			if dependsOn {
 				terragruntOptions.Logger.Debugf("Replacing module %s with a terraform_remote_state data source", otherModuleName)
-				if err := replaceBlockWithDataSource(moduleBlock.block, otherModuleName, backend, envName); err != nil {
+				if err := replaceBlockWithDataSource(moduleBlock.block, currentModuleName, otherModuleName, backend, envName); err != nil {
 					return err
 				}
 			} else {
@@ -164,14 +164,14 @@ func removeOrReplaceModules(moduleBlocks []BlockAndFile, currentModuleName strin
 	return nil
 }
 
-func replaceBlockWithDataSource(block *hclwrite.Block, blockName string, backend *TerraformBackend, envName *string) error {
+func replaceBlockWithDataSource(block *hclwrite.Block, currentModuleName string, otherModuleName string, backend *TerraformBackend, envName *string) error {
 	block.SetType("data")
-	block.SetLabels([]string{"terraform_remote_state", blockName})
+	block.SetLabels([]string{"terraform_remote_state", otherModuleName})
 
 	block.Body().Clear()
 	block.Body().AppendNewline()
 
-	return backend.ConfigureDataSource(block.Body(), blockName, envName)
+	return backend.ConfigureDataSource(block.Body(), currentModuleName, otherModuleName, envName)
 }
 
 func replaceReferencesToOtherModulesInBlocks(blocks []BlockAndFile, currentModuleName string, otherModuleNames []string, depthSearchedSoFar int) error {
