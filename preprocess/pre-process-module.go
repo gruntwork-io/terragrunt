@@ -35,7 +35,7 @@ func createModule(currentModuleName string, otherModuleNames []string, outPath s
 	// We are going to modify the graph for each module, so clone it so we aren't modifying the original
 	dependencyGraphClone := dependencyGraph.Clone()
 
-	if err := processFiles(parsedTerraformFiles, currentModuleName, otherModuleNames, envName, dependencyGraphClone, terragruntOptions); err != nil {
+	if err := processFiles(parsedTerraformFiles, modulePath, currentModuleName, otherModuleNames, envName, dependencyGraphClone, terragruntOptions); err != nil {
 		return err
 	}
 

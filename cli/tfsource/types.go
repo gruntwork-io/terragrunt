@@ -111,25 +111,25 @@ func (terraformSource TerraformSource) WriteVersionFile() error {
 // To maximize reuse, given a working directory w and a source URL s, we download code from S into the folder /T/W/H
 // where:
 //
-// 1. S is the part of s before the double-slash (//). This typically represents the root of the repo (e.g.
-//    github.com/foo/infrastructure-modules). We download the entire repo so that relative paths to other files in that
-//    repo resolve correctly. If no double-slash is specified, all of s is used.
-// 1. T is the OS temp dir (e.g. /tmp).
-// 2. W is the base 64 encoded sha1 hash of w. This ensures that if you are running Terragrunt concurrently in
-//    multiple folders (e.g. during automated tests), then even if those folders are using the same source URL s, they
-//    do not overwrite each other.
-// 3. H is the base 64 encoded sha1 of S without its query string. For remote source URLs (e.g. Git
-//    URLs), this is based on the assumption that the scheme/host/path of the URL (e.g. git::github.com/foo/bar)
-//    identifies the repo, and we always want to download the same repo into the same folder (see the encodeSourceName
-//    method). We also assume the version of the module is stored in the query string (e.g. ref=v0.0.3), so we store
-//    the base 64 encoded sha1 of the query string in a file called .terragrunt-source-version within /T/W/H.
+//  1. S is the part of s before the double-slash (//). This typically represents the root of the repo (e.g.
+//     github.com/foo/infrastructure-modules). We download the entire repo so that relative paths to other files in that
+//     repo resolve correctly. If no double-slash is specified, all of s is used.
+//  1. T is the OS temp dir (e.g. /tmp).
+//  2. W is the base 64 encoded sha1 hash of w. This ensures that if you are running Terragrunt concurrently in
+//     multiple folders (e.g. during automated tests), then even if those folders are using the same source URL s, they
+//     do not overwrite each other.
+//  3. H is the base 64 encoded sha1 of S without its query string. For remote source URLs (e.g. Git
+//     URLs), this is based on the assumption that the scheme/host/path of the URL (e.g. git::github.com/foo/bar)
+//     identifies the repo, and we always want to download the same repo into the same folder (see the encodeSourceName
+//     method). We also assume the version of the module is stored in the query string (e.g. ref=v0.0.3), so we store
+//     the base 64 encoded sha1 of the query string in a file called .terragrunt-source-version within /T/W/H.
 //
 // The downloadTerraformSourceIfNecessary decides when we should download the Terraform code and when not to. It uses
 // the following rules:
 //
-// 1. Always download source URLs pointing to local file paths.
-// 2. Only download source URLs pointing to remote paths if /T/W/H doesn't already exist or, if it does exist, if the
-//    version number in /T/W/H/.terragrunt-source-version doesn't match the current version.
+//  1. Always download source URLs pointing to local file paths.
+//  2. Only download source URLs pointing to remote paths if /T/W/H doesn't already exist or, if it does exist, if the
+//     version number in /T/W/H/.terragrunt-source-version doesn't match the current version.
 func NewTerraformSource(source string, downloadDir string, workingDir string, logger *logrus.Entry) (*TerraformSource, error) {
 
 	canonicalWorkingDir, err := util.CanonicalPath(workingDir, "")
@@ -137,7 +137,7 @@ func NewTerraformSource(source string, downloadDir string, workingDir string, lo
 		return nil, err
 	}
 
-	canonicalSourceUrl, err := toSourceUrl(source, canonicalWorkingDir)
+	canonicalSourceUrl, err := ToSourceUrl(source, canonicalWorkingDir)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +179,7 @@ func NewTerraformSource(source string, downloadDir string, workingDir string, lo
 
 // Convert the given source into a URL struct. This method should be able to handle all source URLs that the terraform
 // init command can handle, parsing local file paths, Git paths, and HTTP URLs correctly.
-func toSourceUrl(source string, workingDir string) (*url.URL, error) {
+func ToSourceUrl(source string, workingDir string) (*url.URL, error) {
 	// The go-getter library is what Terraform's init command uses to download source URLs. Use that library to
 	// parse the URL.
 	rawSourceUrlWithGetter, err := getter.Detect(source, workingDir, getter.Detectors)

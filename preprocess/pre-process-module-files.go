@@ -2,12 +2,15 @@ package preprocess
 
 import (
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/cli/tfsource"
 	"github.com/gruntwork-io/terragrunt/graph"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2/hclwrite"
+	"github.com/zclconf/go-cty/cty"
 )
 
-func processFiles(parsedTerraformFiles TerraformFiles, currentModuleName string, otherModuleNames []string, envName *string, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) error {
+func processFiles(parsedTerraformFiles TerraformFiles, modulePath string, currentModuleName string, otherModuleNames []string, envName *string, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) error {
 	allBlocks := getAllBlocks(parsedTerraformFiles)
 	blocksByType := groupBlocksByType(allBlocks)
 
@@ -25,6 +28,10 @@ func processFiles(parsedTerraformFiles TerraformFiles, currentModuleName string,
 	}
 
 	if err := replaceReferencesToOtherModulesInBlocks(allBlocks, currentModuleName, otherModuleNames, 0); err != nil {
+		return err
+	}
+
+	if err := updateModuleSourceUrls(blocksByType["module"], modulePath, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -188,6 +195,41 @@ func replaceReferencesToOtherModulesInAttributes(attributes map[string]*hclwrite
 	for _, attr := range attributes {
 		for _, otherModuleName := range otherModuleNames {
 			attr.Expr().RenameVariablePrefix([]string{"module", otherModuleName}, []string{"data", fmt.Sprintf("terraform_remote_state.%s.outputs.__module__", otherModuleName)})
+		}
+	}
+
+	return nil
+}
+
+func updateModuleSourceUrls(moduleBlocks []BlockAndFile, modulePath string, terragruntOptions *options.TerragruntOptions) error {
+	canonicalModulePath, err := util.CanonicalPath(modulePath, "")
+	if err != nil {
+		return err
+	}
+
+	for _, moduleBlock := range moduleBlocks {
+		sourceAttr := moduleBlock.block.Body().GetAttribute("source")
+		sourceAsStr := attrValueAsString(sourceAttr)
+
+		if sourceAsStr != nil {
+			canonicalWorkingDir, err := util.CanonicalPath(terragruntOptions.WorkingDir, "")
+			if err != nil {
+				return err
+			}
+
+			url, err := tfsource.ToSourceUrl(*sourceAsStr, canonicalWorkingDir)
+			if err != nil {
+				return err
+			}
+
+			if tfsource.IsLocalSource(url) {
+				relPath, err := util.GetPathRelativeTo(url.Path, canonicalModulePath)
+				if err != nil {
+					return err
+				}
+				terragruntOptions.Logger.Debugf("Updating 'source' parameter, which was a local file path, from '%s' to '%s', to account for the new output directory '%s'.", *sourceAsStr, relPath, canonicalModulePath)
+				moduleBlock.block.Body().SetAttributeValue("source", cty.StringVal(relPath))
+			}
 		}
 	}
 
