@@ -10,7 +10,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-func processFiles(parsedTerraformFiles TerraformFiles, modulePath string, currentModuleName string, otherModuleNames []string, envName *string, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) error {
+func processFiles(parsedTerraformFiles TerraformFiles, modulePath string, currentModuleName string, otherModuleNames []string, envName *string, dependencyGraph *graph.TerraformGraph, parsedTerraformVariableFiles TerraformFiles, terragruntOptions *options.TerragruntOptions) error {
 	allBlocks := getAllBlocks(parsedTerraformFiles)
 	blocksByType := groupBlocksByType(allBlocks)
 
@@ -55,7 +55,7 @@ func processFiles(parsedTerraformFiles TerraformFiles, modulePath string, curren
 		return err
 	}
 
-	if err := removeUnneededVariables(blocksByType["variable"], currentModuleName, dependencyGraph, terragruntOptions); err != nil {
+	if err := removeUnneededVariables(blocksByType["variable"], currentModuleName, dependencyGraph, parsedTerraformVariableFiles, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -371,7 +371,7 @@ func removeUnneededLocals(localsBlocks []BlockAndFile, currentModuleName string,
 	return nil
 }
 
-func removeUnneededVariables(variableBlocks []BlockAndFile, currentModuleName string, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) error {
+func removeUnneededVariables(variableBlocks []BlockAndFile, currentModuleName string, dependencyGraph *graph.TerraformGraph, parsedTerraformVariableFiles TerraformFiles, terragruntOptions *options.TerragruntOptions) error {
 	for _, variableBlock := range variableBlocks {
 		if len(variableBlock.block.Labels()) != 1 {
 			return WrongNumberOfLabels{blockType: variableBlock.block.Type(), expectedLabelCount: 1, actualLabels: variableBlock.block.Labels()}
@@ -392,7 +392,19 @@ func removeUnneededVariables(variableBlocks []BlockAndFile, currentModuleName st
 			if err := dependencyGraph.RemoveVariable(variableName); err != nil {
 				return err
 			}
+
+			if err := removeVariableFromVarFiles(variableName, parsedTerraformVariableFiles); err != nil {
+				return err
+			}
 		}
+	}
+
+	return nil
+}
+
+func removeVariableFromVarFiles(variableName string, parsedTerraformVariableFiles TerraformFiles) error {
+	for _, parsedFile := range parsedTerraformVariableFiles {
+		parsedFile.Body().RemoveAttribute(variableName)
 	}
 
 	return nil

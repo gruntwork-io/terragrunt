@@ -32,14 +32,24 @@ func createModule(currentModuleName string, otherModuleNames []string, outPath s
 		return err
 	}
 
+	// Parse the .tfvars files as well so we can edit them if any variables are removed
+	parsedTerraformVariableFiles, err := parseAllTerraformVariableFilesInDir(modulePath)
+	if err != nil {
+		return err
+	}
+
 	// We are going to modify the graph for each module, so clone it so we aren't modifying the original
 	dependencyGraphClone := dependencyGraph.Clone()
 
-	if err := processFiles(parsedTerraformFiles, modulePath, currentModuleName, otherModuleNames, envName, dependencyGraphClone, terragruntOptions); err != nil {
+	if err := processFiles(parsedTerraformFiles, modulePath, currentModuleName, otherModuleNames, envName, dependencyGraphClone, parsedTerraformVariableFiles, terragruntOptions); err != nil {
 		return err
 	}
 
 	if err := writeFiles(parsedTerraformFiles, terragruntOptions); err != nil {
+		return err
+	}
+
+	if err := writeFiles(parsedTerraformVariableFiles, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -67,9 +77,17 @@ func preprocessorFileCopyFilter(absolutePath string) bool {
 type TerraformFiles map[string]*hclwrite.File
 
 func parseAllTerraformFilesInDir(dir string) (TerraformFiles, error) {
+	return parseAllTerraformFilesInDirThatMatchPattern(dir, "*.tf")
+}
+
+func parseAllTerraformVariableFilesInDir(dir string) (TerraformFiles, error) {
+	return parseAllTerraformFilesInDirThatMatchPattern(dir, "*.tfvars")
+}
+
+func parseAllTerraformFilesInDirThatMatchPattern(dir string, pattern string) (TerraformFiles, error) {
 	out := map[string]*hclwrite.File{}
 
-	terraformFiles, err := filepath.Glob(filepath.Join(dir, "*.tf"))
+	terraformFiles, err := filepath.Glob(filepath.Join(dir, pattern))
 	if err != nil {
 		return out, errors.WithStackTrace(err)
 	}
