@@ -37,107 +37,134 @@ func NewTerraformBackend(block *hclwrite.Block) (*TerraformBackend, error) {
 	}
 }
 
-func (backend *TerraformBackend) UpdateConfig(currentModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error {
-	switch backend.backendType {
-	case "local":
-		return backend.updateLocalConfig(currentModuleName, envName, terragruntOptions)
-	case "remote":
-		return backend.updateRemoteConfig(currentModuleName, envName, terragruntOptions)
-	case "azurerm":
-		return backend.updateAzureRmConfig(currentModuleName, envName, terragruntOptions)
-	case "consul":
-		return backend.updateConsulConfig(currentModuleName, envName, terragruntOptions)
-	case "cos":
-		return backend.notSupportedBackend(terragruntOptions)
-	case "gcs":
-		return backend.updateGcsConfig(currentModuleName, envName, terragruntOptions)
-	case "http":
-		return backend.notSupportedBackend(terragruntOptions)
-	case "kubernetes":
-		return backend.notSupportedBackend(terragruntOptions)
-	case "oss":
-		return backend.notSupportedBackend(terragruntOptions)
-	case "pg":
-		return backend.notSupportedBackend(terragruntOptions)
-	case "s3":
-		return backend.updateS3Config(currentModuleName, envName, terragruntOptions)
-	case "cloud":
-		return backend.updateCloudConfig(currentModuleName, envName, terragruntOptions)
-	default:
-		return backend.notSupportedBackend(terragruntOptions)
-	}
+// BackendHandler represents a way to automatically update various types of Terraform backends: e.g., s3, azurerm, gcs,
+// remote, cloud, etc.
+type BackendHandler interface {
+	// UpdateBackendConfig updates the backend configuration for the current module to have the proper settings in the
+	// generated code (after preprocessing). This method should make the changes directly in the given backend object.
+	UpdateBackendConfig(backend *TerraformBackend, currentModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error
+
+	// UpdateTerraformRemoteStateConfig updates the configuration of a terraform_remote_state data source to allow the
+	// current module to read the state file of another module. This method should make the changes directly in the
+	// given backendConfigBody object, which represents the body of the config = { ... } section of the
+	// terraform_remote_state data source.
+	UpdateTerraformRemoteStateConfig(backend *TerraformBackend, backendConfigBody *hclwrite.Body, currentModuleName string, otherModuleName string, envName *string) error
 }
 
-// https://developer.hashicorp.com/terraform/language/settings/backends/local
-// Updates the path param
-func (backend *TerraformBackend) updateLocalConfig(currentModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error {
-	return backend.updateBackendConfigAttr("path", currentModuleName, envName, terragruntOptions)
+// PathBasedBackendHandler represents Terraform backends that track where to store Terraform state using a "path" that
+// looks like a file system path: e.g., /foo/bar/terraform.tfstate.
+type PathBasedBackendHandler struct {
+	// The name of the attribute in this backend's config that stores the "path" of the Terraform state file
+	PathAttributeName string
 }
 
-// https://developer.hashicorp.com/terraform/language/settings/backends/remote
-// TODO: this only supports named workspaces; not those using prefix
-func (backend *TerraformBackend) updateRemoteConfig(currentModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error {
-	return backend.updateWorkspacesConfigAttr("workspaces", "name", currentModuleName, envName, terragruntOptions)
-}
-
-// https://developer.hashicorp.com/terraform/cli/cloud/settings
-// TODO: this only supports named workspaces; not those using tags
-func (backend *TerraformBackend) updateCloudConfig(currentModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error {
-	return backend.updateWorkspacesConfigAttr("workspaces", "name", currentModuleName, envName, terragruntOptions)
-}
-
-// https://developer.hashicorp.com/terraform/language/settings/backends/azurerm
-// Updates the key param
-func (backend *TerraformBackend) updateAzureRmConfig(currentModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error {
-	return backend.updateBackendConfigAttr("key", currentModuleName, envName, terragruntOptions)
-}
-
-// https://developer.hashicorp.com/terraform/language/settings/backends/consul
-// Updates the path param
-func (backend *TerraformBackend) updateConsulConfig(currentModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error {
-	return backend.updateBackendConfigAttr("path", currentModuleName, envName, terragruntOptions)
-}
-
-// https://developer.hashicorp.com/terraform/language/settings/backends/gcs
-// Updates the prefix param
-func (backend *TerraformBackend) updateGcsConfig(currentModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error {
-	return backend.updateBackendConfigAttr("prefix", currentModuleName, envName, terragruntOptions)
-}
-
-// https://developer.hashicorp.com/terraform/language/settings/backends/s3
-// Updates the key param
-func (backend *TerraformBackend) updateS3Config(currentModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error {
-	return backend.updateBackendConfigAttr("key", currentModuleName, envName, terragruntOptions)
-}
-
-func (backend *TerraformBackend) updateBackendConfigAttr(attrName string, currentModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error {
-	originalAttr := backend.backendConfig.GetAttribute(attrName)
+func (handler PathBasedBackendHandler) UpdateBackendConfig(backend *TerraformBackend, currentModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error {
+	originalAttr := backend.backendConfig.GetAttribute(handler.PathAttributeName)
 	newValue := formatStatePath(currentModuleName, envName, attrValueAsString(originalAttr))
 
-	terragruntOptions.Logger.Debugf("Updating '%s' backend: setting '%s' to '%s'", backend.backendType, attrName, newValue)
-	backend.backendConfig.SetAttributeValue(attrName, cty.StringVal(newValue))
+	terragruntOptions.Logger.Debugf("Updating '%s' backend: setting '%s' to '%s'", backend.backendType, handler.PathAttributeName, newValue)
+	backend.backendConfig.SetAttributeValue(handler.PathAttributeName, cty.StringVal(newValue))
 
 	return nil
 }
 
-func (backend *TerraformBackend) updateWorkspacesConfigAttr(workspacesBlockName string, workspacesAttrName string, currentModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error {
-	workspacesBlock := backend.backendConfig.FirstMatchingBlock(workspacesBlockName, []string{})
-	if workspacesBlock == nil {
-		workspacesBlock = backend.backendConfig.AppendNewBlock(workspacesBlockName, []string{})
+func (handler PathBasedBackendHandler) UpdateTerraformRemoteStateConfig(backend *TerraformBackend, backendConfigBody *hclwrite.Body, currentModuleName string, otherModuleName string, envName *string) error {
+	// Take the path of the current module, which we should've already configured properly with the UpdateConfig
+	// method, and replace the current module's name with the module for which we're creating a
+	// terraform_remote_state data source.
+	originalPath := attrValueAsString(backendConfigBody.GetAttribute(handler.PathAttributeName))
+	if originalPath == nil {
+		return errors.WithStackTrace(fmt.Errorf("Could not find param '%s' in backend config. This is most likely a bug with Terragrunt. Please report it at https://github.com/gruntwork-io/terragrunt/issues/", handler.PathAttributeName))
+	}
+	newPath := strings.Replace(*originalPath, currentModuleName, otherModuleName, 1)
+
+	// For the local backend, we have to explicitly make it a relative path on the file system from the current module
+	// to that other module
+	if backend.backendType == "local" {
+		newPath = fmt.Sprintf("${path.module}/../%s/%s", otherModuleName, newPath)
 	}
 
-	originalWorkspaceNameAttr := workspacesBlock.Body().GetAttribute(workspacesAttrName)
-	newWorkspaceName := formatWorkspace(currentModuleName, envName, attrValueAsString(originalWorkspaceNameAttr))
+	// The new value we want to set may contain string interpolation ("${path.module}"), and I haven't figured out how
+	// to set an attribute value with string interplation with hclwrite without hclwrite escaping the interpolation
+	// (adding a second dollar sign, so you get "$${path.module}"). So here, we use an ugly hack where we define what
+	// we want as a literal string that contains a "foo = bar" HCL expression, parse the string with hclwrite, and then
+	// read out the foo value, which will now have all the proper hclwrite types, without additional escaping.
+	placeholderAttr := "__attr__"
+	newPathExpr := fmt.Sprintf(`%s = "%s"`, placeholderAttr, newPath)
+	parsedPath, err := hclwrite.ParseConfig([]byte(newPathExpr), "__internal__", hcl.InitialPos)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
 
-	terragruntOptions.Logger.Debugf("Updating '%s' backend: setting '%s' in '%s' block to '%s'", backend.backendType, workspacesAttrName, workspacesBlockName, newWorkspaceName)
-	workspacesBlock.Body().SetAttributeValue(workspacesAttrName, cty.StringVal(newWorkspaceName))
+	backendConfigBody.SetAttributeRaw(handler.PathAttributeName, parsedPath.Body().GetAttribute(placeholderAttr).Expr().BuildTokens(nil))
 
 	return nil
 }
 
-func (backend *TerraformBackend) notSupportedBackend(terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Warnf("Backend '%s' is not yet supported! Cannot update the config automatically, so please ensure you do it manually!", backend.backendType)
+// WorkspaceBasedBackendHandler represents Terraform backends that track where to store Terraform state using
+// workspaces.
+// TODO: this handler only supports named workspaces; it does not support workspaces that use prefixes or tags.
+type WorkspaceBasedBackendHandler struct {
+	// The name of the block in this backend's config that stores the workspace configuration
+	WorkspaceBlockName string
+	// The name of the attribute in the WorkspaceBlockName block that stores the name of the workspace
+	WorkspaceNameAttrName string
+}
+
+func (handler WorkspaceBasedBackendHandler) UpdateBackendConfig(backend *TerraformBackend, currentModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error {
+	workspacesBlock := backend.backendConfig.FirstMatchingBlock(handler.WorkspaceBlockName, []string{})
+	if workspacesBlock == nil {
+		workspacesBlock = backend.backendConfig.AppendNewBlock(handler.WorkspaceBlockName, []string{})
+	}
+
+	originalWorkspaceNameAttr := workspacesBlock.Body().GetAttribute(handler.WorkspaceNameAttrName)
+	newWorkspaceName := formatWorkspace(currentModuleName, envName, attrValueAsString(originalWorkspaceNameAttr))
+
+	terragruntOptions.Logger.Debugf("Updating '%s' backend: setting '%s' in '%s' block to '%s'", backend.backendType, handler.WorkspaceNameAttrName, handler.WorkspaceBlockName, newWorkspaceName)
+	workspacesBlock.Body().SetAttributeValue(handler.WorkspaceNameAttrName, cty.StringVal(newWorkspaceName))
+
 	return nil
+}
+
+func (handler WorkspaceBasedBackendHandler) UpdateTerraformRemoteStateConfig(backend *TerraformBackend, backendConfigBody *hclwrite.Body, currentModuleName string, otherModuleName string, envName *string) error {
+	// Take the workspace name of the current module, which we should've already configured properly with the
+	// UpdateConfig method, and replace the current module's name with the module for which we're creating a
+	// terraform_remote_state data source.
+	originalWorkspaceBlock := backendConfigBody.FirstMatchingBlock(handler.WorkspaceBlockName, []string{})
+	if originalWorkspaceBlock == nil {
+		return errors.WithStackTrace(fmt.Errorf("Could not find '%s' block in backend config. This is most likely a bug with Terragrunt. Please report it at https://github.com/gruntwork-io/terragrunt/issues/", handler.WorkspaceBlockName))
+	}
+	originalWorkspaceName := attrValueAsString(originalWorkspaceBlock.Body().GetAttribute(handler.WorkspaceNameAttrName))
+	if originalWorkspaceName == nil {
+		return errors.WithStackTrace(fmt.Errorf("Could not find attribute '%s' in block '%s' in backend config. This is most likely a bug with Terragrunt. Please report it at https://github.com/gruntwork-io/terragrunt/issues/", handler.WorkspaceNameAttrName, handler.WorkspaceBlockName))
+	}
+	newWorkspaceName := strings.Replace(*originalWorkspaceName, currentModuleName, otherModuleName, 1)
+
+	originalWorkspaceBlock.Body().SetAttributeValue(handler.WorkspaceNameAttrName, cty.StringVal(newWorkspaceName))
+
+	return nil
+}
+
+// The backends we currently support: https://developer.hashicorp.com/terraform/language/settings/backends/configuration
+var supportedBackendHandlers = map[string]BackendHandler{
+	"local":   PathBasedBackendHandler{PathAttributeName: "path"},
+	"azurerm": PathBasedBackendHandler{PathAttributeName: "key"},
+	"consul":  PathBasedBackendHandler{PathAttributeName: "path"},
+	"gcs":     PathBasedBackendHandler{PathAttributeName: "prefix"},
+	"s3":      PathBasedBackendHandler{PathAttributeName: "key"},
+	"remote":  WorkspaceBasedBackendHandler{WorkspaceBlockName: "workspaces", WorkspaceNameAttrName: "name"},
+	"cloud":   WorkspaceBasedBackendHandler{WorkspaceBlockName: "workspaces", WorkspaceNameAttrName: "name"},
+}
+
+func (backend *TerraformBackend) UpdateConfig(currentModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error {
+	handler, supported := supportedBackendHandlers[backend.backendType]
+
+	if !supported {
+		terragruntOptions.Logger.Warnf("Backend '%s' is not yet supported! Cannot update the backend config automatically, so please ensure you do it manually!", backend.backendType)
+		return nil
+	}
+
+	return handler.UpdateBackendConfig(backend, currentModuleName, envName, terragruntOptions)
 }
 
 func formatStatePath(currentModuleName string, envName *string, originalStatePath *string) string {
@@ -180,43 +207,26 @@ var closeBraceToken = &hclwrite.Token{
 	Bytes: []byte("}"),
 }
 
-func (backend *TerraformBackend) ConfigureDataSource(dataSourceBody *hclwrite.Body, currentModuleName string, otherModuleName string, envName *string) error {
+func (backend *TerraformBackend) ConfigureDataSource(dataSourceBody *hclwrite.Body, currentModuleName string, otherModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error {
 	dataSourceBody.SetAttributeValue("backend", cty.StringVal(backend.backendType))
 	dataSourceBody.AppendNewline()
 
 	configBody := backend.backendConfig.BuildTokens(nil)
 
-	// For local backends, we need to set the config path to a relative path, and that need to be relative to the module
-	// we're reading state from.
-	if backend.backendType == "local" {
-		parsed, err := hclwrite.ParseConfig(configBody.Bytes(), "__internal__", hcl.InitialPos)
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
+	parsedConfigBody, err := hclwrite.ParseConfig(configBody.Bytes(), "__internal__", hcl.InitialPos)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
 
-		// Take the path of the current module, which we should've already configured properly with the UpdateConfig
-		// method, and replace the current module's name with the module for which we're creating a
-		// terraform_remote_state data source. Then, make it a relative path: the path from the current module to that
-		// other module.
-		originalPath := attrValueAsString(backend.backendConfig.GetAttribute("path"))
-		if originalPath == nil {
-			return errors.WithStackTrace(fmt.Errorf("Could not find path param in config. This is most likely a bug with Terragrunt. Please report it at https://github.com/gruntwork-io/terragrunt/issues/"))
-		}
-		basePath := strings.Replace(*originalPath, currentModuleName, otherModuleName, 1)
-		newPath := fmt.Sprintf("${path.module}/../%s/%s", otherModuleName, basePath)
+	handler, supported := supportedBackendHandlers[backend.backendType]
 
-		// It's not clear how to set attributes that contain string interpolation with hclwrite. If you try it with
-		// the SetAttributeValue method, the interpolation parts (${ ... }) get escaped. So here, we use an ugly hack
-		// where we define what we want as a literal (string) HCL expression, parse it with hclwrite, and then read out
-		// the parsed value as hclwrite types we can use later.
-		newPathExpr := fmt.Sprintf(`path = "%s"`, newPath)
-		parsedPath, err := hclwrite.ParseConfig([]byte(newPathExpr), "__internal__", hcl.InitialPos)
-		if err != nil {
-			return errors.WithStackTrace(err)
+	if supported {
+		if err := handler.UpdateTerraformRemoteStateConfig(backend, parsedConfigBody.Body(), currentModuleName, otherModuleName, envName); err != nil {
+			return err
 		}
-		parsed.Body().SetAttributeRaw("path", parsedPath.Body().GetAttribute("path").Expr().BuildTokens(nil))
-
-		configBody = parsed.BuildTokens(nil)
+		configBody = parsedConfigBody.BuildTokens(nil)
+	} else {
+		terragruntOptions.Logger.Warnf("Backend '%s' is not yet supported! Cannot update the terraform_remote_state data source config automatically, so please ensure you do it manually!", backend.backendType)
 	}
 
 	configTokens := []*hclwrite.Token{}
