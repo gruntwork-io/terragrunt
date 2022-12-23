@@ -107,6 +107,53 @@ func TestUpdateBackendConfigErrorCases(t *testing.T) {
 	}
 }
 
+func TestConfigureDataSourceHappyPath(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name                                    string
+		inputHclTemplate                        string
+		expectedBackendType                     string
+		expectedTerraformRemoteStateHclTemplate string
+	}{
+		{"S3 backend", s3BackendExpectedOutputTemplate, "s3", s3TerraformRemoteStateExpectedOutputTemplate},
+		{"local backend", localBackendExpectedOutputTemplate, "local", localTerraformRemoteStateExpectedOutputTemplate},
+		{"azure backend", azureBackendExpectedOutputTemplate, "azurerm", azureTerraformRemoteStateExpectedOutputTemplate},
+		{"consul backend", consulBackendExpectedOutputTemplate, "consul", consulTerraformRemoteStateExpectedOutputTemplate},
+		{"gcs backend", gcsBackendInputExpectedOutputTemplate, "gcs", gcsTerraformRemoteStateExpectedOutputTemplate},
+		{"remote backend", remoteBackendInputExpectedOutputTemplate, "remote", remoteTerraformRemoteStateExpectedOutputTemplate},
+		{"cloud", cloudBackendInputExpectedOutputTemplate, "cloud", cloudTerraformRemoteStateExpectedOutputTemplate},
+	}
+
+	for _, testCase := range testCases {
+		// capture range variable to avoid it changing across for loop runs during goroutine transitions.
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			inputHcl := fmt.Sprintf(testCase.inputHclTemplate, envNameForTest, currentModuleNameForTest)
+			block := getParsedHclBlock(t, inputHcl)
+
+			backend, err := NewTerraformBackend(block)
+			require.NoError(t, err)
+			require.Equal(t, testCase.expectedBackendType, backend.backendType)
+
+			terragruntOptions, err := options.NewTerragruntOptionsForTest(terragruntConfigPathForTest)
+			require.NoError(t, err)
+
+			expectedHcl := fmt.Sprintf(testCase.expectedTerraformRemoteStateHclTemplate, otherModuleNameForTest, envNameForTest, otherModuleNameForTest)
+			if testCase.expectedBackendType == "local" {
+				// The local backend has to build relative paths, so it has an extra template element in it
+				expectedHcl = fmt.Sprintf(testCase.expectedTerraformRemoteStateHclTemplate, otherModuleNameForTest, otherModuleNameForTest, envNameForTest, otherModuleNameForTest)
+			}
+			terraformRemoteStateBlock := hclwrite.NewBlock("data", []string{"terraform_remote_state", otherModuleNameForTest})
+
+			require.NoError(t, backend.ConfigureDataSource(terraformRemoteStateBlock.Body(), currentModuleNameForTest, otherModuleNameForTest, &envNameForTest, terragruntOptions))
+			requireHclEqual(t, expectedHcl, terraformRemoteStateBlock)
+		})
+	}
+}
+
 func getParsedHclBlock(t *testing.T, hclStr string) *hclwrite.Block {
 	parsed, err := hclwrite.ParseConfig([]byte(hclStr), "test.tf", hcl.InitialPos)
 	assert.False(t, err.HasErrors(), "Found unexpected error parsing HCL: %s", err.Error())
@@ -334,6 +381,94 @@ cloud {
 
   workspaces {
     tags = ["networking", "apps"]
+  }
+}
+`
+
+const s3TerraformRemoteStateExpectedOutputTemplate = `
+data "terraform_remote_state" "%s" {
+  backend = "s3"
+
+  config = {
+    bucket = "foo"
+    region = "us-east-1"
+    key    = "%s/%s/terraform.tfstate"
+  }
+}
+`
+
+const localTerraformRemoteStateExpectedOutputTemplate = `
+data "terraform_remote_state" "%s" {
+  backend = "local"
+
+  config = {
+    path = "${path.module}/../%s/%s/%s/custom-name.tfstate"
+  }
+}
+`
+
+const azureTerraformRemoteStateExpectedOutputTemplate = `
+data "terraform_remote_state" "%s" {
+  backend = "azurerm"
+
+  config = {
+    resource_group_name  = "StorageAccount-ResourceGroup"
+    storage_account_name = "abcd1234"
+    container_name       = "tfstate"
+    key                  = "%s/%s/prod.terraform.tfstate"
+  }
+}
+`
+
+const consulTerraformRemoteStateExpectedOutputTemplate = `
+data "terraform_remote_state" "%s" {
+  backend = "consul"
+
+  config = {
+    address = "consul.example.com"
+    scheme  = "https"
+    path    = "%s/%s/full/path"
+  }
+}
+`
+
+const gcsTerraformRemoteStateExpectedOutputTemplate = `
+data "terraform_remote_state" "%s" {
+  backend = "gcs"
+
+  config = {
+    bucket = "tf-state-prod"
+    prefix = "%s/%s/terraform/state"
+  }
+}
+`
+
+const remoteTerraformRemoteStateExpectedOutputTemplate = `
+data "terraform_remote_state" "%s" {
+  backend = "remote"
+
+  config = {
+    hostname     = "app.terraform.io"
+    organization = "company"
+
+    workspaces {
+      name = "%s-%s-my-app-prod"
+    }
+  }
+}
+`
+
+const cloudTerraformRemoteStateExpectedOutputTemplate = `
+data "terraform_remote_state" "%s" {
+  backend = "cloud"
+
+  config = {
+    organization = "my-org"
+    hostname     = "app.terraform.io" # Optional; defaults to app.terraform.io
+
+    workspaces {
+      name = "%s-%s-vpc"
+    }
   }
 }
 `

@@ -8,7 +8,6 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
-	"path/filepath"
 	"strings"
 )
 
@@ -49,7 +48,7 @@ type BackendHandler interface {
 	// current module to read the state file of another module. This method should make the changes directly in the
 	// given backendConfigBody object, which represents the body of the config = { ... } section of the
 	// terraform_remote_state data source.
-	UpdateTerraformRemoteStateConfig(backend *TerraformBackend, backendConfigBody *hclwrite.Body, currentModuleName string, otherModuleName string, envName *string) error
+	UpdateTerraformRemoteStateConfig(backend *TerraformBackend, backendConfigBody *hclwrite.Body, currentModuleName string, otherModuleName string) error
 }
 
 // PathBasedBackendHandler represents Terraform backends that track where to store Terraform state using a "path" that
@@ -72,7 +71,7 @@ func (handler PathBasedBackendHandler) UpdateBackendConfig(backend *TerraformBac
 	return nil
 }
 
-func (handler PathBasedBackendHandler) UpdateTerraformRemoteStateConfig(backend *TerraformBackend, backendConfigBody *hclwrite.Body, currentModuleName string, otherModuleName string, envName *string) error {
+func (handler PathBasedBackendHandler) UpdateTerraformRemoteStateConfig(backend *TerraformBackend, backendConfigBody *hclwrite.Body, currentModuleName string, otherModuleName string) error {
 	// Take the path of the current module, which we should've already configured properly with the UpdateConfig
 	// method, and replace the current module's name with the module for which we're creating a
 	// terraform_remote_state data source.
@@ -85,7 +84,7 @@ func (handler PathBasedBackendHandler) UpdateTerraformRemoteStateConfig(backend 
 	// For the local backend, we have to explicitly make it a relative path on the file system from the current module
 	// to that other module
 	if backend.backendType == "local" {
-		newPath = fmt.Sprintf("${path.module}/../%s/%s", otherModuleName, newPath)
+		newPath = joinStatePath("${path.module}", "..", otherModuleName, newPath)
 	}
 
 	// The new value we want to set may contain string interpolation ("${path.module}"), and I haven't figured out how
@@ -153,7 +152,7 @@ func findUnsupportedWorkspaceConfigs(workspacesBlock *hclwrite.Block) []string {
 	return unsupportedConfigsUsed
 }
 
-func (handler WorkspaceBasedBackendHandler) UpdateTerraformRemoteStateConfig(backend *TerraformBackend, backendConfigBody *hclwrite.Body, currentModuleName string, otherModuleName string, envName *string) error {
+func (handler WorkspaceBasedBackendHandler) UpdateTerraformRemoteStateConfig(backend *TerraformBackend, backendConfigBody *hclwrite.Body, currentModuleName string, otherModuleName string) error {
 	// Take the workspace name of the current module, which we should've already configured properly with the
 	// UpdateConfig method, and replace the current module's name with the module for which we're creating a
 	// terraform_remote_state data source.
@@ -210,11 +209,17 @@ func formatStatePath(currentModuleName string, envName *string, originalStatePat
 	return out
 }
 
-// joinStatePath joins parts of a Terraform state file path. Note this isn't as simple as using Go's filepath.Join as
-// that method uses the file separator on the current OS (e.g., forward slash on *nix, backslash on Windows), whereas
-// for Terraform state files, we always want forward slashes.
+// joinStatePath joins parts of a Terraform state file path. Note we can't use Go's filepath.Join here because:
+//
+//  1. It tries to remove relative path parts (e.g., ../../). We don't want to do any path processing on state paths.
+//  2. It uses the file separator on the current OS (e.g., forward slash on *nix, backslash on Windows), whereas for
+//     Terraform state files, we always want forward slashes.
 func joinStatePath(parts ...string) string {
-	return strings.ReplaceAll(filepath.Join(parts...), `\`, "/")
+	cleanParts := []string{}
+	for _, part := range parts {
+		cleanParts = append(cleanParts, strings.Trim(part, `/\`))
+	}
+	return strings.Join(cleanParts, "/")
 }
 
 func formatWorkspaceName(currentModuleName string, envName *string, originalWorkspace *string) string {
@@ -255,7 +260,7 @@ func (backend *TerraformBackend) ConfigureDataSource(dataSourceBody *hclwrite.Bo
 	handler, supported := supportedBackendHandlers[backend.backendType]
 
 	if supported {
-		if err := handler.UpdateTerraformRemoteStateConfig(backend, parsedConfigBody.Body(), currentModuleName, otherModuleName, envName); err != nil {
+		if err := handler.UpdateTerraformRemoteStateConfig(backend, parsedConfigBody.Body(), currentModuleName, otherModuleName); err != nil {
 			return err
 		}
 		configBody = parsedConfigBody.BuildTokens(nil)
