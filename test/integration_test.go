@@ -3013,11 +3013,26 @@ func TestPreProcessor(t *testing.T) {
 
 	defer os.RemoveAll(actualAfterFolder)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt process --terragrunt-working-dir %s %s", beforeFolder, actualAfterFolder))
+	// Run the 'process' command to generate code and make sure it's the result we expect
 
+	runTerragrunt(t, fmt.Sprintf("terragrunt process --terragrunt-working-dir %s %s", beforeFolder, actualAfterFolder))
 	requireDirectoriesEqual(t, expectedAfterFolder, actualAfterFolder)
 
-	// TODO: run 'apply' in the folders!
+	// Run 'apply' in every module in every env to test that the generated code actually works!
+
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("__preprocessor__")
+	require.NoError(t, err)
+
+	envs := []string{"dev", "stage", "prod"}
+	modules := []string{"vpc", "mysql", "backend_app", "frontend_app"}
+
+	for _, env := range envs {
+		for _, module := range modules {
+			terragruntOptions.WorkingDir = filepath.Join(actualAfterFolder, env, module)
+			require.NoError(t, shell.RunTerraformCommand(terragruntOptions, "init"))
+			require.NoError(t, shell.RunTerraformCommand(terragruntOptions, "apply", "-input=false", "-auto-approve"))
+		}
+	}
 }
 
 func TestDataDir(t *testing.T) {
