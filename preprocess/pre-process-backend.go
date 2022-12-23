@@ -33,7 +33,7 @@ func NewTerraformBackend(block *hclwrite.Block) (*TerraformBackend, error) {
 
 		return &TerraformBackend{backendType: "cloud", backendConfig: block.Body()}, nil
 	} else {
-		return nil, errors.WithStackTrace(fmt.Errorf("Unrecognized backend block: %s", block.Type()))
+		return nil, errors.WithStackTrace(UnrecognizedBackendType(block.Type()))
 	}
 }
 
@@ -74,7 +74,7 @@ func (handler PathBasedBackendHandler) UpdateTerraformRemoteStateConfig(backend 
 	// terraform_remote_state data source.
 	originalPath := attrValueAsString(backendConfigBody.GetAttribute(handler.PathAttributeName))
 	if originalPath == nil {
-		return errors.WithStackTrace(fmt.Errorf("Could not find param '%s' in backend config. This is most likely a bug with Terragrunt. Please report it at https://github.com/gruntwork-io/terragrunt/issues/", handler.PathAttributeName))
+		return errors.WithStackTrace(MissingExpectedParam{param: handler.PathAttributeName, block: "backend"})
 	}
 	newPath := strings.Replace(*originalPath, currentModuleName, otherModuleName, 1)
 
@@ -132,11 +132,11 @@ func (handler WorkspaceBasedBackendHandler) UpdateTerraformRemoteStateConfig(bac
 	// terraform_remote_state data source.
 	originalWorkspaceBlock := backendConfigBody.FirstMatchingBlock(handler.WorkspaceBlockName, []string{})
 	if originalWorkspaceBlock == nil {
-		return errors.WithStackTrace(fmt.Errorf("Could not find '%s' block in backend config. This is most likely a bug with Terragrunt. Please report it at https://github.com/gruntwork-io/terragrunt/issues/", handler.WorkspaceBlockName))
+		return errors.WithStackTrace(MissingExpectedParam{block: handler.WorkspaceBlockName})
 	}
 	originalWorkspaceName := attrValueAsString(originalWorkspaceBlock.Body().GetAttribute(handler.WorkspaceNameAttrName))
 	if originalWorkspaceName == nil {
-		return errors.WithStackTrace(fmt.Errorf("Could not find attribute '%s' in block '%s' in backend config. This is most likely a bug with Terragrunt. Please report it at https://github.com/gruntwork-io/terragrunt/issues/", handler.WorkspaceNameAttrName, handler.WorkspaceBlockName))
+		return errors.WithStackTrace(MissingExpectedParam{param: handler.WorkspaceNameAttrName, block: handler.WorkspaceBlockName})
 	}
 	newWorkspaceName := strings.Replace(*originalWorkspaceName, currentModuleName, otherModuleName, 1)
 

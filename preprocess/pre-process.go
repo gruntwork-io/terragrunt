@@ -1,7 +1,6 @@
 package preprocess
 
 import (
-	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/graph"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -28,7 +27,7 @@ const envsDirName = "envs"
 func RunProcess(terragruntOptions *options.TerragruntOptions) error {
 	// First arg should be "process"; second should be output dir
 	if len(terragruntOptions.TerraformCliArgs) != 2 {
-		return fmt.Errorf("Unexpected number of arguments. Usage: %s", ProcessHelp)
+		return errors.WithStackTrace(WrongNumberOfArguments{command: "process", expected: 1, actual: len(terragruntOptions.TerraformCliArgs) - 1, usage: ProcessHelp})
 	}
 
 	outputDir := terragruntOptions.TerraformCliArgs[1]

@@ -3,6 +3,7 @@ package preprocess
 import (
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/cli/tfsource"
+	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/graph"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -180,7 +181,7 @@ func replaceReferencesToOtherModulesInBlocks(blocks []BlockAndFile, currentModul
 	// blocks that somehow loop around to contain their parents), but it's useful to have this as an extra sanity check
 	// in case the HCL parser has a bug, or someone creates an artificial AST with loops in it.
 	if depthSearchedSoFar > 100 {
-		return fmt.Errorf("Hit more than %d nested levels of blocks. Is there any infinite loop somewhere?", depthSearchedSoFar)
+		return errors.WithStackTrace(ExceededMaxNestedBlocks(100))
 	}
 
 	for _, block := range blocks {
@@ -311,7 +312,7 @@ func removeUnneededResources(resourceBlocks []BlockAndFile, currentModuleName st
 	}
 
 	if len(resourceAddresses) > 0 {
-		return fmt.Errorf("Top-level resources are not currently supported. That's because when splitting across multiple environments/modules, it's not clear in which one(s) the resource should go. Found %d resources: %v. Please move these into the relevant modules.", len(resourceAddresses), resourceAddresses)
+		return errors.WithStackTrace(ResourcesNotAllowed{resourceAddresses: resourceAddresses})
 	}
 
 	return nil

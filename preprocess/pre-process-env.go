@@ -1,7 +1,7 @@
 package preprocess
 
 import (
-	"fmt"
+	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/graph"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -42,11 +42,11 @@ func createEnv(outputDir string, envName *string, dependencyGraph *graph.Terrafo
 func extractModuleNames(parsedTerraformFiles TerraformFiles) ([]string, error) {
 	moduleNames := []string{}
 
-	for path, parsedFile := range parsedTerraformFiles {
+	for _, parsedFile := range parsedTerraformFiles {
 		for _, block := range parsedFile.Body().Blocks() {
 			if block.Type() == "module" {
 				if len(block.Labels()) != 1 {
-					return moduleNames, fmt.Errorf("Found an invalid module block in %s with more than 1 label: %v", path, block.Labels())
+					return moduleNames, errors.WithStackTrace(WrongNumberOfLabels{blockType: "module", expectedLabelCount: 1, actualLabels: block.Labels()})
 				}
 
 				moduleNames = append(moduleNames, block.Labels()[0])
