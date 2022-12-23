@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
+	"path/filepath"
 	"strings"
 )
 
@@ -63,6 +64,9 @@ func (handler PathBasedBackendHandler) UpdateBackendConfig(backend *TerraformBac
 	newValue := formatStatePath(currentModuleName, envName, attrValueAsString(originalAttr))
 
 	terragruntOptions.Logger.Debugf("Updating '%s' backend: setting '%s' to '%s'", backend.backendType, handler.PathAttributeName, newValue)
+	if originalAttr == nil {
+		backend.backendConfig.AppendNewline()
+	}
 	backend.backendConfig.SetAttributeValue(handler.PathAttributeName, cty.StringVal(newValue))
 
 	return nil
@@ -114,16 +118,39 @@ type WorkspaceBasedBackendHandler struct {
 func (handler WorkspaceBasedBackendHandler) UpdateBackendConfig(backend *TerraformBackend, currentModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error {
 	workspacesBlock := backend.backendConfig.FirstMatchingBlock(handler.WorkspaceBlockName, []string{})
 	if workspacesBlock == nil {
+		backend.backendConfig.AppendNewline()
 		workspacesBlock = backend.backendConfig.AppendNewBlock(handler.WorkspaceBlockName, []string{})
 	}
 
+	unsupportedConfigsUsed := findUnsupportedWorkspaceConfigs(workspacesBlock)
+
+	if len(unsupportedConfigsUsed) > 0 {
+		terragruntOptions.Logger.Warnf("Terragrunt currently only supports updating the '%s' config in workspaces, but it looks like you're using '%v'. You will need to update your workspace configs manually.", handler.WorkspaceNameAttrName, unsupportedConfigsUsed)
+		return nil
+	}
+
 	originalWorkspaceNameAttr := workspacesBlock.Body().GetAttribute(handler.WorkspaceNameAttrName)
-	newWorkspaceName := formatWorkspace(currentModuleName, envName, attrValueAsString(originalWorkspaceNameAttr))
+	newWorkspaceName := formatWorkspaceName(currentModuleName, envName, attrValueAsString(originalWorkspaceNameAttr))
 
 	terragruntOptions.Logger.Debugf("Updating '%s' backend: setting '%s' in '%s' block to '%s'", backend.backendType, handler.WorkspaceNameAttrName, handler.WorkspaceBlockName, newWorkspaceName)
 	workspacesBlock.Body().SetAttributeValue(handler.WorkspaceNameAttrName, cty.StringVal(newWorkspaceName))
 
 	return nil
+}
+
+var unsupportedWorkspacesConfigs = []string{"prefix", "tags"}
+
+// Our workspaces code only works with named workspaces; we do not support updating prefixes or tags automatically.
+func findUnsupportedWorkspaceConfigs(workspacesBlock *hclwrite.Block) []string {
+	unsupportedConfigsUsed := []string{}
+
+	for _, unsupportedCfg := range unsupportedWorkspacesConfigs {
+		if workspacesBlock.Body().GetAttribute(unsupportedCfg) != nil {
+			unsupportedConfigsUsed = append(unsupportedConfigsUsed, unsupportedCfg)
+		}
+	}
+
+	return unsupportedConfigsUsed
 }
 
 func (handler WorkspaceBasedBackendHandler) UpdateTerraformRemoteStateConfig(backend *TerraformBackend, backendConfigBody *hclwrite.Body, currentModuleName string, otherModuleName string, envName *string) error {
@@ -171,19 +198,26 @@ func formatStatePath(currentModuleName string, envName *string, originalStatePat
 	out := currentModuleName
 
 	if envName != nil {
-		out = fmt.Sprintf("%s/%s", *envName, out)
+		out = joinStatePath(*envName, out)
 	}
 
 	if originalStatePath == nil {
-		out = fmt.Sprintf("%s/%s", out, "terraform.tfstate")
+		out = joinStatePath(out, "terraform.tfstate")
 	} else {
-		out = fmt.Sprintf("%s/%s", out, *originalStatePath)
+		out = joinStatePath(out, *originalStatePath)
 	}
 
 	return out
 }
 
-func formatWorkspace(currentModuleName string, envName *string, originalWorkspace *string) string {
+// joinStatePath joins parts of a Terraform state file path. Note this isn't as simple as using Go's filepath.Join as
+// that method uses the file separator on the current OS (e.g., forward slash on *nix, backslash on Windows), whereas
+// for Terraform state files, we always want forward slashes.
+func joinStatePath(parts ...string) string {
+	return strings.ReplaceAll(filepath.Join(parts...), `\`, "/")
+}
+
+func formatWorkspaceName(currentModuleName string, envName *string, originalWorkspace *string) string {
 	out := currentModuleName
 
 	if envName != nil {

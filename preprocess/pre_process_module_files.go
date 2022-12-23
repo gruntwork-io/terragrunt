@@ -20,7 +20,7 @@ func processFiles(parsedTerraformFiles TerraformFiles, modulePath string, curren
 	// module first, then when we go to remove locals, the "does any output variable depend on this local?" check
 	// will apply only to the outputs that are relevant, rather than all outputs.
 
-	backend, err := updateTerraformConfig(blocksByType["terraform"], currentModuleName, otherModuleNames, envName, dependencyGraph, terragruntOptions)
+	backend, err := updateTerraformConfig(blocksByType["terraform"], currentModuleName, envName, terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func groupBlocksByType(blocks []BlockAndFile) map[string][]BlockAndFile {
 	return out
 }
 
-func updateTerraformConfig(terraformBlocks []BlockAndFile, currentModuleName string, otherModuleNames []string, envName *string, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) (*TerraformBackend, error) {
+func updateTerraformConfig(terraformBlocks []BlockAndFile, currentModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) (*TerraformBackend, error) {
 	for _, terraformBlock := range terraformBlocks {
 		for _, nestedBlock := range terraformBlock.block.Body().Blocks() {
 			if IsBackendBlock(nestedBlock) {
