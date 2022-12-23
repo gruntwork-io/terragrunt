@@ -235,7 +235,6 @@ func (backend *TerraformBackend) ConfigureDataSource(dataSourceBody *hclwrite.Bo
 	configTokens = append(configTokens, closeBraceToken)
 
 	dataSourceBody.SetAttributeRaw("config", configTokens)
-	dataSourceBody.AppendNewline()
 
 	return nil
 }

@@ -420,9 +420,7 @@ func addModuleOutput(allBlocks []BlockAndFile, outputBlocks []BlockAndFile, curr
 	}
 
 	block := fileToWriteTo.Body().AppendNewBlock("output", []string{moduleOutputName})
-	block.Body().AppendNewline()
 	block.Body().SetAttributeValue("description", cty.StringVal("This output is added by Terragrunt so that modules that depend on each other can read all the info they need from each other's state files using this output variable and the terraform_remote_state data source."))
-	block.Body().AppendNewline()
 	block.Body().SetAttributeTraversal("value", hcl.Traversal{
 		hcl.TraverseRoot{Name: "module"},
 		hcl.TraverseAttr{Name: currentModuleName},

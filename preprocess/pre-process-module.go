@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -112,7 +113,8 @@ func parseAllTerraformFilesInDirThatMatchPattern(dir string, pattern string) (Te
 func writeFiles(parsedTerraformFiles TerraformFiles, terragruntOptions *options.TerragruntOptions) error {
 	for path, parsedFile := range parsedTerraformFiles {
 		fileContents := parsedFile.Bytes()
-		formattedFileContents := hclwrite.Format(fileContents)
+		cleanFileContents := cleanupFileContents(fileContents)
+		formattedFileContents := hclwrite.Format(cleanFileContents)
 
 		terragruntOptions.Logger.Debugf("Writing updated contents to %s", path)
 		if err := util.WriteFileWithSamePermissions(path, path, formattedFileContents); err != nil {
@@ -121,4 +123,18 @@ func writeFiles(parsedTerraformFiles TerraformFiles, terragruntOptions *options.
 	}
 
 	return nil
+}
+
+// From https://stackoverflow.com/a/40032261/483528
+var blankLines = regexp.MustCompile(`(?m)^\s*$[\r\n]*|[\r\n]+\s+\z`)
+
+// Clean up contents, including removing totally blank lines left-over after we remove various modules, input vars,
+// output vars, etc.
+func cleanupFileContents(contents []byte) []byte {
+	contentsAsStr := string(contents)
+
+	contentsAsStr = blankLines.ReplaceAllString(contentsAsStr, "\n")
+	contentsAsStr = strings.TrimSpace(contentsAsStr)
+
+	return []byte(contentsAsStr)
 }

@@ -1,5 +1,6 @@
 data "terraform_remote_state" "vpc" {
   backend = "local"
+
   config = {
     path = "${path.module}/../vpc/dev/vpc/terraform.tfstate"
   }
@@ -7,6 +8,7 @@ data "terraform_remote_state" "vpc" {
 
 data "terraform_remote_state" "mysql" {
   backend = "local"
+
   config = {
     path = "${path.module}/../mysql/dev/mysql/terraform.tfstate"
   }
