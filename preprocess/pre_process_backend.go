@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 	"strings"
@@ -88,18 +87,12 @@ func (handler PathBasedBackendHandler) UpdateTerraformRemoteStateConfig(backend 
 	}
 
 	// The new value we want to set may contain string interpolation ("${path.module}"), and I haven't figured out how
-	// to set an attribute value with string interplation with hclwrite without hclwrite escaping the interpolation
-	// (adding a second dollar sign, so you get "$${path.module}"). So here, we use an ugly hack where we define what
-	// we want as a literal string that contains a "foo = bar" HCL expression, parse the string with hclwrite, and then
-	// read out the foo value, which will now have all the proper hclwrite types, without additional escaping.
-	placeholderAttr := "__attr__"
-	newPathExpr := fmt.Sprintf(`%s = "%s"`, placeholderAttr, newPath)
-	parsedPath, err := hclwrite.ParseConfig([]byte(newPathExpr), "__internal__", hcl.InitialPos)
-	if err != nil {
-		return errors.WithStackTrace(err)
+	// to set an attribute value with string interpolation with hclwrite without hclwrite escaping the interpolation
+	// (adding a second dollar sign, so you get "$${path.module}"). So here, we convert the value to a string that
+	// contains an HCL expression, and use SetAttributeRawFromString to set it.
+	if err := util.SetAttributeRawFromString(backendConfigBody, handler.PathAttributeName, fmt.Sprintf(`"%s"`, newPath)); err != nil {
+		return err
 	}
-
-	backendConfigBody.SetAttributeRaw(handler.PathAttributeName, parsedPath.Body().GetAttribute(placeholderAttr).Expr().BuildTokens(nil))
 
 	return nil
 }
@@ -236,44 +229,32 @@ func formatWorkspaceName(currentModuleName string, envName *string, originalWork
 	return out
 }
 
-var openBraceToken = &hclwrite.Token{
-	Type:  hclsyntax.TokenOBrace,
-	Bytes: []byte("{"),
-}
-
-var closeBraceToken = &hclwrite.Token{
-	Type:  hclsyntax.TokenCBrace,
-	Bytes: []byte("}"),
-}
-
 func (backend *TerraformBackend) ConfigureDataSource(dataSourceBody *hclwrite.Body, currentModuleName string, otherModuleName string, envName *string, terragruntOptions *options.TerragruntOptions) error {
 	dataSourceBody.SetAttributeValue("backend", cty.StringVal(backend.backendType))
 	dataSourceBody.AppendNewline()
 
-	configBody := backend.backendConfig.BuildTokens(nil)
-
-	parsedConfigBody, err := hclwrite.ParseConfig(configBody.Bytes(), "__internal__", hcl.InitialPos)
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
+	configBody := backend.backendConfig
 
 	handler, supported := supportedBackendHandlers[backend.backendType]
 
 	if supported {
-		if err := handler.UpdateTerraformRemoteStateConfig(backend, parsedConfigBody.Body(), currentModuleName, otherModuleName); err != nil {
+		// Clone the body to avoid changing the original
+		clonedConfigBody, err := util.CloneBody(configBody)
+		if err != nil {
 			return err
 		}
-		configBody = parsedConfigBody.BuildTokens(nil)
+
+		if err := handler.UpdateTerraformRemoteStateConfig(backend, clonedConfigBody, currentModuleName, otherModuleName); err != nil {
+			return err
+		}
+		configBody = clonedConfigBody
 	} else {
 		terragruntOptions.Logger.Warnf("Backend '%s' is not yet supported! Cannot update the terraform_remote_state data source config automatically, so please ensure you do it manually!", backend.backendType)
 	}
 
-	configTokens := []*hclwrite.Token{}
-	configTokens = append(configTokens, openBraceToken)
-	configTokens = append(configTokens, configBody...)
-	configTokens = append(configTokens, closeBraceToken)
-
-	dataSourceBody.SetAttributeRaw("config", configTokens)
+	if err := util.SetAttributeToBodyValue(dataSourceBody, "config", configBody); err != nil {
+		return err
+	}
 
 	return nil
 }
