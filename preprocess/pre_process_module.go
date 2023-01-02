@@ -1,16 +1,17 @@
 package preprocess
 
 import (
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/graph"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
-	"os"
-	"path/filepath"
-	"regexp"
-	"strings"
 )
 
 func createModule(currentModuleName string, otherModuleNames []string, outPath string, envName *string, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) error {

@@ -2,6 +2,7 @@ package preprocess
 
 import (
 	"fmt"
+
 	"github.com/gruntwork-io/terragrunt/cli/tfsource"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/graph"

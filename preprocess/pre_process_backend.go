@@ -2,12 +2,13 @@ package preprocess
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
-	"strings"
 )
 
 type TerraformBackend struct {

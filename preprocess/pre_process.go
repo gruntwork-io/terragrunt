@@ -1,12 +1,13 @@
 package preprocess
 
 import (
+	"os"
+	"path/filepath"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/graph"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
-	"os"
-	"path/filepath"
 )
 
 const ProcessHelp = `

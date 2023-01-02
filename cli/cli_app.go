@@ -3,12 +3,13 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/preprocess"
 	"io"
 	"os"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/preprocess"
 
 	"github.com/gruntwork-io/terragrunt/tflint"
 

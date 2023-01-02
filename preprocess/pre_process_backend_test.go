@@ -3,6 +3,9 @@ package preprocess
 import (
 	"bytes"
 	"fmt"
+	"strings"
+	"testing"
+
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
@@ -10,8 +13,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"strings"
-	"testing"
 )
 
 func TestUpdateBackendConfigHappyPath(t *testing.T) {

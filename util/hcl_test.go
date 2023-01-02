@@ -1,11 +1,12 @@
 package util
 
 import (
+	"strings"
+	"testing"
+
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
-	"strings"
-	"testing"
 )
 
 func TestSetAttributeToBodyValue(t *testing.T) {

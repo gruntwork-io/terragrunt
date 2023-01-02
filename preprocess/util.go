@@ -1,8 +1,9 @@
 package preprocess
 
 import (
-	"github.com/hashicorp/hcl/v2/hclwrite"
 	"strings"
+
+	"github.com/hashicorp/hcl/v2/hclwrite"
 )
 
 func attrValueAsString(attr *hclwrite.Attribute) *string {

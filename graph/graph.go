@@ -4,9 +4,10 @@ import (
 	"bytes"
 	goerrors "errors"
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/errors"
 	"os/exec"
 	"regexp"
+
+	"github.com/gruntwork-io/terragrunt/errors"
 )
 
 type TerraformGraph struct {
