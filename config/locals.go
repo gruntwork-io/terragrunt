@@ -140,7 +140,7 @@ func attemptEvaluateLocals(
 
 	evaluatedLocalsAsCty, err := convertValuesMapToCtyVal(evaluatedLocals)
 	if err != nil {
-		terragruntOptions.Logger.Errorf("Could not convert evaluated locals to the execution context to evaluate additional locals")
+		terragruntOptions.Logger.Errorf("Could not convert evaluated locals to the execution context to evaluate additional locals in file %s", filename)
 		return nil, evaluatedLocals, false, err
 	}
 	evalCtx, err := CreateTerragruntEvalContext(
@@ -153,7 +153,7 @@ func attemptEvaluateLocals(
 		},
 	)
 	if err != nil {
-		terragruntOptions.Logger.Errorf("Could not convert include to the execution context to evaluate additional locals")
+		terragruntOptions.Logger.Errorf("Could not convert include to the execution context to evaluate additional locals in file %s", filename)
 		return nil, evaluatedLocals, false, err
 	}
 
