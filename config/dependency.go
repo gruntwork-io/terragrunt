@@ -332,20 +332,14 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 			return nil, err
 		}
 
-		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(terragruntOptions) {
+		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(terragruntOptions) && dependencyConfig.MockOutputs != nil {
 			mockMergeStrategy := dependencyConfig.getMockOutputsMergeStrategy()
 			switch mockMergeStrategy {
 			case NoMerge:
 				return outputVal, nil
 			case ShallowMerge:
-				if dependencyConfig.MockOutputs == nil {
-					return outputVal, nil
-				}
 				return shallowMergeCtyMaps(*outputVal, *dependencyConfig.MockOutputs)
 			case DeepMergeMapOnly:
-				if dependencyConfig.MockOutputs == nil {
-					return outputVal, nil
-				}
 				return deepMergeCtyMapsMapOnly(*dependencyConfig.MockOutputs, *outputVal)
 			default:
 				return nil, errors.WithStackTrace(InvalidMergeStrategyType(mockMergeStrategy))
