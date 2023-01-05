@@ -1,11 +1,13 @@
 package graph
 
 import (
-	"bytes"
 	goerrors "errors"
 	"fmt"
-	"os/exec"
 	"regexp"
+	"strings"
+
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/shell"
 
 	"github.com/gruntwork-io/terragrunt/errors"
 )
@@ -14,20 +16,18 @@ type TerraformGraph struct {
 	graph graph
 }
 
-func GetParsedTerraformGraph(terraformDir string) (*TerraformGraph, error) {
-	cmd := exec.Command("terraform", "graph")
-	cmd.Dir = terraformDir
+func GetParsedTerraformGraph(terragruntOptions *options.TerragruntOptions) (*TerraformGraph, error) {
+	output, err := shell.RunTerraformCommandWithOutputNoStreaming(terragruntOptions, "graph")
 
-	stdout, err := cmd.Output()
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, err
 	}
 
-	return Parse(stdout)
+	return Parse(output.Stdout)
 }
 
-func Parse(terraformGraphOutput []byte) (*TerraformGraph, error) {
-	graph, err := parse(bytes.NewReader(cleanTerraformGraphOutput(terraformGraphOutput)))
+func Parse(terraformGraphOutput string) (*TerraformGraph, error) {
+	graph, err := parse(strings.NewReader(cleanTerraformGraphOutput(terraformGraphOutput)))
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
@@ -39,8 +39,8 @@ var terraformGraphLabelsRegexp = regexp.MustCompile(`(\s+".+?") \[label = .+]`)
 
 // The 'terraform graph' command includes labels that are not strictly necessary, but which the digraph code interprets
 // as nodes. So, we strip those labels so that we can get a clean parse without extraneous nodes.
-func cleanTerraformGraphOutput(terraformGraphOutput []byte) []byte {
-	return terraformGraphLabelsRegexp.ReplaceAll(terraformGraphOutput, []byte("$1"))
+func cleanTerraformGraphOutput(terraformGraphOutput string) string {
+	return terraformGraphLabelsRegexp.ReplaceAllString(terraformGraphOutput, "$1")
 }
 
 func (graph *TerraformGraph) Clone() *TerraformGraph {

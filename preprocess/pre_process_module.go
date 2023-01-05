@@ -14,18 +14,9 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 )
 
-func createModule(currentModuleName string, otherModuleNames []string, outPath string, envName *string, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) error {
-	modulePath := filepath.Join(outPath, currentModuleName)
-	terragruntOptions.Logger.Debugf("Creating module: %s", modulePath)
-
-	if err := copyOriginalModuleFromWorkingDir(modulePath, terragruntOptions); err != nil {
+func createModule(currentModuleName string, otherModuleNames []string, modulePath string, envName *string, dependencyGraph *graph.TerraformGraph, terragruntOptions *options.TerragruntOptions) error {
+	if err := copyOriginalModule(modulePath, envName, terragruntOptions); err != nil {
 		return err
-	}
-
-	if envName != nil {
-		if err := copyEnvContents(modulePath, *envName, terragruntOptions); err != nil {
-			return err
-		}
 	}
 
 	// Since we copied all the contents over, we parse them again, and will modify the copies
@@ -53,6 +44,22 @@ func createModule(currentModuleName string, otherModuleNames []string, outPath s
 
 	if err := writeFiles(parsedTerraformVariableFiles, terragruntOptions); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func copyOriginalModule(modulePath string, envName *string, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Debugf("Creating module: %s", modulePath)
+
+	if err := copyOriginalModuleFromWorkingDir(modulePath, terragruntOptions); err != nil {
+		return err
+	}
+
+	if envName != nil {
+		if err := copyEnvContents(modulePath, *envName, terragruntOptions); err != nil {
+			return err
+		}
 	}
 
 	return nil

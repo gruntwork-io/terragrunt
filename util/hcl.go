@@ -42,14 +42,14 @@ func SetAttributeToBodyValue(body *hclwrite.Body, attributeName string, attribut
 	attributeTokens = append(attributeTokens, openBraceToken)
 
 	// Add a newline if the user's value doesn't already start with a new line
-	if len(valueTokens) > 0 && valueTokens[0].Type != hclsyntax.TokenNewline {
+	if !StartsWithNewLine(valueTokens) {
 		attributeTokens = append(attributeTokens, newLineToken)
 	}
 
 	attributeTokens = append(attributeTokens, valueTokens...)
 
 	// Add a newline if the user's value doesn't already end with a new line
-	if len(valueTokens) > 0 && valueTokens[len(valueTokens)-1].Type != hclsyntax.TokenNewline {
+	if !EndsWithNewLine(valueTokens) {
 		attributeTokens = append(attributeTokens, newLineToken)
 	}
 
@@ -62,6 +62,21 @@ func SetAttributeToBodyValue(body *hclwrite.Body, attributeName string, attribut
 	body.SetAttributeRaw(attributeName, attributeTokens)
 
 	return nil
+}
+
+// StartsWithNewLine returns true if the given tokens start with a new line
+func StartsWithNewLine(tokens []*hclwrite.Token) bool {
+	return len(tokens) > 0 && tokens[0].Type == hclsyntax.TokenNewline
+}
+
+// EndsWithNewLine returns true if the given tokens end with a new line
+func EndsWithNewLine(tokens []*hclwrite.Token) bool {
+	return len(tokens) > 0 && tokens[len(tokens)-1].Type == hclsyntax.TokenNewline
+}
+
+// EndsWithTwoNewLines returns true if the given tokens end with two new lines
+func EndsWithTwoNewLines(tokens []*hclwrite.Token) bool {
+	return len(tokens) > 1 && tokens[len(tokens)-1].Type == hclsyntax.TokenNewline && tokens[len(tokens)-2].Type == hclsyntax.TokenNewline
 }
 
 // SetAttributeRawFromString sets an attribute on the given body with the given name to the given value. The value is

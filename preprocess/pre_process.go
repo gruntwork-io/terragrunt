@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/shell"
+
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/graph"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -35,6 +37,10 @@ func RunProcess(terragruntOptions *options.TerragruntOptions) error {
 
 	envNames, err := getEnvNames(terragruntOptions)
 	if err != nil {
+		return err
+	}
+
+	if err := runTerraformInit(terragruntOptions); err != nil {
 		return err
 	}
 
@@ -78,6 +84,12 @@ func getEnvNames(terragruntOptions *options.TerragruntOptions) ([]string, error)
 	return envNames, nil
 }
 
+// TODO: should we run init automatically like this? Or should we require the user to do it manually?
+func runTerraformInit(terragruntOptions *options.TerragruntOptions) error {
+	_, err := shell.RunTerraformCommandWithOutputNoStreaming(terragruntOptions, "init", "-input=false")
+	return err
+}
+
 func buildDependencyGraph(terragruntOptions *options.TerragruntOptions) (*graph.TerraformGraph, error) {
-	return graph.GetParsedTerraformGraph(terragruntOptions.WorkingDir)
+	return graph.GetParsedTerraformGraph(terragruntOptions)
 }

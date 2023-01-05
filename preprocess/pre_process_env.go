@@ -30,9 +30,15 @@ func createEnv(outputDir string, envName *string, dependencyGraph *graph.Terrafo
 		return err
 	}
 
+	if len(moduleNames) == 0 {
+		terragruntOptions.Logger.Debugf("Did not find any modules in %s. Copying the folder, unchanged, to %s.", terragruntOptions.WorkingDir, outPath)
+		return copyOriginalModule(outPath, envName, terragruntOptions)
+	}
+
 	terragruntOptions.Logger.Debugf("Found the following modules in %s: %v", terragruntOptions.WorkingDir, moduleNames)
 	for _, moduleName := range moduleNames {
-		if err := createModule(moduleName, util.RemoveElementFromList(moduleNames, moduleName), outPath, envName, dependencyGraph, terragruntOptions); err != nil {
+		modulePath := filepath.Join(outPath, moduleName)
+		if err := createModule(moduleName, util.RemoveElementFromList(moduleNames, moduleName), modulePath, envName, dependencyGraph, terragruntOptions); err != nil {
 			return err
 		}
 	}
