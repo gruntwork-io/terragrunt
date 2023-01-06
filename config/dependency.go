@@ -332,7 +332,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 			return nil, err
 		}
 
-		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(terragruntOptions) {
+		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(terragruntOptions) && dependencyConfig.MockOutputs != nil {
 			mockMergeStrategy := dependencyConfig.getMockOutputsMergeStrategy()
 			switch mockMergeStrategy {
 			case NoMerge:
