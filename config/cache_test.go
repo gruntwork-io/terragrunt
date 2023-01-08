@@ -59,7 +59,7 @@ func TestTerragruntConfigCacheOperation(t *testing.T) {
 	assert.Empty(t, actualResult)
 
 	stubTerragruntConfig := TerragruntConfig{
-		IsPartial: true, // Any random property will be sufficent
+		IsPartial: true, // Any random property will be sufficient
 	}
 
 	cache.Put(testCacheKey, stubTerragruntConfig)

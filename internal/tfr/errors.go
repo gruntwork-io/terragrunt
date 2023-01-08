@@ -31,7 +31,7 @@ func (err ModuleDownloadErr) Error() string {
 	return fmt.Sprintf("Error downloading module from %s: %s", err.sourceURL, err.details)
 }
 
-// RegistryAPIErr is returned if we get an unsuccesful HTTP return code from the registry.
+// RegistryAPIErr is returned if we get an unsuccessful HTTP return code from the registry.
 type RegistryAPIErr struct {
 	url        string
 	statusCode int

@@ -96,7 +96,7 @@ type TerragruntOptions struct {
 	// Terraform in that temporary folder
 	Source string
 
-	// Map to replace terraform source locations. This will replace occurences of the given source with the target
+	// Map to replace terraform source locations. This will replace occurrences of the given source with the target
 	// value.
 	SourceMap map[string]string
 

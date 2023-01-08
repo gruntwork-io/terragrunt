@@ -364,7 +364,7 @@ func CleanPath(path string) string {
 
 // ContainsPath returns true if path contains the given subpath
 // E.g. path="foo/bar/bee", subpath="bar/bee" -> true
-// E.g. path="foo/bar/bee", subpath="bar/be" -> false (becuase be is not a directory)
+// E.g. path="foo/bar/bee", subpath="bar/be" -> false (because be is not a directory)
 func ContainsPath(path, subpath string) bool {
 	splitPath := SplitPath(CleanPath(path))
 	splitSubpath := SplitPath(CleanPath(subpath))
