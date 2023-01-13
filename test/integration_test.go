@@ -746,25 +746,40 @@ digraph {
 	`)))
 }
 
-func TestTerragruntLayerHasFile(t *testing.T) {
+func TestTerragruntLayerHasFileRunAll(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_LAYER_HAS_FILE)
 
-	environmentPath := fmt.Sprintf("%s/%s", tmpEnvPath, TEST_FIXTURE_LAYER_HAS_FILE)
-	layerhasfile := "/vars/find-this-var.tfvars"
+	environmentPath := fmt.Sprintf("%s/%s/%s", tmpEnvPath, TEST_FIXTURE_LAYER_HAS_FILE, "run-all")
+	layerhasfile := "file.txt"
 
 	var (
 		stdout bytes.Buffer
 		stderr bytes.Buffer
 	)
-	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt graph-dependencies --terragrunt-working-dir %s --terragrunt-layer-has-file %s", environmentPath, layerhasfile), &stdout, &stderr)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt graph-dependencies --terragrunt-working-dir %s --terragrunt-layer-has-file %s --terragrunt-ignore-external-dependencies", environmentPath, layerhasfile), &stdout, &stderr)
 	output := stdout.String()
-	assert.True(t, strings.Contains(output, strings.TrimSpace(`
+
+	assert.True(t, strings.Contains(strings.TrimSpace(output), strings.TrimSpace(`
 digraph {
-	"module-a" ;
+	"app1" ;
+	"app1" -> "module1";
 }
-	`)))
+`)))
+}
+
+func TestTerragruntLayerHasFileWithNotExistingFile(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_LAYER_HAS_FILE)
+
+	environmentPath := fmt.Sprintf("%s/%s/%s", tmpEnvPath, TEST_FIXTURE_LAYER_HAS_FILE, "run-all")
+	layerhasfile := "not-existing-file"
+
+	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt graph-dependencies --terragrunt-working-dir %s --terragrunt-layer-has-file %s", environmentPath, layerhasfile))
+
+	assert.True(t, strings.Contains(err.Error(), strings.TrimSpace("Could not find any subfolders with Terragrunt configuration files")))
 }
 
 func TestTerragruntRunAllCommand(t *testing.T) {
