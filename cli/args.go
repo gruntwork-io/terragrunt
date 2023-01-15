@@ -71,9 +71,20 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		terragruntConfigPath = config.GetDefaultConfigPath(workingDir)
 	}
 
-	terragruntHclFilePath, err := parseStringArg(args, optTerragruntHCLFmt, "")
+	terragruntHclFilesPathsDeprecated, err := parseMultiStringArg(args, optTerragruntHCLFmtDeprecated, nil)
 	if err != nil {
 		return nil, err
+	}
+
+	terragruntHclFilesPaths, err := parseMultiStringArg(args, optTerragruntHCLFmt, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if terragruntHclFilesPaths == nil {
+		terragruntHclFilesPaths = terragruntHclFilesPathsDeprecated
+	} else if terragruntHclFilesPathsDeprecated != nil {
+		terragruntHclFilesPaths = append(terragruntHclFilesPaths, terragruntHclFilesPathsDeprecated...)
 	}
 
 	awsProviderPatchOverrides, err := parseMutliStringKeyValueArg(args, optTerragruntOverrideAttr, nil)
@@ -218,7 +229,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.ModulesThatInclude = modulesThatInclude
 	opts.StrictInclude = strictInclude
 	opts.Check = parseBooleanArg(args, optTerragruntCheck, os.Getenv("TERRAGRUNT_CHECK") == "true")
-	opts.HclFile = filepath.ToSlash(terragruntHclFilePath)
+	opts.HclFiles = terragruntHclFilesPaths
 	opts.AwsProviderPatchOverrides = awsProviderPatchOverrides
 	opts.FetchDependencyOutputFromState = parseBooleanArg(args, optTerragruntFetchDependencyOutputFromState, os.Getenv("TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE") == "true")
 	opts.UsePartialParseConfigCache = parseBooleanArg(args, optTerragruntUsePartialParseConfigCache, os.Getenv("TERRAGRUNT_USE_PARTIAL_PARSE_CONFIG_CACHE") == "true")
@@ -345,7 +356,7 @@ func filterTerragruntArgs(args []string) []string {
 func logIfDeprecatedOption(optionName string) {
 	newOption, deprecated := deprecatedArguments[optionName]
 	if deprecated {
-		util.GlobalFallbackLogEntry.Warnf("Command line option %s is deprecated, please consider using %s", optionName, newOption)
+		util.GlobalFallbackLogEntry.Warnf("Command line option '--%s' is deprecated, please consider using '--%s'", optionName, newOption)
 	}
 }
 

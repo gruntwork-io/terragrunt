@@ -496,6 +496,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-log-level](#terragrunt-log-level)
 - [terragrunt-check](#terragrunt-check)
 - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
+- [terragrunt-hclfmt-files](#terragrunt-hclfmt-files)
 - [terragrunt-override-attr](#terragrunt-override-attr)
 - [terragrunt-json-out](#terragrunt-json-out)
 - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
@@ -798,15 +799,18 @@ When passed it, sets logging level for terragrunt. All supported levels are:
 When passed in, run `hclfmt` in check only mode instead of actively overwriting the files. This will cause the
 command to exit with exit code 1 if there are any files that are not formatted.
 
-
 ### terragrunt-hclfmt-file
 
-**CLI Arg**: `--terragrunt-hclfmt-file`
-**Requires an argument**: `--terragrunt-hclfmt-file /path/to/terragrunt.hcl`
+**DEPRECATED: Please see [--terragrunt-hclfmt-files](#terragrunt-hclfmt-files)**
+
+### terragrunt-hclfmt-files
+
+**CLI Arg**: `--terragrunt-hclfmt-files`<br/>
+**Requires an argument**: `--terragrunt-hclfmt-files /path/to/terragrunt.hcl /another/path/terragrunt.hcl`<br/>
 **Commands**:
 - [hclfmt](#hclfmt)
 
-When passed in, run `hclfmt` only on specified hcl file.
+When passed in, run `hclfmt` on the specified files.
 
 
 ### terragrunt-override-attr

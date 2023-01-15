@@ -52,7 +52,8 @@ const (
 	optTerragruntStrictInclude                  = "terragrunt-strict-include"
 	optTerragruntParallelism                    = "terragrunt-parallelism"
 	optTerragruntCheck                          = "terragrunt-check"
-	optTerragruntHCLFmt                         = "terragrunt-hclfmt-file"
+	optTerragruntHCLFmtDeprecated               = "terragrunt-hclfmt-file"
+	optTerragruntHCLFmt                         = "terragrunt-hclfmt-files"
 	optTerragruntDebug                          = "terragrunt-debug"
 	optTerragruntOverrideAttr                   = "terragrunt-override-attr"
 	optTerragruntLogLevel                       = "terragrunt-log-level"
@@ -81,6 +82,7 @@ var allTerragruntBooleanOpts = []string{
 	optTerragruntUsePartialParseConfigCache,
 	optTerragruntOutputWithMetadata,
 }
+
 var allTerragruntStringOpts = []string{
 	optTerragruntConfig,
 	optTerragruntTFPath,
@@ -94,6 +96,7 @@ var allTerragruntStringOpts = []string{
 	optTerragruntExcludeDir,
 	optTerragruntIncludeDir,
 	optTerragruntParallelism,
+	optTerragruntHCLFmtDeprecated,
 	optTerragruntHCLFmt,
 	optTerragruntOverrideAttr,
 	optTerragruntLogLevel,
@@ -199,7 +202,9 @@ var TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT = []string{
 }
 
 // deprecatedArguments is a map of deprecated arguments to the argument that replace them.
-var deprecatedArguments = map[string]string{}
+var deprecatedArguments = map[string]string{
+	optTerragruntHCLFmtDeprecated: optTerragruntHCLFmt,
+}
 
 // Struct is output as JSON by 'terragrunt-info':
 type TerragruntInfoGroup struct {
@@ -255,7 +260,8 @@ GLOBAL OPTIONS:
    terragrunt-exclude-dir                       Unix-style glob of directories to exclude when running *-all commands
    terragrunt-include-dir                       Unix-style glob of directories to include when running *-all commands
    terragrunt-check                             Enable check mode in the hclfmt command.
-   terragrunt-hclfmt-file                       The path to a single hcl file that the hclfmt command should run on.
+   terragrunt-hclfmt-file                       The path to one or more hcl files that the hclfmt command should run on. Could be specified multiple times.
+   terragrunt-hclfmt-files                      The path to one or more hcl files that the hclfmt command should run on. Could be specified multiple times.
    terragrunt-override-attr                     A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.
    terragrunt-debug                             Write terragrunt-debug.tfvars to working folder to help root-cause issues.
    terragrunt-log-level                         Sets the logging level for Terragrunt. Supported levels: panic, fatal, error, warn (default), info, debug, trace.
