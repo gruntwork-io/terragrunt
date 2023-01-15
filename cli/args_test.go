@@ -284,6 +284,8 @@ func TestParseMultiStringArg(t *testing.T) {
 		{[]string{"apply-all", "--test", "bar"}, "foo", []string{"default_bar"}, []string{"default_bar"}, nil},
 		{[]string{"plan-all", "--test", "--foo", "bar1", "--foo", "bar2"}, "foo", []string{"default_bar"}, []string{"bar1", "bar2"}, nil},
 		{[]string{"plan-all", "--test", "value", "--foo", "bar1", "--foo"}, "foo", []string{"default_bar"}, nil, ArgMissingValue("foo")},
+		{[]string{"plan-all", "--test", "value", "--foo"}, "foo", []string{"default_bar"}, nil, ArgMissingValue("foo")},
+		{[]string{"plan-all", "--test", "value", "--foo", "--bar"}, "foo", []string{"default_bar"}, nil, ArgMissingValue("foo")},
 	}
 
 	for _, testCase := range testCases {

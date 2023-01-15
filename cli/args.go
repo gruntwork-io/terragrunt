@@ -448,23 +448,38 @@ func parseIntArg(args []string, argName string, envValue string, envProvided boo
 	return defaultValue, nil
 }
 
-// Find multiple string arguments of the same type (e.g. --foo "VALUE_A" --foo "VALUE_B") of the given name in the given list of arguments. If there are any present,
+// Find multiple string arguments of the same type (e.g. --foo "VALUE_A" "VALUE_B" --foo "VALUE_C") of the given name in the given list of arguments. If there are any present,
 // return a list of all values. If there are any present, but one of them has no value, return an error. If there aren't any present, return defaultValue.
 func parseMultiStringArg(args []string, argName string, defaultValue []string) ([]string, error) {
 	stringArgs := []string{}
 
 	for i, arg := range args {
 		var nextArg *string
-		if (i + 1) < len(args) {
-			nextArg = &args[i+1]
-		}
-		val, hasVal, err := getOptionArgIfMatched(arg, nextArg, argName)
-		if err != nil {
-			return nil, err
-		} else if hasVal {
-			stringArgs = append(stringArgs, val)
+		for j := i + 1; j < len(args); j++ {
+			nextArg = &args[j]
+			if strings.HasPrefix(*nextArg, "--") {
+				if j == i+1 {
+					nextArg = nil
+				} else {
+					break
+				}
+			}
+			val, hasVal, err := getOptionArgIfMatched(arg, nextArg, argName)
+			if err != nil {
+				return nil, err
+			} else if hasVal {
+				stringArgs = append(stringArgs, val)
+			}
 		}
 	}
+
+	// Check when last arg has no value `--foo "VALUE_A" --foo`
+	if len(args) != 0 {
+		if _, _, err := getOptionArgIfMatched(args[len(args)-1], nil, argName); err != nil {
+			return nil, err
+		}
+	}
+
 	if len(stringArgs) == 0 {
 		return defaultValue, nil
 	}
