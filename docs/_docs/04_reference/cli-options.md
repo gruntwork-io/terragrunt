@@ -777,7 +777,7 @@ that Terragrunt invokes the module, so that you can debug issues with the terrag
 **Environment Variable**: `TERRAGRUNT_LOG_LEVEL`
 **Requires an argument**: `--terragrunt-log-level <LOG_LEVEL>`
 
-When passed it, sets logging level for terragrunt. All supported levels are:
+When passed in, sets logging level for terragrunt. All supported levels are:
 
 * panic
 * fatal
