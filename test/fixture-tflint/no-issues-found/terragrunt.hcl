@@ -8,6 +8,6 @@ terraform {
 }
 
 inputs = {
-  aws_region = "eu-central-1"
+  aws_region = "us-west-2"
   env = "dev"
 }
