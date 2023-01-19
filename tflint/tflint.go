@@ -27,19 +27,23 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 	}
 
 	terragruntOptions.Logger.Debugf("Initializing tflint in directory %s", terragruntOptions.WorkingDir)
-	cli := cmd.NewCLI(terragruntOptions.Writer, terragruntOptions.ErrWriter)
+	cli, err := cmd.NewCLI(terragruntOptions.Writer, terragruntOptions.ErrWriter)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
 
+	// tflint init
 	initArgs := []string{"tflint", "--init", "--config", configFile, terragruntOptions.WorkingDir}
 	statusCode := cli.Run(initArgs)
 	if statusCode != 0 {
 		return errors.WithStackTrace(ErrorRunningTflint{args: initArgs})
 	}
 
+	// tflint execution
 	args := []string{"tflint"}
 	args = append(args, variables...)
 	args = append(args, "--config", configFile)
-	args = append(args, "--module")
-	args = append(args, terragruntOptions.WorkingDir)
+	args = append(args, "--chdir", terragruntOptions.WorkingDir)
 
 	terragruntOptions.Logger.Debugf("Running tflint with args %v", args)
 	statusCode = cli.Run(args)
