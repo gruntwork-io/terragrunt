@@ -5,7 +5,6 @@ package tflint
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -25,17 +24,6 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 	variables, err := inputsToTflintVar(terragruntConfig.Inputs)
 	if err != nil {
 		return err
-	}
-
-	// Get GITHUB_OAUTH_TOKEN and set it as GITHUB_TOKEN so that tflint recognises and respects it
-	githubOauthToken := os.Getenv("GITHUB_OAUTH_TOKEN")
-	if githubOauthToken != "" {
-		err := os.Setenv("GITHUB_TOKEN", githubOauthToken)
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
-
-		terragruntOptions.Logger.Debugf("Setting GITHUB_TOKEN to the value of GITHUB_OAUTH_TOKEN")
 	}
 
 	terragruntOptions.Logger.Debugf("Initializing tflint in directory %s", terragruntOptions.WorkingDir)

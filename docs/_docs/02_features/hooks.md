@@ -75,12 +75,17 @@ terraform {
 ```
 
 The `.tflint.hcl` should exist in the same folder as `terragrunt.hcl` or one of it's parents. If Terragrunt can't find
-a `.tflint.hcl` file, it won't execute tflint and return an error.
+a `.tflint.hcl` file, it won't execute tflint and return an error. All configurations should be in a `config` block in this
+file, as per [Tflint's docs](https://github.com/terraform-linters/tflint/blob/master/docs/user-guide/config.md).
 ```hcl
 plugin "aws" {
     enabled = true
     version = "0.21.0"
     source  = "github.com/terraform-linters/tflint-ruleset-aws"
+}
+
+config {
+  module = true
 }
 ```
 
@@ -95,7 +100,7 @@ The `execute` parameter only accepts `tflint`, it will ignore any other paramete
 
 *Private rulesets*
 
-If you want to run a the `tflint` hook with custom rulesets defined in a private repository, you will need to export locally a valid `GITHUB_OAUTH_TOKEN` token. Terragrunt will take that and expose it to the `tflint`-recognised authentication token - `GITHUB_TOKEN`.
+If you want to run a the `tflint` hook with custom rulesets defined in a private repository, you will need to export locally a valid `GITHUB_TOKEN` token.
 
 #### Troubleshooting
 
