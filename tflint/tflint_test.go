@@ -35,6 +35,6 @@ func TestInputsToTflintVar(t *testing.T) {
 	for _, testCase := range testCases {
 		actual, err := inputsToTflintVar(testCase.inputs)
 		assert.NoError(t, err)
-		assert.Equal(t, testCase.expected, actual)
+		assert.ElementsMatch(t, testCase.expected, actual)
 	}
 }
