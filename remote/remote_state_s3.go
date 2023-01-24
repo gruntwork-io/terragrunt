@@ -602,6 +602,7 @@ func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConf
 
 // Check if versioning is enabled for the S3 bucket specified in the given config and warn the user if it is not
 func checkIfVersioningEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	terragruntOptions.Logger.Debugf("Checking if Versioning is enabled for AWS S3 bucket %s", config.Bucket)
 	out, err := s3Client.GetBucketVersioning(&s3.GetBucketVersioningInput{Bucket: aws.String(config.Bucket)})
 	if err != nil {
 		return false, errors.WithStackTrace(err)
@@ -916,7 +917,7 @@ func checkIfBucketRootAccess(s3Client *s3.S3, config *RemoteStateConfigS3, terra
 	})
 	if err != nil {
 		terragruntOptions.Logger.Debugf("Could not get policy for bucket %s", config.Bucket)
-		return false, nil
+		return false, err
 	}
 
 	// If the bucket has no policy, it is not enforced
@@ -1125,7 +1126,7 @@ func checkIfSSEForS3Enabled(s3Client *s3.S3, config *RemoteStateConfigS3, terrag
 	output, err := s3Client.GetBucketEncryption(input)
 	if err != nil {
 		terragruntOptions.Logger.Debugf("Error checking if SSE is enabled for AWS S3 bucket %s: %s", config.Bucket, err.Error())
-		return false, nil
+		return false, err
 	}
 
 	if output.ServerSideEncryptionConfiguration == nil {
@@ -1180,7 +1181,7 @@ func checkIfAccessLoggingForS3Enabled(s3Client *s3.S3, config *RemoteStateConfig
 	output, err := s3Client.GetBucketLogging(input)
 	if err != nil {
 		terragruntOptions.Logger.Debugf("Error checking if Access Logging is enabled for AWS S3 bucket %s: %s", config.Bucket, err.Error())
-		return false, nil
+		return false, err
 	}
 
 	if output.LoggingEnabled == nil {
