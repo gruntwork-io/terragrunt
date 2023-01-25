@@ -362,6 +362,14 @@ func CleanPath(path string) string {
 	return filepath.ToSlash(filepath.Clean(path))
 }
 
+func CleanPaths(paths []string) []string {
+	var result []string
+	for _, path := range paths {
+		result = append(result, CleanPath(path))
+	}
+	return result
+}
+
 // ContainsPath returns true if path contains the given subpath
 // E.g. path="foo/bar/bee", subpath="bar/bee" -> true
 // E.g. path="foo/bar/bee", subpath="bar/be" -> false (becuase be is not a directory)
