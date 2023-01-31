@@ -385,7 +385,7 @@ func (dependencyConfig Dependency) shouldReturnMockOutputs(terragruntOptions *op
 }
 
 // Return the output from the state of another module, managed by terragrunt. This function will parse the provided
-// terragrunt config and extract the desired output from the remote state. Note that this will error if the targetted
+// terragrunt config and extract the desired output from the remote state. Note that this will error if the targeted
 // module hasn't been applied yet.
 func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, bool, error) {
 
