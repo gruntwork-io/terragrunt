@@ -1135,7 +1135,7 @@ func checkIfSSEForS3Enabled(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3
 	for _, rule := range output.ServerSideEncryptionConfiguration.Rules {
 		if rule.ApplyServerSideEncryptionByDefault != nil {
 			if rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
-				if *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm == config.BucketSSEAlgorithm {
+				if *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm == fetchEncryptionAlgorithm(config) {
 					return true, nil
 				}
 
