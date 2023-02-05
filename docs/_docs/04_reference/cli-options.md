@@ -36,6 +36,7 @@ Terragrunt supports the following CLI commands:
   - [hclfmt](#hclfmt)
   - [aws-provider-patch](#aws-provider-patch)
   - [render-json](#render-json)
+  - [output-module-groups](#output-module-groups)
 
 ### All Terraform built-in commands
 
@@ -439,6 +440,45 @@ _terragrunt_rendered.json_
 
 You can use the CLI option `--terragrunt-json-out` to configure where terragrunt renders out the json representation.
 
+### output-module-groups
+
+Output groups of modules ordered for apply as a list of list in JSON (useful for CI use cases).
+
+Example:
+
+```bash
+terragrunt output-module-groups
+```
+
+This will recursively search the current working directory for any folders that contain Terragrunt modules and build
+the dependency graph based on [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
+[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks. This may produce output such as:
+
+```
+[
+  [
+    "stage/frontend-app"
+  ],
+  [
+    "stage/backend-app"
+  ],
+  [
+    "mgmt/bastion-host",
+    "stage/search-app"
+  ],
+  [
+    "mgmt/kms-master-key",
+    "stage/mysql",
+    "stage/redis"
+  ],
+  [
+    "stage/vpc"
+  ],
+  [
+    "mgmt/vpc"
+  ]
+]
+```
 
 ## CLI options
 
