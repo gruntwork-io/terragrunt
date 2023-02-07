@@ -66,7 +66,7 @@ func TestRegressionSupportForGitRemoteCodecommit(t *testing.T) {
 	require.NoError(t, err)
 
 	source := "git::codecommit::ap-northeast-1://my_app_modules//my-app/modules/main-module"
-	sourceURL, err := toSourceUrl(source, ".")
+	sourceURL, err := ToSourceUrl(source, ".")
 	require.NoError(t, err)
 	require.Equal(t, "git::codecommit::ap-northeast-1", sourceURL.Scheme)
 

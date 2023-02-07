@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"reflect"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -45,6 +46,33 @@ func RunTerraformCommandWithOutput(terragruntOptions *options.TerragruntOptions,
 		needPty = isTerraformCommandThatNeedsPty(args[0])
 	}
 	return RunShellCommandWithOutput(terragruntOptions, "", false, needPty, terragruntOptions.TerraformPath, args...)
+}
+
+// Run the given Terraform command, returning stdout/stderr to this method's caller, but NOT streaming it to
+// stdout/stderr on the terminal. However, if there was an error running the command, then the error will show stdout
+// and stderr.
+func RunTerraformCommandWithOutputNoStreaming(terragruntOptions *options.TerragruntOptions, args ...string) (*CmdOutput, error) {
+	// Since we are going to modify terragruntOptions, clone it first so the original doesn't change
+	clonedTerragruntOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+
+	// Throw away stdout/stderr, as we don't want it streaming to the console
+	clonedTerragruntOptions.Writer = io.Discard
+	clonedTerragruntOptions.ErrWriter = io.Discard
+
+	// Run the command
+	output, err := RunTerraformCommandWithOutput(clonedTerragruntOptions, args...)
+
+	// Show stdout/stderr if there was an err to help with debugging
+	if err != nil {
+		var exitCode *int
+		maybeExitCode, exitCodeErr := GetExitCode(err)
+		if exitCodeErr != nil {
+			exitCode = &maybeExitCode
+		}
+		return nil, errors.WithStackTrace(TerraformCommandExitedWithError{command: "graph", exitCode: exitCode, stdOut: output.Stdout, stdErr: output.Stderr})
+	}
+
+	return output, err
 }
 
 // Run the specified shell command with the specified arguments. Connect the command's stdin, stdout, and stderr to
@@ -241,4 +269,21 @@ func (err ProcessExecutionError) Error() string {
 
 func (err ProcessExecutionError) ExitStatus() (int, error) {
 	return GetExitCode(err.Err)
+}
+
+// Custom errors
+
+type TerraformCommandExitedWithError struct {
+	command  string
+	exitCode *int
+	stdOut   string
+	stdErr   string
+}
+
+func (err TerraformCommandExitedWithError) Error() string {
+	exitCodeAsString := "(unknown)"
+	if err.exitCode != nil {
+		exitCodeAsString = strconv.Itoa(*err.exitCode)
+	}
+	return fmt.Sprintf("Terraform command '%s' exited with status code %s.\nStandard out:\n%s\nStandard error:\n%s\n", err.command, exitCodeAsString, err.stdOut, err.stdErr)
 }

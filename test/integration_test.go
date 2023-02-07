@@ -123,6 +123,11 @@ const (
 	TEST_FIXTURE_DIRS_PATH                                  = "fixture-dirs"
 	TEST_FIXTURE_PARALLELISM                                = "fixture-parallelism"
 	TEST_FIXTURE_SOPS                                       = "fixture-sops"
+	TEST_FIXTURE_PRE_PROCESSOR                              = "fixture-preprocessor"
+	TEST_FIXTURE_PRE_PROCESSOR_EMPTY                        = "fixture-preprocessor-empty"
+	TEST_FIXTURE_PRE_PROCESSOR_NO_ENVS                      = "fixture-preprocessor-no-envs"
+	TEST_FIXTURE_PRE_PROCESSOR_NO_MODULES                   = "fixture-preprocessor-no-modules"
+	TEST_FIXTURE_PRE_PROCESSOR_ONE_MODULES                  = "fixture-preprocessor-one-module"
 	TEST_FIXTURE_DESTROY_WARNING                            = "fixture-destroy-warning"
 	TEST_FIXTURE_INCLUDE_PARENT                             = "fixture-include-parent"
 	TEST_FIXTURE_AUTO_INIT                                  = "fixture-download/init-on-source-change"
@@ -3001,6 +3006,74 @@ func TestGetPlatform(t *testing.T) {
 	require.Equal(t, platform.Value, runtime.GOOS)
 }
 
+func TestPreProcessor(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name                string
+		fixturePath         string
+		expectedEnvNames    []string
+		expectedModuleNames []string
+	}{
+		{"Empty", TEST_FIXTURE_PRE_PROCESSOR_EMPTY, []string{}, []string{"."}},
+		{"No envs, multiple modules", TEST_FIXTURE_PRE_PROCESSOR_NO_ENVS, []string{}, []string{"vpc", "mysql", "frontend_app", "backend_app"}},
+		{"Multiple envs, no modules", TEST_FIXTURE_PRE_PROCESSOR_NO_MODULES, []string{"dev", "stage", "prod"}, []string{}},
+		{"Multiple envs, one module", TEST_FIXTURE_PRE_PROCESSOR_ONE_MODULES, []string{"dev", "stage", "prod"}, []string{"vpc"}},
+		{"Multiple envs, multiple modules", TEST_FIXTURE_PRE_PROCESSOR, []string{"dev", "stage", "prod"}, []string{"vpc", "mysql", "frontend_app", "backend_app"}},
+	}
+
+	for _, testCase := range testCases {
+		// capture range variable to avoid it changing across for loop runs during goroutine transitions.
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			cleanupTerraformFolder(t, testCase.fixturePath)
+
+			beforeFolder := filepath.Join(testCase.fixturePath, "before")
+			expectedAfterFolder := filepath.Join(testCase.fixturePath, "after")
+			actualAfterFolder, err := os.MkdirTemp(testCase.fixturePath, "preprocessor-test")
+			require.NoError(t, err)
+
+			defer os.RemoveAll(actualAfterFolder)
+
+			// Run the 'process' command to generate code and make sure it's the result we expect
+
+			runTerragrunt(t, fmt.Sprintf("terragrunt process --terragrunt-log-level debug --terragrunt-working-dir %s %s", beforeFolder, actualAfterFolder))
+			requireDirectoriesEqual(t, expectedAfterFolder, actualAfterFolder)
+
+			// Run 'apply' in every module in every env to test that the generated code actually works!
+
+			terragruntOptions, err := options.NewTerragruntOptionsForTest("__preprocessor__")
+			require.NoError(t, err)
+
+			workingDirs := []string{}
+			if len(testCase.expectedEnvNames) == 0 {
+				for _, module := range testCase.expectedModuleNames {
+					workingDirs = append(workingDirs, filepath.Join(actualAfterFolder, module))
+				}
+			} else if len(testCase.expectedModuleNames) == 0 {
+				for _, env := range testCase.expectedEnvNames {
+					workingDirs = append(workingDirs, filepath.Join(actualAfterFolder, env))
+				}
+			} else {
+				for _, env := range testCase.expectedEnvNames {
+					for _, module := range testCase.expectedModuleNames {
+						workingDirs = append(workingDirs, filepath.Join(actualAfterFolder, env, module))
+					}
+				}
+			}
+
+			for _, workingDir := range workingDirs {
+				terragruntOptions.Logger.Infof("Running 'init' and 'apply' in %s", workingDir)
+				terragruntOptions.WorkingDir = workingDir
+				require.NoError(t, shell.RunTerraformCommand(terragruntOptions, "init"))
+				require.NoError(t, shell.RunTerraformCommand(terragruntOptions, "apply", "-input=false", "-auto-approve"))
+			}
+		})
+	}
+}
+
 func TestDataDir(t *testing.T) {
 	// Cannot be run in parallel with other tests as it modifies process' environment.
 
@@ -5271,4 +5344,17 @@ func TestTflintWithoutConfigFile(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_NO_CONFIG_FILE)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-working-dir %s", modulePath), io.Discard, errOut)
 	assert.Error(t, err, "Could not find .tflint.hcl config file in the parent folders:")
+}
+
+// TODO: Copied from Terratest. We should make this a public method in Terratest so we don't have to copy/paste it!
+// Diffing two directories to ensure they have the exact same files, contents, etc and showing exactly what's different
+// takes a lot of code. Why waste time on that when this functionality is already nicely implemented in the Unix/Linux
+// "diff" command? We shell out to that command at test time.
+func requireDirectoriesEqual(t *testing.T, folderWithExpectedContents string, folderWithActualContents string) {
+	cmd := exec.Command("diff", "-r", "-u", folderWithExpectedContents, folderWithActualContents)
+
+	out, err := cmd.Output()
+	output := string(out)
+
+	require.NoError(t, err, "diff command exited with an error. This likely means the contents of %s and %s are different. Here is the output of the diff command:\n%s", folderWithExpectedContents, folderWithActualContents, output)
 }
