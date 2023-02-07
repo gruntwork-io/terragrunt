@@ -109,10 +109,10 @@ func downloadTerraformSourceIfNecessary(terraformSource *tfsource.TerraformSourc
 		return err
 	}
 
-	currentVersion := terraformSource.EncodeSourceVersion()
-	// if source versions are different, create file to run init
+	currentVersion, err := terraformSource.EncodeSourceVersion()
+	// if source versions are different or calculating version failed, create file to run init
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
-	if previousVersion != currentVersion {
+	if previousVersion != currentVersion || err != nil {
 		initFile := util.JoinPath(terraformSource.WorkingDir, moduleInitRequiredFile)
 		f, createErr := os.Create(initFile)
 		if createErr != nil {
@@ -126,14 +126,11 @@ func downloadTerraformSourceIfNecessary(terraformSource *tfsource.TerraformSourc
 
 // Returns true if the specified TerraformSource, of the exact same version, has already been downloaded into the
 // DownloadFolder. This helps avoid downloading the same code multiple times. Note that if the TerraformSource points
-// to a local file path, we assume the user is doing local development and always return false to ensure the latest
-// code is downloaded (or rather, copied) every single time. See the ProcessTerraformSource method for more info.
+// to a local file path, a hash will be generated from the contents of the source dir. See the ProcessTerraformSource method for more info.
 func alreadyHaveLatestCode(terraformSource *tfsource.TerraformSource, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	if tfsource.IsLocalSource(terraformSource.CanonicalSourceURL) ||
-		!util.FileExists(terraformSource.DownloadDir) ||
+	if !util.FileExists(terraformSource.DownloadDir) ||
 		!util.FileExists(terraformSource.WorkingDir) ||
 		!util.FileExists(terraformSource.VersionFile) {
-
 		return false, nil
 	}
 
@@ -147,7 +144,16 @@ func alreadyHaveLatestCode(terraformSource *tfsource.TerraformSource, terragrunt
 		return false, nil
 	}
 
-	currentVersion := terraformSource.EncodeSourceVersion()
+	currentVersion, err := terraformSource.EncodeSourceVersion()
+	// If we fail to calculate the source version (e.g. because walking the
+	// directory tree failed) use a random version instead, bypassing the cache.
+	if err != nil {
+		currentVersion, err = util.GenerateRandomSha256()
+		if err != nil {
+			return false, err
+		}
+	}
+
 	previousVersion, err := readVersionFile(terraformSource)
 
 	if err != nil {

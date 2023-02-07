@@ -18,5 +18,10 @@ remote_state {
       owner = "terragrunt integration test"
       name = "Terraform lock table"
     }
+
+    accesslogging_bucket_tags = {
+      owner = "terragrunt integration test"
+      name  = "Terraform access log storage"
+    }
   }
 }

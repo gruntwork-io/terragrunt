@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
@@ -28,6 +30,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 )
+
+const renderJsonCommand = "render-json"
 
 type Dependency struct {
 	Name                                string     `hcl:",label" cty:"name"`
@@ -328,7 +332,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 			return nil, err
 		}
 
-		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(terragruntOptions) {
+		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(terragruntOptions) && dependencyConfig.MockOutputs != nil {
 			mockMergeStrategy := dependencyConfig.getMockOutputsMergeStrategy()
 			switch mockMergeStrategy {
 			case NoMerge:
@@ -377,11 +381,11 @@ func (dependencyConfig Dependency) shouldReturnMockOutputs(terragruntOptions *op
 		dependencyConfig.MockOutputsAllowedTerraformCommands == nil ||
 			len(*dependencyConfig.MockOutputsAllowedTerraformCommands) == 0 ||
 			util.ListContainsElement(*dependencyConfig.MockOutputsAllowedTerraformCommands, terragruntOptions.OriginalTerraformCommand)
-	return defaultOutputsSet && allowedCommand
+	return defaultOutputsSet && allowedCommand || isRenderJsonCommand(terragruntOptions)
 }
 
 // Return the output from the state of another module, managed by terragrunt. This function will parse the provided
-// terragrunt config and extract the desired output from the remote state. Note that this will error if the targetted
+// terragrunt config and extract the desired output from the remote state. Note that this will error if the targeted
 // module hasn't been applied yet.
 func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, bool, error) {
 
@@ -393,7 +397,14 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 
 	jsonBytes, err := getOutputJsonWithCaching(targetConfig, terragruntOptions)
 	if err != nil {
-		return nil, true, err
+		if !isRenderJsonCommand(terragruntOptions) {
+			return nil, true, err
+		}
+		terragruntOptions.Logger.Warnf("Failed to read outputs from %s referenced in %s as %s, fallback to mock outputs. Error: %v", targetConfig, terragruntOptions.TerragruntConfigPath, dependencyConfig.Name, err)
+		jsonBytes, err = json.Marshal(dependencyConfig.MockOutputs)
+		if err != nil {
+			return nil, true, err
+		}
 	}
 	isEmpty := string(jsonBytes) == "{}"
 
@@ -408,6 +419,11 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 		err = TerragruntOutputEncodingError{Path: targetConfig, Err: err}
 	}
 	return &convertedOutput, isEmpty, errors.WithStackTrace(err)
+}
+
+// This function will true if terragrunt was invoked with renderJsonCommand
+func isRenderJsonCommand(terragruntOptions *options.TerragruntOptions) bool {
+	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, renderJsonCommand)
 }
 
 // getOutputJsonWithCaching will run terragrunt output on the target config if it is not already cached.
@@ -636,7 +652,6 @@ func getTerragruntOutputJsonFromRemoteState(
 	iamRoleOpts options.IAMRoleOptions,
 ) ([]byte, error) {
 	terragruntOptions.Logger.Debugf("Detected remote state block with generate config. Resolving dependency by pulling remote state.")
-
 	// Create working directory where we will run terraform in. We will create the temporary directory in the download
 	// directory for consistency with other file generation capabilities of terragrunt. Make sure it is cleaned up
 	// before the function returns.
@@ -653,6 +668,24 @@ func getTerragruntOutputJsonFromRemoteState(
 	targetTGOptions, err := setupTerragruntOptionsForBareTerraform(terragruntOptions, tempWorkDir, targetConfig, iamRoleOpts)
 	if err != nil {
 		return nil, err
+	}
+
+	// To speed up dependencies processing it is possible to retrieve its output directly from the backend without init dependencies
+	if terragruntOptions.FetchDependencyOutputFromState {
+		switch backend := remoteState.Backend; backend {
+		case "s3":
+			jsonBytes, err := getTerragruntOutputJsonFromRemoteStateS3(
+				targetTGOptions,
+				remoteState,
+			)
+			if err != nil {
+				return nil, err
+			}
+			terragruntOptions.Logger.Debugf("Retrieved output from %s as json: %s using s3 bucket", targetConfig, jsonBytes)
+			return jsonBytes, nil
+		default:
+			terragruntOptions.Logger.Errorf("FetchDependencyOutputFromState is not supported for backend %s, falling back to normal method", backend)
+		}
 	}
 
 	// Generate the backend configuration in the working dir. If no generate config is set on the remote state block,
@@ -681,7 +714,55 @@ func getTerragruntOutputJsonFromRemoteState(
 	jsonString := out.Stdout
 	jsonBytes := []byte(strings.TrimSpace(jsonString))
 	terragruntOptions.Logger.Debugf("Retrieved output from %s as json: %s", targetConfig, jsonString)
+
 	return jsonBytes, nil
+
+}
+
+// getTerragruntOutputJsonFromRemoteStateS3 pulls the output directly from an S3 bucket without calling Terraform
+func getTerragruntOutputJsonFromRemoteStateS3(
+	terragruntOptions *options.TerragruntOptions,
+	remoteState *remote.RemoteState,
+) ([]byte, error) {
+	terragruntOptions.Logger.Debugf("Fetching outputs directly from s3://%s/%s", remoteState.Config["bucket"], remoteState.Config["key"])
+
+	s3ConfigExtended, err := remote.ParseExtendedS3Config(remoteState.Config)
+	if err != nil {
+		return nil, err
+	}
+
+	sessionConfig := s3ConfigExtended.GetAwsSessionConfig()
+
+	s3Client, err := remote.CreateS3Client(sessionConfig, terragruntOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := s3Client.GetObject(&s3.GetObjectInput{
+		Bucket: aws.String(fmt.Sprintf("%s", remoteState.Config["bucket"])),
+		Key:    aws.String(fmt.Sprintf("%s", remoteState.Config["key"])),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer result.Body.Close()
+	steateBody, err := ioutil.ReadAll(result.Body)
+	if err != nil {
+		return nil, err
+	}
+	jsonState := string(steateBody)
+	jsonMap := make(map[string]interface{})
+	err = json.Unmarshal([]byte(jsonState), &jsonMap)
+	if err != nil {
+		return nil, err
+	}
+	jsonOutputs, err := json.Marshal(jsonMap["outputs"])
+	if err != nil {
+		return nil, err
+	}
+	return jsonOutputs, nil
 }
 
 // setupTerragruntOptionsForBareTerraform sets up a new TerragruntOptions struct that can be used to run terraform

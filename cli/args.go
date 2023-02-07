@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -157,11 +156,21 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		opts.Debug = true
 	}
 
-	envValue, envProvided := os.LookupEnv("TERRAGRUNT_PARALLELISM")
-	parallelism, err := parseIntArg(args, optTerragruntParallelism, envValue, envProvided, options.DEFAULT_PARALLELISM)
-	if err != nil {
-		return nil, err
+	opts.RunAllAutoApprove = !parseBooleanArg(args, optTerragruntNoAutoApprove, os.Getenv("TERRAGRUNT_AUTO_APPROVE") == "false")
+
+	var parallelism int
+	if !opts.RunAllAutoApprove {
+		// When running in no-auto-approve mode, set parallelism to 1 so that interactive prompts work.
+		parallelism = 1
+	} else {
+		envValue, envProvided := os.LookupEnv("TERRAGRUNT_PARALLELISM")
+		parsedParallelism, err := parseIntArg(args, optTerragruntParallelism, envValue, envProvided, options.DEFAULT_PARALLELISM)
+		if err != nil {
+			return nil, err
+		}
+		parallelism = parsedParallelism
 	}
+	opts.Parallelism = parallelism
 
 	iamRoleOpts, err := parseIAMRoleOptions(args)
 	if err != nil {
@@ -208,11 +217,14 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.IncludeDirs = includeDirs
 	opts.ModulesThatInclude = modulesThatInclude
 	opts.StrictInclude = strictInclude
-	opts.Parallelism = parallelism
 	opts.Check = parseBooleanArg(args, optTerragruntCheck, os.Getenv("TERRAGRUNT_CHECK") == "true")
 	opts.HclFile = filepath.ToSlash(terragruntHclFilePath)
 	opts.AwsProviderPatchOverrides = awsProviderPatchOverrides
-	opts.JSONOut, err = parseStringArg(args, optTerragruntJSONOut, "terragrunt_rendered.json")
+	opts.FetchDependencyOutputFromState = parseBooleanArg(args, optTerragruntFetchDependencyOutputFromState, os.Getenv("TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE") == "true")
+	opts.UsePartialParseConfigCache = parseBooleanArg(args, optTerragruntUsePartialParseConfigCache, os.Getenv("TERRAGRUNT_USE_PARTIAL_PARSE_CONFIG_CACHE") == "true")
+	opts.RenderJsonWithMetadata = parseBooleanArg(args, optTerragruntOutputWithMetadata, false)
+
+	opts.JSONOut, err = parseStringArg(args, optTerragruntJSONOut, "")
 	if err != nil {
 		return nil, err
 	}
@@ -494,7 +506,7 @@ func toTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) 
 	for varName, varValue := range vars {
 		envVarName := fmt.Sprintf("%s_%s", TFVarPrefix, varName)
 
-		envVarValue, err := asTerraformEnvVarJsonValue(varValue)
+		envVarValue, err := util.AsTerraformEnvVarJsonValue(varValue)
 		if err != nil {
 			return nil, err
 		}
@@ -503,23 +515,6 @@ func toTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) 
 	}
 
 	return out, nil
-}
-
-// Convert the given value to a JSON value that can be passed to Terraform as an environment variable. For the most
-// part, this converts the value directly to JSON using Go's built-in json.Marshal. However, we have special handling
-// for strings, which with normal JSON conversion would be wrapped in quotes, but when passing them to Terraform via
-// env vars, we need to NOT wrap them in quotes, so this method adds special handling for that case.
-func asTerraformEnvVarJsonValue(value interface{}) (string, error) {
-	switch val := value.(type) {
-	case string:
-		return val, nil
-	default:
-		envVarValue, err := json.Marshal(val)
-		if err != nil {
-			return "", errors.WithStackTrace(err)
-		}
-		return string(envVarValue), nil
-	}
 }
 
 // Custom error types

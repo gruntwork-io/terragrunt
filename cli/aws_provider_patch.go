@@ -17,6 +17,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+const awsProviderPatchHelp = `
+   Usage: terragrunt aws-provider-patch [OPTIONS]
+
+   Description:
+   Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018)
+   
+   Options:
+   --terragrunt-override-attr	A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.
+`
+
 // applyAwsProviderPatch finds all Terraform modules nested in the current code (i.e., in the .terraform/modules
 // folder), looks for provider "aws" { ... } blocks in those modules, and overwrites the attributes in those provider
 // blocks with the attributes specified in terragrntOptions.

@@ -148,7 +148,7 @@ func PartialParseConfigFile(
 		return nil, err
 	}
 
-	config, err := PartialParseConfigString(configString, terragruntOptions, include, filename, decodeList)
+	config, err := TerragruntConfigFromPartialConfigString(configString, terragruntOptions, include, filename, decodeList)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +156,41 @@ func PartialParseConfigFile(
 	return config, nil
 }
 
-// ParitalParseConfigString partially parses and decodes the provided string. Which blocks/attributes to decode is
+var terragruntConfigCache = NewTerragruntConfigCache()
+
+// Wrapper of PartialParseConfigString which checks for cached configs.
+// configString, includeFromChild and decodeList are used for the cache key,
+// by getting the default value (%#v) through fmt.
+func TerragruntConfigFromPartialConfigString(
+	configString string,
+	terragruntOptions *options.TerragruntOptions,
+	includeFromChild *IncludeConfig,
+	filename string,
+	decodeList []PartialDecodeSectionType,
+) (*TerragruntConfig, error) {
+	if terragruntOptions.UsePartialParseConfigCache {
+		var cacheKey = fmt.Sprintf("%#v-%#v-%#v", configString, includeFromChild, decodeList)
+		var config, found = terragruntConfigCache.Get(cacheKey)
+
+		if !found {
+			terragruntOptions.Logger.Debugf("Cache miss for '%s' (partial parsing).", filename)
+			tgConfig, err := PartialParseConfigString(configString, terragruntOptions, includeFromChild, filename, decodeList)
+			if err != nil {
+				return nil, err
+			}
+			config = *tgConfig
+			terragruntConfigCache.Put(cacheKey, config)
+		} else {
+			terragruntOptions.Logger.Debugf("Cache hit for '%s' (partial parsing).", filename)
+		}
+
+		return &config, nil
+	} else {
+		return PartialParseConfigString(configString, terragruntOptions, includeFromChild, filename, decodeList)
+	}
+}
+
+// PartialParseConfigString partially parses and decodes the provided string. Which blocks/attributes to decode is
 // controlled by the function parameter decodeList. These blocks/attributes are parsed and set on the output
 // TerragruntConfig. Valid values are:
 // - DependenciesBlock: Parses the `dependencies` block in the config

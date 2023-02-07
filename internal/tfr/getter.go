@@ -228,7 +228,7 @@ func getModuleRegistryURLBasePath(ctx context.Context, domain string) (string, e
 func getTerraformGetHeader(ctx context.Context, url url.URL) (string, error) {
 	_, header, err := httpGETAndGetResponse(ctx, url)
 	if err != nil {
-		details := "error recieving HTTP data"
+		details := "error receiving HTTP data"
 		return "", errors.WithStackTrace(ModuleDownloadErr{sourceURL: url.String(), details: details})
 	}
 

@@ -59,6 +59,67 @@ to Terraform.
 You can learn more about all the various configuration options supported in [the reference docs for the terraform
 block](/docs/reference/config-blocks-and-attributes/#terraform).
 
+### Tflint hook
+
+*Before Hooks* or *After Hooks* support natively *tflint*, a linter for Terraform code. It will validate the
+Terraform code used by Terragrunt, and it's inputs.
+
+Here's an example:
+```hcl
+terraform {
+  before_hook "before_hook" {
+    commands     = ["apply", "plan"]
+    execute      = ["tflint"]
+  }
+}
+```
+
+The `.tflint.hcl` should exist in the same folder as `terragrunt.hcl` or one of it's parents. If Terragrunt can't find
+a `.tflint.hcl` file, it won't execute tflint and return an error. All configurations should be in a `config` block in this
+file, as per [Tflint's docs](https://github.com/terraform-linters/tflint/blob/master/docs/user-guide/config.md).
+```hcl
+plugin "aws" {
+    enabled = true
+    version = "0.21.0"
+    source  = "github.com/terraform-linters/tflint-ruleset-aws"
+}
+
+config {
+  module = true
+}
+```
+
+#### Configuration
+
+The `execute` parameter only accepts `tflint`, it will ignore any other parameter. Any desired extra configuration should be added in the `.tflint.hcl` file. It will work with a `.tflint.hcl` file in the current folder or any parent folder.
+
+#### Authentication for tflint rulesets 
+*Public rulesets*
+
+`tflint` works without any authentication for public rulesets (hosted on public repositories).
+
+*Private rulesets*
+
+If you want to run a the `tflint` hook with custom rulesets defined in a private repository, you will need to export locally a valid `GITHUB_TOKEN` token.
+
+#### Troubleshooting
+
+**`flag provided but not defined: -act-as-bundled-plugin` error**
+
+If you have an `.tflint.hcl` file that is empty, or uses the `terraform` ruleset without version or source constraint, it returns the following error:
+```
+Failed to initialize plugins; Unrecognized remote plugin message: Incorrect Usage. flag provided but not defined: -act-as-bundled-plugin
+```
+
+To fix this, make sure that the configuration for the `terraform` ruleset, in the `.tflint.hcl` file contains a version constraint:
+```
+plugin "terraform" {
+    enabled = true
+    version = "0.2.1"
+    source  = "github.com/terraform-linters/tflint-ruleset-terraform"
+}
+```
+
 ## Error Hooks
 *Error hooks* are a special type of after hook that act as exception handlers. They allow you to specify a list of expressions that can be used to catch errors and run custom commands when those errors occur. Error hooks are executed after the before/after hooks.
 

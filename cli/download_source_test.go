@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/sirupsen/logrus"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,6 +21,78 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
+
+func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
+	t.Parallel()
+
+	canonicalUrl := fmt.Sprintf("file://%s", absPath(t, "../test/fixture-download-source/hello-world-local-hash"))
+	downloadDir := tmpDir(t)
+	defer os.Remove(downloadDir)
+
+	copyFolder(t, "../test/fixture-download-source/download-dir-version-file-local-hash", downloadDir)
+	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, false)
+
+	// Write out a version file so we can test a cache hit
+	terraformSource, _, _, err := createConfig(t, canonicalUrl, downloadDir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = terraformSource.WriteVersionFile()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, true)
+}
+
+func TestAlreadyHaveLatestCodeLocalFilePathHashingFailure(t *testing.T) {
+	t.Parallel()
+
+	fixturePath := absPath(t, "../test/fixture-download-source/hello-world-local-hash-failed")
+	canonicalUrl := fmt.Sprintf("file://%s", fixturePath)
+	downloadDir := tmpDir(t)
+	defer os.Remove(downloadDir)
+
+	copyFolder(t, "../test/fixture-download-source/hello-world-local-hash-failed", downloadDir)
+
+	fileInfo, err := os.Stat(fixturePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = os.Chmod(fixturePath, 0000)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, false)
+
+	err = os.Chmod(fixturePath, fileInfo.Mode())
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAlreadyHaveLatestCodeLocalFilePathWithHashChanged(t *testing.T) {
+	t.Parallel()
+
+	canonicalUrl := fmt.Sprintf("file://%s", absPath(t, "../test/fixture-download-source/hello-world-local-hash"))
+	downloadDir := tmpDir(t)
+	defer os.Remove(downloadDir)
+
+	copyFolder(t, "../test/fixture-download-source/download-dir-version-file-local-hash", downloadDir)
+
+	f, err := os.OpenFile(downloadDir+"/version-file.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	// Modify content of file to simulate change
+	fmt.Fprintln(f, "CHANGED")
+
+	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, false)
+}
 
 func TestAlreadyHaveLatestCodeLocalFilePath(t *testing.T) {
 	t.Parallel()
@@ -285,11 +358,14 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 }
 
 func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool) (*tfsource.TerraformSource, *options.TerragruntOptions, *config.TerragruntConfig, error) {
+	logger := logrus.New()
+	logger.Out = ioutil.Discard
 	terraformSource := &tfsource.TerraformSource{
 		CanonicalSourceURL: parseUrl(t, canonicalUrl),
 		DownloadDir:        downloadDir,
 		WorkingDir:         downloadDir,
 		VersionFile:        util.JoinPath(downloadDir, "version-file.txt"),
+		Logger:             logger,
 	}
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
@@ -311,11 +387,14 @@ func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceU
 }
 
 func testAlreadyHaveLatestCode(t *testing.T, canonicalUrl string, downloadDir string, expected bool) {
+	logger := logrus.New()
+	logger.Out = ioutil.Discard
 	terraformSource := &tfsource.TerraformSource{
 		CanonicalSourceURL: parseUrl(t, canonicalUrl),
 		DownloadDir:        downloadDir,
 		WorkingDir:         downloadDir,
 		VersionFile:        util.JoinPath(downloadDir, "version-file.txt"),
+		Logger:             logger,
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")

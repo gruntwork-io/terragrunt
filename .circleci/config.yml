@@ -4,7 +4,7 @@ orbs:
 
 defaults: &defaults
   docker:
-    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.16-tf1.1-tg35.20-pck1.7
+    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.18-tf1.3-tg39.1-pck1.8-ci50.7
 
 version: 2.1
 jobs:
@@ -46,7 +46,7 @@ jobs:
             # transitive dependencies that are being pulled in which released new versions that are no longer compatible
             # with any python < 3.6.
             pip3 install pre-commit==1.21.0 cfgv==2.0.1 zipp==1.1.0
-            go get golang.org/x/tools/cmd/goimports
+            go install golang.org/x/tools/cmd/goimports@latest
             export GOPATH=~/go/bin && export PATH=$PATH:$GOPATH
             pre-commit install
             pre-commit run --all-files

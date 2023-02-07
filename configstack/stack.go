@@ -81,14 +81,16 @@ func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
 		stack.syncTerraformCliArgs(terragruntOptions)
 	}
 
-	// For apply and destroy, run with auto-approve due to the co-mingling of the prompts. This is not ideal, but until
-	// we have a better way of handling interactivity with run-all, we take the evil of having a global prompt (managed
-	// in cli/cli_app.go) be the gate keeper.
+	// For apply and destroy, run with auto-approve (unless explicitly disabled) due to the co-mingling of the prompts.
+	// This is not ideal, but until we have a better way of handling interactivity with run-all, we take the evil of
+	// having a global prompt (managed in cli/cli_app.go) be the gate keeper.
 	switch stackCmd {
 	case "apply", "destroy":
 		// to support potential positional args in the args list, we append the input=false arg after the first element,
 		// which is the target command.
-		terragruntOptions.TerraformCliArgs = util.StringListInsert(terragruntOptions.TerraformCliArgs, "-auto-approve", 1)
+		if terragruntOptions.RunAllAutoApprove {
+			terragruntOptions.TerraformCliArgs = util.StringListInsert(terragruntOptions.TerraformCliArgs, "-auto-approve", 1)
+		}
 		stack.syncTerraformCliArgs(terragruntOptions)
 	}
 
@@ -134,7 +136,7 @@ func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.Terragrunt
 					dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", stack.Modules[i].Config.Dependencies.Paths)
 				}
 				terragruntOptions.Logger.Infof("%v%v refers to remote state "+
-					"you may have to apply your changes in the dependencies prior running terragrunt plan-all.\n",
+					"you may have to apply your changes in the dependencies prior running terragrunt run-all plan.\n",
 					stack.Modules[i].Path,
 					dependenciesMsg,
 				)

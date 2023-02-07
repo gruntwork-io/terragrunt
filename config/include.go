@@ -242,8 +242,6 @@ func handleIncludeForDependency(
 // attributes defined in the targetConfig. Note that this will modify the targetConfig.
 // NOTE: the following attributes are deliberately omitted from the merge operation, as they are handled differently in
 // the parser:
-//     - dependency blocks (TerragruntDependencies) [These blocks need to retrieve outputs, so we need to merge during
-//       the parsing step, not after the full config is decoded]
 //     - locals [These blocks are not merged by design]
 // NOTE: dependencies block is a special case and is merged deeply. This is necessary to ensure the configstack system
 // works correctly, as it uses the `Dependencies` list to track the dependencies of modules for graph building purposes.
@@ -308,6 +306,9 @@ func (targetConfig *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terr
 		}
 	}
 
+	// Dependency blocks are shallow merged by name
+	targetConfig.TerragruntDependencies = mergeDependencyBlocks(targetConfig.TerragruntDependencies, sourceConfig.TerragruntDependencies)
+
 	// Deep merge the dependencies list. This is different from dependency blocks, and refers to the deprecated
 	// dependencies block!
 	if sourceConfig.Dependencies != nil {
@@ -331,6 +332,8 @@ func (targetConfig *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terr
 	if sourceConfig.Inputs != nil {
 		targetConfig.Inputs = mergeInputs(sourceConfig.Inputs, targetConfig.Inputs)
 	}
+
+	copyFieldsMetadata(sourceConfig, targetConfig)
 }
 
 // DeepMerge performs a deep merge of the given sourceConfig into the targetConfig. Deep merge is defined as follows:
@@ -421,6 +424,13 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 		targetConfig.Dependencies = resultModuleDependencies
 	}
 
+	// Dependency blocks are deep merged by name
+	mergedDeps, err := deepMergeDependencyBlocks(targetConfig.TerragruntDependencies, sourceConfig.TerragruntDependencies)
+	if err != nil {
+		return err
+	}
+	targetConfig.TerragruntDependencies = mergedDeps
+
 	if sourceConfig.RetryableErrors != nil {
 		targetConfig.RetryableErrors = append(targetConfig.RetryableErrors, sourceConfig.RetryableErrors...)
 	}
@@ -470,6 +480,8 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 	for key, val := range sourceConfig.GenerateConfigs {
 		targetConfig.GenerateConfigs[key] = val
 	}
+
+	copyFieldsMetadata(sourceConfig, targetConfig)
 	return nil
 }
 
@@ -829,6 +841,18 @@ func jsonIsIncludeBlock(jsonData interface{}) bool {
 		}
 	}
 	return false
+}
+
+// copyFieldsMetadata Copy fields metadata between TerragruntConfig instances.
+func copyFieldsMetadata(sourceConfig *TerragruntConfig, targetConfig *TerragruntConfig) {
+	if sourceConfig.FieldsMetadata != nil {
+		if targetConfig.FieldsMetadata == nil {
+			targetConfig.FieldsMetadata = map[string]map[string]interface{}{}
+		}
+		for k, v := range sourceConfig.FieldsMetadata {
+			targetConfig.FieldsMetadata[k] = v
+		}
+	}
 }
 
 // Custom error types
