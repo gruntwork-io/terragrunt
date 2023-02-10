@@ -1159,7 +1159,7 @@ func runAll(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	terragruntOptions.Logger.Debugf("%s", stack.String())
-	if err := stack.LogModuleDeployOrder(terragruntOptions.Logger, terragruntOptions.TerraformCommand); err != nil {
+	if err := stack.LogModuleDeployOrder(terragruntOptions); err != nil {
 		return err
 	}
 

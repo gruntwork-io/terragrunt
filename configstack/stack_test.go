@@ -57,8 +57,13 @@ func TestFindStackInSubfolders(t *testing.T) {
 func TestGetModuleRunGraphApplyOrder(t *testing.T) {
 	t.Parallel()
 
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	terragruntOptions.TerraformCommand = "apply"
+
 	stack := createTestStack()
-	runGraph, err := stack.getModuleRunGraph("apply")
+	runGraph, err := stack.getModuleRunGraph(terragruntOptions)
 	require.NoError(t, err)
 
 	assert.Equal(
@@ -82,8 +87,13 @@ func TestGetModuleRunGraphApplyOrder(t *testing.T) {
 func TestGetModuleRunGraphDestroyOrder(t *testing.T) {
 	t.Parallel()
 
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	terragruntOptions.TerraformCommand = "destroy"
+
 	stack := createTestStack()
-	runGraph, err := stack.getModuleRunGraph("destroy")
+	runGraph, err := stack.getModuleRunGraph(terragruntOptions)
 	require.NoError(t, err)
 
 	assert.Equal(

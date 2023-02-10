@@ -11,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/sirupsen/logrus"
 )
 
 // Represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or
@@ -34,9 +33,9 @@ func (stack *Stack) String() string {
 // LogModuleDeployOrder will log the modules that will be deployed by this operation, in the order that the operations
 // happen. For plan and apply, the order will be bottom to top (dependencies first), while for destroy the order will be
 // in reverse.
-func (stack *Stack) LogModuleDeployOrder(logger *logrus.Entry, terraformCommand string) error {
-	outStr := fmt.Sprintf("The stack at %s will be processed in the following order for command %s:\n", stack.Path, terraformCommand)
-	runGraph, err := stack.getModuleRunGraph(terraformCommand)
+func (stack *Stack) LogModuleDeployOrder(terragruntOptions *options.TerragruntOptions) error {
+	outStr := fmt.Sprintf("The stack at %s will be processed in the following order for command %s:\n", stack.Path, terragruntOptions.TerraformCommand)
+	runGraph, err := stack.getModuleRunGraph(terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -47,7 +46,7 @@ func (stack *Stack) LogModuleDeployOrder(logger *logrus.Entry, terraformCommand 
 		}
 		outStr += "\n"
 	}
-	logger.Info(outStr)
+	terragruntOptions.Logger.Info(outStr)
 	return nil
 }
 
@@ -160,10 +159,10 @@ func (stack *Stack) syncTerraformCliArgs(terragruntOptions *options.TerragruntOp
 // applied/destroyed. The return structure is a list of lists, where the nested list represents modules that can be
 // deployed concurrently, and the outer list indicates the order. This will only include those modules that do NOT have
 // the exclude flag set.
-func (stack *Stack) getModuleRunGraph(terraformCommand string) ([][]*TerraformModule, error) {
+func (stack *Stack) getModuleRunGraph(terragruntOptions *options.TerragruntOptions) ([][]*TerraformModule, error) {
 	var moduleRunGraph map[string]*runningModule
 	var graphErr error
-	switch terraformCommand {
+	switch terragruntOptions.TerraformCommand {
 	case "destroy":
 		moduleRunGraph, graphErr = toRunningModules(stack.Modules, ReverseOrder)
 	default:
