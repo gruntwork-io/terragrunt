@@ -97,6 +97,8 @@ func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
 		return RunModulesIgnoreOrder(stack.Modules, terragruntOptions.Parallelism)
 	} else if stackCmd == "destroy" {
 		return RunModulesReverseOrder(stack.Modules, terragruntOptions.Parallelism)
+	} else if util.ListContainsElement(terragruntOptions.TerraformCliArgs, "-destroy") {
+		return RunModulesReverseOrder(stack.Modules, terragruntOptions.Parallelism)
 	} else {
 		return RunModules(stack.Modules, terragruntOptions.Parallelism)
 	}
@@ -162,10 +164,11 @@ func (stack *Stack) syncTerraformCliArgs(terragruntOptions *options.TerragruntOp
 func (stack *Stack) getModuleRunGraph(terragruntOptions *options.TerragruntOptions) ([][]*TerraformModule, error) {
 	var moduleRunGraph map[string]*runningModule
 	var graphErr error
-	switch terragruntOptions.TerraformCommand {
-	case "destroy":
+	if terragruntOptions.TerraformCommand == "destroy" {
 		moduleRunGraph, graphErr = toRunningModules(stack.Modules, ReverseOrder)
-	default:
+	} else if util.ListContainsElement(terragruntOptions.TerraformCliArgs, "-destroy") {
+		moduleRunGraph, graphErr = toRunningModules(stack.Modules, ReverseOrder)
+	} else {
 		moduleRunGraph, graphErr = toRunningModules(stack.Modules, NormalOrder)
 	}
 	if graphErr != nil {

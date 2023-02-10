@@ -112,7 +112,37 @@ func TestGetModuleRunGraphDestroyOrder(t *testing.T) {
 		},
 		runGraph,
 	)
+}
 
+func TestGetModuleRunGraphApplyDestroyOrder(t *testing.T) {
+	t.Parallel()
+
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	terragruntOptions.TerraformCommand = "apply"
+	terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, "-destroy")
+
+	stack := createTestStack()
+	runGraph, err := stack.getModuleRunGraph(terragruntOptions)
+	require.NoError(t, err)
+
+	assert.Equal(
+		t,
+		[][]*TerraformModule{
+			{
+				stack.Modules[5],
+			},
+			{
+				stack.Modules[3],
+				stack.Modules[4],
+			},
+			{
+				stack.Modules[1],
+			},
+		},
+		runGraph,
+	)
 }
 
 func createTestStack() *Stack {
