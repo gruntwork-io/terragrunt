@@ -23,7 +23,7 @@ jobs:
           shell: powershell.exe
           command: ./_ci/install-terraform.ps1
       - run:
-          name: Install Terraform
+          name: Install TFLint
           shell: powershell.exe
           command: ./_ci/install-tflint.ps1
       - run:
