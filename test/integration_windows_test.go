@@ -69,7 +69,7 @@ func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 	}
 }
 
-func TestTflintIsHandledInWindows(t *testing.T) {
+func TestWindowsTflintIsInvoked(t *testing.T) {
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
 	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_TFLINT_NO_ISSUES_FOUND)

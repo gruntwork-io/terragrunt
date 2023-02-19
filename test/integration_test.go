@@ -137,6 +137,7 @@ const (
 	TEST_FIXTURE_TFLINT_ISSUES_FOUND                        = "fixture-tflint/issues-found"
 	TEST_FIXTURE_TFLINT_NO_CONFIG_FILE                      = "fixture-tflint/no-config-file"
 	TEST_FIXTURE_TFLINT_MODULE_FOUND                        = "fixture-tflint/module-found"
+	TEST_FIXTURE_TFLINT_NO_TF_SOURCE_PATH                   = "fixture-tflint/no-tf-source"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -5273,4 +5274,16 @@ func TestTflintWithoutConfigFile(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_NO_CONFIG_FILE)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-working-dir %s", modulePath), io.Discard, errOut)
 	assert.Error(t, err, "Could not find .tflint.hcl config file in the parent folders:")
+}
+
+func TestTflintFindsConfigInCurrentPath(t *testing.T) {
+	out := new(bytes.Buffer)
+	errOut := new(bytes.Buffer)
+	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_TFLINT_NO_TF_SOURCE_PATH)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_NO_TF_SOURCE_PATH)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-log-level debug --terragrunt-working-dir %s", modulePath), out, errOut)
+	assert.NoError(t, err)
+
+	assert.Contains(t, errOut.String(), "Tflint has run successfully. No issues found")
+	assert.Contains(t, errOut.String(), fmt.Sprintf("--config %s/.tflint.hcl", modulePath))
 }
