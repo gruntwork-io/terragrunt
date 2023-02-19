@@ -88,7 +88,7 @@ func findTflintConfigInProject(terragruntOptions *options.TerragruntOptions) (st
 			return "", errors.WithStackTrace(ConfigNotFound{cause: "Traversed all the day to the root"})
 		}
 
-		fileToFind := util.JoinPath(currentDir, ".tflint.hcl")
+		fileToFind := util.JoinPath(previousDir, ".tflint.hcl")
 		if util.FileExists(fileToFind) {
 			terragruntOptions.Logger.Debugf("Found .tflint.hcl in %s", fileToFind)
 			return fileToFind, nil
