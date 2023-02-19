@@ -23,6 +23,10 @@ jobs:
           shell: powershell.exe
           command: ./_ci/install-terraform.ps1
       - run:
+          name: Install Terraform
+          shell: powershell.exe
+          command: ./_ci/install-tflint.ps1
+      - run:
           name: Run go tests
           shell: powershell.exe
           no_output_timeout: 45m
