@@ -52,6 +52,7 @@ var terragruntGCSOnlyConfigs = []string{
 type RemoteStateConfigGCS struct {
 	Bucket        string `mapstructure:"bucket"`
 	Credentials   string `mapstructure:"credentials"`
+	AccessToken   string `mapstructure:"access_token"`
 	Prefix        string `mapstructure:"prefix"`
 	Path          string `mapstructure:"path"`
 	EncryptionKey string `mapstructure:"encryption_key"`
@@ -426,6 +427,11 @@ func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, err
 
 	if gcsConfigRemote.Credentials != "" {
 		opts = append(opts, option.WithCredentialsFile(gcsConfigRemote.Credentials))
+	} else if gcsConfigRemote.AccessToken != "" {
+		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
+			AccessToken: gcsConfigRemote.AccessToken,
+		})
+		opts = append(opts, option.WithTokenSource(tokenSource))
 	} else if oauthAccessToken := os.Getenv("GOOGLE_OAUTH_ACCESS_TOKEN"); oauthAccessToken != "" {
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
 			AccessToken: oauthAccessToken,
