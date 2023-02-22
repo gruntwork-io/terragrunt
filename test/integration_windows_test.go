@@ -4,11 +4,15 @@
 package test
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -63,4 +67,18 @@ func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 			runTerragrunt(t, tgArgs)
 		})
 	}
+}
+
+func TestWindowsTflintIsInvoked(t *testing.T) {
+	out := new(bytes.Buffer)
+	errOut := new(bytes.Buffer)
+	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_TFLINT_NO_ISSUES_FOUND)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_NO_ISSUES_FOUND)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-log-level debug --terragrunt-working-dir %s", modulePath), out, errOut)
+	assert.NoError(t, err)
+
+	assert.NotContains(t, errOut.String(), "Error while running tflint with args:")
+	assert.NotContains(t, errOut.String(), "Tflint found issues in the project. Check for the tflint logs above.")
+
+	assert.Contains(t, errOut.String(), fmt.Sprintf("--config %s/.tflint.hcl", modulePath))
 }
