@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/errors"
-
+	goerrors "github.com/go-errors/errors"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -126,6 +126,118 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 		}
 		t.Run(testCase.description, testFunc)
 	}
+}
+
+func TestErrorRetryableOnStdoutError(t *testing.T) {
+	t.Parallel()
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	retryableErrors := []string{".*error.*"}
+	tgOptions.RetryableErrors = retryableErrors
+	tgOptions.AutoRetry = true
+
+	retryable := isRetryable("error is here", "", errors.WithStackTrace(goerrors.New("dummy error")), tgOptions)
+	require.True(t, retryable, "The error should have retried")
+}
+
+func TestErrorMultipleRetryableOnStderrError(t *testing.T) {
+	t.Parallel()
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	retryableErrors := []string{"no match", ".*error.*"}
+	tgOptions.RetryableErrors = retryableErrors
+	tgOptions.AutoRetry = true
+
+	retryable := isRetryable("", "error is here", errors.WithStackTrace(goerrors.New("dummy error")), tgOptions)
+	require.True(t, retryable, "The error should have retried")
+}
+
+func TestEmptyRetryablesOnStderrError(t *testing.T) {
+	t.Parallel()
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	retryableErrors := []string{}
+	tgOptions.RetryableErrors = retryableErrors
+	tgOptions.AutoRetry = true
+
+	retryable := isRetryable("", "error is here", errors.WithStackTrace(goerrors.New("dummy error")), tgOptions)
+	require.False(t, retryable, "The error should not have retried, the list of retryable errors was empty")
+}
+
+func TestErrorRetryableOnStderrError(t *testing.T) {
+	t.Parallel()
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	retryableErrors := []string{".*error.*"}
+	tgOptions.RetryableErrors = retryableErrors
+	tgOptions.AutoRetry = true
+
+	retryable := isRetryable("", "error is here", errors.WithStackTrace(goerrors.New("dummy error")), tgOptions)
+	require.True(t, retryable, "The error should have retried")
+}
+
+func TestErrorNotRetryableOnStdoutError(t *testing.T) {
+	t.Parallel()
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	retryableErrors := []string{"not the error"}
+	tgOptions.RetryableErrors = retryableErrors
+	tgOptions.AutoRetry = true
+
+	retryable := isRetryable("error is here", "", errors.WithStackTrace(goerrors.New("dummy error")), tgOptions)
+	require.False(t, retryable, "The error should not retry")
+}
+
+func TestErrorNotRetryableOnStderrError(t *testing.T) {
+	t.Parallel()
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	retryableErrors := []string{"not the error"}
+	tgOptions.RetryableErrors = retryableErrors
+	tgOptions.AutoRetry = true
+
+	retryable := isRetryable("", "error is here", errors.WithStackTrace(goerrors.New("dummy error")), tgOptions)
+	require.False(t, retryable, "The error should not retry")
+}
+
+func TestErrorNotRetryableOnStderrWithoutError(t *testing.T) {
+	t.Parallel()
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	retryableErrors := []string{".*"}
+	tgOptions.RetryableErrors = retryableErrors
+	tgOptions.AutoRetry = true
+
+	retryable := isRetryable("", "error is here", nil, tgOptions)
+	require.False(t, retryable, "The error should not retry")
+}
+
+func TestAutoRetryFalseDisablesRetry(t *testing.T) {
+	t.Parallel()
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	retryableErrors := []string{".*"}
+	tgOptions.RetryableErrors = retryableErrors
+	tgOptions.AutoRetry = false
+
+	retryable := isRetryable("", "error is here", nil, tgOptions)
+	require.False(t, retryable, "The error should not retry")
 }
 
 func TestTerragruntHandlesCatastrophicTerraformFailure(t *testing.T) {
