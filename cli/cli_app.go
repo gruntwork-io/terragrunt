@@ -926,7 +926,7 @@ func runTerraformWithRetry(terragruntOptions *options.TerragruntOptions) error {
 	// Retry the command configurable time with sleep in between
 	for i := 0; i < terragruntOptions.RetryMaxAttempts; i++ {
 		if out, tferr := shell.RunTerraformCommandWithOutput(terragruntOptions, terragruntOptions.TerraformCliArgs...); tferr != nil {
-			if out != nil && isRetryable(out.Stderr, tferr, terragruntOptions) {
+			if out != nil && isRetryable(out.Stdout, out.Stderr, tferr, terragruntOptions) {
 				terragruntOptions.Logger.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.RetrySleepIntervalSec)
 				time.Sleep(terragruntOptions.RetrySleepIntervalSec)
 			} else {
@@ -1203,12 +1203,13 @@ func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragru
 	return nil
 }
 
-// isRetryable checks whether there was an error and we should attempt again
-func isRetryable(tfoutput string, tferr error, terragruntOptions *options.TerragruntOptions) bool {
+// isRetryable checks whether there was an error and if the output matches any of the configured RetryableErrors
+func isRetryable(stdout string, stderr string, tferr error, terragruntOptions *options.TerragruntOptions) bool {
 	if !terragruntOptions.AutoRetry || tferr == nil {
 		return false
 	}
-	return util.MatchesAny(terragruntOptions.RetryableErrors, tfoutput)
+	// When -json is enabled, Terraform will send all output, errors included, to stdout.
+	return util.MatchesAny(terragruntOptions.RetryableErrors, stderr) || util.MatchesAny(terragruntOptions.RetryableErrors, stdout)
 }
 
 // Custom error types
