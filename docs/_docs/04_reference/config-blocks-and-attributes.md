@@ -410,7 +410,8 @@ For the `gcs` backend, the following additional properties are supported in the 
 - `project`: The GCP project where the bucket will be created.
 - `location`: The GCP location where the bucket will be created.
 - `gcs_bucket_labels`: A map of key value pairs to associate as labels on the created GCS bucket.
-
+- `credentials`: Local path to Google Cloud Platform account credentials in JSON format.
+- `access_token`: A temporary [OAuth 2.0 access token] obtained from the Google Authorization server.
 Example with S3:
 
 ```hcl
