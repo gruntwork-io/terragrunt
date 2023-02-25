@@ -7,7 +7,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/tflint"
@@ -540,11 +539,11 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 }
 
 func generateConfigs(terragruntConfig *config.TerragruntConfig, updatedTerragruntOptions *options.TerragruntOptions) error {
-	fmt.Printf("Setting lock on working dir %s \n", updatedTerragruntOptions.WorkingDir)
-	rawActualLock, _ := sourceChangeLocks.LoadOrStore(updatedTerragruntOptions.WorkingDir, &sync.Mutex{})
-	actualLock := rawActualLock.(*sync.Mutex)
-	defer actualLock.Unlock()
-	actualLock.Lock()
+	//fmt.Printf("Setting lock on working dir %s \n", updatedTerragruntOptions.WorkingDir)
+	//rawActualLock, _ := sourceChangeLocks.LoadOrStore(updatedTerragruntOptions.WorkingDir, &sync.Mutex{})
+	//actualLock := rawActualLock.(*sync.Mutex)
+	//defer actualLock.Unlock()
+	//actualLock.Lock()
 
 	for _, config := range terragruntConfig.GenerateConfigs {
 		if err := codegen.WriteToFile(updatedTerragruntOptions, updatedTerragruntOptions.WorkingDir, config); err != nil {
@@ -717,11 +716,11 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 		return nil
 	}
 
-	fmt.Printf("Setting lock on working dir %s\n", terragruntOptions.WorkingDir)
-	rawActualLock, _ := sourceChangeLocks.LoadOrStore(terragruntOptions.WorkingDir, &sync.Mutex{})
-	actualLock := rawActualLock.(*sync.Mutex)
-	defer actualLock.Unlock()
-	actualLock.Lock()
+	//fmt.Printf("Setting lock on working dir %s\n", terragruntOptions.WorkingDir)
+	//rawActualLock, _ := sourceChangeLocks.LoadOrStore(terragruntOptions.WorkingDir, &sync.Mutex{})
+	//actualLock := rawActualLock.(*sync.Mutex)
+	//defer actualLock.Unlock()
+	//actualLock.Lock()
 
 	var errorsOccured *multierror.Error
 
