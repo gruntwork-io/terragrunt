@@ -540,10 +540,12 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 }
 
 func generateConfigs(terragruntConfig *config.TerragruntConfig, updatedTerragruntOptions *options.TerragruntOptions) error {
-	rawActualLock, _ := sourceChangeLocks.LoadOrStore(terragruntConfig.DownloadDir, &sync.Mutex{})
+	fmt.Printf("Setting lock on working dir %s", updatedTerragruntOptions.WorkingDir)
+	rawActualLock, _ := sourceChangeLocks.LoadOrStore(updatedTerragruntOptions.WorkingDir, &sync.Mutex{})
 	actualLock := rawActualLock.(*sync.Mutex)
 	defer actualLock.Unlock()
 	actualLock.Lock()
+
 	for _, config := range terragruntConfig.GenerateConfigs {
 		if err := codegen.WriteToFile(updatedTerragruntOptions, updatedTerragruntOptions.WorkingDir, config); err != nil {
 			return err
@@ -715,7 +717,8 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 		return nil
 	}
 
-	rawActualLock, _ := sourceChangeLocks.LoadOrStore(terragruntConfig.DownloadDir, &sync.Mutex{})
+	fmt.Printf("Setting lock on working dir %s", terragruntOptions.WorkingDir)
+	rawActualLock, _ := sourceChangeLocks.LoadOrStore(terragruntOptions.WorkingDir, &sync.Mutex{})
 	actualLock := rawActualLock.(*sync.Mutex)
 	defer actualLock.Unlock()
 	actualLock.Lock()
