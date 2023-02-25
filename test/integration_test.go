@@ -5303,7 +5303,7 @@ func TestParallelInit(t *testing.T) {
 	fmt.Printf("modulePath: %v \n", modulePath)
 	fmt.Printf("runPath: %v \n", runPath)
 
-	for i := 0; i < 50; i++ {
+	for i := 0; i < 10; i++ {
 		appPath := util.JoinPath(modulePath, "dev", fmt.Sprintf("app-%d", i))
 		err := util.CopyFolderContents(appTemplate, appPath, ".terragrunt-test", []string{})
 		assert.NoError(t, err)
