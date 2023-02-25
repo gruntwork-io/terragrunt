@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/tflint"
@@ -494,10 +495,9 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
 	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
-	for _, config := range terragruntConfig.GenerateConfigs {
-		if err := codegen.WriteToFile(updatedTerragruntOptions, updatedTerragruntOptions.WorkingDir, config); err != nil {
-			return err
-		}
+	err = generateConfigs(terragruntConfig, updatedTerragruntOptions)
+	if err != nil {
+		return err
 	}
 	if terragruntConfig.RemoteState != nil && terragruntConfig.RemoteState.Generate != nil {
 		if err := terragruntConfig.RemoteState.GenerateTerraformCode(updatedTerragruntOptions); err != nil {
@@ -537,6 +537,19 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 	return runTerragruntWithConfig(terragruntOptions, updatedTerragruntOptions, terragruntConfig, false)
+}
+
+func generateConfigs(terragruntConfig *config.TerragruntConfig, updatedTerragruntOptions *options.TerragruntOptions) error {
+	rawActualLock, _ := sourceChangeLocks.LoadOrStore(terragruntConfig.DownloadDir, &sync.Mutex{})
+	actualLock := rawActualLock.(*sync.Mutex)
+	defer actualLock.Unlock()
+	actualLock.Lock()
+	for _, config := range terragruntConfig.GenerateConfigs {
+		if err := codegen.WriteToFile(updatedTerragruntOptions, updatedTerragruntOptions.WorkingDir, config); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Check the version constraints of both terragrunt and terraform. Note that as a side effect this will set the
@@ -701,6 +714,11 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 	if len(hooks) == 0 {
 		return nil
 	}
+
+	rawActualLock, _ := sourceChangeLocks.LoadOrStore(terragruntConfig.DownloadDir, &sync.Mutex{})
+	actualLock := rawActualLock.(*sync.Mutex)
+	defer actualLock.Unlock()
+	actualLock.Lock()
 
 	var errorsOccured *multierror.Error
 
