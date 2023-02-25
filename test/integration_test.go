@@ -5301,6 +5301,7 @@ func TestParallelInit(t *testing.T) {
 	appTemplate := util.JoinPath(rootPath, TEST_FIXTURE_PARALLEL_RUN, "dev", "app")
 
 	fmt.Printf("modulePath: %v \n", modulePath)
+	fmt.Printf("runPath: %v \n", runPath)
 
 	for i := 0; i < 50; i++ {
 		appPath := util.JoinPath(modulePath, "dev", fmt.Sprintf("app-%d", i))
