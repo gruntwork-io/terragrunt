@@ -494,9 +494,10 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
 	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
-	err = generateConfigs(terragruntConfig, updatedTerragruntOptions)
-	if err != nil {
-		return err
+	for _, config := range terragruntConfig.GenerateConfigs {
+		if err := codegen.WriteToFile(updatedTerragruntOptions, updatedTerragruntOptions.WorkingDir, config); err != nil {
+			return err
+		}
 	}
 	if terragruntConfig.RemoteState != nil && terragruntConfig.RemoteState.Generate != nil {
 		if err := terragruntConfig.RemoteState.GenerateTerraformCode(updatedTerragruntOptions); err != nil {
