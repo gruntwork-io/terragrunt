@@ -6,6 +6,17 @@ terraform {
   source = "github.com/gruntwork-io/terragrunt.git//test/fixture-dirs?ref=v0.35.1"
 }
 
+dependency "common" {
+  config_path = "../common"
+  mock_outputs_allowed_terraform_commands = ["validate", "plan"]
+  mock_outputs = {
+    vpc_id = "fake-vpc-id"
+  }
+
+  skip_outputs = "true"
+}
+
+
 generate "provider" {
   path      = "providers.tf"
   if_exists = "overwrite"
