@@ -5289,30 +5289,28 @@ func TestTflintFindsConfigInCurrentPath(t *testing.T) {
 	assert.Contains(t, errOut.String(), fmt.Sprintf("--config %s/.tflint.hcl", modulePath))
 }
 
-//func TestParallelInit(t *testing.T) {
-//	t.Parallel()
-//
-//	out := new(bytes.Buffer)
-//	errOut := new(bytes.Buffer)
-//	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_TFLINT_PARALLEL_RUN)
-//	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_PARALLEL_RUN)
-//	runPath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_PARALLEL_RUN, "dev")
-//
-//	defer removeFolder(t, runPath)
-//
-//	appTemplate := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_PARALLEL_RUN, "dev", "app")
-//
-//	fmt.Printf("modulePath: %v \n", modulePath)
-//
-//	for i := 0; i < 50; i++ {
-//		appPath := util.JoinPath(modulePath, "dev", fmt.Sprintf("app-%d", i))
-//		err := util.CopyFolderContents(appTemplate, appPath, ".terragrunt-test", []string{})
-//		assert.NoError(t, err)
-//	}
-//
-//	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all plan --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", runPath), out, errOut)
-//	assert.NoError(t, err)
-//
-//	fmt.Printf("%v\n", out.String())
-//	fmt.Printf("%v\n", errOut.String())
-//}
+func TestParallelInit(t *testing.T) {
+	t.Parallel()
+
+	out := new(bytes.Buffer)
+	errOut := new(bytes.Buffer)
+	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_TFLINT_PARALLEL_RUN)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_PARALLEL_RUN)
+	runPath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_PARALLEL_RUN, "dev")
+
+	appTemplate := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_PARALLEL_RUN, "dev", "app")
+
+	fmt.Printf("modulePath: %v \n", modulePath)
+
+	for i := 0; i < 50; i++ {
+		appPath := util.JoinPath(modulePath, "dev", fmt.Sprintf("app-%d", i))
+		err := util.CopyFolderContents(appTemplate, appPath, ".terragrunt-test", []string{})
+		assert.NoError(t, err)
+	}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all plan --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", runPath), out, errOut)
+	assert.NoError(t, err)
+
+	fmt.Printf("%v\n", out.String())
+	fmt.Printf("%v\n", errOut.String())
+}
