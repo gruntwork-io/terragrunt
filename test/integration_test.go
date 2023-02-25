@@ -138,7 +138,7 @@ const (
 	TEST_FIXTURE_TFLINT_NO_CONFIG_FILE                      = "fixture-tflint/no-config-file"
 	TEST_FIXTURE_TFLINT_MODULE_FOUND                        = "fixture-tflint/module-found"
 	TEST_FIXTURE_TFLINT_NO_TF_SOURCE_PATH                   = "fixture-tflint/no-tf-source"
-	TEST_FIXTURE_TFLINT_PARALLEL_RUN                        = "fixture-tflint/parallel-run"
+	TEST_FIXTURE_PARALLEL_RUN                               = "fixture-parallel-run"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -5294,11 +5294,11 @@ func TestParallelInit(t *testing.T) {
 
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
-	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_TFLINT_PARALLEL_RUN)
-	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_PARALLEL_RUN)
-	runPath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_PARALLEL_RUN, "dev")
+	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_PARALLEL_RUN)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_PARALLEL_RUN)
+	runPath := util.JoinPath(rootPath, TEST_FIXTURE_PARALLEL_RUN, "dev")
 
-	appTemplate := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_PARALLEL_RUN, "dev", "app")
+	appTemplate := util.JoinPath(rootPath, TEST_FIXTURE_PARALLEL_RUN, "dev", "app")
 
 	fmt.Printf("modulePath: %v \n", modulePath)
 
