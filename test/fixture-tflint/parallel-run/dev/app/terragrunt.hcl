@@ -7,7 +7,7 @@ terraform {
 }
 
 dependency "common" {
-  config_path = "../common"
+  config_path = "../../common"
   mock_outputs_allowed_terraform_commands = ["validate", "plan"]
   mock_outputs = {
     vpc_id = "fake-vpc-id"
