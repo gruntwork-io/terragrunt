@@ -138,11 +138,13 @@ const (
 	TEST_FIXTURE_TFLINT_NO_CONFIG_FILE                      = "fixture-tflint/no-config-file"
 	TEST_FIXTURE_TFLINT_MODULE_FOUND                        = "fixture-tflint/module-found"
 	TEST_FIXTURE_TFLINT_NO_TF_SOURCE_PATH                   = "fixture-tflint/no-tf-source"
-	TERRAFORM_BINARY                                        = "terraform"
-	TERRAFORM_FOLDER                                        = ".terraform"
-	TERRAFORM_STATE                                         = "terraform.tfstate"
-	TERRAFORM_STATE_BACKUP                                  = "terraform.tfstate.backup"
-	TERRAGRUNT_CACHE                                        = ".terragrunt-cache"
+	TEST_FIXTURE_TFLINT_PARALLEL_RUN                        = "fixture-tflint-parallel-run"
+
+	TERRAFORM_BINARY       = "terraform"
+	TERRAFORM_FOLDER       = ".terraform"
+	TERRAFORM_STATE        = "terraform.tfstate"
+	TERRAFORM_STATE_BACKUP = "terraform.tfstate.backup"
+	TERRAGRUNT_CACHE       = ".terragrunt-cache"
 
 	qaMyAppRelPath  = "qa/my-app"
 	fixtureDownload = "fixture-download"
@@ -5286,4 +5288,8 @@ func TestTflintFindsConfigInCurrentPath(t *testing.T) {
 
 	assert.Contains(t, errOut.String(), "Tflint has run successfully. No issues found")
 	assert.Contains(t, errOut.String(), fmt.Sprintf("--config %s/.tflint.hcl", modulePath))
+}
+
+func TestParallelInit(t *testing.T) {
+	t.Parallel()
 }
