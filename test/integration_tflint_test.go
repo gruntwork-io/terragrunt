@@ -1,5 +1,5 @@
-//go:build !tflint
-// +build !tflint
+//go:build tflint
+// +build tflint
 
 package test
 
