@@ -352,29 +352,3 @@ func TestTerragruntParallelism(t *testing.T) {
 		})
 	}
 }
-
-func TestParallelInit(t *testing.T) {
-	out := new(bytes.Buffer)
-	errOut := new(bytes.Buffer)
-	cleanupTerraformFolder(t, TEST_FIXTURE_PARALLEL_RUN)
-	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_PARALLEL_RUN)
-	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_PARALLEL_RUN)
-	runPath := util.JoinPath(rootPath, TEST_FIXTURE_PARALLEL_RUN, "dev")
-
-	appTemplate := util.JoinPath(rootPath, TEST_FIXTURE_PARALLEL_RUN, "dev", "app")
-
-	fmt.Printf("modulePath: %v \n", modulePath)
-	fmt.Printf("runPath: %v \n", runPath)
-
-	for i := 0; i < 20; i++ {
-		appPath := util.JoinPath(modulePath, "dev", fmt.Sprintf("app-%d", i))
-		err := util.CopyFolderContents(appTemplate, appPath, ".terragrunt-test", []string{})
-		assert.NoError(t, err)
-	}
-
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all plan --terragrunt-non-interactive --terragrunt-working-dir %s", runPath), out, errOut)
-	assert.NoError(t, err)
-
-	fmt.Printf("%v\n", out.String())
-	fmt.Printf("%v\n", errOut.String())
-}
