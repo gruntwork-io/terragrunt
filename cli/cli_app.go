@@ -539,16 +539,6 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	return runTerragruntWithConfig(terragruntOptions, updatedTerragruntOptions, terragruntConfig, false)
 }
 
-func generateConfigs(terragruntConfig *config.TerragruntConfig, updatedTerragruntOptions *options.TerragruntOptions) error {
-
-	for _, config := range terragruntConfig.GenerateConfigs {
-		if err := codegen.WriteToFile(updatedTerragruntOptions, updatedTerragruntOptions.WorkingDir, config); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // Check the version constraints of both terragrunt and terraform. Note that as a side effect this will set the
 // following settings on terragruntOptions:
 // - TerraformPath
@@ -711,12 +701,6 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 	if len(hooks) == 0 {
 		return nil
 	}
-
-	//fmt.Printf("Setting lock on working dir %s\n", terragruntOptions.WorkingDir)
-	//rawActualLock, _ := sourceChangeLocks.LoadOrStore(terragruntOptions.WorkingDir, &sync.Mutex{})
-	//actualLock := rawActualLock.(*sync.Mutex)
-	//defer actualLock.Unlock()
-	//actualLock.Lock()
 
 	var errorsOccured *multierror.Error
 
