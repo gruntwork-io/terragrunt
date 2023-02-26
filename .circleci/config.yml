@@ -82,7 +82,7 @@ jobs:
             mkdir -p logs
             run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
             # Run TFLint tests separately as tflint during execution change working directory.
-            run-go-tests --packages "-tags=tflint ./test" | tee logs/integration.log
+            run-go-tests --packages "-tags=tflint -run TestTflint ./test" | tee logs/integration.log
           no_output_timeout: 30m
       - run:
           command: terratest_log_parser --testlog logs/integration.log --outputdir logs

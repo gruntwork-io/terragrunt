@@ -68,7 +68,7 @@ func TestTflintFindsConfigInCurrentPath(t *testing.T) {
 	assert.Contains(t, errOut.String(), fmt.Sprintf("--config %s/.tflint.hcl", modulePath))
 }
 
-func TestInitSameModule(t *testing.T) {
+func TestTflintInitSameModule(t *testing.T) {
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_PARALLEL_RUN)
 	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_PARALLEL_RUN)
