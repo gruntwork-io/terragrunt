@@ -69,8 +69,6 @@ func TestTflintFindsConfigInCurrentPath(t *testing.T) {
 }
 
 func TestTflintInitSameModule(t *testing.T) {
-
-	cleanupTerraformFolder(t, TEST_FIXTURE_PARALLEL_RUN)
 	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_PARALLEL_RUN)
 	t.Cleanup(func() {
 		removeFolder(t, rootPath)
@@ -78,10 +76,7 @@ func TestTflintInitSameModule(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_PARALLEL_RUN)
 	runPath := util.JoinPath(rootPath, TEST_FIXTURE_PARALLEL_RUN, "dev")
 	appTemplate := util.JoinPath(rootPath, TEST_FIXTURE_PARALLEL_RUN, "dev", "app")
-
-	fmt.Printf("modulePath: %v \n", modulePath)
-	fmt.Printf("runPath: %v \n", runPath)
-
+	// generate multiple "app" modules that will be initialized in parallel
 	for i := 0; i < 50; i++ {
 		appPath := util.JoinPath(modulePath, "dev", fmt.Sprintf("app-%d", i))
 		err := util.CopyFolderContents(appTemplate, appPath, ".terragrunt-test", []string{})
