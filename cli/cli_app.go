@@ -531,7 +531,7 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 }
 
 func generateConfig(terragruntConfig *config.TerragruntConfig, updatedTerragruntOptions *options.TerragruntOptions) error {
-	rawActualLock, _ := sourceChangeLocks.LoadOrStore(updatedTerragruntOptions.WorkingDir, &sync.Mutex{})
+	rawActualLock, _ := sourceChangeLocks.LoadOrStore(updatedTerragruntOptions.DownloadDir, &sync.Mutex{})
 	actualLock := rawActualLock.(*sync.Mutex)
 	defer actualLock.Unlock()
 	actualLock.Lock()
@@ -718,7 +718,7 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 		return nil
 	}
 
-	rawActualLock, _ := sourceChangeLocks.LoadOrStore(terragruntOptions.WorkingDir, &sync.Mutex{})
+	rawActualLock, _ := sourceChangeLocks.LoadOrStore(terragruntOptions.DownloadDir, &sync.Mutex{})
 	actualLock := rawActualLock.(*sync.Mutex)
 	defer actualLock.Unlock()
 	actualLock.Lock()
