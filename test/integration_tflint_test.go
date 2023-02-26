@@ -1,5 +1,4 @@
-//go:build tflint
-// +build tflint
+//go:build !tflint
 
 package test
 
@@ -84,8 +83,8 @@ func TestInitSameModule(t *testing.T) {
 
 	for i := 0; i < 50; i++ {
 		appPath := util.JoinPath(modulePath, "dev", fmt.Sprintf("app-%d", i))
-		err := util.CopyFolderContents(appTemplate, appPath, ".parallel-test", []string{})
+		err := util.CopyFolderContents(appTemplate, appPath, ".terragrunt-test", []string{})
 		assert.NoError(t, err)
 	}
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-non-interactive --terragrunt-working-dir %s", runPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", runPath))
 }
