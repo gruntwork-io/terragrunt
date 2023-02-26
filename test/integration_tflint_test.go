@@ -73,7 +73,7 @@ func TestTflintInitSameModule(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_PARALLEL_RUN)
 	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_PARALLEL_RUN)
 	t.Cleanup(func() {
-		cleanupTerraformFolder(t, rootPath)
+		removeFolder(t, rootPath)
 	})
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_PARALLEL_RUN)
 	runPath := util.JoinPath(rootPath, TEST_FIXTURE_PARALLEL_RUN, "dev")
