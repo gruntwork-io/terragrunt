@@ -718,11 +718,6 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 		return nil
 	}
 
-	rawActualLock, _ := sourceChangeLocks.LoadOrStore(terragruntOptions.DownloadDir, &sync.Mutex{})
-	actualLock := rawActualLock.(*sync.Mutex)
-	defer actualLock.Unlock()
-	actualLock.Lock()
-
 	var errorsOccured *multierror.Error
 
 	terragruntOptions.Logger.Debugf("Detected %d Hooks", len(hooks))
@@ -735,6 +730,10 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 			if curHook.WorkingDir != nil {
 				workingDir = *curHook.WorkingDir
 			}
+
+			rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
+			actualLock := rawActualLock.(*sync.Mutex)
+			actualLock.Lock()
 
 			actionToExecute := curHook.Execute[0]
 			actionParams := curHook.Execute[1:]
@@ -758,7 +757,7 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 					errorsOccured = multierror.Append(errorsOccured, possibleError)
 				}
 			}
-
+			actualLock.Unlock()
 		}
 	}
 
