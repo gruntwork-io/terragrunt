@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/tflint"
@@ -296,6 +297,9 @@ var terragruntHelp = map[string]string{
 	CMD_TERRAGRUNT_VALIDATE_INPUTS: validateInputsHelp,
 }
 
+// map to keep track of locks for source changes
+var sourceChangeLocks = sync.Map{}
+
 // Create the Terragrunt CLI App
 func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) *cli.App {
 	cli.OsExiter = func(exitCode int) {
@@ -494,21 +498,8 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
 	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
-	for _, config := range terragruntConfig.GenerateConfigs {
-		if err := codegen.WriteToFile(updatedTerragruntOptions, updatedTerragruntOptions.WorkingDir, config); err != nil {
-			return err
-		}
-	}
-	if terragruntConfig.RemoteState != nil && terragruntConfig.RemoteState.Generate != nil {
-		if err := terragruntConfig.RemoteState.GenerateTerraformCode(updatedTerragruntOptions); err != nil {
-			return err
-		}
-	} else if terragruntConfig.RemoteState != nil {
-		// We use else if here because we don't need to check the backend configuration is defined when the remote state
-		// block has a `generate` attribute configured.
-		if err := checkTerraformCodeDefinesBackend(updatedTerragruntOptions, terragruntConfig.RemoteState.Backend); err != nil {
-			return err
-		}
+	if err = generateConfig(terragruntConfig, updatedTerragruntOptions); err != nil {
+		return err
 	}
 
 	// We do the terragrunt input validation here, after all the terragrunt generated terraform files are created so
@@ -537,6 +528,31 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 	return runTerragruntWithConfig(terragruntOptions, updatedTerragruntOptions, terragruntConfig, false)
+}
+
+func generateConfig(terragruntConfig *config.TerragruntConfig, updatedTerragruntOptions *options.TerragruntOptions) error {
+	rawActualLock, _ := sourceChangeLocks.LoadOrStore(updatedTerragruntOptions.DownloadDir, &sync.Mutex{})
+	actualLock := rawActualLock.(*sync.Mutex)
+	defer actualLock.Unlock()
+	actualLock.Lock()
+
+	for _, config := range terragruntConfig.GenerateConfigs {
+		if err := codegen.WriteToFile(updatedTerragruntOptions, updatedTerragruntOptions.WorkingDir, config); err != nil {
+			return err
+		}
+	}
+	if terragruntConfig.RemoteState != nil && terragruntConfig.RemoteState.Generate != nil {
+		if err := terragruntConfig.RemoteState.GenerateTerraformCode(updatedTerragruntOptions); err != nil {
+			return err
+		}
+	} else if terragruntConfig.RemoteState != nil {
+		// We use else if here because we don't need to check the backend configuration is defined when the remote state
+		// block has a `generate` attribute configured.
+		if err := checkTerraformCodeDefinesBackend(updatedTerragruntOptions, terragruntConfig.RemoteState.Backend); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Check the version constraints of both terragrunt and terraform. Note that as a side effect this will set the
@@ -715,6 +731,10 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 				workingDir = *curHook.WorkingDir
 			}
 
+			rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
+			actualLock := rawActualLock.(*sync.Mutex)
+			actualLock.Lock()
+
 			actionToExecute := curHook.Execute[0]
 			actionParams := curHook.Execute[1:]
 
@@ -737,7 +757,7 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 					errorsOccured = multierror.Append(errorsOccured, possibleError)
 				}
 			}
-
+			actualLock.Unlock()
 		}
 	}
 

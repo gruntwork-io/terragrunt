@@ -85,6 +85,14 @@ jobs:
       - run:
           command: terratest_log_parser --testlog logs/integration.log --outputdir logs
           when: always
+      # Run TFLint tests separately as tflint during execution change working directory.
+      - run:
+          command: |
+            run-go-tests --packages "-tags tflint -run TestTflint ./test" | tee logs/integration.log
+          no_output_timeout: 30m
+      - run:
+          command: terratest_log_parser --testlog logs/integration.log --outputdir logs
+          when: always
       - store_artifacts:
           path: logs
       - store_test_results:
