@@ -22,6 +22,8 @@ const MODULE_MANIFEST_NAME = ".terragrunt-module-manifest"
 // file to indicate that init should be executed
 const moduleInitRequiredFile = ".terragrunt-init-required"
 
+const tfLintConfig = ".tflint.hcl"
+
 // 1. Download the given source URL, which should use Terraform's module source syntax, into a temporary folder
 // 2. Check if module directory exists in temporary folder
 // 3. Copy the contents of terragruntOptions.WorkingDir into the temporary folder.
@@ -44,6 +46,8 @@ func downloadTerraformSource(source string, terragruntOptions *options.Terragrun
 	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.IncludeInCopy != nil {
 		includeInCopy = *terragruntConfig.Terraform.IncludeInCopy
 	}
+	// Always include the .tflint.hcl file, if it exists
+	includeInCopy = append(includeInCopy, tfLintConfig)
 	if err := util.CopyFolderContents(terragruntOptions.WorkingDir, terraformSource.WorkingDir, MODULE_MANIFEST_NAME, includeInCopy); err != nil {
 		return nil, err
 	}
