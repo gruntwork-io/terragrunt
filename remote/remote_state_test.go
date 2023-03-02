@@ -67,13 +67,14 @@ func TestToTerraformInitArgsForGCS(t *testing.T) {
 
 			"skip_bucket_versioning": true,
 
-			"credentials": "my-file",
+			"credentials":  "my-file",
+			"access_token": "xxxxxxxx",
 		},
 	}
 	args := remoteState.ToTerraformInitArgs()
 
 	// must not contain project, location gcs_bucket_labels or skip_bucket_versioning
-	assertTerraformInitArgsEqual(t, args, "-backend-config=bucket=my-bucket -backend-config=prefix=terraform.tfstate -backend-config=credentials=my-file")
+	assertTerraformInitArgsEqual(t, args, "-backend-config=bucket=my-bucket -backend-config=prefix=terraform.tfstate -backend-config=credentials=my-file -backend-config=access_token=xxxxxxxx")
 }
 
 func TestToTerraformInitArgsUnknownBackend(t *testing.T) {
