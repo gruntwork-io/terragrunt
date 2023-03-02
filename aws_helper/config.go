@@ -56,9 +56,14 @@ func CreateAwsSessionFromConfig(config *AwsSessionConfig, terragruntOptions *opt
 		DisableComputeChecksums: aws.Bool(config.DisableComputeChecksums),
 	}
 
+	profile := config.Profile
+	if profile == "" && terragruntOptions.IAMRoleOptions.RoleARN != "" {
+		profile = terragruntOptions.IAMRoleOptions.Profile
+	}
+
 	var sessionOptions = session.Options{
 		Config:            awsConfig,
-		Profile:           config.Profile,
+		Profile:           profile,
 		SharedConfigState: session.SharedConfigEnable,
 	}
 
@@ -119,7 +124,14 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 	var sess *session.Session
 	var err error
 	if config == nil {
-		sessionOptions := session.Options{SharedConfigState: session.SharedConfigEnable}
+		profile := ""
+		if terragruntOptions.IAMRoleOptions.RoleARN != "" {
+			profile = terragruntOptions.IAMRoleOptions.Profile
+		}
+		sessionOptions := session.Options{
+			Profile:           profile,
+			SharedConfigState: session.SharedConfigEnable,
+		}
 		sess, err = session.NewSessionWithOptions(sessionOptions)
 		if err != nil {
 			return nil, errors.WithStackTrace(err)
@@ -149,7 +161,10 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 
 // Make API calls to AWS to assume the IAM role specified and return the temporary AWS credentials to use that role
 func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error) {
-	sessionOptions := session.Options{SharedConfigState: session.SharedConfigEnable}
+	sessionOptions := session.Options{
+		Profile:           iamRoleOpts.Profile,
+		SharedConfigState: session.SharedConfigEnable,
+	}
 	sess, err := session.NewSessionWithOptions(sessionOptions)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)

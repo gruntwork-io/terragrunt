@@ -1199,6 +1199,20 @@ iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
   * Value of `iam_role` can reference local variables
   * Definitions of `iam_role` included from other HCL files through `include`
 
+### iam_profile
+
+The `iam_profile` attribute can be used to specify the IAM profile when Terragrunt assumes the IAM role prior to invoking Terraform.
+
+The precedence is as follows: `--terragrunt-iam-profile` command line option → `TERRAGRUNT_IAM_PROFILE` env variable →
+`iam_profile` attribute of the `terragrunt.hcl` file in the module directory → `iam_profile` attribute of the included
+`terragrunt.hcl`.
+
+Example:
+
+```hcl
+iam_profile = "terraform-iam-profile"
+```
+
 ### iam_assume_role_duration
 
 The `iam_assume_role_duration` attribute can be used to specify the STS session duration, in seconds, for the IAM role that Terragrunt should assume prior to invoking Terraform.

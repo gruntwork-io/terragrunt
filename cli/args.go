@@ -372,6 +372,11 @@ func parseIAMRoleOptions(args []string) (*options.IAMRoleOptions, error) {
 		return nil, err
 	}
 
+	iamProfile, err := parseStringArg(args, optTerragruntIAMProfile, os.Getenv("TERRAGRUNT_IAM_PROFILE"))
+	if err != nil {
+		return nil, err
+	}
+
 	envValue, envProvided := os.LookupEnv("TERRAGRUNT_IAM_ASSUME_ROLE_DURATION")
 	iamAssumeRoleDuration, err := parseIntArg(args, optTerragruntIAMAssumeRoleDuration, envValue, envProvided, 0)
 	if err != nil {
@@ -386,6 +391,7 @@ func parseIAMRoleOptions(args []string) (*options.IAMRoleOptions, error) {
 
 	optsOut := &options.IAMRoleOptions{
 		RoleARN:               iamRole,
+		Profile:               iamProfile,
 		AssumeRoleDuration:    int64(iamAssumeRoleDuration),
 		AssumeRoleSessionName: iamAssumeRoleSessionName,
 	}

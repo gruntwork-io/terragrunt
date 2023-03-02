@@ -29,6 +29,7 @@ remote_state {
 	assert.Nil(t, terragruntConfig.Terraform)
 
 	assert.Empty(t, terragruntConfig.IamRole)
+	assert.Empty(t, terragruntConfig.IamProfile)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
 		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
@@ -52,6 +53,7 @@ remote_state = {
 	assert.Nil(t, terragruntConfig.Terraform)
 
 	assert.Empty(t, terragruntConfig.IamRole)
+	assert.Empty(t, terragruntConfig.IamProfile)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
 		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
@@ -77,6 +79,7 @@ func TestParseTerragruntJsonConfigRemoteStateMinimalConfig(t *testing.T) {
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RetryableErrors)
 	assert.Empty(t, terragruntConfig.IamRole)
+	assert.Empty(t, terragruntConfig.IamProfile)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
 		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
@@ -119,6 +122,7 @@ remote_state {
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RetryableErrors)
 	assert.Empty(t, terragruntConfig.IamRole)
+	assert.Empty(t, terragruntConfig.IamProfile)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
 		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
@@ -155,6 +159,7 @@ func TestParseTerragruntJsonConfigRemoteStateFullConfig(t *testing.T) {
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RetryableErrors)
 	assert.Empty(t, terragruntConfig.IamRole)
+	assert.Empty(t, terragruntConfig.IamProfile)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
 		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
@@ -182,6 +187,7 @@ retryable_errors = [
 
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Empty(t, terragruntConfig.IamRole)
+	assert.Empty(t, terragruntConfig.IamProfile)
 
 	assert.Equal(t, 10, *terragruntConfig.RetryMaxAttempts)
 	assert.Equal(t, 60, *terragruntConfig.RetrySleepIntervalSec)
@@ -209,6 +215,7 @@ func TestParseTerragruntJsonConfigRetryConfiguration(t *testing.T) {
 
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Empty(t, terragruntConfig.IamRole)
+	assert.Empty(t, terragruntConfig.IamProfile)
 
 	assert.Equal(t, *terragruntConfig.RetryMaxAttempts, 10)
 	assert.Equal(t, *terragruntConfig.RetrySleepIntervalSec, 60)
@@ -221,7 +228,12 @@ func TestParseTerragruntJsonConfigRetryConfiguration(t *testing.T) {
 func TestParseIamRole(t *testing.T) {
 	t.Parallel()
 
-	config := `iam_role = "terragrunt-iam-role"`
+	config := `
+{
+	"iam_role" = "terragrunt-iam-role"
+	"iam_profile" = "terragrunt-iam-profile"
+}
+`
 
 	terragruntConfig, err := ParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, nil)
 	if err != nil {
@@ -234,6 +246,7 @@ func TestParseIamRole(t *testing.T) {
 	assert.Nil(t, terragruntConfig.RetryableErrors)
 
 	assert.Equal(t, "terragrunt-iam-role", terragruntConfig.IamRole)
+	assert.Equal(t, "terragrunt-iam-profile", terragruntConfig.IamProfile)
 }
 
 func TestParseIamAssumeRoleDuration(t *testing.T) {
@@ -291,6 +304,7 @@ dependencies {
 	assert.Nil(t, terragruntConfig.RetryableErrors)
 
 	assert.Empty(t, terragruntConfig.IamRole)
+	assert.Empty(t, terragruntConfig.IamProfile)
 
 	if assert.NotNil(t, terragruntConfig.Dependencies) {
 		assert.Equal(t, []string{"../test/fixture-parent-folders/multiple-terragrunt-in-parents"}, terragruntConfig.Dependencies.Paths)
@@ -315,6 +329,7 @@ dependencies {
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RetryableErrors)
 	assert.Empty(t, terragruntConfig.IamRole)
+	assert.Empty(t, terragruntConfig.IamProfile)
 
 	if assert.NotNil(t, terragruntConfig.Dependencies) {
 		assert.Equal(t, []string{"../test/fixture", "../test/fixture-dirs", "../test/fixture-inputs"}, terragruntConfig.Dependencies.Paths)
@@ -354,6 +369,7 @@ dependencies {
 	assert.Equal(t, "foo", *terragruntConfig.Terraform.Source)
 	assert.Nil(t, terragruntConfig.RetryableErrors)
 	assert.Empty(t, terragruntConfig.IamRole)
+	assert.Empty(t, terragruntConfig.IamProfile)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
 		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
@@ -402,6 +418,7 @@ func TestParseTerragruntJsonConfigRemoteStateDynamoDbTerraformConfigAndDependenc
 	assert.Equal(t, "foo", *terragruntConfig.Terraform.Source)
 	assert.Nil(t, terragruntConfig.RetryableErrors)
 	assert.Empty(t, terragruntConfig.IamRole)
+	assert.Empty(t, terragruntConfig.IamProfile)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
 		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
@@ -669,6 +686,7 @@ func TestParseTerragruntConfigEmptyConfig(t *testing.T) {
 	assert.Nil(t, cfg.PreventDestroy)
 	assert.False(t, cfg.Skip)
 	assert.Empty(t, cfg.IamRole)
+	assert.Empty(t, cfg.IamProfile)
 	assert.Nil(t, cfg.RetryMaxAttempts)
 	assert.Nil(t, cfg.RetrySleepIntervalSec)
 	assert.Nil(t, cfg.RetryableErrors)
