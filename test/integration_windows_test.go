@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -80,6 +81,7 @@ func TestWindowsTflintIsInvoked(t *testing.T) {
 	assert.NotContains(t, errOut.String(), "Error while running tflint with args:")
 	assert.NotContains(t, errOut.String(), "Tflint found issues in the project. Check for the tflint logs above.")
 
-	// since working directory contains random string, we can't check for exact path
-	assert.Contains(t, errOut.String(), fmt.Sprintf("--config %s", modulePath))
+	found, err := regexp.MatchString(fmt.Sprintf("--config %s/.*/.tflint.hcl", modulePath), errOut.String())
+	assert.True(t, found)
+	assert.NoError(t, err)
 }

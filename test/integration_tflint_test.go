@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/util"
@@ -26,7 +27,9 @@ func TestTflintFindsNoIssuesWithValidCode(t *testing.T) {
 	assert.NotContains(t, errOut.String(), "Error while running tflint with args:")
 	assert.NotContains(t, errOut.String(), "Tflint found issues in the project. Check for the tflint logs above.")
 
-	assert.Contains(t, errOut.String(), fmt.Sprintf("--config %s/.tflint.hcl", modulePath))
+	found, err := regexp.MatchString(fmt.Sprintf("--config %s/.*/.tflint.hcl", modulePath), errOut.String())
+	assert.True(t, found)
+	assert.NoError(t, err)
 }
 
 func TestTflintFindsModule(t *testing.T) {
@@ -102,5 +105,7 @@ func TestTflintFindsNoIssuesWithValidCodeDifferentDownloadDir(t *testing.T) {
 
 	assert.NotContains(t, errOut.String(), "Error while running tflint with args:")
 	assert.NotContains(t, errOut.String(), "Tflint found issues in the project. Check for the tflint logs above.")
-	assert.Contains(t, errOut.String(), fmt.Sprintf("--config %s", downloadDir))
+	found, err := regexp.MatchString(fmt.Sprintf("--config %s/.*/.tflint.hcl", downloadDir), errOut.String())
+	assert.True(t, found)
+	assert.NoError(t, err)
 }
