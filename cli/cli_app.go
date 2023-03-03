@@ -297,7 +297,8 @@ var terragruntHelp = map[string]string{
 	CMD_TERRAGRUNT_VALIDATE_INPUTS: validateInputsHelp,
 }
 
-// map to keep track of locks for source changes
+// sourceChangeLocks is a map that keeps track of locks for source changes, to ensure we aren't overriding the generated
+// code while another hook (e.g. `tflint`) is running. We use sync.Map to ensure atomic updates during concurrent access.
 var sourceChangeLocks = sync.Map{}
 
 // Create the Terragrunt CLI App
