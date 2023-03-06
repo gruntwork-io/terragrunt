@@ -229,10 +229,8 @@ func TestParseIamRole(t *testing.T) {
 	t.Parallel()
 
 	config := `
-{
-	"iam_role" = "terragrunt-iam-role"
-	"iam_profile" = "terragrunt-iam-profile"
-}
+iam_role = "terragrunt-iam-role"
+iam_profile = "terragrunt-iam-profile"
 `
 
 	terragruntConfig, err := ParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, nil)
