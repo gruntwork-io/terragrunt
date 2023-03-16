@@ -726,39 +726,10 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 	for _, curHook := range hooks {
 		allPreviousErrors := multierror.Append(previousExecErrors, errorsOccured)
 		if shouldRunHook(curHook, terragruntOptions, allPreviousErrors) {
-			terragruntOptions.Logger.Infof("Executing hook: %s", curHook.Name)
-			workingDir := ""
-			if curHook.WorkingDir != nil {
-				workingDir = *curHook.WorkingDir
+			err := runHook(terragruntOptions, terragruntConfig, curHook)
+			if err != nil {
+				errorsOccured = multierror.Append(errorsOccured, err)
 			}
-
-			rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
-			actualLock := rawActualLock.(*sync.Mutex)
-			actualLock.Lock()
-
-			actionToExecute := curHook.Execute[0]
-			actionParams := curHook.Execute[1:]
-
-			if actionToExecute == "tflint" {
-				err := tflint.RunTflintWithOpts(terragruntOptions, terragruntConfig)
-				if err != nil {
-					terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
-					errorsOccured = multierror.Append(errorsOccured, err)
-				}
-			} else {
-				_, possibleError := shell.RunShellCommandWithOutput(
-					terragruntOptions,
-					workingDir,
-					false,
-					false,
-					actionToExecute, actionParams...,
-				)
-				if possibleError != nil {
-					terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
-					errorsOccured = multierror.Append(errorsOccured, possibleError)
-				}
-			}
-			actualLock.Unlock()
 		}
 	}
 
@@ -776,6 +747,43 @@ func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOption
 	isCommandInHook := util.ListContainsElement(hook.Commands, terragruntOptions.TerraformCommand)
 
 	return isCommandInHook && (!hasErrors || (hook.RunOnError != nil && *hook.RunOnError))
+}
+
+func runHook(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, curHook config.Hook) error {
+	terragruntOptions.Logger.Infof("Executing hook: %s", curHook.Name)
+	workingDir := ""
+	if curHook.WorkingDir != nil {
+		workingDir = *curHook.WorkingDir
+	}
+
+	rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
+	actualLock := rawActualLock.(*sync.Mutex)
+	actualLock.Lock()
+	defer actualLock.Unlock()
+
+	actionToExecute := curHook.Execute[0]
+	actionParams := curHook.Execute[1:]
+
+	if actionToExecute == "tflint" {
+		err := tflint.RunTflintWithOpts(terragruntOptions, terragruntConfig)
+		if err != nil {
+			terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
+			return err
+		}
+	} else {
+		_, possibleError := shell.RunShellCommandWithOutput(
+			terragruntOptions,
+			workingDir,
+			false,
+			false,
+			actionToExecute, actionParams...,
+		)
+		if possibleError != nil {
+			terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
+			return possibleError
+		}
+	}
+	return nil
 }
 
 // Runs terraform with the given options and CLI args.
