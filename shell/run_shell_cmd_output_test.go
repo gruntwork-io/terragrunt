@@ -38,6 +38,21 @@ func testCommandOutputOrder(t *testing.T, withPtty bool) {
 	testCommandOutput(t, noop[*options.TerragruntOptions], assertOutputs(t, FULL_OUTPUT, STDOUT, STDERR))
 }
 
+func TestCommandOutputPrefix(t *testing.T) {
+	prefix := "PREFIX> "
+	prefixedOutput := []string{}
+	for _, line := range FULL_OUTPUT {
+		prefixedOutput = append(prefixedOutput, prefix+line)
+	}
+	testCommandOutput(t, func(terragruntOptions *options.TerragruntOptions) {
+		terragruntOptions.OutputPrefix = prefix
+	}, assertOutputs(t,
+		prefixedOutput,
+		STDOUT,
+		STDERR,
+	))
+}
+
 func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions), assertResults func(string, *CmdOutput)) {
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
