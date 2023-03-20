@@ -62,6 +62,7 @@ const (
 	optTerragruntModulesThatInclude             = "terragrunt-modules-that-include"
 	optTerragruntFetchDependencyOutputFromState = "terragrunt-fetch-dependency-output-from-state"
 	optTerragruntUsePartialParseConfigCache     = "terragrunt-use-partial-parse-config-cache"
+	optTerragruntIncludeModulePrefix            = "terragrunt-include-module-prefix"
 	optTerragruntOutputWithMetadata             = "with-metadata"
 )
 
@@ -81,6 +82,7 @@ var allTerragruntBooleanOpts = []string{
 	optTerragruntFetchDependencyOutputFromState,
 	optTerragruntUsePartialParseConfigCache,
 	optTerragruntOutputWithMetadata,
+	optTerragruntIncludeModulePrefix,
 }
 var allTerragruntStringOpts = []string{
 	optTerragruntConfig,
@@ -263,6 +265,7 @@ GLOBAL OPTIONS:
    terragrunt-strict-validate                   Sets strict mode for the validate-inputs command. By default, strict mode is off. When this flag is passed, strict mode is turned on. When strict mode is turned off, the validate-inputs command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When strict mode is turned on, an error will be returned if required inputs are missing OR if unused variables are passed to Terragrunt.
    terragrunt-json-out                          The file path that terragrunt should use when rendering the terragrunt.hcl config as json. Only used in the render-json command. Defaults to terragrunt_rendered.json.
    terragrunt-use-partial-parse-config-cache    Enables caching of includes during partial parsing operations. Will also be used for the --terragrunt-iam-role option if provided.
+   terragrunt-include-module-prefix             When this flag is set output from Terraform sub-commands is prefixed with module path.
 
 VERSION:
    {{.Version}}{{if len .Authors}}
