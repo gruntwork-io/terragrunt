@@ -3518,6 +3518,20 @@ func TestTerragruntGenerateBlockMultipleSameNameFail(t *testing.T) {
 	assert.Contains(t, parsedError.BlockName, "backend2")
 }
 
+func TestTerragruntGenerateBlockDisable(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "generate-block", "disable")
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
+	require.NoError(t, err)
+	assert.False(t, fileIsInFolder(t, "data.txt", generateTestCase))
+}
+
 func TestTerragruntRemoteStateCodegenGeneratesBackendBlock(t *testing.T) {
 	t.Parallel()
 
