@@ -3292,6 +3292,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 				"if_exists":         "overwrite_terragrunt",
 				"comment_prefix":    "# ",
 				"disable_signature": false,
+				"disable":           false,
 				"contents": `provider "aws" {
   region = "us-east-1"
 }
@@ -4942,6 +4943,7 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 				"comment_prefix":    "# ",
 				"contents":          "# test\n",
 				"disable_signature": false,
+				"disable":           false,
 				"if_exists":         "overwrite",
 				"path":              "provider.tf",
 			},
