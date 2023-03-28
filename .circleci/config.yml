@@ -118,29 +118,37 @@ workflows:
             tags:
               only: /^v.*/
           context:
-            - Gruntwork Admin
-            - Gruntwork GCP
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GITHUB__PAT__gruntwork-ci
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
       - unit_test:
           filters:
             tags:
               only: /^v.*/
           context:
-            - Gruntwork Admin
-            - Gruntwork GCP
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GITHUB__PAT__gruntwork-ci
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
       - integration_test:
           filters:
             tags:
               only: /^v.*/
           context:
-            - Gruntwork Admin
-            - Gruntwork GCP
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GITHUB__PAT__gruntwork-ci
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
       - build:
           filters:
             tags:
               only: /^v.*/
           context:
-            - Gruntwork Admin
-            - Gruntwork GCP
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GITHUB__PAT__gruntwork-ci
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
       - deploy:
           requires:
             - build
@@ -150,5 +158,7 @@ workflows:
             branches:
               ignore: /.*/
           context:
-            - Gruntwork Admin
-            - Gruntwork GCP
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GITHUB__PAT__gruntwork-ci
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
