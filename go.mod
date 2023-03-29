@@ -51,7 +51,7 @@ require (
 	github.com/klauspost/compress v1.15.11 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/opencontainers/image-spec v1.0.2 // indirect
-	github.com/opencontainers/runc v1.1.2 // indirect
+	github.com/opencontainers/runc v1.1.5 // indirect
 	github.com/ory/dockertest v3.3.5+incompatible // indirect
 	github.com/pquerna/otp v1.2.1-0.20191009055518-468c2dd2b58d // indirect
 	github.com/smartystreets/goconvey v1.6.4 // indirect
