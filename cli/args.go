@@ -176,6 +176,10 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	if err != nil {
 		return nil, err
 	}
+
+	terragruntSubstituteMacrosEnvvar := "TERRAGRUNT_SUBSTITUTE_MACROS"
+	substituteMacros := parseBooleanArg(args, optTerragruntSubstituteMacros, os.Getenv(terragruntSubstituteMacrosEnvvar) == "true" || os.Getenv(terragruntSubstituteMacrosEnvvar) == "1")
+
 	// We don't need to check for nil, because parseIAMRoleOptions always returns a valid pointer when no error is
 	// returned.
 	opts.OriginalIAMRoleOptions = *iamRoleOpts
@@ -223,6 +227,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.FetchDependencyOutputFromState = parseBooleanArg(args, optTerragruntFetchDependencyOutputFromState, os.Getenv("TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE") == "true")
 	opts.UsePartialParseConfigCache = parseBooleanArg(args, optTerragruntUsePartialParseConfigCache, os.Getenv("TERRAGRUNT_USE_PARTIAL_PARSE_CONFIG_CACHE") == "true")
 	opts.RenderJsonWithMetadata = parseBooleanArg(args, optTerragruntOutputWithMetadata, false)
+	opts.SubstituteMacros = substituteMacros
 
 	opts.JSONOut, err = parseStringArg(args, optTerragruntJSONOut, "")
 	if err != nil {

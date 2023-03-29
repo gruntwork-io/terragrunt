@@ -501,6 +501,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
 - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
 - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
+- [terragrunt-substitute-macros](#terragrunt-substitute-macros)
 
 ### terragrunt-config
 
@@ -912,3 +913,24 @@ Currently only AWS S3 backend is supported.
 
 This flag can be used to drastically decrease time required for parsing Terragrunt files. The effect will only show if a lot of similar includes are expected such as the root terragrunt.hcl include.
 NOTE: This is an experimental feature, use with caution.
+
+### terragrunt-substitute-macros
+
+**CLI Arg**: `terragrunt-substitute-macros`
+**Environment Variable**: `TERRAGRUNT_SUBSTITUTE_MACROS`
+
+When passed in, Terragrunt will replace particular macro placeholders in the Terraform command line
+with a value specific to that instantiation of Terraform.
+
+The following placeholders are currently recognized:
+
+* `::TERRAGRUNT_DIR::`: the directory in which the Terragrunt file resides
+
+The substitution operates with `run-all` as expected. If you run the command
+
+```
+terragrunt run-all --terragrunt-substitute-macros plan -out=::TERRAGRUNT_DIR::/plan.cache
+```
+
+in a directory which contains multiple subdirectories with `terragrunt.hcl` files, Terraform would write
+each `plan.cache` to the same directory as the associated `terragrunt.hcl` file.
