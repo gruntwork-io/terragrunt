@@ -743,7 +743,7 @@ var iamRoleCache = NewIAMRoleOptionsCache()
 // setIAMRole - extract IAM role details from Terragrunt flags block
 func setIAMRole(configString string, terragruntOptions *options.TerragruntOptions, includeFromChild *IncludeConfig, filename string) error {
 	// Prefer the IAM Role CLI args if they were passed otherwise lazily evaluate the IamRoleOptions using the config.
-	if terragruntOptions.IAMRoleOptions != terragruntOptions.OriginalIAMRoleOptions {
+	if terragruntOptions.OriginalIAMRoleOptions.RoleARN != "" {
 		terragruntOptions.IAMRoleOptions = terragruntOptions.OriginalIAMRoleOptions
 	} else {
 		// as key is considered HCL code and include configuration
