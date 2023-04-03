@@ -159,7 +159,7 @@ func PartialParseConfigFile(
 var terragruntConfigCache = NewTerragruntConfigCache()
 
 // Wrapper of PartialParseConfigString which checks for cached configs.
-// configString, includeFromChild and decodeList are used for the cache key,
+// filename, configString, includeFromChild and decodeList are used for the cache key,
 // by getting the default value (%#v) through fmt.
 func TerragruntConfigFromPartialConfigString(
 	configString string,
@@ -169,11 +169,11 @@ func TerragruntConfigFromPartialConfigString(
 	decodeList []PartialDecodeSectionType,
 ) (*TerragruntConfig, error) {
 	if terragruntOptions.UsePartialParseConfigCache {
-		var cacheKey = fmt.Sprintf("%#v-%#v-%#v", configString, includeFromChild, decodeList)
+		var cacheKey = fmt.Sprintf("%#v-%#v-%#v-%#v", filename, configString, includeFromChild, decodeList)
 		var config, found = terragruntConfigCache.Get(cacheKey)
 
 		if !found {
-			terragruntOptions.Logger.Debugf("Cache miss for '%s' (partial parsing).", filename)
+			terragruntOptions.Logger.Debugf("Cache miss for '%s' (partial parsing), decodeList: '%v'.", filename, decodeList)
 			tgConfig, err := PartialParseConfigString(configString, terragruntOptions, includeFromChild, filename, decodeList)
 			if err != nil {
 				return nil, err
@@ -181,7 +181,7 @@ func TerragruntConfigFromPartialConfigString(
 			config = *tgConfig
 			terragruntConfigCache.Put(cacheKey, config)
 		} else {
-			terragruntOptions.Logger.Debugf("Cache hit for '%s' (partial parsing).", filename)
+			terragruntOptions.Logger.Debugf("Cache hit for '%s' (partial parsing), decodeList: '%v'.", filename, decodeList)
 		}
 
 		return &config, nil
@@ -193,13 +193,14 @@ func TerragruntConfigFromPartialConfigString(
 // PartialParseConfigString partially parses and decodes the provided string. Which blocks/attributes to decode is
 // controlled by the function parameter decodeList. These blocks/attributes are parsed and set on the output
 // TerragruntConfig. Valid values are:
-// - DependenciesBlock: Parses the `dependencies` block in the config
-// - DependencyBlock: Parses the `dependency` block in the config
-// - TerraformBlock: Parses the `terraform` block in the config
-// - TerragruntFlags: Parses the boolean flags `prevent_destroy` and `skip` in the config
-// - TerragruntVersionConstraints: Parses the attributes related to constraining terragrunt and terraform versions in
-//                                 the config.
-// - RemoteStateBlock: Parses the `remote_state` block in the config
+//   - DependenciesBlock: Parses the `dependencies` block in the config
+//   - DependencyBlock: Parses the `dependency` block in the config
+//   - TerraformBlock: Parses the `terraform` block in the config
+//   - TerragruntFlags: Parses the boolean flags `prevent_destroy` and `skip` in the config
+//   - TerragruntVersionConstraints: Parses the attributes related to constraining terragrunt and terraform versions in
+//     the config.
+//   - RemoteStateBlock: Parses the `remote_state` block in the config
+//
 // Note that the following blocks are always decoded:
 // - locals
 // - include
