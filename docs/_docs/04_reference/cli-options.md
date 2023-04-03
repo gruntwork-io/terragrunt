@@ -501,6 +501,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
 - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
 - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
+- [terragrunt-include-module-prefix](#terragrunt-include-module-prefix)
 
 ### terragrunt-config
 
@@ -912,3 +913,10 @@ Currently only AWS S3 backend is supported.
 
 This flag can be used to drastically decrease time required for parsing Terragrunt files. The effect will only show if a lot of similar includes are expected such as the root terragrunt.hcl include.
 NOTE: This is an experimental feature, use with caution.
+
+### terragrunt-include-module-prefix
+
+**CLI Arg**: `--terragrunt-include-module-prefix`
+**Environment Variable**: `TERRAGRUNT_INCLUDE_MODULE_PREFIX` (set to `true`)
+
+When this flag is set output from Terraform sub-commands is prefixed with module path.

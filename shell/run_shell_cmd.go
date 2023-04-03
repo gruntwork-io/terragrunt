@@ -73,6 +73,7 @@ func RunShellCommandWithOutput(
 
 	var errWriter = terragruntOptions.ErrWriter
 	var outWriter = terragruntOptions.Writer
+	var prefix = terragruntOptions.OutputPrefix
 	// Terragrunt can run some commands (such as terraform remote config) before running the actual terraform
 	// command requested by the user. The output of these other commands should not end up on stdout as this
 	// breaks scripts relying on terraform's output.
@@ -87,10 +88,10 @@ func RunShellCommandWithOutput(
 	}
 
 	// Inspired by https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
-	cmdStderr := io.MultiWriter(errWriter, &stderrBuf)
+	cmdStderr := io.MultiWriter(withPrefix(errWriter, prefix), &stderrBuf)
 	var cmdStdout io.Writer
 	if !suppressStdout {
-		cmdStdout = io.MultiWriter(outWriter, &stdoutBuf)
+		cmdStdout = io.MultiWriter(withPrefix(outWriter, prefix), &stdoutBuf)
 	} else {
 		cmdStdout = io.MultiWriter(&stdoutBuf)
 	}
@@ -170,6 +171,14 @@ func GetExitCode(err error) (int, error) {
 	}
 
 	return 0, err
+}
+
+func withPrefix(writer io.Writer, prefix string) io.Writer {
+	if prefix == "" {
+		return writer
+	}
+
+	return util.PrefixedWriter(writer, prefix)
 }
 
 type SignalsForwarder chan os.Signal
