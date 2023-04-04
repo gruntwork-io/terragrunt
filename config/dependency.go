@@ -470,12 +470,14 @@ func cloneTerragruntOptionsForDependency(terragruntOptions *options.TerragruntOp
 	if targetOptions.IAMRoleOptions != targetOptions.OriginalIAMRoleOptions {
 		targetOptions.IAMRoleOptions = options.IAMRoleOptions{}
 	}
+	targetOptions.IncludeModulePrefix = false
 	return targetOptions
 }
 
 // Clone terragrunt options and update context for dependency block so that the outputs can be read correctly
 func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.TerragruntOptions, targetConfig string) (*options.TerragruntOptions, error) {
 	targetOptions := cloneTerragruntOptionsForDependency(terragruntOptions, targetConfig)
+	targetOptions.IncludeModulePrefix = false
 	targetOptions.TerraformCommand = "output"
 	targetOptions.TerraformCliArgs = []string{"output", "-json"}
 

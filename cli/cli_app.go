@@ -116,6 +116,7 @@ const CMD_TERRAGRUNT_READ_CONFIG = "terragrunt-read-config"
 const CMD_HCLFMT = "hclfmt"
 const CMD_AWS_PROVIDER_PATCH = "aws-provider-patch"
 const CMD_RENDER_JSON = "render-json"
+const CMD_OUTPUT = "output"
 
 // START: Constants useful for multimodule command handling
 const CMD_RUN_ALL = "run-all"
@@ -199,6 +200,12 @@ var TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT = []string{
 	"version",
 	"terragrunt-info",
 	"graph-dependencies",
+}
+
+var TERRAGRUNT_COMMANDS_THAT_USE_OUTPUT = []string{
+	CMD_RENDER_JSON,
+	CMD_OUTPUT,
+	CMD_OUTPUT_ALL,
 }
 
 // deprecatedArguments is a map of deprecated arguments to the argument that replace them.
@@ -369,6 +376,9 @@ func checkDeprecated(command string, terragruntOptions *options.TerragruntOption
 // runCommand runs one or many terraform commands based on the type of
 // terragrunt command
 func runCommand(command string, terragruntOptions *options.TerragruntOptions) (finalEff error) {
+	//if util.ListContainsElement(TERRAGRUNT_COMMANDS_THAT_USE_OUTPUT, terragruntOptions.TerraformCommand) {
+	//	terragruntOptions.IncludeModulePrefix = false
+	//}
 	if command == CMD_RUN_ALL {
 		return runAll(terragruntOptions)
 	}
