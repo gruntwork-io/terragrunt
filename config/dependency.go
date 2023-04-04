@@ -470,7 +470,6 @@ func cloneTerragruntOptionsForDependency(terragruntOptions *options.TerragruntOp
 	if targetOptions.IAMRoleOptions != targetOptions.OriginalIAMRoleOptions {
 		targetOptions.IAMRoleOptions = options.IAMRoleOptions{}
 	}
-	targetOptions.IncludeModulePrefix = false
 	return targetOptions
 }
 
