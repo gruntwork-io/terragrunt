@@ -246,7 +246,7 @@ GLOBAL OPTIONS:
    terragrunt-working-dir                           The path to the Terraform templates. Default is current directory.
    terragrunt-download-dir                          The path where to download Terraform code. Default is .terragrunt-cache in the working directory.
    terragrunt-source                                Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.
-	 terragrunt-source-map                            Replaces any source URL (including the source URL of a config pulled in with dependency blocks) that has root source with dest, with this arg: source=dest.
+   terragrunt-source-map                            Replaces any source URL (including the source URL of a config pulled in with dependency blocks) that has root source with dest, with this arg: source=dest.
    terragrunt-source-update                         Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it.
    terragrunt-iam-role                              Assume the specified IAM role before executing Terraform. Can also be set via the TERRAGRUNT_IAM_ROLE environment variable.
    terragrunt-iam-assume-role-duration              Session duration for IAM Assume Role session. Can also be set via the TERRAGRUNT_IAM_ASSUME_ROLE_DURATION environment variable.
@@ -258,7 +258,7 @@ GLOBAL OPTIONS:
    terragrunt-parallelism <N>                       *-all commands parallelism set to at most N modules
    terragrunt-exclude-dir                           Unix-style glob of directories to exclude when running *-all commands
    terragrunt-include-dir                           Unix-style glob of directories to include when running *-all commands
-	 terragrunt-strict-include                        Sets strict mode to only include the directories passed in --terragrunt-include-dir.
+   terragrunt-strict-include                        Sets strict mode to only include the directories passed in --terragrunt-include-dir.
    terragrunt-check                                 Enable check mode in the hclfmt command.
    terragrunt-hclfmt-file                           The path to a single hcl file that the hclfmt command should run on.
    terragrunt-override-attr                         A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.
@@ -268,8 +268,8 @@ GLOBAL OPTIONS:
    terragrunt-json-out                              The file path that terragrunt should use when rendering the terragrunt.hcl config as json. Only used in the render-json command. Defaults to terragrunt_rendered.json.
    terragrunt-use-partial-parse-config-cache        Enables caching of includes during partial parsing operations. Will also be used for the --terragrunt-iam-role option if provided.
    terragrunt-include-module-prefix                 When this flag is set output from Terraform sub-commands is prefixed with module path.
-	 terragrunt-modules-that-include                  Enables run-all will only run the command against Terragrunt modules that include the specified file.
-	 terragrunt-fetch-dependency-output-from-state    Enables fetching dependency output directly from the state file instead of running terraform on them.
+   terragrunt-modules-that-include                  Enables run-all will only run the command against Terragrunt modules that include the specified file.
+   terragrunt-fetch-dependency-output-from-state    Enables fetching dependency output directly from the state file instead of running terraform on them.
 
 VERSION:
    {{.Version}}{{if len .Authors}}
