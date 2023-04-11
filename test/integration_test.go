@@ -88,6 +88,7 @@ const (
 	TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_WITH_BACKEND     = "fixture-hooks/init-once/no-source-with-backend"
 	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND     = "fixture-hooks/init-once/with-source-no-backend"
 	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_WITH_BACKEND   = "fixture-hooks/init-once/with-source-with-backend"
+	TEST_FIXTURE_HOOKS_WORKING_DIR                          = "fixture-hooks/working_dir"
 	TEST_FIXTURE_FAILED_TERRAFORM                           = "fixture-failure"
 	TEST_FIXTURE_EXIT_CODE                                  = "fixture-exit-code"
 	TEST_FIXTURE_AUTO_RETRY_RERUN                           = "fixture-auto-retry/re-run"
@@ -5225,6 +5226,51 @@ func TestMockOutputsMergeWithState(t *testing.T) {
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir %s", shallowPath), &stdout, &stderr)
 	logBufferContentsLineByLine(t, stdout, "shallow-map-executed")
 	require.NoError(t, err)
+}
+
+func TestRenderJsonMetadataDepenencyModulePrefix(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_RENDER_JSON_METADATA)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "dependency", "app")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all render-json --terragrunt-include-module-prefix --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", tmpDir))
+}
+
+func TestTerragruntValidateModulePrefix(t *testing.T) {
+	t.Parallel()
+
+	fixturePath := TEST_FIXTURE_INCLUDE_PARENT
+	cleanupTerraformFolder(t, fixturePath)
+	tmpEnvPath := copyEnvironment(t, fixturePath)
+	rootPath := util.JoinPath(tmpEnvPath, fixturePath)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all validate --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+}
+
+func TestDependencyOutputModulePrefix(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "integration")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-include-module-prefix  --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// verify expected output 42
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	app3Path := util.JoinPath(rootPath, "app3")
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-include-module-prefix  --terragrunt-non-interactive --terragrunt-working-dir %s", app3Path), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	assert.Equal(t, int(outputs["z"].Value.(float64)), 42)
 }
 
 func validateBoolOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value bool) {

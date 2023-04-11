@@ -45,6 +45,7 @@ func TestCommandOutputPrefix(t *testing.T) {
 		prefixedOutput = append(prefixedOutput, prefix+line)
 	}
 	testCommandOutput(t, func(terragruntOptions *options.TerragruntOptions) {
+		terragruntOptions.IncludeModulePrefix = true
 		terragruntOptions.OutputPrefix = prefix
 	}, assertOutputs(t,
 		prefixedOutput,
