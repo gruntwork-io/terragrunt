@@ -159,6 +159,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	includeModulePrefix := parseBooleanArg(args, optTerragruntIncludeModulePrefix, os.Getenv("TERRAGRUNT_INCLUDE_MODULE_PREFIX") == "true" || os.Getenv("TERRAGRUNT_INCLUDE_MODULE_PREFIX") == "1")
 	if includeModulePrefix {
 		opts.IncludeModulePrefix = true
+		opts.OutputPrefix = fmt.Sprintf("[%s] ", opts.WorkingDir)
 	}
 
 	opts.RunAllAutoApprove = !parseBooleanArg(args, optTerragruntNoAutoApprove, os.Getenv("TERRAGRUNT_AUTO_APPROVE") == "false")
