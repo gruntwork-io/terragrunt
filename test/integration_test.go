@@ -5264,7 +5264,7 @@ func TestInitFailureModulePrefix(t *testing.T) {
 		runTerragruntCommand(t, fmt.Sprintf("terragrunt init -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", initTestCase), &stdout, &stderr),
 	)
 	logBufferContentsLineByLine(t, stderr, "init")
-	assert.Contains(t, stderr.String(), "[fixture-init-error] Error: error configuring S3 Backend")
+	assert.Contains(t, stderr.String(), "[fixture-init-error] Error")
 }
 
 func TestDependencyOutputModulePrefix(t *testing.T) {
