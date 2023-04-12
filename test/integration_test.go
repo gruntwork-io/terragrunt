@@ -4482,7 +4482,17 @@ func TestTerragruntRunAllCommandPrompt(t *testing.T) {
 }
 
 func TestTerragruntInitOnce(t *testing.T) {
+	t.Parallel()
 
+	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_RUN_ONCE)
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_RUN_ONCE), &stdout, &stderr)
+
+	errout := string(stderr.Bytes())
+
+	assert.Equal(t, 1, strings.Count(errout, "foo"))
 }
 
 func TestTerragruntInitRunCmd(t *testing.T) {
