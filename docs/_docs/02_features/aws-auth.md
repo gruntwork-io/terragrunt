@@ -63,11 +63,9 @@ For a more minimal policy, for example when using a single bucket and DynamoDB t
             "Action": [
                 "s3:ListBucket",
                 "s3:GetBucketVersioning",
-                "s3:GetObject",
                 "s3:GetBucketAcl",
                 "s3:GetBucketLogging",
                 "s3:CreateBucket",
-                "s3:PutObject",
                 "s3:PutBucketPublicAccessBlock",
                 "s3:PutBucketTagging",
                 "s3:PutBucketPolicy",
