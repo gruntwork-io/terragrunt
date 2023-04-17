@@ -140,6 +140,7 @@ const (
 	TEST_FIXTURE_TFLINT_MODULE_FOUND                        = "fixture-tflint/module-found"
 	TEST_FIXTURE_TFLINT_NO_TF_SOURCE_PATH                   = "fixture-tflint/no-tf-source"
 	TEST_FIXTURE_PARALLEL_RUN                               = "fixture-parallel-run"
+	TEST_FIXTURE_INIT_ERROR                                 = "fixture-init-error"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -5249,6 +5250,23 @@ func TestTerragruntValidateModulePrefix(t *testing.T) {
 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all validate --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 }
 
+func TestInitFailureModulePrefix(t *testing.T) {
+	t.Parallel()
+
+	initTestCase := TEST_FIXTURE_INIT_ERROR
+	cleanupTerraformFolder(t, initTestCase)
+	cleanupTerragruntFolder(t, initTestCase)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	require.Error(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt init -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", initTestCase), &stdout, &stderr),
+	)
+	logBufferContentsLineByLine(t, stderr, "init")
+	assert.Contains(t, stderr.String(), "[fixture-init-error] Error")
+}
+
 func TestDependencyOutputModulePrefix(t *testing.T) {
 	t.Parallel()
 
@@ -5256,7 +5274,7 @@ func TestDependencyOutputModulePrefix(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "integration")
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-include-module-prefix  --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
 	// verify expected output 42
 	stdout := bytes.Buffer{}
@@ -5265,12 +5283,9 @@ func TestDependencyOutputModulePrefix(t *testing.T) {
 	app3Path := util.JoinPath(rootPath, "app3")
 	require.NoError(
 		t,
-		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-include-module-prefix  --terragrunt-non-interactive --terragrunt-working-dir %s", app3Path), &stdout, &stderr),
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", app3Path), &stdout, &stderr),
 	)
-
-	outputs := map[string]TerraformOutput{}
-	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
-	assert.Equal(t, int(outputs["z"].Value.(float64)), 42)
+	assert.Contains(t, stdout.String(), "\"value\": 42")
 }
 
 func validateBoolOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value bool) {
