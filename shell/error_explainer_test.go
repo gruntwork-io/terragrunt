@@ -16,7 +16,7 @@ func TestExplainError(t *testing.T) {
 	}{
 		{
 			errorOutput: "Error refreshing state: AccessDenied: Access Denied",
-			explanation: "Check your AWS credentials and permissions",
+			explanation: "Check your credentials and permissions",
 		},
 		{
 			errorOutput: "Error: Initialization required",
