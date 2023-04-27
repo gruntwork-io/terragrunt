@@ -5288,6 +5288,21 @@ func TestDependencyOutputModulePrefix(t *testing.T) {
 	assert.Contains(t, stdout.String(), "\"value\": 42")
 }
 
+func TestErrorExplaining(t *testing.T) {
+	t.Parallel()
+
+	initTestCase := TEST_FIXTURE_INIT_ERROR
+	cleanupTerraformFolder(t, initTestCase)
+	cleanupTerragruntFolder(t, initTestCase)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", initTestCase), &stdout, &stderr)
+	explanation := shell.ExplainError(err)
+	assert.Contains(t, explanation, "Check your credentials and permissions")
+}
+
 func validateBoolOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value bool) {
 	t.Helper()
 	output, hasPlatform := outputs[key]
