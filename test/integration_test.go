@@ -5300,7 +5300,7 @@ func TestErrorExplaining(t *testing.T) {
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", initTestCase), &stdout, &stderr)
 	explanation := shell.ExplainError(err)
-	assert.Contains(t, explanation, "Check your AWS credentials and permissions")
+	assert.Contains(t, explanation, "Check your credentials and permissions")
 }
 
 func validateBoolOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value bool) {
