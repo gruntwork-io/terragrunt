@@ -235,6 +235,12 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		return nil, err
 	}
 
+	for _, arg := range args {
+		if strings.EqualFold(arg, "-json") {
+			opts.JsonFlag = true
+		}
+	}
+
 	return opts, nil
 }
 
