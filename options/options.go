@@ -204,9 +204,6 @@ type TerragruntOptions struct {
 
 	// Controls if a module prefix will be prepended to TF outputs
 	IncludeModulePrefix bool
-
-	// Shows that was provided -json flag
-	JsonFlag bool
 }
 
 // IAMOptions represents options that are used by Terragrunt to assume an IAM role.
@@ -288,7 +285,6 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		UsePartialParseConfigCache:     false,
 		OutputPrefix:                   "",
 		IncludeModulePrefix:            false,
-		JsonFlag:                       false,
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
@@ -387,7 +383,6 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		UsePartialParseConfigCache:     terragruntOptions.UsePartialParseConfigCache,
 		OutputPrefix:                   terragruntOptions.OutputPrefix,
 		IncludeModulePrefix:            terragruntOptions.IncludeModulePrefix,
-		JsonFlag:                       terragruntOptions.JsonFlag,
 	}
 }
 
