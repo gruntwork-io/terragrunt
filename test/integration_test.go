@@ -5285,7 +5285,10 @@ func TestDependencyOutputModulePrefix(t *testing.T) {
 		t,
 		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", app3Path), &stdout, &stderr),
 	)
-	assert.Contains(t, stdout.String(), "\"value\": 42")
+	// validate that output is valid json
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	assert.Equal(t, int(outputs["z"].Value.(float64)), 42)
 }
 
 func TestErrorExplaining(t *testing.T) {
