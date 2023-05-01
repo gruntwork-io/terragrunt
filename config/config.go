@@ -462,16 +462,15 @@ func GetTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragr
 // Example:
 // Suppose terragrunt is called with:
 //
-//   --terragrunt-source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=/path/to/local-modules
+//	--terragrunt-source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=/path/to/local-modules
 //
 // and the terraform source is:
 //
-//   git::ssh://git@github.com/gruntwork-io/i-dont-exist.git//fixture-source-map/modules/app?ref=master
+//	git::ssh://git@github.com/gruntwork-io/i-dont-exist.git//fixture-source-map/modules/app?ref=master
 //
 // This function will take that source and transform it to:
 //
-//   /path/to/local-modules/fixture-source-map/modules/app
-//
+//	/path/to/local-modules/fixture-source-map/modules/app
 func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath string) (string, error) {
 	// Skip logic if source map is not configured
 	if len(sourceMap) == 0 {
@@ -637,29 +636,29 @@ func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptio
 // Parse the Terragrunt config contained in the given string and merge it with the given include config (if any). Note
 // that the config parsing consists of multiple stages so as to allow referencing of data resulting from parsing
 // previous config. The parsing order is:
-// 1. Parse include. Include is parsed first and is used to import another config. All the config in the include block is
-//    then merged into the current TerragruntConfig, except for locals (by design). Note that since the include block is
-//    parsed first, you cannot reference locals in the include block config.
-// 2. Parse locals. Since locals are parsed next, you can only reference other locals in the locals block. Although it
-//    is possible to merge locals from a config imported with an include block, we do not do that here to avoid
-//    complicated referencing issues. Please refer to the globals proposal for an alternative that allows merging from
-//    included config: https://github.com/gruntwork-io/terragrunt/issues/814
-//    Allowed References:
-//      - locals
-// 3. Parse dependency blocks. This includes running `terragrunt output` to fetch the output data from another
-//    terragrunt config, so that it is accessible within the config. See PartialParseConfigString for a way to parse the
-//    blocks but avoid decoding.
-//    Note that this step is skipped if we already retrieved all the dependencies (which is the case when parsing
-//    included config files). This is determined by the dependencyOutputs input parameter.
-//    Allowed References:
-//      - locals
-// 4. Parse everything else. At this point, all the necessary building blocks for parsing the rest of the config are
-//    available, so parse the rest of the config.
-//    Allowed References:
-//      - locals
-//      - dependency
-// 5. Merge the included config with the parsed config. Note that all the config data is mergable except for `locals`
-//    blocks, which are only scoped to be available within the defining config.
+//  1. Parse include. Include is parsed first and is used to import another config. All the config in the include block is
+//     then merged into the current TerragruntConfig, except for locals (by design). Note that since the include block is
+//     parsed first, you cannot reference locals in the include block config.
+//  2. Parse locals. Since locals are parsed next, you can only reference other locals in the locals block. Although it
+//     is possible to merge locals from a config imported with an include block, we do not do that here to avoid
+//     complicated referencing issues. Please refer to the globals proposal for an alternative that allows merging from
+//     included config: https://github.com/gruntwork-io/terragrunt/issues/814
+//     Allowed References:
+//     - locals
+//  3. Parse dependency blocks. This includes running `terragrunt output` to fetch the output data from another
+//     terragrunt config, so that it is accessible within the config. See PartialParseConfigString for a way to parse the
+//     blocks but avoid decoding.
+//     Note that this step is skipped if we already retrieved all the dependencies (which is the case when parsing
+//     included config files). This is determined by the dependencyOutputs input parameter.
+//     Allowed References:
+//     - locals
+//  4. Parse everything else. At this point, all the necessary building blocks for parsing the rest of the config are
+//     available, so parse the rest of the config.
+//     Allowed References:
+//     - locals
+//     - dependency
+//  5. Merge the included config with the parsed config. Note that all the config data is mergable except for `locals`
+//     blocks, which are only scoped to be available within the defining config.
 func ParseConfigString(
 	configString string,
 	terragruntOptions *options.TerragruntOptions,
@@ -743,23 +742,28 @@ var iamRoleCache = NewIAMRoleOptionsCache()
 
 // setIAMRole - extract IAM role details from Terragrunt flags block
 func setIAMRole(configString string, terragruntOptions *options.TerragruntOptions, includeFromChild *IncludeConfig, filename string) error {
-	// as key is considered HCL code and include configuration
-	var key = fmt.Sprintf("%v-%v", configString, includeFromChild)
-	var config, found = iamRoleCache.Get(key)
-	if !found {
-		iamConfig, err := TerragruntConfigFromPartialConfigString(configString, terragruntOptions, includeFromChild, filename, []PartialDecodeSectionType{TerragruntFlags})
-		if err != nil {
-			return err
+	// Prefer the IAM Role CLI args if they were passed otherwise lazily evaluate the IamRoleOptions using the config.
+	if terragruntOptions.OriginalIAMRoleOptions.RoleARN != "" {
+		terragruntOptions.IAMRoleOptions = terragruntOptions.OriginalIAMRoleOptions
+	} else {
+		// as key is considered HCL code and include configuration
+		var key = fmt.Sprintf("%v-%v", configString, includeFromChild)
+		var config, found = iamRoleCache.Get(key)
+		if !found {
+			iamConfig, err := TerragruntConfigFromPartialConfigString(configString, terragruntOptions, includeFromChild, filename, []PartialDecodeSectionType{TerragruntFlags})
+			if err != nil {
+				return err
+			}
+			config = iamConfig.GetIAMRoleOptions()
+			iamRoleCache.Put(key, config)
 		}
-		config = iamConfig.GetIAMRoleOptions()
-		iamRoleCache.Put(key, config)
+		// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
+		// precedence.
+		terragruntOptions.IAMRoleOptions = options.MergeIAMRoleOptions(
+			config,
+			terragruntOptions.OriginalIAMRoleOptions,
+		)
 	}
-	// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
-	// precedence.
-	terragruntOptions.IAMRoleOptions = options.MergeIAMRoleOptions(
-		config,
-		terragruntOptions.OriginalIAMRoleOptions,
-	)
 	return nil
 }
 
