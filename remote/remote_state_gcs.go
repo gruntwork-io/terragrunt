@@ -469,8 +469,8 @@ func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, err
 	if gcsConfigRemote.ImpersonateServiceAccount != "" {
 		ts, err := impersonate.CredentialsTokenSource(context.Background(), impersonate.CredentialsConfig{
 			TargetPrincipal: gcsConfigRemote.ImpersonateServiceAccount,
-			// As for Terraform, hard-code the access scope: https://github.com/hashicorp/terraform/blob/032a4d083722da4369c03cc1e8dc5ae87b407e52/internal/backend/remote-state/gcs/backend.go#L169
-			Scopes:    []string{storage.ScopeReadWrite},
+			// We need the FullControl scope to be able to add metadata such as labels
+			Scopes:    []string{storage.ScopeFullControl},
 			Delegates: gcsConfigRemote.ImpersonateServiceAccountDelegates,
 		})
 		if err != nil {
