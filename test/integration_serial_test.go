@@ -352,3 +352,47 @@ func TestTerragruntParallelism(t *testing.T) {
 		})
 	}
 }
+
+// NOTE: The following test requires at least two service accounts.
+// 1. For running integration tests. This requires storage administrator privileges.
+//  - This is the test runner account set in the environment variable "GOOGLE_APPLICATION_CREDENTIALS".
+//  - This is set to "impersonate_service_account" and used for privilege impersonation.
+//    Set the service account email address in the environment variable "GOOGLE_IDENTITY_EMAIL".
+// 2. For running impersonation tests. This requires token creation privileges without storage admin privileges.
+//  - This is the pre-impersonation account set in the environment variable "GOOGLE_APPLICATION_CREDENTIALS_IMPERSONATOR".
+func TestTerragruntWorksWithImpersonateGCSBackend(t *testing.T) {
+	defaultCreds := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
+	defer os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", defaultCreds)
+	// change to impersonator credentials
+	impersonatorCreds := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS_IMPERSONATOR")
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", impersonatorCreds)
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GCS_PATH)
+	cleanupTerraformFolder(t, TEST_FIXTURE_GCS_IMPERSONATE_PATH)
+
+	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
+	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	gcsBucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	defer deleteGCSBucket(t, gcsBucketName)
+
+	// run without impersonation
+	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_PATH, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
+	// run terregrunt ignore errors
+	runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, TEST_FIXTURE_GCS_PATH), os.Stdout, os.Stderr)
+
+	// bucket not created
+	validateGCSBucketNotExists(t, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName)
+
+	// run with impersonation
+	tmpTerragruntImpersonateGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_IMPERSONATE_PATH, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntImpersonateGCSConfigPath, TEST_FIXTURE_GCS_IMPERSONATE_PATH))
+
+	// restore default credentials
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", defaultCreds)
+
+	var expectedGCSLabels = map[string]string{
+		"owner": "terragrunt_test",
+		"name":  "terraform_state_storage"}
+	validateGCSBucketExistsAndIsLabeled(t, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, expectedGCSLabels)
+}
