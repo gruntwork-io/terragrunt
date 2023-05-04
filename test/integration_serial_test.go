@@ -365,6 +365,12 @@ func TestTerragruntWorksWithImpersonateGCSBackend(t *testing.T) {
 	defer os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", defaultCreds)
 	// change to impersonator credentials
 	impersonatorCreds := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS_IMPERSONATOR")
+	if impersonatorCreds == "" {
+		t.Fatalf("Required environment variable `%s` - not found", "GOOGLE_APPLICATION_CREDENTIALS_IMPERSONATOR")
+	}
+	if util.FileNotExists(impersonatorCreds) {
+		t.Fatalf("Service account key JSON file `%s` - not found", impersonatorCreds)
+	}
 	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", impersonatorCreds)
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_GCS_PATH)
