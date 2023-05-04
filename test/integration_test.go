@@ -876,7 +876,7 @@ func TestTerragruntOutputFromRemoteState(t *testing.T) {
 }
 
 func TestTerragruntOutputFromDependency(t *testing.T) {
-	// you cannot use t.Parallel() with t.Setenv
+	// t.Parallel() cannot be used together with t.Setenv()
 
 	fixtureDepPath := filepath.Join(TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY, "dependency")
 
