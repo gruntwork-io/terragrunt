@@ -59,6 +59,7 @@ const (
 	TEST_FIXTURE_GRAPH_DEPENDENCIES                         = "fixture-graph-dependencies"
 	TEST_FIXTURE_OUTPUT_ALL                                 = "fixture-output-all"
 	TEST_FIXTURE_OUTPUT_FROM_REMOTE_STATE                   = "fixture-output-from-remote-state"
+	TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY                     = "fixture-output-from-dependency"
 	TEST_FIXTURE_STDOUT                                     = "fixture-download/stdout-test"
 	TEST_FIXTURE_EXTRA_ARGS_PATH                            = "fixture-extra-args/"
 	TEST_FIXTURE_ENV_VARS_BLOCK_PATH                        = "fixture-env-vars-block/"
@@ -873,6 +874,39 @@ func TestTerragruntOutputFromRemoteState(t *testing.T) {
 
 	assert.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
 }
+
+func TestTerragruntOutputFromDependency(t *testing.T) {
+	// you cannot use t.Parallel() with t.Setenv
+
+	fixtureAppPath := filepath.Join(TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY, "app")
+	fixtureDepPath := filepath.Join(TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY, "dependency")
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	//defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+
+	rootTerragruntConfigPath := util.JoinPath(fixtureDepPath, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", TERRAFORM_REMOTE_STATE_S3_REGION)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	t.Setenv("AWS_CSM_ENABLED", "true")
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", fixtureDepPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", fixtureDepPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", fixtureAppPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	output := stderr.String()
+	assert.NotContains(t, output, "invalid character")
+}
+
 func TestTerragruntValidateAllCommand(t *testing.T) {
 	t.Parallel()
 
