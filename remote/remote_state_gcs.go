@@ -467,7 +467,7 @@ func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, err
 	}
 
 	if gcsConfigRemote.ImpersonateServiceAccount != "" {
-		ts, err := impersonate.CredentialsTokenSource(context.Background(), impersonate.CredentialsConfig{
+		ts, err := impersonate.CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
 			TargetPrincipal: gcsConfigRemote.ImpersonateServiceAccount,
 			// We need the FullControl scope to be able to add metadata such as labels
 			Scopes:    []string{storage.ScopeFullControl},
