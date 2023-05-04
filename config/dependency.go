@@ -824,7 +824,8 @@ func terraformOutputJsonToCtyValueMap(targetConfig string, jsonBytes []byte) (ma
 	}
 	var outputs map[string]OutputMeta
 
-	// When AWS Client Side Monitoring (CSM) is enabled the aws-sdk-go always displays log "Enabling CSM" to stdout, before JSON string, even if the `output -json` flag is specified.
+	// When AWS Client Side Monitoring (CSM) is enabled the aws-sdk-go always displays log "Enabling CSM" to stdout, before JSON string, even if the `output -json` flag is specified. Since there is no way to disable this log, the only way out is to filter.
+	// Related AWS code: https://github.com/aws/aws-sdk-go/blob/81d1cbbc6a2028023aff7bcab0fe1be320cd39f7/aws/session/session.go#L444
 	// Related issues: https://github.com/gruntwork-io/terragrunt/issues/2233 https://github.com/hashicorp/terraform-provider-aws/issues/23620
 	if index := bytes.IndexByte(jsonBytes, byte('{')); index > 0 {
 		jsonBytes = jsonBytes[index:]
