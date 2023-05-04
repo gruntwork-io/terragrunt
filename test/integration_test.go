@@ -897,10 +897,7 @@ func TestTerragruntOutputFromDependency(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", fixtureDepPath), &stdout, &stderr)
 	assert.NoError(t, err)
 
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", fixtureDepPath), &stdout, &stderr)
-	assert.NoError(t, err)
-
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", fixtureAppPath), &stdout, &stderr)
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", fixtureAppPath), &stdout, &stderr)
 	assert.NoError(t, err)
 
 	output := stderr.String()
