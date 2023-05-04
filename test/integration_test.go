@@ -882,7 +882,7 @@ func TestTerragruntOutputFromDependency(t *testing.T) {
 	fixtureDepPath := filepath.Join(TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY, "dependency")
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-	//defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 
 	rootTerragruntConfigPath := util.JoinPath(fixtureDepPath, config.DefaultTerragruntConfigPath)
 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", TERRAFORM_REMOTE_STATE_S3_REGION)
