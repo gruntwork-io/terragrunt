@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -55,9 +54,8 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath), &stdout, &stderr)
 			require.NoError(t, err)
 
-			outputs, err := helpers.ParseTerraformOutput(stdout.Bytes())
-			require.NoError(t, err, outputs)
-
+			outputs := map[string]TerraformOutput{}
+			require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
 			assert.Equal(t, "us-west-1-test", outputs["region"].Value.(string))
 		})
 	}
@@ -167,8 +165,8 @@ func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath), &stdout, &stderr)
 	require.NoError(t, err)
 
-	outputs, err := helpers.ParseTerraformOutput(stdout.Bytes())
-	require.NoError(t, err, outputs)
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
 
 	assert.Equal(t, "mock", outputs["attribute"].Value.(string))
 	assert.Equal(t, "new val", outputs["new_attribute"].Value.(string))
@@ -221,15 +219,14 @@ func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath), &stdout, &stderr)
 			require.NoError(t, err)
 
-			outputs, err := helpers.ParseTerraformOutput(stdout.Bytes())
-			require.NoError(t, err, outputs)
-
+			outputs := map[string]TerraformOutput{}
+			require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
 			validateMultipleIncludeTestOutput(t, outputs)
 		})
 	}
 }
 
-func validateMultipleIncludeTestOutput(t *testing.T, outputs map[string]helpers.TerraformOutput) {
+func validateMultipleIncludeTestOutput(t *testing.T, outputs map[string]TerraformOutput) {
 	assert.Equal(t, "mock", outputs["attribute"].Value.(string))
 	assert.Equal(t, "new val", outputs["new_attribute"].Value.(string))
 	assert.Equal(t, "old val", outputs["old_attribute"].Value.(string))
@@ -258,9 +255,8 @@ func validateIncludeRemoteStateReflection(t *testing.T, s3BucketName string, key
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-config %s --terragrunt-working-dir %s", configPath, workingDir), &stdout, &stderr)
 	require.NoError(t, err)
 
-	outputs, err := helpers.ParseTerraformOutput(stdout.Bytes())
-	require.NoError(t, err, outputs)
-
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
 	remoteStateOut := map[string]interface{}{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["reflect"].Value.(string)), &remoteStateOut))
 	assert.Equal(

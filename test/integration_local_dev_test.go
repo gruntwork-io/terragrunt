@@ -2,11 +2,11 @@ package test
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -88,9 +88,9 @@ func TestGetTerragruntSourceHCL(t *testing.T) {
 		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
 	)
 
-	outputs, err := helpers.ParseTerraformOutput(stdout.Bytes())
-	require.NoError(t, err, outputs)
+	outputs := map[string]TerraformOutput{}
 
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
 	assert.Equal(t, fmt.Sprintf("HCL: %s", terraformSource), outputs["terragrunt_source"].Value)
 }
 
@@ -113,8 +113,8 @@ func TestGetTerragruntSourceCLI(t *testing.T) {
 		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", rootPath, terraformSource), &stdout, &stderr),
 	)
 
-	outputs, err := helpers.ParseTerraformOutput(stdout.Bytes())
-	require.NoError(t, err, outputs)
+	outputs := map[string]TerraformOutput{}
 
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
 	assert.Equal(t, fmt.Sprintf("CLI: %s", terraformSource), outputs["terragrunt_source"].Value)
 }
