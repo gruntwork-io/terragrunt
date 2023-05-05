@@ -3049,28 +3049,16 @@ func TestDataDir(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
-	erroutput := stderr.String()
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	require.NoError(t, err)
+	assert.Contains(t, stderr.String(), "terraform init")
 
-	if err != nil {
-		t.Errorf("Did not expect to get an error: %s", err.Error())
-	}
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
 
-	assert.Contains(t, erroutput, "Initializing provider plugins")
-
-	var (
-		stdout2 bytes.Buffer
-		stderr2 bytes.Buffer
-	)
-
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout2, &stderr2)
-	erroutput2 := stderr2.String()
-
-	if err != nil {
-		t.Errorf("Did not expect to get an error: %s", err.Error())
-	}
-
-	assert.NotContains(t, erroutput2, "Initializing provider plugins")
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	require.NoError(t, err)
+	assert.NotContains(t, stderr.String(), "terraform init")
 }
 
 func TestReadTerragruntConfigWithDependency(t *testing.T) {
@@ -4634,21 +4622,19 @@ func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	require.NoError(t, err)
 	// providers initialization during first plan
-	errout := string(stderr.Bytes())
-	assert.Equal(t, 1, strings.Count(errout, "Terraform has been successfully initialized!"))
+	assert.Equal(t, 1, strings.Count(stderr.String(), "terraform init"))
 
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
 
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	require.NoError(t, err)
 	// no initialization expected for second plan run
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
-	errout = string(stderr.Bytes())
-	assert.Equal(t, 0, strings.Count(errout, "Terraform has been successfully initialized!"))
+	assert.Equal(t, 0, strings.Count(stderr.String(), "terraform init"))
 }
 
 func TestAutoInitWhenSourceIsChanged(t *testing.T) {
@@ -4669,11 +4655,10 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	require.NoError(t, err)
 	// providers initialization during first plan
-	errout := string(stderr.Bytes())
-	assert.Equal(t, 1, strings.Count(errout, "Terraform has been successfully initialized!"))
+	assert.Equal(t, 1, strings.Count(stderr.String(), "terraform init"))
 
 	updatedHcl = strings.Replace(contents, "__TAG_VALUE__", "v0.35.2", -1)
 	require.NoError(t, ioutil.WriteFile(terragruntHcl, []byte(updatedHcl), 0444))
@@ -4681,11 +4666,10 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
 
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	require.NoError(t, err)
 	// auto initialization when source is changed
-	errout = string(stderr.Bytes())
-	assert.Equal(t, 1, strings.Count(errout, "Terraform has been successfully initialized!"))
+	assert.Equal(t, 1, strings.Count(stderr.String(), "terraform init"))
 }
 
 func TestRenderJsonAttributesMetadata(t *testing.T) {
