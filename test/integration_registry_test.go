@@ -2,10 +2,10 @@ package test
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,8 +49,9 @@ func testTerraformRegistryFetching(t *testing.T, modPath, expectedOutputKey stri
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", modFullPath), &stdout, &stderr)
 	require.NoError(t, err)
 
-	outputs := map[string]TerraformOutput{}
-	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	outputs, err := helpers.ParseTerraformOutput(stdout.Bytes())
+	require.NoError(t, err, outputs)
+
 	_, hasOutput := outputs[expectedOutputKey]
 	assert.True(t, hasOutput)
 
