@@ -194,3 +194,10 @@ type InvalidKeyValue string
 func (err InvalidKeyValue) Error() string {
 	return fmt.Sprintf("Invalid key-value pair. Expected format KEY=VALUE, got %s.", string(err))
 }
+
+// EmptyWriter implements interface io.Writer
+type EmptyWriter struct{}
+
+func (*EmptyWriter) Write(p []byte) (n int, err error) {
+	return len(p), nil
+}
