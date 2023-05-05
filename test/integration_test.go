@@ -878,13 +878,15 @@ func TestTerragruntOutputFromRemoteState(t *testing.T) {
 func TestTerragruntOutputFromDependency(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 
-	fixtureDepPath := filepath.Join(TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY, "dependency")
-
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 
-	rootTerragruntConfigPath := util.JoinPath(fixtureDepPath, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", TERRAFORM_REMOTE_STATE_S3_REGION)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY)
+
+	rootTerragruntPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY)
+	depTerragruntConfigPath := util.JoinPath(rootTerragruntPath, "dependency", config.DefaultTerragruntConfigPath)
+
+	copyTerragruntConfigAndFillPlaceholders(t, depTerragruntConfigPath, depTerragruntConfigPath, s3BucketName, "not-used", TERRAFORM_REMOTE_STATE_S3_REGION)
 
 	var (
 		stdout bytes.Buffer
@@ -893,7 +895,7 @@ func TestTerragruntOutputFromDependency(t *testing.T) {
 
 	t.Setenv("AWS_CSM_ENABLED", "true")
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", rootTerragruntPath), &stdout, &stderr)
 	assert.NoError(t, err)
 
 	output := stderr.String()
