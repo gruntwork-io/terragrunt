@@ -59,6 +59,7 @@ const (
 	TEST_FIXTURE_GRAPH_DEPENDENCIES                         = "fixture-graph-dependencies"
 	TEST_FIXTURE_OUTPUT_ALL                                 = "fixture-output-all"
 	TEST_FIXTURE_OUTPUT_FROM_REMOTE_STATE                   = "fixture-output-from-remote-state"
+	TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY                     = "fixture-output-from-dependency"
 	TEST_FIXTURE_STDOUT                                     = "fixture-download/stdout-test"
 	TEST_FIXTURE_EXTRA_ARGS_PATH                            = "fixture-extra-args/"
 	TEST_FIXTURE_ENV_VARS_BLOCK_PATH                        = "fixture-env-vars-block/"
@@ -873,6 +874,34 @@ func TestTerragruntOutputFromRemoteState(t *testing.T) {
 
 	assert.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
 }
+
+func TestTerragruntOutputFromDependency(t *testing.T) {
+	// t.Parallel() cannot be used together with t.Setenv()
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY)
+
+	rootTerragruntPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY)
+	depTerragruntConfigPath := util.JoinPath(rootTerragruntPath, "dependency", config.DefaultTerragruntConfigPath)
+
+	copyTerragruntConfigAndFillPlaceholders(t, depTerragruntConfigPath, depTerragruntConfigPath, s3BucketName, "not-used", TERRAFORM_REMOTE_STATE_S3_REGION)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	t.Setenv("AWS_CSM_ENABLED", "true")
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", rootTerragruntPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	output := stderr.String()
+	assert.NotContains(t, output, "invalid character")
+}
+
 func TestTerragruntValidateAllCommand(t *testing.T) {
 	t.Parallel()
 
