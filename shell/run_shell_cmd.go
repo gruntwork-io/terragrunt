@@ -195,11 +195,7 @@ func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger *logrus.Entry,
 		for {
 			select {
 			case s := <-signalChannel:
-				logger.Debugf("Forward signal %v to terraform.", s)
-				err := c.Process.Signal(s)
-				if err != nil {
-					logger.Errorf("Error forwarding signal: %v", err)
-				}
+				logger.Debugf("%s signal received. Gracefully shutting down...", strings.Title(s.String()))
 			case <-cmdChannel:
 				return
 			}
