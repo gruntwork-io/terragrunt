@@ -1141,7 +1141,7 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformS
 	initOptions.TerraformCommand = CMD_INIT
 
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) == CMD_OUTPUT {
-		// Since the terraform `output` command is used to get data as a json string, it is necessary to suppress the output of `terrafrom init`
+		// Since the `terraform output` command is used to get data as a json string, it is necessary to suppress output to stdout of the `terraform init` command.
 		initOptions.Writer = io.Discard
 	}
 
