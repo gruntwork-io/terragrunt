@@ -105,17 +105,22 @@ var allTerragruntStringOpts = []string{
 	optTerragruntModulesThatInclude,
 }
 
-const CMD_INIT = "init"
-const CMD_INIT_FROM_MODULE = "init-from-module"
-const CMD_PROVIDERS = "providers"
-const CMD_LOCK = "lock"
-const CMD_TERRAGRUNT_INFO = "terragrunt-info"
-const CMD_TERRAGRUNT_VALIDATE_INPUTS = "validate-inputs"
-const CMD_TERRAGRUNT_GRAPH_DEPENDENCIES = "graph-dependencies"
-const CMD_TERRAGRUNT_READ_CONFIG = "terragrunt-read-config"
-const CMD_HCLFMT = "hclfmt"
-const CMD_AWS_PROVIDER_PATCH = "aws-provider-patch"
-const CMD_RENDER_JSON = "render-json"
+const (
+	CMD_INIT                          = "init"
+	CMD_INIT_FROM_MODULE              = "init-from-module"
+	CMD_VALIDATE                      = "validate"
+	CMD_PLAN                          = "plan"
+	CMD_APPLY                         = "apply"
+	CMD_PROVIDERS                     = "providers"
+	CMD_LOCK                          = "lock"
+	CMD_TERRAGRUNT_INFO               = "terragrunt-info"
+	CMD_TERRAGRUNT_VALIDATE_INPUTS    = "validate-inputs"
+	CMD_TERRAGRUNT_GRAPH_DEPENDENCIES = "graph-dependencies"
+	CMD_TERRAGRUNT_READ_CONFIG        = "terragrunt-read-config"
+	CMD_HCLFMT                        = "hclfmt"
+	CMD_AWS_PROVIDER_PATCH            = "aws-provider-patch"
+	CMD_RENDER_JSON                   = "render-json"
+)
 
 // START: Constants useful for multimodule command handling
 const CMD_RUN_ALL = "run-all"
@@ -809,11 +814,13 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 		return err
 	}
 
-	if util.FirstArg(terragruntOptions.TerraformCliArgs) == CMD_INIT {
+	terraformCommand := util.FirstArg(terragruntOptions.TerraformCliArgs)
+	switch terraformCommand {
+	case CMD_INIT:
 		if err := prepareInitCommand(terragruntOptions, terragruntConfig, allowSourceDownload); err != nil {
 			return err
 		}
-	} else {
+	case CMD_VALIDATE, CMD_PLAN, CMD_APPLY:
 		if err := prepareNonInitCommand(originalTerragruntOptions, terragruntOptions, terragruntConfig); err != nil {
 			return err
 		}
