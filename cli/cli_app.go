@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/tflint"
 
+	"github.com/gruntwork-io/gruntwork-cli/collections"
 	"github.com/hashicorp/go-multierror"
 	"github.com/mattn/go-zglob"
 	"github.com/sirupsen/logrus"
@@ -108,7 +109,8 @@ var allTerragruntStringOpts = []string{
 const (
 	CMD_INIT                          = "init"
 	CMD_INIT_FROM_MODULE              = "init-from-module"
-	CMD_OUTPUT                        = "output"
+	CMD_PLAN                          = "plan"
+	CMD_APPLY                         = "apply"
 	CMD_PROVIDERS                     = "providers"
 	CMD_LOCK                          = "lock"
 	CMD_TERRAGRUNT_INFO               = "terragrunt-info"
@@ -1140,8 +1142,10 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformS
 	initOptions.WorkingDir = terragruntOptions.WorkingDir
 	initOptions.TerraformCommand = CMD_INIT
 
-	if util.FirstArg(terragruntOptions.TerraformCliArgs) == CMD_OUTPUT {
-		// Since the `terraform output` command is used to get data as a json string, it is necessary to suppress output to stdout of the `terraform init` command.
+	initOutputForCommands := []string{CMD_PLAN, CMD_APPLY}
+	terraformCommand := util.FirstArg(terragruntOptions.TerraformCliArgs)
+	if !collections.ListContainsElement(initOutputForCommands, terraformCommand) {
+		// Since some command can return a json string, it is necessary to suppress output to stdout of the `terraform init` command.
 		initOptions.Writer = io.Discard
 	}
 
