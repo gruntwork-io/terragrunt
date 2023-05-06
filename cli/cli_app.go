@@ -108,9 +108,7 @@ var allTerragruntStringOpts = []string{
 const (
 	CMD_INIT                          = "init"
 	CMD_INIT_FROM_MODULE              = "init-from-module"
-	CMD_VALIDATE                      = "validate"
-	CMD_PLAN                          = "plan"
-	CMD_APPLY                         = "apply"
+	CMD_OUTPUT                        = "output"
 	CMD_PROVIDERS                     = "providers"
 	CMD_LOCK                          = "lock"
 	CMD_TERRAGRUNT_INFO               = "terragrunt-info"
@@ -814,13 +812,11 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 		return err
 	}
 
-	terraformCommand := util.FirstArg(terragruntOptions.TerraformCliArgs)
-	switch terraformCommand {
-	case CMD_INIT:
+	if util.FirstArg(terragruntOptions.TerraformCliArgs) == CMD_INIT {
 		if err := prepareInitCommand(terragruntOptions, terragruntConfig, allowSourceDownload); err != nil {
 			return err
 		}
-	case CMD_VALIDATE, CMD_PLAN, CMD_APPLY:
+	} else {
 		if err := prepareNonInitCommand(originalTerragruntOptions, terragruntOptions, terragruntConfig); err != nil {
 			return err
 		}
@@ -1143,6 +1139,11 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformS
 	initOptions.TerraformCliArgs = []string{CMD_INIT}
 	initOptions.WorkingDir = terragruntOptions.WorkingDir
 	initOptions.TerraformCommand = CMD_INIT
+
+	if util.FirstArg(terragruntOptions.TerraformCliArgs) == CMD_OUTPUT {
+		// Since the terraform `output` command is used to get data as a json string, it is necessary to suppress the output of `terrafrom init`
+		initOptions.Writer = io.Discard
+	}
 
 	return initOptions, nil
 }
