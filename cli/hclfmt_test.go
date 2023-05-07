@@ -212,7 +212,7 @@ func TestHCLFmtFile(t *testing.T) {
 	require.NoError(t, err)
 
 	// format only the hcl file contained within the a subdirectory of the fixture
-	tgOptions.HclFile = "a/terragrunt.hcl"
+	tgOptions.HclFiles = []string{"a/terragrunt.hcl"}
 	tgOptions.WorkingDir = tmpPath
 	err = runHCLFmt(tgOptions)
 	require.NoError(t, err)
@@ -221,7 +221,7 @@ func TestHCLFmtFile(t *testing.T) {
 	t.Run("formatted", func(t *testing.T) {
 		t.Run(tgOptions.HclFile, func(t *testing.T) {
 			t.Parallel()
-			tgHclPath := filepath.Join(tmpPath, tgOptions.HclFile)
+			tgHclPath := filepath.Join(tmpPath, tgOptions.HclFiles[0])
 			formatted, err := ioutil.ReadFile(tgHclPath)
 			require.NoError(t, err)
 			assert.Equal(t, expected, formatted)

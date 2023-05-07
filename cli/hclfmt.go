@@ -24,35 +24,35 @@ import (
 func runHCLFmt(terragruntOptions *options.TerragruntOptions) error {
 
 	workingDir := terragruntOptions.WorkingDir
-	targetFile := terragruntOptions.HclFile
+	targetFiles := terragruntOptions.HclFiles
 
 	// handle when option specifies a particular file
-	if targetFile != "" {
-		if !filepath.IsAbs(targetFile) {
-			targetFile = util.JoinPath(workingDir, targetFile)
-		}
-		terragruntOptions.Logger.Debugf("Formatting hcl file at: %s.", targetFile)
-		return formatTgHCL(terragruntOptions, targetFile)
-	}
-
-	terragruntOptions.Logger.Debugf("Formatting hcl files from the directory tree %s.", terragruntOptions.WorkingDir)
-	// zglob normalizes paths to "/"
-	tgHclFiles, err := zglob.Glob(util.JoinPath(workingDir, "**", "*.hcl"))
-	if err != nil {
-		return err
-	}
-
 	filteredTgHclFiles := []string{}
-	for _, fname := range tgHclFiles {
-		// Ignore any files that are in the .terragrunt-cache
-		if !util.ListContainsElement(strings.Split(fname, "/"), ".terragrunt-cache") {
+	if len(targetFiles) > 0 {
+		for _, fname := range targetFiles {
+			if !filepath.IsAbs(fname) {
+				fname = util.JoinPath(workingDir, fname)
+			}
 			filteredTgHclFiles = append(filteredTgHclFiles, fname)
-		} else {
-			terragruntOptions.Logger.Debugf("%s was ignored due to being in the terragrunt cache", fname)
 		}
-	}
+	} else {
+		terragruntOptions.Logger.Debugf("Formatting hcl files from the directory tree %s.", terragruntOptions.WorkingDir)
+		// zglob normalizes paths to "/"
+		tgHclFiles, err := zglob.Glob(util.JoinPath(workingDir, "**", "*.hcl"))
+		if err != nil {
+			return err
+		}
+		for _, fname := range tgHclFiles {
+			// Ignore any files that are in the .terragrunt-cache
+			if !util.ListContainsElement(strings.Split(fname, "/"), ".terragrunt-cache") {
+				filteredTgHclFiles = append(filteredTgHclFiles, fname)
+			} else {
+				terragruntOptions.Logger.Debugf("%s was ignored due to being in the terragrunt cache", fname)
+			}
+		}
 
-	terragruntOptions.Logger.Debugf("Found %d hcl files", len(filteredTgHclFiles))
+		terragruntOptions.Logger.Debugf("Found %d hcl files", len(filteredTgHclFiles))
+	}
 
 	var formatErrors *multierror.Error
 	for _, tgHclFile := range filteredTgHclFiles {
