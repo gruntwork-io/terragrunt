@@ -3050,27 +3050,15 @@ func TestDataDir(t *testing.T) {
 	)
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
-	erroutput := stderr.String()
+	require.NoError(t, err)
+	assert.Contains(t, stdout.String(), "Initializing provider plugins")
 
-	if err != nil {
-		t.Errorf("Did not expect to get an error: %s", err.Error())
-	}
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
 
-	assert.Contains(t, erroutput, "Initializing provider plugins")
-
-	var (
-		stdout2 bytes.Buffer
-		stderr2 bytes.Buffer
-	)
-
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout2, &stderr2)
-	erroutput2 := stderr2.String()
-
-	if err != nil {
-		t.Errorf("Did not expect to get an error: %s", err.Error())
-	}
-
-	assert.NotContains(t, erroutput2, "Initializing provider plugins")
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	require.NoError(t, err)
+	assert.NotContains(t, stdout.String(), "Initializing provider plugins")
 }
 
 func TestReadTerragruntConfigWithDependency(t *testing.T) {
@@ -4637,8 +4625,7 @@ func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	require.NoError(t, err)
 	// providers initialization during first plan
-	errout := string(stderr.Bytes())
-	assert.Equal(t, 1, strings.Count(errout, "Terraform has been successfully initialized!"))
+	assert.Equal(t, 1, strings.Count(stdout.String(), "Terraform has been successfully initialized!"))
 
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
@@ -4647,8 +4634,7 @@ func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
 	require.NoError(t, err)
 	// no initialization expected for second plan run
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
-	errout = string(stderr.Bytes())
-	assert.Equal(t, 0, strings.Count(errout, "Terraform has been successfully initialized!"))
+	assert.Equal(t, 0, strings.Count(stdout.String(), "Terraform has been successfully initialized!"))
 }
 
 func TestAutoInitWhenSourceIsChanged(t *testing.T) {
@@ -4672,8 +4658,7 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	require.NoError(t, err)
 	// providers initialization during first plan
-	errout := string(stderr.Bytes())
-	assert.Equal(t, 1, strings.Count(errout, "Terraform has been successfully initialized!"))
+	assert.Equal(t, 1, strings.Count(stdout.String(), "Terraform has been successfully initialized!"))
 
 	updatedHcl = strings.Replace(contents, "__TAG_VALUE__", "v0.35.2", -1)
 	require.NoError(t, ioutil.WriteFile(terragruntHcl, []byte(updatedHcl), 0444))
@@ -4684,8 +4669,7 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	require.NoError(t, err)
 	// auto initialization when source is changed
-	errout = string(stderr.Bytes())
-	assert.Equal(t, 1, strings.Count(errout, "Terraform has been successfully initialized!"))
+	assert.Equal(t, 1, strings.Count(stdout.String(), "Terraform has been successfully initialized!"))
 }
 
 func TestRenderJsonAttributesMetadata(t *testing.T) {
