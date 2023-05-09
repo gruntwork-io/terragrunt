@@ -359,19 +359,18 @@ func TestTerragruntParallelism(t *testing.T) {
 //  - This is set to "impersonate_service_account" and used for privilege impersonation.
 //    Set the service account email address in the environment variable "GOOGLE_IDENTITY_EMAIL".
 // 2. For running impersonation tests. This requires token creation privileges without storage admin privileges.
-//  - This is the pre-impersonation account set in the environment variable "GOOGLE_APPLICATION_CREDENTIALS_IMPERSONATOR".
+//  - This is the pre-impersonation account set in the environment variable "GCLOUD_SERVICE_KEY_IMPERSONATOR".
 func TestTerragruntWorksWithImpersonateGCSBackend(t *testing.T) {
 	defaultCreds := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
 	defer os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", defaultCreds)
 	// change to impersonator credentials
-	impersonatorCreds := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS_IMPERSONATOR")
-	if impersonatorCreds == "" {
-		t.Fatalf("Required environment variable `%s` - not found", "GOOGLE_APPLICATION_CREDENTIALS_IMPERSONATOR")
+	impersonatorKey := os.Getenv("GCLOUD_SERVICE_KEY_IMPERSONATOR")
+	if impersonatorKey == "" {
+		t.Fatalf("Required environment variable `%s` - not found", "GCLOUD_SERVICE_KEY_IMPERSONATOR")
 	}
-	if util.FileNotExists(impersonatorCreds) {
-		t.Fatalf("Service account key JSON file `%s` - not found", impersonatorCreds)
-	}
-	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", impersonatorCreds)
+	tmpImpersonatorCreds := createTmpTerragruntConfigContent(t, impersonatorKey, "impersonator-key.json")
+	defer removeFile(t, tmpImpersonatorCreds)
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", tmpImpersonatorCreds)
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_GCS_PATH)
 	cleanupTerraformFolder(t, TEST_FIXTURE_GCS_IMPERSONATE_PATH)
@@ -387,8 +386,14 @@ func TestTerragruntWorksWithImpersonateGCSBackend(t *testing.T) {
 	// run terregrunt ignore errors
 	runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, TEST_FIXTURE_GCS_PATH), os.Stdout, os.Stderr)
 
+	// restore default credentials
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", defaultCreds)
+
 	// bucket not created
 	validateGCSBucketNotExists(t, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName)
+
+	// change to impersonator credentials
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", tmpImpersonatorCreds)
 
 	// run with impersonation
 	tmpTerragruntImpersonateGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_IMPERSONATE_PATH, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
