@@ -3533,6 +3533,20 @@ func TestTerragruntGenerateBlockDisable(t *testing.T) {
 	assert.False(t, fileIsInFolder(t, "data.txt", generateTestCase))
 }
 
+func TestTerragruntGenerateBlockEnable(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "generate-block", "enable")
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
+	require.NoError(t, err)
+	assert.True(t, fileIsInFolder(t, "data.txt", generateTestCase))
+}
+
 func TestTerragruntRemoteStateCodegenGeneratesBackendBlock(t *testing.T) {
 	t.Parallel()
 
