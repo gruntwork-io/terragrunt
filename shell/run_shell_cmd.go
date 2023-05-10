@@ -21,8 +21,8 @@ import (
 
 // The signal can be sent to the main process (only `terragrunt`) as well as the process group (`terragrunt` and `terraform`), for example:
 // kill -INT <pid>  # sends SIGINT only to the main process
-// kill -INT -<pid> # sends SIGINT to the process group using
-// Since we cannot know how the signal was sent, we should give `terraform` time to gracefully exit if it receives the signal directly from the shell, to avoid sending the second interrupt signal to `terraform`.
+// kill -INT -<pid> # sends SIGINT to the process group
+// Since we cannot know how the signal is sent, we should give `terraform` time to gracefully exit if it receives the signal directly from the shell, to avoid sending the second interrupt signal to `terraform`.
 const signalForwardingDelay = time.Second * 30
 
 // Commands that implement a REPL need a pseudo TTY when run as a subprocess in order for the readline properties to be
