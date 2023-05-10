@@ -79,6 +79,8 @@ func TestNewSignalsForwarderWaitWindows(t *testing.T) {
 }
 
 func TestRunShellCommandWithOutputInterrupt(t *testing.T) {
+	t.Parallel()
+
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
