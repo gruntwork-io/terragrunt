@@ -76,7 +76,8 @@ For a more minimal policy, for example when using a single bucket and DynamoDB t
                 "s3:GetEncryptionConfiguration",
                 "s3:GetBucketPolicy",
                 "s3:GetBucketPublicAccessBlock",
-                "s3:PutLifecycleConfiguration"
+                "s3:PutLifecycleConfiguration",
+                "s3:PutBucketOwnershipControls"
             ],
             "Resource": "arn:aws:s3:::BUCKET_NAME"
         },
