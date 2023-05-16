@@ -814,7 +814,8 @@ func WaitUntilS3BucketExists(s3Client *s3.S3, config *RemoteStateConfigS3, terra
 // Create the S3 bucket specified in the given config
 func CreateS3Bucket(s3Client *s3.S3, bucket *string, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Debugf("Creating S3 bucket %s", aws.StringValue(bucket))
-	_, err := s3Client.CreateBucket(&s3.CreateBucketInput{Bucket: bucket})
+	// https://github.com/aws/aws-sdk-go/blob/v1.44.245/service/s3/api.go#L41760
+	_, err := s3Client.CreateBucket(&s3.CreateBucketInput{Bucket: bucket, ObjectOwnership: aws.String("ObjectWriter")})
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
