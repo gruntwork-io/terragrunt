@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -716,14 +715,9 @@ func getTerragruntOutputJsonFromRemoteState(
 	terragruntOptions.Logger.Debugf("Generated remote state configuration in working dir %s", tempWorkDir)
 
 	// Check for a provider lock file and copy it to the working dir if it exists.
-	lockFileSrc := util.JoinPath(path.Dir(terragruntOptions.TerragruntConfigPath), util.TerraformLockFile)
-	if util.IsFile(lockFileSrc) {
-		lockFileDst := util.JoinPath(tempWorkDir, util.TerraformLockFile)
-		err = util.CopyFile(lockFileSrc, lockFileDst)
-		if err != nil {
-			return nil, err
-		}
-		terragruntOptions.Logger.Debugf("Copied %s from %s to %s", util.TerraformLockFile, path.Dir(terragruntOptions.TerragruntConfigPath), tempWorkDir)
+	terragruntDir := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+	if err := util.CopyLockFile(terragruntDir, tempWorkDir, terragruntOptions.Logger); err != nil {
+		return nil, err
 	}
 
 	// The working directory is now set up to interact with the state, so pull it down to get the json output.
