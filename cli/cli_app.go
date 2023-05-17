@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/gruntwork-cli/collections"
 	"github.com/hashicorp/go-multierror"
 	"github.com/mattn/go-zglob"
-	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 
 	"github.com/gruntwork-io/terragrunt/aws_helper"
@@ -845,7 +844,7 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 			// case, we are using the user's working dir here, rather than just looking at the parent dir of the
 			// terragrunt.hcl. However, the default value for the user's working dir, set in options.go, IS just the
 			// parent dir of terragrunt.hcl, so these will likely always be the same.
-			lockFileError = copyLockFile(terragruntOptions.WorkingDir, originalTerragruntOptions.WorkingDir, terragruntOptions.Logger)
+			lockFileError = util.CopyLockFile(terragruntOptions.WorkingDir, originalTerragruntOptions.WorkingDir, terragruntOptions.Logger)
 		}
 
 		return multierror.Append(runTerraformError, lockFileError).ErrorOrNil()
@@ -901,20 +900,6 @@ func shouldCopyLockFile(args []string) bool {
 		return true
 	}
 	return false
-}
-
-// Terraform 0.14 now generates a lock file when you run `terraform init`.
-// If any such file exists, this function will copy the lock file to the destination folder
-func copyLockFile(sourceFolder string, destinationFolder string, logger *logrus.Entry) error {
-	sourceLockFilePath := util.JoinPath(sourceFolder, util.TerraformLockFile)
-	destinationLockFilePath := util.JoinPath(destinationFolder, util.TerraformLockFile)
-
-	if util.FileExists(sourceLockFilePath) {
-		logger.Debugf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
-		return util.CopyFile(sourceLockFilePath, destinationLockFilePath)
-	}
-
-	return nil
 }
 
 // Run the given action function surrounded by hooks. That is, run the before hooks first, then, if there were no

@@ -654,6 +654,7 @@ func getTerragruntOutputJsonFromInitFolder(terragruntOptions *options.Terragrunt
 // To do this, this function will:
 // - Create a temporary folder
 // - Generate the backend.tf file with the backend configuration from the remote_state block
+// - Copy the provider lock file, if there is one in the dependency's working directory
 // - Run terraform init and terraform output
 // - Clean up folder once json file is generated
 // NOTE: terragruntOptions should be in the context of the targetConfig already.
@@ -712,6 +713,12 @@ func getTerragruntOutputJsonFromRemoteState(
 		return nil, err
 	}
 	terragruntOptions.Logger.Debugf("Generated remote state configuration in working dir %s", tempWorkDir)
+
+	// Check for a provider lock file and copy it to the working dir if it exists.
+	terragruntDir := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+	if err := util.CopyLockFile(terragruntDir, tempWorkDir, terragruntOptions.Logger); err != nil {
+		return nil, err
+	}
 
 	// The working directory is now set up to interact with the state, so pull it down to get the json output.
 
