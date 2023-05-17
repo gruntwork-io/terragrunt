@@ -797,11 +797,11 @@ func timeCmp(args []string, trackInclude *TrackInclude, terragruntOptions *optio
 
 	tsA, err := util.ParseTimestamp(args[0])
 	if err != nil {
-		return 0, errors.WithStackTrace(fmt.Errorf("failed to parse first parameter %q: %w", args[0], err))
+		return 0, errors.WithStackTrace(fmt.Errorf("could not parse first parameter %q: %w", args[0], err))
 	}
 	tsB, err := util.ParseTimestamp(args[1])
 	if err != nil {
-		return 0, errors.WithStackTrace(fmt.Errorf("failed to parse second parameter %q: %w", args[1], err))
+		return 0, errors.WithStackTrace(fmt.Errorf("could not parse second parameter %q: %w", args[1], err))
 	}
 
 	switch {
@@ -810,7 +810,7 @@ func timeCmp(args []string, trackInclude *TrackInclude, terragruntOptions *optio
 	case tsA.Before(tsB):
 		return -1, nil
 	default:
-		// By elimintation, tsA must be after tsB.
+		// By elimination, tsA must be after tsB.
 		return 1, nil
 	}
 }

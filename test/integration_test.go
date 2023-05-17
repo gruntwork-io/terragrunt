@@ -135,6 +135,7 @@ const (
 	TEST_FIXTURE_RENDER_JSON_MOCK_OUTPUTS                   = "fixture-render-json-mock-outputs"
 	TEST_FIXTURE_STARTSWITH                                 = "fixture-startswith"
 	TEST_FIXTURE_TIMECMP                                    = "fixture-timecmp"
+	TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP                  = "fixture-timecmp-errors/invalid-timestamp"
 	TEST_FIXTURE_ENDSWITH                                   = "fixture-endswith"
 	TEST_FIXTURE_TFLINT_NO_ISSUES_FOUND                     = "fixture-tflint/no-issues-found"
 	TEST_FIXTURE_TFLINT_ISSUES_FOUND                        = "fixture-tflint/issues-found"
@@ -5209,6 +5210,23 @@ func TestTimeCmp(t *testing.T) {
 	validateOutput(t, outputs, "timecmp4", float64(-1))
 	validateOutput(t, outputs, "timecmp5", float64(-1))
 	validateOutput(t, outputs, "timecmp6", float64(1))
+}
+
+func TestTimeCmpInvalidTimestamp(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP)
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+
+	expectedError := `not a valid RFC3339 timestamp: missing required time introducer 'T'`
+	require.ErrorContains(t, err, expectedError)
 }
 
 func TestEndsWith(t *testing.T) {

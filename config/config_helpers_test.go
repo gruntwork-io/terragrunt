@@ -1070,8 +1070,8 @@ func TestTimeCmp(t *testing.T) {
 		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T01:00:00Z", "2017-11-22T00:59:00-01:00"}, -1, ""},
 		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T01:00:00+01:00", "2017-11-22T01:00:00-01:00"}, -1, ""},
 		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T01:00:00-01:00", "2017-11-22T01:00:00+01:00"}, 1, ""},
-		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T00:00:00Z", "bloop"}, 0, `failed to parse second parameter "bloop": not a valid RFC3339 timestamp: cannot use "bloop" as year`},
-		{terragruntOptionsForTest(t, ""), []string{"2017-11-22 00:00:00Z", "2017-11-22T00:00:00Z"}, 0, `failed to parse first parameter "2017-11-22 00:00:00Z": not a valid RFC3339 timestamp: missing required time introducer 'T'`},
+		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T00:00:00Z", "bloop"}, 0, `could not parse second parameter "bloop": not a valid RFC3339 timestamp: cannot use "bloop" as year`},
+		{terragruntOptionsForTest(t, ""), []string{"2017-11-22 00:00:00Z", "2017-11-22T00:00:00Z"}, 0, `could not parse first parameter "2017-11-22 00:00:00Z": not a valid RFC3339 timestamp: missing required time introducer 'T'`},
 	}
 
 	for _, testCase := range testCases {
