@@ -791,7 +791,7 @@ func endsWith(args []string, trackInclude *TrackInclude, terragruntOptions *opti
 
 // timeCmp implements Terraform's `timecmp` function that compares two timestamps.
 func timeCmp(args []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (int64, error) {
-	if len(args) < 2 {
+	if len(args) != 2 {
 		return 0, errors.WithStackTrace(fmt.Errorf("function can take only two parameters: timestamp_a and timestamp_b"))
 	}
 
