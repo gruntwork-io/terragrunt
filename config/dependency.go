@@ -50,10 +50,11 @@ type Dependency struct {
 
 // DeepMerge will deep merge two Dependency configs, updating the target. Deep merge for Dependency configs is defined
 // as follows:
-// - For simple attributes (bools and strings), the source will override the target.
-// - For MockOutputs, the two maps will be deeply merged together. This means that maps are recursively merged, while
-//   lists are concatenated together.
-// - For MockOutputsAllowedTerraformCommands, the source will be concatenated to the target.
+//   - For simple attributes (bools and strings), the source will override the target.
+//   - For MockOutputs, the two maps will be deeply merged together. This means that maps are recursively merged, while
+//     lists are concatenated together.
+//   - For MockOutputsAllowedTerraformCommands, the source will be concatenated to the target.
+//
 // Note that RenderedOutputs is ignored in the deep merge operation.
 func (targetDepConfig *Dependency) DeepMerge(sourceDepConfig Dependency) error {
 	if sourceDepConfig.ConfigPath != "" {
@@ -145,7 +146,8 @@ var outputLocks = sync.Map{}
 // resulting map as a cty.Value object.
 // TODO: In the future, consider allowing importing dependency blocks from included config
 // NOTE FOR MAINTAINER: When implementing importation of other config blocks (e.g referencing inputs), carefully
-//                      consider whether or not the implementation of the cyclic dependency detection still makes sense.
+//
+//	consider whether or not the implementation of the cyclic dependency detection still makes sense.
 func decodeAndRetrieveOutputs(
 	file *hcl.File,
 	filename string,
@@ -262,8 +264,9 @@ func getDependencyBlockConfigPathsByFilepath(configPath string, terragruntOption
 
 // Encode the list of dependency blocks into a single cty.Value object that maps the dependency block name to the
 // encoded dependency mapping. The encoded dependency mapping should have the attributes:
-// - outputs: The map of outputs of the corresponding terraform module that lives at the target config of the
-//            dependency.
+//   - outputs: The map of outputs of the corresponding terraform module that lives at the target config of the
+//     dependency.
+//
 // This routine will go through the process of obtaining the outputs using `terragrunt output` from the target config.
 func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
 	paths := []string{}
@@ -322,9 +325,9 @@ func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOption
 
 // This will attempt to get the outputs from the target terragrunt config if it is applied. If it is not applied, the
 // behavior is different depending on the configuration of the dependency:
-// - If the dependency block indicates a mock_outputs attribute, this will return that.
-//   If the dependency block indicates a mock_outputs_merge_strategy_with_state attribute, mock_outputs and state outputs will be merged following the merge strategy
-// - If the dependency block does NOT indicate a mock_outputs attribute, this will return an error.
+//   - If the dependency block indicates a mock_outputs attribute, this will return that.
+//     If the dependency block indicates a mock_outputs_merge_strategy_with_state attribute, mock_outputs and state outputs will be merged following the merge strategy
+//   - If the dependency block does NOT indicate a mock_outputs attribute, this will return an error.
 func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
 	if dependencyConfig.shouldGetOutputs() {
 		outputVal, isEmpty, err := getTerragruntOutput(dependencyConfig, terragruntOptions)
@@ -452,6 +455,14 @@ func getOutputJsonWithCaching(targetConfig string, terragruntOptions *options.Te
 	if err != nil {
 		return nil, err
 	}
+
+	// When AWS Client Side Monitoring (CSM) is enabled the aws-sdk-go displays log as a plaintext "Enabling CSM" to stdout, even if the `output -json` flag is specified. The final output looks like this: "2023/05/04 20:22:43 Enabling CSM{...omitted json string...}", and and prevents proper json parsing. Since there is no way to disable this log, the only way out is to filter.
+	// Related AWS code: https://github.com/aws/aws-sdk-go/blob/81d1cbbc6a2028023aff7bcab0fe1be320cd39f7/aws/session/session.go#L444
+	// Related issues: https://github.com/gruntwork-io/terragrunt/issues/2233 https://github.com/hashicorp/terraform-provider-aws/issues/23620
+	if index := bytes.IndexByte(newJsonBytes, byte('{')); index > 0 {
+		newJsonBytes = newJsonBytes[index:]
+	}
+
 	jsonOutputCache.Store(targetConfig, newJsonBytes)
 	return newJsonBytes, nil
 }
@@ -476,6 +487,7 @@ func cloneTerragruntOptionsForDependency(terragruntOptions *options.TerragruntOp
 // Clone terragrunt options and update context for dependency block so that the outputs can be read correctly
 func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.TerragruntOptions, targetConfig string) (*options.TerragruntOptions, error) {
 	targetOptions := cloneTerragruntOptionsForDependency(terragruntOptions, targetConfig)
+	targetOptions.IncludeModulePrefix = false
 	targetOptions.TerraformCommand = "output"
 	targetOptions.TerraformCliArgs = []string{"output", "-json"}
 
@@ -819,6 +831,7 @@ func terraformOutputJsonToCtyValueMap(targetConfig string, jsonBytes []byte) (ma
 		Value     json.RawMessage `json:"value"`
 	}
 	var outputs map[string]OutputMeta
+
 	err := json.Unmarshal(jsonBytes, &outputs)
 	if err != nil {
 		return nil, errors.WithStackTrace(TerragruntOutputParsingError{Path: targetConfig, Err: err})

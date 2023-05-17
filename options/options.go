@@ -198,6 +198,12 @@ type TerragruntOptions struct {
 
 	// Include fields metadata in render-json
 	RenderJsonWithMetadata bool
+
+	// Prefix for shell commands' outputs
+	OutputPrefix string
+
+	// Controls if a module prefix will be prepended to TF outputs
+	IncludeModulePrefix bool
 }
 
 // IAMOptions represents options that are used by Terragrunt to assume an IAM role.
@@ -277,6 +283,8 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		Check:                          false,
 		FetchDependencyOutputFromState: false,
 		UsePartialParseConfigCache:     false,
+		OutputPrefix:                   "",
+		IncludeModulePrefix:            false,
 		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
@@ -373,6 +381,8 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		CheckDependentModules:          terragruntOptions.CheckDependentModules,
 		FetchDependencyOutputFromState: terragruntOptions.FetchDependencyOutputFromState,
 		UsePartialParseConfigCache:     terragruntOptions.UsePartialParseConfigCache,
+		OutputPrefix:                   terragruntOptions.OutputPrefix,
+		IncludeModulePrefix:            terragruntOptions.IncludeModulePrefix,
 	}
 }
 
