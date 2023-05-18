@@ -6,10 +6,3 @@ dependency "d1" {
   }
 }
 
-dependency "d2" {
-  config_path = "../d2"
-
-  mock_outputs = {
-    d2 = "d2-value"
-  }
-}
