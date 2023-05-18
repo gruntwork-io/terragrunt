@@ -266,7 +266,7 @@ type ProcessExecutionError struct {
 
 func (err ProcessExecutionError) Error() string {
 	// Include in error message the working directory where the command was run, so it's easier for the user to
-	return fmt.Sprintf("%s [%s]", err.Err.Error(), err.WorkingDir)
+	return fmt.Sprintf("[%s] %s", err.WorkingDir, err.Err.Error())
 }
 
 func (err ProcessExecutionError) ExitStatus() (int, error) {
