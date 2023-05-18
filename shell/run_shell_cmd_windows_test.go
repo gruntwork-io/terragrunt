@@ -99,6 +99,6 @@ func TestRunShellCommandWithOutputInterrupt(t *testing.T) {
 		process.Signal(os.Kill)
 	})
 
-	expectedErr := fmt.Sprintf("exit status %d", expectedWait)
+	expectedErr := fmt.Sprintf("[.] exit status %d", expectedWait)
 	assert.EqualError(t, <-errCh, expectedErr)
 }

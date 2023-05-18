@@ -137,9 +137,10 @@ func RunShellCommandWithOutput(
 
 	if err != nil {
 		err = ProcessExecutionError{
-			Err:    err,
-			StdOut: stdoutBuf.String(),
-			Stderr: stderrBuf.String(),
+			Err:        err,
+			StdOut:     stdoutBuf.String(),
+			Stderr:     stderrBuf.String(),
+			WorkingDir: cmd.Dir,
 		}
 	}
 
@@ -257,13 +258,15 @@ func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (
 
 // ProcessExecutionError - error returned when a command fails, contains StdOut and StdErr
 type ProcessExecutionError struct {
-	Err    error
-	StdOut string
-	Stderr string
+	Err        error
+	StdOut     string
+	Stderr     string
+	WorkingDir string
 }
 
 func (err ProcessExecutionError) Error() string {
-	return err.Err.Error()
+	// Include in error message the working directory where the command was run, so it's easier for the user to
+	return fmt.Sprintf("[%s] %s", err.WorkingDir, err.Err.Error())
 }
 
 func (err ProcessExecutionError) ExitStatus() (int, error) {

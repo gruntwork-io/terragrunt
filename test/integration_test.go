@@ -144,6 +144,7 @@ const (
 	TEST_FIXTURE_TFLINT_NO_TF_SOURCE_PATH                   = "fixture-tflint/no-tf-source"
 	TEST_FIXTURE_PARALLEL_RUN                               = "fixture-parallel-run"
 	TEST_FIXTURE_INIT_ERROR                                 = "fixture-init-error"
+	TEST_FIXTURE_MODULE_PATH_ERROR                          = "fixture-module-path-in-error"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -5366,6 +5367,34 @@ func TestErrorExplaining(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", initTestCase), &stdout, &stderr)
 	explanation := shell.ExplainError(err)
 	assert.Contains(t, explanation, "Check your credentials and permissions")
+}
+
+func TestModulePathInPlanErrorMessage(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_MODULE_PATH_ERROR)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "app")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan -no-color --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), fmt.Sprintf("[%s] exit status 1", util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "d1")))
+}
+
+func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_MODULE_PATH_ERROR)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all plan -no-color --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), fmt.Sprintf("[%s] exit status 1", util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "d1")))
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
