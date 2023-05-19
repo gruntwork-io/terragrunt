@@ -763,18 +763,11 @@ func runHook(terragruntOptions *options.TerragruntOptions, terragruntConfig *con
 		workingDir = *curHook.WorkingDir
 	}
 
-	rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
-	actualLock := rawActualLock.(*sync.Mutex)
-	actualLock.Lock()
-	defer actualLock.Unlock()
-
 	actionToExecute := curHook.Execute[0]
 	actionParams := curHook.Execute[1:]
 
 	if actionToExecute == "tflint" {
-		err := tflint.RunTflintWithOpts(terragruntOptions, terragruntConfig)
-		if err != nil {
-			terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
+		if err := executeTFLint(terragruntOptions, terragruntConfig, curHook, workingDir); err != nil {
 			return err
 		}
 	} else {
@@ -789,6 +782,20 @@ func runHook(terragruntOptions *options.TerragruntOptions, terragruntConfig *con
 			terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
 			return possibleError
 		}
+	}
+	return nil
+}
+
+func executeTFLint(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, curHook config.Hook, workingDir string) error {
+	// fetching source code changes lock since tflint is not thread safe
+	rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
+	actualLock := rawActualLock.(*sync.Mutex)
+	actualLock.Lock()
+	defer actualLock.Unlock()
+	err := tflint.RunTflintWithOpts(terragruntOptions, terragruntConfig)
+	if err != nil {
+		terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
+		return err
 	}
 	return nil
 }
