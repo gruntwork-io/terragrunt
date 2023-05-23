@@ -63,11 +63,9 @@ For a more minimal policy, for example when using a single bucket and DynamoDB t
             "Action": [
                 "s3:ListBucket",
                 "s3:GetBucketVersioning",
-                "s3:GetObject",
                 "s3:GetBucketAcl",
                 "s3:GetBucketLogging",
                 "s3:CreateBucket",
-                "s3:PutObject",
                 "s3:PutBucketPublicAccessBlock",
                 "s3:PutBucketTagging",
                 "s3:PutBucketPolicy",
@@ -78,7 +76,8 @@ For a more minimal policy, for example when using a single bucket and DynamoDB t
                 "s3:GetEncryptionConfiguration",
                 "s3:GetBucketPolicy",
                 "s3:GetBucketPublicAccessBlock",
-                "s3:PutLifecycleConfiguration"
+                "s3:PutLifecycleConfiguration",
+                "s3:PutBucketOwnershipControls"
             ],
             "Resource": "arn:aws:s3:::BUCKET_NAME"
         },

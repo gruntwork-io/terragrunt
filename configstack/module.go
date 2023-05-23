@@ -377,6 +377,10 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 		return nil, nil
 	}
 
+	if opts.IncludeModulePrefix {
+		opts.OutputPrefix = fmt.Sprintf("[%v] ", modulePath)
+	}
+
 	return &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil
 }
 

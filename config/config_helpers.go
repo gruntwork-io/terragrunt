@@ -147,6 +147,7 @@ func CreateTerragruntEvalContext(
 	terraformCompatibilityFunctions := map[string]function.Function{
 		"startswith": wrapStringSliceToBoolAsFuncImpl(startsWith, extensions.TrackInclude, terragruntOptions),
 		"endswith":   wrapStringSliceToBoolAsFuncImpl(endsWith, extensions.TrackInclude, terragruntOptions),
+		"timecmp":    wrapStringSliceToNumberAsFuncImpl(timeCmp, extensions.TrackInclude, terragruntOptions),
 	}
 
 	functions := map[string]function.Function{}
@@ -602,7 +603,6 @@ func getCleanedTargetConfigPath(configPath string, workingPath string) string {
 // source param in module's terragrunt.hcl: git::git@github.com:acme/infrastructure-modules.git//networking/vpc?ref=v0.0.1
 //
 // This method will return: /source/infrastructure-modules//networking/vpc
-//
 func GetTerragruntSourceForModule(sourcePath string, modulePath string, moduleTerragruntConfig *TerragruntConfig) (string, error) {
 	if sourcePath == "" || moduleTerragruntConfig.Terraform == nil || moduleTerragruntConfig.Terraform.Source == nil || *moduleTerragruntConfig.Terraform.Source == "" {
 		return "", nil
@@ -652,14 +652,12 @@ func getModulePathFromSourceUrl(sourceUrl string) (string, error) {
 	return matches[1], nil
 }
 
-//
 // A cache of the results of a decrypt operation via sops. Each decryption
 // operation can take several seconds, so this cache speeds up terragrunt executions
 // where the same sops files are referenced multiple times.
 //
 // The cache keys are the canonical paths to the encrypted files, and the values are the
 // plain-text result of the decrypt operation.
-//
 var sopsCache = NewStringCache()
 
 // decrypts and returns sops encrypted utf-8 yaml or json data as a string
@@ -726,11 +724,11 @@ func getTerragruntSourceCliFlag(trackInclude *TrackInclude, terragruntOptions *o
 }
 
 // Return the selected include block based on a label passed in as a function param. Note that the assumption is that:
-// - If the Original attribute is set, we are in the parent context so return that.
-// - If there are no include blocks, no param is required and nil is returned.
-// - If there is only one include block, no param is required and that is automatically returned.
-// - If there is more than one include block, 1 param is required to use as the label name to lookup the include block
-//   to use.
+//   - If the Original attribute is set, we are in the parent context so return that.
+//   - If there are no include blocks, no param is required and nil is returned.
+//   - If there is only one include block, no param is required and that is automatically returned.
+//   - If there is more than one include block, 1 param is required to use as the label name to lookup the include block
+//     to use.
 func getSelectedIncludeBlock(trackInclude TrackInclude, params []string) (*IncludeConfig, error) {
 	importMap := trackInclude.CurrentMap
 
@@ -789,6 +787,32 @@ func endsWith(args []string, trackInclude *TrackInclude, terragruntOptions *opti
 	}
 
 	return false, nil
+}
+
+// timeCmp implements Terraform's `timecmp` function that compares two timestamps.
+func timeCmp(args []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (int64, error) {
+	if len(args) != 2 {
+		return 0, errors.WithStackTrace(fmt.Errorf("function can take only two parameters: timestamp_a and timestamp_b"))
+	}
+
+	tsA, err := util.ParseTimestamp(args[0])
+	if err != nil {
+		return 0, errors.WithStackTrace(fmt.Errorf("could not parse first parameter %q: %w", args[0], err))
+	}
+	tsB, err := util.ParseTimestamp(args[1])
+	if err != nil {
+		return 0, errors.WithStackTrace(fmt.Errorf("could not parse second parameter %q: %w", args[1], err))
+	}
+
+	switch {
+	case tsA.Equal(tsB):
+		return 0, nil
+	case tsA.Before(tsB):
+		return -1, nil
+	default:
+		// By elimination, tsA must be after tsB.
+		return 1, nil
+	}
 }
 
 // Custom error types
