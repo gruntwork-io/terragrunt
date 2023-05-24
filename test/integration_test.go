@@ -3314,6 +3314,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 				"if_exists":         "overwrite_terragrunt",
 				"comment_prefix":    "# ",
 				"disable_signature": false,
+				"disable":           false,
 				"contents": `provider "aws" {
   region = "us-east-1"
 }
@@ -3538,6 +3539,34 @@ func TestTerragruntGenerateBlockMultipleSameNameFail(t *testing.T) {
 	assert.True(t, len(parsedError.BlockName) == 2)
 	assert.Contains(t, parsedError.BlockName, "backend")
 	assert.Contains(t, parsedError.BlockName, "backend2")
+}
+
+func TestTerragruntGenerateBlockDisable(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "generate-block", "disable")
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
+	require.NoError(t, err)
+	assert.False(t, fileIsInFolder(t, "data.txt", generateTestCase))
+}
+
+func TestTerragruntGenerateBlockEnable(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "generate-block", "enable")
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
+	require.NoError(t, err)
+	assert.True(t, fileIsInFolder(t, "data.txt", generateTestCase))
 }
 
 func TestTerragruntRemoteStateCodegenGeneratesBackendBlock(t *testing.T) {
@@ -4946,6 +4975,7 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 				"comment_prefix":    "# ",
 				"contents":          "# test\n",
 				"disable_signature": false,
+				"disable":           false,
 				"if_exists":         "overwrite",
 				"path":              "provider.tf",
 			},

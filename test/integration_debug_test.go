@@ -250,6 +250,7 @@ func TestRenderJSONConfig(t *testing.T) {
 					"path":              "provider.tf",
 					"comment_prefix":    "# ",
 					"disable_signature": false,
+					"disable":           false,
 					"if_exists":         "overwrite_terragrunt",
 					"contents": `provider "aws" {
   region = "us-east-1"
@@ -349,6 +350,7 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 					"path":              "provider.tf",
 					"comment_prefix":    "# ",
 					"disable_signature": false,
+					"disable":           false,
 					"if_exists":         "overwrite",
 					"contents":          "# This is just a test",
 				},

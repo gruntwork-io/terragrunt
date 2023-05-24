@@ -53,6 +53,7 @@ type GenerateConfig struct {
 	CommentPrefix    string `cty:"comment_prefix"`
 	Contents         string `cty:"contents"`
 	DisableSignature bool   `cty:"disable_signature"`
+	Disable          bool   `cty:"disable"`
 }
 
 // WriteToFile will generate a new file at the given target path with the given contents. If a file already exists at
@@ -61,6 +62,12 @@ type GenerateConfig struct {
 // - if ExistsSkip, do nothing and return
 // - if ExistsOverwrite, overwrite the existing file
 func WriteToFile(terragruntOptions *options.TerragruntOptions, basePath string, config GenerateConfig) error {
+	// If this GenerateConfig is disabled then skip further processing.
+	if config.Disable {
+		terragruntOptions.Logger.Debugf("Skipping generating file at %s because it is disabled", config.Path)
+		return nil
+	}
+
 	// Figure out thee target path to generate the code in. If relative, merge with basePath.
 	var targetPath string
 	if filepath.IsAbs(config.Path) {
