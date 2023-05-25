@@ -238,6 +238,7 @@ type terragruntGenerateBlock struct {
 	CommentPrefix    *string `hcl:"comment_prefix,attr" mapstructure:"comment_prefix"`
 	Contents         string  `hcl:"contents,attr" mapstructure:"contents"`
 	DisableSignature *bool   `hcl:"disable_signature,attr" mapstructure:"disable_signature"`
+	Disable          *bool   `hcl:"disable,attr" mapstructure:"disable"`
 }
 
 // IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
@@ -986,6 +987,11 @@ func convertToTerragruntConfig(
 			genConfig.DisableSignature = false
 		} else {
 			genConfig.DisableSignature = *block.DisableSignature
+		}
+		if block.Disable == nil {
+			genConfig.Disable = false
+		} else {
+			genConfig.Disable = *block.Disable
 		}
 		terragruntConfig.GenerateConfigs[block.Name] = genConfig
 		terragruntConfig.SetFieldMetadataWithType(MetadataGenerateConfigs, block.Name, defaultMetadata)

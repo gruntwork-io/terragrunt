@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/gruntwork-cli/collections"
 	"github.com/hashicorp/go-multierror"
 	"github.com/mattn/go-zglob"
-	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 
 	"github.com/gruntwork-io/terragrunt/aws_helper"
@@ -764,18 +763,11 @@ func runHook(terragruntOptions *options.TerragruntOptions, terragruntConfig *con
 		workingDir = *curHook.WorkingDir
 	}
 
-	rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
-	actualLock := rawActualLock.(*sync.Mutex)
-	actualLock.Lock()
-	defer actualLock.Unlock()
-
 	actionToExecute := curHook.Execute[0]
 	actionParams := curHook.Execute[1:]
 
 	if actionToExecute == "tflint" {
-		err := tflint.RunTflintWithOpts(terragruntOptions, terragruntConfig)
-		if err != nil {
-			terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
+		if err := executeTFLint(terragruntOptions, terragruntConfig, curHook, workingDir); err != nil {
 			return err
 		}
 	} else {
@@ -790,6 +782,20 @@ func runHook(terragruntOptions *options.TerragruntOptions, terragruntConfig *con
 			terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
 			return possibleError
 		}
+	}
+	return nil
+}
+
+func executeTFLint(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, curHook config.Hook, workingDir string) error {
+	// fetching source code changes lock since tflint is not thread safe
+	rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
+	actualLock := rawActualLock.(*sync.Mutex)
+	actualLock.Lock()
+	defer actualLock.Unlock()
+	err := tflint.RunTflintWithOpts(terragruntOptions, terragruntConfig)
+	if err != nil {
+		terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
+		return err
 	}
 	return nil
 }
@@ -845,7 +851,7 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 			// case, we are using the user's working dir here, rather than just looking at the parent dir of the
 			// terragrunt.hcl. However, the default value for the user's working dir, set in options.go, IS just the
 			// parent dir of terragrunt.hcl, so these will likely always be the same.
-			lockFileError = copyLockFile(terragruntOptions.WorkingDir, originalTerragruntOptions.WorkingDir, terragruntOptions.Logger)
+			lockFileError = util.CopyLockFile(terragruntOptions.WorkingDir, originalTerragruntOptions.WorkingDir, terragruntOptions.Logger)
 		}
 
 		return multierror.Append(runTerraformError, lockFileError).ErrorOrNil()
@@ -901,20 +907,6 @@ func shouldCopyLockFile(args []string) bool {
 		return true
 	}
 	return false
-}
-
-// Terraform 0.14 now generates a lock file when you run `terraform init`.
-// If any such file exists, this function will copy the lock file to the destination folder
-func copyLockFile(sourceFolder string, destinationFolder string, logger *logrus.Entry) error {
-	sourceLockFilePath := util.JoinPath(sourceFolder, util.TerraformLockFile)
-	destinationLockFilePath := util.JoinPath(destinationFolder, util.TerraformLockFile)
-
-	if util.FileExists(sourceLockFilePath) {
-		logger.Debugf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
-		return util.CopyFile(sourceLockFilePath, destinationLockFilePath)
-	}
-
-	return nil
 }
 
 // Run the given action function surrounded by hooks. That is, run the before hooks first, then, if there were no

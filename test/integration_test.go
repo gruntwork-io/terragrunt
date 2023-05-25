@@ -134,6 +134,8 @@ const (
 	TEST_FIXTURE_RENDER_JSON_METADATA                       = "fixture-render-json-metadata"
 	TEST_FIXTURE_RENDER_JSON_MOCK_OUTPUTS                   = "fixture-render-json-mock-outputs"
 	TEST_FIXTURE_STARTSWITH                                 = "fixture-startswith"
+	TEST_FIXTURE_TIMECMP                                    = "fixture-timecmp"
+	TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP                  = "fixture-timecmp-errors/invalid-timestamp"
 	TEST_FIXTURE_ENDSWITH                                   = "fixture-endswith"
 	TEST_FIXTURE_TFLINT_NO_ISSUES_FOUND                     = "fixture-tflint/no-issues-found"
 	TEST_FIXTURE_TFLINT_ISSUES_FOUND                        = "fixture-tflint/issues-found"
@@ -142,6 +144,7 @@ const (
 	TEST_FIXTURE_TFLINT_NO_TF_SOURCE_PATH                   = "fixture-tflint/no-tf-source"
 	TEST_FIXTURE_PARALLEL_RUN                               = "fixture-parallel-run"
 	TEST_FIXTURE_INIT_ERROR                                 = "fixture-init-error"
+	TEST_FIXTURE_MODULE_PATH_ERROR                          = "fixture-module-path-in-error"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -3311,6 +3314,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 				"if_exists":         "overwrite_terragrunt",
 				"comment_prefix":    "# ",
 				"disable_signature": false,
+				"disable":           false,
 				"contents": `provider "aws" {
   region = "us-east-1"
 }
@@ -3535,6 +3539,34 @@ func TestTerragruntGenerateBlockMultipleSameNameFail(t *testing.T) {
 	assert.True(t, len(parsedError.BlockName) == 2)
 	assert.Contains(t, parsedError.BlockName, "backend")
 	assert.Contains(t, parsedError.BlockName, "backend2")
+}
+
+func TestTerragruntGenerateBlockDisable(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "generate-block", "disable")
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
+	require.NoError(t, err)
+	assert.False(t, fileIsInFolder(t, "data.txt", generateTestCase))
+}
+
+func TestTerragruntGenerateBlockEnable(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "generate-block", "enable")
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
+	require.NoError(t, err)
+	assert.True(t, fileIsInFolder(t, "data.txt", generateTestCase))
 }
 
 func TestTerragruntRemoteStateCodegenGeneratesBackendBlock(t *testing.T) {
@@ -4943,6 +4975,7 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 				"comment_prefix":    "# ",
 				"contents":          "# test\n",
 				"disable_signature": false,
+				"disable":           false,
 				"if_exists":         "overwrite",
 				"path":              "provider.tf",
 			},
@@ -5169,15 +5202,62 @@ func TestStartsWith(t *testing.T) {
 
 	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
 
-	validateBoolOutput(t, outputs, "startswith1", true)
-	validateBoolOutput(t, outputs, "startswith2", false)
-	validateBoolOutput(t, outputs, "startswith3", true)
-	validateBoolOutput(t, outputs, "startswith4", false)
-	validateBoolOutput(t, outputs, "startswith5", true)
-	validateBoolOutput(t, outputs, "startswith6", false)
-	validateBoolOutput(t, outputs, "startswith7", true)
-	validateBoolOutput(t, outputs, "startswith8", false)
-	validateBoolOutput(t, outputs, "startswith9", false)
+	validateOutput(t, outputs, "startswith1", true)
+	validateOutput(t, outputs, "startswith2", false)
+	validateOutput(t, outputs, "startswith3", true)
+	validateOutput(t, outputs, "startswith4", false)
+	validateOutput(t, outputs, "startswith5", true)
+	validateOutput(t, outputs, "startswith6", false)
+	validateOutput(t, outputs, "startswith7", true)
+	validateOutput(t, outputs, "startswith8", false)
+	validateOutput(t, outputs, "startswith9", false)
+}
+
+func TestTimeCmp(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_TIMECMP)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_TIMECMP)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_TIMECMP)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	validateOutput(t, outputs, "timecmp1", float64(0))
+	validateOutput(t, outputs, "timecmp2", float64(0))
+	validateOutput(t, outputs, "timecmp3", float64(1))
+	validateOutput(t, outputs, "timecmp4", float64(-1))
+	validateOutput(t, outputs, "timecmp5", float64(-1))
+	validateOutput(t, outputs, "timecmp6", float64(1))
+}
+
+func TestTimeCmpInvalidTimestamp(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP)
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+
+	expectedError := `not a valid RFC3339 timestamp: missing required time introducer 'T'`
+	require.ErrorContains(t, err, expectedError)
 }
 
 func TestEndsWith(t *testing.T) {
@@ -5202,15 +5282,15 @@ func TestEndsWith(t *testing.T) {
 
 	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
 
-	validateBoolOutput(t, outputs, "endswith1", true)
-	validateBoolOutput(t, outputs, "endswith2", false)
-	validateBoolOutput(t, outputs, "endswith3", true)
-	validateBoolOutput(t, outputs, "endswith4", false)
-	validateBoolOutput(t, outputs, "endswith5", true)
-	validateBoolOutput(t, outputs, "endswith6", false)
-	validateBoolOutput(t, outputs, "endswith7", true)
-	validateBoolOutput(t, outputs, "endswith8", false)
-	validateBoolOutput(t, outputs, "endswith9", false)
+	validateOutput(t, outputs, "endswith1", true)
+	validateOutput(t, outputs, "endswith2", false)
+	validateOutput(t, outputs, "endswith3", true)
+	validateOutput(t, outputs, "endswith4", false)
+	validateOutput(t, outputs, "endswith5", true)
+	validateOutput(t, outputs, "endswith6", false)
+	validateOutput(t, outputs, "endswith7", true)
+	validateOutput(t, outputs, "endswith8", false)
+	validateOutput(t, outputs, "endswith9", false)
 }
 
 func TestMockOutputsMergeWithState(t *testing.T) {
@@ -5319,7 +5399,35 @@ func TestErrorExplaining(t *testing.T) {
 	assert.Contains(t, explanation, "Check your credentials and permissions")
 }
 
-func validateBoolOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value bool) {
+func TestModulePathInPlanErrorMessage(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_MODULE_PATH_ERROR)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "app")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan -no-color --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), fmt.Sprintf("[%s] exit status 1", util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "d1")))
+}
+
+func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_MODULE_PATH_ERROR)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all plan -no-color --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), fmt.Sprintf("[%s] exit status 1", util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "d1")))
+}
+
+func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
 	t.Helper()
 	output, hasPlatform := outputs[key]
 	require.Truef(t, hasPlatform, "Expected output %s to be defined", key)

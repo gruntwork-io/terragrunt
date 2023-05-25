@@ -1008,6 +1008,7 @@ The `generate` block supports the following arguments:
   there will be no difference between `overwrite_terragrunt` and `overwrite` for the `if_exists` setting. Defaults to
   `false`. Optional.
 - `contents` (attribute): The contents of the generated file.
+- `disable` (attribute): Disables this generate block.
 
 Example:
 
