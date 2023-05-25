@@ -5445,7 +5445,7 @@ func TestHclFmtDiff(t *testing.T) {
 
 	output := stdout.String()
 
-	expectedDiff, err := ioutil.ReadFile(util.JoinPath(rootPath, "/expected.diff"))
+	expectedDiff, err := ioutil.ReadFile(util.JoinPath(rootPath, "expected.diff"))
 	assert.NoError(t, err)
 
 	logBufferContentsLineByLine(t, stdout, "output")
