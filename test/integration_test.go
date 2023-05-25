@@ -145,6 +145,7 @@ const (
 	TEST_FIXTURE_PARALLEL_RUN                               = "fixture-parallel-run"
 	TEST_FIXTURE_INIT_ERROR                                 = "fixture-init-error"
 	TEST_FIXTURE_MODULE_PATH_ERROR                          = "fixture-module-path-in-error"
+	TEST_FIXTURE_HCLFMT_DIFF                                = "fixture-hclfmt-diff"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -5425,6 +5426,30 @@ func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all plan -no-color --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), fmt.Sprintf("[%s] exit status 1", util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "d1")))
+}
+
+func TestHclFmtDiff(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_HCLFMT_DIFF)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HCLFMT_DIFF)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HCLFMT_DIFF)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt hclfmt --terragrunt-diff --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	output := stdout.String()
+
+	expectedDiff, err := ioutil.ReadFile(rootPath + "/expected.diff")
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, stdout, "output")
+	assert.Contains(t, output, string(expectedDiff))
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
