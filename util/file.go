@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/mattn/go-zglob"
 	homedir "github.com/mitchellh/go-homedir"
+	"github.com/sirupsen/logrus"
 )
 
 const TerraformLockFile = ".terraform.lock.hcl"
@@ -364,7 +365,7 @@ func CleanPath(path string) string {
 
 // ContainsPath returns true if path contains the given subpath
 // E.g. path="foo/bar/bee", subpath="bar/bee" -> true
-// E.g. path="foo/bar/bee", subpath="bar/be" -> false (becuase be is not a directory)
+// E.g. path="foo/bar/bee", subpath="bar/be" -> false (because be is not a directory)
 func ContainsPath(path, subpath string) bool {
 	splitPath := SplitPath(CleanPath(path))
 	splitSubpath := SplitPath(CleanPath(subpath))
@@ -510,4 +511,18 @@ type PathIsNotFile struct {
 
 func (err PathIsNotFile) Error() string {
 	return fmt.Sprintf("%s is not a file", err.path)
+}
+
+// Terraform 0.14 now generates a lock file when you run `terraform init`.
+// If any such file exists, this function will copy the lock file to the destination folder
+func CopyLockFile(sourceFolder string, destinationFolder string, logger *logrus.Entry) error {
+	sourceLockFilePath := JoinPath(sourceFolder, TerraformLockFile)
+	destinationLockFilePath := JoinPath(destinationFolder, TerraformLockFile)
+
+	if FileExists(sourceLockFilePath) {
+		logger.Debugf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
+		return CopyFile(sourceLockFilePath, destinationLockFilePath)
+	}
+
+	return nil
 }

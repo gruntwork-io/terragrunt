@@ -115,6 +115,43 @@ func TestTerragruntRunAllModulesThatIncludeRestrictsSet(t *testing.T) {
 	assert.NotContains(t, planOutput, "charlie")
 }
 
+func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
+	t.Parallel()
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(
+		t,
+		fmt.Sprintf(
+			"terragrunt run-all plan --terragrunt-non-interactive --terragrunt-include-module-prefix --terragrunt-working-dir %s",
+			includeRunAllFixturePath,
+		),
+		&stdout,
+		&stderr,
+	)
+	require.NoError(t, err)
+	logBufferContentsLineByLine(t, stdout, "stdout")
+	logBufferContentsLineByLine(t, stderr, "stderr")
+
+	planOutput := stdout.String()
+	assert.Contains(t, planOutput, "alpha")
+	assert.Contains(t, planOutput, "beta")
+	assert.Contains(t, planOutput, "charlie")
+
+	stdoutLines := strings.Split(planOutput, "\n")
+	for _, line := range stdoutLines {
+		if strings.Contains(line, "alpha") {
+			assert.Contains(t, line, includeRunAllFixturePath+"a")
+		}
+		if strings.Contains(line, "beta") {
+			assert.Contains(t, line, includeRunAllFixturePath+"b")
+		}
+		if strings.Contains(line, "charlie") {
+			assert.Contains(t, line, includeRunAllFixturePath+"c")
+		}
+	}
+}
+
 func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 	t.Parallel()
 

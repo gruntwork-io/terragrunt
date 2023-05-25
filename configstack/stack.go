@@ -123,7 +123,7 @@ func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.Terragrunt
 					dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", stack.Modules[i].Config.Dependencies.Paths)
 				}
 				terragruntOptions.Logger.Infof("%v%v refers to remote state "+
-					"you may have to apply your changes in the dependencies prior running terragrunt plan-all.\n",
+					"you may have to apply your changes in the dependencies prior running terragrunt run-all plan.\n",
 					stack.Modules[i].Path,
 					dependenciesMsg,
 				)

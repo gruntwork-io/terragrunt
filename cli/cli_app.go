@@ -7,11 +7,14 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/tflint"
+
+	"github.com/gruntwork-io/gruntwork-cli/collections"
 	"github.com/hashicorp/go-multierror"
 	"github.com/mattn/go-zglob"
-	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 
 	"github.com/gruntwork-io/terragrunt/aws_helper"
@@ -59,6 +62,7 @@ const (
 	optTerragruntModulesThatInclude             = "terragrunt-modules-that-include"
 	optTerragruntFetchDependencyOutputFromState = "terragrunt-fetch-dependency-output-from-state"
 	optTerragruntUsePartialParseConfigCache     = "terragrunt-use-partial-parse-config-cache"
+	optTerragruntIncludeModulePrefix            = "terragrunt-include-module-prefix"
 	optTerragruntOutputWithMetadata             = "with-metadata"
 )
 
@@ -78,6 +82,7 @@ var allTerragruntBooleanOpts = []string{
 	optTerragruntFetchDependencyOutputFromState,
 	optTerragruntUsePartialParseConfigCache,
 	optTerragruntOutputWithMetadata,
+	optTerragruntIncludeModulePrefix,
 }
 var allTerragruntStringOpts = []string{
 	optTerragruntConfig,
@@ -100,17 +105,21 @@ var allTerragruntStringOpts = []string{
 	optTerragruntModulesThatInclude,
 }
 
-const CMD_INIT = "init"
-const CMD_INIT_FROM_MODULE = "init-from-module"
-const CMD_PROVIDERS = "providers"
-const CMD_LOCK = "lock"
-const CMD_TERRAGRUNT_INFO = "terragrunt-info"
-const CMD_TERRAGRUNT_VALIDATE_INPUTS = "validate-inputs"
-const CMD_TERRAGRUNT_GRAPH_DEPENDENCIES = "graph-dependencies"
-const CMD_TERRAGRUNT_READ_CONFIG = "terragrunt-read-config"
-const CMD_HCLFMT = "hclfmt"
-const CMD_AWS_PROVIDER_PATCH = "aws-provider-patch"
-const CMD_RENDER_JSON = "render-json"
+const (
+	CMD_INIT                          = "init"
+	CMD_INIT_FROM_MODULE              = "init-from-module"
+	CMD_PLAN                          = "plan"
+	CMD_APPLY                         = "apply"
+	CMD_PROVIDERS                     = "providers"
+	CMD_LOCK                          = "lock"
+	CMD_TERRAGRUNT_INFO               = "terragrunt-info"
+	CMD_TERRAGRUNT_VALIDATE_INPUTS    = "validate-inputs"
+	CMD_TERRAGRUNT_GRAPH_DEPENDENCIES = "graph-dependencies"
+	CMD_TERRAGRUNT_READ_CONFIG        = "terragrunt-read-config"
+	CMD_HCLFMT                        = "hclfmt"
+	CMD_AWS_PROVIDER_PATCH            = "aws-provider-patch"
+	CMD_RENDER_JSON                   = "render-json"
+)
 
 // START: Constants useful for multimodule command handling
 const CMD_RUN_ALL = "run-all"
@@ -260,6 +269,7 @@ GLOBAL OPTIONS:
    terragrunt-strict-validate                   Sets strict mode for the validate-inputs command. By default, strict mode is off. When this flag is passed, strict mode is turned on. When strict mode is turned off, the validate-inputs command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When strict mode is turned on, an error will be returned if required inputs are missing OR if unused variables are passed to Terragrunt.
    terragrunt-json-out                          The file path that terragrunt should use when rendering the terragrunt.hcl config as json. Only used in the render-json command. Defaults to terragrunt_rendered.json.
    terragrunt-use-partial-parse-config-cache    Enables caching of includes during partial parsing operations. Will also be used for the --terragrunt-iam-role option if provided.
+   terragrunt-include-module-prefix             When this flag is set output from Terraform sub-commands is prefixed with module path.
 
 VERSION:
    {{.Version}}{{if len .Authors}}
@@ -286,6 +296,17 @@ var TERRAFORM_HELP_FLAGS = []string{
 	"-help",
 	"-h",
 }
+
+// map of help functions for each terragrunt command
+var terragruntHelp = map[string]string{
+	CMD_RENDER_JSON:                renderJsonHelp,
+	CMD_AWS_PROVIDER_PATCH:         awsProviderPatchHelp,
+	CMD_TERRAGRUNT_VALIDATE_INPUTS: validateInputsHelp,
+}
+
+// sourceChangeLocks is a map that keeps track of locks for source changes, to ensure we aren't overriding the generated
+// code while another hook (e.g. `tflint`) is running. We use sync.Map to ensure atomic updates during concurrent access.
+var sourceChangeLocks = sync.Map{}
 
 // Create the Terragrunt CLI App
 func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) *cli.App {
@@ -364,6 +385,11 @@ func runCommand(command string, terragruntOptions *options.TerragruntOptions) (f
 // Downloads terraform source if necessary, then runs terraform with the given options and CLI args.
 // This will forward all the args and extra_arguments directly to Terraform.
 func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
+	if shouldPrintTerragruntHelp(terragruntOptions) {
+		helpMessage, _ := terragruntHelp[terragruntOptions.TerraformCommand]
+		_, err := fmt.Fprintf(terragruntOptions.Writer, "%s\n", helpMessage)
+		return err
+	}
 	if shouldPrintTerraformHelp(terragruntOptions) {
 		return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
 	}
@@ -392,7 +418,7 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptionsClone := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	terragruntOptionsClone.TerraformCommand = CMD_TERRAGRUNT_READ_CONFIG
 
-	if err := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone, nil); err != nil {
+	if err := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone, terragruntConfig, nil); err != nil {
 		return err
 	}
 
@@ -480,21 +506,8 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
 	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
-	for _, config := range terragruntConfig.GenerateConfigs {
-		if err := codegen.WriteToFile(updatedTerragruntOptions, updatedTerragruntOptions.WorkingDir, config); err != nil {
-			return err
-		}
-	}
-	if terragruntConfig.RemoteState != nil && terragruntConfig.RemoteState.Generate != nil {
-		if err := terragruntConfig.RemoteState.GenerateTerraformCode(updatedTerragruntOptions); err != nil {
-			return err
-		}
-	} else if terragruntConfig.RemoteState != nil {
-		// We use else if here because we don't need to check the backend configuration is defined when the remote state
-		// block has a `generate` attribute configured.
-		if err := checkTerraformCodeDefinesBackend(updatedTerragruntOptions, terragruntConfig.RemoteState.Backend); err != nil {
-			return err
-		}
+	if err = generateConfig(terragruntConfig, updatedTerragruntOptions); err != nil {
+		return err
 	}
 
 	// We do the terragrunt input validation here, after all the terragrunt generated terraform files are created so
@@ -523,6 +536,31 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 	return runTerragruntWithConfig(terragruntOptions, updatedTerragruntOptions, terragruntConfig, false)
+}
+
+func generateConfig(terragruntConfig *config.TerragruntConfig, updatedTerragruntOptions *options.TerragruntOptions) error {
+	rawActualLock, _ := sourceChangeLocks.LoadOrStore(updatedTerragruntOptions.DownloadDir, &sync.Mutex{})
+	actualLock := rawActualLock.(*sync.Mutex)
+	defer actualLock.Unlock()
+	actualLock.Lock()
+
+	for _, config := range terragruntConfig.GenerateConfigs {
+		if err := codegen.WriteToFile(updatedTerragruntOptions, updatedTerragruntOptions.WorkingDir, config); err != nil {
+			return err
+		}
+	}
+	if terragruntConfig.RemoteState != nil && terragruntConfig.RemoteState.Generate != nil {
+		if err := terragruntConfig.RemoteState.GenerateTerraformCode(updatedTerragruntOptions); err != nil {
+			return err
+		}
+	} else if terragruntConfig.RemoteState != nil {
+		// We use else if here because we don't need to check the backend configuration is defined when the remote state
+		// block has a `generate` attribute configured.
+		if err := checkTerraformCodeDefinesBackend(updatedTerragruntOptions, terragruntConfig.RemoteState.Backend); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Check the version constraints of both terragrunt and terraform. Note that as a side effect this will set the
@@ -579,6 +617,21 @@ func runGraphDependencies(terragruntOptions *options.TerragruntOptions) error {
 }
 
 func shouldPrintTerraformHelp(terragruntOptions *options.TerragruntOptions) bool {
+	for _, tfHelpFlag := range TERRAFORM_HELP_FLAGS {
+		if util.ListContainsElement(terragruntOptions.TerraformCliArgs, tfHelpFlag) {
+			return true
+		}
+	}
+	return false
+}
+
+func shouldPrintTerragruntHelp(terragruntOptions *options.TerragruntOptions) bool {
+	// check if command is in help map
+	_, found := terragruntHelp[terragruntOptions.TerraformCommand]
+	if !found {
+		return false
+	}
+
 	for _, tfHelpFlag := range TERRAFORM_HELP_FLAGS {
 		if util.ListContainsElement(terragruntOptions.TerraformCliArgs, tfHelpFlag) {
 			return true
@@ -668,7 +721,7 @@ func processErrorHooks(hooks []config.ErrorHook, terragruntOptions *options.Terr
 	return errorsOccured.ErrorOrNil()
 }
 
-func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOptions, previousExecErrors *multierror.Error) error {
+func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, previousExecErrors *multierror.Error) error {
 	if len(hooks) == 0 {
 		return nil
 	}
@@ -680,26 +733,10 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 	for _, curHook := range hooks {
 		allPreviousErrors := multierror.Append(previousExecErrors, errorsOccured)
 		if shouldRunHook(curHook, terragruntOptions, allPreviousErrors) {
-			terragruntOptions.Logger.Infof("Executing hook: %s", curHook.Name)
-			workingDir := ""
-			if curHook.WorkingDir != nil {
-				workingDir = *curHook.WorkingDir
+			err := runHook(terragruntOptions, terragruntConfig, curHook)
+			if err != nil {
+				errorsOccured = multierror.Append(errorsOccured, err)
 			}
-
-			actionToExecute := curHook.Execute[0]
-			actionParams := curHook.Execute[1:]
-			_, possibleError := shell.RunShellCommandWithOutput(
-				terragruntOptions,
-				workingDir,
-				false,
-				false,
-				actionToExecute, actionParams...,
-			)
-			if possibleError != nil {
-				terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
-				errorsOccured = multierror.Append(errorsOccured, possibleError)
-			}
-
 		}
 	}
 
@@ -717,6 +754,50 @@ func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOption
 	isCommandInHook := util.ListContainsElement(hook.Commands, terragruntOptions.TerraformCommand)
 
 	return isCommandInHook && (!hasErrors || (hook.RunOnError != nil && *hook.RunOnError))
+}
+
+func runHook(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, curHook config.Hook) error {
+	terragruntOptions.Logger.Infof("Executing hook: %s", curHook.Name)
+	workingDir := ""
+	if curHook.WorkingDir != nil {
+		workingDir = *curHook.WorkingDir
+	}
+
+	actionToExecute := curHook.Execute[0]
+	actionParams := curHook.Execute[1:]
+
+	if actionToExecute == "tflint" {
+		if err := executeTFLint(terragruntOptions, terragruntConfig, curHook, workingDir); err != nil {
+			return err
+		}
+	} else {
+		_, possibleError := shell.RunShellCommandWithOutput(
+			terragruntOptions,
+			workingDir,
+			false,
+			false,
+			actionToExecute, actionParams...,
+		)
+		if possibleError != nil {
+			terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
+			return possibleError
+		}
+	}
+	return nil
+}
+
+func executeTFLint(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, curHook config.Hook, workingDir string) error {
+	// fetching source code changes lock since tflint is not thread safe
+	rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
+	actualLock := rawActualLock.(*sync.Mutex)
+	actualLock.Lock()
+	defer actualLock.Unlock()
+	err := tflint.RunTflintWithOpts(terragruntOptions, terragruntConfig)
+	if err != nil {
+		terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
+		return err
+	}
+	return nil
 }
 
 // Runs terraform with the given options and CLI args.
@@ -770,7 +851,7 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 			// case, we are using the user's working dir here, rather than just looking at the parent dir of the
 			// terragrunt.hcl. However, the default value for the user's working dir, set in options.go, IS just the
 			// parent dir of terragrunt.hcl, so these will likely always be the same.
-			lockFileError = copyLockFile(terragruntOptions.WorkingDir, originalTerragruntOptions.WorkingDir, terragruntOptions.Logger)
+			lockFileError = util.CopyLockFile(terragruntOptions.WorkingDir, originalTerragruntOptions.WorkingDir, terragruntOptions.Logger)
 		}
 
 		return multierror.Append(runTerraformError, lockFileError).ErrorOrNil()
@@ -828,25 +909,11 @@ func shouldCopyLockFile(args []string) bool {
 	return false
 }
 
-// Terraform 0.14 now generates a lock file when you run `terraform init`.
-// If any such file exists, this function will copy the lock file to the destination folder
-func copyLockFile(sourceFolder string, destinationFolder string, logger *logrus.Entry) error {
-	sourceLockFilePath := util.JoinPath(sourceFolder, util.TerraformLockFile)
-	destinationLockFilePath := util.JoinPath(destinationFolder, util.TerraformLockFile)
-
-	if util.FileExists(sourceLockFilePath) {
-		logger.Debugf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
-		return util.CopyFile(sourceLockFilePath, destinationLockFilePath)
-	}
-
-	return nil
-}
-
 // Run the given action function surrounded by hooks. That is, run the before hooks first, then, if there were no
 // errors, run the action, and finally, run the after hooks. Return any errors hit from the hooks or action.
 func runActionWithHooks(description string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, action func() error) error {
 	var allErrors *multierror.Error
-	beforeHookErrors := processHooks(terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions, allErrors)
+	beforeHookErrors := processHooks(terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions, terragruntConfig, allErrors)
 	allErrors = multierror.Append(allErrors, beforeHookErrors)
 
 	var actionErrors error
@@ -856,7 +923,7 @@ func runActionWithHooks(description string, terragruntOptions *options.Terragrun
 	} else {
 		terragruntOptions.Logger.Errorf("Errors encountered running before_hooks. Not running '%s'.", description)
 	}
-	postHookErrors := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, allErrors)
+	postHookErrors := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, terragruntConfig, allErrors)
 	errorHookErrors := processErrorHooks(terragruntConfig.Terraform.GetErrorHooks(), terragruntOptions, allErrors)
 	allErrors = multierror.Append(allErrors, postHookErrors, errorHookErrors)
 
@@ -888,7 +955,7 @@ func runTerraformWithRetry(terragruntOptions *options.TerragruntOptions) error {
 	// Retry the command configurable time with sleep in between
 	for i := 0; i < terragruntOptions.RetryMaxAttempts; i++ {
 		if out, tferr := shell.RunTerraformCommandWithOutput(terragruntOptions, terragruntOptions.TerraformCliArgs...); tferr != nil {
-			if out != nil && isRetryable(out.Stderr, tferr, terragruntOptions) {
+			if out != nil && isRetryable(out.Stdout, out.Stderr, tferr, terragruntOptions) {
 				terragruntOptions.Logger.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.RetrySleepIntervalSec)
 				time.Sleep(terragruntOptions.RetrySleepIntervalSec)
 			} else {
@@ -1030,7 +1097,7 @@ func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 //
 // If terraformSource is specified, then arguments to download the terraform source will be appended to the init command.
 //
-// This method will return an error and NOT run terraform init if the user has disabled Auto-Init
+// This method will return an error and NOT run terraform init if the user has disabled Auto-Init.
 //
 // This method takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
 // and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
@@ -1067,8 +1134,12 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformS
 	initOptions.WorkingDir = terragruntOptions.WorkingDir
 	initOptions.TerraformCommand = CMD_INIT
 
-	// Don't pollute stdout with the stdout from Auto Init
-	initOptions.Writer = initOptions.ErrWriter
+	initOutputForCommands := []string{CMD_PLAN, CMD_APPLY}
+	terraformCommand := util.FirstArg(terragruntOptions.TerraformCliArgs)
+	if !collections.ListContainsElement(initOutputForCommands, terraformCommand) {
+		// Since some command can return a json string, it is necessary to suppress output to stdout of the `terraform init` command.
+		initOptions.Writer = io.Discard
+	}
 
 	return initOptions, nil
 }
@@ -1165,12 +1236,13 @@ func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragru
 	return nil
 }
 
-// isRetryable checks whether there was an error and we should attempt again
-func isRetryable(tfoutput string, tferr error, terragruntOptions *options.TerragruntOptions) bool {
+// isRetryable checks whether there was an error and if the output matches any of the configured RetryableErrors
+func isRetryable(stdout string, stderr string, tferr error, terragruntOptions *options.TerragruntOptions) bool {
 	if !terragruntOptions.AutoRetry || tferr == nil {
 		return false
 	}
-	return util.MatchesAny(terragruntOptions.RetryableErrors, tfoutput)
+	// When -json is enabled, Terraform will send all output, errors included, to stdout.
+	return util.MatchesAny(terragruntOptions.RetryableErrors, stderr) || util.MatchesAny(terragruntOptions.RetryableErrors, stdout)
 }
 
 // Custom error types

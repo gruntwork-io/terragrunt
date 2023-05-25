@@ -392,10 +392,11 @@ For the `s3` backend, the following additional properties are supported in the `
 - `enable_lock_table_ssencryption`: When `true`, the synchronization lock table in DynamoDB used for remote state concurrent access will not be configured with server side encryption.
 - `s3_bucket_tags`: A map of key value pairs to associate as tags on the created S3 bucket.
 - `dynamodb_table_tags`: A map of key value pairs to associate as tags on the created DynamoDB remote state lock table.
+- `accesslogging_bucket_tags`: A map of key value pairs to associate as tags on the created S3 bucket to store de access logs.
 - `disable_aws_client_checksums`: When `true`, disable computing and checking checksums on the request and response,
   such as the CRC32 check for DynamoDB. This can be used to workaround
   https://github.com/gruntwork-io/terragrunt/issues/1059.
-- `accesslogging_bucket_name`: (Optional) When provided as a valid `string`, create an S3 bucket with this name to store the access logs for the S3 bucket used to store Terraform state. If not provided, or string is empty or invalid S3 bucket name, then server access logging for the S3 bucket storing the terraform state will be disabled.
+- `accesslogging_bucket_name`: (Optional) When provided as a valid `string`, create an S3 bucket with this name to store the access logs for the S3 bucket used to store Terraform state. If not provided, or string is empty or invalid S3 bucket name, then server access logging for the S3 bucket storing the terraform state will be disabled. **Note:** When access logging is enabled supported encryption for state bucket is only `AES256`. Reference: [S3 server access logging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html)
 - `accesslogging_target_prefix`: (Optional) When provided as a valid `string`, set the `TargetPrefix` for the access log objects in the S3 bucket used to store Terraform state. If set to **empty**`string`, then `TargetPrefix` will be set to **empty** `string`. If attribute is not provided at all, then `TargetPrefix` will be set to **default** value `TFStateLogs/`. This attribute won't take effect if the `accesslogging_bucket_name` attribute is not present.
 - `bucket_sse_algorithm`: (Optional) The algorithm to use for server side encryption of the state bucket. Defaults to `aws:kms`.
 - `bucket_sse_kms_key_id`: (Optional) The KMS Key to use when the encryption algorithm is `aws:kms`. Defaults to the AWS Managed `aws/s3` key.
@@ -409,7 +410,8 @@ For the `gcs` backend, the following additional properties are supported in the 
 - `project`: The GCP project where the bucket will be created.
 - `location`: The GCP location where the bucket will be created.
 - `gcs_bucket_labels`: A map of key value pairs to associate as labels on the created GCS bucket.
-
+- `credentials`: Local path to Google Cloud Platform account credentials in JSON format.
+- `access_token`: A temporary [OAuth 2.0 access token] obtained from the Google Authorization server.
 Example with S3:
 
 ```hcl
@@ -1006,6 +1008,7 @@ The `generate` block supports the following arguments:
   there will be no difference between `overwrite_terragrunt` and `overwrite` for the `if_exists` setting. Defaults to
   `false`. Optional.
 - `contents` (attribute): The contents of the generated file.
+- `disable` (attribute): Disables this generate block.
 
 Example:
 

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -155,6 +154,20 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	debug := parseBooleanArg(args, optTerragruntDebug, os.Getenv("TERRAGRUNT_DEBUG") == "true" || os.Getenv("TERRAGRUNT_DEBUG") == "1")
 	if debug {
 		opts.Debug = true
+	}
+
+	jsonOutput := false
+	for _, arg := range args {
+		if strings.EqualFold(arg, "-json") {
+			jsonOutput = true
+			break
+		}
+	}
+
+	includeModulePrefix := parseBooleanArg(args, optTerragruntIncludeModulePrefix, os.Getenv("TERRAGRUNT_INCLUDE_MODULE_PREFIX") == "true" || os.Getenv("TERRAGRUNT_INCLUDE_MODULE_PREFIX") == "1")
+	if includeModulePrefix && !jsonOutput {
+		opts.IncludeModulePrefix = true
+		opts.OutputPrefix = fmt.Sprintf("[%s] ", opts.WorkingDir)
 	}
 
 	opts.RunAllAutoApprove = !parseBooleanArg(args, optTerragruntNoAutoApprove, os.Getenv("TERRAGRUNT_AUTO_APPROVE") == "false")
@@ -507,7 +520,7 @@ func toTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) 
 	for varName, varValue := range vars {
 		envVarName := fmt.Sprintf("%s_%s", TFVarPrefix, varName)
 
-		envVarValue, err := asTerraformEnvVarJsonValue(varValue)
+		envVarValue, err := util.AsTerraformEnvVarJsonValue(varValue)
 		if err != nil {
 			return nil, err
 		}
@@ -516,23 +529,6 @@ func toTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) 
 	}
 
 	return out, nil
-}
-
-// Convert the given value to a JSON value that can be passed to Terraform as an environment variable. For the most
-// part, this converts the value directly to JSON using Go's built-in json.Marshal. However, we have special handling
-// for strings, which with normal JSON conversion would be wrapped in quotes, but when passing them to Terraform via
-// env vars, we need to NOT wrap them in quotes, so this method adds special handling for that case.
-func asTerraformEnvVarJsonValue(value interface{}) (string, error) {
-	switch val := value.(type) {
-	case string:
-		return val, nil
-	default:
-		envVarValue, err := json.Marshal(val)
-		if err != nil {
-			return "", errors.WithStackTrace(err)
-		}
-		return string(envVarValue), nil
-	}
 }
 
 // Custom error types

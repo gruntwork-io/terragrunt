@@ -738,6 +738,27 @@ footer hr {
   border-left: 2px solid #194C5F;
 }
 
+.navbar-nav {
+  li {
+    &:first-child {
+      a {
+        display: flex;
+        span {
+          margin-right: 12px;
+          padding: 0;
+          background: linear-gradient(101.84deg, #FE3162 2.31%, #FF4F47 98.56%);
+          border-radius: 3.5px;
+          font-weight: 600;
+          min-width: 52px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+      }
+    }
+  }
+}
+
 @media (min-width: 768px) {
   .dropdown:hover .dropdown-menu {
     display: block;
