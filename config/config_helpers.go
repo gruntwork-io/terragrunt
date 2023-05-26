@@ -444,8 +444,13 @@ func pathRelativeToInclude(params []string, trackInclude *TrackInclude, terragru
 		return ".", nil
 	}
 
+	configPath := terragruntOptions.OriginalTerragruntConfigPath
+	if configPath == "" {
+		configPath = terragruntOptions.TerragruntConfigPath
+	}
+
 	includePath := filepath.Dir(included.Path)
-	currentPath := filepath.Dir(terragruntOptions.OriginalTerragruntConfigPath)
+	currentPath := filepath.Dir(configPath)
 
 	if !filepath.IsAbs(includePath) {
 		includePath = util.JoinPath(currentPath, includePath)
