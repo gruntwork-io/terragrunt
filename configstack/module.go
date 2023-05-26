@@ -321,10 +321,16 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 	// happen concurrently.
 	opts := terragruntOptions.Clone(terragruntConfigPath)
 
+	var includeConfig *config.IncludeConfig
+
 	// We need to reset the original path for each module. Otherwise, this path will be set to wherever you ran run-all
 	// from, which is not what any of the modules will want.
 	if opts.OriginalTerragruntConfigPath == "" {
 		opts.OriginalTerragruntConfigPath = terragruntConfigPath
+	}
+
+	if opts.OriginalTerragruntConfigPath != terragruntConfigPath {
+		includeConfig = &config.IncludeConfig{Path: terragruntConfigPath}
 	}
 
 	// We only partially parse the config, only using the pieces that we need in this section. This config will be fully
@@ -333,7 +339,7 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 	terragruntConfig, err := config.PartialParseConfigFile(
 		terragruntConfigPath,
 		opts,
-		&config.IncludeConfig{Path: terragruntConfigPath},
+		includeConfig,
 		[]config.PartialDecodeSectionType{
 			// Need for initializing the modules
 			config.TerraformSource,
