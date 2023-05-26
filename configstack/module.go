@@ -82,7 +82,7 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 	return finalModules, nil
 }
 
-//flagExcludedDirs iterates over a module slice and flags all entries as excluded, which should be ignored via the terragrunt-exclude-dir CLI flag.
+// flagExcludedDirs iterates over a module slice and flags all entries as excluded, which should be ignored via the terragrunt-exclude-dir CLI flag.
 func flagExcludedDirs(modules []*TerraformModule, terragruntOptions *options.TerragruntOptions) ([]*TerraformModule, error) {
 
 	// If no ExcludeDirs is specified return the modules list instantly
@@ -144,7 +144,7 @@ func flagExcludedDirs(modules []*TerraformModule, terragruntOptions *options.Ter
 	return modules, nil
 }
 
-//flagIncludedDirs iterates over a module slice and flags all entries not in the list specified via the terragrunt-include-dir CLI flag  as excluded.
+// flagIncludedDirs iterates over a module slice and flags all entries not in the list specified via the terragrunt-include-dir CLI flag  as excluded.
 func flagIncludedDirs(modules []*TerraformModule, terragruntOptions *options.TerragruntOptions) ([]*TerraformModule, error) {
 
 	// If no IncludeDirs is specified return the modules list instantly
@@ -323,7 +323,9 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 
 	// We need to reset the original path for each module. Otherwise, this path will be set to wherever you ran run-all
 	// from, which is not what any of the modules will want.
-	opts.OriginalTerragruntConfigPath = terragruntConfigPath
+	if opts.OriginalTerragruntConfigPath == "" {
+		opts.OriginalTerragruntConfigPath = terragruntConfigPath
+	}
 
 	// We only partially parse the config, only using the pieces that we need in this section. This config will be fully
 	// parsed at a later stage right before the action is run. This is to delay interpolation of functions until right
@@ -331,7 +333,7 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 	terragruntConfig, err := config.PartialParseConfigFile(
 		terragruntConfigPath,
 		opts,
-		nil,
+		&config.IncludeConfig{Path: terragruntConfigPath},
 		[]config.PartialDecodeSectionType{
 			// Need for initializing the modules
 			config.TerraformSource,
@@ -595,7 +597,9 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 			return nil
 		}
 		cfgOptions.Env = terragruntOptions.Env
+		cfgOptions.OriginalTerragruntConfigPath = terragruntOptions.OriginalTerragruntConfigPath
 		cfgOptions.LogLevel = terragruntOptions.LogLevel
+
 		if terragruntOptions.TerraformCommand == "destroy" {
 			var hook = NewForceLogLevelHook(logrus.DebugLevel)
 			cfgOptions.Logger.Logger.AddHook(hook)

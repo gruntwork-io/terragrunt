@@ -121,7 +121,7 @@ func CreateTerragruntEvalContext(
 		"path_relative_from_include":                   wrapStringSliceToStringAsFuncImpl(pathRelativeFromInclude, extensions.TrackInclude, terragruntOptions),
 		"get_env":                                      wrapStringSliceToStringAsFuncImpl(getEnvironmentVariable, extensions.TrackInclude, terragruntOptions),
 		"run_cmd":                                      wrapStringSliceToStringAsFuncImpl(runCommand, extensions.TrackInclude, terragruntOptions),
-		"read_terragrunt_config":                       readTerragruntConfigAsFuncImpl(terragruntOptions),
+		"read_terragrunt_config":                       readTerragruntConfigAsFuncImpl(terragruntOptions, extensions.TrackInclude),
 		"get_platform":                                 wrapVoidToStringAsFuncImpl(getPlatform, extensions.TrackInclude, terragruntOptions),
 		"get_repo_root":                                wrapVoidToStringAsFuncImpl(getRepoRoot, extensions.TrackInclude, terragruntOptions),
 		"get_path_from_repo_root":                      wrapVoidToStringAsFuncImpl(getPathFromRepoRoot, extensions.TrackInclude, terragruntOptions),
@@ -445,7 +445,7 @@ func pathRelativeToInclude(params []string, trackInclude *TrackInclude, terragru
 	}
 
 	includePath := filepath.Dir(included.Path)
-	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+	currentPath := filepath.Dir(terragruntOptions.OriginalTerragruntConfigPath)
 
 	if !filepath.IsAbs(includePath) {
 		includePath = util.JoinPath(currentPath, includePath)
@@ -547,7 +547,7 @@ func readTerragruntConfig(configPath string, defaultVal *cty.Value, terragruntOp
 }
 
 // Create a cty Function that can be used to for calling read_terragrunt_config.
-func readTerragruntConfigAsFuncImpl(terragruntOptions *options.TerragruntOptions) function.Function {
+func readTerragruntConfigAsFuncImpl(terragruntOptions *options.TerragruntOptions, trackInclude *TrackInclude) function.Function {
 	return function.New(&function.Spec{
 		// Takes one required string param
 		Params: []function.Parameter{function.Parameter{Type: cty.String}},
@@ -561,7 +561,7 @@ func readTerragruntConfigAsFuncImpl(terragruntOptions *options.TerragruntOptions
 				return cty.NilVal, errors.WithStackTrace(WrongNumberOfParams{Func: "read_terragrunt_config", Expected: "1 or 2", Actual: numParams})
 			}
 
-			configPath, err := ctySliceToStringSlice(args[:1])
+			strArgs, err := ctySliceToStringSlice(args[:1])
 			if err != nil {
 				return cty.NilVal, err
 			}
@@ -570,7 +570,14 @@ func readTerragruntConfigAsFuncImpl(terragruntOptions *options.TerragruntOptions
 			if numParams == 2 {
 				defaultVal = &args[1]
 			}
-			return readTerragruntConfig(configPath[0], defaultVal, terragruntOptions)
+
+			configPath := terragruntOptions.TerragruntConfigPath
+			if trackInclude.Original != nil {
+				configPath = trackInclude.Original.Path
+			}
+			configPath = filepath.Join(filepath.Dir(configPath), strArgs[0])
+
+			return readTerragruntConfig(configPath, defaultVal, terragruntOptions)
 		},
 	})
 }
