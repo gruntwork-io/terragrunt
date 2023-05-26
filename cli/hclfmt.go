@@ -97,7 +97,8 @@ func formatTgHCL(terragruntOptions *options.TerragruntOptions, tgHclFile string)
 	if terragruntOptions.Diff && fileUpdated {
 		diff, err := bytesDiff(contents, newContents, tgHclFile)
 		if err != nil {
-			return fmt.Errorf("Failed to generate diff for %s", tgHclFile)
+			terragruntOptions.Logger.Errorf("Failed to generate diff for %s", tgHclFile)
+			return err
 		}
 		fmt.Fprintf(terragruntOptions.Writer, "%s\n", diff)
 	}
@@ -127,32 +128,35 @@ func checkErrors(logger *logrus.Entry, contents []byte, tgHclFile string) error 
 }
 
 // bytesDiff uses GNU diff to display the differences between the contents of HCL file before and after formatting
-func bytesDiff(b1, b2 []byte, path string) (data []byte, err error) {
+func bytesDiff(b1, b2 []byte, path string) ([]byte, error) {
 	f1, err := ioutil.TempFile("", "")
 	if err != nil {
-		return
+		return nil, err
 	}
-	defer os.Remove(f1.Name())
-	defer f1.Close()
+	defer func() {
+		f1.Close()
+		os.Remove(f1.Name())
+	}()
+
 	f2, err := ioutil.TempFile("", "")
 	if err != nil {
-		return
+		return nil, err
 	}
-	defer os.Remove(f2.Name())
-	defer f2.Close()
-	_, err = f1.Write(b1)
-	if err != nil {
-		return
+	defer func() {
+		f2.Close()
+		os.Remove(f2.Name())
+	}()
+	if _, err := f1.Write(b1); err != nil {
+		return nil, err
 	}
-	_, err = f2.Write(b2)
-	if err != nil {
-		return
+	if _, err := f2.Write(b2); err != nil {
+		return nil, err
 	}
-	data, err = exec.Command("diff", "--label="+filepath.Join("old", path), "--label="+filepath.Join("new/", path), "-u", f1.Name(), f2.Name()).CombinedOutput()
+	data, err := exec.Command("diff", "--label="+filepath.Join("old", path), "--label="+filepath.Join("new/", path), "-u", f1.Name(), f2.Name()).CombinedOutput()
 	if len(data) > 0 {
 		// diff exits with a non-zero status when the files don't match.
 		// Ignore that failure as long as we get output.
 		err = nil
 	}
-	return
+	return data, err
 }
