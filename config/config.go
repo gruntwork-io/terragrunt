@@ -80,7 +80,7 @@ type TerragruntConfig struct {
 	IsPartial bool
 
 	// Map of processed includes
-	ProcessedIncludes map[string]IncludeConfig
+	ProcessedIncludes IncludeConfigs
 
 	// Map to store fields metadata
 	FieldsMetadata map[string]map[string]interface{}
@@ -239,6 +239,18 @@ type terragruntGenerateBlock struct {
 	Contents         string  `hcl:"contents,attr" mapstructure:"contents"`
 	DisableSignature *bool   `hcl:"disable_signature,attr" mapstructure:"disable_signature"`
 	Disable          *bool   `hcl:"disable,attr" mapstructure:"disable"`
+}
+
+type IncludeConfigs map[string]IncludeConfig
+
+func (cfgs IncludeConfigs) ContainsPath(path string) bool {
+	for _, cfg := range cfgs {
+		if cfg.Path == path {
+			return true
+		}
+	}
+
+	return false
 }
 
 // IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can

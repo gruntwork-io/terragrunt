@@ -606,7 +606,7 @@ func checkVersionConstraints(terragruntOptions *options.TerragruntOptions) error
 
 // Run graph dependencies prints the dependency graph to stdout
 func runGraphDependencies(terragruntOptions *options.TerragruntOptions) error {
-	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
+	stack, err := configstack.FindStackInSubfolders(terragruntOptions, nil)
 	if err != nil {
 		return err
 	}
@@ -1186,7 +1186,7 @@ func runAll(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
-	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
+	stack, err := configstack.FindStackInSubfolders(terragruntOptions, nil)
 	if err != nil {
 		return err
 	}

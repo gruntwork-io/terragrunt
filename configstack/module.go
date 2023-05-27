@@ -43,18 +43,18 @@ func (module *TerraformModule) String() string {
 
 // Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents
 // into a TerraformModule struct. Return the list of these TerraformModule structs.
-func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions, howThesePathsWereFound string) ([]*TerraformModule, error) {
+func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions, childTerragruntConfig *config.TerragruntConfig, howThesePathsWereFound string) ([]*TerraformModule, error) {
 	canonicalTerragruntConfigPaths, err := util.CanonicalPaths(terragruntConfigPaths, ".")
 	if err != nil {
 		return []*TerraformModule{}, err
 	}
 
-	modules, err := resolveModules(canonicalTerragruntConfigPaths, terragruntOptions, howThesePathsWereFound)
+	modules, err := resolveModules(canonicalTerragruntConfigPaths, terragruntOptions, childTerragruntConfig, howThesePathsWereFound)
 	if err != nil {
 		return []*TerraformModule{}, err
 	}
 
-	externalDependencies, err := resolveExternalDependenciesForModules(modules, map[string]*TerraformModule{}, 0, terragruntOptions)
+	externalDependencies, err := resolveExternalDependenciesForModules(modules, map[string]*TerraformModule{}, 0, terragruntOptions, childTerragruntConfig)
 	if err != nil {
 		return []*TerraformModule{}, err
 	}
@@ -292,11 +292,27 @@ func flagModulesThatDontInclude(modules []*TerraformModule, terragruntOptions *o
 // Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents
 // into a TerraformModule struct. Note that this method will NOT fill in the Dependencies field of the TerraformModule
 // struct (see the crosslinkDependencies method for that). Return a map from module path to TerraformModule struct.
-func resolveModules(canonicalTerragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions, howTheseModulesWereFound string) (map[string]*TerraformModule, error) {
+func resolveModules(canonicalTerragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions, childTerragruntConfig *config.TerragruntConfig, howTheseModulesWereFound string) (map[string]*TerraformModule, error) {
 	moduleMap := map[string]*TerraformModule{}
 
 	for _, terragruntConfigPath := range canonicalTerragruntConfigPaths {
-		module, err := resolveTerraformModule(terragruntConfigPath, terragruntOptions, howTheseModulesWereFound)
+
+		// Clone the options struct so we don't modify the original one. This is especially important as run-all operations
+		// happen concurrently.
+		opts := terragruntOptions.Clone(terragruntConfigPath)
+
+		// We need to reset the original path for each module. Otherwise, this path will be set to wherever you ran run-all
+		// from, which is not what any of the modules will want.
+		opts.OriginalTerragruntConfigPath = terragruntConfigPath
+
+		var includeConfig *config.IncludeConfig
+
+		if childTerragruntConfig != nil && childTerragruntConfig.ProcessedIncludes.ContainsPath(terragruntConfigPath) {
+			includeConfig = &config.IncludeConfig{Path: terragruntConfigPath}
+			opts.TerragruntConfigPath = terragruntOptions.OriginalTerragruntConfigPath
+		}
+
+		module, err := resolveTerraformModule(terragruntConfigPath, opts, includeConfig, howTheseModulesWereFound)
 		if err != nil {
 			return moduleMap, err
 		}
@@ -311,26 +327,10 @@ func resolveModules(canonicalTerragruntConfigPaths []string, terragruntOptions *
 // Create a TerraformModule struct for the Terraform module specified by the given Terragrunt configuration file path.
 // Note that this method will NOT fill in the Dependencies field of the TerraformModule struct (see the
 // crosslinkDependencies method for that).
-func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *options.TerragruntOptions, howThisModuleWasFound string) (*TerraformModule, error) {
+func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *options.TerragruntOptions, includeConfig *config.IncludeConfig, howThisModuleWasFound string) (*TerraformModule, error) {
 	modulePath, err := util.CanonicalPath(filepath.Dir(terragruntConfigPath), ".")
 	if err != nil {
 		return nil, err
-	}
-
-	// Clone the options struct so we don't modify the original one. This is especially important as run-all operations
-	// happen concurrently.
-	opts := terragruntOptions.Clone(terragruntConfigPath)
-
-	var includeConfig *config.IncludeConfig
-
-	// We need to reset the original path for each module. Otherwise, this path will be set to wherever you ran run-all
-	// from, which is not what any of the modules will want.
-	if opts.OriginalTerragruntConfigPath == "" {
-		opts.OriginalTerragruntConfigPath = terragruntConfigPath
-	}
-
-	if opts.OriginalTerragruntConfigPath != terragruntConfigPath {
-		includeConfig = &config.IncludeConfig{Path: terragruntConfigPath}
 	}
 
 	// We only partially parse the config, only using the pieces that we need in this section. This config will be fully
@@ -338,7 +338,7 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 	// before we call out to terraform.
 	terragruntConfig, err := config.PartialParseConfigFile(
 		terragruntConfigPath,
-		opts,
+		terragruntOptions,
 		includeConfig,
 		[]config.PartialDecodeSectionType{
 			// Need for initializing the modules
@@ -357,7 +357,7 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 	if err != nil {
 		return nil, err
 	}
-	opts.Source = terragruntSource
+	terragruntOptions.Source = terragruntSource
 
 	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(terragruntOptions.TerragruntConfigPath)
 	if err != nil {
@@ -372,7 +372,7 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 			return nil, err
 		}
 		terragruntOptions.Logger.Debugf("Setting download directory for module %s to %s", modulePath, downloadDir)
-		opts.DownloadDir = downloadDir
+		terragruntOptions.DownloadDir = downloadDir
 	}
 
 	// Fix for https://github.com/gruntwork-io/terragrunt/issues/208
@@ -385,11 +385,11 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 		return nil, nil
 	}
 
-	if opts.IncludeModulePrefix {
-		opts.OutputPrefix = fmt.Sprintf("[%v] ", modulePath)
+	if terragruntOptions.IncludeModulePrefix {
+		terragruntOptions.OutputPrefix = fmt.Sprintf("[%v] ", modulePath)
 	}
 
-	return &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil
+	return &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: terragruntOptions}, nil
 }
 
 // Look through the dependencies of the modules in the given map and resolve the "external" dependency paths listed in
@@ -398,7 +398,7 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 // environment the user is trying to apply-all or destroy-all. Therefore, this method also confirms whether the user wants
 // to actually apply those dependencies or just assume they are already applied. Note that this method will NOT fill in
 // the Dependencies field of the TerraformModule struct (see the crosslinkDependencies method for that).
-func resolveExternalDependenciesForModules(moduleMap map[string]*TerraformModule, modulesAlreadyProcessed map[string]*TerraformModule, recursionLevel int, terragruntOptions *options.TerragruntOptions) (map[string]*TerraformModule, error) {
+func resolveExternalDependenciesForModules(moduleMap map[string]*TerraformModule, modulesAlreadyProcessed map[string]*TerraformModule, recursionLevel int, terragruntOptions *options.TerragruntOptions, childTerragruntConfig *config.TerragruntConfig) (map[string]*TerraformModule, error) {
 	allExternalDependencies := map[string]*TerraformModule{}
 	modulesToSkip := mergeMaps(moduleMap, modulesAlreadyProcessed)
 
@@ -410,7 +410,7 @@ func resolveExternalDependenciesForModules(moduleMap map[string]*TerraformModule
 	sortedKeys := getSortedKeys(moduleMap)
 	for _, key := range sortedKeys {
 		module := moduleMap[key]
-		externalDependencies, err := resolveExternalDependenciesForModule(module, modulesToSkip, terragruntOptions)
+		externalDependencies, err := resolveExternalDependenciesForModule(module, modulesToSkip, terragruntOptions, childTerragruntConfig)
 		if err != nil {
 			return externalDependencies, err
 		}
@@ -434,7 +434,7 @@ func resolveExternalDependenciesForModules(moduleMap map[string]*TerraformModule
 	}
 
 	if len(allExternalDependencies) > 0 {
-		recursiveDependencies, err := resolveExternalDependenciesForModules(allExternalDependencies, moduleMap, recursionLevel+1, terragruntOptions)
+		recursiveDependencies, err := resolveExternalDependenciesForModules(allExternalDependencies, moduleMap, recursionLevel+1, terragruntOptions, childTerragruntConfig)
 		if err != nil {
 			return allExternalDependencies, err
 		}
@@ -449,7 +449,7 @@ func resolveExternalDependenciesForModules(moduleMap map[string]*TerraformModule
 // dependencies are outside of the current working directory, which means they may not be part of the environment the
 // user is trying to apply-all or destroy-all. Note that this method will NOT fill in the Dependencies field of the
 // TerraformModule struct (see the crosslinkDependencies method for that).
-func resolveExternalDependenciesForModule(module *TerraformModule, moduleMap map[string]*TerraformModule, terragruntOptions *options.TerragruntOptions) (map[string]*TerraformModule, error) {
+func resolveExternalDependenciesForModule(module *TerraformModule, moduleMap map[string]*TerraformModule, terragruntOptions *options.TerragruntOptions, chilTerragruntConfig *config.TerragruntConfig) (map[string]*TerraformModule, error) {
 	if module.Config.Dependencies == nil || len(module.Config.Dependencies.Paths) == 0 {
 		return map[string]*TerraformModule{}, nil
 	}
@@ -468,7 +468,7 @@ func resolveExternalDependenciesForModule(module *TerraformModule, moduleMap map
 	}
 
 	howThesePathsWereFound := fmt.Sprintf("dependency of module at '%s'", module.Path)
-	return resolveModules(externalTerragruntConfigPaths, terragruntOptions, howThesePathsWereFound)
+	return resolveModules(externalTerragruntConfigPaths, terragruntOptions, chilTerragruntConfig, howThesePathsWereFound)
 }
 
 // Confirm with the user whether they want Terragrunt to assume the given dependency of the given module is already
@@ -584,6 +584,7 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 	var matchedModulesMap = make(map[string]*TerraformModule)
 	var gitTopLevelDir = ""
 	gitTopLevelDir, err := shell.GitTopLevelDir(terragruntOptions, terragruntOptions.WorkingDir)
+
 	if err == nil { // top level detection worked
 		pathsToCheck = append(pathsToCheck, gitTopLevelDir)
 	} else { // detection failed, trying to use include directories as source for stacks
@@ -602,15 +603,17 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 			terragruntOptions.Logger.Debugf("Failed to build terragrunt options from %s %v", dir, err)
 			return nil
 		}
+
 		cfgOptions.Env = terragruntOptions.Env
-		cfgOptions.OriginalTerragruntConfigPath = terragruntOptions.OriginalTerragruntConfigPath
 		cfgOptions.LogLevel = terragruntOptions.LogLevel
+		cfgOptions.OriginalTerragruntConfigPath = terragruntOptions.TerragruntConfigPath
 
 		if terragruntOptions.TerraformCommand == "destroy" {
 			var hook = NewForceLogLevelHook(logrus.DebugLevel)
 			cfgOptions.Logger.Logger.AddHook(hook)
 		}
-		stack, err := FindStackInSubfolders(cfgOptions)
+
+		stack, err := FindStackInSubfolders(cfgOptions, terragruntConfig)
 		if err != nil {
 			// loggign error as debug since in some cases stack building may fail because parent files can be designed
 			// to work with relative paths from downstream modules
