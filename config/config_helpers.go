@@ -572,13 +572,19 @@ func readTerragruntConfigAsFuncImpl(terragruntOptions *options.TerragruntOptions
 				defaultVal = &args[1]
 			}
 
-			configPath := terragruntOptions.TerragruntConfigPath
-			if trackInclude.Original != nil {
-				configPath = trackInclude.Original.Path
-			}
-			configPath = filepath.Join(filepath.Dir(configPath), strArgs[0])
+			configPath := strArgs[0]
 
-			return readTerragruntConfig(configPath, defaultVal, terragruntOptions)
+			if !filepath.IsAbs(configPath) {
+				currentConfigPath := terragruntOptions.TerragruntConfigPath
+				if trackInclude.Original != nil {
+					currentConfigPath = trackInclude.Original.Path
+				}
+
+				configPath = filepath.Join(filepath.Dir(currentConfigPath), configPath)
+			}
+
+			relativePath, err := readTerragruntConfig(configPath, defaultVal, terragruntOptions)
+			return relativePath, err
 		},
 	})
 }
