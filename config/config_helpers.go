@@ -517,11 +517,7 @@ func getAWSCallerIdentityUserID(trackInclude *TrackInclude, terragruntOptions *o
 
 // Parse the terragrunt config and return a representation that can be used as a reference. If given a default value,
 // this will return the default if the terragrunt config file does not exist.
-func readTerragruntConfig(configPath string, defaultVal *cty.Value, terragruntOptions *options.TerragruntOptions) (cty.Value, error) {
-	// target config check: make sure the target config exists. If the file does not exist, and there is no default val,
-	// return an error. If the file does not exist but there is a default val, return the default val. Otherwise,
-	// proceed to parse the file as a terragrunt config file.
-	targetConfig := getCleanedTargetConfigPath(configPath, terragruntOptions.TerragruntConfigPath)
+func readTerragruntConfig(targetConfig string, defaultVal *cty.Value, terragruntOptions *options.TerragruntOptions) (cty.Value, error) {
 	targetConfigFileExists := util.FileExists(targetConfig)
 	if !targetConfigFileExists && defaultVal == nil {
 		return cty.NilVal, errors.WithStackTrace(TerragruntConfigNotFound{Path: targetConfig})
@@ -572,18 +568,19 @@ func readTerragruntConfigAsFuncImpl(terragruntOptions *options.TerragruntOptions
 				defaultVal = &args[1]
 			}
 
-			configPath := strArgs[0]
+			targetConfigPath := strArgs[0]
 
-			if !filepath.IsAbs(configPath) {
-				currentConfigPath := terragruntOptions.TerragruntConfigPath
-				if trackInclude.Original != nil {
-					currentConfigPath = trackInclude.Original.Path
-				}
-
-				configPath = filepath.Join(filepath.Dir(currentConfigPath), configPath)
+			currentConfigPath := terragruntOptions.TerragruntConfigPath
+			if trackInclude.Original != nil {
+				currentConfigPath = trackInclude.Original.Path
 			}
 
-			relativePath, err := readTerragruntConfig(configPath, defaultVal, terragruntOptions)
+			// target config check: make sure the target config exists. If the file does not exist, and there is no default val,
+			// return an error. If the file does not exist but there is a default val, return the default val. Otherwise,
+			// proceed to parse the file as a terragrunt config file.
+			targetConfigPath = getCleanedTargetConfigPath(targetConfigPath, currentConfigPath)
+
+			relativePath, err := readTerragruntConfig(targetConfigPath, defaultVal, terragruntOptions)
 			return relativePath, err
 		},
 	})
