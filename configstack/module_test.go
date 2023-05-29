@@ -93,10 +93,43 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 	t.Parallel()
 
 	childDir := "../test/fixture-modules/module-m/module-m-child"
-	childConfig := filepath.Join(childDir, config.DefaultTerragruntConfigPath)
+	childConfigPath := filepath.Join(childDir, config.DefaultTerragruntConfigPath)
 
 	parentDir := "../test/fixture-modules/module-m"
-	parentCofnig := filepath.Join(parentDir, config.DefaultTerragruntConfigPath)
+	parentCofnigPath := filepath.Join(parentDir, config.DefaultTerragruntConfigPath)
+
+	localsConfigPaths := map[string]string{
+		"env_vars":  "../test/fixture-modules/module-m/env.hcl",
+		"tier_vars": "../test/fixture-modules/module-m/module-m-child/tier.hcl",
+	}
+
+	localsConfigs := make(map[string]interface{})
+
+	for name, configPath := range localsConfigPaths {
+		opts, err := options.NewTerragruntOptions(configPath)
+		assert.Nil(t, err)
+
+		cfg, err := config.PartialParseConfigFile(configPath, opts, nil, nil)
+		assert.Nil(t, err)
+
+		localsConfigs[name] = map[string]interface{}{
+			"dependencies":                  interface{}(nil),
+			"download_dir":                  "",
+			"generate":                      map[string]interface{}{},
+			"iam_assume_role_duration":      interface{}(nil),
+			"iam_assume_role_session_name":  "",
+			"iam_role":                      "",
+			"inputs":                        interface{}(nil),
+			"locals":                        cfg.Locals,
+			"retry_max_attempts":            interface{}(nil),
+			"retry_sleep_interval_sec":      interface{}(nil),
+			"retryable_errors":              interface{}(nil),
+			"skip":                          false,
+			"terraform_binary":              "",
+			"terraform_version_constraint":  "",
+			"terragrunt_version_constraint": "",
+		}
+	}
 
 	moduleM := &TerraformModule{
 		Path:         canonical(t, childDir),
@@ -107,62 +140,23 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 			ProcessedIncludes: map[string]config.IncludeConfig{
 				"": {Path: canonical(t, "../test/fixture-modules/module-m/terragrunt.hcl")},
 			},
-			Locals: map[string]interface{}{
-				"env_vars": map[string]interface{}{
-					"dependencies":                 interface{}(nil),
-					"download_dir":                 "",
-					"generate":                     map[string]interface{}{},
-					"iam_assume_role_duration":     interface{}(nil),
-					"iam_assume_role_session_name": "",
-					"iam_role":                     "",
-					"inputs":                       interface{}(nil),
-					"locals": map[string]interface{}{
-						"environment": "dev",
-					},
-					"retry_max_attempts":            interface{}(nil),
-					"retry_sleep_interval_sec":      interface{}(nil),
-					"retryable_errors":              interface{}(nil),
-					"skip":                          false,
-					"terraform_binary":              "",
-					"terraform_version_constraint":  "",
-					"terragrunt_version_constraint": "",
-				},
-				"tier_vars": map[string]interface{}{
-					"dependencies":                 interface{}(nil),
-					"download_dir":                 "",
-					"generate":                     map[string]interface{}{},
-					"iam_assume_role_duration":     interface{}(nil),
-					"iam_assume_role_session_name": "",
-					"iam_role":                     "",
-					"inputs":                       interface{}(nil),
-					"locals": map[string]interface{}{
-						"tier": "base",
-					},
-					"retry_max_attempts":            interface{}(nil),
-					"retry_sleep_interval_sec":      interface{}(nil),
-					"retryable_errors":              interface{}(nil),
-					"skip":                          false,
-					"terraform_binary":              "",
-					"terraform_version_constraint":  "",
-					"terragrunt_version_constraint": "",
-				},
-			},
+			Locals: localsConfigs,
 		},
-		TerragruntOptions: mockOptions.Clone(canonical(t, childConfig)),
+		TerragruntOptions: mockOptions.Clone(canonical(t, childConfigPath)),
 	}
 
-	configPaths := []string{childConfig}
+	configPaths := []string{childConfigPath}
 	childTerragruntConfig := &config.TerragruntConfig{
 		ProcessedIncludes: map[string]config.IncludeConfig{
 			"": {
-				Path: parentCofnig,
+				Path: parentCofnigPath,
 			},
 		},
 	}
 	expected := []*TerraformModule{moduleM}
 
 	mockOptions, _ := options.NewTerragruntOptionsForTest("running_module_test")
-	mockOptions.OriginalTerragruntConfigPath = childConfig
+	mockOptions.OriginalTerragruntConfigPath = childConfigPath
 
 	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, childTerragruntConfig, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
