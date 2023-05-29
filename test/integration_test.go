@@ -2977,7 +2977,7 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	require.True(t, hasVal)
 	require.Equal(t, "something else", val.Value)
 
-	// try to destroy vpc module and check if warning is printed in output
+	// try to destroy module and check if warning is printed in output, also test `get_parent_terragrunt_dir()` func in the parent terragrunt config.
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
 
