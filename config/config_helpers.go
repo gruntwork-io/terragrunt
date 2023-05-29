@@ -121,7 +121,7 @@ func CreateTerragruntEvalContext(
 		"path_relative_from_include":                   wrapStringSliceToStringAsFuncImpl(pathRelativeFromInclude, extensions.TrackInclude, terragruntOptions),
 		"get_env":                                      wrapStringSliceToStringAsFuncImpl(getEnvironmentVariable, extensions.TrackInclude, terragruntOptions),
 		"run_cmd":                                      wrapStringSliceToStringAsFuncImpl(runCommand, extensions.TrackInclude, terragruntOptions),
-		"read_terragrunt_config":                       readTerragruntConfigAsFuncImpl(terragruntOptions, extensions.TrackInclude),
+		"read_terragrunt_config":                       readTerragruntConfigAsFuncImpl(terragruntOptions),
 		"get_platform":                                 wrapVoidToStringAsFuncImpl(getPlatform, extensions.TrackInclude, terragruntOptions),
 		"get_repo_root":                                wrapVoidToStringAsFuncImpl(getRepoRoot, extensions.TrackInclude, terragruntOptions),
 		"get_path_from_repo_root":                      wrapVoidToStringAsFuncImpl(getPathFromRepoRoot, extensions.TrackInclude, terragruntOptions),
@@ -517,7 +517,11 @@ func getAWSCallerIdentityUserID(trackInclude *TrackInclude, terragruntOptions *o
 
 // Parse the terragrunt config and return a representation that can be used as a reference. If given a default value,
 // this will return the default if the terragrunt config file does not exist.
-func readTerragruntConfig(targetConfig string, defaultVal *cty.Value, terragruntOptions *options.TerragruntOptions) (cty.Value, error) {
+func readTerragruntConfig(configPath string, defaultVal *cty.Value, terragruntOptions *options.TerragruntOptions) (cty.Value, error) {
+	// target config check: make sure the target config exists. If the file does not exist, and there is no default val,
+	// return an error. If the file does not exist but there is a default val, return the default val. Otherwise,
+	// proceed to parse the file as a terragrunt config file.
+	targetConfig := getCleanedTargetConfigPath(configPath, terragruntOptions.TerragruntConfigPath)
 	targetConfigFileExists := util.FileExists(targetConfig)
 	if !targetConfigFileExists && defaultVal == nil {
 		return cty.NilVal, errors.WithStackTrace(TerragruntConfigNotFound{Path: targetConfig})
@@ -544,7 +548,7 @@ func readTerragruntConfig(targetConfig string, defaultVal *cty.Value, terragrunt
 }
 
 // Create a cty Function that can be used to for calling read_terragrunt_config.
-func readTerragruntConfigAsFuncImpl(terragruntOptions *options.TerragruntOptions, trackInclude *TrackInclude) function.Function {
+func readTerragruntConfigAsFuncImpl(terragruntOptions *options.TerragruntOptions) function.Function {
 	return function.New(&function.Spec{
 		// Takes one required string param
 		Params: []function.Parameter{function.Parameter{Type: cty.String}},
@@ -569,16 +573,6 @@ func readTerragruntConfigAsFuncImpl(terragruntOptions *options.TerragruntOptions
 			}
 
 			targetConfigPath := strArgs[0]
-
-			currentConfigPath := terragruntOptions.TerragruntConfigPath
-			if trackInclude.Original != nil {
-				currentConfigPath = trackInclude.Original.Path
-			}
-
-			// target config check: make sure the target config exists. If the file does not exist, and there is no default val,
-			// return an error. If the file does not exist but there is a default val, return the default val. Otherwise,
-			// proceed to parse the file as a terragrunt config file.
-			targetConfigPath = getCleanedTargetConfigPath(targetConfigPath, currentConfigPath)
 
 			relativePath, err := readTerragruntConfig(targetConfigPath, defaultVal, terragruntOptions)
 			return relativePath, err
