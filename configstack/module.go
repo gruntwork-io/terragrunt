@@ -326,9 +326,8 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 	opts.OriginalTerragruntConfigPath = terragruntConfigPath
 
 	// If `childTerragruntConfig.ProcessedIncludes` contains the path `terragruntConfigPath`, then this is a parent config
-	// which implies that `TerragruntConfigPath` must have the child configuration path and defined `IncludeConfig`
-	// in order to the base directory for the `read-terragrunt-config()` function is the child directory,
-	// and the `path_relative_to_include()` function returns the relative path to the child configuration.
+	// which implies that `TerragruntConfigPath` must refer to a child configuration file, and the defined `IncludeConfig` must contain the path to the file itself
+	// for the built-in functions `read-terragrunt-config()`, `path_relative_to_include()` to work correctly.
 	var includeConfig *config.IncludeConfig
 	if childTerragruntConfig != nil && childTerragruntConfig.ProcessedIncludes.ContainsPath(terragruntConfigPath) {
 		includeConfig = &config.IncludeConfig{Path: terragruntConfigPath}
