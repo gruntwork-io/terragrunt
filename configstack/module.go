@@ -325,6 +325,9 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 	// from, which is not what any of the modules will want.
 	opts.OriginalTerragruntConfigPath = terragruntConfigPath
 
+	// If `childTerragruntConfig.ProcessedIncludes`  contains the path `terragruntConfigPath`, then this is a parent config
+	// which implies that `TerragruntConfigPath` must have the child configuration path and defined `IncludeConfig`
+	// in order to configuration functions such as `path_relative_from_include` works correctly.
 	var includeConfig *config.IncludeConfig
 	if childTerragruntConfig != nil && childTerragruntConfig.ProcessedIncludes.ContainsPath(terragruntConfigPath) {
 		includeConfig = &config.IncludeConfig{Path: terragruntConfigPath}
@@ -594,6 +597,7 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 			pathsToCheck = append(pathsToCheck, path)
 		}
 	}
+
 	for _, dir := range pathsToCheck { // iterate over detected paths, build stacks and filter modules by working dir
 		dir = dir + filepath.FromSlash("/")
 		cfgOptions, err := options.NewTerragruntOptions(dir)

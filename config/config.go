@@ -243,6 +243,7 @@ type terragruntGenerateBlock struct {
 
 type IncludeConfigs map[string]IncludeConfig
 
+// ContainsPath returns true if the given path is contained in at least one configuration.
 func (cfgs IncludeConfigs) ContainsPath(path string) bool {
 	for _, cfg := range cfgs {
 		if cfg.Path == path {

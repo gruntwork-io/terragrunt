@@ -115,6 +115,7 @@ const (
 	TEST_FIXTURE_RELATIVE_INCLUDE_CMD                       = "fixture-relative-include-cmd"
 	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                    = "fixture-get-aws-caller-identity"
 	TEST_FIXTURE_GET_REPO_ROOT                              = "fixture-get-repo-root"
+	TEST_FIXTURE_PATH_RELATIVE_FROM_INCLUDE                 = "fixture-get-path/fixture-path_relative_from_include"
 	TEST_FIXTURE_GET_PATH_FROM_REPO_ROOT                    = "fixture-get-path/fixture-get-path-from-repo-root"
 	TEST_FIXTURE_GET_PATH_TO_REPO_ROOT                      = "fixture-get-path/fixture-get-path-to-repo-root"
 	TEST_FIXTURE_GET_PLATFORM                               = "fixture-get-platform"
@@ -2946,37 +2947,44 @@ func TestGetRepoRoot(t *testing.T) {
 	require.Regexp(t, "/tmp/terragrunt-.*/fixture-get-repo-root", repoRoot.Value)
 }
 
-func TestGetPathFromRepoRoot(t *testing.T) {
+func TestPathRelativeFromInclude(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_GET_PATH_FROM_REPO_ROOT)
-	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_GET_PATH_FROM_REPO_ROOT))
-	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_PATH_FROM_REPO_ROOT)
+	cleanupTerraformFolder(t, TEST_FIXTURE_PATH_RELATIVE_FROM_INCLUDE)
+	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_PATH_RELATIVE_FROM_INCLUDE))
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PATH_RELATIVE_FROM_INCLUDE, "lives/dev")
+	basePath := util.JoinPath(rootPath, "base")
+	clusterPath := util.JoinPath(rootPath, "cluster")
 
 	output, err := exec.Command("git", "init", tmpEnvPath).CombinedOutput()
 	if err != nil {
 		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
 	}
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	require.NoError(
-		t,
-		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
-	)
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", clusterPath), &stdout, &stderr)
+	assert.NoError(t, err)
 
 	outputs := map[string]TerraformOutput{}
-
 	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
 
-	pathFromRoot, hasPathFromRoot := outputs["path_from_root"]
+	val, hasVal := outputs["some_output"]
+	require.True(t, hasVal)
+	require.Equal(t, "something else", val.Value)
 
-	require.True(t, hasPathFromRoot)
-	require.Equal(t, TEST_FIXTURE_GET_PATH_FROM_REPO_ROOT, pathFromRoot.Value)
+	// try to destroy vpc module and check if warning is printed in output
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", basePath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	assert.Contains(t, stderr.String(), fmt.Sprintf("Detected dependent modules:\n%s", clusterPath))
 }
 
 func TestGetPathToRepoRoot(t *testing.T) {
