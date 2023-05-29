@@ -583,9 +583,8 @@ func getSortedKeys(modules map[string]*TerraformModule) []string {
 func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []*TerraformModule {
 	var pathsToCheck []string
 	var matchedModulesMap = make(map[string]*TerraformModule)
-	var gitTopLevelDir = ""
-	gitTopLevelDir, err := shell.GitTopLevelDir(terragruntOptions, terragruntOptions.WorkingDir)
 
+	gitTopLevelDir, err := shell.GitTopLevelDir(terragruntOptions, terragruntOptions.WorkingDir)
 	if err == nil { // top level detection worked
 		pathsToCheck = append(pathsToCheck, gitTopLevelDir)
 	} else { // detection failed, trying to use include directories as source for stacks
@@ -608,7 +607,7 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 
 		cfgOptions.Env = terragruntOptions.Env
 		cfgOptions.LogLevel = terragruntOptions.LogLevel
-		cfgOptions.OriginalTerragruntConfigPath = terragruntOptions.TerragruntConfigPath
+		cfgOptions.OriginalTerragruntConfigPath = terragruntOptions.OriginalTerragruntConfigPath
 
 		if terragruntOptions.TerraformCommand == "destroy" {
 			var hook = NewForceLogLevelHook(logrus.DebugLevel)
