@@ -71,9 +71,20 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		terragruntConfigPath = config.GetDefaultConfigPath(workingDir)
 	}
 
-	terragruntHclFilePath, err := parseStringArg(args, optTerragruntHCLFmt, "")
+	terragruntHclFilesPathsDeprecated, err := parseMultiStringArg(args, optTerragruntHCLFmtDeprecated, nil)
 	if err != nil {
 		return nil, err
+	}
+
+	terragruntHclFilesPaths, err := parseMultiStringArg(args, optTerragruntHCLFmt, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if terragruntHclFilesPaths == nil {
+		terragruntHclFilesPaths = terragruntHclFilesPathsDeprecated
+	} else if terragruntHclFilesPathsDeprecated != nil {
+		terragruntHclFilesPaths = append(terragruntHclFilesPaths, terragruntHclFilesPathsDeprecated...)
 	}
 
 	awsProviderPatchOverrides, err := parseMutliStringKeyValueArg(args, optTerragruntOverrideAttr, nil)
@@ -232,7 +243,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.ModulesThatInclude = modulesThatInclude
 	opts.StrictInclude = strictInclude
 	opts.Check = parseBooleanArg(args, optTerragruntCheck, os.Getenv("TERRAGRUNT_CHECK") == "true")
-	opts.HclFile = filepath.ToSlash(terragruntHclFilePath)
+	opts.HclFiles = util.CleanPaths(terragruntHclFilesPaths)
 	opts.AwsProviderPatchOverrides = awsProviderPatchOverrides
 	opts.FetchDependencyOutputFromState = parseBooleanArg(args, optTerragruntFetchDependencyOutputFromState, os.Getenv("TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE") == "true")
 	opts.UsePartialParseConfigCache = parseBooleanArg(args, optTerragruntUsePartialParseConfigCache, os.Getenv("TERRAGRUNT_USE_PARTIAL_PARSE_CONFIG_CACHE") == "true")
@@ -359,7 +370,7 @@ func filterTerragruntArgs(args []string) []string {
 func logIfDeprecatedOption(optionName string) {
 	newOption, deprecated := deprecatedArguments[optionName]
 	if deprecated {
-		util.GlobalFallbackLogEntry.Warnf("Command line option %s is deprecated, please consider using %s", optionName, newOption)
+		util.GlobalFallbackLogEntry.Warnf("Command line option '--%s' is deprecated, please consider using '--%s'", optionName, newOption)
 	}
 }
 
@@ -462,23 +473,38 @@ func parseIntArg(args []string, argName string, envValue string, envProvided boo
 	return defaultValue, nil
 }
 
-// Find multiple string arguments of the same type (e.g. --foo "VALUE_A" --foo "VALUE_B") of the given name in the given list of arguments. If there are any present,
+// Find multiple string arguments of the same type (e.g. --foo "VALUE_A" "VALUE_B" --foo "VALUE_C") of the given name in the given list of arguments. If there are any present,
 // return a list of all values. If there are any present, but one of them has no value, return an error. If there aren't any present, return defaultValue.
 func parseMultiStringArg(args []string, argName string, defaultValue []string) ([]string, error) {
 	stringArgs := []string{}
 
 	for i, arg := range args {
 		var nextArg *string
-		if (i + 1) < len(args) {
-			nextArg = &args[i+1]
-		}
-		val, hasVal, err := getOptionArgIfMatched(arg, nextArg, argName)
-		if err != nil {
-			return nil, err
-		} else if hasVal {
-			stringArgs = append(stringArgs, val)
+		for j := i + 1; j < len(args); j++ {
+			nextArg = &args[j]
+			if strings.HasPrefix(*nextArg, "--") {
+				if j == i+1 {
+					nextArg = nil
+				} else {
+					break
+				}
+			}
+			val, hasVal, err := getOptionArgIfMatched(arg, nextArg, argName)
+			if err != nil {
+				return nil, err
+			} else if hasVal {
+				stringArgs = append(stringArgs, val)
+			}
 		}
 	}
+
+	// Check when last arg has no value `--foo "VALUE_A" --foo`
+	if len(args) != 0 {
+		if _, _, err := getOptionArgIfMatched(args[len(args)-1], nil, argName); err != nil {
+			return nil, err
+		}
+	}
+
 	if len(stringArgs) == 0 {
 		return defaultValue, nil
 	}

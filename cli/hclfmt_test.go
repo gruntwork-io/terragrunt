@@ -211,17 +211,17 @@ func TestHCLFmtFile(t *testing.T) {
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	// format only the hcl file contained within the a subdirectory of the fixture
-	tgOptions.HclFile = "a/terragrunt.hcl"
+	// format only the specified terragrunt files
+	tgOptions.HclFiles = []string{"a/terragrunt.hcl", "terragrunt.hcl"}
 	tgOptions.WorkingDir = tmpPath
 	err = runHCLFmt(tgOptions)
 	require.NoError(t, err)
 
 	// test that the formatting worked on the specified file
 	t.Run("formatted", func(t *testing.T) {
-		t.Run(tgOptions.HclFile, func(t *testing.T) {
+		t.Run("specified files", func(t *testing.T) {
 			t.Parallel()
-			tgHclPath := filepath.Join(tmpPath, tgOptions.HclFile)
+			tgHclPath := filepath.Join(tmpPath, tgOptions.HclFiles[0])
 			formatted, err := ioutil.ReadFile(tgHclPath)
 			require.NoError(t, err)
 			assert.Equal(t, expected, formatted)
@@ -229,17 +229,17 @@ func TestHCLFmtFile(t *testing.T) {
 	})
 
 	dirs := []string{
-		"terragrunt.hcl",
 		"a/b/c/terragrunt.hcl",
+		"a/b/c/d/services.hcl",
 	}
-
-	original, err := ioutil.ReadFile("../test/fixture-hclfmt/terragrunt.hcl")
-	require.NoError(t, err)
 
 	// test that none of the other files were formatted
 	for _, dir := range dirs {
 		// Capture range variable into for block so it doesn't change while looping
 		dir := dir
+
+		original, err := ioutil.ReadFile(filepath.Join("../test/fixture-hclfmt/", dir))
+		require.NoError(t, err)
 
 		// Create a synchronous subtest to group the child tests so that they can run in parallel while honoring cleanup
 		// routines in the main test.

@@ -158,7 +158,6 @@ func TestFileManifest(t *testing.T) {
 	for _, file := range testfiles {
 		assert.Equal(t, FileExists(file), false)
 	}
-
 }
 
 func TestSplitPath(t *testing.T) {
@@ -276,4 +275,16 @@ func TestIncludeInCopy(t *testing.T) {
 				!testCase.copyExpected && errors.Is(err, os.ErrNotExist),
 			"Unexpected copy result for file '%s' (should be copied: '%t') - got error: %s", testCase.path, testCase.copyExpected, err)
 	}
+}
+
+func TestCleanPaths(t *testing.T) {
+	paths := []string{".", "/", "/a/b", "a//b"}
+	expected := []string{
+		".",
+		string(filepath.Separator),
+		string([]byte{filepath.Separator, 'a', filepath.Separator, 'b'}),
+		string([]byte{'a', filepath.Separator, 'b'}),
+	}
+	actual := CleanPaths(paths)
+	assert.Equal(t, expected, actual)
 }
