@@ -100,7 +100,11 @@ func formatTgHCL(terragruntOptions *options.TerragruntOptions, tgHclFile string)
 			terragruntOptions.Logger.Errorf("Failed to generate diff for %s", tgHclFile)
 			return err
 		}
-		fmt.Fprintf(terragruntOptions.Writer, "%s\n", diff)
+		_, err = fmt.Fprintf(terragruntOptions.Writer, "%s\n", diff)
+		if err != nil {
+			terragruntOptions.Logger.Errorf("Failed to print diff for %s", tgHclFile)
+			return err
+		}
 	}
 
 	if terragruntOptions.Check && fileUpdated {
