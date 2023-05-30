@@ -3,6 +3,7 @@ package configstack
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -23,7 +24,7 @@ func TestResolveTerraformModulesNoPaths(t *testing.T) {
 	configPaths := []string{}
 	expected := []*TerraformModule{}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -41,7 +42,7 @@ func TestResolveTerraformModulesOneModuleNoDependencies(t *testing.T) {
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath}
 	expected := []*TerraformModule{moduleA}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -59,7 +60,7 @@ func TestResolveTerraformModulesOneJsonModuleNoDependencies(t *testing.T) {
 	configPaths := []string{"../test/fixture-modules/json-module-a/" + config.DefaultTerragruntJsonConfigPath}
 	expected := []*TerraformModule{moduleA}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -83,7 +84,81 @@ func TestResolveTerraformModulesOneModuleWithIncludesNoDependencies(t *testing.T
 	configPaths := []string{"../test/fixture-modules/module-b/module-b-child/" + config.DefaultTerragruntConfigPath}
 	expected := []*TerraformModule{moduleB}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
+	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
+	t.Parallel()
+
+	childDir := "../test/fixture-modules/module-m/module-m-child"
+	childConfigPath := filepath.Join(childDir, config.DefaultTerragruntConfigPath)
+
+	parentDir := "../test/fixture-modules/module-m"
+	parentCofnigPath := filepath.Join(parentDir, config.DefaultTerragruntConfigPath)
+
+	localsConfigPaths := map[string]string{
+		"env_vars":  "../test/fixture-modules/module-m/env.hcl",
+		"tier_vars": "../test/fixture-modules/module-m/module-m-child/tier.hcl",
+	}
+
+	localsConfigs := make(map[string]interface{})
+
+	for name, configPath := range localsConfigPaths {
+		opts, err := options.NewTerragruntOptions(configPath)
+		assert.Nil(t, err)
+
+		cfg, err := config.PartialParseConfigFile(configPath, opts, nil, nil)
+		assert.Nil(t, err)
+
+		localsConfigs[name] = map[string]interface{}{
+			"dependencies":                  interface{}(nil),
+			"download_dir":                  "",
+			"generate":                      map[string]interface{}{},
+			"iam_assume_role_duration":      interface{}(nil),
+			"iam_assume_role_session_name":  "",
+			"iam_role":                      "",
+			"inputs":                        interface{}(nil),
+			"locals":                        cfg.Locals,
+			"retry_max_attempts":            interface{}(nil),
+			"retry_sleep_interval_sec":      interface{}(nil),
+			"retryable_errors":              interface{}(nil),
+			"skip":                          false,
+			"terraform_binary":              "",
+			"terraform_version_constraint":  "",
+			"terragrunt_version_constraint": "",
+		}
+	}
+
+	moduleM := &TerraformModule{
+		Path:         canonical(t, childDir),
+		Dependencies: []*TerraformModule{},
+		Config: config.TerragruntConfig{
+			Terraform: &config.TerraformConfig{Source: ptr("...")},
+			IsPartial: true,
+			ProcessedIncludes: map[string]config.IncludeConfig{
+				"": {Path: canonical(t, "../test/fixture-modules/module-m/terragrunt.hcl")},
+			},
+			Locals: localsConfigs,
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, childConfigPath)),
+	}
+
+	configPaths := []string{childConfigPath}
+	childTerragruntConfig := &config.TerragruntConfig{
+		ProcessedIncludes: map[string]config.IncludeConfig{
+			"": {
+				Path: parentCofnigPath,
+			},
+		},
+	}
+	expected := []*TerraformModule{moduleM}
+
+	mockOptions, _ := options.NewTerragruntOptionsForTest("running_module_test")
+	mockOptions.OriginalTerragruntConfigPath = childConfigPath
+
+	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, childTerragruntConfig, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -107,7 +182,7 @@ func TestResolveTerraformModulesOneJsonModuleWithIncludesNoDependencies(t *testi
 	configPaths := []string{"../test/fixture-modules/json-module-b/module-b-child/" + config.DefaultTerragruntJsonConfigPath}
 	expected := []*TerraformModule{moduleB}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -131,7 +206,7 @@ func TestResolveTerraformModulesOneHclModuleWithIncludesNoDependencies(t *testin
 	configPaths := []string{"../test/fixture-modules/hcl-module-b/module-b-child/" + config.DefaultTerragruntConfigPath}
 	expected := []*TerraformModule{moduleB}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -163,7 +238,7 @@ func TestResolveTerraformModulesTwoModulesWithDependencies(t *testing.T) {
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath}
 	expected := []*TerraformModule{moduleA, moduleC}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -195,7 +270,7 @@ func TestResolveTerraformModulesJsonModulesWithHclDependencies(t *testing.T) {
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/json-module-c/" + config.DefaultTerragruntJsonConfigPath}
 	expected := []*TerraformModule{moduleA, moduleC}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -227,7 +302,7 @@ func TestResolveTerraformModulesHclModulesWithJsonDependencies(t *testing.T) {
 	configPaths := []string{"../test/fixture-modules/json-module-a/" + config.DefaultTerragruntJsonConfigPath, "../test/fixture-modules/hcl-module-c/" + config.DefaultTerragruntConfigPath}
 	expected := []*TerraformModule{moduleA, moduleC}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -261,7 +336,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, nil, mockHowThesePathsWereFound)
 
 	// construct the expected list
 	moduleA.FlagExcluded = true
@@ -311,7 +386,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-abba/" + config.DefaultTerragruntConfigPath}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, nil, mockHowThesePathsWereFound)
 
 	// construct the expected list
 	moduleA.FlagExcluded = true
@@ -361,7 +436,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-abba/" + config.DefaultTerragruntConfigPath}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, nil, mockHowThesePathsWereFound)
 
 	// construct the expected list
 	moduleA.FlagExcluded = true
@@ -401,7 +476,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithNoDepe
 
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, nil, mockHowThesePathsWereFound)
 
 	// construct the expected list
 	moduleC.FlagExcluded = true
@@ -440,7 +515,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, nil, mockHowThesePathsWereFound)
 
 	// construct the expected list
 	moduleA.FlagExcluded = false
@@ -479,7 +554,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithNoDepe
 
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, nil, mockHowThesePathsWereFound)
 
 	// construct the expected list
 	moduleC.FlagExcluded = true
@@ -527,7 +602,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-f/" + config.DefaultTerragruntConfigPath}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, nil, mockHowThesePathsWereFound)
 
 	// construct the expected list
 	moduleF.FlagExcluded = true
@@ -584,7 +659,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-b/module-b-child/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-d/" + config.DefaultTerragruntConfigPath}
 	expected := []*TerraformModule{moduleA, moduleB, moduleC, moduleD}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -636,7 +711,7 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/json-module-b/module-b-child/" + config.DefaultTerragruntJsonConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/json-module-d/" + config.DefaultTerragruntJsonConfigPath}
 	expected := []*TerraformModule{moduleA, moduleB, moduleC, moduleD}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -681,7 +756,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-b/module-b-child/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-e/module-e-child/" + config.DefaultTerragruntConfigPath}
 	expected := []*TerraformModule{moduleA, moduleB, moduleE}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -711,7 +786,7 @@ func TestResolveTerraformModulesMultipleModulesWithExternalDependencies(t *testi
 	configPaths := []string{"../test/fixture-modules/module-g/" + config.DefaultTerragruntConfigPath}
 	expected := []*TerraformModule{moduleF, moduleG}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -763,7 +838,7 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 	configPaths := []string{"../test/fixture-modules/module-j/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-k/" + config.DefaultTerragruntConfigPath}
 	expected := []*TerraformModule{moduleH, moduleI, moduleJ, moduleK}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	require.NoError(t, actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -773,7 +848,7 @@ func TestResolveTerraformModulesInvalidPaths(t *testing.T) {
 
 	configPaths := []string{"../test/fixture-modules/module-missing-dependency/" + config.DefaultTerragruntConfigPath}
 
-	_, actualErr := ResolveTerraformModules(configPaths, mockOptions, mockHowThesePathsWereFound)
+	_, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	require.Error(t, actualErr)
 
 	underlying, ok := errors.Unwrap(actualErr).(ErrorProcessingModule)
@@ -789,7 +864,7 @@ func TestResolveTerraformModuleNoTerraformConfig(t *testing.T) {
 	configPaths := []string{"../test/fixture-modules/module-l/" + config.DefaultTerragruntConfigPath}
 	expected := []*TerraformModule{}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }

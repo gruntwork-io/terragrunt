@@ -139,14 +139,14 @@ func (stack *Stack) CheckForCycles() error {
 
 // Find all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
 // assemble them into a Stack object that can be applied or destroyed in a single command
-func FindStackInSubfolders(terragruntOptions *options.TerragruntOptions) (*Stack, error) {
+func FindStackInSubfolders(terragruntOptions *options.TerragruntOptions, childTerragruntConfig *config.TerragruntConfig) (*Stack, error) {
 	terragruntConfigFiles, err := config.FindConfigFilesInPath(terragruntOptions.WorkingDir, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}
 
 	howThesePathsWereFound := fmt.Sprintf("Terragrunt config file found in a subdirectory of %s", terragruntOptions.WorkingDir)
-	return createStackForTerragruntConfigPaths(terragruntOptions.WorkingDir, terragruntConfigFiles, terragruntOptions, howThesePathsWereFound)
+	return createStackForTerragruntConfigPaths(terragruntOptions.WorkingDir, terragruntConfigFiles, terragruntOptions, childTerragruntConfig, howThesePathsWereFound)
 }
 
 // Sync the TerraformCliArgs for each module in the stack to match the provided terragruntOptions struct.
@@ -233,12 +233,12 @@ func (stack *Stack) getModuleRunGraph(terraformCommand string) ([][]*TerraformMo
 
 // Find all the Terraform modules in the folders that contain the given Terragrunt config files and assemble those
 // modules into a Stack object that can be applied or destroyed in a single command
-func createStackForTerragruntConfigPaths(path string, terragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions, howThesePathsWereFound string) (*Stack, error) {
+func createStackForTerragruntConfigPaths(path string, terragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions, childTerragruntConfig *config.TerragruntConfig, howThesePathsWereFound string) (*Stack, error) {
 	if len(terragruntConfigPaths) == 0 {
 		return nil, errors.WithStackTrace(NoTerraformModulesFound)
 	}
 
-	modules, err := ResolveTerraformModules(terragruntConfigPaths, terragruntOptions, howThesePathsWereFound)
+	modules, err := ResolveTerraformModules(terragruntConfigPaths, terragruntOptions, childTerragruntConfig, howThesePathsWereFound)
 	if err != nil {
 		return nil, err
 	}

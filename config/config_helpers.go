@@ -444,14 +444,15 @@ func pathRelativeToInclude(params []string, trackInclude *TrackInclude, terragru
 		return ".", nil
 	}
 
-	includePath := filepath.Dir(included.Path)
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+	includePath := filepath.Dir(included.Path)
 
 	if !filepath.IsAbs(includePath) {
 		includePath = util.JoinPath(currentPath, includePath)
 	}
 
-	return util.GetPathRelativeTo(currentPath, includePath)
+	relativePath, err := util.GetPathRelativeTo(currentPath, includePath)
+	return relativePath, err
 }
 
 // Return the relative path from the current Terragrunt configuration to the included Terragrunt configuration file
@@ -561,7 +562,7 @@ func readTerragruntConfigAsFuncImpl(terragruntOptions *options.TerragruntOptions
 				return cty.NilVal, errors.WithStackTrace(WrongNumberOfParams{Func: "read_terragrunt_config", Expected: "1 or 2", Actual: numParams})
 			}
 
-			configPath, err := ctySliceToStringSlice(args[:1])
+			strArgs, err := ctySliceToStringSlice(args[:1])
 			if err != nil {
 				return cty.NilVal, err
 			}
@@ -570,7 +571,11 @@ func readTerragruntConfigAsFuncImpl(terragruntOptions *options.TerragruntOptions
 			if numParams == 2 {
 				defaultVal = &args[1]
 			}
-			return readTerragruntConfig(configPath[0], defaultVal, terragruntOptions)
+
+			targetConfigPath := strArgs[0]
+
+			relativePath, err := readTerragruntConfig(targetConfigPath, defaultVal, terragruntOptions)
+			return relativePath, err
 		},
 	})
 }
