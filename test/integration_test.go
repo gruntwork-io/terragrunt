@@ -173,7 +173,7 @@ func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
 	)
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
-	output := stderr.String()
+	output := stdout.String()
 
 	if err != nil {
 		t.Errorf("Did not expect to get error: %s", err.Error())
@@ -204,8 +204,7 @@ func TestTerragruntInitHookNoSourceWithBackend(t *testing.T) {
 	)
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
-	output := stderr.String()
-
+	output := stdout.String()
 	if err != nil {
 		t.Errorf("Did not expect to get error: %s", err.Error())
 	}
@@ -260,7 +259,7 @@ func TestTerragruntInitHookWithSourceWithBackend(t *testing.T) {
 	)
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
-	output := stderr.String()
+	output := stdout.String()
 
 	if err != nil {
 		t.Errorf("Did not expect to get error: %s", err.Error())
@@ -359,7 +358,7 @@ func TestTerragruntBeforeAndAfterHook(t *testing.T) {
 	_, beforeException := ioutil.ReadFile(rootPath + "/before.out")
 	_, afterException := ioutil.ReadFile(rootPath + "/after.out")
 
-	output := stderr.String()
+	output := stdout.String()
 
 	if err != nil {
 		t.Errorf("Did not expect to get error: %s", err.Error())
@@ -427,7 +426,8 @@ func TestTerragruntSkipOnError(t *testing.T) {
 
 	assert.Error(t, err)
 
-	output := stderr.String()
+	output := stdout.String()
+	errOutput := stderr.String()
 
 	assert.Contains(t, output, "BEFORE_SHOULD_DISPLAY")
 	assert.NotContains(t, output, "BEFORE_NODISPLAY")
@@ -435,9 +435,9 @@ func TestTerragruntSkipOnError(t *testing.T) {
 	assert.Contains(t, output, "AFTER_SHOULD_DISPLAY")
 	assert.NotContains(t, output, "AFTER_NODISPLAY")
 
-	assert.Contains(t, output, "ERROR_HOOK_EXECUTED")
-	assert.NotContains(t, output, "NOT_MATCHING_ERROR_HOOK")
-	assert.Contains(t, output, "PATTERN_MATCHING_ERROR_HOOK")
+	assert.Contains(t, errOutput, "ERROR_HOOK_EXECUTED")
+	assert.NotContains(t, errOutput, "NOT_MATCHING_ERROR_HOOK")
+	assert.Contains(t, errOutput, "PATTERN_MATCHING_ERROR_HOOK")
 }
 
 func TestTerragruntCatchErrorsInTerraformExecution(t *testing.T) {
@@ -541,7 +541,7 @@ func TestTerragruntHookInterpolation(t *testing.T) {
 	)
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
-	erroutput := stderr.String()
+	output := stdout.String()
 
 	homePath := os.Getenv("HOME")
 	if homePath == "" {
@@ -552,7 +552,7 @@ func TestTerragruntHookInterpolation(t *testing.T) {
 		t.Errorf("Did not expect to get error: %s", err.Error())
 	}
 
-	assert.Contains(t, erroutput, homePath)
+	assert.Contains(t, output, homePath)
 
 }
 
@@ -3398,20 +3398,22 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 			},
 			"before_hook": map[string]interface{}{
 				"before_hook_1": map[string]interface{}{
-					"name":         "before_hook_1",
-					"commands":     []interface{}{"apply", "plan"},
-					"execute":      []interface{}{"touch", "before.out"},
-					"working_dir":  nil,
-					"run_on_error": true,
+					"name":            "before_hook_1",
+					"commands":        []interface{}{"apply", "plan"},
+					"execute":         []interface{}{"touch", "before.out"},
+					"working_dir":     nil,
+					"run_on_error":    true,
+					"suppress_stdout": nil,
 				},
 			},
 			"after_hook": map[string]interface{}{
 				"after_hook_1": map[string]interface{}{
-					"name":         "after_hook_1",
-					"commands":     []interface{}{"apply", "plan"},
-					"execute":      []interface{}{"touch", "after.out"},
-					"working_dir":  nil,
-					"run_on_error": true,
+					"name":            "after_hook_1",
+					"commands":        []interface{}{"apply", "plan"},
+					"execute":         []interface{}{"touch", "after.out"},
+					"working_dir":     nil,
+					"run_on_error":    true,
+					"suppress_stdout": nil,
 				},
 			},
 			"error_hook": map[string]interface{}{},
@@ -3709,7 +3711,7 @@ func TestTerragruntIncludeParentHclFile(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-modules-that-include parent.hcl --terragrunt-modules-that-include common.hcl --terragrunt-non-interactive --terragrunt-working-dir %s", tmpEnvPath), &stdout, &stderr)
 	require.NoError(t, err)
 
-	out := stderr.String()
+	out := stdout.String()
 	assert.Equal(t, 1, strings.Count(out, "parent_hcl_file"))
 	assert.Equal(t, 1, strings.Count(out, "dependency_hcl"))
 	assert.Equal(t, 1, strings.Count(out, "common_hcl"))
@@ -4580,7 +4582,7 @@ func TestTerragruntInitOnce(t *testing.T) {
 
 	runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_RUN_ONCE), &stdout, &stderr)
 
-	errout := string(stderr.Bytes())
+	errout := string(stdout.Bytes())
 
 	assert.Equal(t, 1, strings.Count(errout, "foo"))
 }
@@ -4594,7 +4596,7 @@ func TestTerragruntInitRunCmd(t *testing.T) {
 
 	runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_RUN_MULTIPLE), &stdout, &stderr)
 
-	errout := string(stderr.Bytes())
+	errout := string(stdout.Bytes())
 
 	// Check for cached values between locals and inputs sections
 	assert.Equal(t, 1, strings.Count(errout, "potato"))
@@ -4662,9 +4664,9 @@ func TestPathRelativeToIncludeInvokedInCorrectPathFromChild(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt version --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", appPath), &stdout, &stderr)
 	require.NoError(t, err)
-	errout := string(stderr.Bytes())
-	assert.Equal(t, 1, strings.Count(errout, "\npath_relative_to_inclue: app\n"))
-	assert.Equal(t, 0, strings.Count(errout, "\npath_relative_to_inclue: .\n"))
+	output := string(stdout.Bytes())
+	assert.Equal(t, 1, strings.Count(output, "path_relative_to_inclue: app\n"))
+	assert.Equal(t, 0, strings.Count(output, "path_relative_to_inclue: .\n"))
 }
 
 func TestTerragruntInitConfirmation(t *testing.T) {

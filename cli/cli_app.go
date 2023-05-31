@@ -703,10 +703,14 @@ func processErrorHooks(hooks []config.ErrorHook, terragruntOptions *options.Terr
 				workingDir = *curHook.WorkingDir
 			}
 
+			// creates new terragrunt options to redirect stdout to stderr of the shell command
+			opts := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+			opts.Writer = opts.ErrWriter
+
 			actionToExecute := curHook.Execute[0]
 			actionParams := curHook.Execute[1:]
 			_, possibleError := shell.RunShellCommandWithOutput(
-				terragruntOptions,
+				opts,
 				workingDir,
 				false,
 				false,

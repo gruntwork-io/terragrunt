@@ -83,12 +83,6 @@ func RunShellCommandWithOutput(
 	if terragruntOptions.IncludeModulePrefix {
 		prefix = terragruntOptions.OutputPrefix
 	}
-	// Terragrunt can run some commands (such as terraform remote config) before running the actual terraform
-	// command requested by the user. The output of these other commands should not end up on stdout as this
-	// breaks scripts relying on terraform's output.
-	// if !reflect.DeepEqual(terragruntOptions.TerraformCliArgs, args) {
-	// 	outWriter = terragruntOptions.ErrWriter
-	// }
 
 	if workingDir == "" {
 		cmd.Dir = terragruntOptions.WorkingDir
