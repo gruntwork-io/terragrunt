@@ -162,6 +162,9 @@ type TerragruntOptions struct {
 	// Enable check mode, by default it's disabled.
 	Check bool
 
+	// Show diff, by default it's disabled.
+	Diff bool
+
 	// The file which hclfmt should be specifically run on
 	HclFile string
 
@@ -281,6 +284,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		StrictInclude:                  false,
 		Parallelism:                    DEFAULT_PARALLELISM,
 		Check:                          false,
+		Diff:                           false,
 		FetchDependencyOutputFromState: false,
 		UsePartialParseConfigCache:     false,
 		OutputPrefix:                   "",

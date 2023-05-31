@@ -53,6 +53,7 @@ const (
 	optTerragruntStrictInclude                  = "terragrunt-strict-include"
 	optTerragruntParallelism                    = "terragrunt-parallelism"
 	optTerragruntCheck                          = "terragrunt-check"
+	optTerragruntDiff                           = "terragrunt-diff"
 	optTerragruntHCLFmt                         = "terragrunt-hclfmt-file"
 	optTerragruntDebug                          = "terragrunt-debug"
 	optTerragruntOverrideAttr                   = "terragrunt-override-attr"
@@ -77,6 +78,7 @@ var allTerragruntBooleanOpts = []string{
 	optTerragruntNoAutoRetry,
 	optTerragruntNoAutoApprove,
 	optTerragruntCheck,
+	optTerragruntDiff,
 	optTerragruntStrictInclude,
 	optTerragruntDebug,
 	optTerragruntFetchDependencyOutputFromState,

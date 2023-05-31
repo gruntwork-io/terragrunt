@@ -800,6 +800,16 @@ When passed in, run `hclfmt` in check only mode instead of actively overwriting 
 command to exit with exit code 1 if there are any files that are not formatted.
 
 
+### terragrunt-diff
+
+**CLI Arg**: `--terragrunt-diff`<br/>
+**Environment Variable**: `TERRAGRUNT_DIFF` (set to `true`)
+**Commands**:
+- [hclfmt](#hclfmt)
+
+When passed in, running `hclfmt` will print diff between original and modified file versions.
+
+
 ### terragrunt-hclfmt-file
 
 **CLI Arg**: `--terragrunt-hclfmt-file`

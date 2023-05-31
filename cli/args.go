@@ -232,6 +232,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.ModulesThatInclude = modulesThatInclude
 	opts.StrictInclude = strictInclude
 	opts.Check = parseBooleanArg(args, optTerragruntCheck, os.Getenv("TERRAGRUNT_CHECK") == "true")
+	opts.Diff = parseBooleanArg(args, optTerragruntDiff, os.Getenv("TERRAGRUNT_DIFF") == "true")
 	opts.HclFile = filepath.ToSlash(terragruntHclFilePath)
 	opts.AwsProviderPatchOverrides = awsProviderPatchOverrides
 	opts.FetchDependencyOutputFromState = parseBooleanArg(args, optTerragruntFetchDependencyOutputFromState, os.Getenv("TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE") == "true")
