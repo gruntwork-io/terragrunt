@@ -123,6 +123,11 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		return nil, err
 	}
 
+	layerHasFile, err := parseStringArg(args, optTerragruntLayerHasFile, "")
+	if err != nil {
+		return nil, err
+	}
+
 	strictInclude := parseBooleanArg(args, optTerragruntStrictInclude, false)
 
 	modulesThatInclude, err := parseMultiStringArg(args, optTerragruntModulesThatInclude, []string{})
@@ -229,6 +234,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.Env = parseEnvironmentVariables(os.Environ())
 	opts.ExcludeDirs = excludeDirs
 	opts.IncludeDirs = includeDirs
+	opts.LayerHasFile = layerHasFile
 	opts.ModulesThatInclude = modulesThatInclude
 	opts.StrictInclude = strictInclude
 	opts.Check = parseBooleanArg(args, optTerragruntCheck, os.Getenv("TERRAGRUNT_CHECK") == "true")

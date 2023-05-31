@@ -102,6 +102,7 @@ const (
 	TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES_ERROR_2    = "fixture-auto-retry/configurable-retries-incorrect-sleep-interval"
 	TEST_FIXTURE_AWS_PROVIDER_PATCH                         = "fixture-aws-provider-patch"
 	TEST_FIXTURE_INPUTS                                     = "fixture-inputs"
+	TEST_FIXTURE_LAYER_HAS_FILE                             = "fixture-layer-has-file"
 	TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL               = "fixture-locals-errors/undefined-local"
 	TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL_BUT_INPUT     = "fixture-locals-errors/undefined-local-but-input"
 	TEST_FIXTURE_LOCALS_CANONICAL                           = "fixture-locals/canonical"
@@ -797,6 +798,65 @@ digraph {
 	"vpc" ;
 }
 	`)))
+}
+
+func TestTerragruntLayerHasFileWithGraphDependencies(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_LAYER_HAS_FILE)
+
+	environmentPath := fmt.Sprintf("%s/%s/%s", tmpEnvPath, TEST_FIXTURE_LAYER_HAS_FILE, "run-all")
+	layerhasfile := "file.txt"
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt graph-dependencies --terragrunt-working-dir %s --terragrunt-layer-has-file %s --terragrunt-non-interactive", environmentPath, layerhasfile), &stdout, &stderr)
+	output := stdout.String()
+
+	assert.True(t, strings.Contains(strings.TrimSpace(output), strings.TrimSpace(`
+digraph {
+	"app1" ;
+	"app1" -> "module1";
+}
+`)))
+}
+
+func TestTerragruntLayerHasFileWithGraphDependenciesNotExistingFile(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_LAYER_HAS_FILE)
+
+	environmentPath := fmt.Sprintf("%s/%s/%s", tmpEnvPath, TEST_FIXTURE_LAYER_HAS_FILE, "run-all")
+	layerhasfile := "not-existing-file"
+
+	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt graph-dependencies --terragrunt-working-dir %s --terragrunt-layer-has-file %s --terragrunt-non-interactive", environmentPath, layerhasfile))
+
+	assert.True(t, strings.Contains(err.Error(), strings.TrimSpace("Could not find any subfolders with Terragrunt configuration files")))
+}
+
+func TestTerragruntLayerHasFileWithRunAll(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_LAYER_HAS_FILE)
+
+	environmentPath := fmt.Sprintf("%s/%s/%s", tmpEnvPath, TEST_FIXTURE_LAYER_HAS_FILE, "run-all")
+	layerhasfile := "file.txt"
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt run-all plan --terragrunt-working-dir %s --terragrunt-layer-has-file %s --terragrunt-non-interactive", environmentPath, layerhasfile), &stdout, &stderr)
+	output := stderr.String()
+
+	assert.True(t, strings.Contains(strings.TrimSpace(output), strings.TrimSpace(`
+fixture-layer-has-file/run-all/app1
+`)))
+	assert.False(t, strings.Contains(strings.TrimSpace(output), strings.TrimSpace(`
+fixture-layer-has-file/run-all/module1
+`)))
 }
 
 func TestTerragruntRunAllCommand(t *testing.T) {

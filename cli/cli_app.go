@@ -50,6 +50,7 @@ const (
 	optTerragruntIncludeExternalDependencies    = "terragrunt-include-external-dependencies"
 	optTerragruntExcludeDir                     = "terragrunt-exclude-dir"
 	optTerragruntIncludeDir                     = "terragrunt-include-dir"
+	optTerragruntLayerHasFile                   = "terragrunt-layer-has-file"
 	optTerragruntStrictInclude                  = "terragrunt-strict-include"
 	optTerragruntParallelism                    = "terragrunt-parallelism"
 	optTerragruntCheck                          = "terragrunt-check"
@@ -98,6 +99,7 @@ var allTerragruntStringOpts = []string{
 	optTerragruntIAMAssumeRoleSessionName,
 	optTerragruntExcludeDir,
 	optTerragruntIncludeDir,
+	optTerragruntLayerHasFile,
 	optTerragruntParallelism,
 	optTerragruntHCLFmt,
 	optTerragruntOverrideAttr,
@@ -263,6 +265,7 @@ GLOBAL OPTIONS:
    terragrunt-parallelism <N>                   *-all commands parallelism set to at most N modules
    terragrunt-exclude-dir                       Unix-style glob of directories to exclude when running *-all commands
    terragrunt-include-dir                       Unix-style glob of directories to include when running *-all commands
+   terragrunt-layer-has-file                    Set file that must exist in the layer to be considered valid
    terragrunt-check                             Enable check mode in the hclfmt command.
    terragrunt-hclfmt-file                       The path to a single hcl file that the hclfmt command should run on.
    terragrunt-override-attr                     A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.

@@ -22,6 +22,10 @@ func WriteDot(w io.Writer, terragruntOptions *options.TerragruntOptions, modules
 	prefix := filepath.Dir(terragruntOptions.TerragruntConfigPath) + "/"
 
 	for _, source := range modules {
+		if source.AssumeAlreadyApplied {
+			continue
+		}
+
 		// apply a different coloring for excluded nodes
 		style := ""
 		if source.FlagExcluded {
