@@ -328,11 +328,12 @@ func (deps *ModuleDependencies) String() string {
 
 // Hook specifies terraform commands (apply/plan) and array of os commands to execute
 type Hook struct {
-	Name       string   `hcl:"name,label" cty:"name"`
-	Commands   []string `hcl:"commands,attr" cty:"commands"`
-	Execute    []string `hcl:"execute,attr" cty:"execute"`
-	RunOnError *bool    `hcl:"run_on_error,attr" cty:"run_on_error"`
-	WorkingDir *string  `hcl:"working_dir,attr" cty:"working_dir"`
+	Name           string   `hcl:"name,label" cty:"name"`
+	Commands       []string `hcl:"commands,attr" cty:"commands"`
+	Execute        []string `hcl:"execute,attr" cty:"execute"`
+	RunOnError     *bool    `hcl:"run_on_error,attr" cty:"run_on_error"`
+	SuppressStdout *bool    `hcl:"suppress_stdout,attr" cty:"suppress_stdout"`
+	WorkingDir     *string  `hcl:"working_dir,attr" cty:"working_dir"`
 }
 
 type ErrorHook struct {
