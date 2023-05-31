@@ -172,8 +172,27 @@ func StringListInsert(list []string, element string, index int) []string {
 // KeyValuePairListToMap converts a list of key value pair encoded as `key=value` strings into a map.
 func KeyValuePairStringListToMap(asList []string) (map[string]string, error) {
 	asMap := map[string]string{}
+
 	for _, arg := range asList {
-		parts := strings.Split(arg, "=")
+		var parts []string
+
+		// splits the string to the slice `parts`, using `=` sign as delimiter, but taking into account that the `=` sign can also be used as a git tag, e.g. `git@github.com/test.git?ref=feature`
+		for i, l := 0, 0; i <= len(arg); i++ {
+			if i == len(arg) {
+				parts = append(parts, arg[l:])
+				break
+			}
+
+			if arg[i] == '=' {
+				if i >= 4 && arg[i-4:i] == "?ref" {
+					continue
+				}
+
+				parts = append(parts, arg[l:i])
+				l = i + 1
+			}
+		}
+
 		if len(parts) != 2 {
 			return nil, errors.WithStackTrace(InvalidKeyValue(arg))
 		}

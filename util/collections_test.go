@@ -258,6 +258,11 @@ func TestKeyValuePairStringListToMap(t *testing.T) {
 			map[string]string{"ssh://git@github.com": "/path/to/local"},
 		},
 		{
+			"with_tags",
+			[]string{"ssh://git@github.com=ssh://git@github.com/test.git?ref=feature"},
+			map[string]string{"ssh://git@github.com": "ssh://git@github.com/test.git?ref=feature"},
+		},
+		{
 			"empty",
 			[]string{},
 			map[string]string{},
