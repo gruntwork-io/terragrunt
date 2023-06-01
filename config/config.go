@@ -337,11 +337,12 @@ type Hook struct {
 }
 
 type ErrorHook struct {
-	Name       string   `hcl:"name,label" cty:"name"`
-	Commands   []string `hcl:"commands,attr" cty:"commands"`
-	Execute    []string `hcl:"execute,attr" cty:"execute"`
-	OnErrors   []string `hcl:"on_errors,attr" cty:"on_errors"`
-	WorkingDir *string  `hcl:"working_dir,attr" cty:"working_dir"`
+	Name           string   `hcl:"name,label" cty:"name"`
+	Commands       []string `hcl:"commands,attr" cty:"commands"`
+	Execute        []string `hcl:"execute,attr" cty:"execute"`
+	OnErrors       []string `hcl:"on_errors,attr" cty:"on_errors"`
+	SuppressStdout *bool    `hcl:"suppress_stdout,attr" cty:"suppress_stdout"`
+	WorkingDir     *string  `hcl:"working_dir,attr" cty:"working_dir"`
 }
 
 func (conf *Hook) String() string {
