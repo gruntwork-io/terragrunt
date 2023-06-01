@@ -146,6 +146,7 @@ const (
 	TEST_FIXTURE_INIT_ERROR                                 = "fixture-init-error"
 	TEST_FIXTURE_MODULE_PATH_ERROR                          = "fixture-module-path-in-error"
 	TEST_FIXTURE_HCLFMT_DIFF                                = "fixture-hclfmt-diff"
+	TEST_FIXTURE_DESTROY_DEPENENT_MODULE                    = "fixture-destroy-dependent-module"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -5490,6 +5491,38 @@ func TestHclFmtDiff(t *testing.T) {
 
 	logBufferContentsLineByLine(t, stdout, "output")
 	assert.Contains(t, output, string(expectedDiff))
+}
+
+func TestDestroyDependentModule(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_DESTROY_DEPENENT_MODULE)
+	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_DESTROY_DEPENENT_MODULE))
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_DEPENENT_MODULE)
+
+	output, err := exec.Command("git", "init", rootPath).CombinedOutput()
+	if err != nil {
+		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
+	}
+	// apply each module in order
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", util.JoinPath(rootPath, "a")))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", util.JoinPath(rootPath, "b")))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", util.JoinPath(rootPath, "c")))
+
+	config.ClearOutputCache()
+
+	// destroy module which have outputs from other modules
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", util.JoinPath(rootPath, "c")), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	assert.True(t, strings.Contains(stderr.String(), util.JoinPath(rootPath, "b", "terragrunt.hcl")))
+	assert.True(t, strings.Contains(stderr.String(), util.JoinPath(rootPath, "a", "terragrunt.hcl")))
+
+	assert.True(t, strings.Contains(stderr.String(), "\"value\": \"module-b.txt\""))
+	assert.True(t, strings.Contains(stderr.String(), "\"value\": \"module-a.txt\""))
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {

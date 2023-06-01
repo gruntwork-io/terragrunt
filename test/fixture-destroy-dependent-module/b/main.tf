@@ -1,6 +1,6 @@
 resource "local_file" "file" {
-  content         = "module-a"
-  filename        = "test.txt"
+  content         = "module-b"
+  filename        = "module-b.txt"
   file_permission = "0644"
 }
 
