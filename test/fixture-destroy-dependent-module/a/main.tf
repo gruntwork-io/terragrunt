@@ -4,7 +4,6 @@ resource "local_file" "file" {
   file_permission = "0644"
 }
 
-
 output "value" {
   value = local_file.file.filename
 }
