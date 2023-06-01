@@ -705,12 +705,18 @@ func processErrorHooks(hooks []config.ErrorHook, terragruntOptions *options.Terr
 				workingDir = *curHook.WorkingDir
 			}
 
+			var suppressStdout bool
+			if curHook.SuppressStdout != nil && *curHook.SuppressStdout {
+				suppressStdout = true
+			}
+
 			actionToExecute := curHook.Execute[0]
 			actionParams := curHook.Execute[1:]
+
 			_, possibleError := shell.RunShellCommandWithOutput(
 				terragruntOptions,
 				workingDir,
-				false,
+				suppressStdout,
 				false,
 				actionToExecute, actionParams...,
 			)
@@ -765,6 +771,11 @@ func runHook(terragruntOptions *options.TerragruntOptions, terragruntConfig *con
 		workingDir = *curHook.WorkingDir
 	}
 
+	var suppressStdout bool
+	if curHook.SuppressStdout != nil && *curHook.SuppressStdout {
+		suppressStdout = true
+	}
+
 	actionToExecute := curHook.Execute[0]
 	actionParams := curHook.Execute[1:]
 
@@ -776,7 +787,7 @@ func runHook(terragruntOptions *options.TerragruntOptions, terragruntConfig *con
 		_, possibleError := shell.RunShellCommandWithOutput(
 			terragruntOptions,
 			workingDir,
-			false,
+			suppressStdout,
 			false,
 			actionToExecute, actionParams...,
 		)
