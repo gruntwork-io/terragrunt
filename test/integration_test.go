@@ -90,7 +90,6 @@ const (
 	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND                      = "fixture-hooks/init-once/with-source-no-backend"
 	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND_SUPPRESS_HOOK_STDOUT = "fixture-hooks/init-once/with-source-no-backend-suppress-hook-stdout"
 	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_WITH_BACKEND                    = "fixture-hooks/init-once/with-source-with-backend"
-	TEST_FIXTURE_HOOKS_WORKING_DIR                                           = "fixture-hooks/working_dir"
 	TEST_FIXTURE_FAILED_TERRAFORM                                            = "fixture-failure"
 	TEST_FIXTURE_EXIT_CODE                                                   = "fixture-exit-code"
 	TEST_FIXTURE_AUTO_RETRY_RERUN                                            = "fixture-auto-retry/re-run"
@@ -148,6 +147,7 @@ const (
 	TEST_FIXTURE_INIT_ERROR                                                  = "fixture-init-error"
 	TEST_FIXTURE_MODULE_PATH_ERROR                                           = "fixture-module-path-in-error"
 	TEST_FIXTURE_HCLFMT_DIFF                                                 = "fixture-hclfmt-diff"
+	TEST_FIXTURE_DESTROY_DEPENDENT_MODULE                                    = "fixture-destroy-dependent-module"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TERRAFORM_FOLDER                                                         = ".terraform"
 	TERRAFORM_STATE                                                          = "terraform.tfstate"
@@ -5494,6 +5494,38 @@ func TestHclFmtDiff(t *testing.T) {
 
 	logBufferContentsLineByLine(t, stdout, "output")
 	assert.Contains(t, output, string(expectedDiff))
+}
+
+func TestDestroyDependentModule(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_DESTROY_DEPENDENT_MODULE)
+	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_DESTROY_DEPENDENT_MODULE))
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_DEPENDENT_MODULE)
+
+	output, err := exec.Command("git", "init", rootPath).CombinedOutput()
+	if err != nil {
+		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
+	}
+	// apply each module in order
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", util.JoinPath(rootPath, "a")))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", util.JoinPath(rootPath, "b")))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", util.JoinPath(rootPath, "c")))
+
+	config.ClearOutputCache()
+
+	// destroy module which have outputs from other modules
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", util.JoinPath(rootPath, "c")), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	assert.True(t, strings.Contains(stderr.String(), util.JoinPath(rootPath, "b", "terragrunt.hcl")))
+	assert.True(t, strings.Contains(stderr.String(), util.JoinPath(rootPath, "a", "terragrunt.hcl")))
+
+	assert.True(t, strings.Contains(stderr.String(), "\"value\": \"module-b.txt\""))
+	assert.True(t, strings.Contains(stderr.String(), "\"value\": \"module-a.txt\""))
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
