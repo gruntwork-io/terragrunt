@@ -146,7 +146,7 @@ const (
 	TEST_FIXTURE_INIT_ERROR                                 = "fixture-init-error"
 	TEST_FIXTURE_MODULE_PATH_ERROR                          = "fixture-module-path-in-error"
 	TEST_FIXTURE_HCLFMT_DIFF                                = "fixture-hclfmt-diff"
-	TEST_FIXTURE_DESTROY_DEPENENT_MODULE                    = "fixture-destroy-dependent-module"
+	TEST_FIXTURE_DESTROY_DEPENDENT_MODULE                   = "fixture-destroy-dependent-module"
 	TERRAFORM_BINARY                                        = "terraform"
 	TERRAFORM_FOLDER                                        = ".terraform"
 	TERRAFORM_STATE                                         = "terraform.tfstate"
@@ -5496,9 +5496,9 @@ func TestHclFmtDiff(t *testing.T) {
 func TestDestroyDependentModule(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_DESTROY_DEPENENT_MODULE)
-	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_DESTROY_DEPENENT_MODULE))
-	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_DEPENENT_MODULE)
+	cleanupTerraformFolder(t, TEST_FIXTURE_DESTROY_DEPENDENT_MODULE)
+	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_DESTROY_DEPENDENT_MODULE))
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_DEPENDENT_MODULE)
 
 	output, err := exec.Command("git", "init", rootPath).CombinedOutput()
 	if err != nil {
