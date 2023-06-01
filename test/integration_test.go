@@ -89,7 +89,6 @@ const (
 	TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_WITH_BACKEND     = "fixture-hooks/init-once/no-source-with-backend"
 	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND     = "fixture-hooks/init-once/with-source-no-backend"
 	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_WITH_BACKEND   = "fixture-hooks/init-once/with-source-with-backend"
-	TEST_FIXTURE_HOOKS_WORKING_DIR                          = "fixture-hooks/working_dir"
 	TEST_FIXTURE_FAILED_TERRAFORM                           = "fixture-failure"
 	TEST_FIXTURE_EXIT_CODE                                  = "fixture-exit-code"
 	TEST_FIXTURE_AUTO_RETRY_RERUN                           = "fixture-auto-retry/re-run"

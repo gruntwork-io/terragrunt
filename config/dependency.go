@@ -488,6 +488,8 @@ func cloneTerragruntOptionsForDependency(terragruntOptions *options.TerragruntOp
 func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.TerragruntOptions, targetConfig string) (*options.TerragruntOptions, error) {
 	targetOptions := cloneTerragruntOptionsForDependency(terragruntOptions, targetConfig)
 	targetOptions.IncludeModulePrefix = false
+	// just read outputs, so no need to check for dependent modules
+	targetOptions.CheckDependentModules = false
 	targetOptions.TerraformCommand = "output"
 	targetOptions.TerraformCliArgs = []string{"output", "-json"}
 
@@ -819,7 +821,10 @@ func runTerragruntOutputJson(targetTGOptions *options.TerragruntOptions, targetC
 		return nil, errors.WithStackTrace(err)
 	}
 
-	stdoutBufferWriter.Flush()
+	err = stdoutBufferWriter.Flush()
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
 	jsonString := stdoutBuffer.String()
 	jsonBytes := []byte(strings.TrimSpace(jsonString))
 	targetTGOptions.Logger.Debugf("Retrieved output from %s as json: %s", targetConfig, jsonString)
