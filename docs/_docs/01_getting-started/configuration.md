@@ -118,4 +118,6 @@ If you run `terragrunt hclfmt` at the `root`, this will update:
 
   - `root/qa/services/service01/terragrunt.hcl`
 
+You can set `--terragrunt-diff` option. `terragrunt hclfmt --terragrunt-check` will output diff in unified format which can be redirected to your favourite diff tool. `diff` utility must be presented in PATH.
+
 Additionally, there’s a flag `--terragrunt-check`. `terragrunt hclfmt --terragrunt-check` will only verify if the files are correctly formatted **without rewriting** them. The command will return exit status 1 if any matching files are improperly formatted, or 0 if all matching .hcl files are correctly formatted.
