@@ -27,7 +27,7 @@ func enableVirtualTerminalProcessing(options *options.TerragruntOptions, file *o
 	var mode uint32
 	handle := windows.Handle(file.Fd())
 	if err := windows.GetConsoleMode(handle, &mode); err != nil {
-		options.Logger.Errorf("failed to get console mode: %v\n", err)
+		options.Logger.Debugf("failed to get console mode: %v\n", err)
 		return
 	}
 
