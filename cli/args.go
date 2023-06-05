@@ -497,7 +497,7 @@ func parseMutliStringKeyValueArg(args []string, argName string, defaultValue map
 	if asList == nil {
 		return defaultValue, nil
 	}
-	return util.KeyValuePairStringListToMap(asList)
+	return util.KeyValuePairStringListToMap(asList, util.SplitUrls)
 }
 
 // Parses an environment variable that is encoded as a comma separated kv pair (e.g.,
@@ -509,7 +509,7 @@ func parseMultiStringKeyValueEnvVar(envVarName string) (map[string]string, error
 		return map[string]string{}, nil
 	}
 	mappingsAsList := strings.Split(rawEnvVarVal, ",")
-	return util.KeyValuePairStringListToMap(mappingsAsList)
+	return util.KeyValuePairStringListToMap(mappingsAsList, util.SplitUrls)
 }
 
 // Convert the given variables to a map of environment variables that will expose those variables to Terraform. The
