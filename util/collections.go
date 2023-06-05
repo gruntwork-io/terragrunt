@@ -198,13 +198,14 @@ func SplitUrls(s, sep string) []string {
 		"?ref=": "<ref-place-holder>",
 	}
 
+	// mask
 	for src, mask := range masks {
 		s = strings.Replace(s, src, mask, -1)
 	}
 
 	urls := strings.Split(s, sep)
 
-	// unmask ref
+	// unmask
 	for i := range urls {
 		for src, mask := range masks {
 			urls[i] = strings.Replace(urls[i], mask, src, -1)
