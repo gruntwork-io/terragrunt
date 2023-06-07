@@ -115,6 +115,12 @@ func TestJoinTerraformModulePath(t *testing.T) {
 		{"foo//", "//bar", "foo//bar"},
 		{"/foo/bar/baz", "/a/b/c", "/foo/bar/baz//a/b/c"},
 		{"/foo/bar/baz/", "//a/b/c", "/foo/bar/baz//a/b/c"},
+		{"/foo?ref=feature/1", "bar", "/foo//bar?ref=feature/1"},
+		{"/foo?ref=feature/1", "/bar", "/foo//bar?ref=feature/1"},
+		{"/foo//?ref=feature/1", "/bar", "/foo//bar?ref=feature/1"},
+		{"/foo//?ref=feature/1", "//bar", "/foo//bar?ref=feature/1"},
+		{"/foo/bar/baz?ref=feature/1", "/a/b/c", "/foo/bar/baz//a/b/c?ref=feature/1"},
+		{"/foo/bar/baz/?ref=feature/1", "//a/b/c", "/foo/bar/baz//a/b/c?ref=feature/1"},
 	}
 
 	for _, testCase := range testCases {

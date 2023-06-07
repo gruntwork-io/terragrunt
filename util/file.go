@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 
+	urlhelper "github.com/hashicorp/go-getter/helper/url"
+
 	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -390,6 +392,20 @@ func HasPathPrefix(path, prefix string) bool {
 func JoinTerraformModulePath(modulesFolder string, path string) string {
 	cleanModulesFolder := strings.TrimRight(modulesFolder, `/\`)
 	cleanPath := strings.TrimLeft(path, `/\`)
+	// if source path contains "?ref=", reconstruct module dir using "//"
+	if strings.Contains(cleanModulesFolder, "?ref=") && cleanPath != "" {
+		canonicalSourceUrl, err := urlhelper.Parse(cleanModulesFolder)
+		if err == nil {
+			// append path
+			if canonicalSourceUrl.Opaque != "" {
+				canonicalSourceUrl.Opaque = fmt.Sprintf("%s//%s", strings.TrimRight(canonicalSourceUrl.Opaque, `/\`), cleanPath)
+			} else {
+				canonicalSourceUrl.Path = fmt.Sprintf("%s//%s", strings.TrimRight(canonicalSourceUrl.Path, `/\`), cleanPath)
+			}
+			return canonicalSourceUrl.String()
+		}
+		// fallback to old behavior if we can't parse the url
+	}
 	return fmt.Sprintf("%s//%s", cleanModulesFolder, cleanPath)
 }
 

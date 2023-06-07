@@ -10,8 +10,6 @@ import (
 	"reflect"
 	"strings"
 
-	urlhelper "github.com/hashicorp/go-getter/helper/url"
-
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
@@ -532,20 +530,6 @@ func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 			return moduleSubdirFromUrl, err
 		}
 		moduleSubdir = moduleSubdirFromUrl
-	}
-	// if source path contains "?ref=", reconstruct module dir using "//"
-	if strings.Contains(sourcePath, "?ref=") && moduleSubdir != "" {
-		canonicalSourceUrl, err := urlhelper.Parse(sourcePath)
-		if err != nil {
-			return "", errors.WithStackTrace(err)
-		}
-		// append moduleSubdir to the path
-		if canonicalSourceUrl.Opaque != "" {
-			canonicalSourceUrl.Opaque += fmt.Sprintf("//%s", moduleSubdir)
-		} else {
-			canonicalSourceUrl.Path += fmt.Sprintf("//%s", moduleSubdir)
-		}
-		return canonicalSourceUrl.String(), nil
 	}
 	return util.JoinTerraformModulePath(sourcePath, moduleSubdir), nil
 
