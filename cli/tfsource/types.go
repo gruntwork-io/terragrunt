@@ -209,14 +209,6 @@ func parseSourceUrl(source string) (*url.URL, error) {
 		return nil, errors.WithStackTrace(err)
 	}
 
-	// Converts URL with git tag, from `git@github.com:org/bar.git?ref=feature//modules/foo` to `git@github.com:org/bar.git//modules/foo?ref=feature`
-	if ref := canonicalSourceUrl.Query().Get("ref"); ref != "" {
-		if paths := strings.SplitN(ref, "/", 2); len(paths) > 1 {
-			canonicalSourceUrl.RawQuery = fmt.Sprintf("ref=%s", paths[0])
-			canonicalSourceUrl.Path += fmt.Sprintf("/%s", paths[1])
-		}
-	}
-
 	// Reattach the "getter" prefix as part of the scheme
 	for _, forcedGetter := range forcedGetters {
 		canonicalSourceUrl.Scheme = fmt.Sprintf("%s::%s", forcedGetter, canonicalSourceUrl.Scheme)

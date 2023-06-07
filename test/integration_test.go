@@ -148,6 +148,8 @@ const (
 	TEST_FIXTURE_MODULE_PATH_ERROR                                           = "fixture-module-path-in-error"
 	TEST_FIXTURE_HCLFMT_DIFF                                                 = "fixture-hclfmt-diff"
 	TEST_FIXTURE_DESTROY_DEPENDENT_MODULE                                    = "fixture-destroy-dependent-module"
+	TEST_FIXTURE_REF_SOURCE                                                  = "fixture-download/remote-ref"
+	TEST_FIXTURE_SOURCE_MAP_SLASHES                                          = "fixture-source-map/slashes-in-ref"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TERRAFORM_FOLDER                                                         = ".terraform"
 	TERRAFORM_STATE                                                          = "terraform.tfstate"
@@ -5526,6 +5528,34 @@ func TestDestroyDependentModule(t *testing.T) {
 
 	assert.True(t, strings.Contains(stderr.String(), "\"value\": \"module-b.txt\""))
 	assert.True(t, strings.Contains(stderr.String(), "\"value\": \"module-a.txt\""))
+}
+
+func TestDownloadSourceWithRef(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_REF_SOURCE)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_REF_SOURCE)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	require.NoError(t, err)
+}
+
+func TestSourceMapWithSlashInRef(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_SOURCE_MAP_SLASHES)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_SOURCE_MAP_SLASHES)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=git::git@github.com:gruntwork-io/terragrunt.git?ref=fixture/test --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	require.NoError(t, err)
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
