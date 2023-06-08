@@ -2,9 +2,9 @@ package cli
 
 import "strings"
 
-// -- string val Value
+// -- string slice Value
 type stringSliceValue struct {
-	val        *[]string
+	value      *[]string
 	sep        string
 	hasBeenSet bool
 }
@@ -12,21 +12,21 @@ type stringSliceValue struct {
 func newStringSliceValue(val []string, p *[]string, sep string) *stringSliceValue {
 	*p = val
 	return &stringSliceValue{
-		val: p,
-		sep: sep,
+		value: p,
+		sep:   sep,
 	}
 }
 
 func (val *stringSliceValue) Set(str string) error {
 	if !val.hasBeenSet {
 		val.hasBeenSet = true
-		*val.val = []string{}
+		*val.value = []string{}
 	}
 
-	*val.val = append(*val.val, str)
+	*val.value = append(*val.value, str)
 	return nil
 }
 
-func (val *stringSliceValue) Get() any { return []string(*val.val) }
+func (val *stringSliceValue) Get() any { return []string(*val.value) }
 
-func (val *stringSliceValue) String() string { return strings.Join(*val.val, val.sep) }
+func (val *stringSliceValue) String() string { return strings.Join(*val.value, val.sep) }

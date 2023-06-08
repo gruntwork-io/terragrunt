@@ -10,7 +10,7 @@ import (
 
 // -- string map Value
 type stringMapValue struct {
-	val                *map[string]string
+	value              *map[string]string
 	hasBeenSet         bool
 	listSep, keyValSep string
 	splitter           SplitterFunc
@@ -20,7 +20,7 @@ func newStringMapValue(val map[string]string, p *map[string]string, listSep, key
 	*p = val
 
 	return &stringMapValue{
-		val:       p,
+		value:     p,
 		splitter:  splitter,
 		listSep:   listSep,
 		keyValSep: keyValSep,
@@ -30,7 +30,7 @@ func newStringMapValue(val map[string]string, p *map[string]string, listSep, key
 func (val *stringMapValue) Set(str string) error {
 	if !val.hasBeenSet {
 		val.hasBeenSet = true
-		*val.val = make(map[string]string)
+		*val.value = make(map[string]string)
 	}
 
 	parts := val.splitter(str, val.keyValSep)
@@ -39,10 +39,10 @@ func (val *stringMapValue) Set(str string) error {
 		return errors.WithStackTrace(err)
 	}
 
-	(*val.val)[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+	(*val.value)[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
 	return nil
 }
 
-func (val *stringMapValue) Get() any { return map[string]string(*val.val) }
+func (val *stringMapValue) Get() any { return map[string]string(*val.value) }
 
-func (val *stringMapValue) String() string { return maps.Join(*val.val, val.listSep, val.keyValSep) }
+func (val *stringMapValue) String() string { return maps.Join(*val.value, val.listSep, val.keyValSep) }

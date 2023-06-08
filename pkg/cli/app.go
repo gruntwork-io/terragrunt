@@ -33,7 +33,8 @@ func (app *App) Run(arguments []string) (err error) {
 	app.App.Action = func(cliCtx *cli.Context) error {
 		ctx := NewContext(cliCtx, app)
 
-		if err := app.parseFlags(ctx.DoublePrefixedFlags()); err != nil {
+		args, _ := ctx.Args().DoublePrefixed()
+		if err := app.parseFlags(args); err != nil {
 			return err
 		}
 
@@ -58,7 +59,7 @@ func (app *App) VisibleFlags() []cli.Flag {
 }
 
 func (app *App) parseFlags(args []string) error {
-	set, err := app.Flags.flagSet("rootCmd")
+	set, err := app.Flags.flagSet("root-cmd")
 	if err != nil {
 		return err
 	}

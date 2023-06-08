@@ -3,7 +3,6 @@ package cli
 import (
 	"flag"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -22,32 +21,14 @@ var (
 	defaultSplitter = strings.Split
 )
 
-type Flags []*Flag
-
-func (flags Flags) flagSet(name string) (*flag.FlagSet, error) {
-	set := flag.NewFlagSet(name, flag.ContinueOnError)
-	set.SetOutput(io.Discard)
-
-	for _, flag := range flags {
-		if err := flag.Apply(set); err != nil {
-			return nil, err
-		}
-	}
-
-	return set, nil
-}
-
 // Flag is a common flag related to parsing flags in cli.
 type Flag struct {
-	Name string
-
-	Usage       string
-	defaultText string
-
-	EnvVar   string
-	FilePath string
+	Name   string
+	Usage  string
+	EnvVar string
 
 	Destination any
+	defaultText string
 
 	Splitter  SplitterFunc
 	ArgSep    string
@@ -125,47 +106,51 @@ func (flag *Flag) Apply(set *flag.FlagSet) error {
 	case *string:
 		flag.defaultText = fmt.Sprintf("%v", *ptr)
 
-		val := os.GetStringEnv(flag.EnvVar, *ptr)
-		set.StringVar(ptr, flag.Name, val, flag.Usage)
+		envVal := os.GetStringEnv(flag.EnvVar, *ptr)
+
+		val := newStringValue(envVal, ptr)
+		set.Var(val, flag.Name, flag.Usage)
 
 	case *bool:
 		flag.defaultText = fmt.Sprintf("%v", *ptr)
 
-		val, err := os.GetBoolEnv(flag.EnvVar, *ptr)
+		envVal, err := os.GetBoolEnv(flag.EnvVar, *ptr)
 		if err != nil {
 			return err
 		}
 
-		set.BoolVar(ptr, flag.Name, val, flag.Usage)
+		val := newBoolValue(envVal, ptr)
+		set.Var(val, flag.Name, flag.Usage)
 
 	case *int:
 		flag.defaultText = fmt.Sprintf("%v", *ptr)
 
-		val, err := os.GetIntEnv(flag.EnvVar, *ptr)
+		envVal, err := os.GetIntEnv(flag.EnvVar, *ptr)
 		if err != nil {
 			return err
 		}
 
-		set.IntVar(ptr, flag.Name, val, flag.Usage)
+		val := newIntValue(envVal, ptr)
+		set.Var(val, flag.Name, flag.Usage)
 
 	case *[]string:
 		flag.defaultText = strings.Join(*ptr, flag.ArgSep)
 
-		val := os.GetStringSliceEnv(flag.EnvVar, flag.ArgSep, flag.Splitter, *ptr)
+		envVal := os.GetStringSliceEnv(flag.EnvVar, flag.ArgSep, flag.Splitter, *ptr)
 
-		stringSliceValue := newStringSliceValue(val, ptr, flag.ArgSep)
-		set.Var(stringSliceValue, flag.Name, flag.Usage)
+		val := newStringSliceValue(envVal, ptr, flag.ArgSep)
+		set.Var(val, flag.Name, flag.Usage)
 
 	case *map[string]string:
 		flag.defaultText = maps.Join(*ptr, flag.ArgSep, flag.KeyValSep)
 
-		val, err := os.GetStringMapEnv(flag.EnvVar, flag.ArgSep, flag.KeyValSep, flag.Splitter, *ptr)
+		envVal, err := os.GetStringMapEnv(flag.EnvVar, flag.ArgSep, flag.KeyValSep, flag.Splitter, *ptr)
 		if err != nil {
 			return err
 		}
 
-		stringMapValue := newStringMapValue(val, ptr, flag.ArgSep, flag.KeyValSep, flag.Splitter)
-		set.Var(stringMapValue, flag.Name, flag.Usage)
+		val := newStringMapValue(envVal, ptr, flag.ArgSep, flag.KeyValSep, flag.Splitter)
+		set.Var(val, flag.Name, flag.Usage)
 	}
 
 	return nil
