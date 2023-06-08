@@ -7,9 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"reflect"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -17,6 +17,12 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/sirupsen/logrus"
 )
+
+// The signal can be sent to the main process (only `terragrunt`) as well as the process group (`terragrunt` and `terraform`), for example:
+// kill -INT <pid>  # sends SIGINT only to the main process
+// kill -INT -<pid> # sends SIGINT to the process group
+// Since we cannot know how the signal is sent, we should give `terraform` time to gracefully exit if it receives the signal directly from the shell, to avoid sending the second interrupt signal to `terraform`.
+const signalForwardingDelay = time.Second * 30
 
 // Commands that implement a REPL need a pseudo TTY when run as a subprocess in order for the readline properties to be
 // preserved. This is a list of terraform commands that have this property, which is used to determine if terragrunt
@@ -77,12 +83,6 @@ func RunShellCommandWithOutput(
 	if terragruntOptions.IncludeModulePrefix {
 		prefix = terragruntOptions.OutputPrefix
 	}
-	// Terragrunt can run some commands (such as terraform remote config) before running the actual terraform
-	// command requested by the user. The output of these other commands should not end up on stdout as this
-	// breaks scripts relying on terraform's output.
-	if !reflect.DeepEqual(terragruntOptions.TerraformCliArgs, args) {
-		outWriter = terragruntOptions.ErrWriter
-	}
 
 	if workingDir == "" {
 		cmd.Dir = terragruntOptions.WorkingDir
@@ -130,9 +130,10 @@ func RunShellCommandWithOutput(
 
 	if err != nil {
 		err = ProcessExecutionError{
-			Err:    err,
-			StdOut: stdoutBuf.String(),
-			Stderr: stderrBuf.String(),
+			Err:        err,
+			StdOut:     stdoutBuf.String(),
+			Stderr:     stderrBuf.String(),
+			WorkingDir: cmd.Dir,
 		}
 	}
 
@@ -195,14 +196,22 @@ func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger *logrus.Entry,
 		for {
 			select {
 			case s := <-signalChannel:
-				logger.Debugf("Forward signal %v to terraform.", s)
-				err := c.Process.Signal(s)
-				if err != nil {
-					logger.Errorf("Error forwarding signal: %v", err)
+				logger.Debugf("%s signal received. Gracefully shutting down... (it can take up to %v)", strings.Title(s.String()), signalForwardingDelay)
+
+				select {
+				case <-time.After(signalForwardingDelay):
+					logger.Debugf("Forward signal %v to terraform.", s)
+					err := c.Process.Signal(s)
+					if err != nil {
+						logger.Errorf("Error forwarding signal: %v", err)
+					}
+				case <-cmdChannel:
+					return
 				}
 			case <-cmdChannel:
 				return
 			}
+
 		}
 	}()
 
@@ -242,13 +251,15 @@ func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (
 
 // ProcessExecutionError - error returned when a command fails, contains StdOut and StdErr
 type ProcessExecutionError struct {
-	Err    error
-	StdOut string
-	Stderr string
+	Err        error
+	StdOut     string
+	Stderr     string
+	WorkingDir string
 }
 
 func (err ProcessExecutionError) Error() string {
-	return err.Err.Error()
+	// Include in error message the working directory where the command was run, so it's easier for the user to
+	return fmt.Sprintf("[%s] %s", err.WorkingDir, err.Err.Error())
 }
 
 func (err ProcessExecutionError) ExitStatus() (int, error) {

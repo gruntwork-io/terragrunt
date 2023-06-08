@@ -12,9 +12,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/tflint"
 
+	"github.com/gruntwork-io/gruntwork-cli/collections"
 	"github.com/hashicorp/go-multierror"
 	"github.com/mattn/go-zglob"
-	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 
 	"github.com/gruntwork-io/terragrunt/aws_helper"
@@ -53,6 +53,7 @@ const (
 	optTerragruntStrictInclude                  = "terragrunt-strict-include"
 	optTerragruntParallelism                    = "terragrunt-parallelism"
 	optTerragruntCheck                          = "terragrunt-check"
+	optTerragruntDiff                           = "terragrunt-diff"
 	optTerragruntHCLFmt                         = "terragrunt-hclfmt-file"
 	optTerragruntDebug                          = "terragrunt-debug"
 	optTerragruntOverrideAttr                   = "terragrunt-override-attr"
@@ -77,6 +78,7 @@ var allTerragruntBooleanOpts = []string{
 	optTerragruntNoAutoRetry,
 	optTerragruntNoAutoApprove,
 	optTerragruntCheck,
+	optTerragruntDiff,
 	optTerragruntStrictInclude,
 	optTerragruntDebug,
 	optTerragruntFetchDependencyOutputFromState,
@@ -105,17 +107,21 @@ var allTerragruntStringOpts = []string{
 	optTerragruntModulesThatInclude,
 }
 
-const CMD_INIT = "init"
-const CMD_INIT_FROM_MODULE = "init-from-module"
-const CMD_PROVIDERS = "providers"
-const CMD_LOCK = "lock"
-const CMD_TERRAGRUNT_INFO = "terragrunt-info"
-const CMD_TERRAGRUNT_VALIDATE_INPUTS = "validate-inputs"
-const CMD_TERRAGRUNT_GRAPH_DEPENDENCIES = "graph-dependencies"
-const CMD_TERRAGRUNT_READ_CONFIG = "terragrunt-read-config"
-const CMD_HCLFMT = "hclfmt"
-const CMD_AWS_PROVIDER_PATCH = "aws-provider-patch"
-const CMD_RENDER_JSON = "render-json"
+const (
+	CMD_INIT                          = "init"
+	CMD_INIT_FROM_MODULE              = "init-from-module"
+	CMD_PLAN                          = "plan"
+	CMD_APPLY                         = "apply"
+	CMD_PROVIDERS                     = "providers"
+	CMD_LOCK                          = "lock"
+	CMD_TERRAGRUNT_INFO               = "terragrunt-info"
+	CMD_TERRAGRUNT_VALIDATE_INPUTS    = "validate-inputs"
+	CMD_TERRAGRUNT_GRAPH_DEPENDENCIES = "graph-dependencies"
+	CMD_TERRAGRUNT_READ_CONFIG        = "terragrunt-read-config"
+	CMD_HCLFMT                        = "hclfmt"
+	CMD_AWS_PROVIDER_PATCH            = "aws-provider-patch"
+	CMD_RENDER_JSON                   = "render-json"
+)
 
 // START: Constants useful for multimodule command handling
 const CMD_RUN_ALL = "run-all"
@@ -602,7 +608,7 @@ func checkVersionConstraints(terragruntOptions *options.TerragruntOptions) error
 
 // Run graph dependencies prints the dependency graph to stdout
 func runGraphDependencies(terragruntOptions *options.TerragruntOptions) error {
-	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
+	stack, err := configstack.FindStackInSubfolders(terragruntOptions, nil)
 	if err != nil {
 		return err
 	}
@@ -699,12 +705,18 @@ func processErrorHooks(hooks []config.ErrorHook, terragruntOptions *options.Terr
 				workingDir = *curHook.WorkingDir
 			}
 
+			var suppressStdout bool
+			if curHook.SuppressStdout != nil && *curHook.SuppressStdout {
+				suppressStdout = true
+			}
+
 			actionToExecute := curHook.Execute[0]
 			actionParams := curHook.Execute[1:]
+
 			_, possibleError := shell.RunShellCommandWithOutput(
 				terragruntOptions,
 				workingDir,
-				false,
+				suppressStdout,
 				false,
 				actionToExecute, actionParams...,
 			)
@@ -759,25 +771,23 @@ func runHook(terragruntOptions *options.TerragruntOptions, terragruntConfig *con
 		workingDir = *curHook.WorkingDir
 	}
 
-	rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
-	actualLock := rawActualLock.(*sync.Mutex)
-	actualLock.Lock()
-	defer actualLock.Unlock()
+	var suppressStdout bool
+	if curHook.SuppressStdout != nil && *curHook.SuppressStdout {
+		suppressStdout = true
+	}
 
 	actionToExecute := curHook.Execute[0]
 	actionParams := curHook.Execute[1:]
 
 	if actionToExecute == "tflint" {
-		err := tflint.RunTflintWithOpts(terragruntOptions, terragruntConfig)
-		if err != nil {
-			terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
+		if err := executeTFLint(terragruntOptions, terragruntConfig, curHook, workingDir); err != nil {
 			return err
 		}
 	} else {
 		_, possibleError := shell.RunShellCommandWithOutput(
 			terragruntOptions,
 			workingDir,
-			false,
+			suppressStdout,
 			false,
 			actionToExecute, actionParams...,
 		)
@@ -785,6 +795,20 @@ func runHook(terragruntOptions *options.TerragruntOptions, terragruntConfig *con
 			terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
 			return possibleError
 		}
+	}
+	return nil
+}
+
+func executeTFLint(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, curHook config.Hook, workingDir string) error {
+	// fetching source code changes lock since tflint is not thread safe
+	rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
+	actualLock := rawActualLock.(*sync.Mutex)
+	actualLock.Lock()
+	defer actualLock.Unlock()
+	err := tflint.RunTflintWithOpts(terragruntOptions, terragruntConfig)
+	if err != nil {
+		terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
+		return err
 	}
 	return nil
 }
@@ -840,7 +864,7 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 			// case, we are using the user's working dir here, rather than just looking at the parent dir of the
 			// terragrunt.hcl. However, the default value for the user's working dir, set in options.go, IS just the
 			// parent dir of terragrunt.hcl, so these will likely always be the same.
-			lockFileError = copyLockFile(terragruntOptions.WorkingDir, originalTerragruntOptions.WorkingDir, terragruntOptions.Logger)
+			lockFileError = util.CopyLockFile(terragruntOptions.WorkingDir, originalTerragruntOptions.WorkingDir, terragruntOptions.Logger)
 		}
 
 		return multierror.Append(runTerraformError, lockFileError).ErrorOrNil()
@@ -896,20 +920,6 @@ func shouldCopyLockFile(args []string) bool {
 		return true
 	}
 	return false
-}
-
-// Terraform 0.14 now generates a lock file when you run `terraform init`.
-// If any such file exists, this function will copy the lock file to the destination folder
-func copyLockFile(sourceFolder string, destinationFolder string, logger *logrus.Entry) error {
-	sourceLockFilePath := util.JoinPath(sourceFolder, util.TerraformLockFile)
-	destinationLockFilePath := util.JoinPath(destinationFolder, util.TerraformLockFile)
-
-	if util.FileExists(sourceLockFilePath) {
-		logger.Debugf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
-		return util.CopyFile(sourceLockFilePath, destinationLockFilePath)
-	}
-
-	return nil
 }
 
 // Run the given action function surrounded by hooks. That is, run the before hooks first, then, if there were no
@@ -1100,7 +1110,7 @@ func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 //
 // If terraformSource is specified, then arguments to download the terraform source will be appended to the init command.
 //
-// This method will return an error and NOT run terraform init if the user has disabled Auto-Init
+// This method will return an error and NOT run terraform init if the user has disabled Auto-Init.
 //
 // This method takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
 // and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
@@ -1137,8 +1147,12 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformS
 	initOptions.WorkingDir = terragruntOptions.WorkingDir
 	initOptions.TerraformCommand = CMD_INIT
 
-	// Don't pollute stdout with the stdout from Auto Init
-	initOptions.Writer = initOptions.ErrWriter
+	initOutputForCommands := []string{CMD_PLAN, CMD_APPLY}
+	terraformCommand := util.FirstArg(terragruntOptions.TerraformCliArgs)
+	if !collections.ListContainsElement(initOutputForCommands, terraformCommand) {
+		// Since some command can return a json string, it is necessary to suppress output to stdout of the `terraform init` command.
+		initOptions.Writer = io.Discard
+	}
 
 	return initOptions, nil
 }
@@ -1185,7 +1199,7 @@ func runAll(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
-	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
+	stack, err := configstack.FindStackInSubfolders(terragruntOptions, nil)
 	if err != nil {
 		return err
 	}

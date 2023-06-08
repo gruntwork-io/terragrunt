@@ -5,6 +5,7 @@ package shell
 
 import (
 	goerrors "errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
@@ -75,4 +76,29 @@ func TestNewSignalsForwarderWaitWindows(t *testing.T) {
 	// assert.Equal(t, retCode, expectedWait)
 	// assert.WithinDuration(t, start.Add(time.Duration(expectedWait)*time.Second), time.Now(), time.Second,
 	// 	"Expected to wait 5 (+/-1) seconds after SIGINT")
+}
+
+func TestRunShellCommandWithOutputInterrupt(t *testing.T) {
+	t.Parallel()
+
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
+	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+
+	errCh := make(chan error)
+	expectedWait := 5
+
+	go func() {
+		_, err := RunShellCommandWithOutput(terragruntOptions, "", false, false, "../testdata/test_sigint_wait.bat", strconv.Itoa(expectedWait))
+		errCh <- err
+	}()
+
+	time.AfterFunc(3*time.Second, func() {
+		process, err := os.FindProcess(os.Getpid())
+		assert.NoError(t, err)
+
+		process.Signal(os.Kill)
+	})
+
+	expectedErr := fmt.Sprintf("[.] exit status %d", expectedWait)
+	assert.EqualError(t, <-errCh, expectedErr)
 }

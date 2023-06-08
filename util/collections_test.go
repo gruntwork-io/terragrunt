@@ -240,13 +240,15 @@ func TestKeyValuePairStringListToMap(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name   string
-		input  []string
-		output map[string]string
+		name     string
+		input    []string
+		splitter func(s, sep string) []string
+		output   map[string]string
 	}{
 		{
 			"base",
 			[]string{"foo=bar", "baz=carol"},
+			SplitUrls,
 			map[string]string{
 				"foo": "bar",
 				"baz": "carol",
@@ -255,18 +257,26 @@ func TestKeyValuePairStringListToMap(t *testing.T) {
 		{
 			"special_chars",
 			[]string{"ssh://git@github.com=/path/to/local"},
+			SplitUrls,
 			map[string]string{"ssh://git@github.com": "/path/to/local"},
+		},
+		{
+			"with_tags",
+			[]string{"ssh://git@github.com=ssh://git@github.com/test.git?ref=feature"},
+			SplitUrls,
+			map[string]string{"ssh://git@github.com": "ssh://git@github.com/test.git?ref=feature"},
 		},
 		{
 			"empty",
 			[]string{},
+			SplitUrls,
 			map[string]string{},
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			actualOutput, err := KeyValuePairStringListToMap(testCase.input)
+			actualOutput, err := KeyValuePairStringListToMap(testCase.input, testCase.splitter)
 			assert.NoError(t, err)
 			assert.Equal(
 				t,

@@ -80,7 +80,7 @@ type TerragruntConfig struct {
 	IsPartial bool
 
 	// Map of processed includes
-	ProcessedIncludes map[string]IncludeConfig
+	ProcessedIncludes IncludeConfigs
 
 	// Map to store fields metadata
 	FieldsMetadata map[string]map[string]interface{}
@@ -238,6 +238,20 @@ type terragruntGenerateBlock struct {
 	CommentPrefix    *string `hcl:"comment_prefix,attr" mapstructure:"comment_prefix"`
 	Contents         string  `hcl:"contents,attr" mapstructure:"contents"`
 	DisableSignature *bool   `hcl:"disable_signature,attr" mapstructure:"disable_signature"`
+	Disable          *bool   `hcl:"disable,attr" mapstructure:"disable"`
+}
+
+type IncludeConfigs map[string]IncludeConfig
+
+// ContainsPath returns true if the given path is contained in at least one configuration.
+func (cfgs IncludeConfigs) ContainsPath(path string) bool {
+	for _, cfg := range cfgs {
+		if cfg.Path == path {
+			return true
+		}
+	}
+
+	return false
 }
 
 // IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
@@ -314,19 +328,21 @@ func (deps *ModuleDependencies) String() string {
 
 // Hook specifies terraform commands (apply/plan) and array of os commands to execute
 type Hook struct {
-	Name       string   `hcl:"name,label" cty:"name"`
-	Commands   []string `hcl:"commands,attr" cty:"commands"`
-	Execute    []string `hcl:"execute,attr" cty:"execute"`
-	RunOnError *bool    `hcl:"run_on_error,attr" cty:"run_on_error"`
-	WorkingDir *string  `hcl:"working_dir,attr" cty:"working_dir"`
+	Name           string   `hcl:"name,label" cty:"name"`
+	Commands       []string `hcl:"commands,attr" cty:"commands"`
+	Execute        []string `hcl:"execute,attr" cty:"execute"`
+	RunOnError     *bool    `hcl:"run_on_error,attr" cty:"run_on_error"`
+	SuppressStdout *bool    `hcl:"suppress_stdout,attr" cty:"suppress_stdout"`
+	WorkingDir     *string  `hcl:"working_dir,attr" cty:"working_dir"`
 }
 
 type ErrorHook struct {
-	Name       string   `hcl:"name,label" cty:"name"`
-	Commands   []string `hcl:"commands,attr" cty:"commands"`
-	Execute    []string `hcl:"execute,attr" cty:"execute"`
-	OnErrors   []string `hcl:"on_errors,attr" cty:"on_errors"`
-	WorkingDir *string  `hcl:"working_dir,attr" cty:"working_dir"`
+	Name           string   `hcl:"name,label" cty:"name"`
+	Commands       []string `hcl:"commands,attr" cty:"commands"`
+	Execute        []string `hcl:"execute,attr" cty:"execute"`
+	OnErrors       []string `hcl:"on_errors,attr" cty:"on_errors"`
+	SuppressStdout *bool    `hcl:"suppress_stdout,attr" cty:"suppress_stdout"`
+	WorkingDir     *string  `hcl:"working_dir,attr" cty:"working_dir"`
 }
 
 func (conf *Hook) String() string {
@@ -986,6 +1002,11 @@ func convertToTerragruntConfig(
 			genConfig.DisableSignature = false
 		} else {
 			genConfig.DisableSignature = *block.DisableSignature
+		}
+		if block.Disable == nil {
+			genConfig.Disable = false
+		} else {
+			genConfig.Disable = *block.Disable
 		}
 		terragruntConfig.GenerateConfigs[block.Name] = genConfig
 		terragruntConfig.SetFieldMetadataWithType(MetadataGenerateConfigs, block.Name, defaultMetadata)

@@ -5,9 +5,11 @@ package shell
 
 import (
 	goerrors "errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
+	"syscall"
 	"testing"
 	"time"
 
@@ -118,4 +120,26 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 	assert.Nil(t, err)
 	assert.True(t, retCode <= interrupts, "Subprocess received wrong number of signals")
 	assert.Equal(t, retCode, expectedInterrupts, "Subprocess didn't receive multiple signals")
+}
+
+func TestRunShellCommandWithOutputInterrupt(t *testing.T) {
+	t.Parallel()
+
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
+	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+
+	errCh := make(chan error)
+	expectedWait := 5
+
+	go func() {
+		_, err := RunShellCommandWithOutput(terragruntOptions, "", false, false, "../testdata/test_sigint_wait.sh", strconv.Itoa(expectedWait))
+		errCh <- err
+	}()
+
+	time.AfterFunc(3*time.Second, func() {
+		syscall.Kill(os.Getpid(), syscall.SIGINT)
+	})
+
+	expectedErr := fmt.Sprintf("[.] exit status %d", expectedWait)
+	assert.EqualError(t, <-errCh, expectedErr)
 }
