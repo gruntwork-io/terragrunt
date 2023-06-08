@@ -79,10 +79,10 @@ This will recursively search the current working directory for any folders that 
 [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
 [`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks.
 
-**[WARNING] Using `run-all` with `plan` is currently broken for certain use cases**. If you have a stack of Terragrunt 
-modules with dependencies between them—either via `dependency` blocks or `terraform_remote_state` data sources—and 
-you've never deployed them, then `run-all plan` will fail as it will not be possible to resolve the `dependency` blocks 
-or `terraform_remote_state` data sources! Please [see here for more 
+**[WARNING] Using `run-all` with `plan` is currently broken for certain use cases**. If you have a stack of Terragrunt
+modules with dependencies between them—either via `dependency` blocks or `terraform_remote_state` data sources—and
+you've never deployed them, then `run-all plan` will fail as it will not be possible to resolve the `dependency` blocks
+or `terraform_remote_state` data sources! Please [see here for more
 information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-497888756).
 
 **[NOTE]** Using `run-all` with `apply` or `destroy` silently adds the `-auto-approve` flag to the command line
@@ -494,6 +494,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-parallelism](#terragrunt-parallelism)
 - [terragrunt-debug](#terragrunt-debug)
 - [terragrunt-log-level](#terragrunt-log-level)
+- [terragrunt-no-color](#terragrunt-no-color)
 - [terragrunt-check](#terragrunt-check)
 - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
 - [terragrunt-override-attr](#terragrunt-override-attr)
@@ -584,7 +585,7 @@ This setting will default to `no` for the following cases:
 **Requires an argument**: `--terragrunt-working-dir /path/to/working-directory`
 
 Set the directory where Terragrunt should execute the `terraform` command. Default is the current working directory.
-Note that for the `run-all` commands, this parameter has a different meaning: Terragrunt will apply or destroy all the 
+Note that for the `run-all` commands, this parameter has a different meaning: Terragrunt will apply or destroy all the
 Terraform modules in the subfolders of the `terragrunt-working-dir`, running `terraform` in the root of each module it
 finds.
 
@@ -609,8 +610,8 @@ Default is `.terragrunt-cache` in the working directory. We recommend adding thi
 Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary
 folder. The source should use the same syntax as the [Terraform module
 source](https://www.terraform.io/docs/modules/sources.html) parameter. If you specify this argument for the `run-all`
-commands, Terragrunt will assume this is the local file path for all of your Terraform modules, and for each module 
-processed by the `run-all` command, Terragrunt will automatically append the path of `source` parameter in each module 
+commands, Terragrunt will assume this is the local file path for all of your Terraform modules, and for each module
+processed by the `run-all` command, Terragrunt will automatically append the path of `source` parameter in each module
 to the `--terragrunt-source` parameter you passed in.
 
 
@@ -787,6 +788,12 @@ When passed it, sets logging level for terragrunt. All supported levels are:
 * debug
 * trace
 
+### terragrunt-no-color
+
+**CLI Arg**: `--terragrunt-no-color`<br/>
+**Environment Variable**: `TERRAGRUNT_NO_COLOR`
+
+If specified, output won't contain any color.
 
 
 ### terragrunt-check

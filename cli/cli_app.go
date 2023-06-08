@@ -13,9 +13,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/tflint"
 
 	"github.com/gruntwork-io/gruntwork-cli/collections"
+	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/hashicorp/go-multierror"
 	"github.com/mattn/go-zglob"
-	"github.com/urfave/cli"
 
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/cli/tfsource"
@@ -58,6 +58,7 @@ const (
 	optTerragruntDebug                          = "terragrunt-debug"
 	optTerragruntOverrideAttr                   = "terragrunt-override-attr"
 	optTerragruntLogLevel                       = "terragrunt-log-level"
+	optTerragruntLogDisableColors               = "terragrunt-no-color"
 	optTerragruntStrictValidate                 = "terragrunt-strict-validate"
 	optTerragruntJSONOut                        = "terragrunt-json-out"
 	optTerragruntModulesThatInclude             = "terragrunt-modules-that-include"
@@ -81,6 +82,7 @@ var allTerragruntBooleanOpts = []string{
 	optTerragruntDiff,
 	optTerragruntStrictInclude,
 	optTerragruntDebug,
+	optTerragruntLogDisableColors,
 	optTerragruntFetchDependencyOutputFromState,
 	optTerragruntUsePartialParseConfigCache,
 	optTerragruntOutputWithMetadata,
@@ -220,67 +222,6 @@ type TerragruntInfoGroup struct {
 	WorkingDir       string
 }
 
-// Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
-// in its definition, we don't quite fit into the model of any Go CLI library. Fortunately, urfave/cli allows us to
-// override the whole template used for the Usage Text.
-//
-// TODO: this description text has copy/pasted versions of many Terragrunt constants, such as command names and file
-// names. It would be easy to make this code DRY using fmt.Sprintf(), but then it's hard to make the text align nicely.
-// Write some code to take generate this help text automatically, possibly leveraging code that's part of urfave/cli.
-var CUSTOM_USAGE_TEXT = `DESCRIPTION:
-   {{.Name}} - {{.UsageText}}
-
-USAGE:
-   {{.Usage}}
-
-COMMANDS:
-   run-all               Run a terraform command against a 'stack' by running the specified command in each subfolder. E.g., to run 'terragrunt apply' in each subfolder, use 'terragrunt run-all apply'.
-   terragrunt-info       Emits limited terragrunt state on stdout and exits
-   validate-inputs       Checks if the terragrunt configured inputs align with the terraform defined variables.
-   graph-dependencies    Prints the terragrunt dependency graph to stdout
-   hclfmt                Recursively find hcl files and rewrite them into a canonical format.
-   aws-provider-patch    Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018)
-   render-json           Render the final terragrunt config, with all variables, includes, and functions resolved, as json. This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.
-   *                     Terragrunt forwards all other commands directly to Terraform
-
-GLOBAL OPTIONS:
-   terragrunt-config                            Path to the Terragrunt config file. Default is terragrunt.hcl.
-   terragrunt-tfpath                            Path to the Terraform binary. Default is terraform (on PATH).
-   terragrunt-no-auto-init                      Don't automatically run 'terraform init' during other terragrunt commands. You must run 'terragrunt init' manually.
-   terragrunt-no-auto-retry                     Don't automatically re-run command in case of transient errors.
-   terragrunt-non-interactive                   Assume "yes" for all prompts.
-   terragrunt-working-dir                       The path to the Terraform templates. Default is current directory.
-   terragrunt-download-dir                      The path where to download Terraform code. Default is .terragrunt-cache in the working directory.
-   terragrunt-source                            Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.
-   terragrunt-source-update                     Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it.
-   terragrunt-iam-role                          Assume the specified IAM role before executing Terraform. Can also be set via the TERRAGRUNT_IAM_ROLE environment variable.
-   terragrunt-iam-assume-role-duration          Session duration for IAM Assume Role session. Can also be set via the TERRAGRUNT_IAM_ASSUME_ROLE_DURATION environment variable.
-   terragrunt-iam-assume-role-session-name      Name for the IAM Assummed Role session. Can also be set via TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME environment variable.
-   terragrunt-ignore-dependency-errors          *-all commands continue processing components even if a dependency fails.
-   terragrunt-ignore-dependency-order           *-all commands will be run disregarding the dependencies
-   terragrunt-ignore-external-dependencies      *-all commands will not attempt to include external dependencies
-   terragrunt-include-external-dependencies     *-all commands will include external dependencies
-   terragrunt-parallelism <N>                   *-all commands parallelism set to at most N modules
-   terragrunt-exclude-dir                       Unix-style glob of directories to exclude when running *-all commands
-   terragrunt-include-dir                       Unix-style glob of directories to include when running *-all commands
-   terragrunt-check                             Enable check mode in the hclfmt command.
-   terragrunt-hclfmt-file                       The path to a single hcl file that the hclfmt command should run on.
-   terragrunt-override-attr                     A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.
-   terragrunt-debug                             Write terragrunt-debug.tfvars to working folder to help root-cause issues.
-   terragrunt-log-level                         Sets the logging level for Terragrunt. Supported levels: panic, fatal, error, warn (default), info, debug, trace.
-   terragrunt-strict-validate                   Sets strict mode for the validate-inputs command. By default, strict mode is off. When this flag is passed, strict mode is turned on. When strict mode is turned off, the validate-inputs command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When strict mode is turned on, an error will be returned if required inputs are missing OR if unused variables are passed to Terragrunt.
-   terragrunt-json-out                          The file path that terragrunt should use when rendering the terragrunt.hcl config as json. Only used in the render-json command. Defaults to terragrunt_rendered.json.
-   terragrunt-use-partial-parse-config-cache    Enables caching of includes during partial parsing operations. Will also be used for the --terragrunt-iam-role option if provided.
-   terragrunt-include-module-prefix             When this flag is set output from Terraform sub-commands is prefixed with module path.
-
-VERSION:
-   {{.Version}}{{if len .Authors}}
-
-AUTHOR(S):
-   {{range .Authors}}{{.}}{{end}}
-   {{end}}
-`
-
 var MODULE_REGEX = regexp.MustCompile(`module[[:blank:]]+".+"`)
 
 // This uses the constraint syntax from https://github.com/hashicorp/go-version
@@ -312,45 +253,72 @@ var sourceChangeLocks = sync.Map{}
 
 // Create the Terragrunt CLI App
 func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) *cli.App {
-	cli.OsExiter = func(exitCode int) {
-		// Do nothing. We just need to override this function, as the default value calls os.Exit, which
-		// kills the app (or any automated test) dead in its tracks.
-	}
-
-	cli.AppHelpTemplate = CUSTOM_USAGE_TEXT
-
 	app := cli.NewApp()
-
+	app.CustomAppHelpTemplate = AppHelpTemplate
 	app.Name = "terragrunt"
 	app.Author = "Gruntwork <www.gruntwork.io>"
 	app.Version = version
-	app.Action = runApp
 	app.Usage = "terragrunt <COMMAND> [GLOBAL OPTIONS]"
 	app.Writer = writer
 	app.ErrWriter = errwriter
 	app.UsageText = `Terragrunt is a thin wrapper for Terraform that provides extra tools for working with multiple
    Terraform modules, remote state, and locking. For documentation, see https://github.com/gruntwork-io/terragrunt/.`
 
+	opts := &options.TerragruntOptions{}
+	opts.TerragruntConfigPath = "some-value"
+	opts.ExcludeDirs = []string{"p1", "p2"}
+
+	app.AddFlags(
+		&cli.Flag{
+			Name:        "terragrunt-config",
+			EnvVar:      "TERRAGRUNT_CONFIG",
+			Usage:       "The path to the Terragrunt config file. Default is terragrunt.hcl.",
+			Destination: &opts.TerragruntConfigPath,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-working-dir",
+			EnvVar:      "TERRAGRUNT_WORKING_DIR",
+			Usage:       "The path where to download Terraform code. Default is .terragrunt-cache in the working directory.",
+			Destination: &opts.WorkingDir,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-exclude-dir",
+			Usage:       "Unix-style glob of directories to exclude when running *-all commands.",
+			Destination: &opts.ExcludeDirs,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-source-map",
+			EnvVar:      "TERRAGRUNT_SOURCE_MAP",
+			Usage:       "Replace any source URL (including the source URL of a config pulled in with dependency blocks) that has root source with dest.",
+			Splitter:    util.SplitUrls,
+			Destination: &opts.SourceMap,
+		},
+	)
+
+	app.Action = func(ctx *cli.Context) error {
+		return runApp(ctx, opts)
+	}
 	return app
 }
 
 // The sole action for the app
-func runApp(cliContext *cli.Context) (finalErr error) {
+func runApp(ctx *cli.Context, opts *options.TerragruntOptions) (finalErr error) {
 	defer errors.Recover(func(cause error) { finalErr = cause })
 
-	// If someone calls us with no args at all, show the help text and exit
-	if !cliContext.Args().Present() {
-		return cli.ShowAppHelp(cliContext)
-	}
+	fmt.Println("----- WorkingDir ", opts.WorkingDir)
+	fmt.Println("----- TerragruntConfigPath ", opts.TerragruntConfigPath)
+	fmt.Println("----- ExcludeDirs ", opts.ExcludeDirs)
+	fmt.Printf("----- SourceMap %#v\n", opts.SourceMap)
 
-	terragruntOptions, err := ParseTerragruntOptions(cliContext)
+	return nil
+	terragruntOptions, err := ParseTerragruntOptions(ctx.Context)
 	if err != nil {
 		return err
 	}
 
 	shell.PrepareConsole(terragruntOptions)
 
-	givenCommand := cliContext.Args().First()
+	givenCommand := ctx.Args().First()
 	newOptions, command := checkDeprecated(givenCommand, terragruntOptions)
 	return runCommand(command, newOptions)
 }

@@ -14,12 +14,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
 	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 // ParseTerragruntOptions Parse command line options that are passed in for Terragrunt
 func ParseTerragruntOptions(cliContext *cli.Context) (*options.TerragruntOptions, error) {
-	terragruntOptions, err := parseTerragruntOptionsFromArgs(cliContext.App.Version, cliContext.Args(), cliContext.App.Writer, cliContext.App.ErrWriter)
+	terragruntOptions, err := parseTerragruntOptionsFromArgs(cliContext.App.Version, cliContext.Args().Slice(), cliContext.App.Writer, cliContext.App.ErrWriter)
 	if err != nil {
 		return nil, err
 	}

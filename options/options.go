@@ -242,6 +242,7 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 // Create a new TerragruntOptions object with reasonable defaults for real usage
 func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, error) {
 	defaultLogLevel := util.GetDefaultLogLevel()
+
 	logger := util.CreateLogEntry("", defaultLogLevel)
 
 	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(terragruntConfigPath)
