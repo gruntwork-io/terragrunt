@@ -264,6 +264,8 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 	app.UsageText = `Terragrunt is a thin wrapper for Terraform that provides extra tools for working with multiple
    Terraform modules, remote state, and locking. For documentation, see https://github.com/gruntwork-io/terragrunt/.`
 
+	var showHelp bool
+
 	opts := &options.TerragruntOptions{}
 	opts.TerragruntConfigPath = "some-value"
 	opts.ExcludeDirs = []string{"p1", "p2"}
@@ -293,9 +295,20 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 			Splitter:    util.SplitUrls,
 			Destination: &opts.SourceMap,
 		},
+		&cli.Flag{
+			Name:        "help",        // --help, -help
+			Aliases:     []string{"h"}, //  -h
+			Usage:       "Show help",
+			Destination: &showHelp,
+		},
 	)
 
 	app.Action = func(ctx *cli.Context) error {
+		// if the first argument is `--help` or no args at all show the Terragrunt help.
+		if (showHelp && ctx.Args().Len() == 1) || !ctx.Args().Present() {
+			return cli.ShowAppHelp(ctx)
+		}
+
 		return runApp(ctx, opts)
 	}
 	return app
@@ -304,6 +317,8 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 // The sole action for the app
 func runApp(ctx *cli.Context, opts *options.TerragruntOptions) (finalErr error) {
 	defer errors.Recover(func(cause error) { finalErr = cause })
+
+	fmt.Println("Undefined --- ", ctx.UndefinedFlags())
 
 	fmt.Println("----- WorkingDir ", opts.WorkingDir)
 	fmt.Println("----- TerragruntConfigPath ", opts.TerragruntConfigPath)

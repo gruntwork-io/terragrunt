@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -20,15 +19,13 @@ func newIntValue(val int, p *int) *intValue {
 
 func (val *intValue) Set(strVal string) error {
 	if val.hasBeenSet {
-		err := fmt.Errorf("set more than once")
-		return errors.WithStackTrace(err)
+		return errors.Errorf("set more than once")
 	}
 	val.hasBeenSet = true
 
 	value, err := strconv.Atoi(strVal)
 	if err != nil {
-		err = fmt.Errorf("error parse: %w", err)
-		return errors.WithStackTrace(err)
+		return errors.Errorf("error parse: %w", err)
 	}
 
 	*val.value = value

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/urfave/cli/v2"
 )
 
@@ -20,27 +19,14 @@ func (app *App) AddFlags(flags ...*Flag) {
 
 // Run is the entry point to the cli app. Parses the arguments slice and routes to the proper flag/args combination.
 func (app *App) Run(arguments []string) (err error) {
-	var showHelp bool
-
 	app.SkipFlagParsing = true
 	app.Authors = []*cli.Author{{Name: app.Author}}
-	app.Flags = append(app.Flags, &Flag{
-		Name:        "help",
-		Usage:       "Show help",
-		Destination: &showHelp,
-	})
 
 	app.App.Action = func(cliCtx *cli.Context) error {
-		ctx := NewContext(cliCtx, app)
+		ctx := NewContext(cliCtx)
 
-		args, _ := ctx.Args().DoublePrefixed()
-		if err := app.parseFlags(args); err != nil {
+		if err := ctx.parseFlags(app.Flags); err != nil {
 			return err
-		}
-
-		// If someone calls us with `--help` or no args at all, show the help text and exit
-		if showHelp || !ctx.Args().Present() {
-			return ShowAppHelp(ctx)
 		}
 
 		return app.Action(ctx)
@@ -49,25 +35,13 @@ func (app *App) Run(arguments []string) (err error) {
 	return app.App.Run(arguments)
 }
 
-// VisibleFlags returns a slice of the Flags used by `urfave/cli` package to generate help.
+// VisibleFlags returns a slice of the Flags, used by `urfave/cli` package to generate help.
 func (app *App) VisibleFlags() []cli.Flag {
 	var flags []cli.Flag
 	for _, flag := range app.Flags {
 		flags = append(flags, flag)
 	}
 	return flags
-}
-
-func (app *App) parseFlags(args []string) error {
-	set, err := app.Flags.flagSet("root-cmd")
-	if err != nil {
-		return err
-	}
-
-	if err := set.Parse(args); err != nil {
-		return errors.WithStackTrace(err)
-	}
-	return nil
 }
 
 // NewApp returns a new App instance.

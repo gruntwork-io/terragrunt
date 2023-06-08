@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"flag"
+	libflag "flag"
 	"fmt"
 	"strings"
 
@@ -23,9 +23,10 @@ var (
 
 // Flag is a common flag related to parsing flags in cli.
 type Flag struct {
-	Name   string
-	Usage  string
-	EnvVar string
+	Name    string
+	Aliases []string
+	Usage   string
+	EnvVar  string
 
 	Destination any
 	defaultText string
@@ -38,8 +39,7 @@ type Flag struct {
 // TakesValue returns true of the flag takes a value, otherwise false.
 // Implements `cli.DocGenerationFlag.TakesValue` required to generate help.
 func (flag *Flag) TakesValue() bool {
-	_, ok := flag.Destination.(*bool)
-	return !ok
+	return !flag.IsBool()
 }
 
 // GetUsage returns the usage string for the flag
@@ -75,7 +75,7 @@ func (flag *Flag) GetValue() string {
 // GetDefaultText returns the default text for this flag
 // Implements `cli.DocGenerationFlag.GetDefaultText` required to generate help.
 func (flag *Flag) GetDefaultText() string {
-	if _, ok := flag.Destination.(*bool); ok {
+	if flag.IsBool() {
 		return ""
 	}
 	return flag.defaultText
@@ -88,7 +88,14 @@ func (flag *Flag) String() string {
 
 // Names `cli.Flag.Names` required to generate help.
 func (flag *Flag) Names() []string {
-	return []string{flag.Name}
+	var names []string
+
+	for _, name := range append([]string{flag.Name}, flag.Aliases...) {
+		name = strings.TrimSpace(name)
+		names = append(names, name)
+	}
+
+	return names
 }
 
 // IsSet `cli.Flag.IsSet` required to generate help.
@@ -96,8 +103,14 @@ func (flag *Flag) IsSet() bool {
 	return flag.defaultText != fmt.Sprintf("%s", flag.Destination)
 }
 
+// IsBool returns true if the Flag has boolean type.
+func (flag *Flag) IsBool() bool {
+	_, ok := flag.Destination.(*bool)
+	return ok
+}
+
 // Apply applies Flag settings to the given flag set.
-func (flag *Flag) Apply(set *flag.FlagSet) error {
+func (flag *Flag) Apply(set *libflag.FlagSet) error {
 	if err := flag.validate(); err != nil {
 		return err
 	}
@@ -108,8 +121,10 @@ func (flag *Flag) Apply(set *flag.FlagSet) error {
 
 		envVal := os.GetStringEnv(flag.EnvVar, *ptr)
 
-		val := newStringValue(envVal, ptr)
-		set.Var(val, flag.Name, flag.Usage)
+		for _, name := range flag.Names() {
+			val := newStringValue(envVal, ptr)
+			set.Var(val, name, flag.Usage)
+		}
 
 	case *bool:
 		flag.defaultText = fmt.Sprintf("%v", *ptr)
@@ -119,8 +134,10 @@ func (flag *Flag) Apply(set *flag.FlagSet) error {
 			return err
 		}
 
-		val := newBoolValue(envVal, ptr)
-		set.Var(val, flag.Name, flag.Usage)
+		for _, name := range flag.Names() {
+			val := newBoolValue(envVal, ptr)
+			set.Var(val, name, flag.Usage)
+		}
 
 	case *int:
 		flag.defaultText = fmt.Sprintf("%v", *ptr)
@@ -130,16 +147,20 @@ func (flag *Flag) Apply(set *flag.FlagSet) error {
 			return err
 		}
 
-		val := newIntValue(envVal, ptr)
-		set.Var(val, flag.Name, flag.Usage)
+		for _, name := range flag.Names() {
+			val := newIntValue(envVal, ptr)
+			set.Var(val, name, flag.Usage)
+		}
 
 	case *[]string:
 		flag.defaultText = strings.Join(*ptr, flag.ArgSep)
 
 		envVal := os.GetStringSliceEnv(flag.EnvVar, flag.ArgSep, flag.Splitter, *ptr)
 
-		val := newStringSliceValue(envVal, ptr, flag.ArgSep)
-		set.Var(val, flag.Name, flag.Usage)
+		for _, name := range flag.Names() {
+			val := newStringSliceValue(envVal, ptr, flag.ArgSep)
+			set.Var(val, name, flag.Usage)
+		}
 
 	case *map[string]string:
 		flag.defaultText = maps.Join(*ptr, flag.ArgSep, flag.KeyValSep)
@@ -149,8 +170,13 @@ func (flag *Flag) Apply(set *flag.FlagSet) error {
 			return err
 		}
 
-		val := newStringMapValue(envVal, ptr, flag.ArgSep, flag.KeyValSep, flag.Splitter)
-		set.Var(val, flag.Name, flag.Usage)
+		for _, name := range flag.Names() {
+			val := newStringMapValue(envVal, ptr, flag.ArgSep, flag.KeyValSep, flag.Splitter)
+			set.Var(val, name, flag.Usage)
+		}
+
+	default:
+		return errors.Errorf("undefined flag type: %s", flag.Name)
 	}
 
 	return nil
@@ -170,8 +196,7 @@ func (flag *Flag) validate() error {
 	}
 
 	if flag.Destination == nil {
-		err := fmt.Errorf("must be defined `Destination` field for flag %s", flag.Name)
-		return errors.WithStackTrace(err)
+		return errors.Errorf("undefined `Destination` flag field: %s", flag.Name)
 	}
 
 	return nil

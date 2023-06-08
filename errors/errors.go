@@ -6,9 +6,15 @@ import (
 	goerrors "github.com/go-errors/errors"
 )
 
+// Errorf creates a new error and wraps in an Error type that contains the stack trace.
+func Errorf(message string, args ...interface{}) error {
+	err := fmt.Errorf(message, args...)
+	return goerrors.Wrap(err, 1)
+}
+
 // Wrap the given error in an Error type that contains the stack trace. If the given error already has a stack trace,
 // it is used directly. If the given error is nil, return nil.
-func WithStackTrace(err error) error {
+func WithStackTrace(err any) error {
 	if err == nil {
 		return nil
 	}

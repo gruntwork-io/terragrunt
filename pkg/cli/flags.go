@@ -1,14 +1,32 @@
 package cli
 
 import (
-	"flag"
+	libflag "flag"
 	"io"
+
+	"github.com/gruntwork-io/terragrunt/errors"
+
+	"github.com/gruntwork-io/go-commons/collections"
 )
 
 type Flags []*Flag
 
-func (flags Flags) flagSet(name string) (*flag.FlagSet, error) {
-	set := flag.NewFlagSet(name, flag.ContinueOnError)
+// Get returns a Flag by the given name.
+func (flags Flags) Get(name string) *Flag {
+	for _, flag := range flags {
+		if flag.Name == name {
+			return flag
+		}
+		if collections.ListContainsElement(flag.Aliases, name) {
+			return flag
+		}
+	}
+
+	return nil
+}
+
+func (flags Flags) newFlagSet(name string, errorHandling libflag.ErrorHandling) (*libflag.FlagSet, error) {
+	set := libflag.NewFlagSet(name, errorHandling)
 	set.SetOutput(io.Discard)
 
 	for _, flag := range flags {
@@ -20,24 +38,24 @@ func (flags Flags) flagSet(name string) (*flag.FlagSet, error) {
 	return set, nil
 }
 
-// BoolFlags returns a set of boolean Flags.
-func (flags Flags) BoolFlags() Flags {
-	var boolFlags Flags
+func (flags Flags) normalize(set *libflag.FlagSet) error {
+	visited := make(map[string]bool)
+	set.Visit(func(f *libflag.Flag) {
+		visited[f.Name] = true
+	})
 
 	for _, flag := range flags {
-		if _, ok := flag.Destination.(*bool); ok {
-			boolFlags = append(boolFlags, flag)
-		}
-	}
+		var firstVisit string
 
-	return boolFlags
-}
+		for _, name := range flag.Names() {
+			if !visited[name] {
+				continue
+			}
 
-// Get returns a Flag by the given name.
-func (flags Flags) Get(name string) *Flag {
-	for _, flag := range flags {
-		if flag.Name == name {
-			return flag
+			if firstVisit != "" {
+				return errors.Errorf("cannot use two forms of the same flag: %q %q", firstVisit, name)
+			}
+			firstVisit = name
 		}
 	}
 

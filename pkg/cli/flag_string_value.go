@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"fmt"
-
 	"github.com/gruntwork-io/terragrunt/errors"
 )
 
@@ -19,8 +17,7 @@ func newStringValue(val string, p *string) *stringValue {
 
 func (val *stringValue) Set(str string) error {
 	if val.hasBeenSet {
-		err := fmt.Errorf("set more than once")
-		return errors.WithStackTrace(err)
+		return errors.Errorf("set more than once")
 	}
 	val.hasBeenSet = true
 

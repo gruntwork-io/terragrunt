@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -35,8 +34,7 @@ func (val *stringMapValue) Set(str string) error {
 
 	parts := val.splitter(str, val.keyValSep)
 	if len(parts) != 2 {
-		err := fmt.Errorf("valid format: key%svalue", val.keyValSep)
-		return errors.WithStackTrace(err)
+		return errors.Errorf("valid format: key%svalue", val.keyValSep)
 	}
 
 	(*val.value)[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
