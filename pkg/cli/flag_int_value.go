@@ -15,11 +15,10 @@ func newIntValue(val int, p *int) *intValue {
 }
 
 func (i *intValue) Set(s string) error {
-	v, err := strconv.Atoi(s)
+	v, err := strconv.ParseInt(s, 0, strconv.IntSize)
 	if err != nil {
 		return errors.Errorf("error parse: %w", err)
 	}
-
 	*i = intValue(v)
 	return nil
 }

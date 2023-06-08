@@ -152,6 +152,19 @@ func (flag *Flag) Apply(set *libflag.FlagSet) error {
 			set.Var(val, name, flag.Usage)
 		}
 
+	case *int64:
+		flag.defaultText = fmt.Sprintf("%v", *ptr)
+
+		envVal, err := os.GetIntEnv(flag.EnvVar, int(*ptr))
+		if err != nil {
+			return err
+		}
+
+		for _, name := range flag.Names() {
+			val := newGenreicValue(newInt64Value(int64(envVal), ptr))
+			set.Var(val, name, flag.Usage)
+		}
+
 	case *[]string:
 		flag.defaultText = strings.Join(*ptr, flag.ArgSep)
 
