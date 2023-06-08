@@ -8,12 +8,13 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-const errStrUndefined = "flag provided but not defined:"
+const errFlagUndefined = "flag provided but not defined:"
 
 // Context can be used to retrieve context-specific args and parsed command-line options.
 type Context struct {
 	*cli.Context
-	undefinedFlags []string
+	*App
+	undefinedArgs []string
 }
 
 // Args returns the command line arguments associated with the context.
@@ -21,13 +22,24 @@ func (ctx *Context) Args() cli.Args {
 	return ctx.Context.Args()
 }
 
-// UndefinedFlags returns flags that are not defined but specified in the command.
-func (ctx *Context) UndefinedFlags() []string {
-	return ctx.undefinedFlags
+// UndefinedArgs returns flags that are not defined but specified in the command.
+func (ctx *Context) UndefinedArgs() []string {
+	return ctx.undefinedArgs
 }
 
 func (ctx *Context) parseFlags(flags Flags) error {
-	args := ctx.Args().Slice()
+	filterArgs := func(args []string) []string {
+		for i, arg := range args {
+			if arg[0] == '-' {
+				args = args[i:]
+				break
+			}
+			ctx.undefinedArgs = append(ctx.undefinedArgs, arg)
+		}
+		return args
+	}
+
+	args := filterArgs(ctx.Args().Slice())
 
 	for {
 		flagSet, err := flags.newFlagSet("root-cmd", flag.ContinueOnError)
@@ -37,37 +49,38 @@ func (ctx *Context) parseFlags(flags Flags) error {
 
 		err = flagSet.Parse(args)
 		if err == nil {
+			ctx.undefinedArgs = append(ctx.undefinedArgs, flagSet.Args()...)
 			return flags.normalize(flagSet)
 		}
 
 		// check if the error is due to an undefined flag
 		var undefined string
-		if errStr := err.Error(); strings.HasPrefix(errStr, errStrUndefined) {
-			undefined = strings.Trim(strings.TrimPrefix(errStr, errStrUndefined), " -")
+		if errStr := err.Error(); strings.HasPrefix(errStr, errFlagUndefined) {
+			undefined = strings.Trim(strings.TrimPrefix(errStr, errFlagUndefined), " -")
 		} else {
 			return errors.WithStackTrace(err)
 		}
 
 		// regenerate the initial args without undefined
-		argsWereSplit := false
+		argsRegenerated := false
 		for i, arg := range args {
-			if strings.Trim(arg, "-") == undefined {
-				ctx.undefinedFlags = append(ctx.undefinedFlags, arg)
-				args = append(args[:i], args[i+1:]...)
-
-				argsWereSplit = true
+			if trimmed := strings.Trim(arg, "-"); trimmed == undefined {
+				ctx.undefinedArgs = append(ctx.undefinedArgs, arg)
+				args = filterArgs(append(args[:i], args[i+1:]...))
+				argsRegenerated = true
 				break
 			}
+
 		}
 
 		// This should be an impossible to reach code path, but in case the arg
 		// splitting failed to happen, this will prevent infinite loops
-		if !argsWereSplit {
+		if !argsRegenerated {
 			return err
 		}
 	}
 }
 
-func NewContext(cliCtx *cli.Context) *Context {
-	return &Context{Context: cliCtx}
+func NewContext(cliCtx *cli.Context, app *App) *Context {
+	return &Context{Context: cliCtx, App: app}
 }

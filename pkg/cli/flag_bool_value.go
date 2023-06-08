@@ -7,33 +7,24 @@ import (
 )
 
 // -- bool Value
-type boolValue struct {
-	value      *bool
-	hasBeenSet bool
-}
+type boolValue bool
 
 func newBoolValue(val bool, p *bool) *boolValue {
 	*p = val
-	return &boolValue{value: p}
+	return (*boolValue)(p)
 }
 
-func (val *boolValue) Set(strVal string) error {
-	if val.hasBeenSet {
-		return errors.Errorf("set more than once")
-	}
-	val.hasBeenSet = true
-
-	value, err := strconv.ParseBool(strVal)
+func (b *boolValue) Set(s string) error {
+	v, err := strconv.ParseBool(s)
 	if err != nil {
 		return errors.Errorf("error parse: %w", err)
 	}
-
-	*val.value = value
+	*b = boolValue(v)
 	return nil
 }
 
-func (val *boolValue) Get() any { return bool(*val.value) }
+func (b *boolValue) Get() any { return bool(*b) }
 
-func (val *boolValue) String() string { return strconv.FormatBool(bool(*val.value)) }
+func (b *boolValue) String() string { return strconv.FormatBool(bool(*b)) }
 
-func (val *boolValue) IsBoolFlag() bool { return true }
+func (b *boolValue) IsBoolFlag() bool { return true }

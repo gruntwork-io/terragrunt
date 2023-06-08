@@ -1,30 +1,18 @@
 package cli
 
-import (
-	"github.com/gruntwork-io/terragrunt/errors"
-)
-
 // -- string Value
-type stringValue struct {
-	value      *string
-	hasBeenSet bool
-}
+type stringValue string
 
 func newStringValue(val string, p *string) *stringValue {
 	*p = val
-	return &stringValue{value: p}
+	return (*stringValue)(p)
 }
 
-func (val *stringValue) Set(str string) error {
-	if val.hasBeenSet {
-		return errors.Errorf("set more than once")
-	}
-	val.hasBeenSet = true
-
-	*val.value = str
+func (s *stringValue) Set(val string) error {
+	*s = stringValue(val)
 	return nil
 }
 
-func (val *stringValue) Get() any { return string(*val.value) }
+func (s *stringValue) Get() any { return string(*s) }
 
-func (val *stringValue) String() string { return string(*val.value) }
+func (s *stringValue) String() string { return string(*s) }

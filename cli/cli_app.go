@@ -304,10 +304,14 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 	)
 
 	app.Action = func(ctx *cli.Context) error {
-		// if the first argument is `--help` or no args at all show the Terragrunt help.
+		// if there is only one argument `--help` or no args at all show the Terragrunt help.
 		if (showHelp && ctx.Args().Len() == 1) || !ctx.Args().Present() {
 			return cli.ShowAppHelp(ctx)
 		}
+
+		// if showHelp {
+		// 	return shell.RunTerraformCommand(opts, ctx.UndefinedArgs()...)
+		// }
 
 		return runApp(ctx, opts)
 	}
@@ -318,7 +322,7 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 func runApp(ctx *cli.Context, opts *options.TerragruntOptions) (finalErr error) {
 	defer errors.Recover(func(cause error) { finalErr = cause })
 
-	fmt.Println("Undefined --- ", ctx.UndefinedFlags())
+	fmt.Println("Undefined --- ", ctx.UndefinedArgs())
 
 	fmt.Println("----- WorkingDir ", opts.WorkingDir)
 	fmt.Println("----- TerragruntConfigPath ", opts.TerragruntConfigPath)

@@ -23,7 +23,7 @@ func (app *App) Run(arguments []string) (err error) {
 	app.Authors = []*cli.Author{{Name: app.Author}}
 
 	app.App.Action = func(cliCtx *cli.Context) error {
-		ctx := NewContext(cliCtx)
+		ctx := NewContext(cliCtx, app)
 
 		if err := ctx.parseFlags(app.Flags); err != nil {
 			return err

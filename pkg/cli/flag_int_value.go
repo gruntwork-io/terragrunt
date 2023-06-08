@@ -7,31 +7,23 @@ import (
 )
 
 // -- int Value
-type intValue struct {
-	value      *int
-	hasBeenSet bool
-}
+type intValue int
 
 func newIntValue(val int, p *int) *intValue {
 	*p = val
-	return &intValue{value: p}
+	return (*intValue)(p)
 }
 
-func (val *intValue) Set(strVal string) error {
-	if val.hasBeenSet {
-		return errors.Errorf("set more than once")
-	}
-	val.hasBeenSet = true
-
-	value, err := strconv.Atoi(strVal)
+func (i *intValue) Set(s string) error {
+	v, err := strconv.Atoi(s)
 	if err != nil {
 		return errors.Errorf("error parse: %w", err)
 	}
 
-	*val.value = value
+	*i = intValue(v)
 	return nil
 }
 
-func (val *intValue) Get() any { return int(*val.value) }
+func (i *intValue) Get() any { return int(*i) }
 
-func (val *intValue) String() string { return strconv.Itoa(int(*val.value)) }
+func (i *intValue) String() string { return strconv.Itoa(int(*i)) }

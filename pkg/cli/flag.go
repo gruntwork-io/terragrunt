@@ -122,7 +122,7 @@ func (flag *Flag) Apply(set *libflag.FlagSet) error {
 		envVal := os.GetStringEnv(flag.EnvVar, *ptr)
 
 		for _, name := range flag.Names() {
-			val := newStringValue(envVal, ptr)
+			val := newGenreicValue(newStringValue(envVal, ptr))
 			set.Var(val, name, flag.Usage)
 		}
 
@@ -148,7 +148,7 @@ func (flag *Flag) Apply(set *libflag.FlagSet) error {
 		}
 
 		for _, name := range flag.Names() {
-			val := newIntValue(envVal, ptr)
+			val := newGenreicValue(newIntValue(envVal, ptr))
 			set.Var(val, name, flag.Usage)
 		}
 
