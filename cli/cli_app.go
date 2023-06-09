@@ -324,7 +324,7 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 func runApp(ctx *cli.Context, opts *options.TerragruntOptions) (finalErr error) {
 	defer errors.Recover(func(cause error) { finalErr = cause })
 
-	fmt.Println("Undefined --- ", ctx.Args())
+	fmt.Println("Undefined --- ", ctx.Args(), ctx.Args().First())
 
 	fmt.Println("----- WorkingDir ", opts.WorkingDir)
 	fmt.Println("----- TerragruntConfigPath ", opts.TerragruntConfigPath)

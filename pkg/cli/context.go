@@ -8,7 +8,7 @@ import (
 type Context struct {
 	*cli.Context
 	*App
-	args []string
+	args args
 }
 
 // Args returns the command line arguments associated with the context.
@@ -17,6 +17,6 @@ func (ctx *Context) RawArgs() cli.Args {
 }
 
 // Args returns the command line arguments associated with the context.
-func (ctx *Context) Args() []string {
-	return ctx.args
+func (ctx *Context) Args() Args {
+	return Args(&ctx.args)
 }
