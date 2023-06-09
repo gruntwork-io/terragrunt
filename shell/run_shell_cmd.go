@@ -64,7 +64,6 @@ func RunShellCommandWithOutput(
 	command string,
 	args ...string,
 ) (*CmdOutput, error) {
-
 	terragruntOptions.Logger.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 	if suppressStdout {
 		terragruntOptions.Logger.Debugf("Command output will be suppressed.")
@@ -235,13 +234,10 @@ type CmdOutput struct {
 func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (string, error) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	opts := options.NewTerragruntOptions()
-	opts.TerragruntConfigPath = path
-
-	if err := opts.Normalize(); err != nil {
+	opts, err := options.NewTerragruntOptionsWithConfigPath(path)
+	if err != nil {
 		return "", err
 	}
-
 	opts.Env = terragruntOptions.Env
 	opts.Writer = &stdout
 	opts.ErrWriter = &stderr

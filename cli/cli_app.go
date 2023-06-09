@@ -31,84 +31,84 @@ import (
 )
 
 const (
-	optTerragruntConfig                         = "terragrunt-config"
-	optTerragruntTFPath                         = "terragrunt-tfpath"
-	optTerragruntNoAutoInit                     = "terragrunt-no-auto-init"
-	optTerragruntNoAutoRetry                    = "terragrunt-no-auto-retry"
-	optTerragruntNoAutoApprove                  = "terragrunt-no-auto-approve"
-	optNonInteractive                           = "terragrunt-non-interactive"
-	optWorkingDir                               = "terragrunt-working-dir"
-	optDownloadDir                              = "terragrunt-download-dir"
-	optTerragruntSource                         = "terragrunt-source"
-	optTerragruntSourceMap                      = "terragrunt-source-map"
-	optTerragruntSourceUpdate                   = "terragrunt-source-update"
-	optTerragruntIAMRole                        = "terragrunt-iam-role"
-	optTerragruntIAMAssumeRoleDuration          = "terragrunt-iam-assume-role-duration"
-	optTerragruntIAMAssumeRoleSessionName       = "terragrunt-iam-assume-role-session-name"
-	optTerragruntIgnoreDependencyErrors         = "terragrunt-ignore-dependency-errors"
-	optTerragruntIgnoreDependencyOrder          = "terragrunt-ignore-dependency-order"
-	optTerragruntIgnoreExternalDependencies     = "terragrunt-ignore-external-dependencies"
-	optTerragruntIncludeExternalDependencies    = "terragrunt-include-external-dependencies"
-	optTerragruntExcludeDir                     = "terragrunt-exclude-dir"
-	optTerragruntIncludeDir                     = "terragrunt-include-dir"
-	optTerragruntStrictInclude                  = "terragrunt-strict-include"
-	optTerragruntParallelism                    = "terragrunt-parallelism"
-	optTerragruntCheck                          = "terragrunt-check"
-	optTerragruntDiff                           = "terragrunt-diff"
-	optTerragruntHCLFmt                         = "terragrunt-hclfmt-file"
-	optTerragruntDebug                          = "terragrunt-debug"
-	optTerragruntOverrideAttr                   = "terragrunt-override-attr"
-	optTerragruntLogLevel                       = "terragrunt-log-level"
-	optTerragruntLogDisableColors               = "terragrunt-no-color"
-	optTerragruntStrictValidate                 = "terragrunt-strict-validate"
-	optTerragruntJSONOut                        = "terragrunt-json-out"
-	optTerragruntModulesThatInclude             = "terragrunt-modules-that-include"
-	optTerragruntFetchDependencyOutputFromState = "terragrunt-fetch-dependency-output-from-state"
-	optTerragruntUsePartialParseConfigCache     = "terragrunt-use-partial-parse-config-cache"
-	optTerragruntIncludeModulePrefix            = "terragrunt-include-module-prefix"
-	optTerragruntOutputWithMetadata             = "with-metadata"
+	// optTerragruntConfig                         = "terragrunt-config"
+	// optTerragruntTFPath                         = "terragrunt-tfpath"
+	// optTerragruntNoAutoInit                     = "terragrunt-no-auto-init"
+	// optTerragruntNoAutoRetry                    = "terragrunt-no-auto-retry"
+	// optTerragruntNoAutoApprove                  = "terragrunt-no-auto-approve"
+	// optNonInteractive                           = "terragrunt-non-interactive"
+	// optWorkingDir                               = "terragrunt-working-dir"
+	// optDownloadDir                              = "terragrunt-download-dir"
+	// optTerragruntSource                         = "terragrunt-source"
+	// optTerragruntSourceMap                      = "terragrunt-source-map"
+	optTerragruntSourceUpdate = "terragrunt-source-update"
+	// optTerragruntIAMRole                        = "terragrunt-iam-role"
+	// optTerragruntIAMAssumeRoleDuration          = "terragrunt-iam-assume-role-duration"
+	// optTerragruntIAMAssumeRoleSessionName       = "terragrunt-iam-assume-role-session-name"
+	// optTerragruntIgnoreDependencyErrors         = "terragrunt-ignore-dependency-errors"
+	// optTerragruntIgnoreDependencyOrder          = "terragrunt-ignore-dependency-order"
+	// optTerragruntIgnoreExternalDependencies     = "terragrunt-ignore-external-dependencies"
+	// optTerragruntIncludeExternalDependencies    = "terragrunt-include-external-dependencies"
+	// optTerragruntExcludeDir                     = "terragrunt-exclude-dir"
+	// optTerragruntIncludeDir                     = "terragrunt-include-dir"
+	// optTerragruntStrictInclude                  = "terragrunt-strict-include"
+	// optTerragruntParallelism                    = "terragrunt-parallelism"
+	// optTerragruntCheck                          = "terragrunt-check"
+	// optTerragruntDiff                           = "terragrunt-diff"
+	// optTerragruntHCLFmt                         = "terragrunt-hclfmt-file"
+	// optTerragruntDebug                          = "terragrunt-debug"
+	optTerragruntOverrideAttr = "terragrunt-override-attr"
+	// optTerragruntLogLevel                       = "terragrunt-log-level"
+	// optTerragruntLogDisableColors               = "terragrunt-no-color"
+	// optTerragruntStrictValidate                 = "terragrunt-strict-validate"
+	// optTerragruntJSONOut                        = "terragrunt-json-out"
+	// optTerragruntModulesThatInclude             = "terragrunt-modules-that-include"
+	// optTerragruntFetchDependencyOutputFromState = "terragrunt-fetch-dependency-output-from-state"
+	// optTerragruntUsePartialParseConfigCache     = "terragrunt-use-partial-parse-config-cache"
+	// optTerragruntIncludeModulePrefix            = "terragrunt-include-module-prefix"
+	// optTerragruntOutputWithMetadata             = "with-metadata"
 )
 
-var allTerragruntBooleanOpts = []string{
-	optNonInteractive,
-	optTerragruntSourceUpdate,
-	optTerragruntIgnoreDependencyErrors,
-	optTerragruntIgnoreDependencyOrder,
-	optTerragruntIgnoreExternalDependencies,
-	optTerragruntIncludeExternalDependencies,
-	optTerragruntNoAutoInit,
-	optTerragruntNoAutoRetry,
-	optTerragruntNoAutoApprove,
-	optTerragruntCheck,
-	optTerragruntDiff,
-	optTerragruntStrictInclude,
-	optTerragruntDebug,
-	optTerragruntLogDisableColors,
-	optTerragruntFetchDependencyOutputFromState,
-	optTerragruntUsePartialParseConfigCache,
-	optTerragruntOutputWithMetadata,
-	optTerragruntIncludeModulePrefix,
-}
-var allTerragruntStringOpts = []string{
-	optTerragruntConfig,
-	optTerragruntTFPath,
-	optWorkingDir,
-	optDownloadDir,
-	optTerragruntSource,
-	optTerragruntSourceMap,
-	optTerragruntIAMRole,
-	optTerragruntIAMAssumeRoleDuration,
-	optTerragruntIAMAssumeRoleSessionName,
-	optTerragruntExcludeDir,
-	optTerragruntIncludeDir,
-	optTerragruntParallelism,
-	optTerragruntHCLFmt,
-	optTerragruntOverrideAttr,
-	optTerragruntLogLevel,
-	optTerragruntStrictValidate,
-	optTerragruntJSONOut,
-	optTerragruntModulesThatInclude,
-}
+// var allTerragruntBooleanOpts = []string{
+// 	optNonInteractive,
+// 	optTerragruntSourceUpdate,
+// 	optTerragruntIgnoreDependencyErrors,
+// 	optTerragruntIgnoreDependencyOrder,
+// 	optTerragruntIgnoreExternalDependencies,
+// 	optTerragruntIncludeExternalDependencies,
+// 	optTerragruntNoAutoInit,
+// 	optTerragruntNoAutoRetry,
+// 	optTerragruntNoAutoApprove,
+// 	optTerragruntCheck,
+// 	optTerragruntDiff,
+// 	optTerragruntStrictInclude,
+// 	optTerragruntDebug,
+// 	optTerragruntLogDisableColors,
+// 	optTerragruntFetchDependencyOutputFromState,
+// 	optTerragruntUsePartialParseConfigCache,
+// 	optTerragruntOutputWithMetadata,
+// 	optTerragruntIncludeModulePrefix,
+// }
+// var allTerragruntStringOpts = []string{
+// 	optTerragruntConfig,
+// 	optTerragruntTFPath,
+// 	optWorkingDir,
+// 	optDownloadDir,
+// 	optTerragruntSource,
+// 	optTerragruntSourceMap,
+// 	optTerragruntIAMRole,
+// 	optTerragruntIAMAssumeRoleDuration,
+// 	optTerragruntIAMAssumeRoleSessionName,
+// 	optTerragruntExcludeDir,
+// 	optTerragruntIncludeDir,
+// 	optTerragruntParallelism,
+// 	optTerragruntHCLFmt,
+// 	optTerragruntOverrideAttr,
+// 	optTerragruntLogLevel,
+// 	optTerragruntStrictValidate,
+// 	optTerragruntJSONOut,
+// 	optTerragruntModulesThatInclude,
+// }
 
 const (
 	CMD_INIT                          = "init"
@@ -234,13 +234,6 @@ const TERRAFORM_EXTENSION_GLOB = "*.tf"
 // Prefix to use for terraform variables set with environment variables.
 const TFVarPrefix = "TF_VAR"
 
-// The supported flags to show help of terraform commands
-var TERRAFORM_HELP_FLAGS = []string{
-	"--help",
-	"-help",
-	"-h",
-}
-
 // map of help functions for each terragrunt command
 var terragruntHelp = map[string]string{
 	CMD_RENDER_JSON:                renderJsonHelp,
@@ -255,7 +248,7 @@ var sourceChangeLocks = sync.Map{}
 // Create the Terragrunt CLI App
 func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 	app := cli.NewApp()
-	app.CustomAppHelpTemplate = AppHelpTemplate
+	app.CustomAppHelpTemplate = appHelpTemplate
 	app.Name = "terragrunt"
 	app.Author = "Gruntwork <www.gruntwork.io>"
 	app.Version = version.GetVersion()
@@ -304,6 +297,7 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 		},
 		&cli.Flag{
 			Name:        "terragrunt-non-interactive",
+			EnvVar:      "TERRAGRUNT_NON_INTERACTIVE",
 			Usage:       `Assume "yes" for all prompts.`,
 			Destination: &opts.NonInteractive,
 		},
@@ -326,7 +320,7 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 			Destination: &opts.Source,
 		},
 		&cli.Flag{
-			Name:        "terragrunt-source-update",
+			Name:        optTerragruntSourceUpdate,
 			EnvVar:      "TERRAGRUNT_SOURCE_UPDATE",
 			Usage:       "Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it.",
 			Destination: &opts.SourceUpdate,
@@ -412,7 +406,7 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 			Destination: &opts.HclFile,
 		},
 		&cli.Flag{
-			Name:        "terragrunt-override-attr",
+			Name:        optTerragruntOverrideAttr,
 			EnvVar:      "TERRAGRUNT_EXCLUDE_DIR",
 			Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.",
 			Destination: &opts.AwsProviderPatchOverrides,
@@ -476,17 +470,25 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 	app.Action = func(ctx *cli.Context) (finalErr error) {
 		defer errors.Recover(func(cause error) { finalErr = cause })
 
-		if err := opts.Normalize(); err != nil {
+		opts.RunTerragrunt = RunTerragrunt
+		opts.Env = parseEnvironmentVariables(os.Environ())
+
+		if err := opts.Normalize(ctx); err != nil {
 			return err
 		}
 
-		// if there is only one argument `--help` or no args at all show the Terragrunt help.
-		if (showHelp && ctx.RawArgs().Len() == 1) || !ctx.RawArgs().Present() {
-			return cli.ShowAppHelp(ctx)
-		}
-
-		// in other cases show Terraform help.
 		if showHelp {
+			// if there is only one argument `--help` or no args at all show the Terragrunt help.
+			if (ctx.RawArgs().Len() == 1) || !ctx.RawArgs().Present() {
+				return cli.ShowAppHelp(ctx)
+			}
+
+			if helpTemplate, ok := terragruntHelp[opts.TerraformCommand]; ok {
+				app.CustomAppHelpTemplate = helpTemplate
+				return cli.ShowAppHelp(ctx)
+			}
+
+			// in other cases show Terraform help.
 			return shell.RunTerraformCommand(opts, append([]string{ctx.Args().First(), "--help"}, ctx.Args().Tail()...)...)
 		}
 
@@ -506,21 +508,19 @@ func runApp(ctx *cli.Context, opts *options.TerragruntOptions) (finalErr error) 
 	fmt.Printf("opt: %+v\n", opts)
 
 	return nil
-	terragruntOptions, err := ParseTerragruntOptions(ctx.Context)
-	if err != nil {
-		return err
-	}
+	// terragruntOptions, err := ParseTerragruntOptions(ctx.Context)
+	// if err != nil {
+	// 	return err
+	// }
 
-	shell.PrepareConsole(terragruntOptions)
-
-	givenCommand := ctx.RawArgs().First()
-	newOptions, command := checkDeprecated(givenCommand, terragruntOptions)
+	givenCommand := ctx.Args().First()
+	newOptions, command := checkDeprecated(givenCommand, opts)
 	return runCommand(command, newOptions)
 }
 
 // checkDeprecated checks if the given command is deprecated.  If so: prints a message and returns the new command.
 func checkDeprecated(command string, terragruntOptions *options.TerragruntOptions) (*options.TerragruntOptions, string) {
-	deprecationHandler, deprecated := deprecatedCommands[command]
+	deprecationHandler, deprecated := deprecatedCommands[terragruntOptions.TerraformCommand]
 	if deprecated {
 		newOptions, newCommand, newCommandFriendly := deprecationHandler(terragruntOptions)
 		terragruntOptions.Logger.Warnf(
@@ -550,15 +550,6 @@ func runCommand(command string, terragruntOptions *options.TerragruntOptions) (f
 // Downloads terraform source if necessary, then runs terraform with the given options and CLI args.
 // This will forward all the args and extra_arguments directly to Terraform.
 func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
-	if shouldPrintTerragruntHelp(terragruntOptions) {
-		helpMessage, _ := terragruntHelp[terragruntOptions.TerraformCommand]
-		_, err := fmt.Fprintf(terragruntOptions.Writer, "%s\n", helpMessage)
-		return err
-	}
-	if shouldPrintTerraformHelp(terragruntOptions) {
-		return shell.RunTerraformCommand(terragruntOptions, terragruntOptions.TerraformCliArgs...)
-	}
-
 	if shouldRunHCLFmt(terragruntOptions) {
 		return runHCLFmt(terragruntOptions)
 	}
@@ -781,30 +772,6 @@ func runGraphDependencies(terragruntOptions *options.TerragruntOptions) error {
 	return nil
 }
 
-func shouldPrintTerraformHelp(terragruntOptions *options.TerragruntOptions) bool {
-	for _, tfHelpFlag := range TERRAFORM_HELP_FLAGS {
-		if util.ListContainsElement(terragruntOptions.TerraformCliArgs, tfHelpFlag) {
-			return true
-		}
-	}
-	return false
-}
-
-func shouldPrintTerragruntHelp(terragruntOptions *options.TerragruntOptions) bool {
-	// check if command is in help map
-	_, found := terragruntHelp[terragruntOptions.TerraformCommand]
-	if !found {
-		return false
-	}
-
-	for _, tfHelpFlag := range TERRAFORM_HELP_FLAGS {
-		if util.ListContainsElement(terragruntOptions.TerraformCliArgs, tfHelpFlag) {
-			return true
-		}
-	}
-	return false
-}
-
 func shouldRunGraphDependencies(terragruntOptions *options.TerragruntOptions) bool {
 	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_TERRAGRUNT_GRAPH_DEPENDENCIES)
 }
@@ -982,7 +949,6 @@ func executeTFLint(terragruntOptions *options.TerragruntOptions, terragruntConfi
 // This function takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
 // and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
 func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, allowSourceDownload bool) error {
-
 	// Add extra_arguments to the command
 	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExtraArgs != nil && len(terragruntConfig.Terraform.ExtraArgs) > 0 {
 		args := filterTerraformExtraArgs(terragruntOptions, terragruntConfig)

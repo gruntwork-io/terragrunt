@@ -6,9 +6,11 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
 	"github.com/sirupsen/logrus"
@@ -247,8 +249,6 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage
 func NewTerragruntOptions() *TerragruntOptions {
-	defaultLogLevel := logrus.InfoLevel
-
 	return &TerragruntOptions{
 		TerraformPath:                  TERRAFORM_DEFAULT_PATH,
 		OriginalTerraformCommand:       "",
@@ -257,8 +257,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 		RunAllAutoApprove:              true,
 		NonInteractive:                 false,
 		TerraformCliArgs:               []string{},
-		LogLevel:                       defaultLogLevel,
-		LogLevelStr:                    defaultLogLevel.String(),
+		LogLevelStr:                    util.GetDefaultLogLevel().String(),
 		ValidateStrict:                 false,
 		Env:                            map[string]string{},
 		Source:                         "",
@@ -292,9 +291,39 @@ func NewTerragruntOptions() *TerragruntOptions {
 	}
 }
 
-func (opts *TerragruntOptions) Normalize() error {
+func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*TerragruntOptions, error) {
+	opts := NewTerragruntOptions()
+	opts.TerragruntConfigPath = terragruntConfigPath
+
+	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(terragruntConfigPath)
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
+	opts.WorkingDir = workingDir
+	opts.DownloadDir = downloadDir
+	return opts, nil
+}
+
+func (opts *TerragruntOptions) Normalize(ctx *cli.Context) error {
 	opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
 	opts.Logger = util.CreateLogEntry("", opts.LogLevel)
+	opts.Logger.Logger.SetOutput(ctx.App.ErrWriter)
+
+	opts.Writer = ctx.App.Writer
+	opts.ErrWriter = ctx.App.ErrWriter
+
+	opts.TerraformCommand = ctx.Args().First()
+	opts.TerraformCliArgs = ctx.Args().Tail()
+
+	terragruntVersion, err := version.NewVersion(ctx.App.Version)
+	if err != nil {
+		// Malformed Terragrunt version; set the version to 0.0
+		if terragruntVersion, err = version.NewVersion("0.0"); err != nil {
+			return errors.WithStackTrace(err)
+		}
+	}
+	opts.TerragruntVersion = terragruntVersion
 
 	if opts.TerragruntConfigPath == "" {
 		currentDir, err := os.Getwd()
@@ -323,7 +352,32 @@ func (opts *TerragruntOptions) Normalize() error {
 		opts.DownloadDir = p
 	}
 
+	opts.WorkingDir = filepath.ToSlash(opts.WorkingDir)
+	opts.DownloadDir = filepath.ToSlash(opts.DownloadDir)
 	opts.HclFile = filepath.ToSlash(opts.HclFile)
+	opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)
+	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
+	opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
+	opts.OriginalTerraformCommand = opts.TerraformCommand
+
+	jsonOutput := false
+	for _, arg := range opts.TerraformCliArgs {
+		if strings.EqualFold(arg, "-json") {
+			jsonOutput = true
+			break
+		}
+	}
+
+	if opts.IncludeModulePrefix && !jsonOutput {
+		opts.OutputPrefix = fmt.Sprintf("[%s] ", opts.WorkingDir)
+	} else {
+		opts.IncludeModulePrefix = false
+	}
+
+	if !opts.RunAllAutoApprove {
+		// When running in no-auto-approve mode, set parallelism to 1 so that interactive prompts work.
+		opts.Parallelism = 1
+	}
 
 	return nil
 }
@@ -347,10 +401,8 @@ func GetDefaultIAMAssumeRoleSessionName() string {
 
 // Create a new TerragruntOptions object with reasonable defaults for test usage
 func NewTerragruntOptionsForTest(terragruntConfigPath string) (*TerragruntOptions, error) {
-	opts := NewTerragruntOptions()
-	opts.TerragruntConfigPath = terragruntConfigPath
-
-	if err := opts.Normalize(); err != nil {
+	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
+	if err != nil {
 		logger := util.CreateLogEntry("", util.GetDefaultLogLevel())
 		logger.Errorf("%v\n", errors.WithStackTrace(err))
 		return nil, err

@@ -565,7 +565,7 @@ When passed in, don't automatically retry commands which fail with transient err
 ### terragrunt-non-interactive
 
 **CLI Arg**: `--terragrunt-non-interactive`<br/>
-**Environment Variable**: `TF_INPUT` (set to `false`)
+**Environment Variable**: `TERRAGRUNT_NON_INTERACTIVE` (set to `true`)
 
 When passed in, don't show interactive user prompts. This will default the answer for all prompts to `yes` except for
 the listed cases below. This is useful if you need to run Terragrunt in an automated setting (e.g. from a script). May
