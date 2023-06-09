@@ -1,36 +1,65 @@
 package cli
 
 import (
-	"flag"
-
 	"github.com/gruntwork-io/terragrunt/errors"
 )
 
-// -- int Value
-type genericValue[T flag.Getter] struct {
-	value      T
-	hasBeenSet bool
+type flagGenericValue[T comparable] struct {
+	value       Type[T]
+	defaultText string
+	hasBeenSet  bool
 }
 
-func newGenreicValue[T flag.Getter](value T) flag.Getter {
-	return &genericValue[T]{
-		value: value,
+func newFlagGenreicValue[T comparable](value Type[T], ptr *T, envVar string) (FlagValue, error) {
+	var nilPtr *T
+	if ptr == nilPtr {
+		ptr = new(T)
 	}
-}
 
-func (val *genericValue[T]) Set(str string) error {
-	if val.hasBeenSet {
-		return errors.Errorf("set more than once")
+	defaultText := value.Init(ptr).String()
+	value = value.Init(ptr)
+
+	if strVal, ok := lookupEnv(envVar); ok {
+		if err := value.Set(strVal); err != nil {
+			return nil, err
+		}
 	}
-	val.hasBeenSet = true
 
-	return val.value.Set(str)
+	return &flagGenericValue[T]{
+		value:       value,
+		defaultText: defaultText,
+	}, nil
 }
 
-func (val *genericValue[T]) Get() any {
-	return val.value.Get()
+func (flag *flagGenericValue[T]) Set(str string) error {
+	if flag.hasBeenSet {
+		return errors.Errorf("the flag set multiple times")
+	}
+	flag.hasBeenSet = true
+
+	return flag.value.Set(str)
 }
 
-func (val *genericValue[T]) String() string {
-	return val.value.String()
+func (flag *flagGenericValue[T]) Get() any {
+	return flag.value.Get()
+}
+
+func (flag *flagGenericValue[T]) IsBoolFlag() bool {
+	_, ok := flag.Get().(bool)
+	return ok
+}
+
+func (flag *flagGenericValue[T]) IsSet() bool {
+	return flag.hasBeenSet
+}
+
+func (flag *flagGenericValue[T]) String() string {
+	return flag.value.String()
+}
+
+func (flag *flagGenericValue[T]) DefaultText() string {
+	if flag.IsBoolFlag() {
+		return ""
+	}
+	return flag.defaultText
 }

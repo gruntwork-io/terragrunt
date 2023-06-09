@@ -269,6 +269,7 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 	opts := &options.TerragruntOptions{}
 	opts.TerragruntConfigPath = "some-value"
 	opts.ExcludeDirs = []string{"p1", "p2"}
+	opts.SourceMap = map[string]string{"t": "tt", "s": "ss"}
 
 	app.AddFlags(
 		&cli.Flag{
@@ -285,6 +286,7 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 		},
 		&cli.Flag{
 			Name:        "terragrunt-exclude-dir",
+			EnvVar:      "TERRAGRUNT_EXCLUDE_DIR",
 			Usage:       "Unix-style glob of directories to exclude when running *-all commands.",
 			Destination: &opts.ExcludeDirs,
 		},

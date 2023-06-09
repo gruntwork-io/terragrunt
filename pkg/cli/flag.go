@@ -1,13 +1,11 @@
 package cli
 
 import (
+	"flag"
 	libflag "flag"
-	"fmt"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/pkg/maps"
-	"github.com/gruntwork-io/terragrunt/pkg/os"
 	"github.com/urfave/cli/v2"
 )
 
@@ -21,30 +19,56 @@ var (
 	defaultSplitter = strings.Split
 )
 
+type FlagValue interface {
+	flag.Getter
+
+	DefaultText() string
+
+	IsSet() bool
+
+	// optional interface to indicate boolean flags that can be
+	// supplied without "=value" text
+	IsBoolFlag() bool
+}
+
 // Flag is a common flag related to parsing flags in cli.
 type Flag struct {
+	Value FlagValue
+
 	Name    string
 	Aliases []string
 	Usage   string
 	EnvVar  string
 
 	Destination any
-	defaultText string
+	DefaultText string
 
-	Splitter  SplitterFunc
-	ArgSep    string
-	KeyValSep string
+	Splitter SplitterFunc
+	ArgSep   string
+	ValSep   string
 }
 
 // TakesValue returns true of the flag takes a value, otherwise false.
 // Implements `cli.DocGenerationFlag.TakesValue` required to generate help.
 func (flag *Flag) TakesValue() bool {
-	return !flag.IsBool()
+	return !flag.Value.IsBoolFlag()
+}
+
+// IsSet `cli.Flag.IsSet` required to generate help.
+func (flag *Flag) IsSet() bool {
+	return flag.Value.IsSet()
 }
 
 // GetUsage returns the usage string for the flag
 func (flag *Flag) GetUsage() string {
 	return flag.Usage
+}
+
+// GetValue returns the flags value as string representation and an empty
+// string if the flag takes no value at all.
+// Implements `cli.DocGenerationFlag.GetValue` required to generate help.
+func (flag *Flag) GetValue() string {
+	return flag.Value.String()
 }
 
 // GetCategory returns the category for the flag.
@@ -64,21 +88,11 @@ func (flag *Flag) GetEnvVars() []string {
 
 // GetValue returns the flags value as string representation and an empty string if the flag takes no value at all.
 // Implements `cli.DocGenerationFlag.GetValue` required to generate help.
-func (flag *Flag) GetValue() string {
-	if val := fmt.Sprintf("%s", flag.Destination); val != "" {
-		return val
-	}
-
-	return flag.defaultText
-}
-
-// GetDefaultText returns the default text for this flag
-// Implements `cli.DocGenerationFlag.GetDefaultText` required to generate help.
 func (flag *Flag) GetDefaultText() string {
-	if flag.IsBool() {
-		return ""
+	if flag.DefaultText == "" {
+		return flag.Value.DefaultText()
 	}
-	return flag.defaultText
+	return flag.DefaultText
 }
 
 // String implements fmt.Stringer.String()
@@ -98,104 +112,64 @@ func (flag *Flag) Names() []string {
 	return names
 }
 
-// IsSet `cli.Flag.IsSet` required to generate help.
-func (flag *Flag) IsSet() bool {
-	return flag.defaultText != fmt.Sprintf("%s", flag.Destination)
-}
-
-// IsBool returns true if the Flag has boolean type.
-func (flag *Flag) IsBool() bool {
-	_, ok := flag.Destination.(*bool)
-	return ok
-}
-
 // Apply applies Flag settings to the given flag set.
 func (flag *Flag) Apply(set *libflag.FlagSet) error {
-	if err := flag.validate(); err != nil {
-		return err
-	}
+	flag.normalize()
+
+	var err error
 
 	switch ptr := flag.Destination.(type) {
 	case *string:
-		flag.defaultText = fmt.Sprintf("%v", *ptr)
-
-		envVal := os.GetStringEnv(flag.EnvVar, *ptr)
-
-		for _, name := range flag.Names() {
-			val := newGenreicValue(newStringValue(envVal, ptr))
-			set.Var(val, name, flag.Usage)
-		}
+		valType := Type[string](new(stringType))
+		flag.Value, err = newFlagGenreicValue(valType, ptr, flag.EnvVar)
 
 	case *bool:
-		flag.defaultText = fmt.Sprintf("%v", *ptr)
-
-		envVal, err := os.GetBoolEnv(flag.EnvVar, *ptr)
-		if err != nil {
-			return err
-		}
-
-		for _, name := range flag.Names() {
-			val := newBoolValue(envVal, ptr)
-			set.Var(val, name, flag.Usage)
-		}
+		valType := Type[bool](new(boolType))
+		flag.Value, err = newFlagGenreicValue(valType, ptr, flag.EnvVar)
 
 	case *int:
-		flag.defaultText = fmt.Sprintf("%v", *ptr)
-
-		envVal, err := os.GetIntEnv(flag.EnvVar, *ptr)
-		if err != nil {
-			return err
-		}
-
-		for _, name := range flag.Names() {
-			val := newGenreicValue(newIntValue(envVal, ptr))
-			set.Var(val, name, flag.Usage)
-		}
+		valType := Type[int](new(intType))
+		flag.Value, err = newFlagGenreicValue(valType, ptr, flag.EnvVar)
 
 	case *int64:
-		flag.defaultText = fmt.Sprintf("%v", *ptr)
-
-		envVal, err := os.GetIntEnv(flag.EnvVar, int(*ptr))
-		if err != nil {
-			return err
-		}
-
-		for _, name := range flag.Names() {
-			val := newGenreicValue(newInt64Value(int64(envVal), ptr))
-			set.Var(val, name, flag.Usage)
-		}
+		valType := Type[int64](new(int64Type))
+		flag.Value, err = newFlagGenreicValue(valType, ptr, flag.EnvVar)
 
 	case *[]string:
-		flag.defaultText = strings.Join(*ptr, flag.ArgSep)
+		valType := Type[string](new(stringType))
+		flag.Value, err = newFlagSliceValue(valType, ptr, flag.EnvVar, flag.ArgSep, flag.Splitter)
 
-		envVal := os.GetStringSliceEnv(flag.EnvVar, flag.ArgSep, flag.Splitter, *ptr)
+	case *[]int:
+		valType := Type[int](new(intType))
+		flag.Value, err = newFlagSliceValue(valType, ptr, flag.EnvVar, flag.ArgSep, flag.Splitter)
 
-		for _, name := range flag.Names() {
-			val := newStringSliceValue(envVal, ptr, flag.ArgSep)
-			set.Var(val, name, flag.Usage)
-		}
+	case *[]int64:
+		valType := Type[int64](new(int64Type))
+		flag.Value, err = newFlagSliceValue(valType, ptr, flag.EnvVar, flag.ArgSep, flag.Splitter)
 
 	case *map[string]string:
-		flag.defaultText = maps.Join(*ptr, flag.ArgSep, flag.KeyValSep)
+		valType := Type[string](new(stringType))
+		flag.Value, err = newFlagMapValue(valType, valType, ptr, flag.EnvVar, flag.ArgSep, flag.ValSep, flag.Splitter)
 
-		envVal, err := os.GetStringMapEnv(flag.EnvVar, flag.ArgSep, flag.KeyValSep, flag.Splitter, *ptr)
-		if err != nil {
-			return err
-		}
-
-		for _, name := range flag.Names() {
-			val := newStringMapValue(envVal, ptr, flag.ArgSep, flag.KeyValSep, flag.Splitter)
-			set.Var(val, name, flag.Usage)
-		}
+	case FlagValue:
+		flag.Value = ptr
 
 	default:
 		return errors.Errorf("undefined flag type: %s", flag.Name)
 	}
 
+	if err != nil {
+		return err
+	}
+
+	for _, name := range flag.Names() {
+		set.Var(flag.Value, name, flag.Usage)
+	}
+
 	return nil
 }
 
-func (flag *Flag) validate() error {
+func (flag *Flag) normalize() {
 	if flag.Splitter == nil {
 		flag.Splitter = defaultSplitter
 	}
@@ -204,18 +178,12 @@ func (flag *Flag) validate() error {
 		flag.ArgSep = defaultArgSep
 	}
 
-	if flag.KeyValSep == "" {
-		flag.KeyValSep = defaultKeyValSep
+	if flag.ValSep == "" {
+		flag.ValSep = defaultKeyValSep
 	}
-
-	if flag.Destination == nil {
-		return errors.Errorf("undefined `Destination` flag field: %s", flag.Name)
-	}
-
-	return nil
 }
 
-func NewFlag(name string, dest any) *Flag {
+func NewFlag(name string, dest any) cli.DocGenerationFlag {
 	return &Flag{
 		Name:        name,
 		Destination: dest,
