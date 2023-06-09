@@ -258,6 +258,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 		NonInteractive:                 false,
 		TerraformCliArgs:               []string{},
 		LogLevelStr:                    util.GetDefaultLogLevel().String(),
+		Logger:                         util.GlobalFallbackLogEntry,
 		ValidateStrict:                 false,
 		Env:                            map[string]string{},
 		Source:                         "",

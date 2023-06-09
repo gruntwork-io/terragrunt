@@ -78,12 +78,7 @@ func GetDiagnosticsWriter(logger *logrus.Entry, parser *hclparse.Parser) hcl.Dia
 // GetDefaultLogLevel returns the default log level to use. The log level is resolved based on the environment variable
 // with name from LogLevelEnvVar, falling back to info if unspecified or there is an error parsing the given log level.
 func GetDefaultLogLevel() logrus.Level {
-	defaultLogLevelStr := os.Getenv(logLevelEnvVar)
-	if defaultLogLevelStr == "" {
-		return defaultLogLevel
-	}
-
-	return ParseLogLevel(defaultLogLevelStr)
+	return ParseLogLevel(defaultLogLevel.String())
 }
 
 func ParseLogLevel(logLevelStr string) logrus.Level {

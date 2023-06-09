@@ -470,16 +470,9 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 	app.Action = func(ctx *cli.Context) (finalErr error) {
 		defer errors.Recover(func(cause error) { finalErr = cause })
 
-		opts.RunTerragrunt = RunTerragrunt
-		opts.Env = parseEnvironmentVariables(os.Environ())
-
-		if err := opts.Normalize(ctx); err != nil {
-			return err
-		}
-
 		if showHelp {
-			// if there is only one argument `--help` or no args at all show the Terragrunt help.
-			if (ctx.RawArgs().Len() == 1) || !ctx.RawArgs().Present() {
+			// if there is no args at all show the Terragrunt help.
+			if !ctx.Args().Present() {
 				return cli.ShowAppHelp(ctx)
 			}
 
@@ -489,7 +482,8 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 			}
 
 			// in other cases show Terraform help.
-			return shell.RunTerraformCommand(opts, append([]string{ctx.Args().First(), "--help"}, ctx.Args().Tail()...)...)
+			terraformHelpArgs := append([]string{ctx.Args().First(), "--help"}, ctx.Args().Tail()...)
+			return shell.RunTerraformCommand(opts, terraformHelpArgs...)
 		}
 
 		return runApp(ctx, opts)
@@ -498,20 +492,22 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 }
 
 // The sole action for the app
-func runApp(ctx *cli.Context, opts *options.TerragruntOptions) (finalErr error) {
-	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of
-	// terragrunt used.
-	util.GlobalFallbackLogEntry.Debugf("Terragrunt Version: %s", ctx.App.Version)
+func runApp(ctx *cli.Context, opts *options.TerragruntOptions) error {
+	opts.RunTerragrunt = RunTerragrunt
+	opts.Env = parseEnvironmentVariables(os.Environ())
+
+	if err := opts.Normalize(ctx); err != nil {
+		return err
+	}
+
+	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of  terragrunt used.
+	opts.Logger.Debugf("Terragrunt Version: %s", ctx.App.Version)
 
 	fmt.Println("Args --- ", ctx.Args(), ctx.Args().First())
 
 	fmt.Printf("opt: %+v\n", opts)
 
 	return nil
-	// terragruntOptions, err := ParseTerragruntOptions(ctx.Context)
-	// if err != nil {
-	// 	return err
-	// }
 
 	givenCommand := ctx.Args().First()
 	newOptions, command := checkDeprecated(givenCommand, opts)
