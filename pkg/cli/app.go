@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"flag"
+
 	"github.com/urfave/cli/v2"
 )
 
@@ -23,10 +25,15 @@ func (app *App) Run(arguments []string) (err error) {
 	app.Authors = []*cli.Author{{Name: app.Author}}
 
 	app.App.Action = func(cliCtx *cli.Context) error {
-		ctx := NewContext(cliCtx, app)
-
-		if err := ctx.parseFlags(app.Flags); err != nil {
+		args, err := app.parseArgs(cliCtx.Args().Slice())
+		if err != nil {
 			return err
+		}
+
+		ctx := &Context{
+			Context: cliCtx,
+			App:     app,
+			args:    args,
 		}
 
 		return app.Action(ctx)
@@ -42,6 +49,31 @@ func (app *App) VisibleFlags() []cli.Flag {
 		flags = append(flags, flag)
 	}
 	return flags
+}
+
+func (app *App) parseArgs(args []string) ([]string, error) {
+	var filteredArgs []string
+
+	flagSet, err := app.Flags.newFlagSet("root-command", flag.ContinueOnError)
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		args, err = app.Flags.parseArgs(flagSet, args)
+		if err != nil {
+			return nil, err
+		}
+
+		filteredArgs = append(filteredArgs, args[0])
+		args = args[1:]
+
+		if len(args) == 0 {
+			break
+		}
+	}
+
+	return filteredArgs, nil
 }
 
 // NewApp returns a new App instance.

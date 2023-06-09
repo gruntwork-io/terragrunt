@@ -33,7 +33,7 @@ func newFlagGenreicValue[T comparable](value Type[T], ptr *T, envVar string) (Fl
 
 func (flag *flagGenericValue[T]) Set(str string) error {
 	if flag.hasBeenSet {
-		return errors.Errorf("the flag set multiple times")
+		return errors.Errorf("the flag is set multiple times")
 	}
 	flag.hasBeenSet = true
 
