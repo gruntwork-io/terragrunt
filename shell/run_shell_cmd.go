@@ -234,10 +234,13 @@ type CmdOutput struct {
 func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (string, error) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	opts, err := options.NewTerragruntOptions(path)
-	if err != nil {
+	opts := options.NewTerragruntOptions()
+	opts.TerragruntConfigPath = path
+
+	if err := opts.Normalize(); err != nil {
 		return "", err
 	}
+
 	opts.Env = terragruntOptions.Env
 	opts.Writer = &stdout
 	opts.ErrWriter = &stderr

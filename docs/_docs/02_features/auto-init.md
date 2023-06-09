@@ -27,6 +27,6 @@ As [mentioned]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#extra_arg
 
 Note that there might be cases where terragrunt does not properly detect that `terraform init` needs be called. In this case, terraform would fail. Running `terragrunt init` again corrects this situation.
 
-For some use cases, it might be desirable to disable Auto-Init. For example, if each user wants to specify a different `-plugin-dir` option to `terraform init` (and therefore it cannot be put in `extra_arguments`). To disable Auto-Init, use the `--terragrunt-no-auto-init` command line option or set the `TERRAGRUNT_AUTO_INIT` environment variable to `false`.
+For some use cases, it might be desirable to disable Auto-Init. For example, if each user wants to specify a different `-plugin-dir` option to `terraform init` (and therefore it cannot be put in `extra_arguments`). To disable Auto-Init, use the `--terragrunt-no-auto-init` command line option or set the `TERRAGRUNT_NO_AUTO_INIT` environment variable to `true`.
 
 Disabling Auto-Init means that you *must* explicitly call `terragrunt init` prior to any other terragrunt commands for a particular configuration. If Auto-Init is disabled, and terragrunt detects that `terraform init` needs to be called, then terragrunt will fail.

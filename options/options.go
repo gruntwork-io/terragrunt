@@ -83,8 +83,14 @@ type TerragruntOptions struct {
 	// Basic log entry
 	Logger *logrus.Entry
 
+	// Disalabe Terragrunt colors
+	TerragruntNoColors bool
+
 	// Log level
 	LogLevel logrus.Level
+
+	// Raw log level value
+	LogLevelStr string
 
 	// ValidateStrict mode for the validate-inputs command
 	ValidateStrict bool
@@ -240,18 +246,8 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage
-func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, error) {
-	defaultLogLevel := util.GetDefaultLogLevel()
-
-	logger := util.CreateLogEntry("", defaultLogLevel)
-
-	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(terragruntConfigPath)
-	if err != nil {
-		return nil, errors.WithStackTrace(err)
-	}
-
+func NewTerragruntOptions() *TerragruntOptions {
 	return &TerragruntOptions{
-		TerragruntConfigPath:           terragruntConfigPath,
 		TerraformPath:                  TERRAFORM_DEFAULT_PATH,
 		OriginalTerraformCommand:       "",
 		TerraformCommand:               "",
@@ -259,19 +255,17 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		RunAllAutoApprove:              true,
 		NonInteractive:                 false,
 		TerraformCliArgs:               []string{},
-		WorkingDir:                     workingDir,
-		Logger:                         logger,
-		LogLevel:                       defaultLogLevel,
+		LogLevel:                       util.GetDefaultLogLevel(),
 		ValidateStrict:                 false,
 		Env:                            map[string]string{},
 		Source:                         "",
 		SourceMap:                      map[string]string{},
 		SourceUpdate:                   false,
-		DownloadDir:                    downloadDir,
 		IgnoreDependencyErrors:         false,
 		IgnoreDependencyOrder:          false,
 		IgnoreExternalDependencies:     false,
 		IncludeExternalDependencies:    false,
+		LogLevelStr:                    "warn",
 		Writer:                         os.Stdout,
 		ErrWriter:                      os.Stderr,
 		MaxFoldersToCheck:              DEFAULT_MAX_FOLDERS_TO_CHECK,
@@ -290,10 +284,51 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		UsePartialParseConfigCache:     false,
 		OutputPrefix:                   "",
 		IncludeModulePrefix:            false,
-		RunTerragrunt: func(terragruntOptions *TerragruntOptions) error {
+		RunTerragrunt: func(opts *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
-	}, nil
+	}
+}
+
+func (opts *TerragruntOptions) Normalize() error {
+	parsedLogLevel, err := logrus.ParseLevel(opts.LogLevelStr)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	opts.LogLevel = parsedLogLevel
+
+	opts.Logger = util.CreateLogEntry("", opts.LogLevel)
+
+	if opts.TerragruntConfigPath == "" {
+		currentDir, err := os.Getwd()
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+		opts.TerragruntConfigPath = currentDir
+	}
+
+	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	if opts.WorkingDir == "" {
+		opts.WorkingDir = workingDir
+	}
+
+	if opts.DownloadDir == "" {
+		opts.DownloadDir = downloadDir
+	} else {
+		p, err := filepath.Abs(opts.DownloadDir)
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+		opts.DownloadDir = p
+	}
+
+	opts.HclFile = filepath.ToSlash(opts.HclFile)
+
+	return nil
 }
 
 // Get the default working and download directories for the given Terragrunt config path
@@ -315,9 +350,10 @@ func GetDefaultIAMAssumeRoleSessionName() string {
 
 // Create a new TerragruntOptions object with reasonable defaults for test usage
 func NewTerragruntOptionsForTest(terragruntConfigPath string) (*TerragruntOptions, error) {
-	opts, err := NewTerragruntOptions(terragruntConfigPath)
+	opts := NewTerragruntOptions()
+	opts.TerragruntConfigPath = terragruntConfigPath
 
-	if err != nil {
+	if err := opts.Normalize(); err != nil {
 		logger := util.CreateLogEntry("", util.GetDefaultLogLevel())
 		logger.Errorf("%v\n", errors.WithStackTrace(err))
 		return nil, err
@@ -332,7 +368,7 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string) (*TerragruntOption
 
 // Create a copy of this TerragruntOptions, but with different values for the given variables. This is useful for
 // creating a TerragruntOptions that behaves the same way, but is used for a Terraform module in a different folder.
-func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOptions {
+func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOptions {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
 	// Note that we clone lists and maps below as TerragruntOptions may be used and modified concurrently in the code
@@ -340,54 +376,54 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 	// for more info.
 	return &TerragruntOptions{
 		TerragruntConfigPath:           terragruntConfigPath,
-		OriginalTerragruntConfigPath:   terragruntOptions.OriginalTerragruntConfigPath,
-		TerraformPath:                  terragruntOptions.TerraformPath,
-		OriginalTerraformCommand:       terragruntOptions.OriginalTerraformCommand,
-		TerraformCommand:               terragruntOptions.TerraformCommand,
-		TerraformVersion:               terragruntOptions.TerraformVersion,
-		TerragruntVersion:              terragruntOptions.TerragruntVersion,
-		AutoInit:                       terragruntOptions.AutoInit,
-		RunAllAutoApprove:              terragruntOptions.RunAllAutoApprove,
-		NonInteractive:                 terragruntOptions.NonInteractive,
-		TerraformCliArgs:               util.CloneStringList(terragruntOptions.TerraformCliArgs),
+		OriginalTerragruntConfigPath:   opts.OriginalTerragruntConfigPath,
+		TerraformPath:                  opts.TerraformPath,
+		OriginalTerraformCommand:       opts.OriginalTerraformCommand,
+		TerraformCommand:               opts.TerraformCommand,
+		TerraformVersion:               opts.TerraformVersion,
+		TerragruntVersion:              opts.TerragruntVersion,
+		AutoInit:                       opts.AutoInit,
+		RunAllAutoApprove:              opts.RunAllAutoApprove,
+		NonInteractive:                 opts.NonInteractive,
+		TerraformCliArgs:               util.CloneStringList(opts.TerraformCliArgs),
 		WorkingDir:                     workingDir,
-		Logger:                         util.CreateLogEntryWithWriter(terragruntOptions.ErrWriter, workingDir, terragruntOptions.LogLevel, terragruntOptions.Logger.Logger.Hooks),
-		LogLevel:                       terragruntOptions.LogLevel,
-		ValidateStrict:                 terragruntOptions.ValidateStrict,
-		Env:                            util.CloneStringMap(terragruntOptions.Env),
-		Source:                         terragruntOptions.Source,
-		SourceMap:                      terragruntOptions.SourceMap,
-		SourceUpdate:                   terragruntOptions.SourceUpdate,
-		DownloadDir:                    terragruntOptions.DownloadDir,
-		Debug:                          terragruntOptions.Debug,
-		OriginalIAMRoleOptions:         terragruntOptions.OriginalIAMRoleOptions,
-		IAMRoleOptions:                 terragruntOptions.IAMRoleOptions,
-		IgnoreDependencyErrors:         terragruntOptions.IgnoreDependencyErrors,
-		IgnoreDependencyOrder:          terragruntOptions.IgnoreDependencyOrder,
-		IgnoreExternalDependencies:     terragruntOptions.IgnoreExternalDependencies,
-		IncludeExternalDependencies:    terragruntOptions.IncludeExternalDependencies,
-		Writer:                         terragruntOptions.Writer,
-		ErrWriter:                      terragruntOptions.ErrWriter,
-		MaxFoldersToCheck:              terragruntOptions.MaxFoldersToCheck,
-		AutoRetry:                      terragruntOptions.AutoRetry,
-		RetryMaxAttempts:               terragruntOptions.RetryMaxAttempts,
-		RetrySleepIntervalSec:          terragruntOptions.RetrySleepIntervalSec,
-		RetryableErrors:                util.CloneStringList(terragruntOptions.RetryableErrors),
-		ExcludeDirs:                    terragruntOptions.ExcludeDirs,
-		IncludeDirs:                    terragruntOptions.IncludeDirs,
-		ModulesThatInclude:             terragruntOptions.ModulesThatInclude,
-		Parallelism:                    terragruntOptions.Parallelism,
-		StrictInclude:                  terragruntOptions.StrictInclude,
-		RunTerragrunt:                  terragruntOptions.RunTerragrunt,
-		AwsProviderPatchOverrides:      terragruntOptions.AwsProviderPatchOverrides,
-		HclFile:                        terragruntOptions.HclFile,
-		JSONOut:                        terragruntOptions.JSONOut,
-		Check:                          terragruntOptions.Check,
-		CheckDependentModules:          terragruntOptions.CheckDependentModules,
-		FetchDependencyOutputFromState: terragruntOptions.FetchDependencyOutputFromState,
-		UsePartialParseConfigCache:     terragruntOptions.UsePartialParseConfigCache,
-		OutputPrefix:                   terragruntOptions.OutputPrefix,
-		IncludeModulePrefix:            terragruntOptions.IncludeModulePrefix,
+		Logger:                         util.CreateLogEntryWithWriter(opts.ErrWriter, workingDir, opts.LogLevel, opts.Logger.Logger.Hooks),
+		LogLevel:                       opts.LogLevel,
+		ValidateStrict:                 opts.ValidateStrict,
+		Env:                            util.CloneStringMap(opts.Env),
+		Source:                         opts.Source,
+		SourceMap:                      opts.SourceMap,
+		SourceUpdate:                   opts.SourceUpdate,
+		DownloadDir:                    opts.DownloadDir,
+		Debug:                          opts.Debug,
+		OriginalIAMRoleOptions:         opts.OriginalIAMRoleOptions,
+		IAMRoleOptions:                 opts.IAMRoleOptions,
+		IgnoreDependencyErrors:         opts.IgnoreDependencyErrors,
+		IgnoreDependencyOrder:          opts.IgnoreDependencyOrder,
+		IgnoreExternalDependencies:     opts.IgnoreExternalDependencies,
+		IncludeExternalDependencies:    opts.IncludeExternalDependencies,
+		Writer:                         opts.Writer,
+		ErrWriter:                      opts.ErrWriter,
+		MaxFoldersToCheck:              opts.MaxFoldersToCheck,
+		AutoRetry:                      opts.AutoRetry,
+		RetryMaxAttempts:               opts.RetryMaxAttempts,
+		RetrySleepIntervalSec:          opts.RetrySleepIntervalSec,
+		RetryableErrors:                util.CloneStringList(opts.RetryableErrors),
+		ExcludeDirs:                    opts.ExcludeDirs,
+		IncludeDirs:                    opts.IncludeDirs,
+		ModulesThatInclude:             opts.ModulesThatInclude,
+		Parallelism:                    opts.Parallelism,
+		StrictInclude:                  opts.StrictInclude,
+		RunTerragrunt:                  opts.RunTerragrunt,
+		AwsProviderPatchOverrides:      opts.AwsProviderPatchOverrides,
+		HclFile:                        opts.HclFile,
+		JSONOut:                        opts.JSONOut,
+		Check:                          opts.Check,
+		CheckDependentModules:          opts.CheckDependentModules,
+		FetchDependencyOutputFromState: opts.FetchDependencyOutputFromState,
+		UsePartialParseConfigCache:     opts.UsePartialParseConfigCache,
+		OutputPrefix:                   opts.OutputPrefix,
+		IncludeModulePrefix:            opts.IncludeModulePrefix,
 	}
 }
 
@@ -417,39 +453,39 @@ func extractPlanFile(argsToInsert []string) (*string, []string) {
 }
 
 // Inserts the given argsToInsert after the terraform command argument, but before the remaining args
-func (terragruntOptions *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
+func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	planFile, restArgs := extractPlanFile(argsToInsert)
 
 	commandLength := 1
-	if util.ListContainsElement(TERRAFORM_COMMANDS_WITH_SUBCOMMAND, terragruntOptions.TerraformCliArgs[0]) {
+	if util.ListContainsElement(TERRAFORM_COMMANDS_WITH_SUBCOMMAND, opts.TerraformCliArgs[0]) {
 		// Since these terraform commands require subcommands which may not always be properly passed by the user,
 		// using util.Min to return the minimum to avoid potential out of bounds slice errors.
-		commandLength = util.Min(2, len(terragruntOptions.TerraformCliArgs))
+		commandLength = util.Min(2, len(opts.TerraformCliArgs))
 	}
 
 	// Options must be inserted after command but before the other args
 	// command is either 1 word or 2 words
 	var args []string
-	args = append(args, terragruntOptions.TerraformCliArgs[:commandLength]...)
+	args = append(args, opts.TerraformCliArgs[:commandLength]...)
 	args = append(args, restArgs...)
-	args = append(args, terragruntOptions.TerraformCliArgs[commandLength:]...)
+	args = append(args, opts.TerraformCliArgs[commandLength:]...)
 
 	// check if planfile was extracted
 	if planFile != nil {
 		args = append(args, *planFile)
 	}
 
-	terragruntOptions.TerraformCliArgs = args
+	opts.TerraformCliArgs = args
 }
 
 // Appends the given argsToAppend after the current TerraformCliArgs
-func (terragruntOptions *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
-	terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, argsToAppend...)
+func (opts *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
+	opts.TerraformCliArgs = append(opts.TerraformCliArgs, argsToAppend...)
 }
 
 // TerraformDataDir returns Terraform data directory (.terraform by default, overridden by $TF_DATA_DIR envvar)
-func (terragruntOptions *TerragruntOptions) TerraformDataDir() string {
-	if tfDataDir, ok := terragruntOptions.Env["TF_DATA_DIR"]; ok {
+func (opts *TerragruntOptions) TerraformDataDir() string {
+	if tfDataDir, ok := opts.Env["TF_DATA_DIR"]; ok {
 		return tfDataDir
 	}
 	return DefaultTFDataDir
@@ -457,12 +493,12 @@ func (terragruntOptions *TerragruntOptions) TerraformDataDir() string {
 
 // DataDir returns the Terraform data directory prepended with the working directory path,
 // or just the Terraform data directory if it is an absolute path.
-func (terragruntOptions *TerragruntOptions) DataDir() string {
-	tfDataDir := terragruntOptions.TerraformDataDir()
+func (opts *TerragruntOptions) DataDir() string {
+	tfDataDir := opts.TerraformDataDir()
 	if filepath.IsAbs(tfDataDir) {
 		return tfDataDir
 	}
-	return util.JoinPath(terragruntOptions.WorkingDir, tfDataDir)
+	return util.JoinPath(opts.WorkingDir, tfDataDir)
 }
 
 // Custom error types

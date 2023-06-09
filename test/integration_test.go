@@ -1178,8 +1178,8 @@ func TestAutoRetryFlagWithRecoverableError(t *testing.T) {
 }
 
 func TestAutoRetryEnvVarWithRecoverableError(t *testing.T) {
-	os.Setenv("TERRAGRUNT_AUTO_RETRY", "false")
-	defer os.Unsetenv("TERRAGRUNT_AUTO_RETRY")
+	os.Setenv("TERRAGRUNT_NO_AUTO_RETRY", "true")
+	defer os.Unsetenv("TERRAGRUNT_NO_AUTO_RETRY")
 	out := new(bytes.Buffer)
 	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_RERUN)
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_RERUN)

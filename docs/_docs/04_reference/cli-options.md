@@ -532,7 +532,7 @@ configuration values specified in the `terragrunt.hcl` config for both the top l
 ### terragrunt-no-auto-init
 
 **CLI Arg**: `--terragrunt-no-auto-init`<br/>
-**Environment Variable**: `TERRAGRUNT_AUTO_INIT` (set to `false`)
+**Environment Variable**: `TERRAGRUNT_NO_AUTO_INIT` (set to `true`)
 
 When passed in, don't automatically run `terraform init` when other commands are run (e.g. `terragrunt apply`). Useful
 if you want to pass custom arguments to `terraform init` that are specific to a user or execution environment, and
@@ -544,7 +544,7 @@ disabled. See [Auto-Init]({{site.baseurl}}/docs/features/auto-init#auto-init)
 ### terragrunt-no-auto-approve
 
 **CLI Arg**: `--terragrunt-no-auto-approve`<br/>
-**Environment Variable**: `TERRAGRUNT_AUTO_APPROVE` (set to `false`)
+**Environment Variable**: `TERRAGRUNT_NO_AUTO_APPROVE` (set to `true`)
 **Commands**:
 - [run-all](#run-all)
 
@@ -556,7 +556,7 @@ with `run-all`. Note that due to the interactive prompts, this flag will also **
 ### terragrunt-no-auto-retry
 
 **CLI Arg**: `--terragrunt-no-auto-retry`<br/>
-**Environment Variable**: `TERRAGRUNT_AUTO_RETRY` (set to `false`)
+**Environment Variable**: `TERRAGRUNT_NO_AUTO_RETRY` (set to `true`)
 
 When passed in, don't automatically retry commands which fail with transient errors. See
 [Auto-Retry]({{site.baseurl}}/docs/features/auto-retry#auto-retry)

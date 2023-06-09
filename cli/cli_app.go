@@ -264,12 +264,8 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 	app.UsageText = `Terragrunt is a thin wrapper for Terraform that provides extra tools for working with multiple
    Terraform modules, remote state, and locking. For documentation, see https://github.com/gruntwork-io/terragrunt/.`
 
-	var showHelp bool
-
-	opts := &options.TerragruntOptions{}
-	opts.TerragruntConfigPath = "some-value"
-	opts.ExcludeDirs = []string{"p1", "p2"}
-	opts.SourceMap = map[string]string{"t": "tt", "s": "ss"}
+	showHelp := false
+	opts := options.NewTerragruntOptions()
 
 	app.AddFlags(
 		&cli.Flag{
@@ -279,10 +275,115 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 			Destination: &opts.TerragruntConfigPath,
 		},
 		&cli.Flag{
+			Name:        "tfpath",
+			EnvVar:      "TERRAGRUNT_TFPATH",
+			Usage:       "Path to the Terraform binary. Default is terraform (on PATH).",
+			Destination: &opts.TerraformPath,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-no-auto-init",
+			EnvVar:      "TERRAGRUNT_NO_AUTO_INIT",
+			Usage:       "Don't automatically run 'terraform init' during other terragrunt commands. You must run 'terragrunt init' manually.",
+			Negative:    true,
+			Destination: &opts.AutoInit,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-no-auto-retry",
+			EnvVar:      "TERRAGRUNT_NO_AUTO_RETRY",
+			Usage:       "Don't automatically re-run command in case of transient errors.",
+			Negative:    true,
+			Destination: &opts.AutoRetry,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-no-auto-approve",
+			EnvVar:      "TERRAGRUNT_NO_AUTO_APPROVE",
+			Usage:       "Don't automatically append `-auto-approve` to the underlying Terraform commands run with 'run-all'.",
+			Negative:    true,
+			Destination: &opts.RunAllAutoApprove,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-non-interactive",
+			Usage:       `Assume "yes" for all prompts.`,
+			Destination: &opts.NonInteractive,
+		},
+		&cli.Flag{
 			Name:        "terragrunt-working-dir",
 			EnvVar:      "TERRAGRUNT_WORKING_DIR",
-			Usage:       "The path where to download Terraform code. Default is .terragrunt-cache in the working directory.",
+			Usage:       "The path to the Terraform templates. Default is current directory.",
 			Destination: &opts.WorkingDir,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-download-dir",
+			EnvVar:      "TERRAGRUNT_DOWNLOAD",
+			Usage:       "The path where to download Terraform code. Default is .terragrunt-cache in the working directory.",
+			Destination: &opts.DownloadDir,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-source",
+			EnvVar:      "",
+			Usage:       "Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.",
+			Destination: &opts.Source,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-source-update",
+			EnvVar:      "",
+			Usage:       "Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it.",
+			Destination: &opts.SourceUpdate,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-source-map",
+			EnvVar:      "TERRAGRUNT_SOURCE_MAP",
+			Usage:       "Replace any source URL (including the source URL of a config pulled in with dependency blocks) that has root source with dest.",
+			Splitter:    util.SplitUrls,
+			Destination: &opts.SourceMap,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-iam-role",
+			EnvVar:      "",
+			Usage:       "Assume the specified IAM role before executing Terraform. Can also be set via the TERRAGRUNT_IAM_ROLE environment variable.",
+			Destination: &opts.IAMRoleOptions.RoleARN,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-iam-assume-role-duration",
+			EnvVar:      "",
+			Usage:       "Session duration for IAM Assume Role session. Can also be set via the TERRAGRUNT_IAM_ASSUME_ROLE_DURATION environment variable.",
+			Destination: &opts.IAMRoleOptions.AssumeRoleDuration,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-iam-assume-role-session-name",
+			EnvVar:      "",
+			Usage:       "Name for the IAM Assummed Role session. Can also be set via TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME environment variable.",
+			Destination: &opts.IAMRoleOptions.AssumeRoleSessionName,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-ignore-dependency-errors",
+			EnvVar:      "",
+			Usage:       "*-all commands continue processing components even if a dependency fails.",
+			Destination: &opts.IgnoreDependencyErrors,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-ignore-dependency-order",
+			EnvVar:      "",
+			Usage:       "*-all commands will be run disregarding the dependencies",
+			Destination: &opts.IgnoreDependencyOrder,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-ignore-external-dependencies",
+			EnvVar:      "",
+			Usage:       "*-all commands will not attempt to include external dependencies",
+			Destination: &opts.IgnoreExternalDependencies,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-include-external-dependencies",
+			EnvVar:      "",
+			Usage:       "*-all commands will include external dependencies",
+			Destination: &opts.IncludeExternalDependencies,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-parallelism",
+			EnvVar:      "",
+			Usage:       "*-all commands parallelism set to at most N modules",
+			Destination: &opts.Parallelism,
 		},
 		&cli.Flag{
 			Name:        "terragrunt-exclude-dir",
@@ -291,11 +392,69 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 			Destination: &opts.ExcludeDirs,
 		},
 		&cli.Flag{
-			Name:        "terragrunt-source-map",
-			EnvVar:      "TERRAGRUNT_SOURCE_MAP",
-			Usage:       "Replace any source URL (including the source URL of a config pulled in with dependency blocks) that has root source with dest.",
-			Splitter:    util.SplitUrls,
-			Destination: &opts.SourceMap,
+			Name:        "terragrunt-include-dir",
+			EnvVar:      "",
+			Usage:       "Unix-style glob of directories to include when running *-all commands",
+			Destination: &opts.IncludeDirs,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-check",
+			EnvVar:      "",
+			Usage:       "Enable check mode in the hclfmt command.",
+			Destination: &opts.Check,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-hclfmt-file",
+			Usage:       "The path to a single hcl file that the hclfmt command should run on.",
+			Destination: &opts.HclFile,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-override-attr",
+			EnvVar:      "TERRAGRUNT_EXCLUDE_DIR",
+			Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.",
+			Destination: &opts.AwsProviderPatchOverrides,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-debug",
+			EnvVar:      "",
+			Usage:       "Write terragrunt-debug.tfvars to working folder to help root-cause issues.",
+			Destination: &opts.Debug,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-log-level",
+			EnvVar:      "",
+			Usage:       "Sets the logging level for Terragrunt. Supported levels: panic, fatal, error, warn, info, debug, trace.",
+			Destination: &opts.LogLevelStr,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-no-color",
+			EnvVar:      "",
+			Usage:       "If specified, output won't contain any color.",
+			Destination: &opts.TerragruntNoColors,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-strict-validate",
+			EnvVar:      "",
+			Usage:       "Sets strict mode for the validate-inputs command. By default, strict mode is off. When this flag is passed, strict mode is turned on. When strict mode is turned off, the validate-inputs command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When strict mode is turned on, an error will be returned if required inputs are missing OR if unused variables are passed to Terragrunt.",
+			Destination: &opts.ValidateStrict,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-json-out",
+			EnvVar:      "",
+			Usage:       "The file path that terragrunt should use when rendering the terragrunt.hcl config as json. Only used in the render-json command. Defaults to terragrunt_rendered.json.",
+			Destination: &opts.JSONOut,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-use-partial-parse-config-cache",
+			EnvVar:      "",
+			Usage:       "Enables caching of includes during partial parsing operations. Will also be used for the --terragrunt-iam-role option if provided.",
+			Destination: &opts.UsePartialParseConfigCache,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-include-module-prefix",
+			EnvVar:      "",
+			Usage:       "When this flag is set output from Terraform sub-commands is prefixed with module path.",
+			Destination: &opts.IncludeModulePrefix,
 		},
 		&cli.Flag{
 			Name:        "help",        // --help, -help
@@ -324,12 +483,13 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 func runApp(ctx *cli.Context, opts *options.TerragruntOptions) (finalErr error) {
 	defer errors.Recover(func(cause error) { finalErr = cause })
 
-	fmt.Println("Undefined --- ", ctx.Args(), ctx.Args().First())
+	if err := opts.Normalize(); err != nil {
+		return err
+	}
 
-	fmt.Println("----- WorkingDir ", opts.WorkingDir)
-	fmt.Println("----- TerragruntConfigPath ", opts.TerragruntConfigPath)
-	fmt.Println("----- ExcludeDirs ", opts.ExcludeDirs)
-	fmt.Printf("----- SourceMap %#v\n", opts.SourceMap)
+	fmt.Println("Args --- ", ctx.Args(), ctx.Args().First())
+
+	fmt.Printf("opt: %+v\n", opts)
 
 	return nil
 	terragruntOptions, err := ParseTerragruntOptions(ctx.Context)

@@ -32,6 +32,26 @@ func (b *boolType) Get() any { return bool(*b) }
 
 func (b *boolType) String() string { return strconv.FormatBool(bool(*b)) }
 
+// -- bool negative Type
+type boolNegativeType bool
+
+func (val *boolNegativeType) Init(p *bool) Type[bool] {
+	return (*boolNegativeType)(p)
+}
+
+func (b *boolNegativeType) Set(s string) error {
+	v, err := strconv.ParseBool(s)
+	if err != nil {
+		return errors.Errorf("error parse: %w", err)
+	}
+	*b = boolNegativeType(!v)
+	return nil
+}
+
+func (b *boolNegativeType) Get() any { return bool(*b) }
+
+func (b *boolNegativeType) String() string { return strconv.FormatBool(bool(*b)) }
+
 // -- string Type
 type stringType string
 

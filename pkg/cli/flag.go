@@ -33,12 +33,14 @@ type FlagValue interface {
 
 // Flag is a common flag related to parsing flags in cli.
 type Flag struct {
-	Value FlagValue
+	FlagValue
 
 	Name    string
 	Aliases []string
 	Usage   string
 	EnvVar  string
+
+	Negative bool
 
 	Destination any
 	DefaultText string
@@ -58,12 +60,12 @@ func NewFlag(name string, dest any) cli.DocGenerationFlag {
 // TakesValue returns true of the flag takes a value, otherwise false.
 // Implements `cli.DocGenerationFlag.TakesValue` required to generate help.
 func (flag *Flag) TakesValue() bool {
-	return !flag.Value.IsBoolFlag()
+	return !flag.FlagValue.IsBoolFlag()
 }
 
 // IsSet `cli.Flag.IsSet` required to generate help.
 func (flag *Flag) IsSet() bool {
-	return flag.Value.IsSet()
+	return flag.FlagValue.IsSet()
 }
 
 // GetUsage returns the usage string for the flag
@@ -75,7 +77,7 @@ func (flag *Flag) GetUsage() string {
 // string if the flag takes no value at all.
 // Implements `cli.DocGenerationFlag.GetValue` required to generate help.
 func (flag *Flag) GetValue() string {
-	return flag.Value.String()
+	return flag.FlagValue.String()
 }
 
 // GetCategory returns the category for the flag.
@@ -97,7 +99,7 @@ func (flag *Flag) GetEnvVars() []string {
 // Implements `cli.DocGenerationFlag.GetValue` required to generate help.
 func (flag *Flag) GetDefaultText() string {
 	if flag.DefaultText == "" {
-		return flag.Value.DefaultText()
+		return flag.FlagValue.DefaultText()
 	}
 	return flag.DefaultText
 }
@@ -128,38 +130,42 @@ func (flag *Flag) Apply(set *libflag.FlagSet) error {
 	switch ptr := flag.Destination.(type) {
 	case *string:
 		valType := Type[string](new(stringType))
-		flag.Value, err = newFlagGenreicValue(valType, ptr, flag.EnvVar)
+		flag.FlagValue, err = newFlagGenreicValue(valType, ptr, flag.EnvVar)
 
 	case *bool:
 		valType := Type[bool](new(boolType))
-		flag.Value, err = newFlagGenreicValue(valType, ptr, flag.EnvVar)
+		if flag.Negative {
+			valType = Type[bool](new(boolNegativeType))
+		}
+
+		flag.FlagValue, err = newFlagGenreicValue(valType, ptr, flag.EnvVar)
 
 	case *int:
 		valType := Type[int](new(intType))
-		flag.Value, err = newFlagGenreicValue(valType, ptr, flag.EnvVar)
+		flag.FlagValue, err = newFlagGenreicValue(valType, ptr, flag.EnvVar)
 
 	case *int64:
 		valType := Type[int64](new(int64Type))
-		flag.Value, err = newFlagGenreicValue(valType, ptr, flag.EnvVar)
+		flag.FlagValue, err = newFlagGenreicValue(valType, ptr, flag.EnvVar)
 
 	case *[]string:
 		valType := Type[string](new(stringType))
-		flag.Value, err = newFlagSliceValue(valType, ptr, flag.EnvVar, flag.ArgSep, flag.Splitter)
+		flag.FlagValue, err = newFlagSliceValue(valType, ptr, flag.EnvVar, flag.ArgSep, flag.Splitter)
 
 	case *[]int:
 		valType := Type[int](new(intType))
-		flag.Value, err = newFlagSliceValue(valType, ptr, flag.EnvVar, flag.ArgSep, flag.Splitter)
+		flag.FlagValue, err = newFlagSliceValue(valType, ptr, flag.EnvVar, flag.ArgSep, flag.Splitter)
 
 	case *[]int64:
 		valType := Type[int64](new(int64Type))
-		flag.Value, err = newFlagSliceValue(valType, ptr, flag.EnvVar, flag.ArgSep, flag.Splitter)
+		flag.FlagValue, err = newFlagSliceValue(valType, ptr, flag.EnvVar, flag.ArgSep, flag.Splitter)
 
 	case *map[string]string:
 		valType := Type[string](new(stringType))
-		flag.Value, err = newFlagMapValue(valType, valType, ptr, flag.EnvVar, flag.ArgSep, flag.ValSep, flag.Splitter)
+		flag.FlagValue, err = newFlagMapValue(valType, valType, ptr, flag.EnvVar, flag.ArgSep, flag.ValSep, flag.Splitter)
 
 	case FlagValue:
-		flag.Value = ptr
+		flag.FlagValue = ptr
 
 	default:
 		return errors.Errorf("undefined flag type: %s", flag.Name)
@@ -170,7 +176,7 @@ func (flag *Flag) Apply(set *libflag.FlagSet) error {
 	}
 
 	for _, name := range flag.Names() {
-		set.Var(flag.Value, name, flag.Usage)
+		set.Var(flag.FlagValue, name, flag.Usage)
 	}
 
 	return nil

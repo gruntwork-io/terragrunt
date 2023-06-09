@@ -144,8 +144,9 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 
 	validateStrictMode := parseBooleanArg(args, optTerragruntStrictValidate, false)
 
-	opts, err := options.NewTerragruntOptions(filepath.ToSlash(terragruntConfigPath))
-	if err != nil {
+	opts := options.NewTerragruntOptions()
+	opts.TerragruntConfigPath = filepath.ToSlash(terragruntConfigPath)
+	if err := opts.Normalize(); err != nil {
 		return nil, err
 	}
 
