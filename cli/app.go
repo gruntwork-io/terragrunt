@@ -111,23 +111,23 @@ const (
 // }
 
 const (
-	CMD_INIT                          = "init"
-	CMD_INIT_FROM_MODULE              = "init-from-module"
-	CMD_PLAN                          = "plan"
-	CMD_APPLY                         = "apply"
-	CMD_PROVIDERS                     = "providers"
-	CMD_LOCK                          = "lock"
-	CMD_TERRAGRUNT_INFO               = "terragrunt-info"
-	CMD_TERRAGRUNT_VALIDATE_INPUTS    = "validate-inputs"
-	CMD_TERRAGRUNT_GRAPH_DEPENDENCIES = "graph-dependencies"
-	CMD_TERRAGRUNT_READ_CONFIG        = "terragrunt-read-config"
-	CMD_HCLFMT                        = "hclfmt"
-	CMD_AWS_PROVIDER_PATCH            = "aws-provider-patch"
-	CMD_RENDER_JSON                   = "render-json"
+	CmdInit                        = "init"
+	CmdInitFromModule              = "init-from-module"
+	CmdPlan                        = "plan"
+	CmdApply                       = "apply"
+	CmdProviders                   = "providers"
+	CmdLock                        = "lock"
+	CmdTerragruntInfo              = "terragrunt-info"
+	CmdTerragruntValidateInputs    = "validate-inputs"
+	CmdTerragruntGraphDependencies = "graph-dependencies"
+	CmdTerragruntReadConfig        = "terragrunt-read-config"
+	CmdHclfmt                      = "hclfmt"
+	CmdAWSProviderPatch            = "aws-provider-patch"
+	CmdRenderJSON                  = "render-json"
 )
 
 // START: Constants useful for multimodule command handling
-const CMD_RUN_ALL = "run-all"
+const CmdRunAll = "run-all"
 
 // Known terraform commands that are explicitly not supported in run-all due to the nature of the command. This is
 // tracked as a map that maps the terraform command to the reasoning behind disallowing the command in run-all.
@@ -147,45 +147,45 @@ var runAllDisabledCommands = map[string]string{
 	// - version        : Supporting `version` with run-all could be useful for sanity checking a multi-version setup.
 }
 
-var MULTI_MODULE_COMMANDS = []string{
-	CMD_RUN_ALL,
+// var MULTI_MODULE_COMMANDS = []string{
+// 	CmdRunAll,
 
-	// The rest of the commands are deprecated, and are only here for legacy reasons to ensure that terragrunt knows to
-	// filter them out during arg parsing.
-	CMD_APPLY_ALL,
-	CMD_DESTROY_ALL,
-	CMD_OUTPUT_ALL,
-	CMD_PLAN_ALL,
-	CMD_VALIDATE_ALL,
-}
+// 	// The rest of the commands are deprecated, and are only here for legacy reasons to ensure that terragrunt knows to
+// 	// filter them out during arg parsing.
+// 	CmdApplyAll,
+// 	CmdDestroyAll,
+// 	CmdOutputAll,
+// 	CmdPlanAll,
+// 	CmdValidateAll,
+// }
 
 // END: Constants useful for multimodule command handling
 
 // The following commands are DEPRECATED
 const (
-	CMD_SPIN_UP      = "spin-up"
-	CMD_TEAR_DOWN    = "tear-down"
-	CMD_PLAN_ALL     = "plan-all"
-	CMD_APPLY_ALL    = "apply-all"
-	CMD_DESTROY_ALL  = "destroy-all"
-	CMD_OUTPUT_ALL   = "output-all"
-	CMD_VALIDATE_ALL = "validate-all"
+	CmdSpinUp      = "spin-up"
+	CmdTearDown    = "tear-down"
+	CmdPlanAll     = "plan-all"
+	CmdApplyAll    = "apply-all"
+	CmdDestroyAll  = "destroy-all"
+	CmdOutputAll   = "output-all"
+	CmdValidateAll = "validate-all"
 )
 
 // deprecatedCommands is a map of deprecated commands to a handler that knows how to convert the command to the known
 // alternative. The handler should return the new TerragruntOptions (if any modifications are needed) and command
 // string.
 var deprecatedCommands = map[string]func(origOptions *options.TerragruntOptions) (*options.TerragruntOptions, string, string){
-	CMD_SPIN_UP:      spinUpDeprecationHandler,
-	CMD_TEAR_DOWN:    tearDownDeprecationHandler,
-	CMD_APPLY_ALL:    applyAllDeprecationHandler,
-	CMD_DESTROY_ALL:  destroyAllDeprecationHandler,
-	CMD_PLAN_ALL:     planAllDeprecationHandler,
-	CMD_VALIDATE_ALL: validateAllDeprecationHandler,
-	CMD_OUTPUT_ALL:   outputAllDeprecationHandler,
+	CmdSpinUp:      spinUpDeprecationHandler,
+	CmdTearDown:    tearDownDeprecationHandler,
+	CmdApplyAll:    applyAllDeprecationHandler,
+	CmdDestroyAll:  destroyAllDeprecationHandler,
+	CmdPlanAll:     planAllDeprecationHandler,
+	CmdValidateAll: validateAllDeprecationHandler,
+	CmdOutputAll:   outputAllDeprecationHandler,
 }
 
-var TERRAFORM_COMMANDS_THAT_USE_STATE = []string{
+var TerraformCommandsThatUseState = []string{
 	"init",
 	"apply",
 	"destroy",
@@ -204,7 +204,7 @@ var TERRAFORM_COMMANDS_THAT_USE_STATE = []string{
 	"state",
 }
 
-var TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT = []string{
+var TerraformCommandsThatDoNotNeedInit = []string{
 	"version",
 	"terragrunt-info",
 	"graph-dependencies",
@@ -223,22 +223,22 @@ type TerragruntInfoGroup struct {
 	WorkingDir       string
 }
 
-var MODULE_REGEX = regexp.MustCompile(`module[[:blank:]]+".+"`)
+var ModuleRegex = regexp.MustCompile(`module[[:blank:]]+".+"`)
 
 // This uses the constraint syntax from https://github.com/hashicorp/go-version
 // This version of Terragrunt was tested to work with Terraform 0.12.0 and above only
-const DEFAULT_TERRAFORM_VERSION_CONSTRAINT = ">= v0.12.0"
+const DefaultTerraformVersionConstraint = ">= v0.12.0"
 
-const TERRAFORM_EXTENSION_GLOB = "*.tf"
+const TerraformExtensionGlob = "*.tf"
 
 // Prefix to use for terraform variables set with environment variables.
 const TFVarPrefix = "TF_VAR"
 
 // map of help functions for each terragrunt command
 var terragruntHelp = map[string]string{
-	CMD_RENDER_JSON:                renderJsonHelp,
-	CMD_AWS_PROVIDER_PATCH:         awsProviderPatchHelp,
-	CMD_TERRAGRUNT_VALIDATE_INPUTS: validateInputsHelp,
+	CmdRenderJSON:               renderJsonHelp,
+	CmdAWSProviderPatch:         awsProviderPatchHelp,
+	CmdTerragruntValidateInputs: validateInputsHelp,
 }
 
 // sourceChangeLocks is a map that keeps track of locks for source changes, to ensure we aren't overriding the generated
@@ -476,7 +476,7 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 				return cli.ShowAppHelp(ctx)
 			}
 
-			if helpTemplate, ok := terragruntHelp[opts.TerraformCommand]; ok {
+			if helpTemplate, ok := terragruntHelp[ctx.Args().First()]; ok {
 				app.CustomAppHelpTemplate = helpTemplate
 				return cli.ShowAppHelp(ctx)
 			}
@@ -486,31 +486,26 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 			return shell.RunTerraformCommand(opts, terraformHelpArgs...)
 		}
 
-		return runApp(ctx, opts)
+		opts.RunTerragrunt = RunTerragrunt
+		opts.Env = parseEnvironmentVariables(os.Environ())
+		if err := opts.NormalizeCLI(ctx); err != nil {
+			return err
+		}
+
+		return runApp(opts)
 	}
 	return app
 }
 
 // The sole action for the app
-func runApp(ctx *cli.Context, opts *options.TerragruntOptions) error {
-	opts.RunTerragrunt = RunTerragrunt
-	opts.Env = parseEnvironmentVariables(os.Environ())
-
-	if err := opts.Normalize(ctx); err != nil {
-		return err
-	}
-
+func runApp(opts *options.TerragruntOptions) error {
 	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of  terragrunt used.
-	opts.Logger.Debugf("Terragrunt Version: %s", ctx.App.Version)
-
-	fmt.Println("Args --- ", ctx.Args(), ctx.Args().First())
+	opts.Logger.Debugf("Terragrunt Version: %s", opts.TerragruntVersion)
 
 	fmt.Printf("opt: %+v\n", opts)
-
 	return nil
 
-	givenCommand := ctx.Args().First()
-	newOptions, command := checkDeprecated(givenCommand, opts)
+	newOptions, command := checkDeprecated(opts.TerraformCommand, opts)
 	return runCommand(command, newOptions)
 }
 
@@ -534,7 +529,7 @@ func checkDeprecated(command string, terragruntOptions *options.TerragruntOption
 // runCommand runs one or many terraform commands based on the type of
 // terragrunt command
 func runCommand(command string, terragruntOptions *options.TerragruntOptions) (finalEff error) {
-	if command == CMD_RUN_ALL {
+	if command == CmdRunAll {
 		return runAll(terragruntOptions)
 	}
 	if command == "destroy" {
@@ -568,7 +563,7 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	}
 
 	terragruntOptionsClone := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
-	terragruntOptionsClone.TerraformCommand = CMD_TERRAGRUNT_READ_CONFIG
+	terragruntOptionsClone.TerraformCommand = CmdTerragruntReadConfig
 
 	if err := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone, terragruntConfig, nil); err != nil {
 		return err
@@ -740,7 +735,7 @@ func checkVersionConstraints(terragruntOptions *options.TerragruntOptions) error
 		return err
 	}
 
-	terraformVersionConstraint := DEFAULT_TERRAFORM_VERSION_CONSTRAINT
+	terraformVersionConstraint := DefaultTerraformVersionConstraint
 	if partialTerragruntConfig.TerraformVersionConstraint != "" {
 		terraformVersionConstraint = partialTerragruntConfig.TerraformVersionConstraint
 	}
@@ -769,27 +764,27 @@ func runGraphDependencies(terragruntOptions *options.TerragruntOptions) error {
 }
 
 func shouldRunGraphDependencies(terragruntOptions *options.TerragruntOptions) bool {
-	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_TERRAGRUNT_GRAPH_DEPENDENCIES)
+	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CmdTerragruntGraphDependencies)
 }
 
 func shouldPrintTerragruntInfo(terragruntOptions *options.TerragruntOptions) bool {
-	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_TERRAGRUNT_INFO)
+	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CmdTerragruntInfo)
 }
 
 func shouldValidateTerragruntInputs(terragruntOptions *options.TerragruntOptions) bool {
-	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_TERRAGRUNT_VALIDATE_INPUTS)
+	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CmdTerragruntValidateInputs)
 }
 
 func shouldRunHCLFmt(terragruntOptions *options.TerragruntOptions) bool {
-	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_HCLFMT)
+	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CmdHclfmt)
 }
 
 func shouldRunRenderJSON(terragruntOptions *options.TerragruntOptions) bool {
-	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_RENDER_JSON)
+	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CmdRenderJSON)
 }
 
 func shouldApplyAwsProviderPatch(terragruntOptions *options.TerragruntOptions) bool {
-	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_AWS_PROVIDER_PATCH)
+	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CmdAWSProviderPatch)
 }
 
 func processErrorHooks(hooks []config.ErrorHook, terragruntOptions *options.TerragruntOptions, previousExecErrors *multierror.Error) error {
@@ -958,7 +953,7 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 		return err
 	}
 
-	if util.FirstArg(terragruntOptions.TerraformCliArgs) == CMD_INIT {
+	if util.FirstArg(terragruntOptions.TerraformCliArgs) == CmdInit {
 		if err := prepareInitCommand(terragruntOptions, terragruntConfig, allowSourceDownload); err != nil {
 			return err
 		}
@@ -1037,11 +1032,11 @@ func confirmActionWithDependentModules(terragruntOptions *options.TerragruntOpti
 // The `providers lock` sub command enables you to ensure that the lock file is
 // fully populated.
 func shouldCopyLockFile(args []string) bool {
-	if util.FirstArg(args) == CMD_INIT {
+	if util.FirstArg(args) == CmdInit {
 		return true
 	}
 
-	if util.FirstArg(args) == CMD_PROVIDERS && util.SecondArg(args) == CMD_LOCK {
+	if util.FirstArg(args) == CmdProviders && util.SecondArg(args) == CmdLock {
 		return true
 	}
 	return false
@@ -1200,7 +1195,7 @@ func prepareNonInitCommand(originalTerragruntOptions *options.TerragruntOptions,
 
 // Determines if 'terraform init' needs to be executed
 func needsInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (bool, error) {
-	if util.ListContainsElement(TERRAFORM_COMMANDS_THAT_DO_NOT_NEED_INIT, util.FirstArg(terragruntOptions.TerraformCliArgs)) {
+	if util.ListContainsElement(TerraformCommandsThatDoNotNeedInit, util.FirstArg(terragruntOptions.TerraformCliArgs)) {
 		return false, nil
 	}
 
@@ -1242,7 +1237,7 @@ func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, terraformSource *tfsource.TerraformSource) error {
 
 	// Prevent Auto-Init if the user has disabled it
-	if util.FirstArg(terragruntOptions.TerraformCliArgs) != CMD_INIT && !terragruntOptions.AutoInit {
+	if util.FirstArg(terragruntOptions.TerraformCliArgs) != CmdInit && !terragruntOptions.AutoInit {
 		terragruntOptions.Logger.Warnf("Detected that init is needed, but Auto-Init is disabled. Continuing with further actions, but subsequent terraform commands may fail.")
 		return nil
 	}
@@ -1268,11 +1263,11 @@ func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terr
 func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformSource *tfsource.TerraformSource) (*options.TerragruntOptions, error) {
 	// Need to clone the terragruntOptions, so the TerraformCliArgs can be configured to run the init command
 	initOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
-	initOptions.TerraformCliArgs = []string{CMD_INIT}
+	initOptions.TerraformCliArgs = []string{CmdInit}
 	initOptions.WorkingDir = terragruntOptions.WorkingDir
-	initOptions.TerraformCommand = CMD_INIT
+	initOptions.TerraformCommand = CmdInit
 
-	initOutputForCommands := []string{CMD_PLAN, CMD_APPLY}
+	initOutputForCommands := []string{CmdPlan, CmdApply}
 	terraformCommand := util.FirstArg(terragruntOptions.TerraformCliArgs)
 	if !collections.ListContainsElement(initOutputForCommands, terraformCommand) {
 		// Since some command can return a json string, it is necessary to suppress output to stdout of the `terraform init` command.
@@ -1296,7 +1291,7 @@ func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error)
 		return true, nil
 	}
 
-	return util.Grep(MODULE_REGEX, fmt.Sprintf("%s/%s", terragruntOptions.WorkingDir, TERRAFORM_EXTENSION_GLOB))
+	return util.Grep(ModuleRegex, fmt.Sprintf("%s/%s", terragruntOptions.WorkingDir, TerraformExtensionGlob))
 }
 
 // If the user entered a Terraform command that uses state (e.g. plan, apply), make sure remote state is configured
@@ -1305,7 +1300,7 @@ func remoteStateNeedsInit(remoteState *remote.RemoteState, terragruntOptions *op
 
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
-	if remoteState != nil && util.ListContainsElement(TERRAFORM_COMMANDS_THAT_USE_STATE, util.FirstArg(terragruntOptions.TerraformCliArgs)) {
+	if remoteState != nil && util.ListContainsElement(TerraformCommandsThatUseState, util.FirstArg(terragruntOptions.TerraformCliArgs)) {
 		return remoteState.NeedsInit(terragruntOptions)
 	}
 	return false, nil

@@ -306,7 +306,7 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 	return opts, nil
 }
 
-func (opts *TerragruntOptions) Normalize(ctx *cli.Context) error {
+func (opts *TerragruntOptions) NormalizeCLI(ctx *cli.Context) error {
 	opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
 	opts.Logger = util.CreateLogEntry("", opts.LogLevel)
 	opts.Logger.Logger.SetOutput(ctx.App.ErrWriter)

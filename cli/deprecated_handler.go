@@ -8,11 +8,11 @@ import (
 )
 
 func spinUpDeprecationHandler(origOptions *options.TerragruntOptions) (*options.TerragruntOptions, string, string) {
-	return origOptions, CMD_APPLY_ALL, CMD_APPLY_ALL
+	return origOptions, CmdApplyAll, CmdApplyAll
 }
 
 func tearDownDeprecationHandler(origOptions *options.TerragruntOptions) (*options.TerragruntOptions, string, string) {
-	return origOptions, CMD_DESTROY_ALL, CMD_DESTROY_ALL
+	return origOptions, CmdDestroyAll, CmdDestroyAll
 }
 
 func applyAllDeprecationHandler(origOptions *options.TerragruntOptions) (*options.TerragruntOptions, string, string) {
@@ -21,7 +21,7 @@ func applyAllDeprecationHandler(origOptions *options.TerragruntOptions) (*option
 	opts.OriginalTerraformCommand = "apply"
 	opts.TerraformCliArgs = append([]string{"apply"}, opts.TerraformCliArgs...)
 	newCmdFriendly := fmt.Sprintf("terragrunt run-all %s", strings.Join(opts.TerraformCliArgs, " "))
-	return opts, CMD_RUN_ALL, newCmdFriendly
+	return opts, CmdRunAll, newCmdFriendly
 }
 
 func destroyAllDeprecationHandler(origOptions *options.TerragruntOptions) (*options.TerragruntOptions, string, string) {
@@ -30,7 +30,7 @@ func destroyAllDeprecationHandler(origOptions *options.TerragruntOptions) (*opti
 	opts.OriginalTerraformCommand = "destroy"
 	opts.TerraformCliArgs = append([]string{"destroy"}, opts.TerraformCliArgs...)
 	newCmdFriendly := fmt.Sprintf("terragrunt run-all %s", strings.Join(opts.TerraformCliArgs, " "))
-	return opts, CMD_RUN_ALL, newCmdFriendly
+	return opts, CmdRunAll, newCmdFriendly
 }
 
 func planAllDeprecationHandler(origOptions *options.TerragruntOptions) (*options.TerragruntOptions, string, string) {
@@ -39,7 +39,7 @@ func planAllDeprecationHandler(origOptions *options.TerragruntOptions) (*options
 	opts.OriginalTerraformCommand = "plan"
 	opts.TerraformCliArgs = append([]string{"plan"}, opts.TerraformCliArgs...)
 	newCmdFriendly := fmt.Sprintf("terragrunt run-all %s", strings.Join(opts.TerraformCliArgs, " "))
-	return opts, CMD_RUN_ALL, newCmdFriendly
+	return opts, CmdRunAll, newCmdFriendly
 }
 
 func validateAllDeprecationHandler(origOptions *options.TerragruntOptions) (*options.TerragruntOptions, string, string) {
@@ -48,7 +48,7 @@ func validateAllDeprecationHandler(origOptions *options.TerragruntOptions) (*opt
 	opts.OriginalTerraformCommand = "validate"
 	opts.TerraformCliArgs = append([]string{"validate"}, opts.TerraformCliArgs...)
 	newCmdFriendly := fmt.Sprintf("terragrunt run-all %s", strings.Join(opts.TerraformCliArgs, " "))
-	return opts, CMD_RUN_ALL, newCmdFriendly
+	return opts, CmdRunAll, newCmdFriendly
 }
 
 func outputAllDeprecationHandler(origOptions *options.TerragruntOptions) (*options.TerragruntOptions, string, string) {
@@ -57,5 +57,5 @@ func outputAllDeprecationHandler(origOptions *options.TerragruntOptions) (*optio
 	opts.OriginalTerraformCommand = "output"
 	opts.TerraformCliArgs = append([]string{"output"}, opts.TerraformCliArgs...)
 	newCmdFriendly := fmt.Sprintf("terragrunt run-all %s", strings.Join(opts.TerraformCliArgs, " "))
-	return opts, CMD_RUN_ALL, newCmdFriendly
+	return opts, CmdRunAll, newCmdFriendly
 }
