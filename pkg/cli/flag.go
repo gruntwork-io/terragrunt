@@ -48,6 +48,13 @@ type Flag struct {
 	ValSep   string
 }
 
+func NewFlag(name string, dest any) cli.DocGenerationFlag {
+	return &Flag{
+		Name:        name,
+		Destination: dest,
+	}
+}
+
 // TakesValue returns true of the flag takes a value, otherwise false.
 // Implements `cli.DocGenerationFlag.TakesValue` required to generate help.
 func (flag *Flag) TakesValue() bool {
@@ -180,12 +187,5 @@ func (flag *Flag) normalize() {
 
 	if flag.ValSep == "" {
 		flag.ValSep = defaultKeyValSep
-	}
-}
-
-func NewFlag(name string, dest any) cli.DocGenerationFlag {
-	return &Flag{
-		Name:        name,
-		Destination: dest,
 	}
 }

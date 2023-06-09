@@ -46,7 +46,7 @@ func (flags Flags) parseArgs(flagSet *libflag.FlagSet, args []string) ([]string,
 	for {
 		err := flagSet.Parse(args)
 		if err == nil {
-			return append(undefinedFlags, flagSet.Args()...), nil
+			break
 		}
 
 		// check if the error is due to an undefined flag
@@ -76,4 +76,7 @@ func (flags Flags) parseArgs(flagSet *libflag.FlagSet, args []string) ([]string,
 			return nil, err
 		}
 	}
+
+	undefinedFlags = append(undefinedFlags, flagSet.Args()...)
+	return undefinedFlags, nil
 }

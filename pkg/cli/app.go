@@ -14,6 +14,13 @@ type App struct {
 	Action ActionFunc
 }
 
+// NewApp returns a new App instance.
+func NewApp() *App {
+	return &App{
+		App: cli.NewApp(),
+	}
+}
+
 // AddFlags adds a new cli flag.
 func (app *App) AddFlags(flags ...*Flag) {
 	app.Flags = append(app.Flags, flags...)
@@ -65,22 +72,15 @@ func (app *App) parseArgs(args []string) ([]string, error) {
 			return nil, err
 		}
 
-		filteredArgs = append(filteredArgs, args[0])
-		args = args[1:]
-
 		if len(args) == 0 {
 			break
 		}
+
+		filteredArgs = append(filteredArgs, args[0])
+		args = args[1:]
 	}
 
 	return filteredArgs, nil
-}
-
-// NewApp returns a new App instance.
-func NewApp() *App {
-	return &App{
-		App: cli.NewApp(),
-	}
 }
 
 func init() {
