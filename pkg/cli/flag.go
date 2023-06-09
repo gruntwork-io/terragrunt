@@ -35,14 +35,13 @@ type FlagValue interface {
 type Flag struct {
 	FlagValue
 
-	Name    string
-	Aliases []string
-	Usage   string
-	EnvVar  string
-
-	Negative bool
-
+	Name        string
+	Aliases     []string
+	Usage       string
+	EnvVar      string
 	Destination any
+
+	Negative    bool
 	DefaultText string
 
 	Splitter SplitterFunc
@@ -137,7 +136,6 @@ func (flag *Flag) Apply(set *libflag.FlagSet) error {
 		if flag.Negative {
 			valType = Type[bool](new(boolNegativeType))
 		}
-
 		flag.FlagValue, err = newFlagGenreicValue(valType, ptr, flag.EnvVar)
 
 	case *int:
@@ -163,6 +161,16 @@ func (flag *Flag) Apply(set *libflag.FlagSet) error {
 	case *map[string]string:
 		valType := Type[string](new(stringType))
 		flag.FlagValue, err = newFlagMapValue(valType, valType, ptr, flag.EnvVar, flag.ArgSep, flag.ValSep, flag.Splitter)
+
+	case *map[string]int:
+		keyType := Type[string](new(stringType))
+		valType := Type[int](new(intType))
+		flag.FlagValue, err = newFlagMapValue(keyType, valType, ptr, flag.EnvVar, flag.ArgSep, flag.ValSep, flag.Splitter)
+
+	case *map[string]int64:
+		keyType := Type[string](new(stringType))
+		valType := Type[int64](new(int64Type))
+		flag.FlagValue, err = newFlagMapValue(keyType, valType, ptr, flag.EnvVar, flag.ArgSep, flag.ValSep, flag.Splitter)
 
 	case FlagValue:
 		flag.FlagValue = ptr

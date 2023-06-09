@@ -306,7 +306,7 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 	return opts, nil
 }
 
-func (opts *TerragruntOptions) NormalizeCLI(ctx *cli.Context) error {
+func (opts *TerragruntOptions) Normalize(ctx *cli.Context) error {
 	opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
 	opts.Logger = util.CreateLogEntry("", opts.LogLevel)
 	opts.Logger.Logger.SetOutput(ctx.App.ErrWriter)
@@ -326,35 +326,32 @@ func (opts *TerragruntOptions) NormalizeCLI(ctx *cli.Context) error {
 	}
 	opts.TerragruntVersion = terragruntVersion
 
-	if opts.TerragruntConfigPath == "" {
+	if opts.WorkingDir == "" {
 		currentDir, err := os.Getwd()
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
-		opts.TerragruntConfigPath = currentDir
-	}
-
-	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-
-	if opts.WorkingDir == "" {
-		opts.WorkingDir = workingDir
-	}
-
-	if opts.DownloadDir == "" {
-		opts.DownloadDir = downloadDir
+		opts.WorkingDir = currentDir
 	} else {
-		p, err := filepath.Abs(opts.DownloadDir)
+		path, err := filepath.Abs(opts.WorkingDir)
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
-		opts.DownloadDir = p
+		opts.WorkingDir = path
 	}
-
 	opts.WorkingDir = filepath.ToSlash(opts.WorkingDir)
+
+	if opts.DownloadDir == "" {
+		opts.DownloadDir = util.JoinPath(opts.WorkingDir, TerragruntCacheDir)
+	} else {
+		path, err := filepath.Abs(opts.DownloadDir)
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+		opts.DownloadDir = path
+	}
 	opts.DownloadDir = filepath.ToSlash(opts.DownloadDir)
+
 	opts.HclFile = filepath.ToSlash(opts.HclFile)
 	opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)
 	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions

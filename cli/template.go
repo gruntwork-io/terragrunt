@@ -33,7 +33,7 @@ DESCRIPTION:
    Render the final terragrunt config, with all variables, includes, and functions resolved, as json.
 
 OPTIONS:
-   --with-metadata 		Add metadata to the rendered JSON file.
+   --with-metadata 		    Add metadata to the rendered JSON file.
    --terragrunt-json-out 	The file path that terragrunt should use when rendering the terragrunt.hcl config as json.{{if not .HideVersion}}
 
 VERSION: {{.Version}}{{if len .Authors}}{{end}}

@@ -442,6 +442,11 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 			Destination: &opts.JSONOut,
 		},
 		&cli.Flag{
+			Name:        "with-metadata",
+			Usage:       "Add metadata to the rendered JSON file.",
+			Destination: &opts.RenderJsonWithMetadata,
+		},
+		&cli.Flag{
 			Name:        "terragrunt-use-partial-parse-config-cache",
 			EnvVar:      "TERRAGRUNT_USE_PARTIAL_PARSE_CONFIG_CACHE",
 			Usage:       "Enables caching of includes during partial parsing operations. Will also be used for the --terragrunt-iam-role option if provided.",
@@ -488,9 +493,14 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 
 		opts.RunTerragrunt = RunTerragrunt
 		opts.Env = parseEnvironmentVariables(os.Environ())
-		if err := opts.NormalizeCLI(ctx); err != nil {
+		if err := opts.Normalize(ctx); err != nil {
 			return err
 		}
+
+		if opts.TerragruntConfigPath == "" {
+			opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
+		}
+		opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
 
 		return runApp(opts)
 	}
@@ -502,8 +512,8 @@ func runApp(opts *options.TerragruntOptions) error {
 	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of  terragrunt used.
 	opts.Logger.Debugf("Terragrunt Version: %s", opts.TerragruntVersion)
 
-	fmt.Printf("opt: %+v\n", opts)
-	return nil
+	// fmt.Printf("opt: %+v\n", opts)
+	// return nil
 
 	newOptions, command := checkDeprecated(opts.TerraformCommand, opts)
 	return runCommand(command, newOptions)
