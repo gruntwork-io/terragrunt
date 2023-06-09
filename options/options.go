@@ -315,7 +315,7 @@ func (opts *TerragruntOptions) Normalize(ctx *cli.Context) error {
 	opts.ErrWriter = ctx.App.ErrWriter
 
 	opts.TerraformCommand = ctx.Args().First()
-	opts.TerraformCliArgs = ctx.Args().Tail()
+	opts.TerraformCliArgs = ctx.Args().Slice()
 
 	terragruntVersion, err := version.NewVersion(ctx.App.Version)
 	if err != nil {

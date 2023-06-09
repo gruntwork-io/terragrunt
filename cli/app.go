@@ -425,7 +425,7 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 		},
 		&cli.Flag{
 			Name:        "terragrunt-no-color",
-			EnvVar:      "",
+			EnvVar:      "TERRAGRUNT_NO_COLOR",
 			Usage:       "If specified, output won't contain any color.",
 			Destination: &opts.TerragruntNoColors,
 		},
