@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/gruntwork-io/go-commons/version"
 	terraws "github.com/gruntwork-io/terratest/modules/aws"
 	"github.com/gruntwork-io/terratest/modules/git"
 	"github.com/hashicorp/go-multierror"
@@ -3922,12 +3923,13 @@ func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwri
 	return runTerragruntVersionCommand(t, "TEST", command, writer, errwriter)
 }
 
-func runTerragruntVersionCommand(t *testing.T, version string, command string, writer io.Writer, errwriter io.Writer) error {
+func runTerragruntVersionCommand(t *testing.T, ver string, command string, writer io.Writer, errwriter io.Writer) error {
 	args := strings.Split(command, " ")
 
 	fmt.Println("runTerragruntVersionCommand after split")
 	fmt.Println(args)
-	app := cli.CreateTerragruntCli(version, writer, errwriter)
+	version.Version = ver
+	app := cli.CreateTerragruntCli(writer, errwriter)
 	return app.Run(args)
 }
 

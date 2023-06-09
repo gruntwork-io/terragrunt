@@ -247,6 +247,8 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage
 func NewTerragruntOptions() *TerragruntOptions {
+	defaultLogLevel := logrus.InfoLevel
+
 	return &TerragruntOptions{
 		TerraformPath:                  TERRAFORM_DEFAULT_PATH,
 		OriginalTerraformCommand:       "",
@@ -255,7 +257,8 @@ func NewTerragruntOptions() *TerragruntOptions {
 		RunAllAutoApprove:              true,
 		NonInteractive:                 false,
 		TerraformCliArgs:               []string{},
-		LogLevel:                       util.GetDefaultLogLevel(),
+		LogLevel:                       defaultLogLevel,
+		LogLevelStr:                    defaultLogLevel.String(),
 		ValidateStrict:                 false,
 		Env:                            map[string]string{},
 		Source:                         "",
@@ -265,7 +268,6 @@ func NewTerragruntOptions() *TerragruntOptions {
 		IgnoreDependencyOrder:          false,
 		IgnoreExternalDependencies:     false,
 		IncludeExternalDependencies:    false,
-		LogLevelStr:                    "warn",
 		Writer:                         os.Stdout,
 		ErrWriter:                      os.Stderr,
 		MaxFoldersToCheck:              DEFAULT_MAX_FOLDERS_TO_CHECK,
@@ -291,12 +293,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 }
 
 func (opts *TerragruntOptions) Normalize() error {
-	parsedLogLevel, err := logrus.ParseLevel(opts.LogLevelStr)
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-	opts.LogLevel = parsedLogLevel
-
+	opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
 	opts.Logger = util.CreateLogEntry("", opts.LogLevel)
 
 	if opts.TerragruntConfigPath == "" {

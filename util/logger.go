@@ -11,6 +11,7 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+// used in integration tests
 const defaultLogLevel = logrus.InfoLevel
 const logLevelEnvVar = "TERRAGRUNT_LOG_LEVEL"
 
@@ -82,12 +83,16 @@ func GetDefaultLogLevel() logrus.Level {
 		return defaultLogLevel
 	}
 
-	parsedLogLevel, err := logrus.ParseLevel(defaultLogLevelStr)
+	return ParseLogLevel(defaultLogLevelStr)
+}
+
+func ParseLogLevel(logLevelStr string) logrus.Level {
+	parsedLogLevel, err := logrus.ParseLevel(logLevelStr)
 	if err != nil {
 		CreateLogEntry("", defaultLogLevel).Errorf(
 			"Could not parse log level from environment variable %s (%s) - falling back to default %s",
 			logLevelEnvVar,
-			defaultLogLevelStr,
+			logLevelStr,
 			defaultLogLevel,
 		)
 		return defaultLogLevel

@@ -370,7 +370,7 @@ func TestParseEnvironmentVariables(t *testing.T) {
 }
 
 func TestTerragruntHelp(t *testing.T) {
-	app := CreateTerragruntCli("0.0", os.Stdout, os.Stderr)
+	app := CreateTerragruntCli(os.Stdout, os.Stderr)
 	output := &bytes.Buffer{}
 	app.Writer = output
 
@@ -396,7 +396,7 @@ func TestTerragruntHelp(t *testing.T) {
 }
 
 func TestTerraformHelp(t *testing.T) {
-	app := CreateTerragruntCli("0.0", os.Stdout, os.Stderr)
+	app := CreateTerragruntCli(os.Stdout, os.Stderr)
 	output := &bytes.Buffer{}
 	app.Writer = output
 
@@ -421,7 +421,7 @@ func TestTerraformHelp(t *testing.T) {
 }
 
 func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
-	app := CreateTerragruntCli("0.0", os.Stdout, os.Stderr)
+	app := CreateTerragruntCli(os.Stdout, os.Stderr)
 
 	output := &bytes.Buffer{}
 	app.Writer = output

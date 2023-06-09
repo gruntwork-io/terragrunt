@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/tflint"
 
 	"github.com/gruntwork-io/gruntwork-cli/collections"
@@ -252,12 +253,12 @@ var terragruntHelp = map[string]string{
 var sourceChangeLocks = sync.Map{}
 
 // Create the Terragrunt CLI App
-func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) *cli.App {
+func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 	app := cli.NewApp()
 	app.CustomAppHelpTemplate = AppHelpTemplate
 	app.Name = "terragrunt"
 	app.Author = "Gruntwork <www.gruntwork.io>"
-	app.Version = version
+	app.Version = version.GetVersion()
 	app.Usage = "terragrunt <COMMAND> [GLOBAL OPTIONS]"
 	app.Writer = writer
 	app.ErrWriter = errwriter
@@ -275,7 +276,7 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 			Destination: &opts.TerragruntConfigPath,
 		},
 		&cli.Flag{
-			Name:        "tfpath",
+			Name:        "terragrunt-tfpath",
 			EnvVar:      "TERRAGRUNT_TFPATH",
 			Usage:       "Path to the Terraform binary. Default is terraform (on PATH).",
 			Destination: &opts.TerraformPath,
@@ -320,13 +321,13 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 		},
 		&cli.Flag{
 			Name:        "terragrunt-source",
-			EnvVar:      "",
+			EnvVar:      "TERRAGRUNT_SOURCE",
 			Usage:       "Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.",
 			Destination: &opts.Source,
 		},
 		&cli.Flag{
 			Name:        "terragrunt-source-update",
-			EnvVar:      "",
+			EnvVar:      "TERRAGRUNT_SOURCE_UPDATE",
 			Usage:       "Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it.",
 			Destination: &opts.SourceUpdate,
 		},
@@ -339,49 +340,46 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 		},
 		&cli.Flag{
 			Name:        "terragrunt-iam-role",
-			EnvVar:      "",
+			EnvVar:      "TERRAGRUNT_IAM_ROLE",
 			Usage:       "Assume the specified IAM role before executing Terraform. Can also be set via the TERRAGRUNT_IAM_ROLE environment variable.",
 			Destination: &opts.IAMRoleOptions.RoleARN,
 		},
 		&cli.Flag{
 			Name:        "terragrunt-iam-assume-role-duration",
-			EnvVar:      "",
+			EnvVar:      "TERRAGRUNT_IAM_ASSUME_ROLE_DURATION",
 			Usage:       "Session duration for IAM Assume Role session. Can also be set via the TERRAGRUNT_IAM_ASSUME_ROLE_DURATION environment variable.",
 			Destination: &opts.IAMRoleOptions.AssumeRoleDuration,
 		},
 		&cli.Flag{
 			Name:        "terragrunt-iam-assume-role-session-name",
-			EnvVar:      "",
+			EnvVar:      "TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME",
 			Usage:       "Name for the IAM Assummed Role session. Can also be set via TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME environment variable.",
 			Destination: &opts.IAMRoleOptions.AssumeRoleSessionName,
 		},
 		&cli.Flag{
 			Name:        "terragrunt-ignore-dependency-errors",
-			EnvVar:      "",
 			Usage:       "*-all commands continue processing components even if a dependency fails.",
 			Destination: &opts.IgnoreDependencyErrors,
 		},
 		&cli.Flag{
 			Name:        "terragrunt-ignore-dependency-order",
-			EnvVar:      "",
 			Usage:       "*-all commands will be run disregarding the dependencies",
 			Destination: &opts.IgnoreDependencyOrder,
 		},
 		&cli.Flag{
 			Name:        "terragrunt-ignore-external-dependencies",
-			EnvVar:      "",
 			Usage:       "*-all commands will not attempt to include external dependencies",
 			Destination: &opts.IgnoreExternalDependencies,
 		},
 		&cli.Flag{
 			Name:        "terragrunt-include-external-dependencies",
-			EnvVar:      "",
+			EnvVar:      "TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES",
 			Usage:       "*-all commands will include external dependencies",
 			Destination: &opts.IncludeExternalDependencies,
 		},
 		&cli.Flag{
 			Name:        "terragrunt-parallelism",
-			EnvVar:      "",
+			EnvVar:      "TERRAGRUNT_PARALLELISM",
 			Usage:       "*-all commands parallelism set to at most N modules",
 			Destination: &opts.Parallelism,
 		},
@@ -393,15 +391,20 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 		},
 		&cli.Flag{
 			Name:        "terragrunt-include-dir",
-			EnvVar:      "",
 			Usage:       "Unix-style glob of directories to include when running *-all commands",
 			Destination: &opts.IncludeDirs,
 		},
 		&cli.Flag{
 			Name:        "terragrunt-check",
-			EnvVar:      "",
+			EnvVar:      "TERRAGRUNT_CHECK",
 			Usage:       "Enable check mode in the hclfmt command.",
 			Destination: &opts.Check,
+		},
+		&cli.Flag{
+			Name:        "terragrunt-diff",
+			EnvVar:      "TERRAGRUNT_DIFF",
+			Usage:       "Print diff between original and modified file versions when running with `hclfmt`.",
+			Destination: &opts.Diff,
 		},
 		&cli.Flag{
 			Name:        "terragrunt-hclfmt-file",
@@ -416,13 +419,13 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 		},
 		&cli.Flag{
 			Name:        "terragrunt-debug",
-			EnvVar:      "",
+			EnvVar:      "TERRAGRUNT_DEBUG",
 			Usage:       "Write terragrunt-debug.tfvars to working folder to help root-cause issues.",
 			Destination: &opts.Debug,
 		},
 		&cli.Flag{
 			Name:        "terragrunt-log-level",
-			EnvVar:      "",
+			EnvVar:      "TERRAGRUNT_LOG_LEVEL",
 			Usage:       "Sets the logging level for Terragrunt. Supported levels: panic, fatal, error, warn, info, debug, trace.",
 			Destination: &opts.LogLevelStr,
 		},
@@ -446,13 +449,19 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 		},
 		&cli.Flag{
 			Name:        "terragrunt-use-partial-parse-config-cache",
-			EnvVar:      "",
+			EnvVar:      "TERRAGRUNT_USE_PARTIAL_PARSE_CONFIG_CACHE",
 			Usage:       "Enables caching of includes during partial parsing operations. Will also be used for the --terragrunt-iam-role option if provided.",
 			Destination: &opts.UsePartialParseConfigCache,
 		},
 		&cli.Flag{
+			Name:        "terragrunt-fetch-dependency-output-from-state",
+			EnvVar:      "TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE",
+			Usage:       "The option fetchs dependency output directly from the state file instead of init dependencies and running terraform on them.",
+			Destination: &opts.UsePartialParseConfigCache,
+		},
+		&cli.Flag{
 			Name:        "terragrunt-include-module-prefix",
-			EnvVar:      "",
+			EnvVar:      "TERRAGRUNT_INCLUDE_MODULE_PREFIX",
 			Usage:       "When this flag is set output from Terraform sub-commands is prefixed with module path.",
 			Destination: &opts.IncludeModulePrefix,
 		},
@@ -464,15 +473,22 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 		},
 	)
 
-	app.Action = func(ctx *cli.Context) error {
+	app.Action = func(ctx *cli.Context) (finalErr error) {
+		defer errors.Recover(func(cause error) { finalErr = cause })
+
+		if err := opts.Normalize(); err != nil {
+			return err
+		}
+
 		// if there is only one argument `--help` or no args at all show the Terragrunt help.
 		if (showHelp && ctx.RawArgs().Len() == 1) || !ctx.RawArgs().Present() {
 			return cli.ShowAppHelp(ctx)
 		}
 
-		// if showHelp {
-		// 	return shell.RunTerraformCommand(opts, ctx.UndefinedArgs()...)
-		// }
+		// in other cases show Terraform help.
+		if showHelp {
+			return shell.RunTerraformCommand(opts, append([]string{ctx.Args().First(), "--help"}, ctx.Args().Tail()...)...)
+		}
 
 		return runApp(ctx, opts)
 	}
@@ -481,11 +497,9 @@ func CreateTerragruntCli(version string, writer io.Writer, errwriter io.Writer) 
 
 // The sole action for the app
 func runApp(ctx *cli.Context, opts *options.TerragruntOptions) (finalErr error) {
-	defer errors.Recover(func(cause error) { finalErr = cause })
-
-	if err := opts.Normalize(); err != nil {
-		return err
-	}
+	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of
+	// terragrunt used.
+	util.GlobalFallbackLogEntry.Debugf("Terragrunt Version: %s", ctx.App.Version)
 
 	fmt.Println("Args --- ", ctx.Args(), ctx.Args().First())
 

@@ -64,6 +64,7 @@ func RunShellCommandWithOutput(
 	command string,
 	args ...string,
 ) (*CmdOutput, error) {
+
 	terragruntOptions.Logger.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 	if suppressStdout {
 		terragruntOptions.Logger.Debugf("Command output will be suppressed.")
