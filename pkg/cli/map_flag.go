@@ -139,7 +139,7 @@ func (flag *mapValue[K, V]) Set(str string) error {
 
 	parts := flag.splitter(str, flag.valSep)
 	if len(parts) != 2 {
-		return errors.Errorf("valid format: key%svalue", flag.valSep)
+		return errors.Errorf("Invalid key-value pair. Expected format KEY%VALUE, got %s", flag.valSep, str)
 	}
 
 	key := flag.keyType.Init(new(K), false)

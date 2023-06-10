@@ -58,4 +58,9 @@ func (val *flagType[T]) Set(str string) error {
 
 func (val *flagType[T]) Get() any { return *val.dest }
 
-func (val *flagType[T]) String() string { return fmt.Sprintf("%v", *val.dest) }
+func (val *flagType[T]) String() string {
+	if *val.dest == *new(T) {
+		return ""
+	}
+	return fmt.Sprintf("%v", *val.dest)
+}

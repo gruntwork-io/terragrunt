@@ -33,84 +33,9 @@ import (
 )
 
 const (
-	// optTerragruntConfig                         = "terragrunt-config"
-	// optTerragruntTFPath                         = "terragrunt-tfpath"
-	// optTerragruntNoAutoInit                     = "terragrunt-no-auto-init"
-	// optTerragruntNoAutoRetry                    = "terragrunt-no-auto-retry"
-	// optTerragruntNoAutoApprove                  = "terragrunt-no-auto-approve"
-	// optNonInteractive                           = "terragrunt-non-interactive"
-	// optWorkingDir                               = "terragrunt-working-dir"
-	// optDownloadDir                              = "terragrunt-download-dir"
-	// optTerragruntSource                         = "terragrunt-source"
-	// optTerragruntSourceMap                      = "terragrunt-source-map"
 	optTerragruntSourceUpdate = "terragrunt-source-update"
-	// optTerragruntIAMRole                        = "terragrunt-iam-role"
-	// optTerragruntIAMAssumeRoleDuration          = "terragrunt-iam-assume-role-duration"
-	// optTerragruntIAMAssumeRoleSessionName       = "terragrunt-iam-assume-role-session-name"
-	// optTerragruntIgnoreDependencyErrors         = "terragrunt-ignore-dependency-errors"
-	// optTerragruntIgnoreDependencyOrder          = "terragrunt-ignore-dependency-order"
-	// optTerragruntIgnoreExternalDependencies     = "terragrunt-ignore-external-dependencies"
-	// optTerragruntIncludeExternalDependencies    = "terragrunt-include-external-dependencies"
-	// optTerragruntExcludeDir                     = "terragrunt-exclude-dir"
-	// optTerragruntIncludeDir                     = "terragrunt-include-dir"
-	// optTerragruntStrictInclude                  = "terragrunt-strict-include"
-	// optTerragruntParallelism                    = "terragrunt-parallelism"
-	// optTerragruntCheck                          = "terragrunt-check"
-	// optTerragruntDiff                           = "terragrunt-diff"
-	// optTerragruntHCLFmt                         = "terragrunt-hclfmt-file"
-	// optTerragruntDebug                          = "terragrunt-debug"
 	optTerragruntOverrideAttr = "terragrunt-override-attr"
-	// optTerragruntLogLevel                       = "terragrunt-log-level"
-	// optTerragruntLogDisableColors               = "terragrunt-no-color"
-	// optTerragruntStrictValidate                 = "terragrunt-strict-validate"
-	// optTerragruntJSONOut                        = "terragrunt-json-out"
-	// optTerragruntModulesThatInclude             = "terragrunt-modules-that-include"
-	// optTerragruntFetchDependencyOutputFromState = "terragrunt-fetch-dependency-output-from-state"
-	// optTerragruntUsePartialParseConfigCache     = "terragrunt-use-partial-parse-config-cache"
-	// optTerragruntIncludeModulePrefix            = "terragrunt-include-module-prefix"
-	// optTerragruntOutputWithMetadata             = "with-metadata"
 )
-
-// var allTerragruntBooleanOpts = []string{
-// 	optNonInteractive,
-// 	optTerragruntSourceUpdate,
-// 	optTerragruntIgnoreDependencyErrors,
-// 	optTerragruntIgnoreDependencyOrder,
-// 	optTerragruntIgnoreExternalDependencies,
-// 	optTerragruntIncludeExternalDependencies,
-// 	optTerragruntNoAutoInit,
-// 	optTerragruntNoAutoRetry,
-// 	optTerragruntNoAutoApprove,
-// 	optTerragruntCheck,
-// 	optTerragruntDiff,
-// 	optTerragruntStrictInclude,
-// 	optTerragruntDebug,
-// 	optTerragruntLogDisableColors,
-// 	optTerragruntFetchDependencyOutputFromState,
-// 	optTerragruntUsePartialParseConfigCache,
-// 	optTerragruntOutputWithMetadata,
-// 	optTerragruntIncludeModulePrefix,
-// }
-// var allTerragruntStringOpts = []string{
-// 	optTerragruntConfig,
-// 	optTerragruntTFPath,
-// 	optWorkingDir,
-// 	optDownloadDir,
-// 	optTerragruntSource,
-// 	optTerragruntSourceMap,
-// 	optTerragruntIAMRole,
-// 	optTerragruntIAMAssumeRoleDuration,
-// 	optTerragruntIAMAssumeRoleSessionName,
-// 	optTerragruntExcludeDir,
-// 	optTerragruntIncludeDir,
-// 	optTerragruntParallelism,
-// 	optTerragruntHCLFmt,
-// 	optTerragruntOverrideAttr,
-// 	optTerragruntLogLevel,
-// 	optTerragruntStrictValidate,
-// 	optTerragruntJSONOut,
-// 	optTerragruntModulesThatInclude,
-// }
 
 const (
 	CmdInit                        = "init"
@@ -148,20 +73,6 @@ var runAllDisabledCommands = map[string]string{
 	//                    multi-terraform version setups, where multiple terraform versions need to be configured.
 	// - version        : Supporting `version` with run-all could be useful for sanity checking a multi-version setup.
 }
-
-// var MULTI_MODULE_COMMANDS = []string{
-// 	CmdRunAll,
-
-// 	// The rest of the commands are deprecated, and are only here for legacy reasons to ensure that terragrunt knows to
-// 	// filter them out during arg parsing.
-// 	CmdApplyAll,
-// 	CmdDestroyAll,
-// 	CmdOutputAll,
-// 	CmdPlanAll,
-// 	CmdValidateAll,
-// }
-
-// END: Constants useful for multimodule command handling
 
 var TerraformCommandsThatUseState = []string{
 	"init",
@@ -375,7 +286,7 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 		&cli.BoolFlag{
 			Name:        "terragrunt-diff",
 			EnvVar:      "TERRAGRUNT_DIFF",
-			Usage:       "Print diff between original and modified file versions when running with `hclfmt`.",
+			Usage:       "Print diff between original and modified file versions when running with 'hclfmt'.",
 			Destination: &opts.Diff,
 		},
 		&cli.GenericFlag[string]{
@@ -418,6 +329,16 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 			EnvVar:      "TERRAGRUNT_INCLUDE_MODULE_PREFIX",
 			Usage:       "When this flag is set output from Terraform sub-commands is prefixed with module path.",
 			Destination: &opts.IncludeModulePrefix,
+		},
+		&cli.BoolFlag{
+			Name:        "terragrunt-strict-include",
+			Usage:       "If flag is set, only modules under the directories passed in with '--terragrunt-include-dir' will be included.",
+			Destination: &opts.StrictInclude,
+		},
+		&cli.SliceFlag[string]{
+			Name:        "terragrunt-modules-that-include",
+			Usage:       "If flag is set, 'run-all' will only run the command against Terragrunt modules that include the specified file.",
+			Destination: &opts.ModulesThatInclude,
 		},
 	)
 
