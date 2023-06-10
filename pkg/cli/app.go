@@ -8,10 +8,18 @@ import (
 // App is the main structure of app cli application. It should be created with the cli.NewApp() function.
 type App struct {
 	*cli.App
+
+	// List of commands to execute
 	Commands Commands
-	Flags    Flags
-	Author   string
-	Action   ActionFunc
+	// List of flags to parse
+	Flags Flags
+	// List of all authors who contributed
+	Author string
+	// An action to execute before any subcommands are run, but after the context is ready
+	// If a non-nil error is returned, no subcommands are run
+	Before ActionFunc
+	// The action to execute when no subcommands are specified
+	Action ActionFunc
 
 	rootCommand *Command
 }
@@ -52,6 +60,15 @@ func (app *App) Run(arguments []string) (err error) {
 			Command: command,
 		}
 
+		if app.Before != nil {
+			if err := app.Before(ctx); err != nil {
+				return err
+			}
+		}
+
+		if command.Action != nil {
+			return command.Action(ctx)
+		}
 		return app.Action(ctx)
 	}
 
@@ -115,6 +132,7 @@ func (app *App) parseArgs(args []string) (*Command, []string, error) {
 func (app *App) newRootCommand() *Command {
 	return &Command{
 		Name:        app.Name,
+		Action:      app.Action,
 		Usage:       app.Usage,
 		UsageText:   app.UsageText,
 		Description: app.Description,

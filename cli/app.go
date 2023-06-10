@@ -360,8 +360,9 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 			Usage:       "Run a terraform command against a 'stack' by running the specified command in each subfolder.",
 			Description: "Run a terraform command against a 'stack' by running the specified command in each subfolder. E.g., to run 'terragrunt apply' in each subfolder, use 'terragrunt run-all apply'."},
 		&cli.Command{
-			Name:  "terragrunt-info",
-			Usage: "Emits limited terragrunt state on stdout and exits.",
+			Name:   "terragrunt-info",
+			Usage:  "Emits limited terragrunt state on stdout and exits.",
+			Action: func(ctx *cli.Context) error { return runHCLFmt(opts) },
 		},
 		&cli.Command{
 			Name:  "validate-inputs",
@@ -374,14 +375,17 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 					Destination: &opts.ValidateStrict,
 				},
 			},
+			Action: func(ctx *cli.Context) error { return runHCLFmt(opts) },
 		},
 		&cli.Command{
-			Name:  "graph-dependencies",
-			Usage: "Prints the terragrunt dependency graph to stdout",
+			Name:   "graph-dependencies",
+			Usage:  "Prints the terragrunt dependency graph to stdout",
+			Action: func(ctx *cli.Context) error { return runGraphDependencies(opts) },
 		},
 		&cli.Command{
-			Name:  "hclfmt",
-			Usage: "Recursively find hcl files and rewrite them into a canonical format.",
+			Name:   "hclfmt",
+			Usage:  "Recursively find hcl files and rewrite them into a canonical format.",
+			Action: func(ctx *cli.Context) error { return runHCLFmt(opts) },
 		},
 		&cli.Command{
 			Name:        "render-json",
@@ -399,6 +403,7 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 					Destination: &opts.RenderJsonWithMetadata,
 				},
 			},
+			Action: func(ctx *cli.Context) error { return runHCLFmt(opts) },
 		},
 		&cli.Command{
 			Name:  "aws-provider-patch",
@@ -411,6 +416,7 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 					Destination: &opts.AwsProviderPatchOverrides,
 				},
 			},
+			Action: func(ctx *cli.Context) error { return runHCLFmt(opts) },
 		},
 		&cli.Command{
 			Name:  "*",
@@ -418,9 +424,7 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 		},
 	)
 
-	app.Action = func(ctx *cli.Context) (finalErr error) {
-		defer errors.Recover(func(cause error) { finalErr = cause })
-
+	app.Before = func(ctx *cli.Context) error {
 		if showHelp {
 			// if there is no args at all show the Terragrunt help.
 			if !ctx.Command.IsRoot {
@@ -440,16 +444,18 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 		opts.TerraformCommand = ctx.Args().First()
 		opts.TerraformCliArgs = ctx.Args().Normalize(cli.OnePrefixFlag).Slice()
 
-		if _, found := deprecatedCommands[opts.TerraformCommand]; found || opts.TerraformCommand == CmdRunAll {
+		if _, found := deprecatedCommands[opts.TerraformCommand]; found {
 			opts.TerraformCliArgs = ctx.Args().Tail()
 		}
 
 		if err := opts.Normalize(ctx.App.Version, ctx.App.Writer, ctx.App.ErrWriter); err != nil {
 			return err
 		}
-
-		return runApp(opts)
+		return nil
 	}
+
+	app.Action = func(ctx *cli.Context) error { return runApp(opts) }
+
 	return app
 }
 
@@ -500,14 +506,6 @@ func runCommand(command string, terragruntOptions *options.TerragruntOptions) (f
 // Downloads terraform source if necessary, then runs terraform with the given options and CLI args.
 // This will forward all the args and extra_arguments directly to Terraform.
 func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
-	if shouldRunHCLFmt(terragruntOptions) {
-		return runHCLFmt(terragruntOptions)
-	}
-
-	if shouldRunGraphDependencies(terragruntOptions) {
-		return runGraphDependencies(terragruntOptions)
-	}
-
 	if err := checkVersionConstraints(terragruntOptions); err != nil {
 		return err
 	}
@@ -722,20 +720,12 @@ func runGraphDependencies(terragruntOptions *options.TerragruntOptions) error {
 	return nil
 }
 
-func shouldRunGraphDependencies(terragruntOptions *options.TerragruntOptions) bool {
-	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CmdTerragruntGraphDependencies)
-}
-
 func shouldPrintTerragruntInfo(terragruntOptions *options.TerragruntOptions) bool {
 	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CmdTerragruntInfo)
 }
 
 func shouldValidateTerragruntInputs(terragruntOptions *options.TerragruntOptions) bool {
 	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CmdTerragruntValidateInputs)
-}
-
-func shouldRunHCLFmt(terragruntOptions *options.TerragruntOptions) bool {
-	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CmdHclfmt)
 }
 
 func shouldRunRenderJSON(terragruntOptions *options.TerragruntOptions) bool {

@@ -22,7 +22,9 @@ type Command struct {
 	Flags Flags
 	// Full name of command for help, defaults to full command name, including parent commands.
 	HelpName string
-
+	// The function to call when this command is invoked
+	Action ActionFunc
+	// if this is a root "special" command
 	IsRoot bool
 }
 
