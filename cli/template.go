@@ -3,7 +3,7 @@ package cli
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
 // in its definition, we don't quite fit into the model of any Go CLI library. Fortunately, urfave/cli allows us to
 // override the whole template used for the Usage Text.
-const appHelpTemplate = `USAGE: {{.Usage}}
+const rootHelpTemplate = `USAGE: {{.Usage}}
 
 DESCRIPTION:
    {{.Name}} - {{.UsageText}}
@@ -27,7 +27,7 @@ VERSION: {{.Version}}{{if len .Authors}}{{end}}
 AUTHOR: {{range .Authors}}{{.}}{{end}} {{end}}
 `
 
-const renderJsonHelp = `USAGE: terragrunt render-json [OPTIONS]
+const renderJsonHelpTemplate = `USAGE: terragrunt render-json [OPTIONS]
 
 DESCRIPTION:
    Render the final terragrunt config, with all variables, includes, and functions resolved, as json.
@@ -41,7 +41,7 @@ VERSION: {{.Version}}{{if len .Authors}}{{end}}
 AUTHOR: {{range .Authors}}{{.}}{{end}} {{end}}
 `
 
-const awsProviderPatchHelp = `USAGE: terragrunt aws-provider-patch [OPTIONS]
+const awsProviderPatchHelpTemplate = `USAGE: terragrunt aws-provider-patch [OPTIONS]
 
 DESCRIPTION:
    Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018)
@@ -54,7 +54,7 @@ VERSION: {{.Version}}{{if len .Authors}}{{end}}
 AUTHOR: {{range .Authors}}{{.}}{{end}} {{end}}
 `
 
-const validateInputsHelp = `USAGE: terragrunt validate-inputs [OPTIONS]
+const validateInputsHelpTemplate = `USAGE: terragrunt validate-inputs [OPTIONS]
 
 DESCRIPTION:
    Checks if the terragrunt configured inputs align with the terraform defined variables.

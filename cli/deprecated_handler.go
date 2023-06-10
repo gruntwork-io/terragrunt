@@ -7,6 +7,30 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
+// The following commands are DEPRECATED
+const (
+	CmdSpinUp      = "spin-up"
+	CmdTearDown    = "tear-down"
+	CmdPlanAll     = "plan-all"
+	CmdApplyAll    = "apply-all"
+	CmdDestroyAll  = "destroy-all"
+	CmdOutputAll   = "output-all"
+	CmdValidateAll = "validate-all"
+)
+
+// deprecatedCommands is a map of deprecated commands to a handler that knows how to convert the command to the known
+// alternative. The handler should return the new TerragruntOptions (if any modifications are needed) and command
+// string.
+var deprecatedCommands = map[string]func(origOptions *options.TerragruntOptions) (*options.TerragruntOptions, string, string){
+	CmdSpinUp:      spinUpDeprecationHandler,
+	CmdTearDown:    tearDownDeprecationHandler,
+	CmdApplyAll:    applyAllDeprecationHandler,
+	CmdDestroyAll:  destroyAllDeprecationHandler,
+	CmdPlanAll:     planAllDeprecationHandler,
+	CmdValidateAll: validateAllDeprecationHandler,
+	CmdOutputAll:   outputAllDeprecationHandler,
+}
+
 func spinUpDeprecationHandler(origOptions *options.TerragruntOptions) (*options.TerragruntOptions, string, string) {
 	return origOptions, CmdApplyAll, CmdApplyAll
 }

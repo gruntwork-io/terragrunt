@@ -1,14 +1,5 @@
 package cli
 
-import (
-	"fmt"
-	"strings"
-
-	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/util"
-)
-
 // // ParseTerragruntOptions Parse command line options that are passed in for Terragrunt
 // func ParseTerragruntOptions(cliContext *cli.Context) (*options.TerragruntOptions, error) {
 // 	terragruntOptions, err := parseTerragruntOptionsFromArgs(cliContext.App.Version, cliContext.Args().Slice(), cliContext.App.Writer, cliContext.App.ErrWriter)
@@ -239,80 +230,6 @@ import (
 // 	// return opts, nil
 // }
 
-func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
-	out := []string{}
-	cmd := util.FirstArg(terragruntOptions.TerraformCliArgs)
-
-	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
-		for _, arg_cmd := range arg.Commands {
-			if cmd == arg_cmd {
-				lastArg := util.LastArg(terragruntOptions.TerraformCliArgs)
-				skipVars := (cmd == "apply" || cmd == "destroy") && util.IsFile(lastArg)
-
-				// The following is a fix for GH-493.
-				// If the first argument is "apply" and the second argument is a file (plan),
-				// we don't add any -var-file to the command.
-				if arg.Arguments != nil {
-					if skipVars {
-						// If we have to skip vars, we need to iterate over all elements of array...
-						for _, a := range *arg.Arguments {
-							if !strings.HasPrefix(a, "-var") {
-								out = append(out, a)
-							}
-						}
-					} else {
-						// ... Otherwise, let's add all the arguments
-						out = append(out, *arg.Arguments...)
-					}
-				}
-
-				if !skipVars {
-					varFiles := arg.GetVarFiles(terragruntOptions.Logger)
-					for _, file := range varFiles {
-						out = append(out, fmt.Sprintf("-var-file=%s", file))
-					}
-				}
-			}
-		}
-	}
-
-	return out
-}
-
-func filterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) map[string]string {
-	out := map[string]string{}
-	cmd := util.FirstArg(terragruntOptions.TerraformCliArgs)
-
-	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
-		if arg.EnvVars == nil {
-			continue
-		}
-		for _, argcmd := range arg.Commands {
-			if cmd == argcmd {
-				for k, v := range *arg.EnvVars {
-					out[k] = v
-				}
-			}
-		}
-	}
-
-	return out
-}
-
-func parseEnvironmentVariables(environment []string) map[string]string {
-	environmentMap := make(map[string]string)
-
-	for i := 0; i < len(environment); i++ {
-		variableSplit := strings.SplitN(environment[i], "=", 2)
-
-		if len(variableSplit) == 2 {
-			environmentMap[strings.TrimSpace(variableSplit[0])] = variableSplit[1]
-		}
-	}
-
-	return environmentMap
-}
-
 // Return a copy of the given args with all Terragrunt-specific args removed
 // func filterTerragruntArgs(args []string) []string {
 // 	out := []string{}
@@ -503,26 +420,6 @@ func parseEnvironmentVariables(environment []string) map[string]string {
 // 	mappingsAsList := strings.Split(rawEnvVarVal, ",")
 // 	return util.KeyValuePairStringListToMap(mappingsAsList, util.SplitUrls)
 // }
-
-// Convert the given variables to a map of environment variables that will expose those variables to Terraform. The
-// keys will be of the format TF_VAR_xxx and the values will be converted to JSON, which Terraform knows how to read
-// natively.
-func toTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) {
-	out := map[string]string{}
-
-	for varName, varValue := range vars {
-		envVarName := fmt.Sprintf("%s_%s", TFVarPrefix, varName)
-
-		envVarValue, err := util.AsTerraformEnvVarJsonValue(varValue)
-		if err != nil {
-			return nil, err
-		}
-
-		out[envVarName] = string(envVarValue)
-	}
-
-	return out, nil
-}
 
 // // Custom error types
 

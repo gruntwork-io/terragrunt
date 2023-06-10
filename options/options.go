@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
 	"github.com/sirupsen/logrus"
@@ -306,18 +305,16 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 	return opts, nil
 }
 
-func (opts *TerragruntOptions) Normalize(ctx *cli.Context) error {
+func (opts *TerragruntOptions) Normalize(versionStr string, writer, errWriter io.Writer) error {
 	opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
 	opts.Logger = util.CreateLogEntry("", opts.LogLevel)
-	opts.Logger.Logger.SetOutput(ctx.App.ErrWriter)
+	opts.Logger.Logger.SetOutput(errWriter)
 
-	opts.Writer = ctx.App.Writer
-	opts.ErrWriter = ctx.App.ErrWriter
+	opts.Writer = writer
+	opts.ErrWriter = errWriter
+	opts.Env = util.ParseEnvironmentVariables(os.Environ())
 
-	opts.TerraformCommand = ctx.Args().First()
-	opts.TerraformCliArgs = ctx.Args().Slice()
-
-	terragruntVersion, err := version.NewVersion(ctx.App.Version)
+	terragruntVersion, err := version.NewVersion(versionStr)
 	if err != nil {
 		// Malformed Terragrunt version; set the version to 0.0
 		if terragruntVersion, err = version.NewVersion("0.0"); err != nil {

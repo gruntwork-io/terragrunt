@@ -22,7 +22,7 @@ func NewApp() *App {
 }
 
 // AddFlags adds a new cli flag.
-func (app *App) AddFlags(flags ...*Flag) {
+func (app *App) AddFlags(flags ...Flag) {
 	app.Flags = append(app.Flags, flags...)
 }
 

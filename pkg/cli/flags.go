@@ -11,15 +11,12 @@ import (
 
 const errFlagUndefined = "flag provided but not defined:"
 
-type Flags []*Flag
+type Flags []Flag
 
 // Get returns a Flag by the given name.
-func (flags Flags) Get(name string) *Flag {
+func (flags Flags) Get(name string) Flag {
 	for _, flag := range flags {
-		if flag.Name == name {
-			return flag
-		}
-		if collections.ListContainsElement(flag.Aliases, name) {
+		if collections.ListContainsElement(flag.Names(), name) {
 			return flag
 		}
 	}
