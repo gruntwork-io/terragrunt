@@ -1,20 +1,29 @@
 package cli
 
-import (
-	"os"
-	"strings"
-)
+import "unicode"
 
-// lookupEnv retrieves the value of the environment variable named by the key. If the variable is present in the environment and the value is not empty the
-// value is returned and the boolean is true. Otherwise the returned value will be empty and the boolean will be false.
-func lookupEnv(key string) (string, bool) {
-	if key == "" {
-		return "", false
+// lexicographicLess compares strings alphabetically considering case.
+func lexicographicLess(i, j string) bool {
+	iRunes := []rune(i)
+	jRunes := []rune(j)
+
+	lenShared := len(iRunes)
+	if lenShared > len(jRunes) {
+		lenShared = len(jRunes)
 	}
 
-	val, ok := os.LookupEnv(key)
-	val = strings.TrimSpace(val)
+	for index := 0; index < lenShared; index++ {
+		ir := iRunes[index]
+		jr := jRunes[index]
 
-	isPresent := ok && val != ""
-	return val, isPresent
+		if lir, ljr := unicode.ToLower(ir), unicode.ToLower(jr); lir != ljr {
+			return lir < ljr
+		}
+
+		if ir != jr {
+			return ir < jr
+		}
+	}
+
+	return i < j
 }

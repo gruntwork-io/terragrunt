@@ -2,6 +2,8 @@ package cli
 
 import (
 	libflag "flag"
+
+	"github.com/urfave/cli/v2"
 )
 
 type BoolFlag struct {
@@ -19,21 +21,46 @@ type BoolFlag struct {
 
 // Apply applies Flag settings to the given flag set.
 func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
-	flag.normalize()
-
 	var err error
 	valType := FlagType[bool](new(flagType[bool]))
 
 	if flag.FlagValue, err = newGenreicValue(valType, flag.Destination, flag.EnvVar, flag.Negative); err != nil {
 		return err
 	}
-	return flag.CommonFlag.Apply(set)
+
+	for _, name := range flag.Names() {
+		set.Var(flag.FlagValue, name, flag.Usage)
+	}
+	return nil
 }
 
-func (flag *BoolFlag) normalize() {
-	flag.CommonFlag.Name = flag.Name
-	flag.CommonFlag.DefaultText = flag.DefaultText
-	flag.CommonFlag.Usage = flag.Usage
-	flag.CommonFlag.Aliases = flag.Aliases
-	flag.CommonFlag.EnvVar = flag.EnvVar
+// GetUsage returns the usage string for the flag.
+func (flag *BoolFlag) GetUsage() string {
+	return flag.Usage
+}
+
+// GetEnvVars returns the env vars for this flag.
+func (flag *BoolFlag) GetEnvVars() []string {
+	if flag.EnvVar == "" {
+		return nil
+	}
+	return []string{flag.EnvVar}
+}
+
+// GetValue returns the flags value as string representation and an empty string if the flag takes no value at all.
+func (flag *BoolFlag) GetDefaultText() string {
+	if flag.DefaultText == "" {
+		return flag.FlagValue.GetDefaultText()
+	}
+	return flag.DefaultText
+}
+
+// String returns a readable representation of this value (for usage defaults).
+func (flag *BoolFlag) String() string {
+	return cli.FlagStringer(flag)
+}
+
+// Names returns the names of the flag.
+func (flag *BoolFlag) Names() []string {
+	return append([]string{flag.Name}, flag.Aliases...)
 }

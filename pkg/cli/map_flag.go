@@ -5,7 +5,9 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/env"
 	"github.com/gruntwork-io/terragrunt/pkg/maps"
+	"github.com/urfave/cli/v2"
 )
 
 type MapFlag[K, V GenericType] struct {
@@ -34,16 +36,45 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 	if flag.FlagValue, err = newMapValue(keyType, valType, flag.Destination, flag.EnvVar, flag.ArgSep, flag.ValSep, flag.Splitter); err != nil {
 		return err
 	}
-	return flag.CommonFlag.Apply(set)
+
+	for _, name := range flag.Names() {
+		set.Var(flag.FlagValue, name, flag.Usage)
+	}
+	return nil
+}
+
+// GetUsage returns the usage string for the flag.
+func (flag *MapFlag[K, V]) GetUsage() string {
+	return flag.Usage
+}
+
+// GetEnvVars returns the env vars for this flag.
+func (flag *MapFlag[K, V]) GetEnvVars() []string {
+	if flag.EnvVar == "" {
+		return nil
+	}
+	return []string{flag.EnvVar}
+}
+
+// GetValue returns the flags value as string representation and an empty string if the flag takes no value at all.
+func (flag *MapFlag[K, V]) GetDefaultText() string {
+	if flag.DefaultText == "" {
+		return flag.FlagValue.GetDefaultText()
+	}
+	return flag.DefaultText
+}
+
+// String returns a readable representation of this value (for usage defaults).
+func (flag *MapFlag[K, V]) String() string {
+	return cli.FlagStringer(flag)
+}
+
+// Names returns the names of the flag.
+func (flag *MapFlag[K, V]) Names() []string {
+	return append([]string{flag.Name}, flag.Aliases...)
 }
 
 func (flag *MapFlag[K, V]) normalize() {
-	flag.CommonFlag.Name = flag.Name
-	flag.CommonFlag.DefaultText = flag.DefaultText
-	flag.CommonFlag.Usage = flag.Usage
-	flag.CommonFlag.Aliases = flag.Aliases
-	flag.CommonFlag.EnvVar = flag.EnvVar
-
 	if flag.Splitter == nil {
 		flag.Splitter = defaultSplitter
 	}
@@ -76,7 +107,7 @@ func newMapValue[K, V comparable](keyType FlagType[K], valType FlagType[V], dest
 
 	defaultText := (&mapValue[K, V]{values: dest, keyType: keyType, valType: valType, argSep: argSep, valSep: valSep, splitter: splitter}).String()
 
-	if envVal, ok := lookupEnv(envVar); ok && splitter != nil {
+	if envVal, ok := env.LookupEnv(envVar); ok && splitter != nil {
 		value := mapValue[K, V]{values: dest, keyType: keyType, valType: valType, argSep: argSep, valSep: valSep, splitter: splitter}
 
 		args := splitter(envVal, argSep)

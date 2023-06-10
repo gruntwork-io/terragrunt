@@ -18,7 +18,7 @@ var (
 )
 
 type Flag interface {
-	FlagValue
+	Value() FlagValue
 	cli.DocGenerationFlag
 }
 

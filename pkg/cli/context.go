@@ -7,6 +7,7 @@ import (
 // Context can be used to retrieve context-specific args and parsed command-line options.
 type Context struct {
 	*cli.Context
+	Command *Command
 	*App
 	args args
 }

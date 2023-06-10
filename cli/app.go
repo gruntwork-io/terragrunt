@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/gruntwork-io/gruntwork-cli/collections"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
+	"github.com/gruntwork-io/terragrunt/pkg/env"
 	"github.com/hashicorp/go-multierror"
 	"github.com/mattn/go-zglob"
 
@@ -210,21 +212,16 @@ const TerraformExtensionGlob = "*.tf"
 // Prefix to use for terraform variables set with environment variables.
 const TFVarPrefix = "TF_VAR"
 
-// map of help functions for each terragrunt command
-var terragruntHelp = map[string]string{
-	CmdRenderJSON:               renderJsonHelpTemplate,
-	CmdAWSProviderPatch:         awsProviderPatchHelpTemplate,
-	CmdTerragruntValidateInputs: validateInputsHelpTemplate,
-}
-
 // sourceChangeLocks is a map that keeps track of locks for source changes, to ensure we aren't overriding the generated
 // code while another hook (e.g. `tflint`) is running. We use sync.Map to ensure atomic updates during concurrent access.
 var sourceChangeLocks = sync.Map{}
 
 // Create the Terragrunt CLI App
 func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
+	cli.AppHelpTemplate = appHelpTemplate
+	cli.CommandHelpTemplate = commandHelpTemplate
+
 	app := cli.NewApp()
-	app.CustomAppHelpTemplate = rootHelpTemplate
 	app.Name = "terragrunt"
 	app.Author = "Gruntwork <www.gruntwork.io>"
 	app.Usage = "terragrunt <COMMAND> [GLOBAL OPTIONS]"
@@ -236,6 +233,11 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 
 	showHelp := false
 	opts := options.NewTerragruntOptions()
+
+	// The env vars are renamed to "..._NO_AUTO_...". These ones are left for backwards compatibility.
+	opts.AutoInit = env.GetBoolEnv("TERRAGRUNT_AUTO_INIT", opts.AutoInit)
+	opts.AutoRetry = env.GetBoolEnv("TERRAGRUNT_AUTO_RETRY", opts.AutoRetry)
+	opts.RunAllAutoApprove = env.GetBoolEnv("TERRAGRUNT_AUTO_APPROVE", opts.RunAllAutoApprove)
 
 	app.AddFlags(
 		&cli.GenericFlag[string]{
@@ -381,12 +383,6 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 			Usage:       "The path to a single hcl file that the hclfmt command should run on.",
 			Destination: &opts.HclFile,
 		},
-		&cli.MapFlag[string, string]{
-			Name:        optTerragruntOverrideAttr,
-			EnvVar:      "TERRAGRUNT_EXCLUDE_DIR",
-			Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.",
-			Destination: &opts.AwsProviderPatchOverrides,
-		},
 		&cli.BoolFlag{
 			Name:        "terragrunt-debug",
 			EnvVar:      "TERRAGRUNT_DEBUG",
@@ -406,23 +402,6 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 			Destination: &opts.TerragruntNoColors,
 		},
 		&cli.BoolFlag{
-			Name:        "terragrunt-strict-validate",
-			EnvVar:      "",
-			Usage:       "Sets strict mode for the validate-inputs command. By default, strict mode is off. When this flag is passed, strict mode is turned on. When strict mode is turned off, the validate-inputs command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When strict mode is turned on, an error will be returned if required inputs are missing OR if unused variables are passed to Terragrunt.",
-			Destination: &opts.ValidateStrict,
-		},
-		&cli.GenericFlag[string]{
-			Name:        "terragrunt-json-out",
-			EnvVar:      "",
-			Usage:       "The file path that terragrunt should use when rendering the terragrunt.hcl config as json. Only used in the render-json command. Defaults to terragrunt_rendered.json.",
-			Destination: &opts.JSONOut,
-		},
-		&cli.BoolFlag{
-			Name:        "with-metadata",
-			Usage:       "Add metadata to the rendered JSON file.",
-			Destination: &opts.RenderJsonWithMetadata,
-		},
-		&cli.BoolFlag{
 			Name:        "terragrunt-use-partial-parse-config-cache",
 			EnvVar:      "TERRAGRUNT_USE_PARTIAL_PARSE_CONFIG_CACHE",
 			Usage:       "Enables caching of includes during partial parsing operations. Will also be used for the --terragrunt-iam-role option if provided.",
@@ -440,11 +419,81 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 			Usage:       "When this flag is set output from Terraform sub-commands is prefixed with module path.",
 			Destination: &opts.IncludeModulePrefix,
 		},
+	)
+
+	sort.Sort(cli.Flags(app.Flags))
+
+	// add `help` after the sort to put the flag at the end of the list.
+	app.AddFlags(
 		&cli.BoolFlag{
 			Name:        "help",        // --help, -help
 			Aliases:     []string{"h"}, //  -h
 			Usage:       "Show help",
-			Destination: &showHelp,
+			Destination: &showHelp, // another way to get flag value: ctx.Flags.Get("help").Value()
+		},
+	)
+
+	app.AddCommands(
+		&cli.Command{
+			Name:        "run-all",
+			Usage:       "Run a terraform command against a 'stack' by running the specified command in each subfolder.",
+			Description: "Run a terraform command against a 'stack' by running the specified command in each subfolder. E.g., to run 'terragrunt apply' in each subfolder, use 'terragrunt run-all apply'."},
+		&cli.Command{
+			Name:  "terragrunt-info",
+			Usage: "Emits limited terragrunt state on stdout and exits.",
+		},
+		&cli.Command{
+			Name:  "validate-inputs",
+			Usage: "Checks if the terragrunt configured inputs align with the terraform defined variables.",
+			Flags: cli.Flags{
+				&cli.BoolFlag{
+					Name:        "terragrunt-strict-validate",
+					EnvVar:      "",
+					Usage:       "Sets strict mode for the validate-inputs command. By default, strict mode is off. When this flag is passed, strict mode is turned on. When strict mode is turned off, the validate-inputs command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When strict mode is turned on, an error will be returned if required inputs are missing OR if unused variables are passed to Terragrunt.",
+					Destination: &opts.ValidateStrict,
+				},
+			},
+		},
+		&cli.Command{
+			Name:  "graph-dependencies",
+			Usage: "Prints the terragrunt dependency graph to stdout",
+		},
+		&cli.Command{
+			Name:  "hclfmt",
+			Usage: "Recursively find hcl files and rewrite them into a canonical format.",
+		},
+		&cli.Command{
+			Name:        "render-json",
+			Usage:       "Render the final terragrunt config, with all variables, includes, and functions resolved, as json.",
+			Description: "Render the final terragrunt config, with all variables, includes, and functions resolved, as json. This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.",
+			Flags: cli.Flags{
+				&cli.GenericFlag[string]{
+					Name:        "terragrunt-json-out",
+					Usage:       "The file path that terragrunt should use when rendering the terragrunt.hcl config as json. Only used in the render-json command. Defaults to terragrunt_rendered.json.",
+					Destination: &opts.JSONOut,
+				},
+				&cli.BoolFlag{
+					Name:        "with-metadata",
+					Usage:       "Add metadata to the rendered JSON file.",
+					Destination: &opts.RenderJsonWithMetadata,
+				},
+			},
+		},
+		&cli.Command{
+			Name:  "aws-provider-patch",
+			Usage: "Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018).",
+			Flags: cli.Flags{
+				&cli.MapFlag[string, string]{
+					Name:        optTerragruntOverrideAttr,
+					EnvVar:      "TERRAGRUNT_EXCLUDE_DIR",
+					Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.",
+					Destination: &opts.AwsProviderPatchOverrides,
+				},
+			},
+		},
+		&cli.Command{
+			Name:  "*",
+			Usage: "Terragrunt forwards all other commands directly to Terraform",
 		},
 	)
 
@@ -453,12 +502,12 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 
 		if showHelp {
 			// if there is no args at all show the Terragrunt help.
-			if !ctx.Args().Present() {
-				return cli.ShowAppHelp(ctx)
+			if !ctx.Command.IsRoot {
+				return cli.ShowCommandHelp(ctx, ctx.Command.Name)
 			}
 
-			if helpTemplate, ok := terragruntHelp[ctx.Args().First()]; ok {
-				app.CustomAppHelpTemplate = helpTemplate
+			// if there is no args at all show the Terragrunt help.
+			if !ctx.Args().Present() || ctx.Args().First() == "*" {
 				return cli.ShowAppHelp(ctx)
 			}
 
@@ -468,7 +517,7 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 		}
 
 		opts.TerraformCommand = ctx.Args().First()
-		opts.TerraformCliArgs = ctx.Args().Slice()
+		opts.TerraformCliArgs = ctx.Args().Normalize(cli.OnePrefixFlag).Slice()
 
 		if _, found := deprecatedCommands[opts.TerraformCommand]; found || opts.TerraformCommand == CmdRunAll {
 			opts.TerraformCliArgs = ctx.Args().Tail()

@@ -1,38 +1,46 @@
 package cli
 
 import (
-	"flag"
-
+	"github.com/gruntwork-io/gruntwork-cli/collections"
 	"github.com/urfave/cli/v2"
 )
 
-// App is the main structure of a cli application. It should be created with the cli.NewApp() function.
+// App is the main structure of app cli application. It should be created with the cli.NewApp() function.
 type App struct {
 	*cli.App
-	Flags  Flags
-	Author string
-	Action ActionFunc
+	Commands Commands
+	Flags    Flags
+	Author   string
+	Action   ActionFunc
+
+	rootCommand *Command
 }
 
-// NewApp returns a new App instance.
+// NewApp returns app new App instance.
 func NewApp() *App {
 	return &App{
 		App: cli.NewApp(),
 	}
 }
 
-// AddFlags adds a new cli flag.
+// AddFlags adds new flags.
 func (app *App) AddFlags(flags ...Flag) {
 	app.Flags = append(app.Flags, flags...)
 }
 
+// AddCommands adds new commands.
+func (app *App) AddCommands(cmds ...*Command) {
+	app.Commands = append(app.Commands, cmds...)
+}
+
 // Run is the entry point to the cli app. Parses the arguments slice and routes to the proper flag/args combination.
 func (app *App) Run(arguments []string) (err error) {
+	app.rootCommand = app.newRootCommand()
 	app.SkipFlagParsing = true
 	app.Authors = []*cli.Author{{Name: app.Author}}
 
 	app.App.Action = func(cliCtx *cli.Context) error {
-		args, err := app.parseArgs(cliCtx.Args().Slice())
+		command, args, err := app.parseArgs(cliCtx.Args().Slice())
 		if err != nil {
 			return err
 		}
@@ -41,6 +49,7 @@ func (app *App) Run(arguments []string) (err error) {
 			Context: cliCtx,
 			App:     app,
 			args:    args,
+			Command: command,
 		}
 
 		return app.Action(ctx)
@@ -49,38 +58,69 @@ func (app *App) Run(arguments []string) (err error) {
 	return app.App.Run(arguments)
 }
 
-// VisibleFlags returns a slice of the Flags, used by `urfave/cli` package to generate help.
-func (app *App) VisibleFlags() []cli.Flag {
-	var flags []cli.Flag
-	for _, flag := range app.Flags {
-		flags = append(flags, flag)
-	}
-	return flags
+// VisibleFlags returns app slice of the Flags.
+func (app *App) VisibleFlags() Flags {
+	return app.Flags
 }
 
-func (app *App) parseArgs(args []string) ([]string, error) {
-	var filteredArgs []string
+// VisibleCommands returns a slice of the Commands.
+func (app *App) VisibleCommands() []*cli.Command {
+	var commands []*cli.Command
 
-	flagSet, err := app.Flags.newFlagSet("root-command", flag.ContinueOnError)
+	for _, command := range app.Commands {
+		commands = append(commands, &cli.Command{
+			Name:        command.Name,
+			Aliases:     command.Aliases,
+			Usage:       command.Usage,
+			UsageText:   command.UsageText,
+			Description: command.Description,
+		})
+	}
+
+	return commands
+}
+
+func (app *App) parseArgs(args []string) (*Command, []string, error) {
+	var err error
+	lastCommand := app.rootCommand
+
+	args, err = app.rootCommand.parseArgs(args)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	for {
-		args, err = app.Flags.parseArgs(flagSet, args)
+	if len(args) == 0 {
+		return lastCommand, args, nil
+	}
+
+	for _, command := range app.Commands {
+		if args[0] == "*" {
+			continue
+		}
+		if !collections.ListContainsElement(command.Names(), args[0]) {
+			continue
+		}
+		lastCommand = command
+
+		args, err = command.parseArgs(args[1:])
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-
-		if len(args) == 0 {
-			break
-		}
-
-		filteredArgs = append(filteredArgs, args[0])
-		args = args[1:]
+		break
 	}
 
-	return filteredArgs, nil
+	return lastCommand, args, nil
+}
+
+func (app *App) newRootCommand() *Command {
+	return &Command{
+		Name:        app.Name,
+		Usage:       app.Usage,
+		UsageText:   app.UsageText,
+		Description: app.Description,
+		Flags:       app.Flags,
+		IsRoot:      true,
+	}
 }
 
 func init() {

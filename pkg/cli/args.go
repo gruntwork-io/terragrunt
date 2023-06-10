@@ -1,5 +1,12 @@
 package cli
 
+const (
+	OnePrefixFlag    NormalizeActsType = iota
+	DoublePrefixFlag NormalizeActsType = iota
+)
+
+type NormalizeActsType byte
+
 type Args interface {
 	Get(n int) string
 	// First returns the first argument, or else a blank string
@@ -13,28 +20,51 @@ type Args interface {
 	Present() bool
 	// Slice returns a copy of the internal slice
 	Slice() []string
+	// Normalize formats the arguments according to the given actions.
+	Normalize(...NormalizeActsType) Args
 }
 
 type args []string
 
-func newArgs() *args {
-	return &args{}
+func (list *args) Normalize(acts ...NormalizeActsType) Args {
+	var args args
+
+	for _, arg := range *list {
+		arg := arg
+
+		for _, act := range acts {
+			switch act {
+			case OnePrefixFlag:
+				if len(arg) >= 3 && arg[0:2] == "--" && arg[2] != '-' {
+					arg = arg[1:]
+				}
+			case DoublePrefixFlag:
+				if len(arg) >= 2 && arg[0] == '-' && arg[1] != '-' {
+					arg = "-" + arg
+				}
+			}
+		}
+
+		args = append(args, arg)
+	}
+
+	return &args
 }
 
-func (a *args) Get(n int) string {
-	if len(*a) > n {
-		return (*a)[n]
+func (list *args) Get(n int) string {
+	if len(*list) > n {
+		return (*list)[n]
 	}
 	return ""
 }
 
-func (a *args) First() string {
-	return a.Get(0)
+func (list *args) First() string {
+	return list.Get(0)
 }
 
-func (a *args) Tail() []string {
-	if a.Len() >= 2 {
-		tail := []string((*a)[1:])
+func (list *args) Tail() []string {
+	if list.Len() >= 2 {
+		tail := []string((*list)[1:])
 		ret := make([]string, len(tail))
 		copy(ret, tail)
 		return ret
@@ -42,16 +72,16 @@ func (a *args) Tail() []string {
 	return []string{}
 }
 
-func (a *args) Len() int {
-	return len(*a)
+func (list *args) Len() int {
+	return len(*list)
 }
 
-func (a *args) Present() bool {
-	return a.Len() != 0
+func (list *args) Present() bool {
+	return list.Len() != 0
 }
 
-func (a *args) Slice() []string {
-	ret := make([]string, len(*a))
-	copy(ret, *a)
+func (list *args) Slice() []string {
+	ret := make([]string, len(*list))
+	copy(ret, *list)
 	return ret
 }

@@ -4,6 +4,8 @@ import (
 	libflag "flag"
 
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/env"
+	"github.com/urfave/cli/v2"
 )
 
 type GenericType interface {
@@ -24,23 +26,48 @@ type GenericFlag[T GenericType] struct {
 
 // Apply applies Flag settings to the given flag set.
 func (flag *GenericFlag[T]) Apply(set *libflag.FlagSet) error {
-	flag.normalize()
-
 	var err error
 	valType := FlagType[T](new(flagType[T]))
 
 	if flag.FlagValue, err = newGenreicValue(valType, flag.Destination, flag.EnvVar, false); err != nil {
 		return err
 	}
-	return flag.CommonFlag.Apply(set)
+
+	for _, name := range flag.Names() {
+		set.Var(flag.FlagValue, name, flag.Usage)
+	}
+	return nil
 }
 
-func (flag *GenericFlag[T]) normalize() {
-	flag.CommonFlag.Name = flag.Name
-	flag.CommonFlag.DefaultText = flag.DefaultText
-	flag.CommonFlag.Usage = flag.Usage
-	flag.CommonFlag.Aliases = flag.Aliases
-	flag.CommonFlag.EnvVar = flag.EnvVar
+// GetUsage returns the usage string for the flag.
+func (flag *GenericFlag[T]) GetUsage() string {
+	return flag.Usage
+}
+
+// GetEnvVars returns the env vars for this flag.
+func (flag *GenericFlag[T]) GetEnvVars() []string {
+	if flag.EnvVar == "" {
+		return nil
+	}
+	return []string{flag.EnvVar}
+}
+
+// GetValue returns the flags value as string representation and an empty string if the flag takes no value at all.
+func (flag *GenericFlag[T]) GetDefaultText() string {
+	if flag.DefaultText == "" {
+		return flag.FlagValue.GetDefaultText()
+	}
+	return flag.DefaultText
+}
+
+// String returns a readable representation of this value (for usage defaults).
+func (flag *GenericFlag[T]) String() string {
+	return cli.FlagStringer(flag)
+}
+
+// Names returns the names of the flag.
+func (flag *GenericFlag[T]) Names() []string {
+	return append([]string{flag.Name}, flag.Aliases...)
 }
 
 // -- generic Value
@@ -59,7 +86,7 @@ func newGenreicValue[T comparable](value FlagType[T], dest *T, envVar string, ne
 	defaultText := value.Init(dest, false).String()
 	value = value.Init(dest, negative)
 
-	if strVal, ok := lookupEnv(envVar); ok {
+	if strVal, ok := env.LookupEnv(envVar); ok {
 		if err := value.Set(strVal); err != nil {
 			return nil, err
 		}

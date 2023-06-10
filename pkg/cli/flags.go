@@ -24,6 +24,24 @@ func (flags Flags) Get(name string) Flag {
 	return nil
 }
 
+func (flags Flags) Len() int {
+	return len(flags)
+}
+
+func (flags Flags) Less(i, j int) bool {
+	if len(flags[j].Names()) == 0 {
+		return false
+	} else if len(flags[i].Names()) == 0 {
+		return true
+	}
+
+	return lexicographicLess(flags[i].Names()[0], flags[j].Names()[0])
+}
+
+func (flags Flags) Swap(i, j int) {
+	flags[i], flags[j] = flags[j], flags[i]
+}
+
 func (flags Flags) newFlagSet(name string, errorHandling libflag.ErrorHandling) (*libflag.FlagSet, error) {
 	set := libflag.NewFlagSet(name, errorHandling)
 	set.SetOutput(io.Discard)
@@ -38,7 +56,11 @@ func (flags Flags) newFlagSet(name string, errorHandling libflag.ErrorHandling) 
 }
 
 func (flags Flags) parseArgs(flagSet *libflag.FlagSet, args []string) ([]string, error) {
-	var undefinedFlags []string
+	var undefined []string
+
+	if len(args) == 0 {
+		return undefined, nil
+	}
 
 	for {
 		err := flagSet.Parse(args)
@@ -47,20 +69,20 @@ func (flags Flags) parseArgs(flagSet *libflag.FlagSet, args []string) ([]string,
 		}
 
 		// check if the error is due to an undefined flag
-		var undefined string
+		var notFound string
 		errStr := err.Error()
 		if !strings.HasPrefix(errStr, errFlagUndefined) {
 			return nil, errors.WithStackTrace(err)
 		}
 
-		undefined = strings.Trim(strings.TrimPrefix(errStr, errFlagUndefined), " -")
+		notFound = strings.Trim(strings.TrimPrefix(errStr, errFlagUndefined), " -")
 
 		// cut off the args
-		var undefinedMatch bool
+		var notFoundMatch bool
 		for i, arg := range args {
-			if trimmed := strings.Trim(arg, "-"); trimmed == undefined {
-				undefinedFlags = append(undefinedFlags, arg)
-				undefinedMatch = true
+			if trimmed := strings.Trim(arg, "-"); trimmed == notFound {
+				undefined = append(undefined, arg)
+				notFoundMatch = true
 				args = args[i+1:]
 				break
 			}
@@ -69,11 +91,11 @@ func (flags Flags) parseArgs(flagSet *libflag.FlagSet, args []string) ([]string,
 
 		// This should be an impossible to reach code path, but in case the arg
 		// splitting failed to happen, this will prevent infinite loops
-		if !undefinedMatch {
+		if !notFoundMatch {
 			return nil, err
 		}
 	}
 
-	undefinedFlags = append(undefinedFlags, flagSet.Args()...)
-	return undefinedFlags, nil
+	undefined = append(undefined, flagSet.Args()...)
+	return undefined, nil
 }
