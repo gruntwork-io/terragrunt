@@ -10,7 +10,15 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-type MapFlag[K, V GenericType] struct {
+type MapFlagKeyType interface {
+	GenericType
+}
+
+type MapFlagValueType interface {
+	GenericType | bool
+}
+
+type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	CommonFlag
 
 	Name        string

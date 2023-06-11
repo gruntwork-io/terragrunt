@@ -129,7 +129,6 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 	app.UsageText = `Terragrunt is a thin wrapper for Terraform that provides extra tools for working with multiple
    Terraform modules, remote state, and locking. For documentation, see https://github.com/gruntwork-io/terragrunt/.`
 
-	showHelp := false
 	opts := options.NewTerragruntOptions()
 
 	// The env vars are renamed to "..._NO_AUTO_...". These ones are left for backwards compatibility.
@@ -326,7 +325,8 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 
 	sort.Sort(cli.Flags(app.Flags))
 
-	// add `help` after the sort to put the flag at the end of the list.
+	// add `help` after the sort to put the flag at the end of the flag list in the help.
+	showHelp := false
 	app.AddFlags(
 		&cli.BoolFlag{
 			Name:        "help",        // --help, -help
@@ -357,77 +357,66 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 				return cli.ShowCommandHelp(ctx, ctx.Command.Name)
 			}
 
-			// if there is no args at all show the Terragrunt help.
+			// if internal command is given show Terragrunt help.
 			if !ctx.Args().Present() || ctx.Args().First() == "*" {
 				return cli.ShowAppHelp(ctx)
 			}
 
 			// in other cases show Terraform help.
-			terraformHelpArgs := append([]string{ctx.Args().First(), "--help"}, ctx.Args().Tail()...)
-			return shell.RunTerraformCommand(opts, terraformHelpArgs...)
+			terraformHelpCmd := append([]string{ctx.Args().First(), "--help"}, ctx.Args().Tail()...)
+			return shell.RunTerraformCommand(opts, terraformHelpCmd...)
 		}
 
-		opts.TerraformCommand = ctx.Args().First()
-		opts.TerraformCliArgs = ctx.Args().Normalize(cli.OnePrefixFlag).Slice()
-
-		if _, found := deprecatedCommands[opts.TerraformCommand]; found {
-			opts.TerraformCliArgs = ctx.Args().Tail()
-		}
-
-		if err := opts.Normalize(ctx.App.Version, ctx.App.Writer, ctx.App.ErrWriter); err != nil {
-			return err
-		}
-
-		// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of  terragrunt used.
-		opts.Logger.Debugf("Terragrunt Version: %s", opts.TerragruntVersion)
-
-		if opts.TerragruntConfigPath == "" {
-			opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
-		}
-		opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
-		opts.RunTerragrunt = RunTerragrunt
-		return nil
+		var err error
+		opts, err = prepareTerragruntOptions(ctx, opts)
+		return err
 	}
 
-	app.Action = func(ctx *cli.Context) error { return runApp(opts) }
+	app.Action = func(ctx *cli.Context) error {
+		return runTerraformCommand(opts)
+	}
 
 	return app
 }
 
-// The sole action for the app
-func runApp(opts *options.TerragruntOptions) error {
+func prepareTerragruntOptions(ctx *cli.Context, opts *options.TerragruntOptions) (*options.TerragruntOptions, error) {
+	args := ctx.Args().Normalize(cli.OnePrefixFlag)
 
-	newOptions, command := checkDeprecated(opts.TerraformCommand, opts)
-	return runCommand(command, newOptions)
-}
+	opts.TerraformCommand = args.First()
+	opts.TerraformCliArgs = args.Slice()
 
-// checkDeprecated checks if the given command is deprecated.  If so: prints a message and returns the new command.
-func checkDeprecated(command string, terragruntOptions *options.TerragruntOptions) (*options.TerragruntOptions, string) {
-	deprecationHandler, deprecated := deprecatedCommands[terragruntOptions.TerraformCommand]
-	if deprecated {
-		newOptions, newCommand, newCommandFriendly := deprecationHandler(terragruntOptions)
-		terragruntOptions.Logger.Warnf(
-			"'%s' is deprecated. Running '%s' instead. Please update your workflows to use '%s', as '%s' may be removed in the future!\n",
-			terragruntOptions.TerraformCommand,
-			newCommandFriendly,
-			newCommandFriendly,
-			terragruntOptions.TerraformCommand,
-		)
-		return newOptions, newCommand
+	if _, found := deprecatedCommands[opts.TerraformCommand]; found {
+		opts.TerraformCliArgs = args.Tail()
 	}
-	return terragruntOptions, command
+
+	if err := opts.Normalize(ctx.App.Version, ctx.App.Writer, ctx.App.ErrWriter); err != nil {
+		return nil, err
+	}
+
+	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of  terragrunt used.
+	opts.Logger.Debugf("Terragrunt Version: %s", opts.TerragruntVersion)
+
+	if opts.TerragruntConfigPath == "" {
+		opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
+	}
+	opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
+	opts.RunTerragrunt = RunTerragrunt
+
+	opts = checkDeprecated(opts)
+	return opts, nil
 }
 
-// runCommand runs one or many terraform commands based on the type of
+// runTerraformCommand runs one or many terraform commands based on the type of
 // terragrunt command
-func runCommand(commandName string, terragruntOptions *options.TerragruntOptions) (finalEff error) {
-	if commandName == command.CmdRunAll {
-		return command.RunAll(terragruntOptions)
+func runTerraformCommand(opts *options.TerragruntOptions) error {
+	switch opts.TerraformCommand {
+	case command.CmdRunAll:
+		return command.RunAll(opts)
+	case "destroy":
+		opts.CheckDependentModules = true
 	}
-	if commandName == "destroy" {
-		terragruntOptions.CheckDependentModules = true
-	}
-	return RunTerragrunt(terragruntOptions)
+
+	return RunTerragrunt(opts)
 }
 
 // Downloads terraform source if necessary, then runs terraform with the given options and CLI args.

@@ -7,9 +7,18 @@ import (
 // Context can be used to retrieve context-specific args and parsed command-line options.
 type Context struct {
 	*cli.Context
-	Command *Command
 	*App
-	args args
+	Command *Command
+	args    *Args
+}
+
+func NewContext(parentCtx *cli.Context, app *App, command *Command, args []string) *Context {
+	return &Context{
+		Context: parentCtx,
+		App:     app,
+		Command: command,
+		args:    newArgs(args),
+	}
 }
 
 // Args returns the command line arguments associated with the context.
@@ -18,6 +27,6 @@ func (ctx *Context) RawArgs() cli.Args {
 }
 
 // Args returns the command line arguments associated with the context.
-func (ctx *Context) Args() Args {
-	return Args(&ctx.args)
+func (ctx *Context) Args() *Args {
+	return ctx.args
 }

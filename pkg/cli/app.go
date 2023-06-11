@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"github.com/gruntwork-io/gruntwork-cli/collections"
 	"github.com/urfave/cli/v2"
 )
 
@@ -20,8 +19,6 @@ type App struct {
 	Before ActionFunc
 	// The action to execute when no subcommands are specified
 	Action ActionFunc
-
-	rootCommand *Command
 }
 
 // NewApp returns app new App instance.
@@ -43,22 +40,16 @@ func (app *App) AddCommands(cmds ...*Command) {
 
 // Run is the entry point to the cli app. Parses the arguments slice and routes to the proper flag/args combination.
 func (app *App) Run(arguments []string) (err error) {
-	app.rootCommand = app.newRootCommand()
 	app.SkipFlagParsing = true
 	app.Authors = []*cli.Author{{Name: app.Author}}
 
-	app.App.Action = func(cliCtx *cli.Context) error {
-		command, args, err := app.parseArgs(cliCtx.Args().Slice())
+	app.App.Action = func(parentCtx *cli.Context) error {
+		command, args, err := app.parseArgs(parentCtx.Args().Slice())
 		if err != nil {
 			return err
 		}
 
-		ctx := &Context{
-			Context: cliCtx,
-			App:     app,
-			args:    args,
-			Command: command,
-		}
+		ctx := NewContext(parentCtx, app, command, args)
 
 		if app.Before != nil {
 			if err := app.Before(ctx); err != nil {
@@ -84,13 +75,14 @@ func (app *App) VisibleFlags() Flags {
 func (app *App) VisibleCommands() []*cli.Command {
 	var commands []*cli.Command
 
-	for _, command := range app.Commands {
+	for _, command := range app.VisibleCommands() {
 		commands = append(commands, &cli.Command{
 			Name:        command.Name,
 			Aliases:     command.Aliases,
 			Usage:       command.Usage,
 			UsageText:   command.UsageText,
 			Description: command.Description,
+			Hidden:      command.Hidden,
 		})
 	}
 
@@ -98,35 +90,18 @@ func (app *App) VisibleCommands() []*cli.Command {
 }
 
 func (app *App) parseArgs(args []string) (*Command, []string, error) {
-	var err error
-	lastCommand := app.rootCommand
+	rootCommand := app.newRootCommand()
 
-	args, err = app.rootCommand.parseArgs(args)
+	args, err := rootCommand.parseArgs(args)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if len(args) == 0 {
-		return lastCommand, args, nil
+	if command, args, err := app.Commands.parseArgs(args); command != nil || err != nil {
+		return command, args, err
 	}
 
-	for _, command := range app.Commands {
-		if args[0] == "*" {
-			continue
-		}
-		if !collections.ListContainsElement(command.Names(), args[0]) {
-			continue
-		}
-		lastCommand = command
-
-		args, err = command.parseArgs(args[1:])
-		if err != nil {
-			return nil, nil, err
-		}
-		break
-	}
-
-	return lastCommand, args, nil
+	return rootCommand, args, err
 }
 
 func (app *App) newRootCommand() *Command {

@@ -1,5 +1,11 @@
 package cli
 
+import (
+	"flag"
+
+	"github.com/urfave/cli/v2"
+)
+
 const (
 	OnePrefixFlag    NormalizeActsType = iota
 	DoublePrefixFlag NormalizeActsType = iota
@@ -7,29 +13,15 @@ const (
 
 type NormalizeActsType byte
 
-type Args interface {
-	Get(n int) string
-	// First returns the first argument, or else a blank string
-	First() string
-	// Tail returns the rest of the arguments (not the first one)
-	// or else an empty string slice
-	Tail() []string
-	// Len returns the length of the wrapped slice
-	Len() int
-	// Present checks if there are any arguments present
-	Present() bool
-	// Slice returns a copy of the internal slice
-	Slice() []string
-	// Normalize formats the arguments according to the given actions.
-	Normalize(...NormalizeActsType) Args
+type Args struct {
+	cli.Args
 }
 
-type args []string
+// Normalize formats the arguments according to the given actions.
+func (args *Args) Normalize(acts ...NormalizeActsType) *Args {
+	var strArgs []string
 
-func (list *args) Normalize(acts ...NormalizeActsType) Args {
-	var args args
-
-	for _, arg := range *list {
+	for _, arg := range args.Slice() {
 		arg := arg
 
 		for _, act := range acts {
@@ -45,43 +37,18 @@ func (list *args) Normalize(acts ...NormalizeActsType) Args {
 			}
 		}
 
-		args = append(args, arg)
+		strArgs = append(strArgs, arg)
 	}
 
-	return &args
+	return newArgs(strArgs)
 }
 
-func (list *args) Get(n int) string {
-	if len(*list) > n {
-		return (*list)[n]
+func newArgs(args []string) *Args {
+	flagSet := flag.NewFlagSet("", flag.ContinueOnError)
+	flagSet.Parse(args)
+
+	return &Args{
+		Args: cli.NewContext(nil, flagSet, nil).Args(),
 	}
-	return ""
-}
 
-func (list *args) First() string {
-	return list.Get(0)
-}
-
-func (list *args) Tail() []string {
-	if list.Len() >= 2 {
-		tail := []string((*list)[1:])
-		ret := make([]string, len(tail))
-		copy(ret, tail)
-		return ret
-	}
-	return []string{}
-}
-
-func (list *args) Len() int {
-	return len(*list)
-}
-
-func (list *args) Present() bool {
-	return list.Len() != 0
-}
-
-func (list *args) Slice() []string {
-	ret := make([]string, len(*list))
-	copy(ret, *list)
-	return ret
 }

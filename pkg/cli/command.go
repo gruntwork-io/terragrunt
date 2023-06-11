@@ -2,12 +2,9 @@ package cli
 
 import (
 	"flag"
-
-	"github.com/urfave/cli/v2"
 )
 
 type Command struct {
-	cli.Command
 	// The name of the command
 	Name string
 	// A list of aliases for the command
@@ -26,6 +23,8 @@ type Command struct {
 	Action ActionFunc
 	// if this is a root "special" command
 	IsRoot bool
+	// Boolean to hide this command from help
+	Hidden bool
 }
 
 // AddFlags adds new flags.

@@ -51,6 +51,9 @@ func (val *flagType[T]) Set(str string) error {
 			return errors.Errorf("error parse: %w", err)
 		}
 		*dest = v
+
+	default:
+		return errors.Errorf("flag type %T is undefined", dest)
 	}
 
 	return nil

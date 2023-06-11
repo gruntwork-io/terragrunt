@@ -8,7 +8,11 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-type SliceFlag[T GenericType] struct {
+type SliceFlagType interface {
+	GenericType
+}
+
+type SliceFlag[T SliceFlagType] struct {
 	CommonFlag
 
 	Name        string
