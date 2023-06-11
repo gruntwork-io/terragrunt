@@ -10,17 +10,17 @@ import (
 
 type FlagType[T any] interface {
 	flag.Getter
-	Init(dest *T, negative bool) FlagType[T]
+	Init(dest *T) FlagType[T]
+	Ptr() any
 }
 
 // -- generic Type
 type flagType[T comparable] struct {
-	dest     *T
-	negative bool
+	dest *T
 }
 
-func (val *flagType[T]) Init(dest *T, negative bool) FlagType[T] {
-	return &flagType[T]{dest: dest, negative: negative}
+func (val *flagType[T]) Init(dest *T) FlagType[T] {
+	return &flagType[T]{dest: dest}
 }
 
 func (val *flagType[T]) Set(str string) error {
@@ -32,9 +32,6 @@ func (val *flagType[T]) Set(str string) error {
 		v, err := strconv.ParseBool(str)
 		if err != nil {
 			return errors.Errorf("error parse: %w", err)
-		}
-		if val.negative {
-			v = !v
 		}
 		*dest = v
 
@@ -60,6 +57,7 @@ func (val *flagType[T]) Set(str string) error {
 }
 
 func (val *flagType[T]) Get() any { return *val.dest }
+func (val *flagType[T]) Ptr() any { return val.dest }
 
 func (val *flagType[T]) String() string {
 	if *val.dest == *new(T) {

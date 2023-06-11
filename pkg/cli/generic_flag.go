@@ -29,7 +29,7 @@ func (flag *GenericFlag[T]) Apply(set *libflag.FlagSet) error {
 	var err error
 	valType := FlagType[T](new(flagType[T]))
 
-	if flag.FlagValue, err = newGenreicValue(valType, flag.Destination, flag.EnvVar, false); err != nil {
+	if flag.FlagValue, err = newGenericValue(valType, flag.Destination, flag.EnvVar); err != nil {
 		return err
 	}
 
@@ -77,14 +77,14 @@ type genericValue[T comparable] struct {
 	hasBeenSet  bool
 }
 
-func newGenreicValue[T comparable](value FlagType[T], dest *T, envVar string, negative bool) (FlagValue, error) {
+func newGenericValue[T comparable](value FlagType[T], dest *T, envVar string) (FlagValue, error) {
 	var nilPtr *T
 	if dest == nilPtr {
 		dest = new(T)
 	}
 
-	defaultText := value.Init(dest, false).String()
-	value = value.Init(dest, negative)
+	defaultText := value.Init(dest).String()
+	value = value.Init(dest)
 
 	if strVal, ok := env.LookupEnv(envVar); ok {
 		if err := value.Set(strVal); err != nil {

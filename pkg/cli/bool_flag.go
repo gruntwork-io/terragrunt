@@ -22,9 +22,9 @@ type BoolFlag struct {
 // Apply applies Flag settings to the given flag set.
 func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
 	var err error
-	valType := FlagType[bool](new(flagType[bool]))
+	valType := FlagType[bool](&boolFlagType{negative: flag.Negative})
 
-	if flag.FlagValue, err = newGenreicValue(valType, flag.Destination, flag.EnvVar, flag.Negative); err != nil {
+	if flag.FlagValue, err = newGenericValue(valType, flag.Destination, flag.EnvVar); err != nil {
 		return err
 	}
 
@@ -63,4 +63,28 @@ func (flag *BoolFlag) String() string {
 // Names returns the names of the flag.
 func (flag *BoolFlag) Names() []string {
 	return append([]string{flag.Name}, flag.Aliases...)
+}
+
+// -- bool Flag Type
+type boolFlagType struct {
+	*flagType[bool]
+	negative bool
+}
+
+func (val *boolFlagType) Init(dest *bool) FlagType[bool] {
+	return &boolFlagType{
+		flagType: &flagType[bool]{dest: dest},
+		negative: val.negative,
+	}
+}
+
+func (val *boolFlagType) Set(str string) error {
+	if err := val.flagType.Set(str); err != nil {
+		return err
+	}
+
+	if val.negative {
+		*val.flagType.dest = !*val.flagType.dest
+	}
+	return nil
 }

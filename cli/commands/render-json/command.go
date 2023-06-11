@@ -28,7 +28,7 @@ func NewCommand(globalOpts *options.TerragruntOptions) *cli.Command {
 		&cli.GenericFlag[string]{
 			Name:        flagTerragruntJSONOut,
 			Destination: &opts.JSONOut,
-			Usage:       "The file path that terragrunt should use when rendering the terragrunt.hcl config as json. Only used in the render-json command. Defaults to terragrunt_rendered.json.",
+			Usage:       "The file path that terragrunt should use when rendering the terragrunt.hcl config as json.",
 		},
 		&cli.BoolFlag{
 			Name:        flagWithMetadata,

@@ -121,7 +121,9 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 	)
 	app.Before = func(ctx *cli.Context) error {
 		showHelp := ctx.Flags.Get(flagHelp).Value().IsSet()
-		//fmt.Println("------------", showHelp, ctx.Command.IsRoot, ctx.Command.Name, ctx.Args().Slice())
+		fmt.Println("------------", showHelp, ctx.Command.IsRoot, ctx.Command.Name, ctx.Args().Slice())
+		fmt.Println("------------", opts.AutoInit, opts.NonInteractive)
+		os.Exit(1)
 		if showHelp {
 			ctx.Command.Action = nil
 
