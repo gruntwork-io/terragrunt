@@ -24,6 +24,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/cli/command"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
+	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
+	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
+	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
+	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
+	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
+	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
@@ -338,12 +344,12 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 	)
 
 	app.AddCommands(
-		commands.NewRunAllCommand(opts),
-		commands.NewTerragruntInfoCommand(opts),
-		commands.NewValidateInputsCommand(opts),
-		commands.NewGraphDependenciesCommand(opts),
-		commands.NewHclFmtCommand(opts),
-		commands.NewRenderJSONCommand(opts),
+		runall.NewCommand(opts),
+		terragruntinfo.NewCommand(opts),
+		validateinputs.NewCommand(opts),
+		graphdependencies.NewCommand(opts),
+		hclfmt.NewCommand(opts),
+		renderjson.NewCommand(opts),
 		awsproviderpatch.NewCommand(opts),
 		&cli.Command{
 			Name:  "*",

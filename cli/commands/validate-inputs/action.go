@@ -1,4 +1,4 @@
-package command
+package validateinputs
 
 import (
 	"encoding/json"
@@ -10,47 +10,18 @@ import (
 	"github.com/google/shlex"
 
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-const (
-	cmdValidateInputs = "validate-inputs"
-
-	optTerragruntStrictValidate = "terragrunt-strict-validate"
-)
-
-func NewValidateInputsCommand(opts *options.TerragruntOptions) *cli.Command {
-	command := &cli.Command{
-		Name:   cmdValidateInputs,
-		Usage:  "Checks if the terragrunt configured inputs align with the terraform defined variables.",
-		Action: func(ctx *cli.Context) error { return runValidateTerragruntInputs(opts) },
-	}
-
-	command.AddFlags(cli.Flags{
-		&cli.BoolFlag{
-			Name:        optTerragruntStrictValidate,
-			Destination: &opts.ValidateStrict,
-			Usage:       "Sets strict mode for the validate-inputs command. By default, strict mode is off. When this flag is passed, strict mode is turned on. When strict mode is turned off, the validate-inputs command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When strict mode is turned on, an error will be returned if required inputs are missing OR if unused variables are passed to Terragrunt.",
-		},
-	})
-
-	return command
-}
-
-// runValidateTerragruntInputs will collect all the terraform variables defined in the target module, and the terragrunt
-// inputs that are configured, and compare the two to determine if there are any unused inputs or undefined required
-// inputs.
-func runValidateTerragruntInputs(terragruntOptions *options.TerragruntOptions, workingConfig *config.TerragruntConfig) error {
-	required, optional, err := terraform.ModuleVariables(terragruntOptions.WorkingDir)
+func Run(opts *Options, workingConfig *config.TerragruntConfig) error {
+	required, optional, err := terraform.ModuleVariables(opts.WorkingDir)
 	if err != nil {
 		return err
 	}
 	allVars := append(required, optional...)
 
-	allInputs, err := getDefinedTerragruntInputs(terragruntOptions, workingConfig)
+	allInputs, err := getDefinedTerragruntInputs(opts, workingConfig)
 	if err != nil {
 		return err
 	}
@@ -73,34 +44,34 @@ func runValidateTerragruntInputs(terragruntOptions *options.TerragruntOptions, w
 
 	// Now print out all the information
 	if len(unusedVars) > 0 {
-		terragruntOptions.Logger.Warn("The following inputs passed in by terragrunt are unused:\n")
+		opts.Logger.Warn("The following inputs passed in by terragrunt are unused:\n")
 		for _, varName := range unusedVars {
-			terragruntOptions.Logger.Warnf("\t- %s", varName)
+			opts.Logger.Warnf("\t- %s", varName)
 		}
-		terragruntOptions.Logger.Warn("")
+		opts.Logger.Warn("")
 	} else {
-		terragruntOptions.Logger.Info("All variables passed in by terragrunt are in use.")
-		terragruntOptions.Logger.Debug(fmt.Sprintf("Strict mode enabled: %t", terragruntOptions.ValidateStrict))
+		opts.Logger.Info("All variables passed in by terragrunt are in use.")
+		opts.Logger.Debug(fmt.Sprintf("Strict mode enabled: %t", opts.ValidateStrict))
 	}
 
 	if len(missingVars) > 0 {
-		terragruntOptions.Logger.Error("The following required inputs are missing:\n")
+		opts.Logger.Error("The following required inputs are missing:\n")
 		for _, varName := range missingVars {
-			terragruntOptions.Logger.Errorf("\t- %s", varName)
+			opts.Logger.Errorf("\t- %s", varName)
 		}
-		terragruntOptions.Logger.Error("")
+		opts.Logger.Error("")
 	} else {
-		terragruntOptions.Logger.Info("All required inputs are passed in by terragrunt")
-		terragruntOptions.Logger.Debug(fmt.Sprintf("Strict mode enabled: %t", terragruntOptions.ValidateStrict))
+		opts.Logger.Info("All required inputs are passed in by terragrunt")
+		opts.Logger.Debug(fmt.Sprintf("Strict mode enabled: %t", opts.ValidateStrict))
 	}
 
 	// Return an error when there are misaligned inputs. Terragrunt strict mode defaults to false. When it is false,
 	// an error will only be returned if required inputs are missing. When strict mode is true, an error will be
 	// returned if required inputs are missing OR if any unused variables are passed
-	if len(missingVars) > 0 || len(unusedVars) > 0 && terragruntOptions.ValidateStrict {
-		return fmt.Errorf(fmt.Sprintf("Terragrunt configuration has misaligned inputs. Strict mode enabled: %t.", terragruntOptions.ValidateStrict))
+	if len(missingVars) > 0 || len(unusedVars) > 0 && opts.ValidateStrict {
+		return fmt.Errorf(fmt.Sprintf("Terragrunt configuration has misaligned inputs. Strict mode enabled: %t.", opts.ValidateStrict))
 	} else if len(unusedVars) > 0 {
-		terragruntOptions.Logger.Warn("Terragrunt configuration has misaligned inputs, but running in relaxed mode so ignoring.")
+		opts.Logger.Warn("Terragrunt configuration has misaligned inputs, but running in relaxed mode so ignoring.")
 	}
 
 	return nil
@@ -114,18 +85,18 @@ func runValidateTerragruntInputs(terragruntOptions *options.TerragruntOptions, w
 // - env vars from the external runtime calling terragrunt.
 // - inputs blocks.
 // - automatically injected terraform vars (terraform.tfvars, terraform.tfvars.json, *.auto.tfvars, *.auto.tfvars.json)
-func getDefinedTerragruntInputs(terragruntOptions *options.TerragruntOptions, workingConfig *config.TerragruntConfig) ([]string, error) {
-	envVarTFVars := getTerraformInputNamesFromEnvVar(terragruntOptions, workingConfig)
+func getDefinedTerragruntInputs(opts *Options, workingConfig *config.TerragruntConfig) ([]string, error) {
+	envVarTFVars := getTerraformInputNamesFromEnvVar(opts, workingConfig)
 	inputsTFVars := getTerraformInputNamesFromConfig(workingConfig)
-	varFileTFVars, err := getTerraformInputNamesFromVarFiles(terragruntOptions, workingConfig)
+	varFileTFVars, err := getTerraformInputNamesFromVarFiles(opts, workingConfig)
 	if err != nil {
 		return nil, err
 	}
-	cliArgsTFVars, err := getTerraformInputNamesFromCLIArgs(terragruntOptions, workingConfig)
+	cliArgsTFVars, err := getTerraformInputNamesFromCLIArgs(opts, workingConfig)
 	if err != nil {
 		return nil, err
 	}
-	autoVarFileTFVars, err := getTerraformInputNamesFromAutomaticVarFiles(terragruntOptions)
+	autoVarFileTFVars, err := getTerraformInputNamesFromAutomaticVarFiles(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -159,8 +130,8 @@ func getDefinedTerragruntInputs(terragruntOptions *options.TerragruntOptions, wo
 // variables from extra_arguments blocks to see if there are any TF_VAR environment variables that set terraform
 // variables. This will return the list of names of variables that are set in this way by the given terragrunt
 // configuration.
-func getTerraformInputNamesFromEnvVar(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
-	envVars := terragruntOptions.Env
+func getTerraformInputNamesFromEnvVar(opts *Options, terragruntConfig *config.TerragruntConfig) []string {
+	envVars := opts.Env
 
 	// Make sure to check if there are configured env vars in the parsed terragrunt config.
 	if terragruntConfig.Terraform != nil {
@@ -194,14 +165,14 @@ func getTerraformInputNamesFromConfig(terragruntConfig *config.TerragruntConfig)
 
 // getTerraformInputNamesFromVarFiles will return the list of names of variables configured by var files set in the
 // extra_arguments block required_var_files and optional_var_files settings of the given terragrunt config.
-func getTerraformInputNamesFromVarFiles(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) ([]string, error) {
+func getTerraformInputNamesFromVarFiles(opts *Options, terragruntConfig *config.TerragruntConfig) ([]string, error) {
 	if terragruntConfig.Terraform == nil {
 		return nil, nil
 	}
 
 	varFiles := []string{}
 	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
-		varFiles = append(varFiles, arg.GetVarFiles(terragruntOptions.Logger)...)
+		varFiles = append(varFiles, arg.GetVarFiles(opts.Logger)...)
 	}
 
 	return getVarNamesFromVarFiles(varFiles)
@@ -210,8 +181,8 @@ func getTerraformInputNamesFromVarFiles(terragruntOptions *options.TerragruntOpt
 // getTerraformInputNamesFromCLIArgs will return the list of names of variables configured by -var and -var-file CLI
 // args that are passed in via the configured arguments attribute in the extra_arguments block of the given terragrunt
 // config and those that are directly passed in via the CLI.
-func getTerraformInputNamesFromCLIArgs(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) ([]string, error) {
-	inputNames, varFiles, err := getVarFlagsFromArgList(terragruntOptions.TerraformCliArgs)
+func getTerraformInputNamesFromCLIArgs(opts *Options, terragruntConfig *config.TerragruntConfig) ([]string, error) {
+	inputNames, varFiles, err := getVarFlagsFromArgList(opts.TerraformCliArgs)
 	if err != nil {
 		return inputNames, err
 	}
@@ -239,8 +210,8 @@ func getTerraformInputNamesFromCLIArgs(terragruntOptions *options.TerragruntOpti
 }
 
 // getTerraformInputNamesFromAutomaticVarFiles returns all the variables names
-func getTerraformInputNamesFromAutomaticVarFiles(terragruntOptions *options.TerragruntOptions) ([]string, error) {
-	base := terragruntOptions.WorkingDir
+func getTerraformInputNamesFromAutomaticVarFiles(opts *Options) ([]string, error) {
+	base := opts.WorkingDir
 	automaticVarFiles := []string{}
 
 	tfTFVarsFile := filepath.Join(base, "terraform.tfvars")

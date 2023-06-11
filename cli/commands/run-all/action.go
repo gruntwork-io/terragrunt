@@ -1,16 +1,11 @@
-package command
+package runall
 
 import (
 	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/shell"
-)
-
-const (
-	CmdRunAll = "run-all"
 )
 
 // Known terraform commands that are explicitly not supported in run-all due to the nature of the command. This is
@@ -31,41 +26,30 @@ var runAllDisabledCommands = map[string]string{
 	// - version        : Supporting `version` with run-all could be useful for sanity checking a multi-version setup.
 }
 
-func NewRunAllCommand(opts *options.TerragruntOptions) *cli.Command {
-	command := &cli.Command{
-		Name:        CmdRunAll,
-		Usage:       "Run a terraform command against a 'stack' by running the specified command in each subfolder.",
-		Description: "Run a terraform command against a 'stack' by running the specified command in each subfolder. E.g., to run 'terragrunt apply' in each subfolder, use 'terragrunt run-all apply'.",
-		Action:      func(ctx *cli.Context) error { return RunAll(opts) },
-	}
-
-	return command
-}
-
-func RunAll(terragruntOptions *options.TerragruntOptions) error {
-	if terragruntOptions.TerraformCommand == "" {
+func Run(opts *options.TerragruntOptions) error {
+	if opts.TerraformCommand == "" {
 		return MissingCommand{}
 	}
-	reason, isDisabled := runAllDisabledCommands[terragruntOptions.TerraformCommand]
+	reason, isDisabled := runAllDisabledCommands[opts.TerraformCommand]
 	if isDisabled {
 		return RunAllDisabledErr{
-			command: terragruntOptions.TerraformCommand,
+			command: opts.TerraformCommand,
 			reason:  reason,
 		}
 	}
 
-	stack, err := configstack.FindStackInSubfolders(terragruntOptions, nil)
+	stack, err := configstack.FindStackInSubfolders(opts, nil)
 	if err != nil {
 		return err
 	}
 
-	terragruntOptions.Logger.Debugf("%s", stack.String())
-	if err := stack.LogModuleDeployOrder(terragruntOptions.Logger, terragruntOptions.TerraformCommand); err != nil {
+	opts.Logger.Debugf("%s", stack.String())
+	if err := stack.LogModuleDeployOrder(opts.Logger, opts.TerraformCommand); err != nil {
 		return err
 	}
 
 	var prompt string
-	switch terragruntOptions.TerraformCommand {
+	switch opts.TerraformCommand {
 	case "apply":
 		prompt = "Are you sure you want to run 'terragrunt apply' in each folder of the stack described above?"
 	case "destroy":
@@ -74,7 +58,7 @@ func RunAll(terragruntOptions *options.TerragruntOptions) error {
 		prompt = "Are you sure you want to manipulate the state with `terragrunt state` in each folder of the stack described above? Note that absolute paths are shared, while relative paths will be relative to each working directory."
 	}
 	if prompt != "" {
-		shouldRunAll, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
+		shouldRunAll, err := shell.PromptUserForYesNo(prompt, opts)
 		if err != nil {
 			return err
 		}
@@ -83,7 +67,7 @@ func RunAll(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
-	return stack.Run(terragruntOptions)
+	return stack.Run(opts)
 }
 
 type RunAllDisabledErr struct {

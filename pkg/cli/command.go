@@ -20,7 +20,7 @@ type Command struct {
 	// Full name of command for help, defaults to full command name, including parent commands.
 	HelpName string
 	// The function to call when this command is invoked
-	Action ActionFunc
+	Action RunFunc
 	// if this is a root "special" command
 	IsRoot bool
 	// Boolean to hide this command from help

@@ -1,15 +1,10 @@
-package command
+package terragruntinfo
 
 import (
 	"encoding/json"
 	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/cli"
-)
-
-const (
-	cmdTerragruntInfo = "terragrunt-info"
 )
 
 // Struct is output as JSON by 'terragrunt-info':
@@ -22,17 +17,7 @@ type TerragruntInfoGroup struct {
 	WorkingDir       string
 }
 
-func NewTerragruntInfoCommand(opts *options.TerragruntOptions) *cli.Command {
-	command := &cli.Command{
-		Name:   cmdTerragruntInfo,
-		Usage:  "Emits limited terragrunt state on stdout and exits.",
-		Action: func(ctx *cli.Context) error { return runHCLFmt(opts) },
-	}
-
-	return command
-}
-
-func runTerragruntInfo(terragruntOptions *options.TerragruntOptions) error {
+func Run(opts *options.TerragruntOptions) error {
 	group := TerragruntInfoGroup{
 		ConfigPath:       updatedTerragruntOptions.TerragruntConfigPath,
 		DownloadDir:      updatedTerragruntOptions.DownloadDir,

@@ -16,25 +16,25 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/mattn/go-zglob"
 
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-func Run(terragruntOptions *options.TerragruntOptions) error {
-
-	workingDir := terragruntOptions.WorkingDir
-	targetFile := terragruntOptions.HclFile
+func Run(opts *Options) error {
+	workingDir := opts.WorkingDir
+	targetFile := opts.HclFile
 
 	// handle when option specifies a particular file
 	if targetFile != "" {
 		if !filepath.IsAbs(targetFile) {
 			targetFile = util.JoinPath(workingDir, targetFile)
 		}
-		terragruntOptions.Logger.Debugf("Formatting hcl file at: %s.", targetFile)
-		return formatTgHCL(terragruntOptions, targetFile)
+		opts.Logger.Debugf("Formatting hcl file at: %s.", targetFile)
+		return formatTgHCL(opts, targetFile)
 	}
 
-	terragruntOptions.Logger.Debugf("Formatting hcl files from the directory tree %s.", terragruntOptions.WorkingDir)
+	targetFile = filepath.ToSlash(targetFile)
+
+	opts.Logger.Debugf("Formatting hcl files from the directory tree %s.", opts.WorkingDir)
 	// zglob normalizes paths to "/"
 	tgHclFiles, err := zglob.Glob(util.JoinPath(workingDir, "**", "*.hcl"))
 	if err != nil {
@@ -47,15 +47,15 @@ func Run(terragruntOptions *options.TerragruntOptions) error {
 		if !util.ListContainsElement(strings.Split(fname, "/"), ".terragrunt-cache") {
 			filteredTgHclFiles = append(filteredTgHclFiles, fname)
 		} else {
-			terragruntOptions.Logger.Debugf("%s was ignored due to being in the terragrunt cache", fname)
+			opts.Logger.Debugf("%s was ignored due to being in the terragrunt cache", fname)
 		}
 	}
 
-	terragruntOptions.Logger.Debugf("Found %d hcl files", len(filteredTgHclFiles))
+	opts.Logger.Debugf("Found %d hcl files", len(filteredTgHclFiles))
 
 	var formatErrors *multierror.Error
 	for _, tgHclFile := range filteredTgHclFiles {
-		err := formatTgHCL(terragruntOptions, tgHclFile)
+		err := formatTgHCL(opts, tgHclFile)
 		if err != nil {
 			formatErrors = multierror.Append(formatErrors, err)
 		}
@@ -66,25 +66,25 @@ func Run(terragruntOptions *options.TerragruntOptions) error {
 
 // formatTgHCL uses the hcl2 library to format the hcl file. This will attempt to parse the HCL file first to
 // ensure that there are no syntax errors, before attempting to format it.
-func formatTgHCL(terragruntOptions *options.TerragruntOptions, tgHclFile string) error {
-	terragruntOptions.Logger.Debugf("Formatting %s", tgHclFile)
+func formatTgHCL(opts *Options, tgHclFile string) error {
+	opts.Logger.Debugf("Formatting %s", tgHclFile)
 
 	info, err := os.Stat(tgHclFile)
 	if err != nil {
-		terragruntOptions.Logger.Errorf("Error retrieving file info of %s", tgHclFile)
+		opts.Logger.Errorf("Error retrieving file info of %s", tgHclFile)
 		return err
 	}
 
 	contentsStr, err := util.ReadFileAsString(tgHclFile)
 	if err != nil {
-		terragruntOptions.Logger.Errorf("Error reading %s", tgHclFile)
+		opts.Logger.Errorf("Error reading %s", tgHclFile)
 		return err
 	}
 	contents := []byte(contentsStr)
 
-	err = checkErrors(terragruntOptions.Logger, contents, tgHclFile)
+	err = checkErrors(opts.Logger, contents, tgHclFile)
 	if err != nil {
-		terragruntOptions.Logger.Errorf("Error parsing %s", tgHclFile)
+		opts.Logger.Errorf("Error parsing %s", tgHclFile)
 		return err
 	}
 
@@ -92,25 +92,25 @@ func formatTgHCL(terragruntOptions *options.TerragruntOptions, tgHclFile string)
 
 	fileUpdated := !bytes.Equal(newContents, contents)
 
-	if terragruntOptions.Diff && fileUpdated {
+	if opts.Diff && fileUpdated {
 		diff, err := bytesDiff(contents, newContents, tgHclFile)
 		if err != nil {
-			terragruntOptions.Logger.Errorf("Failed to generate diff for %s", tgHclFile)
+			opts.Logger.Errorf("Failed to generate diff for %s", tgHclFile)
 			return err
 		}
-		_, err = fmt.Fprintf(terragruntOptions.Writer, "%s\n", diff)
+		_, err = fmt.Fprintf(opts.Writer, "%s\n", diff)
 		if err != nil {
-			terragruntOptions.Logger.Errorf("Failed to print diff for %s", tgHclFile)
+			opts.Logger.Errorf("Failed to print diff for %s", tgHclFile)
 			return err
 		}
 	}
 
-	if terragruntOptions.Check && fileUpdated {
+	if opts.Check && fileUpdated {
 		return fmt.Errorf("Invalid file format %s", tgHclFile)
 	}
 
 	if fileUpdated {
-		terragruntOptions.Logger.Infof("%s was updated", tgHclFile)
+		opts.Logger.Infof("%s was updated", tgHclFile)
 		return ioutil.WriteFile(tgHclFile, newContents, info.Mode())
 	}
 

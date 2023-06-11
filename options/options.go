@@ -93,9 +93,6 @@ type TerragruntOptions struct {
 	// Raw log level value
 	LogLevelStr string
 
-	// ValidateStrict mode for the validate-inputs command
-	ValidateStrict bool
-
 	// Environment variables at runtime
 	Env map[string]string
 
@@ -171,9 +168,6 @@ type TerragruntOptions struct {
 
 	// Show diff, by default it's disabled.
 	Diff bool
-
-	// The file which hclfmt should be specifically run on
-	HclFile string
 
 	// The file path that terragrunt should use when rendering the terragrunt.hcl config as json.
 	JSONOut string
@@ -341,8 +335,6 @@ func (opts *TerragruntOptions) Normalize(versionStr string, writer, errWriter io
 		opts.DownloadDir = path
 	}
 	opts.DownloadDir = filepath.ToSlash(opts.DownloadDir)
-
-	opts.HclFile = filepath.ToSlash(opts.HclFile)
 	opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)
 	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
 	opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
@@ -426,7 +418,6 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		WorkingDir:                     workingDir,
 		Logger:                         util.CreateLogEntryWithWriter(opts.ErrWriter, workingDir, opts.LogLevel, opts.Logger.Logger.Hooks),
 		LogLevel:                       opts.LogLevel,
-		ValidateStrict:                 opts.ValidateStrict,
 		Env:                            util.CloneStringMap(opts.Env),
 		Source:                         opts.Source,
 		SourceMap:                      opts.SourceMap,
@@ -452,8 +443,6 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		Parallelism:                    opts.Parallelism,
 		StrictInclude:                  opts.StrictInclude,
 		RunTerragrunt:                  opts.RunTerragrunt,
-		AwsProviderPatchOverrides:      opts.AwsProviderPatchOverrides,
-		HclFile:                        opts.HclFile,
 		JSONOut:                        opts.JSONOut,
 		Check:                          opts.Check,
 		CheckDependentModules:          opts.CheckDependentModules,

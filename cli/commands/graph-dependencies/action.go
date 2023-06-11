@@ -6,13 +6,13 @@ import (
 )
 
 // Run graph dependencies prints the dependency graph to stdout
-func Run(terragruntOptions *options.TerragruntOptions) error {
-	stack, err := configstack.FindStackInSubfolders(terragruntOptions, nil)
+func Run(opts *options.TerragruntOptions) error {
+	stack, err := configstack.FindStackInSubfolders(opts, nil)
 	if err != nil {
 		return err
 	}
 
 	// Exit early if the operation wanted is to get the graph
-	stack.Graph(terragruntOptions)
+	stack.Graph(opts)
 	return nil
 }

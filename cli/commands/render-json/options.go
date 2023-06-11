@@ -2,7 +2,9 @@ package renderjson
 
 import "github.com/gruntwork-io/terragrunt/options"
 
-const defaultJSONOutName = "terragrunt_rendered.json"
+const (
+	defaultJSONOutName = "terragrunt_rendered.json"
+)
 
 type Options struct {
 	*options.TerragruntOptions

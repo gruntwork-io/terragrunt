@@ -16,9 +16,9 @@ type App struct {
 	Author string
 	// An action to execute before any subcommands are run, but after the context is ready
 	// If a non-nil error is returned, no subcommands are run
-	Before ActionFunc
+	Before RunFunc
 	// The action to execute when no subcommands are specified
-	Action ActionFunc
+	Action RunFunc
 }
 
 // NewApp returns app new App instance.
