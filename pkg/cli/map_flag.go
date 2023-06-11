@@ -150,12 +150,12 @@ func (flag *mapValue[K, V]) Set(str string) error {
 		return errors.Errorf("Invalid key-value pair. Expected format KEY%VALUE, got %s", flag.valSep, str)
 	}
 
-	key := flag.keyType.Init(new(K))
+	key := flag.keyType.Clone(new(K))
 	if err := key.Set(parts[0]); err != nil {
 		return err
 	}
 
-	val := flag.valType.Init(new(V))
+	val := flag.valType.Clone(new(V))
 	if err := val.Set(parts[1]); err != nil {
 		return err
 	}

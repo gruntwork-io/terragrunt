@@ -10,8 +10,7 @@ import (
 
 type FlagType[T any] interface {
 	flag.Getter
-	Init(dest *T) FlagType[T]
-	Ptr() any
+	Clone(dest *T) FlagType[T]
 }
 
 // -- generic Type
@@ -19,7 +18,7 @@ type flagType[T comparable] struct {
 	dest *T
 }
 
-func (val *flagType[T]) Init(dest *T) FlagType[T] {
+func (val *flagType[T]) Clone(dest *T) FlagType[T] {
 	return &flagType[T]{dest: dest}
 }
 
@@ -57,7 +56,6 @@ func (val *flagType[T]) Set(str string) error {
 }
 
 func (val *flagType[T]) Get() any { return *val.dest }
-func (val *flagType[T]) Ptr() any { return val.dest }
 
 func (val *flagType[T]) String() string {
 	if *val.dest == *new(T) {

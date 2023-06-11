@@ -71,7 +71,7 @@ type boolFlagType struct {
 	negative bool
 }
 
-func (val *boolFlagType) Init(dest *bool) FlagType[bool] {
+func (val *boolFlagType) Clone(dest *bool) FlagType[bool] {
 	return &boolFlagType{
 		flagType: &flagType[bool]{dest: dest},
 		negative: val.negative,

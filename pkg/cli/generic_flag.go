@@ -83,8 +83,8 @@ func newGenericValue[T comparable](value FlagType[T], dest *T, envVar string) (F
 		dest = new(T)
 	}
 
-	defaultText := value.Init(dest).String()
-	value = value.Init(dest)
+	defaultText := value.Clone(dest).String()
+	value = value.Clone(dest)
 
 	if strVal, ok := env.LookupEnv(envVar); ok {
 		if err := value.Set(strVal); err != nil {

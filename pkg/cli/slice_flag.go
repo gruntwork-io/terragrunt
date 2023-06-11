@@ -128,7 +128,7 @@ func (flag *sliceValue[T]) Set(str string) error {
 		*flag.values = []T{}
 	}
 
-	value := flag.valueType.Init(new(T))
+	value := flag.valueType.Clone(new(T))
 	if err := value.Set(str); err != nil {
 		return err
 	}
@@ -166,7 +166,7 @@ func (flag *sliceValue[T]) String() string {
 	var vals []string
 
 	for _, val := range *flag.values {
-		vals = append(vals, flag.valueType.Init(&val).String())
+		vals = append(vals, flag.valueType.Clone(&val).String())
 	}
 
 	return strings.Join(vals, flag.valSep)
