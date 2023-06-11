@@ -21,7 +21,7 @@ func NewCommand(globalOpts *options.TerragruntOptions) *cli.Command {
 		Name:        cmdRenderJSONFmt,
 		Usage:       "Render the final terragrunt config, with all variables, includes, and functions resolved, as json.",
 		Description: "This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.",
-		Action:      func(ctx *cli.Context) error { return Run(opts) },
+		// Action:      func(ctx *cli.Context) error { return Run(opts) },
 	}
 
 	command.AddFlags(

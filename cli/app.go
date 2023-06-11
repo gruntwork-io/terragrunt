@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -21,7 +20,6 @@ import (
 	"github.com/mattn/go-zglob"
 
 	"github.com/gruntwork-io/terragrunt/aws_helper"
-	"github.com/gruntwork-io/terragrunt/cli/command"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
@@ -101,6 +99,8 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 
 	app := cli.NewApp()
 	app.Name = "terragrunt"
+	app.Usage = "Terragrunt is a thin wrapper for Terraform that provides extra tools for working with multiple\nTerraform modules, remote state, and locking. For documentation, see https://github.com/gruntwork-io/terragrunt/."
+	app.UsageText = "terragrunt [global options] command [command options]"
 	app.Author = "Gruntwork <www.gruntwork.io>"
 	app.Version = version.GetVersion()
 	app.Writer = writer
@@ -122,6 +122,8 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 	app.Before = func(ctx *cli.Context) error {
 		showHelp := ctx.Flags.Get(flagHelp).Value().IsSet()
 		if showHelp {
+			ctx.Command.Action = nil
+
 			// if app command is specified show the command help.
 			if !ctx.Command.IsRoot {
 				return cli.ShowCommandHelp(ctx, ctx.Command.Name)
@@ -137,11 +139,14 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 			return shell.RunTerraformCommand(opts, terraformHelpCmd...)
 		}
 
-		var err error
-		opts, err = prepareTerragruntOptions(ctx, opts)
-		return err
+		return nil
 	}
 	app.Action = func(ctx *cli.Context) error {
+		opts, err := prepareTerragruntOptions(ctx, opts)
+		if err != nil {
+			return err
+		}
+
 		return runTerraformCommand(opts)
 	}
 
@@ -179,8 +184,8 @@ func prepareTerragruntOptions(ctx *cli.Context, opts *options.TerragruntOptions)
 // terragrunt command
 func runTerraformCommand(opts *options.TerragruntOptions) error {
 	switch opts.TerraformCommand {
-	case command.CmdRunAll:
-		return command.RunAll(opts)
+	case CmdRunAll:
+		return runall.Run(opts)
 	case "destroy":
 		opts.CheckDependentModules = true
 	}
@@ -200,9 +205,10 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
-	if shouldRunRenderJSON(terragruntOptions) {
-		return runRenderJSON(terragruntOptions, terragruntConfig)
-	}
+	// TODO
+	// if shouldRunRenderJSON(terragruntOptions) {
+	// 	return runRenderJSON(terragruntOptions, terragruntConfig)
+	// }
 
 	terragruntOptionsClone := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	terragruntOptionsClone.TerraformCommand = CmdTerragruntReadConfig
@@ -275,23 +281,24 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 
 	// NOTE: At this point, the terraform source is downloaded to the terragrunt working directory
 
-	if shouldPrintTerragruntInfo(updatedTerragruntOptions) {
-		group := TerragruntInfoGroup{
-			ConfigPath:       updatedTerragruntOptions.TerragruntConfigPath,
-			DownloadDir:      updatedTerragruntOptions.DownloadDir,
-			IamRole:          updatedTerragruntOptions.IAMRoleOptions.RoleARN,
-			TerraformBinary:  updatedTerragruntOptions.TerraformPath,
-			TerraformCommand: updatedTerragruntOptions.TerraformCommand,
-			WorkingDir:       updatedTerragruntOptions.WorkingDir,
-		}
-		b, err := json.MarshalIndent(group, "", "  ")
-		if err != nil {
-			updatedTerragruntOptions.Logger.Errorf("JSON error marshalling terragrunt-info")
-			return err
-		}
-		fmt.Fprintf(updatedTerragruntOptions.Writer, "%s\n", b)
-		return nil
-	}
+	// TODO
+	// if shouldPrintTerragruntInfo(updatedTerragruntOptions) {
+	// 	group := TerragruntInfoGroup{
+	// 		ConfigPath:       updatedTerragruntOptions.TerragruntConfigPath,
+	// 		DownloadDir:      updatedTerragruntOptions.DownloadDir,
+	// 		IamRole:          updatedTerragruntOptions.IAMRoleOptions.RoleARN,
+	// 		TerraformBinary:  updatedTerragruntOptions.TerraformPath,
+	// 		TerraformCommand: updatedTerragruntOptions.TerraformCommand,
+	// 		WorkingDir:       updatedTerragruntOptions.WorkingDir,
+	// 	}
+	// 	b, err := json.MarshalIndent(group, "", "  ")
+	// 	if err != nil {
+	// 		updatedTerragruntOptions.Logger.Errorf("JSON error marshalling terragrunt-info")
+	// 		return err
+	// 	}
+	// 	fmt.Fprintf(updatedTerragruntOptions.Writer, "%s\n", b)
+	// 	return nil
+	// }
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
 	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
@@ -299,11 +306,12 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 
+	// TODO
 	// We do the terragrunt input validation here, after all the terragrunt generated terraform files are created so
 	// that we can ensure the necessary information is available.
-	if shouldValidateTerragruntInputs(updatedTerragruntOptions) {
-		return validateTerragruntInputs(updatedTerragruntOptions, terragruntConfig)
-	}
+	// if shouldValidateTerragruntInputs(updatedTerragruntOptions) {
+	// 	return validateTerragruntInputs(updatedTerragruntOptions, terragruntConfig)
+	// }
 
 	// We do the debug file generation here, after all the terragrunt generated terraform files are created so that we
 	// can ensure the tfvars json file only includes the vars that are defined in the module.
@@ -569,10 +577,11 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 		}
 	}
 
+	// TODO
 	// Now that we've run 'init' and have all the source code locally, we can finally run the patch command
-	if shouldApplyAwsProviderPatch(terragruntOptions) {
-		return applyAwsProviderPatch(terragruntOptions)
-	}
+	// if shouldApplyAwsProviderPatch(terragruntOptions) {
+	// 	return applyAwsProviderPatch(terragruntOptions)
+	// }
 
 	if err := checkProtectedModule(terragruntOptions, terragruntConfig); err != nil {
 		return err

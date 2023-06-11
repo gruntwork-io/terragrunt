@@ -15,9 +15,9 @@ func NewCommand(globalOpts *options.TerragruntOptions) *cli.Command {
 	opts := NewOptions(globalOpts)
 
 	command := &cli.Command{
-		Name:   cmdValidateInputs,
-		Usage:  "Checks if the terragrunt configured inputs align with the terraform defined variables.",
-		Action: func(ctx *cli.Context) error { return Run(opts) },
+		Name:  cmdValidateInputs,
+		Usage: "Checks if the terragrunt configured inputs align with the terraform defined variables.",
+		// Action: func(ctx *cli.Context) error { return Run(opts) },
 	}
 
 	command.AddFlags(
