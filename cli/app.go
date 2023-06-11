@@ -23,6 +23,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/cli/command"
+	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
@@ -337,13 +338,13 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 	)
 
 	app.AddCommands(
-		command.NewRunAllCommand(opts),
-		command.NewTerragruntInfoCommand(opts),
-		command.NewValidateInputsCommand(opts),
-		command.NewGraphDependenciesCommand(opts),
-		command.NewHclFmtCommand(opts),
-		command.NewRenderJSONCommand(opts),
-		command.NewAwsProviderPatchCommand(opts),
+		commands.NewRunAllCommand(opts),
+		commands.NewTerragruntInfoCommand(opts),
+		commands.NewValidateInputsCommand(opts),
+		commands.NewGraphDependenciesCommand(opts),
+		commands.NewHclFmtCommand(opts),
+		commands.NewRenderJSONCommand(opts),
+		awsproviderpatch.NewCommand(opts),
 		&cli.Command{
 			Name:  "*",
 			Usage: "Terragrunt forwards all other commands directly to Terraform",

@@ -193,10 +193,6 @@ type TerragruntOptions struct {
 	// root-cause issues.
 	Debug bool
 
-	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command. See that
-	// command for more info.
-	AwsProviderPatchOverrides map[string]string
-
 	// True if is required to show dependent modules and confirm action
 	CheckDependentModules bool
 
@@ -205,9 +201,6 @@ type TerragruntOptions struct {
 
 	// Enables caching of includes during partial parsing operations.
 	UsePartialParseConfigCache bool
-
-	// Include fields metadata in render-json
-	RenderJsonWithMetadata bool
 
 	// Prefix for shell commands' outputs
 	OutputPrefix string

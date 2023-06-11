@@ -1,4 +1,4 @@
-package command
+package hclfmt
 
 import (
 	"io/ioutil"

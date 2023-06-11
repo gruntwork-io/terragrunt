@@ -1,4 +1,4 @@
-package command
+package awsproviderpatch
 
 import (
 	"testing"
@@ -134,6 +134,7 @@ provider "aws" {
 resource "aws_instance" "example" {
 
 }
+
 
 provider "google" {
   credentials = file("account.json")

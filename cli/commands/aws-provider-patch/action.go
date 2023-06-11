@@ -1,4 +1,4 @@
-package command
+package awsproviderpatch
 
 import (
 	"encoding/json"
@@ -13,88 +13,29 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-const (
-	cmdAWSProviderPatch = "aws-provider-patch"
-
-	optTerragruntOverrideAttr = "terragrunt-override-attr"
-)
-
-func NewAwsProviderPatchCommand(opts *options.TerragruntOptions) *cli.Command {
-	command := &cli.Command{
-		Name:   cmdAWSProviderPatch,
-		Usage:  "Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018).",
-		Flags:  cli.Flags{},
-		Action: func(ctx *cli.Context) error { return applyAwsProviderPatch(opts) },
-	}
-
-	command.AddFlags(cli.Flags{
-		&cli.MapFlag[string, string]{
-			Name:        optTerragruntOverrideAttr,
-			Destination: &opts.AwsProviderPatchOverrides,
-			EnvVar:      "TERRAGRUNT_EXCLUDE_DIR",
-			Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.",
-		},
-	})
-
-	return command
-}
-
-// applyAwsProviderPatch finds all Terraform modules nested in the current code (i.e., in the .terraform/modules
-// folder), looks for provider "aws" { ... } blocks in those modules, and overwrites the attributes in those provider
-// blocks with the attributes specified in terragrntOptions.
-//
-// For example, if were running Terragrunt against code that contained a module:
-//
-//	module "example" {
-//	  source = "<URL>"
-//	}
-//
-// When you run 'init', Terraform would download the code for that module into .terraform/modules. This function would
-// scan that module code for provider blocks:
-//
-//	provider "aws" {
-//	   region = var.aws_region
-//	}
-//
-// And if AwsProviderPatchOverrides in terragruntOptions was set to map[string]string{"region": "us-east-1"}, then this
-// method would update the module code to:
-//
-//	provider "aws" {
-//	   region = "us-east-1"
-//	}
-//
-// This is a temporary workaround for a Terraform bug (https://github.com/hashicorp/terraform/issues/13018) where
-// any dynamic values in nested provider blocks are not handled correctly when you call 'terraform import', so by
-// temporarily hard-coding them, we can allow 'import' to work.
-func applyAwsProviderPatch(terragruntOptions *options.TerragruntOptions) error {
-	if len(terragruntOptions.AwsProviderPatchOverrides) == 0 {
-		return errors.WithStackTrace(MissingOverrides(optTerragruntOverrideAttr))
-	}
-
-	terraformFilesInModules, err := findAllTerraformFilesInModules(terragruntOptions)
+func Run(opts *Options) error {
+	terraformFilesInModules, err := findAllTerraformFilesInModules(opts)
 	if err != nil {
 		return err
 	}
 
 	for _, terraformFile := range terraformFilesInModules {
-		terragruntOptions.Logger.Debugf("Looking at file %s", terraformFile)
+		opts.Logger.Debugf("Looking at file %s", terraformFile)
 		originalTerraformFileContents, err := util.ReadFileAsString(terraformFile)
 		if err != nil {
 			return err
 		}
 
-		updatedTerraformFileContents, codeWasUpdated, err := patchAwsProviderInTerraformCode(originalTerraformFileContents, terraformFile, terragruntOptions.AwsProviderPatchOverrides)
+		updatedTerraformFileContents, codeWasUpdated, err := patchAwsProviderInTerraformCode(originalTerraformFileContents, terraformFile, opts.AwsProviderPatchOverrides)
 		if err != nil {
 			return err
 		}
 
 		if codeWasUpdated {
-			terragruntOptions.Logger.Debugf("Patching AWS provider in %s", terraformFile)
+			opts.Logger.Debugf("Patching AWS provider in %s", terraformFile)
 			if err := util.WriteFileWithSamePermissions(terraformFile, terraformFile, []byte(updatedTerraformFileContents)); err != nil {
 				return err
 			}
@@ -121,7 +62,7 @@ type TerraformModule struct {
 //
 // NOTE: this method only supports *.tf files right now. Terraform code defined in *.json files is not currently
 // supported.
-func findAllTerraformFilesInModules(terragruntOptions *options.TerragruntOptions) ([]string, error) {
+func findAllTerraformFilesInModules(opts *Options) ([]string, error) {
 	// Terraform downloads modules into the .terraform/modules folder. Unfortunately, it downloads not only the module
 	// into that folder, but the entire repo it's in, which can contain lots of other unrelated code we probably don't
 	// want to touch. To find the paths to the actual modules, we read the modules.json file in that folder, which is
@@ -129,7 +70,7 @@ func findAllTerraformFilesInModules(terragruntOptions *options.TerragruntOptions
 	// API, so the way we parse/read this modules.json file may break in future Terraform versions. Note that we
 	// can't use the official HashiCorp code to parse this file, as it's marked internal:
 	// https://github.com/hashicorp/terraform/blob/master/internal/modsdir/manifest.go
-	modulesJsonPath := util.JoinPath(terragruntOptions.DataDir(), "modules", "modules.json")
+	modulesJsonPath := util.JoinPath(opts.DataDir(), "modules", "modules.json")
 
 	if !util.FileExists(modulesJsonPath) {
 		return nil, nil
@@ -151,7 +92,7 @@ func findAllTerraformFilesInModules(terragruntOptions *options.TerragruntOptions
 		if module.Key != "" && module.Dir != "" {
 			moduleAbsPath := module.Dir
 			if !filepath.IsAbs(moduleAbsPath) {
-				moduleAbsPath = util.JoinPath(terragruntOptions.WorkingDir, moduleAbsPath)
+				moduleAbsPath = util.JoinPath(opts.WorkingDir, moduleAbsPath)
 			}
 
 			// Ideally, we'd use a builtin Go library like filepath.Glob here, but per https://github.com/golang/go/issues/11862,
@@ -334,14 +275,6 @@ func traverseBlock(block *hclwrite.Block, keyParts []string) (*hclwrite.Body, st
 
 	blockName := keyParts[0]
 	return traverseBlock(block.Body().FirstMatchingBlock(blockName, nil), keyParts[1:])
-}
-
-// Custom error types
-
-type MissingOverrides string
-
-func (err MissingOverrides) Error() string {
-	return fmt.Sprintf("You must specify at least one provider attribute to override via the --%s option.", string(err))
 }
 
 type TypeInferenceErr struct {
