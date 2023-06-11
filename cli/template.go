@@ -3,10 +3,15 @@ package cli
 // Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
 // in its definition, we don't quite fit into the model of any Go CLI library. Fortunately, urfave/cli allows us to
 // override the whole template used for the Usage Text.
-const appHelpTemplate = `USAGE: {{.Usage}}
+const appHelpTemplate = `NAME:
+   {{$v := offset .HelpName 6}}{{wrap .HelpName 3}}{{if .Usage}} - {{wrap .Usage $v}}{{end}}
+
+USAGE:
+   {{if .UsageText}}{{wrap .UsageText 3}}{{else}}{{.HelpName}} {{if .VisibleFlags}}[global options]{{end}}{{if .Commands}} command [command options]{{end}} {{if .ArgsUsage}}{{.ArgsUsage}}{{else}}[arguments...]{{end}}{{end}}
 
 DESCRIPTION:
-   {{.Name}} - {{.UsageText}}
+   Terragrunt is a thin wrapper for Terraform that provides extra tools for working with multiple
+   Terraform modules, remote state, and locking. For documentation, see https://github.com/gruntwork-io/terragrunt/.
 
 COMMANDS:{{ $cv := offsetCommands .VisibleCommands 5}}{{range .VisibleCommands}}
    {{$s := join .Names ", "}}{{$s}}{{ $sp := subtract $cv (offset $s 3) }}{{ indent $sp ""}}{{wrap .Usage $cv}}{{end}}

@@ -24,6 +24,11 @@ func (flags Flags) Get(name string) Flag {
 	return nil
 }
 
+// Add adds a new flag to the list.
+func (flags *Flags) Add(flag Flag) {
+	*flags = append(*flags, flag)
+}
+
 func (flags Flags) Len() int {
 	return len(flags)
 }
@@ -42,6 +47,12 @@ func (flags Flags) Swap(i, j int) {
 	flags[i], flags[j] = flags[j], flags[i]
 }
 
+// VisibleFlags returns a slice of the Flags.
+// Used by `urfave/cli` package to generate help.
+func (flags Flags) VisibleFlags() Flags {
+	return flags
+}
+
 func (flags Flags) newFlagSet(name string, errorHandling libflag.ErrorHandling) (*libflag.FlagSet, error) {
 	set := libflag.NewFlagSet(name, errorHandling)
 	set.SetOutput(io.Discard)
@@ -56,10 +67,10 @@ func (flags Flags) newFlagSet(name string, errorHandling libflag.ErrorHandling) 
 }
 
 func (flags Flags) parseArgs(flagSet *libflag.FlagSet, args []string) ([]string, error) {
-	var undefined []string
+	var undefArgs []string
 
 	if len(args) == 0 {
-		return undefined, nil
+		return undefArgs, nil
 	}
 
 	for {
@@ -68,20 +79,20 @@ func (flags Flags) parseArgs(flagSet *libflag.FlagSet, args []string) ([]string,
 			break
 		}
 
-		// check if the error is due to an undefined flag
-		var notFound string
+		// check if the error is due to an undefArgs flag
+		var undefArg string
 		errStr := err.Error()
 		if !strings.HasPrefix(errStr, errFlagUndefined) {
 			return nil, errors.WithStackTrace(err)
 		}
 
-		notFound = strings.Trim(strings.TrimPrefix(errStr, errFlagUndefined), " -")
+		undefArg = strings.Trim(strings.TrimPrefix(errStr, errFlagUndefined), " -")
 
 		// cut off the args
 		var notFoundMatch bool
 		for i, arg := range args {
-			if trimmed := strings.Trim(arg, "-"); trimmed == notFound {
-				undefined = append(undefined, arg)
+			if trimmed := strings.Trim(arg, "-"); trimmed == undefArg {
+				undefArgs = append(undefArgs, arg)
 				notFoundMatch = true
 				args = args[i+1:]
 				break
@@ -96,6 +107,6 @@ func (flags Flags) parseArgs(flagSet *libflag.FlagSet, args []string) ([]string,
 		}
 	}
 
-	undefined = append(undefined, flagSet.Args()...)
-	return undefined, nil
+	undefArgs = append(undefArgs, flagSet.Args()...)
+	return undefArgs, nil
 }

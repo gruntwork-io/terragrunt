@@ -7,7 +7,6 @@ import (
 // App is the main structure of app cli application. It should be created with the cli.NewApp() function.
 type App struct {
 	*cli.App
-
 	// List of commands to execute
 	Commands Commands
 	// List of flags to parse
@@ -17,6 +16,8 @@ type App struct {
 	// An action to execute before any subcommands are run, but after the context is ready
 	// If a non-nil error is returned, no subcommands are run
 	Before RunFunc
+	// An action to execute after any subcommands are run, but after the subcommand has finished
+	After RunFunc
 	// The action to execute when no subcommands are specified
 	Action RunFunc
 }
@@ -44,7 +45,9 @@ func (app *App) Run(arguments []string) (err error) {
 	app.Authors = []*cli.Author{{Name: app.Author}}
 
 	app.App.Action = func(parentCtx *cli.Context) error {
-		command, args, err := app.parseArgs(parentCtx.Args().Slice())
+		args := parentCtx.Args().Slice()
+
+		command, args, err := app.newRootCommand().parseArgs(args)
 		if err != nil {
 			return err
 		}
@@ -57,51 +60,30 @@ func (app *App) Run(arguments []string) (err error) {
 			}
 		}
 
-		if command.Action != nil {
-			return command.Action(ctx)
+		if err := command.run(ctx); err != nil {
+			return err
 		}
-		return app.Action(ctx)
+
+		if app.After != nil {
+			if err := app.After(ctx); err != nil {
+				return err
+			}
+		}
+
+		return nil
 	}
 
 	return app.App.Run(arguments)
 }
 
-// VisibleFlags returns app slice of the Flags.
+// VisibleFlags returns a slice of the Flags.
 func (app *App) VisibleFlags() Flags {
-	return app.Flags
+	return app.Flags.VisibleFlags()
 }
 
 // VisibleCommands returns a slice of the Commands.
 func (app *App) VisibleCommands() []*cli.Command {
-	var commands []*cli.Command
-
-	for _, command := range app.VisibleCommands() {
-		commands = append(commands, &cli.Command{
-			Name:        command.Name,
-			Aliases:     command.Aliases,
-			Usage:       command.Usage,
-			UsageText:   command.UsageText,
-			Description: command.Description,
-			Hidden:      command.Hidden,
-		})
-	}
-
-	return commands
-}
-
-func (app *App) parseArgs(args []string) (*Command, []string, error) {
-	rootCommand := app.newRootCommand()
-
-	args, err := rootCommand.parseArgs(args)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if command, args, err := app.Commands.parseArgs(args); command != nil || err != nil {
-		return command, args, err
-	}
-
-	return rootCommand, args, err
+	return app.Commands.VisibleCommands()
 }
 
 func (app *App) newRootCommand() *Command {

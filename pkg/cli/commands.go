@@ -1,5 +1,7 @@
 package cli
 
+import "github.com/urfave/cli/v2"
+
 type Commands []*Command
 
 // Get returns a Command by the given name.
@@ -13,14 +15,26 @@ func (commands Commands) Get(name string) *Command {
 	return nil
 }
 
-// VisibleCommands returns a slice of the Commands with Hidden=false
-func (commands Commands) VisibleCommands() Commands {
-	var visible Commands
+// VisibleCommands returns a slice of the Commands with Hidden=false.
+// Used by `urfave/cli` package to generate help.
+func (commands Commands) VisibleCommands() []*cli.Command {
+	var visible []*cli.Command
+
 	for _, command := range commands {
-		if !command.Hidden {
-			visible = append(visible, command)
+		if command.Hidden {
+			continue
 		}
+
+		visible = append(commands, &cli.Command{
+			Name:        command.Name,
+			Aliases:     command.Aliases,
+			Usage:       command.Usage,
+			UsageText:   command.UsageText,
+			Description: command.Description,
+			Hidden:      command.Hidden,
+		})
 	}
+
 	return visible
 }
 
@@ -43,7 +57,7 @@ func (commands Commands) parseArgs(args []string) (*Command, []string, error) {
 	name, args := args[0], args[1:]
 
 	if command := commands.Get(name); command != nil {
-		args, err := command.parseArgs(args)
+		command, args, err := command.parseArgs(args)
 		return command, args, err
 	}
 

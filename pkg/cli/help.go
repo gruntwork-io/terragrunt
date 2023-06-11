@@ -13,6 +13,10 @@ func ShowAppHelp(ctx *Context) error {
 		tpl = AppHelpTemplate
 	}
 
+	if ctx.App.HelpName == "" {
+		ctx.App.HelpName = ctx.App.Name
+	}
+
 	if ctx.App.ExtraInfo == nil {
 		cli.HelpPrinter(ctx.App.Writer, tpl, ctx.App)
 		return nil

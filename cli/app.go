@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"regexp"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -38,40 +37,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
-)
-
-const (
-	optTerragruntConfig                         = "terragrunt-config"
-	optTerragruntTFPath                         = "terragrunt-tfpath"
-	optTerragruntNoAutoInit                     = "terragrunt-no-auto-init"
-	optTerragruntNoAutoRetry                    = "terragrunt-no-auto-retry"
-	optTerragruntNoAutoApprove                  = "terragrunt-no-auto-approve"
-	optNonInteractive                           = "terragrunt-non-interactive"
-	optWorkingDir                               = "terragrunt-working-dir"
-	optDownloadDir                              = "terragrunt-download-dir"
-	optTerragruntSource                         = "terragrunt-source"
-	optTerragruntSourceMap                      = "terragrunt-source-map"
-	optTerragruntSourceUpdate                   = "terragrunt-source-update"
-	optTerragruntIAMRole                        = "terragrunt-iam-role"
-	optTerragruntIAMAssumeRoleDuration          = "terragrunt-iam-assume-role-duration"
-	optTerragruntIAMAssumeRoleSessionName       = "terragrunt-iam-assume-role-session-name"
-	optTerragruntIgnoreDependencyErrors         = "terragrunt-ignore-dependency-errors"
-	optTerragruntIgnoreDependencyOrder          = "terragrunt-ignore-dependency-order"
-	optTerragruntIgnoreExternalDependencies     = "terragrunt-ignore-external-dependencies"
-	optTerragruntIncludeExternalDependencies    = "terragrunt-include-external-dependencies"
-	optTerragruntExcludeDir                     = "terragrunt-exclude-dir"
-	optTerragruntIncludeDir                     = "terragrunt-include-dir"
-	optTerragruntStrictInclude                  = "terragrunt-strict-include"
-	optTerragruntParallelism                    = "terragrunt-parallelism"
-	optTerragruntCheck                          = "terragrunt-check"
-	optTerragruntDiff                           = "terragrunt-diff"
-	optTerragruntDebug                          = "terragrunt-debug"
-	optTerragruntLogLevel                       = "terragrunt-log-level"
-	optTerragruntNoColor                        = "terragrunt-no-color"
-	optTerragruntModulesThatInclude             = "terragrunt-modules-that-include"
-	optTerragruntFetchDependencyOutputFromState = "terragrunt-fetch-dependency-output-from-state"
-	optTerragruntUsePartialParseConfigCache     = "terragrunt-use-partial-parse-config-cache"
-	optTerragruntIncludeModulePrefix            = "terragrunt-include-module-prefix"
 )
 
 const (
@@ -121,228 +86,26 @@ const TerraformExtensionGlob = "*.tf"
 // code while another hook (e.g. `tflint`) is running. We use sync.Map to ensure atomic updates during concurrent access.
 var sourceChangeLocks = sync.Map{}
 
-// Create the Terragrunt CLI App
-func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
+func init() {
 	cli.AppHelpTemplate = appHelpTemplate
 	cli.CommandHelpTemplate = commandHelpTemplate
+}
 
-	app := cli.NewApp()
-	app.Name = "terragrunt"
-	app.Author = "Gruntwork <www.gruntwork.io>"
-	app.Usage = "terragrunt <COMMAND> [GLOBAL OPTIONS]"
-	app.Version = version.GetVersion()
-	app.Writer = writer
-	app.ErrWriter = errwriter
-	app.UsageText = `Terragrunt is a thin wrapper for Terraform that provides extra tools for working with multiple
-   Terraform modules, remote state, and locking. For documentation, see https://github.com/gruntwork-io/terragrunt/.`
-
+// Create the Terragrunt CLI App
+func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 	opts := options.NewTerragruntOptions()
-
-	// The env vars are renamed to "..._NO_AUTO_...". These ones are left for backwards compatibility.
+	// The env vars are renamed in the flags to "..._NO_AUTO_...". These ones are left for backwards compatibility.
 	opts.AutoInit = env.GetBoolEnv("TERRAGRUNT_AUTO_INIT", opts.AutoInit)
 	opts.AutoRetry = env.GetBoolEnv("TERRAGRUNT_AUTO_RETRY", opts.AutoRetry)
 	opts.RunAllAutoApprove = env.GetBoolEnv("TERRAGRUNT_AUTO_APPROVE", opts.RunAllAutoApprove)
 
-	app.AddFlags(
-		&cli.GenericFlag[string]{
-			Name:        optTerragruntConfig,
-			EnvVar:      "TERRAGRUNT_CONFIG",
-			Usage:       "The path to the Terragrunt config file. Default is terragrunt.hcl.",
-			Destination: &opts.TerragruntConfigPath,
-		},
-		&cli.GenericFlag[string]{
-			Name:        optTerragruntTFPath,
-			EnvVar:      "TERRAGRUNT_TFPATH",
-			Usage:       "Path to the Terraform binary. Default is terraform (on PATH).",
-			Destination: &opts.TerraformPath,
-		},
-		&cli.BoolFlag{
-			Name:        optTerragruntNoAutoInit,
-			EnvVar:      "TERRAGRUNT_NO_AUTO_INIT",
-			Usage:       "Don't automatically run 'terraform init' during other terragrunt commands. You must run 'terragrunt init' manually.",
-			Negative:    true,
-			Destination: &opts.AutoInit,
-		},
-		&cli.BoolFlag{
-			Name:        optTerragruntNoAutoRetry,
-			Destination: &opts.AutoRetry,
-			EnvVar:      "TERRAGRUNT_NO_AUTO_RETRY",
-			Usage:       "Don't automatically re-run command in case of transient errors.",
-			Negative:    true,
-		},
-		&cli.BoolFlag{
-			Name:        optTerragruntNoAutoApprove,
-			Destination: &opts.RunAllAutoApprove,
-			EnvVar:      "TERRAGRUNT_NO_AUTO_APPROVE",
-			Usage:       "Don't automatically append `-auto-approve` to the underlying Terraform commands run with 'run-all'.",
-			Negative:    true,
-		},
-		&cli.BoolFlag{
-			Name:        optNonInteractive,
-			Destination: &opts.NonInteractive,
-			EnvVar:      "TERRAGRUNT_NON_INTERACTIVE",
-			Usage:       `Assume "yes" for all prompts.`,
-		},
-		&cli.GenericFlag[string]{
-			Name:        optWorkingDir,
-			Destination: &opts.WorkingDir,
-			EnvVar:      "TERRAGRUNT_WORKING_DIR",
-			Usage:       "The path to the Terraform templates. Default is current directory.",
-		},
-		&cli.GenericFlag[string]{
-			Name:        optDownloadDir,
-			Destination: &opts.DownloadDir,
-			EnvVar:      "TERRAGRUNT_DOWNLOAD",
-			Usage:       "The path where to download Terraform code. Default is .terragrunt-cache in the working directory.",
-		},
-		&cli.GenericFlag[string]{
-			Name:        optTerragruntSource,
-			Destination: &opts.Source,
-			EnvVar:      "TERRAGRUNT_SOURCE",
-			Usage:       "Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.",
-		},
-		&cli.BoolFlag{
-			Name:        optTerragruntSourceUpdate,
-			Destination: &opts.SourceUpdate,
-			EnvVar:      "TERRAGRUNT_SOURCE_UPDATE",
-			Usage:       "Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it.",
-		},
-		&cli.MapFlag[string, string]{
-			Name:        optTerragruntSourceMap,
-			Destination: &opts.SourceMap,
-			EnvVar:      "TERRAGRUNT_SOURCE_MAP",
-			Usage:       "Replace any source URL (including the source URL of a config pulled in with dependency blocks) that has root source with dest.",
-			Splitter:    util.SplitUrls,
-		},
-		&cli.GenericFlag[string]{
-			Name:        optTerragruntIAMRole,
-			Destination: &opts.IAMRoleOptions.RoleARN,
-			EnvVar:      "TERRAGRUNT_IAM_ROLE",
-			Usage:       "Assume the specified IAM role before executing Terraform. Can also be set via the TERRAGRUNT_IAM_ROLE environment variable.",
-		},
-		&cli.GenericFlag[int64]{
-			Name:        optTerragruntIAMAssumeRoleDuration,
-			Destination: &opts.IAMRoleOptions.AssumeRoleDuration,
-			EnvVar:      "TERRAGRUNT_IAM_ASSUME_ROLE_DURATION",
-			Usage:       "Session duration for IAM Assume Role session. Can also be set via the TERRAGRUNT_IAM_ASSUME_ROLE_DURATION environment variable.",
-		},
-		&cli.GenericFlag[string]{
-			Name:        optTerragruntIAMAssumeRoleSessionName,
-			Destination: &opts.IAMRoleOptions.AssumeRoleSessionName,
-			EnvVar:      "TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME",
-			Usage:       "Name for the IAM Assummed Role session. Can also be set via TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME environment variable.",
-		},
-		&cli.BoolFlag{
-			Name:        optTerragruntIgnoreDependencyErrors,
-			Destination: &opts.IgnoreDependencyErrors,
-			Usage:       "*-all commands continue processing components even if a dependency fails.",
-		},
-		&cli.BoolFlag{
-			Name:        optTerragruntIgnoreDependencyOrder,
-			Destination: &opts.IgnoreDependencyOrder,
-			Usage:       "*-all commands will be run disregarding the dependencies",
-		},
-		&cli.BoolFlag{
-			Name:        optTerragruntIgnoreExternalDependencies,
-			Destination: &opts.IgnoreExternalDependencies,
-			Usage:       "*-all commands will not attempt to include external dependencies",
-		},
-		&cli.BoolFlag{
-			Name:        optTerragruntIncludeExternalDependencies,
-			Destination: &opts.IncludeExternalDependencies,
-			EnvVar:      "TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES",
-			Usage:       "*-all commands will include external dependencies",
-		},
-		&cli.GenericFlag[int]{
-			Name:        optTerragruntParallelism,
-			Destination: &opts.Parallelism,
-			EnvVar:      "TERRAGRUNT_PARALLELISM",
-			Usage:       "*-all commands parallelism set to at most N modules",
-		},
-		&cli.SliceFlag[string]{
-			Name:        optTerragruntExcludeDir,
-			Destination: &opts.ExcludeDirs,
-			EnvVar:      "TERRAGRUNT_EXCLUDE_DIR",
-			Usage:       "Unix-style glob of directories to exclude when running *-all commands.",
-		},
-		&cli.SliceFlag[string]{
-			Name:        optTerragruntIncludeDir,
-			Destination: &opts.IncludeDirs,
-			Usage:       "Unix-style glob of directories to include when running *-all commands",
-		},
-		&cli.BoolFlag{
-			Name:        optTerragruntCheck,
-			Destination: &opts.Check,
-			EnvVar:      "TERRAGRUNT_CHECK",
-			Usage:       "Enable check mode in the hclfmt command.",
-		},
-		&cli.BoolFlag{
-			Name:        optTerragruntDiff,
-			Destination: &opts.Diff,
-			EnvVar:      "TERRAGRUNT_DIFF",
-			Usage:       "Print diff between original and modified file versions when running with 'hclfmt'.",
-		},
-		&cli.BoolFlag{
-			Name:        optTerragruntDebug,
-			Destination: &opts.Debug,
-			EnvVar:      "TERRAGRUNT_DEBUG",
-			Usage:       "Write terragrunt-debug.tfvars to working folder to help root-cause issues.",
-		},
-		&cli.GenericFlag[string]{
-			Name:        optTerragruntLogLevel,
-			Destination: &opts.LogLevelStr,
-			EnvVar:      "TERRAGRUNT_LOG_LEVEL",
-			Usage:       "Sets the logging level for Terragrunt. Supported levels: panic, fatal, error, warn, info, debug, trace.",
-		},
-		&cli.BoolFlag{
-			Name:        optTerragruntNoColor,
-			Destination: &opts.TerragruntNoColors,
-			EnvVar:      "TERRAGRUNT_NO_COLOR",
-			Usage:       "If specified, output won't contain any color.",
-		},
-		&cli.BoolFlag{
-			Name:        optTerragruntUsePartialParseConfigCache,
-			Destination: &opts.UsePartialParseConfigCache,
-			EnvVar:      "TERRAGRUNT_USE_PARTIAL_PARSE_CONFIG_CACHE",
-			Usage:       "Enables caching of includes during partial parsing operations. Will also be used for the --terragrunt-iam-role option if provided.",
-		},
-		&cli.BoolFlag{
-			Name:        optTerragruntFetchDependencyOutputFromState,
-			Destination: &opts.UsePartialParseConfigCache,
-			EnvVar:      "TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE",
-			Usage:       "The option fetchs dependency output directly from the state file instead of init dependencies and running terraform on them.",
-		},
-		&cli.BoolFlag{
-			Name:        optTerragruntIncludeModulePrefix,
-			Destination: &opts.IncludeModulePrefix,
-			EnvVar:      "TERRAGRUNT_INCLUDE_MODULE_PREFIX",
-			Usage:       "When this flag is set output from Terraform sub-commands is prefixed with module path.",
-		},
-		&cli.BoolFlag{
-			Name:        optTerragruntStrictInclude,
-			Destination: &opts.StrictInclude,
-			Usage:       "If flag is set, only modules under the directories passed in with '--terragrunt-include-dir' will be included.",
-		},
-		&cli.SliceFlag[string]{
-			Name:        optTerragruntModulesThatInclude,
-			Destination: &opts.ModulesThatInclude,
-			Usage:       "If flag is set, 'run-all' will only run the command against Terragrunt modules that include the specified file.",
-		},
-	)
-
-	sort.Sort(cli.Flags(app.Flags))
-
-	// add `help` after the sort to put the flag at the end of the flag list in the help.
-	showHelp := false
-	app.AddFlags(
-		&cli.BoolFlag{
-			Name:        "help",        // --help, -help
-			Aliases:     []string{"h"}, //  -h
-			Usage:       "Show help",
-			Destination: &showHelp, // another way to get flag value: ctx.Flags.Get("help").Value()
-		},
-	)
-
+	app := cli.NewApp()
+	app.Name = "terragrunt"
+	app.Author = "Gruntwork <www.gruntwork.io>"
+	app.Version = version.GetVersion()
+	app.Writer = writer
+	app.ErrWriter = errwriter
+	app.AddFlags(newFlags(opts)...)
 	app.AddCommands(
 		runall.NewCommand(opts),
 		terragruntinfo.NewCommand(opts),
@@ -356,21 +119,21 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 			Usage: "Terragrunt forwards all other commands directly to Terraform",
 		},
 	)
-
 	app.Before = func(ctx *cli.Context) error {
+		showHelp := ctx.Flags.Get(flagHelp).Value().IsSet()
 		if showHelp {
-			// if there is no args at all show the Terragrunt help.
+			// if app command is specified show the command help.
 			if !ctx.Command.IsRoot {
 				return cli.ShowCommandHelp(ctx, ctx.Command.Name)
 			}
 
-			// if internal command is given show Terragrunt help.
+			// if there is no args at all show the app help.
 			if !ctx.Args().Present() || ctx.Args().First() == "*" {
 				return cli.ShowAppHelp(ctx)
 			}
 
-			// in other cases show Terraform help.
-			terraformHelpCmd := append([]string{ctx.Args().First(), "--help"}, ctx.Args().Tail()...)
+			// in other cases show the Terraform help.
+			terraformHelpCmd := append([]string{ctx.Args().First(), "-help"}, ctx.Args().Tail()...)
 			return shell.RunTerraformCommand(opts, terraformHelpCmd...)
 		}
 
@@ -378,7 +141,6 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 		opts, err = prepareTerragruntOptions(ctx, opts)
 		return err
 	}
-
 	app.Action = func(ctx *cli.Context) error {
 		return runTerraformCommand(opts)
 	}
