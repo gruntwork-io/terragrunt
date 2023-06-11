@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"flag"
+	libflag "flag"
 )
 
 type Command struct {
@@ -66,7 +66,7 @@ func (command *Command) VisibleFlags() Flags {
 func (command *Command) parseArgs(args []string) (*Command, []string, error) {
 	var undefArgs []string
 
-	flagSet, err := command.Flags.newFlagSet(command.Name, flag.ContinueOnError)
+	flagSet, err := command.Flags.newFlagSet(command.Name, libflag.ContinueOnError)
 	if err != nil {
 		return nil, nil, err
 	}

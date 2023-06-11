@@ -13,7 +13,7 @@ type SliceFlagType interface {
 }
 
 type SliceFlag[T SliceFlagType] struct {
-	CommonFlag
+	flag
 
 	Name        string
 	DefaultText string
@@ -31,7 +31,7 @@ func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
 	flag.normalize()
 
 	var err error
-	valType := FlagType[T](new(flagType[T]))
+	valType := FlagType[T](new(genericType[T]))
 
 	if flag.FlagValue, err = newSliceValue(valType, flag.Destination, flag.EnvVar, flag.ArgSep, flag.Splitter); err != nil {
 		return err

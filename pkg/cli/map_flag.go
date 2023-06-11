@@ -19,7 +19,7 @@ type MapFlagValueType interface {
 }
 
 type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
-	CommonFlag
+	flag
 
 	Name        string
 	DefaultText string
@@ -38,8 +38,8 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 	flag.normalize()
 
 	var err error
-	keyType := FlagType[K](new(flagType[K]))
-	valType := FlagType[V](new(flagType[V]))
+	keyType := FlagType[K](new(genericType[K]))
+	valType := FlagType[V](new(genericType[V]))
 
 	if flag.FlagValue, err = newMapValue(keyType, valType, flag.Destination, flag.EnvVar, flag.ArgSep, flag.ValSep, flag.Splitter); err != nil {
 		return err
@@ -147,7 +147,7 @@ func (flag *mapValue[K, V]) Set(str string) error {
 
 	parts := flag.splitter(str, flag.valSep)
 	if len(parts) != 2 {
-		return errors.Errorf("Invalid key-value pair. Expected format KEY%VALUE, got %s", flag.valSep, str)
+		return errors.Errorf("invalid key-value pair, expected format 'key%value', got %s", flag.valSep, str)
 	}
 
 	key := flag.keyType.Clone(new(K))

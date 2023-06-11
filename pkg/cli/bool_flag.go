@@ -7,7 +7,7 @@ import (
 )
 
 type BoolFlag struct {
-	CommonFlag
+	flag
 
 	Name        string
 	DefaultText string
@@ -67,24 +67,24 @@ func (flag *BoolFlag) Names() []string {
 
 // -- bool Flag Type
 type boolFlagType struct {
-	*flagType[bool]
+	*genericType[bool]
 	negative bool
 }
 
 func (val *boolFlagType) Clone(dest *bool) FlagType[bool] {
 	return &boolFlagType{
-		flagType: &flagType[bool]{dest: dest},
-		negative: val.negative,
+		genericType: &genericType[bool]{dest: dest},
+		negative:    val.negative,
 	}
 }
 
 func (val *boolFlagType) Set(str string) error {
-	if err := val.flagType.Set(str); err != nil {
+	if err := val.genericType.Set(str); err != nil {
 		return err
 	}
 
 	if val.negative {
-		*val.flagType.dest = !*val.flagType.dest
+		*val.genericType.dest = !*val.genericType.dest
 	}
 	return nil
 }

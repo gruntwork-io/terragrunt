@@ -2,6 +2,8 @@ package cli
 
 import (
 	libflag "flag"
+	"fmt"
+	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/env"
@@ -13,7 +15,7 @@ type GenericType interface {
 }
 
 type GenericFlag[T GenericType] struct {
-	CommonFlag
+	flag
 
 	Name        string
 	DefaultText string
@@ -27,7 +29,7 @@ type GenericFlag[T GenericType] struct {
 // Apply applies Flag settings to the given flag set.
 func (flag *GenericFlag[T]) Apply(set *libflag.FlagSet) error {
 	var err error
-	valType := FlagType[T](new(flagType[T]))
+	valType := FlagType[T](new(genericType[T]))
 
 	if flag.FlagValue, err = newGenericValue(valType, flag.Destination, flag.EnvVar); err != nil {
 		return err
@@ -129,4 +131,55 @@ func (flag *genericValue[T]) GetDefaultText() string {
 		return ""
 	}
 	return flag.defaultText
+}
+
+// -- generic Type
+type genericType[T comparable] struct {
+	dest *T
+}
+
+func (val *genericType[T]) Clone(dest *T) FlagType[T] {
+	return &genericType[T]{dest: dest}
+}
+
+func (val *genericType[T]) Set(str string) error {
+	switch dest := (interface{})(val.dest).(type) {
+	case *string:
+		*dest = str
+
+	case *bool:
+		v, err := strconv.ParseBool(str)
+		if err != nil {
+			return errors.Errorf("error parse: %w", err)
+		}
+		*dest = v
+
+	case *int:
+		v, err := strconv.ParseInt(str, 0, strconv.IntSize)
+		if err != nil {
+			return errors.Errorf("error parse: %w", err)
+		}
+		*dest = int(v)
+
+	case *int64:
+		v, err := strconv.ParseInt(str, 0, 64)
+		if err != nil {
+			return errors.Errorf("error parse: %w", err)
+		}
+		*dest = v
+
+	default:
+		return errors.Errorf("flag type %T is undefined", dest)
+	}
+
+	return nil
+}
+
+func (val *genericType[T]) Get() any { return *val.dest }
+
+func (val *genericType[T]) String() string {
+	if *val.dest == *new(T) {
+		return ""
+	}
+	return fmt.Sprintf("%v", *val.dest)
 }
