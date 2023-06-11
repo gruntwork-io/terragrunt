@@ -28,7 +28,7 @@ const commandHelpTemplate = `NAME:
    {{$v := offset .HelpName 6}}{{wrap .HelpName 3}}{{if .Usage}} - {{wrap .Usage $v}}{{end}}
 
 USAGE:
-   terragrunt {{if .UsageText}}{{wrap .UsageText 3}}{{else}}{{.HelpName}}{{if .VisibleFlags}} [command options]{{end}} {{if .ArgsUsage}}{{.ArgsUsage}}{{else}}[arguments...]{{end}}{{end}}{{if .Description}}
+   terragrunt [global options] {{if .UsageText}}{{wrap .UsageText 3}}{{else}}{{.HelpName}}{{if .VisibleFlags}} [command options]{{end}}{{end}}{{if .Description}}
 
 DESCRIPTION:
    {{wrap .Description 3}}{{end}}{{if .VisibleFlags}}

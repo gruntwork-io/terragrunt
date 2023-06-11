@@ -28,6 +28,7 @@ func (commands Commands) VisibleCommands() []*cli.Command {
 		visible = append(visible, &cli.Command{
 			Name:        command.Name,
 			Aliases:     command.Aliases,
+			HelpName:    command.HelpName,
 			Usage:       command.Usage,
 			UsageText:   command.UsageText,
 			Description: command.Description,

@@ -94,6 +94,7 @@ func (app *App) newRootCommand() *Command {
 		UsageText:   app.UsageText,
 		Description: app.Description,
 		Flags:       app.Flags,
+		Subcommands: app.Commands,
 		IsRoot:      true,
 	}
 }
