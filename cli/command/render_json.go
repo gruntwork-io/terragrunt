@@ -1,10 +1,11 @@
-package cli
+package command
 
 import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"sort"
 
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -12,10 +13,43 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-const defaultJSONOutName = "terragrunt_rendered.json"
+const (
+	cmdRenderJSONFmt = "render-json"
+
+	optTerragruntJSONOut = "terragrunt-json-out"
+	optWithMetadata      = "with-metadata"
+
+	defaultJSONOutName = "terragrunt_rendered.json"
+)
+
+func NewRenderJSONCommand(opts *options.TerragruntOptions) *cli.Command {
+	command := &cli.Command{
+		Name:        cmdRenderJSONFmt,
+		Usage:       "Render the final terragrunt config, with all variables, includes, and functions resolved, as json.",
+		Description: "Render the final terragrunt config, with all variables, includes, and functions resolved, as json. This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.",
+		Action:      func(ctx *cli.Context) error { return runRenderJSON(opts) },
+	}
+
+	command.AddFlags(cli.Flags{
+		&cli.GenericFlag[string]{
+			Name:        optTerragruntJSONOut,
+			Destination: &opts.JSONOut,
+			Usage:       "The file path that terragrunt should use when rendering the terragrunt.hcl config as json. Only used in the render-json command. Defaults to terragrunt_rendered.json.",
+		},
+		&cli.BoolFlag{
+			Name:        optWithMetadata,
+			Destination: &opts.RenderJsonWithMetadata,
+			Usage:       "Add metadata to the rendered JSON file.",
+		},
+	})
+	sort.Sort(cli.Flags(command.Flags))
+
+	return command
+}
 
 // runRenderJSON takes the parsed TerragruntConfig struct and renders it out as JSON so that it can be processed by
 // other tools. To make it easier to maintain, this uses the cty representation as an intermediary.

@@ -1,4 +1,4 @@
-package tfsource
+package terraform
 
 import (
 	"net/url"

@@ -1,4 +1,4 @@
-package tfsource
+package terraform
 
 import (
 	"crypto/sha256"
@@ -21,7 +21,7 @@ import (
 var forcedRegexp = regexp.MustCompile(`^([A-Za-z0-9]+)::(.+)$`)
 
 // This struct represents information about Terraform source code that needs to be downloaded
-type TerraformSource struct {
+type Source struct {
 	// A canonical version of RawSource, in URL format
 	CanonicalSourceURL *url.URL
 
@@ -37,8 +37,8 @@ type TerraformSource struct {
 	Logger logrus.FieldLogger
 }
 
-func (src *TerraformSource) String() string {
-	return fmt.Sprintf("TerraformSource{CanonicalSourceURL = %v, DownloadDir = %v, WorkingDir = %v, VersionFile = %v}", src.CanonicalSourceURL, src.DownloadDir, src.WorkingDir, src.VersionFile)
+func (src *Source) String() string {
+	return fmt.Sprintf("Source{CanonicalSourceURL = %v, DownloadDir = %v, WorkingDir = %v, VersionFile = %v}", src.CanonicalSourceURL, src.DownloadDir, src.WorkingDir, src.VersionFile)
 }
 
 // Encode a version number for the given source. When calculating a version number, we take the query
@@ -48,7 +48,7 @@ func (src *TerraformSource) String() string {
 // so the same file path (/foo/bar) is always considered the same version. To detect changes the file path will be hashed
 // and returned as version. In case of hash error the default encoded source version will be returned.
 // See also the encodeSourceName and ProcessTerraformSource methods.
-func (terraformSource TerraformSource) EncodeSourceVersion() (string, error) {
+func (terraformSource Source) EncodeSourceVersion() (string, error) {
 	if IsLocalSource(terraformSource.CanonicalSourceURL) {
 		sourceHash := sha256.New()
 		sourceDir := filepath.Clean(terraformSource.CanonicalSourceURL.Path)
@@ -87,7 +87,7 @@ func (terraformSource TerraformSource) EncodeSourceVersion() (string, error) {
 
 // Write a file into the DownloadDir that contains the version number of this source code. The version number is
 // calculated using the EncodeSourceVersion method.
-func (terraformSource TerraformSource) WriteVersionFile() error {
+func (terraformSource Source) WriteVersionFile() error {
 	version, err := terraformSource.EncodeSourceVersion()
 	if err != nil {
 		// If we failed to calculate a SHA of the downloaded source, write a SHA of
@@ -103,7 +103,7 @@ func (terraformSource TerraformSource) WriteVersionFile() error {
 	return errors.WithStackTrace(ioutil.WriteFile(terraformSource.VersionFile, []byte(version), 0640))
 }
 
-// Take the given source path and create a TerraformSource struct from it, including the folder where the source should
+// Take the given source path and create a Source struct from it, including the folder where the source should
 // be downloaded to. Our goal is to reuse the download folder for the same source URL between Terragrunt runs.
 // Otherwise, for every Terragrunt command, you'd have to wait for Terragrunt to download your Terraform code, download
 // that code's dependencies (terraform get), and configure remote state (terraform remote config), which is very slow.
@@ -130,7 +130,7 @@ func (terraformSource TerraformSource) WriteVersionFile() error {
 //  1. Always download source URLs pointing to local file paths.
 //  2. Only download source URLs pointing to remote paths if /T/W/H doesn't already exist or, if it does exist, if the
 //     version number in /T/W/H/.terragrunt-source-version doesn't match the current version.
-func NewTerraformSource(source string, downloadDir string, workingDir string, logger *logrus.Entry) (*TerraformSource, error) {
+func NewSource(source string, downloadDir string, workingDir string, logger *logrus.Entry) (*Source, error) {
 
 	canonicalWorkingDir, err := util.CanonicalPath(workingDir, "")
 	if err != nil {
@@ -168,7 +168,7 @@ func NewTerraformSource(source string, downloadDir string, workingDir string, lo
 	updatedWorkingDir := util.JoinPath(updatedDownloadDir, modulePath)
 	versionFile := util.JoinPath(updatedDownloadDir, ".terragrunt-source-version")
 
-	return &TerraformSource{
+	return &Source{
 		CanonicalSourceURL: rootSourceUrl,
 		DownloadDir:        updatedDownloadDir,
 		WorkingDir:         updatedWorkingDir,

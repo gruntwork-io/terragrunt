@@ -1,4 +1,4 @@
-package cli
+package command
 
 import (
 	"encoding/json"
@@ -14,8 +14,35 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/util"
 )
+
+const (
+	cmdAWSProviderPatch = "aws-provider-patch"
+
+	optTerragruntOverrideAttr = "terragrunt-override-attr"
+)
+
+func NewAwsProviderPatchCommand(opts *options.TerragruntOptions) *cli.Command {
+	command := &cli.Command{
+		Name:   cmdAWSProviderPatch,
+		Usage:  "Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018).",
+		Flags:  cli.Flags{},
+		Action: func(ctx *cli.Context) error { return applyAwsProviderPatch(opts) },
+	}
+
+	command.AddFlags(cli.Flags{
+		&cli.MapFlag[string, string]{
+			Name:        optTerragruntOverrideAttr,
+			Destination: &opts.AwsProviderPatchOverrides,
+			EnvVar:      "TERRAGRUNT_EXCLUDE_DIR",
+			Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.",
+		},
+	})
+
+	return command
+}
 
 // applyAwsProviderPatch finds all Terraform modules nested in the current code (i.e., in the .terraform/modules
 // folder), looks for provider "aws" { ... } blocks in those modules, and overwrites the attributes in those provider

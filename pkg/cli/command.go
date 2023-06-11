@@ -28,6 +28,11 @@ type Command struct {
 	IsRoot bool
 }
 
+// AddFlags adds new flags.
+func (command *Command) AddFlags(flags ...Flag) {
+	command.Flags = append(command.Flags, flags...)
+}
+
 // Names returns the names including short names and aliases.
 func (command *Command) Names() []string {
 	return append([]string{command.Name}, command.Aliases...)

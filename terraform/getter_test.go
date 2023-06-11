@@ -1,4 +1,4 @@
-package tfr
+package terraform
 
 import (
 	"context"
@@ -113,7 +113,7 @@ func TestTFRGetterRootDir(t *testing.T) {
 	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
 	assert.False(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 
-	tfrGetter := new(TerraformRegistryGetter)
+	tfrGetter := new(RegistryGetter)
 	require.NoError(t, tfrGetter.Get(moduleDestPath, testModuleURL))
 	assert.True(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 }
@@ -132,7 +132,7 @@ func TestTFRGetterSubModule(t *testing.T) {
 	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
 	assert.False(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 
-	tfrGetter := new(TerraformRegistryGetter)
+	tfrGetter := new(RegistryGetter)
 	require.NoError(t, tfrGetter.Get(moduleDestPath, testModuleURL))
 	assert.True(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 }

@@ -1,4 +1,4 @@
-package cli
+package command
 
 import (
 	"bytes"
@@ -17,8 +17,33 @@ import (
 	"github.com/mattn/go-zglob"
 
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/util"
 )
+
+const (
+	cmdNewHclFmt = "hclfmt"
+
+	optTerragruntHCLFmt = "terragrunt-hclfmt-file"
+)
+
+func NewHclFmtCommand(opts *options.TerragruntOptions) *cli.Command {
+	command := &cli.Command{
+		Name:   cmdNewHclFmt,
+		Usage:  "Recursively find hcl files and rewrite them into a canonical format.",
+		Action: func(ctx *cli.Context) error { return runHCLFmt(opts) },
+	}
+
+	command.AddFlags(cli.Flags{
+		&cli.GenericFlag[string]{
+			Name:        optTerragruntHCLFmt,
+			Destination: &opts.HclFile,
+			Usage:       "The path to a single hcl file that the hclfmt command should run on.",
+		},
+	})
+
+	return command
+}
 
 // runHCLFmt recursively looks for hcl files in the directory tree starting at workingDir, and formats them
 // based on the language style guides provided by Hashicorp. This is done using the official hcl2 library.

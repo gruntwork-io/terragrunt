@@ -1,4 +1,4 @@
-package tfr
+package terraform
 
 import (
 	"context"
@@ -31,12 +31,12 @@ const (
 	authTokenEnvVarName   = "TG_TF_REGISTRY_TOKEN"
 )
 
-// TerraformRegistryServicePath is a struct for extracting the modules service path in the Registry.
-type TerraformRegistryServicePath struct {
+// RegistryServicePath is a struct for extracting the modules service path in the Registry.
+type RegistryServicePath struct {
 	ModulesPath string `json:"modules.v1"`
 }
 
-// TerraformRegistryGetter is a Getter (from go-getter) implementation that will download from the terraform module
+// RegistryGetter is a Getter (from go-getter) implementation that will download from the terraform module
 // registry. This supports getter URLs encoded in the following manner:
 //
 // tfr://REGISTRY_DOMAIN/MODULE_PATH?version=VERSION
@@ -63,18 +63,18 @@ type TerraformRegistryServicePath struct {
 // referring to a terraform registry, but this requires implementing a complex detector and ensuring it has precedence
 // over the file detector. We deferred the implementation for that to a future release.
 // GH issue: https://github.com/gruntwork-io/terragrunt/issues/1772
-type TerraformRegistryGetter struct {
+type RegistryGetter struct {
 	client *getter.Client
 }
 
 // SetClient allows the getter to know what getter client (different from the underlying HTTP client) to use for
 // progress tracking.
-func (tfrGetter *TerraformRegistryGetter) SetClient(client *getter.Client) {
+func (tfrGetter *RegistryGetter) SetClient(client *getter.Client) {
 	tfrGetter.client = client
 }
 
 // Context returns the go context to use for the underlying fetch routines. This depends on what client is set.
-func (tfrGetter *TerraformRegistryGetter) Context() context.Context {
+func (tfrGetter *RegistryGetter) Context() context.Context {
 	if tfrGetter == nil || tfrGetter.client == nil {
 		return context.Background()
 	}
@@ -83,7 +83,7 @@ func (tfrGetter *TerraformRegistryGetter) Context() context.Context {
 
 // ClientMode returns the download mode based on the given URL. Since this getter is designed around the Terraform
 // module registry, we always use Dir mode so that we can download the full Terraform module.
-func (tfrGetter *TerraformRegistryGetter) ClientMode(u *url.URL) (getter.ClientMode, error) {
+func (tfrGetter *RegistryGetter) ClientMode(u *url.URL) (getter.ClientMode, error) {
 	return getter.ClientModeDir, nil
 }
 
@@ -91,7 +91,7 @@ func (tfrGetter *TerraformRegistryGetter) ClientMode(u *url.URL) (getter.ClientM
 // This routine assumes that the srcURL points to the Terraform registry URL, with the Path configured to the module
 // path encoded as `:namespace/:name/:system` as expected by the Terraform registry. Note that the URL query parameter
 // must have the `version` key to specify what version to download.
-func (tfrGetter *TerraformRegistryGetter) Get(dstPath string, srcURL *url.URL) error {
+func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 	ctx := tfrGetter.Context()
 
 	registryDomain := srcURL.Host
@@ -148,12 +148,12 @@ func (tfrGetter *TerraformRegistryGetter) Get(dstPath string, srcURL *url.URL) e
 
 // GetFile is not implemented for the Terraform module registry Getter since the terraform module registry doesn't serve
 // a single file.
-func (tfrGetter *TerraformRegistryGetter) GetFile(dst string, src *url.URL) error {
+func (tfrGetter *RegistryGetter) GetFile(dst string, src *url.URL) error {
 	return errors.WithStackTrace(fmt.Errorf("GetFile is not implemented for the Terraform Registry Getter"))
 }
 
 // getSubdir downloads the source into the destination, but with the proper subdir.
-func (tfrGetter *TerraformRegistryGetter) getSubdir(ctx context.Context, dstPath, sourceURL, subDir string) error {
+func (tfrGetter *RegistryGetter) getSubdir(ctx context.Context, dstPath, sourceURL, subDir string) error {
 	// Create a temporary directory to store the full source. This has to be a non-existent directory.
 	tempdirPath, tempdirCloser, err := safetemp.Dir("", "getter")
 	if err != nil {
@@ -215,7 +215,7 @@ func getModuleRegistryURLBasePath(ctx context.Context, domain string) (string, e
 		return "", err
 	}
 
-	var respJSON TerraformRegistryServicePath
+	var respJSON RegistryServicePath
 	if err := json.Unmarshal(bodyData, &respJSON); err != nil {
 		reason := fmt.Sprintf("Error parsing response body %s: %s", string(bodyData), err)
 		return "", errors.WithStackTrace(ServiceDiscoveryErr{reason: reason})

@@ -11,12 +11,12 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/sirupsen/logrus"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gruntwork-io/terragrunt/cli/tfsource"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -357,10 +357,10 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 	}
 }
 
-func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool) (*tfsource.TerraformSource, *options.TerragruntOptions, *config.TerragruntConfig, error) {
+func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool) (*terraform.Source, *options.TerragruntOptions, *config.TerragruntConfig, error) {
 	logger := logrus.New()
 	logger.Out = ioutil.Discard
-	terraformSource := &tfsource.TerraformSource{
+	terraformSource := &terraform.Source{
 		CanonicalSourceURL: parseUrl(t, canonicalUrl),
 		DownloadDir:        downloadDir,
 		WorkingDir:         downloadDir,
@@ -372,7 +372,7 @@ func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceU
 	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	terragruntOptions.SourceUpdate = sourceUpdate
-	terragruntOptions.Env = parseEnvironmentVariables(os.Environ())
+	terragruntOptions.Env = util.ParseEnvironmentVariables(os.Environ())
 
 	terragruntConfig := &config.TerragruntConfig{
 		Terraform: &config.TerraformConfig{
@@ -389,7 +389,7 @@ func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceU
 func testAlreadyHaveLatestCode(t *testing.T, canonicalUrl string, downloadDir string, expected bool) {
 	logger := logrus.New()
 	logger.Out = ioutil.Discard
-	terraformSource := &tfsource.TerraformSource{
+	terraformSource := &terraform.Source{
 		CanonicalSourceURL: parseUrl(t, canonicalUrl),
 		DownloadDir:        downloadDir,
 		WorkingDir:         downloadDir,

@@ -1,4 +1,4 @@
-package cli
+package command
 
 import (
 	"encoding/json"
@@ -11,14 +11,40 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/cli"
+	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-// validateTerragruntInputs will collect all the terraform variables defined in the target module, and the terragrunt
+const (
+	cmdValidateInputs = "validate-inputs"
+
+	optTerragruntStrictValidate = "terragrunt-strict-validate"
+)
+
+func NewValidateInputsCommand(opts *options.TerragruntOptions) *cli.Command {
+	command := &cli.Command{
+		Name:   cmdValidateInputs,
+		Usage:  "Checks if the terragrunt configured inputs align with the terraform defined variables.",
+		Action: func(ctx *cli.Context) error { return runValidateTerragruntInputs(opts) },
+	}
+
+	command.AddFlags(cli.Flags{
+		&cli.BoolFlag{
+			Name:        optTerragruntStrictValidate,
+			Destination: &opts.ValidateStrict,
+			Usage:       "Sets strict mode for the validate-inputs command. By default, strict mode is off. When this flag is passed, strict mode is turned on. When strict mode is turned off, the validate-inputs command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When strict mode is turned on, an error will be returned if required inputs are missing OR if unused variables are passed to Terragrunt.",
+		},
+	})
+
+	return command
+}
+
+// runValidateTerragruntInputs will collect all the terraform variables defined in the target module, and the terragrunt
 // inputs that are configured, and compare the two to determine if there are any unused inputs or undefined required
 // inputs.
-func validateTerragruntInputs(terragruntOptions *options.TerragruntOptions, workingConfig *config.TerragruntConfig) error {
-	required, optional, err := terraformModuleVariables(terragruntOptions)
+func runValidateTerragruntInputs(terragruntOptions *options.TerragruntOptions, workingConfig *config.TerragruntConfig) error {
+	required, optional, err := terraform.ModuleVariables(terragruntOptions.WorkingDir)
 	if err != nil {
 		return err
 	}
@@ -149,8 +175,8 @@ func getTerraformInputNamesFromEnvVar(terragruntOptions *options.TerragruntOptio
 
 	out := []string{}
 	for envName := range envVars {
-		if strings.HasPrefix(envName, TFVarPrefix) {
-			out = append(out, strings.TrimPrefix(envName, fmt.Sprintf("%s_", TFVarPrefix)))
+		if strings.HasPrefix(envName, terraform.TFVarPrefix) {
+			out = append(out, strings.TrimPrefix(envName, fmt.Sprintf("%s_", terraform.TFVarPrefix)))
 		}
 	}
 	return out

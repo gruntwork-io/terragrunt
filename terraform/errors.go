@@ -1,4 +1,4 @@
-package tfr
+package terraform
 
 import "fmt"
 
