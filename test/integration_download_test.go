@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/terraform"
@@ -130,7 +129,7 @@ func TestLocalWithMissingBackend(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), os.Stdout, os.Stderr)
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		assert.IsType(t, cli.BackendNotDefined{}, underlying)
+		assert.IsType(t, terraform.BackendNotDefined{}, underlying)
 	}
 }
 

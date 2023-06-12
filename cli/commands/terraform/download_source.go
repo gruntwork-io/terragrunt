@@ -1,4 +1,4 @@
-package common
+package terraform
 
 import (
 	"fmt"
@@ -19,7 +19,7 @@ import (
 const MODULE_MANIFEST_NAME = ".terragrunt-module-manifest"
 
 // file to indicate that init should be executed
-const ModuleInitRequiredFile = ".terragrunt-init-required"
+const moduleInitRequiredFile = ".terragrunt-init-required"
 
 const tfLintConfig = ".tflint.hcl"
 
@@ -30,7 +30,7 @@ const tfLintConfig = ".tflint.hcl"
 //
 // See the NewTerraformSource method for how we determine the temporary folder so we can reuse it across multiple
 // runs of Terragrunt to avoid downloading everything from scratch every time.
-func DownloadTerraformSource(source string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (*options.TerragruntOptions, error) {
+func downloadTerraformSource(source string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (*options.TerragruntOptions, error) {
 	terraformSource, err := terraform.NewSource(source, terragruntOptions.DownloadDir, terragruntOptions.WorkingDir, terragruntOptions.Logger)
 	if err != nil {
 		return nil, err
@@ -116,7 +116,7 @@ func downloadTerraformSourceIfNecessary(terraformSource *terraform.Source, terra
 	// if source versions are different or calculating version failed, create file to run init
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
 	if previousVersion != currentVersion || err != nil {
-		initFile := util.JoinPath(terraformSource.WorkingDir, ModuleInitRequiredFile)
+		initFile := util.JoinPath(terraformSource.WorkingDir, moduleInitRequiredFile)
 		f, createErr := os.Create(initFile)
 		if createErr != nil {
 			return createErr

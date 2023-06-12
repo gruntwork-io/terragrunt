@@ -15,12 +15,22 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-func Run(opts *Options, terragruntConfig *config.TerragruntConfig) error {
+func Run(opts *Options) error {
+	if err := terraform.CheckVersionConstraints(opts.TerragruntOptions); err != nil {
+		return err
+	}
+
+	terragruntConfig, err := config.ReadTerragruntConfig(opts.TerragruntOptions)
+	if err != nil {
+		return err
+	}
+
 	if terragruntConfig == nil {
 		return fmt.Errorf("Terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl.")
 	}

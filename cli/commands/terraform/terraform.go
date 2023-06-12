@@ -9,9 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/common"
 	"github.com/gruntwork-io/terragrunt/terraform"
-	"github.com/gruntwork-io/terragrunt/tflint"
 
 	"github.com/gruntwork-io/gruntwork-cli/collections"
 	"github.com/hashicorp/go-multierror"
@@ -68,31 +66,16 @@ var TerraformCommandsThatDoNotNeedInit = []string{
 
 var ModuleRegex = regexp.MustCompile(`module[[:blank:]]+".+"`)
 
-// This uses the constraint syntax from https://github.com/hashicorp/go-version
-// This version of Terragrunt was tested to work with Terraform 0.12.0 and above only
-const DefaultTerraformVersionConstraint = ">= v0.12.0"
-
 const TerraformExtensionGlob = "*.tf"
 
 // sourceChangeLocks is a map that keeps track of locks for source changes, to ensure we aren't overriding the generated
 // code while another hook (e.g. `tflint`) is running. We use sync.Map to ensure atomic updates during concurrent access.
 var sourceChangeLocks = sync.Map{}
 
-// runTerraformCommand runs one or many terraform commands based on the type of
-// terragrunt command
-func runTerraformCommand(opts *options.TerragruntOptions) error {
-	switch opts.TerraformCommand {
-	case CommandNameDestroy:
-		opts.CheckDependentModules = true
-	}
-
-	return Run(opts)
-}
-
 // Run downloads terraform source if necessary, then runs terraform with the given options and CLI args.
 // This will forward all the args and extra_arguments directly to Terraform.
 func Run(terragruntOptions *options.TerragruntOptions) error {
-	if err := checkVersionConstraints(terragruntOptions); err != nil {
+	if err := CheckVersionConstraints(terragruntOptions); err != nil {
 		return err
 	}
 
@@ -100,11 +83,6 @@ func Run(terragruntOptions *options.TerragruntOptions) error {
 	if err != nil {
 		return err
 	}
-
-	// TODO
-	// if shouldRunRenderJSON(terragruntOptions) {
-	// 	return runRenderJSON(terragruntOptions, terragruntConfig)
-	// }
 
 	terragruntOptionsClone := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
@@ -169,7 +147,7 @@ func Run(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 	if sourceUrl != "" {
-		updatedTerragruntOptions, err = common.DownloadTerraformSource(sourceUrl, terragruntOptions, terragruntConfig)
+		updatedTerragruntOptions, err = downloadTerraformSource(sourceUrl, terragruntOptions, terragruntConfig)
 		if err != nil {
 			return err
 		}
@@ -212,7 +190,7 @@ func Run(terragruntOptions *options.TerragruntOptions) error {
 	// We do the debug file generation here, after all the terragrunt generated terraform files are created so that we
 	// can ensure the tfvars json file only includes the vars that are defined in the module.
 	if updatedTerragruntOptions.Debug {
-		err := common.WriteTerragruntDebugFile(updatedTerragruntOptions, terragruntConfig)
+		err := writeTerragruntDebugFile(updatedTerragruntOptions, terragruntConfig)
 		if err != nil {
 			return err
 		}
@@ -252,194 +230,6 @@ func generateConfig(terragruntConfig *config.TerragruntConfig, updatedTerragrunt
 		if err := checkTerraformCodeDefinesBackend(updatedTerragruntOptions, terragruntConfig.RemoteState.Backend); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-// Check the version constraints of both terragrunt and terraform. Note that as a side effect this will set the
-// following settings on terragruntOptions:
-// - TerraformPath
-// - TerraformVersion
-// TODO: Look into a way to refactor this function to avoid the side effect.
-func checkVersionConstraints(terragruntOptions *options.TerragruntOptions) error {
-	partialTerragruntConfig, err := config.PartialParseConfigFile(
-		terragruntOptions.TerragruntConfigPath,
-		terragruntOptions,
-		nil,
-		[]config.PartialDecodeSectionType{config.TerragruntVersionConstraints},
-	)
-	if err != nil {
-		return err
-	}
-
-	// Change the terraform binary path before checking the version
-	// if the path is not changed from default and set in the config.
-	if terragruntOptions.TerraformPath == options.TERRAFORM_DEFAULT_PATH && partialTerragruntConfig.TerraformBinary != "" {
-		terragruntOptions.TerraformPath = partialTerragruntConfig.TerraformBinary
-	}
-	if err := common.PopulateTerraformVersion(terragruntOptions); err != nil {
-		return err
-	}
-
-	terraformVersionConstraint := DefaultTerraformVersionConstraint
-	if partialTerragruntConfig.TerraformVersionConstraint != "" {
-		terraformVersionConstraint = partialTerragruntConfig.TerraformVersionConstraint
-	}
-	if err := common.CheckTerraformVersion(terraformVersionConstraint, terragruntOptions); err != nil {
-		return err
-	}
-
-	if partialTerragruntConfig.TerragruntVersionConstraint != "" {
-		if err := common.CheckTerragruntVersion(partialTerragruntConfig.TerragruntVersionConstraint, terragruntOptions); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func processErrorHooks(hooks []config.ErrorHook, terragruntOptions *options.TerragruntOptions, previousExecErrors *multierror.Error) error {
-	if len(hooks) == 0 || previousExecErrors.ErrorOrNil() == nil {
-		return nil
-	}
-
-	var errorsOccured *multierror.Error
-
-	terragruntOptions.Logger.Debugf("Detected %d error Hooks", len(hooks))
-
-	customMultierror := multierror.Error{
-		Errors: previousExecErrors.Errors,
-		ErrorFormat: func(err []error) string {
-			result := ""
-			for _, e := range err {
-				errorMessage := e.Error()
-				// Check if is process execution error and try to extract output
-				// https://github.com/gruntwork-io/terragrunt/issues/2045
-				originalError := errors.Unwrap(e)
-				if originalError != nil {
-					processError, cast := originalError.(shell.ProcessExecutionError)
-					if cast {
-						errorMessage = fmt.Sprintf("%s\n%s", processError.StdOut, processError.Stderr)
-					}
-				}
-				result = fmt.Sprintf("%s\n%s", result, errorMessage)
-			}
-			return result
-		},
-	}
-	errorMessage := customMultierror.Error()
-
-	for _, curHook := range hooks {
-		if util.MatchesAny(curHook.OnErrors, errorMessage) && util.ListContainsElement(curHook.Commands, terragruntOptions.TerraformCommand) {
-			terragruntOptions.Logger.Infof("Executing hook: %s", curHook.Name)
-			workingDir := ""
-			if curHook.WorkingDir != nil {
-				workingDir = *curHook.WorkingDir
-			}
-
-			var suppressStdout bool
-			if curHook.SuppressStdout != nil && *curHook.SuppressStdout {
-				suppressStdout = true
-			}
-
-			actionToExecute := curHook.Execute[0]
-			actionParams := curHook.Execute[1:]
-
-			_, possibleError := shell.RunShellCommandWithOutput(
-				terragruntOptions,
-				workingDir,
-				suppressStdout,
-				false,
-				actionToExecute, actionParams...,
-			)
-			if possibleError != nil {
-				terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
-				errorsOccured = multierror.Append(errorsOccured, possibleError)
-			}
-		}
-	}
-	return errorsOccured.ErrorOrNil()
-}
-
-func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, previousExecErrors *multierror.Error) error {
-	if len(hooks) == 0 {
-		return nil
-	}
-
-	var errorsOccured *multierror.Error
-
-	terragruntOptions.Logger.Debugf("Detected %d Hooks", len(hooks))
-
-	for _, curHook := range hooks {
-		allPreviousErrors := multierror.Append(previousExecErrors, errorsOccured)
-		if shouldRunHook(curHook, terragruntOptions, allPreviousErrors) {
-			err := runHook(terragruntOptions, terragruntConfig, curHook)
-			if err != nil {
-				errorsOccured = multierror.Append(errorsOccured, err)
-			}
-		}
-	}
-
-	return errorsOccured.ErrorOrNil()
-}
-
-func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOptions, previousExecErrors *multierror.Error) bool {
-	//if there's no previous error, execute command
-	//OR if a previous error DID happen AND we want to run anyways
-	//then execute.
-	//Skip execution if there was an error AND we care about errors
-
-	//resolves: https://github.com/gruntwork-io/terragrunt/issues/459
-	hasErrors := previousExecErrors.ErrorOrNil() != nil
-	isCommandInHook := util.ListContainsElement(hook.Commands, terragruntOptions.TerraformCommand)
-
-	return isCommandInHook && (!hasErrors || (hook.RunOnError != nil && *hook.RunOnError))
-}
-
-func runHook(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, curHook config.Hook) error {
-	terragruntOptions.Logger.Infof("Executing hook: %s", curHook.Name)
-	workingDir := ""
-	if curHook.WorkingDir != nil {
-		workingDir = *curHook.WorkingDir
-	}
-
-	var suppressStdout bool
-	if curHook.SuppressStdout != nil && *curHook.SuppressStdout {
-		suppressStdout = true
-	}
-
-	actionToExecute := curHook.Execute[0]
-	actionParams := curHook.Execute[1:]
-
-	if actionToExecute == "tflint" {
-		if err := executeTFLint(terragruntOptions, terragruntConfig, curHook, workingDir); err != nil {
-			return err
-		}
-	} else {
-		_, possibleError := shell.RunShellCommandWithOutput(
-			terragruntOptions,
-			workingDir,
-			suppressStdout,
-			false,
-			actionToExecute, actionParams...,
-		)
-		if possibleError != nil {
-			terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
-			return possibleError
-		}
-	}
-	return nil
-}
-
-func executeTFLint(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, curHook config.Hook, workingDir string) error {
-	// fetching source code changes lock since tflint is not thread safe
-	rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
-	actualLock := rawActualLock.(*sync.Mutex)
-	actualLock.Lock()
-	defer actualLock.Unlock()
-	err := tflint.RunTflintWithOpts(terragruntOptions, terragruntConfig)
-	if err != nil {
-		terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
-		return err
 	}
 	return nil
 }
@@ -764,7 +554,7 @@ func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terr
 		return err
 	}
 
-	moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, common.ModuleInitRequiredFile)
+	moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, moduleInitRequiredFile)
 	if util.FileExists(moduleNeedInit) {
 		return os.Remove(moduleNeedInit)
 	}
@@ -797,7 +587,7 @@ func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error)
 	if util.FileExists(modulesPath) {
 		return false, nil
 	}
-	moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, common.ModuleInitRequiredFile)
+	moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, moduleInitRequiredFile)
 	if util.FileExists(moduleNeedInit) {
 		return true, nil
 	}

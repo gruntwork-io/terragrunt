@@ -1,4 +1,4 @@
-package common
+package terraform
 
 import (
 	"fmt"
@@ -353,7 +353,7 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 	}
 
 	if requireInitFile {
-		existsInitFile := util.FileExists(util.JoinPath(terraformSource.WorkingDir, ModuleInitRequiredFile))
+		existsInitFile := util.FileExists(util.JoinPath(terraformSource.WorkingDir, moduleInitRequiredFile))
 		assert.True(t, existsInitFile)
 	}
 }

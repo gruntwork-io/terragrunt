@@ -1,4 +1,4 @@
-package terraform
+package cli
 
 import (
 	"bytes"

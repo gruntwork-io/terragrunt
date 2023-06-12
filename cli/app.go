@@ -5,8 +5,8 @@ import (
 
 	"github.com/gruntwork-io/go-commons/version"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
-	"github.com/gruntwork-io/terragrunt/cli/commands/common"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
@@ -42,9 +42,9 @@ func NewApp(writer io.Writer, errwriter io.Writer) *cli.App {
 	app.Version = version.GetVersion()
 	app.Writer = writer
 	app.ErrWriter = errwriter
-	app.AddFlags(common.NewGlobalFlags(opts)...)
+	app.AddFlags(commands.NewGlobalFlags(opts)...)
 	app.AddCommands(append(
-		newDeprecatedCommands(opts),
+		commands.NewDeprecatedCommands(opts),
 		runall.NewCommand(opts),            // run-all
 		terragruntinfo.NewCommand(opts),    // terragrunt-info
 		validateinputs.NewCommand(opts),    // validate-inputs
@@ -55,7 +55,7 @@ func NewApp(writer io.Writer, errwriter io.Writer) *cli.App {
 		terraform.NewCommand(opts),         // * (to show in app help)
 	)...)
 	app.Before = func(ctx *cli.Context) error {
-		if showHelp := ctx.Flags.Get(common.FlagNameHelp).Value().IsSet(); showHelp {
+		if showHelp := ctx.Flags.Get(commands.FlagNameHelp).Value().IsSet(); showHelp {
 			ctx.Command.Action = nil
 
 			// if app command is specified show the command help.

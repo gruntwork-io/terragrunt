@@ -1,7 +1,6 @@
 package graphdependencies
 
 import (
-	"github.com/gruntwork-io/terragrunt/cli/commands/common"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -15,7 +14,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Name:  CommandName,
 		Usage: "Prints the terragrunt dependency graph to stdout.",
 		Action: func(ctx *cli.Context) error {
-			if err := common.InitialSetup(ctx, opts); err != nil {
+			if err := opts.InitialSetup(ctx); err != nil {
 				return err
 			}
 

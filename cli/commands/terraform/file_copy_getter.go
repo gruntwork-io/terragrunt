@@ -1,4 +1,4 @@
-package common
+package terraform
 
 import (
 	"net/url"

@@ -1,7 +1,6 @@
 package terraform
 
 import (
-	"github.com/gruntwork-io/terragrunt/cli/commands/common"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -23,8 +22,12 @@ func CommandAction(opts *options.TerragruntOptions) func(ctx *cli.Context) error
 	return func(ctx *cli.Context) error {
 		opts.RunTerragrunt = Run
 
-		if err := common.InitialSetup(ctx, opts); err != nil {
+		if err := opts.InitialSetup(ctx); err != nil {
 			return err
+		}
+
+		if opts.TerraformCommand == CommandNameDestroy {
+			opts.CheckDependentModules = true
 		}
 
 		return Run(opts)

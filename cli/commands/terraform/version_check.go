@@ -1,4 +1,4 @@
-package common
+package terraform
 
 import (
 	"fmt"
@@ -6,11 +6,16 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/hashicorp/go-version"
 )
+
+// This uses the constraint syntax from https://github.com/hashicorp/go-version
+// This version of Terragrunt was tested to work with Terraform 0.12.0 and above only
+const DefaultTerraformVersionConstraint = ">= v0.12.0"
 
 // TerraformVersionRegex verifies that terraform --version output is in one of the following formats:
 // - Terraform v0.9.5-dev (cad024a5fe131a546936674ef85445215bbc4226+CHANGES)
@@ -18,6 +23,47 @@ import (
 // - Terraform v0.12.27
 // We only make sure the "v#.#.#" part is present in the output.
 var TerraformVersionRegex = regexp.MustCompile(`Terraform (v?\d+\.\d+\.\d+).*`)
+
+// Check the version constraints of both terragrunt and terraform. Note that as a side effect this will set the
+// following settings on terragruntOptions:
+// - TerraformPath
+// - TerraformVersion
+// TODO: Look into a way to refactor this function to avoid the side effect.
+func CheckVersionConstraints(terragruntOptions *options.TerragruntOptions) error {
+	partialTerragruntConfig, err := config.PartialParseConfigFile(
+		terragruntOptions.TerragruntConfigPath,
+		terragruntOptions,
+		nil,
+		[]config.PartialDecodeSectionType{config.TerragruntVersionConstraints},
+	)
+	if err != nil {
+		return err
+	}
+
+	// Change the terraform binary path before checking the version
+	// if the path is not changed from default and set in the config.
+	if terragruntOptions.TerraformPath == options.TERRAFORM_DEFAULT_PATH && partialTerragruntConfig.TerraformBinary != "" {
+		terragruntOptions.TerraformPath = partialTerragruntConfig.TerraformBinary
+	}
+	if err := PopulateTerraformVersion(terragruntOptions); err != nil {
+		return err
+	}
+
+	terraformVersionConstraint := DefaultTerraformVersionConstraint
+	if partialTerragruntConfig.TerraformVersionConstraint != "" {
+		terraformVersionConstraint = partialTerragruntConfig.TerraformVersionConstraint
+	}
+	if err := CheckTerraformVersion(terraformVersionConstraint, terragruntOptions); err != nil {
+		return err
+	}
+
+	if partialTerragruntConfig.TerragruntVersionConstraint != "" {
+		if err := CheckTerragruntVersion(partialTerragruntConfig.TerragruntVersionConstraint, terragruntOptions); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // Populate the currently installed version of Terraform into the given terragruntOptions
 func PopulateTerraformVersion(terragruntOptions *options.TerragruntOptions) error {

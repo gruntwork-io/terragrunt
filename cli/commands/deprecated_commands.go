@@ -1,4 +1,4 @@
-package cli
+package commands
 
 import (
 	"fmt"
@@ -59,7 +59,7 @@ func deprecatedCommandToRunAll(newTerraformCommandName string) deprecatedCommand
 	}
 }
 
-func newDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
+func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 	var commands cli.Commands
 
 	for commandName, actionFunc := range deprecatedCommandsActionFuncs {
