@@ -6,12 +6,12 @@ import (
 )
 
 const (
-	cmdTerragruntInfo = "terragrunt-info"
+	CommandName = "terragrunt-info"
 )
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	command := &cli.Command{
-		Name:   cmdTerragruntInfo,
+		Name:   CommandName,
 		Usage:  "Emits limited terragrunt state on stdout and exits.",
 		Action: func(ctx *cli.Context) error { return Run(opts) },
 	}

@@ -2,6 +2,7 @@ package cli
 
 import (
 	libflag "flag"
+	"io"
 
 	"github.com/urfave/cli/v2"
 )
@@ -45,7 +46,8 @@ func (args *Args) Normalize(acts ...NormalizeActsType) *Args {
 
 func newArgs(args []string) *Args {
 	flagSet := libflag.NewFlagSet("", libflag.ContinueOnError)
-	flagSet.Parse(args)
+	flagSet.SetOutput(io.Discard)
+	flagSet.Parse(append([]string{"--"}, args...))
 
 	return &Args{
 		Args: cli.NewContext(nil, flagSet, nil).Args(),

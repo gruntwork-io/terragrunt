@@ -7,21 +7,21 @@ import (
 )
 
 const (
-	cmdAWSProviderPatch = "aws-provider-patch"
+	CommandName = "aws-provider-patch"
 
-	flagTerragruntOverrideAttr = "terragrunt-override-attr"
+	FlagNameTerragruntOverrideAttr = "terragrunt-override-attr"
 )
 
 func NewCommand(globalOpts *options.TerragruntOptions) *cli.Command {
 	opts := NewOptions(globalOpts)
 
 	command := &cli.Command{
-		Name:  cmdAWSProviderPatch,
+		Name:  CommandName,
 		Usage: "Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018).",
 		Flags: cli.Flags{},
 		Action: func(ctx *cli.Context) error {
 			if len(opts.AwsProviderPatchOverrides) == 0 {
-				return errors.Errorf("You must specify at least one provider attribute to override via the --%s option.", flagTerragruntOverrideAttr)
+				return errors.WithStackTrace(MissingOverrideAttrError(FlagNameTerragruntOverrideAttr))
 			}
 
 			return Run(opts)
@@ -30,7 +30,7 @@ func NewCommand(globalOpts *options.TerragruntOptions) *cli.Command {
 
 	command.AddFlags(
 		&cli.MapFlag[string, string]{
-			Name:        flagTerragruntOverrideAttr,
+			Name:        FlagNameTerragruntOverrideAttr,
 			Destination: &opts.AwsProviderPatchOverrides,
 			EnvVar:      "TERRAGRUNT_EXCLUDE_DIR",
 			Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.",

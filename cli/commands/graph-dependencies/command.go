@@ -6,12 +6,12 @@ import (
 )
 
 const (
-	cmdGraphDependencies = "graph-dependencies"
+	CommandName = "graph-dependencies"
 )
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	command := &cli.Command{
-		Name:   "graph-dependencies",
+		Name:   CommandName,
 		Usage:  "Prints the terragrunt dependency graph to stdout.",
 		Action: func(ctx *cli.Context) error { return Run(opts) },
 	}

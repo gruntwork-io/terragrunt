@@ -26,9 +26,11 @@ func TestHCLFmt(t *testing.T) {
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
-	tgOptions.WorkingDir = tmpPath
 
-	err = runHCLFmt(tgOptions)
+	opts := NewOptions(tgOptions)
+	opts.WorkingDir = tmpPath
+
+	err = Run(opts)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {
@@ -100,8 +102,11 @@ func TestHCLFmtErrors(t *testing.T) {
 
 				tgHclDir := filepath.Join(tmpPath, dir)
 				newTgOptions := tgOptions.Clone(tgOptions.TerragruntConfigPath)
-				newTgOptions.WorkingDir = tgHclDir
-				err := runHCLFmt(newTgOptions)
+
+				opts := NewOptions(newTgOptions)
+				opts.WorkingDir = tgHclDir
+
+				err := Run(opts)
 				require.Error(t, err)
 			})
 		})
@@ -120,10 +125,12 @@ func TestHCLFmtCheck(t *testing.T) {
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
-	tgOptions.Check = true
-	tgOptions.WorkingDir = tmpPath
 
-	err = runHCLFmt(tgOptions)
+	opts := NewOptions(tgOptions)
+	opts.Check = true
+	opts.WorkingDir = tmpPath
+
+	err = Run(opts)
 	require.NoError(t, err)
 
 	dirs := []string{
@@ -165,10 +172,12 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
-	tgOptions.Check = true
-	tgOptions.WorkingDir = tmpPath
 
-	err = runHCLFmt(tgOptions)
+	opts := NewOptions(tgOptions)
+	opts.Check = true
+	opts.WorkingDir = tmpPath
+
+	err = Run(opts)
 	require.Error(t, err)
 
 	dirs := []string{
@@ -211,17 +220,19 @@ func TestHCLFmtFile(t *testing.T) {
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
+	opts := NewOptions(tgOptions)
+
 	// format only the hcl file contained within the a subdirectory of the fixture
-	tgOptions.HclFile = "a/terragrunt.hcl"
-	tgOptions.WorkingDir = tmpPath
-	err = runHCLFmt(tgOptions)
+	opts.HclFile = "a/terragrunt.hcl"
+	opts.WorkingDir = tmpPath
+	err = Run(opts)
 	require.NoError(t, err)
 
 	// test that the formatting worked on the specified file
 	t.Run("formatted", func(t *testing.T) {
-		t.Run(tgOptions.HclFile, func(t *testing.T) {
+		t.Run(opts.HclFile, func(t *testing.T) {
 			t.Parallel()
-			tgHclPath := filepath.Join(tmpPath, tgOptions.HclFile)
+			tgHclPath := filepath.Join(tmpPath, opts.HclFile)
 			formatted, err := ioutil.ReadFile(tgHclPath)
 			require.NoError(t, err)
 			assert.Equal(t, expected, formatted)
@@ -267,9 +278,11 @@ func TestHCLFmtHeredoc(t *testing.T) {
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
-	tgOptions.WorkingDir = tmpPath
 
-	err = runHCLFmt(tgOptions)
+	opts := NewOptions(tgOptions)
+	opts.WorkingDir = tmpPath
+
+	err = Run(opts)
 	require.NoError(t, err)
 
 	tgHclPath := filepath.Join(tmpPath, "terragrunt.hcl")

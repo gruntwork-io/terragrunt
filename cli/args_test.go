@@ -364,7 +364,7 @@ func TestParseEnvironmentVariables(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		actualVariables := parseEnvironmentVariables(testCase.environmentVariables)
+		actualVariables := ParseEnvironmentVariables(testCase.environmentVariables)
 		assert.Equal(t, testCase.expectedVariables, actualVariables)
 	}
 }

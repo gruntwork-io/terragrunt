@@ -21,6 +21,10 @@ func NewContext(parentCtx *cli.Context, app *App, command *Command, args []strin
 	}
 }
 
+func (ctx *Context) Clone(command *Command, args []string) *Context {
+	return NewContext(ctx.Context, ctx.App, command, args)
+}
+
 // Args returns the command line arguments associated with the context.
 func (ctx *Context) RawArgs() cli.Args {
 	return ctx.Context.Args()

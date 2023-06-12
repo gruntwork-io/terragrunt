@@ -372,7 +372,7 @@ func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceU
 	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	terragruntOptions.SourceUpdate = sourceUpdate
-	terragruntOptions.Env = util.ParseEnvironmentVariables(os.Environ())
+	terragruntOptions.Env = ParseEnvironmentVariables(os.Environ())
 
 	terragruntConfig := &config.TerragruntConfig{
 		Terraform: &config.TerraformConfig{

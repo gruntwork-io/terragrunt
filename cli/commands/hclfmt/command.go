@@ -6,23 +6,23 @@ import (
 )
 
 const (
-	cmdNewHclFmt = "hclfmt"
+	CommandName = "hclfmt"
 
-	flagTerragruntHCLFmt = "terragrunt-hclfmt-file"
+	FlagNameTerragruntHCLFmt = "terragrunt-hclfmt-file"
 )
 
 func NewCommand(globalOpts *options.TerragruntOptions) *cli.Command {
 	opts := NewOptions(globalOpts)
 
 	command := &cli.Command{
-		Name:   cmdNewHclFmt,
+		Name:   CommandName,
 		Usage:  "Recursively find hcl files and rewrite them into a canonical format.",
 		Action: func(ctx *cli.Context) error { return Run(opts) },
 	}
 
 	command.AddFlags(
 		&cli.GenericFlag[string]{
-			Name:        flagTerragruntHCLFmt,
+			Name:        FlagNameTerragruntHCLFmt,
 			Destination: &opts.HclFile,
 			Usage:       "The path to a single hcl file that the hclfmt command should run on.",
 		},

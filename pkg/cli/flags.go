@@ -54,16 +54,16 @@ func (flags Flags) VisibleFlags() Flags {
 }
 
 func (flags Flags) newFlagSet(name string, errorHandling libflag.ErrorHandling) (*libflag.FlagSet, error) {
-	set := libflag.NewFlagSet(name, errorHandling)
-	set.SetOutput(io.Discard)
+	flagSet := libflag.NewFlagSet(name, errorHandling)
+	flagSet.SetOutput(io.Discard)
 
 	for _, flag := range flags {
-		if err := flag.Apply(set); err != nil {
+		if err := flag.Apply(flagSet); err != nil {
 			return nil, err
 		}
 	}
 
-	return set, nil
+	return flagSet, nil
 }
 
 func (flags Flags) parseArgs(flagSet *libflag.FlagSet, args []string) ([]string, error) {

@@ -38,13 +38,16 @@ import (
 )
 
 const (
-	CmdInit                 = "init"
-	CmdInitFromModule       = "init-from-module"
-	CmdPlan                 = "plan"
-	CmdApply                = "apply"
-	CmdProviders            = "providers"
-	CmdLock                 = "lock"
-	CmdTerragruntReadConfig = "terragrunt-read-config"
+	CommandNameInit                 = "init"
+	CommandNameInitFromModule       = "init-from-module"
+	CommandNamePlan                 = "plan"
+	CommandNameApply                = "apply"
+	CommandNameDestroy              = "destroy"
+	CommandNameValidate             = "validate"
+	CommandNameOutput               = "output"
+	CommandNameProviders            = "providers"
+	CommandNameLock                 = "lock"
+	CommandNameTerragruntReadConfig = "terragrunt-read-config"
 )
 
 var TerraformCommandsThatUseState = []string{
@@ -105,8 +108,9 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 	app.Version = version.GetVersion()
 	app.Writer = writer
 	app.ErrWriter = errwriter
-	app.AddFlags(newFlags(opts)...)
-	app.AddCommands(
+	app.AddFlags(newGlobalFlags(opts)...)
+	app.AddCommands(append(
+		newDeprecatedCommands(opts),
 		runall.NewCommand(opts),
 		terragruntinfo.NewCommand(opts),
 		validateinputs.NewCommand(opts),
@@ -118,12 +122,12 @@ func CreateTerragruntCli(writer io.Writer, errwriter io.Writer) *cli.App {
 			Name:  "*",
 			Usage: "Terragrunt forwards all other commands directly to Terraform",
 		},
-	)
+	)...)
 	app.Before = func(ctx *cli.Context) error {
-		showHelp := ctx.Flags.Get(flagHelp).Value().IsSet()
-		fmt.Println("------------", showHelp, ctx.Command.IsRoot, ctx.Command.Name, ctx.Args().Slice())
-		fmt.Println("------------", opts.AutoInit, opts.NonInteractive)
-		os.Exit(1)
+		showHelp := ctx.Flags.Get(FlagNameHelp).Value().IsSet()
+		// fmt.Println("------------", showHelp, ctx.Command.IsRoot, ctx.Command.Name, ctx.Args().Slice())
+		// fmt.Println("------------", opts.AutoInit, opts.NonInteractive)
+		// os.Exit(1)
 		if showHelp {
 			ctx.Command.Action = nil
 
@@ -162,10 +166,6 @@ func prepareTerragruntOptions(ctx *cli.Context, opts *options.TerragruntOptions)
 	opts.TerraformCommand = args.First()
 	opts.TerraformCliArgs = args.Slice()
 
-	if _, found := deprecatedCommands[opts.TerraformCommand]; found {
-		opts.TerraformCliArgs = args.Tail()
-	}
-
 	if err := opts.Normalize(ctx.App.Version, ctx.App.Writer, ctx.App.ErrWriter); err != nil {
 		return nil, err
 	}
@@ -179,7 +179,6 @@ func prepareTerragruntOptions(ctx *cli.Context, opts *options.TerragruntOptions)
 	opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
 	opts.RunTerragrunt = RunTerragrunt
 
-	opts = checkDeprecated(opts)
 	return opts, nil
 }
 
@@ -187,9 +186,7 @@ func prepareTerragruntOptions(ctx *cli.Context, opts *options.TerragruntOptions)
 // terragrunt command
 func runTerraformCommand(opts *options.TerragruntOptions) error {
 	switch opts.TerraformCommand {
-	case CmdRunAll:
-		return runall.Run(opts)
-	case "destroy":
+	case CommandNameDestroy:
 		opts.CheckDependentModules = true
 	}
 
@@ -214,7 +211,7 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 	// }
 
 	terragruntOptionsClone := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
-	terragruntOptionsClone.TerraformCommand = CmdTerragruntReadConfig
+	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
 
 	if err := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone, terragruntConfig, nil); err != nil {
 		return err
@@ -570,7 +567,7 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 		return err
 	}
 
-	if util.FirstArg(terragruntOptions.TerraformCliArgs) == CmdInit {
+	if util.FirstArg(terragruntOptions.TerraformCliArgs) == CommandNameInit {
 		if err := prepareInitCommand(terragruntOptions, terragruntConfig, allowSourceDownload); err != nil {
 			return err
 		}
@@ -650,11 +647,11 @@ func confirmActionWithDependentModules(terragruntOptions *options.TerragruntOpti
 // The `providers lock` sub command enables you to ensure that the lock file is
 // fully populated.
 func shouldCopyLockFile(args []string) bool {
-	if util.FirstArg(args) == CmdInit {
+	if util.FirstArg(args) == CommandNameInit {
 		return true
 	}
 
-	if util.FirstArg(args) == CmdProviders && util.SecondArg(args) == CmdLock {
+	if util.FirstArg(args) == CommandNameProviders && util.SecondArg(args) == CommandNameLock {
 		return true
 	}
 	return false
@@ -855,7 +852,7 @@ func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, terraformSource *terraform.Source) error {
 
 	// Prevent Auto-Init if the user has disabled it
-	if util.FirstArg(terragruntOptions.TerraformCliArgs) != CmdInit && !terragruntOptions.AutoInit {
+	if util.FirstArg(terragruntOptions.TerraformCliArgs) != CommandNameInit && !terragruntOptions.AutoInit {
 		terragruntOptions.Logger.Warnf("Detected that init is needed, but Auto-Init is disabled. Continuing with further actions, but subsequent terraform commands may fail.")
 		return nil
 	}
@@ -881,11 +878,11 @@ func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terr
 func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformSource *terraform.Source) (*options.TerragruntOptions, error) {
 	// Need to clone the terragruntOptions, so the TerraformCliArgs can be configured to run the init command
 	initOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
-	initOptions.TerraformCliArgs = []string{CmdInit}
+	initOptions.TerraformCliArgs = []string{CommandNameInit}
 	initOptions.WorkingDir = terragruntOptions.WorkingDir
-	initOptions.TerraformCommand = CmdInit
+	initOptions.TerraformCommand = CommandNameInit
 
-	initOutputForCommands := []string{CmdPlan, CmdApply}
+	initOutputForCommands := []string{CommandNamePlan, CommandNameApply}
 	terraformCommand := util.FirstArg(terragruntOptions.TerraformCliArgs)
 	if !collections.ListContainsElement(initOutputForCommands, terraformCommand) {
 		// Since some command can return a json string, it is necessary to suppress output to stdout of the `terraform init` command.
