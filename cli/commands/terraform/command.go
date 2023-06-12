@@ -19,7 +19,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return command
 }
 
-func CommandAction(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
+func Action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
 		opts.RunTerragrunt = Run
 

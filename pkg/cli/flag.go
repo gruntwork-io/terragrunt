@@ -8,13 +8,13 @@ import (
 )
 
 const (
-	defaultArgSep    = ","
-	defaultKeyValSep = "="
+	DefaultArgSep    = ","
+	DefaultKeyValSep = "="
 )
 
 var (
 	// use to separate arguments and env vars with multiple values.
-	defaultSplitter = strings.Split
+	DefaultSplitter = strings.Split
 )
 
 type FlagType[T any] interface {

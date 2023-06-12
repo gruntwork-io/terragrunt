@@ -76,11 +76,11 @@ func (flag *SliceFlag[T]) Names() []string {
 
 func (flag *SliceFlag[T]) normalize() {
 	if flag.Splitter == nil {
-		flag.Splitter = defaultSplitter
+		flag.Splitter = DefaultSplitter
 	}
 
 	if flag.ArgSep == "" {
-		flag.ArgSep = defaultArgSep
+		flag.ArgSep = DefaultArgSep
 	}
 }
 

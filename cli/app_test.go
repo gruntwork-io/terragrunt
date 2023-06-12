@@ -6,9 +6,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -16,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var defaultLogLevel = util.GetDefaultLogLevel()
@@ -90,7 +92,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			[]string{"--terragrunt-source-map", "git::git@github.com:one/gw-terraform-aws-vpc.git=git::git@github.com:two/test.git?ref=FEATURE"},
+			[]string{"--" + FlagNameTerragruntSourceMap, "git::git@github.com:one/gw-terraform-aws-vpc.git=git::git@github.com:two/test.git?ref=FEATURE"},
 			mockOptionsWithSourceMap(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, map[string]string{"git::git@github.com:one/gw-terraform-aws-vpc.git": "git::git@github.com:two/test.git?ref=FEATURE"}),
 			nil,
 		},
@@ -169,38 +171,13 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 
 	for _, testCase := range testCases {
 		opts := options.NewTerragruntOptions()
-
-		app := cli.NewApp()
-		app.Writer = &bytes.Buffer{}
-		app.ErrWriter = &bytes.Buffer{}
-		app.AddFlags(commands.NewGlobalFlags(opts)...)
-		// app.AddCommands(append(
-		// 	newDeprecatedCommands(opts),
-		// 	runall.NewCommand(opts),            // run-all
-		// 	terragruntinfo.NewCommand(opts),    // terragrunt-info
-		// 	validateinputs.NewCommand(opts),    // validate-inputs
-		// 	graphdependencies.NewCommand(opts), // graph-dependencies
-		// 	hclfmt.NewCommand(opts),            // hclfmt
-		// 	renderjson.NewCommand(opts),        // render-json
-		// 	awsproviderpatch.NewCommand(opts),  // aws-provider-patch
-		// 	terraform.NewCommand(opts),         // * (to show in app help)
-		// )...)
-		app.Action = func(ctx *cli.Context) error {
-			//fmt.Println(testCase.args, "---", ctx.Command.Name, ctx.Args().Slice())
-
-			if err := commands.InitialSetup(ctx, opts); err != nil {
-				return err
-			}
-
-			return nil
-		}
-		actualErr := app.Run(append([]string{"--"}, testCase.args...))
+		actualOptions, actualErr := runAppTest(testCase.args, opts)
 
 		if testCase.expectedErr != nil {
-			assert.Error(t, actualErr, testCase.expectedErr)
+			assert.EqualError(t, actualErr, testCase.expectedErr.Error())
 		} else {
 			assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
-			assertOptionsEqual(t, *testCase.expectedOptions, *opts, "For args %v", testCase.args)
+			assertOptionsEqual(t, *testCase.expectedOptions, *actualOptions, "For args %v", testCase.args)
 		}
 	}
 }
@@ -272,137 +249,143 @@ func mockOptionsWithSourceMap(t *testing.T, terragruntConfigPath string, working
 	return opts
 }
 
-// func TestFilterTerragruntArgs(t *testing.T) {
-// 	t.Parallel()
+func TestFilterTerragruntArgs(t *testing.T) {
+	t.Parallel()
 
-// 	testCases := []struct {
-// 		args     []string
-// 		expected []string
-// 	}{
-// 		{[]string{}, []string{}},
-// 		{[]string{"foo", "--bar"}, []string{"foo", "--bar"}},
-// 		{[]string{"foo", "--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath)}, []string{"foo"}},
-// 		{[]string{"foo", "--terragrunt-non-interactive"}, []string{"foo"}},
-// 		{[]string{"foo", "--terragrunt-debug"}, []string{"foo"}},
-// 		{[]string{"foo", "--terragrunt-non-interactive", "--bar", "--terragrunt-working-dir", "/some/path", "--baz", "--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath)}, []string{"foo", "--bar", "--baz"}},
-// 		{[]string{"apply-all", "foo", "bar"}, []string{"foo", "bar"}},
-// 		{[]string{"foo", "destroy-all", "--foo", "--bar"}, []string{"foo", "--foo", "--bar"}},
-// 	}
+	testCases := []struct {
+		args     []string
+		expected []string
+	}{
+		{[]string{}, []string{}},
+		{[]string{"foo", "--bar"}, []string{"foo", "-bar"}},
+		{[]string{"foo", "--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath)}, []string{"foo"}},
+		{[]string{"foo", "-terragrunt-non-interactive"}, []string{"foo"}},
+		{[]string{"foo", "--terragrunt-debug"}, []string{"foo"}},
+		{[]string{"foo", "-terragrunt-non-interactive", "-bar", "--terragrunt-working-dir", "/some/path", "--baz", "--terragrunt-config", fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath)}, []string{"foo", "-bar", "-baz"}},
+		{[]string{"apply-all", "foo", "bar"}, []string{"apply", "foo", "bar"}},
+		{[]string{"foo", "destroy-all", "-foo", "--bar"}, []string{"destroy", "foo", "-foo", "-bar"}},
+	}
 
-// 	for _, testCase := range testCases {
-// 		actual := filterTerragruntArgs(testCase.args)
-// 		assert.Equal(t, testCase.expected, actual, "For args %v", testCase.args)
-// 	}
-// }
+	for _, testCase := range testCases {
+		opts := options.NewTerragruntOptions()
+		actualOptions, _ := runAppTest(testCase.args, opts)
+		assert.Equal(t, testCase.expected, actualOptions.TerraformCliArgs, "For args %v", testCase.args)
+	}
+}
 
-// func TestParseMultiStringArg(t *testing.T) {
-// 	t.Parallel()
+func TestParseMultiStringArg(t *testing.T) {
+	t.Parallel()
 
-// 	testCases := []struct {
-// 		args         []string
-// 		argName      string
-// 		defaultValue []string
-// 		expectedVals []string
-// 		expectedErr  error
-// 	}{
-// 		{[]string{"apply-all", "--foo", "bar"}, "foo", []string{"default_bar"}, []string{"bar"}, nil},
-// 		{[]string{"apply-all", "--test", "bar"}, "foo", []string{"default_bar"}, []string{"default_bar"}, nil},
-// 		{[]string{"plan-all", "--test", "--foo", "bar1", "--foo", "bar2"}, "foo", []string{"default_bar"}, []string{"bar1", "bar2"}, nil},
-// 		{[]string{"plan-all", "--test", "value", "--foo", "bar1", "--foo"}, "foo", []string{"default_bar"}, nil, argMissingValue("foo")},
-// 	}
+	flagName := fmt.Sprintf("--%s", FlagNameTerragruntModulesThatInclude)
 
-// 	for _, testCase := range testCases {
-// 		actual, actualErr := parseMultiStringArg(testCase.args, testCase.argName, testCase.defaultValue)
+	testCases := []struct {
+		args         []string
+		defaultValue []string
+		expectedVals []string
+		expectedErr  error
+	}{
+		{[]string{"apply-all", flagName, "bar"}, []string{"default_bar"}, []string{"bar"}, nil},
+		{[]string{"apply-all", "--test", "bar"}, []string{"default_bar"}, []string{"default_bar"}, nil},
+		{[]string{"plan-all", "--test", flagName, "bar1", flagName, "bar2"}, []string{"default_bar"}, []string{"bar1", "bar2"}, nil},
+		{[]string{"plan-all", "--test", "value", flagName, "bar1", flagName}, []string{"default_bar"}, nil, argMissingValue(FlagNameTerragruntModulesThatInclude)},
+	}
 
-// 		if testCase.expectedErr != nil {
-// 			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "Expected error %v but got error %v", testCase.expectedErr, actualErr)
-// 		} else {
-// 			assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
-// 			assert.Equal(t, testCase.expectedVals, actual, "For args %v", testCase.args)
-// 		}
-// 	}
-// }
+	for _, testCase := range testCases {
+		opts := options.NewTerragruntOptions()
+		opts.ModulesThatInclude = testCase.defaultValue
+		actualOptions, actualErr := runAppTest(testCase.args, opts)
 
-// func TestParseMutliStringKeyValueArg(t *testing.T) {
-// 	t.Parallel()
+		if testCase.expectedErr != nil {
+			assert.EqualError(t, actualErr, testCase.expectedErr.Error())
+		} else {
+			assert.Nil(t, actualErr, "Unexpected error: %q", actualErr)
+			assert.Equal(t, testCase.expectedVals, actualOptions.ModulesThatInclude, "For args %q", testCase.args)
+		}
+	}
+}
 
-// 	testCases := []struct {
-// 		args         []string
-// 		argName      string
-// 		defaultValue map[string]string
-// 		expectedVals map[string]string
-// 		expectedErr  error
-// 	}{
-// 		{[]string{"aws-provider-patch"}, "foo", nil, nil, nil},
-// 		{[]string{"aws-provider-patch"}, "foo", map[string]string{"default": "value"}, map[string]string{"default": "value"}, nil},
-// 		{[]string{"aws-provider-patch", "--other", "arg"}, "foo", map[string]string{"default": "value"}, map[string]string{"default": "value"}, nil},
-// 		{[]string{"aws-provider-patch", "--foo", "key=value"}, "foo", map[string]string{"default": "value"}, map[string]string{"key": "value"}, nil},
-// 		{[]string{"aws-provider-patch", "--foo", "key1=value1", "--foo", "key2=value2", "--foo", "key3=value3"}, "foo", map[string]string{"default": "value"}, map[string]string{"key1": "value1", "key2": "value2", "key3": "value3"}, nil},
-// 		{[]string{"aws-provider-patch", "--foo", "invalidvalue"}, "foo", map[string]string{"default": "value"}, nil, util.InvalidKeyValue("invalidvalue")},
-// 	}
+func TestParseMutliStringKeyValueArg(t *testing.T) {
+	t.Parallel()
 
-// 	for _, testCase := range testCases {
-// 		actual, actualErr := parseMutliStringKeyValueArg(testCase.args, testCase.argName, testCase.defaultValue)
+	flagName := fmt.Sprintf("--%s", FlagNameTerragruntSourceMap)
 
-// 		if testCase.expectedErr != nil {
-// 			assert.True(t, errors.IsError(actualErr, testCase.expectedErr), "Expected error %v but got error %v", testCase.expectedErr, actualErr)
-// 		} else {
-// 			assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
-// 			assert.Equal(t, testCase.expectedVals, actual, "For args %v", testCase.args)
-// 		}
-// 	}
-// }
+	testCases := []struct {
+		args         []string
+		defaultValue map[string]string
+		expectedVals map[string]string
+		expectedErr  error
+	}{
+		{[]string{"apply"}, nil, nil, nil},
+		{[]string{"apply"}, map[string]string{"default": "value"}, map[string]string{"default": "value"}, nil},
+		{[]string{"apply", "--other", "arg"}, map[string]string{"default": "value"}, map[string]string{"default": "value"}, nil},
+		{[]string{"apply", flagName, "key=value"}, map[string]string{"default": "value"}, map[string]string{"key": "value"}, nil},
+		{[]string{"apply", flagName, "key1=value1", flagName, "key2=value2", flagName, "key3=value3"}, map[string]string{"default": "value"}, map[string]string{"key1": "value1", "key2": "value2", "key3": "value3"}, nil},
+		{[]string{"apply", flagName, "invalidvalue"}, map[string]string{"default": "value"}, nil, cli.NewInvalidKeyValueError(cli.DefaultKeyValSep, "invalidvalue")},
+	}
 
-// func TestTerragruntHelp(t *testing.T) {
-// 	app := NewApp(os.Stdout, os.Stderr)
-// 	output := &bytes.Buffer{}
-// 	app.Writer = output
+	for _, testCase := range testCases {
+		opts := options.NewTerragruntOptions()
+		opts.SourceMap = testCase.defaultValue
+		actualOptions, actualErr := runAppTest(testCase.args, opts)
 
-// 	testCases := []struct {
-// 		args     []string
-// 		expected string
-// 	}{
-// 		{[]string{"terragrunt", "--help"}, app.UsageText},
-// 		{[]string{"terragrunt", "-help"}, app.UsageText},
-// 		{[]string{"terragrunt", "-h"}, app.UsageText},
-// 		// TODO no support for showing command help texts
-// 		//{[]string{"terragrunt", "plan-all", "--help"}, app.UsageText},
-// 	}
+		if testCase.expectedErr != nil {
+			assert.ErrorContains(t, actualErr, testCase.expectedErr.Error())
+		} else {
+			assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+			assert.Equal(t, testCase.expectedVals, actualOptions.SourceMap, "For args %v", testCase.args)
+		}
+	}
+}
 
-// 	for _, testCase := range testCases {
-// 		err := app.Run(testCase.args)
+func TestTerragruntHelp(t *testing.T) {
+	output := &bytes.Buffer{}
+	app := NewApp(output, os.Stderr)
 
-// 		require.NoError(t, err)
-// 		if !strings.Contains(output.String(), testCase.expected) {
-// 			t.Errorf("expected output to include help text; got: %q", output.String())
-// 		}
-// 	}
-// }
+	testCases := []struct {
+		args     []string
+		expected string
+	}{
+		{[]string{"terragrunt", "--help"}, app.UsageText},
+		{[]string{"terragrunt", "-help"}, app.UsageText},
+		{[]string{"terragrunt", "-h"}, app.UsageText},
+		// TODO no support for showing command help texts
+		//{[]string{"terragrunt", "plan-all", "--help"}, app.UsageText},
+	}
 
-// func TestTerraformHelp(t *testing.T) {
-// 	app := NewApp(os.Stdout, os.Stderr)
-// 	output := &bytes.Buffer{}
-// 	app.Writer = output
+	for _, testCase := range testCases {
+		err := app.Run(testCase.args)
+		require.NoError(t, err)
 
-// 	testCases := []struct {
-// 		args     []string
-// 		expected string
-// 	}{
-// 		{[]string{"terragrunt", "plan", "--help"}, "Usage: terraform .* plan"},
-// 		{[]string{"terragrunt", "apply", "-help"}, "Usage: terraform .* apply"},
-// 		{[]string{"terragrunt", "apply", "-h"}, "Usage: terraform .* apply"},
-// 	}
+		require.NoError(t, err)
+		if !strings.Contains(output.String(), testCase.expected) {
+			t.Errorf("expected output to include help text; got: %q", output.String())
+		}
+	}
+}
 
-// 	for _, testCase := range testCases {
-// 		err := app.Run(testCase.args)
-// 		require.NoError(t, err)
+func TestTerraformHelp(t *testing.T) {
+	output := &bytes.Buffer{}
+	app := NewApp(output, os.Stderr)
 
-// 		expectedRegex, err := regexp.Compile(testCase.expected)
-// 		require.NoError(t, err)
+	testCases := []struct {
+		args     []string
+		expected string
+	}{
+		{[]string{"terragrunt", "plan", "--help"}, "Usage: terraform .* plan"},
+		{[]string{"terragrunt", "apply", "-help"}, "Usage: terraform .* apply"},
+		{[]string{"terragrunt", "apply", "-h"}, "Usage: terraform .* apply"},
+	}
 
-// 		assert.Regexp(t, expectedRegex, output.String())
-// 	}
-// }
+	for _, testCase := range testCases {
+		err := app.Run(testCase.args)
+		require.NoError(t, err)
+
+		expectedRegex, err := regexp.Compile(testCase.expected)
+		require.NoError(t, err)
+
+		assert.Regexp(t, expectedRegex, output.String())
+	}
+}
 
 // func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
 // 	app := NewApp(os.Stdout, os.Stderr)
@@ -529,67 +512,25 @@ func mockOptionsWithSourceMap(t *testing.T, terragruntConfigPath string, working
 
 // }
 
-// func TestToTerraformEnvVars(t *testing.T) {
-// 	t.Parallel()
+func runAppTest(args []string, opts *options.TerragruntOptions) (*options.TerragruntOptions, error) {
+	commands := newCommands(opts)
 
-// 	testCases := []struct {
-// 		description string
-// 		vars        map[string]interface{}
-// 		expected    map[string]string
-// 	}{
-// 		{
-// 			"empty",
-// 			map[string]interface{}{},
-// 			map[string]string{},
-// 		},
-// 		{
-// 			"string value",
-// 			map[string]interface{}{"foo": "bar"},
-// 			map[string]string{"TF_VAR_foo": `bar`},
-// 		},
-// 		{
-// 			"int value",
-// 			map[string]interface{}{"foo": 42},
-// 			map[string]string{"TF_VAR_foo": `42`},
-// 		},
-// 		{
-// 			"bool value",
-// 			map[string]interface{}{"foo": true},
-// 			map[string]string{"TF_VAR_foo": `true`},
-// 		},
-// 		{
-// 			"list value",
-// 			map[string]interface{}{"foo": []string{"a", "b", "c"}},
-// 			map[string]string{"TF_VAR_foo": `["a","b","c"]`},
-// 		},
-// 		{
-// 			"map value",
-// 			map[string]interface{}{"foo": map[string]interface{}{"a": "b", "c": "d"}},
-// 			map[string]string{"TF_VAR_foo": `{"a":"b","c":"d"}`},
-// 		},
-// 		{
-// 			"nested map value",
-// 			map[string]interface{}{"foo": map[string]interface{}{"a": []int{1, 2, 3}, "b": "c", "d": map[string]interface{}{"e": "f"}}},
-// 			map[string]string{"TF_VAR_foo": `{"a":[1,2,3],"b":"c","d":{"e":"f"}}`},
-// 		},
-// 		{
-// 			"multiple values",
-// 			map[string]interface{}{"str": "bar", "int": 42, "bool": false, "list": []int{1, 2, 3}, "map": map[string]interface{}{"a": "b"}},
-// 			map[string]string{"TF_VAR_str": `bar`, "TF_VAR_int": `42`, "TF_VAR_bool": `false`, "TF_VAR_list": `[1,2,3]`, "TF_VAR_map": `{"a":"b"}`},
-// 		},
-// 	}
+	for _, command := range commands {
+		command.Action = nil
+	}
 
-// 	for _, testCase := range testCases {
-// 		// The following is necessary to make sure testCase's values don't
-// 		// get updated due to concurrency within the scope of t.Run(..) below
-// 		testCase := testCase
-// 		t.Run(testCase.description, func(t *testing.T) {
-// 			actual, err := toTerraformEnvVars(testCase.vars)
-// 			require.NoError(t, err)
-// 			assert.Equal(t, testCase.expected, actual)
-// 		})
-// 	}
-// }
+	app := cli.NewApp()
+	app.Writer = &bytes.Buffer{}
+	app.ErrWriter = &bytes.Buffer{}
+	app.AddFlags(newGlobalFlags(opts)...)
+	app.AddCommands(append(
+		newDeprecatedCommands(opts),
+		commands...)...)
+	app.Before = func(ctx *cli.Context) error { return initialSetup(ctx, opts) }
+
+	err := app.Run(append([]string{"--"}, args...))
+	return opts, err
+}
 
 func createTempFile(t *testing.T) string {
 	tmpFile, err := ioutil.TempFile("", "")

@@ -52,15 +52,20 @@ func (commands Commands) Swap(i, j int) {
 }
 
 func (commands Commands) parseArgs(args []string) (*Command, []string, error) {
-	if len(args) == 0 {
-		return nil, nil, nil
-	}
-	name, args := args[0], args[1:]
+	var name string
+	var undefArg []string
 
-	if command := commands.Get(name); command != nil {
-		command, args, err := command.parseArgs(args)
-		return command, args, err
-	}
+	for {
+		if len(args) == 0 {
+			return nil, nil, nil
+		}
+		name, args = args[0], args[1:]
 
-	return nil, nil, nil
+		if command := commands.Get(name); command != nil {
+			command, args, err := command.parseArgs(args)
+			return command, append(undefArg, args...), err
+		}
+
+		undefArg = append(undefArg, name)
+	}
 }

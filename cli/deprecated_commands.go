@@ -25,26 +25,26 @@ const (
 // alternative. The handler should return the new TerragruntOptions (if any modifications are needed) and command
 // string.
 var deprecatedCommandsActionFuncs = map[string]deprecatedCommandActionFuncType{
-	CommandNameSpinUp:      deprecatedCommandToRunAll(terraform.CommandNameApply),
-	CommandNameTearDown:    deprecatedCommandToRunAll(terraform.CommandNameDestroy),
-	CommandNameApplyAll:    deprecatedCommandToRunAll(terraform.CommandNameApply),
-	CommandNameDestroyAll:  deprecatedCommandToRunAll(terraform.CommandNameDestroy),
-	CommandNamePlanAll:     deprecatedCommandToRunAll(terraform.CommandNamePlan),
-	CommandNameValidateAll: deprecatedCommandToRunAll(terraform.CommandNameValidate),
-	CommandNameOutputAll:   deprecatedCommandToRunAll(terraform.CommandNameOutput),
+	CommandNameSpinUp:      redirectDeprecatedCommandAll(runall.CommandName, terraform.CommandNameApply),
+	CommandNameTearDown:    redirectDeprecatedCommandAll(runall.CommandName, terraform.CommandNameDestroy),
+	CommandNameApplyAll:    redirectDeprecatedCommandAll(runall.CommandName, terraform.CommandNameApply),
+	CommandNameDestroyAll:  redirectDeprecatedCommandAll(runall.CommandName, terraform.CommandNameDestroy),
+	CommandNamePlanAll:     redirectDeprecatedCommandAll(runall.CommandName, terraform.CommandNamePlan),
+	CommandNameValidateAll: redirectDeprecatedCommandAll(runall.CommandName, terraform.CommandNameValidate),
+	CommandNameOutputAll:   redirectDeprecatedCommandAll(runall.CommandName, terraform.CommandNameOutput),
 }
 
 type deprecatedCommandActionFuncType func(opts *options.TerragruntOptions) func(ctx *cli.Context) error
 
-func deprecatedCommandToRunAll(newTerraformCommandName string) deprecatedCommandActionFuncType {
+func redirectDeprecatedCommandAll(newTerragruntCommandName, newTerraformCommandName string) deprecatedCommandActionFuncType {
 	return func(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 		return func(ctx *cli.Context) error {
-			newCommand := runall.NewCommand(opts)
+			newCommand := ctx.App.Commands.Get(newTerragruntCommandName)
 			newArgs := append([]string{newTerraformCommandName}, ctx.Args().Slice()...)
 			newCtx := ctx.Clone(newCommand, newArgs)
 
 			deprecatedCommandName := ctx.Command.Name
-			newCommandFriendly := fmt.Sprintf("terragrunt %s %s", runall.CommandName, strings.Join(newArgs, " "))
+			newCommandFriendly := fmt.Sprintf("terragrunt %s %s", newTerragruntCommandName, strings.Join(newArgs, " "))
 
 			opts.Logger.Warnf(
 				"'%s' is deprecated. Running '%s' instead. Please update your workflows to use '%s', as '%s' may be removed in the future!\n",
@@ -54,11 +54,25 @@ func deprecatedCommandToRunAll(newTerraformCommandName string) deprecatedCommand
 				deprecatedCommandName,
 			)
 
-			if err := ctx.App.Before(newCtx); err != nil {
-				return err
+			if newCommand.Before != nil {
+				if err := newCommand.Before(newCtx); err != nil {
+					return err
+				}
 			}
 
-			return newCommand.Action(newCtx)
+			if newCommand.Action != nil {
+				if err := newCommand.Action(newCtx); err != nil {
+					return err
+				}
+			}
+
+			if newCommand.After != nil {
+				if err := newCommand.After(newCtx); err != nil {
+					return err
+				}
+			}
+
+			return nil
 		}
 	}
 }

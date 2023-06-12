@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/version"
-	"github.com/gruntwork-io/terragrunt/cli/commands"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
@@ -34,12 +33,10 @@ func init() {
 }
 
 // NewApp creates the Terragrunt CLI App.
-func NewApp(writer io.Writer, errwriter io.Writer) *cli.App {
+func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 	opts := options.NewTerragruntOptions()
-	// The env vars are renamed to "..._NO_AUTO_..." in the gobal flags`. These ones are left for backwards compatibility.
-	opts.AutoInit = env.GetBoolEnv("TERRAGRUNT_AUTO_INIT", opts.AutoInit)
-	opts.AutoRetry = env.GetBoolEnv("TERRAGRUNT_AUTO_RETRY", opts.AutoRetry)
-	opts.RunAllAutoApprove = env.GetBoolEnv("TERRAGRUNT_AUTO_APPROVE", opts.RunAllAutoApprove)
+	opts.Writer = writer
+	opts.ErrWriter = errWriter
 
 	app := cli.NewApp()
 	app.Name = "terragrunt"
@@ -48,29 +45,18 @@ func NewApp(writer io.Writer, errwriter io.Writer) *cli.App {
 	app.Author = "Gruntwork <www.gruntwork.io>"
 	app.Version = version.GetVersion()
 	app.Writer = writer
-	app.ErrWriter = errwriter
-	app.AddFlags(commands.NewGlobalFlags(opts)...)
+	app.ErrWriter = errWriter
+	app.AddFlags(newGlobalFlags(opts)...)
 	app.AddCommands(append(
 		newDeprecatedCommands(opts),
-		newCommands(opts)...,
-	)...)
+		newCommands(opts)...)...)
 	app.Before = func(ctx *cli.Context) error {
-		if showHelp := ctx.Flags.Get(commands.FlagNameHelp).Value().IsSet(); showHelp {
+		if ctx.Flags.Get(FlagNameHelp).Value().IsSet() {
 			ctx.Command.Action = nil
 
-			// if app command is specified show the command help.
-			if !ctx.Command.IsRoot && ctx.Command.Name != terraform.CommandName {
-				return cli.ShowCommandHelp(ctx, ctx.Command.Name)
+			if err := showHelp(ctx, opts); err != nil {
+				return err
 			}
-
-			// if there is no args at all show the app help.
-			if !ctx.Args().Present() {
-				return cli.ShowAppHelp(ctx)
-			}
-
-			// in other cases show the Terraform help.
-			terraformHelpCmd := append([]string{ctx.Args().First(), "-help"}, ctx.Args().Tail()...)
-			return shell.RunTerraformCommand(opts, terraformHelpCmd...)
 		}
 
 		if err := initialSetup(ctx, opts); err != nil {
@@ -79,12 +65,12 @@ func NewApp(writer io.Writer, errwriter io.Writer) *cli.App {
 
 		return nil
 	}
-	app.Action = terraform.CommandAction(opts) // run when no terragrunt command is specified
+	app.Action = terraform.Action(opts) // default action
 
 	return app
 }
 
-// also using in unit test
+// This set of commands is also used in unit tests
 func newCommands(opts *options.TerragruntOptions) cli.Commands {
 	return cli.Commands{
 		runall.NewCommand(opts),            // run-all
@@ -94,13 +80,34 @@ func newCommands(opts *options.TerragruntOptions) cli.Commands {
 		hclfmt.NewCommand(opts),            // hclfmt
 		renderjson.NewCommand(opts),        // render-json
 		awsproviderpatch.NewCommand(opts),  // aws-provider-patch
-		terraform.NewCommand(opts),         // * (to show in app help)
+		terraform.NewCommand(opts),         // * (does nothing, only to be shown in the help)
 	}
+}
+
+func showHelp(ctx *cli.Context, opts *options.TerragruntOptions) error {
+	// if app command is specified show the command help.
+	if !ctx.Command.IsRoot && ctx.Command.Name != terraform.CommandName {
+		return cli.ShowCommandHelp(ctx, ctx.Command.Name)
+	}
+
+	// if there is no args at all show the app help.
+	if !ctx.Args().Present() {
+		return cli.ShowAppHelp(ctx)
+	}
+
+	// in other cases show the Terraform help.
+	terraformHelpCmd := append([]string{ctx.Args().First(), "-help"}, ctx.Args().Tail()...)
+	return shell.RunTerraformCommand(opts, terraformHelpCmd...)
 }
 
 func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of  terragrunt used.
 	defer opts.Logger.Debugf("Terragrunt Version: %s", opts.TerragruntVersion)
+
+	// The env vars are renamed to "..._NO_AUTO_..." in the gobal flags`. These ones are left for backwards compatibility.
+	opts.AutoInit = env.GetBoolEnv("TERRAGRUNT_AUTO_INIT", opts.AutoInit)
+	opts.AutoRetry = env.GetBoolEnv("TERRAGRUNT_AUTO_RETRY", opts.AutoRetry)
+	opts.RunAllAutoApprove = env.GetBoolEnv("TERRAGRUNT_AUTO_APPROVE", opts.RunAllAutoApprove)
 
 	// convert the rest flags (intended for terraform) to one prefix, e.g. `--input=true` to `-input=true`
 	args := ctx.Args().Normalize(cli.OnePrefixFlag)
@@ -112,8 +119,6 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	opts.Logger = util.CreateLogEntry("", opts.LogLevel)
 	opts.Logger.Logger.SetOutput(ctx.App.ErrWriter)
 
-	opts.Writer = ctx.App.Writer
-	opts.ErrWriter = ctx.App.ErrWriter
 	opts.Env = env.ParseEnvs(os.Environ())
 
 	if opts.WorkingDir == "" {

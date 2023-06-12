@@ -84,15 +84,15 @@ func (flag *MapFlag[K, V]) Names() []string {
 
 func (flag *MapFlag[K, V]) normalize() {
 	if flag.Splitter == nil {
-		flag.Splitter = defaultSplitter
+		flag.Splitter = DefaultSplitter
 	}
 
 	if flag.ArgSep == "" {
-		flag.ArgSep = defaultArgSep
+		flag.ArgSep = DefaultArgSep
 	}
 
 	if flag.ValSep == "" {
-		flag.ValSep = defaultKeyValSep
+		flag.ValSep = DefaultKeyValSep
 	}
 }
 
@@ -147,7 +147,7 @@ func (flag *mapValue[K, V]) Set(str string) error {
 
 	parts := flag.splitter(str, flag.valSep)
 	if len(parts) != 2 {
-		return errors.Errorf("invalid key-value pair, expected format 'key%value', got %s", flag.valSep, str)
+		return errors.WithStackTrace(NewInvalidKeyValueError(flag.valSep, str))
 	}
 
 	key := flag.keyType.Clone(new(K))

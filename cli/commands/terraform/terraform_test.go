@@ -249,3 +249,65 @@ func TestTerragruntHandlesCatastrophicTerraformFailure(t *testing.T) {
 	err = runTerraformWithRetry(tgOptions)
 	require.Error(t, err)
 }
+
+func TestToTerraformEnvVars(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		description string
+		vars        map[string]interface{}
+		expected    map[string]string
+	}{
+		{
+			"empty",
+			map[string]interface{}{},
+			map[string]string{},
+		},
+		{
+			"string value",
+			map[string]interface{}{"foo": "bar"},
+			map[string]string{"TF_VAR_foo": `bar`},
+		},
+		{
+			"int value",
+			map[string]interface{}{"foo": 42},
+			map[string]string{"TF_VAR_foo": `42`},
+		},
+		{
+			"bool value",
+			map[string]interface{}{"foo": true},
+			map[string]string{"TF_VAR_foo": `true`},
+		},
+		{
+			"list value",
+			map[string]interface{}{"foo": []string{"a", "b", "c"}},
+			map[string]string{"TF_VAR_foo": `["a","b","c"]`},
+		},
+		{
+			"map value",
+			map[string]interface{}{"foo": map[string]interface{}{"a": "b", "c": "d"}},
+			map[string]string{"TF_VAR_foo": `{"a":"b","c":"d"}`},
+		},
+		{
+			"nested map value",
+			map[string]interface{}{"foo": map[string]interface{}{"a": []int{1, 2, 3}, "b": "c", "d": map[string]interface{}{"e": "f"}}},
+			map[string]string{"TF_VAR_foo": `{"a":[1,2,3],"b":"c","d":{"e":"f"}}`},
+		},
+		{
+			"multiple values",
+			map[string]interface{}{"str": "bar", "int": 42, "bool": false, "list": []int{1, 2, 3}, "map": map[string]interface{}{"a": "b"}},
+			map[string]string{"TF_VAR_str": `bar`, "TF_VAR_int": `42`, "TF_VAR_bool": `false`, "TF_VAR_list": `[1,2,3]`, "TF_VAR_map": `{"a":"b"}`},
+		},
+	}
+
+	for _, testCase := range testCases {
+		// The following is necessary to make sure testCase's values don't
+		// get updated due to concurrency within the scope of t.Run(..) below
+		testCase := testCase
+		t.Run(testCase.description, func(t *testing.T) {
+			actual, err := toTerraformEnvVars(testCase.vars)
+			require.NoError(t, err)
+			assert.Equal(t, testCase.expected, actual)
+		})
+	}
+}
