@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +21,7 @@ func TestMissingRunAllArguments(t *testing.T) {
 	err = Run(tgOptions)
 	require.Error(t, err)
 
-	_, ok := errors.Unwrap(err).(commands.MissingCommand)
+	_, ok := errors.Unwrap(err).(MissingCommand)
 	fmt.Println(err, errors.Unwrap(err))
 	assert.True(t, ok)
 }

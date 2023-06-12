@@ -1,9 +1,6 @@
 package runall
 
 import (
-	"fmt"
-
-	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -30,7 +27,7 @@ var runAllDisabledCommands = map[string]string{
 
 func Run(opts *options.TerragruntOptions) error {
 	if opts.TerraformCommand == "" {
-		return errors.WithStackTrace(commands.MissingCommand{})
+		return errors.WithStackTrace(MissingCommand{})
 	}
 
 	reason, isDisabled := runAllDisabledCommands[opts.TerraformCommand]
@@ -71,13 +68,4 @@ func Run(opts *options.TerragruntOptions) error {
 	}
 
 	return stack.Run(opts)
-}
-
-type RunAllDisabledErr struct {
-	command string
-	reason  string
-}
-
-func (err RunAllDisabledErr) Error() string {
-	return fmt.Sprintf("%s with run-all is disabled: %s", err.command, err.reason)
 }

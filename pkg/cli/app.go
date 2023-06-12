@@ -54,23 +54,8 @@ func (app *App) Run(arguments []string) (err error) {
 
 		ctx := NewContext(parentCtx, app, command, args)
 
-		if app.Before != nil {
-			if err := app.Before(ctx); err != nil {
-				return err
-			}
-		}
-
-		if err := command.run(ctx); err != nil {
-			return err
-		}
-
-		if app.After != nil {
-			if err := app.After(ctx); err != nil {
-				return err
-			}
-		}
-
-		return nil
+		err = command.run(ctx)
+		return err
 	}
 
 	return app.App.Run(arguments)
@@ -89,6 +74,8 @@ func (app *App) VisibleCommands() []*cli.Command {
 func (app *App) newRootCommand() *Command {
 	return &Command{
 		Name:        app.Name,
+		Before:      app.Before,
+		After:       app.After,
 		Action:      app.Action,
 		Usage:       app.Usage,
 		UsageText:   app.UsageText,

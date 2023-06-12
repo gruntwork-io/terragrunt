@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/gruntwork-io/go-commons/version"
-
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
@@ -12,6 +15,10 @@ import (
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
+	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/util"
+	hashicorpversion "github.com/hashicorp/go-version"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
@@ -45,26 +52,19 @@ func NewApp(writer io.Writer, errwriter io.Writer) *cli.App {
 	app.AddFlags(commands.NewGlobalFlags(opts)...)
 	app.AddCommands(append(
 		newDeprecatedCommands(opts),
-		runall.NewCommand(opts),            // run-all
-		terragruntinfo.NewCommand(opts),    // terragrunt-info
-		validateinputs.NewCommand(opts),    // validate-inputs
-		graphdependencies.NewCommand(opts), // graph-dependencies
-		hclfmt.NewCommand(opts),            // hclfmt
-		renderjson.NewCommand(opts),        // render-json
-		awsproviderpatch.NewCommand(opts),  // aws-provider-patch
-		terraform.NewCommand(opts),         // * (to show in app help)
+		newCommands(opts)...,
 	)...)
 	app.Before = func(ctx *cli.Context) error {
 		if showHelp := ctx.Flags.Get(commands.FlagNameHelp).Value().IsSet(); showHelp {
 			ctx.Command.Action = nil
 
 			// if app command is specified show the command help.
-			if !ctx.Command.IsRoot {
+			if !ctx.Command.IsRoot && ctx.Command.Name != terraform.CommandName {
 				return cli.ShowCommandHelp(ctx, ctx.Command.Name)
 			}
 
 			// if there is no args at all show the app help.
-			if !ctx.Args().Present() || ctx.Args().First() == terraform.CommandName {
+			if !ctx.Args().Present() {
 				return cli.ShowAppHelp(ctx)
 			}
 
@@ -73,9 +73,110 @@ func NewApp(writer io.Writer, errwriter io.Writer) *cli.App {
 			return shell.RunTerraformCommand(opts, terraformHelpCmd...)
 		}
 
+		if err := initialSetup(ctx, opts); err != nil {
+			return err
+		}
+
 		return nil
 	}
 	app.Action = terraform.CommandAction(opts) // run when no terragrunt command is specified
 
 	return app
+}
+
+// also using in unit test
+func newCommands(opts *options.TerragruntOptions) cli.Commands {
+	return cli.Commands{
+		runall.NewCommand(opts),            // run-all
+		terragruntinfo.NewCommand(opts),    // terragrunt-info
+		validateinputs.NewCommand(opts),    // validate-inputs
+		graphdependencies.NewCommand(opts), // graph-dependencies
+		hclfmt.NewCommand(opts),            // hclfmt
+		renderjson.NewCommand(opts),        // render-json
+		awsproviderpatch.NewCommand(opts),  // aws-provider-patch
+		terraform.NewCommand(opts),         // * (to show in app help)
+	}
+}
+
+func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
+	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of  terragrunt used.
+	defer opts.Logger.Debugf("Terragrunt Version: %s", opts.TerragruntVersion)
+
+	// convert the rest flags (intended for terraform) to one prefix, e.g. `--input=true` to `-input=true`
+	args := ctx.Args().Normalize(cli.OnePrefixFlag)
+
+	opts.TerraformCommand = args.First()
+	opts.TerraformCliArgs = args.Slice()
+
+	opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
+	opts.Logger = util.CreateLogEntry("", opts.LogLevel)
+	opts.Logger.Logger.SetOutput(ctx.App.ErrWriter)
+
+	opts.Writer = ctx.App.Writer
+	opts.ErrWriter = ctx.App.ErrWriter
+	opts.Env = env.ParseEnvs(os.Environ())
+
+	if opts.WorkingDir == "" {
+		currentDir, err := os.Getwd()
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+		opts.WorkingDir = currentDir
+	} else {
+		path, err := filepath.Abs(opts.WorkingDir)
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+		opts.WorkingDir = path
+	}
+	opts.WorkingDir = filepath.ToSlash(opts.WorkingDir)
+
+	if opts.DownloadDir == "" {
+		opts.DownloadDir = util.JoinPath(opts.WorkingDir, options.TerragruntCacheDir)
+	} else {
+		path, err := filepath.Abs(opts.DownloadDir)
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+		opts.DownloadDir = path
+	}
+	opts.DownloadDir = filepath.ToSlash(opts.DownloadDir)
+
+	if opts.TerragruntConfigPath == "" {
+		opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
+	}
+	opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)
+
+	terragruntVersion, err := hashicorpversion.NewVersion(ctx.App.Version)
+	if err != nil {
+		// Malformed Terragrunt version; set the version to 0.0
+		if terragruntVersion, err = hashicorpversion.NewVersion("0.0"); err != nil {
+			return errors.WithStackTrace(err)
+		}
+	}
+	opts.TerragruntVersion = terragruntVersion
+
+	jsonOutput := false
+	for _, arg := range opts.TerraformCliArgs {
+		if strings.EqualFold(arg, "-json") {
+			jsonOutput = true
+			break
+		}
+	}
+	if opts.IncludeModulePrefix && !jsonOutput {
+		opts.OutputPrefix = fmt.Sprintf("[%s] ", opts.WorkingDir)
+	} else {
+		opts.IncludeModulePrefix = false
+	}
+
+	if !opts.RunAllAutoApprove {
+		// When running in no-auto-approve mode, set parallelism to 1 so that interactive prompts work.
+		opts.Parallelism = 1
+	}
+
+	opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
+	opts.OriginalTerraformCommand = opts.TerraformCommand
+	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
+
+	return nil
 }

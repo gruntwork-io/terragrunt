@@ -54,6 +54,10 @@ func deprecatedCommandToRunAll(newTerraformCommandName string) deprecatedCommand
 				deprecatedCommandName,
 			)
 
+			if err := ctx.App.Before(newCtx); err != nil {
+				return err
+			}
+
 			return newCommand.Action(newCtx)
 		}
 	}
