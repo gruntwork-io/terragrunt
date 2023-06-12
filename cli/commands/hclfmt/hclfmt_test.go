@@ -17,11 +17,11 @@ import (
 func TestHCLFmt(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../test/fixture-hclfmt", t.Name(), func(path string) bool { return true })
+	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt", t.Name(), func(path string) bool { return true })
 	defer os.RemoveAll(tmpPath)
 	require.NoError(t, err)
 
-	expected, err := util.ReadFileAsString("../test/fixture-hclfmt/expected.hcl")
+	expected, err := util.ReadFileAsString("../../../test/fixture-hclfmt/expected.hcl")
 	require.NoError(t, err)
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
@@ -61,7 +61,7 @@ func TestHCLFmt(t *testing.T) {
 		t.Run("terragrunt-cache", func(t *testing.T) {
 			t.Parallel()
 
-			originalTgHclPath := "../test/fixture-hclfmt/ignored/.terragrunt-cache/terragrunt.hcl"
+			originalTgHclPath := "../../../test/fixture-hclfmt/ignored/.terragrunt-cache/terragrunt.hcl"
 			original, err := util.ReadFileAsString(originalTgHclPath)
 			require.NoError(t, err)
 
@@ -78,7 +78,7 @@ func TestHCLFmt(t *testing.T) {
 func TestHCLFmtErrors(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../test/fixture-hclfmt-errors", t.Name(), func(path string) bool { return true })
+	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt-errors", t.Name(), func(path string) bool { return true })
 	defer os.RemoveAll(tmpPath)
 	require.NoError(t, err)
 
@@ -116,11 +116,11 @@ func TestHCLFmtErrors(t *testing.T) {
 func TestHCLFmtCheck(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../test/fixture-hclfmt-check", t.Name(), func(path string) bool { return true })
+	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt-check", t.Name(), func(path string) bool { return true })
 	defer os.RemoveAll(tmpPath)
 	require.NoError(t, err)
 
-	expected, err := ioutil.ReadFile("../test/fixture-hclfmt-check/expected.hcl")
+	expected, err := ioutil.ReadFile("../../../test/fixture-hclfmt-check/expected.hcl")
 	require.NoError(t, err)
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
@@ -163,11 +163,11 @@ func TestHCLFmtCheck(t *testing.T) {
 func TestHCLFmtCheckErrors(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../test/fixture-hclfmt-check-errors", t.Name(), func(path string) bool { return true })
+	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt-check-errors", t.Name(), func(path string) bool { return true })
 	defer os.RemoveAll(tmpPath)
 	require.NoError(t, err)
 
-	expected, err := ioutil.ReadFile("../test/fixture-hclfmt-check-errors/expected.hcl")
+	expected, err := ioutil.ReadFile("../../../test/fixture-hclfmt-check-errors/expected.hcl")
 	require.NoError(t, err)
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
@@ -210,11 +210,11 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 func TestHCLFmtFile(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../test/fixture-hclfmt", t.Name(), func(path string) bool { return true })
+	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt", t.Name(), func(path string) bool { return true })
 	defer os.RemoveAll(tmpPath)
 	require.NoError(t, err)
 
-	expected, err := ioutil.ReadFile("../test/fixture-hclfmt/expected.hcl")
+	expected, err := ioutil.ReadFile("../../../test/fixture-hclfmt/expected.hcl")
 	require.NoError(t, err)
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
@@ -244,7 +244,7 @@ func TestHCLFmtFile(t *testing.T) {
 		"a/b/c/terragrunt.hcl",
 	}
 
-	original, err := ioutil.ReadFile("../test/fixture-hclfmt/terragrunt.hcl")
+	original, err := ioutil.ReadFile("../../../test/fixture-hclfmt/terragrunt.hcl")
 	require.NoError(t, err)
 
 	// test that none of the other files were formatted
@@ -269,11 +269,11 @@ func TestHCLFmtFile(t *testing.T) {
 func TestHCLFmtHeredoc(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../test/fixture-hclfmt-heredoc", t.Name(), func(path string) bool { return true })
+	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt-heredoc", t.Name(), func(path string) bool { return true })
 	defer os.RemoveAll(tmpPath)
 	require.NoError(t, err)
 
-	expected, err := ioutil.ReadFile("../test/fixture-hclfmt-heredoc/expected.hcl")
+	expected, err := ioutil.ReadFile("../../../test/fixture-hclfmt-heredoc/expected.hcl")
 	require.NoError(t, err)
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")

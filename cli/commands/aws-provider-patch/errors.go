@@ -5,7 +5,7 @@ import "fmt"
 type MissingOverrideAttrError string
 
 func (flagName MissingOverrideAttrError) Error() string {
-	return fmt.Sprintf("You must specify at least one provider attribute to override via the --%s option.", flagName)
+	return fmt.Sprintf("You must specify at least one provider attribute to override via the --%s option.", string(flagName))
 }
 
 type TypeInferenceError struct {

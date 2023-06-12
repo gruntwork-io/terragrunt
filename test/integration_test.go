@@ -38,6 +38,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/cli"
+	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	terragruntDynamoDb "github.com/gruntwork-io/terragrunt/dynamodb"
@@ -4657,7 +4658,7 @@ func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all --terragrunt-non-interactive --terragrunt-working-dir %s", appPath), &stdout, &stderr)
 	require.Error(t, err)
-	_, ok := errors.Unwrap(err).(cli.MissingCommand)
+	_, ok := errors.Unwrap(err).(commands.MissingCommand)
 	assert.True(t, ok)
 }
 

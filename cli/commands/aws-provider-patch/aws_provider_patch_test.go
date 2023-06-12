@@ -135,7 +135,6 @@ resource "aws_instance" "example" {
 
 }
 
-
 provider "google" {
   credentials = file("account.json")
   project     = "my-project-id"
