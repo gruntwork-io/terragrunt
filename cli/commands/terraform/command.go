@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -22,7 +23,7 @@ func CommandAction(opts *options.TerragruntOptions) func(ctx *cli.Context) error
 	return func(ctx *cli.Context) error {
 		opts.RunTerragrunt = Run
 
-		if err := opts.InitialSetup(ctx); err != nil {
+		if err := commands.InitialSetup(ctx, opts); err != nil {
 			return err
 		}
 

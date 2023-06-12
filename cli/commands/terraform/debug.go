@@ -17,9 +17,9 @@ import (
 
 const TerragruntTFVarsFile = "terragrunt-debug.tfvars.json"
 
-// writeTerragruntDebugFile will create a tfvars file that can be used to invoke the terraform module in the same way
+// WriteTerragruntDebugFile will create a tfvars file that can be used to invoke the terraform module in the same way
 // that terragrunt invokes the module, so that you can debug issues with the terragrunt config.
-func writeTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+func WriteTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	terragruntOptions.Logger.Infof(
 		"Debug mode requested: generating debug file %s in working dir %s",
 		TerragruntTFVarsFile,

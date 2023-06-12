@@ -15,7 +15,7 @@
 //	   region = var.aws_region
 //	}
 //
-// And if AwsProviderPatchOverrides in terragruntOptions was set to map[string]string{"region": "us-east-1"}, then this
+// And if AwsProviderPatchOverrides in opts was set to map[string]string{"region": "us-east-1"}, then this
 // method would update the module code to:
 //
 //	provider "aws" {
@@ -34,17 +34,138 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/mattn/go-zglob"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
+	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
 func Run(opts *Options) error {
+	if err := terraform.CheckVersionConstraints(opts.TerragruntOptions); err != nil {
+		return err
+	}
+
+	terragruntConfig, err := config.ReadTerragruntConfig(opts.TerragruntOptions)
+	if err != nil {
+		return err
+	}
+
+	optsClone := opts.Clone(opts.TerragruntConfigPath)
+	optsClone.TerraformCommand = terraform.CommandNameTerragruntReadConfig
+
+	if err := terraform.ProcessHooks(terragruntConfig.Terraform.GetAfterHooks(), optsClone, terragruntConfig, nil); err != nil {
+		return err
+	}
+
+	// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
+	// precedence.
+	opts.IAMRoleOptions = options.MergeIAMRoleOptions(
+		terragruntConfig.GetIAMRoleOptions(),
+		opts.OriginalIAMRoleOptions,
+	)
+
+	if err := aws_helper.AssumeRoleAndUpdateEnvIfNecessary(opts.TerragruntOptions); err != nil {
+		return err
+	}
+
+	// get the default download dir
+	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
+	if err != nil {
+		return err
+	}
+
+	// if the download dir hasn't been changed from default, and is set in the config,
+	// then use it
+	if opts.DownloadDir == defaultDownloadDir && terragruntConfig.DownloadDir != "" {
+		opts.DownloadDir = terragruntConfig.DownloadDir
+	}
+
+	// Override the default value of retryable errors using the value set in the config file
+	if terragruntConfig.RetryableErrors != nil {
+		opts.RetryableErrors = terragruntConfig.RetryableErrors
+	}
+
+	if terragruntConfig.RetryMaxAttempts != nil {
+		if *terragruntConfig.RetryMaxAttempts < 1 {
+			return fmt.Errorf("Cannot have less than 1 max retry, but you specified %d", *terragruntConfig.RetryMaxAttempts)
+		}
+		opts.RetryMaxAttempts = *terragruntConfig.RetryMaxAttempts
+	}
+
+	if terragruntConfig.RetrySleepIntervalSec != nil {
+		if *terragruntConfig.RetrySleepIntervalSec < 0 {
+			return fmt.Errorf("Cannot sleep for less than 0 seconds, but you specified %d", *terragruntConfig.RetrySleepIntervalSec)
+		}
+		opts.RetrySleepIntervalSec = time.Duration(*terragruntConfig.RetrySleepIntervalSec) * time.Second
+	}
+
+	sourceUrl, err := config.GetTerraformSourceUrl(opts.TerragruntOptions, terragruntConfig)
+	if err != nil {
+		return err
+	}
+	if sourceUrl != "" {
+		opts.TerragruntOptions, err = terraform.DownloadTerraformSource(sourceUrl, opts.TerragruntOptions, terragruntConfig)
+		if err != nil {
+			return err
+		}
+	}
+
+	// NOTE: At this point, the terraform source is downloaded to the terragrunt working directory
+
+	if err = terraform.GenerateConfig(terragruntConfig, opts.TerragruntOptions); err != nil {
+		return err
+	}
+
+	// We do the debug file generation here, after all the terragrunt generated terraform files are created so that we
+	// can ensure the tfvars json file only includes the vars that are defined in the module.
+	if opts.Debug {
+		err := terraform.WriteTerragruntDebugFile(opts.TerragruntOptions, terragruntConfig)
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := terraform.CheckFolderContainsTerraformCode(opts.TerragruntOptions); err != nil {
+		return err
+	}
+
+	if opts.CheckDependentModules {
+		allowDestroy := terraform.ConfirmActionWithDependentModules(opts.TerragruntOptions, terragruntConfig)
+		if !allowDestroy {
+			return nil
+		}
+	}
+
+	// Add extra_arguments to the command
+	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExtraArgs != nil && len(terragruntConfig.Terraform.ExtraArgs) > 0 {
+		args := terraform.FilterTerraformExtraArgs(opts.TerragruntOptions, terragruntConfig)
+		opts.InsertTerraformCliArgs(args...)
+		for k, v := range terraform.FilterTerraformEnvVarsFromExtraArgs(opts.TerragruntOptions, terragruntConfig) {
+			opts.Env[k] = v
+		}
+	}
+
+	if err := terraform.SetTerragruntInputsAsEnvVars(opts.TerragruntOptions, terragruntConfig); err != nil {
+		return err
+	}
+
+	if err := terraform.PrepareNonInitCommand(opts.TerragruntOptions, opts.TerragruntOptions, terragruntConfig); err != nil {
+		return err
+	}
+
+	return applyAwsProviderPatch(opts)
+}
+
+func applyAwsProviderPatch(opts *Options) error {
 	terraformFilesInModules, err := findAllTerraformFilesInModules(opts)
 	if err != nil {
 		return err

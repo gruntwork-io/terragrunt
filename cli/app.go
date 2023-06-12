@@ -44,7 +44,7 @@ func NewApp(writer io.Writer, errwriter io.Writer) *cli.App {
 	app.ErrWriter = errwriter
 	app.AddFlags(commands.NewGlobalFlags(opts)...)
 	app.AddCommands(append(
-		commands.NewDeprecatedCommands(opts),
+		newDeprecatedCommands(opts),
 		runall.NewCommand(opts),            // run-all
 		terragruntinfo.NewCommand(opts),    // terragrunt-info
 		validateinputs.NewCommand(opts),    // validate-inputs

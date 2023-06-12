@@ -87,7 +87,7 @@ func Run(terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptionsClone := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
 
-	if err := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone, terragruntConfig, nil); err != nil {
+	if err := ProcessHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone, terragruntConfig, nil); err != nil {
 		return err
 	}
 
@@ -147,7 +147,7 @@ func Run(terragruntOptions *options.TerragruntOptions) error {
 		return err
 	}
 	if sourceUrl != "" {
-		updatedTerragruntOptions, err = downloadTerraformSource(sourceUrl, terragruntOptions, terragruntConfig)
+		updatedTerragruntOptions, err = DownloadTerraformSource(sourceUrl, terragruntOptions, terragruntConfig)
 		if err != nil {
 			return err
 		}
@@ -155,53 +155,27 @@ func Run(terragruntOptions *options.TerragruntOptions) error {
 
 	// NOTE: At this point, the terraform source is downloaded to the terragrunt working directory
 
-	// TODO
-	// if shouldPrintTerragruntInfo(updatedTerragruntOptions) {
-	// 	group := TerragruntInfoGroup{
-	// 		ConfigPath:       updatedTerragruntOptions.TerragruntConfigPath,
-	// 		DownloadDir:      updatedTerragruntOptions.DownloadDir,
-	// 		IamRole:          updatedTerragruntOptions.IAMRoleOptions.RoleARN,
-	// 		TerraformBinary:  updatedTerragruntOptions.TerraformPath,
-	// 		TerraformCommand: updatedTerragruntOptions.TerraformCommand,
-	// 		WorkingDir:       updatedTerragruntOptions.WorkingDir,
-	// 	}
-	// 	b, err := json.MarshalIndent(group, "", "  ")
-	// 	if err != nil {
-	// 		updatedTerragruntOptions.Logger.Errorf("JSON error marshalling terragrunt-info")
-	// 		return err
-	// 	}
-	// 	fmt.Fprintf(updatedTerragruntOptions.Writer, "%s\n", b)
-	// 	return nil
-	// }
-
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
 	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
-	if err = generateConfig(terragruntConfig, updatedTerragruntOptions); err != nil {
+	if err = GenerateConfig(terragruntConfig, updatedTerragruntOptions); err != nil {
 		return err
 	}
-
-	// TODO
-	// We do the terragrunt input validation here, after all the terragrunt generated terraform files are created so
-	// that we can ensure the necessary information is available.
-	// if shouldValidateTerragruntInputs(updatedTerragruntOptions) {
-	// 	return validateTerragruntInputs(updatedTerragruntOptions, terragruntConfig)
-	// }
 
 	// We do the debug file generation here, after all the terragrunt generated terraform files are created so that we
 	// can ensure the tfvars json file only includes the vars that are defined in the module.
 	if updatedTerragruntOptions.Debug {
-		err := writeTerragruntDebugFile(updatedTerragruntOptions, terragruntConfig)
+		err := WriteTerragruntDebugFile(updatedTerragruntOptions, terragruntConfig)
 		if err != nil {
 			return err
 		}
 	}
 
-	if err := checkFolderContainsTerraformCode(updatedTerragruntOptions); err != nil {
+	if err := CheckFolderContainsTerraformCode(updatedTerragruntOptions); err != nil {
 		return err
 	}
 
 	if terragruntOptions.CheckDependentModules {
-		allowDestroy := confirmActionWithDependentModules(terragruntOptions, terragruntConfig)
+		allowDestroy := ConfirmActionWithDependentModules(terragruntOptions, terragruntConfig)
 		if !allowDestroy {
 			return nil
 		}
@@ -209,7 +183,7 @@ func Run(terragruntOptions *options.TerragruntOptions) error {
 	return runTerragruntWithConfig(terragruntOptions, updatedTerragruntOptions, terragruntConfig, false)
 }
 
-func generateConfig(terragruntConfig *config.TerragruntConfig, updatedTerragruntOptions *options.TerragruntOptions) error {
+func GenerateConfig(terragruntConfig *config.TerragruntConfig, updatedTerragruntOptions *options.TerragruntOptions) error {
 	rawActualLock, _ := sourceChangeLocks.LoadOrStore(updatedTerragruntOptions.DownloadDir, &sync.Mutex{})
 	actualLock := rawActualLock.(*sync.Mutex)
 	defer actualLock.Unlock()
@@ -242,32 +216,26 @@ func generateConfig(terragruntConfig *config.TerragruntConfig, updatedTerragrunt
 func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, allowSourceDownload bool) error {
 	// Add extra_arguments to the command
 	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExtraArgs != nil && len(terragruntConfig.Terraform.ExtraArgs) > 0 {
-		args := filterTerraformExtraArgs(terragruntOptions, terragruntConfig)
+		args := FilterTerraformExtraArgs(terragruntOptions, terragruntConfig)
 		terragruntOptions.InsertTerraformCliArgs(args...)
-		for k, v := range filterTerraformEnvVarsFromExtraArgs(terragruntOptions, terragruntConfig) {
+		for k, v := range FilterTerraformEnvVarsFromExtraArgs(terragruntOptions, terragruntConfig) {
 			terragruntOptions.Env[k] = v
 		}
 	}
 
-	if err := setTerragruntInputsAsEnvVars(terragruntOptions, terragruntConfig); err != nil {
+	if err := SetTerragruntInputsAsEnvVars(terragruntOptions, terragruntConfig); err != nil {
 		return err
 	}
 
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) == CommandNameInit {
-		if err := prepareInitCommand(terragruntOptions, terragruntConfig, allowSourceDownload); err != nil {
+		if err := PrepareInitCommand(terragruntOptions, terragruntConfig, allowSourceDownload); err != nil {
 			return err
 		}
 	} else {
-		if err := prepareNonInitCommand(originalTerragruntOptions, terragruntOptions, terragruntConfig); err != nil {
+		if err := PrepareNonInitCommand(originalTerragruntOptions, terragruntOptions, terragruntConfig); err != nil {
 			return err
 		}
 	}
-
-	// TODO
-	// Now that we've run 'init' and have all the source code locally, we can finally run the patch command
-	// if shouldApplyAwsProviderPatch(terragruntOptions) {
-	// 	return applyAwsProviderPatch(terragruntOptions)
-	// }
 
 	if err := checkProtectedModule(terragruntOptions, terragruntConfig); err != nil {
 		return err
@@ -292,8 +260,8 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 	})
 }
 
-// confirmActionWithDependentModules - Show warning with list of dependent modules from current module before destroy
-func confirmActionWithDependentModules(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) bool {
+// ConfirmActionWithDependentModules - Show warning with list of dependent modules from current module before destroy
+func ConfirmActionWithDependentModules(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) bool {
 	modules := configstack.FindWhereWorkingDirIsIncluded(terragruntOptions, terragruntConfig)
 	if len(modules) != 0 {
 		if _, err := terragruntOptions.ErrWriter.Write([]byte("Detected dependent modules:\n")); err != nil {
@@ -347,7 +315,7 @@ func shouldCopyLockFile(args []string) bool {
 // errors, run the action, and finally, run the after hooks. Return any errors hit from the hooks or action.
 func runActionWithHooks(description string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, action func() error) error {
 	var allErrors *multierror.Error
-	beforeHookErrors := processHooks(terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions, terragruntConfig, allErrors)
+	beforeHookErrors := ProcessHooks(terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions, terragruntConfig, allErrors)
 	allErrors = multierror.Append(allErrors, beforeHookErrors)
 
 	var actionErrors error
@@ -357,8 +325,8 @@ func runActionWithHooks(description string, terragruntOptions *options.Terragrun
 	} else {
 		terragruntOptions.Logger.Errorf("Errors encountered running before_hooks. Not running '%s'.", description)
 	}
-	postHookErrors := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, terragruntConfig, allErrors)
-	errorHookErrors := processErrorHooks(terragruntConfig.Terraform.GetErrorHooks(), terragruntOptions, allErrors)
+	postHookErrors := ProcessHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, terragruntConfig, allErrors)
+	errorHookErrors := ProcessErrorHooks(terragruntConfig.Terraform.GetErrorHooks(), terragruntOptions, allErrors)
 	allErrors = multierror.Append(allErrors, postHookErrors, errorHookErrors)
 
 	return allErrors.ErrorOrNil()
@@ -366,7 +334,7 @@ func runActionWithHooks(description string, terragruntOptions *options.Terragrun
 
 // The Terragrunt configuration can contain a set of inputs to pass to Terraform as environment variables. This method
 // sets these environment variables in the given terragruntOptions.
-func setTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+func SetTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	asEnvVars, err := toTerraformEnvVars(terragruntConfig.Inputs)
 	if err != nil {
 		return err
@@ -406,7 +374,7 @@ func runTerraformWithRetry(terragruntOptions *options.TerragruntOptions) error {
 
 // Prepare for running 'terraform init' by initializing remote state storage and adding backend configuration arguments
 // to the TerraformCliArgs
-func prepareInitCommand(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, allowSourceDownload bool) error {
+func PrepareInitCommand(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, allowSourceDownload bool) error {
 	if terragruntConfig.RemoteState != nil {
 		// Initialize the remote state if necessary  (e.g. create S3 bucket and DynamoDB table)
 		remoteStateNeedsInit, err := remoteStateNeedsInit(terragruntConfig.RemoteState, terragruntOptions)
@@ -425,7 +393,7 @@ func prepareInitCommand(terragruntOptions *options.TerragruntOptions, terragrunt
 	return nil
 }
 
-func checkFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptions) error {
+func CheckFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptions) error {
 	files := []string{}
 	hclFiles, err := zglob.Glob(fmt.Sprintf("%s/**/*.tf", terragruntOptions.WorkingDir))
 	if err != nil {
@@ -480,7 +448,7 @@ func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptio
 // Prepare for running any command other than 'terraform init' by running 'terraform init' if necessary
 // This function takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
 // and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
-func prepareNonInitCommand(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+func PrepareNonInitCommand(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	needsInit, err := needsInit(terragruntOptions, terragruntConfig)
 	if err != nil {
 		return err
@@ -636,7 +604,7 @@ func isRetryable(stdout string, stderr string, tferr error, terragruntOptions *o
 	return util.MatchesAny(terragruntOptions.RetryableErrors, stderr) || util.MatchesAny(terragruntOptions.RetryableErrors, stdout)
 }
 
-func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
+func FilterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
 	out := []string{}
 	cmd := util.FirstArg(terragruntOptions.TerraformCliArgs)
 
@@ -676,7 +644,7 @@ func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 	return out
 }
 
-func filterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) map[string]string {
+func FilterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) map[string]string {
 	out := map[string]string{}
 	cmd := util.FirstArg(terragruntOptions.TerraformCliArgs)
 

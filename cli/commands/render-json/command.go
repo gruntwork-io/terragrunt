@@ -3,6 +3,7 @@ package renderjson
 import (
 	"sort"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -22,7 +23,7 @@ func NewCommand(globalOpts *options.TerragruntOptions) *cli.Command {
 		Usage:       "Render the final terragrunt config, with all variables, includes, and functions resolved, as json.",
 		Description: "This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.",
 		Action: func(ctx *cli.Context) error {
-			if err := opts.InitialSetup(ctx); err != nil {
+			if err := commands.InitialSetup(ctx, globalOpts); err != nil {
 				return err
 			}
 
