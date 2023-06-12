@@ -1,4 +1,4 @@
-package cli
+package common
 
 import (
 	"sort"
@@ -44,7 +44,7 @@ const (
 	FlagNameHelp = "help"
 )
 
-func newGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
+func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 	flags := cli.Flags{
 		&cli.GenericFlag[string]{
 			Name:        FlagNameTerragruntConfig,

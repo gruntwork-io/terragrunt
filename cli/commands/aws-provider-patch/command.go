@@ -1,6 +1,7 @@
 package awsproviderpatch
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/commands/common"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
@@ -22,6 +23,10 @@ func NewCommand(globalOpts *options.TerragruntOptions) *cli.Command {
 		Action: func(ctx *cli.Context) error {
 			if len(opts.AwsProviderPatchOverrides) == 0 {
 				return errors.WithStackTrace(MissingOverrideAttrError(FlagNameTerragruntOverrideAttr))
+			}
+
+			if err := common.InitialSetup(ctx, globalOpts); err != nil {
+				return err
 			}
 
 			return Run(opts)

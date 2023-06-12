@@ -49,3 +49,17 @@ func LookupEnv(key string) (string, bool) {
 	isPresent := ok && val != ""
 	return val, isPresent
 }
+
+func ParseEnvs(envs []string) map[string]string {
+	envMap := make(map[string]string)
+
+	for _, env := range envs {
+		parts := strings.SplitN(env, "=", 2)
+
+		if len(parts) == 2 {
+			envMap[strings.TrimSpace(parts[0])] = parts[1]
+		}
+	}
+
+	return envMap
+}

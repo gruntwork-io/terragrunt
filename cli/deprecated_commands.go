@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -24,13 +25,13 @@ const (
 // alternative. The handler should return the new TerragruntOptions (if any modifications are needed) and command
 // string.
 var deprecatedCommandsActionFuncs = map[string]deprecatedCommandActionFuncType{
-	CommandNameSpinUp:      deprecatedCommandToRunAll(CommandNameApply),
-	CommandNameTearDown:    deprecatedCommandToRunAll(CommandNameDestroy),
-	CommandNameApplyAll:    deprecatedCommandToRunAll(CommandNameApply),
-	CommandNameDestroyAll:  deprecatedCommandToRunAll(CommandNameDestroy),
-	CommandNamePlanAll:     deprecatedCommandToRunAll(CommandNamePlan),
-	CommandNameValidateAll: deprecatedCommandToRunAll(CommandNameValidate),
-	CommandNameOutputAll:   deprecatedCommandToRunAll(CommandNameOutput),
+	CommandNameSpinUp:      deprecatedCommandToRunAll(terraform.CommandNameApply),
+	CommandNameTearDown:    deprecatedCommandToRunAll(terraform.CommandNameDestroy),
+	CommandNameApplyAll:    deprecatedCommandToRunAll(terraform.CommandNameApply),
+	CommandNameDestroyAll:  deprecatedCommandToRunAll(terraform.CommandNameDestroy),
+	CommandNamePlanAll:     deprecatedCommandToRunAll(terraform.CommandNamePlan),
+	CommandNameValidateAll: deprecatedCommandToRunAll(terraform.CommandNameValidate),
+	CommandNameOutputAll:   deprecatedCommandToRunAll(terraform.CommandNameOutput),
 }
 
 type deprecatedCommandActionFuncType func(opts *options.TerragruntOptions) func(ctx *cli.Context) error

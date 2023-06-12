@@ -1,6 +1,7 @@
 package runall
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/commands/common"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -15,6 +16,10 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Usage:       "Run a terraform command against a 'stack' by running the specified command in each subfolder.",
 		Description: "Run a terraform command against a 'stack' by running the specified command in each subfolder. E.g., to run 'terragrunt apply' in each subfolder, use 'terragrunt run-all apply'.",
 		Action: func(ctx *cli.Context) error {
+			if err := common.InitialSetup(ctx, opts); err != nil {
+				return err
+			}
+
 			return Run(opts)
 		},
 	}

@@ -136,3 +136,44 @@ func TestGetStringEnv(t *testing.T) {
 		})
 	}
 }
+
+func TestParseEnvironmentVariables(t *testing.T) {
+	testCases := []struct {
+		environmentVariables []string
+		expectedVariables    map[string]string
+	}{
+		{
+			[]string{},
+			map[string]string{},
+		},
+		{
+			[]string{"foobar"},
+			map[string]string{},
+		},
+		{
+			[]string{"foo=bar"},
+			map[string]string{"foo": "bar"},
+		},
+		{
+			[]string{"foo=bar", "goo=gar"},
+			map[string]string{"foo": "bar", "goo": "gar"},
+		},
+		{
+			[]string{"foo=bar   "},
+			map[string]string{"foo": "bar   "},
+		},
+		{
+			[]string{"foo   =bar   "},
+			map[string]string{"foo": "bar   "},
+		},
+		{
+			[]string{"foo=composite=bar"},
+			map[string]string{"foo": "composite=bar"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		actualVariables := ParseEnvs(testCase.environmentVariables)
+		assert.Equal(t, testCase.expectedVariables, actualVariables)
+	}
+}

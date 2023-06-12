@@ -1,4 +1,4 @@
-package cli
+package terraform
 
 import (
 	"bytes"
@@ -328,49 +328,8 @@ func TestParseMutliStringKeyValueArg(t *testing.T) {
 	}
 }
 
-func TestParseEnvironmentVariables(t *testing.T) {
-	testCases := []struct {
-		environmentVariables []string
-		expectedVariables    map[string]string
-	}{
-		{
-			[]string{},
-			map[string]string{},
-		},
-		{
-			[]string{"foobar"},
-			map[string]string{},
-		},
-		{
-			[]string{"foo=bar"},
-			map[string]string{"foo": "bar"},
-		},
-		{
-			[]string{"foo=bar", "goo=gar"},
-			map[string]string{"foo": "bar", "goo": "gar"},
-		},
-		{
-			[]string{"foo=bar   "},
-			map[string]string{"foo": "bar   "},
-		},
-		{
-			[]string{"foo   =bar   "},
-			map[string]string{"foo": "bar   "},
-		},
-		{
-			[]string{"foo=composite=bar"},
-			map[string]string{"foo": "composite=bar"},
-		},
-	}
-
-	for _, testCase := range testCases {
-		actualVariables := ParseEnvironmentVariables(testCase.environmentVariables)
-		assert.Equal(t, testCase.expectedVariables, actualVariables)
-	}
-}
-
 func TestTerragruntHelp(t *testing.T) {
-	app := CreateTerragruntCli(os.Stdout, os.Stderr)
+	app := NewApp(os.Stdout, os.Stderr)
 	output := &bytes.Buffer{}
 	app.Writer = output
 
@@ -396,7 +355,7 @@ func TestTerragruntHelp(t *testing.T) {
 }
 
 func TestTerraformHelp(t *testing.T) {
-	app := CreateTerragruntCli(os.Stdout, os.Stderr)
+	app := NewApp(os.Stdout, os.Stderr)
 	output := &bytes.Buffer{}
 	app.Writer = output
 
@@ -421,7 +380,7 @@ func TestTerraformHelp(t *testing.T) {
 }
 
 func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
-	app := CreateTerragruntCli(os.Stdout, os.Stderr)
+	app := NewApp(os.Stdout, os.Stderr)
 
 	output := &bytes.Buffer{}
 	app.Writer = output

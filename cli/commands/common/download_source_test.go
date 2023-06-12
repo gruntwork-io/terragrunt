@@ -1,4 +1,4 @@
-package cli
+package common
 
 import (
 	"fmt"
@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/env"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/sirupsen/logrus"
 
@@ -352,7 +353,7 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 	}
 
 	if requireInitFile {
-		existsInitFile := util.FileExists(util.JoinPath(terraformSource.WorkingDir, moduleInitRequiredFile))
+		existsInitFile := util.FileExists(util.JoinPath(terraformSource.WorkingDir, ModuleInitRequiredFile))
 		assert.True(t, existsInitFile)
 	}
 }
@@ -372,7 +373,7 @@ func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceU
 	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	terragruntOptions.SourceUpdate = sourceUpdate
-	terragruntOptions.Env = ParseEnvironmentVariables(os.Environ())
+	terragruntOptions.Env = env.ParseEnvs(os.Environ())
 
 	terragruntConfig := &config.TerragruntConfig{
 		Terraform: &config.TerraformConfig{

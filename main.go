@@ -13,7 +13,7 @@ import (
 func main() {
 	defer errors.Recover(checkForErrorsAndExit)
 
-	app := cli.CreateTerragruntCli(os.Stdout, os.Stderr)
+	app := cli.NewApp(os.Stdout, os.Stderr)
 	err := app.Run(os.Args)
 
 	checkForErrorsAndExit(err)

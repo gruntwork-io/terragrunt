@@ -6,7 +6,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/errors"
@@ -289,76 +288,6 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 	opts.WorkingDir = workingDir
 	opts.DownloadDir = downloadDir
 	return opts, nil
-}
-
-func (opts *TerragruntOptions) Normalize(versionStr string, writer, errWriter io.Writer) error {
-	opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
-	opts.Logger = util.CreateLogEntry("", opts.LogLevel)
-	opts.Logger.Logger.SetOutput(errWriter)
-
-	opts.Writer = writer
-	opts.ErrWriter = errWriter
-	opts.Env = util.ParseEnvironmentVariables(os.Environ())
-
-	terragruntVersion, err := version.NewVersion(versionStr)
-	if err != nil {
-		// Malformed Terragrunt version; set the version to 0.0
-		if terragruntVersion, err = version.NewVersion("0.0"); err != nil {
-			return errors.WithStackTrace(err)
-		}
-	}
-	opts.TerragruntVersion = terragruntVersion
-
-	if opts.WorkingDir == "" {
-		currentDir, err := os.Getwd()
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
-		opts.WorkingDir = currentDir
-	} else {
-		path, err := filepath.Abs(opts.WorkingDir)
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
-		opts.WorkingDir = path
-	}
-	opts.WorkingDir = filepath.ToSlash(opts.WorkingDir)
-
-	if opts.DownloadDir == "" {
-		opts.DownloadDir = util.JoinPath(opts.WorkingDir, TerragruntCacheDir)
-	} else {
-		path, err := filepath.Abs(opts.DownloadDir)
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
-		opts.DownloadDir = path
-	}
-	opts.DownloadDir = filepath.ToSlash(opts.DownloadDir)
-	opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)
-	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
-	opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
-	opts.OriginalTerraformCommand = opts.TerraformCommand
-
-	jsonOutput := false
-	for _, arg := range opts.TerraformCliArgs {
-		if strings.EqualFold(arg, "-json") {
-			jsonOutput = true
-			break
-		}
-	}
-
-	if opts.IncludeModulePrefix && !jsonOutput {
-		opts.OutputPrefix = fmt.Sprintf("[%s] ", opts.WorkingDir)
-	} else {
-		opts.IncludeModulePrefix = false
-	}
-
-	if !opts.RunAllAutoApprove {
-		// When running in no-auto-approve mode, set parallelism to 1 so that interactive prompts work.
-		opts.Parallelism = 1
-	}
-
-	return nil
 }
 
 // Get the default working and download directories for the given Terragrunt config path

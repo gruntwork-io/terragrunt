@@ -1,6 +1,7 @@
 package hclfmt
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/commands/common"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -15,9 +16,15 @@ func NewCommand(globalOpts *options.TerragruntOptions) *cli.Command {
 	opts := NewOptions(globalOpts)
 
 	command := &cli.Command{
-		Name:   CommandName,
-		Usage:  "Recursively find hcl files and rewrite them into a canonical format.",
-		Action: func(ctx *cli.Context) error { return Run(opts) },
+		Name:  CommandName,
+		Usage: "Recursively find hcl files and rewrite them into a canonical format.",
+		Action: func(ctx *cli.Context) error {
+			if err := common.InitialSetup(ctx, globalOpts); err != nil {
+				return err
+			}
+
+			return Run(opts)
+		},
 	}
 
 	command.AddFlags(

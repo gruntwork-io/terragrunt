@@ -3929,7 +3929,7 @@ func runTerragruntVersionCommand(t *testing.T, ver string, command string, write
 	fmt.Println("runTerragruntVersionCommand after split")
 	fmt.Println(args)
 	version.Version = ver
-	app := cli.CreateTerragruntCli(writer, errwriter)
+	app := cli.NewApp(writer, errwriter)
 	return app.Run(args)
 }
 
