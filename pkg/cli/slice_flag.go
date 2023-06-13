@@ -8,6 +8,10 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+var (
+	SliceFlagEnvVarSep = ","
+)
+
 type SliceFlagType interface {
 	GenericType
 }
@@ -21,25 +25,25 @@ type SliceFlag[T SliceFlagType] struct {
 	Aliases     []string
 	EnvVar      string
 
-	Destination *[]T
-	Splitter    SplitterFunc
-	EnvVarSep   string
+	Destination        *[]T
+	Splitter           SplitterFunc
+	SliceFlagEnvVarSep string
 }
 
 // Apply applies Flag settings to the given flag set.
 func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
 	if flag.Splitter == nil {
-		flag.Splitter = DefaultSplitter
+		flag.Splitter = FlagSplitter
 	}
 
-	if flag.EnvVarSep == "" {
-		flag.EnvVarSep = EnvVarSep
+	if flag.SliceFlagEnvVarSep == "" {
+		flag.SliceFlagEnvVarSep = SliceFlagEnvVarSep
 	}
 
 	var err error
 	valType := FlagType[T](new(genericType[T]))
 
-	if flag.FlagValue, err = newSliceValue(valType, flag.Destination, flag.EnvVar, flag.EnvVarSep, flag.Splitter); err != nil {
+	if flag.FlagValue, err = newSliceValue(valType, flag.Destination, flag.EnvVar, flag.SliceFlagEnvVarSep, flag.Splitter); err != nil {
 		return err
 	}
 

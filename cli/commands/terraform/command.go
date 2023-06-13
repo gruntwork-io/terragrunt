@@ -34,8 +34,6 @@ var (
 		flags.FlagNameTerragruntIncludeDir,
 		flags.FlagNameTerragruntStrictInclude,
 		flags.FlagNameTerragruntParallelism,
-		flags.FlagNameTerragruntCheck,
-		flags.FlagNameTerragruntDiff,
 		flags.FlagNameTerragruntDebug,
 		flags.FlagNameTerragruntLogLevel,
 		flags.FlagNameTerragruntNoColor,

@@ -11,30 +11,30 @@ func TestJoin(t *testing.T) {
 	t.Parallel()
 
 	var testCases = []struct {
-		val              any
+		vals             any
 		sliceSep, mapSep string
-		expected         string
+		expectedOneOf    []string
 	}{
-		{map[string]string{"color": "white", "number": "two"}, ",", "=", "color=white,number=two"},
-		{map[int]int{10: 100, 20: 200}, " ", ":", "10:100 20:200"},
+		{map[string]string{"color": "white", "number": "two"}, ",", "=", []string{"color=white,number=two", "number=two,color=white"}},
+		{map[int]int{10: 100, 20: 200}, " ", ":", []string{"10:100 20:200", "20:200 10:100"}},
 	}
 
 	for i, testCase := range testCases {
 		// to make sure testCase's values don't get updated due to concurrency within the scope of t.Run(..) below
 		testCase := testCase
 
-		t.Run(fmt.Sprintf("test-%d-val-%v-expected-%s", i, testCase.val, testCase.expected), func(t *testing.T) {
+		t.Run(fmt.Sprintf("test-%d-vals-%v-expected-%s", i, testCase.vals, testCase.expectedOneOf), func(t *testing.T) {
 			t.Parallel()
 
 			var actual string
 
-			switch val := testCase.val.(type) {
+			switch vals := testCase.vals.(type) {
 			case map[string]string:
-				actual = Join(val, testCase.sliceSep, testCase.mapSep)
+				actual = Join(vals, testCase.sliceSep, testCase.mapSep)
 			case map[int]int:
-				actual = Join(val, testCase.sliceSep, testCase.mapSep)
+				actual = Join(vals, testCase.sliceSep, testCase.mapSep)
 			}
-			assert.Equal(t, testCase.expected, actual)
+			assert.Contains(t, testCase.expectedOneOf, actual)
 		})
 	}
 }
@@ -43,7 +43,7 @@ func TestSlice(t *testing.T) {
 	t.Parallel()
 
 	var testCases = []struct {
-		val      any
+		vals     any
 		sep      string
 		expected []string
 	}{
@@ -55,18 +55,20 @@ func TestSlice(t *testing.T) {
 		// to make sure testCase's values don't get updated due to concurrency within the scope of t.Run(..) below
 		testCase := testCase
 
-		t.Run(fmt.Sprintf("test-%d-val-%v-expected-%s", i, testCase.val, testCase.expected), func(t *testing.T) {
+		t.Run(fmt.Sprintf("test-%d-vals-%v-expected-%s", i, testCase.vals, testCase.expected), func(t *testing.T) {
 			t.Parallel()
 
 			var actual []string
 
-			switch val := testCase.val.(type) {
+			switch vals := testCase.vals.(type) {
 			case map[string]string:
-				actual = Slice(val, testCase.sep)
+				actual = Slice(vals, testCase.sep)
 			case map[int]int:
-				actual = Slice(val, testCase.sep)
+				actual = Slice(vals, testCase.sep)
 			}
-			assert.Equal(t, testCase.expected, actual)
+			for _, exp := range testCase.expected {
+				assert.Contains(t, actual, exp)
+			}
 		})
 	}
 }

@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	OnePrefixFlag    NormalizeActsType = iota
-	DoublePrefixFlag NormalizeActsType = iota
+	OneDashFlag    NormalizeActsType = iota
+	DoubleDashFlag NormalizeActsType = iota
 )
 
 type NormalizeActsType byte
@@ -27,11 +27,11 @@ func (args *Args) Normalize(acts ...NormalizeActsType) *Args {
 
 		for _, act := range acts {
 			switch act {
-			case OnePrefixFlag:
+			case OneDashFlag:
 				if len(arg) >= 3 && arg[0:2] == "--" && arg[2] != '-' {
 					arg = arg[1:]
 				}
-			case DoublePrefixFlag:
+			case DoubleDashFlag:
 				if len(arg) >= 2 && arg[0] == '-' && arg[1] != '-' {
 					arg = "-" + arg
 				}

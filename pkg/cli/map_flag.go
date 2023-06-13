@@ -10,6 +10,16 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+var (
+	MapFlagEnvVarSep = ","
+	MapFlagKeyValSep = "="
+)
+
+var (
+	// use to separate arguments and env vars with multiple values.
+	DefaultSplitter = strings.Split
+)
+
 type MapFlagKeyType interface {
 	GenericType
 }
@@ -27,31 +37,31 @@ type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	Aliases     []string
 	EnvVar      string
 
-	Destination *map[K]V
-	Splitter    SplitterFunc
-	EnvVarSep   string
-	KeyValSep   string
+	Destination      *map[K]V
+	Splitter         SplitterFunc
+	MapFlagEnvVarSep string
+	MapFlagKeyValSep string
 }
 
 // Apply applies Flag settings to the given flag set.
 func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 	if flag.Splitter == nil {
-		flag.Splitter = DefaultSplitter
+		flag.Splitter = FlagSplitter
 	}
 
-	if flag.EnvVarSep == "" {
-		flag.EnvVarSep = EnvVarSep
+	if flag.MapFlagEnvVarSep == "" {
+		flag.MapFlagEnvVarSep = MapFlagEnvVarSep
 	}
 
-	if flag.KeyValSep == "" {
-		flag.KeyValSep = KeyValSep
+	if flag.MapFlagKeyValSep == "" {
+		flag.MapFlagKeyValSep = MapFlagKeyValSep
 	}
 
 	var err error
 	keyType := FlagType[K](new(genericType[K]))
 	valType := FlagType[V](new(genericType[V]))
 
-	if flag.FlagValue, err = newMapValue(keyType, valType, flag.Destination, flag.EnvVar, flag.EnvVarSep, flag.KeyValSep, flag.Splitter); err != nil {
+	if flag.FlagValue, err = newMapValue(keyType, valType, flag.Destination, flag.EnvVar, flag.MapFlagEnvVarSep, flag.MapFlagKeyValSep, flag.Splitter); err != nil {
 		return err
 	}
 

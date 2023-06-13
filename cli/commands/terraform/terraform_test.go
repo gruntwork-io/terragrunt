@@ -1,12 +1,18 @@
 package terraform
 
 import (
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 
 	goerrors "github.com/go-errors/errors"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -310,4 +316,165 @@ func TestToTerraformEnvVars(t *testing.T) {
 			assert.Equal(t, testCase.expected, actual)
 		})
 	}
+}
+
+func TestFilterTerraformExtraArgs(t *testing.T) {
+	workingDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	workingDir = filepath.ToSlash(workingDir)
+
+	temporaryFile := createTempFile(t)
+
+	testCases := []struct {
+		options      *options.TerragruntOptions
+		extraArgs    config.TerraformExtraArguments
+		expectedArgs []string
+	}{
+		// Standard scenario
+		{
+			mockCmdOptions(t, workingDir, []string{"apply"}),
+			mockExtraArgs([]string{"--foo", "bar"}, []string{"apply", "plan", "destroy"}, []string{}, []string{}),
+			[]string{"--foo", "bar"},
+		},
+		// optional existing var file
+		{
+			mockCmdOptions(t, workingDir, []string{"apply"}),
+			mockExtraArgs([]string{"--foo", "bar"}, []string{"apply", "plan"}, []string{}, []string{temporaryFile}),
+			[]string{"--foo", "bar", fmt.Sprintf("-var-file=%s", temporaryFile)},
+		},
+		// required var file + optional existing var file
+		{
+			mockCmdOptions(t, workingDir, []string{"apply"}),
+			mockExtraArgs([]string{"--foo", "bar"}, []string{"apply", "plan"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			[]string{"--foo", "bar", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+		},
+		// non existing required var file + non existing optional var file
+		{
+			mockCmdOptions(t, workingDir, []string{"apply"}),
+			mockExtraArgs([]string{"--foo", "bar"}, []string{"apply", "plan"}, []string{"required.tfvars"}, []string{"optional.tfvars"}),
+			[]string{"--foo", "bar", "-var-file=required.tfvars"},
+		},
+		// plan providing a folder, var files should stay included
+		{
+			mockCmdOptions(t, workingDir, []string{"plan", workingDir}),
+			mockExtraArgs([]string{"--foo", "bar"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			[]string{"--foo", "bar", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+		},
+		// apply providing a folder, var files should stay included
+		{
+			mockCmdOptions(t, workingDir, []string{"apply", workingDir}),
+			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "-var='key=value'"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			[]string{"--foo", "-var-file=test.tfvars", "-var='key=value'", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+		},
+		// apply providing a file, no var files included
+		{
+			mockCmdOptions(t, workingDir, []string{"apply", temporaryFile}),
+			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			[]string{"--foo", "bar", "foo"},
+		},
+
+		// apply providing no params, var files should stay included
+		{
+			mockCmdOptions(t, workingDir, []string{"apply"}),
+			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			[]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+		},
+		// apply with some parameters, providing a file => no var files included
+		{
+			mockCmdOptions(t, workingDir, []string{"apply", "-no-color", "-foo", temporaryFile}),
+			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			[]string{"--foo", "bar", "foo"},
+		},
+		// destroy providing a folder, var files should stay included
+		{
+			mockCmdOptions(t, workingDir, []string{"destroy", workingDir}),
+			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "-var='key=value'"}, []string{"plan", "destroy"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			[]string{"--foo", "-var-file=test.tfvars", "-var='key=value'", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+		},
+		// destroy providing a file, no var files included
+		{
+			mockCmdOptions(t, workingDir, []string{"destroy", temporaryFile}),
+			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "destroy"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			[]string{"--foo", "bar", "foo"},
+		},
+
+		// destroy providing no params, var files should stay included
+		{
+			mockCmdOptions(t, workingDir, []string{"destroy"}),
+			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "destroy"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			[]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+		},
+		// destroy with some parameters, providing a file => no var files included
+		{
+			mockCmdOptions(t, workingDir, []string{"destroy", "-no-color", "-foo", temporaryFile}),
+			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "destroy"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			[]string{"--foo", "bar", "foo"},
+		},
+
+		// Command not included in commands list
+		{
+			mockCmdOptions(t, workingDir, []string{"apply"}),
+			mockExtraArgs([]string{"--foo", "bar"}, []string{"plan", "destroy"}, []string{"required.tfvars"}, []string{"optional.tfvars"}),
+			[]string{},
+		},
+	}
+	for _, testCase := range testCases {
+		config := config.TerragruntConfig{
+			Terraform: &config.TerraformConfig{ExtraArgs: []config.TerraformExtraArguments{testCase.extraArgs}},
+		}
+
+		out := FilterTerraformExtraArgs(testCase.options, &config)
+
+		assert.Equal(t, testCase.expectedArgs, out)
+	}
+
+}
+
+var defaultLogLevel = util.GetDefaultLogLevel()
+
+func mockCmdOptions(t *testing.T, workingDir string, terraformCliArgs []string) *options.TerragruntOptions {
+	o := mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, terraformCliArgs, true, "", false, false, defaultLogLevel, false)
+	return o
+}
+
+func mockExtraArgs(arguments, commands, requiredVarFiles, optionalVarFiles []string) config.TerraformExtraArguments {
+	a := config.TerraformExtraArguments{
+		Name:             "test",
+		Arguments:        &arguments,
+		Commands:         commands,
+		RequiredVarFiles: &requiredVarFiles,
+		OptionalVarFiles: &optionalVarFiles,
+	}
+
+	return a
+}
+
+func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, includeExternalDependencies bool, logLevel logrus.Level, debug bool) *options.TerragruntOptions {
+	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
+	if err != nil {
+		t.Fatalf("error: %v\n", errors.WithStackTrace(err))
+	}
+
+	opts.WorkingDir = workingDir
+	opts.TerraformCliArgs = terraformCliArgs
+	opts.NonInteractive = nonInteractive
+	opts.Source = terragruntSource
+	opts.IgnoreDependencyErrors = ignoreDependencyErrors
+	opts.IncludeExternalDependencies = includeExternalDependencies
+	opts.Logger.Level = logLevel
+	opts.Debug = debug
+
+	return opts
+}
+
+func createTempFile(t *testing.T) string {
+	tmpFile, err := ioutil.TempFile("", "")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %s\n", err.Error())
+	}
+
+	return filepath.ToSlash(tmpFile.Name())
 }

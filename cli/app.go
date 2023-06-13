@@ -89,16 +89,13 @@ func showHelp(ctx *cli.Context, opts *options.TerragruntOptions) error {
 }
 
 func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
-	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of  terragrunt used.
-	defer opts.Logger.Debugf("Terragrunt Version: %s", opts.TerragruntVersion)
-
 	// The env vars are renamed to "..._NO_AUTO_..." in the gobal flags`. These ones are left for backwards compatibility.
 	opts.AutoInit = env.GetBoolEnv("TERRAGRUNT_AUTO_INIT", opts.AutoInit)
 	opts.AutoRetry = env.GetBoolEnv("TERRAGRUNT_AUTO_RETRY", opts.AutoRetry)
 	opts.RunAllAutoApprove = env.GetBoolEnv("TERRAGRUNT_AUTO_APPROVE", opts.RunAllAutoApprove)
 
-	// convert the rest flags (intended for terraform) to one prefix, e.g. `--input=true` to `-input=true`
-	args := ctx.Args().Normalize(cli.OnePrefixFlag)
+	// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
+	args := ctx.Args().Normalize(cli.OneDashFlag)
 
 	opts.TerraformCommand = args.First()
 	opts.TerraformCliArgs = args.Slice()
@@ -148,6 +145,8 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 		}
 	}
 	opts.TerragruntVersion = terragruntVersion
+	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of terragrunt used.
+	opts.Logger.Debugf("Terragrunt Version: %s", opts.TerragruntVersion)
 
 	jsonOutput := false
 	for _, arg := range opts.TerraformCliArgs {

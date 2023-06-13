@@ -8,13 +8,8 @@ import (
 )
 
 var (
-	EnvVarSep = "," // env vars
-	KeyValSep = "="
-)
-
-var (
 	// use to separate arguments and env vars with multiple values.
-	DefaultSplitter = strings.Split
+	FlagSplitter = strings.Split
 )
 
 type FlagType[T any] interface {
