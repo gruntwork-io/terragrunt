@@ -54,7 +54,7 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 
 func beforeRunningCommand(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
-		if flag := ctx.Flags.Get(flags.FlagNameHelp); flag.Value().IsSet() {
+		if flagHelp := ctx.Flags.Get(flags.FlagNameHelp); flagHelp.Value().IsSet() {
 			ctx.Command.Action = nil
 
 			if err := showHelp(ctx, opts); err != nil {

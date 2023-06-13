@@ -42,6 +42,10 @@ func (commands Commands) VisibleCommands() []*cli.Command {
 			continue
 		}
 
+		if command.HelpName == "" {
+			command.HelpName = command.Name
+		}
+
 		visible = append(visible, &cli.Command{
 			Name:        command.Name,
 			Aliases:     command.Aliases,

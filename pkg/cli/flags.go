@@ -106,7 +106,9 @@ func (flags Flags) parseArgs(flagSet *libflag.FlagSet, args []string) ([]string,
 		// cut off the args
 		var notFoundMatch bool
 		for i, arg := range args {
-			if trimmed := strings.Trim(arg, "-"); trimmed == undefArg {
+			// `--var=input=from_env` trims to `var`
+			trimmed := strings.SplitN(strings.Trim(arg, "-"), "=", 2)[0]
+			if trimmed == undefArg {
 				undefArgs = append(undefArgs, arg)
 				notFoundMatch = true
 				args = args[i+1:]
