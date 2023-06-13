@@ -8,19 +8,14 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/version"
-	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
-	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
-	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
-	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
-	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
-	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 	hashicorpversion "github.com/hashicorp/go-version"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
+	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/env"
@@ -46,12 +41,22 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 	app.Version = version.GetVersion()
 	app.Writer = writer
 	app.ErrWriter = errWriter
-	app.AddFlags(newGlobalFlags(opts)...)
-	app.AddCommands(append(
-		newDeprecatedCommands(opts),
-		newCommands(opts)...)...)
-	app.Before = func(ctx *cli.Context) error {
-		if ctx.Flags.Get(FlagNameHelp).Value().IsSet() {
+	app.Flags = flags.NewFlags(opts).Filter(append(
+		terraform.TerragruntFlagNames,
+		flags.FlagNameHelp))
+	app.Commands = append(
+		commands.NewDeprecatedCommands(opts),
+		commands.NewCommands(opts)...)
+	app.Before = beforeRunningCommand(opts)
+	app.Action = terraform.Action(opts) // default action
+	app.OsExiter = osExiter
+
+	return app
+}
+
+func beforeRunningCommand(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
+	return func(ctx *cli.Context) error {
+		if ctx.Flags.Get(flags.FlagNameHelp).Value().IsSet() {
 			ctx.Command.Action = nil
 
 			if err := showHelp(ctx, opts); err != nil {
@@ -64,23 +69,6 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 		}
 
 		return nil
-	}
-	app.Action = terraform.Action(opts) // default action
-
-	return app
-}
-
-// This set of commands is also used in unit tests
-func newCommands(opts *options.TerragruntOptions) cli.Commands {
-	return cli.Commands{
-		runall.NewCommand(opts),            // run-all
-		terragruntinfo.NewCommand(opts),    // terragrunt-info
-		validateinputs.NewCommand(opts),    // validate-inputs
-		graphdependencies.NewCommand(opts), // graph-dependencies
-		hclfmt.NewCommand(opts),            // hclfmt
-		renderjson.NewCommand(opts),        // render-json
-		awsproviderpatch.NewCommand(opts),  // aws-provider-patch
-		terraform.NewCommand(opts),         // * (does nothing, only to be shown in the help)
 	}
 }
 
@@ -184,4 +172,9 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
 
 	return nil
+}
+
+func osExiter(exitCode int) {
+	// Do nothing. We just need to override this function, as the default value calls os.Exit, which
+	// kills the app (or any automated test) dead in its tracks.
 }

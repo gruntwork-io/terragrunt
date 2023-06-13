@@ -1,6 +1,7 @@
 package awsproviderpatch
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
@@ -8,35 +9,62 @@ import (
 
 const (
 	CommandName = "aws-provider-patch"
-
-	FlagNameTerragruntOverrideAttr = "terragrunt-override-attr"
 )
 
-func NewCommand(globalOpts *options.TerragruntOptions) *cli.Command {
-	opts := NewOptions(globalOpts)
+var (
+	TerragruntFlagNames = []string{
+		flags.FlagNameTerragruntConfig,
+		flags.FlagNameTerragruntTFPath,
+		flags.FlagNameTerragruntNoAutoInit,
+		flags.FlagNameTerragruntNoAutoRetry,
+		flags.FlagNameTerragruntNoAutoApprove,
+		flags.FlagNameTerragruntNonInteractive,
+		flags.FlagNameTerragruntWorkingDir,
+		flags.FlagNameTerragruntDownloadDir,
+		flags.FlagNameTerragruntSource,
+		flags.FlagNameTerragruntSourceMap,
+		flags.FlagNameTerragruntSourceUpdate,
+		flags.FlagNameTerragruntIAMRole,
+		flags.FlagNameTerragruntIAMAssumeRoleDuration,
+		flags.FlagNameTerragruntIAMAssumeRoleSessionName,
+		flags.FlagNameTerragruntIgnoreDependencyErrors,
+		flags.FlagNameTerragruntIgnoreDependencyOrder,
+		flags.FlagNameTerragruntIgnoreExternalDependencies,
+		flags.FlagNameTerragruntIncludeExternalDependencies,
+		flags.FlagNameTerragruntExcludeDir,
+		flags.FlagNameTerragruntIncludeDir,
+		flags.FlagNameTerragruntStrictInclude,
+		flags.FlagNameTerragruntParallelism,
+		flags.FlagNameTerragruntCheck,
+		flags.FlagNameTerragruntDiff,
+		flags.FlagNameTerragruntDebug,
+		flags.FlagNameTerragruntLogLevel,
+		flags.FlagNameTerragruntNoColor,
+		flags.FlagNameTerragruntModulesThatInclude,
+		flags.FlagNameTerragruntFetchDependencyOutputFromState,
+		flags.FlagNameTerragruntUsePartialParseConfigCache,
+		flags.FlagNameTerragruntIncludeModulePrefix,
 
-	command := &cli.Command{
+		flags.FlagNameTerragruntOverrideAttr,
+	}
+)
+
+func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+	return &cli.Command{
 		Name:   CommandName,
 		Usage:  "Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018).",
-		Flags:  cli.Flags{},
+		Flags:  flags.NewFlags(opts).Filter(TerragruntFlagNames),
 		Before: func(ctx *cli.Context) error { return ctx.App.Before(ctx) },
-		Action: func(ctx *cli.Context) error {
-			if len(opts.AwsProviderPatchOverrides) == 0 {
-				return errors.WithStackTrace(MissingOverrideAttrError(FlagNameTerragruntOverrideAttr))
-			}
-
-			return Run(opts)
-		},
+		Action: Action(opts),
 	}
+}
 
-	command.AddFlags(
-		&cli.MapFlag[string, string]{
-			Name:        FlagNameTerragruntOverrideAttr,
-			Destination: &opts.AwsProviderPatchOverrides,
-			EnvVar:      "TERRAGRUNT_EXCLUDE_DIR",
-			Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.",
-		},
-	)
+func Action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
+	return func(ctx *cli.Context) error {
+		if len(opts.AwsProviderPatchOverrides) == 0 {
+			return errors.WithStackTrace(MissingOverrideAttrError(flags.FlagNameTerragruntOverrideAttr))
+		}
 
-	return command
+		return Run(opts)
+	}
 }

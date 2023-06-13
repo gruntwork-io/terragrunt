@@ -22,12 +22,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-func Run(opts *Options) error {
-	if err := terraform.CheckVersionConstraints(opts.TerragruntOptions); err != nil {
+func Run(opts *options.TerragruntOptions) error {
+	if err := terraform.CheckVersionConstraints(opts); err != nil {
 		return err
 	}
 
-	terragruntConfig, err := config.ReadTerragruntConfig(opts.TerragruntOptions)
+	terragruntConfig, err := config.ReadTerragruntConfig(opts)
 	if err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func Run(opts *Options) error {
 		opts.OriginalIAMRoleOptions,
 	)
 
-	if err := aws_helper.AssumeRoleAndUpdateEnvIfNecessary(opts.TerragruntOptions); err != nil {
+	if err := aws_helper.AssumeRoleAndUpdateEnvIfNecessary(opts); err != nil {
 		return err
 	}
 
@@ -81,12 +81,12 @@ func Run(opts *Options) error {
 		opts.RetrySleepIntervalSec = time.Duration(*terragruntConfig.RetrySleepIntervalSec) * time.Second
 	}
 
-	sourceUrl, err := config.GetTerraformSourceUrl(opts.TerragruntOptions, terragruntConfig)
+	sourceUrl, err := config.GetTerraformSourceUrl(opts, terragruntConfig)
 	if err != nil {
 		return err
 	}
 	if sourceUrl != "" {
-		opts.TerragruntOptions, err = terraform.DownloadTerraformSource(sourceUrl, opts.TerragruntOptions, terragruntConfig)
+		opts, err = terraform.DownloadTerraformSource(sourceUrl, opts, terragruntConfig)
 		if err != nil {
 			return err
 		}
@@ -94,14 +94,14 @@ func Run(opts *Options) error {
 
 	// NOTE: At this point, the terraform source is downloaded to the terragrunt working directory
 
-	if err = terraform.GenerateConfig(terragruntConfig, opts.TerragruntOptions); err != nil {
+	if err = terraform.GenerateConfig(terragruntConfig, opts); err != nil {
 		return err
 	}
 
 	return validateTerragruntInputs(opts, terragruntConfig)
 }
 
-func validateTerragruntInputs(opts *Options, workingConfig *config.TerragruntConfig) error {
+func validateTerragruntInputs(opts *options.TerragruntOptions, workingConfig *config.TerragruntConfig) error {
 	required, optional, err := tr.ModuleVariables(opts.WorkingDir)
 	if err != nil {
 		return err
@@ -172,7 +172,7 @@ func validateTerragruntInputs(opts *Options, workingConfig *config.TerragruntCon
 // - env vars from the external runtime calling terragrunt.
 // - inputs blocks.
 // - automatically injected terraform vars (terraform.tfvars, terraform.tfvars.json, *.auto.tfvars, *.auto.tfvars.json)
-func getDefinedTerragruntInputs(opts *Options, workingConfig *config.TerragruntConfig) ([]string, error) {
+func getDefinedTerragruntInputs(opts *options.TerragruntOptions, workingConfig *config.TerragruntConfig) ([]string, error) {
 	envVarTFVars := getTerraformInputNamesFromEnvVar(opts, workingConfig)
 	inputsTFVars := getTerraformInputNamesFromConfig(workingConfig)
 	varFileTFVars, err := getTerraformInputNamesFromVarFiles(opts, workingConfig)
@@ -217,7 +217,7 @@ func getDefinedTerragruntInputs(opts *Options, workingConfig *config.TerragruntC
 // variables from extra_arguments blocks to see if there are any TF_VAR environment variables that set terraform
 // variables. This will return the list of names of variables that are set in this way by the given terragrunt
 // configuration.
-func getTerraformInputNamesFromEnvVar(opts *Options, terragruntConfig *config.TerragruntConfig) []string {
+func getTerraformInputNamesFromEnvVar(opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
 	envVars := opts.Env
 
 	// Make sure to check if there are configured env vars in the parsed terragrunt config.
@@ -252,7 +252,7 @@ func getTerraformInputNamesFromConfig(terragruntConfig *config.TerragruntConfig)
 
 // getTerraformInputNamesFromVarFiles will return the list of names of variables configured by var files set in the
 // extra_arguments block required_var_files and optional_var_files settings of the given terragrunt config.
-func getTerraformInputNamesFromVarFiles(opts *Options, terragruntConfig *config.TerragruntConfig) ([]string, error) {
+func getTerraformInputNamesFromVarFiles(opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) ([]string, error) {
 	if terragruntConfig.Terraform == nil {
 		return nil, nil
 	}
@@ -268,7 +268,7 @@ func getTerraformInputNamesFromVarFiles(opts *Options, terragruntConfig *config.
 // getTerraformInputNamesFromCLIArgs will return the list of names of variables configured by -var and -var-file CLI
 // args that are passed in via the configured arguments attribute in the extra_arguments block of the given terragrunt
 // config and those that are directly passed in via the CLI.
-func getTerraformInputNamesFromCLIArgs(opts *Options, terragruntConfig *config.TerragruntConfig) ([]string, error) {
+func getTerraformInputNamesFromCLIArgs(opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) ([]string, error) {
 	inputNames, varFiles, err := getVarFlagsFromArgList(opts.TerraformCliArgs)
 	if err != nil {
 		return inputNames, err
@@ -297,7 +297,7 @@ func getTerraformInputNamesFromCLIArgs(opts *Options, terragruntConfig *config.T
 }
 
 // getTerraformInputNamesFromAutomaticVarFiles returns all the variables names
-func getTerraformInputNamesFromAutomaticVarFiles(opts *Options) ([]string, error) {
+func getTerraformInputNamesFromAutomaticVarFiles(opts *options.TerragruntOptions) ([]string, error) {
 	base := opts.WorkingDir
 	automaticVarFiles := []string{}
 

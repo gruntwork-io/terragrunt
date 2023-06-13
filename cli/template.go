@@ -28,12 +28,13 @@ const commandHelpTemplate = `NAME:
    {{$v := offset .HelpName 6}}{{wrap .HelpName 3}}{{if .Usage}} - {{wrap .Usage $v}}{{end}}
 
 USAGE:
-   {{if .UsageText}}{{wrap .UsageText 3}}{{else}}terragrunt {{.HelpName}}{{if .VisibleFlags}} [command options]{{end}} [global options]{{end}}{{if .Description}}
+   {{if .UsageText}}{{wrap .UsageText 3}}{{else}}terragrunt {{.HelpName}}{{if .VisibleFlags}} [global options]{{end}}{{end}}{{if .Description}}
 
 DESCRIPTION:
    {{wrap .Description 3}}{{end}}{{if .VisibleFlags}}
 
-OPTIONS:{{range $i, $e := .VisibleFlags}}
-   {{wrap $e.String 6}}{{end}}{{end}}
+GLOBAL OPTIONS:
+   {{range $index, $option := .VisibleFlags}}{{if $index}}
+   {{end}}{{wrap $option.String 6}}{{end}}{{end}}
 
 `

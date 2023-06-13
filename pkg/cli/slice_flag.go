@@ -23,17 +23,23 @@ type SliceFlag[T SliceFlagType] struct {
 
 	Destination *[]T
 	Splitter    SplitterFunc
-	ArgSep      string
+	EnvVarSep   string
 }
 
 // Apply applies Flag settings to the given flag set.
 func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
-	flag.normalize()
+	if flag.Splitter == nil {
+		flag.Splitter = DefaultSplitter
+	}
+
+	if flag.EnvVarSep == "" {
+		flag.EnvVarSep = EnvVarSep
+	}
 
 	var err error
 	valType := FlagType[T](new(genericType[T]))
 
-	if flag.FlagValue, err = newSliceValue(valType, flag.Destination, flag.EnvVar, flag.ArgSep, flag.Splitter); err != nil {
+	if flag.FlagValue, err = newSliceValue(valType, flag.Destination, flag.EnvVar, flag.EnvVarSep, flag.Splitter); err != nil {
 		return err
 	}
 
@@ -72,16 +78,6 @@ func (flag *SliceFlag[T]) String() string {
 // Names returns the names of the flag.
 func (flag *SliceFlag[T]) Names() []string {
 	return append([]string{flag.Name}, flag.Aliases...)
-}
-
-func (flag *SliceFlag[T]) normalize() {
-	if flag.Splitter == nil {
-		flag.Splitter = DefaultSplitter
-	}
-
-	if flag.ArgSep == "" {
-		flag.ArgSep = DefaultArgSep
-	}
 }
 
 // -- slice Value

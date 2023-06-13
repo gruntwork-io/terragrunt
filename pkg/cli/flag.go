@@ -7,9 +7,9 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-const (
-	DefaultArgSep    = ","
-	DefaultKeyValSep = "="
+var (
+	EnvVarSep = "," // env vars
+	KeyValSep = "="
 )
 
 var (

@@ -19,10 +19,11 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/mattn/go-zglob"
 
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-func Run(opts *Options) error {
+func Run(opts *options.TerragruntOptions) error {
 	workingDir := opts.WorkingDir
 	targetFile := opts.HclFile
 
@@ -69,7 +70,7 @@ func Run(opts *Options) error {
 
 // formatTgHCL uses the hcl2 library to format the hcl file. This will attempt to parse the HCL file first to
 // ensure that there are no syntax errors, before attempting to format it.
-func formatTgHCL(opts *Options, tgHclFile string) error {
+func formatTgHCL(opts *options.TerragruntOptions, tgHclFile string) error {
 	opts.Logger.Debugf("Formatting %s", tgHclFile)
 
 	info, err := os.Stat(tgHclFile)

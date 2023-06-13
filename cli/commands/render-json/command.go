@@ -1,45 +1,61 @@
 package renderjson
 
 import (
-	"sort"
-
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
 
 const (
 	CommandName = "render-json"
-
-	FlagNameTerragruntJSONOut = "terragrunt-json-out"
-	FlagNameWithMetadata      = "with-metadata"
 )
 
-func NewCommand(globalOpts *options.TerragruntOptions) *cli.Command {
-	opts := NewOptions(globalOpts)
+var (
+	TerragruntFlagNames = []string{
+		flags.FlagNameTerragruntConfig,
+		flags.FlagNameTerragruntTFPath,
+		flags.FlagNameTerragruntNoAutoInit,
+		flags.FlagNameTerragruntNoAutoRetry,
+		flags.FlagNameTerragruntNoAutoApprove,
+		flags.FlagNameTerragruntNonInteractive,
+		flags.FlagNameTerragruntWorkingDir,
+		flags.FlagNameTerragruntDownloadDir,
+		flags.FlagNameTerragruntSource,
+		flags.FlagNameTerragruntSourceMap,
+		flags.FlagNameTerragruntSourceUpdate,
+		flags.FlagNameTerragruntIAMRole,
+		flags.FlagNameTerragruntIAMAssumeRoleDuration,
+		flags.FlagNameTerragruntIAMAssumeRoleSessionName,
+		flags.FlagNameTerragruntIgnoreDependencyErrors,
+		flags.FlagNameTerragruntIgnoreDependencyOrder,
+		flags.FlagNameTerragruntIgnoreExternalDependencies,
+		flags.FlagNameTerragruntIncludeExternalDependencies,
+		flags.FlagNameTerragruntExcludeDir,
+		flags.FlagNameTerragruntIncludeDir,
+		flags.FlagNameTerragruntStrictInclude,
+		flags.FlagNameTerragruntParallelism,
+		flags.FlagNameTerragruntCheck,
+		flags.FlagNameTerragruntDiff,
+		flags.FlagNameTerragruntDebug,
+		flags.FlagNameTerragruntLogLevel,
+		flags.FlagNameTerragruntNoColor,
+		flags.FlagNameTerragruntModulesThatInclude,
+		flags.FlagNameTerragruntFetchDependencyOutputFromState,
+		flags.FlagNameTerragruntUsePartialParseConfigCache,
+		flags.FlagNameTerragruntIncludeModulePrefix,
 
-	command := &cli.Command{
+		flags.FlagNameTerragruntJSONOut,
+		flags.FlagNameWithMetadata,
+	}
+)
+
+func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+	return &cli.Command{
 		Name:        CommandName,
 		Usage:       "Render the final terragrunt config, with all variables, includes, and functions resolved, as json.",
 		Description: "This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.",
+		Flags:       flags.NewFlags(opts).Filter(TerragruntFlagNames),
 		Before:      func(ctx *cli.Context) error { return ctx.App.Before(ctx) },
-		Action: func(ctx *cli.Context) error {
-			return Run(opts)
-		},
+		Action:      func(ctx *cli.Context) error { return Run(opts) },
 	}
-
-	command.AddFlags(
-		&cli.GenericFlag[string]{
-			Name:        FlagNameTerragruntJSONOut,
-			Destination: &opts.JSONOut,
-			Usage:       "The file path that terragrunt should use when rendering the terragrunt.hcl config as json.",
-		},
-		&cli.BoolFlag{
-			Name:        FlagNameWithMetadata,
-			Destination: &opts.RenderJsonWithMetadata,
-			Usage:       "Add metadata to the rendered JSON file.",
-		},
-	)
-	sort.Sort(cli.Flags(command.Flags))
-
-	return command
 }

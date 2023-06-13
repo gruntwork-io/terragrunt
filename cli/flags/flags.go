@@ -1,4 +1,4 @@
-package cli
+package flags
 
 import (
 	"sort"
@@ -41,10 +41,23 @@ const (
 	FlagNameTerragruntUsePartialParseConfigCache     = "terragrunt-use-partial-parse-config-cache"
 	FlagNameTerragruntIncludeModulePrefix            = "terragrunt-include-module-prefix"
 
+	// aws-provider-patch command
+	FlagNameTerragruntOverrideAttr = "terragrunt-override-attr"
+
+	// hclfmt command
+	FlagNameTerragruntHCLFmt = "terragrunt-hclfmt-file"
+
+	// render-json command
+	FlagNameTerragruntJSONOut = "terragrunt-json-out"
+	FlagNameWithMetadata      = "with-metadata"
+
+	// validate-inputs command
+	FlagTerragruntStrictValidate = "terragrunt-strict-validate"
+
 	FlagNameHelp = "help"
 )
 
-func newGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	flags := cli.Flags{
 		&cli.GenericFlag[string]{
 			Name:        FlagNameTerragruntConfig,
@@ -230,9 +243,35 @@ func newGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.ModulesThatInclude,
 			Usage:       "If flag is set, 'run-all' will only run the command against Terragrunt modules that include the specified file.",
 		},
+		&cli.MapFlag[string, string]{
+			Name:        FlagNameTerragruntOverrideAttr,
+			Destination: &opts.AwsProviderPatchOverrides,
+			EnvVar:      "TERRAGRUNT_EXCLUDE_DIR",
+			Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.",
+		},
+		&cli.GenericFlag[string]{
+			Name:        FlagNameTerragruntHCLFmt,
+			Destination: &opts.HclFile,
+			Usage:       "The path to a single hcl file that the hclfmt command should run on.",
+		},
+		&cli.GenericFlag[string]{
+			Name:        FlagNameTerragruntJSONOut,
+			Destination: &opts.JSONOut,
+			Usage:       "The file path that terragrunt should use when rendering the terragrunt.hcl config as json.",
+		},
+		&cli.BoolFlag{
+			Name:        FlagNameWithMetadata,
+			Destination: &opts.RenderJsonWithMetadata,
+			Usage:       "Add metadata to the rendered JSON file.",
+		},
+		&cli.BoolFlag{
+			Name:        FlagTerragruntStrictValidate,
+			Destination: &opts.ValidateStrict,
+			Usage:       "Sets strict mode for the validate-inputs command. By default, strict mode is off. When this flag is passed, strict mode is turned on. When strict mode is turned off, the validate-inputs command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When strict mode is turned on, an error will be returned if required inputs are missing OR if unused variables are passed to Terragrunt.",
+		},
 	}
 
-	sort.Sort(cli.Flags(flags))
+	sort.Sort(flags)
 
 	// add `help` after the sort to put the flag at the end of the flag list in the help.
 	flags.Add(

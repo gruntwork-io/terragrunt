@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"os"
+
 	"github.com/urfave/cli/v2"
 )
 
@@ -20,12 +22,15 @@ type App struct {
 	After RunFunc
 	// The action to execute when no subcommands are specified
 	Action RunFunc
+	// OsExiter is the function used when the app exits. If not set defaults to os.Exit.
+	OsExiter func(code int)
 }
 
 // NewApp returns app new App instance.
 func NewApp() *App {
 	return &App{
-		App: cli.NewApp(),
+		App:      cli.NewApp(),
+		OsExiter: os.Exit,
 	}
 }
 
@@ -83,12 +88,5 @@ func (app *App) newRootCommand() *Command {
 		Flags:       app.Flags,
 		Subcommands: app.Commands,
 		IsRoot:      true,
-	}
-}
-
-func init() {
-	cli.OsExiter = func(exitCode int) {
-		// Do nothing. We just need to override this function, as the default value calls os.Exit, which
-		// kills the app (or any automated test) dead in its tracks.
 	}
 }

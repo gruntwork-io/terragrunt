@@ -15,6 +15,21 @@ func (commands Commands) Get(name string) *Command {
 	return nil
 }
 
+// Filter returns a list of commands filtered by the given names.
+func (commands Commands) Filter(names []string) Commands {
+	var filtered Commands
+
+	for _, command := range commands {
+		for _, name := range names {
+			if command.HasName(name) {
+				filtered = append(filtered, command)
+			}
+		}
+	}
+
+	return filtered
+}
+
 // VisibleCommands returns a slice of the Commands with Hidden=false.
 // Used by `urfave/cli` package to generate help.
 func (commands Commands) VisibleCommands() []*cli.Command {

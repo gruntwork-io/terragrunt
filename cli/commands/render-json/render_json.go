@@ -18,15 +18,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-func Run(opts *Options) error {
-	if err := terraform.CheckVersionConstraints(opts.TerragruntOptions); err != nil {
+func Run(opts *options.TerragruntOptions) error {
+	if err := terraform.CheckVersionConstraints(opts); err != nil {
 		return err
 	}
 
-	terragruntConfig, err := config.ReadTerragruntConfig(opts.TerragruntOptions)
+	terragruntConfig, err := config.ReadTerragruntConfig(opts)
 	if err != nil {
 		return err
 	}
@@ -60,7 +61,7 @@ func Run(opts *Options) error {
 	if jsonOutPath == "" {
 		// Default to naming it `terragrunt_rendered.json` in the terragrunt config directory.
 		terragruntConfigDir := filepath.Dir(opts.TerragruntConfigPath)
-		jsonOutPath = filepath.Join(terragruntConfigDir, defaultJSONOutName)
+		jsonOutPath = filepath.Join(terragruntConfigDir, options.DefaultJSONOutName)
 	}
 	if err := util.EnsureDirectory(filepath.Dir(jsonOutPath)); err != nil {
 		return err

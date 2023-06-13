@@ -42,7 +42,7 @@ func CheckVersionConstraints(terragruntOptions *options.TerragruntOptions) error
 
 	// Change the terraform binary path before checking the version
 	// if the path is not changed from default and set in the config.
-	if terragruntOptions.TerraformPath == options.TERRAFORM_DEFAULT_PATH && partialTerragruntConfig.TerraformBinary != "" {
+	if terragruntOptions.TerraformPath == options.TerraformDefaultPath && partialTerragruntConfig.TerraformBinary != "" {
 		terragruntOptions.TerraformPath = partialTerragruntConfig.TerraformBinary
 	}
 	if err := PopulateTerraformVersion(terragruntOptions); err != nil {

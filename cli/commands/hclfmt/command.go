@@ -1,35 +1,59 @@
 package hclfmt
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
 
 const (
 	CommandName = "hclfmt"
-
-	FlagNameTerragruntHCLFmt = "terragrunt-hclfmt-file"
 )
 
-func NewCommand(globalOpts *options.TerragruntOptions) *cli.Command {
-	opts := NewOptions(globalOpts)
+var (
+	TerragruntFlagNames = []string{
+		flags.FlagNameTerragruntConfig,
+		flags.FlagNameTerragruntTFPath,
+		flags.FlagNameTerragruntNoAutoInit,
+		flags.FlagNameTerragruntNoAutoRetry,
+		flags.FlagNameTerragruntNoAutoApprove,
+		flags.FlagNameTerragruntNonInteractive,
+		flags.FlagNameTerragruntWorkingDir,
+		flags.FlagNameTerragruntDownloadDir,
+		flags.FlagNameTerragruntSource,
+		flags.FlagNameTerragruntSourceMap,
+		flags.FlagNameTerragruntSourceUpdate,
+		flags.FlagNameTerragruntIAMRole,
+		flags.FlagNameTerragruntIAMAssumeRoleDuration,
+		flags.FlagNameTerragruntIAMAssumeRoleSessionName,
+		flags.FlagNameTerragruntIgnoreDependencyErrors,
+		flags.FlagNameTerragruntIgnoreDependencyOrder,
+		flags.FlagNameTerragruntIgnoreExternalDependencies,
+		flags.FlagNameTerragruntIncludeExternalDependencies,
+		flags.FlagNameTerragruntExcludeDir,
+		flags.FlagNameTerragruntIncludeDir,
+		flags.FlagNameTerragruntStrictInclude,
+		flags.FlagNameTerragruntParallelism,
+		flags.FlagNameTerragruntCheck,
+		flags.FlagNameTerragruntDiff,
+		flags.FlagNameTerragruntDebug,
+		flags.FlagNameTerragruntLogLevel,
+		flags.FlagNameTerragruntNoColor,
+		flags.FlagNameTerragruntModulesThatInclude,
+		flags.FlagNameTerragruntFetchDependencyOutputFromState,
+		flags.FlagNameTerragruntUsePartialParseConfigCache,
+		flags.FlagNameTerragruntIncludeModulePrefix,
 
-	command := &cli.Command{
+		flags.FlagNameTerragruntHCLFmt,
+	}
+)
+
+func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+	return &cli.Command{
 		Name:   CommandName,
 		Usage:  "Recursively find hcl files and rewrite them into a canonical format.",
+		Flags:  flags.NewFlags(opts).Filter(TerragruntFlagNames),
 		Before: func(ctx *cli.Context) error { return ctx.App.Before(ctx) },
-		Action: func(ctx *cli.Context) error {
-			return Run(opts)
-		},
+		Action: func(ctx *cli.Context) error { return Run(opts) },
 	}
-
-	command.AddFlags(
-		&cli.GenericFlag[string]{
-			Name:        FlagNameTerragruntHCLFmt,
-			Destination: &opts.HclFile,
-			Usage:       "The path to a single hcl file that the hclfmt command should run on.",
-		},
-	)
-
-	return command
 }

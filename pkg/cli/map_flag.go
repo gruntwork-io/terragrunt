@@ -29,19 +29,29 @@ type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 
 	Destination *map[K]V
 	Splitter    SplitterFunc
-	ArgSep      string
-	ValSep      string
+	EnvVarSep   string
+	KeyValSep   string
 }
 
 // Apply applies Flag settings to the given flag set.
 func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
-	flag.normalize()
+	if flag.Splitter == nil {
+		flag.Splitter = DefaultSplitter
+	}
+
+	if flag.EnvVarSep == "" {
+		flag.EnvVarSep = EnvVarSep
+	}
+
+	if flag.KeyValSep == "" {
+		flag.KeyValSep = KeyValSep
+	}
 
 	var err error
 	keyType := FlagType[K](new(genericType[K]))
 	valType := FlagType[V](new(genericType[V]))
 
-	if flag.FlagValue, err = newMapValue(keyType, valType, flag.Destination, flag.EnvVar, flag.ArgSep, flag.ValSep, flag.Splitter); err != nil {
+	if flag.FlagValue, err = newMapValue(keyType, valType, flag.Destination, flag.EnvVar, flag.EnvVarSep, flag.KeyValSep, flag.Splitter); err != nil {
 		return err
 	}
 
@@ -80,20 +90,6 @@ func (flag *MapFlag[K, V]) String() string {
 // Names returns the names of the flag.
 func (flag *MapFlag[K, V]) Names() []string {
 	return append([]string{flag.Name}, flag.Aliases...)
-}
-
-func (flag *MapFlag[K, V]) normalize() {
-	if flag.Splitter == nil {
-		flag.Splitter = DefaultSplitter
-	}
-
-	if flag.ArgSep == "" {
-		flag.ArgSep = DefaultArgSep
-	}
-
-	if flag.ValSep == "" {
-		flag.ValSep = DefaultKeyValSep
-	}
 }
 
 type mapValue[K, V comparable] struct {

@@ -20,19 +20,23 @@ var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
 	"state",
 }
 
-const DEFAULT_MAX_FOLDERS_TO_CHECK = 100
+const (
+	DefaultMaxFoldersToCheck = 100
 
-// no limits on parallelism by default (limited by GOPROCS)
-const DEFAULT_PARALLELISM = math.MaxInt32
+	// no limits on parallelism by default (limited by GOPROCS)
+	DefaultParallelism = math.MaxInt32
 
-// TERRAFORM_DEFAULT_PATH just takes terraform from the path
-const TERRAFORM_DEFAULT_PATH = "terraform"
+	// TerraformDefaultPath just takes terraform from the path
+	TerraformDefaultPath = "terraform"
 
-const TerragruntCacheDir = ".terragrunt-cache"
+	TerragruntCacheDir = ".terragrunt-cache"
 
-const DefaultTFDataDir = ".terraform"
+	DefaultJSONOutName = "terragrunt_rendered.json"
 
-const DefaultIAMAssumeRoleDuration = 3600
+	DefaultTFDataDir = ".terraform"
+
+	DefaultIAMAssumeRoleDuration = 3600
+)
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
@@ -91,6 +95,9 @@ type TerragruntOptions struct {
 
 	// Raw log level value
 	LogLevelStr string
+
+	// ValidateStrict mode for the validate-inputs command
+	ValidateStrict bool
 
 	// Environment variables at runtime
 	Env map[string]string
@@ -168,6 +175,9 @@ type TerragruntOptions struct {
 	// Show diff, by default it's disabled.
 	Diff bool
 
+	// The file which hclfmt should be specifically run on
+	HclFile string
+
 	// The file path that terragrunt should use when rendering the terragrunt.hcl config as json.
 	JSONOut string
 
@@ -186,6 +196,10 @@ type TerragruntOptions struct {
 	// root-cause issues.
 	Debug bool
 
+	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command. See that
+	// command for more info.
+	AwsProviderPatchOverrides map[string]string
+
 	// True if is required to show dependent modules and confirm action
 	CheckDependentModules bool
 
@@ -194,6 +208,9 @@ type TerragruntOptions struct {
 
 	// Enables caching of includes during partial parsing operations.
 	UsePartialParseConfigCache bool
+
+	// Include fields metadata in render-json
+	RenderJsonWithMetadata bool
 
 	// Prefix for shell commands' outputs
 	OutputPrefix string
@@ -235,7 +252,7 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 // Create a new TerragruntOptions object with reasonable defaults for real usage
 func NewTerragruntOptions() *TerragruntOptions {
 	return &TerragruntOptions{
-		TerraformPath:                  TERRAFORM_DEFAULT_PATH,
+		TerraformPath:                  TerraformDefaultPath,
 		OriginalTerraformCommand:       "",
 		TerraformCommand:               "",
 		AutoInit:                       true,
@@ -254,7 +271,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 		IncludeExternalDependencies:    false,
 		Writer:                         os.Stdout,
 		ErrWriter:                      os.Stderr,
-		MaxFoldersToCheck:              DEFAULT_MAX_FOLDERS_TO_CHECK,
+		MaxFoldersToCheck:              DefaultMaxFoldersToCheck,
 		AutoRetry:                      true,
 		RetryMaxAttempts:               DEFAULT_RETRY_MAX_ATTEMPTS,
 		RetrySleepIntervalSec:          DEFAULT_RETRY_SLEEP_INTERVAL_SEC,
@@ -263,13 +280,14 @@ func NewTerragruntOptions() *TerragruntOptions {
 		IncludeDirs:                    []string{},
 		ModulesThatInclude:             []string{},
 		StrictInclude:                  false,
-		Parallelism:                    DEFAULT_PARALLELISM,
+		Parallelism:                    DefaultParallelism,
 		Check:                          false,
 		Diff:                           false,
 		FetchDependencyOutputFromState: false,
 		UsePartialParseConfigCache:     false,
 		OutputPrefix:                   "",
 		IncludeModulePrefix:            false,
+		JSONOut:                        DefaultJSONOutName,
 		RunTerragrunt: func(opts *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},

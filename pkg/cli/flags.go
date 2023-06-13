@@ -24,9 +24,30 @@ func (flags Flags) Get(name string) Flag {
 	return nil
 }
 
+// Filter returns a list of flags filtered by the given names.
+func (flags Flags) Filter(names []string) Flags {
+	var filtered Flags
+
+	for _, flag := range flags {
+		for _, name := range names {
+			if collections.ListContainsElement(flag.Names(), name) {
+				filtered = append(filtered, flag)
+			}
+		}
+	}
+
+	return filtered
+}
+
 // Add adds a new flag to the list.
 func (flags *Flags) Add(flag Flag) {
 	*flags = append(*flags, flag)
+}
+
+// VisibleFlags returns a slice of the Flags.
+// Used by `urfave/cli` package to generate help.
+func (flags Flags) VisibleFlags() Flags {
+	return flags
 }
 
 func (flags Flags) Len() int {
@@ -45,12 +66,6 @@ func (flags Flags) Less(i, j int) bool {
 
 func (flags Flags) Swap(i, j int) {
 	flags[i], flags[j] = flags[j], flags[i]
-}
-
-// VisibleFlags returns a slice of the Flags.
-// Used by `urfave/cli` package to generate help.
-func (flags Flags) VisibleFlags() Flags {
-	return flags
 }
 
 func (flags Flags) newFlagSet(name string, errorHandling libflag.ErrorHandling) (*libflag.FlagSet, error) {

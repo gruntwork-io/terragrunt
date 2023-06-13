@@ -49,12 +49,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-func Run(opts *Options) error {
-	if err := terraform.CheckVersionConstraints(opts.TerragruntOptions); err != nil {
+func Run(opts *options.TerragruntOptions) error {
+	if err := terraform.CheckVersionConstraints(opts); err != nil {
 		return err
 	}
 
-	terragruntConfig, err := config.ReadTerragruntConfig(opts.TerragruntOptions)
+	terragruntConfig, err := config.ReadTerragruntConfig(opts)
 	if err != nil {
 		return err
 	}
@@ -73,7 +73,7 @@ func Run(opts *Options) error {
 		opts.OriginalIAMRoleOptions,
 	)
 
-	if err := aws_helper.AssumeRoleAndUpdateEnvIfNecessary(opts.TerragruntOptions); err != nil {
+	if err := aws_helper.AssumeRoleAndUpdateEnvIfNecessary(opts); err != nil {
 		return err
 	}
 
@@ -108,12 +108,12 @@ func Run(opts *Options) error {
 		opts.RetrySleepIntervalSec = time.Duration(*terragruntConfig.RetrySleepIntervalSec) * time.Second
 	}
 
-	sourceUrl, err := config.GetTerraformSourceUrl(opts.TerragruntOptions, terragruntConfig)
+	sourceUrl, err := config.GetTerraformSourceUrl(opts, terragruntConfig)
 	if err != nil {
 		return err
 	}
 	if sourceUrl != "" {
-		opts.TerragruntOptions, err = terraform.DownloadTerraformSource(sourceUrl, opts.TerragruntOptions, terragruntConfig)
+		opts, err = terraform.DownloadTerraformSource(sourceUrl, opts, terragruntConfig)
 		if err != nil {
 			return err
 		}
@@ -121,25 +121,25 @@ func Run(opts *Options) error {
 
 	// NOTE: At this point, the terraform source is downloaded to the terragrunt working directory
 
-	if err = terraform.GenerateConfig(terragruntConfig, opts.TerragruntOptions); err != nil {
+	if err = terraform.GenerateConfig(terragruntConfig, opts); err != nil {
 		return err
 	}
 
 	// We do the debug file generation here, after all the terragrunt generated terraform files are created so that we
 	// can ensure the tfvars json file only includes the vars that are defined in the module.
 	if opts.Debug {
-		err := terraform.WriteTerragruntDebugFile(opts.TerragruntOptions, terragruntConfig)
+		err := terraform.WriteTerragruntDebugFile(opts, terragruntConfig)
 		if err != nil {
 			return err
 		}
 	}
 
-	if err := terraform.CheckFolderContainsTerraformCode(opts.TerragruntOptions); err != nil {
+	if err := terraform.CheckFolderContainsTerraformCode(opts); err != nil {
 		return err
 	}
 
 	if opts.CheckDependentModules {
-		allowDestroy := terraform.ConfirmActionWithDependentModules(opts.TerragruntOptions, terragruntConfig)
+		allowDestroy := terraform.ConfirmActionWithDependentModules(opts, terragruntConfig)
 		if !allowDestroy {
 			return nil
 		}
@@ -147,25 +147,25 @@ func Run(opts *Options) error {
 
 	// Add extra_arguments to the command
 	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExtraArgs != nil && len(terragruntConfig.Terraform.ExtraArgs) > 0 {
-		args := terraform.FilterTerraformExtraArgs(opts.TerragruntOptions, terragruntConfig)
+		args := terraform.FilterTerraformExtraArgs(opts, terragruntConfig)
 		opts.InsertTerraformCliArgs(args...)
-		for k, v := range terraform.FilterTerraformEnvVarsFromExtraArgs(opts.TerragruntOptions, terragruntConfig) {
+		for k, v := range terraform.FilterTerraformEnvVarsFromExtraArgs(opts, terragruntConfig) {
 			opts.Env[k] = v
 		}
 	}
 
-	if err := terraform.SetTerragruntInputsAsEnvVars(opts.TerragruntOptions, terragruntConfig); err != nil {
+	if err := terraform.SetTerragruntInputsAsEnvVars(opts, terragruntConfig); err != nil {
 		return err
 	}
 
-	if err := terraform.PrepareNonInitCommand(opts.TerragruntOptions, opts.TerragruntOptions, terragruntConfig); err != nil {
+	if err := terraform.PrepareNonInitCommand(opts, opts, terragruntConfig); err != nil {
 		return err
 	}
 
 	return applyAwsProviderPatch(opts)
 }
 
-func applyAwsProviderPatch(opts *Options) error {
+func applyAwsProviderPatch(opts *options.TerragruntOptions) error {
 	terraformFilesInModules, err := findAllTerraformFilesInModules(opts)
 	if err != nil {
 		return err
@@ -211,7 +211,7 @@ type TerraformModule struct {
 //
 // NOTE: this method only supports *.tf files right now. Terraform code defined in *.json files is not currently
 // supported.
-func findAllTerraformFilesInModules(opts *Options) ([]string, error) {
+func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, error) {
 	// Terraform downloads modules into the .terraform/modules folder. Unfortunately, it downloads not only the module
 	// into that folder, but the entire repo it's in, which can contain lots of other unrelated code we probably don't
 	// want to touch. To find the paths to the actual modules, we read the modules.json file in that folder, which is

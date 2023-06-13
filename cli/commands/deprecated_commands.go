@@ -1,4 +1,4 @@
-package cli
+package commands
 
 import (
 	"fmt"
@@ -25,18 +25,18 @@ const (
 // alternative. The handler should return the new TerragruntOptions (if any modifications are needed) and command
 // string.
 var deprecatedCommandsActionFuncs = map[string]deprecatedCommandActionFuncType{
-	CommandNameSpinUp:      redirectDeprecatedCommandAll(runall.CommandName, terraform.CommandNameApply),
-	CommandNameTearDown:    redirectDeprecatedCommandAll(runall.CommandName, terraform.CommandNameDestroy),
-	CommandNameApplyAll:    redirectDeprecatedCommandAll(runall.CommandName, terraform.CommandNameApply),
-	CommandNameDestroyAll:  redirectDeprecatedCommandAll(runall.CommandName, terraform.CommandNameDestroy),
-	CommandNamePlanAll:     redirectDeprecatedCommandAll(runall.CommandName, terraform.CommandNamePlan),
-	CommandNameValidateAll: redirectDeprecatedCommandAll(runall.CommandName, terraform.CommandNameValidate),
-	CommandNameOutputAll:   redirectDeprecatedCommandAll(runall.CommandName, terraform.CommandNameOutput),
+	CommandNameSpinUp:      replaceDeprecatedCommand(runall.CommandName, terraform.CommandNameApply),
+	CommandNameTearDown:    replaceDeprecatedCommand(runall.CommandName, terraform.CommandNameDestroy),
+	CommandNameApplyAll:    replaceDeprecatedCommand(runall.CommandName, terraform.CommandNameApply),
+	CommandNameDestroyAll:  replaceDeprecatedCommand(runall.CommandName, terraform.CommandNameDestroy),
+	CommandNamePlanAll:     replaceDeprecatedCommand(runall.CommandName, terraform.CommandNamePlan),
+	CommandNameValidateAll: replaceDeprecatedCommand(runall.CommandName, terraform.CommandNameValidate),
+	CommandNameOutputAll:   replaceDeprecatedCommand(runall.CommandName, terraform.CommandNameOutput),
 }
 
 type deprecatedCommandActionFuncType func(opts *options.TerragruntOptions) func(ctx *cli.Context) error
 
-func redirectDeprecatedCommandAll(newTerragruntCommandName, newTerraformCommandName string) deprecatedCommandActionFuncType {
+func replaceDeprecatedCommand(newTerragruntCommandName, newTerraformCommandName string) deprecatedCommandActionFuncType {
 	return func(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 		return func(ctx *cli.Context) error {
 			newCommand := ctx.App.Commands.Get(newTerragruntCommandName)
@@ -77,7 +77,7 @@ func redirectDeprecatedCommandAll(newTerragruntCommandName, newTerraformCommandN
 	}
 }
 
-func newDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
+func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 	var commands cli.Commands
 
 	for commandName, actionFunc := range deprecatedCommandsActionFuncs {
