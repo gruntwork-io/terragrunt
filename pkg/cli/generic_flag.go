@@ -123,6 +123,9 @@ func (flag *genericValue[T]) IsSet() bool {
 }
 
 func (flag *genericValue[T]) String() string {
+	if flag.value == nil {
+		return ""
+	}
 	return flag.value.String()
 }
 

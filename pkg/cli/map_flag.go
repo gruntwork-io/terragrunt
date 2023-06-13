@@ -196,5 +196,8 @@ func (flag *mapValue[K, V]) Get() any {
 }
 
 func (flag *mapValue[K, V]) String() string {
+	if flag.values == nil {
+		return ""
+	}
 	return maps.Join(*flag.values, flag.argSep, flag.valSep)
 }

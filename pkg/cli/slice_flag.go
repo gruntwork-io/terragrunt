@@ -163,6 +163,10 @@ func (flag *sliceValue[T]) Get() any {
 }
 
 func (flag *sliceValue[T]) String() string {
+	if flag.values == nil {
+		return ""
+	}
+
 	var vals []string
 
 	for _, val := range *flag.values {
