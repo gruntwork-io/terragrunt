@@ -39,6 +39,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/cli"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	terragruntDynamoDb "github.com/gruntwork-io/terragrunt/dynamodb"
@@ -1075,7 +1077,7 @@ func TestInvalidSource(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
 	require.Error(t, err)
-	_, ok := errors.Unwrap(err).(cli.WorkingDirNotFound)
+	_, ok := errors.Unwrap(err).(terraform.WorkingDirNotFound)
 	assert.True(t, ok)
 }
 
@@ -1389,7 +1391,7 @@ func TestPreventDestroyNotSet(t *testing.T) {
 
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		assert.IsType(t, cli.ModuleIsProtected{}, underlying)
+		assert.IsType(t, terraform.ModuleIsProtected{}, underlying)
 	}
 }
 
@@ -1405,7 +1407,7 @@ func TestPreventDestroy(t *testing.T) {
 
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		assert.IsType(t, cli.ModuleIsProtected{}, underlying)
+		assert.IsType(t, terraform.ModuleIsProtected{}, underlying)
 	}
 }
 
@@ -1421,7 +1423,7 @@ func TestPreventDestroyApply(t *testing.T) {
 
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		assert.IsType(t, cli.ModuleIsProtected{}, underlying)
+		assert.IsType(t, terraform.ModuleIsProtected{}, underlying)
 	}
 }
 
@@ -1864,7 +1866,7 @@ func TestTerragruntInfo(t *testing.T) {
 
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
 
-	var dat cli.TerragruntInfoGroup
+	var dat terragruntinfo.TerragruntInfoGroup
 	err_unmarshal := json.Unmarshal(showStdout.Bytes(), &dat)
 	assert.Nil(t, err_unmarshal)
 
@@ -3861,7 +3863,7 @@ func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
 
 	assert.Error(t, err)
 
-	_, isTgVersionError := errors.Unwrap(err).(cli.InvalidTerragruntVersion)
+	_, isTgVersionError := errors.Unwrap(err).(terraform.InvalidTerragruntVersion)
 	assert.True(t, isTgVersionError)
 }
 

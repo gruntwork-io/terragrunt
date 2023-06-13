@@ -106,7 +106,7 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 	localsConfigs := make(map[string]interface{})
 
 	for name, configPath := range localsConfigPaths {
-		opts, err := options.NewTerragruntOptions(configPath)
+		opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
 		assert.Nil(t, err)
 
 		cfg, err := config.PartialParseConfigFile(configPath, opts, nil, nil)
