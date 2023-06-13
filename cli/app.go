@@ -168,6 +168,7 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	opts.OriginalTerraformCommand = opts.TerraformCommand
 	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
 
+	opts.RunTerragrunt = terraform.Run
 	return nil
 }
 

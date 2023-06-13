@@ -57,8 +57,6 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 func Action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
-		opts.RunTerragrunt = Run
-
 		if opts.TerraformCommand == CommandNameDestroy {
 			opts.CheckDependentModules = true
 		}

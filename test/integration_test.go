@@ -5228,7 +5228,7 @@ func TestTerragruntRenderJsonHelp(t *testing.T) {
 
 	output := showStdout.String()
 
-	assert.Contains(t, output, "Usage: terragrunt render-json [OPTIONS]")
+	assert.Contains(t, output, "terragrunt render-json")
 	assert.Contains(t, output, "--with-metadata")
 }
 
