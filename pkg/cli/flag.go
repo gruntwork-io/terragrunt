@@ -42,12 +42,6 @@ type Flag interface {
 // flag is a common flag related to parsing flags in cli.
 type flag struct {
 	FlagValue FlagValue
-
-	Name        string
-	Aliases     []string
-	DefaultText string
-	Usage       string
-	EnvVar      string
 }
 
 func (flag *flag) Value() FlagValue {

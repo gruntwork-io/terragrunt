@@ -92,7 +92,7 @@ func (command *Command) parseArgs(args []string) (*Command, []string, error) {
 	return command, undefArgs, nil
 }
 
-func (command *Command) run(ctx *Context) error {
+func (command *Command) Run(ctx *Context) error {
 	if command.Before != nil {
 		if err := command.Before(ctx); err != nil {
 			return err

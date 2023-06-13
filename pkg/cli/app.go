@@ -51,15 +51,14 @@ func (app *App) Run(arguments []string) (err error) {
 
 	app.App.Action = func(parentCtx *cli.Context) error {
 		args := parentCtx.Args().Slice()
+		ctx := NewContext(parentCtx, app)
 
-		command, args, err := app.newRootCommand().parseArgs(args)
+		ctx, err := ctx.ParseArgs(ctx.App.newRootCommand(), args)
 		if err != nil {
 			return err
 		}
 
-		ctx := NewContext(parentCtx, app, command, args)
-
-		err = command.run(ctx)
+		err = ctx.Command.Run(ctx)
 		return err
 	}
 

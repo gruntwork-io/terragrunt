@@ -24,7 +24,7 @@ const (
 // deprecatedCommands is a map of deprecated commands to a handler that knows how to convert the command to the known
 // alternative. The handler should return the new TerragruntOptions (if any modifications are needed) and command
 // string.
-var deprecatedCommandsActionFuncs = map[string]deprecatedCommandActionFuncType{
+var replaceDeprecatedCommandsFuncs = map[string]deprecatedCommandActionFuncType{
 	CommandNameSpinUp:      replaceDeprecatedCommand(runall.CommandName, terraform.CommandNameApply),
 	CommandNameTearDown:    replaceDeprecatedCommand(runall.CommandName, terraform.CommandNameDestroy),
 	CommandNameApplyAll:    replaceDeprecatedCommand(runall.CommandName, terraform.CommandNameApply),
@@ -41,7 +41,10 @@ func replaceDeprecatedCommand(newTerragruntCommandName, newTerraformCommandName 
 		return func(ctx *cli.Context) error {
 			newCommand := ctx.App.Commands.Get(newTerragruntCommandName)
 			newArgs := append([]string{newTerraformCommandName}, ctx.Args().Slice()...)
-			newCtx := ctx.Clone(newCommand, newArgs)
+			newCtx, err := ctx.ParseArgs(newCommand, newArgs)
+			if err != nil {
+				return err
+			}
 
 			deprecatedCommandName := ctx.Command.Name
 			newCommandFriendly := fmt.Sprintf("terragrunt %s %s", newTerragruntCommandName, strings.Join(newArgs, " "))
@@ -54,25 +57,8 @@ func replaceDeprecatedCommand(newTerragruntCommandName, newTerraformCommandName 
 				deprecatedCommandName,
 			)
 
-			if newCommand.Before != nil {
-				if err := newCommand.Before(newCtx); err != nil {
-					return err
-				}
-			}
-
-			if newCommand.Action != nil {
-				if err := newCommand.Action(newCtx); err != nil {
-					return err
-				}
-			}
-
-			if newCommand.After != nil {
-				if err := newCommand.After(newCtx); err != nil {
-					return err
-				}
-			}
-
-			return nil
+			err = newCommand.Run(newCtx)
+			return err
 		}
 	}
 }
@@ -80,15 +66,14 @@ func replaceDeprecatedCommand(newTerragruntCommandName, newTerraformCommandName 
 func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 	var commands cli.Commands
 
-	for commandName, actionFunc := range deprecatedCommandsActionFuncs {
-		actionFunc := actionFunc
+	for commandName, runFunc := range replaceDeprecatedCommandsFuncs {
+		runFunc := runFunc
 
 		command := &cli.Command{
 			Name:   commandName,
 			Hidden: true,
-			Action: actionFunc(opts),
+			Action: runFunc(opts),
 		}
-
 		commands = append(commands, command)
 	}
 
