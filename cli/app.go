@@ -105,37 +105,34 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 
 	opts.Env = env.ParseEnvs(os.Environ())
 
+	// --- WorkingDir
 	if opts.WorkingDir == "" {
 		currentDir, err := os.Getwd()
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
 		opts.WorkingDir = currentDir
-	} else {
-		path, err := filepath.Abs(opts.WorkingDir)
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
-		opts.WorkingDir = path
 	}
 	opts.WorkingDir = filepath.ToSlash(opts.WorkingDir)
 
+	// --- DownloadDir
 	if opts.DownloadDir == "" {
 		opts.DownloadDir = util.JoinPath(opts.WorkingDir, options.TerragruntCacheDir)
-	} else {
-		path, err := filepath.Abs(opts.DownloadDir)
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
-		opts.DownloadDir = path
 	}
-	opts.DownloadDir = filepath.ToSlash(opts.DownloadDir)
 
+	downloadDir, err := filepath.Abs(opts.DownloadDir)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	opts.DownloadDir = filepath.ToSlash(downloadDir)
+
+	// --- TerragruntConfigPath
 	if opts.TerragruntConfigPath == "" {
 		opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
 	}
 	opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)
 
+	// --- terragruntVersion
 	terragruntVersion, err := hashicorpversion.NewVersion(ctx.App.Version)
 	if err != nil {
 		// Malformed Terragrunt version; set the version to 0.0
@@ -147,6 +144,7 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of terragrunt used.
 	opts.Logger.Debugf("Terragrunt Version: %s", opts.TerragruntVersion)
 
+	// --- IncludeModulePrefix
 	jsonOutput := false
 	for _, arg := range opts.TerraformCliArgs {
 		if strings.EqualFold(arg, "-json") {
@@ -160,6 +158,7 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 		opts.IncludeModulePrefix = false
 	}
 
+	// --- others
 	if !opts.RunAllAutoApprove {
 		// When running in no-auto-approve mode, set parallelism to 1 so that interactive prompts work.
 		opts.Parallelism = 1
