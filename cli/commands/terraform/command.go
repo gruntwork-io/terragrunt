@@ -50,6 +50,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Usage:  "Terragrunt forwards all other commands directly to Terraform",
 		Flags:  flags.NewFlags(opts).Filter(TerragruntFlagNames),
 		Before: func(ctx *cli.Context) error { return ctx.App.Before(ctx) },
+		Action: Action(opts),
 	}
 }
 

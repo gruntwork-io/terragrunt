@@ -22,6 +22,9 @@ type App struct {
 	After RunFunc
 	// The action to execute when no subcommands are specified
 	Action RunFunc
+	// DefaultCommand is the (optional) name of a command
+	// to run if no command names are passed as CLI arguments.
+	DefaultCommand string
 	// OsExiter is the function used when the app exits. If not set defaults to os.Exit.
 	OsExiter func(code int)
 }
@@ -52,6 +55,16 @@ func (app *App) Run(arguments []string) (err error) {
 	app.App.Action = func(parentCtx *cli.Context) error {
 		args := parentCtx.Args().Slice()
 		ctx := NewContext(parentCtx, app)
+
+		if app.DefaultCommand != "" {
+			command, _, err := app.Commands.parseArgs(args, true)
+			if err != nil {
+				return err
+			}
+			if command == nil {
+				args = append([]string{app.DefaultCommand}, args...)
+			}
+		}
 
 		ctx, err := ctx.ParseArgs(ctx.App.newRootCommand(), args)
 		if err != nil {

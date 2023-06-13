@@ -65,6 +65,7 @@ func (command *Command) VisibleFlags() Flags {
 
 func (command *Command) parseArgs(args []string) (*Command, []string, error) {
 	var undefArgs []string
+	var undefArg string
 
 	flagSet, err := command.Flags.newFlagSet(command.Name, libflag.ContinueOnError)
 	if err != nil {
@@ -81,11 +82,11 @@ func (command *Command) parseArgs(args []string) (*Command, []string, error) {
 			break
 		}
 
-		undefArgs = append(undefArgs, args[0])
-		args = args[1:]
+		undefArg, args = args[0], args[1:]
+		undefArgs = append(undefArgs, undefArg)
 	}
 
-	if command, undefArgs, err := command.Subcommands.parseArgs(undefArgs); command != nil || err != nil {
+	if command, undefArgs, err := command.Subcommands.parseArgs(undefArgs, false); command != nil || err != nil {
 		return command, undefArgs, err
 	}
 

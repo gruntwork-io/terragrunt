@@ -1,6 +1,8 @@
 package cli
 
-import "github.com/urfave/cli/v2"
+import (
+	"github.com/urfave/cli/v2"
+)
 
 type Commands []*Command
 
@@ -66,7 +68,7 @@ func (commands Commands) Swap(i, j int) {
 	commands[i], commands[j] = commands[j], commands[i]
 }
 
-func (commands Commands) parseArgs(args []string) (*Command, []string, error) {
+func (commands Commands) parseArgs(args []string, dryRun bool) (*Command, []string, error) {
 	var name string
 	var undefArg []string
 
@@ -77,6 +79,10 @@ func (commands Commands) parseArgs(args []string) (*Command, []string, error) {
 		name, args = args[0], args[1:]
 
 		if command := commands.Get(name); command != nil {
+			if dryRun {
+				return command, append(undefArg, args...), nil
+			}
+
 			command, args, err := command.parseArgs(args)
 			return command, append(undefArg, args...), err
 		}

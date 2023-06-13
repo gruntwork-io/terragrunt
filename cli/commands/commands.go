@@ -24,6 +24,6 @@ func NewCommands(opts *options.TerragruntOptions) cli.Commands {
 		hclfmt.NewCommand(opts),            // hclfmt
 		renderjson.NewCommand(opts),        // render-json
 		awsproviderpatch.NewCommand(opts),  // aws-provider-patch
-		terraform.NewCommand(opts),         // * (does nothing, only to be shown in the help)
+		terraform.NewCommand(opts),         // *
 	}
 }

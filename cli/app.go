@@ -41,14 +41,12 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 	app.Version = version.GetVersion()
 	app.Writer = writer
 	app.ErrWriter = errWriter
-	app.Flags = flags.NewFlags(opts).Filter(append(
-		terraform.TerragruntFlagNames,
-		flags.FlagNameHelp))
+	app.Flags = cli.Flags{flags.NewHelpFlag()}
 	app.Commands = append(
 		commands.NewDeprecatedCommands(opts),
 		commands.NewCommands(opts)...)
 	app.Before = beforeRunningCommand(opts)
-	app.Action = terraform.Action(opts) // default action
+	app.DefaultCommand = terraform.CommandName
 	app.OsExiter = osExiter
 
 	return app
@@ -56,7 +54,7 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 
 func beforeRunningCommand(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
-		if ctx.Flags.Get(flags.FlagNameHelp).Value().IsSet() {
+		if flag := ctx.Flags.Get(flags.FlagNameHelp); flag.Value().IsSet() {
 			ctx.Command.Action = nil
 
 			if err := showHelp(ctx, opts); err != nil {
@@ -80,6 +78,7 @@ func showHelp(ctx *cli.Context, opts *options.TerragruntOptions) error {
 
 	// if there is no args at all show the app help.
 	if !ctx.Args().Present() {
+		ctx.App.Flags = ctx.App.Commands.Get(terraform.CommandName).Flags
 		return cli.ShowAppHelp(ctx)
 	}
 

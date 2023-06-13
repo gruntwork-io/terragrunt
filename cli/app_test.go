@@ -358,12 +358,10 @@ func TestTerragruntHelp(t *testing.T) {
 
 	for _, testCase := range testCases {
 		output := &bytes.Buffer{}
-		app.Writer = output
-
+		app := NewApp(output, os.Stderr)
 		err := app.Run(testCase.args)
-		require.NoError(t, err)
+		require.NoError(t, err, testCase)
 
-		require.NoError(t, err)
 		assert.Contains(t, output.String(), testCase.expected)
 		if testCase.notExpected != "" {
 			assert.NotContains(t, output.String(), testCase.notExpected)
@@ -372,9 +370,6 @@ func TestTerragruntHelp(t *testing.T) {
 }
 
 func TestTerraformHelp(t *testing.T) {
-	output := &bytes.Buffer{}
-	app := NewApp(output, os.Stderr)
-
 	testCases := []struct {
 		args     []string
 		expected string
@@ -385,6 +380,8 @@ func TestTerraformHelp(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
+		output := &bytes.Buffer{}
+		app := NewApp(output, os.Stderr)
 		err := app.Run(testCase.args)
 		require.NoError(t, err)
 
@@ -409,13 +406,13 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 	app := cli.NewApp()
 	app.Writer = &bytes.Buffer{}
 	app.ErrWriter = &bytes.Buffer{}
-	app.Flags = flags.NewFlags(opts).Filter(append(
-		terraform.TerragruntFlagNames,
-		flags.FlagNameHelp))
+	app.Flags = cli.Flags{flags.NewHelpFlag()}
 	app.Commands = append(
 		commands.NewDeprecatedCommands(opts),
 		commands.NewCommands(opts)...)
-	app.Before = func(ctx *cli.Context) error { return initialSetup(ctx, opts) }
+	app.Before = beforeRunningCommand(opts)
+	app.DefaultCommand = terraform.CommandName
+	app.OsExiter = osExiter
 
 	for _, command := range app.Commands {
 		command.Action = nil

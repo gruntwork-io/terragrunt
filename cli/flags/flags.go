@@ -274,13 +274,16 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	sort.Sort(flags)
 
 	// add `help` after the sort to put the flag at the end of the flag list in the help.
-	flags.Add(
-		&cli.BoolFlag{
-			Name:    FlagNameHelp,  // --help, -help
-			Aliases: []string{"h"}, //  -h
-			Usage:   "Show help",
-		},
-	)
+	flags.Add(NewHelpFlag())
 
 	return flags
+}
+
+// add `help` after the sort to put the flag at the end of the flag list in the help.
+func NewHelpFlag() cli.Flag {
+	return &cli.BoolFlag{
+		Name:    FlagNameHelp,  // --help, -help
+		Aliases: []string{"h"}, //  -h
+		Usage:   "Show help",
+	}
 }
