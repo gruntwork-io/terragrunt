@@ -10,11 +10,9 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/google/shlex"
 
-	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -23,92 +21,19 @@ import (
 )
 
 func Run(opts *options.TerragruntOptions) error {
-	if err := terraform.CheckVersionConstraints(opts); err != nil {
-		return err
-	}
+	task := terraform.NewTask(terraform.TaskTargetGenerateConfig, runValidateInputs)
 
-	terragruntConfig, err := config.ReadTerragruntConfig(opts)
-	if err != nil {
-		return err
-	}
-
-	optsClone := opts.Clone(opts.TerragruntConfigPath)
-	optsClone.TerraformCommand = terraform.CommandNameTerragruntReadConfig
-
-	if err := terraform.ProcessHooks(terragruntConfig.Terraform.GetAfterHooks(), optsClone, terragruntConfig, nil); err != nil {
-		return err
-	}
-
-	// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
-	// precedence.
-	opts.IAMRoleOptions = options.MergeIAMRoleOptions(
-		terragruntConfig.GetIAMRoleOptions(),
-		opts.OriginalIAMRoleOptions,
-	)
-
-	if err := aws_helper.AssumeRoleAndUpdateEnvIfNecessary(opts); err != nil {
-		return err
-	}
-
-	// get the default download dir
-	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
-	if err != nil {
-		return err
-	}
-
-	// if the download dir hasn't been changed from default, and is set in the config,
-	// then use it
-	if opts.DownloadDir == defaultDownloadDir && terragruntConfig.DownloadDir != "" {
-		opts.DownloadDir = terragruntConfig.DownloadDir
-	}
-
-	// Override the default value of retryable errors using the value set in the config file
-	if terragruntConfig.RetryableErrors != nil {
-		opts.RetryableErrors = terragruntConfig.RetryableErrors
-	}
-
-	if terragruntConfig.RetryMaxAttempts != nil {
-		if *terragruntConfig.RetryMaxAttempts < 1 {
-			return fmt.Errorf("Cannot have less than 1 max retry, but you specified %d", *terragruntConfig.RetryMaxAttempts)
-		}
-		opts.RetryMaxAttempts = *terragruntConfig.RetryMaxAttempts
-	}
-
-	if terragruntConfig.RetrySleepIntervalSec != nil {
-		if *terragruntConfig.RetrySleepIntervalSec < 0 {
-			return fmt.Errorf("Cannot sleep for less than 0 seconds, but you specified %d", *terragruntConfig.RetrySleepIntervalSec)
-		}
-		opts.RetrySleepIntervalSec = time.Duration(*terragruntConfig.RetrySleepIntervalSec) * time.Second
-	}
-
-	sourceUrl, err := config.GetTerraformSourceUrl(opts, terragruntConfig)
-	if err != nil {
-		return err
-	}
-	if sourceUrl != "" {
-		opts, err = terraform.DownloadTerraformSource(sourceUrl, opts, terragruntConfig)
-		if err != nil {
-			return err
-		}
-	}
-
-	// NOTE: At this point, the terraform source is downloaded to the terragrunt working directory
-
-	if err = terraform.GenerateConfig(terragruntConfig, opts); err != nil {
-		return err
-	}
-
-	return validateTerragruntInputs(opts, terragruntConfig)
+	return terraform.RunWithTask(opts, task)
 }
 
-func validateTerragruntInputs(opts *options.TerragruntOptions, workingConfig *config.TerragruntConfig) error {
+func runValidateInputs(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	required, optional, err := tr.ModuleVariables(opts.WorkingDir)
 	if err != nil {
 		return err
 	}
 	allVars := append(required, optional...)
 
-	allInputs, err := getDefinedTerragruntInputs(opts, workingConfig)
+	allInputs, err := getDefinedTerragruntInputs(opts, cfg)
 	if err != nil {
 		return err
 	}
@@ -172,14 +97,14 @@ func validateTerragruntInputs(opts *options.TerragruntOptions, workingConfig *co
 // - env vars from the external runtime calling terragrunt.
 // - inputs blocks.
 // - automatically injected terraform vars (terraform.tfvars, terraform.tfvars.json, *.auto.tfvars, *.auto.tfvars.json)
-func getDefinedTerragruntInputs(opts *options.TerragruntOptions, workingConfig *config.TerragruntConfig) ([]string, error) {
-	envVarTFVars := getTerraformInputNamesFromEnvVar(opts, workingConfig)
-	inputsTFVars := getTerraformInputNamesFromConfig(workingConfig)
-	varFileTFVars, err := getTerraformInputNamesFromVarFiles(opts, workingConfig)
+func getDefinedTerragruntInputs(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) ([]string, error) {
+	envVarTFVars := getTerraformInputNamesFromEnvVar(opts, cfg)
+	inputsTFVars := getTerraformInputNamesFromConfig(cfg)
+	varFileTFVars, err := getTerraformInputNamesFromVarFiles(opts, cfg)
 	if err != nil {
 		return nil, err
 	}
-	cliArgsTFVars, err := getTerraformInputNamesFromCLIArgs(opts, workingConfig)
+	cliArgsTFVars, err := getTerraformInputNamesFromCLIArgs(opts, cfg)
 	if err != nil {
 		return nil, err
 	}

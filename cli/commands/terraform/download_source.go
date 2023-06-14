@@ -31,7 +31,7 @@ const tfLintConfig = ".tflint.hcl"
 //
 // See the NewTerraformSource method for how we determine the temporary folder so we can reuse it across multiple
 // runs of Terragrunt to avoid downloading everything from scratch every time.
-func DownloadTerraformSource(source string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (*options.TerragruntOptions, error) {
+func downloadTerraformSource(source string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (*options.TerragruntOptions, error) {
 	terraformSource, err := terraform.NewSource(source, terragruntOptions.DownloadDir, terragruntOptions.WorkingDir, terragruntOptions.Logger)
 	if err != nil {
 		return nil, err

@@ -23,29 +23,26 @@ import (
 )
 
 func Run(opts *options.TerragruntOptions) error {
-	if err := terraform.CheckVersionConstraints(opts); err != nil {
-		return err
-	}
+	task := terraform.NewTask(terraform.TaskTargetParseConfig, runRenderJSON)
 
-	terragruntConfig, err := config.ReadTerragruntConfig(opts)
-	if err != nil {
-		return err
-	}
+	return terraform.RunWithTask(opts, task)
+}
 
-	if terragruntConfig == nil {
+func runRenderJSON(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+	if cfg == nil {
 		return fmt.Errorf("Terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl.")
 	}
 
 	var terragruntConfigCty cty.Value
 
 	if opts.RenderJsonWithMetadata {
-		cty, err := config.TerragruntConfigAsCtyWithMetadata(terragruntConfig)
+		cty, err := config.TerragruntConfigAsCtyWithMetadata(cfg)
 		if err != nil {
 			return err
 		}
 		terragruntConfigCty = cty
 	} else {
-		cty, err := config.TerragruntConfigAsCty(terragruntConfig)
+		cty, err := config.TerragruntConfigAsCty(cfg)
 		if err != nil {
 			return err
 		}

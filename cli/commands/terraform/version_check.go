@@ -29,7 +29,7 @@ var TerraformVersionRegex = regexp.MustCompile(`Terraform (v?\d+\.\d+\.\d+).*`)
 // - TerraformPath
 // - TerraformVersion
 // TODO: Look into a way to refactor this function to avoid the side effect.
-func CheckVersionConstraints(terragruntOptions *options.TerragruntOptions) error {
+func checkVersionConstraints(terragruntOptions *options.TerragruntOptions) error {
 	partialTerragruntConfig, err := config.PartialParseConfigFile(
 		terragruntOptions.TerragruntConfigPath,
 		terragruntOptions,

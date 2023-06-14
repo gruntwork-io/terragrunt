@@ -75,7 +75,7 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 
 			cfg := &config.TerragruntConfig{Inputs: testCase.inputsInConfig}
 
-			require.NoError(t, SetTerragruntInputsAsEnvVars(opts, cfg))
+			require.NoError(t, setTerragruntInputsAsEnvVars(opts, cfg))
 
 			assert.Equal(t, testCase.expected, opts.Env)
 		})
@@ -119,7 +119,7 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
 			require.NoError(t, err)
 			opts.WorkingDir = testCase.workingDir
-			err = CheckFolderContainsTerraformCode(opts)
+			err = checkFolderContainsTerraformCode(opts)
 			if (err != nil) && testCase.valid {
 				t.Error("valid terraform returned error")
 			}
@@ -426,7 +426,7 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 			Terraform: &config.TerraformConfig{ExtraArgs: []config.TerraformExtraArguments{testCase.extraArgs}},
 		}
 
-		out := FilterTerraformExtraArgs(testCase.options, &config)
+		out := filterTerraformExtraArgs(testCase.options, &config)
 
 		assert.Equal(t, testCase.expectedArgs, out)
 	}
