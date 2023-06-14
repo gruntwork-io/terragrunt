@@ -43,6 +43,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -50,6 +51,10 @@ import (
 )
 
 func Run(opts *options.TerragruntOptions) error {
+	if len(opts.AwsProviderPatchOverrides) == 0 {
+		return errors.WithStackTrace(MissingOverrideAttrError(flags.FlagNameTerragruntOverrideAttr))
+	}
+
 	if err := terraform.CheckVersionConstraints(opts); err != nil {
 		return err
 	}

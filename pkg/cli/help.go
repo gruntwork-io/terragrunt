@@ -33,14 +33,9 @@ func ShowAppHelp(ctx *Context) error {
 		ctx.App.HelpName = ctx.App.Name
 	}
 
-	if ctx.App.ExtraInfo == nil {
-		cli.HelpPrinter(ctx.App.Writer, tpl, ctx.App)
-		return nil
-	}
-
 	customAppData := func() map[string]interface{} {
 		return map[string]interface{}{
-			"ExtraInfo": ctx.App.ExtraInfo,
+			"CommmandVisibleFlags": ctx.Command.Flags.VisibleFlags,
 		}
 	}
 

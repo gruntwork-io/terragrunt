@@ -58,10 +58,9 @@ func Run(opts *options.TerragruntOptions) error {
 	}
 
 	jsonOutPath := opts.JSONOut
-	if jsonOutPath == "" {
-		// Default to naming it `terragrunt_rendered.json` in the terragrunt config directory.
+	if !filepath.IsAbs(jsonOutPath) {
 		terragruntConfigDir := filepath.Dir(opts.TerragruntConfigPath)
-		jsonOutPath = filepath.Join(terragruntConfigDir, options.DefaultJSONOutName)
+		jsonOutPath = filepath.Join(terragruntConfigDir, jsonOutPath)
 	}
 	if err := util.EnsureDirectory(filepath.Dir(jsonOutPath)); err != nil {
 		return err

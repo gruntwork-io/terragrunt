@@ -16,7 +16,7 @@ COMMANDS:{{ $cv := offsetCommands .VisibleCommands 5}}{{range .VisibleCommands}}
    {{$s := .HelpName}}{{$s}}{{ $sp := subtract $cv (offset $s 3) }}{{ indent $sp ""}} {{wrap .Usage $cv}}{{end}}
 
 GLOBAL OPTIONS:
-   {{range $index, $option := .VisibleFlags}}{{if $index}}
+   {{range $index, $option := CommmandVisibleFlags}}{{if $index}}
    {{end}}{{$option}}{{end}}{{if not .HideVersion}}
 
 VERSION: {{.Version}}{{if len .Authors}}{{end}}

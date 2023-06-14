@@ -13,7 +13,11 @@ const (
 	CommandName = "run-all"
 )
 
-var TerragruntFlagNames = terraform.TerragruntFlagNames
+var (
+	TerragruntFlagNames = terraform.TerragruntFlagNames
+
+	CommandsRunFuncs = make(map[string]func(opts *options.TerragruntOptions) error)
+)
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
@@ -29,7 +33,13 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 func Action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
-		opts.RunTerragrunt = terraform.Run
+		opts.RunTerragrunt = func(opts *options.TerragruntOptions) error {
+			if runFunc, ok := CommandsRunFuncs[opts.TerraformCommand]; ok {
+				return runFunc(opts)
+			}
+
+			return terraform.Run(opts)
+		}
 
 		return Run(opts)
 	}

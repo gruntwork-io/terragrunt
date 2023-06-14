@@ -31,6 +31,7 @@ const (
 
 	TerragruntCacheDir = ".terragrunt-cache"
 
+	// Default to naming it `terragrunt_rendered.json` in the terragrunt config directory.
 	DefaultJSONOutName = "terragrunt_rendered.json"
 
 	DefaultTFDataDir = ".terraform"

@@ -71,20 +71,20 @@ func beforeRunningCommand(opts *options.TerragruntOptions) func(ctx *cli.Context
 }
 
 func showHelp(ctx *cli.Context, opts *options.TerragruntOptions) error {
-	// if app command is specified show the command help.
+	// If the app command is specified, show help for the command, except for the '*' command.
 	if !ctx.Command.IsRoot && ctx.Command.Name != terraform.CommandName {
 		return cli.ShowCommandHelp(ctx, ctx.Command.Name)
 	}
 
-	// if there is no args at all show the app help.
-	if !ctx.Args().Present() {
-		ctx.App.Flags = ctx.App.Commands.Get(terraform.CommandName).Flags
-		return cli.ShowAppHelp(ctx)
+	// If the first argument is a command, it is most likely a terraform command, show Terraform help.
+	firstArg := ctx.Args().First()
+	if isCommand := !strings.HasPrefix(firstArg, "-"); firstArg != "" && isCommand {
+		terraformHelpCmd := append([]string{firstArg, "-help"}, ctx.Args().Tail()...)
+		return shell.RunTerraformCommand(opts, terraformHelpCmd...)
 	}
 
-	// in other cases show the Terraform help.
-	terraformHelpCmd := append([]string{ctx.Args().First(), "-help"}, ctx.Args().Tail()...)
-	return shell.RunTerraformCommand(opts, terraformHelpCmd...)
+	// In other cases, show the App help.
+	return cli.ShowAppHelp(ctx)
 }
 
 func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
@@ -93,19 +93,21 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	opts.AutoRetry = env.GetBoolEnv("TERRAGRUNT_AUTO_RETRY", opts.AutoRetry)
 	opts.RunAllAutoApprove = env.GetBoolEnv("TERRAGRUNT_AUTO_APPROVE", opts.RunAllAutoApprove)
 
+	// --- Args
 	// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
 	args := ctx.Args().Normalize(cli.OneDashFlag)
 
 	opts.TerraformCommand = args.First()
 	opts.TerraformCliArgs = args.Slice()
 
+	// --- Logger
 	opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
 	opts.Logger = util.CreateLogEntry("", opts.LogLevel)
 	opts.Logger.Logger.SetOutput(ctx.App.ErrWriter)
 
 	opts.Env = env.ParseEnvs(os.Environ())
 
-	// --- WorkingDir
+	// --- Working Dir
 	if opts.WorkingDir == "" {
 		currentDir, err := os.Getwd()
 		if err != nil {
@@ -115,7 +117,7 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	}
 	opts.WorkingDir = filepath.ToSlash(opts.WorkingDir)
 
-	// --- DownloadDir
+	// --- Download Dir
 	if opts.DownloadDir == "" {
 		opts.DownloadDir = util.JoinPath(opts.WorkingDir, options.TerragruntCacheDir)
 	}
@@ -126,13 +128,13 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	}
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
 
-	// --- TerragruntConfigPath
+	// --- Terragrunt ConfigPath
 	if opts.TerragruntConfigPath == "" {
 		opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
 	}
 	opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)
 
-	// --- terragruntVersion
+	// --- Terragrunt Version
 	terragruntVersion, err := hashicorpversion.NewVersion(ctx.App.Version)
 	if err != nil {
 		// Malformed Terragrunt version; set the version to 0.0
@@ -158,7 +160,7 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 		opts.IncludeModulePrefix = false
 	}
 
-	// --- others
+	// --- Others
 	if !opts.RunAllAutoApprove {
 		// When running in no-auto-approve mode, set parallelism to 1 so that interactive prompts work.
 		opts.Parallelism = 1
