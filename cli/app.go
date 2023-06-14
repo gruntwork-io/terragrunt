@@ -104,8 +104,10 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 		args = append([]string{ctx.Command.Name}, args...)
 	}
 
-	opts.TerraformCommand = ctx.Command.Name
+	opts.TerraformCommand = ctx.Args().First()
 	opts.TerraformCliArgs = args
+
+	opts.Env = env.ParseEnvs(os.Environ())
 
 	// --- Logger
 	if opts.DisableLogColors {
@@ -114,8 +116,6 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
 	opts.Logger = util.CreateLogEntry("", opts.LogLevel)
 	opts.Logger.Logger.SetOutput(ctx.App.ErrWriter)
-
-	opts.Env = env.ParseEnvs(os.Environ())
 
 	// --- Working Dir
 	if opts.WorkingDir == "" {
