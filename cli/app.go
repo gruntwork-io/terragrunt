@@ -14,6 +14,7 @@ import (
 	hashicorpversion "github.com/hashicorp/go-version"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands"
+	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -95,10 +96,16 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 
 	// --- Args
 	// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
-	args := ctx.Args().Normalize(cli.OneDashFlag)
+	args := ctx.Args().Normalize(cli.OneDashFlag).Slice()
 
-	opts.TerraformCommand = args.First()
-	opts.TerraformCliArgs = args.Slice()
+	switch ctx.Command.Name {
+	case terraform.CommandName, runall.CommandName:
+	default:
+		args = append([]string{ctx.Command.Name}, args...)
+	}
+
+	opts.TerraformCommand = ctx.Command.Name
+	opts.TerraformCliArgs = args
 
 	// --- Logger
 	if opts.DisableLogColors {

@@ -46,7 +46,7 @@ func (flag *flag) Value() FlagValue {
 // TakesValue returns true of the flag takes a value, otherwise false.
 // Implements `cli.DocGenerationFlag.TakesValue` required to generate help.
 func (flag *flag) TakesValue() bool {
-	return !flag.FlagValue.IsBoolFlag()
+	return flag.FlagValue != nil && !flag.FlagValue.IsBoolFlag()
 }
 
 // IsSet `cli.flag.IsSet` required to generate help.
