@@ -3,6 +3,7 @@ package cli
 import (
 	libflag "flag"
 	"io"
+	"strings"
 
 	"github.com/urfave/cli/v2"
 )
@@ -42,6 +43,16 @@ func (args *Args) Normalize(acts ...NormalizeActsType) *Args {
 	}
 
 	return newArgs(strArgs)
+}
+
+func (args *Args) CommandName() (string, bool) {
+	name := args.First()
+
+	if isFlag := strings.HasPrefix(name, "-"); !isFlag && name != "" {
+		return name, true
+	}
+
+	return "", false
 }
 
 func newArgs(args []string) *Args {

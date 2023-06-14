@@ -78,9 +78,8 @@ func showHelp(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	}
 
 	// If the first argument is a command, it is most likely a terraform command, show Terraform help.
-	firstArg := ctx.Args().First()
-	if isCommand := !strings.HasPrefix(firstArg, "-"); firstArg != "" && isCommand {
-		terraformHelpCmd := append([]string{firstArg, "-help"}, ctx.Args().Tail()...)
+	if commandName, ok := ctx.Args().CommandName(); ok {
+		terraformHelpCmd := append([]string{commandName, "-help"}, ctx.Args().Tail()...)
 		return shell.RunTerraformCommand(opts, terraformHelpCmd...)
 	}
 
