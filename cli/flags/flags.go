@@ -211,9 +211,9 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 		},
 		&cli.BoolFlag{
 			Name:        FlagNameTerragruntNoColor,
-			Destination: &opts.TerragruntNoColors,
+			Destination: &opts.DisableLogColors,
 			EnvVar:      "TERRAGRUNT_NO_COLOR",
-			Usage:       "If specified, output won't contain any color.",
+			Usage:       "If specified, Terragrunt output won't contain any color.",
 		},
 		&cli.BoolFlag{
 			Name:        FlagNameTerragruntUsePartialParseConfigCache,

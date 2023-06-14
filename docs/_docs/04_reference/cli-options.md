@@ -793,7 +793,9 @@ When passed it, sets logging level for terragrunt. All supported levels are:
 **CLI Arg**: `--terragrunt-no-color`<br/>
 **Environment Variable**: `TERRAGRUNT_NO_COLOR`
 
-If specified, output won't contain any color.
+If specified, Terragrunt output won't contain any color.
+
+NOTE: This option does not disable Terraform output colors. Use the Terraform [`-no-color`](https://developer.hashicorp.com/terraform/cli/commands/plan#no-color) argument.
 
 
 ### terragrunt-check

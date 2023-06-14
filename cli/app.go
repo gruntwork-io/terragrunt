@@ -101,6 +101,9 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	opts.TerraformCliArgs = args.Slice()
 
 	// --- Logger
+	if opts.DisableLogColors {
+		util.DisableLogColors()
+	}
 	opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
 	opts.Logger = util.CreateLogEntry("", opts.LogLevel)
 	opts.Logger.Logger.SetOutput(ctx.App.ErrWriter)

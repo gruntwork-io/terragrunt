@@ -89,7 +89,7 @@ type TerragruntOptions struct {
 	Logger *logrus.Entry
 
 	// Disalabe Terragrunt colors
-	TerragruntNoColors bool
+	DisableLogColors bool
 
 	// Log level
 	LogLevel logrus.Level
