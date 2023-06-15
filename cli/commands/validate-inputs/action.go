@@ -21,9 +21,9 @@ import (
 )
 
 func Run(opts *options.TerragruntOptions) error {
-	task := terraform.NewTask(terraform.TaskTargetGenerateConfig, runValidateInputs)
+	target := terraform.NewTarget(terraform.TargetPointGenerateConfig, runValidateInputs)
 
-	return terraform.RunWithTask(opts, task)
+	return terraform.RunWithTarget(opts, target)
 }
 
 func runValidateInputs(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {

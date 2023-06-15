@@ -75,10 +75,10 @@ var sourceChangeLocks = sync.Map{}
 // Run downloads terraform source if necessary, then runs terraform with the given options and CLI args.
 // This will forward all the args and extra_arguments directly to Terraform.
 func Run(opts *options.TerragruntOptions) error {
-	return RunWithTask(opts, new(Task))
+	return RunWithTarget(opts, new(Target))
 }
 
-func RunWithTask(terragruntOptions *options.TerragruntOptions, task *Task) error {
+func RunWithTarget(terragruntOptions *options.TerragruntOptions, target *Target) error {
 	if err := checkVersionConstraints(terragruntOptions); err != nil {
 		return err
 	}
@@ -88,8 +88,8 @@ func RunWithTask(terragruntOptions *options.TerragruntOptions, task *Task) error
 		return err
 	}
 
-	if task.isTarget(TaskTargetParseConfig) {
-		return task.runCallback(terragruntOptions, terragruntConfig)
+	if target.isPoint(TargetPointParseConfig) {
+		return target.runCallback(terragruntOptions, terragruntConfig)
 	}
 
 	terragruntOptionsClone := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
@@ -163,8 +163,8 @@ func RunWithTask(terragruntOptions *options.TerragruntOptions, task *Task) error
 
 	// NOTE: At this point, the terraform source is downloaded to the terragrunt working directory
 
-	if task.isTarget(TaskTargetDownloadSource) {
-		return task.runCallback(updatedTerragruntOptions, terragruntConfig)
+	if target.isPoint(TargetPointDownloadSource) {
+		return target.runCallback(updatedTerragruntOptions, terragruntConfig)
 	}
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
@@ -173,8 +173,8 @@ func RunWithTask(terragruntOptions *options.TerragruntOptions, task *Task) error
 		return err
 	}
 
-	if task.isTarget(TaskTargetGenerateConfig) {
-		return task.runCallback(updatedTerragruntOptions, terragruntConfig)
+	if target.isPoint(TargetPointGenerateConfig) {
+		return target.runCallback(updatedTerragruntOptions, terragruntConfig)
 	}
 
 	// We do the debug file generation here, after all the terragrunt generated terraform files are created so that we
@@ -196,7 +196,7 @@ func RunWithTask(terragruntOptions *options.TerragruntOptions, task *Task) error
 			return nil
 		}
 	}
-	return runTerragruntWithConfig(terragruntOptions, updatedTerragruntOptions, terragruntConfig, false, task)
+	return runTerragruntWithConfig(terragruntOptions, updatedTerragruntOptions, terragruntConfig, false, target)
 }
 
 func generateConfig(terragruntConfig *config.TerragruntConfig, updatedTerragruntOptions *options.TerragruntOptions) error {
@@ -229,7 +229,7 @@ func generateConfig(terragruntConfig *config.TerragruntConfig, updatedTerragrunt
 
 // This function takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
 // and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
-func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, allowSourceDownload bool, task *Task) error {
+func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, allowSourceDownload bool, target *Target) error {
 	// Add extra_arguments to the command
 	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExtraArgs != nil && len(terragruntConfig.Terraform.ExtraArgs) > 0 {
 		args := filterTerraformExtraArgs(terragruntOptions, terragruntConfig)
@@ -248,14 +248,14 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 			return err
 		}
 	} else {
-		if err := prepareNonInitCommand(originalTerragruntOptions, terragruntOptions, terragruntConfig, task); err != nil {
+		if err := prepareNonInitCommand(originalTerragruntOptions, terragruntOptions, terragruntConfig); err != nil {
 			return err
 		}
 	}
 
 	// Now that we've run 'init' and have all the source code locally, we can finally run the patch command
-	if task.isTarget(TaskTargetInitCommand) {
-		return task.runCallback(terragruntOptions, terragruntConfig)
+	if target.isPoint(TargetPointInitCommand) {
+		return target.runCallback(terragruntOptions, terragruntConfig)
 	}
 
 	if err := checkProtectedModule(terragruntOptions, terragruntConfig); err != nil {
@@ -469,14 +469,14 @@ func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptio
 // Prepare for running any command other than 'terraform init' by running 'terraform init' if necessary
 // This function takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
 // and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
-func prepareNonInitCommand(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, task *Task) error {
+func prepareNonInitCommand(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	needsInit, err := needsInit(terragruntOptions, terragruntConfig)
 	if err != nil {
 		return err
 	}
 
 	if needsInit {
-		if err := runTerraformInit(originalTerragruntOptions, terragruntOptions, terragruntConfig, nil, task); err != nil {
+		if err := runTerraformInit(originalTerragruntOptions, terragruntOptions, terragruntConfig, nil); err != nil {
 			return err
 		}
 	}
@@ -524,7 +524,7 @@ func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 //
 // This method takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
 // and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
-func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, terraformSource *terraform.Source, task *Task) error {
+func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, terraformSource *terraform.Source) error {
 
 	// Prevent Auto-Init if the user has disabled it
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) != CommandNameInit && !terragruntOptions.AutoInit {
@@ -538,7 +538,7 @@ func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terr
 		return err
 	}
 
-	err = runTerragruntWithConfig(originalTerragruntOptions, initOptions, terragruntConfig, terraformSource != nil, task)
+	err = runTerragruntWithConfig(originalTerragruntOptions, initOptions, terragruntConfig, terraformSource != nil, new(Target))
 	if err != nil {
 		return err
 	}

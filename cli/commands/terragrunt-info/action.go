@@ -9,6 +9,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
+func Run(opts *options.TerragruntOptions) error {
+	target := terraform.NewTarget(terraform.TargetPointDownloadSource, runTerragruntInfo)
+
+	return terraform.RunWithTarget(opts, target)
+}
+
 // Struct is output as JSON by 'terragrunt-info':
 type TerragruntInfoGroup struct {
 	ConfigPath       string
@@ -17,12 +23,6 @@ type TerragruntInfoGroup struct {
 	TerraformBinary  string
 	TerraformCommand string
 	WorkingDir       string
-}
-
-func Run(opts *options.TerragruntOptions) error {
-	task := terraform.NewTask(terraform.TaskTargetDownloadSource, runTerragruntInfo)
-
-	return terraform.RunWithTask(opts, task)
 }
 
 func runTerragruntInfo(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {

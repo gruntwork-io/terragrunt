@@ -23,9 +23,9 @@ import (
 )
 
 func Run(opts *options.TerragruntOptions) error {
-	task := terraform.NewTask(terraform.TaskTargetParseConfig, runRenderJSON)
+	target := terraform.NewTarget(terraform.TargetPointParseConfig, runRenderJSON)
 
-	return terraform.RunWithTask(opts, task)
+	return terraform.RunWithTarget(opts, target)
 }
 
 func runRenderJSON(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {

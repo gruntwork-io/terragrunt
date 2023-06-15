@@ -96,14 +96,16 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	// --- Args
 	// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
 	args := ctx.Args().Normalize(cli.OneDashFlag).Slice()
+	commandName := ctx.Command.Name
 
-	switch ctx.Command.Name {
+	switch commandName {
 	case terraform.CommandName, runall.CommandName:
+		commandName = ctx.Args().First()
 	default:
 		args = append([]string{ctx.Command.Name}, args...)
 	}
 
-	opts.TerraformCommand = ctx.Args().First()
+	opts.TerraformCommand = commandName
 	opts.TerraformCliArgs = args
 
 	opts.Env = env.ParseEnvs(os.Environ())
