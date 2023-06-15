@@ -57,6 +57,39 @@ const (
 	FlagNameHelp = "help"
 )
 
+var (
+	CommonFlagNames = []string{
+		FlagNameTerragruntTFPath,
+		FlagNameTerragruntNoAutoInit,
+		FlagNameTerragruntNoAutoRetry,
+		FlagNameTerragruntNoAutoApprove,
+		FlagNameTerragruntNonInteractive,
+		FlagNameTerragruntWorkingDir,
+		FlagNameTerragruntDownloadDir,
+		FlagNameTerragruntSource,
+		FlagNameTerragruntSourceMap,
+		FlagNameTerragruntSourceUpdate,
+		FlagNameTerragruntIAMRole,
+		FlagNameTerragruntIAMAssumeRoleDuration,
+		FlagNameTerragruntIAMAssumeRoleSessionName,
+		FlagNameTerragruntIgnoreDependencyErrors,
+		FlagNameTerragruntIgnoreDependencyOrder,
+		FlagNameTerragruntIgnoreExternalDependencies,
+		FlagNameTerragruntIncludeExternalDependencies,
+		FlagNameTerragruntExcludeDir,
+		FlagNameTerragruntIncludeDir,
+		FlagNameTerragruntStrictInclude,
+		FlagNameTerragruntParallelism,
+		FlagNameTerragruntDebug,
+		FlagNameTerragruntLogLevel,
+		FlagNameTerragruntNoColor,
+		FlagNameTerragruntModulesThatInclude,
+		FlagNameTerragruntFetchDependencyOutputFromState,
+		FlagNameTerragruntUsePartialParseConfigCache,
+		FlagNameTerragruntIncludeModulePrefix,
+	}
+)
+
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	flags := cli.Flags{
 		&cli.GenericFlag[string]{

@@ -14,6 +14,7 @@ const (
 
 var (
 	TerragruntFlagNames = append(terraform.TerragruntFlagNames,
+		flags.FlagNameTerragruntConfig,
 		flags.FlagNameTerragruntJSONOut,
 		flags.FlagNameWithMetadata,
 	)

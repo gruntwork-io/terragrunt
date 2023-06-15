@@ -14,7 +14,7 @@ const (
 )
 
 var (
-	TerragruntFlagNames = terraform.TerragruntFlagNames
+	TerragruntFlagNames = flags.CommonFlagNames
 
 	CommandsRunFuncs = make(map[string]func(opts *options.TerragruntOptions) error)
 )

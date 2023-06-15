@@ -2,7 +2,6 @@ package graphdependencies
 
 import (
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
@@ -13,7 +12,9 @@ const (
 )
 
 var (
-	TerragruntFlagNames = terraform.TerragruntFlagNames
+	TerragruntFlagNames = append(flags.CommonFlagNames,
+		flags.FlagNameTerragruntConfig,
+	)
 )
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
