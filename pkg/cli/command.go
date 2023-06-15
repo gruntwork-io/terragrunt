@@ -97,6 +97,10 @@ func (command *Command) parseArgs(args []string) (*Command, []string, error) {
 		undefArgs = append(undefArgs, undefArg)
 	}
 
+	if !command.IsRoot {
+		return command, undefArgs, nil
+	}
+
 	if command, undefArgs, err := command.Subcommands.parseArgs(undefArgs, false); command != nil || err != nil {
 		return command, undefArgs, err
 	}

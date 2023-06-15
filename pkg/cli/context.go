@@ -8,15 +8,17 @@ import (
 
 // Context can be used to retrieve context-specific args and parsed command-line options.
 type Context struct {
-	*cli.Context
+	context.Context
 	*App
 	Command *Command
 	args    *Args
+	rawArgs *Args
 }
 
 func NewContext(parentCtx *cli.Context, app *App) *Context {
 	return &Context{
-		Context: parentCtx,
+		Context: parentCtx.Context,
+		rawArgs: &Args{parentCtx.Args()},
 		App:     app,
 	}
 }
@@ -30,20 +32,13 @@ func (ctx *Context) Clone(command *Command, args []string) *Context {
 	}
 }
 
-func (ctx *Context) WithValue(key, val any) *Context {
-	ctx = &Context{
-		Context: ctx.Context,
-		App:     ctx.App,
-		Command: ctx.Command,
-		args:    ctx.args,
-	}
-	ctx.Context.Context = context.WithValue(ctx.Context.Context, key, val)
-
-	return ctx
+func (ctx Context) WithValue(key, val any) *Context {
+	ctx.Context = context.WithValue(ctx.Context, key, val)
+	return &ctx
 }
 
 func (ctx *Context) Value(key any) any {
-	return ctx.Context.Context.Value(key)
+	return ctx.Context.Value(key)
 }
 
 func (ctx *Context) ParseArgs(command *Command, args []string) (*Context, error) {
@@ -57,7 +52,7 @@ func (ctx *Context) ParseArgs(command *Command, args []string) (*Context, error)
 
 // Args returns the command line arguments associated with the context.
 func (ctx *Context) RawArgs() cli.Args {
-	return ctx.Context.Args()
+	return ctx.rawArgs
 }
 
 // Args returns the command line arguments associated with the context.
