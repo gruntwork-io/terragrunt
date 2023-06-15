@@ -1,6 +1,8 @@
 package commands
 
 import (
+	"sort"
+
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
@@ -16,7 +18,7 @@ import (
 
 // This set of commands is also used in unit tests
 func NewCommands(opts *options.TerragruntOptions) cli.Commands {
-	return cli.Commands{
+	commands := cli.Commands{
 		runall.NewCommand(opts),            // run-all
 		terragruntinfo.NewCommand(opts),    // terragrunt-info
 		validateinputs.NewCommand(opts),    // validate-inputs
@@ -24,6 +26,12 @@ func NewCommands(opts *options.TerragruntOptions) cli.Commands {
 		hclfmt.NewCommand(opts),            // hclfmt
 		renderjson.NewCommand(opts),        // render-json
 		awsproviderpatch.NewCommand(opts),  // aws-provider-patch
-		terraform.NewCommand(opts),         // *
 	}
+
+	sort.Sort(commands)
+
+	// add terraform command `*` after sorting to put the command at the end of the list in the help.
+	commands.Add(terraform.NewCommand(opts))
+
+	return commands
 }

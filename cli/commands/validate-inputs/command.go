@@ -1,7 +1,6 @@
 package validateinputs
 
 import (
-	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
@@ -24,10 +23,6 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Usage:  "Checks if the terragrunt configured inputs align with the terraform defined variables.",
 		Flags:  flags.NewFlags(opts).Filter(TerragruntFlagNames),
 		Before: func(ctx *cli.Context) error { return ctx.App.Before(ctx) },
-		Action: func(ctx *cli.Context) error { return Run(opts) },
+		Action: func(ctx *cli.Context) error { return Run(opts.FromContext(ctx)) },
 	}
-}
-
-func init() {
-	runall.CommandsRunFuncs[CommandName] = Run
 }

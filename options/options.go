@@ -1,6 +1,7 @@
 package options
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math"
@@ -38,6 +39,10 @@ const (
 
 	DefaultIAMAssumeRoleDuration = 3600
 )
+
+const ContextKey ctxKey = iota
+
+type ctxKey byte
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
@@ -340,6 +345,17 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string) (*TerragruntOption
 	opts.LogLevel = logrus.DebugLevel
 
 	return opts, nil
+}
+
+// FromContext attempts to retrieve options from context, otherwise returns itself.
+func (opts *TerragruntOptions) FromContext(ctx context.Context) *TerragruntOptions {
+	if val := ctx.Value(ContextKey); val != nil {
+		if opts, ok := val.(*TerragruntOptions); ok {
+			return opts
+		}
+	}
+
+	return opts
 }
 
 // Create a copy of this TerragruntOptions, but with different values for the given variables. This is useful for

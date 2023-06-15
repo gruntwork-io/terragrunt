@@ -4636,7 +4636,10 @@ func TestTerragruntOutputFromRemoteState(t *testing.T) {
 	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app1/.terraform")))
 	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app3/.terraform/terraform.tfstate")))
 	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app3/.terraform")))
+
+	// it helps to get rid of abnormal error: `fixture-output-from-remote-state/env1/app2/terragrunt.hcl:22,38-48: Unsupported attribute; This object does not have an attribute named "app1_text".`
 	time.Sleep(time.Second)
+
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-fetch-dependency-output-from-state --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s/app2", environmentPath))
 	var (
 		stdout bytes.Buffer

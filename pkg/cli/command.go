@@ -2,6 +2,8 @@ package cli
 
 import (
 	libflag "flag"
+
+	"github.com/urfave/cli/v2"
 )
 
 type Command struct {
@@ -61,6 +63,15 @@ func (command *Command) HasName(name string) bool {
 // VisibleFlags returns a slice of the Flags, used by `urfave/cli` package to generate help.
 func (command *Command) VisibleFlags() Flags {
 	return command.Flags
+}
+
+// VisibleCommands returns a slice of the Commands with Hidden=false.
+// Used by `urfave/cli` package to generate help.
+func (command Command) VisibleCommands() []*cli.Command {
+	if command.Subcommands == nil {
+		return nil
+	}
+	return command.Subcommands.VisibleCommands()
 }
 
 func (command *Command) parseArgs(args []string) (*Command, []string, error) {

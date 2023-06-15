@@ -17,6 +17,11 @@ func (commands Commands) Get(name string) *Command {
 	return nil
 }
 
+// Add adds a new command to the list.
+func (commands *Commands) Add(command *Command) {
+	*commands = append(*commands, command)
+}
+
 // Filter returns a list of commands filtered by the given names.
 func (commands Commands) Filter(names []string) Commands {
 	var filtered Commands

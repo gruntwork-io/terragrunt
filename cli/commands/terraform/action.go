@@ -75,10 +75,18 @@ var sourceChangeLocks = sync.Map{}
 // Run downloads terraform source if necessary, then runs terraform with the given options and CLI args.
 // This will forward all the args and extra_arguments directly to Terraform.
 func Run(opts *options.TerragruntOptions) error {
-	return RunWithTarget(opts, new(Target))
+	if opts.TerraformCommand == "" {
+		return errors.WithStackTrace(MissingCommand{})
+	}
+
+	return runTerraform(opts, new(Target))
 }
 
-func RunWithTarget(terragruntOptions *options.TerragruntOptions, target *Target) error {
+func RunWithTarget(opts *options.TerragruntOptions, target *Target) error {
+	return runTerraform(opts, target)
+}
+
+func runTerraform(terragruntOptions *options.TerragruntOptions, target *Target) error {
 	if err := checkVersionConstraints(terragruntOptions); err != nil {
 		return err
 	}

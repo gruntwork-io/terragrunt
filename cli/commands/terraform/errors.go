@@ -9,19 +9,10 @@ import (
 
 // Custom error types
 
-type UnrecognizedCommand string
+type MissingCommand struct{}
 
-func (commandName UnrecognizedCommand) Error() string {
-	return fmt.Sprintf("Unrecognized command: %s", string(commandName))
-}
-
-type ArgumentNotAllowed struct {
-	Argument string
-	Message  string
-}
-
-func (err ArgumentNotAllowed) Error() string {
-	return fmt.Sprintf(err.Message, err.Argument)
+func (err MissingCommand) Error() string {
+	return "Missing terraform command (Example: terragrunt plan)"
 }
 
 type BackendNotDefined struct {

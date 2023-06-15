@@ -37,7 +37,6 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 	app := cli.NewApp()
 	app.Name = "terragrunt"
 	app.Usage = "Terragrunt is a thin wrapper for Terraform that provides extra tools for working with multiple\nTerraform modules, remote state, and locking. For documentation, see https://github.com/gruntwork-io/terragrunt/."
-	app.UsageText = "terragrunt <command> [global options]"
 	app.Author = "Gruntwork <www.gruntwork.io>"
 	app.Version = version.GetVersion()
 	app.Writer = writer
@@ -56,18 +55,15 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 func beforeRunningCommand(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
 		if flagHelp := ctx.Flags.Get(flags.FlagNameHelp); flagHelp.Value().IsSet() {
+			// prevent the execution of the command itself
 			ctx.Command.Action = nil
 
-			if err := showHelp(ctx, opts); err != nil {
-				return err
-			}
-		}
-
-		if err := initialSetup(ctx, opts); err != nil {
+			err := showHelp(ctx, opts)
 			return err
 		}
 
-		return nil
+		err := initialSetup(ctx, opts)
+		return err
 	}
 }
 
@@ -100,7 +96,7 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 
 	switch commandName {
 	case terraform.CommandName, runall.CommandName:
-		commandName = ctx.Args().First()
+		commandName, _ = ctx.Args().CommandName()
 	default:
 		args = append([]string{ctx.Command.Name}, args...)
 	}

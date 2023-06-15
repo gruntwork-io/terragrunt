@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"context"
+
 	"github.com/urfave/cli/v2"
 )
 
@@ -26,6 +28,22 @@ func (ctx *Context) Clone(command *Command, args []string) *Context {
 		Command: command,
 		args:    newArgs(args),
 	}
+}
+
+func (ctx *Context) WithValue(key, val any) *Context {
+	ctx = &Context{
+		Context: ctx.Context,
+		App:     ctx.App,
+		Command: ctx.Command,
+		args:    ctx.args,
+	}
+	ctx.Context.Context = context.WithValue(ctx.Context.Context, key, val)
+
+	return ctx
+}
+
+func (ctx *Context) Value(key any) any {
+	return ctx.Context.Context.Value(key)
 }
 
 func (ctx *Context) ParseArgs(command *Command, args []string) (*Context, error) {

@@ -1,7 +1,6 @@
 package renderjson
 
 import (
-	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
@@ -26,10 +25,6 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Description: "This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.",
 		Flags:       flags.NewFlags(opts).Filter(TerragruntFlagNames),
 		Before:      func(ctx *cli.Context) error { return ctx.App.Before(ctx) },
-		Action:      func(ctx *cli.Context) error { return Run(opts) },
+		Action:      func(ctx *cli.Context) error { return Run(opts.FromContext(ctx)) },
 	}
-}
-
-func init() {
-	runall.CommandsRunFuncs[CommandName] = Run
 }
