@@ -68,6 +68,7 @@ jobs:
       - store_test_results:
           path: logs
   integration_test:
+    resource_class: large
     <<: *defaults
     steps:
       - checkout
@@ -98,11 +99,13 @@ jobs:
       - store_test_results:
           path: logs
   build:
+    resource_class: large
     <<: *defaults
     steps:
       - checkout
       - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG"
   deploy:
+    resource_class: large
     <<: *defaults
     steps:
       - checkout
