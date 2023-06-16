@@ -4622,8 +4622,7 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 }
 
 func TestTerragruntOutputFromRemoteState(t *testing.T) {
-	// t.Parallel()
-	// it helps to get rid of abnormal error: `fixture-output-from-remote-state/env1/app2/terragrunt.hcl:22,38-48: Unsupported attribute; This object does not have an attribute named "app1_text".`
+	t.Parallel()
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
