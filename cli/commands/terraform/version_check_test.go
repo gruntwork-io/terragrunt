@@ -3,7 +3,7 @@ package terraform
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/errors"
 	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/assert"
 )

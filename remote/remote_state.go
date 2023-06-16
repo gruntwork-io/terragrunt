@@ -5,8 +5,8 @@ import (
 	"reflect"
 
 	"github.com/gruntwork-io/terragrunt/codegen"
-	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/errors"
 )
 
 // Configuration for Terraform remote state

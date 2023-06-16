@@ -11,8 +11,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/errors"
 )
 
 // A representation of the configuration options for an AWS Session
@@ -110,9 +110,10 @@ func getSTSCredentialsFromIAMRoleOptions(sess *session.Session, iamRoleOptions o
 }
 
 // Returns an AWS session object. The session is configured by either:
-// - The provided AwsSessionConfig struct, which specifies region (required), profile name (optional), and IAM role to
-//   assume (optional).
-// - The provided TerragruntOptions struct, which specifies any IAM role to assume (optional).
+//   - The provided AwsSessionConfig struct, which specifies region (required), profile name (optional), and IAM role to
+//     assume (optional).
+//   - The provided TerragruntOptions struct, which specifies any IAM role to assume (optional).
+//
 // Note that if the AwsSessionConfig object is null, this will return default session credentials using the default
 // credentials chain of the AWS SDK.
 func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*session.Session, error) {

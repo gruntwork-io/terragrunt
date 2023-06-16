@@ -10,7 +10,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 	hashicorpversion "github.com/hashicorp/go-version"
 
@@ -81,11 +81,7 @@ func newCommands(opts *options.TerragruntOptions) cli.Commands {
 // this function is run for any command
 func beforeRunningCommand(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
-		flagHelp := ctx.Flags.Get(flags.FlagNameHelp)
-		if flagHelp.Value().IsSet() || !ctx.Args().Present() {
-			// prevent the command itself from running and exit after displaying help
-			ctx.Command.Action = nil
-
+		if flagHelp := ctx.Flags.Get(flags.FlagNameHelp); flagHelp.Value().IsSet() {
 			err := showHelp(ctx, opts)
 			return err
 		}
@@ -96,6 +92,9 @@ func beforeRunningCommand(opts *options.TerragruntOptions) func(ctx *cli.Context
 }
 
 func showHelp(ctx *cli.Context, opts *options.TerragruntOptions) error {
+	// prevent the command itself from running and exit after displaying help
+	ctx.Command.Action = nil
+
 	// If the app command is specified, show help for the command, except for the '*' command as this is the default command.
 	if !ctx.Command.IsRoot && ctx.Command.Name != terraform.CommandName {
 		return cli.ShowCommandHelp(ctx, ctx.Command.Name)
@@ -128,6 +127,11 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 		cmdName = ctx.Args().CommandName()
 	default:
 		args = append([]string{ctx.Command.Name}, args...)
+	}
+
+	if cmdName == "" {
+		err := showHelp(ctx, opts)
+		return err
 	}
 
 	opts.TerraformCommand = cmdName

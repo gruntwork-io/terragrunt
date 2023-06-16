@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
-	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/errors"
 )
 
 const errFlagUndefined = "flag provided but not defined:"

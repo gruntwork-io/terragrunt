@@ -14,7 +14,7 @@ import (
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 

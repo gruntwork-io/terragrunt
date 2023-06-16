@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/env"
+	"github.com/gruntwork-io/terragrunt/pkg/errors"
 	"github.com/urfave/cli/v2"
 )
 

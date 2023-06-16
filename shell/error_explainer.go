@@ -6,7 +6,7 @@ import (
 
 	"github.com/gruntwork-io/gruntwork-cli/collections"
 
-	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/errors"
 	"github.com/hashicorp/go-multierror"
 )
 
