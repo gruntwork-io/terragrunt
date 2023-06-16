@@ -17,12 +17,18 @@ type GenericType interface {
 type GenericFlag[T GenericType] struct {
 	flag
 
-	Name        string
+	// The name of the flag.
+	Name string
+	// The default value of the flag to display in the help, if it is empty, the value is taken from `Destination`.
 	DefaultText string
-	Usage       string
-	Aliases     []string
-	EnvVar      string
-
+	// A short usage description to display in help.
+	Usage string
+	// Aliases are usually used for the short flag name, like `-h`.
+	Aliases []string
+	// The name of the env variable that is parsed and assigned to `Destination` before the flag value.
+	EnvVar string
+	// The pointer to which the value of the flag or env var is assigned.
+	// It also uses as the default value displayed in the help.
 	Destination *T
 }
 
@@ -180,6 +186,7 @@ func (val *genericType[T]) Set(str string) error {
 
 func (val *genericType[T]) Get() any { return *val.dest }
 
+// String returns a readable representation of this value
 func (val *genericType[T]) String() string {
 	if *val.dest == *new(T) {
 		return ""

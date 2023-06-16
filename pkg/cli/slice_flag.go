@@ -20,14 +20,22 @@ type SliceFlagType interface {
 type SliceFlag[T SliceFlagType] struct {
 	flag
 
-	Name        string
+	// The name of the flag.
+	Name string
+	// The default value of the flag to display in the help, if it is empty, the value is taken from `Destination`.
 	DefaultText string
-	Usage       string
-	Aliases     []string
-	EnvVar      string
-
-	Destination        *[]T
-	Splitter           SplitterFunc
+	// A short usage description to display in help.
+	Usage string
+	// Aliases are usually used for the short flag name, like `-h`.
+	Aliases []string
+	// The name of the env variable that is parsed and assigned to `Destination` before the flag value.
+	EnvVar string
+	// The pointer to which the value of the flag or env var is assigned.
+	// It also uses as the default value displayed in the help.
+	Destination *[]T
+	// The func used to split the EvnVar, by default `strings.Split`
+	Splitter SplitterFunc
+	// The Env Var separator that is passed to the Splitter function as an argument
 	SliceFlagEnvVarSep string
 }
 
@@ -163,6 +171,7 @@ func (flag *sliceValue[T]) Get() any {
 	return vals
 }
 
+// String returns a readable representation of this value
 func (flag *sliceValue[T]) String() string {
 	if flag.values == nil {
 		return ""

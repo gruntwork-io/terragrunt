@@ -196,6 +196,7 @@ func (flag *mapValue[K, V]) Get() any {
 	return vals
 }
 
+// String returns a readable representation of this value
 func (flag *mapValue[K, V]) String() string {
 	if flag.values == nil {
 		return ""

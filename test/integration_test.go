@@ -19,6 +19,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -3890,7 +3891,12 @@ func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwri
 	return runTerragruntVersionCommand(t, "TEST", command, writer, errwriter)
 }
 
+var mutexVersion sync.Mutex
+
 func runTerragruntVersionCommand(t *testing.T, ver string, command string, writer io.Writer, errwriter io.Writer) error {
+	mutexVersion.Lock()
+	defer mutexVersion.Unlock()
+
 	args := strings.Split(command, " ")
 
 	fmt.Println("runTerragruntVersionCommand after split")
@@ -4616,7 +4622,8 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 }
 
 func TestTerragruntOutputFromRemoteState(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
+	// it helps to get rid of abnormal error: `fixture-output-from-remote-state/env1/app2/terragrunt.hcl:22,38-48: Unsupported attribute; This object does not have an attribute named "app1_text".`
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
@@ -4636,9 +4643,6 @@ func TestTerragruntOutputFromRemoteState(t *testing.T) {
 	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app1/.terraform")))
 	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app3/.terraform/terraform.tfstate")))
 	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app3/.terraform")))
-
-	// it helps to get rid of abnormal error: `fixture-output-from-remote-state/env1/app2/terragrunt.hcl:22,38-48: Unsupported attribute; This object does not have an attribute named "app1_text".`
-	time.Sleep(time.Second)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-fetch-dependency-output-from-state --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s/app2", environmentPath))
 	var (
