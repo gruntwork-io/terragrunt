@@ -31,6 +31,8 @@ type FlagValue interface {
 
 type Flag interface {
 	Value() FlagValue
+
+	// `urfave/cli/v2` uses to generate help
 	cli.DocGenerationFlag
 }
 
@@ -49,7 +51,8 @@ func (flag *flag) TakesValue() bool {
 	return flag.FlagValue != nil && !flag.FlagValue.IsBoolFlag()
 }
 
-// IsSet `cli.flag.IsSet` required to generate help.
+// IsSet returns true if the flag was set either evn, by env var or arg flag.
+// Implements `cli.flag.IsSet` required to generate help.
 func (flag *flag) IsSet() bool {
 	return flag.FlagValue.IsSet()
 }

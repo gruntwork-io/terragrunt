@@ -5,16 +5,14 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-const helpName = "help"
-
 var (
 	// AppHelpTemplate is the text template for the Default help topic.
-	// cli.go uses text/template to render templates. You can
+	// cli uses text/template to render templates. You can
 	// render custom help text by setting this variable.
 	AppHelpTemplate = ""
 
 	// CommandHelpTemplate is the text template for the command help topic.
-	// cli.go uses text/template to render templates. You can
+	// cli uses text/template to render templates. You can
 	// render custom help text by setting this variable.
 	CommandHelpTemplate = ""
 )

@@ -28,6 +28,7 @@ type MapFlagValueType interface {
 	GenericType | bool
 }
 
+// MapFlag is a key value flag.
 type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	flag
 

@@ -129,11 +129,6 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 		args = append([]string{ctx.Command.Name}, args...)
 	}
 
-	if cmdName == "" {
-		err := showHelp(ctx, opts)
-		return err
-	}
-
 	opts.TerraformCommand = cmdName
 	opts.TerraformCliArgs = args
 

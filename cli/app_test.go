@@ -41,8 +41,8 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		expectedErr     error
 	}{
 		{
-			[]string{"command"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"command"}, false, "", false, false, defaultLogLevel, false),
+			[]string{},
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
@@ -53,99 +53,99 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			[]string{"command", "--foo", "--bar"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"command", "-foo", "-bar"}, false, "", false, false, defaultLogLevel, false),
+			[]string{"--foo", "--bar"},
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"-foo", "-bar"}, false, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
-			[]string{"command", "--foo", "apply", "--bar"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"command", "-foo", "apply", "-bar"}, false, "", false, false, defaultLogLevel, false),
+			[]string{"--foo", "apply", "--bar"},
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"-foo", "apply", "-bar"}, false, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
-			[]string{"command", doubleDashed(flags.FlagNameTerragruntNonInteractive)},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"command"}, true, "", false, false, defaultLogLevel, false),
+			[]string{doubleDashed(flags.FlagNameTerragruntNonInteractive)},
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, true, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
-			[]string{"command", doubleDashed(flags.FlagNameTerragruntIncludeExternalDependencies)},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"command"}, false, "", false, true, defaultLogLevel, false),
+			[]string{doubleDashed(flags.FlagNameTerragruntIncludeExternalDependencies)},
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, true, defaultLogLevel, false),
 			nil,
 		},
 
 		{
-			[]string{"command", doubleDashed(flags.FlagNameTerragruntConfig), fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath)},
-			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{"command"}, false, "", false, false, defaultLogLevel, false),
+			[]string{doubleDashed(flags.FlagNameTerragruntConfig), fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath)},
+			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
-			[]string{"command", doubleDashed(flags.FlagNameTerragruntWorkingDir), "/some/path"},
-			mockOptions(t, util.JoinPath("/some/path", config.DefaultTerragruntConfigPath), "/some/path", []string{"command"}, false, "", false, false, defaultLogLevel, false),
+			[]string{doubleDashed(flags.FlagNameTerragruntWorkingDir), "/some/path"},
+			mockOptions(t, util.JoinPath("/some/path", config.DefaultTerragruntConfigPath), "/some/path", []string{}, false, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
-			[]string{"command", doubleDashed(flags.FlagNameTerragruntSource), "/some/path"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"command"}, false, "/some/path", false, false, defaultLogLevel, false),
+			[]string{doubleDashed(flags.FlagNameTerragruntSource), "/some/path"},
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "/some/path", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
-			[]string{"command", doubleDashed(flags.FlagNameTerragruntSourceMap), "git::git@github.com:one/gw-terraform-aws-vpc.git=git::git@github.com:two/test.git?ref=FEATURE"},
-			mockOptionsWithSourceMap(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"command"}, map[string]string{"git::git@github.com:one/gw-terraform-aws-vpc.git": "git::git@github.com:two/test.git?ref=FEATURE"}),
+			[]string{doubleDashed(flags.FlagNameTerragruntSourceMap), "git::git@github.com:one/gw-terraform-aws-vpc.git=git::git@github.com:two/test.git?ref=FEATURE"},
+			mockOptionsWithSourceMap(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, map[string]string{"git::git@github.com:one/gw-terraform-aws-vpc.git": "git::git@github.com:two/test.git?ref=FEATURE"}),
 			nil,
 		},
 
 		{
-			[]string{"command", doubleDashed(flags.FlagNameTerragruntIgnoreDependencyErrors)},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"command"}, false, "", true, false, defaultLogLevel, false),
+			[]string{doubleDashed(flags.FlagNameTerragruntIgnoreDependencyErrors)},
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", true, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
-			[]string{"command", doubleDashed(flags.FlagNameTerragruntIgnoreExternalDependencies)},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"command"}, false, "", false, false, defaultLogLevel, false),
+			[]string{doubleDashed(flags.FlagNameTerragruntIgnoreExternalDependencies)},
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
-			[]string{"command", doubleDashed(flags.FlagNameTerragruntIAMRole), "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"},
-			mockOptionsWithIamRole(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"command"}, false, "", false, "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"),
+			[]string{doubleDashed(flags.FlagNameTerragruntIAMRole), "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"},
+			mockOptionsWithIamRole(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"),
 			nil,
 		},
 
 		{
-			[]string{"command", doubleDashed(flags.FlagNameTerragruntIAMAssumeRoleDuration), "36000"},
-			mockOptionsWithIamAssumeRoleDuration(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"command"}, false, "", false, 36000),
+			[]string{doubleDashed(flags.FlagNameTerragruntIAMAssumeRoleDuration), "36000"},
+			mockOptionsWithIamAssumeRoleDuration(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, 36000),
 			nil,
 		},
 
 		{
-			[]string{"command", doubleDashed(flags.FlagNameTerragruntIAMAssumeRoleSessionName), "terragrunt-iam-role-session-name"},
-			mockOptionsWithIamAssumeRoleSessionName(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"command"}, false, "", false, "terragrunt-iam-role-session-name"),
+			[]string{doubleDashed(flags.FlagNameTerragruntIAMAssumeRoleSessionName), "terragrunt-iam-role-session-name"},
+			mockOptionsWithIamAssumeRoleSessionName(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, "terragrunt-iam-role-session-name"),
 			nil,
 		},
 
 		{
-			[]string{"command", doubleDashed(flags.FlagNameTerragruntConfig), fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "--terragrunt-non-interactive"},
-			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{"command"}, true, "", false, false, defaultLogLevel, false),
+			[]string{doubleDashed(flags.FlagNameTerragruntConfig), fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "--terragrunt-non-interactive"},
+			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, true, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
-			[]string{"command", "--foo", doubleDashed(flags.FlagNameTerragruntConfig), fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "bar", doubleDashed(flags.FlagNameTerragruntNonInteractive), "--baz", doubleDashed(flags.FlagNameTerragruntWorkingDir), "/some/path", doubleDashed(flags.FlagNameTerragruntSource), "github.com/foo/bar//baz?ref=1.0.3"},
-			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "/some/path", []string{"command", "-foo", "bar", "-baz"}, true, "github.com/foo/bar//baz?ref=1.0.3", false, false, defaultLogLevel, false),
+			[]string{"--foo", doubleDashed(flags.FlagNameTerragruntConfig), fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "bar", doubleDashed(flags.FlagNameTerragruntNonInteractive), "--baz", doubleDashed(flags.FlagNameTerragruntWorkingDir), "/some/path", doubleDashed(flags.FlagNameTerragruntSource), "github.com/foo/bar//baz?ref=1.0.3"},
+			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "/some/path", []string{"-foo", "bar", "-baz"}, true, "github.com/foo/bar//baz?ref=1.0.3", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		// Adding the --terragrunt-log-level flag should result in DebugLevel configured
 		{
-			[]string{"command", doubleDashed(flags.FlagNameTerragruntLogLevel), "debug"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"command"}, false, "", false, false, logrus.DebugLevel, false),
+			[]string{doubleDashed(flags.FlagNameTerragruntLogLevel), "debug"},
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, logrus.DebugLevel, false),
 			nil,
 		},
 		{
@@ -166,8 +166,8 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 			argMissingValue(flags.FlagNameTerragruntConfig),
 		},
 		{
-			[]string{"command", doubleDashed(flags.FlagNameTerragruntDebug)},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"command"}, false, "", false, false, defaultLogLevel, true),
+			[]string{doubleDashed(flags.FlagNameTerragruntDebug)},
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, defaultLogLevel, true),
 			nil,
 		},
 	}

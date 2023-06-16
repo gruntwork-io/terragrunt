@@ -13,16 +13,15 @@ type App struct {
 	Commands Commands
 	// List of flags to parse
 	Flags Flags
-	// List of all authors who contributed
+	// An author who contributed
 	Author string
-	// An action to execute before any subcommands are run, but after the context is ready
-	// If a non-nil error is returned, no subcommands are run
+	// The action to execute before Action func, when no subcommands are specified, but after the context is ready
 	Before ActionFunc
-	// An action to execute after any subcommands are run, but after the subcommand has finished
+	// The action to execute after Action funcs, when no subcommands are specified
 	After ActionFunc
 	// The action to execute when no subcommands are specified
 	Action ActionFunc
-	// DefaultCommand is the (optional) name of a command
+	// DefaultCommand is the (optional)  command
 	// to run if no command names are passed as CLI arguments.
 	DefaultCommand *Command
 	// OsExiter is the function used when the app exits. If not set defaults to os.Exit.
@@ -64,12 +63,12 @@ func (app *App) Run(arguments []string) error {
 	return app.App.Run(arguments)
 }
 
-// VisibleFlags returns a slice of the Flags.
+// VisibleFlags returns a slice of the Flags used for help.
 func (app *App) VisibleFlags() Flags {
 	return app.Flags.VisibleFlags()
 }
 
-// VisibleCommands returns a slice of the Commands.
+// VisibleCommands returns a slice of the Commands used for help.
 func (app *App) VisibleCommands() []*cli.Command {
 	return app.Commands.VisibleCommands()
 }

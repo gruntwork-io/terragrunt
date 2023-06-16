@@ -16,6 +16,7 @@ type SliceFlagType interface {
 	GenericType
 }
 
+// SliceFlag is a multiple flag.
 type SliceFlag[T SliceFlagType] struct {
 	flag
 
