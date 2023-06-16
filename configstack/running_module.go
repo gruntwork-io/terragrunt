@@ -103,10 +103,10 @@ func toRunningModules(modules []*TerraformModule, dependencyOrder DependencyOrde
 
 // Loop through the map of runningModules and for each module M:
 //
-// * If dependencyOrder is NormalOrder, plug in all the modules M depends on into the Dependencies field and all the
-//   modules that depend on M into the NotifyWhenDone field.
-// * If dependencyOrder is ReverseOrder, do the reverse.
-// * If dependencyOrder is IgnoreOrder, do nothing.
+//   - If dependencyOrder is NormalOrder, plug in all the modules M depends on into the Dependencies field and all the
+//     modules that depend on M into the NotifyWhenDone field.
+//   - If dependencyOrder is ReverseOrder, do the reverse.
+//   - If dependencyOrder is IgnoreOrder, do nothing.
 func crossLinkDependencies(modules map[string]*runningModule, dependencyOrder DependencyOrder) (map[string]*runningModule, error) {
 	for _, module := range modules {
 		for _, dependency := range module.Module.Dependencies {

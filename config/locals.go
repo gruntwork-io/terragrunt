@@ -36,9 +36,10 @@ type Local struct {
 
 // evaluateLocalsBlock is a routine to evaluate the locals block in a way to allow references to other locals. This
 // will:
-// - Extract a reference to the locals block from the parsed file
-// - Continuously evaluate the block until all references are evaluated, defering evaluation of anything that references
-//   other locals until those references are evaluated.
+//   - Extract a reference to the locals block from the parsed file
+//   - Continuously evaluate the block until all references are evaluated, defering evaluation of anything that references
+//     other locals until those references are evaluated.
+//
 // This returns a map of the local names to the evaluated expressions (represented as `cty.Value` objects). This will
 // error if there are remaining unevaluated locals after all references that can be evaluated has been evaluated.
 func evaluateLocalsBlock(
