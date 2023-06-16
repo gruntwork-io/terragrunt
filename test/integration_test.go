@@ -3891,9 +3891,10 @@ func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwri
 	return runTerragruntVersionCommand(t, "TEST", command, writer, errwriter)
 }
 
-var mutexVersion sync.Mutex
+var mutexVersion = new(sync.Mutex)
 
 func runTerragruntVersionCommand(t *testing.T, ver string, command string, writer io.Writer, errwriter io.Writer) error {
+	// we need to use lock to avoid overwriting `version.Version` when running the tests in parallel.
 	mutexVersion.Lock()
 	defer mutexVersion.Unlock()
 

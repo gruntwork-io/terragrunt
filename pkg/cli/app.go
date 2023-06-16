@@ -13,7 +13,7 @@ type App struct {
 	Commands Commands
 	// List of flags to parse
 	Flags Flags
-	// An author who contributed
+	// Contributor
 	Author string
 	// The action to execute before Action func, when no subcommands are specified, but after the context is ready
 	Before ActionFunc
