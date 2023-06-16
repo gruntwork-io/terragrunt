@@ -69,6 +69,8 @@ jobs:
           path: logs
   integration_test:
     <<: *defaults
+    executor:
+      size: "large"
     steps:
       - checkout
       - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.30.0'
@@ -99,11 +101,15 @@ jobs:
           path: logs
   build:
     <<: *defaults
+    executor:
+      size: "large"
     steps:
       - checkout
       - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG"
   deploy:
     <<: *defaults
+    executor:
+      size: "large"
     steps:
       - checkout
       - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG"
