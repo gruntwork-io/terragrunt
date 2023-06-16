@@ -19,7 +19,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -3888,23 +3887,16 @@ func removeFolder(t *testing.T, path string) {
 }
 
 func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {
-	return runTerragruntVersionCommand(t, "TEST", command, writer, errwriter)
-}
-
-var mutexVersion = new(sync.Mutex)
-
-func runTerragruntVersionCommand(t *testing.T, ver string, command string, writer io.Writer, errwriter io.Writer) error {
-	// we need to use lock to avoid overwriting `version.Version` when running the tests in parallel.
-	mutexVersion.Lock()
-	defer mutexVersion.Unlock()
-
 	args := strings.Split(command, " ")
-
-	fmt.Println("runTerragruntVersionCommand after split")
 	fmt.Println(args)
-	version.Version = ver
+
 	app := cli.NewApp(writer, errwriter)
 	return app.Run(args)
+}
+
+func runTerragruntVersionCommand(t *testing.T, ver string, command string, writer io.Writer, errwriter io.Writer) error {
+	version.Version = ver
+	return runTerragruntCommand(t, command, writer, errwriter)
 }
 
 func runTerragrunt(t *testing.T, command string) {
