@@ -51,8 +51,8 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 	app.Commands = append(
 		newDeprecatedCommands(opts),
 		newCommands(opts)...)
-	app.Before = beforeRunningCommand(opts)
-	app.DefaultCommand = terraform.NewCommand(opts)
+	app.Before = beforeRunningCommand(opts)         // all commands refer to this function as `Before`
+	app.DefaultCommand = terraform.NewCommand(opts) // by default forwards all commands directly to Terraform
 	app.OsExiter = osExiter
 
 	return app
@@ -78,10 +78,12 @@ func newCommands(opts *options.TerragruntOptions) cli.Commands {
 	return cmds
 }
 
+// this function is run for any command
 func beforeRunningCommand(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
-		if flagHelp := ctx.Flags.Get(flags.FlagNameHelp); flagHelp.Value().IsSet() {
-			// prevent the execution of the command itself
+		flagHelp := ctx.Flags.Get(flags.FlagNameHelp)
+		if flagHelp.Value().IsSet() || !ctx.Args().Present() {
+			// prevent the command itself from running and exit after displaying help
 			ctx.Command.Action = nil
 
 			err := showHelp(ctx, opts)
@@ -94,7 +96,7 @@ func beforeRunningCommand(opts *options.TerragruntOptions) func(ctx *cli.Context
 }
 
 func showHelp(ctx *cli.Context, opts *options.TerragruntOptions) error {
-	// If the app command is specified, show help for the command, except for the '*' command.
+	// If the app command is specified, show help for the command, except for the '*' command as this is the default command.
 	if !ctx.Command.IsRoot && ctx.Command.Name != terraform.CommandName {
 		return cli.ShowCommandHelp(ctx, ctx.Command.Name)
 	}
@@ -109,6 +111,7 @@ func showHelp(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	return cli.ShowAppHelp(ctx)
 }
 
+// mostly preparing terragrunt options
 func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	// The env vars are renamed to "..._NO_AUTO_..." in the gobal flags`. These ones are left for backwards compatibility.
 	opts.AutoInit = env.GetBoolEnv("TERRAGRUNT_AUTO_INIT", opts.AutoInit)

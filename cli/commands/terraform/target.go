@@ -16,6 +16,8 @@ type TargetPointType byte
 
 type TargetCallbackType func(opts *options.TerragruntOptions, config *config.TerragruntConfig) error
 
+// Since most terragrunt commands like `render-json`, `aws-provider-patch` ...  require preparatory steps.
+// Target helps to execute a command up to a certain point and then run a callback function.
 type Target struct {
 	point        TargetPointType
 	callbackFunc TargetCallbackType

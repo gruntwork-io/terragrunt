@@ -347,8 +347,8 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string) (*TerragruntOption
 	return opts, nil
 }
 
-// FromContext attempts to retrieve options from context, otherwise returns itself.
-func (opts *TerragruntOptions) FromContext(ctx context.Context) *TerragruntOptions {
+// OptionsFromContext tries to retrieve options from context, otherwise, returns its own instance.
+func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *TerragruntOptions {
 	if val := ctx.Value(ContextKey); val != nil {
 		if opts, ok := val.(*TerragruntOptions); ok {
 			return opts

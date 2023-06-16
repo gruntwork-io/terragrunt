@@ -40,14 +40,14 @@ func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 		opts.RunTerragrunt = func(opts *options.TerragruntOptions) error {
 			if cmd := ctx.Command.Subcommand(opts.TerraformCommand); cmd != nil {
 				ctx := ctx.WithValue(options.ContextKey, opts)
-				return cmd.Action(ctx)
 
+				return cmd.Action(ctx)
 			}
 
 			return terraform.Run(opts)
 		}
 
-		return Run(opts.FromContext(ctx))
+		return Run(opts.OptionsFromContext(ctx))
 	}
 }
 
@@ -61,14 +61,15 @@ func newSubCommands(opts *options.TerragruntOptions) cli.Commands {
 		awsproviderpatch.NewCommand(opts),  // aws-provider-patch
 	}
 
-	for _, cmd := range cmds {
-		cmd.SkipRun = true
-	}
-
 	sort.Sort(cmds)
 
 	// add terraform command `*` after sorting to put the command at the end of the list in the help.
 	cmds.Add(terraform.NewCommand(opts))
 
+	// avoid running subcommands as the final commands, but keep showing them in help.
+	// for example, the `run-all render-json` does not pass control to the `render-json` subcommand, but passes `render-json` as an argument.
+	for _, cmd := range cmds {
+		cmd.SkipRunning = true
+	}
 	return cmds
 }

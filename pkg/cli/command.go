@@ -34,7 +34,7 @@ type Command struct {
 	// Treat all flags as normal arguments if true
 	SkipFlagParsing bool
 	// Boolean to disable the parsing command, but it will still be shown in the help.
-	SkipRun bool
+	SkipRunning bool
 	// An action to execute before any subcommands are run, but after the context is ready
 	// If a non-nil error is returned, no subcommands are run
 	Before ActionFunc
@@ -92,7 +92,7 @@ func (cmd *Command) Run(ctx *Context, args []string) error {
 	ctx = ctx.Clone(cmd, args)
 
 	subCmdName := ctx.Args().CommandName()
-	if subCmd := cmd.Subcommand(subCmdName); subCmd != nil && !subCmd.SkipRun {
+	if subCmd := cmd.Subcommand(subCmdName); subCmd != nil && !subCmd.SkipRunning {
 		args := ctx.Args().Tail()
 		err := subCmd.Run(ctx, args)
 		return err

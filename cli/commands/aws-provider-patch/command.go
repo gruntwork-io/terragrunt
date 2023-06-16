@@ -23,6 +23,6 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Usage:  "Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018).",
 		Flags:  flags.NewFlags(opts).Filter(TerragruntFlagNames),
 		Before: func(ctx *cli.Context) error { return ctx.App.Before(ctx) },
-		Action: func(ctx *cli.Context) error { return Run(opts.FromContext(ctx)) },
+		Action: func(ctx *cli.Context) error { return Run(opts.OptionsFromContext(ctx)) },
 	}
 }

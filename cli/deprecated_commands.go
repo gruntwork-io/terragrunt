@@ -36,6 +36,7 @@ var replaceDeprecatedCommandsFuncs = map[string]replaceDeprecatedCommandFuncType
 
 type replaceDeprecatedCommandFuncType func(opts *options.TerragruntOptions) func(ctx *cli.Context) error
 
+// replaceDeprecatedCommandFunc returns the `Action` function of the replacement command that is assigned to the deprecated command.
 func replaceDeprecatedCommandFunc(terragruntCommandName, terraformCommandName string) replaceDeprecatedCommandFuncType {
 	return func(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 		return func(ctx *cli.Context) error {

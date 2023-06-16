@@ -33,6 +33,6 @@ func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 			opts.CheckDependentModules = true
 		}
 
-		return Run(opts.FromContext(ctx))
+		return Run(opts.OptionsFromContext(ctx))
 	}
 }

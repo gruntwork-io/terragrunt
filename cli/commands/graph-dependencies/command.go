@@ -22,6 +22,6 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Usage:  "Prints the terragrunt dependency graph to stdout.",
 		Flags:  flags.NewFlags(opts).Filter(TerragruntFlagNames),
 		Before: func(ctx *cli.Context) error { return ctx.App.Before(ctx) },
-		Action: func(ctx *cli.Context) error { return Run(opts.FromContext(ctx)) },
+		Action: func(ctx *cli.Context) error { return Run(opts.OptionsFromContext(ctx)) },
 	}
 }

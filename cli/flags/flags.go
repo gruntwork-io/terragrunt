@@ -40,24 +40,17 @@ const (
 	FlagNameTerragruntFetchDependencyOutputFromState = "terragrunt-fetch-dependency-output-from-state"
 	FlagNameTerragruntUsePartialParseConfigCache     = "terragrunt-use-partial-parse-config-cache"
 	FlagNameTerragruntIncludeModulePrefix            = "terragrunt-include-module-prefix"
-
-	// aws-provider-patch command
-	FlagNameTerragruntOverrideAttr = "terragrunt-override-attr"
-
-	// hclfmt command
-	FlagNameTerragruntHCLFmt = "terragrunt-hclfmt-file"
-
-	// render-json command
-	FlagNameTerragruntJSONOut = "terragrunt-json-out"
-	FlagNameWithMetadata      = "with-metadata"
-
-	// validate-inputs command
-	FlagTerragruntStrictValidate = "terragrunt-strict-validate"
+	FlagNameTerragruntOverrideAttr                   = "terragrunt-override-attr"
+	FlagNameTerragruntHCLFmt                         = "terragrunt-hclfmt-file"
+	FlagNameTerragruntJSONOut                        = "terragrunt-json-out"
+	FlagNameWithMetadata                             = "with-metadata"
+	FlagTerragruntStrictValidate                     = "terragrunt-strict-validate"
 
 	FlagNameHelp = "help"
 )
 
 var (
+	// CommonFlagNames contains the flags that are used in all commands.
 	CommonFlagNames = []string{
 		FlagNameTerragruntTFPath,
 		FlagNameTerragruntNoAutoInit,
@@ -87,9 +80,12 @@ var (
 		FlagNameTerragruntFetchDependencyOutputFromState,
 		FlagNameTerragruntUsePartialParseConfigCache,
 		FlagNameTerragruntIncludeModulePrefix,
+
+		FlagNameHelp,
 	}
 )
 
+// NewFlags creates and returns all flags that can be used.
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	flags := cli.Flags{
 		&cli.GenericFlag[string]{
@@ -312,7 +308,6 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return flags
 }
 
-// add `help` after the sort to put the flag at the end of the flag list in the help.
 func NewHelpFlag() cli.Flag {
 	return &cli.BoolFlag{
 		Name:    FlagNameHelp,  // --help, -help
