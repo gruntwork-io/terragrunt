@@ -8,7 +8,6 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
@@ -266,8 +265,8 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		{[]string{"foo", doubleDashed(flags.FlagNameTerragruntNonInteractive)}, []string{"foo"}},
 		{[]string{"foo", doubleDashed(flags.FlagNameTerragruntDebug)}, []string{"foo"}},
 		{[]string{"foo", doubleDashed(flags.FlagNameTerragruntNonInteractive), "-bar", doubleDashed(flags.FlagNameTerragruntWorkingDir), "/some/path", "--baz", doubleDashed(flags.FlagNameTerragruntConfig), fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath)}, []string{"foo", "-bar", "-baz"}},
-		{[]string{commands.CommandNameApplyAll, "foo", "bar"}, []string{terraform.CommandNameApply, "foo", "bar"}},
-		{[]string{"foo", commands.CommandNameDestroyAll, "-foo", "--bar"}, []string{terraform.CommandNameDestroy, "foo", "-foo", "-bar"}},
+		{[]string{CommandNameApplyAll, "foo", "bar"}, []string{terraform.CommandNameApply, "foo", "bar"}},
+		{[]string{CommandNameDestroyAll, "foo", "-foo", "--bar"}, []string{terraform.CommandNameDestroy, "foo", "-foo", "-bar"}},
 	}
 
 	for _, testCase := range testCases {
@@ -288,10 +287,10 @@ func TestParseMultiStringArg(t *testing.T) {
 		expectedVals []string
 		expectedErr  error
 	}{
-		{[]string{commands.CommandNameApplyAll, flagName, "bar"}, []string{"default_bar"}, []string{"bar"}, nil},
-		{[]string{commands.CommandNameApplyAll, "--test", "bar"}, []string{"default_bar"}, []string{"default_bar"}, nil},
-		{[]string{commands.CommandNamePlanAll, "--test", flagName, "bar1", flagName, "bar2"}, []string{"default_bar"}, []string{"bar1", "bar2"}, nil},
-		{[]string{commands.CommandNamePlanAll, "--test", "value", flagName, "bar1", flagName}, []string{"default_bar"}, nil, argMissingValue(flags.FlagNameTerragruntModulesThatInclude)},
+		{[]string{CommandNameApplyAll, flagName, "bar"}, []string{"default_bar"}, []string{"bar"}, nil},
+		{[]string{CommandNameApplyAll, "--test", "bar"}, []string{"default_bar"}, []string{"default_bar"}, nil},
+		{[]string{CommandNamePlanAll, "--test", flagName, "bar1", flagName, "bar2"}, []string{"default_bar"}, []string{"bar1", "bar2"}, nil},
+		{[]string{CommandNamePlanAll, "--test", "value", flagName, "bar1", flagName}, []string{"default_bar"}, nil, argMissingValue(flags.FlagNameTerragruntModulesThatInclude)},
 	}
 
 	for _, testCase := range testCases {
@@ -353,7 +352,7 @@ func TestTerragruntHelp(t *testing.T) {
 		{[]string{"terragrunt", "-help"}, app.UsageText, flags.FlagNameTerragruntOverrideAttr},
 		{[]string{"terragrunt", "-h"}, app.UsageText, flags.FlagNameTerragruntOverrideAttr},
 		{[]string{"terragrunt", awsproviderpatch.CommandName, "-h"}, flags.FlagNameTerragruntOverrideAttr, hclfmt.CommandName},
-		{[]string{"terragrunt", commands.CommandNamePlanAll, "--help"}, runall.CommandName, ""},
+		{[]string{"terragrunt", CommandNamePlanAll, "--help"}, runall.CommandName, ""},
 	}
 
 	for _, testCase := range testCases {
@@ -408,14 +407,15 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 	app.ErrWriter = &bytes.Buffer{}
 	app.Flags = cli.Flags{flags.NewHelpFlag()}
 	app.Commands = append(
-		commands.NewDeprecatedCommands(opts),
-		commands.NewCommands(opts)...)
+		newDeprecatedCommands(opts),
+		newCommands(opts)...)
 	app.Before = beforeRunningCommand(opts)
-	app.DefaultCommand = terraform.CommandName
+	app.DefaultCommand = terraform.NewCommand(opts)
 	app.OsExiter = osExiter
 
 	for _, command := range app.Commands {
 		command.Action = nil
+		app.DefaultCommand.Action = nil
 	}
 
 	err := app.Run(append([]string{"--"}, args...))

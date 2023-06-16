@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/version"
@@ -13,9 +14,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	hashicorpversion "github.com/hashicorp/go-version"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands"
+	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
+	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
+	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
+	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
+	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
@@ -43,13 +49,33 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 	app.ErrWriter = errWriter
 	app.Flags = cli.Flags{flags.NewHelpFlag()}
 	app.Commands = append(
-		commands.NewDeprecatedCommands(opts),
-		commands.NewCommands(opts)...)
+		newDeprecatedCommands(opts),
+		newCommands(opts)...)
 	app.Before = beforeRunningCommand(opts)
-	app.DefaultCommand = terraform.CommandName
+	app.DefaultCommand = terraform.NewCommand(opts)
 	app.OsExiter = osExiter
 
 	return app
+}
+
+// This set of commands is also used in unit tests
+func newCommands(opts *options.TerragruntOptions) cli.Commands {
+	cmds := cli.Commands{
+		runall.NewCommand(opts),            // run-all
+		terragruntinfo.NewCommand(opts),    // terragrunt-info
+		validateinputs.NewCommand(opts),    // validate-inputs
+		graphdependencies.NewCommand(opts), // graph-dependencies
+		hclfmt.NewCommand(opts),            // hclfmt
+		renderjson.NewCommand(opts),        // render-json
+		awsproviderpatch.NewCommand(opts),  // aws-provider-patch
+	}
+
+	sort.Sort(cmds)
+
+	// add terraform command `*` after sorting to put the command at the end of the list in the help.
+	cmds.Add(terraform.NewCommand(opts))
+
+	return cmds
 }
 
 func beforeRunningCommand(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
@@ -74,8 +100,8 @@ func showHelp(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	}
 
 	// If the first argument is a command, it is most likely a terraform command, show Terraform help.
-	if commandName, ok := ctx.Args().CommandName(); ok {
-		terraformHelpCmd := append([]string{commandName, "-help"}, ctx.Args().Tail()...)
+	if cmdName := ctx.Args().CommandName(); cmdName != "" {
+		terraformHelpCmd := append([]string{cmdName, "-help"}, ctx.Args().Tail()...)
 		return shell.RunTerraformCommand(opts, terraformHelpCmd...)
 	}
 
@@ -92,16 +118,16 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	// --- Args
 	// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
 	args := ctx.Args().Normalize(cli.OneDashFlag).Slice()
-	commandName := ctx.Command.Name
+	cmdName := ctx.Command.Name
 
-	switch commandName {
+	switch cmdName {
 	case terraform.CommandName, runall.CommandName:
-		commandName, _ = ctx.Args().CommandName()
+		cmdName = ctx.Args().CommandName()
 	default:
 		args = append([]string{ctx.Command.Name}, args...)
 	}
 
-	opts.TerraformCommand = commandName
+	opts.TerraformCommand = cmdName
 	opts.TerraformCliArgs = args
 
 	opts.Env = env.ParseEnvs(os.Environ())

@@ -1,6 +1,8 @@
 package runall
 
 import (
+	"sort"
+
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
@@ -26,29 +28,20 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Name:        CommandName,
 		Usage:       "Run a terraform command against a 'stack' by running the specified command in each subfolder.",
 		Description: "The command will recursively find terragrunt modules in the current directory tree and run the terraform command in dependency order (unless the command is destroy, in which case the command is run in reverse dependency order).",
-		Subcommands: cli.Commands{
-			terragruntinfo.NewCommand(opts),    // terragrunt-info
-			validateinputs.NewCommand(opts),    // validate-inputs
-			graphdependencies.NewCommand(opts), // graph-dependencies
-			hclfmt.NewCommand(opts),            // hclfmt
-			renderjson.NewCommand(opts),        // render-json
-			awsproviderpatch.NewCommand(opts),  // aws-provider-patch
-			terraform.NewCommand(opts),         // *
-		},
-		Flags:  flags.NewFlags(opts).Filter(TerragruntFlagNames),
-		Before: func(ctx *cli.Context) error { return ctx.App.Before(ctx) },
-		Action: Action(opts),
+		Subcommands: newSubCommands(opts),
+		Flags:       flags.NewFlags(opts).Filter(TerragruntFlagNames),
+		Before:      func(ctx *cli.Context) error { return ctx.App.Before(ctx) },
+		Action:      action(opts),
 	}
 }
 
-func Action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
+func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
 		opts.RunTerragrunt = func(opts *options.TerragruntOptions) error {
-			for _, command := range ctx.Command.Subcommands {
-				if command.Name == opts.TerraformCommand {
-					ctx := ctx.WithValue(options.ContextKey, opts)
-					return command.Action(ctx)
-				}
+			if cmd := ctx.Command.Subcommand(opts.TerraformCommand); cmd != nil {
+				ctx := ctx.WithValue(options.ContextKey, opts)
+				return cmd.Action(ctx)
+
 			}
 
 			return terraform.Run(opts)
@@ -56,4 +49,26 @@ func Action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 
 		return Run(opts.FromContext(ctx))
 	}
+}
+
+func newSubCommands(opts *options.TerragruntOptions) cli.Commands {
+	cmds := cli.Commands{
+		terragruntinfo.NewCommand(opts),    // terragrunt-info
+		validateinputs.NewCommand(opts),    // validate-inputs
+		graphdependencies.NewCommand(opts), // graph-dependencies
+		hclfmt.NewCommand(opts),            // hclfmt
+		renderjson.NewCommand(opts),        // render-json
+		awsproviderpatch.NewCommand(opts),  // aws-provider-patch
+	}
+
+	for _, cmd := range cmds {
+		cmd.SkipRun = true
+	}
+
+	sort.Sort(cmds)
+
+	// add terraform command `*` after sorting to put the command at the end of the list in the help.
+	cmds.Add(terraform.NewCommand(opts))
+
+	return cmds
 }

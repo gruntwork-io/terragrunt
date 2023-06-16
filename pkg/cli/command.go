@@ -7,52 +7,51 @@ import (
 )
 
 type Command struct {
-	// The name of the command
+	// The name of the cmd
 	Name string
-	// A list of aliases for the command
+	// A list of aliases for the cmd
 	Aliases []string
-	// A short description of the usage of this command
+	// A short description of the usage of this cmd
 	Usage string
 	// Custom text to show on USAGE section of help
 	UsageText string
-	// A longer explanation of how the command works
+	// A longer explanation of how the cmd works
 	Description string
 	// List of flags to parse
 	Flags Flags
-	// Full name of command for help, defaults to full command name, including parent commands.
+	// Full name of cmd for help, defaults to full cmd name, including parent commands.
 	HelpName string
-	// if this is a root "special" command
+	// if this is a root "special" cmd
 	IsRoot bool
-	// Boolean to hide this command from help
+	// Boolean to hide this cmd from help
 	Hidden bool
-	// CustomHelpTemplate the text template for the command help topic.
+	// CustomHelpTemplate the text template for the cmd help topic.
 	// cli.go uses text/template to render templates. You can
 	// render custom help text by setting this variable.
 	CustomHelpTemplate string
 	// List of child commands
 	Subcommands Commands
+	// Treat all flags as normal arguments if true
+	SkipFlagParsing bool
+	// Boolean to disable the parsing command, but it will still be shown in the help.
+	SkipRun bool
 	// An action to execute before any subcommands are run, but after the context is ready
 	// If a non-nil error is returned, no subcommands are run
-	Before RunFunc
+	Before ActionFunc
 	// An action to execute after any subcommands are run, but after the subcommand has finished
-	After RunFunc
+	After ActionFunc
 	// The action to execute when no subcommands are specified
-	Action RunFunc
-}
-
-// AddFlags adds new flags.
-func (command *Command) AddFlags(flags ...Flag) {
-	command.Flags = append(command.Flags, flags...)
+	Action ActionFunc
 }
 
 // Names returns the names including short names and aliases.
-func (command *Command) Names() []string {
-	return append([]string{command.Name}, command.Aliases...)
+func (cmd *Command) Names() []string {
+	return append([]string{cmd.Name}, cmd.Aliases...)
 }
 
 // HasName returns true if Command.Name matches given name
-func (command *Command) HasName(name string) bool {
-	for _, n := range command.Names() {
+func (cmd *Command) HasName(name string) bool {
+	for _, n := range cmd.Names() {
 		if n == name {
 			return true
 		}
@@ -60,69 +59,98 @@ func (command *Command) HasName(name string) bool {
 	return false
 }
 
+func (cmd *Command) Subcommand(name string) *Command {
+	for _, c := range cmd.Subcommands {
+		if c.HasName(name) {
+			return c
+		}
+	}
+
+	return nil
+}
+
 // VisibleFlags returns a slice of the Flags, used by `urfave/cli` package to generate help.
-func (command *Command) VisibleFlags() Flags {
-	return command.Flags
+func (cmd *Command) VisibleFlags() Flags {
+	return cmd.Flags
 }
 
 // VisibleCommands returns a slice of the Commands with Hidden=false.
 // Used by `urfave/cli` package to generate help.
-func (command Command) VisibleCommands() []*cli.Command {
-	if command.Subcommands == nil {
+func (cmd Command) VisibleCommands() []*cli.Command {
+	if cmd.Subcommands == nil {
 		return nil
 	}
-	return command.Subcommands.VisibleCommands()
+	return cmd.Subcommands.VisibleCommands()
 }
 
-func (command *Command) parseArgs(args []string) (*Command, []string, error) {
-	var undefArgs []string
-	var undefArg string
-
-	flagSet, err := command.Flags.newFlagSet(command.Name, libflag.ContinueOnError)
+func (cmd *Command) Run(ctx *Context, args []string) error {
+	args, err := cmd.parseFlags(args)
 	if err != nil {
-		return nil, nil, err
+		return err
+	}
+
+	ctx = ctx.Clone(cmd, args)
+
+	subCmdName := ctx.Args().CommandName()
+	if subCmd := cmd.Subcommand(subCmdName); subCmd != nil && !subCmd.SkipRun {
+		args := ctx.Args().Tail()
+		err := subCmd.Run(ctx, args)
+		return err
+	}
+
+	if cmd.IsRoot && ctx.App.DefaultCommand != nil {
+		err := ctx.App.DefaultCommand.Run(ctx, args)
+		return err
+	}
+
+	err = cmd.runAction(ctx)
+	return err
+}
+
+func (cmd *Command) parseFlags(args []string) ([]string, error) {
+	var undefArgs []string
+
+	flagSet, err := cmd.Flags.newFlagSet(cmd.Name, libflag.ContinueOnError)
+	if err != nil {
+		return nil, err
+	}
+
+	if cmd.SkipFlagParsing {
+		return args, nil
 	}
 
 	for {
-		args, err = command.Flags.parseArgs(flagSet, args)
+		args, err = cmd.Flags.parseFlags(flagSet, args)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		if len(args) == 0 {
 			break
 		}
 
-		undefArg, args = args[0], args[1:]
-		undefArgs = append(undefArgs, undefArg)
+		undefArgs = append(undefArgs, args[0])
+		args = args[1:]
 	}
 
-	if !command.IsRoot {
-		return command, undefArgs, nil
-	}
-
-	if command, undefArgs, err := command.Subcommands.parseArgs(undefArgs, false); command != nil || err != nil {
-		return command, undefArgs, err
-	}
-
-	return command, undefArgs, nil
+	return undefArgs, nil
 }
 
-func (command *Command) Run(ctx *Context) error {
-	if command.Before != nil {
-		if err := command.Before(ctx); err != nil {
+func (cmd *Command) runAction(ctx *Context) error {
+	if cmd.Before != nil {
+		if err := cmd.Before(ctx); err != nil {
 			return err
 		}
 	}
 
-	if command.Action != nil {
-		if err := command.Action(ctx); err != nil {
+	if cmd.Action != nil {
+		if err := cmd.Action(ctx); err != nil {
 			return err
 		}
 	}
 
-	if command.After != nil {
-		if err := command.After(ctx); err != nil {
+	if cmd.After != nil {
+		if err := cmd.After(ctx); err != nil {
 			return err
 		}
 	}

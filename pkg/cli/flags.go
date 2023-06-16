@@ -81,7 +81,7 @@ func (flags Flags) newFlagSet(name string, errorHandling libflag.ErrorHandling) 
 	return flagSet, nil
 }
 
-func (flags Flags) parseArgs(flagSet *libflag.FlagSet, args []string) ([]string, error) {
+func (flags Flags) parseFlags(flagSet *libflag.FlagSet, args []string) ([]string, error) {
 	var undefArgs []string
 
 	if len(args) == 0 {

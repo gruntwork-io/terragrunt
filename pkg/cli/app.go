@@ -17,14 +17,14 @@ type App struct {
 	Author string
 	// An action to execute before any subcommands are run, but after the context is ready
 	// If a non-nil error is returned, no subcommands are run
-	Before RunFunc
+	Before ActionFunc
 	// An action to execute after any subcommands are run, but after the subcommand has finished
-	After RunFunc
+	After ActionFunc
 	// The action to execute when no subcommands are specified
-	Action RunFunc
+	Action ActionFunc
 	// DefaultCommand is the (optional) name of a command
 	// to run if no command names are passed as CLI arguments.
-	DefaultCommand string
+	DefaultCommand *Command
 	// OsExiter is the function used when the app exits. If not set defaults to os.Exit.
 	OsExiter func(code int)
 }
@@ -48,30 +48,16 @@ func (app *App) AddCommands(cmds ...*Command) {
 }
 
 // Run is the entry point to the cli app. Parses the arguments slice and routes to the proper flag/args combination.
-func (app *App) Run(arguments []string) (err error) {
+func (app *App) Run(arguments []string) error {
 	app.SkipFlagParsing = true
 	app.Authors = []*cli.Author{{Name: app.Author}}
 
 	app.App.Action = func(parentCtx *cli.Context) error {
 		args := parentCtx.Args().Slice()
-		ctx := NewContext(parentCtx, app)
+		ctx := newContext(parentCtx.Context, app)
 
-		if app.DefaultCommand != "" {
-			command, _, err := app.Commands.parseArgs(args, true)
-			if err != nil {
-				return err
-			}
-			if command == nil {
-				args = append([]string{app.DefaultCommand}, args...)
-			}
-		}
-
-		ctx, err := ctx.ParseArgs(ctx.App.newRootCommand(), args)
-		if err != nil {
-			return err
-		}
-
-		err = ctx.Command.Run(ctx)
+		cmd := ctx.App.newRootCommand()
+		err := cmd.Run(ctx, args)
 		return err
 	}
 

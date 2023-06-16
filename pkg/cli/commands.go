@@ -76,26 +76,3 @@ func (commands Commands) Less(i, j int) bool {
 func (commands Commands) Swap(i, j int) {
 	commands[i], commands[j] = commands[j], commands[i]
 }
-
-func (commands Commands) parseArgs(args []string, dryRun bool) (*Command, []string, error) {
-	var name string
-	var undefArg []string
-
-	for {
-		if len(args) == 0 {
-			return nil, nil, nil
-		}
-		name, args = args[0], args[1:]
-
-		if command := commands.Get(name); command != nil {
-			if dryRun {
-				return command, append(undefArg, args...), nil
-			}
-
-			command, args, err := command.parseArgs(args)
-			return command, append(undefArg, args...), err
-		}
-
-		undefArg = append(undefArg, name)
-	}
-}

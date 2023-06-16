@@ -1,4 +1,4 @@
-package commands
+package cli
 
 import (
 	"fmt"
@@ -36,18 +36,14 @@ var replaceDeprecatedCommandsFuncs = map[string]replaceDeprecatedCommandFuncType
 
 type replaceDeprecatedCommandFuncType func(opts *options.TerragruntOptions) func(ctx *cli.Context) error
 
-func replaceDeprecatedCommandFunc(newTerragruntCommandName, newTerraformCommandName string) replaceDeprecatedCommandFuncType {
+func replaceDeprecatedCommandFunc(terragruntCommandName, terraformCommandName string) replaceDeprecatedCommandFuncType {
 	return func(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 		return func(ctx *cli.Context) error {
-			newCommand := ctx.App.Commands.Get(newTerragruntCommandName)
-			newArgs := append([]string{newTerraformCommandName}, ctx.Args().Slice()...)
-			newCtx, err := ctx.ParseArgs(newCommand, newArgs)
-			if err != nil {
-				return err
-			}
+			command := ctx.App.Commands.Get(terragruntCommandName)
+			args := append([]string{terraformCommandName}, ctx.Args().Slice()...)
 
 			deprecatedCommandName := ctx.Command.Name
-			newCommandFriendly := fmt.Sprintf("terragrunt %s %s", newTerragruntCommandName, strings.Join(newArgs, " "))
+			newCommandFriendly := fmt.Sprintf("terragrunt %s %s", terragruntCommandName, strings.Join(args, " "))
 
 			opts.Logger.Warnf(
 				"'%s' is deprecated. Running '%s' instead. Please update your workflows to use '%s', as '%s' may be removed in the future!\n",
@@ -57,13 +53,13 @@ func replaceDeprecatedCommandFunc(newTerragruntCommandName, newTerraformCommandN
 				deprecatedCommandName,
 			)
 
-			err = newCommand.Run(newCtx)
+			err := command.Run(ctx, args)
 			return err
 		}
 	}
 }
 
-func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
+func newDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 	var commands cli.Commands
 
 	for commandName, runFunc := range replaceDeprecatedCommandsFuncs {

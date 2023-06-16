@@ -19,6 +19,17 @@ type Args struct {
 	cli.Args
 }
 
+func newArgs(args []string) *Args {
+	flagSet := libflag.NewFlagSet("", libflag.ContinueOnError)
+	flagSet.SetOutput(io.Discard)
+	flagSet.Parse(append([]string{"--"}, args...))
+
+	return &Args{
+		Args: cli.NewContext(nil, flagSet, nil).Args(),
+	}
+
+}
+
 // Normalize formats the arguments according to the given actions.
 func (args *Args) Normalize(acts ...NormalizeActsType) *Args {
 	var strArgs []string
@@ -45,23 +56,12 @@ func (args *Args) Normalize(acts ...NormalizeActsType) *Args {
 	return newArgs(strArgs)
 }
 
-func (args *Args) CommandName() (string, bool) {
+func (args *Args) CommandName() string {
 	name := args.First()
 
 	if isFlag := strings.HasPrefix(name, "-"); !isFlag && name != "" {
-		return name, true
+		return name
 	}
 
-	return "", false
-}
-
-func newArgs(args []string) *Args {
-	flagSet := libflag.NewFlagSet("", libflag.ContinueOnError)
-	flagSet.SetOutput(io.Discard)
-	flagSet.Parse(append([]string{"--"}, args...))
-
-	return &Args{
-		Args: cli.NewContext(nil, flagSet, nil).Args(),
-	}
-
+	return ""
 }

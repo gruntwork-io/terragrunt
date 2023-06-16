@@ -2,8 +2,6 @@ package cli
 
 import (
 	"context"
-
-	"github.com/urfave/cli/v2"
 )
 
 // Context can be used to retrieve context-specific args and parsed command-line options.
@@ -12,13 +10,12 @@ type Context struct {
 	*App
 	Command *Command
 	args    *Args
-	rawArgs *Args
+	parent  *Context
 }
 
-func NewContext(parentCtx *cli.Context, app *App) *Context {
+func newContext(parentCtx context.Context, app *App) *Context {
 	return &Context{
-		Context: parentCtx.Context,
-		rawArgs: &Args{parentCtx.Args()},
+		Context: parentCtx,
 		App:     app,
 	}
 }
@@ -29,6 +26,7 @@ func (ctx *Context) Clone(command *Command, args []string) *Context {
 		App:     ctx.App,
 		Command: command,
 		args:    newArgs(args),
+		parent:  ctx,
 	}
 }
 
@@ -41,21 +39,11 @@ func (ctx *Context) Value(key any) any {
 	return ctx.Context.Value(key)
 }
 
-func (ctx *Context) ParseArgs(command *Command, args []string) (*Context, error) {
-	command, args, err := command.parseArgs(args)
-	if err != nil {
-		return nil, err
-	}
-
-	return ctx.Clone(command, args), nil
-}
-
-// Args returns the command line arguments associated with the context.
-func (ctx *Context) RawArgs() cli.Args {
-	return ctx.rawArgs
-}
-
 // Args returns the command line arguments associated with the context.
 func (ctx *Context) Args() *Args {
 	return ctx.args
+}
+
+func (ctx *Context) Parent() *Context {
+	return ctx.parent
 }
