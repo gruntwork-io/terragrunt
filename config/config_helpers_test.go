@@ -1106,6 +1106,7 @@ func TestStrContains(t *testing.T) {
 		{terragruntOptionsForTest(t, ""), []string{"hello world0", "0"}, true, ""},
 		{terragruntOptionsForTest(t, ""), []string{"9hello world0", "9"}, true, ""},
 		{terragruntOptionsForTest(t, ""), []string{"hello world", "test"}, false, ""},
+		{terragruntOptionsForTest(t, ""), []string{"hello", "hello"}, true, ""},
 		{terragruntOptionsForTest(t, ""), []string{}, false, "Empty string value is not allowed for parameter to the strcontains function"},
 	}
 
