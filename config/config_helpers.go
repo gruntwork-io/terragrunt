@@ -145,9 +145,10 @@ func CreateTerragruntEvalContext(
 	// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
 	// https://github.com/gruntwork-io/terragrunt/blob/master/go.mod#L22
 	terraformCompatibilityFunctions := map[string]function.Function{
-		"startswith": wrapStringSliceToBoolAsFuncImpl(startsWith, extensions.TrackInclude, terragruntOptions),
-		"endswith":   wrapStringSliceToBoolAsFuncImpl(endsWith, extensions.TrackInclude, terragruntOptions),
-		"timecmp":    wrapStringSliceToNumberAsFuncImpl(timeCmp, extensions.TrackInclude, terragruntOptions),
+		"startswith":  wrapStringSliceToBoolAsFuncImpl(startsWith, extensions.TrackInclude, terragruntOptions),
+		"endswith":    wrapStringSliceToBoolAsFuncImpl(endsWith, extensions.TrackInclude, terragruntOptions),
+		"strcontains": wrapStringSliceToBoolAsFuncImpl(strContains, extensions.TrackInclude, terragruntOptions),
+		"timecmp":     wrapStringSliceToNumberAsFuncImpl(timeCmp, extensions.TrackInclude, terragruntOptions),
 	}
 
 	functions := map[string]function.Function{}
@@ -818,6 +819,21 @@ func timeCmp(args []string, trackInclude *TrackInclude, terragruntOptions *optio
 		// By elimination, tsA must be after tsB.
 		return 1, nil
 	}
+}
+
+// strContains Implementation of Terraform's strContains function
+func strContains(args []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	if len(args) == 0 {
+		return false, errors.WithStackTrace(EmptyStringNotAllowed("parameter to the strcontains function"))
+	}
+	str := args[0]
+	substr := args[1]
+
+	if strings.Contains(str, substr) {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // Custom error types
