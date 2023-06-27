@@ -111,8 +111,9 @@ func CreateTerragruntEvalContext(
 	terragruntOptions *options.TerragruntOptions,
 	extensions EvalContextExtensions,
 ) (*hcl.EvalContext, error) {
+	baseDir := filepath.Dir(filename)
 	tfscope := tflang.Scope{
-		BaseDir: filepath.Dir(filename),
+		BaseDir: baseDir,
 	}
 
 	terragruntFunctions := map[string]function.Function{
@@ -159,6 +160,12 @@ func CreateTerragruntEvalContext(
 	}
 	for k, v := range terraformCompatibilityFunctions {
 		functions[k] = v
+	}
+
+	if terragruntOptions.Functions != nil {
+		for k, v := range terragruntOptions.Functions(baseDir) {
+			functions[k] = v
+		}
 	}
 
 	ctx := &hcl.EvalContext{

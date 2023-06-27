@@ -6,12 +6,16 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
+	hcl2 "github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
+
+	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
 func TestPathRelativeToInclude(t *testing.T) {
@@ -1125,4 +1129,60 @@ func getTrackIncludeFromTestData(includeMap map[string]IncludeConfig, params []s
 		trackInclude.Original = &currentList[0]
 	}
 	return trackInclude
+}
+
+func TestCreateTerragruntEvalContext_WithFunctionsOption(t *testing.T) {
+	t.Run("will override the context functions", func(tt *testing.T) {
+		opts := terragruntOptionsForTest(tt, "")
+		opts.Functions = func(baseDir string) map[string]function.Function {
+			return map[string]function.Function{
+				"run_cmd": function.New(&function.Spec{
+					VarParam: &function.Parameter{Type: cty.String},
+					Type:     function.StaticReturnType(cty.String),
+					Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+						return cty.StringVal("foo"), nil
+					},
+				}),
+			}
+		}
+		ctx, err := CreateTerragruntEvalContext("test", opts, EvalContextExtensions{})
+		require.NoError(tt, err)
+
+		expr, exprParseDiags := hclsyntax.ParseExpression([]byte(`run_cmd("echo", "test")`), "testexpr", hcl2.Pos{Line: 1, Column: 1})
+		require.False(tt, exprParseDiags.HasErrors(), exprParseDiags.Error())
+
+		res, exprDiags := expr.Value(ctx)
+		require.False(tt, exprDiags.HasErrors(), exprDiags.Error())
+		assert.Equal(tt, "foo", res.AsString())
+	})
+
+	t.Run("will add new functions to the context", func(tt *testing.T) {
+		opts := terragruntOptionsForTest(tt, "")
+		ctx, err := CreateTerragruntEvalContext("test", opts, EvalContextExtensions{})
+		require.NoError(tt, err)
+
+		expr, exprParseDiags := hclsyntax.ParseExpression([]byte(`baz("echo", "test")`), "testexpr", hcl2.Pos{Line: 1, Column: 1})
+		require.False(tt, exprParseDiags.HasErrors(), exprParseDiags.Error())
+
+		_, exprDiags := expr.Value(ctx)
+		assert.True(tt, exprDiags.HasErrors())
+		require.Len(tt, exprDiags, 1)
+		assert.Equal(tt, "Call to unknown function", exprDiags[0].Summary)
+		opts.Functions = func(baseDir string) map[string]function.Function {
+			return map[string]function.Function{
+				"baz": function.New(&function.Spec{
+					VarParam: &function.Parameter{Type: cty.String},
+					Type:     function.StaticReturnType(cty.String),
+					Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+						return cty.StringVal("foo"), nil
+					},
+				}),
+			}
+		}
+
+		ctx, err = CreateTerragruntEvalContext("test", opts, EvalContextExtensions{})
+		res, exprDiags := expr.Value(ctx)
+		require.False(tt, exprDiags.HasErrors(), exprDiags.Error())
+		assert.Equal(tt, "foo", res.AsString())
+	})
 }
