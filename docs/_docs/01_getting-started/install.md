@@ -32,6 +32,6 @@ If you  want the latest version, the recommended installation option is to [down
 
 * **FreeBSD**: You can install Terragrunt on FreeBSD using [Pkg](https://www.freebsd.org/cgi/man.cgi?pkg(7)): `pkg install terragrunt`.
 
-### Terragrunt Github Action
+### Terragrunt GitHub Action
 
 Terragrunt is also available as a GitHub Action. Instructions on how to use it can be found at [https://github.com/gruntwork-io/terragrunt-action](https://github.com/gruntwork-io/terragrunt-action).
