@@ -28,8 +28,6 @@ const DEFAULT_PARALLELISM = math.MaxInt32
 // TERRAFORM_DEFAULT_PATH just takes terraform from the path
 const TERRAFORM_DEFAULT_PATH = "terraform"
 
-const TerragruntCacheDir = ".terragrunt-cache"
-
 const DefaultTFDataDir = ".terraform"
 
 const DefaultIAMAssumeRoleDuration = 3600
@@ -299,7 +297,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string, error) {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
-	downloadDir, err := filepath.Abs(filepath.Join(workingDir, TerragruntCacheDir))
+	downloadDir, err := filepath.Abs(filepath.Join(workingDir, util.TerragruntCacheDir))
 	if err != nil {
 		return "", "", errors.WithStackTrace(err)
 	}

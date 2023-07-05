@@ -151,6 +151,7 @@ const (
 	TEST_FIXTURE_REF_SOURCE                                                  = "fixture-download/remote-ref"
 	TEST_FIXTURE_SOURCE_MAP_SLASHES                                          = "fixture-source-map/slashes-in-ref"
 	TEST_FIXTURE_STRCONTAINS                                                 = "fixture-strcontains"
+	TEST_FIXTURE_INIT_CACHE                                                  = "fixture-init-cache"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TERRAFORM_FOLDER                                                         = ".terraform"
 	TERRAFORM_STATE                                                          = "terraform.tfstate"
@@ -5583,6 +5584,56 @@ func TestStrContains(t *testing.T) {
 
 	validateOutput(t, outputs, "o1", true)
 	validateOutput(t, outputs, "o2", false)
+}
+
+func TestInitSkipCache(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_INIT_CACHE)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INIT_CACHE)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_CACHE, "app")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	// verify that init was invoked
+	assert.Contains(t, stdout.String(), "Terraform has been successfully initialized!")
+	assert.Contains(t, stderr.String(), "Running command: terraform init")
+
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	// verify that init wasn't invoked second time since cache directories are ignored
+	assert.NotContains(t, stdout.String(), "Terraform has been successfully initialized!")
+	assert.NotContains(t, stderr.String(), "Running command: terraform init")
+
+	// verify that after adding new file, init is executed
+	tfFile := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_CACHE, "app", "project.tf")
+	if err := ioutil.WriteFile(tfFile, []byte(""), 0644); err != nil {
+		t.Fatalf("Error writing new Terraform file to %s: %v", tfFile, err)
+	}
+
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	// verify that init was invoked
+	assert.Contains(t, stdout.String(), "Terraform has been successfully initialized!")
+	assert.Contains(t, stderr.String(), "Running command: terraform init")
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
