@@ -56,7 +56,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		return nil, err
 	}
 	if downloadDirRaw == "" {
-		downloadDirRaw = util.JoinPath(workingDir, options.TerragruntCacheDir)
+		downloadDirRaw = util.JoinPath(workingDir, util.TerragruntCacheDir)
 	}
 	downloadDir, err := filepath.Abs(downloadDirRaw)
 	if err != nil {
