@@ -120,7 +120,7 @@ const (
 	CMD_HCLFMT                        = "hclfmt"
 	CMD_AWS_PROVIDER_PATCH            = "aws-provider-patch"
 	CMD_RENDER_JSON                   = "render-json"
-  CMD_OUTPUT_MODULE_GROUPS          = "output-module-groups"
+	CMD_OUTPUT_MODULE_GROUPS          = "output-module-groups"
 )
 
 // START: Constants useful for multimodule command handling
@@ -423,7 +423,10 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("%s\n", js)
+		_, err = fmt.Fprintf(terragruntOptions.Writer, "%s\n", js)
+		if err != nil {
+			return err
+		}
 		return nil
 	}
 
@@ -635,7 +638,7 @@ func runGraphDependenciesGroups(terragruntOptions *options.TerragruntOptions) (s
 		return "", err
 	}
 
-	js, err := stack.JsonModuleDeployOrder(terragruntOptions.Logger, terragruntOptions.TerraformCommand);
+	js, err := stack.JsonModuleDeployOrder(terragruntOptions.TerraformCommand)
 	if err != nil {
 		return "", err
 	}

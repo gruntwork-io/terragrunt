@@ -52,12 +52,22 @@ func (stack *Stack) LogModuleDeployOrder(logger *logrus.Entry, terraformCommand 
 	return nil
 }
 
-func (stack *Stack) JsonModuleDeployOrder(logger *logrus.Entry, terraformCommand string) (string, error) {
+func (stack *Stack) JsonModuleDeployOrder(terraformCommand string) (string, error) {
 	runGraph, err := stack.getModuleRunGraph(terraformCommand)
 	if err != nil {
 		return "", err
 	}
-	j, _ := json.MarshalIndent(runGraph, "", "  ")
+	// Convert the module paths to a string array for JSON marshalling
+	// The index should be the group number, and the value should be an array of module paths
+	jsonGraph := make(map[string][]string)
+	for i, group := range runGraph {
+		groupNum := "Group " + fmt.Sprintf("%d", i+1)
+		jsonGraph[groupNum] = make([]string, len(group))
+		for j, module := range group {
+			jsonGraph[groupNum][j] = module.Path
+		}
+	}
+	j, _ := json.MarshalIndent(jsonGraph, "", "  ")
 	if err != nil {
 		return "", err
 	}
