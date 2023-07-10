@@ -1092,6 +1092,42 @@ func TestTimeCmp(t *testing.T) {
 	}
 }
 
+func TestStrContains(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		config *options.TerragruntOptions
+		args   []string
+		value  bool
+		err    string
+	}{
+		{terragruntOptionsForTest(t, ""), []string{"hello world", "hello"}, true, ""},
+		{terragruntOptionsForTest(t, ""), []string{"hello world", "world"}, true, ""},
+		{terragruntOptionsForTest(t, ""), []string{"hello world0", "0"}, true, ""},
+		{terragruntOptionsForTest(t, ""), []string{"9hello world0", "9"}, true, ""},
+		{terragruntOptionsForTest(t, ""), []string{"hello world", "test"}, false, ""},
+		{terragruntOptionsForTest(t, ""), []string{"hello", "hello"}, true, ""},
+		{terragruntOptionsForTest(t, ""), []string{}, false, "Empty string value is not allowed for parameter to the strcontains function"},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+
+		t.Run(fmt.Sprintf("StrContains %v", testCase.args), func(t *testing.T) {
+			t.Parallel()
+
+			actual, err := strContains(testCase.args, nil, testCase.config)
+			if testCase.err != "" {
+				assert.EqualError(t, err, testCase.err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			assert.Equal(t, testCase.value, actual)
+		})
+	}
+}
+
 func mockConfigWithSource(sourceUrl string) *TerragruntConfig {
 	cfg := TerragruntConfig{IsPartial: true}
 	cfg.Terraform = &TerraformConfig{Source: &sourceUrl}

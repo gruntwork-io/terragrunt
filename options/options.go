@@ -30,8 +30,6 @@ const (
 	// TerraformDefaultPath just takes terraform from the path
 	TerraformDefaultPath = "terraform"
 
-	TerragruntCacheDir = ".terragrunt-cache"
-
 	// Default to naming it `terragrunt_rendered.json` in the terragrunt config directory.
 	DefaultJSONOutName = "terragrunt_rendered.json"
 
@@ -318,7 +316,7 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string, error) {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
-	downloadDir, err := filepath.Abs(filepath.Join(workingDir, TerragruntCacheDir))
+	downloadDir, err := filepath.Abs(filepath.Join(workingDir, util.TerragruntCacheDir))
 	if err != nil {
 		return "", "", errors.WithStackTrace(err)
 	}

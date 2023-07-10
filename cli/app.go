@@ -154,7 +154,7 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 
 	// --- Download Dir
 	if opts.DownloadDir == "" {
-		opts.DownloadDir = util.JoinPath(opts.WorkingDir, options.TerragruntCacheDir)
+		opts.DownloadDir = util.JoinPath(opts.WorkingDir, util.TerragruntCacheDir)
 	}
 
 	downloadDir, err := filepath.Abs(opts.DownloadDir)

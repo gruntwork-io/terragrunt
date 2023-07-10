@@ -154,6 +154,8 @@ const (
 	TEST_FIXTURE_DESTROY_DEPENDENT_MODULE                                    = "fixture-destroy-dependent-module"
 	TEST_FIXTURE_REF_SOURCE                                                  = "fixture-download/remote-ref"
 	TEST_FIXTURE_SOURCE_MAP_SLASHES                                          = "fixture-source-map/slashes-in-ref"
+	TEST_FIXTURE_STRCONTAINS                                                 = "fixture-strcontains"
+	TEST_FIXTURE_INIT_CACHE                                                  = "fixture-init-cache"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TERRAFORM_FOLDER                                                         = ".terraform"
 	TERRAFORM_STATE                                                          = "terraform.tfstate"
@@ -5561,6 +5563,82 @@ func TestSourceMapWithSlashInRef(t *testing.T) {
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=git::git@github.com:gruntwork-io/terragrunt.git?ref=fixture/test --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	require.NoError(t, err)
+}
+
+func TestStrContains(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_STRCONTAINS)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_STRCONTAINS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_STRCONTAINS)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	validateOutput(t, outputs, "o1", true)
+	validateOutput(t, outputs, "o2", false)
+}
+
+func TestInitSkipCache(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_INIT_CACHE)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INIT_CACHE)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_CACHE, "app")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	// verify that init was invoked
+	assert.Contains(t, stdout.String(), "Terraform has been successfully initialized!")
+	assert.Contains(t, stderr.String(), "Running command: terraform init")
+
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	// verify that init wasn't invoked second time since cache directories are ignored
+	assert.NotContains(t, stdout.String(), "Terraform has been successfully initialized!")
+	assert.NotContains(t, stderr.String(), "Running command: terraform init")
+
+	// verify that after adding new file, init is executed
+	tfFile := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_CACHE, "app", "project.tf")
+	if err := ioutil.WriteFile(tfFile, []byte(""), 0644); err != nil {
+		t.Fatalf("Error writing new Terraform file to %s: %v", tfFile, err)
+	}
+
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	// verify that init was invoked
+	assert.Contains(t, stdout.String(), "Terraform has been successfully initialized!")
+	assert.Contains(t, stderr.String(), "Running command: terraform init")
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {

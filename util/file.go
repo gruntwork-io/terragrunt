@@ -21,6 +21,8 @@ import (
 
 const TerraformLockFile = ".terraform.lock.hcl"
 
+const TerragruntCacheDir = ".terragrunt-cache"
+
 // FileOrData will read the contents of the data of the given arg if it is a file, and otherwise return the contents by
 // itself. This will return an error if the given path is a directory.
 func FileOrData(maybePath string) (string, error) {
@@ -191,7 +193,7 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 		return nil, errors.WithStackTrace(err)
 	}
 	for _, absoluteExpandGlobPath := range absoluteExpandGlob {
-		if strings.Contains(absoluteExpandGlobPath, ".terragrunt-cache") {
+		if strings.Contains(absoluteExpandGlobPath, TerragruntCacheDir) {
 			continue
 		}
 		relativeExpandGlobPath, err := GetPathRelativeTo(absoluteExpandGlobPath, source)

@@ -63,10 +63,17 @@ func (terraformSource Source) EncodeSourceVersion() (string, error) {
 				// We don't use any info from directories to calculate our hash
 				return nil
 			}
+			// avoid checking files in .terragrunt-cache directory since contents is auto-generated
+			if strings.Contains(path, util.TerragruntCacheDir) {
+				return nil
+			}
+			// avoid checking files in .terraform directory since contents is auto-generated
+			if info.Name() == util.TerraformLockFile {
+				return nil
+			}
 
 			fileModified := info.ModTime().UnixMicro()
 			hashContents := fmt.Sprintf("%s:%d", path, fileModified)
-
 			sourceHash.Write([]byte(hashContents))
 
 			return nil
