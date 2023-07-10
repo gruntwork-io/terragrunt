@@ -4643,6 +4643,9 @@ func TestTerragruntOutputFromRemoteState(t *testing.T) {
 		stdout bytes.Buffer
 		stderr bytes.Buffer
 	)
+
+	time.Sleep(time.Second)
+
 	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt run-all output --terragrunt-fetch-dependency-output-from-state --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
 	output := stdout.String()
 
