@@ -42,7 +42,7 @@ func (module *TerraformModule) String() string {
 	)
 }
 
-func (module TerraformModule) MarshalJSON() ([]byte, error){
+func (module TerraformModule) MarshalJSON() ([]byte, error) {
 	return json.Marshal(module.Path)
 }
 
