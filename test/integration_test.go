@@ -4617,8 +4617,6 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 }
 
 func TestTerragruntOutputFromRemoteState(t *testing.T) {
-	t.Parallel()
-
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 
@@ -4643,8 +4641,6 @@ func TestTerragruntOutputFromRemoteState(t *testing.T) {
 		stdout bytes.Buffer
 		stderr bytes.Buffer
 	)
-
-	time.Sleep(time.Second)
 
 	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt run-all output --terragrunt-fetch-dependency-output-from-state --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
 	output := stdout.String()
