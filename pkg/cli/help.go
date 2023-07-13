@@ -17,7 +17,7 @@ var (
 	CommandHelpTemplate = ""
 )
 
-// ShowAppHelp is an action that displays the help.
+// ShowAppHelp prints App help.
 func ShowAppHelp(ctx *Context) error {
 	tpl := ctx.App.CustomAppHelpTemplate
 	if tpl == "" {
@@ -41,7 +41,7 @@ func ShowAppHelp(ctx *Context) error {
 	return nil
 }
 
-// ShowCommandHelp prints help for the given command
+// ShowCommandHelp prints help for the given command.
 func ShowCommandHelp(ctx *Context, command string) error {
 	for _, cmd := range ctx.App.Commands {
 		if cmd.HasName(command) {
@@ -62,5 +62,10 @@ func ShowCommandHelp(ctx *Context, command string) error {
 		}
 	}
 
+	return nil
+}
+
+func ShowHelp(ctx *Context, tpl string) error {
+	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx.App, nil)
 	return nil
 }

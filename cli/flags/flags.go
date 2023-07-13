@@ -46,7 +46,8 @@ const (
 	FlagNameWithMetadata                             = "with-metadata"
 	FlagTerragruntStrictValidate                     = "terragrunt-strict-validate"
 
-	FlagNameHelp = "help"
+	FlagNameHelp    = "help"
+	FlagNameVersion = "version"
 )
 
 var (
@@ -82,6 +83,7 @@ var (
 		FlagNameTerragruntIncludeModulePrefix,
 
 		FlagNameHelp,
+		FlagNameVersion,
 	}
 )
 
@@ -302,16 +304,19 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 
 	sort.Sort(flags)
 
-	// add `help` after sorting to put the flag at the end of the flag list in the help.
-	flags.Add(NewHelpFlag())
+	// add auxiliary flags after sorting to put the flag at the end of the flag list in the help.
+	flags.Add(
+		&cli.BoolFlag{
+			Name:    FlagNameHelp,  // --help, -help
+			Aliases: []string{"h"}, //  -h
+			Usage:   "Show help",
+		},
+		&cli.BoolFlag{
+			Name:    FlagNameVersion, // --version, -version
+			Aliases: []string{"v"},   //  -v
+			Usage:   "Show terragrunt version",
+		},
+	)
 
 	return flags
-}
-
-func NewHelpFlag() cli.Flag {
-	return &cli.BoolFlag{
-		Name:    FlagNameHelp,  // --help, -help
-		Aliases: []string{"h"}, //  -h
-		Usage:   "Show help",
-	}
 }

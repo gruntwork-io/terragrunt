@@ -2,9 +2,9 @@ package cli
 
 import (
 	libflag "flag"
+	"os"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/pkg/env"
 	"github.com/gruntwork-io/terragrunt/pkg/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/maps"
 	"github.com/urfave/cli/v2"
@@ -38,10 +38,10 @@ type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	Aliases     []string
 	EnvVar      string
 
-	Destination      *map[K]V
-	Splitter         SplitterFunc
-	MapFlagEnvVarSep string
-	MapFlagKeyValSep string
+	Destination *map[K]V
+	Splitter    SplitterFunc
+	EnvVarSep   string
+	KeyValSep   string
 }
 
 // Apply applies Flag settings to the given flag set.
@@ -50,19 +50,24 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 		flag.Splitter = FlagSplitter
 	}
 
-	if flag.MapFlagEnvVarSep == "" {
-		flag.MapFlagEnvVarSep = MapFlagEnvVarSep
+	if flag.EnvVarSep == "" {
+		flag.EnvVarSep = MapFlagEnvVarSep
 	}
 
-	if flag.MapFlagKeyValSep == "" {
-		flag.MapFlagKeyValSep = MapFlagKeyValSep
+	if flag.KeyValSep == "" {
+		flag.KeyValSep = MapFlagKeyValSep
 	}
 
 	var err error
 	keyType := FlagType[K](new(genericType[K]))
 	valType := FlagType[V](new(genericType[V]))
 
-	if flag.FlagValue, err = newMapValue(keyType, valType, flag.Destination, flag.EnvVar, flag.MapFlagEnvVarSep, flag.MapFlagKeyValSep, flag.Splitter); err != nil {
+	var envValue *string
+	if val, ok := os.LookupEnv(flag.EnvVar); ok {
+		envValue = &val
+	}
+
+	if flag.FlagValue, err = newMapValue(keyType, valType, envValue, flag.EnvVarSep, flag.KeyValSep, flag.Splitter, flag.Destination); err != nil {
 		return err
 	}
 
@@ -113,7 +118,7 @@ type mapValue[K, V comparable] struct {
 	hasBeenSet     bool
 }
 
-func newMapValue[K, V comparable](keyType FlagType[K], valType FlagType[V], dest *map[K]V, envVar string, argSep, valSep string, splitter SplitterFunc) (FlagValue, error) {
+func newMapValue[K, V comparable](keyType FlagType[K], valType FlagType[V], envValue *string, argSep, valSep string, splitter SplitterFunc, dest *map[K]V) (FlagValue, error) {
 	var nilPtr *map[K]V
 	if dest == nilPtr {
 		val := make(map[K]V)
@@ -122,10 +127,10 @@ func newMapValue[K, V comparable](keyType FlagType[K], valType FlagType[V], dest
 
 	defaultText := (&mapValue[K, V]{values: dest, keyType: keyType, valType: valType, argSep: argSep, valSep: valSep, splitter: splitter}).String()
 
-	if envVal, ok := env.LookupEnv(envVar); ok && splitter != nil {
+	if envValue != nil && splitter != nil {
 		value := mapValue[K, V]{values: dest, keyType: keyType, valType: valType, argSep: argSep, valSep: valSep, splitter: splitter}
 
-		args := splitter(envVal, argSep)
+		args := splitter(*envValue, argSep)
 		for _, arg := range args {
 			if err := value.Set(strings.TrimSpace(arg)); err != nil {
 				return nil, err

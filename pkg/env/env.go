@@ -1,14 +1,13 @@
 package env
 
 import (
-	"os"
 	"strconv"
 	"strings"
 )
 
-// GetIntEnv returns the environment value converted to boolean type, or returns the specified fallback value if the variable with the given key is not present.
-func GetBoolEnv(key string, fallback bool) bool {
-	if strVal, ok := LookupEnv(key); ok {
+// GetIntEnv converts the given value to an bool type and returns that value, or returns the specified fallback value if the value is empty.
+func GetBoolEnv(value string, fallback bool) bool {
+	if strVal, ok := nonEmptyValue(value); ok {
 		if val, err := strconv.ParseBool(strVal); err == nil {
 			return val
 		}
@@ -17,9 +16,9 @@ func GetBoolEnv(key string, fallback bool) bool {
 	return fallback
 }
 
-// GetIntEnv returns the environment value converted to intetger type, or returns the specified fallback value if the variable with the given key is not present.
-func GetIntEnv(key string, fallback int) int {
-	if strVal, ok := LookupEnv(key); ok {
+// GetIntEnv converts the given value to an integer type and returns that value, or returns the specified fallback value if the value is empty.
+func GetIntEnv(value string, fallback int) int {
+	if strVal, ok := nonEmptyValue(value); ok {
 		if val, err := strconv.Atoi(strVal); err == nil {
 			return val
 		}
@@ -28,26 +27,21 @@ func GetIntEnv(key string, fallback int) int {
 	return fallback
 }
 
-// GetStringEnv returns an environment variable by the given key, or returns the given fallback value if the env variable is not present.
-func GetStringEnv(key string, fallback string) string {
-	if val, ok := LookupEnv(key); ok {
+// GetStringEnv returns the same string value, or returns the given fallback value if the value is empty.
+func GetStringEnv(value string, fallback string) string {
+	if val, ok := nonEmptyValue(value); ok {
 		return val
 	}
 
 	return fallback
 }
 
-// LookupEnv behaves the same as `os.LookupEnv`, but additionally trims spaces in the value.
-func LookupEnv(key string) (string, bool) {
-	if key == "" {
-		return "", false
-	}
+// nonEmptyValue trims spaces in the value and returns this trimmed value and true if the value is not empty, otherwise false.
+func nonEmptyValue(value string) (string, bool) {
+	value = strings.TrimSpace(value)
+	isPresent := value != ""
 
-	val, ok := os.LookupEnv(key)
-	val = strings.TrimSpace(val)
-
-	isPresent := ok && val != ""
-	return val, isPresent
+	return value, isPresent
 }
 
 func ParseEnvs(envs []string) map[string]string {

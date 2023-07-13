@@ -3,14 +3,20 @@ package cli
 import (
 	libflag "flag"
 	"io"
+	"regexp"
 	"strings"
 
 	"github.com/urfave/cli/v2"
 )
 
 const (
-	OneDashFlag    NormalizeActsType = iota
+	SingleDashFlag NormalizeActsType = iota
 	DoubleDashFlag NormalizeActsType = iota
+)
+
+var (
+	singleDashRegexp = regexp.MustCompile(`^-[^-]`)
+	doubleDashRegexp = regexp.MustCompile(`^--[^-]`)
 )
 
 type NormalizeActsType byte
@@ -35,16 +41,14 @@ func (args *Args) Normalize(acts ...NormalizeActsType) *Args {
 	var strArgs []string
 
 	for _, arg := range args.Slice() {
-		arg := arg
-
 		for _, act := range acts {
 			switch act {
-			case OneDashFlag:
-				if len(arg) >= 3 && arg[0:2] == "--" && arg[2] != '-' {
+			case SingleDashFlag:
+				if doubleDashRegexp.MatchString(arg) {
 					arg = arg[1:]
 				}
 			case DoubleDashFlag:
-				if len(arg) >= 2 && arg[0] == '-' && arg[1] != '-' {
+				if singleDashRegexp.MatchString(arg) {
 					arg = "-" + arg
 				}
 			}

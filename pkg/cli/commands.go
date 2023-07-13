@@ -37,6 +37,15 @@ func (commands Commands) Filter(names []string) Commands {
 	return filtered
 }
 
+// SkipRunning prevents running commands as the final commands, but keep showing them in help.
+func (commands Commands) SkipRunning() Commands {
+	for _, cmd := range commands {
+		cmd.SkipRunning = true
+	}
+
+	return commands
+}
+
 // VisibleCommands returns a slice of the Commands with Hidden=false.
 // Used by `urfave/cli` package to generate help.
 func (commands Commands) VisibleCommands() []*cli.Command {

@@ -40,8 +40,8 @@ func (flags Flags) Filter(names []string) Flags {
 }
 
 // Add adds a new flag to the list.
-func (flags *Flags) Add(flag Flag) {
-	*flags = append(*flags, flag)
+func (flags *Flags) Add(newFlags ...Flag) {
+	*flags = append(*flags, newFlags...)
 }
 
 // VisibleFlags returns a slice of the Flags.

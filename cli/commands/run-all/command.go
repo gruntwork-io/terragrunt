@@ -28,7 +28,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Name:        CommandName,
 		Usage:       "Run a terraform command against a 'stack' by running the specified command in each subfolder.",
 		Description: "The command will recursively find terragrunt modules in the current directory tree and run the terraform command in dependency order (unless the command is destroy, in which case the command is run in reverse dependency order).",
-		Subcommands: newSubCommands(opts),
+		Subcommands: subCommands(opts).SkipRunning(),
 		Flags:       flags.NewFlags(opts).Filter(TerragruntFlagNames),
 		Before:      func(ctx *cli.Context) error { return ctx.App.Before(ctx) },
 		Action:      action(opts),
@@ -51,7 +51,7 @@ func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	}
 }
 
-func newSubCommands(opts *options.TerragruntOptions) cli.Commands {
+func subCommands(opts *options.TerragruntOptions) cli.Commands {
 	cmds := cli.Commands{
 		terragruntinfo.NewCommand(opts),    // terragrunt-info
 		validateinputs.NewCommand(opts),    // validate-inputs
@@ -66,10 +66,5 @@ func newSubCommands(opts *options.TerragruntOptions) cli.Commands {
 	// add terraform command `*` after sorting to put the command at the end of the list in the help.
 	cmds.Add(terraform.NewCommand(opts))
 
-	// avoid running subcommands as the final commands, but keep showing them in help.
-	// for example, the `run-all render-json` does not pass control to the `render-json` subcommand, but passes `render-json` as an argument.
-	for _, cmd := range cmds {
-		cmd.SkipRunning = true
-	}
 	return cmds
 }

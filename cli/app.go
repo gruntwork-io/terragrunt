@@ -47,10 +47,10 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 	app.Version = version.GetVersion()
 	app.Writer = writer
 	app.ErrWriter = errWriter
-	app.Flags = cli.Flags{flags.NewHelpFlag()}
+	app.Flags = flags.NewFlags(opts).Filter([]string{flags.FlagNameHelp, flags.FlagNameVersion})
 	app.Commands = append(
 		newDeprecatedCommands(opts),
-		newCommands(opts)...)
+		terragruntCommands(opts)...)
 	app.Before = beforeRunningCommand(opts)         // all commands refer to this function as `Before`
 	app.DefaultCommand = terraform.NewCommand(opts) // by default forwards all commands directly to Terraform
 	app.OsExiter = osExiter
@@ -59,7 +59,7 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 }
 
 // This set of commands is also used in unit tests
-func newCommands(opts *options.TerragruntOptions) cli.Commands {
+func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	cmds := cli.Commands{
 		runall.NewCommand(opts),            // run-all
 		terragruntinfo.NewCommand(opts),    // terragrunt-info
@@ -86,9 +86,20 @@ func beforeRunningCommand(opts *options.TerragruntOptions) func(ctx *cli.Context
 			return err
 		}
 
+		if flagVersion := ctx.Flags.Get(flags.FlagNameVersion); flagVersion.Value().IsSet() {
+			return showVersion(ctx)
+		}
+
 		err := initialSetup(ctx, opts)
 		return err
 	}
+}
+
+func showVersion(ctx *cli.Context) error {
+	// prevent the command itself from running and exit after displaying version
+	ctx.Command.Action = nil
+
+	return cli.ShowHelp(ctx, appVersionTemplate)
 }
 
 func showHelp(ctx *cli.Context, opts *options.TerragruntOptions) error {
@@ -113,13 +124,13 @@ func showHelp(ctx *cli.Context, opts *options.TerragruntOptions) error {
 // mostly preparing terragrunt options
 func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	// The env vars are renamed to "..._NO_AUTO_..." in the gobal flags`. These ones are left for backwards compatibility.
-	opts.AutoInit = env.GetBoolEnv("TERRAGRUNT_AUTO_INIT", opts.AutoInit)
-	opts.AutoRetry = env.GetBoolEnv("TERRAGRUNT_AUTO_RETRY", opts.AutoRetry)
-	opts.RunAllAutoApprove = env.GetBoolEnv("TERRAGRUNT_AUTO_APPROVE", opts.RunAllAutoApprove)
+	opts.AutoInit = env.GetBoolEnv(os.Getenv("TERRAGRUNT_AUTO_INIT"), opts.AutoInit)
+	opts.AutoRetry = env.GetBoolEnv(os.Getenv("TERRAGRUNT_AUTO_RETRY"), opts.AutoRetry)
+	opts.RunAllAutoApprove = env.GetBoolEnv(os.Getenv("TERRAGRUNT_AUTO_APPROVE"), opts.RunAllAutoApprove)
 
 	// --- Args
 	// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
-	args := ctx.Args().Normalize(cli.OneDashFlag).Slice()
+	args := ctx.Args().Normalize(cli.SingleDashFlag).Slice()
 	cmdName := ctx.Command.Name
 
 	switch cmdName {

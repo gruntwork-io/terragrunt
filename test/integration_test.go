@@ -4617,6 +4617,10 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 }
 
 func TestTerragruntOutputFromRemoteState(t *testing.T) {
+	// We can run in parallel because there are tests which change a global variable by calling `config.ClearOutputCache()` which sometimes causes an unexpected error:
+	// "fixture-output-from-remote-state/env1/app2/terragrunt.hcl:23,38-48: Unsupported attribute; This object does not have an attribute named "app3_text"."
+	// t.Parallel()
+
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 

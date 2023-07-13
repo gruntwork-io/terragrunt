@@ -1,8 +1,5 @@
 package cli
 
-// Since Terragrunt is just a thin wrapper for Terraform, and we don't want to repeat every single Terraform command
-// in its definition, we don't quite fit into the model of any Go CLI library. Fortunately, urfave/cli allows us to
-// override the whole template used for the Usage Text.
 const appHelpTemplate = `NAME:
    {{$v := offset .HelpName 6}}{{wrap .HelpName 3}}{{if .Usage}} - {{wrap .Usage $v}}{{end}}
 
@@ -40,4 +37,7 @@ OPTIONS:
    {{range $index, $option := .VisibleFlags}}{{if $index}}
    {{end}}{{wrap $option.String 6}}{{end}}{{end}}
 
+`
+
+const appVersionTemplate = `terragrunt version {{.Version}}
 `

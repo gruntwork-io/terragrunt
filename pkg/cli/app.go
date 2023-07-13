@@ -6,7 +6,15 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// App is the main structure of app cli application. It should be created with the cli.NewApp() function.
+// App is a wrapper for `urfave`'s `cli.App` struct. It should be created with the cli.NewApp() function.
+// The main purpose of this wrapper is to parse commands and flags in the way we need, namely,
+// if during parsing we find undefined commands or flags, instead of returning an error, we consider them as arguments,
+// regardless of their position among the others registered commands and flags.
+//
+// For example, CLI command:
+// `terragrunt run-all apply --terragrunt-log-level debug --auto-approve --terragrunt-non-interactive`
+// The `App` will runs the registered command `run-all`, define the registered flags `--terragrunt-log-level`, `--terragrunt-non-interactive`,
+// and define args `apply --auto-approve` which can be obtained from the App context, ctx.Args().Slice()
 type App struct {
 	*cli.App
 	// List of commands to execute

@@ -2,9 +2,9 @@ package cli
 
 import (
 	libflag "flag"
+	"os"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/pkg/env"
 	"github.com/urfave/cli/v2"
 )
 
@@ -36,7 +36,7 @@ type SliceFlag[T SliceFlagType] struct {
 	// The func used to split the EvnVar, by default `strings.Split`
 	Splitter SplitterFunc
 	// The Env Var separator that is passed to the Splitter function as an argument
-	SliceFlagEnvVarSep string
+	EnvVarSep string
 }
 
 // Apply applies Flag settings to the given flag set.
@@ -45,14 +45,19 @@ func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
 		flag.Splitter = FlagSplitter
 	}
 
-	if flag.SliceFlagEnvVarSep == "" {
-		flag.SliceFlagEnvVarSep = SliceFlagEnvVarSep
+	if flag.EnvVarSep == "" {
+		flag.EnvVarSep = SliceFlagEnvVarSep
 	}
 
 	var err error
 	valType := FlagType[T](new(genericType[T]))
 
-	if flag.FlagValue, err = newSliceValue(valType, flag.Destination, flag.EnvVar, flag.SliceFlagEnvVarSep, flag.Splitter); err != nil {
+	var envValue *string
+	if val, ok := os.LookupEnv(flag.EnvVar); ok {
+		envValue = &val
+	}
+
+	if flag.FlagValue, err = newSliceValue(valType, envValue, flag.EnvVarSep, flag.Splitter, flag.Destination); err != nil {
 		return err
 	}
 
@@ -102,7 +107,7 @@ type sliceValue[T comparable] struct {
 	hasBeenSet  bool
 }
 
-func newSliceValue[T comparable](valueType FlagType[T], dest *[]T, envVar string, valSep string, splitter SplitterFunc) (FlagValue, error) {
+func newSliceValue[T comparable](valueType FlagType[T], envValue *string, valSep string, splitter SplitterFunc, dest *[]T) (FlagValue, error) {
 	var nilPtr *[]T
 	if dest == nilPtr {
 		dest = new([]T)
@@ -110,10 +115,10 @@ func newSliceValue[T comparable](valueType FlagType[T], dest *[]T, envVar string
 
 	defaultText := (&sliceValue[T]{values: dest, valueType: valueType, valSep: valSep}).String()
 
-	if envVal, ok := env.LookupEnv(envVar); ok && splitter != nil {
+	if envValue != nil && splitter != nil {
 		value := sliceValue[T]{values: dest, valueType: valueType}
 
-		vals := splitter(envVal, valSep)
+		vals := splitter(*envValue, valSep)
 		for _, val := range vals {
 			if err := value.Set(val); err != nil {
 				return nil, err

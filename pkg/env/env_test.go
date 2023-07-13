@@ -2,7 +2,6 @@ package env
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,20 +40,8 @@ func TestGetBoolEnv(t *testing.T) {
 		t.Run(envVarName, func(t *testing.T) {
 			t.Parallel()
 
-			runTestCase := func() {
-				actual := GetBoolEnv(envVarName, testCase.fallback)
-				assert.Equal(t, testCase.expected, actual)
-			}
-
-			// first try to test fallback with missing env variable
-			if testCase.envVarValue == "" {
-				runTestCase()
-			}
-
-			os.Setenv(envVarName, testCase.envVarValue)
-			defer os.Unsetenv(envVarName)
-			runTestCase()
-
+			actual := GetBoolEnv(testCase.envVarValue, testCase.fallback)
+			assert.Equal(t, testCase.expected, actual)
 		})
 	}
 }
@@ -81,20 +68,8 @@ func TestGetIntEnv(t *testing.T) {
 		t.Run(envVarName, func(t *testing.T) {
 			t.Parallel()
 
-			runTestCase := func() {
-				actual := GetIntEnv(envVarName, testCase.fallback)
-				assert.Equal(t, testCase.expected, actual)
-			}
-
-			// first try to test fallback with missing env variable
-			if testCase.envVarValue == "" {
-				runTestCase()
-			}
-
-			os.Setenv(envVarName, testCase.envVarValue)
-			defer os.Unsetenv(envVarName)
-			runTestCase()
-
+			actual := GetIntEnv(testCase.envVarValue, testCase.fallback)
+			assert.Equal(t, testCase.expected, actual)
 		})
 	}
 }
@@ -119,20 +94,8 @@ func TestGetStringEnv(t *testing.T) {
 		t.Run(envVarName, func(t *testing.T) {
 			t.Parallel()
 
-			runTestCase := func() {
-				actual := GetStringEnv(envVarName, testCase.fallback)
-				assert.Equal(t, testCase.expected, actual)
-			}
-
-			// first try to test fallback with missing env variable
-			if testCase.envVarValue == "" {
-				runTestCase()
-			}
-
-			os.Setenv(envVarName, testCase.envVarValue)
-			defer os.Unsetenv(envVarName)
-			runTestCase()
-
+			actual := GetStringEnv(testCase.envVarValue, testCase.fallback)
+			assert.Equal(t, testCase.expected, actual)
 		})
 	}
 }

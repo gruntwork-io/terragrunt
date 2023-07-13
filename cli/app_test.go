@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"testing"
+	"text/template"
 
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
@@ -340,7 +341,43 @@ func TestParseMutliStringKeyValueArg(t *testing.T) {
 	}
 }
 
+func TestTerragruntVersion(t *testing.T) {
+	t.Parallel()
+
+	version := "v1.2.3"
+
+	var tmpWriter bytes.Buffer
+	tpl := template.Must(template.New("myname").Parse(appVersionTemplate))
+	err := tpl.Execute(&tmpWriter, map[string]interface{}{
+		"Version": version,
+	})
+	require.NoError(t, err)
+
+	versionOutput := tmpWriter.String()
+
+	testCases := []struct {
+		args []string
+	}{
+		{[]string{"terragrunt", "--version"}},
+		{[]string{"terragrunt", "-version"}},
+		{[]string{"terragrunt", "-v"}},
+	}
+
+	for _, testCase := range testCases {
+		output := &bytes.Buffer{}
+		app := NewApp(output, os.Stderr)
+		app.Version = version
+
+		err := app.Run(testCase.args)
+		require.NoError(t, err, testCase)
+
+		assert.Equal(t, output.String(), versionOutput)
+	}
+}
+
 func TestTerragruntHelp(t *testing.T) {
+	t.Parallel()
+
 	app := NewApp(os.Stdout, os.Stderr)
 
 	testCases := []struct {
@@ -405,10 +442,10 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 	app := cli.NewApp()
 	app.Writer = &bytes.Buffer{}
 	app.ErrWriter = &bytes.Buffer{}
-	app.Flags = cli.Flags{flags.NewHelpFlag()}
+	app.Flags = flags.NewFlags(opts).Filter([]string{flags.FlagNameHelp, flags.FlagNameVersion})
 	app.Commands = append(
 		newDeprecatedCommands(opts),
-		newCommands(opts)...)
+		terragruntCommands(opts)...)
 	app.Before = beforeRunningCommand(opts)
 	app.DefaultCommand = terraform.NewCommand(opts)
 	app.OsExiter = osExiter

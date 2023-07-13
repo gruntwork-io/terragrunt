@@ -3,9 +3,9 @@ package cli
 import (
 	libflag "flag"
 	"fmt"
+	"os"
 	"strconv"
 
-	"github.com/gruntwork-io/terragrunt/pkg/env"
 	"github.com/gruntwork-io/terragrunt/pkg/errors"
 	"github.com/urfave/cli/v2"
 )
@@ -37,7 +37,12 @@ func (flag *GenericFlag[T]) Apply(set *libflag.FlagSet) error {
 	var err error
 	valType := FlagType[T](new(genericType[T]))
 
-	if flag.FlagValue, err = newGenericValue(valType, flag.Destination, flag.EnvVar); err != nil {
+	var envValue *string
+	if val, ok := os.LookupEnv(flag.EnvVar); ok {
+		envValue = &val
+	}
+
+	if flag.FlagValue, err = newGenericValue(valType, envValue, flag.Destination); err != nil {
 		return err
 	}
 
@@ -85,7 +90,7 @@ type genericValue[T comparable] struct {
 	hasBeenSet  bool
 }
 
-func newGenericValue[T comparable](value FlagType[T], dest *T, envVar string) (FlagValue, error) {
+func newGenericValue[T comparable](value FlagType[T], envValue *string, dest *T) (FlagValue, error) {
 	var nilPtr *T
 	if dest == nilPtr {
 		dest = new(T)
@@ -94,8 +99,8 @@ func newGenericValue[T comparable](value FlagType[T], dest *T, envVar string) (F
 	defaultText := value.Clone(dest).String()
 	value = value.Clone(dest)
 
-	if strVal, ok := env.LookupEnv(envVar); ok {
-		if err := value.Set(strVal); err != nil {
+	if envValue != nil {
+		if err := value.Set(*envValue); err != nil {
 			return nil, err
 		}
 	}
