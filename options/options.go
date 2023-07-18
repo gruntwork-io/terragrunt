@@ -206,6 +206,9 @@ type TerragruntOptions struct {
 	// Controls if a module prefix will be prepended to TF outputs
 	IncludeModulePrefix bool
 
+	// Fail execution if is required to create S3 bucket
+	FailIfBucketCreationRequired bool
+
 	// Controls if s3 bucket should be updated or skipped
 	DisableBucketUpdate bool
 }
@@ -388,6 +391,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		UsePartialParseConfigCache:     terragruntOptions.UsePartialParseConfigCache,
 		OutputPrefix:                   terragruntOptions.OutputPrefix,
 		IncludeModulePrefix:            terragruntOptions.IncludeModulePrefix,
+		FailIfBucketCreationRequired:   terragruntOptions.FailIfBucketCreationRequired,
 		DisableBucketUpdate:            terragruntOptions.DisableBucketUpdate,
 	}
 }
