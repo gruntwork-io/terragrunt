@@ -134,6 +134,7 @@ const (
 	TEST_FIXTURE_BROKEN_DEPENDENCY                                           = "fixture-broken-dependency"
 	TEST_FIXTURE_RENDER_JSON_METADATA                                        = "fixture-render-json-metadata"
 	TEST_FIXTURE_RENDER_JSON_MOCK_OUTPUTS                                    = "fixture-render-json-mock-outputs"
+	TEST_FIXTURE_RENDER_JSON_INPUTS                                          = "fixture-render-json-inputs"
 	TEST_FIXTURE_STARTSWITH                                                  = "fixture-startswith"
 	TEST_FIXTURE_TIMECMP                                                     = "fixture-timecmp"
 	TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP                                   = "fixture-timecmp-errors/invalid-timestamp"
@@ -5634,6 +5635,47 @@ func TestInitSkipCache(t *testing.T) {
 	// verify that init was invoked
 	assert.Contains(t, stdout.String(), "Terraform has been successfully initialized!")
 	assert.Contains(t, stderr.String(), "Running command: terraform init")
+}
+
+func TestRenderJsonWithInputsNotExistingOutput(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_RENDER_JSON_INPUTS)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	dependencyPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_INPUTS, "dependency")
+	appPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_INPUTS, "app")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", dependencyPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-working-dir %s", appPath))
+
+	jsonOut := filepath.Join(appPath, "terragrunt_rendered.json")
+
+	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	var includeMetadata = map[string]interface{}{
+		"found_in_file": util.JoinPath(appPath, "terragrunt.hcl"),
+	}
+
+	var inputs = renderedJson[config.MetadataInputs]
+	var expectedInputs = map[string]interface{}{
+		"static_value": map[string]interface{}{
+			"metadata": includeMetadata,
+			"value":    "static_value",
+		},
+		"value": map[string]interface{}{
+			"metadata": includeMetadata,
+			"value":    "output_value",
+		},
+		"not_existing_value": map[string]interface{}{
+			"metadata": includeMetadata,
+			"value":    "",
+		},
+	}
+	assert.True(t, reflect.DeepEqual(expectedInputs, inputs))
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {

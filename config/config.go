@@ -10,6 +10,8 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/zclconf/go-cty/cty/gocty"
+
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
@@ -791,6 +793,25 @@ func decodeAsTerragruntConfigFile(
 ) (*terragruntConfigFile, error) {
 	terragruntConfig := terragruntConfigFile{}
 	err := decodeHcl(file, filename, &terragruntConfig, terragruntOptions, extensions)
+	// in case of render-json command and inputs reference error, we update the inputs with default value
+	if diagErr, ok := err.(hcl.Diagnostics); ok && isRenderJsonCommand(terragruntOptions) && isAttributeAccessError(diagErr) {
+		terragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
+		// update unknown inputs with default value
+		updatedValue := map[string]cty.Value{}
+		for key, value := range terragruntConfig.Inputs.AsValueMap() {
+			if value.IsKnown() {
+				updatedValue[key] = value
+			} else {
+				updatedValue[key] = cty.StringVal("")
+			}
+		}
+		value, err := gocty.ToCtyValue(updatedValue, terragruntConfig.Inputs.Type())
+		if err != nil {
+			return nil, err
+		}
+		terragruntConfig.Inputs = &value
+		return &terragruntConfig, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -806,6 +827,16 @@ func getIndexOfHookWithName(hooks []Hook, name string) int {
 		}
 	}
 	return -1
+}
+
+// isAttributeAccessError returns true if the given diagnostics indicate an error accessing an attribute
+func isAttributeAccessError(diagnostics hcl.Diagnostics) bool {
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Severity == hcl.DiagError && strings.Contains(diagnostic.Summary, "Unsupported attribute") {
+			return true
+		}
+	}
+	return false
 }
 
 // Returns the index of the ErrorHook with the given name,

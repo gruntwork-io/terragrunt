@@ -424,7 +424,7 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 	return &convertedOutput, isEmpty, errors.WithStackTrace(err)
 }
 
-// This function will true if terragrunt was invoked with renderJsonCommand
+// isRenderJsonCommand This function will true if terragrunt was invoked with render-json
 func isRenderJsonCommand(terragruntOptions *options.TerragruntOptions) bool {
 	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, renderJsonCommand)
 }
