@@ -270,7 +270,7 @@ func (s3Initializer S3Initializer) Initialize(remoteState *RemoteState, terragru
 		return err
 	}
 
-	if !s3ConfigExtended.DisableBucketUpdate {
+	if !terragruntOptions.DisableBucketUpdate && !s3ConfigExtended.DisableBucketUpdate {
 		if err := updateS3BucketIfNecessary(s3Client, s3ConfigExtended, terragruntOptions); err != nil {
 			return err
 		}

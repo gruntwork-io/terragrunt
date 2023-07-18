@@ -205,6 +205,9 @@ type TerragruntOptions struct {
 
 	// Controls if a module prefix will be prepended to TF outputs
 	IncludeModulePrefix bool
+
+	// Controls if s3 bucket should be updated or skipped
+	DisableBucketUpdate bool
 }
 
 // IAMOptions represents options that are used by Terragrunt to assume an IAM role.
@@ -385,6 +388,7 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		UsePartialParseConfigCache:     terragruntOptions.UsePartialParseConfigCache,
 		OutputPrefix:                   terragruntOptions.OutputPrefix,
 		IncludeModulePrefix:            terragruntOptions.IncludeModulePrefix,
+		DisableBucketUpdate:            terragruntOptions.DisableBucketUpdate,
 	}
 }
 
