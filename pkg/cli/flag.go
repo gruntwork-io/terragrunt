@@ -2,6 +2,7 @@ package cli
 
 import (
 	libflag "flag"
+	"os"
 	"strings"
 
 	"github.com/urfave/cli/v2"
@@ -11,6 +12,12 @@ var (
 	// use to separate arguments and env vars with multiple values.
 	FlagSplitter = strings.Split
 )
+
+// ActionableFlag is an interface that wraps Flag interface and RunAction operation.
+type ActionableFlag interface {
+	Flag
+	RunAction(*Context) error
+}
 
 type FlagType[T any] interface {
 	libflag.Getter
@@ -68,4 +75,13 @@ func (flag *flag) GetValue() string {
 // Implements `cli.DocGenerationFlag.GetCategory` required to generate help.
 func (flag *flag) GetCategory() string {
 	return ""
+}
+
+func envValue(envKey string) *string {
+	var envValue *string
+	if val, ok := os.LookupEnv(envKey); ok {
+		envValue = &val
+	}
+
+	return envValue
 }

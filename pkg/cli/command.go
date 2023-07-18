@@ -59,6 +59,7 @@ func (cmd *Command) HasName(name string) bool {
 	return false
 }
 
+// Subcommand returns a subcommand that matches the given name.
 func (cmd *Command) Subcommand(name string) *Command {
 	for _, c := range cmd.Subcommands {
 		if c.HasName(name) {
@@ -83,28 +84,52 @@ func (cmd Command) VisibleCommands() []*cli.Command {
 	return cmd.Subcommands.VisibleCommands()
 }
 
-func (cmd *Command) Run(ctx *Context, args []string) error {
-	args, err := cmd.parseFlags(args)
+// Run parses the given args for the presence of flags as well as subcommands.
+// If this is the final command, starts its execution.
+func (cmd *Command) Run(ctx *Context, args []string) (err error) {
+	args, err = cmd.parseFlags(args)
 	if err != nil {
 		return err
 	}
 
 	ctx = ctx.Clone(cmd, args)
 
+	if err := cmd.Flags.runActions(ctx); err != nil {
+		return ctx.App.handleExitCoder(err)
+	}
+
+	defer func() {
+		if cmd.After != nil && err == nil {
+			err = cmd.After(ctx)
+			err = ctx.App.handleExitCoder(err)
+		}
+	}()
+
+	if cmd.Before != nil {
+		if err := cmd.Before(ctx); err != nil {
+			return ctx.App.handleExitCoder(err)
+		}
+	}
+
 	subCmdName := ctx.Args().CommandName()
 	if subCmd := cmd.Subcommand(subCmdName); subCmd != nil && !subCmd.SkipRunning {
 		args := ctx.Args().Tail()
-		err := subCmd.Run(ctx, args)
+		err = subCmd.Run(ctx, args)
 		return err
 	}
 
 	if cmd.IsRoot && ctx.App.DefaultCommand != nil {
-		err := ctx.App.DefaultCommand.Run(ctx, args)
+		err = ctx.App.DefaultCommand.Run(ctx, args)
 		return err
 	}
 
-	err = cmd.runAction(ctx)
-	return err
+	if cmd.Action != nil {
+		if err = cmd.Action(ctx); err != nil {
+			return ctx.App.handleExitCoder(err)
+		}
+	}
+
+	return nil
 }
 
 func (cmd *Command) parseFlags(args []string) ([]string, error) {
@@ -134,26 +159,4 @@ func (cmd *Command) parseFlags(args []string) ([]string, error) {
 	}
 
 	return undefArgs, nil
-}
-
-func (cmd *Command) runAction(ctx *Context) error {
-	if cmd.Before != nil {
-		if err := cmd.Before(ctx); err != nil {
-			return err
-		}
-	}
-
-	if cmd.Action != nil {
-		if err := cmd.Action(ctx); err != nil {
-			return err
-		}
-	}
-
-	if cmd.After != nil {
-		if err := cmd.After(ctx); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }

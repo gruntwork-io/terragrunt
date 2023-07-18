@@ -2,7 +2,6 @@ package cli
 
 import (
 	libflag "flag"
-	"os"
 	"strings"
 
 	"github.com/urfave/cli/v2"
@@ -52,12 +51,7 @@ func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
 	var err error
 	valType := FlagType[T](new(genericType[T]))
 
-	var envValue *string
-	if val, ok := os.LookupEnv(flag.EnvVar); ok {
-		envValue = &val
-	}
-
-	if flag.FlagValue, err = newSliceValue(valType, envValue, flag.EnvVarSep, flag.Splitter, flag.Destination); err != nil {
+	if flag.FlagValue, err = newSliceValue(valType, envValue(flag.EnvVar), flag.EnvVarSep, flag.Splitter, flag.Destination); err != nil {
 		return err
 	}
 

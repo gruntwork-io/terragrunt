@@ -23,15 +23,15 @@ import (
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/help"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/env"
-	"github.com/gruntwork-io/terragrunt/shell"
 )
 
 func init() {
-	cli.AppHelpTemplate = appHelpTemplate
-	cli.CommandHelpTemplate = commandHelpTemplate
+	cli.AppHelpTemplate = help.AppHelpTemplate
+	cli.CommandHelpTemplate = help.CommandHelpTemplate
 }
 
 // NewApp creates the Terragrunt CLI App.
@@ -47,11 +47,11 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 	app.Version = version.GetVersion()
 	app.Writer = writer
 	app.ErrWriter = errWriter
-	app.Flags = flags.NewFlags(opts).Filter([]string{flags.FlagNameHelp, flags.FlagNameVersion})
+	app.Flags = flags.NewFlags(opts).Filter(flags.GlobalFlagNames)
 	app.Commands = append(
 		newDeprecatedCommands(opts),
 		terragruntCommands(opts)...)
-	app.Before = beforeRunningCommand(opts)         // all commands refer to this function as `Before`
+	app.Action = action(opts)                       // all commands refer to this function as `Before`
 	app.DefaultCommand = terraform.NewCommand(opts) // by default forwards all commands directly to Terraform
 	app.OsExiter = osExiter
 
@@ -79,46 +79,10 @@ func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 }
 
 // this function is run for any command
-func beforeRunningCommand(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
+func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
-		if flagHelp := ctx.Flags.Get(flags.FlagNameHelp); flagHelp.Value().IsSet() {
-			err := showHelp(ctx, opts)
-			return err
-		}
-
-		if flagVersion := ctx.Flags.Get(flags.FlagNameVersion); flagVersion.Value().IsSet() {
-			return showVersion(ctx)
-		}
-
-		err := initialSetup(ctx, opts)
-		return err
+		return initialSetup(ctx, opts)
 	}
-}
-
-func showVersion(ctx *cli.Context) error {
-	// prevent the command itself from running and exit after displaying version
-	ctx.Command.Action = nil
-
-	return cli.ShowHelp(ctx, appVersionTemplate)
-}
-
-func showHelp(ctx *cli.Context, opts *options.TerragruntOptions) error {
-	// prevent the command itself from running and exit after displaying help
-	ctx.Command.Action = nil
-
-	// If the app command is specified, show help for the command, except for the '*' command as this is the default command.
-	if !ctx.Command.IsRoot && ctx.Command.Name != terraform.CommandName {
-		return cli.ShowCommandHelp(ctx, ctx.Command.Name)
-	}
-
-	// If the first argument is a command, it is most likely a terraform command, show Terraform help.
-	if cmdName := ctx.Args().CommandName(); cmdName != "" {
-		terraformHelpCmd := append([]string{cmdName, "-help"}, ctx.Args().Tail()...)
-		return shell.RunTerraformCommand(opts, terraformHelpCmd...)
-	}
-
-	// In other cases, show the App help.
-	return cli.ShowAppHelp(ctx)
 }
 
 // mostly preparing terragrunt options

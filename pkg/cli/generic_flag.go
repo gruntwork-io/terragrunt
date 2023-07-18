@@ -27,6 +27,8 @@ type GenericFlag[T GenericType] struct {
 	Aliases []string
 	// The name of the env variable that is parsed and assigned to `Destination` before the flag value.
 	EnvVar string
+	// The action to execute when flag is specified
+	Action ActionFunc
 	// The pointer to which the value of the flag or env var is assigned.
 	// It also uses as the default value displayed in the help.
 	Destination *T
@@ -81,6 +83,15 @@ func (flag *GenericFlag[T]) String() string {
 // Names returns the names of the flag.
 func (flag *GenericFlag[T]) Names() []string {
 	return append([]string{flag.Name}, flag.Aliases...)
+}
+
+// RunAction implements ActionableFlag.RunAction
+func (flag *GenericFlag[T]) RunAction(ctx *Context) error {
+	if flag.Action != nil {
+		return flag.Action(ctx)
+	}
+
+	return nil
 }
 
 // -- generic Value

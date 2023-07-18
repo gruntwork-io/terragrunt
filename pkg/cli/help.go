@@ -31,20 +31,14 @@ func ShowAppHelp(ctx *Context) error {
 		ctx.App.HelpName = ctx.App.Name
 	}
 
-	customAppData := func() map[string]interface{} {
-		return map[string]interface{}{
-			"CommmandVisibleFlags": ctx.Command.Flags.VisibleFlags,
-		}
-	}
-
-	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx.App, customAppData())
+	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, nil)
 	return nil
 }
 
 // ShowCommandHelp prints help for the given command.
-func ShowCommandHelp(ctx *Context, command string) error {
-	for _, cmd := range ctx.App.Commands {
-		if cmd.HasName(command) {
+func ShowCommandHelp(ctx *Context, cmdName string) error {
+	for _, cmd := range ctx.Command.Subcommands {
+		if cmd.HasName(cmdName) {
 			tpl := cmd.CustomHelpTemplate
 			if tpl == "" {
 				tpl = CommandHelpTemplate
@@ -57,15 +51,17 @@ func ShowCommandHelp(ctx *Context, command string) error {
 				cmd.HelpName = cmd.Name
 			}
 
-			cli.HelpPrinterCustom(ctx.App.Writer, tpl, cmd, nil)
+			ctx = ctx.Clone(cmd, ctx.Args().Tail())
+
+			cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, nil)
 			return nil
 		}
 	}
 
-	return nil
+	return InvalidCommandName(cmdName)
 }
 
 func ShowHelp(ctx *Context, tpl string) error {
-	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx.App, nil)
+	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, nil)
 	return nil
 }

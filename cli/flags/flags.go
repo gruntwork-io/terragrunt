@@ -3,8 +3,10 @@ package flags
 import (
 	"sort"
 
+	"github.com/gruntwork-io/terragrunt/cli/help"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -51,8 +53,9 @@ const (
 )
 
 var (
-	// CommonFlagNames contains the flags that are used in all commands.
-	CommonFlagNames = []string{
+	// GlobalFlagNames contains the flags that are used in all commands.
+	GlobalFlagNames = []string{
+		FlagNameTerragruntConfig,
 		FlagNameTerragruntTFPath,
 		FlagNameTerragruntNoAutoInit,
 		FlagNameTerragruntNoAutoRetry,
@@ -306,17 +309,55 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 
 	// add auxiliary flags after sorting to put the flag at the end of the flag list in the help.
 	flags.Add(
-		&cli.BoolFlag{
-			Name:    FlagNameHelp,  // --help, -help
-			Aliases: []string{"h"}, //  -h
-			Usage:   "Show help",
-		},
-		&cli.BoolFlag{
-			Name:    FlagNameVersion, // --version, -version
-			Aliases: []string{"v"},   //  -v
-			Usage:   "Show terragrunt version",
-		},
+		NewHelpFlag(opts),
+		NewVersionFlag(opts),
 	)
 
 	return flags
+}
+
+func NewHelpFlag(opts *options.TerragruntOptions) cli.Flag {
+	return &cli.BoolFlag{
+		Name:    FlagNameHelp,  // --help, -help
+		Aliases: []string{"h"}, //  -h
+		Usage:   "Show help",
+		Action: func(ctx *cli.Context) (err error) {
+			defer func() {
+				// exit the app
+				err = cli.NewExitError(err, 0)
+			}()
+
+			// If the app command is specified, show help for the command
+			if cmdName := ctx.Args().CommandName(); cmdName != "" {
+				err := cli.ShowCommandHelp(ctx, cmdName)
+
+				// If the command name is not found, it is most likely the terraform command, show Terraform help.
+				if _, ok := err.(cli.InvalidCommandName); ok {
+					terraformHelpCmd := append([]string{cmdName, "-help"}, ctx.Args().Tail()...)
+					return shell.RunTerraformCommand(opts, terraformHelpCmd...)
+				}
+
+				return err
+			}
+
+			// In other cases, show the App help.
+			return cli.ShowAppHelp(ctx)
+		},
+	}
+}
+
+func NewVersionFlag(opts *options.TerragruntOptions) cli.Flag {
+	return &cli.BoolFlag{
+		Name:    FlagNameVersion, // --version, -version
+		Aliases: []string{"v"},   //  -v
+		Usage:   "Show terragrunt version",
+		Action: func(ctx *cli.Context) (err error) {
+			defer func() {
+				// exit the app
+				err = cli.NewExitError(err, 0)
+			}()
+
+			return cli.ShowHelp(ctx, help.AppVersionTemplate)
+		},
+	}
 }

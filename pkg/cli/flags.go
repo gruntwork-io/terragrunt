@@ -127,3 +127,17 @@ func (flags Flags) parseFlags(flagSet *libflag.FlagSet, args []string) ([]string
 	undefArgs = append(undefArgs, flagSet.Args()...)
 	return undefArgs, nil
 }
+
+func (flags Flags) runActions(ctx *Context) error {
+	for _, flag := range flags {
+		if flag.Value().IsSet() {
+			if flag, ok := flag.(ActionableFlag); ok {
+				if err := flag.RunAction(ctx); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}

@@ -78,6 +78,9 @@ func (app *App) VisibleFlags() Flags {
 
 // VisibleCommands returns a slice of the Commands used for help.
 func (app *App) VisibleCommands() []*cli.Command {
+	if app.Commands == nil {
+		return nil
+	}
 	return app.Commands.VisibleCommands()
 }
 
@@ -94,4 +97,8 @@ func (app *App) newRootCommand() *Command {
 		Subcommands: app.Commands,
 		IsRoot:      true,
 	}
+}
+
+func (app *App) handleExitCoder(err error) error {
+	return handleExitCoder(err, app.OsExiter)
 }

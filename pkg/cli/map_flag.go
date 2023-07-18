@@ -2,7 +2,6 @@ package cli
 
 import (
 	libflag "flag"
-	"os"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/pkg/errors"
@@ -62,12 +61,7 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 	keyType := FlagType[K](new(genericType[K]))
 	valType := FlagType[V](new(genericType[V]))
 
-	var envValue *string
-	if val, ok := os.LookupEnv(flag.EnvVar); ok {
-		envValue = &val
-	}
-
-	if flag.FlagValue, err = newMapValue(keyType, valType, envValue, flag.EnvVarSep, flag.KeyValSep, flag.Splitter, flag.Destination); err != nil {
+	if flag.FlagValue, err = newMapValue(keyType, valType, envValue(flag.EnvVar), flag.EnvVarSep, flag.KeyValSep, flag.Splitter, flag.Destination); err != nil {
 		return err
 	}
 
