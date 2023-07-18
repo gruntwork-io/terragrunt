@@ -209,8 +209,8 @@ var (
 	ErrGenerateCalledWithNoGenerateAttr = fmt.Errorf("generate code routine called when no generate attribute is configured")
 )
 
-type RemoteStateBucketCreationNotAllowed string
+type BucketCreationNotAllowed string
 
-func (bucketName RemoteStateBucketCreationNotAllowed) Error() string {
-	return fmt.Sprintf("Creation of remote state bucket is not allowed %s", string(bucketName))
+func (bucketName BucketCreationNotAllowed) Error() string {
+	return fmt.Sprintf("Creation of remote state bucket %s is not allowed", string(bucketName))
 }

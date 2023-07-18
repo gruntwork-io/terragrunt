@@ -259,7 +259,7 @@ func createGCSBucketIfNecessary(gcsClient *storage.Client, config *ExtendedRemot
 		}
 
 		if terragruntOptions.FailIfBucketCreationRequired {
-			return RemoteStateBucketCreationNotAllowed(config.remoteStateConfigGCS.Bucket)
+			return BucketCreationNotAllowed(config.remoteStateConfigGCS.Bucket)
 		}
 
 		prompt := fmt.Sprintf("Remote state GCS bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", config.remoteStateConfigGCS.Bucket)
