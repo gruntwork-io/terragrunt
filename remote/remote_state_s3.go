@@ -373,7 +373,6 @@ func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3, terragruntOpt
 // confirms, create the bucket and enable versioning for it.
 func createS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	if !DoesS3BucketExist(s3Client, &config.remoteStateConfigS3.Bucket) {
-
 		if terragruntOptions.FailIfBucketCreationRequired {
 			return RemoteStateBucketCreationNotAllowed(config.remoteStateConfigS3.Bucket)
 		}
