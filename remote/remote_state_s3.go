@@ -373,6 +373,11 @@ func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3, terragruntOpt
 // confirms, create the bucket and enable versioning for it.
 func createS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	if !DoesS3BucketExist(s3Client, &config.remoteStateConfigS3.Bucket) {
+
+		if terragruntOptions.FailIfBucketCreationRequired {
+			return RemoteStateBucketCreationNotAllowed(config.remoteStateConfigS3.Bucket)
+		}
+
 		prompt := fmt.Sprintf("Remote state S3 bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", config.remoteStateConfigS3.Bucket)
 		shouldCreateBucket, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
 		if err != nil {
@@ -401,6 +406,9 @@ func createS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 
 func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	if !DoesS3BucketExist(s3Client, &config.remoteStateConfigS3.Bucket) {
+		if terragruntOptions.FailIfBucketCreationRequired {
+			return RemoteStateBucketCreationNotAllowed(config.remoteStateConfigS3.Bucket)
+		}
 		return errors.WithStackTrace(fmt.Errorf("remote state S3 bucket %s does not exist or you don't have permissions to access it", config.remoteStateConfigS3.Bucket))
 	}
 
@@ -710,6 +718,9 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 
 func CreateLogsS3BucketIfNecessary(s3Client *s3.S3, logsBucketName *string, terragruntOptions *options.TerragruntOptions) error {
 	if !DoesS3BucketExist(s3Client, logsBucketName) {
+		if terragruntOptions.FailIfBucketCreationRequired {
+			return RemoteStateBucketCreationNotAllowed(*logsBucketName)
+		}
 		prompt := fmt.Sprintf("Logs S3 bucket %s for the remote state does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", *logsBucketName)
 		shouldCreateBucket, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
 		if err != nil {

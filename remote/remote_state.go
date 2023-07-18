@@ -208,3 +208,9 @@ var (
 	ErrRemoteBackendMissing             = fmt.Errorf("the remote_state.backend field cannot be empty")
 	ErrGenerateCalledWithNoGenerateAttr = fmt.Errorf("generate code routine called when no generate attribute is configured")
 )
+
+type RemoteStateBucketCreationNotAllowed string
+
+func (bucketName RemoteStateBucketCreationNotAllowed) Error() string {
+	return fmt.Sprintf("Creation of remote state bucket is not allowed %s", string(bucketName))
+}
