@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/shell"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -39,11 +41,20 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 		return errors.WithStackTrace(err)
 	}
 
+	var externalTfLint = true
+
 	// tflint init
-	initArgs := []string{"tflint", "--init", "--config", configFile, terragruntOptions.WorkingDir}
-	statusCode := cli.Run(initArgs)
-	if statusCode != 0 {
-		return errors.WithStackTrace(ErrorRunningTflint{args: initArgs})
+	initArgs := []string{"tflint", "--init", "--config", configFile, "--chdir", terragruntOptions.WorkingDir}
+	if externalTfLint {
+		err := shell.RunShellCommand(terragruntOptions, initArgs[0], initArgs[1:]...)
+		if err != nil {
+			return errors.WithStackTrace(ErrorRunningTflint{args: initArgs})
+		}
+	} else {
+		statusCode := cli.Run(initArgs)
+		if statusCode != 0 {
+			return errors.WithStackTrace(ErrorRunningTflint{args: initArgs})
+		}
 	}
 
 	// tflint execution
@@ -54,18 +65,25 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 	// append hook arguments hook.Execute[1:] to args
 	args = append(args, hook.Execute[1:]...)
 	terragruntOptions.Logger.Debugf("Running tflint with args %v", args)
-	statusCode = cli.Run(args)
 
-	if statusCode == cmd.ExitCodeError {
-		return errors.WithStackTrace(ErrorRunningTflint{args: initArgs})
-	} else if statusCode == cmd.ExitCodeIssuesFound {
-		return errors.WithStackTrace(IssuesFound{})
-	} else if statusCode == cmd.ExitCodeOK {
-		terragruntOptions.Logger.Info("Tflint has run successfully. No issues found.")
+	if externalTfLint {
+		err := shell.RunShellCommand(terragruntOptions, initArgs[0], initArgs[1:]...)
+		if err != nil {
+			return errors.WithStackTrace(ErrorRunningTflint{args: initArgs})
+		}
 	} else {
-		return errors.WithStackTrace(UnknownError{statusCode: statusCode})
-	}
+		statusCode := cli.Run(args)
 
+		if statusCode == cmd.ExitCodeError {
+			return errors.WithStackTrace(ErrorRunningTflint{args: initArgs})
+		} else if statusCode == cmd.ExitCodeIssuesFound {
+			return errors.WithStackTrace(IssuesFound{})
+		} else if statusCode == cmd.ExitCodeOK {
+			terragruntOptions.Logger.Info("Tflint has run successfully. No issues found.")
+		} else {
+			return errors.WithStackTrace(UnknownError{statusCode: statusCode})
+		}
+	}
 	return nil
 }
 
