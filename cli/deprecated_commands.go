@@ -60,7 +60,7 @@ func replaceDeprecatedCommandFunc(terragruntCommandName, terraformCommandName st
 	}
 }
 
-func newDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
+func deprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 	var commands cli.Commands
 
 	for commandName, runFunc := range replaceDeprecatedCommandsFuncs {

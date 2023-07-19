@@ -23,15 +23,15 @@ import (
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
-	"github.com/gruntwork-io/terragrunt/cli/help"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/env"
 )
 
 func init() {
-	cli.AppHelpTemplate = help.AppHelpTemplate
-	cli.CommandHelpTemplate = help.CommandHelpTemplate
+	cli.AppVersionTemplate = AppVersionTemplate
+	cli.AppHelpTemplate = AppHelpTemplate
+	cli.CommandHelpTemplate = CommandHelpTemplate
 }
 
 // NewApp creates the Terragrunt CLI App.
@@ -49,10 +49,10 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 	app.ErrWriter = errWriter
 	app.Flags = flags.NewFlags(opts).Filter(flags.GlobalFlagNames)
 	app.Commands = append(
-		newDeprecatedCommands(opts),
+		deprecatedCommands(opts),
 		terragruntCommands(opts)...)
 	app.CommonBefore = initialSetup(opts)           // all commands run this function before running their own `Action` function
-	app.DefaultCommand = terraform.NewCommand(opts) // by default forwards all commands directly to Terraform
+	app.DefaultCommand = terraform.NewCommand(opts) // by default, if no terragrunt command is specified, run the Terraform command
 	app.OsExiter = osExiter
 
 	return app

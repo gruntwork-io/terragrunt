@@ -6,14 +6,13 @@ import (
 )
 
 var (
+	// AppVersionTemplate is the text template for the Default version topic.
+	AppVersionTemplate = ""
+
 	// AppHelpTemplate is the text template for the Default help topic.
-	// cli uses text/template to render templates. You can
-	// render custom help text by setting this variable.
 	AppHelpTemplate = ""
 
 	// CommandHelpTemplate is the text template for the command help topic.
-	// cli uses text/template to render templates. You can
-	// render custom help text by setting this variable.
 	CommandHelpTemplate = ""
 )
 
@@ -24,7 +23,7 @@ func ShowAppHelp(ctx *Context) error {
 		tpl = AppHelpTemplate
 	}
 	if tpl == "" {
-		return errors.Errorf("help app template not defined")
+		return errors.Errorf("app help template not defined")
 	}
 
 	if ctx.App.HelpName == "" {
@@ -44,7 +43,7 @@ func ShowCommandHelp(ctx *Context, cmdName string) error {
 				tpl = CommandHelpTemplate
 			}
 			if tpl == "" {
-				return errors.Errorf("help command template not defined")
+				return errors.Errorf("command help template not defined")
 			}
 
 			if cmd.HelpName == "" {
@@ -61,7 +60,15 @@ func ShowCommandHelp(ctx *Context, cmdName string) error {
 	return InvalidCommandName(cmdName)
 }
 
-func ShowHelp(ctx *Context, tpl string) error {
+func ShowVersion(ctx *Context) error {
+	tpl := ctx.App.CustomAppVersionTemplate
+	if tpl == "" {
+		tpl = AppVersionTemplate
+	}
+	if tpl == "" {
+		return errors.Errorf("app version template not defined")
+	}
+
 	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, nil)
 	return nil
 }

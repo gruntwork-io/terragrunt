@@ -21,6 +21,8 @@ type App struct {
 	Commands Commands
 	// List of flags to parse
 	Flags Flags
+	// CustomAppVersionTemplate text template for app version topic.
+	CustomAppVersionTemplate string
 	// Contributor
 	Author string
 	// An action to execute before running the `Action` of the target command.

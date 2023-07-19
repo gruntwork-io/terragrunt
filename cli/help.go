@@ -1,4 +1,4 @@
-package help
+package cli
 
 const AppHelpTemplate = `NAME:
    {{$v := offset .App.HelpName 6}}{{wrap .App.HelpName 3}}{{if .App.Usage}} - {{wrap .App.Usage $v}}{{end}}

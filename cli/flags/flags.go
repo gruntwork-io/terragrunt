@@ -3,7 +3,6 @@ package flags
 import (
 	"sort"
 
-	"github.com/gruntwork-io/terragrunt/cli/help"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -357,7 +356,7 @@ func NewVersionFlag(opts *options.TerragruntOptions) cli.Flag {
 				err = cli.NewExitError(err, 0)
 			}()
 
-			return cli.ShowHelp(ctx, help.AppVersionTemplate)
+			return cli.ShowVersion(ctx)
 		},
 	}
 }

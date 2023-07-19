@@ -14,7 +14,6 @@ import (
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
-	"github.com/gruntwork-io/terragrunt/cli/help"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
@@ -348,7 +347,7 @@ func TestTerragruntVersion(t *testing.T) {
 	version := "v1.2.3"
 
 	var tmpWriter bytes.Buffer
-	tpl := template.Must(template.New("myname").Parse(help.AppVersionTemplate))
+	tpl := template.Must(template.New("myname").Parse(AppVersionTemplate))
 	err := tpl.Execute(&tmpWriter, map[string]interface{}{
 		"App": map[string]interface{}{
 			"Version": version,
@@ -452,7 +451,7 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 	app.ErrWriter = &bytes.Buffer{}
 	app.Flags = flags.NewFlags(opts).Filter(flags.GlobalFlagNames)
 	app.Commands = append(
-		newDeprecatedCommands(opts),
+		deprecatedCommands(opts),
 		terragruntCommands...)
 	app.CommonBefore = initialSetup(opts)
 	app.DefaultCommand = terraform.NewCommand(opts)
