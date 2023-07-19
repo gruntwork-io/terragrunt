@@ -69,7 +69,7 @@ func newDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 		command := &cli.Command{
 			Name:   commandName,
 			Hidden: true,
-			Before: runFunc(opts),
+			Action: runFunc(opts),
 		}
 		commands = append(commands, command)
 	}

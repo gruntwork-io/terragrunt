@@ -14,6 +14,7 @@ import (
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/help"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
@@ -347,9 +348,11 @@ func TestTerragruntVersion(t *testing.T) {
 	version := "v1.2.3"
 
 	var tmpWriter bytes.Buffer
-	tpl := template.Must(template.New("myname").Parse(appVersionTemplate))
+	tpl := template.Must(template.New("myname").Parse(help.AppVersionTemplate))
 	err := tpl.Execute(&tmpWriter, map[string]interface{}{
-		"Version": version,
+		"App": map[string]interface{}{
+			"Version": version,
+		},
 	})
 	require.NoError(t, err)
 
@@ -439,21 +442,22 @@ func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
 }
 
 func runAppTest(args []string, opts *options.TerragruntOptions) (*options.TerragruntOptions, error) {
+	terragruntCommands := terragruntCommands(opts)
+	for _, command := range terragruntCommands {
+		command.Action = action(opts)
+	}
+
 	app := cli.NewApp()
 	app.Writer = &bytes.Buffer{}
 	app.ErrWriter = &bytes.Buffer{}
-	app.Flags = flags.NewFlags(opts).Filter([]string{flags.FlagNameHelp, flags.FlagNameVersion})
+	app.Flags = flags.NewFlags(opts).Filter(flags.GlobalFlagNames)
 	app.Commands = append(
 		newDeprecatedCommands(opts),
-		terragruntCommands(opts)...)
-	app.Before = beforeRunningCommand(opts)
+		terragruntCommands...)
+	app.Action = action(opts)
 	app.DefaultCommand = terraform.NewCommand(opts)
+	app.DefaultCommand.Action = action(opts)
 	app.OsExiter = osExiter
-
-	for _, command := range app.Commands {
-		command.Action = nil
-		app.DefaultCommand.Action = nil
-	}
 
 	err := app.Run(append([]string{"--"}, args...))
 	return opts, err
