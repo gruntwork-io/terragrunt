@@ -27,6 +27,12 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 		return err
 	}
 
+	tfVariables, err := tfArgumentsToTflintVar(terragruntConfig.Terraform)
+	if err != nil {
+		return err
+	}
+	variables = append(variables, tfVariables...)
+
 	terragruntOptions.Logger.Debugf("Initializing tflint in directory %s", terragruntOptions.WorkingDir)
 	cli, err := cmd.NewCLI(terragruntOptions.Writer, terragruntOptions.ErrWriter)
 	if err != nil {
@@ -74,6 +80,21 @@ func inputsToTflintVar(inputs map[string]interface{}) ([]string, error) {
 		newVar := fmt.Sprintf("--var=%s=%s", key, varValue)
 		variables = append(variables, newVar)
 	}
+	return variables, nil
+}
+
+// tfArgumentsToTflintVar converts variables from the terraform config to a list of tflint variables.
+func tfArgumentsToTflintVar(config *config.TerraformConfig) ([]string, error) {
+	var variables []string
+
+	// extract env_vars
+
+	// extract arguments
+
+	// extract required variables
+
+	// extract optional variables
+
 	return variables, nil
 }
 
