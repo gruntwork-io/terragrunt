@@ -15,7 +15,7 @@ import (
 )
 
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
-func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, hook config.Hook) error {
 	configFile, err := findTflintConfigInProject(terragruntOptions)
 	if err != nil {
 		return err
@@ -51,7 +51,8 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 	args = append(args, variables...)
 	args = append(args, "--config", configFile)
 	args = append(args, "--chdir", terragruntOptions.WorkingDir)
-
+	// append hook arguments hook.Execute[1:] to args
+	args = append(args, hook.Execute[1:]...)
 	terragruntOptions.Logger.Debugf("Running tflint with args %v", args)
 	statusCode = cli.Run(args)
 

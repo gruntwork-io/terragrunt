@@ -799,13 +799,14 @@ func runHook(terragruntOptions *options.TerragruntOptions, terragruntConfig *con
 	return nil
 }
 
+// executeTFLint executes tflint with the given options and CLI args.
 func executeTFLint(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, curHook config.Hook, workingDir string) error {
 	// fetching source code changes lock since tflint is not thread safe
 	rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
 	actualLock := rawActualLock.(*sync.Mutex)
 	actualLock.Lock()
 	defer actualLock.Unlock()
-	err := tflint.RunTflintWithOpts(terragruntOptions, terragruntConfig)
+	err := tflint.RunTflintWithOpts(terragruntOptions, terragruntConfig, curHook)
 	if err != nil {
 		terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
 		return err
