@@ -216,6 +216,12 @@ type TerragruntOptions struct {
 	// Functions field can be utilized to overwrite any base functions, which can be particularly
 	// beneficial for testing or cases where certain functions should not be executed.
 	Functions func(baseDir string) map[string]function.Function
+
+	// Fail execution if is required to create S3 bucket
+	FailIfBucketCreationRequired bool
+
+	// Controls if s3 bucket should be updated or skipped
+	DisableBucketUpdate bool
 }
 
 // IAMOptions represents options that are used by Terragrunt to assume an IAM role.
@@ -397,6 +403,8 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		OutputPrefix:                   terragruntOptions.OutputPrefix,
 		IncludeModulePrefix:            terragruntOptions.IncludeModulePrefix,
 		Functions:                      terragruntOptions.Functions,
+		FailIfBucketCreationRequired:   terragruntOptions.FailIfBucketCreationRequired,
+		DisableBucketUpdate:            terragruntOptions.DisableBucketUpdate,
 	}
 }
 

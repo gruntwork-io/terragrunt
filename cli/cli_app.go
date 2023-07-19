@@ -64,6 +64,8 @@ const (
 	optTerragruntFetchDependencyOutputFromState = "terragrunt-fetch-dependency-output-from-state"
 	optTerragruntUsePartialParseConfigCache     = "terragrunt-use-partial-parse-config-cache"
 	optTerragruntIncludeModulePrefix            = "terragrunt-include-module-prefix"
+	optTerragruntFailOnStateBucketCreation      = "terragrunt-fail-on-state-bucket-creation"
+	optTerragruntDisableBucketUpdate            = "terragrunt-disable-bucket-update"
 	optTerragruntOutputWithMetadata             = "with-metadata"
 )
 
@@ -85,6 +87,8 @@ var allTerragruntBooleanOpts = []string{
 	optTerragruntUsePartialParseConfigCache,
 	optTerragruntOutputWithMetadata,
 	optTerragruntIncludeModulePrefix,
+	optTerragruntFailOnStateBucketCreation,
+	optTerragruntDisableBucketUpdate,
 }
 var allTerragruntStringOpts = []string{
 	optTerragruntConfig,
@@ -272,6 +276,8 @@ GLOBAL OPTIONS:
    terragrunt-json-out                          The file path that terragrunt should use when rendering the terragrunt.hcl config as json. Only used in the render-json command. Defaults to terragrunt_rendered.json.
    terragrunt-use-partial-parse-config-cache    Enables caching of includes during partial parsing operations. Will also be used for the --terragrunt-iam-role option if provided.
    terragrunt-include-module-prefix             When this flag is set output from Terraform sub-commands is prefixed with module path.
+   terragrunt-fail-on-state-bucket-creation     When this flag is set Terragrunt will fail if the remote state bucket needs to be created.
+   terragrunt-disable-bucket-update             When this flag is set Terragrunt will not update the remote state bucket.
 
 VERSION:
    {{.Version}}{{if len .Authors}}
