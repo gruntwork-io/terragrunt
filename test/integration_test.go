@@ -5707,9 +5707,9 @@ func TestRenderJsonWithInputsNotExistingOutput(t *testing.T) {
 func TestTerragruntFailIfBucketCreationIsRequired(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_PATH)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PATH)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PATH)
+	cleanupTerraformFolder(t, rootPath)
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
@@ -5725,7 +5725,9 @@ func TestTerragruntFailIfBucketCreationIsRequired(t *testing.T) {
 func TestTerragruntDisableBucketUpdate(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PATH)
+	cleanupTerraformFolder(t, rootPath)
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
@@ -5736,9 +5738,9 @@ func TestTerragruntDisableBucketUpdate(t *testing.T) {
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
 
-	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, TEST_FIXTURE_PATH, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
+	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, rootPath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-disable-bucket-update --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, TEST_FIXTURE_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-disable-bucket-update --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, rootPath))
 
 	_, err = bucketPolicy(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 	// validate that bucket policy is not updated, because of --terragrunt-disable-bucket-update
