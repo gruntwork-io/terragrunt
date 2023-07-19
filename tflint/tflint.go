@@ -14,6 +14,7 @@ import (
 	"github.com/terraform-linters/tflint/cmd"
 )
 
+// RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
 func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	configFile, err := findTflintConfigInProject(terragruntOptions)
 	if err != nil {
@@ -61,6 +62,7 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 	return nil
 }
 
+// inputsToTflintVar converts the inputs map to a list of tflint variables.
 func inputsToTflintVar(inputs map[string]interface{}) ([]string, error) {
 	var variables []string
 	for key, value := range inputs {
