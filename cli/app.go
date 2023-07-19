@@ -51,7 +51,7 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 	app.Commands = append(
 		newDeprecatedCommands(opts),
 		terragruntCommands(opts)...)
-	app.Action = action(opts)                       // all commands refer to this function as `Before`
+	app.CommonBefore = initialSetup(opts)           // all commands run this function before running their own `Action` function
 	app.DefaultCommand = terraform.NewCommand(opts) // by default forwards all commands directly to Terraform
 	app.OsExiter = osExiter
 
@@ -78,110 +78,105 @@ func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	return cmds
 }
 
-// this function is run for any command
-func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
-	return func(ctx *cli.Context) error {
-		return initialSetup(ctx, opts)
-	}
-}
-
 // mostly preparing terragrunt options
-func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
-	// The env vars are renamed to "..._NO_AUTO_..." in the gobal flags`. These ones are left for backwards compatibility.
-	opts.AutoInit = env.GetBoolEnv(os.Getenv("TERRAGRUNT_AUTO_INIT"), opts.AutoInit)
-	opts.AutoRetry = env.GetBoolEnv(os.Getenv("TERRAGRUNT_AUTO_RETRY"), opts.AutoRetry)
-	opts.RunAllAutoApprove = env.GetBoolEnv(os.Getenv("TERRAGRUNT_AUTO_APPROVE"), opts.RunAllAutoApprove)
+func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
+	return func(ctx *cli.Context) error {
+		// The env vars are renamed to "..._NO_AUTO_..." in the gobal flags`. These ones are left for backwards compatibility.
+		opts.AutoInit = env.GetBoolEnv(os.Getenv("TERRAGRUNT_AUTO_INIT"), opts.AutoInit)
+		opts.AutoRetry = env.GetBoolEnv(os.Getenv("TERRAGRUNT_AUTO_RETRY"), opts.AutoRetry)
+		opts.RunAllAutoApprove = env.GetBoolEnv(os.Getenv("TERRAGRUNT_AUTO_APPROVE"), opts.RunAllAutoApprove)
 
-	// --- Args
-	// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
-	args := ctx.Args().Normalize(cli.SingleDashFlag).Slice()
-	cmdName := ctx.Command.Name
+		// --- Args
+		// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
+		args := ctx.Args().Normalize(cli.SingleDashFlag).Slice()
+		cmdName := ctx.Command.Name
 
-	switch cmdName {
-	case terraform.CommandName, runall.CommandName:
-		cmdName = ctx.Args().CommandName()
-	default:
-		args = append([]string{ctx.Command.Name}, args...)
-	}
+		switch cmdName {
+		case terraform.CommandName, runall.CommandName:
+			cmdName = ctx.Args().CommandName()
+		default:
+			args = append([]string{ctx.Command.Name}, args...)
+		}
 
-	opts.TerraformCommand = cmdName
-	opts.TerraformCliArgs = args
+		opts.TerraformCommand = cmdName
+		opts.TerraformCliArgs = args
 
-	opts.Env = env.ParseEnvs(os.Environ())
+		opts.Env = env.ParseEnvs(os.Environ())
 
-	// --- Logger
-	if opts.DisableLogColors {
-		util.DisableLogColors()
-	}
-	opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
-	opts.Logger = util.CreateLogEntry("", opts.LogLevel)
-	opts.Logger.Logger.SetOutput(ctx.App.ErrWriter)
+		// --- Logger
+		if opts.DisableLogColors {
+			util.DisableLogColors()
+		}
+		opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
+		opts.Logger = util.CreateLogEntry("", opts.LogLevel)
+		opts.Logger.Logger.SetOutput(ctx.App.ErrWriter)
 
-	// --- Working Dir
-	if opts.WorkingDir == "" {
-		currentDir, err := os.Getwd()
+		// --- Working Dir
+		if opts.WorkingDir == "" {
+			currentDir, err := os.Getwd()
+			if err != nil {
+				return errors.WithStackTrace(err)
+			}
+			opts.WorkingDir = currentDir
+		}
+		opts.WorkingDir = filepath.ToSlash(opts.WorkingDir)
+
+		// --- Download Dir
+		if opts.DownloadDir == "" {
+			opts.DownloadDir = util.JoinPath(opts.WorkingDir, util.TerragruntCacheDir)
+		}
+
+		downloadDir, err := filepath.Abs(opts.DownloadDir)
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
-		opts.WorkingDir = currentDir
-	}
-	opts.WorkingDir = filepath.ToSlash(opts.WorkingDir)
+		opts.DownloadDir = filepath.ToSlash(downloadDir)
 
-	// --- Download Dir
-	if opts.DownloadDir == "" {
-		opts.DownloadDir = util.JoinPath(opts.WorkingDir, util.TerragruntCacheDir)
-	}
-
-	downloadDir, err := filepath.Abs(opts.DownloadDir)
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-	opts.DownloadDir = filepath.ToSlash(downloadDir)
-
-	// --- Terragrunt ConfigPath
-	if opts.TerragruntConfigPath == "" {
-		opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
-	}
-	opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)
-
-	// --- Terragrunt Version
-	terragruntVersion, err := hashicorpversion.NewVersion(ctx.App.Version)
-	if err != nil {
-		// Malformed Terragrunt version; set the version to 0.0
-		if terragruntVersion, err = hashicorpversion.NewVersion("0.0"); err != nil {
-			return errors.WithStackTrace(err)
+		// --- Terragrunt ConfigPath
+		if opts.TerragruntConfigPath == "" {
+			opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
 		}
-	}
-	opts.TerragruntVersion = terragruntVersion
-	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of terragrunt used.
-	opts.Logger.Debugf("Terragrunt Version: %s", opts.TerragruntVersion)
+		opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)
 
-	// --- IncludeModulePrefix
-	jsonOutput := false
-	for _, arg := range opts.TerraformCliArgs {
-		if strings.EqualFold(arg, "-json") {
-			jsonOutput = true
-			break
+		// --- Terragrunt Version
+		terragruntVersion, err := hashicorpversion.NewVersion(ctx.App.Version)
+		if err != nil {
+			// Malformed Terragrunt version; set the version to 0.0
+			if terragruntVersion, err = hashicorpversion.NewVersion("0.0"); err != nil {
+				return errors.WithStackTrace(err)
+			}
 		}
-	}
-	if opts.IncludeModulePrefix && !jsonOutput {
-		opts.OutputPrefix = fmt.Sprintf("[%s] ", opts.WorkingDir)
-	} else {
-		opts.IncludeModulePrefix = false
-	}
+		opts.TerragruntVersion = terragruntVersion
+		// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of terragrunt used.
+		opts.Logger.Debugf("Terragrunt Version: %s", opts.TerragruntVersion)
 
-	// --- Others
-	if !opts.RunAllAutoApprove {
-		// When running in no-auto-approve mode, set parallelism to 1 so that interactive prompts work.
-		opts.Parallelism = 1
+		// --- IncludeModulePrefix
+		jsonOutput := false
+		for _, arg := range opts.TerraformCliArgs {
+			if strings.EqualFold(arg, "-json") {
+				jsonOutput = true
+				break
+			}
+		}
+		if opts.IncludeModulePrefix && !jsonOutput {
+			opts.OutputPrefix = fmt.Sprintf("[%s] ", opts.WorkingDir)
+		} else {
+			opts.IncludeModulePrefix = false
+		}
+
+		// --- Others
+		if !opts.RunAllAutoApprove {
+			// When running in no-auto-approve mode, set parallelism to 1 so that interactive prompts work.
+			opts.Parallelism = 1
+		}
+
+		opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
+		opts.OriginalTerraformCommand = opts.TerraformCommand
+		opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
+
+		opts.RunTerragrunt = terraform.Run
+		return nil
 	}
-
-	opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
-	opts.OriginalTerraformCommand = opts.TerraformCommand
-	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
-
-	opts.RunTerragrunt = terraform.Run
-	return nil
 }
 
 func osExiter(exitCode int) {

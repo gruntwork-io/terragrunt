@@ -30,10 +30,6 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
-		if err := ctx.App.Action(ctx); err != nil {
-			return err
-		}
-
 		opts.RunTerragrunt = func(opts *options.TerragruntOptions) error {
 			if cmd := ctx.Command.Subcommand(opts.TerraformCommand); cmd != nil {
 				ctx := ctx.WithValue(options.ContextKey, opts)

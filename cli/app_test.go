@@ -444,7 +444,7 @@ func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
 func runAppTest(args []string, opts *options.TerragruntOptions) (*options.TerragruntOptions, error) {
 	terragruntCommands := terragruntCommands(opts)
 	for _, command := range terragruntCommands {
-		command.Action = action(opts)
+		command.Action = nil
 	}
 
 	app := cli.NewApp()
@@ -454,9 +454,9 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 	app.Commands = append(
 		newDeprecatedCommands(opts),
 		terragruntCommands...)
-	app.Action = action(opts)
+	app.CommonBefore = initialSetup(opts)
 	app.DefaultCommand = terraform.NewCommand(opts)
-	app.DefaultCommand.Action = action(opts)
+	app.DefaultCommand.Action = nil
 	app.OsExiter = osExiter
 
 	err := app.Run(append([]string{"--"}, args...))

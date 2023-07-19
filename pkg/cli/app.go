@@ -23,9 +23,14 @@ type App struct {
 	Flags Flags
 	// Contributor
 	Author string
-	// The action to execute before Action func, when no subcommands are specified, but after the context is ready
+	// An action to execute before running the `Action` of the target command.
+	// The difference between `Before` is that `CommonBefore` runs only once for the target command, while `Before` is different for each command and is performed by each command.
+	// Useful when some steps need to to performed for all commands without exception, when all flags are parsed and the context contains the target command.
+	CommonBefore ActionFunc
+	// An action to execute before any subcommands are run, but after the context is ready
+	// If a non-nil error is returned, no subcommands are run
 	Before ActionFunc
-	// The action to execute after Action funcs, when no subcommands are specified
+	// An action to execute after any subcommands are run, but after the subcommand has finished
 	After ActionFunc
 	// The action to execute when no subcommands are specified
 	Action ActionFunc

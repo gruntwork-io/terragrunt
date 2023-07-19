@@ -331,7 +331,7 @@ func NewHelpFlag(opts *options.TerragruntOptions) cli.Flag {
 			if cmdName := ctx.Args().CommandName(); cmdName != "" {
 				err := cli.ShowCommandHelp(ctx, cmdName)
 
-				// If the command name is not found, it is most likely the terraform command, show Terraform help.
+				// If the command name is not found, it is most likely a terraform command, show Terraform help.
 				if _, ok := err.(cli.InvalidCommandName); ok {
 					terraformHelpCmd := append([]string{cmdName, "-help"}, ctx.Args().Tail()...)
 					return shell.RunTerraformCommand(opts, terraformHelpCmd...)

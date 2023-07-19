@@ -1,7 +1,6 @@
 package terragruntinfo
 
 import (
-	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -14,6 +13,6 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:   CommandName,
 		Usage:  "Emits limited terragrunt state on stdout and exits.",
-		Action: commands.Action(opts, Run),
+		Action: func(ctx *cli.Context) error { return Run(opts.OptionsFromContext(ctx)) },
 	}
 }

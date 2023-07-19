@@ -20,10 +20,6 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
-		if err := ctx.App.Action(ctx); err != nil {
-			return err
-		}
-
 		if opts.TerraformCommand == CommandNameDestroy {
 			opts.CheckDependentModules = true
 		}
