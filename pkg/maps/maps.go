@@ -2,6 +2,7 @@ package maps
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -9,6 +10,10 @@ import (
 // For example: `Slice(map[int]string{1: "one", 2: "two"}, "-", ", ")` returns `"1-one, 2-two"`
 func Join[M ~map[K]V, K comparable, V any](m M, sliceSep, mapSep string) string {
 	list := Slice(m, mapSep)
+
+	sort.Slice(list, func(i, j int) bool {
+		return list[i] < list[j]
+	})
 
 	return strings.Join(list, sliceSep)
 }

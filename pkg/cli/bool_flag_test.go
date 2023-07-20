@@ -47,6 +47,13 @@ func TestBoolFlagApply(t *testing.T) {
 			nil,
 		},
 		{
+			BoolFlag{Name: "foo-bool", EnvVar: "FOO_BOOL", Destination: mockDestValue(false)},
+			[]string{"--foo-bool"},
+			map[string]string{"FOO_BOOL": "false"},
+			true,
+			nil,
+		},
+		{
 			BoolFlag{Name: "foo-bool", Destination: mockDestValue(true)},
 			nil,
 			nil,
@@ -138,7 +145,7 @@ func testBoolFlagApply(t *testing.T, flag *BoolFlag, args []string, envs map[str
 
 	assert.Equal(t, expectedValue, actualValue)
 	if actualValue {
-		assert.Equal(t, fmt.Sprintf("%t", expectedValue), flag.GetValue())
+		assert.Equal(t, fmt.Sprintf("%t", expectedValue), flag.GetValue(), "GetValue()")
 	}
 
 	assert.Equal(t, len(args) > 0, flag.Value().IsSet(), "IsSet()")

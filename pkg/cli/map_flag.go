@@ -196,7 +196,7 @@ func (flag *mapValue[K, V]) IsSet() bool {
 }
 
 func (flag *mapValue[K, V]) Get() any {
-	var vals map[K]V
+	var vals = map[K]V{}
 
 	for key, val := range *flag.values {
 		vals[key] = val

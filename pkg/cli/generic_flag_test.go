@@ -47,6 +47,13 @@ func TestGenericFlagStringApply(t *testing.T) {
 			nil,
 		},
 		{
+			GenericFlag[string]{Name: "foo-string", EnvVar: "FOO_STRING", Destination: mockDestValue("default-value")},
+			[]string{"--foo-string", "arg-value"},
+			map[string]string{"FOO_STRING": "env-value"},
+			"arg-value",
+			nil,
+		},
+		{
 			GenericFlag[string]{Name: "foo-string", Destination: mockDestValue("default-value")},
 			nil,
 			nil,
@@ -76,7 +83,9 @@ func TestGenericFlagStringApply(t *testing.T) {
 func TestGenericFlagIntApply(t *testing.T) {
 	t.Parallel()
 
-	var defaultValue = 55
+	mockDestValue := func(val int) *int {
+		return &val
+	}
 
 	testCases := []struct {
 		flag          GenericFlag[int]
@@ -100,7 +109,7 @@ func TestGenericFlagIntApply(t *testing.T) {
 			nil,
 		},
 		{
-			GenericFlag[int]{Name: "foo-string", Destination: &defaultValue},
+			GenericFlag[int]{Name: "foo-int", Destination: mockDestValue(55)},
 			nil,
 			nil,
 			55,
@@ -122,7 +131,9 @@ func TestGenericFlagIntApply(t *testing.T) {
 func TestGenericFlagInt64Apply(t *testing.T) {
 	t.Parallel()
 
-	var defaultValue int64 = 55
+	mockDestValue := func(val int64) *int64 {
+		return &val
+	}
 
 	testCases := []struct {
 		flag          GenericFlag[int64]
@@ -146,7 +157,7 @@ func TestGenericFlagInt64Apply(t *testing.T) {
 			nil,
 		},
 		{
-			GenericFlag[int64]{Name: "foo-string", Destination: &defaultValue},
+			GenericFlag[int64]{Name: "foo-int64", Destination: mockDestValue(55)},
 			nil,
 			nil,
 			55,
@@ -208,7 +219,7 @@ func testGenericFlagApply[T GenericType](t *testing.T, flag *GenericFlag[T], arg
 	}
 
 	assert.Equal(t, expectedValue, actualValue)
-	assert.Equal(t, fmt.Sprintf("%v", expectedValue), flag.GetValue())
+	assert.Equal(t, fmt.Sprintf("%v", expectedValue), flag.GetValue(), "GetValue()")
 
 	assert.Equal(t, len(args) > 0, flag.Value().IsSet(), "IsSet()")
 	assert.Equal(t, expectedDefaultValue, flag.Value().GetDefaultText(), "GetDefaultText()")
