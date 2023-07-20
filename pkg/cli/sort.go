@@ -2,8 +2,8 @@ package cli
 
 import "unicode"
 
-// lexicographicLess compares strings alphabetically considering case.
-func lexicographicLess(i, j string) bool {
+// LexicographicLess compares strings alphabetically considering case.
+func LexicographicLess(i, j string) bool {
 	iRunes := []rune(i)
 	jRunes := []rune(j)
 

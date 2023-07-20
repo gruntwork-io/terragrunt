@@ -27,12 +27,12 @@ const CommandHelpTemplate = `NAME:
    {{$v := offset .Command.HelpName 6}}{{wrap .Command.HelpName 3}}{{if .Usage}} - {{wrap .Command.Usage $v}}{{end}}
 
 USAGE:
-   {{if .Command.UsageText}}{{wrap .Command.UsageText 3}}{{else}}terragrunt {{.Command.HelpName}}{{if .Command.VisibleCommands}} <command>{{end}}{{if .Command.VisibleFlags}} [options]{{end}}{{end}}{{if .Description}}
+   {{if .Command.UsageText}}{{wrap .Command.UsageText 3}}{{else}}terragrunt {{.Command.HelpName}}{{if .Command.VisibleSubcommands}} <command>{{end}}{{if .Command.VisibleFlags}} [options]{{end}}{{end}}{{if .Description}}
 
 DESCRIPTION:
-   {{wrap .Command.Description 3}}{{end}}{{if .Command.VisibleCommands}}
+   {{wrap .Command.Description 3}}{{end}}{{if .Command.VisibleSubcommands}}
 
-COMMANDS:{{ $cv := offsetCommands .Command.VisibleCommands 5}}{{range .Command.VisibleCommands}}
+COMMANDS:{{ $cv := offsetCommands .Command.VisibleSubcommands 5}}{{range .Command.VisibleSubcommands}}
    {{$s := .HelpName}}{{$s}}{{ $sp := subtract $cv (offset $s 3) }}{{ indent $sp ""}} {{wrap .Usage $cv}}{{end}}{{end}}{{if .Command.VisibleFlags}}
 
 OPTIONS:

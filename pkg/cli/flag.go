@@ -43,9 +43,26 @@ type Flag interface {
 	cli.DocGenerationFlag
 }
 
+type LookupEnvFuncType func(key string) (string, bool)
+
 // flag is a common flag related to parsing flags in cli.
 type flag struct {
-	FlagValue FlagValue
+	FlagValue     FlagValue
+	LookupEnvFunc LookupEnvFuncType
+}
+
+func (flag *flag) LookupEnv(envVar string) *string {
+	var value *string
+
+	if flag.LookupEnvFunc == nil {
+		flag.LookupEnvFunc = os.LookupEnv
+	}
+
+	if val, ok := flag.LookupEnvFunc(envVar); ok {
+		value = &val
+	}
+
+	return value
 }
 
 func (flag *flag) Value() FlagValue {
@@ -77,11 +94,11 @@ func (flag *flag) GetCategory() string {
 	return ""
 }
 
-func envValue(envKey string) *string {
-	var envValue *string
+func value(envKey string) *string {
+	var value *string
 	if val, ok := os.LookupEnv(envKey); ok {
-		envValue = &val
+		value = &val
 	}
 
-	return envValue
+	return value
 }

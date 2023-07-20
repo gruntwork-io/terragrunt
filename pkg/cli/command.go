@@ -75,9 +75,9 @@ func (cmd *Command) VisibleFlags() Flags {
 	return cmd.Flags
 }
 
-// VisibleCommands returns a slice of the Commands with Hidden=false.
+// VisibleSubCommands returns a slice of the Commands with Hidden=false.
 // Used by `urfave/cli` package to generate help.
-func (cmd Command) VisibleCommands() []*cli.Command {
+func (cmd Command) VisibleSubcommands() []*cli.Command {
 	if cmd.Subcommands == nil {
 		return nil
 	}
@@ -86,7 +86,7 @@ func (cmd Command) VisibleCommands() []*cli.Command {
 
 // Run parses the given args for the presence of flags as well as subcommands.
 // If this is the final command, starts its execution.
-func (cmd *Command) Run(ctx *Context, args []string) (err error) {
+func (cmd *Command) Run(ctx *Context, args ...string) (err error) {
 	args, err = cmd.parseFlags(args)
 	if err != nil {
 		return err
@@ -94,7 +94,7 @@ func (cmd *Command) Run(ctx *Context, args []string) (err error) {
 
 	ctx = ctx.Clone(cmd, args)
 
-	if err := cmd.Flags.runActions(ctx); err != nil {
+	if err := cmd.Flags.RunActions(ctx); err != nil {
 		return ctx.App.handleExitCoder(err)
 	}
 
@@ -114,12 +114,12 @@ func (cmd *Command) Run(ctx *Context, args []string) (err error) {
 	subCmdName := ctx.Args().CommandName()
 	if subCmd := cmd.Subcommand(subCmdName); subCmd != nil && !subCmd.SkipRunning {
 		args := ctx.Args().Tail()
-		err = subCmd.Run(ctx, args)
+		err = subCmd.Run(ctx, args...)
 		return err
 	}
 
 	if cmd.IsRoot && ctx.App.DefaultCommand != nil {
-		err = ctx.App.DefaultCommand.Run(ctx, args)
+		err = ctx.App.DefaultCommand.Run(ctx, args...)
 		return err
 	}
 

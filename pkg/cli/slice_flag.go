@@ -29,6 +29,8 @@ type SliceFlag[T SliceFlagType] struct {
 	Aliases []string
 	// The name of the env variable that is parsed and assigned to `Destination` before the flag value.
 	EnvVar string
+	// The action to execute when flag is specified
+	Action ActionFunc
 	// The pointer to which the value of the flag or env var is assigned.
 	// It also uses as the default value displayed in the help.
 	Destination *[]T
@@ -51,7 +53,7 @@ func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
 	var err error
 	valType := FlagType[T](new(genericType[T]))
 
-	if flag.FlagValue, err = newSliceValue(valType, envValue(flag.EnvVar), flag.EnvVarSep, flag.Splitter, flag.Destination); err != nil {
+	if flag.FlagValue, err = newSliceValue(valType, flag.LookupEnv(flag.EnvVar), flag.EnvVarSep, flag.Splitter, flag.Destination); err != nil {
 		return err
 	}
 
@@ -90,6 +92,15 @@ func (flag *SliceFlag[T]) String() string {
 // Names returns the names of the flag.
 func (flag *SliceFlag[T]) Names() []string {
 	return append([]string{flag.Name}, flag.Aliases...)
+}
+
+// RunAction implements ActionableFlag.RunAction
+func (flag *SliceFlag[T]) RunAction(ctx *Context) error {
+	if flag.Action != nil {
+		return flag.Action(ctx)
+	}
+
+	return nil
 }
 
 // -- slice Value

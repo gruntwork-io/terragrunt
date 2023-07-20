@@ -33,7 +33,7 @@ func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
 	var err error
 	valType := FlagType[bool](&boolFlagType{negative: flag.Negative})
 
-	if flag.FlagValue, err = newGenericValue(valType, envValue(flag.EnvVar), flag.Destination); err != nil {
+	if flag.FlagValue, err = newGenericValue(valType, flag.LookupEnv(flag.EnvVar), flag.Destination); err != nil {
 		return err
 	}
 

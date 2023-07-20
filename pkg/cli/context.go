@@ -10,7 +10,6 @@ type Context struct {
 	*App
 	Command *Command
 	args    *Args
-	parent  *Context
 }
 
 func newContext(parentCtx context.Context, app *App) *Context {
@@ -26,7 +25,6 @@ func (ctx *Context) Clone(command *Command, args []string) *Context {
 		App:     ctx.App,
 		Command: command,
 		args:    newArgs(args),
-		parent:  ctx,
 	}
 }
 
@@ -42,8 +40,4 @@ func (ctx *Context) Value(key any) any {
 // Args returns the command line arguments associated with the context.
 func (ctx *Context) Args() *Args {
 	return ctx.args
-}
-
-func (ctx *Context) Parent() *Context {
-	return ctx.parent
 }

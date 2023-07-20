@@ -3,7 +3,6 @@ package cli
 import (
 	libflag "flag"
 	"fmt"
-	"os"
 	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/pkg/errors"
@@ -37,14 +36,10 @@ type GenericFlag[T GenericType] struct {
 // Apply applies Flag settings to the given flag set.
 func (flag *GenericFlag[T]) Apply(set *libflag.FlagSet) error {
 	var err error
+
 	valType := FlagType[T](new(genericType[T]))
 
-	var envValue *string
-	if val, ok := os.LookupEnv(flag.EnvVar); ok {
-		envValue = &val
-	}
-
-	if flag.FlagValue, err = newGenericValue(valType, envValue, flag.Destination); err != nil {
+	if flag.FlagValue, err = newGenericValue(valType, flag.LookupEnv(flag.EnvVar), flag.Destination); err != nil {
 		return err
 	}
 
@@ -152,7 +147,7 @@ func (flag *genericValue[T]) String() string {
 }
 
 func (flag *genericValue[T]) GetDefaultText() string {
-	if flag.IsBoolFlag() {
+	if val, ok := flag.Get().(bool); ok && !val {
 		return ""
 	}
 	return flag.defaultText
@@ -207,5 +202,11 @@ func (val *genericType[T]) String() string {
 	if *val.dest == *new(T) {
 		return ""
 	}
-	return fmt.Sprintf("%v", *val.dest)
+
+	format := "%v"
+	if _, ok := val.Get().(bool); ok {
+		format = "%t"
+	}
+
+	return fmt.Sprintf(format, *val.dest)
 }

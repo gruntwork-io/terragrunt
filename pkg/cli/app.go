@@ -71,7 +71,7 @@ func (app *App) Run(arguments []string) error {
 		ctx := newContext(parentCtx.Context, app)
 
 		cmd := ctx.App.newRootCommand()
-		err := cmd.Run(ctx, args)
+		err := cmd.Run(ctx, args...)
 		return err
 	}
 

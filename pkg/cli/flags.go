@@ -61,7 +61,7 @@ func (flags Flags) Less(i, j int) bool {
 		return true
 	}
 
-	return lexicographicLess(flags[i].Names()[0], flags[j].Names()[0])
+	return LexicographicLess(flags[i].Names()[0], flags[j].Names()[0])
 }
 
 func (flags Flags) Swap(i, j int) {
@@ -128,7 +128,7 @@ func (flags Flags) parseFlags(flagSet *libflag.FlagSet, args []string) ([]string
 	return undefArgs, nil
 }
 
-func (flags Flags) runActions(ctx *Context) error {
+func (flags Flags) RunActions(ctx *Context) error {
 	for _, flag := range flags {
 		if flag.Value().IsSet() {
 			if flag, ok := flag.(ActionableFlag); ok {

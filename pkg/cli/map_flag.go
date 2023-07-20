@@ -35,6 +35,7 @@ type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	DefaultText string
 	Usage       string
 	Aliases     []string
+	Action      ActionFunc
 	EnvVar      string
 
 	Destination *map[K]V
@@ -61,7 +62,7 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 	keyType := FlagType[K](new(genericType[K]))
 	valType := FlagType[V](new(genericType[V]))
 
-	if flag.FlagValue, err = newMapValue(keyType, valType, envValue(flag.EnvVar), flag.EnvVarSep, flag.KeyValSep, flag.Splitter, flag.Destination); err != nil {
+	if flag.FlagValue, err = newMapValue(keyType, valType, flag.LookupEnv(flag.EnvVar), flag.EnvVarSep, flag.KeyValSep, flag.Splitter, flag.Destination); err != nil {
 		return err
 	}
 
@@ -100,6 +101,15 @@ func (flag *MapFlag[K, V]) String() string {
 // Names returns the names of the flag.
 func (flag *MapFlag[K, V]) Names() []string {
 	return append([]string{flag.Name}, flag.Aliases...)
+}
+
+// RunAction implements ActionableFlag.RunAction
+func (flag *MapFlag[K, V]) RunAction(ctx *Context) error {
+	if flag.Action != nil {
+		return flag.Action(ctx)
+	}
+
+	return nil
 }
 
 type mapValue[K, V comparable] struct {

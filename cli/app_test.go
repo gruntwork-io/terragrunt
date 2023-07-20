@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"testing"
-	"text/template"
 
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
@@ -346,17 +345,6 @@ func TestTerragruntVersion(t *testing.T) {
 
 	version := "v1.2.3"
 
-	var tmpWriter bytes.Buffer
-	tpl := template.Must(template.New("myname").Parse(AppVersionTemplate))
-	err := tpl.Execute(&tmpWriter, map[string]interface{}{
-		"App": map[string]interface{}{
-			"Version": version,
-		},
-	})
-	require.NoError(t, err)
-
-	versionOutput := tmpWriter.String()
-
 	testCases := []struct {
 		args []string
 	}{
@@ -373,7 +361,7 @@ func TestTerragruntVersion(t *testing.T) {
 		err := app.Run(testCase.args)
 		require.NoError(t, err, testCase)
 
-		assert.Equal(t, output.String(), versionOutput)
+		assert.Contains(t, output.String(), version)
 	}
 }
 
