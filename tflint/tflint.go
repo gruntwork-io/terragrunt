@@ -41,10 +41,11 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 		return errors.WithStackTrace(err)
 	}
 
-	var externalTfLint = true
+	tflintArgs, externalTfLint := tflintArguments(hook.Execute[1:])
 
 	// tflint init
 	initArgs := []string{"tflint", "--init", "--config", configFile, "--chdir", terragruntOptions.WorkingDir}
+	terragruntOptions.Logger.Debugf("Running tflint init with args %v", initArgs)
 	if externalTfLint {
 		err := shell.RunShellCommand(terragruntOptions, initArgs[0], initArgs[1:]...)
 		if err != nil {
@@ -62,8 +63,7 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 	args = append(args, variables...)
 	args = append(args, "--config", configFile)
 	args = append(args, "--chdir", terragruntOptions.WorkingDir)
-	// append hook arguments hook.Execute[1:] to args
-	args = append(args, hook.Execute[1:]...)
+	args = append(args, tflintArgs...)
 	terragruntOptions.Logger.Debugf("Running tflint with args %v", args)
 
 	if externalTfLint {
@@ -85,6 +85,23 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 		}
 	}
 	return nil
+}
+
+// tflintArguments check arguments for --terragrunt-external-tflint and returns filtered arguments and flag if should use external tflint
+func tflintArguments(arguments []string) ([]string, bool) {
+
+	externalTfLint := false
+	var filteredArguments []string
+
+	// check for --terragrunt-external-tflint
+	for _, arg := range arguments {
+		if arg == "--terragrunt-external-tflint" {
+			externalTfLint = true
+			continue
+		}
+		filteredArguments = append(filteredArguments, arg)
+	}
+	return filteredArguments, externalTfLint
 }
 
 // inputsToTflintVar converts the inputs map to a list of tflint variables.
