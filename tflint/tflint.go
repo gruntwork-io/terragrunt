@@ -6,6 +6,7 @@ package tflint
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/shell"
 
@@ -15,6 +16,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/terraform-linters/tflint/cmd"
 )
+
+// Prefix to use for terraform variables set with environment variables.
+const TFVarPrefix = "TF_VAR_"
 
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
 func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, hook config.Hook) error {
@@ -29,7 +33,7 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 		return err
 	}
 
-	tfVariables, err := tfArgumentsToTflintVar(terragruntConfig.Terraform)
+	tfVariables, err := tfArgumentsToTflintVar(terragruntOptions, terragruntConfig.Terraform)
 	if err != nil {
 		return err
 	}
@@ -120,16 +124,41 @@ func inputsToTflintVar(inputs map[string]interface{}) ([]string, error) {
 }
 
 // tfArgumentsToTflintVar converts variables from the terraform config to a list of tflint variables.
-func tfArgumentsToTflintVar(config *config.TerraformConfig) ([]string, error) {
+func tfArgumentsToTflintVar(terragruntOptions *options.TerragruntOptions, config *config.TerraformConfig) ([]string, error) {
 	var variables []string
 
-	// extract env_vars
+	for _, arg := range config.ExtraArgs {
+		if arg.EnvVars != nil {
+			// extract env_vars
+			for name, value := range *arg.EnvVars {
+				if strings.HasPrefix(name, TFVarPrefix) {
+					varName := strings.TrimPrefix(name, TFVarPrefix)
+					newVar := fmt.Sprintf("--var='%s=%s'", varName, value)
+					variables = append(variables, newVar)
+				}
+			}
+		}
+		if arg.RequiredVarFiles != nil {
+			// extract required variables
+			for _, file := range *arg.RequiredVarFiles {
+				newVar := fmt.Sprintf("--var-file=%s", file)
+				variables = append(variables, newVar)
+			}
+		}
 
-	// extract arguments
+		if arg.OptionalVarFiles != nil {
+			// extract optional variables
+			for _, file := range util.RemoveDuplicatesFromListKeepLast(*arg.OptionalVarFiles) {
+				if util.FileExists(file) {
+					newVar := fmt.Sprintf("--var-file=%s", file)
+					variables = append(variables, newVar)
+				} else {
+					terragruntOptions.Logger.Debugf("Skipping tflint var-file %s as it does not exist", file)
+				}
+			}
+		}
 
-	// extract required variables
-
-	// extract optional variables
+	}
 
 	return variables, nil
 }
