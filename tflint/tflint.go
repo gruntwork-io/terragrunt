@@ -19,6 +19,8 @@ import (
 
 // Prefix to use for terraform variables set with environment variables.
 const TFVarPrefix = "TF_VAR_"
+const ArgVarPrefix = "-var="
+const ArgVarFilePrefix = "-var-file="
 
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
 func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, hook config.Hook) error {
@@ -51,7 +53,7 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 	initArgs := []string{"tflint", "--init", "--config", configFile, "--chdir", terragruntOptions.WorkingDir}
 	terragruntOptions.Logger.Debugf("Running tflint init with args %v", initArgs)
 	if externalTfLint {
-		err := shell.RunShellCommand(terragruntOptions, initArgs[0], initArgs[1:]...)
+		_, err := shell.RunShellCommandWithOutput(terragruntOptions, terragruntOptions.WorkingDir, false, false, initArgs[0], initArgs[1:]...)
 		if err != nil {
 			return errors.WithStackTrace(ErrorRunningTflint{args: initArgs})
 		}
@@ -71,7 +73,7 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 	terragruntOptions.Logger.Debugf("Running tflint with args %v", args)
 
 	if externalTfLint {
-		err := shell.RunShellCommand(terragruntOptions, initArgs[0], initArgs[1:]...)
+		_, err := shell.RunShellCommandWithOutput(terragruntOptions, terragruntOptions.WorkingDir, false, false, args[0], args[1:]...)
 		if err != nil {
 			return errors.WithStackTrace(ErrorRunningTflint{args: initArgs})
 		}
@@ -93,7 +95,6 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 
 // tflintArguments check arguments for --terragrunt-external-tflint and returns filtered arguments and flag if should use external tflint
 func tflintArguments(arguments []string) ([]string, bool) {
-
 	externalTfLint := false
 	var filteredArguments []string
 
@@ -133,7 +134,26 @@ func tfArgumentsToTflintVar(terragruntOptions *options.TerragruntOptions, config
 			for name, value := range *arg.EnvVars {
 				if strings.HasPrefix(name, TFVarPrefix) {
 					varName := strings.TrimPrefix(name, TFVarPrefix)
-					newVar := fmt.Sprintf("--var='%s=%s'", varName, value)
+					varValue, err := util.AsTerraformEnvVarJsonValue(value)
+					if err != nil {
+						return nil, err
+					}
+					newVar := fmt.Sprintf("--var='%s=%s'", varName, varValue)
+					variables = append(variables, newVar)
+				}
+			}
+		}
+		if arg.Arguments != nil {
+			// extract variables and var files from arguments
+			for _, value := range *arg.Arguments {
+				if strings.HasPrefix(value, ArgVarPrefix) {
+					varName := strings.TrimPrefix(value, ArgVarPrefix)
+					newVar := fmt.Sprintf("--var='%s'", varName)
+					variables = append(variables, newVar)
+				}
+				if strings.HasPrefix(value, ArgVarFilePrefix) {
+					varName := strings.TrimPrefix(value, ArgVarFilePrefix)
+					newVar := fmt.Sprintf("--var-file=%s", varName)
 					variables = append(variables, newVar)
 				}
 			}
