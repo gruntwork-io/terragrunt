@@ -66,16 +66,16 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 
 	// tflint execution
 	args := []string{"tflint"}
-	args = append(args, variables...)
 	args = append(args, "--config", configFile)
 	args = append(args, "--chdir", terragruntOptions.WorkingDir)
+	args = append(args, variables...)
 	args = append(args, tflintArgs...)
 	terragruntOptions.Logger.Debugf("Running tflint with args %v", args)
 
 	if externalTfLint {
 		_, err := shell.RunShellCommandWithOutput(terragruntOptions, terragruntOptions.WorkingDir, false, false, args[0], args[1:]...)
 		if err != nil {
-			return errors.WithStackTrace(ErrorRunningTflint{args: initArgs})
+			return errors.WithStackTrace(ErrorRunningTflint{args: args})
 		}
 	} else {
 		statusCode := cli.Run(args)
