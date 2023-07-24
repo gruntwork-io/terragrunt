@@ -258,6 +258,10 @@ func createGCSBucketIfNecessary(gcsClient *storage.Client, config *ExtendedRemot
 			return errors.WithStackTrace(MissingRequiredGCSRemoteStateConfig("location"))
 		}
 
+		if terragruntOptions.FailIfBucketCreationRequired {
+			return BucketCreationNotAllowed(config.remoteStateConfigGCS.Bucket)
+		}
+
 		prompt := fmt.Sprintf("Remote state GCS bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", config.remoteStateConfigGCS.Bucket)
 		shouldCreateBucket, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
 		if err != nil {

@@ -237,6 +237,8 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.AwsProviderPatchOverrides = awsProviderPatchOverrides
 	opts.FetchDependencyOutputFromState = parseBooleanArg(args, optTerragruntFetchDependencyOutputFromState, os.Getenv("TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE") == "true")
 	opts.UsePartialParseConfigCache = parseBooleanArg(args, optTerragruntUsePartialParseConfigCache, os.Getenv("TERRAGRUNT_USE_PARTIAL_PARSE_CONFIG_CACHE") == "true")
+	opts.DisableBucketUpdate = parseBooleanArg(args, optTerragruntDisableBucketUpdate, os.Getenv("TERRAGRUNT_DISABLE_BUCKET_UPDATE") == "true")
+	opts.FailIfBucketCreationRequired = parseBooleanArg(args, optTerragruntFailOnStateBucketCreation, os.Getenv("TERRAGRUNT_FAIL_ON_STATE_BUCKET_CREATION") == "true")
 	opts.RenderJsonWithMetadata = parseBooleanArg(args, optTerragruntOutputWithMetadata, false)
 
 	opts.JSONOut, err = parseStringArg(args, optTerragruntJSONOut, "")

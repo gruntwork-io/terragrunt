@@ -502,6 +502,8 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
 - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
 - [terragrunt-include-module-prefix](#terragrunt-include-module-prefix)
+- [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
+- [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
 
 ### terragrunt-config
 
@@ -930,3 +932,17 @@ NOTE: This is an experimental feature, use with caution.
 **Environment Variable**: `TERRAGRUNT_INCLUDE_MODULE_PREFIX` (set to `true`)
 
 When this flag is set output from Terraform sub-commands is prefixed with module path.
+
+### terragrunt-fail-on-state-bucket-creation
+
+**CLI Arg**: `--terragrunt-fail-on-state-bucket-creation`
+**Environment Variable**: `TERRAGRUNT_FAIL_ON_STATE_BUCKET_CREATION` (set to `true`)
+
+When this flag is set, Terragrunt will wait for execution if it is required to create the remote state bucket.
+
+### terragrunt-disable-bucket-update
+
+**CLI Arg**: `--terragrunt-disable-bucket-update`
+**Environment Variable**: `TERRAGRUNT_DISABLE_BUCKET_UPDATE` (set to `true`)
+
+When this flag is set, Terragrunt does not update the remote state bucket, which is useful to set if the state bucket is managed by a third party.
