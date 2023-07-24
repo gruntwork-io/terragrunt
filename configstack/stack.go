@@ -52,6 +52,8 @@ func (stack *Stack) LogModuleDeployOrder(logger *logrus.Entry, terraformCommand 
 	return nil
 }
 
+// JsonModuleDeployOrder will return the modules that will be deployed by a plan/apply operation, in the order
+// that the operations happen.
 func (stack *Stack) JsonModuleDeployOrder(terraformCommand string) (string, error) {
 	runGraph, err := stack.getModuleRunGraph(terraformCommand)
 	if err != nil {
