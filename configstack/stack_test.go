@@ -36,7 +36,7 @@ func TestFindStackInSubfolders(t *testing.T) {
 
 	terragruntOptions.WorkingDir = envFolder
 
-	stack, err := FindStackInSubfolders(terragruntOptions)
+	stack, err := FindStackInSubfolders(terragruntOptions, nil)
 	require.NoError(t, err)
 
 	var modulePaths []string

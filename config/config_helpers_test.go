@@ -1055,6 +1055,79 @@ func TestEndsWith(t *testing.T) {
 	}
 }
 
+func TestTimeCmp(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		config *options.TerragruntOptions
+		args   []string
+		value  int64
+		err    string
+	}{
+		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T00:00:00Z", "2017-11-22T00:00:00Z"}, 0, ""},
+		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T00:00:00Z", "2017-11-22T01:00:00+01:00"}, 0, ""},
+		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T00:00:01Z", "2017-11-22T01:00:00+01:00"}, 1, ""},
+		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T01:00:00Z", "2017-11-22T00:59:00-01:00"}, -1, ""},
+		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T01:00:00+01:00", "2017-11-22T01:00:00-01:00"}, -1, ""},
+		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T01:00:00-01:00", "2017-11-22T01:00:00+01:00"}, 1, ""},
+		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T00:00:00Z", "bloop"}, 0, `could not parse second parameter "bloop": not a valid RFC3339 timestamp: cannot use "bloop" as year`},
+		{terragruntOptionsForTest(t, ""), []string{"2017-11-22 00:00:00Z", "2017-11-22T00:00:00Z"}, 0, `could not parse first parameter "2017-11-22 00:00:00Z": not a valid RFC3339 timestamp: missing required time introducer 'T'`},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+
+		t.Run(fmt.Sprintf("TimeCmp(%#v, %#v)", testCase.args[0], testCase.args[1]), func(t *testing.T) {
+			t.Parallel()
+
+			actual, err := timeCmp(testCase.args, nil, testCase.config)
+			if testCase.err != "" {
+				assert.EqualError(t, err, testCase.err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			assert.Equal(t, testCase.value, actual)
+		})
+	}
+}
+
+func TestStrContains(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		config *options.TerragruntOptions
+		args   []string
+		value  bool
+		err    string
+	}{
+		{terragruntOptionsForTest(t, ""), []string{"hello world", "hello"}, true, ""},
+		{terragruntOptionsForTest(t, ""), []string{"hello world", "world"}, true, ""},
+		{terragruntOptionsForTest(t, ""), []string{"hello world0", "0"}, true, ""},
+		{terragruntOptionsForTest(t, ""), []string{"9hello world0", "9"}, true, ""},
+		{terragruntOptionsForTest(t, ""), []string{"hello world", "test"}, false, ""},
+		{terragruntOptionsForTest(t, ""), []string{"hello", "hello"}, true, ""},
+		{terragruntOptionsForTest(t, ""), []string{}, false, "Empty string value is not allowed for parameter to the strcontains function"},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+
+		t.Run(fmt.Sprintf("StrContains %v", testCase.args), func(t *testing.T) {
+			t.Parallel()
+
+			actual, err := strContains(testCase.args, nil, testCase.config)
+			if testCase.err != "" {
+				assert.EqualError(t, err, testCase.err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			assert.Equal(t, testCase.value, actual)
+		})
+	}
+}
+
 func mockConfigWithSource(sourceUrl string) *TerragruntConfig {
 	cfg := TerragruntConfig{IsPartial: true}
 	cfg.Terraform = &TerraformConfig{Source: &sourceUrl}

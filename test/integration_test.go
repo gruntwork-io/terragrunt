@@ -49,104 +49,115 @@ import (
 
 // hard-code this to match the test fixture for now
 const (
-	TERRAFORM_REMOTE_STATE_S3_REGION                        = "us-west-2"
-	TERRAFORM_REMOTE_STATE_GCP_REGION                       = "eu"
-	TEST_FIXTURE_PATH                                       = "fixture/"
-	TEST_FIXTURE_CODEGEN_PATH                               = "fixture-codegen"
-	TEST_FIXTURE_GCS_PATH                                   = "fixture-gcs/"
-	TEST_FIXTURE_GCS_BYO_BUCKET_PATH                        = "fixture-gcs-byo-bucket/"
-	TEST_FIXTURE_STACK                                      = "fixture-stack/"
-	TEST_FIXTURE_GRAPH_DEPENDENCIES                         = "fixture-graph-dependencies"
-	TEST_FIXTURE_OUTPUT_ALL                                 = "fixture-output-all"
-	TEST_FIXTURE_OUTPUT_FROM_REMOTE_STATE                   = "fixture-output-from-remote-state"
-	TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY                     = "fixture-output-from-dependency"
-	TEST_FIXTURE_STDOUT                                     = "fixture-download/stdout-test"
-	TEST_FIXTURE_EXTRA_ARGS_PATH                            = "fixture-extra-args/"
-	TEST_FIXTURE_ENV_VARS_BLOCK_PATH                        = "fixture-env-vars-block/"
-	TEST_FIXTURE_SKIP                                       = "fixture-skip/"
-	TEST_FIXTURE_CONFIG_SINGLE_JSON_PATH                    = "fixture-config-files/single-json-config"
-	TEST_FIXTURE_PREVENT_DESTROY_OVERRIDE                   = "fixture-prevent-destroy-override/child"
-	TEST_FIXTURE_PREVENT_DESTROY_NOT_SET                    = "fixture-prevent-destroy-not-set/child"
-	TEST_FIXTURE_LOCAL_PREVENT_DESTROY                      = "fixture-download/local-with-prevent-destroy"
-	TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES         = "fixture-download/local-with-prevent-destroy-dependencies"
-	TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES = "fixture-download/local-include-with-prevent-destroy-dependencies"
-	TEST_FIXTURE_NOT_EXISTING_SOURCE                        = "fixture-download/invalid-path"
-	TEST_FIXTURE_EXTERNAL_DEPENDENCIE                       = "fixture-external-dependencies"
-	TEST_FIXTURE_MISSING_DEPENDENCIE                        = "fixture-missing-dependencies/main"
-	TEST_FIXTURE_GET_OUTPUT                                 = "fixture-get-output"
-	TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH                     = "fixture-hooks/before-only"
-	TEST_FIXTURE_HOOKS_ALL_PATH                             = "fixture-hooks/all"
-	TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH                      = "fixture-hooks/after-only"
-	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH                = "fixture-hooks/before-and-after"
-	TEST_FIXTURE_HOOKS_BEFORE_AFTER_AND_ERROR_MERGE_PATH    = "fixture-hooks/before-after-and-error-merge"
-	TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH                   = "fixture-hooks/skip-on-error"
-	TEST_FIXTURE_ERROR_HOOKS_PATH                           = "fixture-hooks/error-hooks"
-	TEST_FIXTURE_HOOKS_ONE_ARG_ACTION_PATH                  = "fixture-hooks/one-arg-action"
-	TEST_FIXTURE_HOOKS_EMPTY_STRING_COMMAND_PATH            = "fixture-hooks/bad-arg-action/empty-string-command"
-	TEST_FIXTURE_HOOKS_EMPTY_COMMAND_LIST_PATH              = "fixture-hooks/bad-arg-action/empty-command-list"
-	TEST_FIXTURE_HOOKS_INTERPOLATIONS_PATH                  = "fixture-hooks/interpolations"
-	TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_NO_BACKEND       = "fixture-hooks/init-once/no-source-no-backend"
-	TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_WITH_BACKEND     = "fixture-hooks/init-once/no-source-with-backend"
-	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND     = "fixture-hooks/init-once/with-source-no-backend"
-	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_WITH_BACKEND   = "fixture-hooks/init-once/with-source-with-backend"
-	TEST_FIXTURE_HOOKS_WORKING_DIR                          = "fixture-hooks/working_dir"
-	TEST_FIXTURE_FAILED_TERRAFORM                           = "fixture-failure"
-	TEST_FIXTURE_EXIT_CODE                                  = "fixture-exit-code"
-	TEST_FIXTURE_AUTO_RETRY_RERUN                           = "fixture-auto-retry/re-run"
-	TEST_FIXTURE_AUTO_RETRY_EXHAUST                         = "fixture-auto-retry/exhaust"
-	TEST_FIXTURE_AUTO_RETRY_CUSTOM_ERRORS                   = "fixture-auto-retry/custom-errors"
-	TEST_FIXTURE_AUTO_RETRY_CUSTOM_ERRORS_NOT_SET           = "fixture-auto-retry/custom-errors-not-set"
-	TEST_FIXTURE_AUTO_RETRY_APPLY_ALL_RETRIES               = "fixture-auto-retry/apply-all"
-	TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES            = "fixture-auto-retry/configurable-retries"
-	TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES_ERROR_1    = "fixture-auto-retry/configurable-retries-incorrect-retry-attempts"
-	TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES_ERROR_2    = "fixture-auto-retry/configurable-retries-incorrect-sleep-interval"
-	TEST_FIXTURE_AWS_PROVIDER_PATCH                         = "fixture-aws-provider-patch"
-	TEST_FIXTURE_INPUTS                                     = "fixture-inputs"
-	TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL               = "fixture-locals-errors/undefined-local"
-	TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL_BUT_INPUT     = "fixture-locals-errors/undefined-local-but-input"
-	TEST_FIXTURE_LOCALS_CANONICAL                           = "fixture-locals/canonical"
-	TEST_FIXTURE_LOCALS_IN_INCLUDE                          = "fixture-locals/local-in-include"
-	TEST_FIXTURE_LOCAL_RUN_ONCE                             = "fixture-locals/run-once"
-	TEST_FIXTURE_LOCAL_RUN_MULTIPLE                         = "fixture-locals/run-multiple"
-	TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH           = "qa/my-app"
-	TEST_FIXTURE_READ_CONFIG                                = "fixture-read-config"
-	TEST_FIXTURE_READ_IAM_ROLE                              = "fixture-read-config/iam_role_in_file"
-	TEST_FIXTURE_IAM_ROLES_MULTIPLE_MODULES                 = "fixture-read-config/iam_roles_multiple_modules"
-	TEST_FIXTURE_RELATIVE_INCLUDE_CMD                       = "fixture-relative-include-cmd"
-	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                    = "fixture-get-aws-caller-identity"
-	TEST_FIXTURE_GET_REPO_ROOT                              = "fixture-get-repo-root"
-	TEST_FIXTURE_GET_PATH_FROM_REPO_ROOT                    = "fixture-get-path/fixture-get-path-from-repo-root"
-	TEST_FIXTURE_GET_PATH_TO_REPO_ROOT                      = "fixture-get-path/fixture-get-path-to-repo-root"
-	TEST_FIXTURE_GET_PLATFORM                               = "fixture-get-platform"
-	TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_HCL                  = "fixture-get-terragrunt-source-hcl"
-	TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_CLI                  = "fixture-get-terragrunt-source-cli"
-	TEST_FIXTURE_REGRESSIONS                                = "fixture-regressions"
-	TEST_FIXTURE_PLANFILE_ORDER                             = "fixture-planfile-order-test"
-	TEST_FIXTURE_DIRS_PATH                                  = "fixture-dirs"
-	TEST_FIXTURE_PARALLELISM                                = "fixture-parallelism"
-	TEST_FIXTURE_SOPS                                       = "fixture-sops"
-	TEST_FIXTURE_DESTROY_WARNING                            = "fixture-destroy-warning"
-	TEST_FIXTURE_INCLUDE_PARENT                             = "fixture-include-parent"
-	TEST_FIXTURE_AUTO_INIT                                  = "fixture-download/init-on-source-change"
-	TEST_FIXTURE_DISJOINT                                   = "fixture-stack/disjoint"
-	TEST_FIXTURE_BROKEN_LOCALS                              = "fixture-broken-locals"
-	TEST_FIXTURE_BROKEN_DEPENDENCY                          = "fixture-broken-dependency"
-	TEST_FIXTURE_RENDER_JSON_METADATA                       = "fixture-render-json-metadata"
-	TEST_FIXTURE_RENDER_JSON_MOCK_OUTPUTS                   = "fixture-render-json-mock-outputs"
-	TEST_FIXTURE_STARTSWITH                                 = "fixture-startswith"
-	TEST_FIXTURE_ENDSWITH                                   = "fixture-endswith"
-	TEST_FIXTURE_TFLINT_NO_ISSUES_FOUND                     = "fixture-tflint/no-issues-found"
-	TEST_FIXTURE_TFLINT_ISSUES_FOUND                        = "fixture-tflint/issues-found"
-	TEST_FIXTURE_TFLINT_NO_CONFIG_FILE                      = "fixture-tflint/no-config-file"
-	TEST_FIXTURE_TFLINT_MODULE_FOUND                        = "fixture-tflint/module-found"
-	TEST_FIXTURE_TFLINT_NO_TF_SOURCE_PATH                   = "fixture-tflint/no-tf-source"
-	TEST_FIXTURE_PARALLEL_RUN                               = "fixture-parallel-run"
-	TEST_FIXTURE_INIT_ERROR                                 = "fixture-init-error"
-	TERRAFORM_BINARY                                        = "terraform"
-	TERRAFORM_FOLDER                                        = ".terraform"
-	TERRAFORM_STATE                                         = "terraform.tfstate"
-	TERRAFORM_STATE_BACKUP                                  = "terraform.tfstate.backup"
-	TERRAGRUNT_CACHE                                        = ".terragrunt-cache"
+	TERRAFORM_REMOTE_STATE_S3_REGION                                         = "us-west-2"
+	TERRAFORM_REMOTE_STATE_GCP_REGION                                        = "eu"
+	TEST_FIXTURE_PATH                                                        = "fixture/"
+	TEST_FIXTURE_CODEGEN_PATH                                                = "fixture-codegen"
+	TEST_FIXTURE_GCS_PATH                                                    = "fixture-gcs/"
+	TEST_FIXTURE_GCS_BYO_BUCKET_PATH                                         = "fixture-gcs-byo-bucket/"
+	TEST_FIXTURE_STACK                                                       = "fixture-stack/"
+	TEST_FIXTURE_GRAPH_DEPENDENCIES                                          = "fixture-graph-dependencies"
+	TEST_FIXTURE_OUTPUT_ALL                                                  = "fixture-output-all"
+	TEST_FIXTURE_OUTPUT_FROM_REMOTE_STATE                                    = "fixture-output-from-remote-state"
+	TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY                                      = "fixture-output-from-dependency"
+	TEST_FIXTURE_STDOUT                                                      = "fixture-download/stdout-test"
+	TEST_FIXTURE_EXTRA_ARGS_PATH                                             = "fixture-extra-args/"
+	TEST_FIXTURE_ENV_VARS_BLOCK_PATH                                         = "fixture-env-vars-block/"
+	TEST_FIXTURE_SKIP                                                        = "fixture-skip/"
+	TEST_FIXTURE_CONFIG_SINGLE_JSON_PATH                                     = "fixture-config-files/single-json-config"
+	TEST_FIXTURE_PREVENT_DESTROY_OVERRIDE                                    = "fixture-prevent-destroy-override/child"
+	TEST_FIXTURE_PREVENT_DESTROY_NOT_SET                                     = "fixture-prevent-destroy-not-set/child"
+	TEST_FIXTURE_LOCAL_PREVENT_DESTROY                                       = "fixture-download/local-with-prevent-destroy"
+	TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES                          = "fixture-download/local-with-prevent-destroy-dependencies"
+	TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES                  = "fixture-download/local-include-with-prevent-destroy-dependencies"
+	TEST_FIXTURE_NOT_EXISTING_SOURCE                                         = "fixture-download/invalid-path"
+	TEST_FIXTURE_EXTERNAL_DEPENDENCIE                                        = "fixture-external-dependencies"
+	TEST_FIXTURE_MISSING_DEPENDENCIE                                         = "fixture-missing-dependencies/main"
+	TEST_FIXTURE_GET_OUTPUT                                                  = "fixture-get-output"
+	TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH                                      = "fixture-hooks/before-only"
+	TEST_FIXTURE_HOOKS_ALL_PATH                                              = "fixture-hooks/all"
+	TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH                                       = "fixture-hooks/after-only"
+	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH                                 = "fixture-hooks/before-and-after"
+	TEST_FIXTURE_HOOKS_BEFORE_AFTER_AND_ERROR_MERGE_PATH                     = "fixture-hooks/before-after-and-error-merge"
+	TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH                                    = "fixture-hooks/skip-on-error"
+	TEST_FIXTURE_ERROR_HOOKS_PATH                                            = "fixture-hooks/error-hooks"
+	TEST_FIXTURE_HOOKS_ONE_ARG_ACTION_PATH                                   = "fixture-hooks/one-arg-action"
+	TEST_FIXTURE_HOOKS_EMPTY_STRING_COMMAND_PATH                             = "fixture-hooks/bad-arg-action/empty-string-command"
+	TEST_FIXTURE_HOOKS_EMPTY_COMMAND_LIST_PATH                               = "fixture-hooks/bad-arg-action/empty-command-list"
+	TEST_FIXTURE_HOOKS_INTERPOLATIONS_PATH                                   = "fixture-hooks/interpolations"
+	TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_NO_BACKEND                        = "fixture-hooks/init-once/no-source-no-backend"
+	TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_WITH_BACKEND                      = "fixture-hooks/init-once/no-source-with-backend"
+	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND                      = "fixture-hooks/init-once/with-source-no-backend"
+	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND_SUPPRESS_HOOK_STDOUT = "fixture-hooks/init-once/with-source-no-backend-suppress-hook-stdout"
+	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_WITH_BACKEND                    = "fixture-hooks/init-once/with-source-with-backend"
+	TEST_FIXTURE_FAILED_TERRAFORM                                            = "fixture-failure"
+	TEST_FIXTURE_EXIT_CODE                                                   = "fixture-exit-code"
+	TEST_FIXTURE_AUTO_RETRY_RERUN                                            = "fixture-auto-retry/re-run"
+	TEST_FIXTURE_AUTO_RETRY_EXHAUST                                          = "fixture-auto-retry/exhaust"
+	TEST_FIXTURE_AUTO_RETRY_CUSTOM_ERRORS                                    = "fixture-auto-retry/custom-errors"
+	TEST_FIXTURE_AUTO_RETRY_CUSTOM_ERRORS_NOT_SET                            = "fixture-auto-retry/custom-errors-not-set"
+	TEST_FIXTURE_AUTO_RETRY_APPLY_ALL_RETRIES                                = "fixture-auto-retry/apply-all"
+	TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES                             = "fixture-auto-retry/configurable-retries"
+	TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES_ERROR_1                     = "fixture-auto-retry/configurable-retries-incorrect-retry-attempts"
+	TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES_ERROR_2                     = "fixture-auto-retry/configurable-retries-incorrect-sleep-interval"
+	TEST_FIXTURE_AWS_PROVIDER_PATCH                                          = "fixture-aws-provider-patch"
+	TEST_FIXTURE_INPUTS                                                      = "fixture-inputs"
+	TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL                                = "fixture-locals-errors/undefined-local"
+	TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL_BUT_INPUT                      = "fixture-locals-errors/undefined-local-but-input"
+	TEST_FIXTURE_LOCALS_CANONICAL                                            = "fixture-locals/canonical"
+	TEST_FIXTURE_LOCALS_IN_INCLUDE                                           = "fixture-locals/local-in-include"
+	TEST_FIXTURE_LOCAL_RUN_ONCE                                              = "fixture-locals/run-once"
+	TEST_FIXTURE_LOCAL_RUN_MULTIPLE                                          = "fixture-locals/run-multiple"
+	TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH                            = "qa/my-app"
+	TEST_FIXTURE_READ_CONFIG                                                 = "fixture-read-config"
+	TEST_FIXTURE_READ_IAM_ROLE                                               = "fixture-read-config/iam_role_in_file"
+	TEST_FIXTURE_IAM_ROLES_MULTIPLE_MODULES                                  = "fixture-read-config/iam_roles_multiple_modules"
+	TEST_FIXTURE_RELATIVE_INCLUDE_CMD                                        = "fixture-relative-include-cmd"
+	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                                     = "fixture-get-aws-caller-identity"
+	TEST_FIXTURE_GET_REPO_ROOT                                               = "fixture-get-repo-root"
+	TEST_FIXTURE_PATH_RELATIVE_FROM_INCLUDE                                  = "fixture-get-path/fixture-path_relative_from_include"
+	TEST_FIXTURE_GET_PATH_FROM_REPO_ROOT                                     = "fixture-get-path/fixture-get-path-from-repo-root"
+	TEST_FIXTURE_GET_PATH_TO_REPO_ROOT                                       = "fixture-get-path/fixture-get-path-to-repo-root"
+	TEST_FIXTURE_GET_PLATFORM                                                = "fixture-get-platform"
+	TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_HCL                                   = "fixture-get-terragrunt-source-hcl"
+	TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_CLI                                   = "fixture-get-terragrunt-source-cli"
+	TEST_FIXTURE_REGRESSIONS                                                 = "fixture-regressions"
+	TEST_FIXTURE_PLANFILE_ORDER                                              = "fixture-planfile-order-test"
+	TEST_FIXTURE_DIRS_PATH                                                   = "fixture-dirs"
+	TEST_FIXTURE_PARALLELISM                                                 = "fixture-parallelism"
+	TEST_FIXTURE_SOPS                                                        = "fixture-sops"
+	TEST_FIXTURE_DESTROY_WARNING                                             = "fixture-destroy-warning"
+	TEST_FIXTURE_INCLUDE_PARENT                                              = "fixture-include-parent"
+	TEST_FIXTURE_AUTO_INIT                                                   = "fixture-download/init-on-source-change"
+	TEST_FIXTURE_DISJOINT                                                    = "fixture-stack/disjoint"
+	TEST_FIXTURE_BROKEN_LOCALS                                               = "fixture-broken-locals"
+	TEST_FIXTURE_BROKEN_DEPENDENCY                                           = "fixture-broken-dependency"
+	TEST_FIXTURE_RENDER_JSON_METADATA                                        = "fixture-render-json-metadata"
+	TEST_FIXTURE_RENDER_JSON_MOCK_OUTPUTS                                    = "fixture-render-json-mock-outputs"
+	TEST_FIXTURE_RENDER_JSON_INPUTS                                          = "fixture-render-json-inputs"
+	TEST_FIXTURE_STARTSWITH                                                  = "fixture-startswith"
+	TEST_FIXTURE_TIMECMP                                                     = "fixture-timecmp"
+	TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP                                   = "fixture-timecmp-errors/invalid-timestamp"
+	TEST_FIXTURE_ENDSWITH                                                    = "fixture-endswith"
+	TEST_FIXTURE_TFLINT_NO_ISSUES_FOUND                                      = "fixture-tflint/no-issues-found"
+	TEST_FIXTURE_TFLINT_ISSUES_FOUND                                         = "fixture-tflint/issues-found"
+	TEST_FIXTURE_TFLINT_NO_CONFIG_FILE                                       = "fixture-tflint/no-config-file"
+	TEST_FIXTURE_TFLINT_MODULE_FOUND                                         = "fixture-tflint/module-found"
+	TEST_FIXTURE_TFLINT_NO_TF_SOURCE_PATH                                    = "fixture-tflint/no-tf-source"
+	TEST_FIXTURE_PARALLEL_RUN                                                = "fixture-parallel-run"
+	TEST_FIXTURE_INIT_ERROR                                                  = "fixture-init-error"
+	TEST_FIXTURE_MODULE_PATH_ERROR                                           = "fixture-module-path-in-error"
+	TEST_FIXTURE_HCLFMT_DIFF                                                 = "fixture-hclfmt-diff"
+	TEST_FIXTURE_DESTROY_DEPENDENT_MODULE                                    = "fixture-destroy-dependent-module"
+	TEST_FIXTURE_REF_SOURCE                                                  = "fixture-download/remote-ref"
+	TEST_FIXTURE_SOURCE_MAP_SLASHES                                          = "fixture-source-map/slashes-in-ref"
+	TEST_FIXTURE_STRCONTAINS                                                 = "fixture-strcontains"
+	TEST_FIXTURE_INIT_CACHE                                                  = "fixture-init-cache"
+	TERRAFORM_BINARY                                                         = "terraform"
+	TERRAFORM_FOLDER                                                         = ".terraform"
+	TERRAFORM_STATE                                                          = "terraform.tfstate"
+	TERRAFORM_STATE_BACKUP                                                   = "terraform.tfstate.backup"
+	TERRAGRUNT_CACHE                                                         = ".terragrunt-cache"
 
 	qaMyAppRelPath  = "qa/my-app"
 	fixtureDownload = "fixture-download"
@@ -169,7 +180,7 @@ func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
 	)
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
-	output := stderr.String()
+	output := stdout.String()
 
 	if err != nil {
 		t.Errorf("Did not expect to get error: %s", err.Error())
@@ -200,8 +211,7 @@ func TestTerragruntInitHookNoSourceWithBackend(t *testing.T) {
 	)
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
-	output := stderr.String()
-
+	output := stdout.String()
 	if err != nil {
 		t.Errorf("Did not expect to get error: %s", err.Error())
 	}
@@ -226,7 +236,7 @@ func TestTerragruntInitHookWithSourceNoBackend(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", rootPath), &stdout, &stderr)
 	logBufferContentsLineByLine(t, stdout, "apply stdout")
 	logBufferContentsLineByLine(t, stderr, "apply stderr")
-	output := stderr.String()
+	output := stdout.String()
 
 	if err != nil {
 		t.Errorf("Did not expect to get error: %s", err.Error())
@@ -256,7 +266,7 @@ func TestTerragruntInitHookWithSourceWithBackend(t *testing.T) {
 	)
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
-	output := stderr.String()
+	output := stdout.String()
 
 	if err != nil {
 		t.Errorf("Did not expect to get error: %s", err.Error())
@@ -355,7 +365,7 @@ func TestTerragruntBeforeAndAfterHook(t *testing.T) {
 	_, beforeException := ioutil.ReadFile(rootPath + "/before.out")
 	_, afterException := ioutil.ReadFile(rootPath + "/after.out")
 
-	output := stderr.String()
+	output := stdout.String()
 
 	if err != nil {
 		t.Errorf("Did not expect to get error: %s", err.Error())
@@ -384,7 +394,8 @@ func TestTerragruntBeforeAfterAndErrorMergeHook(t *testing.T) {
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath), &stdout, &stderr)
+	assert.ErrorContains(t, err, "executable file not found in $PATH")
 
 	_, beforeException := ioutil.ReadFile(childPath + "/before.out")
 	_, beforeChildException := ioutil.ReadFile(childPath + "/before-child.out")
@@ -423,7 +434,7 @@ func TestTerragruntSkipOnError(t *testing.T) {
 
 	assert.Error(t, err)
 
-	output := stderr.String()
+	output := stdout.String()
 
 	assert.Contains(t, output, "BEFORE_SHOULD_DISPLAY")
 	assert.NotContains(t, output, "BEFORE_NODISPLAY")
@@ -537,7 +548,7 @@ func TestTerragruntHookInterpolation(t *testing.T) {
 	)
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
-	erroutput := stderr.String()
+	output := stdout.String()
 
 	homePath := os.Getenv("HOME")
 	if homePath == "" {
@@ -548,7 +559,7 @@ func TestTerragruntHookInterpolation(t *testing.T) {
 		t.Errorf("Did not expect to get error: %s", err.Error())
 	}
 
-	assert.Contains(t, erroutput, homePath)
+	assert.Contains(t, output, homePath)
 
 }
 
@@ -1842,9 +1853,9 @@ func TestApplyAllSkipFalse(t *testing.T) {
 func TestTerragruntInfo(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND_SUPPRESS_HOOK_STDOUT)
 	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
-	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND_SUPPRESS_HOOK_STDOUT)
 
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
@@ -2943,6 +2954,46 @@ func TestGetRepoRoot(t *testing.T) {
 	require.Regexp(t, "/tmp/terragrunt-.*/fixture-get-repo-root", repoRoot.Value)
 }
 
+func TestPathRelativeFromInclude(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_PATH_RELATIVE_FROM_INCLUDE)
+	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_PATH_RELATIVE_FROM_INCLUDE))
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PATH_RELATIVE_FROM_INCLUDE, "lives/dev")
+	basePath := util.JoinPath(rootPath, "base")
+	clusterPath := util.JoinPath(rootPath, "cluster")
+
+	output, err := exec.Command("git", "init", tmpEnvPath).CombinedOutput()
+	if err != nil {
+		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
+	}
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", clusterPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	val, hasVal := outputs["some_output"]
+	require.True(t, hasVal)
+	require.Equal(t, "something else", val.Value)
+
+	// try to destroy module and check if warning is printed in output, also test `get_parent_terragrunt_dir()` func in the parent terragrunt config.
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", basePath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	assert.Contains(t, stderr.String(), fmt.Sprintf("Detected dependent modules:\n%s", clusterPath))
+}
+
 func TestGetPathFromRepoRoot(t *testing.T) {
 	t.Parallel()
 
@@ -3311,6 +3362,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 				"if_exists":         "overwrite_terragrunt",
 				"comment_prefix":    "# ",
 				"disable_signature": false,
+				"disable":           false,
 				"contents": `provider "aws" {
   region = "us-east-1"
 }
@@ -3353,20 +3405,22 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 			},
 			"before_hook": map[string]interface{}{
 				"before_hook_1": map[string]interface{}{
-					"name":         "before_hook_1",
-					"commands":     []interface{}{"apply", "plan"},
-					"execute":      []interface{}{"touch", "before.out"},
-					"working_dir":  nil,
-					"run_on_error": true,
+					"name":            "before_hook_1",
+					"commands":        []interface{}{"apply", "plan"},
+					"execute":         []interface{}{"touch", "before.out"},
+					"working_dir":     nil,
+					"run_on_error":    true,
+					"suppress_stdout": nil,
 				},
 			},
 			"after_hook": map[string]interface{}{
 				"after_hook_1": map[string]interface{}{
-					"name":         "after_hook_1",
-					"commands":     []interface{}{"apply", "plan"},
-					"execute":      []interface{}{"touch", "after.out"},
-					"working_dir":  nil,
-					"run_on_error": true,
+					"name":            "after_hook_1",
+					"commands":        []interface{}{"apply", "plan"},
+					"execute":         []interface{}{"touch", "after.out"},
+					"working_dir":     nil,
+					"run_on_error":    true,
+					"suppress_stdout": nil,
 				},
 			},
 			"error_hook": map[string]interface{}{},
@@ -3537,6 +3591,34 @@ func TestTerragruntGenerateBlockMultipleSameNameFail(t *testing.T) {
 	assert.Contains(t, parsedError.BlockName, "backend2")
 }
 
+func TestTerragruntGenerateBlockDisable(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "generate-block", "disable")
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
+	require.NoError(t, err)
+	assert.False(t, fileIsInFolder(t, "data.txt", generateTestCase))
+}
+
+func TestTerragruntGenerateBlockEnable(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := filepath.Join(TEST_FIXTURE_CODEGEN_PATH, "generate-block", "enable")
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
+	require.NoError(t, err)
+	assert.True(t, fileIsInFolder(t, "data.txt", generateTestCase))
+}
+
 func TestTerragruntRemoteStateCodegenGeneratesBackendBlock(t *testing.T) {
 	t.Parallel()
 
@@ -3636,7 +3718,7 @@ func TestTerragruntIncludeParentHclFile(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-modules-that-include parent.hcl --terragrunt-modules-that-include common.hcl --terragrunt-non-interactive --terragrunt-working-dir %s", tmpEnvPath), &stdout, &stderr)
 	require.NoError(t, err)
 
-	out := stderr.String()
+	out := stdout.String()
 	assert.Equal(t, 1, strings.Count(out, "parent_hcl_file"))
 	assert.Equal(t, 1, strings.Count(out, "dependency_hcl"))
 	assert.Equal(t, 1, strings.Count(out, "common_hcl"))
@@ -4114,6 +4196,32 @@ func assertS3PublicAccessBlocks(t *testing.T, client *s3.S3, bucketName string) 
 	assert.True(t, aws.BoolValue(publicAccessBlockConfig.RestrictPublicBuckets))
 }
 
+// createS3BucketE create test S3 bucket.
+func createS3BucketE(t *testing.T, awsRegion string, bucketName string) error {
+	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
+	if err != nil {
+		t.Logf("Error creating mockOptions: %v", err)
+		return err
+	}
+
+	sessionConfig := &aws_helper.AwsSessionConfig{
+		Region: awsRegion,
+	}
+
+	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
+	if err != nil {
+		t.Logf("Error creating S3 client: %v", err)
+		return err
+	}
+
+	t.Logf("Creating test s3 bucket %s", bucketName)
+	if _, err := s3Client.CreateBucket(&s3.CreateBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+		t.Logf("Failed to create S3 bucket %s: %v", bucketName, err)
+		return err
+	}
+	return nil
+}
+
 // deleteS3BucketWithRetry will attempt to delete the specified S3 bucket, retrying up to 3 times if there are errors to
 // handle eventual consistency issues.
 func deleteS3BucketWithRetry(t *testing.T, awsRegion string, bucketName string) {
@@ -4507,7 +4615,7 @@ func TestTerragruntInitOnce(t *testing.T) {
 
 	runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_RUN_ONCE), &stdout, &stderr)
 
-	errout := string(stderr.Bytes())
+	errout := string(stdout.Bytes())
 
 	assert.Equal(t, 1, strings.Count(errout, "foo"))
 }
@@ -4521,7 +4629,7 @@ func TestTerragruntInitRunCmd(t *testing.T) {
 
 	runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_RUN_MULTIPLE), &stdout, &stderr)
 
-	errout := string(stderr.Bytes())
+	errout := string(stdout.Bytes())
 
 	// Check for cached values between locals and inputs sections
 	assert.Equal(t, 1, strings.Count(errout, "potato"))
@@ -4589,9 +4697,9 @@ func TestPathRelativeToIncludeInvokedInCorrectPathFromChild(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt version --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", appPath), &stdout, &stderr)
 	require.NoError(t, err)
-	errout := string(stderr.Bytes())
-	assert.Equal(t, 1, strings.Count(errout, "\npath_relative_to_inclue: app\n"))
-	assert.Equal(t, 0, strings.Count(errout, "\npath_relative_to_inclue: .\n"))
+	output := string(stdout.Bytes())
+	assert.Equal(t, 1, strings.Count(output, "path_relative_to_inclue: app\n"))
+	assert.Equal(t, 0, strings.Count(output, "path_relative_to_inclue: .\n"))
 }
 
 func TestTerragruntInitConfirmation(t *testing.T) {
@@ -4943,6 +5051,7 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 				"comment_prefix":    "# ",
 				"contents":          "# test\n",
 				"disable_signature": false,
+				"disable":           false,
 				"if_exists":         "overwrite",
 				"path":              "provider.tf",
 			},
@@ -5169,15 +5278,62 @@ func TestStartsWith(t *testing.T) {
 
 	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
 
-	validateBoolOutput(t, outputs, "startswith1", true)
-	validateBoolOutput(t, outputs, "startswith2", false)
-	validateBoolOutput(t, outputs, "startswith3", true)
-	validateBoolOutput(t, outputs, "startswith4", false)
-	validateBoolOutput(t, outputs, "startswith5", true)
-	validateBoolOutput(t, outputs, "startswith6", false)
-	validateBoolOutput(t, outputs, "startswith7", true)
-	validateBoolOutput(t, outputs, "startswith8", false)
-	validateBoolOutput(t, outputs, "startswith9", false)
+	validateOutput(t, outputs, "startswith1", true)
+	validateOutput(t, outputs, "startswith2", false)
+	validateOutput(t, outputs, "startswith3", true)
+	validateOutput(t, outputs, "startswith4", false)
+	validateOutput(t, outputs, "startswith5", true)
+	validateOutput(t, outputs, "startswith6", false)
+	validateOutput(t, outputs, "startswith7", true)
+	validateOutput(t, outputs, "startswith8", false)
+	validateOutput(t, outputs, "startswith9", false)
+}
+
+func TestTimeCmp(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_TIMECMP)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_TIMECMP)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_TIMECMP)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	validateOutput(t, outputs, "timecmp1", float64(0))
+	validateOutput(t, outputs, "timecmp2", float64(0))
+	validateOutput(t, outputs, "timecmp3", float64(1))
+	validateOutput(t, outputs, "timecmp4", float64(-1))
+	validateOutput(t, outputs, "timecmp5", float64(-1))
+	validateOutput(t, outputs, "timecmp6", float64(1))
+}
+
+func TestTimeCmpInvalidTimestamp(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP)
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+
+	expectedError := `not a valid RFC3339 timestamp: missing required time introducer 'T'`
+	require.ErrorContains(t, err, expectedError)
 }
 
 func TestEndsWith(t *testing.T) {
@@ -5202,15 +5358,15 @@ func TestEndsWith(t *testing.T) {
 
 	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
 
-	validateBoolOutput(t, outputs, "endswith1", true)
-	validateBoolOutput(t, outputs, "endswith2", false)
-	validateBoolOutput(t, outputs, "endswith3", true)
-	validateBoolOutput(t, outputs, "endswith4", false)
-	validateBoolOutput(t, outputs, "endswith5", true)
-	validateBoolOutput(t, outputs, "endswith6", false)
-	validateBoolOutput(t, outputs, "endswith7", true)
-	validateBoolOutput(t, outputs, "endswith8", false)
-	validateBoolOutput(t, outputs, "endswith9", false)
+	validateOutput(t, outputs, "endswith1", true)
+	validateOutput(t, outputs, "endswith2", false)
+	validateOutput(t, outputs, "endswith3", true)
+	validateOutput(t, outputs, "endswith4", false)
+	validateOutput(t, outputs, "endswith5", true)
+	validateOutput(t, outputs, "endswith6", false)
+	validateOutput(t, outputs, "endswith7", true)
+	validateOutput(t, outputs, "endswith8", false)
+	validateOutput(t, outputs, "endswith9", false)
 }
 
 func TestMockOutputsMergeWithState(t *testing.T) {
@@ -5319,7 +5475,279 @@ func TestErrorExplaining(t *testing.T) {
 	assert.Contains(t, explanation, "Check your credentials and permissions")
 }
 
-func validateBoolOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value bool) {
+func TestModulePathInPlanErrorMessage(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_MODULE_PATH_ERROR)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "app")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan -no-color --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), fmt.Sprintf("[%s] exit status 1", util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "d1")))
+}
+
+func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_MODULE_PATH_ERROR)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all plan -no-color --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), fmt.Sprintf("[%s] exit status 1", util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "d1")))
+}
+
+func TestHclFmtDiff(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_HCLFMT_DIFF)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HCLFMT_DIFF)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HCLFMT_DIFF)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt hclfmt --terragrunt-diff --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	output := stdout.String()
+
+	expectedDiff, err := ioutil.ReadFile(util.JoinPath(rootPath, "expected.diff"))
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, stdout, "output")
+	assert.Contains(t, output, string(expectedDiff))
+}
+
+func TestDestroyDependentModule(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_DESTROY_DEPENDENT_MODULE)
+	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_DESTROY_DEPENDENT_MODULE))
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_DEPENDENT_MODULE)
+
+	output, err := exec.Command("git", "init", rootPath).CombinedOutput()
+	if err != nil {
+		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
+	}
+	// apply each module in order
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", util.JoinPath(rootPath, "a")))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", util.JoinPath(rootPath, "b")))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", util.JoinPath(rootPath, "c")))
+
+	config.ClearOutputCache()
+
+	// destroy module which have outputs from other modules
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", util.JoinPath(rootPath, "c")), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	assert.True(t, strings.Contains(stderr.String(), util.JoinPath(rootPath, "b", "terragrunt.hcl")))
+	assert.True(t, strings.Contains(stderr.String(), util.JoinPath(rootPath, "a", "terragrunt.hcl")))
+
+	assert.True(t, strings.Contains(stderr.String(), "\"value\": \"module-b.txt\""))
+	assert.True(t, strings.Contains(stderr.String(), "\"value\": \"module-a.txt\""))
+}
+
+func TestDownloadSourceWithRef(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_REF_SOURCE)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_REF_SOURCE)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	require.NoError(t, err)
+}
+
+func TestSourceMapWithSlashInRef(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_SOURCE_MAP_SLASHES)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_SOURCE_MAP_SLASHES)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=git::git@github.com:gruntwork-io/terragrunt.git?ref=fixture/test --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	require.NoError(t, err)
+}
+
+func TestStrContains(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_STRCONTAINS)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_STRCONTAINS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_STRCONTAINS)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	validateOutput(t, outputs, "o1", true)
+	validateOutput(t, outputs, "o2", false)
+}
+
+func TestInitSkipCache(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_INIT_CACHE)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INIT_CACHE)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_CACHE, "app")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	// verify that init was invoked
+	assert.Contains(t, stdout.String(), "Terraform has been successfully initialized!")
+	assert.Contains(t, stderr.String(), "Running command: terraform init")
+
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	// verify that init wasn't invoked second time since cache directories are ignored
+	assert.NotContains(t, stdout.String(), "Terraform has been successfully initialized!")
+	assert.NotContains(t, stderr.String(), "Running command: terraform init")
+
+	// verify that after adding new file, init is executed
+	tfFile := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_CACHE, "app", "project.tf")
+	if err := ioutil.WriteFile(tfFile, []byte(""), 0644); err != nil {
+		t.Fatalf("Error writing new Terraform file to %s: %v", tfFile, err)
+	}
+
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	// verify that init was invoked
+	assert.Contains(t, stdout.String(), "Terraform has been successfully initialized!")
+	assert.Contains(t, stderr.String(), "Running command: terraform init")
+}
+
+func TestRenderJsonWithInputsNotExistingOutput(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_RENDER_JSON_INPUTS)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	dependencyPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_INPUTS, "dependency")
+	appPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_INPUTS, "app")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", dependencyPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-working-dir %s", appPath))
+
+	jsonOut := filepath.Join(appPath, "terragrunt_rendered.json")
+
+	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	var includeMetadata = map[string]interface{}{
+		"found_in_file": util.JoinPath(appPath, "terragrunt.hcl"),
+	}
+
+	var inputs = renderedJson[config.MetadataInputs]
+	var expectedInputs = map[string]interface{}{
+		"static_value": map[string]interface{}{
+			"metadata": includeMetadata,
+			"value":    "static_value",
+		},
+		"value": map[string]interface{}{
+			"metadata": includeMetadata,
+			"value":    "output_value",
+		},
+		"not_existing_value": map[string]interface{}{
+			"metadata": includeMetadata,
+			"value":    "",
+		},
+	}
+	assert.True(t, reflect.DeepEqual(expectedInputs, inputs))
+}
+
+func TestTerragruntFailIfBucketCreationIsRequired(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PATH)
+	cleanupTerraformFolder(t, rootPath)
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+
+	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, rootPath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-fail-on-state-bucket-creation --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, rootPath), &stdout, &stderr)
+	assert.Error(t, err)
+}
+
+func TestTerragruntDisableBucketUpdate(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PATH)
+	cleanupTerraformFolder(t, rootPath)
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+
+	err := createS3BucketE(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	assert.NoError(t, err)
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+
+	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, rootPath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-disable-bucket-update --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, rootPath))
+
+	_, err = bucketPolicy(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	// validate that bucket policy is not updated, because of --terragrunt-disable-bucket-update
+	assert.Error(t, err)
+}
+
+func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
 	t.Helper()
 	output, hasPlatform := outputs[key]
 	require.Truef(t, hasPlatform, "Expected output %s to be defined", key)

@@ -424,7 +424,7 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 	return &convertedOutput, isEmpty, errors.WithStackTrace(err)
 }
 
-// This function will true if terragrunt was invoked with renderJsonCommand
+// isRenderJsonCommand This function will true if terragrunt was invoked with render-json
 func isRenderJsonCommand(terragruntOptions *options.TerragruntOptions) bool {
 	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, renderJsonCommand)
 }
@@ -488,6 +488,8 @@ func cloneTerragruntOptionsForDependency(terragruntOptions *options.TerragruntOp
 func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.TerragruntOptions, targetConfig string) (*options.TerragruntOptions, error) {
 	targetOptions := cloneTerragruntOptionsForDependency(terragruntOptions, targetConfig)
 	targetOptions.IncludeModulePrefix = false
+	// just read outputs, so no need to check for dependent modules
+	targetOptions.CheckDependentModules = false
 	targetOptions.TerraformCommand = "output"
 	targetOptions.TerraformCliArgs = []string{"output", "-json"}
 
@@ -654,6 +656,7 @@ func getTerragruntOutputJsonFromInitFolder(terragruntOptions *options.Terragrunt
 // To do this, this function will:
 // - Create a temporary folder
 // - Generate the backend.tf file with the backend configuration from the remote_state block
+// - Copy the provider lock file, if there is one in the dependency's working directory
 // - Run terraform init and terraform output
 // - Clean up folder once json file is generated
 // NOTE: terragruntOptions should be in the context of the targetConfig already.
@@ -712,6 +715,12 @@ func getTerragruntOutputJsonFromRemoteState(
 		return nil, err
 	}
 	terragruntOptions.Logger.Debugf("Generated remote state configuration in working dir %s", tempWorkDir)
+
+	// Check for a provider lock file and copy it to the working dir if it exists.
+	terragruntDir := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+	if err := util.CopyLockFile(terragruntDir, tempWorkDir, terragruntOptions.Logger); err != nil {
+		return nil, err
+	}
 
 	// The working directory is now set up to interact with the state, so pull it down to get the json output.
 
@@ -812,7 +821,10 @@ func runTerragruntOutputJson(targetTGOptions *options.TerragruntOptions, targetC
 		return nil, errors.WithStackTrace(err)
 	}
 
-	stdoutBufferWriter.Flush()
+	err = stdoutBufferWriter.Flush()
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
 	jsonString := stdoutBuffer.String()
 	jsonBytes := []byte(strings.TrimSpace(jsonString))
 	targetTGOptions.Logger.Debugf("Retrieved output from %s as json: %s", targetConfig, jsonString)

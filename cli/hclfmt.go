@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -45,7 +46,7 @@ func runHCLFmt(terragruntOptions *options.TerragruntOptions) error {
 	filteredTgHclFiles := []string{}
 	for _, fname := range tgHclFiles {
 		// Ignore any files that are in the .terragrunt-cache
-		if !util.ListContainsElement(strings.Split(fname, "/"), ".terragrunt-cache") {
+		if !util.ListContainsElement(strings.Split(fname, "/"), util.TerragruntCacheDir) {
 			filteredTgHclFiles = append(filteredTgHclFiles, fname)
 		} else {
 			terragruntOptions.Logger.Debugf("%s was ignored due to being in the terragrunt cache", fname)
@@ -93,6 +94,19 @@ func formatTgHCL(terragruntOptions *options.TerragruntOptions, tgHclFile string)
 
 	fileUpdated := !bytes.Equal(newContents, contents)
 
+	if terragruntOptions.Diff && fileUpdated {
+		diff, err := bytesDiff(contents, newContents, tgHclFile)
+		if err != nil {
+			terragruntOptions.Logger.Errorf("Failed to generate diff for %s", tgHclFile)
+			return err
+		}
+		_, err = fmt.Fprintf(terragruntOptions.Writer, "%s\n", diff)
+		if err != nil {
+			terragruntOptions.Logger.Errorf("Failed to print diff for %s", tgHclFile)
+			return err
+		}
+	}
+
 	if terragruntOptions.Check && fileUpdated {
 		return fmt.Errorf("Invalid file format %s", tgHclFile)
 	}
@@ -115,4 +129,38 @@ func checkErrors(logger *logrus.Entry, contents []byte, tgHclFile string) error 
 		return diags
 	}
 	return nil
+}
+
+// bytesDiff uses GNU diff to display the differences between the contents of HCL file before and after formatting
+func bytesDiff(b1, b2 []byte, path string) ([]byte, error) {
+	f1, err := ioutil.TempFile("", "")
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		f1.Close()
+		os.Remove(f1.Name())
+	}()
+
+	f2, err := ioutil.TempFile("", "")
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		f2.Close()
+		os.Remove(f2.Name())
+	}()
+	if _, err := f1.Write(b1); err != nil {
+		return nil, err
+	}
+	if _, err := f2.Write(b2); err != nil {
+		return nil, err
+	}
+	data, err := exec.Command("diff", "--label="+filepath.Join("old", path), "--label="+filepath.Join("new/", path), "-u", f1.Name(), f2.Name()).CombinedOutput()
+	if len(data) > 0 {
+		// diff exits with a non-zero status when the files don't match.
+		// Ignore that failure as long as we get output.
+		err = nil
+	}
+	return data, err
 }

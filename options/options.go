@@ -28,8 +28,6 @@ const DEFAULT_PARALLELISM = math.MaxInt32
 // TERRAFORM_DEFAULT_PATH just takes terraform from the path
 const TERRAFORM_DEFAULT_PATH = "terraform"
 
-const TerragruntCacheDir = ".terragrunt-cache"
-
 const DefaultTFDataDir = ".terraform"
 
 const DefaultIAMAssumeRoleDuration = 3600
@@ -162,6 +160,9 @@ type TerragruntOptions struct {
 	// Enable check mode, by default it's disabled.
 	Check bool
 
+	// Show diff, by default it's disabled.
+	Diff bool
+
 	// The file which hclfmt should be specifically run on
 	HclFile string
 
@@ -204,6 +205,12 @@ type TerragruntOptions struct {
 
 	// Controls if a module prefix will be prepended to TF outputs
 	IncludeModulePrefix bool
+
+	// Fail execution if is required to create S3 bucket
+	FailIfBucketCreationRequired bool
+
+	// Controls if s3 bucket should be updated or skipped
+	DisableBucketUpdate bool
 }
 
 // IAMOptions represents options that are used by Terragrunt to assume an IAM role.
@@ -281,6 +288,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 		StrictInclude:                  false,
 		Parallelism:                    DEFAULT_PARALLELISM,
 		Check:                          false,
+		Diff:                           false,
 		FetchDependencyOutputFromState: false,
 		UsePartialParseConfigCache:     false,
 		OutputPrefix:                   "",
@@ -295,7 +303,7 @@ func NewTerragruntOptions(terragruntConfigPath string) (*TerragruntOptions, erro
 func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string, error) {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
-	downloadDir, err := filepath.Abs(filepath.Join(workingDir, TerragruntCacheDir))
+	downloadDir, err := filepath.Abs(filepath.Join(workingDir, util.TerragruntCacheDir))
 	if err != nil {
 		return "", "", errors.WithStackTrace(err)
 	}
@@ -383,6 +391,8 @@ func (terragruntOptions *TerragruntOptions) Clone(terragruntConfigPath string) *
 		UsePartialParseConfigCache:     terragruntOptions.UsePartialParseConfigCache,
 		OutputPrefix:                   terragruntOptions.OutputPrefix,
 		IncludeModulePrefix:            terragruntOptions.IncludeModulePrefix,
+		FailIfBucketCreationRequired:   terragruntOptions.FailIfBucketCreationRequired,
+		DisableBucketUpdate:            terragruntOptions.DisableBucketUpdate,
 	}
 }
 

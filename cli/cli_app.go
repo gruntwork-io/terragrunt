@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/gruntwork-cli/collections"
 	"github.com/hashicorp/go-multierror"
 	"github.com/mattn/go-zglob"
-	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 
 	"github.com/gruntwork-io/terragrunt/aws_helper"
@@ -54,6 +53,7 @@ const (
 	optTerragruntStrictInclude                  = "terragrunt-strict-include"
 	optTerragruntParallelism                    = "terragrunt-parallelism"
 	optTerragruntCheck                          = "terragrunt-check"
+	optTerragruntDiff                           = "terragrunt-diff"
 	optTerragruntHCLFmt                         = "terragrunt-hclfmt-file"
 	optTerragruntDebug                          = "terragrunt-debug"
 	optTerragruntOverrideAttr                   = "terragrunt-override-attr"
@@ -64,6 +64,8 @@ const (
 	optTerragruntFetchDependencyOutputFromState = "terragrunt-fetch-dependency-output-from-state"
 	optTerragruntUsePartialParseConfigCache     = "terragrunt-use-partial-parse-config-cache"
 	optTerragruntIncludeModulePrefix            = "terragrunt-include-module-prefix"
+	optTerragruntFailOnStateBucketCreation      = "terragrunt-fail-on-state-bucket-creation"
+	optTerragruntDisableBucketUpdate            = "terragrunt-disable-bucket-update"
 	optTerragruntOutputWithMetadata             = "with-metadata"
 )
 
@@ -78,12 +80,15 @@ var allTerragruntBooleanOpts = []string{
 	optTerragruntNoAutoRetry,
 	optTerragruntNoAutoApprove,
 	optTerragruntCheck,
+	optTerragruntDiff,
 	optTerragruntStrictInclude,
 	optTerragruntDebug,
 	optTerragruntFetchDependencyOutputFromState,
 	optTerragruntUsePartialParseConfigCache,
 	optTerragruntOutputWithMetadata,
 	optTerragruntIncludeModulePrefix,
+	optTerragruntFailOnStateBucketCreation,
+	optTerragruntDisableBucketUpdate,
 }
 var allTerragruntStringOpts = []string{
 	optTerragruntConfig,
@@ -273,6 +278,8 @@ GLOBAL OPTIONS:
    terragrunt-json-out                          The file path that terragrunt should use when rendering the terragrunt.hcl config as json. Only used in the render-json command. Defaults to terragrunt_rendered.json.
    terragrunt-use-partial-parse-config-cache    Enables caching of includes during partial parsing operations. Will also be used for the --terragrunt-iam-role option if provided.
    terragrunt-include-module-prefix             When this flag is set output from Terraform sub-commands is prefixed with module path.
+   terragrunt-fail-on-state-bucket-creation     When this flag is set Terragrunt will fail if the remote state bucket needs to be created.
+   terragrunt-disable-bucket-update             When this flag is set Terragrunt will not update the remote state bucket.
 
 VERSION:
    {{.Version}}{{if len .Authors}}
@@ -621,7 +628,7 @@ func checkVersionConstraints(terragruntOptions *options.TerragruntOptions) error
 
 // Run graph dependencies prints the dependency graph to stdout
 func runGraphDependencies(terragruntOptions *options.TerragruntOptions) error {
-	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
+	stack, err := configstack.FindStackInSubfolders(terragruntOptions, nil)
 	if err != nil {
 		return err
 	}
@@ -736,12 +743,18 @@ func processErrorHooks(hooks []config.ErrorHook, terragruntOptions *options.Terr
 				workingDir = *curHook.WorkingDir
 			}
 
+			var suppressStdout bool
+			if curHook.SuppressStdout != nil && *curHook.SuppressStdout {
+				suppressStdout = true
+			}
+
 			actionToExecute := curHook.Execute[0]
 			actionParams := curHook.Execute[1:]
+
 			_, possibleError := shell.RunShellCommandWithOutput(
 				terragruntOptions,
 				workingDir,
-				false,
+				suppressStdout,
 				false,
 				actionToExecute, actionParams...,
 			)
@@ -796,25 +809,23 @@ func runHook(terragruntOptions *options.TerragruntOptions, terragruntConfig *con
 		workingDir = *curHook.WorkingDir
 	}
 
-	rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
-	actualLock := rawActualLock.(*sync.Mutex)
-	actualLock.Lock()
-	defer actualLock.Unlock()
+	var suppressStdout bool
+	if curHook.SuppressStdout != nil && *curHook.SuppressStdout {
+		suppressStdout = true
+	}
 
 	actionToExecute := curHook.Execute[0]
 	actionParams := curHook.Execute[1:]
 
 	if actionToExecute == "tflint" {
-		err := tflint.RunTflintWithOpts(terragruntOptions, terragruntConfig)
-		if err != nil {
-			terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
+		if err := executeTFLint(terragruntOptions, terragruntConfig, curHook, workingDir); err != nil {
 			return err
 		}
 	} else {
 		_, possibleError := shell.RunShellCommandWithOutput(
 			terragruntOptions,
 			workingDir,
-			false,
+			suppressStdout,
 			false,
 			actionToExecute, actionParams...,
 		)
@@ -822,6 +833,20 @@ func runHook(terragruntOptions *options.TerragruntOptions, terragruntConfig *con
 			terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
 			return possibleError
 		}
+	}
+	return nil
+}
+
+func executeTFLint(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, curHook config.Hook, workingDir string) error {
+	// fetching source code changes lock since tflint is not thread safe
+	rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
+	actualLock := rawActualLock.(*sync.Mutex)
+	actualLock.Lock()
+	defer actualLock.Unlock()
+	err := tflint.RunTflintWithOpts(terragruntOptions, terragruntConfig)
+	if err != nil {
+		terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
+		return err
 	}
 	return nil
 }
@@ -877,7 +902,7 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 			// case, we are using the user's working dir here, rather than just looking at the parent dir of the
 			// terragrunt.hcl. However, the default value for the user's working dir, set in options.go, IS just the
 			// parent dir of terragrunt.hcl, so these will likely always be the same.
-			lockFileError = copyLockFile(terragruntOptions.WorkingDir, originalTerragruntOptions.WorkingDir, terragruntOptions.Logger)
+			lockFileError = util.CopyLockFile(terragruntOptions.WorkingDir, originalTerragruntOptions.WorkingDir, terragruntOptions.Logger)
 		}
 
 		return multierror.Append(runTerraformError, lockFileError).ErrorOrNil()
@@ -933,20 +958,6 @@ func shouldCopyLockFile(args []string) bool {
 		return true
 	}
 	return false
-}
-
-// Terraform 0.14 now generates a lock file when you run `terraform init`.
-// If any such file exists, this function will copy the lock file to the destination folder
-func copyLockFile(sourceFolder string, destinationFolder string, logger *logrus.Entry) error {
-	sourceLockFilePath := util.JoinPath(sourceFolder, util.TerraformLockFile)
-	destinationLockFilePath := util.JoinPath(destinationFolder, util.TerraformLockFile)
-
-	if util.FileExists(sourceLockFilePath) {
-		logger.Debugf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
-		return util.CopyFile(sourceLockFilePath, destinationLockFilePath)
-	}
-
-	return nil
 }
 
 // Run the given action function surrounded by hooks. That is, run the before hooks first, then, if there were no
@@ -1226,7 +1237,7 @@ func runAll(terragruntOptions *options.TerragruntOptions) error {
 		}
 	}
 
-	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
+	stack, err := configstack.FindStackInSubfolders(terragruntOptions, nil)
 	if err != nil {
 		return err
 	}

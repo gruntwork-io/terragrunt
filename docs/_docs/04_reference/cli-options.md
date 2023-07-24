@@ -510,55 +510,41 @@ the dependency graph based on [`dependency`](/docs/reference/config-blocks-and-a
 Terragrunt forwards all options to Terraform. The only exceptions are `--version` and arguments that start with the
 prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available options are:
 
-- [CLI commands](#cli-commands)
-  - [All Terraform built-in commands](#all-terraform-built-in-commands)
-  - [run-all](#run-all)
-  - [plan-all (DEPRECATED: use run-all)](#plan-all-deprecated-use-run-all)
-  - [apply-all (DEPRECATED: use run-all)](#apply-all-deprecated-use-run-all)
-  - [output-all (DEPRECATED: use run-all)](#output-all-deprecated-use-run-all)
-  - [destroy-all (DEPRECATED: use run-all)](#destroy-all-deprecated-use-run-all)
-  - [validate-all (DEPRECATED: use run-all)](#validate-all-deprecated-use-run-all)
-  - [terragrunt-info](#terragrunt-info)
-  - [validate-inputs](#validate-inputs)
-  - [graph-dependencies](#graph-dependencies)
-  - [hclfmt](#hclfmt)
-  - [aws-provider-patch](#aws-provider-patch)
-  - [render-json](#render-json)
-  - [output-module-groups](#output-module-groups)
-- [CLI options](#cli-options)
-  - [terragrunt-config](#terragrunt-config)
-  - [terragrunt-tfpath](#terragrunt-tfpath)
-  - [terragrunt-no-auto-init](#terragrunt-no-auto-init)
-  - [terragrunt-no-auto-approve](#terragrunt-no-auto-approve)
-  - [terragrunt-no-auto-retry](#terragrunt-no-auto-retry)
-  - [terragrunt-non-interactive](#terragrunt-non-interactive)
-  - [terragrunt-working-dir](#terragrunt-working-dir)
-  - [terragrunt-download-dir](#terragrunt-download-dir)
-  - [terragrunt-source](#terragrunt-source)
-  - [terragrunt-source-map](#terragrunt-source-map)
-  - [terragrunt-source-update](#terragrunt-source-update)
-  - [terragrunt-ignore-dependency-errors](#terragrunt-ignore-dependency-errors)
-  - [terragrunt-iam-role](#terragrunt-iam-role)
-  - [terragrunt-iam-assume-role-duration](#terragrunt-iam-assume-role-duration)
-  - [terragrunt-iam-assume-role-session-name](#terragrunt-iam-assume-role-session-name)
-  - [terragrunt-exclude-dir](#terragrunt-exclude-dir)
-  - [terragrunt-include-dir](#terragrunt-include-dir)
-  - [terragrunt-strict-include](#terragrunt-strict-include)
-  - [terragrunt-strict-validate](#terragrunt-strict-validate)
-  - [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
-  - [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
-  - [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
-  - [terragrunt-parallelism](#terragrunt-parallelism)
-  - [terragrunt-debug](#terragrunt-debug)
-  - [terragrunt-log-level](#terragrunt-log-level)
-  - [terragrunt-check](#terragrunt-check)
-  - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
-  - [terragrunt-override-attr](#terragrunt-override-attr)
-  - [terragrunt-json-out](#terragrunt-json-out)
-  - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
-  - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
-  - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
-  - [terragrunt-include-module-prefix](#terragrunt-include-module-prefix)
+- [terragrunt-config](#terragrunt-config)
+- [terragrunt-tfpath](#terragrunt-tfpath)
+- [terragrunt-no-auto-init](#terragrunt-no-auto-init)
+- [terragrunt-no-auto-retry](#terragrunt-no-auto-retry)
+- [terragrunt-no-auto-approve](#terragrunt-no-auto-approve)
+- [terragrunt-non-interactive](#terragrunt-non-interactive)
+- [terragrunt-working-dir](#terragrunt-working-dir)
+- [terragrunt-download-dir](#terragrunt-download-dir)
+- [terragrunt-source](#terragrunt-source)
+- [terragrunt-source-map](#terragrunt-source-map)
+- [terragrunt-source-update](#terragrunt-source-update)
+- [terragrunt-ignore-dependency-errors](#terragrunt-ignore-dependency-errors)
+- [terragrunt-iam-role](#terragrunt-iam-role)
+- [terragrunt-iam-assume-role-duration](#terragrunt-iam-assume-role-duration)
+- [terragrunt-iam-assume-role-session-name](#terragrunt-iam-assume-role-session-name)
+- [terragrunt-exclude-dir](#terragrunt-exclude-dir)
+- [terragrunt-include-dir](#terragrunt-include-dir)
+- [terragrunt-strict-include](#terragrunt-strict-include)
+- [terragrunt-strict-validate](#terragrunt-strict-validate)
+- [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
+- [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
+- [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
+- [terragrunt-parallelism](#terragrunt-parallelism)
+- [terragrunt-debug](#terragrunt-debug)
+- [terragrunt-log-level](#terragrunt-log-level)
+- [terragrunt-check](#terragrunt-check)
+- [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
+- [terragrunt-override-attr](#terragrunt-override-attr)
+- [terragrunt-json-out](#terragrunt-json-out)
+- [terragrunt-modules-that-include](#terragrunt-modules-that-include)
+- [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
+- [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
+- [terragrunt-include-module-prefix](#terragrunt-include-module-prefix)
+- [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
+- [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
 
 ### terragrunt-config
 
@@ -857,6 +843,16 @@ When passed in, run `hclfmt` in check only mode instead of actively overwriting 
 command to exit with exit code 1 if there are any files that are not formatted.
 
 
+### terragrunt-diff
+
+**CLI Arg**: `--terragrunt-diff`<br/>
+**Environment Variable**: `TERRAGRUNT_DIFF` (set to `true`)
+**Commands**:
+- [hclfmt](#hclfmt)
+
+When passed in, running `hclfmt` will print diff between original and modified file versions.
+
+
 ### terragrunt-hclfmt-file
 
 **CLI Arg**: `--terragrunt-hclfmt-file`
@@ -977,3 +973,17 @@ NOTE: This is an experimental feature, use with caution.
 **Environment Variable**: `TERRAGRUNT_INCLUDE_MODULE_PREFIX` (set to `true`)
 
 When this flag is set output from Terraform sub-commands is prefixed with module path.
+
+### terragrunt-fail-on-state-bucket-creation
+
+**CLI Arg**: `--terragrunt-fail-on-state-bucket-creation`
+**Environment Variable**: `TERRAGRUNT_FAIL_ON_STATE_BUCKET_CREATION` (set to `true`)
+
+When this flag is set, Terragrunt will wait for execution if it is required to create the remote state bucket.
+
+### terragrunt-disable-bucket-update
+
+**CLI Arg**: `--terragrunt-disable-bucket-update`
+**Environment Variable**: `TERRAGRUNT_DISABLE_BUCKET_UPDATE` (set to `true`)
+
+When this flag is set, Terragrunt does not update the remote state bucket, which is useful to set if the state bucket is managed by a third party.

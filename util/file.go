@@ -9,14 +9,19 @@ import (
 	"regexp"
 	"strings"
 
+	urlhelper "github.com/hashicorp/go-getter/helper/url"
+
 	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/mattn/go-zglob"
 	homedir "github.com/mitchellh/go-homedir"
+	"github.com/sirupsen/logrus"
 )
 
 const TerraformLockFile = ".terraform.lock.hcl"
+
+const TerragruntCacheDir = ".terragrunt-cache"
 
 // FileOrData will read the contents of the data of the given arg if it is a file, and otherwise return the contents by
 // itself. This will return an error if the given path is a directory.
@@ -188,7 +193,7 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 		return nil, errors.WithStackTrace(err)
 	}
 	for _, absoluteExpandGlobPath := range absoluteExpandGlob {
-		if strings.Contains(absoluteExpandGlobPath, ".terragrunt-cache") {
+		if strings.Contains(absoluteExpandGlobPath, TerragruntCacheDir) {
 			continue
 		}
 		relativeExpandGlobPath, err := GetPathRelativeTo(absoluteExpandGlobPath, source)
@@ -389,6 +394,20 @@ func HasPathPrefix(path, prefix string) bool {
 func JoinTerraformModulePath(modulesFolder string, path string) string {
 	cleanModulesFolder := strings.TrimRight(modulesFolder, `/\`)
 	cleanPath := strings.TrimLeft(path, `/\`)
+	// if source path contains "?ref=", reconstruct module dir using "//"
+	if strings.Contains(cleanModulesFolder, "?ref=") && cleanPath != "" {
+		canonicalSourceUrl, err := urlhelper.Parse(cleanModulesFolder)
+		if err == nil {
+			// append path
+			if canonicalSourceUrl.Opaque != "" {
+				canonicalSourceUrl.Opaque = fmt.Sprintf("%s//%s", strings.TrimRight(canonicalSourceUrl.Opaque, `/\`), cleanPath)
+			} else {
+				canonicalSourceUrl.Path = fmt.Sprintf("%s//%s", strings.TrimRight(canonicalSourceUrl.Path, `/\`), cleanPath)
+			}
+			return canonicalSourceUrl.String()
+		}
+		// fallback to old behavior if we can't parse the url
+	}
 	return fmt.Sprintf("%s//%s", cleanModulesFolder, cleanPath)
 }
 
@@ -510,4 +529,18 @@ type PathIsNotFile struct {
 
 func (err PathIsNotFile) Error() string {
 	return fmt.Sprintf("%s is not a file", err.path)
+}
+
+// Terraform 0.14 now generates a lock file when you run `terraform init`.
+// If any such file exists, this function will copy the lock file to the destination folder
+func CopyLockFile(sourceFolder string, destinationFolder string, logger *logrus.Entry) error {
+	sourceLockFilePath := JoinPath(sourceFolder, TerraformLockFile)
+	destinationLockFilePath := JoinPath(destinationFolder, TerraformLockFile)
+
+	if FileExists(sourceLockFilePath) {
+		logger.Debugf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
+		return CopyFile(sourceLockFilePath, destinationLockFilePath)
+	}
+
+	return nil
 }

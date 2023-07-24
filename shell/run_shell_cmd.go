@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"reflect"
 	"strings"
 	"syscall"
 	"time"
@@ -84,12 +83,6 @@ func RunShellCommandWithOutput(
 	if terragruntOptions.IncludeModulePrefix {
 		prefix = terragruntOptions.OutputPrefix
 	}
-	// Terragrunt can run some commands (such as terraform remote config) before running the actual terraform
-	// command requested by the user. The output of these other commands should not end up on stdout as this
-	// breaks scripts relying on terraform's output.
-	if !reflect.DeepEqual(terragruntOptions.TerraformCliArgs, args) {
-		outWriter = terragruntOptions.ErrWriter
-	}
 
 	if workingDir == "" {
 		cmd.Dir = terragruntOptions.WorkingDir
@@ -137,9 +130,10 @@ func RunShellCommandWithOutput(
 
 	if err != nil {
 		err = ProcessExecutionError{
-			Err:    err,
-			StdOut: stdoutBuf.String(),
-			Stderr: stderrBuf.String(),
+			Err:        err,
+			StdOut:     stdoutBuf.String(),
+			Stderr:     stderrBuf.String(),
+			WorkingDir: cmd.Dir,
 		}
 	}
 
@@ -257,13 +251,15 @@ func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (
 
 // ProcessExecutionError - error returned when a command fails, contains StdOut and StdErr
 type ProcessExecutionError struct {
-	Err    error
-	StdOut string
-	Stderr string
+	Err        error
+	StdOut     string
+	Stderr     string
+	WorkingDir string
 }
 
 func (err ProcessExecutionError) Error() string {
-	return err.Err.Error()
+	// Include in error message the working directory where the command was run, so it's easier for the user to
+	return fmt.Sprintf("[%s] %s", err.WorkingDir, err.Err.Error())
 }
 
 func (err ProcessExecutionError) ExitStatus() (int, error) {

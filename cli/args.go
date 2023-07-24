@@ -56,7 +56,7 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 		return nil, err
 	}
 	if downloadDirRaw == "" {
-		downloadDirRaw = util.JoinPath(workingDir, options.TerragruntCacheDir)
+		downloadDirRaw = util.JoinPath(workingDir, util.TerragruntCacheDir)
 	}
 	downloadDir, err := filepath.Abs(downloadDirRaw)
 	if err != nil {
@@ -232,10 +232,13 @@ func parseTerragruntOptionsFromArgs(terragruntVersion string, args []string, wri
 	opts.ModulesThatInclude = modulesThatInclude
 	opts.StrictInclude = strictInclude
 	opts.Check = parseBooleanArg(args, optTerragruntCheck, os.Getenv("TERRAGRUNT_CHECK") == "true")
+	opts.Diff = parseBooleanArg(args, optTerragruntDiff, os.Getenv("TERRAGRUNT_DIFF") == "true")
 	opts.HclFile = filepath.ToSlash(terragruntHclFilePath)
 	opts.AwsProviderPatchOverrides = awsProviderPatchOverrides
 	opts.FetchDependencyOutputFromState = parseBooleanArg(args, optTerragruntFetchDependencyOutputFromState, os.Getenv("TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE") == "true")
 	opts.UsePartialParseConfigCache = parseBooleanArg(args, optTerragruntUsePartialParseConfigCache, os.Getenv("TERRAGRUNT_USE_PARTIAL_PARSE_CONFIG_CACHE") == "true")
+	opts.DisableBucketUpdate = parseBooleanArg(args, optTerragruntDisableBucketUpdate, os.Getenv("TERRAGRUNT_DISABLE_BUCKET_UPDATE") == "true")
+	opts.FailIfBucketCreationRequired = parseBooleanArg(args, optTerragruntFailOnStateBucketCreation, os.Getenv("TERRAGRUNT_FAIL_ON_STATE_BUCKET_CREATION") == "true")
 	opts.RenderJsonWithMetadata = parseBooleanArg(args, optTerragruntOutputWithMetadata, false)
 
 	opts.JSONOut, err = parseStringArg(args, optTerragruntJSONOut, "")
@@ -496,7 +499,7 @@ func parseMutliStringKeyValueArg(args []string, argName string, defaultValue map
 	if asList == nil {
 		return defaultValue, nil
 	}
-	return util.KeyValuePairStringListToMap(asList)
+	return util.KeyValuePairStringListToMap(asList, util.SplitUrls)
 }
 
 // Parses an environment variable that is encoded as a comma separated kv pair (e.g.,
@@ -508,7 +511,7 @@ func parseMultiStringKeyValueEnvVar(envVarName string) (map[string]string, error
 		return map[string]string{}, nil
 	}
 	mappingsAsList := strings.Split(rawEnvVarVal, ",")
-	return util.KeyValuePairStringListToMap(mappingsAsList)
+	return util.KeyValuePairStringListToMap(mappingsAsList, util.SplitUrls)
 }
 
 // Convert the given variables to a map of environment variables that will expose those variables to Terraform. The

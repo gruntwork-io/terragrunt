@@ -33,23 +33,23 @@ const awsProviderPatchHelp = `
 //
 // For example, if were running Terragrunt against code that contained a module:
 //
-// module "example" {
-//   source = "<URL>"
-// }
+//	module "example" {
+//	  source = "<URL>"
+//	}
 //
 // When you run 'init', Terraform would download the code for that module into .terraform/modules. This function would
 // scan that module code for provider blocks:
 //
-// provider "aws" {
-//    region = var.aws_region
-// }
+//	provider "aws" {
+//	   region = var.aws_region
+//	}
 //
 // And if AwsProviderPatchOverrides in terragruntOptions was set to map[string]string{"region": "us-east-1"}, then this
 // method would update the module code to:
 //
-// provider "aws" {
-//    region = "us-east-1"
-// }
+//	provider "aws" {
+//	   region = "us-east-1"
+//	}
 //
 // This is a temporary workaround for a Terraform bug (https://github.com/hashicorp/terraform/issues/13018) where
 // any dynamic values in nested provider blocks are not handled correctly when you call 'terraform import', so by
@@ -158,15 +158,15 @@ func findAllTerraformFilesInModules(terragruntOptions *options.TerragruntOptions
 //
 // For example, if you passed in the following Terraform code:
 //
-// provider "aws" {
-//    region = var.aws_region
-// }
+//	provider "aws" {
+//	   region = var.aws_region
+//	}
 //
 // And you set attributesToOverride to map[string]string{"region": "us-east-1"}, then this method will return:
 //
-// provider "aws" {
-//    region = "us-east-1"
-// }
+//	provider "aws" {
+//	   region = "us-east-1"
+//	}
 //
 // This is a temporary workaround for a Terraform bug (https://github.com/hashicorp/terraform/issues/13018) where
 // any dynamic values in nested provider blocks are not handled correctly when you call 'terraform import', so by
@@ -209,12 +209,12 @@ func patchAwsProviderInTerraformCode(terraformCode string, terraformFilePath str
 //
 // Assume that block1 is:
 //
-// provider "aws" {
-//   region = var.aws_region
-//   assume_role {
-//     role_arn = var.role_arn
-//   }
-// }
+//	provider "aws" {
+//	  region = var.aws_region
+//	  assume_role {
+//	    role_arn = var.role_arn
+//	  }
+//	}
 //
 // If you call:
 //
@@ -223,12 +223,12 @@ func patchAwsProviderInTerraformCode(terraformCode string, terraformFilePath str
 //
 // The result would be:
 //
-// provider "aws" {
-//   region = "eu-west-1"
-//   assume_role {
-//     role_arn = "foo"
-//   }
-// }
+//	provider "aws" {
+//	  region = "eu-west-1"
+//	  assume_role {
+//	    role_arn = "foo"
+//	  }
+//	}
 //
 // Assume block2 is:
 //
@@ -238,7 +238,6 @@ func patchAwsProviderInTerraformCode(terraformCode string, terraformFilePath str
 //
 // overrideAttributeInBlock(block2, "region", "eu-west-1")
 // overrideAttributeInBlock(block2, "assume_role.role_arn", "foo")
-//
 //
 // The result would be:
 //
@@ -285,24 +284,28 @@ func overrideAttributeInBlock(block *hclwrite.Block, key string, value string) (
 //
 // Assume block is:
 //
-// provider "aws" {
-//   region = var.aws_region
-//   assume_role {
-//     role_arn = var.role_arn
-//   }
-// }
+//	provider "aws" {
+//	  region = var.aws_region
+//	  assume_role {
+//	    role_arn = var.role_arn
+//	  }
+//	}
 //
 // traverseBlock(block, []string{"region"})
-//   => returns (<body of the current block>, "region")
+//
+//	=> returns (<body of the current block>, "region")
 //
 // traverseBlock(block, []string{"assume_role", "role_arn"})
-//   => returns (<body of the nested assume_role block>, "role_arn")
+//
+//	=> returns (<body of the nested assume_role block>, "role_arn")
 //
 // traverseBlock(block, []string{"foo"})
-//   => returns (nil, "")
+//
+//	=> returns (nil, "")
 //
 // traverseBlock(block, []string{"assume_role", "foo"})
-//   => returns (nil, "")
+//
+//	=> returns (nil, "")
 func traverseBlock(block *hclwrite.Block, keyParts []string) (*hclwrite.Body, string) {
 	if block == nil {
 		return nil, ""
