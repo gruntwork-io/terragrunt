@@ -938,7 +938,7 @@ When this flag is set output from Terraform sub-commands is prefixed with module
 **CLI Arg**: `--terragrunt-fail-on-state-bucket-creation`
 **Environment Variable**: `TERRAGRUNT_FAIL_ON_STATE_BUCKET_CREATION` (set to `true`)
 
-When this flag is set, Terragrunt will wait for execution if it is required to create the remote state bucket.
+When this flag is set, Terragrunt will fail and exit if it is necessary to create the remote state bucket.
 
 ### terragrunt-disable-bucket-update
 
