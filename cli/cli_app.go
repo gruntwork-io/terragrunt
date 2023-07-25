@@ -640,7 +640,7 @@ func runGraphDependencies(terragruntOptions *options.TerragruntOptions) error {
 
 // Run graph dependencies returns the dependency graph
 func runGraphDependenciesGroups(terragruntOptions *options.TerragruntOptions) (string, error) {
-	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
+	stack, err := configstack.FindStackInSubfolders(terragruntOptions, nil)
 	if err != nil {
 		return "", err
 	}
