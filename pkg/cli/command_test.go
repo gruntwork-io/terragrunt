@@ -127,6 +127,28 @@ func TestCommandRun(t *testing.T) {
 				nil,
 			}
 		},
+		func(action TestActionFunc, skip ActionFunc) TestCase {
+			return TestCase{
+				[]string{"--foo", "cmd-bar", "--bar", "value", "one", "-two"},
+				Command{
+					Flags:  Flags{&BoolFlag{Name: "foo"}},
+					Before: action(1, nil),
+					Action: action(2, []string{"cmd-bar", "--bar", "value", "one", "-two"}),
+					After:  action(3, nil),
+					Subcommands: Commands{
+						{
+							Name:        "cmd-bar",
+							Flags:       Flags{&GenericFlag[string]{Name: "bar"}},
+							SkipRunning: true,
+							Before:      skip,
+							Action:      skip,
+							After:       skip,
+						},
+					},
+				},
+				nil,
+			}
+		},
 	}
 
 	for i, testCaseFn := range testCaseFuncs {
@@ -151,7 +173,7 @@ func TestCommandRun(t *testing.T) {
 			}
 
 			skip := func(ctx *Context) error {
-				require.Fail(t, "this action must be skipped")
+				assert.Fail(t, "this action must be skipped")
 				return nil
 			}
 
