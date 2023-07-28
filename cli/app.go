@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	hashicorpversion "github.com/hashicorp/go-version"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
@@ -22,7 +23,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
-	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/env"
@@ -47,7 +47,7 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 	app.Version = version.GetVersion()
 	app.Writer = writer
 	app.ErrWriter = errWriter
-	app.Flags = flags.NewFlags(opts).Filter(flags.GlobalFlagNames)
+	app.Flags = commands.NewGlobalFlags(opts)
 	app.Commands = append(
 		deprecatedCommands(opts),
 		terragruntCommands(opts)...)

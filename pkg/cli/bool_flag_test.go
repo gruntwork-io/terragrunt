@@ -14,10 +14,6 @@ import (
 func TestBoolFlagApply(t *testing.T) {
 	t.Parallel()
 
-	mockDestValue := func(val bool) *bool {
-		return &val
-	}
-
 	testCases := []struct {
 		flag          BoolFlag
 		args          []string

@@ -1,4 +1,4 @@
-package flags
+package commands
 
 import (
 	"sort"
@@ -32,8 +32,6 @@ const (
 	FlagNameTerragruntIncludeDir                     = "terragrunt-include-dir"
 	FlagNameTerragruntStrictInclude                  = "terragrunt-strict-include"
 	FlagNameTerragruntParallelism                    = "terragrunt-parallelism"
-	FlagNameTerragruntCheck                          = "terragrunt-check"
-	FlagNameTerragruntDiff                           = "terragrunt-diff"
 	FlagNameTerragruntDebug                          = "terragrunt-debug"
 	FlagNameTerragruntLogLevel                       = "terragrunt-log-level"
 	FlagNameTerragruntNoColor                        = "terragrunt-no-color"
@@ -41,56 +39,13 @@ const (
 	FlagNameTerragruntFetchDependencyOutputFromState = "terragrunt-fetch-dependency-output-from-state"
 	FlagNameTerragruntUsePartialParseConfigCache     = "terragrunt-use-partial-parse-config-cache"
 	FlagNameTerragruntIncludeModulePrefix            = "terragrunt-include-module-prefix"
-	FlagNameTerragruntOverrideAttr                   = "terragrunt-override-attr"
-	FlagNameTerragruntHCLFmt                         = "terragrunt-hclfmt-file"
-	FlagNameTerragruntJSONOut                        = "terragrunt-json-out"
-	FlagNameWithMetadata                             = "with-metadata"
-	FlagTerragruntStrictValidate                     = "terragrunt-strict-validate"
 
 	FlagNameHelp    = "help"
 	FlagNameVersion = "version"
 )
 
-var (
-	// GlobalFlagNames contains the flags that are used in all commands.
-	GlobalFlagNames = []string{
-		FlagNameTerragruntConfig,
-		FlagNameTerragruntTFPath,
-		FlagNameTerragruntNoAutoInit,
-		FlagNameTerragruntNoAutoRetry,
-		FlagNameTerragruntNoAutoApprove,
-		FlagNameTerragruntNonInteractive,
-		FlagNameTerragruntWorkingDir,
-		FlagNameTerragruntDownloadDir,
-		FlagNameTerragruntSource,
-		FlagNameTerragruntSourceMap,
-		FlagNameTerragruntSourceUpdate,
-		FlagNameTerragruntIAMRole,
-		FlagNameTerragruntIAMAssumeRoleDuration,
-		FlagNameTerragruntIAMAssumeRoleSessionName,
-		FlagNameTerragruntIgnoreDependencyErrors,
-		FlagNameTerragruntIgnoreDependencyOrder,
-		FlagNameTerragruntIgnoreExternalDependencies,
-		FlagNameTerragruntIncludeExternalDependencies,
-		FlagNameTerragruntExcludeDir,
-		FlagNameTerragruntIncludeDir,
-		FlagNameTerragruntStrictInclude,
-		FlagNameTerragruntParallelism,
-		FlagNameTerragruntDebug,
-		FlagNameTerragruntLogLevel,
-		FlagNameTerragruntNoColor,
-		FlagNameTerragruntModulesThatInclude,
-		FlagNameTerragruntFetchDependencyOutputFromState,
-		FlagNameTerragruntUsePartialParseConfigCache,
-		FlagNameTerragruntIncludeModulePrefix,
-
-		FlagNameHelp,
-		FlagNameVersion,
-	}
-)
-
-// NewFlags creates and returns all flags that can be used.
-func NewFlags(opts *options.TerragruntOptions) cli.Flags {
+// NewGlobalFlags creates and returns global flags.
+func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 	flags := cli.Flags{
 		&cli.GenericFlag[string]{
 			Name:        FlagNameTerragruntConfig,
@@ -219,18 +174,6 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "Unix-style glob of directories to include when running *-all commands",
 		},
 		&cli.BoolFlag{
-			Name:        FlagNameTerragruntCheck,
-			Destination: &opts.Check,
-			EnvVar:      "TERRAGRUNT_CHECK",
-			Usage:       "Enable check mode in the hclfmt command.",
-		},
-		&cli.BoolFlag{
-			Name:        FlagNameTerragruntDiff,
-			Destination: &opts.Diff,
-			EnvVar:      "TERRAGRUNT_DIFF",
-			Usage:       "Print diff between original and modified file versions when running with 'hclfmt'.",
-		},
-		&cli.BoolFlag{
 			Name:        FlagNameTerragruntDebug,
 			Destination: &opts.Debug,
 			EnvVar:      "TERRAGRUNT_DEBUG",
@@ -275,32 +218,6 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        FlagNameTerragruntModulesThatInclude,
 			Destination: &opts.ModulesThatInclude,
 			Usage:       "If flag is set, 'run-all' will only run the command against Terragrunt modules that include the specified file.",
-		},
-		&cli.MapFlag[string, string]{
-			Name:        FlagNameTerragruntOverrideAttr,
-			Destination: &opts.AwsProviderPatchOverrides,
-			EnvVar:      "TERRAGRUNT_EXCLUDE_DIR",
-			Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.",
-		},
-		&cli.GenericFlag[string]{
-			Name:        FlagNameTerragruntHCLFmt,
-			Destination: &opts.HclFile,
-			Usage:       "The path to a single hcl file that the hclfmt command should run on.",
-		},
-		&cli.GenericFlag[string]{
-			Name:        FlagNameTerragruntJSONOut,
-			Destination: &opts.JSONOut,
-			Usage:       "The file path that terragrunt should use when rendering the terragrunt.hcl config as json.",
-		},
-		&cli.BoolFlag{
-			Name:        FlagNameWithMetadata,
-			Destination: &opts.RenderJsonWithMetadata,
-			Usage:       "Add metadata to the rendered JSON file.",
-		},
-		&cli.BoolFlag{
-			Name:        FlagTerragruntStrictValidate,
-			Destination: &opts.ValidateStrict,
-			Usage:       "Sets strict mode for the validate-inputs command. By default, strict mode is off. When this flag is passed, strict mode is turned on. When strict mode is turned off, the validate-inputs command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When strict mode is turned on, an error will be returned if required inputs are missing OR if unused variables are passed to Terragrunt.",
 		},
 	}
 

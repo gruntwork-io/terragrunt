@@ -14,10 +14,6 @@ import (
 func TestSliceFlagStringApply(t *testing.T) {
 	t.Parallel()
 
-	mockDestValue := func(val []string) *[]string {
-		return &val
-	}
-
 	testCases := []struct {
 		flag          SliceFlag[string]
 		args          []string
@@ -76,10 +72,6 @@ func TestSliceFlagStringApply(t *testing.T) {
 func TestSliceFlagIntApply(t *testing.T) {
 	t.Parallel()
 
-	mockDestValue := func(val []int) *[]int {
-		return &val
-	}
-
 	testCases := []struct {
 		flag          SliceFlag[int]
 		args          []string
@@ -123,10 +115,6 @@ func TestSliceFlagIntApply(t *testing.T) {
 
 func TestSliceFlagInt64Apply(t *testing.T) {
 	t.Parallel()
-
-	mockDestValue := func(val []int64) *[]int64 {
-		return &val
-	}
 
 	testCases := []struct {
 		flag          SliceFlag[int64]

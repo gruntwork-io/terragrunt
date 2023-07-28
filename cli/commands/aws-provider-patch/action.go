@@ -41,7 +41,6 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
-	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/errors"
@@ -56,7 +55,7 @@ func Run(opts *options.TerragruntOptions) error {
 
 func runAwsProviderPatch(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	if len(opts.AwsProviderPatchOverrides) == 0 {
-		return errors.WithStackTrace(MissingOverrideAttrError(flags.FlagNameTerragruntOverrideAttr))
+		return errors.WithStackTrace(MissingOverrideAttrError(FlagNameTerragruntOverrideAttr))
 	}
 
 	terraformFilesInModules, err := findAllTerraformFilesInModules(opts)

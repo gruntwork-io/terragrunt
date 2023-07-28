@@ -14,10 +14,6 @@ import (
 func TestMapFlagStringStringApply(t *testing.T) {
 	t.Parallel()
 
-	mockDestValue := func(val map[string]string) *map[string]string {
-		return &val
-	}
-
 	testCases := []struct {
 		flag          MapFlag[string, string]
 		args          []string
@@ -27,7 +23,7 @@ func TestMapFlagStringStringApply(t *testing.T) {
 	}{
 		{
 			MapFlag[string, string]{Name: "foo-map-string", EnvVar: "FOO_MAP_STRING"},
-			[]string{"--foo-map-string", "arg1-key=arg1-value", "--foo-map-string", "arg2-key=arg2-value"},
+			[]string{"--foo-map-string", "arg1-key=arg1-value", "--foo-map-string", "arg2-key = arg2-value"},
 			map[string]string{"FOO_MAP_STRING": "env1-key=env1-value,env2-key=env2-value"},
 			map[string]string{"arg1-key": "arg1-value", "arg2-key": "arg2-value"},
 			nil,
@@ -35,7 +31,7 @@ func TestMapFlagStringStringApply(t *testing.T) {
 		{
 			MapFlag[string, string]{Name: "foo-map-string", EnvVar: "FOO_MAP_STRING"},
 			nil,
-			map[string]string{"FOO_MAP_STRING": "env1-key=env1-value,env2-key=env2-value"},
+			map[string]string{"FOO_MAP_STRING": "env1-key=env1-value,env2-key = env2-value"},
 			map[string]string{"env1-key": "env1-value", "env2-key": "env2-value"},
 			nil,
 		},
@@ -75,10 +71,6 @@ func TestMapFlagStringStringApply(t *testing.T) {
 
 func TestMapFlagStringIntApply(t *testing.T) {
 	t.Parallel()
-
-	mockDestValue := func(val map[string]int) *map[string]int {
-		return &val
-	}
 
 	testCases := []struct {
 		flag          MapFlag[string, int]

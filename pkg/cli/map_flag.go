@@ -167,12 +167,12 @@ func (flag *mapValue[K, V]) Set(str string) error {
 	}
 
 	key := flag.keyType.Clone(new(K))
-	if err := key.Set(parts[0]); err != nil {
+	if err := key.Set(strings.TrimSpace(parts[0])); err != nil {
 		return err
 	}
 
 	val := flag.valType.Clone(new(V))
-	if err := val.Set(parts[1]); err != nil {
+	if err := val.Set(strings.TrimSpace(parts[1])); err != nil {
 		return err
 	}
 

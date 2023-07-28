@@ -14,10 +14,6 @@ import (
 func TestGenericFlagStringApply(t *testing.T) {
 	t.Parallel()
 
-	mockDestValue := func(val string) *string {
-		return &val
-	}
-
 	testCases := []struct {
 		flag          GenericFlag[string]
 		args          []string
@@ -83,10 +79,6 @@ func TestGenericFlagStringApply(t *testing.T) {
 func TestGenericFlagIntApply(t *testing.T) {
 	t.Parallel()
 
-	mockDestValue := func(val int) *int {
-		return &val
-	}
-
 	testCases := []struct {
 		flag          GenericFlag[int]
 		args          []string
@@ -131,10 +123,6 @@ func TestGenericFlagIntApply(t *testing.T) {
 func TestGenericFlagInt64Apply(t *testing.T) {
 	t.Parallel()
 
-	mockDestValue := func(val int64) *int64 {
-		return &val
-	}
-
 	testCases := []struct {
 		flag          GenericFlag[int64]
 		args          []string
@@ -157,7 +145,7 @@ func TestGenericFlagInt64Apply(t *testing.T) {
 			nil,
 		},
 		{
-			GenericFlag[int64]{Name: "foo-int64", Destination: mockDestValue(55)},
+			GenericFlag[int64]{Name: "foo-int64", Destination: mockDestValue(int64(55))},
 			nil,
 			nil,
 			55,
