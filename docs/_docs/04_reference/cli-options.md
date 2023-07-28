@@ -36,6 +36,7 @@ Terragrunt supports the following CLI commands:
   - [hclfmt](#hclfmt)
   - [aws-provider-patch](#aws-provider-patch)
   - [render-json](#render-json)
+  - [output-module-groups](#output-module-groups)
 
 ### All Terraform built-in commands
 
@@ -461,6 +462,46 @@ Example:
     }
   }
   // NOTE: other attributes are omitted for brevity
+}
+```
+
+### output-module-groups
+
+Output groups of modules ordered for apply as a list of list in JSON (useful for CI use cases).
+
+Example:
+
+```bash
+terragrunt output-module-groups
+```
+
+This will recursively search the current working directory for any folders that contain Terragrunt modules and build
+the dependency graph based on [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
+[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks. This may produce output such as:
+
+```
+{
+  "Group 1": [
+    "stage/frontend-app"
+  ],
+  "Group 2": [
+    "stage/backend-app"
+  ],
+  "Group 3": [
+    "mgmt/bastion-host",
+    "stage/search-app"
+  ],
+  "Group 4": [
+    "mgmt/kms-master-key",
+    "stage/mysql",
+    "stage/redis"
+  ],
+  "Group 5": [
+    "stage/vpc"
+  ],
+  "Group 6": [
+    "mgmt/vpc"
+  ]
 }
 ```
 

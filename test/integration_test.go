@@ -135,6 +135,7 @@ const (
 	TEST_FIXTURE_RENDER_JSON_METADATA                                        = "fixture-render-json-metadata"
 	TEST_FIXTURE_RENDER_JSON_MOCK_OUTPUTS                                    = "fixture-render-json-mock-outputs"
 	TEST_FIXTURE_RENDER_JSON_INPUTS                                          = "fixture-render-json-inputs"
+	TEST_FIXTURE_OUTPUT_MODULE_GROUPS                                        = "fixture-output-module-groups"
 	TEST_FIXTURE_STARTSWITH                                                  = "fixture-startswith"
 	TEST_FIXTURE_TIMECMP                                                     = "fixture-timecmp"
 	TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP                                   = "fixture-timecmp-errors/invalid-timestamp"
@@ -4880,6 +4881,37 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 		"value":    ">= 0.11",
 	}
 	assert.True(t, reflect.DeepEqual(expectedTerraformVersionConstraint, terraformVersionConstraint))
+}
+
+func TestOutputModuleGroups(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUTPUT_MODULE_GROUPS)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	environmentPath := fmt.Sprintf("%s/%s", tmpEnvPath, TEST_FIXTURE_OUTPUT_MODULE_GROUPS)
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output-module-groups --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
+	output := stdout.String()
+	expectedOutput := fmt.Sprintf(`
+{
+  "Group 1": [
+    "%[1]s/root/vpc"
+  ],
+  "Group 2": [
+    "%[1]s/root/mysql",
+    "%[1]s/root/redis"
+  ],
+  "Group 3": [
+    "%[1]s/root/backend-app"
+  ],
+  "Group 4": [
+    "%[1]s/root/frontend-app"
+  ]
+}`, environmentPath)
+	assert.True(t, strings.Contains(output, strings.TrimSpace(expectedOutput)))
 }
 
 func TestRenderJsonMetadataDependencies(t *testing.T) {
