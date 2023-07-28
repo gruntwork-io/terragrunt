@@ -1,8 +1,6 @@
 package renderjson
 
 import (
-	"sort"
-
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -15,7 +13,7 @@ const (
 )
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
-	flags := cli.Flags{
+	return cli.Flags{
 		&cli.GenericFlag[string]{
 			Name:        FlagNameTerragruntJSONOut,
 			Destination: &opts.JSONOut,
@@ -27,9 +25,6 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "Add metadata to the rendered JSON file.",
 		},
 	}
-
-	sort.Sort(flags)
-	return flags
 }
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
@@ -37,7 +32,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Name:        CommandName,
 		Usage:       "Render the final terragrunt config, with all variables, includes, and functions resolved, as json.",
 		Description: "This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.",
-		Flags:       NewFlags(opts),
+		Flags:       NewFlags(opts).Sort(),
 		Action:      func(ctx *cli.Context) error { return Run(opts.OptionsFromContext(ctx)) },
 	}
 }

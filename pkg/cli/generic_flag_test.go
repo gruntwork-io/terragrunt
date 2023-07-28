@@ -22,46 +22,46 @@ func TestGenericFlagStringApply(t *testing.T) {
 		expectedErr   error
 	}{
 		{
-			GenericFlag[string]{Name: "foo-string", EnvVar: "FOO_STRING"},
-			[]string{"--foo-string", "arg-value"},
-			map[string]string{"FOO_STRING": "env-value"},
+			GenericFlag[string]{Name: "foo", EnvVar: "FOO"},
+			[]string{"--foo", "arg-value"},
+			map[string]string{"FOO": "env-value"},
 			"arg-value",
 			nil,
 		},
 		{
-			GenericFlag[string]{Name: "foo-string", EnvVar: "FOO_STRING"},
+			GenericFlag[string]{Name: "foo", EnvVar: "FOO"},
 			nil,
-			map[string]string{"FOO_STRING": "env-value"},
+			map[string]string{"FOO": "env-value"},
 			"env-value",
 			nil,
 		},
 		{
-			GenericFlag[string]{Name: "foo-string", EnvVar: "FOO_STRING"},
+			GenericFlag[string]{Name: "foo", EnvVar: "FOO"},
 			nil,
 			nil,
 			"",
 			nil,
 		},
 		{
-			GenericFlag[string]{Name: "foo-string", EnvVar: "FOO_STRING", Destination: mockDestValue("default-value")},
-			[]string{"--foo-string", "arg-value"},
-			map[string]string{"FOO_STRING": "env-value"},
+			GenericFlag[string]{Name: "foo", EnvVar: "FOO", Destination: mockDestValue("default-value")},
+			[]string{"--foo", "arg-value"},
+			map[string]string{"FOO": "env-value"},
 			"arg-value",
 			nil,
 		},
 		{
-			GenericFlag[string]{Name: "foo-string", Destination: mockDestValue("default-value")},
+			GenericFlag[string]{Name: "foo", Destination: mockDestValue("default-value")},
 			nil,
 			nil,
 			"default-value",
 			nil,
 		},
 		{
-			GenericFlag[string]{Name: "foo-string", EnvVar: "FOO_STRING"},
-			[]string{"--foo-string", "arg-value1", "--foo-string", "arg-value2"},
+			GenericFlag[string]{Name: "foo", EnvVar: "FOO"},
+			[]string{"--foo", "arg-value1", "--foo", "arg-value2"},
 			nil,
 			"",
-			errors.New(`invalid value "arg-value2" for flag -foo-string: setting the flag multiple times`),
+			errors.New(`invalid value "arg-value2" for flag -foo: setting the flag multiple times`),
 		},
 	}
 
@@ -87,21 +87,21 @@ func TestGenericFlagIntApply(t *testing.T) {
 		expectedErr   error
 	}{
 		{
-			GenericFlag[int]{Name: "foo-int", EnvVar: "FOO_INT"},
-			[]string{"--foo-int", "10"},
-			map[string]string{"FOO_INT": "20"},
+			GenericFlag[int]{Name: "foo", EnvVar: "FOO"},
+			[]string{"--foo", "10"},
+			map[string]string{"FOO": "20"},
 			10,
 			nil,
 		},
 		{
-			GenericFlag[int]{Name: "foo-int", EnvVar: "FOO_INT"},
+			GenericFlag[int]{Name: "foo", EnvVar: "FOO"},
 			[]string{},
-			map[string]string{"FOO_INT": "20"},
+			map[string]string{"FOO": "20"},
 			20,
 			nil,
 		},
 		{
-			GenericFlag[int]{Name: "foo-int", Destination: mockDestValue(55)},
+			GenericFlag[int]{Name: "foo", Destination: mockDestValue(55)},
 			nil,
 			nil,
 			55,
@@ -131,21 +131,21 @@ func TestGenericFlagInt64Apply(t *testing.T) {
 		expectedErr   error
 	}{
 		{
-			GenericFlag[int64]{Name: "foo-int64", EnvVar: "FOO_INT64"},
-			[]string{"--foo-int64", "10"},
-			map[string]string{"FOO_INT64": "20"},
+			GenericFlag[int64]{Name: "foo", EnvVar: "FOO"},
+			[]string{"--foo", "10"},
+			map[string]string{"FOO": "20"},
 			10,
 			nil,
 		},
 		{
-			GenericFlag[int64]{Name: "foo-int64", EnvVar: "FOO_INT64"},
+			GenericFlag[int64]{Name: "foo", EnvVar: "FOO"},
 			[]string{},
-			map[string]string{"FOO_INT64": "20"},
+			map[string]string{"FOO": "20"},
 			20,
 			nil,
 		},
 		{
-			GenericFlag[int64]{Name: "foo-int64", Destination: mockDestValue(int64(55))},
+			GenericFlag[int64]{Name: "foo", Destination: mockDestValue(int64(55))},
 			nil,
 			nil,
 			55,

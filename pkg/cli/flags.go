@@ -3,6 +3,7 @@ package cli
 import (
 	libflag "flag"
 	"io"
+	"sort"
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
@@ -140,4 +141,10 @@ func (flags Flags) RunActions(ctx *Context) error {
 	}
 
 	return nil
+}
+
+func (flags Flags) Sort() Flags {
+	sort.Sort(flags)
+
+	return flags
 }

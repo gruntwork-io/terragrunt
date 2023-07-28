@@ -1,8 +1,6 @@
 package hclfmt
 
 import (
-	"sort"
-
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -16,7 +14,7 @@ const (
 )
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
-	flags := cli.Flags{
+	return cli.Flags{
 		&cli.GenericFlag[string]{
 			Name:        FlagNameTerragruntHCLFmt,
 			Destination: &opts.HclFile,
@@ -35,16 +33,13 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "Print diff between original and modified file versions when running with 'hclfmt'.",
 		},
 	}
-
-	sort.Sort(flags)
-	return flags
 }
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:   CommandName,
 		Usage:  "Recursively find hcl files and rewrite them into a canonical format.",
-		Flags:  NewFlags(opts),
+		Flags:  NewFlags(opts).Sort(),
 		Action: func(ctx *cli.Context) error { return Run(opts.OptionsFromContext(ctx)) },
 	}
 }

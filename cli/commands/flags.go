@@ -1,8 +1,6 @@
 package commands
 
 import (
-	"sort"
-
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -221,7 +219,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 		},
 	}
 
-	sort.Sort(flags)
+	flags.Sort()
 
 	// add auxiliary flags after sorting to put the flag at the end of the flag list in the help.
 	flags.Add(

@@ -12,181 +12,162 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func TestCommandRunFlagParsing(t *testing.T) {
+func TestCommandRun(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		args         []string
-		flags        Flags
-		expectedArgs []string
-		expectedErr  error
-	}{
-		{
-			[]string{"-foo", "one", "two"},
-			Flags{
-				&BoolFlag{Name: "foo"},
-			},
-			[]string{"one", "two"},
-			nil,
+	type TestActionFunc func(expectedOrder int, expectedArgs []string) ActionFunc
+
+	type TestCase struct {
+		args        []string
+		command     Command
+		expectedErr error
+	}
+
+	testCaseFuncs := []func(action TestActionFunc, skip ActionFunc) TestCase{
+		func(action TestActionFunc, skip ActionFunc) TestCase {
+			return TestCase{
+				[]string{"--foo", "--foo", "cmd-bar", "--bar", "one", "-two"},
+				Command{
+					Flags:  Flags{&BoolFlag{Name: "foo"}},
+					Before: skip,
+					Action: skip,
+					After:  skip,
+				},
+				errors.New("invalid boolean flag foo: setting the flag multiple times"),
+			}
 		},
-		{
-			[]string{"one", "two"},
-			nil,
-			[]string{"one", "two"},
-			nil,
+
+		func(action TestActionFunc, skip ActionFunc) TestCase {
+			return TestCase{
+				[]string{"--foo", "cmd-bar", "--bar", "one", "-two"},
+				Command{
+					Flags:  Flags{&BoolFlag{Name: "foo"}},
+					Before: action(1, nil),
+					Action: skip,
+					After:  action(5, nil),
+					Subcommands: Commands{
+						{
+							Name:   "cmd-cux",
+							Flags:  Flags{&BoolFlag{Name: "bar"}},
+							Before: skip,
+							Action: skip,
+							After:  skip,
+						},
+						{
+							Name:   "cmd-bar",
+							Flags:  Flags{&BoolFlag{Name: "bar"}},
+							Before: action(2, nil),
+							Action: action(3, []string{"one", "-two"}),
+							After:  action(4, nil),
+						},
+					},
+				},
+				nil,
+			}
 		},
-		{
-			[]string{"one", "-foo"},
-			Flags{
-				&BoolFlag{Name: "foo"},
-			},
-			[]string{"one"},
-			nil,
+		func(action TestActionFunc, skip ActionFunc) TestCase {
+			return TestCase{
+				[]string{"--foo", "cmd-bar", "--bar", "one", "-two"},
+				Command{
+					Flags:  Flags{&BoolFlag{Name: "foo"}},
+					Before: action(1, nil),
+					Action: skip,
+					After:  action(4, nil),
+					Subcommands: Commands{
+						{
+							Name:   "cmd-bar",
+							Flags:  Flags{&BoolFlag{Name: "bar"}},
+							Before: action(2, nil),
+							After:  action(3, nil),
+						},
+					},
+				},
+				nil,
+			}
 		},
-		{
-			[]string{"one", "-foo", "two", "-bar", "value"},
-			Flags{
-				&BoolFlag{Name: "foo"},
-				&GenericFlag[string]{Name: "bar"},
-			},
-			[]string{"one", "two"},
-			nil,
+		func(action TestActionFunc, skip ActionFunc) TestCase {
+			return TestCase{
+				[]string{"--foo", "--bar", "cmd-bar", "one", "-two"},
+				Command{
+					Flags:  Flags{&BoolFlag{Name: "foo"}},
+					Before: action(1, nil),
+					Action: action(2, []string{"--bar", "cmd-bar", "one", "-two"}),
+					After:  action(3, nil),
+					Subcommands: Commands{
+						{
+							Name:   "cmd-bar",
+							Flags:  Flags{&BoolFlag{Name: "bar"}},
+							Before: skip,
+							After:  skip,
+							Action: skip,
+						},
+					},
+				},
+				nil,
+			}
 		},
-		{
-			[]string{"one", "-f", "two", "-b", "value"},
-			Flags{
-				&BoolFlag{Name: "foo", Aliases: []string{"f"}},
-				&GenericFlag[string]{Name: "bar", Aliases: []string{"b"}},
-			},
-			[]string{"one", "two"},
-			nil,
-		},
-		{
-			[]string{"one", "-foo", "two", "-bar"},
-			Flags{
-				&BoolFlag{Name: "foo"},
-				&GenericFlag[string]{Name: "bar"},
-			},
-			nil,
-			errors.New("flag needs an argument: -bar"),
+		func(action TestActionFunc, skip ActionFunc) TestCase {
+			return TestCase{
+				[]string{"--foo", "cmd-bar", "--bar", "value", "one", "-two"},
+				Command{
+					Flags:  Flags{&BoolFlag{Name: "foo"}},
+					Before: action(1, nil),
+					Action: skip,
+					After:  action(5, nil),
+					Subcommands: Commands{
+						{
+							Name:   "cmd-bar",
+							Flags:  Flags{&GenericFlag[string]{Name: "bar"}},
+							Before: action(2, nil),
+							Action: action(3, []string{"one", "-two"}),
+							After:  action(4, nil),
+						},
+					},
+				},
+				nil,
+			}
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
+	for i, testCaseFn := range testCaseFuncs {
+		testCaseFn := testCaseFn
 
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
+			var actualOrder = new(int)
+			action := func(expectedOrder int, expectedArgs []string) ActionFunc {
+				return func(ctx *Context) error {
+					(*actualOrder)++
+					assert.Equal(t, expectedOrder, *actualOrder)
+
+					if expectedArgs != nil {
+						actualArgs := ctx.Args().Slice()
+						assert.Equal(t, expectedArgs, actualArgs)
+					}
+
+					return nil
+				}
+			}
+
+			skip := func(ctx *Context) error {
+				require.Fail(t, "this action must be skipped")
+				return nil
+			}
+
+			testCase := testCaseFn(action, skip)
+
 			app := &App{App: &cli.App{Writer: io.Discard}}
 			ctx := newContext(context.Background(), app)
 
-			var actualArgs []string
-			command := Command{
-				Name:        "test-cmd",
-				Aliases:     []string{"tc"},
-				Usage:       "this is for testing",
-				Description: "testing",
-				Flags:       testCase.flags,
-				Action: func(ctx *Context) error {
-					actualArgs = ctx.Args().Slice()
-					return nil
-				},
-			}
-
-			err := command.Run(ctx, testCase.args...)
+			err := testCase.command.Run(ctx, testCase.args...)
 			if testCase.expectedErr != nil {
 				require.EqualError(t, err, testCase.expectedErr.Error(), testCase)
 			} else {
 				require.NoError(t, err, testCase)
 			}
 
-			assert.Equal(t, testCase.expectedArgs, actualArgs, testCase)
 		})
-	}
-}
-
-func TestCommandRunCommandParsing(t *testing.T) {
-	t.Parallel()
-
-	var (
-		actualArgs []string
-		action     = func(ctx *Context) error {
-			actualArgs = ctx.Args().Slice()
-			return nil
-		}
-	)
-
-	testCases := []struct {
-		args         []string
-		command      Command
-		expectedArgs []string
-		expectedErr  error
-	}{
-		{
-			[]string{"--foo", "cmd-bar", "--bar", "one", "-two"},
-			Command{
-				Flags:  Flags{&BoolFlag{Name: "foo"}},
-				Action: action,
-				Subcommands: Commands{
-					{
-						Name:   "cmd-bar",
-						Flags:  Flags{&BoolFlag{Name: "bar"}},
-						Action: action,
-					},
-				},
-			},
-			[]string{"one", "-two"},
-			nil,
-		},
-		{
-			[]string{"--foo", "--bar", "cmd-bar", "one", "-two"},
-			Command{
-				Flags:  Flags{&BoolFlag{Name: "foo"}},
-				Action: action,
-				Subcommands: Commands{
-					{
-						Name:   "cmd-bar",
-						Flags:  Flags{&BoolFlag{Name: "bar"}},
-						Action: action,
-					},
-				},
-			},
-			[]string{"--bar", "cmd-bar", "one", "-two"},
-			nil,
-		},
-		{
-			[]string{"--foo", "cmd-bar", "--bar", "value", "one", "-two"},
-			Command{
-				Flags:  Flags{&BoolFlag{Name: "foo"}},
-				Action: action,
-				Subcommands: Commands{
-					{
-						Name:   "cmd-bar",
-						Flags:  Flags{&GenericFlag[string]{Name: "bar"}},
-						Action: action,
-					},
-				},
-			},
-			[]string{"one", "-two"},
-			nil,
-		},
-	}
-
-	for _, testCase := range testCases {
-		actualArgs = []string{}
-
-		app := &App{App: &cli.App{Writer: io.Discard}}
-		ctx := newContext(context.Background(), app)
-
-		err := testCase.command.Run(ctx, testCase.args...)
-		if testCase.expectedErr != nil {
-			require.EqualError(t, err, testCase.expectedErr.Error(), testCase)
-		} else {
-			require.NoError(t, err, testCase)
-		}
-
-		assert.Equal(t, testCase.expectedArgs, actualArgs, testCase)
 	}
 }
 

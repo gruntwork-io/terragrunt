@@ -22,35 +22,35 @@ func TestSliceFlagStringApply(t *testing.T) {
 		expectedErr   error
 	}{
 		{
-			SliceFlag[string]{Name: "foo-slice-string", EnvVar: "FOO_SLICE_STRING"},
-			[]string{"--foo-slice-string", "arg-value1", "--foo-slice-string", "arg-value2"},
-			map[string]string{"FOO_SLICE_STRING": "env-value"},
+			SliceFlag[string]{Name: "foo", EnvVar: "FOO"},
+			[]string{"--foo", "arg-value1", "--foo", "arg-value2"},
+			map[string]string{"FOO": "env-value"},
 			[]string{"arg-value1", "arg-value2"},
 			nil,
 		},
 		{
-			SliceFlag[string]{Name: "foo-slice-string", EnvVar: "FOO_SLICE_STRING"},
+			SliceFlag[string]{Name: "foo", EnvVar: "FOO"},
 			nil,
-			map[string]string{"FOO_SLICE_STRING": "env-value1,env-value2"},
+			map[string]string{"FOO": "env-value1,env-value2"},
 			[]string{"env-value1", "env-value2"},
 			nil,
 		},
 		{
-			SliceFlag[string]{Name: "foo-slice-string", EnvVar: "FOO_SLICE_STRING"},
+			SliceFlag[string]{Name: "foo", EnvVar: "FOO"},
 			nil,
 			nil,
 			nil,
 			nil,
 		},
 		{
-			SliceFlag[string]{Name: "foo-slice-string", EnvVar: "FOO_SLICE_STRING", Destination: mockDestValue([]string{"default-value1", "default-value2"})},
-			[]string{"--foo-slice-string", "arg-value1", "--foo-slice-string", "arg-value2"},
-			map[string]string{"FOO_SLICE_STRING": "env-value1,env-value2"},
+			SliceFlag[string]{Name: "foo", EnvVar: "FOO", Destination: mockDestValue([]string{"default-value1", "default-value2"})},
+			[]string{"--foo", "arg-value1", "--foo", "arg-value2"},
+			map[string]string{"FOO": "env-value1,env-value2"},
 			[]string{"arg-value1", "arg-value2"},
 			nil,
 		},
 		{
-			SliceFlag[string]{Name: "foo-slice-string", Destination: mockDestValue([]string{"default-value1", "default-value2"})},
+			SliceFlag[string]{Name: "foo", Destination: mockDestValue([]string{"default-value1", "default-value2"})},
 			nil,
 			nil,
 			[]string{"default-value1", "default-value2"},
@@ -80,21 +80,21 @@ func TestSliceFlagIntApply(t *testing.T) {
 		expectedErr   error
 	}{
 		{
-			SliceFlag[int]{Name: "foo-slice-int", EnvVar: "FOO_SLICE_INT"},
-			[]string{"--foo-slice-int", "10", "--foo-slice-int", "11"},
-			map[string]string{"FOO_SLICE_INT": "20,21"},
+			SliceFlag[int]{Name: "foo", EnvVar: "FOO"},
+			[]string{"--foo", "10", "--foo", "11"},
+			map[string]string{"FOO": "20,21"},
 			[]int{10, 11},
 			nil,
 		},
 		{
-			SliceFlag[int]{Name: "foo-slice-int", EnvVar: "FOO_SLICE_INT"},
+			SliceFlag[int]{Name: "foo", EnvVar: "FOO"},
 			[]string{},
-			map[string]string{"FOO_SLICE_INT": "20,21"},
+			map[string]string{"FOO": "20,21"},
 			[]int{20, 21},
 			nil,
 		},
 		{
-			SliceFlag[int]{Name: "foo-slice-int", Destination: mockDestValue([]int{50, 51})},
+			SliceFlag[int]{Name: "foo", Destination: mockDestValue([]int{50, 51})},
 			nil,
 			nil,
 			[]int{50, 51},
@@ -124,21 +124,21 @@ func TestSliceFlagInt64Apply(t *testing.T) {
 		expectedErr   error
 	}{
 		{
-			SliceFlag[int64]{Name: "foo-slice-int64", EnvVar: "FOO_SLICE_INT64"},
-			[]string{"--foo-slice-int64", "10", "--foo-slice-int64", "11"},
-			map[string]string{"FOO_SLICE_INT64": "20,21"},
+			SliceFlag[int64]{Name: "foo", EnvVar: "FOO"},
+			[]string{"--foo", "10", "--foo", "11"},
+			map[string]string{"FOO": "20,21"},
 			[]int64{10, 11},
 			nil,
 		},
 		{
-			SliceFlag[int64]{Name: "foo-slice-int64", EnvVar: "FOO_SLICE_INT64"},
+			SliceFlag[int64]{Name: "foo", EnvVar: "FOO"},
 			[]string{},
-			map[string]string{"FOO_SLICE_INT64": "20,21"},
+			map[string]string{"FOO": "20,21"},
 			[]int64{20, 21},
 			nil,
 		},
 		{
-			SliceFlag[int64]{Name: "foo-slice-int64", Destination: mockDestValue([]int64{50, 51})},
+			SliceFlag[int64]{Name: "foo", Destination: mockDestValue([]int64{50, 51})},
 			nil,
 			nil,
 			[]int64{50, 51},
