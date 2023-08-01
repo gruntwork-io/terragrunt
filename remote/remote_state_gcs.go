@@ -18,6 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/jwt"
+	"google.golang.org/api/impersonate"
 	"google.golang.org/api/option"
 )
 
@@ -408,7 +409,7 @@ func DoesGCSBucketExist(gcsClient *storage.Client, config *RemoteStateConfigGCS)
 	bucket := gcsClient.Bucket(config.Bucket)
 
 	// TODO - the code below attempts to determine whether the storage bucket exists by making a making a number of API
-	// calls, then attemping to list the contents of the bucket. It was adapted from Google's own integration tests and
+	// calls, then attempting to list the contents of the bucket. It was adapted from Google's own integration tests and
 	// should be improved once the appropriate API call is added. For more info see:
 	// https://github.com/GoogleCloudPlatform/google-cloud-go/blob/de879f7be552d57556875b8aaa383bce9396cc8c/storage/integration_test.go#L1231
 	if _, err := bucket.Attrs(ctx); err != nil {
@@ -470,9 +471,18 @@ func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, err
 	}
 
 	if gcsConfigRemote.ImpersonateServiceAccount != "" {
-		opts = append(opts, option.ImpersonateCredentials(
-			gcsConfigRemote.ImpersonateServiceAccount,
-			gcsConfigRemote.ImpersonateServiceAccountDelegates...))
+
+		credSource, err := impersonate.CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
+			TargetPrincipal: gcsConfigRemote.ImpersonateServiceAccount,
+			Scopes:          []string{storage.ScopeReadWrite},
+			Delegates:       gcsConfigRemote.ImpersonateServiceAccountDelegates,
+		}, opts...)
+
+		if err != nil {
+			return nil, err
+		}
+
+		opts = append(opts, option.WithTokenSource(credSource))
 	}
 
 	client, err := storage.NewClient(ctx, opts...)
