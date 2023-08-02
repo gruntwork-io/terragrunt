@@ -4645,7 +4645,7 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 }
 
 func TestTerragruntOutputFromRemoteState(t *testing.T) {
-	// We can run in parallel because there are tests which change a global variable by calling `config.ClearOutputCache()` which sometimes causes an unexpected error:
+	// NOTE: We can't run this test in parallel because there are tests that change the global variable by calling `config.ClearOutputCache()` which also uses this test and from time to time it throws an unexpected error:
 	// "fixture-output-from-remote-state/env1/app2/terragrunt.hcl:23,38-48: Unsupported attribute; This object does not have an attribute named "app3_text"."
 	// t.Parallel()
 
