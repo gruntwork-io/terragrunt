@@ -18,6 +18,7 @@ import (
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
+	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
 	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
@@ -61,13 +62,14 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 // This set of commands is also used in unit tests
 func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	cmds := cli.Commands{
-		runall.NewCommand(opts),            // run-all
-		terragruntinfo.NewCommand(opts),    // terragrunt-info
-		validateinputs.NewCommand(opts),    // validate-inputs
-		graphdependencies.NewCommand(opts), // graph-dependencies
-		hclfmt.NewCommand(opts),            // hclfmt
-		renderjson.NewCommand(opts),        // render-json
-		awsproviderpatch.NewCommand(opts),  // aws-provider-patch
+		runall.NewCommand(opts),             // run-all
+		terragruntinfo.NewCommand(opts),     // terragrunt-info
+		validateinputs.NewCommand(opts),     // validate-inputs
+		graphdependencies.NewCommand(opts),  // graph-dependencies
+		hclfmt.NewCommand(opts),             // hclfmt
+		renderjson.NewCommand(opts),         // render-json
+		awsproviderpatch.NewCommand(opts),   // aws-provider-patch
+		outputmodulegroups.NewCommand(opts), // output-module-groups
 	}
 
 	sort.Sort(cmds)
