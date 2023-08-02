@@ -2,6 +2,7 @@ package configstack
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
@@ -49,6 +50,30 @@ func (stack *Stack) LogModuleDeployOrder(logger *logrus.Entry, terraformCommand 
 	}
 	logger.Info(outStr)
 	return nil
+}
+
+// JsonModuleDeployOrder will return the modules that will be deployed by a plan/apply operation, in the order
+// that the operations happen.
+func (stack *Stack) JsonModuleDeployOrder(terraformCommand string) (string, error) {
+	runGraph, err := stack.getModuleRunGraph(terraformCommand)
+	if err != nil {
+		return "", err
+	}
+	// Convert the module paths to a string array for JSON marshalling
+	// The index should be the group number, and the value should be an array of module paths
+	jsonGraph := make(map[string][]string)
+	for i, group := range runGraph {
+		groupNum := "Group " + fmt.Sprintf("%d", i+1)
+		jsonGraph[groupNum] = make([]string, len(group))
+		for j, module := range group {
+			jsonGraph[groupNum][j] = module.Path
+		}
+	}
+	j, _ := json.MarshalIndent(jsonGraph, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return string(j), nil
 }
 
 // Graph creates a graphviz representation of the modules

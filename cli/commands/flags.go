@@ -37,6 +37,8 @@ const (
 	FlagNameTerragruntFetchDependencyOutputFromState = "terragrunt-fetch-dependency-output-from-state"
 	FlagNameTerragruntUsePartialParseConfigCache     = "terragrunt-use-partial-parse-config-cache"
 	FlagNameTerragruntIncludeModulePrefix            = "terragrunt-include-module-prefix"
+	FlagNameTerragruntFailOnStateBucketCreation      = "terragrunt-fail-on-state-bucket-creation"
+	FlagNameTerragruntDisableBucketUpdate            = "terragrunt-disable-bucket-update"
 
 	FlagNameHelp    = "help"
 	FlagNameVersion = "version"
@@ -216,6 +218,18 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        FlagNameTerragruntModulesThatInclude,
 			Destination: &opts.ModulesThatInclude,
 			Usage:       "If flag is set, 'run-all' will only run the command against Terragrunt modules that include the specified file.",
+		},
+		&cli.BoolFlag{
+			Name:        FlagNameTerragruntFailOnStateBucketCreation,
+			Destination: &opts.FailIfBucketCreationRequired,
+			EnvVar:      "TERRAGRUNT_FAIL_ON_STATE_BUCKET_CREATION",
+			Usage:       "When this flag is set Terragrunt will fail if the remote state bucket needs to be created.",
+		},
+		&cli.BoolFlag{
+			Name:        FlagNameTerragruntDisableBucketUpdate,
+			Destination: &opts.DisableBucketUpdate,
+			EnvVar:      "TERRAGRUNT_DISABLE_BUCKET_UPDATE",
+			Usage:       "When this flag is set Terragrunt will not update the remote state bucket.",
 		},
 	}
 

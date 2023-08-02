@@ -36,6 +36,7 @@ Terragrunt supports the following CLI commands:
   - [hclfmt](#hclfmt)
   - [aws-provider-patch](#aws-provider-patch)
   - [render-json](#render-json)
+  - [output-module-groups](#output-module-groups)
 
 ### All Terraform built-in commands
 
@@ -464,6 +465,46 @@ Example:
 }
 ```
 
+### output-module-groups
+
+Output groups of modules ordered for apply as a list of list in JSON (useful for CI use cases).
+
+Example:
+
+```bash
+terragrunt output-module-groups
+```
+
+This will recursively search the current working directory for any folders that contain Terragrunt modules and build
+the dependency graph based on [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
+[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks. This may produce output such as:
+
+```
+{
+  "Group 1": [
+    "stage/frontend-app"
+  ],
+  "Group 2": [
+    "stage/backend-app"
+  ],
+  "Group 3": [
+    "mgmt/bastion-host",
+    "stage/search-app"
+  ],
+  "Group 4": [
+    "mgmt/kms-master-key",
+    "stage/mysql",
+    "stage/redis"
+  ],
+  "Group 5": [
+    "stage/vpc"
+  ],
+  "Group 6": [
+    "mgmt/vpc"
+  ]
+}
+```
+
 ## CLI options
 
 Terragrunt forwards all options to Terraform. The only exceptions are `--version` and arguments that start with the
@@ -503,6 +544,8 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
 - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
 - [terragrunt-include-module-prefix](#terragrunt-include-module-prefix)
+- [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
+- [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
 
 ### terragrunt-config
 
@@ -939,3 +982,17 @@ NOTE: This is an experimental feature, use with caution.
 **Environment Variable**: `TERRAGRUNT_INCLUDE_MODULE_PREFIX` (set to `true`)
 
 When this flag is set output from Terraform sub-commands is prefixed with module path.
+
+### terragrunt-fail-on-state-bucket-creation
+
+**CLI Arg**: `--terragrunt-fail-on-state-bucket-creation`
+**Environment Variable**: `TERRAGRUNT_FAIL_ON_STATE_BUCKET_CREATION` (set to `true`)
+
+When this flag is set, Terragrunt will fail and exit if it is necessary to create the remote state bucket.
+
+### terragrunt-disable-bucket-update
+
+**CLI Arg**: `--terragrunt-disable-bucket-update`
+**Environment Variable**: `TERRAGRUNT_DISABLE_BUCKET_UPDATE` (set to `true`)
+
+When this flag is set, Terragrunt does not update the remote state bucket, which is useful to set if the state bucket is managed by a third party.

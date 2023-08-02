@@ -138,6 +138,8 @@ const (
 	TEST_FIXTURE_BROKEN_DEPENDENCY                                           = "fixture-broken-dependency"
 	TEST_FIXTURE_RENDER_JSON_METADATA                                        = "fixture-render-json-metadata"
 	TEST_FIXTURE_RENDER_JSON_MOCK_OUTPUTS                                    = "fixture-render-json-mock-outputs"
+	TEST_FIXTURE_RENDER_JSON_INPUTS                                          = "fixture-render-json-inputs"
+	TEST_FIXTURE_OUTPUT_MODULE_GROUPS                                        = "fixture-output-module-groups"
 	TEST_FIXTURE_STARTSWITH                                                  = "fixture-startswith"
 	TEST_FIXTURE_TIMECMP                                                     = "fixture-timecmp"
 	TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP                                   = "fixture-timecmp-errors/invalid-timestamp"
@@ -4163,6 +4165,32 @@ func assertS3PublicAccessBlocks(t *testing.T, client *s3.S3, bucketName string) 
 	assert.True(t, aws.BoolValue(publicAccessBlockConfig.RestrictPublicBuckets))
 }
 
+// createS3BucketE create test S3 bucket.
+func createS3BucketE(t *testing.T, awsRegion string, bucketName string) error {
+	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
+	if err != nil {
+		t.Logf("Error creating mockOptions: %v", err)
+		return err
+	}
+
+	sessionConfig := &aws_helper.AwsSessionConfig{
+		Region: awsRegion,
+	}
+
+	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
+	if err != nil {
+		t.Logf("Error creating S3 client: %v", err)
+		return err
+	}
+
+	t.Logf("Creating test s3 bucket %s", bucketName)
+	if _, err := s3Client.CreateBucket(&s3.CreateBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+		t.Logf("Failed to create S3 bucket %s: %v", bucketName, err)
+		return err
+	}
+	return nil
+}
+
 // deleteS3BucketWithRetry will attempt to delete the specified S3 bucket, retrying up to 3 times if there are errors to
 // handle eventual consistency issues.
 func deleteS3BucketWithRetry(t *testing.T, awsRegion string, bucketName string) {
@@ -4861,6 +4889,37 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 		"value":    ">= 0.11",
 	}
 	assert.True(t, reflect.DeepEqual(expectedTerraformVersionConstraint, terraformVersionConstraint))
+}
+
+func TestOutputModuleGroups(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUTPUT_MODULE_GROUPS)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	environmentPath := fmt.Sprintf("%s/%s", tmpEnvPath, TEST_FIXTURE_OUTPUT_MODULE_GROUPS)
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output-module-groups --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
+	output := stdout.String()
+	expectedOutput := fmt.Sprintf(`
+{
+  "Group 1": [
+    "%[1]s/root/vpc"
+  ],
+  "Group 2": [
+    "%[1]s/root/mysql",
+    "%[1]s/root/redis"
+  ],
+  "Group 3": [
+    "%[1]s/root/backend-app"
+  ],
+  "Group 4": [
+    "%[1]s/root/frontend-app"
+  ]
+}`, environmentPath)
+	assert.True(t, strings.Contains(output, strings.TrimSpace(expectedOutput)))
 }
 
 func TestRenderJsonMetadataDependencies(t *testing.T) {
@@ -5642,6 +5701,90 @@ func TestInitSkipCache(t *testing.T) {
 	// verify that init was invoked
 	assert.Contains(t, stdout.String(), "Terraform has been successfully initialized!")
 	assert.Contains(t, stderr.String(), "Running command: terraform init")
+}
+
+func TestRenderJsonWithInputsNotExistingOutput(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_RENDER_JSON_INPUTS)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	dependencyPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_INPUTS, "dependency")
+	appPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_INPUTS, "app")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", dependencyPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-working-dir %s", appPath))
+
+	jsonOut := filepath.Join(appPath, "terragrunt_rendered.json")
+
+	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	var includeMetadata = map[string]interface{}{
+		"found_in_file": util.JoinPath(appPath, "terragrunt.hcl"),
+	}
+
+	var inputs = renderedJson[config.MetadataInputs]
+	var expectedInputs = map[string]interface{}{
+		"static_value": map[string]interface{}{
+			"metadata": includeMetadata,
+			"value":    "static_value",
+		},
+		"value": map[string]interface{}{
+			"metadata": includeMetadata,
+			"value":    "output_value",
+		},
+		"not_existing_value": map[string]interface{}{
+			"metadata": includeMetadata,
+			"value":    "",
+		},
+	}
+	assert.True(t, reflect.DeepEqual(expectedInputs, inputs))
+}
+
+func TestTerragruntFailIfBucketCreationIsRequired(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PATH)
+	cleanupTerraformFolder(t, rootPath)
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+
+	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, rootPath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-fail-on-state-bucket-creation --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, rootPath), &stdout, &stderr)
+	assert.Error(t, err)
+}
+
+func TestTerragruntDisableBucketUpdate(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PATH)
+	cleanupTerraformFolder(t, rootPath)
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+
+	err := createS3BucketE(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	assert.NoError(t, err)
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+
+	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, rootPath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-disable-bucket-update --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, rootPath))
+
+	_, err = bucketPolicy(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	// validate that bucket policy is not updated, because of --terragrunt-disable-bucket-update
+	assert.Error(t, err)
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
