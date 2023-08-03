@@ -381,8 +381,8 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 func (dependencyConfig Dependency) shouldReturnMockOutputs(terragruntOptions *options.TerragruntOptions) bool {
 	defaultOutputsSet := dependencyConfig.MockOutputs != nil
 	allowedCommand :=
-		dependencyConfig.MockOutputsAllowedTerraformCommands == nil ||
-			len(*dependencyConfig.MockOutputsAllowedTerraformCommands) == 0 ||
+		dependencyConfig.MockOutputsAllowedTerraformCommands != nil &&
+			len(*dependencyConfig.MockOutputsAllowedTerraformCommands) != 0 &&
 			util.ListContainsElement(*dependencyConfig.MockOutputsAllowedTerraformCommands, terragruntOptions.OriginalTerraformCommand)
 	return defaultOutputsSet && allowedCommand || isRenderJsonCommand(terragruntOptions)
 }
