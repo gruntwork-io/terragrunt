@@ -257,6 +257,10 @@ func (targetConfig *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terr
 		targetConfig.IamRole = sourceConfig.IamRole
 	}
 
+	if sourceConfig.IamProfile != "" {
+		targetConfig.IamProfile = sourceConfig.IamProfile
+	}
+
 	if sourceConfig.IamAssumeRoleDuration != nil {
 		targetConfig.IamAssumeRoleDuration = sourceConfig.IamAssumeRoleDuration
 	}
@@ -359,6 +363,10 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 
 	if sourceConfig.IamRole != "" {
 		targetConfig.IamRole = sourceConfig.IamRole
+	}
+
+	if sourceConfig.IamProfile != "" {
+		targetConfig.IamProfile = sourceConfig.IamProfile
 	}
 
 	if sourceConfig.IamAssumeRoleDuration != nil {

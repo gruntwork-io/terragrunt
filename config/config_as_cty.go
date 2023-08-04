@@ -25,6 +25,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	output[MetadataTerragruntVersionConstraint] = gostringToCty(config.TerragruntVersionConstraint)
 	output[MetadataDownloadDir] = gostringToCty(config.DownloadDir)
 	output[MetadataIamRole] = gostringToCty(config.IamRole)
+	output[MetadataIamProfile] = gostringToCty(config.IamProfile)
 	output[MetadataSkip] = goboolToCty(config.Skip)
 	output[MetadataIamAssumeRoleSessionName] = gostringToCty(config.IamAssumeRoleSessionName)
 
@@ -145,6 +146,10 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 	}
 
 	if err := wrapWithMetadata(config, config.IamRole, MetadataIamRole, &output); err != nil {
+		return cty.NilVal, err
+	}
+
+	if err := wrapWithMetadata(config, config.IamProfile, MetadataIamProfile, &output); err != nil {
 		return cty.NilVal, err
 	}
 

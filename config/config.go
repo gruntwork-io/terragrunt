@@ -44,6 +44,7 @@ const (
 	MetadataPreventDestroy              = "prevent_destroy"
 	MetadataSkip                        = "skip"
 	MetadataIamRole                     = "iam_role"
+	MetadataIamProfile                  = "iam_profile"
 	MetadataIamAssumeRoleDuration       = "iam_assume_role_duration"
 	MetadataIamAssumeRoleSessionName    = "iam_assume_role_session_name"
 	MetadataInputs                      = "inputs"
@@ -67,6 +68,7 @@ type TerragruntConfig struct {
 	PreventDestroy              *bool
 	Skip                        bool
 	IamRole                     string
+	IamProfile                  string
 	IamAssumeRoleDuration       *int64
 	IamAssumeRoleSessionName    string
 	Inputs                      map[string]interface{}
@@ -97,6 +99,7 @@ func (conf *TerragruntConfig) String() string {
 func (conf *TerragruntConfig) GetIAMRoleOptions() options.IAMRoleOptions {
 	configIAMRoleOptions := options.IAMRoleOptions{
 		RoleARN:               conf.IamRole,
+		Profile:               conf.IamProfile,
 		AssumeRoleSessionName: conf.IamAssumeRoleSessionName,
 	}
 	if conf.IamAssumeRoleDuration != nil {
@@ -135,6 +138,7 @@ type terragruntConfigFile struct {
 	PreventDestroy           *bool               `hcl:"prevent_destroy,attr"`
 	Skip                     *bool               `hcl:"skip,attr"`
 	IamRole                  *string             `hcl:"iam_role,attr"`
+	IamProfile               *string             `hcl:"iam_profile,attr"`
 	IamAssumeRoleDuration    *int64              `hcl:"iam_assume_role_duration,attr"`
 	IamAssumeRoleSessionName *string             `hcl:"iam_assume_role_session_name,attr"`
 	TerragruntDependencies   []Dependency        `hcl:"dependency,block"`
@@ -980,6 +984,11 @@ func convertToTerragruntConfig(
 	if terragruntConfigFromFile.IamRole != nil {
 		terragruntConfig.IamRole = *terragruntConfigFromFile.IamRole
 		terragruntConfig.SetFieldMetadata(MetadataIamRole, defaultMetadata)
+	}
+
+	if terragruntConfigFromFile.IamProfile != nil {
+		terragruntConfig.IamProfile = *terragruntConfigFromFile.IamProfile
+		terragruntConfig.SetFieldMetadata(MetadataIamProfile, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.IamAssumeRoleDuration != nil {

@@ -116,6 +116,12 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
+			[]string{"--terragrunt-iam-profile", "terragrunt-profile"},
+			mockOptionsWithIamProfile(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, "terragrunt-profile"),
+			nil,
+		},
+
+		{
 			[]string{"--terragrunt-iam-assume-role-duration", "36000"},
 			mockOptionsWithIamAssumeRoleDuration(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, 36000),
 			nil,
@@ -221,6 +227,14 @@ func mockOptionsWithIamRole(t *testing.T, terragruntConfigPath string, workingDi
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
 	opts.OriginalIAMRoleOptions.RoleARN = iamRole
 	opts.IAMRoleOptions.RoleARN = iamRole
+
+	return opts
+}
+
+func mockOptionsWithIamProfile(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, iamProfile string) *options.TerragruntOptions {
+	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
+	opts.OriginalIAMRoleOptions.Profile = iamProfile
+	opts.IAMRoleOptions.Profile = iamProfile
 
 	return opts
 }

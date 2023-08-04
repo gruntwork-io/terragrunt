@@ -218,6 +218,9 @@ type IAMRoleOptions struct {
 	// The ARN of an IAM Role to assume. Used when accessing AWS, both internally and through terraform.
 	RoleARN string
 
+	// The name of an IAM profile for the session when assuming the role.
+	Profile string
+
 	// Duration of the STS Session when assuming the role.
 	AssumeRoleDuration int64
 
@@ -230,6 +233,10 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 
 	if source.RoleARN != "" {
 		out.RoleARN = source.RoleARN
+	}
+
+	if source.Profile != "" {
+		out.Profile = source.Profile
 	}
 
 	if source.AssumeRoleDuration != 0 {
