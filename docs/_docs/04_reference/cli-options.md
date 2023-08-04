@@ -576,6 +576,7 @@ configuration values specified in the `terragrunt.hcl` config for both the top l
 
 **CLI Arg**: `--terragrunt-no-auto-init`<br/>
 **Environment Variable**: `TERRAGRUNT_NO_AUTO_INIT` (set to `true`)
+_(Prior to Terragrunt v0.48.6, this environment variable was called `TERRAGRUNT_AUTO_INIT` (set to `false`), and is still available for backwards compatibility)_
 
 When passed in, don't automatically run `terraform init` when other commands are run (e.g. `terragrunt apply`). Useful
 if you want to pass custom arguments to `terraform init` that are specific to a user or execution environment, and
@@ -588,6 +589,7 @@ disabled. See [Auto-Init]({{site.baseurl}}/docs/features/auto-init#auto-init)
 
 **CLI Arg**: `--terragrunt-no-auto-approve`<br/>
 **Environment Variable**: `TERRAGRUNT_NO_AUTO_APPROVE` (set to `true`)
+_(Prior to Terragrunt v0.48.6, this environment variable was called `TERRAGRUNT_AUTO_APPROVE` (set to `false`), and is still available for backwards compatibility)_
 **Commands**:
 - [run-all](#run-all)
 
@@ -600,6 +602,7 @@ with `run-all`. Note that due to the interactive prompts, this flag will also **
 
 **CLI Arg**: `--terragrunt-no-auto-retry`<br/>
 **Environment Variable**: `TERRAGRUNT_NO_AUTO_RETRY` (set to `true`)
+_(Prior to Terragrunt v0.48.6, this environment variable was called `TERRAGRUNT_AUTO_RETRY` (set to `false`), and is still available for backwards compatibility)_
 
 When passed in, don't automatically retry commands which fail with transient errors. See
 [Auto-Retry]({{site.baseurl}}/docs/features/auto-retry#auto-retry)
@@ -609,11 +612,12 @@ When passed in, don't automatically retry commands which fail with transient err
 
 **CLI Arg**: `--terragrunt-non-interactive`<br/>
 **Environment Variable**: `TERRAGRUNT_NON_INTERACTIVE` (set to `true`)
+_(Prior to Terragrunt v0.48.6, this environment variable was called `TF_INPUT` (set to `false`), and is still available for backwards compatibility. NOTE: [TF_INPUT](https://developer.hashicorp.com/terraform/cli/config/environment-variables#tf_input) is native to Terraform!)_
 
 When passed in, don't show interactive user prompts. This will default the answer for all prompts to `yes` except for
 the listed cases below. This is useful if you need to run Terragrunt in an automated setting (e.g. from a script). May
-also be specified with the [TF\_INPUT](https://www.terraform.io/docs/configuration/environment-variables.html#tf_input)
-environment variable.
+also be specified with the [TF\_INPUT](https://www.terraform.io/docs/configuration/environment-variables.html#tf_input) environment variable.
+
 
 This setting will default to `no` for the following cases:
 

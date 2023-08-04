@@ -52,6 +52,7 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 	app.Commands = append(
 		deprecatedCommands(opts),
 		terragruntCommands(opts)...)
+	app.Before = beforeAction(opts)
 	app.CommonBefore = initialSetup(opts)           // all commands run this function before running their own `Action` function
 	app.DefaultCommand = terraform.NewCommand(opts) // by default, if no terragrunt command is specified, run the Terraform command
 	app.OsExiter = osExiter
@@ -80,6 +81,19 @@ func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	return cmds
 }
 
+func beforeAction(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
+	return func(ctx *cli.Context) error {
+		// show help if the args are not specified.
+		if !ctx.Args().Present() {
+			err := cli.ShowAppHelp(ctx)
+			// exit the app
+			return cli.NewExitError(err, 0)
+		}
+
+		return nil
+	}
+}
+
 // mostly preparing terragrunt options
 func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
@@ -87,6 +101,11 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 		opts.AutoInit = env.GetBoolEnv(os.Getenv("TERRAGRUNT_AUTO_INIT"), opts.AutoInit)
 		opts.AutoRetry = env.GetBoolEnv(os.Getenv("TERRAGRUNT_AUTO_RETRY"), opts.AutoRetry)
 		opts.RunAllAutoApprove = env.GetBoolEnv(os.Getenv("TERRAGRUNT_AUTO_APPROVE"), opts.RunAllAutoApprove)
+
+		// `TF_INPUT` is the old env var for`--terragrunt-non-interactive` flag, now is replaced with `TERRAGRUNT_NON_INTERACTIVE` but kept for backwards compatibility.
+		if opts.NonInteractive == false {
+			opts.NonInteractive = !env.GetBoolEnv(os.Getenv("TF_INPUT"), true)
+		}
 
 		// --- Args
 		// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`

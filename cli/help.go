@@ -13,10 +13,8 @@ COMMANDS:{{ $cv := offsetCommands .App.VisibleCommands 5}}{{range .App.VisibleCo
    {{$s := .HelpName}}{{$s}}{{ $sp := subtract $cv (offset $s 3) }}{{ indent $sp ""}} {{wrap .Usage $cv}}{{end}}{{end}}
 
 GLOBAL OPTIONS:{{if .Command.VisibleFlags}}
-   {{range $index, $option := .Command.VisibleFlags}}{{if $index}}
-   {{end}}{{wrap $option.String 6}}{{end}}{{end}}
    {{range $index, $option := .App.VisibleFlags}}{{if $index}}
-   {{end}}{{$option}}{{end}}{{if not .App.HideVersion}}
+   {{end}}{{wrap $option.String 6}}{{end}}{{end}}{{if not .App.HideVersion}}
 
 VERSION: {{.App.Version}}{{if len .App.Authors}}{{end}}
 
