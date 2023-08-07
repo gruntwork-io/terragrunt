@@ -4,6 +4,7 @@ dependency "source" {
     the_answer = "0"
   }
   skip_outputs = true
+  mock_outputs_allowed_terraform_commands = ["validate"]
 }
 
 inputs = {
