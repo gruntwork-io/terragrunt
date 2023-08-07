@@ -15,18 +15,19 @@ func TestGetBoolEnv(t *testing.T) {
 		fallback    bool
 		expected    bool
 	}{
-		// true
+		// false
 		{"", false, false},
 		{"false", false, false},
 		{"  false  ", false, false},
 		{"False", false, false},
 		{"FALSE", false, false},
 		{"0", false, false},
-		// false
+		// true
 		{"true", false, true},
 		{"  true  ", false, true},
 		{"True", false, true},
 		{"TRUE", false, true},
+		{"", true, true},
 		{"", true, true},
 		{"1", true, true},
 		{"foo", false, false},
@@ -41,6 +42,46 @@ func TestGetBoolEnv(t *testing.T) {
 			t.Parallel()
 
 			actual := GetBoolEnv(testCase.envVarValue, testCase.fallback)
+			assert.Equal(t, testCase.expected, actual)
+		})
+	}
+}
+
+func TestGetNegativeBoolEnv(t *testing.T) {
+	t.Parallel()
+
+	var testCases = []struct {
+		envVarValue string
+		fallback    bool
+		expected    bool
+	}{
+		// true
+		{"", true, true},
+		{"false", false, true},
+		{"  false  ", false, true},
+		{"False", false, true},
+		{"FALSE", false, true},
+		{"0", false, true},
+		// false
+		{"", false, false},
+		{"true", false, false},
+		{"  true  ", false, false},
+		{"True", false, false},
+		{"TRUE", false, false},
+
+		{"1", true, false},
+		{"foo", false, false},
+	}
+
+	for i, testCase := range testCases {
+		// to make sure testCase's values don't get updated due to concurrency within the scope of t.Run(..) below
+		testCase := testCase
+
+		envVarName := fmt.Sprintf("TestGetNegativeBoolEnv-testCase-%d", i)
+		t.Run(envVarName, func(t *testing.T) {
+			t.Parallel()
+
+			actual := GetNegativeBoolEnv(testCase.envVarValue, testCase.fallback)
 			assert.Equal(t, testCase.expected, actual)
 		})
 	}

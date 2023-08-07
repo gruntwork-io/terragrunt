@@ -103,9 +103,8 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 		opts.RunAllAutoApprove = env.GetBoolEnv(os.Getenv("TERRAGRUNT_AUTO_APPROVE"), opts.RunAllAutoApprove)
 
 		// `TF_INPUT` is the old env var for`--terragrunt-non-interactive` flag, now is replaced with `TERRAGRUNT_NON_INTERACTIVE` but kept for backwards compatibility.
-		if opts.NonInteractive == false {
-			opts.NonInteractive = !env.GetBoolEnv(os.Getenv("TF_INPUT"), true)
-		}
+		// If `TF_INPUT` is false then `opts.NonInteractive` is true.
+		opts.NonInteractive = env.GetNegativeBoolEnv(os.Getenv("TF_INPUT"), opts.NonInteractive)
 
 		// --- Args
 		// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`

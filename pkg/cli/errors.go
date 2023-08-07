@@ -6,9 +6,9 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-type InvalidCommandName string
+type InvalidCommandNameError string
 
-func (cmdName InvalidCommandName) Error() string {
+func (cmdName InvalidCommandNameError) Error() string {
 	return fmt.Sprintf("invalid command name %q", string(cmdName))
 }
 

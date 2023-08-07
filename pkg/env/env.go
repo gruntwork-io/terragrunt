@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// GetIntEnv converts the given value to an bool type and returns that value, or returns the specified fallback value if the value is empty.
+// GetBoolEnv converts the given value to the bool type and returns that value, or returns the specified fallback value if the value is empty.
 func GetBoolEnv(value string, fallback bool) bool {
 	if strVal, ok := nonEmptyValue(value); ok {
 		if val, err := strconv.ParseBool(strVal); err == nil {
@@ -16,7 +16,18 @@ func GetBoolEnv(value string, fallback bool) bool {
 	return fallback
 }
 
-// GetIntEnv converts the given value to an integer type and returns that value, or returns the specified fallback value if the value is empty.
+// GetNegativeBoolEnv converts the given value to the bool type and returns the inverted value, or returns the specified fallback value if the value is empty.
+func GetNegativeBoolEnv(value string, fallback bool) bool {
+	if strVal, ok := nonEmptyValue(value); ok {
+		if val, err := strconv.ParseBool(strVal); err == nil {
+			return !val
+		}
+	}
+
+	return fallback
+}
+
+// GetIntEnv converts the given value to the integer type and returns that value, or returns the specified fallback value if the value is empty.
 func GetIntEnv(value string, fallback int) int {
 	if strVal, ok := nonEmptyValue(value); ok {
 		if val, err := strconv.Atoi(strVal); err == nil {

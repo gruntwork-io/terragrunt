@@ -57,7 +57,7 @@ func ShowCommandHelp(ctx *Context, cmdName string) error {
 		}
 	}
 
-	return InvalidCommandName(cmdName)
+	return InvalidCommandNameError(cmdName)
 }
 
 func ShowVersion(ctx *Context) error {

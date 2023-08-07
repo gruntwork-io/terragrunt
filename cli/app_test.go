@@ -151,19 +151,19 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		{
 			[]string{doubleDashed(commands.FlagNameTerragruntConfig)},
 			nil,
-			argMissingValue(commands.FlagNameTerragruntConfig),
+			argMissingValueError(commands.FlagNameTerragruntConfig),
 		},
 
 		{
 			[]string{doubleDashed(commands.FlagNameTerragruntWorkingDir)},
 			nil,
-			argMissingValue(commands.FlagNameTerragruntWorkingDir),
+			argMissingValueError(commands.FlagNameTerragruntWorkingDir),
 		},
 
 		{
 			[]string{"--foo", "bar", doubleDashed(commands.FlagNameTerragruntConfig)},
 			nil,
-			argMissingValue(commands.FlagNameTerragruntConfig),
+			argMissingValueError(commands.FlagNameTerragruntConfig),
 		},
 		{
 			[]string{doubleDashed(commands.FlagNameTerragruntDebug)},
@@ -290,7 +290,7 @@ func TestParseMultiStringArg(t *testing.T) {
 		{[]string{CommandNameApplyAll, flagName, "bar"}, []string{"default_bar"}, []string{"bar"}, nil},
 		{[]string{CommandNameApplyAll, "--test", "bar"}, []string{"default_bar"}, []string{"default_bar"}, nil},
 		{[]string{CommandNamePlanAll, "--test", flagName, "bar1", flagName, "bar2"}, []string{"default_bar"}, []string{"bar1", "bar2"}, nil},
-		{[]string{CommandNamePlanAll, "--test", "value", flagName, "bar1", flagName}, []string{"default_bar"}, nil, argMissingValue(commands.FlagNameTerragruntModulesThatInclude)},
+		{[]string{CommandNamePlanAll, "--test", "value", flagName, "bar1", flagName}, []string{"default_bar"}, nil, argMissingValueError(commands.FlagNameTerragruntModulesThatInclude)},
 	}
 
 	for _, testCase := range testCases {
@@ -396,6 +396,8 @@ func TestTerragruntHelp(t *testing.T) {
 }
 
 func TestTerraformHelp(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		args     []string
 		expected string
@@ -419,6 +421,8 @@ func TestTerraformHelp(t *testing.T) {
 }
 
 func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
+	t.Parallel()
+
 	app := NewApp(os.Stdout, os.Stderr)
 
 	output := &bytes.Buffer{}
@@ -454,8 +458,8 @@ func doubleDashed(name string) string {
 	return fmt.Sprintf("--%s", name)
 }
 
-type argMissingValue string
+type argMissingValueError string
 
-func (err argMissingValue) Error() string {
+func (err argMissingValueError) Error() string {
 	return fmt.Sprintf("flag needs an argument: -%s", string(err))
 }
