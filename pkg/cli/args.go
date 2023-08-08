@@ -1,12 +1,8 @@
 package cli
 
 import (
-	libflag "flag"
-	"io"
 	"regexp"
 	"strings"
-
-	"github.com/urfave/cli/v2"
 )
 
 const (
@@ -21,21 +17,49 @@ var (
 
 type NormalizeActsType byte
 
-// Args is a wrapper for `urfave`'s `cli.Args` interface, that provides convenient access to CLI arguments.
-type Args struct {
-	cli.Args
+// Args provides convenient access to CLI arguments.
+type Args []string
+
+// Get returns the nth argument, or else a blank string
+func (args *Args) Get(n int) string {
+	if len(*args) > n {
+		return (*args)[n]
+	}
+	return ""
 }
 
-func newArgs(args []string) *Args {
-	// This is the only way to avoid duplicating code from the private struct `urfave`'s `cli.args` that implements `cli.Args` interface.
-	flagSet := libflag.NewFlagSet("", libflag.ContinueOnError)
-	flagSet.SetOutput(io.Discard)
-	flagSet.Parse(append([]string{"--"}, args...))
+// First returns the first argument, or else a blank string
+func (args *Args) First() string {
+	return args.Get(0)
+}
 
-	return &Args{
-		Args: cli.NewContext(nil, flagSet, nil).Args(),
+// Tail returns the rest of the arguments (not the first one)
+// or else an empty string slice
+func (args *Args) Tail() []string {
+	if args.Len() >= 2 {
+		tail := []string((*args)[1:])
+		ret := make([]string, len(tail))
+		copy(ret, tail)
+		return ret
 	}
+	return []string{}
+}
 
+// Len returns the length of the wrapped slice
+func (args *Args) Len() int {
+	return len(*args)
+}
+
+// Present checks if there are any arguments present
+func (args *Args) Present() bool {
+	return args.Len() != 0
+}
+
+// Slice returns a copy of the internal slice
+func (args *Args) Slice() []string {
+	ret := make([]string, len(*args))
+	copy(ret, *args)
+	return ret
 }
 
 // Normalize formats the arguments according to the given actions.
@@ -44,7 +68,7 @@ func newArgs(args []string) *Args {
 //	`SingleDashFlag` - converts all arguments containing double dashes to single dashes
 //	`DoubleDashFlag` - converts all arguments containing signle dashes to double dashes
 func (args *Args) Normalize(acts ...NormalizeActsType) *Args {
-	var strArgs []string
+	var strArgs Args
 
 	for _, arg := range args.Slice() {
 		for _, act := range acts {
@@ -63,7 +87,7 @@ func (args *Args) Normalize(acts ...NormalizeActsType) *Args {
 		strArgs = append(strArgs, arg)
 	}
 
-	return newArgs(strArgs)
+	return &strArgs
 }
 
 // CommandName returns the first value if it starts without a dash `-`, otherwise that means the args do not consist any command and an empty string is returned.

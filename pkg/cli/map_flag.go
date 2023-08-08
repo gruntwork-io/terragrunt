@@ -14,11 +14,6 @@ var (
 	MapFlagKeyValSep = "="
 )
 
-var (
-	// use to separate arguments and env vars with multiple values.
-	DefaultSplitter = strings.Split
-)
-
 type MapFlagKeyType interface {
 	GenericType
 }
@@ -85,7 +80,7 @@ func (flag *MapFlag[K, V]) GetEnvVars() []string {
 	return []string{flag.EnvVar}
 }
 
-// GetValue returns the flags value as string representation and an empty string if the flag takes no value at all.
+// GetDefaultText returns the flags value as string representation and an empty string if the flag takes no value at all.
 func (flag *MapFlag[K, V]) GetDefaultText() string {
 	if flag.DefaultText == "" && flag.FlagValue != nil {
 		return flag.FlagValue.GetDefaultText()

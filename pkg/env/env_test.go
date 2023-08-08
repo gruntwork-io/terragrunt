@@ -142,6 +142,8 @@ func TestGetStringEnv(t *testing.T) {
 }
 
 func TestParseEnvironmentVariables(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		environmentVariables []string
 		expectedVariables    map[string]string

@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	// use to separate arguments and env vars with multiple values.
+	// FlagSplitter uses to separate arguments and env vars with multiple values.
 	FlagSplitter = strings.Split
 )
 
@@ -92,13 +92,4 @@ func (flag *flag) GetValue() string {
 // Implements `cli.DocGenerationFlag.GetCategory` required to generate help.
 func (flag *flag) GetCategory() string {
 	return ""
-}
-
-func value(envKey string) *string {
-	var value *string
-	if val, ok := os.LookupEnv(envKey); ok {
-		value = &val
-	}
-
-	return value
 }

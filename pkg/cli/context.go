@@ -19,12 +19,12 @@ func newContext(parentCtx context.Context, app *App) *Context {
 	}
 }
 
-func (ctx *Context) Clone(command *Command, args []string) *Context {
+func (ctx *Context) Clone(command *Command, args Args) *Context {
 	return &Context{
 		Context: ctx.Context,
 		App:     ctx.App,
 		Command: command,
-		args:    newArgs(args),
+		args:    &args,
 	}
 }
 

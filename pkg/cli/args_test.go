@@ -6,28 +6,28 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var mockArgs = []string{"one", "-foo", "two", "--bar", "value"}
+var mockArgs = Args([]string{"one", "-foo", "two", "--bar", "value"})
 
 func TestArgsSlice(t *testing.T) {
 	t.Parallel()
 
-	actual := newArgs(mockArgs).Slice()
-	expected := mockArgs
+	actual := mockArgs.Slice()
+	expected := []string(mockArgs)
 	assert.Equal(t, expected, actual)
 }
 
 func TestArgsTail(t *testing.T) {
 	t.Parallel()
 
-	actual := newArgs(mockArgs).Tail()
-	expected := mockArgs[1:]
+	actual := mockArgs.Tail()
+	expected := []string(mockArgs[1:])
 	assert.Equal(t, expected, actual)
 }
 
 func TestArgsFirst(t *testing.T) {
 	t.Parallel()
 
-	actual := newArgs(mockArgs).First()
+	actual := mockArgs.First()
 	expected := mockArgs[0]
 	assert.Equal(t, expected, actual)
 }
@@ -35,7 +35,7 @@ func TestArgsFirst(t *testing.T) {
 func TestArgsGet(t *testing.T) {
 	t.Parallel()
 
-	actual := newArgs(mockArgs).Get(2)
+	actual := mockArgs.Get(2)
 	expected := "two"
 	assert.Equal(t, expected, actual)
 }
@@ -43,7 +43,7 @@ func TestArgsGet(t *testing.T) {
 func TestArgsLen(t *testing.T) {
 	t.Parallel()
 
-	actual := newArgs(mockArgs).Len()
+	actual := mockArgs.Len()
 	expected := 5
 	assert.Equal(t, expected, actual)
 }
@@ -51,11 +51,12 @@ func TestArgsLen(t *testing.T) {
 func TestArgsPresent(t *testing.T) {
 	t.Parallel()
 
-	actual := newArgs(mockArgs).Present()
+	actual := mockArgs.Present()
 	expected := true
 	assert.Equal(t, expected, actual)
 
-	actual = newArgs([]string{}).Present()
+	mockArgs := Args([]string{})
+	actual = mockArgs.Present()
 	expected = false
 	assert.Equal(t, expected, actual)
 }
@@ -63,11 +64,12 @@ func TestArgsPresent(t *testing.T) {
 func TestArgsCommandName(t *testing.T) {
 	t.Parallel()
 
-	actual := newArgs(mockArgs).CommandName()
+	actual := mockArgs.CommandName()
 	expected := "one"
 	assert.Equal(t, expected, actual)
 
-	actual = newArgs(mockArgs[1:]).CommandName()
+	mockArgs := Args(mockArgs[1:])
+	actual = mockArgs.CommandName()
 	expected = ""
 	assert.Equal(t, expected, actual)
 }
@@ -75,11 +77,11 @@ func TestArgsCommandName(t *testing.T) {
 func TestArgsNormalize(t *testing.T) {
 	t.Parallel()
 
-	actual := newArgs(mockArgs).Normalize(SingleDashFlag).Slice()
+	actual := mockArgs.Normalize(SingleDashFlag).Slice()
 	expected := []string{"one", "-foo", "two", "-bar", "value"}
 	assert.Equal(t, expected, actual)
 
-	actual = newArgs(mockArgs).Normalize(DoubleDashFlag).Slice()
+	actual = mockArgs.Normalize(DoubleDashFlag).Slice()
 	expected = []string{"one", "--foo", "two", "--bar", "value"}
 	assert.Equal(t, expected, actual)
 }
