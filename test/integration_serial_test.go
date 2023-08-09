@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gruntwork-io/terragrunt/cli"
+	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -95,7 +95,7 @@ func TestTerragruntDownloadDir(t *testing.T) {
 			logBufferContentsLineByLine(t, stderr, "stderr")
 			require.NoError(t, err)
 
-			var dat cli.TerragruntInfoGroup
+			var dat terragruntinfo.TerragruntInfoGroup
 			err_unmarshal := json.Unmarshal(stdout.Bytes(), &dat)
 			assert.NoError(t, err_unmarshal)
 			// compare the results

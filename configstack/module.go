@@ -10,8 +10,8 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/errors"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	zglob "github.com/mattn/go-zglob"
@@ -499,7 +499,7 @@ func confirmShouldApplyExternalDependency(module *TerraformModule, dependency *T
 		return false, nil
 	}
 
-	prompt := fmt.Sprintf("Module %s depends on module %s, which is an external dependency outside of the current working directory. Should Terragrunt run this external dependency? Warning, if you say 'yes', Terragrunt will make changes in %s as well!", module.Path, dependency.Path, dependency.Path)
+	prompt := fmt.Sprintf("Module: \t\t %s\nExternal dependency: \t %s\nShould Terragrunt apply the external dependency?", module.Path, dependency.Path)
 	return shell.PromptUserForYesNo(prompt, terragruntOptions)
 }
 
@@ -604,7 +604,7 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 
 	for _, dir := range pathsToCheck { // iterate over detected paths, build stacks and filter modules by working dir
 		dir = dir + filepath.FromSlash("/")
-		cfgOptions, err := options.NewTerragruntOptions(dir)
+		cfgOptions, err := options.NewTerragruntOptionsWithConfigPath(dir)
 		if err != nil {
 			terragruntOptions.Logger.Debugf("Failed to build terragrunt options from %s %v", dir, err)
 			return nil
