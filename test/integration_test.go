@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/gruntwork-io/go-commons/version"
 	terraws "github.com/gruntwork-io/terratest/modules/aws"
 	"github.com/gruntwork-io/terratest/modules/git"
 	"github.com/hashicorp/go-multierror"
@@ -37,11 +38,14 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/cli"
+	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	terragruntDynamoDb "github.com/gruntwork-io/terragrunt/dynamodb"
-	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/errors"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -851,42 +855,6 @@ func TestTerragruntOutputAllCommand(t *testing.T) {
 	assert.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
 }
 
-func TestTerragruntOutputFromRemoteState(t *testing.T) {
-	t.Parallel()
-
-	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-
-	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUTPUT_FROM_REMOTE_STATE)
-
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUTPUT_FROM_REMOTE_STATE, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
-
-	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, TEST_FIXTURE_OUTPUT_FROM_REMOTE_STATE)
-
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-fetch-dependency-output-from-state --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s/app1", environmentPath))
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-fetch-dependency-output-from-state --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s/app3", environmentPath))
-	// Now delete dependencies cached state
-	config.ClearOutputCache()
-	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app1/.terraform/terraform.tfstate")))
-	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app1/.terraform")))
-	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app3/.terraform/terraform.tfstate")))
-	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app3/.terraform")))
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-fetch-dependency-output-from-state --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s/app2", environmentPath))
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt run-all output --terragrunt-fetch-dependency-output-from-state --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
-	output := stdout.String()
-
-	assert.True(t, strings.Contains(output, "app1 output"))
-	assert.True(t, strings.Contains(output, "app2 output"))
-	assert.True(t, strings.Contains(output, "app3 output"))
-
-	assert.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
-}
-
 func TestTerragruntOutputFromDependency(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 
@@ -1077,7 +1045,7 @@ func TestInvalidSource(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
 	require.Error(t, err)
-	_, ok := errors.Unwrap(err).(cli.WorkingDirNotFound)
+	_, ok := errors.Unwrap(err).(terraform.WorkingDirNotFound)
 	assert.True(t, ok)
 }
 
@@ -1184,8 +1152,8 @@ func TestAutoRetryFlagWithRecoverableError(t *testing.T) {
 }
 
 func TestAutoRetryEnvVarWithRecoverableError(t *testing.T) {
-	os.Setenv("TERRAGRUNT_AUTO_RETRY", "false")
-	defer os.Unsetenv("TERRAGRUNT_AUTO_RETRY")
+	os.Setenv("TERRAGRUNT_NO_AUTO_RETRY", "true")
+	defer os.Unsetenv("TERRAGRUNT_NO_AUTO_RETRY")
 	out := new(bytes.Buffer)
 	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_RERUN)
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_RERUN)
@@ -1391,7 +1359,7 @@ func TestPreventDestroyNotSet(t *testing.T) {
 
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		assert.IsType(t, cli.ModuleIsProtected{}, underlying)
+		assert.IsType(t, terraform.ModuleIsProtected{}, underlying)
 	}
 }
 
@@ -1407,7 +1375,7 @@ func TestPreventDestroy(t *testing.T) {
 
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		assert.IsType(t, cli.ModuleIsProtected{}, underlying)
+		assert.IsType(t, terraform.ModuleIsProtected{}, underlying)
 	}
 }
 
@@ -1423,7 +1391,7 @@ func TestPreventDestroyApply(t *testing.T) {
 
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		assert.IsType(t, cli.ModuleIsProtected{}, underlying)
+		assert.IsType(t, terraform.ModuleIsProtected{}, underlying)
 	}
 }
 
@@ -1866,7 +1834,7 @@ func TestTerragruntInfo(t *testing.T) {
 
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
 
-	var dat cli.TerragruntInfoGroup
+	var dat terragruntinfo.TerragruntInfoGroup
 	err_unmarshal := json.Unmarshal(showStdout.Bytes(), &dat)
 	assert.Nil(t, err_unmarshal)
 
@@ -3863,7 +3831,7 @@ func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
 
 	assert.Error(t, err)
 
-	_, isTgVersionError := errors.Unwrap(err).(cli.InvalidTerragruntVersion)
+	_, isTgVersionError := errors.Unwrap(err).(terraform.InvalidTerragruntVersion)
 	assert.True(t, isTgVersionError)
 }
 
@@ -3923,16 +3891,16 @@ func removeFolder(t *testing.T, path string) {
 }
 
 func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {
-	return runTerragruntVersionCommand(t, "TEST", command, writer, errwriter)
+	args := strings.Split(command, " ")
+	fmt.Println(args)
+
+	app := cli.NewApp(writer, errwriter)
+	return app.Run(args)
 }
 
-func runTerragruntVersionCommand(t *testing.T, version string, command string, writer io.Writer, errwriter io.Writer) error {
-	args := strings.Split(command, " ")
-
-	fmt.Println("runTerragruntVersionCommand after split")
-	fmt.Println(args)
-	app := cli.CreateTerragruntCli(version, writer, errwriter)
-	return app.Run(args)
+func runTerragruntVersionCommand(t *testing.T, ver string, command string, writer io.Writer, errwriter io.Writer) error {
+	version.Version = ver
+	return runTerragruntCommand(t, command, writer, errwriter)
 }
 
 func runTerragrunt(t *testing.T, command string) {
@@ -4676,6 +4644,46 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(output, appPath))
 }
 
+func TestTerragruntOutputFromRemoteState(t *testing.T) {
+	// NOTE: We can't run this test in parallel because there are other tests that also call `config.ClearOutputCache()`, but this function uses a global variable and sometimes it throws an unexpected error:
+	// "fixture-output-from-remote-state/env1/app2/terragrunt.hcl:23,38-48: Unsupported attribute; This object does not have an attribute named "app3_text"."
+	// t.Parallel()
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUTPUT_FROM_REMOTE_STATE)
+
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUTPUT_FROM_REMOTE_STATE, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
+
+	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, TEST_FIXTURE_OUTPUT_FROM_REMOTE_STATE)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-fetch-dependency-output-from-state --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s/app1", environmentPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-fetch-dependency-output-from-state --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s/app3", environmentPath))
+	// Now delete dependencies cached state
+	config.ClearOutputCache()
+	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app1/.terraform/terraform.tfstate")))
+	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app1/.terraform")))
+	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app3/.terraform/terraform.tfstate")))
+	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app3/.terraform")))
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-fetch-dependency-output-from-state --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s/app2", environmentPath))
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt run-all output --terragrunt-fetch-dependency-output-from-state --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
+	output := stdout.String()
+
+	assert.True(t, strings.Contains(output, "app1 output"))
+	assert.True(t, strings.Contains(output, "app2 output"))
+	assert.True(t, strings.Contains(output, "app3 output"))
+
+	assert.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
+}
+
 func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
 	t.Parallel()
 
@@ -4685,7 +4693,7 @@ func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all --terragrunt-non-interactive --terragrunt-working-dir %s", appPath), &stdout, &stderr)
 	require.Error(t, err)
-	_, ok := errors.Unwrap(err).(cli.MissingCommand)
+	_, ok := errors.Unwrap(err).(runall.MissingCommand)
 	assert.True(t, ok)
 }
 
@@ -5284,7 +5292,7 @@ func TestTerragruntRenderJsonHelp(t *testing.T) {
 
 	output := showStdout.String()
 
-	assert.Contains(t, output, "Usage: terragrunt render-json [OPTIONS]")
+	assert.Contains(t, output, "terragrunt render-json")
 	assert.Contains(t, output, "--with-metadata")
 }
 

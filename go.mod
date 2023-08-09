@@ -7,9 +7,9 @@ require (
 	github.com/aws/aws-sdk-go v1.44.122
 	github.com/creack/pty v1.1.11
 	github.com/fatih/structs v1.1.0
-	github.com/go-errors/errors v1.0.2-0.20180813162953-d98b870cc4e0
+	github.com/go-errors/errors v1.4.2
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
-	github.com/gruntwork-io/terratest v0.32.6
+	github.com/gruntwork-io/terratest v0.41.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/go-getter v1.7.0
 	github.com/hashicorp/go-multierror v1.1.1
@@ -22,12 +22,11 @@ require (
 	github.com/hashicorp/terraform v0.15.3
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20210318070130-9a80970d6b34
 	github.com/imdario/mergo v0.3.11
-	github.com/mattn/go-zglob v0.0.2-0.20190814121620-e3c945676326
+	github.com/mattn/go-zglob v0.0.3
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.4.3
 	github.com/sirupsen/logrus v1.8.1
-	github.com/stretchr/testify v1.7.2
-	github.com/urfave/cli v1.22.3
+	github.com/stretchr/testify v1.8.0
 	github.com/zclconf/go-cty v1.12.1
 	go.mozilla.org/sops/v3 v3.7.3
 	golang.org/x/crypto v0.5.0
@@ -56,7 +55,11 @@ require (
 	google.golang.org/genproto v0.0.0-20221025140454-527a21cfbd71 // indirect
 )
 
-require github.com/gruntwork-io/gruntwork-cli v0.7.0
+require (
+	github.com/gruntwork-io/go-commons v0.16.2
+	github.com/gruntwork-io/gruntwork-cli v0.7.0
+	github.com/urfave/cli/v2 v2.25.5
+)
 
 require (
 	cloud.google.com/go/compute v1.10.0 // indirect
@@ -84,7 +87,7 @@ require (
 	github.com/bmatcuk/doublestar v1.1.5 // indirect
 	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/cenkalti/backoff/v3 v3.2.2 // indirect
-	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/fatih/color v1.13.0 // indirect
@@ -93,7 +96,7 @@ require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/go-github/v35 v35.3.0 // indirect
-	github.com/google/go-querystring v1.0.0 // indirect
+	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.6.0 // indirect
@@ -128,9 +131,8 @@ require (
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/russross/blackfriday/v2 v2.0.1 // indirect
+	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
-	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
 	github.com/sourcegraph/go-lsp v0.0.0-20200429204803-219e11d77f5d // indirect
 	github.com/sourcegraph/jsonrpc2 v0.1.0 // indirect
 	github.com/spf13/afero v1.9.3 // indirect
@@ -138,11 +140,12 @@ require (
 	github.com/terraform-linters/tflint-ruleset-terraform v0.2.2 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.12 // indirect
 	github.com/vmihailenco/tagparser v0.1.1 // indirect
+	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	github.com/zclconf/go-cty-yaml v1.0.3 // indirect
 	go.mozilla.org/gopgagent v0.0.0-20170926210634-4d7ea76ff71a // indirect
 	go.opencensus.io v0.23.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e // indirect
+	golang.org/x/exp v0.0.0-20221106115401-f9659909a136 // indirect
 	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/term v0.5.0 // indirect
 	golang.org/x/text v0.7.0 // indirect
