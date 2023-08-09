@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-
-	"github.com/gruntwork-io/terragrunt/errors"
 )
 
 func MatchesAny(regExps []string, s string) bool {
@@ -169,27 +167,6 @@ func StringListInsert(list []string, element string, index int) []string {
 	return append(list[:index], tail...)
 }
 
-// KeyValuePairListToMap converts a list of key value pair encoded as `key=value` strings into a map
-// using the given `splitter` callback func, which can be the `strings.Split` function.
-func KeyValuePairStringListToMap(asList []string, splitter func(s, sep string) []string) (map[string]string, error) {
-	asMap := map[string]string{}
-
-	for _, arg := range asList {
-		parts := splitter(arg, "=")
-
-		if len(parts) != 2 {
-			return nil, errors.WithStackTrace(InvalidKeyValue(arg))
-		}
-
-		key := parts[0]
-		value := parts[1]
-
-		asMap[key] = value
-	}
-
-	return asMap, nil
-}
-
 // SplitUrls slices s into all substrings separated by sep and returns a slice of
 // the substrings between those separators.
 // Taking into account that the `=` sign can also be used as a git tag, e.g. `git@github.com/test.git?ref=feature`
@@ -213,12 +190,4 @@ func SplitUrls(s, sep string) []string {
 	}
 
 	return urls
-}
-
-// custom error types
-
-type InvalidKeyValue string
-
-func (err InvalidKeyValue) Error() string {
-	return fmt.Sprintf("Invalid key-value pair. Expected format KEY=VALUE, got %s.", string(err))
 }
