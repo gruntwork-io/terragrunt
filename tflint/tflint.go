@@ -21,6 +21,7 @@ import (
 const TFVarPrefix = "TF_VAR_"
 const ArgVarPrefix = "-var="
 const ArgVarFilePrefix = "-var-file="
+const TFExternalTFLint = "--terragrunt-external-tflint"
 
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
 func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, hook config.Hook) error {
@@ -51,13 +52,14 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 
 	// tflint init
 	initArgs := []string{"tflint", "--init", "--config", configFile, "--chdir", terragruntOptions.WorkingDir}
-	terragruntOptions.Logger.Debugf("Running tflint init with args %v", initArgs)
 	if externalTfLint {
+		terragruntOptions.Logger.Debugf("Running external tflint init with args %v", initArgs)
 		_, err := shell.RunShellCommandWithOutput(terragruntOptions, terragruntOptions.WorkingDir, false, false, initArgs[0], initArgs[1:]...)
 		if err != nil {
 			return errors.WithStackTrace(ErrorRunningTflint{args: initArgs})
 		}
 	} else {
+		terragruntOptions.Logger.Debugf("Running internal tflint init with args %v", initArgs)
 		statusCode := cli.Run(initArgs)
 		if statusCode != 0 {
 			return errors.WithStackTrace(ErrorRunningTflint{args: initArgs})
@@ -70,14 +72,15 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 	args = append(args, "--chdir", terragruntOptions.WorkingDir)
 	args = append(args, variables...)
 	args = append(args, tflintArgs...)
-	terragruntOptions.Logger.Debugf("Running tflint with args %v", args)
 
 	if externalTfLint {
+		terragruntOptions.Logger.Debugf("Running external tflint with args %v", args)
 		_, err := shell.RunShellCommandWithOutput(terragruntOptions, terragruntOptions.WorkingDir, false, false, args[0], args[1:]...)
 		if err != nil {
 			return errors.WithStackTrace(ErrorRunningTflint{args: args})
 		}
 	} else {
+		terragruntOptions.Logger.Debugf("internal external tflint with args %v", args)
 		statusCode := cli.Run(args)
 
 		if statusCode == cmd.ExitCodeError {
@@ -98,9 +101,8 @@ func tflintArguments(arguments []string) ([]string, bool) {
 	externalTfLint := false
 	var filteredArguments []string
 
-	// check for --terragrunt-external-tflint
 	for _, arg := range arguments {
-		if arg == "--terragrunt-external-tflint" {
+		if arg == TFExternalTFLint {
 			externalTfLint = true
 			continue
 		}
