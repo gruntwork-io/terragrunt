@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gruntwork-io/terratest/modules/collections"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/hashicorp/go-getter"
@@ -32,6 +34,9 @@ import (
 )
 
 const renderJsonCommand = "render-json"
+
+// commandsWhichCanUseMocks - list of commands which can use mocks if mock command is not explicitly defined
+var commandsWhichCanUseMocks = []string{"init", "validate", "plan"}
 
 type Dependency struct {
 	Name                                string     `hcl:",label" cty:"name"`
@@ -380,10 +385,13 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 // allowed commands when `mock_outputs_allowed_terraform_commands` is set as well.
 func (dependencyConfig Dependency) shouldReturnMockOutputs(terragruntOptions *options.TerragruntOptions) bool {
 	defaultOutputsSet := dependencyConfig.MockOutputs != nil
-	allowedCommand :=
-		dependencyConfig.MockOutputsAllowedTerraformCommands != nil &&
-			len(*dependencyConfig.MockOutputsAllowedTerraformCommands) != 0 &&
-			util.ListContainsElement(*dependencyConfig.MockOutputsAllowedTerraformCommands, terragruntOptions.OriginalTerraformCommand)
+	var mockOutputCommands []string
+	if dependencyConfig.MockOutputsAllowedTerraformCommands != nil {
+		mockOutputCommands = *dependencyConfig.MockOutputsAllowedTerraformCommands
+	}
+	// check if can be used mocks if allowed commands are empty
+	mockOnEmptyCommands := len(mockOutputCommands) == 0 && len(collections.ListIntersection([]string{terragruntOptions.TerraformCommand}, commandsWhichCanUseMocks)) != 0
+	allowedCommand := mockOnEmptyCommands || util.ListContainsElement(mockOutputCommands, terragruntOptions.OriginalTerraformCommand)
 	return defaultOutputsSet && allowedCommand || isRenderJsonCommand(terragruntOptions)
 }
 
