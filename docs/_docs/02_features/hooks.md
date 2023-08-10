@@ -91,11 +91,18 @@ config {
 
 #### Configuration
 
-The `execute` parameter accepts `tflint`, and pass additional parameters to it. For example, parameters like `--minimum-failure-severity=error`.
+By default, is executed internal `tflint` which will ignore any other parameter. Any desired extra configuration should be added in the `.tflint.hcl` file. It will work with a `.tflint.hcl` file in the current folder or any parent folder.
 
-By default, is used internal `tflint`, if is required to invoke `tflint` from the OS, use additional parameter `--terragrunt-external-tflint`. 
-
-Extra configuration should be added in the `.tflint.hcl` file. It will work with a `.tflint.hcl` file in the current folder or any parent folder.
+If there is a need to run `tflint` from the operating system directly, should be use the extra parameter `--terragrunt-external-tflint`.
+This will cause Terragrunt to execute `tflint` from the operating system and transmit any supplementary arguments:
+```
+terraform {
+    before_hook "tflint" {
+    commands = ["apply", "plan"]
+    execute = ["tflint" , "--terragrunt-external-tflint", "--minimum-failure-severity=error"]
+  }
+}
+```
 
 #### Authentication for tflint rulesets 
 *Public rulesets*
