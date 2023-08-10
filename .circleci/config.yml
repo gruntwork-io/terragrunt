@@ -76,11 +76,14 @@ jobs:
       # install tflint
       - run:
           command: |
+            pushd .
+            cd /tmp
             curl -L "https://github.com/terraform-linters/tflint/releases/download/v0.47.0/tflint_linux_amd64.zip" -o tflint.zip
             unzip -o tflint.zip
             sudo install -m 0755 tflint /usr/local/bin/tflint
             rm -rf tflint
             rm -rf tflint.zip
+            popd
       # Make GCP Service Account creds available as a file
       - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
       - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
