@@ -80,7 +80,7 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 			return errors.WithStackTrace(ErrorRunningTflint{args: args})
 		}
 	} else {
-		terragruntOptions.Logger.Debugf("internal external tflint with args %v", args)
+		terragruntOptions.Logger.Debugf("Running internal tflint with args %v", args)
 		statusCode := cli.Run(args)
 
 		if statusCode == cmd.ExitCodeError {
