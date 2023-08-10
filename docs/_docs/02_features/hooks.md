@@ -91,10 +91,11 @@ config {
 
 #### Configuration
 
-By default, is executed internal `tflint` which will ignore any other parameter. Any desired extra configuration should be added in the `.tflint.hcl` file. It will work with a `.tflint.hcl` file in the current folder or any parent folder.
+By default, is executed internal `tflint` which evaluate passed parameters. Any desired extra configuration should be added in the `.tflint.hcl` file. 
+It will work with a `.tflint.hcl` file in the current folder or any parent folder.
 
 If there is a need to run `tflint` from the operating system directly, should be use the extra parameter `--terragrunt-external-tflint`.
-This will cause Terragrunt to execute `tflint` from the operating system and transmit any supplementary arguments:
+Example:
 ```
 terraform {
     before_hook "tflint" {
