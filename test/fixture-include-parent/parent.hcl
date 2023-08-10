@@ -4,7 +4,7 @@ locals {
 
 dependency "dependency" {
   config_path = "../dependency"
-  mock_outputs_allowed_terraform_commands = ["validate"]
+
   mock_outputs = {
     mock_key = "mock_value"
   }
