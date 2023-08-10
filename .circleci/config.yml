@@ -84,6 +84,7 @@ jobs:
             rm -rf tflint
             rm -rf tflint.zip
             popd
+            tflint --version
       # Make GCP Service Account creds available as a file
       - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
       - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
