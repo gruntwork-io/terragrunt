@@ -19,11 +19,13 @@ import (
 	"github.com/terraform-linters/tflint/cmd"
 )
 
-// TFVarPrefix Prefix to use for terraform variables set with environment variables.
-const TFVarPrefix = "TF_VAR_"
-const ArgVarPrefix = "-var="
-const ArgVarFilePrefix = "-var-file="
-const TFExternalTFLint = "--terragrunt-external-tflint"
+const (
+	// TFVarPrefix Prefix to use for terraform variables set with environment variables.
+	TFVarPrefix      = "TF_VAR_"
+	ArgVarPrefix     = "-var="
+	ArgVarFilePrefix = "-var-file="
+	TFExternalTFLint = "--terragrunt-external-tflint"
+)
 
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
 func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, hook config.Hook) error {
@@ -86,13 +88,14 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 		terragruntOptions.Logger.Debugf("Running internal tflint with args %v", args)
 		statusCode := cli.Run(args)
 
-		if statusCode == cmd.ExitCodeError {
+		switch statusCode {
+		case cmd.ExitCodeError:
 			return errors.WithStackTrace(ErrorRunningTflint{args: initArgs})
-		} else if statusCode == cmd.ExitCodeIssuesFound {
+		case cmd.ExitCodeIssuesFound:
 			return errors.WithStackTrace(IssuesFound{})
-		} else if statusCode == cmd.ExitCodeOK {
+		case cmd.ExitCodeOK:
 			terragruntOptions.Logger.Info("Tflint has run successfully. No issues found.")
-		} else {
+		default:
 			return errors.WithStackTrace(UnknownError{statusCode: statusCode})
 		}
 	}
