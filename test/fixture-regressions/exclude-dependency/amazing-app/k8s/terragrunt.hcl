@@ -9,7 +9,6 @@ terraform {
 dependency "eks" {
   config_path  = "${get_terragrunt_dir()}/../../clusters/eks"
   skip_outputs = true
-  mock_outputs_allowed_terraform_commands = ["validate"]
   mock_outputs = {
     random_string = "foo"
   }
