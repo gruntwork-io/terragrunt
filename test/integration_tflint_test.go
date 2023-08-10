@@ -152,6 +152,8 @@ func TestTflintArgumentsPassedIn(t *testing.T) {
 	})
 	runPath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_ARGS)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-log-level debug --terragrunt-working-dir %s", runPath), out, errOut)
+	fmt.Printf("errOut: %s\n\n", errOut.String())
+	fmt.Printf("out: %s\n\n", out.String())
 	assert.NoError(t, err)
 
 	assert.Contains(t, errOut.String(), "--minimum-failure-severity=error")
