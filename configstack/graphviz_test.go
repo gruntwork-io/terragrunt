@@ -55,7 +55,7 @@ func TestGraphTrimPrefix(t *testing.T) {
 	h := &TerraformModule{Path: "/config/alpha/beta/h", Dependencies: []*TerraformModule{g, f, c}}
 
 	var stdout bytes.Buffer
-	terragruntOptions, _ := options.NewTerragruntOptions("/config/terragrunt.hcl")
+	terragruntOptions, _ := options.NewTerragruntOptionsWithConfigPath("/config/terragrunt.hcl")
 	WriteDot(&stdout, terragruntOptions, []*TerraformModule{a, b, c, d, e, f, g, h})
 	expected := strings.TrimSpace(`
 digraph {

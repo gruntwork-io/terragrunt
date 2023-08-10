@@ -13,8 +13,8 @@ import (
 	"github.com/creack/pty"
 	"golang.org/x/crypto/ssh/terminal"
 
-	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/errors"
 )
 
 // runCommandWithPTTY will allocate a pseudo-tty to run the subcommand in. This is only necessary when running
@@ -84,8 +84,4 @@ func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.
 	}
 
 	return nil
-}
-
-func PrepareConsole(terragruntOptions *options.TerragruntOptions) {
-	//Do nothing
 }

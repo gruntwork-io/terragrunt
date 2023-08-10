@@ -103,13 +103,13 @@ jobs:
     <<: *defaults
     steps:
       - checkout
-      - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG"
+      - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X github.com/gruntwork-io/go-commons/version.Version=$CIRCLE_TAG -extldflags '-static'"
   deploy:
     resource_class: large
     <<: *defaults
     steps:
       - checkout
-      - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG"
+      - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X github.com/gruntwork-io/go-commons/version.Version=$CIRCLE_TAG -extldflags '-static'"
       - run: cd bin && sha256sum * > SHA256SUMS
       - run: upload-github-release-assets bin/*
 workflows:

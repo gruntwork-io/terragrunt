@@ -80,10 +80,10 @@ This will recursively search the current working directory for any folders that 
 [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
 [`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks.
 
-**[WARNING] Using `run-all` with `plan` is currently broken for certain use cases**. If you have a stack of Terragrunt 
-modules with dependencies between them—either via `dependency` blocks or `terraform_remote_state` data sources—and 
-you've never deployed them, then `run-all plan` will fail as it will not be possible to resolve the `dependency` blocks 
-or `terraform_remote_state` data sources! Please [see here for more 
+**[WARNING] Using `run-all` with `plan` is currently broken for certain use cases**. If you have a stack of Terragrunt
+modules with dependencies between them—either via `dependency` blocks or `terraform_remote_state` data sources—and
+you've never deployed them, then `run-all plan` will fail as it will not be possible to resolve the `dependency` blocks
+or `terraform_remote_state` data sources! Please [see here for more
 information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-497888756).
 
 **[NOTE]** Using `run-all` with `apply` or `destroy` silently adds the `-auto-approve` flag to the command line
@@ -535,6 +535,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-parallelism](#terragrunt-parallelism)
 - [terragrunt-debug](#terragrunt-debug)
 - [terragrunt-log-level](#terragrunt-log-level)
+- [terragrunt-no-color](#terragrunt-no-color)
 - [terragrunt-check](#terragrunt-check)
 - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
 - [terragrunt-override-attr](#terragrunt-override-attr)
@@ -574,7 +575,8 @@ configuration values specified in the `terragrunt.hcl` config for both the top l
 ### terragrunt-no-auto-init
 
 **CLI Arg**: `--terragrunt-no-auto-init`<br/>
-**Environment Variable**: `TERRAGRUNT_AUTO_INIT` (set to `false`)
+**Environment Variable**: `TERRAGRUNT_NO_AUTO_INIT` (set to `true`)
+_(Prior to Terragrunt v0.48.6, this environment variable was called `TERRAGRUNT_AUTO_INIT` (set to `false`), and is still available for backwards compatibility)_
 
 When passed in, don't automatically run `terraform init` when other commands are run (e.g. `terragrunt apply`). Useful
 if you want to pass custom arguments to `terraform init` that are specific to a user or execution environment, and
@@ -586,7 +588,8 @@ disabled. See [Auto-Init]({{site.baseurl}}/docs/features/auto-init#auto-init)
 ### terragrunt-no-auto-approve
 
 **CLI Arg**: `--terragrunt-no-auto-approve`<br/>
-**Environment Variable**: `TERRAGRUNT_AUTO_APPROVE` (set to `false`)
+**Environment Variable**: `TERRAGRUNT_NO_AUTO_APPROVE` (set to `true`)
+_(Prior to Terragrunt v0.48.6, this environment variable was called `TERRAGRUNT_AUTO_APPROVE` (set to `false`), and is still available for backwards compatibility)_
 **Commands**:
 - [run-all](#run-all)
 
@@ -598,7 +601,8 @@ with `run-all`. Note that due to the interactive prompts, this flag will also **
 ### terragrunt-no-auto-retry
 
 **CLI Arg**: `--terragrunt-no-auto-retry`<br/>
-**Environment Variable**: `TERRAGRUNT_AUTO_RETRY` (set to `false`)
+**Environment Variable**: `TERRAGRUNT_NO_AUTO_RETRY` (set to `true`)
+_(Prior to Terragrunt v0.48.6, this environment variable was called `TERRAGRUNT_AUTO_RETRY` (set to `false`), and is still available for backwards compatibility)_
 
 When passed in, don't automatically retry commands which fail with transient errors. See
 [Auto-Retry]({{site.baseurl}}/docs/features/auto-retry#auto-retry)
@@ -607,12 +611,13 @@ When passed in, don't automatically retry commands which fail with transient err
 ### terragrunt-non-interactive
 
 **CLI Arg**: `--terragrunt-non-interactive`<br/>
-**Environment Variable**: `TF_INPUT` (set to `false`)
+**Environment Variable**: `TERRAGRUNT_NON_INTERACTIVE` (set to `true`)
+_(Prior to Terragrunt v0.48.6, this environment variable was called `TF_INPUT` (set to `false`), and is still available for backwards compatibility. NOTE: [TF_INPUT](https://developer.hashicorp.com/terraform/cli/config/environment-variables#tf_input) is native to Terraform!)_
 
 When passed in, don't show interactive user prompts. This will default the answer for all prompts to `yes` except for
 the listed cases below. This is useful if you need to run Terragrunt in an automated setting (e.g. from a script). May
-also be specified with the [TF\_INPUT](https://www.terraform.io/docs/configuration/environment-variables.html#tf_input)
-environment variable.
+also be specified with the [TF\_INPUT](https://www.terraform.io/docs/configuration/environment-variables.html#tf_input) environment variable.
+
 
 This setting will default to `no` for the following cases:
 
@@ -627,7 +632,7 @@ This setting will default to `no` for the following cases:
 **Requires an argument**: `--terragrunt-working-dir /path/to/working-directory`
 
 Set the directory where Terragrunt should execute the `terraform` command. Default is the current working directory.
-Note that for the `run-all` commands, this parameter has a different meaning: Terragrunt will apply or destroy all the 
+Note that for the `run-all` commands, this parameter has a different meaning: Terragrunt will apply or destroy all the
 Terraform modules in the subfolders of the `terragrunt-working-dir`, running `terraform` in the root of each module it
 finds.
 
@@ -652,8 +657,8 @@ Default is `.terragrunt-cache` in the working directory. We recommend adding thi
 Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary
 folder. The source should use the same syntax as the [Terraform module
 source](https://www.terraform.io/docs/modules/sources.html) parameter. If you specify this argument for the `run-all`
-commands, Terragrunt will assume this is the local file path for all of your Terraform modules, and for each module 
-processed by the `run-all` command, Terragrunt will automatically append the path of `source` parameter in each module 
+commands, Terragrunt will assume this is the local file path for all of your Terraform modules, and for each module
+processed by the `run-all` command, Terragrunt will automatically append the path of `source` parameter in each module
 to the `--terragrunt-source` parameter you passed in.
 
 
@@ -830,6 +835,14 @@ When passed it, sets logging level for terragrunt. All supported levels are:
 * debug
 * trace
 
+### terragrunt-no-color
+
+**CLI Arg**: `--terragrunt-no-color`<br/>
+**Environment Variable**: `TERRAGRUNT_NO_COLOR`
+
+If specified, Terragrunt output won't contain any color.
+
+NOTE: This option does not disable Terraform output colors. Use the Terraform [`-no-color`](https://developer.hashicorp.com/terraform/cli/commands/plan#no-color) argument.
 
 
 ### terragrunt-check
