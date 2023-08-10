@@ -91,7 +91,11 @@ config {
 
 #### Configuration
 
-The `execute` parameter only accepts `tflint`, it will ignore any other parameter. Any desired extra configuration should be added in the `.tflint.hcl` file. It will work with a `.tflint.hcl` file in the current folder or any parent folder.
+The `execute` parameter accepts `tflint`, and pass additional parameters to it. For example, parameters like `--minimum-failure-severity=error`.
+
+By default, is used internal `tflint`, if is required to invoke `tflint` from the OS, use additional parameter `--terragrunt-external-tflint`. 
+
+Extra configuration should be added in the `.tflint.hcl` file. It will work with a `.tflint.hcl` file in the current folder or any parent folder.
 
 #### Authentication for tflint rulesets 
 *Public rulesets*

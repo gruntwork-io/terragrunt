@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terratest/modules/collections"
+
 	"github.com/gruntwork-io/terragrunt/shell"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -17,7 +19,7 @@ import (
 	"github.com/terraform-linters/tflint/cmd"
 )
 
-// Prefix to use for terraform variables set with environment variables.
+// TFVarPrefix Prefix to use for terraform variables set with environment variables.
 const TFVarPrefix = "TF_VAR_"
 const ArgVarPrefix = "-var="
 const ArgVarFilePrefix = "-var-file="
@@ -36,7 +38,7 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 		return err
 	}
 
-	tfVariables, err := tfArgumentsToTflintVar(terragruntOptions, terragruntConfig.Terraform)
+	tfVariables, err := tfArgumentsToTflintVar(terragruntOptions, hook, terragruntConfig.Terraform)
 	if err != nil {
 		return err
 	}
@@ -79,6 +81,7 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 		if err != nil {
 			return errors.WithStackTrace(ErrorRunningTflint{args: args})
 		}
+		terragruntOptions.Logger.Info("Tflint has run successfully. No issues found.")
 	} else {
 		terragruntOptions.Logger.Debugf("Running internal tflint with args %v", args)
 		statusCode := cli.Run(args)
@@ -127,10 +130,14 @@ func inputsToTflintVar(inputs map[string]interface{}) ([]string, error) {
 }
 
 // tfArgumentsToTflintVar converts variables from the terraform config to a list of tflint variables.
-func tfArgumentsToTflintVar(terragruntOptions *options.TerragruntOptions, config *config.TerraformConfig) ([]string, error) {
+func tfArgumentsToTflintVar(terragruntOptions *options.TerragruntOptions, hook config.Hook, config *config.TerraformConfig) ([]string, error) {
 	var variables []string
 
 	for _, arg := range config.ExtraArgs {
+		// use extra args which will be used on same command as hook
+		if len(collections.ListIntersection(arg.Commands, hook.Commands)) == 0 {
+			continue
+		}
 		if arg.EnvVars != nil {
 			// extract env_vars
 			for name, value := range *arg.EnvVars {
