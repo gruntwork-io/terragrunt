@@ -77,7 +77,7 @@ jobs:
       - run:
           command: |
             curl -L "https://github.com/terraform-linters/tflint/releases/download/v0.47.0/tflint_linux_amd64.zip" -o tflint.zip
-            unzip tflint.zip
+            unzip -o tflint.zip
             sudo install -m 0755 tflint /usr/local/bin/tflint
             rm -rf tflint
             rm -rf tflint.zip
