@@ -1,1 +1,1 @@
-bucket_name = "test-prefix"
+bucket_name = "my-prefix-123"
