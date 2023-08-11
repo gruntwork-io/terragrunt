@@ -707,6 +707,7 @@ func toTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) 
 	out := map[string]string{}
 
 	for varName, varValue := range vars {
+		// skip variables with null values
 		if varValue == nil {
 			continue
 		}
