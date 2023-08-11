@@ -39,7 +39,7 @@ const (
 	CommandNameProviders            = "providers"
 	CommandNameLock                 = "lock"
 	CommandNameTerragruntReadConfig = "terragrunt-read-config"
-	NullTFVarsFile                  = ".terragrunt-null.auto.tfvars.json"
+	NullTFVarsFile                  = ".terragrunt-null-vars.auto.tfvars.json"
 )
 
 var TerraformCommandsThatUseState = []string{
@@ -291,9 +291,6 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 			// parent dir of terragrunt.hcl, so these will likely always be the same.
 			lockFileError = util.CopyLockFile(terragruntOptions.WorkingDir, originalTerragruntOptions.WorkingDir, terragruntOptions.Logger)
 		}
-
-		// clean null values from tfvars files
-		cleanNullTFVarsFiles(terragruntOptions)
 
 		return multierror.Append(runTerraformError, lockFileError).ErrorOrNil()
 	})
@@ -744,16 +741,4 @@ func setTerragruntNullValues(terragruntOptions *options.TerragruntOptions, terra
 	}
 
 	return nil
-}
-
-// cleanNullTFVarsFiles - Remove the .auto.tfvars.json file with null values.
-func cleanNullTFVarsFiles(terragruntOptions *options.TerragruntOptions) {
-	path := filepath.Join(terragruntOptions.WorkingDir, NullTFVarsFile)
-	if util.FileNotExists(path) {
-		return
-	}
-
-	if err := os.Remove(path); err != nil {
-		terragruntOptions.Logger.Debugf("Error removing Null TFVars file %s: %s", path, err)
-	}
 }
