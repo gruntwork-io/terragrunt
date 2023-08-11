@@ -73,6 +73,18 @@ jobs:
     steps:
       - checkout
       - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.30.0'
+      # install tflint
+      - run:
+          command: |
+            pushd .
+            cd /tmp
+            curl -L "https://github.com/terraform-linters/tflint/releases/download/v0.47.0/tflint_linux_amd64.zip" -o tflint.zip
+            unzip -o tflint.zip
+            sudo install -m 0755 tflint /usr/local/bin/tflint
+            rm -rf tflint
+            rm -rf tflint.zip
+            popd
+            tflint --version
       # Make GCP Service Account creds available as a file
       - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
       - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
