@@ -95,9 +95,11 @@ The `terraform` block supports the following arguments:
     - `commands` (required) : A list of `terraform` sub commands for which the hook should run before.
     - `execute` (required) : A list of command and arguments that should be run as the hook. For example, if `execute` is set as
       `["echo", "Foo"]`, the command `echo Foo` will be run.
+    - `env_vars` (optional) : A map of key value pairs to set as environment variables when calling `execute`.
     - `working_dir` (optional) : The path to set as the working directory of the hook. Terragrunt will switch directory
       to this path prior to running the hook command. Defaults to the terragrunt configuration directory for
       `terragrunt-read-config` and `init-from-module` hooks, and the terraform module directory for other command hooks.
+    - `tty` (optional) : If set to true, this hook will pass a TTY to `execute`.  Helpful if colorized output is desired.
     - `run_on_error` (optional) : If set to true, this hook will run even if a previous hook hit an error, or in the
       case of "after" hooks, if the Terraform command hit an error. Default is false.
     - `suppress_stdout` (optional) : If set to true, the stdout output of the executed commands will be suppressed. This can be useful when there are scripts relying on terraform's output and any other output would break their parsing.
