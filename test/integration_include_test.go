@@ -18,6 +18,7 @@ import (
 const (
 	includeDeepFixturePath      = "fixture-include-deep/"
 	includeDeepFixtureChildPath = "child"
+	includeDeepFixtureVpcPath   = "vpc"
 	includeFixturePath          = "fixture-include/"
 	includeShallowFixturePath   = "stage/my-app"
 	includeNoMergeFixturePath   = "qa/my-app"
@@ -209,6 +210,10 @@ func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 
 		t.Run(filepath.Base(testCase), func(t *testing.T) {
 			t.Parallel()
+
+			vpcPath := filepath.Join(includeMultipleFixturePath, testCase, includeDeepFixtureVpcPath)
+			cleanupTerraformFolder(t, vpcPath)
+			runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", vpcPath))
 
 			childPath := filepath.Join(includeMultipleFixturePath, testCase, includeDeepFixtureChildPath)
 			cleanupTerraformFolder(t, childPath)
