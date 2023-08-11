@@ -1,6 +1,7 @@
 orbs:
   # The Windows orb gives us everything we need to start using the Windows executor.
   win: circleci/windows@2.4.0
+  go: circleci/go@1.7.3
 
 # The "sign binary" rubs in a MacOS environment, so it's necessary to download GW's binaries
 env: &env
