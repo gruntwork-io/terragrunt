@@ -152,7 +152,7 @@ func executeTFLint(terragruntOptions *options.TerragruntOptions, terragruntConfi
 	actualLock := rawActualLock.(*sync.Mutex)
 	actualLock.Lock()
 	defer actualLock.Unlock()
-	err := tflint.RunTflintWithOpts(terragruntOptions, terragruntConfig)
+	err := tflint.RunTflintWithOpts(terragruntOptions, terragruntConfig, curHook)
 	if err != nil {
 		terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
 		return err
