@@ -25,14 +25,14 @@ require (
 	github.com/mattn/go-zglob v0.0.3
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.4.3
-	github.com/sirupsen/logrus v1.8.1
+	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.8.1
 	github.com/zclconf/go-cty v1.13.2
 	go.mozilla.org/sops/v3 v3.7.3
 	golang.org/x/crypto v0.10.0
 	golang.org/x/oauth2 v0.8.0
 	golang.org/x/sync v0.3.0
-	golang.org/x/sys v0.9.0
+	golang.org/x/sys v0.11.0
 	google.golang.org/api v0.110.0
 )
 
