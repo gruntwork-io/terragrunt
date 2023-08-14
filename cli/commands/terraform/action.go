@@ -1,9 +1,11 @@
 package terraform
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -37,6 +39,7 @@ const (
 	CommandNameProviders            = "providers"
 	CommandNameLock                 = "lock"
 	CommandNameTerragruntReadConfig = "terragrunt-read-config"
+	NullTFVarsFile                  = ".terragrunt-null-vars.auto.tfvars.json"
 )
 
 var TerraformCommandsThatUseState = []string{
@@ -248,6 +251,10 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 	}
 
 	if err := setTerragruntInputsAsEnvVars(terragruntOptions, terragruntConfig); err != nil {
+		return err
+	}
+
+	if err := setTerragruntNullValues(terragruntOptions, terragruntConfig); err != nil {
 		return err
 	}
 
@@ -700,6 +707,10 @@ func toTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) 
 	out := map[string]string{}
 
 	for varName, varValue := range vars {
+		// skip variables with null values
+		if varValue == nil {
+			continue
+		}
 		envVarName := fmt.Sprintf("%s_%s", terraform.TFVarPrefix, varName)
 
 		envVarValue, err := util.AsTerraformEnvVarJsonValue(varValue)
@@ -711,4 +722,24 @@ func toTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) 
 	}
 
 	return out, nil
+}
+
+// setTerragruntNullValues - Generate a .auto.tfvars.json file with variables which have null values.
+func setTerragruntNullValues(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+	jsonEmptyVars := make(map[string]interface{})
+	for varName, varValue := range terragruntConfig.Inputs {
+		if varValue == nil {
+			jsonEmptyVars[varName] = nil
+		}
+	}
+	jsonContents, err := json.MarshalIndent(jsonEmptyVars, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(filepath.Join(terragruntOptions.WorkingDir, NullTFVarsFile), jsonContents, os.FileMode(int(0600))); err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	return nil
 }
