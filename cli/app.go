@@ -158,6 +158,16 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 		}
 		opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)
 
+		opts.ExcludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.ExcludeDirs...)
+		if err != nil {
+			return err
+		}
+
+		opts.IncludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.IncludeDirs...)
+		if err != nil {
+			return err
+		}
+
 		// --- Terragrunt Version
 		terragruntVersion, err := hashicorpversion.NewVersion(ctx.App.Version)
 		if err != nil {

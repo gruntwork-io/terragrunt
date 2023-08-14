@@ -67,7 +67,7 @@ func EnsureDirectory(path string) error {
 	return nil
 }
 
-// Return the canonical version of the given path, relative to the given base path. That is, if the given path is a
+// CanonicalPath returns the canonical version of the given path, relative to the given base path. That is, if the given path is a
 // relative path, assume it is relative to the given base path. A canonical path is an absolute path with all relative
 // components (e.g. "../") fully resolved, which makes it safe to compare paths as strings.
 func CanonicalPath(path string, basePath string) (string, error) {
@@ -76,10 +76,49 @@ func CanonicalPath(path string, basePath string) (string, error) {
 	}
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return "", err
+		return "", errors.WithStackTrace(err)
 	}
 
 	return CleanPath(absPath), nil
+}
+
+// GlobCanonicalPath returns the canonical versions of the given glob paths, relative to the given base path.
+func GlobCanonicalPath(basePath string, globPaths ...string) ([]string, error) {
+	if len(globPaths) == 0 {
+		return []string{}, nil
+	}
+
+	var err error
+
+	// Ensure basePath is cannonical
+	basePath, err = CanonicalPath("", basePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var paths []string
+
+	for _, globPath := range globPaths {
+		// Ensure globPath are absolute
+		if !filepath.IsAbs(globPath) {
+			globPath = filepath.Join(basePath, globPath)
+		}
+
+		matches, err := zglob.Glob(globPath)
+		if err == nil {
+			paths = append(paths, matches...)
+		}
+	}
+
+	// Make sure all paths are canonical
+	for i := range paths {
+		paths[i], err = CanonicalPath(paths[i], basePath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return paths, nil
 }
 
 // Return the canonical version of the given paths, relative to the given base path. That is, if a given path is a
