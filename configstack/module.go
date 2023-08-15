@@ -9,12 +9,12 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/errors"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
-	zglob "github.com/mattn/go-zglob"
 )
 
 const maxLevelsOfRecursion = 20
@@ -51,37 +51,37 @@ func (module TerraformModule) MarshalJSON() ([]byte, error) {
 func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions, childTerragruntConfig *config.TerragruntConfig, howThesePathsWereFound string) ([]*TerraformModule, error) {
 	canonicalTerragruntConfigPaths, err := util.CanonicalPaths(terragruntConfigPaths, ".")
 	if err != nil {
-		return []*TerraformModule{}, err
+		return nil, err
 	}
 
 	modules, err := resolveModules(canonicalTerragruntConfigPaths, terragruntOptions, childTerragruntConfig, howThesePathsWereFound)
 	if err != nil {
-		return []*TerraformModule{}, err
+		return nil, err
 	}
 
 	externalDependencies, err := resolveExternalDependenciesForModules(modules, map[string]*TerraformModule{}, 0, terragruntOptions, childTerragruntConfig)
 	if err != nil {
-		return []*TerraformModule{}, err
+		return nil, err
 	}
 
 	crossLinkedModules, err := crosslinkDependencies(mergeMaps(modules, externalDependencies), canonicalTerragruntConfigPaths)
 	if err != nil {
-		return []*TerraformModule{}, err
+		return nil, err
 	}
 
 	includedModules, err := flagIncludedDirs(crossLinkedModules, terragruntOptions)
 	if err != nil {
-		return []*TerraformModule{}, err
+		return nil, err
 	}
 
 	includedModulesWithExcluded, err := flagExcludedDirs(includedModules, terragruntOptions)
 	if err != nil {
-		return []*TerraformModule{}, err
+		return nil, err
 	}
 
 	finalModules, err := flagModulesThatDontInclude(includedModulesWithExcluded, terragruntOptions)
 	if err != nil {
-		return []*TerraformModule{}, err
+		return nil, err
 	}
 
 	return finalModules, nil
@@ -89,58 +89,15 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 
 // flagExcludedDirs iterates over a module slice and flags all entries as excluded, which should be ignored via the terragrunt-exclude-dir CLI flag.
 func flagExcludedDirs(modules []*TerraformModule, terragruntOptions *options.TerragruntOptions) ([]*TerraformModule, error) {
-
-	// If no ExcludeDirs is specified return the modules list instantly
-	if len(terragruntOptions.ExcludeDirs) == 0 {
-		return modules, nil
-	}
-
-	canonicalWorkingDir, err := util.CanonicalPath("", terragruntOptions.WorkingDir)
-	if err != nil {
-		return nil, err
-	}
-
-	excludeGlobMatches := []string{}
-
-	// If possible, expand the glob to get all excluded filepaths
-	for _, dir := range terragruntOptions.ExcludeDirs {
-
-		absoluteDir := ""
-
-		// Ensure excludedDirs are absolute
-		if filepath.IsAbs(dir) {
-			absoluteDir = dir
-		} else {
-			absoluteDir = filepath.Join(canonicalWorkingDir, dir)
-		}
-
-		matches, err := zglob.Glob(absoluteDir)
-
-		// Skip globs that can not be expanded
-		if err == nil {
-			excludeGlobMatches = append(excludeGlobMatches, matches...)
-		}
-	}
-
-	// Make sure all paths are canonical
-	canonicalExcludeDirs := []string{}
-	for _, module := range excludeGlobMatches {
-		canonicalPath, err := util.CanonicalPath(module, terragruntOptions.WorkingDir)
-		if err != nil {
-			return nil, err
-		}
-		canonicalExcludeDirs = append(canonicalExcludeDirs, canonicalPath)
-	}
-
 	for _, module := range modules {
-		if findModuleinPath(module, canonicalExcludeDirs) {
+		if findModuleInPath(module, terragruntOptions.ExcludeDirs) {
 			// Mark module itself as excluded
 			module.FlagExcluded = true
 		}
 
 		// Mark all affected dependencies as excluded
 		for _, dependency := range module.Dependencies {
-			if findModuleinPath(dependency, canonicalExcludeDirs) {
+			if findModuleInPath(dependency, terragruntOptions.ExcludeDirs) {
 				dependency.FlagExcluded = true
 			}
 		}
@@ -149,7 +106,7 @@ func flagExcludedDirs(modules []*TerraformModule, terragruntOptions *options.Ter
 	return modules, nil
 }
 
-// flagIncludedDirs iterates over a module slice and flags all entries not in the list specified via the terragrunt-include-dir CLI flag  as excluded.
+// flagIncludedDirs iterates over a module slice and flags all entries not in the list specified via the terragrunt-include-dir CLI flag as excluded.
 func flagIncludedDirs(modules []*TerraformModule, terragruntOptions *options.TerragruntOptions) ([]*TerraformModule, error) {
 
 	// If no IncludeDirs is specified return the modules list instantly
@@ -162,43 +119,8 @@ func flagIncludedDirs(modules []*TerraformModule, terragruntOptions *options.Ter
 		return modules, nil
 	}
 
-	canonicalWorkingDir, err := util.CanonicalPath("", terragruntOptions.WorkingDir)
-	if err != nil {
-		return nil, err
-	}
-
-	includeGlobMatches := []string{}
-
-	// If possible, expand the glob to get all included filepaths
-	for _, dir := range terragruntOptions.IncludeDirs {
-
-		absoluteDir := dir
-
-		// Ensure includedDirs are absolute
-		if !filepath.IsAbs(dir) {
-			absoluteDir = filepath.Join(canonicalWorkingDir, dir)
-		}
-
-		matches, err := zglob.Glob(absoluteDir)
-
-		// Skip globs that can not be expanded
-		if err == nil {
-			includeGlobMatches = append(includeGlobMatches, matches...)
-		}
-	}
-
-	// Make sure all paths are canonical
-	canonicalIncludeDirs := []string{}
-	for _, module := range includeGlobMatches {
-		canonicalPath, err := util.CanonicalPath(module, terragruntOptions.WorkingDir)
-		if err != nil {
-			return nil, err
-		}
-		canonicalIncludeDirs = append(canonicalIncludeDirs, canonicalPath)
-	}
-
 	for _, module := range modules {
-		if findModuleinPath(module, canonicalIncludeDirs) {
+		if findModuleInPath(module, terragruntOptions.IncludeDirs) {
 			module.FlagExcluded = false
 		} else {
 			module.FlagExcluded = true
@@ -219,8 +141,8 @@ func flagIncludedDirs(modules []*TerraformModule, terragruntOptions *options.Ter
 	return modules, nil
 }
 
-// Returns true if a module is located under one of the target directories
-func findModuleinPath(module *TerraformModule, targetDirs []string) bool {
+// findModuleInPath returns true if a module is located under one of the target directories
+func findModuleInPath(module *TerraformModule, targetDirs []string) bool {
 	for _, targetDir := range targetDirs {
 		if module.Path == targetDir {
 			return true
@@ -337,6 +259,11 @@ func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *opti
 	if childTerragruntConfig != nil && childTerragruntConfig.ProcessedIncludes.ContainsPath(terragruntConfigPath) {
 		includeConfig = &config.IncludeConfig{Path: terragruntConfigPath}
 		opts.TerragruntConfigPath = terragruntOptions.OriginalTerragruntConfigPath
+	}
+
+	if collections.ListContainsElement(opts.ExcludeDirs, modulePath) {
+		// module is excluded
+		return &TerraformModule{Path: modulePath, TerragruntOptions: opts, FlagExcluded: true}, nil
 	}
 
 	// We only partially parse the config, only using the pieces that we need in this section. This config will be fully
