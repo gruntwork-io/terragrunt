@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"testing"
 
 	"fmt"
@@ -66,6 +67,44 @@ func TestCanonicalPath(t *testing.T) {
 		actual, err := CanonicalPath(testCase.path, testCase.basePath)
 		assert.Nil(t, err, "Unexpected error for path %s and basePath %s: %v", testCase.path, testCase.basePath, err)
 		assert.Equal(t, testCase.expected, actual, "For path %s and basePath %s", testCase.path, testCase.basePath)
+	}
+}
+
+func TestGlobCanonicalPath(t *testing.T) {
+	t.Parallel()
+
+	basePath := "testdata/fixture-glob-canonical"
+
+	expectedHelper := func(path string) string {
+		basePath, err := filepath.Abs(basePath)
+		assert.NoError(t, err)
+		return filepath.Join(basePath, path)
+	}
+
+	testCases := []struct {
+		paths    []string
+		expected []string
+	}{
+		{[]string{"module-a", "module-b/module-b-child/.."}, []string{expectedHelper("module-a"), expectedHelper("module-b")}},
+		{[]string{"*-a", "*-b"}, []string{expectedHelper("module-a"), expectedHelper("module-b")}},
+		{[]string{"module-*"}, []string{expectedHelper("module-a"), expectedHelper("module-b")}},
+		{[]string{"module-*/*.hcl"}, []string{expectedHelper("module-a/terragrunt.hcl"), expectedHelper("module-b/terragrunt.hcl")}},
+		{[]string{"module-*/**/*.hcl"}, []string{expectedHelper("module-a/terragrunt.hcl"), expectedHelper("module-b/terragrunt.hcl"), expectedHelper("module-b/module-b-child/terragrunt.hcl")}},
+	}
+
+	for _, testCase := range testCases {
+		actual, err := GlobCanonicalPath(basePath, testCase.paths...)
+
+		sort.Slice(actual, func(i, j int) bool {
+			return actual[i] < actual[j]
+		})
+
+		sort.Slice(testCase.expected, func(i, j int) bool {
+			return testCase.expected[i] < testCase.expected[j]
+		})
+
+		assert.Nil(t, err, "Unexpected error for paths %s and basePath %s: %v", testCase.paths, basePath, err)
+		assert.Equal(t, testCase.expected, actual, "For path %s and basePath %s", testCase.paths, basePath)
 	}
 }
 
