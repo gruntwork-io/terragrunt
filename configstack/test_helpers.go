@@ -155,6 +155,14 @@ func canonical(t *testing.T, path string) string {
 	return out
 }
 
+func globCanonical(t *testing.T, path string) []string {
+	out, err := util.GlobCanonicalPath(path, ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
 // Create a mock TerragruntOptions object and configure its RunTerragrunt command to return the given error object. If
 // the RunTerragrunt command is called, this method will also set the executed boolean to true.
 func optionsWithMockTerragruntCommand(t *testing.T, terragruntConfigPath string, toReturnFromTerragruntCommand error, executed *bool) *options.TerragruntOptions {
