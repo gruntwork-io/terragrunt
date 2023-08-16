@@ -352,6 +352,7 @@ func TestTerragruntParallelism(t *testing.T) {
 		})
 	}
 }
+
 func TestTerragruntWorksWithImpersonateGCSBackend(t *testing.T) {
 	defaultCreds := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
 	defer os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", defaultCreds)
@@ -370,8 +371,6 @@ func TestTerragruntWorksWithImpersonateGCSBackend(t *testing.T) {
 	// run with impersonation
 	tmpTerragruntImpersonateGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_IMPERSONATE_PATH, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntImpersonateGCSConfigPath, TEST_FIXTURE_GCS_IMPERSONATE_PATH))
-
-	// restore default credentials
 
 	var expectedGCSLabels = map[string]string{
 		"owner": "terragrunt_test",

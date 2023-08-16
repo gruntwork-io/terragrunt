@@ -4370,10 +4370,14 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 	// verify the bucket location
 	ctx := context.Background()
 	bucket := gcsClient.Bucket(bucketName)
-
 	attrs, err := bucket.Attrs(ctx)
 	if err != nil {
 		t.Fatal(err)
+	}
+	list, err := bucket.DefaultObjectACL().List(ctx)
+	for _, item := range list {
+		t.Logf("acl item: %v", item)
+		t.Logf("acl item email: %v", item.Email)
 	}
 
 	assert.Equal(t, strings.ToUpper(location), attrs.Location, "Did not find GCS bucket in expected location.")
