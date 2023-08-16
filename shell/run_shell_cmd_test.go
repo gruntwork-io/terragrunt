@@ -53,3 +53,13 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	assert.True(t, strings.Contains(stderr.String(), "Terraform"), "Output directed to stderr")
 	assert.True(t, len(stdout.String()) == 0, "No output to stdout")
 }
+
+func BenchmarkPerformanceOfGitTopLevelDir(b *testing.B) {
+	for i := 0; i <= b.N; i++ {
+		terragruntOptions, err := options.NewTerragruntOptionsForTest("")
+		assert.Nil(b, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+
+		_, err = GitTopLevelDir(terragruntOptions, "")
+		assert.Nil(b, err, "Unexpected error running GitTopLevelDir: %v", err)
+	}
+}
