@@ -162,6 +162,7 @@ const (
 	TEST_FIXTURE_STRCONTAINS                                                 = "fixture-strcontains"
 	TEST_FIXTURE_INIT_CACHE                                                  = "fixture-init-cache"
 	TEST_FIXTURE_NULL_VALUE                                                  = "fixture-null-values"
+	TEST_FIXTURE_GCS_IMPERSONATE_PATH                                        = "fixture-gcs-impersonate/"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TERRAFORM_FOLDER                                                         = ".terraform"
 	TERRAFORM_STATE                                                          = "terraform.tfstate"

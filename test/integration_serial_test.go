@@ -352,3 +352,29 @@ func TestTerragruntParallelism(t *testing.T) {
 		})
 	}
 }
+func TestTerragruntWorksWithImpersonateGCSBackend(t *testing.T) {
+	defaultCreds := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
+	defer os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", defaultCreds)
+
+	impersonatorKey := os.Getenv("GCLOUD_SERVICE_KEY_IMPERSONATOR")
+	if impersonatorKey == "" {
+		t.Fatalf("Required environment variable `%s` - not found", "GCLOUD_SERVICE_KEY_IMPERSONATOR")
+	}
+	tmpImpersonatorCreds := createTmpTerragruntConfigContent(t, impersonatorKey, "impersonator-key.json")
+	defer removeFile(t, tmpImpersonatorCreds)
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", tmpImpersonatorCreds)
+
+	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	gcsBucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	// run with impersonation
+	tmpTerragruntImpersonateGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_IMPERSONATE_PATH, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntImpersonateGCSConfigPath, TEST_FIXTURE_GCS_IMPERSONATE_PATH))
+
+	// restore default credentials
+
+	var expectedGCSLabels = map[string]string{
+		"owner": "terragrunt_test",
+		"name":  "terraform_state_storage"}
+	validateGCSBucketExistsAndIsLabeled(t, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, expectedGCSLabels)
+}
