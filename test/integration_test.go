@@ -5815,6 +5815,22 @@ func TestTerragruntPassNullValues(t *testing.T) {
 	// check that the null values are passed correctly
 	assert.Equal(t, outputs["output1"].Value, nil)
 	assert.Equal(t, outputs["output2"].Value, "variable 2")
+
+	// check that file with null values is removed
+	cachePath := filepath.Join(TEST_FIXTURE_NULL_VALUE, TERRAGRUNT_CACHE)
+	foundNullValuesFile := false
+	err := filepath.Walk(cachePath,
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if strings.HasPrefix(path, terraform.NullTFVarsFile) {
+				foundNullValuesFile = true
+			}
+			return nil
+		})
+	assert.Falsef(t, foundNullValuesFile, "Found %s file in cache directory", terraform.NullTFVarsFile)
+	assert.NoError(t, err)
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
