@@ -254,16 +254,8 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 		return err
 	}
 
-	fileName, err := setTerragruntNullValues(terragruntOptions, terragruntConfig)
-	if err != nil {
+	if err := setTerragruntNullValues(terragruntOptions, terragruntConfig); err != nil {
 		return err
-	}
-	if fileName != "" {
-		defer func() {
-			if err := os.Remove(fileName); err != nil {
-				terragruntOptions.Logger.Warnf("Failed to clean up null vars file %s: %v", fileName, err)
-			}
-		}()
 	}
 
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) == CommandNameInit {
@@ -733,7 +725,7 @@ func toTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) 
 }
 
 // setTerragruntNullValues - Generate a .auto.tfvars.json file with variables which have null values.
-func setTerragruntNullValues(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (string, error) {
+func setTerragruntNullValues(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	jsonEmptyVars := make(map[string]interface{})
 	for varName, varValue := range terragruntConfig.Inputs {
 		if varValue == nil {
@@ -742,16 +734,16 @@ func setTerragruntNullValues(terragruntOptions *options.TerragruntOptions, terra
 	}
 	// skip generation on empty file
 	if len(jsonEmptyVars) == 0 {
-		return "", nil
+		return nil
 	}
 	jsonContents, err := json.MarshalIndent(jsonEmptyVars, "", "  ")
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return errors.WithStackTrace(err)
 	}
 	varFile := filepath.Join(terragruntOptions.WorkingDir, NullTFVarsFile)
 	if err := os.WriteFile(varFile, jsonContents, os.FileMode(0600)); err != nil {
-		return "", errors.WithStackTrace(err)
+		return errors.WithStackTrace(err)
 	}
 
-	return varFile, nil
+	return nil
 }
