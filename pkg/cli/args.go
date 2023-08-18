@@ -92,11 +92,14 @@ func (args *Args) Normalize(acts ...NormalizeActsType) *Args {
 
 // CommandName returns the first value if it starts without a dash `-`, otherwise that means the args do not consist any command and an empty string is returned.
 func (args *Args) CommandName() string {
-	name := args.First()
+	var name []string
 
-	if isFlag := strings.HasPrefix(name, "-"); !isFlag && name != "" {
-		return name
+	for _, arg := range args.Slice() {
+		if strings.HasPrefix(arg, "-") {
+			break
+		}
+		name = append(name, arg)
 	}
 
-	return ""
+	return strings.Join(name, " ")
 }
