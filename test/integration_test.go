@@ -4374,6 +4374,7 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Logf("attrs item: %v", attrs)
 	list, err := bucket.DefaultObjectACL().List(ctx)
 	for _, item := range list {
 		t.Logf("acl item: %v", item)
