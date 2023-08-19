@@ -1,8 +1,6 @@
 package terraform
 
 import (
-	"strings"
-
 	"github.com/gruntwork-io/gruntwork-cli/collections"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
@@ -14,7 +12,7 @@ const (
 )
 
 var (
-	nativeTerraformCommands = []string{"apply", "console", "destroy", "env", "env list", "env select", "env new", "env delete", "fmt", "get", "graph", "import", "init", "metadata", "metadata functions", "output", "plan", "providers", "providers lock", "providers mirror", "providers schema", "push", "refresh", "show", "taint", "test", "validate", "untaint", "workspace", "workspace list", "workspace select", "workspace show", "workspace new", "workspace delete", "force-unlock", "state", "state list", "state rm", "state mv", "state pull", "state push", "state show", "state replace-provider"}
+	nativeTerraformCommands = []string{"apply", "console", "destroy", "env", "fmt", "get", "graph", "import", "init", "metadata", "output", "plan", "providers", "push", "refresh", "show", "taint", "test", "validate", "untaint", "workspace", "force-unlock", "state"}
 )
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
@@ -32,28 +30,10 @@ func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 			opts.CheckDependentModules = true
 		}
 
-		if err := validateTerraformCommand(opts.TerraformCliArgs); err != nil {
-			return err
+		if !collections.ListContainsElement(nativeTerraformCommands, opts.TerraformCommand) {
+			return errors.Errorf("Terraform has no command named %q. To see all of Terraform's top-level commands, run: terraform -help", opts.TerraformCommand)
 		}
 
 		return Run(opts.OptionsFromContext(ctx))
 	}
-}
-
-func validateTerraformCommand(args []string) error {
-	var commandArgs []string
-
-	for _, arg := range args {
-		if strings.HasPrefix(arg, "-") {
-			break
-		}
-		commandArgs = append(commandArgs, arg)
-	}
-	command := strings.Join(commandArgs, " ")
-
-	if !collections.ListContainsElement(nativeTerraformCommands, command) {
-		return errors.Errorf("Terraform has no command named %q. To see all of Terraform's top-level commands, run: terraform -help", command)
-	}
-
-	return nil
 }
