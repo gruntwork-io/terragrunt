@@ -1,7 +1,9 @@
 package terraform
 
 import (
-	"github.com/gruntwork-io/go-commons/collections"
+	"strings"
+
+	"github.com/gruntwork-io/gruntwork-cli/collections"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/errors"
@@ -30,10 +32,28 @@ func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 			opts.CheckDependentModules = true
 		}
 
-		if !collections.ListContainsElement(nativeTerraformCommands, opts.TerraformCommand) {
-			return errors.Errorf("Terraform has no command named %q. To see all of Terraform's top-level commands, run: terraform -help", opts.TerraformCommand)
+		if err := validateTerraformCommand(opts.TerraformCliArgs); err != nil {
+			return err
 		}
 
 		return Run(opts.OptionsFromContext(ctx))
 	}
+}
+
+func validateTerraformCommand(args []string) error {
+	var commandArgs []string
+
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "-") {
+			break
+		}
+		commandArgs = append(commandArgs, arg)
+	}
+	command := strings.Join(commandArgs, " ")
+
+	if !collections.ListContainsElement(nativeTerraformCommands, command) {
+		return errors.Errorf("Terraform has no command named %q. To see all of Terraform's top-level commands, run: terraform -help", command)
+	}
+
+	return nil
 }
