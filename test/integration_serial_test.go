@@ -383,6 +383,7 @@ func TestTerragruntWorksWithImpersonateGCSBackend(t *testing.T) {
 	for _, a := range attrs.ACL {
 		if (a.Role == "OWNER") && (a.Email == email) {
 			ownerEmail = true
+			break
 		}
 	}
 	assert.True(t, ownerEmail, "Identity email should match the impersonated account")
