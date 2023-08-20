@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"math/rand"
 	"net/url"
 	"os"
@@ -4374,44 +4373,6 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 	attrs, err := bucket.Attrs(ctx)
 	if err != nil {
 		t.Fatal(err)
-	}
-
-	notifications, err := bucket.Notifications(ctx)
-	if err != nil {
-		t.Fatalf("Error fetching notification: %v", err)
-	}
-
-	t.Logf("attrs item: %v", notifications)
-
-	t.Logf("attrs item: %v", attrs)
-
-	list, err := bucket.DefaultObjectACL().List(ctx)
-	for _, rule := range list {
-
-		t.Logf("acl item: %v", rule)
-
-		t.Logf("acl item email: %v", rule.Email)
-
-		t.Logf("acl c: %v", rule.ProjectTeam)
-	}
-
-	acl, err := bucket.ACL().List(ctx)
-	t.Logf("acl item: %v", acl)
-
-	it := bucket.Objects(ctx, nil)
-	for {
-		attrs, err := it.Next()
-		if err != nil {
-			break
-		}
-		if err != nil {
-			log.Fatalf("Error iterating through objects: %v", err)
-		}
-		fmt.Println("******")
-		fmt.Println(attrs.Name)
-		fmt.Println(attrs.Owner)
-		fmt.Println(attrs.Size)
-		fmt.Println("******")
 	}
 
 	assert.Equal(t, strings.ToUpper(location), attrs.Location, "Did not find GCS bucket in expected location.")
