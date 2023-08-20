@@ -4375,6 +4375,13 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 		t.Fatal(err)
 	}
 
+	notifications, err := bucket.Notifications(ctx)
+	if err != nil {
+		t.Fatalf("Error fetching notification: %v", err)
+	}
+
+	t.Logf("attrs item: %v", notifications)
+
 	t.Logf("attrs item: %v", attrs)
 
 	list, err := bucket.DefaultObjectACL().List(ctx)
@@ -4384,7 +4391,7 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 
 		t.Logf("acl item email: %v", rule.Email)
 
-		t.Logf("acl ProjectTeam: %v", rule.ProjectTeam)
+		t.Logf("acl c: %v", rule.ProjectTeam)
 	}
 
 	acl, err := bucket.ACL().List(ctx)
