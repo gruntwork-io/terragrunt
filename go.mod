@@ -56,6 +56,7 @@ require (
 )
 
 require (
+	cloud.google.com/go/logging v1.7.0
 	github.com/gruntwork-io/go-commons v0.16.2
 	github.com/gruntwork-io/gruntwork-cli v0.7.0
 	github.com/urfave/cli/v2 v2.25.5
@@ -65,6 +66,7 @@ require (
 	cloud.google.com/go/compute v1.18.0 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	cloud.google.com/go/iam v0.12.0 // indirect
+	cloud.google.com/go/longrunning v0.4.1 // indirect
 	filippo.io/age v1.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go v63.3.0+incompatible // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect

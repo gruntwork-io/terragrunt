@@ -4374,12 +4374,17 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	t.Logf("attrs item: %v", attrs)
+
 	list, err := bucket.DefaultObjectACL().List(ctx)
 	for _, rule := range list {
 
 		t.Logf("acl item: %v", rule)
+
 		t.Logf("acl item email: %v", rule.Email)
+
+		t.Logf("acl ProjectTeam: %v", rule.ProjectTeam)
 	}
 
 	acl, err := bucket.ACL().List(ctx)
@@ -4390,23 +4395,6 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 	if expectedLabels != nil {
 		assertGCSLabels(t, expectedLabels, bucketName, gcsClient)
 	}
-
-	iam, err := gcsClient.Bucket(bucketName).IAM().Policy(ctx)
-	assert.NoError(t, err)
-	fmt.Printf("role iam : %v\n", iam)
-	for _, r := range iam.Roles() {
-		fmt.Printf("role : %v\n", r)
-	}
-
-	obj := gcsClient.Bucket(bucketName).Object("terraform.tfstate")
-	acls, err := obj.ACL().List(ctx)
-	assert.NoError(t, err)
-	for _, acl := range acls {
-		fmt.Printf("Owner Entity: %s\n", acl.Entity)
-		fmt.Printf("Owner entity email: %s\n", acl.Email)
-		fmt.Printf("Owner : %v\n", acl)
-	}
-
 }
 
 func assertGCSLabels(t *testing.T, expectedLabels map[string]string, bucketName string, client *storage.Client) {
