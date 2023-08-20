@@ -381,8 +381,6 @@ func TestTerragruntWorksWithImpersonateGCSBackend(t *testing.T) {
 	attrs := gcsObjectAttrs(t, gcsBucketName, "terraform.tfstate/default.tfstate")
 	ownerEmail := false
 	for _, a := range attrs.ACL {
-		fmt.Printf("ACL: %v\n", a)
-		fmt.Printf("ACL email: %v\n", a.Email)
 		if (a.Role == "OWNER") && (a.Email == email) {
 			ownerEmail = true
 		}
