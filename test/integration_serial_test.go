@@ -379,9 +379,13 @@ func TestTerragruntWorksWithImpersonateGCSBackend(t *testing.T) {
 
 	email := os.Getenv("GOOGLE_IDENTITY_EMAIL")
 	attrs := gcsObjectAttrs(t, gcsBucketName, "terraform.tfstate/default.tfstate")
+	ownerEmail := false
 	for _, a := range attrs.ACL {
 		fmt.Printf("ACL: %v\n", a)
 		fmt.Printf("ACL email: %v\n", a.Email)
+		if (a.Role == "OWNER") && (a.Email == email) {
+			ownerEmail = true
+		}
 	}
-	assert.Equal(t, email, attrs.Owner, "Identity email should match the impersonated account")
+	assert.True(t, ownerEmail, "Identity email should match the impersonated account")
 }
