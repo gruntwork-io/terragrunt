@@ -376,4 +376,8 @@ func TestTerragruntWorksWithImpersonateGCSBackend(t *testing.T) {
 		"owner": "terragrunt_test",
 		"name":  "terraform_state_storage"}
 	validateGCSBucketExistsAndIsLabeled(t, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, expectedGCSLabels)
+
+	email := os.Getenv("GOOGLE_IDENTITY_EMAIL")
+	attrs := gcsObjectAttrs(t, gcsBucketName, "terraform.tfstate/default.tfstate")
+	assert.Equal(t, email, attrs.Owner, "Identity email should match the impersonated account")
 }

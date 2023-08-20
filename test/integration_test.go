@@ -4421,6 +4421,26 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 	}
 }
 
+// gcsObjectAttrs returns the attributes of the specified object in the bucket
+func gcsObjectAttrs(t *testing.T, bucketName string, objectName string) *storage.ObjectAttrs {
+	remoteStateConfig := remote.RemoteStateConfigGCS{Bucket: bucketName}
+
+	gcsClient, err := remote.CreateGCSClient(remoteStateConfig)
+	if err != nil {
+		t.Fatalf("Error creating GCS client: %v", err)
+	}
+
+	ctx := context.Background()
+	bucket := gcsClient.Bucket(bucketName)
+
+	handle := bucket.Object(objectName)
+	attrs, err := handle.Attrs(ctx)
+	if err != nil {
+		t.Fatalf("Error reading object attributes %s %v", objectName, err)
+	}
+	return attrs
+}
+
 func assertGCSLabels(t *testing.T, expectedLabels map[string]string, bucketName string, client *storage.Client) {
 	ctx := context.Background()
 	bucket := client.Bucket(bucketName)
