@@ -94,7 +94,7 @@ func (args *Args) Normalize(acts ...NormalizeActsType) *Args {
 func (args *Args) CommandName() string {
 	name := args.First()
 
-	if isFlag := strings.HasPrefix(name, "-"); !isFlag && name != "" {
+	if !strings.HasPrefix(name, "-") {
 		return name
 	}
 

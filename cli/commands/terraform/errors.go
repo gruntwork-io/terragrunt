@@ -15,6 +15,12 @@ func (err MissingCommand) Error() string {
 	return "Missing terraform command (Example: terragrunt plan)"
 }
 
+type WrongTerraformCommand string
+
+func (name WrongTerraformCommand) Error() string {
+	return fmt.Sprintf("Terraform has no command named %q. To see all of Terraform's top-level commands, run: terraform -help", string(name))
+}
+
 type BackendNotDefined struct {
 	Opts        *options.TerragruntOptions
 	BackendType string
