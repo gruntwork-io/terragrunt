@@ -1264,24 +1264,34 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		command  []string
-		expected string
+		command     []string
+		expected    string
+		expectedErr error
 	}{
 		{
 			[]string{"version"},
 			"terraform version",
+			nil,
 		},
 		{
 			[]string{"version", "foo"},
 			"terraform version foo",
+			nil,
 		},
 		{
 			[]string{"version", "foo", "bar", "baz"},
 			"terraform version foo bar baz",
+			nil,
 		},
 		{
 			[]string{"version", "foo", "bar", "baz", "foobar"},
 			"terraform version foo bar baz foobar",
+			nil,
+		},
+		{
+			[]string{"paln"},
+			"",
+			terraform.WrongTerraformCommand("paln"),
 		},
 	}
 
@@ -1293,7 +1303,13 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 			stderr bytes.Buffer
 		)
 
-		runTerragruntRedirectOutput(t, cmd, &stdout, &stderr)
+		err := runTerragruntCommand(t, cmd, &stdout, &stderr)
+		if testCase.expectedErr != nil {
+			assert.ErrorIs(t, err, testCase.expectedErr)
+		} else {
+			assert.NoError(t, err)
+		}
+
 		output := stdout.String()
 		errOutput := stderr.String()
 		assert.True(t, strings.Contains(errOutput, testCase.expected) || strings.Contains(output, testCase.expected))
@@ -1340,6 +1356,7 @@ func TestTerraformSubcommandCliArgs(t *testing.T) {
 		}
 		output := stdout.String()
 		errOutput := stderr.String()
+		fmt.Println(output)
 		assert.True(t, strings.Contains(errOutput, testCase.expected) || strings.Contains(output, testCase.expected))
 	}
 }
@@ -3896,7 +3913,7 @@ func removeFolder(t *testing.T, path string) {
 
 func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {
 	args := strings.Split(command, " ")
-	fmt.Println(args)
+	t.Log(args)
 
 	app := cli.NewApp(writer, errwriter)
 	return app.Run(args)

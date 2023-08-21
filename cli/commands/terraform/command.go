@@ -31,7 +31,7 @@ func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 		}
 
 		if !collections.ListContainsElement(nativeTerraformCommands, opts.TerraformCommand) {
-			return errors.Errorf("Terraform has no command named %q. To see all of Terraform's top-level commands, run: terraform -help", opts.TerraformCommand)
+			return errors.WithStackTrace(WrongTerraformCommand(opts.TerraformCommand))
 		}
 
 		return Run(opts.OptionsFromContext(ctx))

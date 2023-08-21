@@ -65,12 +65,13 @@ func (app *App) AddCommands(cmds ...*Command) {
 // Run is the entry point to the cli app. Parses the arguments slice and routes to the proper flag/args combination.
 func (app *App) Run(arguments []string) error {
 	// remove empty args
-	for i := 0; i < len(arguments); i++ {
-		if len(strings.TrimSpace(arguments[i])) == 0 {
-			arguments = append(arguments[:i], arguments[i+1:]...)
-			i++
+	filteredArguments := []string{}
+	for _, arg := range arguments {
+		if trimmedArg := strings.TrimSpace(arg); len(trimmedArg) > 0 {
+			filteredArguments = append(filteredArguments, trimmedArg)
 		}
 	}
+	arguments = filteredArguments
 
 	app.SkipFlagParsing = true
 	app.Authors = []*cli.Author{{Name: app.Author}}
