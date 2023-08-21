@@ -1356,7 +1356,6 @@ func TestTerraformSubcommandCliArgs(t *testing.T) {
 		}
 		output := stdout.String()
 		errOutput := stderr.String()
-		fmt.Println(output)
 		assert.True(t, strings.Contains(errOutput, testCase.expected) || strings.Contains(output, testCase.expected))
 	}
 }
@@ -5532,6 +5531,7 @@ func TestErrorExplaining(t *testing.T) {
 	stderr := bytes.Buffer{}
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", initTestCase), &stdout, &stderr)
+	fmt.Println(err)
 	explanation := shell.ExplainError(err)
 	assert.Contains(t, explanation, "Check your credentials and permissions")
 }
