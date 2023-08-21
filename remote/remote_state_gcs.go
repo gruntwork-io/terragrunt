@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"time"
 
+	"google.golang.org/api/impersonate"
+
 	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/errors"
@@ -470,9 +472,15 @@ func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, err
 	}
 
 	if gcsConfigRemote.ImpersonateServiceAccount != "" {
-		opts = append(opts, option.ImpersonateCredentials(
-			gcsConfigRemote.ImpersonateServiceAccount,
-			gcsConfigRemote.ImpersonateServiceAccountDelegates...))
+		ts, err := impersonate.CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
+			TargetPrincipal: gcsConfigRemote.ImpersonateServiceAccount,
+			Scopes:          []string{storage.ScopeFullControl},
+			Delegates:       gcsConfigRemote.ImpersonateServiceAccountDelegates,
+		})
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, option.WithTokenSource(ts))
 	}
 
 	client, err := storage.NewClient(ctx, opts...)

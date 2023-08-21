@@ -162,6 +162,7 @@ const (
 	TEST_FIXTURE_STRCONTAINS                                                 = "fixture-strcontains"
 	TEST_FIXTURE_INIT_CACHE                                                  = "fixture-init-cache"
 	TEST_FIXTURE_NULL_VALUE                                                  = "fixture-null-values"
+	TEST_FIXTURE_GCS_IMPERSONATE_PATH                                        = "fixture-gcs-impersonate/"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TERRAFORM_FOLDER                                                         = ".terraform"
 	TERRAFORM_STATE                                                          = "terraform.tfstate"
@@ -4077,6 +4078,9 @@ func copyTerragruntGCSConfigAndFillPlaceholders(t *testing.T, configSrcPath stri
 	contents = strings.Replace(contents, "__FILL_IN_LOCATION__", location, -1)
 	contents = strings.Replace(contents, "__FILL_IN_BUCKET_NAME__", gcsBucketName, -1)
 
+	email := os.Getenv("GOOGLE_IDENTITY_EMAIL")
+	contents = strings.Replace(contents, "__FILL_IN_GCP_EMAIL__", email, -1)
+
 	if err := ioutil.WriteFile(configDestPath, []byte(contents), 0444); err != nil {
 		t.Fatalf("Error writing temp Terragrunt config to %s: %v", configDestPath, err)
 	}
@@ -4382,7 +4386,6 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 	// verify the bucket location
 	ctx := context.Background()
 	bucket := gcsClient.Bucket(bucketName)
-
 	attrs, err := bucket.Attrs(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -4393,6 +4396,26 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 	if expectedLabels != nil {
 		assertGCSLabels(t, expectedLabels, bucketName, gcsClient)
 	}
+}
+
+// gcsObjectAttrs returns the attributes of the specified object in the bucket
+func gcsObjectAttrs(t *testing.T, bucketName string, objectName string) *storage.ObjectAttrs {
+	remoteStateConfig := remote.RemoteStateConfigGCS{Bucket: bucketName}
+
+	gcsClient, err := remote.CreateGCSClient(remoteStateConfig)
+	if err != nil {
+		t.Fatalf("Error creating GCS client: %v", err)
+	}
+
+	ctx := context.Background()
+	bucket := gcsClient.Bucket(bucketName)
+
+	handle := bucket.Object(objectName)
+	attrs, err := handle.Attrs(ctx)
+	if err != nil {
+		t.Fatalf("Error reading object attributes %s %v", objectName, err)
+	}
+	return attrs
 }
 
 func assertGCSLabels(t *testing.T, expectedLabels map[string]string, bucketName string, client *storage.Client) {
