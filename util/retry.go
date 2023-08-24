@@ -1,6 +1,7 @@
 package util
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -19,6 +20,11 @@ func DoWithRetry(actionDescription string, maxRetries int, sleepBetweenRetries t
 			return nil
 		}
 
+		var fatalError FatalError
+		if errors.As(err, &fatalError) {
+			return fatalError
+		}
+
 		logger.Errorf("%s returned an error: %s. Sleeping for %s and will try again.", actionDescription, err.Error(), sleepBetweenRetries)
 		time.Sleep(sleepBetweenRetries)
 	}
@@ -34,4 +40,13 @@ type MaxRetriesExceeded struct {
 
 func (err MaxRetriesExceeded) Error() string {
 	return fmt.Sprintf("'%s' unsuccessful after %d retries", err.Description, err.MaxRetries)
+}
+
+// FatalError is error interface for cases that should not be retried.
+type FatalError struct {
+	Underlying error
+}
+
+func (err FatalError) Error() string {
+	return err.Underlying.Error()
 }
