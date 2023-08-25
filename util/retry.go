@@ -1,7 +1,6 @@
 package util
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -20,9 +19,8 @@ func DoWithRetry(actionDescription string, maxRetries int, sleepBetweenRetries t
 			return nil
 		}
 
-		var fatalError FatalError
-		if errors.As(err, &fatalError) {
-			return fatalError
+		if _, isFatalErr := err.(FatalError); isFatalErr {
+			return err
 		}
 
 		logger.Errorf("%s returned an error: %s. Sleeping for %s and will try again.", actionDescription, err.Error(), sleepBetweenRetries)
