@@ -637,6 +637,10 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 	err := CreateS3Bucket(s3Client, aws.String(config.remoteStateConfigS3.Bucket), terragruntOptions)
 
 	if err != nil {
+		if accessError := checkBucketAccess(s3Client, aws.String(config.remoteStateConfigS3.Bucket), aws.String(config.remoteStateConfigS3.Key)); accessError != nil {
+			return accessError
+		}
+
 		if isBucketAlreadyOwnedByYouError(err) {
 			terragruntOptions.Logger.Debugf("Looks like you're already creating bucket %s at the same time. Will not attempt to create it again.", config.remoteStateConfigS3.Bucket)
 			return WaitUntilS3BucketExists(s3Client, &config.remoteStateConfigS3, terragruntOptions)
@@ -848,6 +852,7 @@ func isBucketAlreadyOwnedByYouError(err error) bool {
 	return isAwsErr && (awsErr.Code() == "BucketAlreadyOwnedByYou" || awsErr.Code() == "OperationAborted")
 }
 
+// isBucketCreationErrorRetriable returns true if the error is temporary and bucket creation can be retried.
 func isBucketCreationErrorRetriable(err error) bool {
 	awsErr, isAwsErr := errors.Unwrap(err).(awserr.Error)
 	return isAwsErr && (awsErr.Code() == "InternalError" || awsErr.Code() == "OperationAborted")
@@ -1343,6 +1348,23 @@ func waitUntilBucketHasAccessLoggingAcl(s3Client *s3.S3, bucket *string, terragr
 func DoesS3BucketExist(s3Client *s3.S3, bucket *string) bool {
 	_, err := s3Client.HeadBucket(&s3.HeadBucketInput{Bucket: bucket})
 	return err == nil
+}
+
+// checkBucketAccess checks if the current user has the ability to access the S3 bucket keys.
+func checkBucketAccess(s3Client *s3.S3, bucket *string, key *string) error {
+	_, err := s3Client.GetObject(&s3.GetObjectInput{Key: key, Bucket: bucket})
+	if err == nil {
+		return nil
+	}
+	awsErr, isAwsErr := errors.Unwrap(err).(awserr.Error)
+	if !isAwsErr {
+		return err
+	}
+	// filter permissions errors
+	if awsErr.Code() == "NoSuchBucket" || awsErr.Code() == "NoSuchKey" {
+		return nil
+	}
+	return err
 }
 
 // Create a table for locks in DynamoDB if the user has configured a lock table and the table doesn't already exist
