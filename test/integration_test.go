@@ -152,6 +152,7 @@ const (
 	TEST_FIXTURE_TFLINT_EXTERNAL_TFLINT                                      = "fixture-tflint/external-tflint"
 	TEST_FIXTURE_TFLINT_TFVAR_PASSING                                        = "fixture-tflint/tfvar-passing"
 	TEST_FIXTURE_TFLINT_ARGS                                                 = "fixture-tflint/tflint-args"
+	TEST_FIXTURE_TFLINT_CUSTOM_CONFIG                                        = "fixture-tflint/custom-tflint-config"
 	TEST_FIXTURE_PARALLEL_RUN                                                = "fixture-parallel-run"
 	TEST_FIXTURE_INIT_ERROR                                                  = "fixture-init-error"
 	TEST_FIXTURE_MODULE_PATH_ERROR                                           = "fixture-module-path-in-error"
