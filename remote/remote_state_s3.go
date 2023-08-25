@@ -399,11 +399,11 @@ func createS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 				if err != nil {
 					if isBucketCreationErrorRetriable(err) {
 						return err
-
 					}
+					// return FatalError so that retry loop will not continue
+					return util.FatalError{Underlying: err}
 				}
-				// return FatalError so that retry loop will not retry
-				return util.FatalError{Underlying: err}
+				return nil
 			})
 		}
 	}
