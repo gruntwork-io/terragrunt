@@ -855,7 +855,10 @@ func isBucketAlreadyOwnedByYouError(err error) bool {
 // isBucketCreationErrorRetriable returns true if the error is temporary and bucket creation can be retried.
 func isBucketCreationErrorRetriable(err error) bool {
 	awsErr, isAwsErr := errors.Unwrap(err).(awserr.Error)
-	return isAwsErr && (awsErr.Code() == "InternalError" || awsErr.Code() == "OperationAborted")
+	if !isAwsErr {
+		return true
+	}
+	return awsErr.Code() == "InternalError" || awsErr.Code() == "OperationAborted" || awsErr.Code() == "InvalidParameter"
 }
 
 // Add a policy to allow root access to the bucket
