@@ -20,6 +20,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/gruntwork-io/terragrunt/cache"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/errors"
@@ -756,7 +757,7 @@ func ParseConfigString(
 }
 
 // iamRoleCache - store for cached values of IAM roles
-var iamRoleCache = NewIAMRoleOptionsCache()
+var iamRoleCache = cache.NewGenericCache[options.IAMRoleOptions]()
 
 // setIAMRole - extract IAM role details from Terragrunt flags block
 func setIAMRole(configString string, terragruntOptions *options.TerragruntOptions, includeFromChild *IncludeConfig, filename string) error {

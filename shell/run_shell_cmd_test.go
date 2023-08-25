@@ -54,6 +54,29 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	assert.True(t, len(stdout.String()) == 0, "No output to stdout")
 }
 
+func TestGitLevelTopDirCaching(t *testing.T) {
+	t.Parallel()
+
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
+	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+
+	path := "./"
+
+	cmd, err := RunShellCommandWithOutput(terragruntOptions, path, true, false, "git", "rev-parse", "--show-toplevel")
+	assert.NoError(t, err)
+	expectedResult := strings.TrimSpace(cmd.Stdout)
+
+	actualResult, err := GitTopLevelDir(terragruntOptions, path)
+	assert.Nil(t, err, "Unexpected error executing GitTopLevelDir: %v", err)
+	assert.Equal(t, expectedResult, actualResult)
+
+	cachedResult, found := gitTopLevelDirs.Get(path)
+	assert.True(t, found)
+	assert.Equal(t, expectedResult, cachedResult)
+
+	delete(gitTopLevelDirs.Cache, path)
+}
+
 func BenchmarkPerformanceOfGitTopLevelDir(b *testing.B) {
 	for i := 0; i <= b.N; i++ {
 		terragruntOptions, err := options.NewTerragruntOptionsForTest("")

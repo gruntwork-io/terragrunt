@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/cache"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/errors"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -230,11 +231,12 @@ type CmdOutput struct {
 	Stderr string
 }
 
-var gitTopLevelDir string = ""
+var gitTopLevelDirs = cache.NewGenericCache[string]()
 
 // GitTopLevelDir - fetch git repository path from passed directory
 func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (string, error) {
-	if gitTopLevelDir == "" {
+	gitTopLevelDir, found := gitTopLevelDirs.Get(path)
+	if !found {
 		stdout := bytes.Buffer{}
 		stderr := bytes.Buffer{}
 		opts, err := options.NewTerragruntOptionsWithConfigPath(path)
@@ -250,6 +252,7 @@ func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (
 			return "", err
 		}
 		cmdOutput := strings.TrimSpace(cmd.Stdout)
+		gitTopLevelDirs.Put(path, cmdOutput)
 		gitTopLevelDir = cmdOutput
 	}
 	return gitTopLevelDir, nil

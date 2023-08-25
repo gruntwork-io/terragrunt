@@ -18,6 +18,7 @@ import (
 	"go.mozilla.org/sops/v3/decrypt"
 
 	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/gruntwork-io/terragrunt/cache"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/errors"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -285,7 +286,7 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 
 // runCommandCache - cache of evaluated `run_cmd` invocations
 // see: https://github.com/gruntwork-io/terragrunt/issues/1427
-var runCommandCache = NewStringCache()
+var runCommandCache = cache.NewGenericCache[string]()
 
 // runCommand is a helper function that runs a command and returns the stdout as the interporation
 // for each `run_cmd` in locals section, function is called twice
@@ -664,7 +665,7 @@ func getModulePathFromSourceUrl(sourceUrl string) (string, error) {
 //
 // The cache keys are the canonical paths to the encrypted files, and the values are the
 // plain-text result of the decrypt operation.
-var sopsCache = NewStringCache()
+var sopsCache = cache.NewGenericCache[string]()
 
 // decrypts and returns sops encrypted utf-8 yaml or json data as a string
 func sopsDecryptFile(params []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (string, error) {
