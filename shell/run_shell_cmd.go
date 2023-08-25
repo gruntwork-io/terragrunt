@@ -33,7 +33,12 @@ var terraformCommandsThatNeedPty = []string{
 
 // Run the given Terraform command
 func RunTerraformCommand(terragruntOptions *options.TerragruntOptions, args ...string) error {
-	_, err := RunShellCommandWithOutput(terragruntOptions, "", false, isTerraformCommandThatNeedsPty(args[0]), terragruntOptions.TerraformPath, args...)
+	needPTY, err := isTerraformCommandThatNeedsPty(args)
+	if err != nil {
+		return err
+	}
+
+	_, err = RunShellCommandWithOutput(terragruntOptions, "", false, needPTY, terragruntOptions.TerraformPath, args...)
 	return err
 }
 
@@ -46,11 +51,12 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 // Run the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
 // method's caller
 func RunTerraformCommandWithOutput(terragruntOptions *options.TerragruntOptions, args ...string) (*CmdOutput, error) {
-	needPty := false
-	if len(args) > 0 {
-		needPty = isTerraformCommandThatNeedsPty(args[0])
+	needPTY, err := isTerraformCommandThatNeedsPty(args)
+	if err != nil {
+		return nil, err
 	}
-	return RunShellCommandWithOutput(terragruntOptions, "", false, needPty, terragruntOptions.TerraformPath, args...)
+
+	return RunShellCommandWithOutput(terragruntOptions, "", false, needPTY, terragruntOptions.TerraformPath, args...)
 }
 
 // Run the specified shell command with the specified arguments. Connect the command's stdin, stdout, and stderr to
@@ -149,8 +155,22 @@ func toEnvVarsList(envVarsAsMap map[string]string) []string {
 }
 
 // isTerraformCommandThatNeedsPty returns true if the sub command of terraform we are running requires a pty.
-func isTerraformCommandThatNeedsPty(command string) bool {
-	return util.ListContainsElement(terraformCommandsThatNeedPty, command)
+func isTerraformCommandThatNeedsPty(args []string) (bool, error) {
+	if len(args) == 0 || !util.ListContainsElement(terraformCommandsThatNeedPty, args[0]) {
+		return false, nil
+	}
+
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		return false, errors.WithStackTrace(err)
+	}
+
+	// if there is data in the stdin, then the terraform console is used in non-interactive mode, for example `echo "1 + 5" | terragrunt console`.
+	if fi.Size() > 0 {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 // Return the exit code of a command. If the error does not implement errors.IErrorCode or is not an exec.ExitError
