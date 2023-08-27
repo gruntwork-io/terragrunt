@@ -164,6 +164,7 @@ const (
 	TEST_FIXTURE_INIT_CACHE                                                  = "fixture-init-cache"
 	TEST_FIXTURE_NULL_VALUE                                                  = "fixture-null-values"
 	TEST_FIXTURE_GCS_IMPERSONATE_PATH                                        = "fixture-gcs-impersonate/"
+	TEST_FIXTURE_S3_ERRORS                                                   = "fixture-s3-errors/"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TERRAFORM_FOLDER                                                         = ".terraform"
 	TERRAFORM_STATE                                                          = "terraform.tfstate"
@@ -5871,6 +5872,27 @@ func TestTerragruntPassNullValues(t *testing.T) {
 		})
 	assert.Falsef(t, foundNullValuesFile, "Found %s file in cache directory", terraform.NullTFVarsFile)
 	assert.NoError(t, err)
+}
+
+func TestTerragruntPrintAwsErrors(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_S3_ERRORS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_S3_ERRORS)
+	cleanupTerraformFolder(t, rootPath)
+
+	s3BucketName := "test"
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+
+	tmpTerragruntConfigFile := util.JoinPath(rootPath, "terragrunt.hcl")
+	originalTerragruntConfigPath := util.JoinPath(rootPath, "terragrunt.hcl")
+	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-2")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigFile, rootPath), &stdout, &stderr)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "AllAccessDisabled: All access to this object has been disabled")
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
