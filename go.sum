@@ -554,8 +554,6 @@ github.com/grpc-ecosystem/go-grpc-middleware v1.0.0/go.mod h1:FiyG127CGDf3tlThmg
 github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0/go.mod h1:8NvIoxWQoOIhqOTXgfV/d3M/q6VIi02HzZEHgUlZvzk=
 github.com/grpc-ecosystem/grpc-gateway v1.8.5/go.mod h1:vNeuVxBJEsws4ogUvrchl83t/GYV9WGTSLVdBhOQFDY=
 github.com/grpc-ecosystem/grpc-gateway v1.16.0/go.mod h1:BDjrQk3hbvj6Nolgz8mAMFbcEtjT1g+wF4CSlocrBnw=
-github.com/gruntwork-io/go-commons v0.16.2 h1:EmkS8344ggtQopFq6YJ5Nh3ohBF03AB7cxrgDiJ7C3Q=
-github.com/gruntwork-io/go-commons v0.16.2/go.mod h1:/nnLMhO4HpItt43K+8ACM66g67iMy3oo2nnwq59n3wg=
 github.com/gruntwork-io/go-commons v0.17.1 h1:2KS9wAqrgeOTWj33DSHzDNJ1FCprptWdLFqej+wB8x0=
 github.com/gruntwork-io/go-commons v0.17.1/go.mod h1:S98JcR7irPD1bcruSvnqupg+WSJEJ6xaM89fpUZVISk=
 github.com/gruntwork-io/gruntwork-cli v0.7.0 h1:YgSAmfCj9c61H+zuvHwKfYUwlMhu5arnQQLM4RH+CYs=
