@@ -9,11 +9,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/hashicorp/go-version"
 	"github.com/sirupsen/logrus"
 	"github.com/zclconf/go-cty/cty/function"
 
-	"github.com/gruntwork-io/terragrunt/pkg/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 

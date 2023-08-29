@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
@@ -16,7 +17,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
-	"github.com/gruntwork-io/terragrunt/pkg/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"

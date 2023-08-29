@@ -8,12 +8,13 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/pkg/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 	hashicorpversion "github.com/hashicorp/go-version"
 
+	"github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
@@ -26,7 +27,6 @@ import (
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
-	"github.com/gruntwork-io/terragrunt/pkg/env"
 )
 
 func init() {
@@ -98,13 +98,13 @@ func beforeAction(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
 		// The env vars are renamed to "..._NO_AUTO_..." in the gobal flags`. These ones are left for backwards compatibility.
-		opts.AutoInit = env.GetBoolEnv(os.Getenv("TERRAGRUNT_AUTO_INIT"), opts.AutoInit)
-		opts.AutoRetry = env.GetBoolEnv(os.Getenv("TERRAGRUNT_AUTO_RETRY"), opts.AutoRetry)
-		opts.RunAllAutoApprove = env.GetBoolEnv(os.Getenv("TERRAGRUNT_AUTO_APPROVE"), opts.RunAllAutoApprove)
+		opts.AutoInit = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_INIT"), opts.AutoInit)
+		opts.AutoRetry = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_RETRY"), opts.AutoRetry)
+		opts.RunAllAutoApprove = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_APPROVE"), opts.RunAllAutoApprove)
 
 		// `TF_INPUT` is the old env var for`--terragrunt-non-interactive` flag, now is replaced with `TERRAGRUNT_NON_INTERACTIVE` but kept for backwards compatibility.
 		// If `TF_INPUT` is false then `opts.NonInteractive` is true.
-		opts.NonInteractive = env.GetNegativeBoolEnv(os.Getenv("TF_INPUT"), opts.NonInteractive)
+		opts.NonInteractive = env.GetNegativeBool(os.Getenv("TF_INPUT"), opts.NonInteractive)
 
 		// --- Args
 		// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
@@ -121,7 +121,7 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 		opts.TerraformCommand = cmdName
 		opts.TerraformCliArgs = args
 
-		opts.Env = env.ParseEnvs(os.Environ())
+		opts.Env = env.Parse(os.Environ())
 
 		// --- Logger
 		if opts.DisableLogColors {

@@ -12,8 +12,8 @@ import (
 	"google.golang.org/api/impersonate"
 
 	"cloud.google.com/go/storage"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/errors"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/mitchellh/mapstructure"

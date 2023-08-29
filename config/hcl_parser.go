@@ -3,6 +3,7 @@ package config
 import (
 	"path/filepath"
 
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclparse"
@@ -10,7 +11,6 @@ import (
 	"github.com/zclconf/go-cty/cty/gocty"
 
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/errors"
 )
 
 // parseHcl uses the HCL2 parser to parse the given string into an HCL file body.

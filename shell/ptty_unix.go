@@ -13,8 +13,8 @@ import (
 	"github.com/creack/pty"
 	"golang.org/x/crypto/ssh/terminal"
 
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/errors"
 )
 
 // runCommandWithPTTY will allocate a pseudo-tty to run the subcommand in. This is only necessary when running
