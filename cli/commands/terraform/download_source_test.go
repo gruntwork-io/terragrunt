@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/pkg/env"
-	"github.com/gruntwork-io/terragrunt/pkg/errors"
+	"github.com/gruntwork-io/go-commons/env"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/sirupsen/logrus"
 
