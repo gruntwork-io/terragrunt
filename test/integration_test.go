@@ -5934,8 +5934,6 @@ func TestTerragruntCheckMissingGCSBucket(t *testing.T) {
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
 	gcsBucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 
-	defer deleteGCSBucket(t, gcsBucketName)
-
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_NO_BUCKET, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
