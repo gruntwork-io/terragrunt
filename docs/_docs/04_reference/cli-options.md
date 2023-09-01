@@ -807,6 +807,8 @@ included directories with `terragrunt-include-dir`.
 **Environment Variable**: `TERRAGRUNT_PARALLELISM`
 
 When passed in, limit the number of modules that are run concurrently to this number during *-all commands.
+The exception is the `terraform init` command, which is always executed sequentially if the `TF_PLUGIN_CACHE_DIR` environment variable is defined.
+This is because terraform does not guarantee concurrency safety for the plugin cache directory.
 
 
 ### terragrunt-debug
