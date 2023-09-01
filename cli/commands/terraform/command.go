@@ -30,7 +30,7 @@ func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 			opts.CheckDependentModules = true
 		}
 
-		if !collections.ListContainsElement(nativeTerraformCommands, opts.TerraformCommand) {
+		if !opts.DisableCommandValidation && !collections.ListContainsElement(nativeTerraformCommands, opts.TerraformCommand) {
 			return errors.WithStackTrace(WrongTerraformCommand(opts.TerraformCommand))
 		}
 

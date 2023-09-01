@@ -1296,6 +1296,11 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 			"",
 			terraform.WrongTerraformCommand("paln"),
 		},
+		{
+			[]string{"paln", "--terragrunt-disable-command-validation"},
+			"Terraform invocation failed", // error caused by running terraform with the wrong command
+			nil,
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -1309,8 +1314,6 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 		err := runTerragruntCommand(t, cmd, &stdout, &stderr)
 		if testCase.expectedErr != nil {
 			assert.ErrorIs(t, err, testCase.expectedErr)
-		} else {
-			assert.NoError(t, err)
 		}
 
 		output := stdout.String()
