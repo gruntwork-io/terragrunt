@@ -237,8 +237,8 @@ func parseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteState
 func validateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS, terragruntOptions *options.TerragruntOptions) error {
 	var config = extendedConfig.remoteStateConfigGCS
 
-	if config.Prefix == "" {
-		return errors.WithStackTrace(MissingRequiredGCSRemoteStateConfig("prefix"))
+	if config.Bucket == "" {
+		return errors.WithStackTrace(MissingRequiredGCSRemoteStateConfig("bucket"))
 	}
 
 	return nil
