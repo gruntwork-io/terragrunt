@@ -8,11 +8,14 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
+	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-multierror"
 	"github.com/sirupsen/logrus"
@@ -30,6 +33,8 @@ const signalForwardingDelay = time.Second * 30
 var terraformCommandsThatNeedPty = []string{
 	"console",
 }
+
+var terraformInitMutex sync.Mutex
 
 // Run the given Terraform command
 func RunTerraformCommand(terragruntOptions *options.TerragruntOptions, args ...string) error {
@@ -70,6 +75,14 @@ func RunShellCommandWithOutput(
 	command string,
 	args ...string,
 ) (*CmdOutput, error) {
+	// Terrafrom `init` command with the plugin cache directory is not guaranteed to be concurrency safe.
+	// The provider installer's behavior in environments with multiple terraform init calls is undefined.
+	// Thus, terraform `init` commands must be executed sequentially, even if `--terragrunt-parallelism` is greater than 1.
+	if command == "terraform" && collections.ListContainsElement(args, "init") && terraform.IsPluginCacheUsed() {
+		defer terraformInitMutex.Unlock()
+		terraformInitMutex.Lock()
+	}
+
 	terragruntOptions.Logger.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 	if suppressStdout {
 		terragruntOptions.Logger.Debugf("Command output will be suppressed.")
