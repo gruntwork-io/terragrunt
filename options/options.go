@@ -227,6 +227,9 @@ type TerragruntOptions struct {
 
 	// Controls if s3 bucket should be updated or skipped
 	DisableBucketUpdate bool
+
+	// Disalbes validation terraform command
+	DisableCommandValidation bool
 }
 
 // IAMOptions represents options that are used by Terragrunt to assume an IAM role.

@@ -39,6 +39,7 @@ const (
 	FlagNameTerragruntIncludeModulePrefix            = "terragrunt-include-module-prefix"
 	FlagNameTerragruntFailOnStateBucketCreation      = "terragrunt-fail-on-state-bucket-creation"
 	FlagNameTerragruntDisableBucketUpdate            = "terragrunt-disable-bucket-update"
+	FlagNameTerragruntDisableCommandValidation       = "terragrunt-disable-command-validation"
 
 	FlagNameHelp    = "help"
 	FlagNameVersion = "version"
@@ -230,6 +231,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.DisableBucketUpdate,
 			EnvVar:      "TERRAGRUNT_DISABLE_BUCKET_UPDATE",
 			Usage:       "When this flag is set Terragrunt will not update the remote state bucket.",
+		},
+		&cli.BoolFlag{
+			Name:        FlagNameTerragruntDisableCommandValidation,
+			Destination: &opts.DisableCommandValidation,
+			EnvVar:      "TERRAGRUNT_DISABLE_COMMAND_VALIDATION",
+			Usage:       "When this flag is set, Terragrunt will not validate the terraform command.",
 		},
 	}
 
