@@ -4724,12 +4724,13 @@ func TestTerragruntOutputFromRemoteState(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt run-all output --terragrunt-fetch-dependency-output-from-state --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt run-all output --terragrunt-fetch-dependency-output-from-state --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
 	output := stdout.String()
 
 	assert.True(t, strings.Contains(output, "app1 output"))
 	assert.True(t, strings.Contains(output, "app2 output"))
 	assert.True(t, strings.Contains(output, "app3 output"))
+	assert.False(t, strings.Contains(stderr.String(), "terraform output -json"))
 
 	assert.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
 }
