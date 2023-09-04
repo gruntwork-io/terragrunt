@@ -168,6 +168,7 @@ const (
 	TEST_FIXTURE_GCS_NO_BUCKET                                               = "fixture-gcs-no-bucket/"
 	TEST_FIXTURE_GCS_NO_PREFIX                                               = "fixture-gcs-no-prefix/"
 	TEST_FIXTURE_DISABLED_PATH                                               = "fixture-disabled-path/"
+	TEST_FIXTURE_NO_SUBMODULES                                               = "fixture-no-submodules/"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TERRAFORM_FOLDER                                                         = ".terraform"
 	TERRAFORM_STATE                                                          = "terraform.tfstate"
@@ -5976,6 +5977,21 @@ func TestTerragruntNoWarningLocalPath(t *testing.T) {
 	stderr := bytes.Buffer{}
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	require.NoError(t, err)
+	require.NotContains(t, stderr.String(), "No double-slash (//) found in source URL")
+}
+
+func TestTerragruntNoWarningRemotePath(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_NO_SUBMODULES)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_NO_SUBMODULES)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	require.NoError(t, err)
 	require.NotContains(t, stderr.String(), "No double-slash (//) found in source URL")
 }
