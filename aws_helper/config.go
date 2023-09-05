@@ -34,7 +34,7 @@ type AwsSessionConfig struct {
 
 // addUserAgent - Add terragrunt version to the user agent for AWS API calls.
 var addUserAgent = request.NamedHandler{
-	Name: "TerragruntUserAgentHandler",
+	Name: "terragrunt.UserAgentHandler",
 	Fn: request.MakeAddToUserAgentHandler(
 		"terragrunt", version.GetVersion()),
 }
