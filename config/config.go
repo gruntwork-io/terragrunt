@@ -544,23 +544,13 @@ func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 
 }
 
-// Return the default hcl path to use for the Terragrunt configuration file in the given directory
-func DefaultConfigPath(workingDir string) string {
-	return util.JoinPath(workingDir, DefaultTerragruntConfigPath)
-}
-
-// Return the default path to use for the Terragrunt Json configuration file in the given directory
-func DefaultJsonConfigPath(workingDir string) string {
-	return util.JoinPath(workingDir, DefaultTerragruntJsonConfigPath)
-}
-
 // Return the default path to use for the Terragrunt configuration that exists within the path giving preference to `terragrunt.hcl`
 func GetDefaultConfigPath(workingDir string) string {
 	var configPath string
 
 	for _, configPath = range DefaultTerragruntConfigPaths {
 		configPath = util.JoinPath(workingDir, configPath)
-		if util.FileExists(DefaultJsonConfigPath(workingDir)) {
+		if util.FileExists(configPath) {
 			break
 		}
 	}
