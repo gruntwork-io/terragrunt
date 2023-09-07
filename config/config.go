@@ -27,9 +27,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-const DefaultTerragruntConfigPath = "terragrunt.hcl"
-const DefaultTerragruntJsonConfigPath = "terragrunt.hcl.json"
-
 const foundInFile = "found_in_file"
 
 const (
@@ -519,7 +516,7 @@ func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 	// Check if there is an entry to replace the URL portion in the map. Return the source as is if there is no entry in
 	// the map.
 	sourcePath, hasKey := sourceMap[moduleUrlQuery]
-	if hasKey == false {
+	if !hasKey {
 		return source, nil
 	}
 
@@ -537,23 +534,16 @@ func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 
 }
 
-// Return the default hcl path to use for the Terragrunt configuration file in the given directory
-func DefaultConfigPath(workingDir string) string {
-	return util.JoinPath(workingDir, DefaultTerragruntConfigPath)
-}
-
-// Return the default path to use for the Terragrunt Json configuration file in the given directory
-func DefaultJsonConfigPath(workingDir string) string {
-	return util.JoinPath(workingDir, DefaultTerragruntJsonConfigPath)
-}
-
-// Return the default path to use for the Terragrunt configuration that exists within the path giving preference to `terragrunt.hcl`
-func GetDefaultConfigPath(workingDir string) string {
-	if util.FileNotExists(DefaultConfigPath(workingDir)) && util.FileExists(DefaultJsonConfigPath(workingDir)) {
-		return DefaultJsonConfigPath(workingDir)
+// GetConfigPath returns the path to use for the Terragrunt configuration that exists within the path giving preference to `terragrunt.hcl`
+func GetConfigPath(workingDir string, configPaths ...string) string {
+	for _, configPath := range configPaths {
+		configPath = util.JoinPath(workingDir, configPath)
+		if !util.FileNotExists(configPath) {
+			return configPath
+		}
 	}
 
-	return DefaultConfigPath(workingDir)
+	return ""
 }
 
 // Returns a list of all Terragrunt config files in the given path or any subfolder of the path. A file is a Terragrunt
@@ -577,7 +567,7 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 		}
 
 		if isTerragruntModule {
-			configFiles = append(configFiles, GetDefaultConfigPath(path))
+			configFiles = append(configFiles, GetConfigPath(path, options.DefaultTerragruntConfigPaths...))
 		}
 
 		return nil
@@ -626,7 +616,7 @@ func containsTerragruntModule(path string, info os.FileInfo, terragruntOptions *
 		return false, err
 	}
 
-	return util.FileExists(GetDefaultConfigPath(path)), nil
+	return util.FileExists(GetConfigPath(path, options.DefaultTerragruntConfigPaths...)), nil
 }
 
 // Read the Terragrunt config file from its default location
@@ -1157,7 +1147,7 @@ func (conf *TerragruntConfig) SetFieldMetadata(fieldName string, m map[string]in
 // SetFieldMetadataMap set metadata on fields from map keys.
 // Example usage - setting metadata on all variables from inputs.
 func (conf *TerragruntConfig) SetFieldMetadataMap(field string, data map[string]interface{}, metadata map[string]interface{}) {
-	for name, _ := range data {
+	for name := range data {
 		conf.SetFieldMetadataWithType(field, name, metadata)
 	}
 }

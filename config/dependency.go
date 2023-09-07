@@ -185,7 +185,7 @@ func dependencyBlocksToModuleDependencies(decodedDependencyBlocks []Dependency) 
 	paths := []string{}
 	for _, decodedDependencyBlock := range decodedDependencyBlocks {
 		configPath := decodedDependencyBlock.ConfigPath
-		if util.IsFile(configPath) && filepath.Base(configPath) == DefaultTerragruntConfigPath {
+		if util.IsFile(configPath) && filepath.Base(configPath) == options.DefaultTerragruntConfigPath {
 			// dependencies system expects the directory containing the terragrunt.hcl file
 			configPath = filepath.Dir(configPath)
 		}

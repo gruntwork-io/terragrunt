@@ -392,7 +392,7 @@ func findInParentFolders(
 
 	previousDir = filepath.ToSlash(previousDir)
 
-	fileToFindStr := DefaultTerragruntConfigPath
+	fileToFindStr := options.DefaultTerragruntConfigPath
 	if fileToFindParam != "" {
 		fileToFindStr = fileToFindParam
 	}
@@ -408,7 +408,7 @@ func findInParentFolders(
 			return "", errors.WithStackTrace(ParentFileNotFound{Path: terragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: "Traversed all the way to the root"})
 		}
 
-		fileToFind := GetDefaultConfigPath(currentDir)
+		fileToFind := GetConfigPath(currentDir, options.DefaultTerragruntConfigPaths...)
 		if fileToFindParam != "" {
 			fileToFind = util.JoinPath(currentDir, fileToFindParam)
 		}
@@ -591,7 +591,7 @@ func getCleanedTargetConfigPath(configPath string, workingPath string) string {
 		targetConfig = util.JoinPath(cwd, targetConfig)
 	}
 	if util.IsDir(targetConfig) {
-		targetConfig = GetDefaultConfigPath(targetConfig)
+		targetConfig = GetConfigPath(targetConfig, options.DefaultTerragruntConfigPaths...)
 	}
 	return util.CleanPath(targetConfig)
 }

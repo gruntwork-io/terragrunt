@@ -15,13 +15,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
-	"debug",
-	"force-unlock",
-	"state",
-}
-
 const (
+	ContextKey ctxKey = iota
+
 	DefaultMaxFoldersToCheck = 100
 
 	// no limits on parallelism by default (limited by GOPROCS)
@@ -36,9 +32,23 @@ const (
 	DefaultTFDataDir = ".terraform"
 
 	DefaultIAMAssumeRoleDuration = 3600
+
+	DefaultTerragruntConfigPath     = "terragrunt.hcl"
+	DefaultTerragruntJsonConfigPath = "terragrunt.hcl.json"
 )
 
-const ContextKey ctxKey = iota
+var (
+	TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
+		"debug",
+		"force-unlock",
+		"state",
+	}
+
+	DefaultTerragruntConfigPaths = []string{
+		DefaultTerragruntConfigPath,
+		DefaultTerragruntJsonConfigPath,
+	}
+)
 
 type ctxKey byte
 
@@ -265,6 +275,7 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 // Create a new TerragruntOptions object with reasonable defaults for real usage
 func NewTerragruntOptions() *TerragruntOptions {
 	return &TerragruntOptions{
+		TerragruntConfigPath:           DefaultTerragruntConfigPath,
 		TerraformPath:                  TerraformDefaultPath,
 		OriginalTerraformCommand:       "",
 		TerraformCommand:               "",
