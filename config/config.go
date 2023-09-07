@@ -537,7 +537,9 @@ func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 // GetConfigPath returns the path to use for the Terragrunt configuration that exists within the path giving preference to `terragrunt.hcl`
 func GetConfigPath(workingDir string, configPaths ...string) string {
 	for _, configPath := range configPaths {
-		configPath = util.JoinPath(workingDir, configPath)
+		if !filepath.IsAbs(configPath) {
+			configPath = util.JoinPath(workingDir, configPath)
+		}
 		if !util.FileNotExists(configPath) {
 			return configPath
 		}

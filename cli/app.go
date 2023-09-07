@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/version"
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/util"
 	hashicorpversion "github.com/hashicorp/go-version"
 
@@ -158,6 +159,7 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 			options.DefaultTerragruntConfigPaths = append(options.DefaultTerragruntConfigPaths, filepath.Base(opts.TerragruntConfigPath))
 		}
 
+		opts.TerragruntConfigPath = config.GetConfigPath(opts.WorkingDir, opts.TerragruntConfigPath)
 		opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)
 
 		opts.ExcludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.ExcludeDirs...)
