@@ -26,52 +26,52 @@ func TestPathRelativeToInclude(t *testing.T) {
 		{
 			nil,
 			nil,
-			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+options.DefaultTerragruntConfigPath),
 			".",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": IncludeConfig{Path: "../" + options.DefaultTerragruntConfigPath}},
 			nil,
-			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+options.DefaultTerragruntConfigPath),
 			"child",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": IncludeConfig{Path: helpers.RootFolder + options.DefaultTerragruntConfigPath}},
 			nil,
-			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+options.DefaultTerragruntConfigPath),
 			"child",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../../../" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": IncludeConfig{Path: "../../../" + options.DefaultTerragruntConfigPath}},
 			nil,
-			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+options.DefaultTerragruntConfigPath),
 			"child/sub-child/sub-sub-child",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": IncludeConfig{Path: helpers.RootFolder + options.DefaultTerragruntConfigPath}},
 			nil,
-			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+options.DefaultTerragruntConfigPath),
 			"child/sub-child/sub-sub-child",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../../other-child/" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": IncludeConfig{Path: "../../other-child/" + options.DefaultTerragruntConfigPath}},
 			nil,
-			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+options.DefaultTerragruntConfigPath),
 			"../child/sub-child",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../../" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": IncludeConfig{Path: "../../" + options.DefaultTerragruntConfigPath}},
 			nil,
-			terragruntOptionsForTest(t, "../child/sub-child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "../child/sub-child/"+options.DefaultTerragruntConfigPath),
 			"child/sub-child",
 		},
 		{
 			map[string]IncludeConfig{
-				"root":  IncludeConfig{Path: "../../" + DefaultTerragruntConfigPath},
-				"child": IncludeConfig{Path: "../../other-child/" + DefaultTerragruntConfigPath},
+				"root":  IncludeConfig{Path: "../../" + options.DefaultTerragruntConfigPath},
+				"child": IncludeConfig{Path: "../../other-child/" + options.DefaultTerragruntConfigPath},
 			},
 			[]string{"child"},
-			terragruntOptionsForTest(t, "../child/sub-child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "../child/sub-child/"+options.DefaultTerragruntConfigPath),
 			"../child/sub-child",
 		},
 	}
@@ -96,52 +96,52 @@ func TestPathRelativeFromInclude(t *testing.T) {
 		{
 			nil,
 			nil,
-			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+options.DefaultTerragruntConfigPath),
 			".",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": IncludeConfig{Path: "../" + options.DefaultTerragruntConfigPath}},
 			nil,
-			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+options.DefaultTerragruntConfigPath),
 			"..",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": IncludeConfig{Path: helpers.RootFolder + options.DefaultTerragruntConfigPath}},
 			nil,
-			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+options.DefaultTerragruntConfigPath),
 			"..",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../../../" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": IncludeConfig{Path: "../../../" + options.DefaultTerragruntConfigPath}},
 			nil,
-			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+options.DefaultTerragruntConfigPath),
 			"../../..",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": IncludeConfig{Path: helpers.RootFolder + options.DefaultTerragruntConfigPath}},
 			nil,
-			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+options.DefaultTerragruntConfigPath),
 			"../../..",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../../other-child/" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": IncludeConfig{Path: "../../other-child/" + options.DefaultTerragruntConfigPath}},
 			nil,
-			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+options.DefaultTerragruntConfigPath),
 			"../../other-child",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../../" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": IncludeConfig{Path: "../../" + options.DefaultTerragruntConfigPath}},
 			nil,
-			terragruntOptionsForTest(t, "../child/sub-child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "../child/sub-child/"+options.DefaultTerragruntConfigPath),
 			"../..",
 		},
 		{
 			map[string]IncludeConfig{
-				"root":  IncludeConfig{Path: "../../" + DefaultTerragruntConfigPath},
-				"child": IncludeConfig{Path: "../../other-child/" + DefaultTerragruntConfigPath},
+				"root":  IncludeConfig{Path: "../../" + options.DefaultTerragruntConfigPath},
+				"child": IncludeConfig{Path: "../../other-child/" + options.DefaultTerragruntConfigPath},
 			},
 			[]string{"child"},
-			terragruntOptionsForTest(t, "../child/sub-child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "../child/sub-child/"+options.DefaultTerragruntConfigPath),
 			"../../other-child",
 		},
 	}
@@ -245,43 +245,43 @@ func TestFindInParentFolders(t *testing.T) {
 	}{
 		{
 			nil,
-			terragruntOptionsForTest(t, "../test/fixture-parent-folders/terragrunt-in-root/child/"+DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixture-parent-folders/terragrunt-in-root/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "../test/fixture-parent-folders/terragrunt-in-root/child/"+options.DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixture-parent-folders/terragrunt-in-root/"+options.DefaultTerragruntConfigPath),
 			nil,
 		},
 		{
 			nil,
-			terragruntOptionsForTest(t, "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixture-parent-folders/terragrunt-in-root/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+options.DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixture-parent-folders/terragrunt-in-root/"+options.DefaultTerragruntConfigPath),
 			nil,
 		},
 		{
 			nil,
-			terragruntOptionsForTestWithMaxFolders(t, "../test/fixture-parent-folders/no-terragrunt-in-root/child/sub-child/"+DefaultTerragruntConfigPath, 3),
+			terragruntOptionsForTestWithMaxFolders(t, "../test/fixture-parent-folders/no-terragrunt-in-root/child/sub-child/"+options.DefaultTerragruntConfigPath, 3),
 			"",
 			ParentFileNotFound{},
 		},
 		{
 			nil,
-			terragruntOptionsForTest(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/"+DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/"+options.DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/"+options.DefaultTerragruntConfigPath),
 			nil,
 		},
 		{
 			nil,
-			terragruntOptionsForTest(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+options.DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/"+options.DefaultTerragruntConfigPath),
 			nil,
 		},
 		{
 			nil,
-			terragruntOptionsForTest(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/sub-sub-child/"+options.DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+options.DefaultTerragruntConfigPath),
 			nil,
 		},
 		{
 			[]string{"foo.txt"},
-			terragruntOptionsForTest(t, "../test/fixture-parent-folders/other-file-names/child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "../test/fixture-parent-folders/other-file-names/child/"+options.DefaultTerragruntConfigPath),
 			absPath(t, "../test/fixture-parent-folders/other-file-names/foo.txt"),
 			nil,
 		},
@@ -333,35 +333,35 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 		{
 			"terraform { source = path_relative_to_include() }",
 			nil,
-			terragruntOptionsForTest(t, "/root/child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "/root/child/"+options.DefaultTerragruntConfigPath),
 			".",
 			"",
 		},
 		{
 			"terraform { source = path_relative_to_include() }",
-			&IncludeConfig{Path: "../" + DefaultTerragruntConfigPath},
-			terragruntOptionsForTest(t, "/root/child/"+DefaultTerragruntConfigPath),
+			&IncludeConfig{Path: "../" + options.DefaultTerragruntConfigPath},
+			terragruntOptionsForTest(t, "/root/child/"+options.DefaultTerragruntConfigPath),
 			"child",
 			"",
 		},
 		{
 			"terraform { source = find_in_parent_folders() }",
 			nil,
-			terragruntOptionsForTest(t, "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/"+DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixture-parent-folders/terragrunt-in-root/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/"+options.DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixture-parent-folders/terragrunt-in-root/"+options.DefaultTerragruntConfigPath),
 			"",
 		},
 		{
 			"terraform { source = find_in_parent_folders() }",
 			nil,
-			terragruntOptionsForTestWithMaxFolders(t, "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/"+DefaultTerragruntConfigPath, 1),
+			terragruntOptionsForTestWithMaxFolders(t, "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/"+options.DefaultTerragruntConfigPath, 1),
 			"",
 			"ParentFileNotFound",
 		},
 		{
 			"terraform { source = find_in_parent_folders() }",
 			nil,
-			terragruntOptionsForTestWithMaxFolders(t, "../test/fixture-parent-folders/no-terragrunt-in-root/child/sub-child/"+DefaultTerragruntConfigPath, 3),
+			terragruntOptionsForTestWithMaxFolders(t, "../test/fixture-parent-folders/no-terragrunt-in-root/child/sub-child/"+options.DefaultTerragruntConfigPath, 3),
 			"",
 			"ParentFileNotFound",
 		},
@@ -400,63 +400,63 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 		{
 			`iam_role = "foo/${get_env()}/bar"`,
 			nil,
-			terragruntOptionsForTest(t, "/root/child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "/root/child/"+options.DefaultTerragruntConfigPath),
 			"",
 			"InvalidGetEnvParams",
 		},
 		{
 			`iam_role = "foo/${get_env("","")}/bar"`,
 			nil,
-			terragruntOptionsForTest(t, "/root/child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "/root/child/"+options.DefaultTerragruntConfigPath),
 			"",
 			"InvalidEnvParamName",
 		},
 		{
 			`iam_role = get_env()`,
 			nil,
-			terragruntOptionsForTest(t, "/root/child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "/root/child/"+options.DefaultTerragruntConfigPath),
 			"",
 			"InvalidGetEnvParams",
 		},
 		{
 			`iam_role = get_env("TEST_VAR_1", "TEST_VAR_2", "TEST_VAR_3")`,
 			nil,
-			terragruntOptionsForTest(t, "/root/child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "/root/child/"+options.DefaultTerragruntConfigPath),
 			"",
 			"InvalidGetEnvParams",
 		},
 		{
 			`iam_role = get_env("TEST_ENV_TERRAGRUNT_VAR")`,
 			nil,
-			terragruntOptionsForTestWithEnv(t, "/root/child/"+DefaultTerragruntConfigPath, map[string]string{"TEST_ENV_TERRAGRUNT_VAR": "SOMETHING"}),
+			terragruntOptionsForTestWithEnv(t, "/root/child/"+options.DefaultTerragruntConfigPath, map[string]string{"TEST_ENV_TERRAGRUNT_VAR": "SOMETHING"}),
 			"SOMETHING",
 			"",
 		},
 		{
 			`iam_role = get_env("SOME_VAR", "SOME_VALUE")`,
 			nil,
-			terragruntOptionsForTest(t, "/root/child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "/root/child/"+options.DefaultTerragruntConfigPath),
 			"SOME_VALUE",
 			"",
 		},
 		{
 			`iam_role = "foo/${get_env("TEST_ENV_TERRAGRUNT_HIT","")}/bar"`,
 			nil,
-			terragruntOptionsForTestWithEnv(t, "/root/child/"+DefaultTerragruntConfigPath, map[string]string{"TEST_ENV_TERRAGRUNT_OTHER": "SOMETHING"}),
+			terragruntOptionsForTestWithEnv(t, "/root/child/"+options.DefaultTerragruntConfigPath, map[string]string{"TEST_ENV_TERRAGRUNT_OTHER": "SOMETHING"}),
 			"foo//bar",
 			"",
 		},
 		{
 			`iam_role = "foo/${get_env("TEST_ENV_TERRAGRUNT_HIT","DEFAULT")}/bar"`,
 			nil,
-			terragruntOptionsForTestWithEnv(t, "/root/child/"+DefaultTerragruntConfigPath, map[string]string{"TEST_ENV_TERRAGRUNT_OTHER": "SOMETHING"}),
+			terragruntOptionsForTestWithEnv(t, "/root/child/"+options.DefaultTerragruntConfigPath, map[string]string{"TEST_ENV_TERRAGRUNT_OTHER": "SOMETHING"}),
 			"foo/DEFAULT/bar",
 			"",
 		},
 		{
 			`iam_role = "foo/${get_env("TEST_ENV_TERRAGRUNT_VAR")}/bar"`,
 			nil,
-			terragruntOptionsForTestWithEnv(t, "/root/child/"+DefaultTerragruntConfigPath, map[string]string{"TEST_ENV_TERRAGRUNT_VAR": "SOMETHING"}),
+			terragruntOptionsForTestWithEnv(t, "/root/child/"+options.DefaultTerragruntConfigPath, map[string]string{"TEST_ENV_TERRAGRUNT_VAR": "SOMETHING"}),
 			"foo/SOMETHING/bar",
 			"",
 		},
@@ -491,19 +491,19 @@ func TestResolveCommandsInterpolationConfigString(t *testing.T) {
 		{
 			"inputs = { foo = get_terraform_commands_that_need_locking() }",
 			nil,
-			terragruntOptionsForTest(t, DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, options.DefaultTerragruntConfigPath),
 			TERRAFORM_COMMANDS_NEED_LOCKING,
 		},
 		{
 			`inputs = { foo = get_terraform_commands_that_need_vars() }`,
 			nil,
-			terragruntOptionsForTest(t, DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, options.DefaultTerragruntConfigPath),
 			TERRAFORM_COMMANDS_NEED_VARS,
 		},
 		{
 			"inputs = { foo = get_terraform_commands_that_need_parallelism() }",
 			nil,
-			terragruntOptionsForTest(t, DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, options.DefaultTerragruntConfigPath),
 			TERRAFORM_COMMANDS_NEED_PARALLELISM,
 		},
 	}
@@ -536,7 +536,7 @@ func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
 	t.Parallel()
 
 	for _, cliArgs := range [][]string{nil, {}, {"apply"}, {"plan", "-out=planfile"}} {
-		opts := terragruntOptionsForTest(t, DefaultTerragruntConfigPath)
+		opts := terragruntOptionsForTest(t, options.DefaultTerragruntConfigPath)
 		opts.TerraformCliArgs = cliArgs
 		expectedFooInput := cliArgs
 		// Expecting nil to be returned for get_terraform_cli_args() call for
@@ -650,52 +650,52 @@ func TestGetParentTerragruntDir(t *testing.T) {
 		{
 			nil,
 			nil,
-			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+options.DefaultTerragruntConfigPath),
 			helpers.RootFolder + "child",
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": IncludeConfig{Path: "../" + options.DefaultTerragruntConfigPath}},
 			nil,
-			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+options.DefaultTerragruntConfigPath),
 			helpers.RootFolder,
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": IncludeConfig{Path: helpers.RootFolder + options.DefaultTerragruntConfigPath}},
 			nil,
-			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, helpers.RootFolder+"child/"+options.DefaultTerragruntConfigPath),
 			helpers.RootFolder,
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../../../" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": IncludeConfig{Path: "../../../" + options.DefaultTerragruntConfigPath}},
 			nil,
-			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+options.DefaultTerragruntConfigPath),
 			helpers.RootFolder,
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: helpers.RootFolder + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": IncludeConfig{Path: helpers.RootFolder + options.DefaultTerragruntConfigPath}},
 			nil,
-			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+options.DefaultTerragruntConfigPath),
 			helpers.RootFolder,
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../../other-child/" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": IncludeConfig{Path: "../../other-child/" + options.DefaultTerragruntConfigPath}},
 			nil,
-			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+options.DefaultTerragruntConfigPath),
 			fmt.Sprintf("%s/other-child", filepath.VolumeName(parentDir)),
 		},
 		{
-			map[string]IncludeConfig{"": IncludeConfig{Path: "../../" + DefaultTerragruntConfigPath}},
+			map[string]IncludeConfig{"": IncludeConfig{Path: "../../" + options.DefaultTerragruntConfigPath}},
 			nil,
-			terragruntOptionsForTest(t, "../child/sub-child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "../child/sub-child/"+options.DefaultTerragruntConfigPath),
 			parentDir,
 		},
 		{
 			map[string]IncludeConfig{
-				"root":  IncludeConfig{Path: "../../" + DefaultTerragruntConfigPath},
-				"child": IncludeConfig{Path: "../../other-child/" + DefaultTerragruntConfigPath},
+				"root":  IncludeConfig{Path: "../../" + options.DefaultTerragruntConfigPath},
+				"child": IncludeConfig{Path: "../../other-child/" + options.DefaultTerragruntConfigPath},
 			},
 			[]string{"child"},
-			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+options.DefaultTerragruntConfigPath),
 			fmt.Sprintf("%s/other-child", filepath.VolumeName(parentDir)),
 		},
 	}
@@ -752,7 +752,7 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.input, func(t *testing.T) {
 
-			terragruntOptions := terragruntOptionsForTest(t, "../test/fixture-config-terraform-functions/"+DefaultTerragruntConfigPath)
+			terragruntOptions := terragruntOptionsForTest(t, "../test/fixture-config-terraform-functions/"+options.DefaultTerragruntConfigPath)
 			actual, err := ParseConfigString(fmt.Sprintf("inputs = { test = %s }", testCase.input), terragruntOptions, nil, terragruntOptions.TerragruntConfigPath, nil)
 			require.NoError(t, err, "For hcl '%s' include %v and options %v, unexpected error: %v", testCase.input, nil, terragruntOptions, err)
 
@@ -823,7 +823,7 @@ func TestTerraformOutputJsonToCtyValueMap(t *testing.T) {
 		},
 	}
 
-	mockTargetConfig := DefaultTerragruntConfigPath
+	mockTargetConfig := options.DefaultTerragruntConfigPath
 	for _, testCase := range testCases {
 		converted, err := terraformOutputJsonToCtyValueMap(mockTargetConfig, []byte(testCase.input))
 		assert.NoError(t, err)
@@ -837,7 +837,7 @@ func TestTerraformOutputJsonToCtyValueMap(t *testing.T) {
 func TestReadTerragruntConfigInputs(t *testing.T) {
 	t.Parallel()
 
-	options := terragruntOptionsForTest(t, DefaultTerragruntConfigPath)
+	options := terragruntOptionsForTest(t, options.DefaultTerragruntConfigPath)
 	tgConfigCty, err := readTerragruntConfig("../test/fixture-inputs/terragrunt.hcl", nil, options)
 	require.NoError(t, err)
 
@@ -878,7 +878,7 @@ func TestReadTerragruntConfigInputs(t *testing.T) {
 func TestReadTerragruntConfigRemoteState(t *testing.T) {
 	t.Parallel()
 
-	options := terragruntOptionsForTest(t, DefaultTerragruntConfigPath)
+	options := terragruntOptionsForTest(t, options.DefaultTerragruntConfigPath)
 	tgConfigCty, err := readTerragruntConfig("../test/fixture/terragrunt.hcl", nil, options)
 	require.NoError(t, err)
 
@@ -910,7 +910,7 @@ func TestReadTerragruntConfigRemoteState(t *testing.T) {
 func TestReadTerragruntConfigHooks(t *testing.T) {
 	t.Parallel()
 
-	options := terragruntOptionsForTest(t, DefaultTerragruntConfigPath)
+	options := terragruntOptionsForTest(t, options.DefaultTerragruntConfigPath)
 	tgConfigCty, err := readTerragruntConfig("../test/fixture-hooks/before-after-and-on-error/terragrunt.hcl", nil, options)
 	require.NoError(t, err)
 
@@ -952,7 +952,7 @@ func TestReadTerragruntConfigHooks(t *testing.T) {
 func TestReadTerragruntConfigLocals(t *testing.T) {
 	t.Parallel()
 
-	options := terragruntOptionsForTest(t, DefaultTerragruntConfigPath)
+	options := terragruntOptionsForTest(t, options.DefaultTerragruntConfigPath)
 	tgConfigCty, err := readTerragruntConfig("../test/fixture-locals/canonical/terragrunt.hcl", nil, options)
 	require.NoError(t, err)
 

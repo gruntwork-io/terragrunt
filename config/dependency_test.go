@@ -3,6 +3,7 @@ package config
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,7 @@ dependency "sql" {
   config_path = "../sql"
 }
 `
-	filename := DefaultTerragruntConfigPath
+	filename := options.DefaultTerragruntConfigPath
 	parser := hclparse.NewParser()
 	file, err := parseHcl(parser, config, filename)
 	require.NoError(t, err)
@@ -44,7 +45,7 @@ locals {
   path = "../vpc"
 }
 `
-	filename := DefaultTerragruntConfigPath
+	filename := options.DefaultTerragruntConfigPath
 	parser := hclparse.NewParser()
 	file, err := parseHcl(parser, config, filename)
 	require.NoError(t, err)
@@ -62,7 +63,7 @@ dependency {
   config_path = "../vpc"
 }
 `
-	filename := DefaultTerragruntConfigPath
+	filename := options.DefaultTerragruntConfigPath
 	parser := hclparse.NewParser()
 	file, err := parseHcl(parser, config, filename)
 	require.NoError(t, err)
@@ -83,7 +84,7 @@ dependency "hitchhiker" {
   mock_outputs_allowed_terraform_commands = ["validate", "apply"]
 }
 `
-	filename := DefaultTerragruntConfigPath
+	filename := options.DefaultTerragruntConfigPath
 	parser := hclparse.NewParser()
 	file, err := parseHcl(parser, config, filename)
 	require.NoError(t, err)
