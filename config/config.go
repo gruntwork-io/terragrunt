@@ -27,8 +27,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-const DefaultTerragruntConfigPath = "terragrunt.hcl"
-const DefaultTerragruntJsonConfigPath = "terragrunt.hcl.json"
+const (
+	DefaultTerragruntConfigPath     = "terragrunt.hcl"
+	DefaultTerragruntJsonConfigPath = "terragrunt.hcl.json"
+)
 
 const foundInFile = "found_in_file"
 
@@ -53,6 +55,11 @@ const (
 	MetadataRetryMaxAttempts            = "retry_max_attempts"
 	MetadataRetrySleepIntervalSec       = "retry_sleep_interval_sec"
 )
+
+var DefaultTerragruntConfigPaths = []string{
+	DefaultTerragruntJsonConfigPath,
+	DefaultTerragruntConfigPath,
+}
 
 // TerragruntConfig represents a parsed and expanded configuration
 // NOTE: if any attributes are added, make sure to update terragruntConfigAsCty in config_as_cty.go
@@ -549,11 +556,16 @@ func DefaultJsonConfigPath(workingDir string) string {
 
 // Return the default path to use for the Terragrunt configuration that exists within the path giving preference to `terragrunt.hcl`
 func GetDefaultConfigPath(workingDir string) string {
-	if util.FileNotExists(DefaultConfigPath(workingDir)) && util.FileExists(DefaultJsonConfigPath(workingDir)) {
-		return DefaultJsonConfigPath(workingDir)
+	var configPath string
+
+	for _, configPath = range DefaultTerragruntConfigPaths {
+		configPath = util.JoinPath(workingDir, configPath)
+		if util.FileExists(DefaultJsonConfigPath(workingDir)) {
+			break
+		}
 	}
 
-	return DefaultConfigPath(workingDir)
+	return configPath
 }
 
 // Returns a list of all Terragrunt config files in the given path or any subfolder of the path. A file is a Terragrunt
