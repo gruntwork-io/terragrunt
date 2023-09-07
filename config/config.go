@@ -56,7 +56,7 @@ const (
 	MetadataRetrySleepIntervalSec       = "retry_sleep_interval_sec"
 )
 
-var DefaultTerragruntConfigPaths = []string{
+var TerragruntConfigPaths = []string{
 	DefaultTerragruntJsonConfigPath,
 	DefaultTerragruntConfigPath,
 }
@@ -548,7 +548,7 @@ func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 func GetDefaultConfigPath(workingDir string) string {
 	var configPath string
 
-	for _, configPath = range DefaultTerragruntConfigPaths {
+	for _, configPath = range TerragruntConfigPaths {
 		configPath = util.JoinPath(workingDir, configPath)
 		if util.FileExists(configPath) {
 			break
