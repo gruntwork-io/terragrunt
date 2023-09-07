@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -153,13 +152,15 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 		}
 		opts.DownloadDir = filepath.ToSlash(downloadDir)
 
-		// `run-all` command uses the `options.DefaultTerragruntConfigPaths` slice when looking for terragrunt configuration in subfolders,
-		//  we need to take care that the specified `TerragruntConfigPath` is included in this slice.
-		if confPath := filepath.Base(opts.TerragruntConfigPath); !collections.ListContainsElement(options.DefaultTerragruntConfigPaths, confPath) {
+		// --- Terragrunt ConfigPath
+		if opts.TerragruntConfigPath == options.DefaultTerragruntConfigPath {
+			opts.TerragruntConfigPath = config.GetConfigPath(opts.WorkingDir, opts.TerragruntConfigPath)
+		} else {
+			// `run-all` command uses the `options.DefaultTerragruntConfigPaths` slice when looking for terragrunt configuration in subfolders,
+			//  we need to take care that the specified `TerragruntConfigPath` is included in this slice.
 			options.DefaultTerragruntConfigPaths = append(options.DefaultTerragruntConfigPaths, filepath.Base(opts.TerragruntConfigPath))
 		}
 
-		opts.TerragruntConfigPath = config.GetConfigPath(opts.WorkingDir, opts.TerragruntConfigPath)
 		opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)
 
 		opts.ExcludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.ExcludeDirs...)

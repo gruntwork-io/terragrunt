@@ -539,10 +539,8 @@ func GetConfigPath(workingDir string, configPaths ...string) string {
 	var configPath string
 
 	for _, configPath = range configPaths {
-		if !filepath.IsAbs(configPath) {
-			configPath = util.JoinPath(workingDir, configPath)
-		}
-		if !util.FileNotExists(configPath) {
+		configPath = util.JoinPath(workingDir, configPath)
+		if util.FileExists(configPath) {
 			break
 		}
 	}
