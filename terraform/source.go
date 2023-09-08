@@ -14,7 +14,7 @@ import (
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gruntwork-io/terragrunt/pkg/errors"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -244,10 +244,18 @@ func splitSourceUrl(sourceUrl *url.URL, logger *logrus.Entry) (*url.URL, string,
 
 		sourceUrlModifiedPath.Path = pathSplitOnDoubleSlash[0]
 		return sourceUrlModifiedPath, pathSplitOnDoubleSlash[1], nil
-	} else {
-		logger.Warningf("No double-slash (//) found in source URL %s. Relative paths in downloaded Terraform code may not work.", sourceUrl.Path)
+	}
+	// check if path is remote URL
+	if sourceUrl.Scheme != "" {
 		return sourceUrl, "", nil
 	}
+	// check if sourceUrl.Path is a local file path
+	_, err := os.Stat(sourceUrl.Path)
+	if err != nil {
+		// log warning message to notify user that sourceUrl.Path may not work
+		logger.Warningf("No double-slash (//) found in source URL %s. Relative paths in downloaded Terraform code may not work.", sourceUrl.Path)
+	}
+	return sourceUrl, "", nil
 }
 
 // Encode a the module name for the given source URL. When calculating a module name, we calculate the base 64 encoded

@@ -1,7 +1,7 @@
 package configstack
 
 import (
-	"github.com/gruntwork-io/terragrunt/pkg/errors"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 

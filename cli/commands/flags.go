@@ -39,6 +39,7 @@ const (
 	FlagNameTerragruntIncludeModulePrefix            = "terragrunt-include-module-prefix"
 	FlagNameTerragruntFailOnStateBucketCreation      = "terragrunt-fail-on-state-bucket-creation"
 	FlagNameTerragruntDisableBucketUpdate            = "terragrunt-disable-bucket-update"
+	FlagNameTerragruntDisableCommandValidation       = "terragrunt-disable-command-validation"
 
 	FlagNameHelp    = "help"
 	FlagNameVersion = "version"
@@ -199,7 +200,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 		},
 		&cli.BoolFlag{
 			Name:        FlagNameTerragruntFetchDependencyOutputFromState,
-			Destination: &opts.UsePartialParseConfigCache,
+			Destination: &opts.FetchDependencyOutputFromState,
 			EnvVar:      "TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE",
 			Usage:       "The option fetchs dependency output directly from the state file instead of init dependencies and running terraform on them.",
 		},
@@ -230,6 +231,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.DisableBucketUpdate,
 			EnvVar:      "TERRAGRUNT_DISABLE_BUCKET_UPDATE",
 			Usage:       "When this flag is set Terragrunt will not update the remote state bucket.",
+		},
+		&cli.BoolFlag{
+			Name:        FlagNameTerragruntDisableCommandValidation,
+			Destination: &opts.DisableCommandValidation,
+			EnvVar:      "TERRAGRUNT_DISABLE_COMMAND_VALIDATION",
+			Usage:       "When this flag is set, Terragrunt will not validate the terraform command.",
 		},
 	}
 

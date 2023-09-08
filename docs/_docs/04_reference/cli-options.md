@@ -546,6 +546,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-include-module-prefix](#terragrunt-include-module-prefix)
 - [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
 - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
+- [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
 
 ### terragrunt-config
 
@@ -807,6 +808,7 @@ included directories with `terragrunt-include-dir`.
 **Environment Variable**: `TERRAGRUNT_PARALLELISM`
 
 When passed in, limit the number of modules that are run concurrently to this number during *-all commands.
+The exception is the `terraform init` command, which is always executed sequentially if the [terraform plugin cache](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache) is used. This is because the terraform plugin cache is not guaranteed to be concurrency safe.
 
 
 ### terragrunt-debug
@@ -1000,3 +1002,10 @@ When this flag is set, Terragrunt will fail and exit if it is necessary to creat
 **Environment Variable**: `TERRAGRUNT_DISABLE_BUCKET_UPDATE` (set to `true`)
 
 When this flag is set, Terragrunt does not update the remote state bucket, which is useful to set if the state bucket is managed by a third party.
+
+### terragrunt-disable-command-validation
+
+**CLI Arg**: `--terragrunt-disable-command-validation`
+**Environment Variable**: `TERRAGRUNT_DISABLE_COMMAND_VALIDATION` (set to `true`)
+
+When this flag is set, Terragrunt will not validate the terraform command, which can be useful when need to use non-existent commands in hooks.

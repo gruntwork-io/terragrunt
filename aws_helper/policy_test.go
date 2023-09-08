@@ -19,6 +19,7 @@ const simplePolicy = `
 			]
 		}
 	`
+
 const arraysPolicy = `
 		{
 			"Version": "2012-10-17",
@@ -73,6 +74,10 @@ func TestUnmarshalStringActionResource(t *testing.T) {
 	default:
 		assert.Fail(t, "Expected string type for Resource")
 	}
+
+	out, err := MarshalPolicy(bucketPolicy)
+	assert.NoError(t, err)
+	assert.NotContains(t, string(out), "null")
 }
 
 func TestUnmarshalActionResourceList(t *testing.T) {
@@ -101,4 +106,8 @@ func TestUnmarshalActionResourceList(t *testing.T) {
 	default:
 		assert.Fail(t, "Expected []string type for Resource")
 	}
+
+	out, err := MarshalPolicy(bucketPolicy)
+	assert.NoError(t, err)
+	assert.NotContains(t, string(out), "null")
 }

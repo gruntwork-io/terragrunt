@@ -12,9 +12,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/shell"
 
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/terraform-linters/tflint/cmd"
 )
@@ -29,11 +29,17 @@ const (
 
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
 func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, hook config.Hook) error {
-	configFile, err := findTflintConfigInProject(terragruntOptions)
-	if err != nil {
-		return err
+	// try to fetch configuration file from hook parameters
+	configFile := tflintConfigFilePath(hook.Execute)
+	if configFile == "" {
+		// find .tflint.hcl configuration in project files if it is not provided in arguments
+		projectConfigFile, err := findTflintConfigInProject(terragruntOptions)
+		if err != nil {
+			return err
+		}
+		configFile = projectConfigFile
 	}
-	terragruntOptions.Logger.Debugf("Found .tflint.hcl file in %s", configFile)
+	terragruntOptions.Logger.Debugf("Using .tflint.hcl file in %s", configFile)
 
 	variables, err := inputsToTflintVar(terragruntConfig.Inputs)
 	if err != nil {
@@ -115,6 +121,16 @@ func tflintArguments(arguments []string) ([]string, bool) {
 		filteredArguments = append(filteredArguments, arg)
 	}
 	return filteredArguments, externalTfLint
+}
+
+// configFilePathArgument return configuration file specified in --config argument
+func tflintConfigFilePath(arguments []string) string {
+	for i, arg := range arguments {
+		if arg == "--config" && len(arguments) > i+1 {
+			return arguments[i+1]
+		}
+	}
+	return ""
 }
 
 // inputsToTflintVar converts the inputs map to a list of tflint variables.

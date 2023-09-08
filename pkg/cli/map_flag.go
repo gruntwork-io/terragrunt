@@ -4,8 +4,8 @@ import (
 	libflag "flag"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/pkg/errors"
-	"github.com/gruntwork-io/terragrunt/pkg/maps"
+	"github.com/gruntwork-io/go-commons/collections"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/urfave/cli/v2"
 )
 
@@ -205,5 +205,5 @@ func (flag *mapValue[K, V]) String() string {
 	if flag.values == nil {
 		return ""
 	}
-	return maps.Join(*flag.values, flag.argSep, flag.valSep)
+	return collections.MapJoin(*flag.values, flag.argSep, flag.valSep)
 }

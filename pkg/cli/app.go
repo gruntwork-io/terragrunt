@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"strings"
 
 	"github.com/urfave/cli/v2"
 )
@@ -63,6 +64,15 @@ func (app *App) AddCommands(cmds ...*Command) {
 
 // Run is the entry point to the cli app. Parses the arguments slice and routes to the proper flag/args combination.
 func (app *App) Run(arguments []string) error {
+	// remove empty args
+	filteredArguments := []string{}
+	for _, arg := range arguments {
+		if trimmedArg := strings.TrimSpace(arg); len(trimmedArg) > 0 {
+			filteredArguments = append(filteredArguments, trimmedArg)
+		}
+	}
+	arguments = filteredArguments
+
 	app.SkipFlagParsing = true
 	app.Authors = []*cli.Author{{Name: app.Author}}
 

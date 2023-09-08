@@ -8,12 +8,15 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
+	"github.com/gruntwork-io/go-commons/collections"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/cache"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/errors"
+	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-multierror"
 	"github.com/sirupsen/logrus"
@@ -32,9 +35,16 @@ var terraformCommandsThatNeedPty = []string{
 	"console",
 }
 
+var terraformInitMutex sync.Mutex
+
 // Run the given Terraform command
 func RunTerraformCommand(terragruntOptions *options.TerragruntOptions, args ...string) error {
-	_, err := RunShellCommandWithOutput(terragruntOptions, "", false, isTerraformCommandThatNeedsPty(args[0]), terragruntOptions.TerraformPath, args...)
+	needPTY, err := isTerraformCommandThatNeedsPty(args)
+	if err != nil {
+		return err
+	}
+
+	_, err = RunShellCommandWithOutput(terragruntOptions, "", false, needPTY, terragruntOptions.TerraformPath, args...)
 	return err
 }
 
@@ -47,11 +57,12 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 // Run the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
 // method's caller
 func RunTerraformCommandWithOutput(terragruntOptions *options.TerragruntOptions, args ...string) (*CmdOutput, error) {
-	needPty := false
-	if len(args) > 0 {
-		needPty = isTerraformCommandThatNeedsPty(args[0])
+	needPTY, err := isTerraformCommandThatNeedsPty(args)
+	if err != nil {
+		return nil, err
 	}
-	return RunShellCommandWithOutput(terragruntOptions, "", false, needPty, terragruntOptions.TerraformPath, args...)
+
+	return RunShellCommandWithOutput(terragruntOptions, "", false, needPTY, terragruntOptions.TerraformPath, args...)
 }
 
 // Run the specified shell command with the specified arguments. Connect the command's stdin, stdout, and stderr to
@@ -65,6 +76,14 @@ func RunShellCommandWithOutput(
 	command string,
 	args ...string,
 ) (*CmdOutput, error) {
+	// Terrafrom `init` command with the plugin cache directory is not guaranteed to be concurrency safe.
+	// The provider installer's behavior in environments with multiple terraform init calls is undefined.
+	// Thus, terraform `init` commands must be executed sequentially, even if `--terragrunt-parallelism` is greater than 1.
+	if command == "terraform" && collections.ListContainsElement(args, "init") && terraform.IsPluginCacheUsed() {
+		defer terraformInitMutex.Unlock()
+		terraformInitMutex.Lock()
+	}
+
 	terragruntOptions.Logger.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 	if suppressStdout {
 		terragruntOptions.Logger.Debugf("Command output will be suppressed.")
@@ -150,14 +169,33 @@ func toEnvVarsList(envVarsAsMap map[string]string) []string {
 }
 
 // isTerraformCommandThatNeedsPty returns true if the sub command of terraform we are running requires a pty.
-func isTerraformCommandThatNeedsPty(command string) bool {
-	return util.ListContainsElement(terraformCommandsThatNeedPty, command)
+func isTerraformCommandThatNeedsPty(args []string) (bool, error) {
+	if len(args) == 0 || !util.ListContainsElement(terraformCommandsThatNeedPty, args[0]) {
+		return false, nil
+	}
+
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		return false, errors.WithStackTrace(err)
+	}
+
+	// if there is data in the stdin, then the terraform console is used in non-interactive mode, for example `echo "1 + 5" | terragrunt console`.
+	if fi.Size() > 0 {
+		return false, nil
+	}
+
+	return true, nil
 }
 
-// Return the exit code of a command. If the error does not implement errors.IErrorCode or is not an exec.ExitError
+// Return the exit code of a command. If the error does not implement iErrorCode or is not an exec.ExitError
 // or *multierror.Error type, the error is returned.
 func GetExitCode(err error) (int, error) {
-	if exiterr, ok := errors.Unwrap(err).(errors.IErrorCode); ok {
+	// Interface to determine if we can retrieve an exit status from an error
+	type iErrorCode interface {
+		ExitStatus() (int, error)
+	}
+
+	if exiterr, ok := errors.Unwrap(err).(iErrorCode); ok {
 		return exiterr.ExitStatus()
 	}
 

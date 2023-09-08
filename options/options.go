@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/pkg/errors"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
 	"github.com/sirupsen/logrus"
@@ -227,6 +227,9 @@ type TerragruntOptions struct {
 
 	// Controls if s3 bucket should be updated or skipped
 	DisableBucketUpdate bool
+
+	// Disalbes validation terraform command
+	DisableCommandValidation bool
 }
 
 // IAMOptions represents options that are used by Terragrunt to assume an IAM role.

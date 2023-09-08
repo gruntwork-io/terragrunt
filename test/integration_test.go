@@ -36,6 +36,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/iterator"
 
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/cli"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
@@ -45,7 +46,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	terragruntDynamoDb "github.com/gruntwork-io/terragrunt/dynamodb"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/errors"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -152,6 +152,7 @@ const (
 	TEST_FIXTURE_TFLINT_EXTERNAL_TFLINT                                      = "fixture-tflint/external-tflint"
 	TEST_FIXTURE_TFLINT_TFVAR_PASSING                                        = "fixture-tflint/tfvar-passing"
 	TEST_FIXTURE_TFLINT_ARGS                                                 = "fixture-tflint/tflint-args"
+	TEST_FIXTURE_TFLINT_CUSTOM_CONFIG                                        = "fixture-tflint/custom-tflint-config"
 	TEST_FIXTURE_PARALLEL_RUN                                                = "fixture-parallel-run"
 	TEST_FIXTURE_INIT_ERROR                                                  = "fixture-init-error"
 	TEST_FIXTURE_MODULE_PATH_ERROR                                           = "fixture-module-path-in-error"
@@ -162,6 +163,12 @@ const (
 	TEST_FIXTURE_STRCONTAINS                                                 = "fixture-strcontains"
 	TEST_FIXTURE_INIT_CACHE                                                  = "fixture-init-cache"
 	TEST_FIXTURE_NULL_VALUE                                                  = "fixture-null-values"
+	TEST_FIXTURE_GCS_IMPERSONATE_PATH                                        = "fixture-gcs-impersonate/"
+	TEST_FIXTURE_S3_ERRORS                                                   = "fixture-s3-errors/"
+	TEST_FIXTURE_GCS_NO_BUCKET                                               = "fixture-gcs-no-bucket/"
+	TEST_FIXTURE_GCS_NO_PREFIX                                               = "fixture-gcs-no-prefix/"
+	TEST_FIXTURE_DISABLED_PATH                                               = "fixture-disabled-path/"
+	TEST_FIXTURE_NO_SUBMODULES                                               = "fixture-no-submodules/"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TERRAFORM_FOLDER                                                         = ".terraform"
 	TERRAFORM_STATE                                                          = "terraform.tfstate"
@@ -1264,24 +1271,39 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		command  []string
-		expected string
+		command     []string
+		expected    string
+		expectedErr error
 	}{
 		{
 			[]string{"version"},
 			"terraform version",
+			nil,
 		},
 		{
 			[]string{"version", "foo"},
 			"terraform version foo",
+			nil,
 		},
 		{
 			[]string{"version", "foo", "bar", "baz"},
 			"terraform version foo bar baz",
+			nil,
 		},
 		{
 			[]string{"version", "foo", "bar", "baz", "foobar"},
 			"terraform version foo bar baz foobar",
+			nil,
+		},
+		{
+			[]string{"paln"},
+			"",
+			terraform.WrongTerraformCommand("paln"),
+		},
+		{
+			[]string{"paln", "--terragrunt-disable-command-validation"},
+			"Terraform invocation failed", // error caused by running terraform with the wrong command
+			nil,
 		},
 	}
 
@@ -1293,7 +1315,11 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 			stderr bytes.Buffer
 		)
 
-		runTerragruntRedirectOutput(t, cmd, &stdout, &stderr)
+		err := runTerragruntCommand(t, cmd, &stdout, &stderr)
+		if testCase.expectedErr != nil {
+			assert.ErrorIs(t, err, testCase.expectedErr)
+		}
+
 		output := stdout.String()
 		errOutput := stderr.String()
 		assert.True(t, strings.Contains(errOutput, testCase.expected) || strings.Contains(output, testCase.expected))
@@ -3896,7 +3922,7 @@ func removeFolder(t *testing.T, path string) {
 
 func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {
 	args := strings.Split(command, " ")
-	fmt.Println(args)
+	t.Log(args)
 
 	app := cli.NewApp(writer, errwriter)
 	return app.Run(args)
@@ -4060,6 +4086,9 @@ func copyTerragruntGCSConfigAndFillPlaceholders(t *testing.T, configSrcPath stri
 	contents = strings.Replace(contents, "__FILL_IN_PROJECT__", project, -1)
 	contents = strings.Replace(contents, "__FILL_IN_LOCATION__", location, -1)
 	contents = strings.Replace(contents, "__FILL_IN_BUCKET_NAME__", gcsBucketName, -1)
+
+	email := os.Getenv("GOOGLE_IDENTITY_EMAIL")
+	contents = strings.Replace(contents, "__FILL_IN_GCP_EMAIL__", email, -1)
 
 	if err := ioutil.WriteFile(configDestPath, []byte(contents), 0444); err != nil {
 		t.Fatalf("Error writing temp Terragrunt config to %s: %v", configDestPath, err)
@@ -4366,7 +4395,6 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 	// verify the bucket location
 	ctx := context.Background()
 	bucket := gcsClient.Bucket(bucketName)
-
 	attrs, err := bucket.Attrs(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -4377,6 +4405,26 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 	if expectedLabels != nil {
 		assertGCSLabels(t, expectedLabels, bucketName, gcsClient)
 	}
+}
+
+// gcsObjectAttrs returns the attributes of the specified object in the bucket
+func gcsObjectAttrs(t *testing.T, bucketName string, objectName string) *storage.ObjectAttrs {
+	remoteStateConfig := remote.RemoteStateConfigGCS{Bucket: bucketName}
+
+	gcsClient, err := remote.CreateGCSClient(remoteStateConfig)
+	if err != nil {
+		t.Fatalf("Error creating GCS client: %v", err)
+	}
+
+	ctx := context.Background()
+	bucket := gcsClient.Bucket(bucketName)
+
+	handle := bucket.Object(objectName)
+	attrs, err := handle.Attrs(ctx)
+	if err != nil {
+		t.Fatalf("Error reading object attributes %s %v", objectName, err)
+	}
+	return attrs
 }
 
 func assertGCSLabels(t *testing.T, expectedLabels map[string]string, bucketName string, client *storage.Client) {
@@ -4678,12 +4726,13 @@ func TestTerragruntOutputFromRemoteState(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt run-all output --terragrunt-fetch-dependency-output-from-state --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt run-all output --terragrunt-fetch-dependency-output-from-state --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
 	output := stdout.String()
 
 	assert.True(t, strings.Contains(output, "app1 output"))
 	assert.True(t, strings.Contains(output, "app2 output"))
 	assert.True(t, strings.Contains(output, "app3 output"))
+	assert.False(t, strings.Contains(stderr.String(), "terraform output -json"))
 
 	assert.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
 }
@@ -5815,6 +5864,136 @@ func TestTerragruntPassNullValues(t *testing.T) {
 	// check that the null values are passed correctly
 	assert.Equal(t, outputs["output1"].Value, nil)
 	assert.Equal(t, outputs["output2"].Value, "variable 2")
+
+	// check that file with null values is removed
+	cachePath := filepath.Join(TEST_FIXTURE_NULL_VALUE, TERRAGRUNT_CACHE)
+	foundNullValuesFile := false
+	err := filepath.Walk(cachePath,
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if strings.HasPrefix(path, terraform.NullTFVarsFile) {
+				foundNullValuesFile = true
+			}
+			return nil
+		})
+	assert.Falsef(t, foundNullValuesFile, "Found %s file in cache directory", terraform.NullTFVarsFile)
+	assert.NoError(t, err)
+}
+
+func TestTerragruntPrintAwsErrors(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_S3_ERRORS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_S3_ERRORS)
+	cleanupTerraformFolder(t, rootPath)
+
+	s3BucketName := "test"
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+
+	tmpTerragruntConfigFile := util.JoinPath(rootPath, "terragrunt.hcl")
+	originalTerragruntConfigPath := util.JoinPath(rootPath, "terragrunt.hcl")
+	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-2")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigFile, rootPath), &stdout, &stderr)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "AllAccessDisabled: All access to this object has been disabled")
+}
+
+func TestTerragruntErrorWhenStateBucketIsInDifferentRegion(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_S3_ERRORS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_S3_ERRORS)
+	cleanupTerraformFolder(t, rootPath)
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+
+	originalTerragruntConfigPath := util.JoinPath(TEST_FIXTURE_S3_ERRORS, "terragrunt.hcl")
+	tmpTerragruntConfigFile := util.JoinPath(rootPath, "terragrunt.hcl")
+	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-1")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigFile, rootPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-west-2")
+
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigFile, rootPath), &stdout, &stderr)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "BucketRegionError: incorrect region")
+}
+
+func TestTerragruntCheckMissingGCSBucket(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GCS_NO_BUCKET)
+
+	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
+	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	gcsBucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_NO_BUCKET, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, TEST_FIXTURE_GCS_NO_BUCKET), &stdout, &stderr)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "Missing required GCS remote state configuration bucket")
+}
+
+func TestTerragruntNoPrefixGCSBucket(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GCS_NO_PREFIX)
+
+	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
+	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	gcsBucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	defer deleteGCSBucket(t, gcsBucketName)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_NO_PREFIX, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, TEST_FIXTURE_GCS_NO_PREFIX), &stdout, &stderr)
+	assert.NoError(t, err)
+}
+
+func TestTerragruntNoWarningLocalPath(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DISABLED_PATH)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_PATH)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	require.NoError(t, err)
+	require.NotContains(t, stderr.String(), "No double-slash (//) found in source URL")
+}
+
+func TestTerragruntNoWarningRemotePath(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_NO_SUBMODULES)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_NO_SUBMODULES)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	require.NoError(t, err)
+	require.NotContains(t, stderr.String(), "No double-slash (//) found in source URL")
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
