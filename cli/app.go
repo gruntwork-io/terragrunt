@@ -155,10 +155,6 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 		// --- Terragrunt ConfigPath
 		if opts.TerragruntConfigPath == "" {
 			opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
-		} else {
-			// `run-all` command uses the `config.TerragruntConfigPaths` slice when looking for terragrunt configuration in subfolders,
-			//  the specified `TerragruntConfigPath` needs to be included in this slice.
-			config.TerragruntConfigPaths = append([]string{opts.TerragruntConfigPath}, config.TerragruntConfigPaths...)
 		}
 
 		opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)

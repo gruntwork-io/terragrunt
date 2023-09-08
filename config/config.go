@@ -21,6 +21,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
@@ -56,7 +57,7 @@ const (
 	MetadataRetrySleepIntervalSec       = "retry_sleep_interval_sec"
 )
 
-var TerragruntConfigPaths = []string{
+var DefaultTerragruntConfigPaths = []string{
 	DefaultTerragruntJsonConfigPath,
 	DefaultTerragruntConfigPath,
 }
@@ -546,11 +547,18 @@ func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 
 // Return the default path to use for the Terragrunt configuration that exists within the path giving preference to `terragrunt.hcl`
 func GetDefaultConfigPath(workingDir string) string {
+	// check if a configuration file was passed as `workingDir`.
+	if !files.IsDir(workingDir) && files.FileExists(workingDir) {
+		return workingDir
+	}
+
 	var configPath string
 
-	for _, configPath = range TerragruntConfigPaths {
-		configPath = util.JoinPath(workingDir, configPath)
-		if util.FileExists(configPath) {
+	for _, configPath = range DefaultTerragruntConfigPaths {
+		if !filepath.IsAbs(configPath) {
+			configPath = util.JoinPath(workingDir, configPath)
+		}
+		if files.FileExists(configPath) {
 			break
 		}
 	}
@@ -568,18 +576,21 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 			return err
 		}
 
-		// Skip the Terragrunt cache dir entirely
-		if info.IsDir() && info.Name() == util.TerragruntCacheDir {
-			return filepath.SkipDir
+		if info.IsDir() {
+			if ok, err := isTerragruntModuleDir(path, terragruntOptions); err != nil {
+				return err
+			} else if !ok {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 
-		isTerragruntModule, err := containsTerragruntModule(path, info, terragruntOptions)
-		if err != nil {
-			return err
+		if strings.HasSuffix(path, util.TerraformLockFile) {
+			return nil
 		}
 
-		if isTerragruntModule {
-			configFiles = append(configFiles, GetDefaultConfigPath(path))
+		if strings.HasSuffix(path, ".hcl") || strings.HasSuffix(path, ".hcl.json") {
+			configFiles = append(configFiles, path)
 		}
 
 		return nil
@@ -591,11 +602,7 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 // Returns true if the given path with the given FileInfo contains a Terragrunt module and false otherwise. A path
 // contains a Terragrunt module if it contains a Terragrunt configuration file (terragrunt.hcl, terragrunt.hcl.json)
 // and is not a cache, data, or download dir.
-func containsTerragruntModule(path string, info os.FileInfo, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	if !info.IsDir() {
-		return false, nil
-	}
-
+func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	// Skip the Terragrunt cache dir
 	if util.ContainsPath(path, util.TerragruntCacheDir) {
 		return false, nil
@@ -625,10 +632,10 @@ func containsTerragruntModule(path string, info os.FileInfo, terragruntOptions *
 
 	// Skip any custom download dir specified by the user
 	if strings.Contains(canonicalPath, canonicalDownloadPath) {
-		return false, err
+		return false, nil
 	}
 
-	return util.FileExists(GetDefaultConfigPath(path)), nil
+	return true, nil
 }
 
 // Read the Terragrunt config file from its default location

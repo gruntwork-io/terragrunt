@@ -177,7 +177,7 @@ func decodeAndRetrieveOutputs(
 
 // Convert the list of parsed Dependency blocks into a list of module dependencies. Each output block should
 // become a dependency of the current config, since that module has to be applied before we can read the output.
-func dependencyBlocksToModuleDependencies(decodedDependencyBlocks []Dependency) *ModuleDependencies {
+func dependencyBlocksToModuleDependencies(workingDir string, decodedDependencyBlocks []Dependency) *ModuleDependencies {
 	if len(decodedDependencyBlocks) == 0 {
 		return nil
 	}
@@ -185,12 +185,19 @@ func dependencyBlocksToModuleDependencies(decodedDependencyBlocks []Dependency) 
 	paths := []string{}
 	for _, decodedDependencyBlock := range decodedDependencyBlocks {
 		configPath := decodedDependencyBlock.ConfigPath
-		if util.IsFile(configPath) && filepath.Base(configPath) == DefaultTerragruntConfigPath {
-			// dependencies system expects the directory containing the terragrunt.hcl file
-			configPath = filepath.Dir(configPath)
-		}
+
+		// absolutePath := configPath
+		// if !filepath.IsAbs(absolutePath) {
+		// 	absolutePath = util.JoinPath(workingDir, absolutePath)
+		// }
+		// if !files.IsDir(absolutePath) && files.FileExists(absolutePath) {
+		// 	// dependencies system expects the directory containing the terragrunt.hcl file
+		// 	configPath = filepath.Dir(configPath)
+		// }
+
 		paths = append(paths, configPath)
 	}
+
 	return &ModuleDependencies{Paths: paths}
 }
 
