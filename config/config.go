@@ -556,6 +556,21 @@ func GetDefaultConfigPath(workingDir string) string {
 	return DefaultConfigPath(workingDir)
 }
 
+func GetConfigPath(path string, terragruntOptions *options.TerragruntOptions) string {
+	// Check if only filename is provided - means that TERRAGRUNT_CONFIG is set
+	if filepath.Dir(terragruntOptions.TerragruntConfigPath) != "." {
+		return GetDefaultConfigPath(path)
+	}
+
+	// Rollback to default config if custom config does not exists
+	potentialConfig := util.JoinPath(path, terragruntOptions.TerragruntConfigPath)
+	if util.FileNotExists(potentialConfig) {
+		return GetDefaultConfigPath(path)
+	}
+
+	return potentialConfig
+}
+
 // Returns a list of all Terragrunt config files in the given path or any subfolder of the path. A file is a Terragrunt
 // config file if it has a name as returned by the DefaultConfigPath method
 func FindConfigFilesInPath(rootPath string, terragruntOptions *options.TerragruntOptions) ([]string, error) {
@@ -577,7 +592,7 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 		}
 
 		if isTerragruntModule {
-			configFiles = append(configFiles, GetDefaultConfigPath(path))
+			configFiles = append(configFiles, GetConfigPath(path, terragruntOptions))
 		}
 
 		return nil
@@ -626,7 +641,7 @@ func containsTerragruntModule(path string, info os.FileInfo, terragruntOptions *
 		return false, err
 	}
 
-	return util.FileExists(GetDefaultConfigPath(path)), nil
+	return util.FileExists(GetConfigPath(path, terragruntOptions)), nil
 }
 
 // Read the Terragrunt config file from its default location

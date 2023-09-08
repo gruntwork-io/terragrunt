@@ -1263,6 +1263,20 @@ func TestModuleDependenciesMerge(t *testing.T) {
 	}
 }
 
+func TestRunAllCustomConfig(t *testing.T) {
+	t.Parallel()
+	expected := []string{
+		"../test/fixture-config-files/multiple-mixed-custom-configs/env/custom_config/.terragrunt.hcl",
+		"../test/fixture-config-files/multiple-mixed-custom-configs/env/default_config/terragrunt.hcl",
+		"../test/fixture-config-files/multiple-mixed-custom-configs/env/json_config/terragrunt.hcl.json",
+	}
+	terragruntOptions, err := options.NewTerragruntOptionsForTest(".terragrunt.hcl")
+	require.NoError(t, err)
+	actual, err := FindConfigFilesInPath("../test/fixture-config-files/multiple-mixed-custom-configs/", terragruntOptions)
+	assert.Nil(t, err, "Unexpected error: %v", err)
+	assert.Equal(t, expected, actual)
+}
+
 func ptr(str string) *string {
 	return &str
 }
