@@ -589,8 +589,11 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 			return nil
 		}
 
-		if strings.HasSuffix(path, ".hcl") || strings.HasSuffix(path, ".hcl.json") {
-			configFiles = append(configFiles, path)
+		for _, configFile := range append(DefaultTerragruntConfigPaths, terragruntOptions.TerragruntConfigPath) {
+			if strings.HasSuffix(path, configFile) {
+				configFiles = append(configFiles, path)
+				break
+			}
 		}
 
 		return nil

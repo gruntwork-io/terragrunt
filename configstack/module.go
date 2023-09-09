@@ -231,6 +231,12 @@ func resolveModules(canonicalTerragruntConfigPaths []string, terragruntOptions *
 		if module != nil {
 			moduleMap[module.Path] = module
 		}
+
+		dependencies, err := resolveDependenciesForModule(module, moduleMap, terragruntOptions, childTerragruntConfig, true)
+		if err != nil {
+			return moduleMap, err
+		}
+		moduleMap = collections.MergeMaps(moduleMap, dependencies)
 	}
 
 	return moduleMap, nil
@@ -344,7 +350,7 @@ func resolveExternalDependenciesForModules(moduleMap map[string]*TerraformModule
 	sortedKeys := getSortedKeys(moduleMap)
 	for _, key := range sortedKeys {
 		module := moduleMap[key]
-		externalDependencies, err := resolveExternalDependenciesForModule(module, modulesToSkip, terragruntOptions, childTerragruntConfig)
+		externalDependencies, err := resolveDependenciesForModule(module, modulesToSkip, terragruntOptions, childTerragruntConfig, false)
 		if err != nil {
 			return externalDependencies, err
 		}
@@ -383,7 +389,7 @@ func resolveExternalDependenciesForModules(moduleMap map[string]*TerraformModule
 // dependencies are outside of the current working directory, which means they may not be part of the environment the
 // user is trying to apply-all or destroy-all. Note that this method will NOT fill in the Dependencies field of the
 // TerraformModule struct (see the crosslinkDependencies method for that).
-func resolveExternalDependenciesForModule(module *TerraformModule, moduleMap map[string]*TerraformModule, terragruntOptions *options.TerragruntOptions, chilTerragruntConfig *config.TerragruntConfig) (map[string]*TerraformModule, error) {
+func resolveDependenciesForModule(module *TerraformModule, moduleMap map[string]*TerraformModule, terragruntOptions *options.TerragruntOptions, chilTerragruntConfig *config.TerragruntConfig, skipExternal bool) (map[string]*TerraformModule, error) {
 	if module.Config.Dependencies == nil || len(module.Config.Dependencies.Paths) == 0 {
 		return map[string]*TerraformModule{}, nil
 	}
@@ -395,8 +401,8 @@ func resolveExternalDependenciesForModule(module *TerraformModule, moduleMap map
 			return map[string]*TerraformModule{}, err
 		}
 
-		if files.FileExists(dependencyPath) && !files.IsDir(dependencyPath) {
-			dependencyPath = filepath.Dir(dependencyPath)
+		if skipExternal && !util.HasPathPrefix(dependencyPath, terragruntOptions.WorkingDir) {
+			continue
 		}
 
 		terragruntConfigPath := config.GetDefaultConfigPath(dependencyPath)
