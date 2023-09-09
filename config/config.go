@@ -577,22 +577,23 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 			return err
 		}
 
-		if info.IsDir() {
-			if ok, err := isTerragruntModuleDir(path, terragruntOptions); err != nil {
-				return err
-			} else if !ok {
-				return filepath.SkipDir
-			}
+		if !info.IsDir() {
 			return nil
 		}
 
-		if strings.HasSuffix(path, util.TerraformLockFile) {
-			return nil
+		if ok, err := isTerragruntModuleDir(path, terragruntOptions); err != nil {
+			return err
+		} else if !ok {
+			return filepath.SkipDir
 		}
 
 		for _, configFile := range append(DefaultTerragruntConfigPaths, terragruntOptions.TerragruntConfigPath) {
-			if strings.HasSuffix(path, configFile) {
-				configFiles = append(configFiles, path)
+			if !filepath.IsAbs(configFile) {
+				configFile = util.JoinPath(path, configFile)
+			}
+
+			if !util.IsDir(configFile) && util.FileExists(configFile) {
+				configFiles = append(configFiles, configFile)
 				break
 			}
 		}
