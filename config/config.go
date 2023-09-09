@@ -587,7 +587,7 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 			return filepath.SkipDir
 		}
 
-		for _, configFile := range append(DefaultTerragruntConfigPaths, terragruntOptions.TerragruntConfigPath) {
+		for _, configFile := range append(DefaultTerragruntConfigPaths, filepath.Base(terragruntOptions.TerragruntConfigPath)) {
 			if !filepath.IsAbs(configFile) {
 				configFile = util.JoinPath(path, configFile)
 			}
