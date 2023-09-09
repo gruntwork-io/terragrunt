@@ -59,8 +59,8 @@ const (
 
 // Order matters, for example if none of the files are found `GetDefaultConfigPath` func returns the last element.
 var DefaultTerragruntConfigPaths = []string{
-	DefaultTerragruntConfigPath,
 	DefaultTerragruntJsonConfigPath,
+	DefaultTerragruntConfigPath,
 }
 
 // TerragruntConfig represents a parsed and expanded configuration
