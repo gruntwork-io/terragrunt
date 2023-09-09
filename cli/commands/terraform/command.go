@@ -1,10 +1,13 @@
 package terraform
 
 import (
+	"path/filepath"
+
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/gruntwork-cli/collections"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const (
@@ -32,6 +35,10 @@ func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 
 		if !opts.DisableCommandValidation && !collections.ListContainsElement(nativeTerraformCommands, opts.TerraformCommand) {
 			return errors.WithStackTrace(WrongTerraformCommand(opts.TerraformCommand))
+		}
+
+		if !filepath.IsAbs(opts.TerragruntConfigPath) {
+			opts.TerragruntConfigPath = util.JoinPath(opts.WorkingDir, opts.TerragruntConfigPath)
 		}
 
 		return Run(opts.OptionsFromContext(ctx))
