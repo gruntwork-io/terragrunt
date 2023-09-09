@@ -57,9 +57,10 @@ const (
 	MetadataRetrySleepIntervalSec       = "retry_sleep_interval_sec"
 )
 
+// The order matters, if none of the files are found the first element will be returned.
 var DefaultTerragruntConfigPaths = []string{
-	DefaultTerragruntJsonConfigPath,
 	DefaultTerragruntConfigPath,
+	DefaultTerragruntJsonConfigPath,
 }
 
 // TerragruntConfig represents a parsed and expanded configuration
@@ -552,18 +553,16 @@ func GetDefaultConfigPath(workingDir string) string {
 		return workingDir
 	}
 
-	var configPath string
-
-	for _, configPath = range DefaultTerragruntConfigPaths {
+	for _, configPath := range DefaultTerragruntConfigPaths {
 		if !filepath.IsAbs(configPath) {
 			configPath = util.JoinPath(workingDir, configPath)
 		}
 		if files.FileExists(configPath) {
-			break
+			return configPath
 		}
 	}
 
-	return configPath
+	return DefaultTerragruntConfigPaths[0]
 }
 
 // Returns a list of all Terragrunt config files in the given path or any subfolder of the path. A file is a Terragrunt
@@ -576,22 +575,23 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 			return err
 		}
 
-		if info.IsDir() {
-			if ok, err := isTerragruntModuleDir(path, terragruntOptions); err != nil {
-				return err
-			} else if !ok {
-				return filepath.SkipDir
-			}
+		if !info.IsDir() {
 			return nil
 		}
 
-		if strings.HasSuffix(path, util.TerraformLockFile) {
-			return nil
+		if ok, err := isTerragruntModuleDir(path, terragruntOptions); err != nil {
+			return err
+		} else if !ok {
+			return filepath.SkipDir
 		}
 
 		for _, configFile := range append(DefaultTerragruntConfigPaths, terragruntOptions.TerragruntConfigPath) {
-			if strings.HasSuffix(path, configFile) {
-				configFiles = append(configFiles, path)
+			configFile, err := util.CanonicalPath(configFile, path)
+			if err != nil {
+				return err
+			}
+			if util.FileExists(configFile) {
+				configFiles = append(configFiles, configFile)
 				break
 			}
 		}
@@ -602,9 +602,8 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 	return configFiles, err
 }
 
-// Returns true if the given path with the given FileInfo contains a Terragrunt module and false otherwise. A path
-// contains a Terragrunt module if it contains a Terragrunt configuration file (terragrunt.hcl, terragrunt.hcl.json)
-// and is not a cache, data, or download dir.
+// isTerragruntModuleDir returns true if the given path contains a Terragrunt module and false otherwise. The path
+// can not contain a cache, data, or download dir.
 func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	// Skip the Terragrunt cache dir
 	if util.ContainsPath(path, util.TerragruntCacheDir) {
