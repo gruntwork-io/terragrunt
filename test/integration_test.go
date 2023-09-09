@@ -69,6 +69,7 @@ const (
 	TEST_FIXTURE_ENV_VARS_BLOCK_PATH                                         = "fixture-env-vars-block/"
 	TEST_FIXTURE_SKIP                                                        = "fixture-skip/"
 	TEST_FIXTURE_CONFIG_SINGLE_JSON_PATH                                     = "fixture-config-files/single-json-config"
+	TEST_FIXTURE_CONFIG_WITH_NON_DEFAULT_NAMES                               = "fixture-config-files/with-non-default-names"
 	TEST_FIXTURE_PREVENT_DESTROY_OVERRIDE                                    = "fixture-prevent-destroy-override/child"
 	TEST_FIXTURE_PREVENT_DESTROY_NOT_SET                                     = "fixture-prevent-destroy-not-set/child"
 	TEST_FIXTURE_LOCAL_PREVENT_DESTROY                                       = "fixture-download/local-with-prevent-destroy"
@@ -759,6 +760,24 @@ func TestTerragruntWorksWithSingleJsonConfig(t *testing.T) {
 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_CONFIG_SINGLE_JSON_PATH)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootTerragruntConfigPath))
+}
+
+func TestTerragruntWorksWithNonDefaultConfigNames(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_CONFIG_WITH_NON_DEFAULT_NAMES)
+	tmpEnvPath = path.Join(tmpEnvPath, TEST_FIXTURE_CONFIG_WITH_NON_DEFAULT_NAMES)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-config main.hcl --terragrunt-non-interactive --terragrunt-working-dir %s", tmpEnvPath), &stdout, &stderr)
+	require.NoError(t, err)
+
+	out := stdout.String()
+	assert.Equal(t, 1, strings.Count(out, "parent_hcl_file"))
+	assert.Equal(t, 1, strings.Count(out, "dependency_hcl"))
+	assert.Equal(t, 1, strings.Count(out, "common_hcl"))
 }
 
 func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
