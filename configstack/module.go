@@ -230,13 +230,13 @@ func resolveModules(canonicalTerragruntConfigPaths []string, terragruntOptions *
 		}
 		if module != nil {
 			moduleMap[module.Path] = module
-		}
 
-		dependencies, err := resolveDependenciesForModule(module, moduleMap, terragruntOptions, childTerragruntConfig, true)
-		if err != nil {
-			return moduleMap, err
+			dependencies, err := resolveDependenciesForModule(module, moduleMap, terragruntOptions, childTerragruntConfig, true)
+			if err != nil {
+				return moduleMap, err
+			}
+			moduleMap = collections.MergeMaps(moduleMap, dependencies)
 		}
-		moduleMap = collections.MergeMaps(moduleMap, dependencies)
 	}
 
 	return moduleMap, nil
