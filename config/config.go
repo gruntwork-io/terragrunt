@@ -588,11 +588,11 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 		}
 
 		for _, configFile := range append(DefaultTerragruntConfigPaths, terragruntOptions.TerragruntConfigPath) {
-			configFile, err := util.CanonicalPath(configFile, path)
-			if err != nil {
-				return err
+			if !filepath.IsAbs(configFile) {
+				configFile = util.JoinPath(path, configFile)
 			}
-			if util.FileExists(configFile) {
+
+			if !util.IsDir(configFile) && util.FileExists(configFile) {
 				configFiles = append(configFiles, configFile)
 				break
 			}
