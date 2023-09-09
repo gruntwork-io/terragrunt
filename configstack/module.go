@@ -224,10 +224,11 @@ func resolveModules(canonicalTerragruntConfigPaths []string, terragruntOptions *
 	moduleMap := map[string]*TerraformModule{}
 
 	for _, terragruntConfigPath := range canonicalTerragruntConfigPaths {
-		module, err := resolveTerraformModule(terragruntConfigPath, terragruntOptions, childTerragruntConfig, howTheseModulesWereFound)
+		module, err := resolveTerraformModule(terragruntConfigPath, moduleMap, terragruntOptions, childTerragruntConfig, howTheseModulesWereFound)
 		if err != nil {
 			return moduleMap, err
 		}
+
 		if module != nil {
 			moduleMap[module.Path] = module
 
@@ -245,10 +246,14 @@ func resolveModules(canonicalTerragruntConfigPaths []string, terragruntOptions *
 // Create a TerraformModule struct for the Terraform module specified by the given Terragrunt configuration file path.
 // Note that this method will NOT fill in the Dependencies field of the TerraformModule struct (see the
 // crosslinkDependencies method for that).
-func resolveTerraformModule(terragruntConfigPath string, terragruntOptions *options.TerragruntOptions, childTerragruntConfig *config.TerragruntConfig, howThisModuleWasFound string) (*TerraformModule, error) {
+func resolveTerraformModule(terragruntConfigPath string, moduleMap map[string]*TerraformModule, terragruntOptions *options.TerragruntOptions, childTerragruntConfig *config.TerragruntConfig, howThisModuleWasFound string) (*TerraformModule, error) {
 	modulePath, err := util.CanonicalPath(filepath.Dir(terragruntConfigPath), ".")
 	if err != nil {
 		return nil, err
+	}
+
+	if _, ok := moduleMap[modulePath]; ok {
+		return nil, nil
 	}
 
 	// Clone the options struct so we don't modify the original one. This is especially important as run-all operations
