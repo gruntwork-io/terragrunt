@@ -57,7 +57,7 @@ const (
 	MetadataRetrySleepIntervalSec       = "retry_sleep_interval_sec"
 )
 
-// The order matters, if none of the files are found the first element will be returned.
+// Order matters, for example if none of the files are found `GetDefaultConfigPath` func returns the last element.
 var DefaultTerragruntConfigPaths = []string{
 	DefaultTerragruntConfigPath,
 	DefaultTerragruntJsonConfigPath,
@@ -553,16 +553,18 @@ func GetDefaultConfigPath(workingDir string) string {
 		return workingDir
 	}
 
-	for _, configPath := range DefaultTerragruntConfigPaths {
+	var configPath string
+
+	for _, configPath = range DefaultTerragruntConfigPaths {
 		if !filepath.IsAbs(configPath) {
 			configPath = util.JoinPath(workingDir, configPath)
 		}
 		if files.FileExists(configPath) {
-			return configPath
+			break
 		}
 	}
 
-	return DefaultTerragruntConfigPaths[0]
+	return configPath
 }
 
 // Returns a list of all Terragrunt config files in the given path or any subfolder of the path. A file is a Terragrunt

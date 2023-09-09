@@ -389,11 +389,9 @@ func resolveExternalDependenciesForModules(moduleMap map[string]*TerraformModule
 	return allExternalDependencies, nil
 }
 
-// Look through the dependencies of the given module and resolve the "external" dependency paths listed in the module's
-// config (i.e. those dependencies not in the given list of Terragrunt config canonical file paths). These external
-// dependencies are outside of the current working directory, which means they may not be part of the environment the
-// user is trying to apply-all or destroy-all. Note that this method will NOT fill in the Dependencies field of the
-// TerraformModule struct (see the crosslinkDependencies method for that).
+// resolveDependenciesForModule looks through the dependencies of the given module and resolve the dependency paths listed in the module's config.
+// If `skipExternal` is true, the func returns only dependencies that are inside of the current working directory, which means they are part of the environment the
+// user is trying to apply-all or destroy-all. Note that this method will NOT fill in the Dependencies field of the TerraformModule struct (see the crosslinkDependencies method for that).
 func resolveDependenciesForModule(module *TerraformModule, moduleMap map[string]*TerraformModule, terragruntOptions *options.TerragruntOptions, chilTerragruntConfig *config.TerragruntConfig, skipExternal bool) (map[string]*TerraformModule, error) {
 	if module.Config.Dependencies == nil || len(module.Config.Dependencies.Paths) == 0 {
 		return map[string]*TerraformModule{}, nil
