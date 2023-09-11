@@ -184,18 +184,7 @@ func dependencyBlocksToModuleDependencies(workingDir string, decodedDependencyBl
 
 	paths := []string{}
 	for _, decodedDependencyBlock := range decodedDependencyBlocks {
-		configPath := decodedDependencyBlock.ConfigPath
-
-		// absolutePath := configPath
-		// if !filepath.IsAbs(absolutePath) {
-		// 	absolutePath = util.JoinPath(workingDir, absolutePath)
-		// }
-		// if !files.IsDir(absolutePath) && files.FileExists(absolutePath) {
-		// 	// dependencies system expects the directory containing the terragrunt.hcl file
-		// 	configPath = filepath.Dir(configPath)
-		// }
-
-		paths = append(paths, configPath)
+		paths = append(paths, decodedDependencyBlock.ConfigPath)
 	}
 
 	return &ModuleDependencies{Paths: paths}
