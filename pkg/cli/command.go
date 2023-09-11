@@ -118,6 +118,11 @@ func (cmd *Command) Run(ctx *Context, args ...string) (err error) {
 		return err
 	}
 
+	if cmd.IsRoot && ctx.App.DefaultCommand != nil {
+		err = ctx.App.DefaultCommand.Run(ctx, args...)
+		return err
+	}
+
 	if ctx.App.CommonBefore != nil {
 		if err = ctx.App.CommonBefore(ctx); err != nil {
 			return ctx.App.handleExitCoder(err)
@@ -128,11 +133,6 @@ func (cmd *Command) Run(ctx *Context, args ...string) (err error) {
 		if err = cmd.Action(ctx); err != nil {
 			return ctx.App.handleExitCoder(err)
 		}
-	}
-
-	if cmd.IsRoot && ctx.App.DefaultCommand != nil {
-		err = ctx.App.DefaultCommand.Run(ctx, args...)
-		return err
 	}
 
 	return nil
