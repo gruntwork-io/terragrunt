@@ -4,6 +4,7 @@
 package shell
 
 import (
+	"bytes"
 	goerrors "errors"
 	"fmt"
 	"os"
@@ -15,6 +16,15 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestWindowsConsolePrepare(t *testing.T) {
+	options := options.NewTerragruntOptions()
+
+	options.Logger.Buffer = &bytes.Buffer{}
+
+	PrepareConsole(options)
+	fmt.Printf("%v", string(options.Logger.Buffer.Bytes()))
+}
 
 func TestExitCodeWindows(t *testing.T) {
 	t.Parallel()
