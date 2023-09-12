@@ -85,3 +85,7 @@ func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.
 
 	return nil
 }
+
+func PrepareConsole(terragruntOptions *options.TerragruntOptions) {
+	// No operation function to match windows execution
+}

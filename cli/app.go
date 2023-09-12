@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"io"
 	"os"
 	"path/filepath"
@@ -208,6 +209,9 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 		opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
 
 		opts.RunTerragrunt = terraform.Run
+
+		shell.PrepareConsole(opts)
+
 		return nil
 	}
 }
