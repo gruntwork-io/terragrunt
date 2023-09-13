@@ -173,6 +173,16 @@ func decodeAndRetrieveOutputs(
 		return nil, err
 	}
 
+	// Skip disabled dependencies
+	updatedDependencies := terragruntDependency{}
+	for _, dep := range decodedDependency.Dependencies {
+		if !dep.isEnabled() {
+			continue
+		}
+		updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+	}
+	decodedDependency = updatedDependencies
+
 	// Merge in included dependencies
 	if trackInclude != nil {
 		mergedDecodedDependency, err := handleIncludeForDependency(decodedDependency, trackInclude, terragruntOptions)
