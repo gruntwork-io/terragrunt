@@ -23,7 +23,7 @@ import (
 func TestWindowsConsolePrepare(t *testing.T) {
 	t.Parallel()
 
-	o := options.NewTerragruntOptions()
+	testOptions := options.NewTerragruntOptions()
 
 	stdout := bytes.Buffer{}
 
@@ -31,11 +31,11 @@ func TestWindowsConsolePrepare(t *testing.T) {
 	testLogger.Out = &stdout
 	testLogger.Level = logrus.DebugLevel
 
-	o.Logger = testLogger.WithContext(context.Background())
+	testOptions.Logger = testLogger.WithContext(context.Background())
 
-	PrepareConsole(o)
+	PrepareConsole(testOptions)
 
-	assert.Contains(t, stdout.String(), " level=debug msg=\"failed to get console mode: The handle is invalid.")
+	assert.Contains(t, stdout.String(), "level=debug msg=\"failed to get console mode: The handle is invalid.")
 }
 
 func TestExitCodeWindows(t *testing.T) {
