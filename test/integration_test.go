@@ -5089,6 +5089,7 @@ func TestRenderJsonWithMockOutputs(t *testing.T) {
 	var expectedDependency = map[string]interface{}{
 		"module": map[string]interface{}{
 			"metadata": expectedMetadata,
+			"enabled":  nil,
 			"value": map[string]interface{}{
 				"config_path": "../dependency",
 				"mock_outputs": map[string]interface{}{
@@ -5262,12 +5263,14 @@ func TestRenderJsonMetadataDepenency(t *testing.T) {
 				"name":                                    "dep",
 				"outputs":                                 nil,
 				"skip":                                    nil,
+				"enabled":                                 nil,
 			},
 		},
 		"dep2": map[string]interface{}{
 			"metadata": terragruntMetadata,
 			"value": map[string]interface{}{
 				"config_path": "../dependency2",
+				"enabled":     nil,
 				"mock_outputs": map[string]interface{}{
 					"test2": "value2",
 				},

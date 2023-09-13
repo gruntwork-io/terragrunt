@@ -109,3 +109,25 @@ dependency "hitchhiker" {
 	require.NotNil(t, defaultAllowedCommands)
 	assert.Equal(t, *defaultAllowedCommands, []string{"validate", "apply"})
 }
+
+func TestDisabledDependency(t *testing.T) {
+	t.Parallel()
+
+	config := `
+dependency "ec2" {
+  config_path = "../ec2"
+  enabled    = false
+}
+dependency "vpc" {
+  config_path = "../vpc"
+}
+`
+	filename := DefaultTerragruntConfigPath
+	parser := hclparse.NewParser()
+	file, err := parseHcl(parser, config, filename)
+	require.NoError(t, err)
+
+	decoded := terragruntDependency{}
+	require.NoError(t, decodeHcl(file, filename, &decoded, mockOptionsForTest(t), EvalContextExtensions{}))
+	assert.Equal(t, len(decoded.Dependencies), 2)
+}
