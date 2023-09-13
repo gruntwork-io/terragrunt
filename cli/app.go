@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/shell"
+
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -208,6 +210,9 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 		opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
 
 		opts.RunTerragrunt = terraform.Run
+
+		shell.PrepareConsole(opts)
+
 		return nil
 	}
 }
