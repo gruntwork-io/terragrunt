@@ -4,6 +4,8 @@
 package shell
 
 import (
+	"bytes"
+	"context"
 	goerrors "errors"
 	"fmt"
 	"os"
@@ -12,9 +14,29 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestWindowsConsolePrepare(t *testing.T) {
+	t.Parallel()
+
+	testOptions := options.NewTerragruntOptions()
+
+	stdout := bytes.Buffer{}
+
+	var testLogger = logrus.New()
+	testLogger.Out = &stdout
+	testLogger.Level = logrus.DebugLevel
+
+	testOptions.Logger = testLogger.WithContext(context.Background())
+
+	PrepareConsole(testOptions)
+
+	assert.Contains(t, stdout.String(), "level=debug msg=\"failed to get console mode: The handle is invalid.")
+}
 
 func TestExitCodeWindows(t *testing.T) {
 	t.Parallel()
