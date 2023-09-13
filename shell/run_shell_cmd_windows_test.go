@@ -5,8 +5,10 @@ package shell
 
 import (
 	"bytes"
+	"context"
 	goerrors "errors"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"os"
 	"os/exec"
 	"strconv"
@@ -18,12 +20,21 @@ import (
 )
 
 func TestWindowsConsolePrepare(t *testing.T) {
-	options := options.NewTerragruntOptions()
+	t.Parallel()
 
-	options.Logger.Buffer = &bytes.Buffer{}
+	o := options.NewTerragruntOptions()
 
-	PrepareConsole(options)
-	fmt.Printf("%v", string(options.Logger.Buffer.Bytes()))
+	stdout := bytes.Buffer{}
+
+	var testLogger = logrus.New()
+	testLogger.Out = &stdout
+	testLogger.Level = logrus.DebugLevel
+
+	o.Logger = testLogger.WithContext(context.Background())
+
+	PrepareConsole(o)
+
+	assert.Contains(t, stdout.String(), " level=debug msg=\"failed to get console mode: The handle is invalid.")
 }
 
 func TestExitCodeWindows(t *testing.T) {
