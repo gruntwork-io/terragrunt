@@ -8,12 +8,13 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"os"
 	"os/exec"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"

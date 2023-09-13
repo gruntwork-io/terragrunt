@@ -2,12 +2,13 @@ package cli
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/shell"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/shell"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/version"
