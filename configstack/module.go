@@ -331,7 +331,13 @@ func resolveTerraformModule(terragruntConfigPath string, moduleMap map[string]*T
 	}
 
 	if opts.IncludeModulePrefix {
-		opts.OutputPrefix = fmt.Sprintf("[%v] ", modulePath)
+		prefix := modulePath
+		if terragruntOptions.WorkingDir != modulePath {
+			if relativePrefix, err := filepath.Rel(terragruntOptions.WorkingDir, modulePath); err == nil {
+				prefix = relativePrefix
+			}
+		}
+		opts.OutputPrefix = fmt.Sprintf("[%v] ", prefix)
 	}
 
 	return &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil
