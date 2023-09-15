@@ -332,8 +332,16 @@ func resolveTerraformModule(terragruntConfigPath string, moduleMap map[string]*T
 
 	if opts.IncludeModulePrefix {
 		prefix := modulePath
+		workingDirPath := terragruntOptions.WorkingDir
+
+		// try to convert working dir to absolute path
+		if path, err := filepath.Abs(workingDirPath); err == nil {
+			workingDirPath = path
+		}
+
 		if terragruntOptions.WorkingDir != modulePath {
-			if relativePrefix, err := filepath.Rel(terragruntOptions.WorkingDir, modulePath); err == nil {
+			// try to generate relative path to module to be used as prefix
+			if relativePrefix, err := filepath.Rel(workingDirPath, modulePath); err == nil {
 				prefix = relativePrefix
 			}
 		}
