@@ -15,10 +15,7 @@ Please see the following for more info, including install instructions and compl
 * [Getting started with Terragrunt](https://terragrunt.gruntwork.io/docs/getting-started/quick-start/)
 * [Terragrunt Documentation](https://terragrunt.gruntwork.io/docs)
 * [Contributing to Terragrunt](https://terragrunt.gruntwork.io/docs/community/contributing)
-* [Commercial Support](https://terragrunt.gruntwork.io/commercial-support/)
-
-
-
+* [Commercial Support](https://gruntwork.io/support/)
 
 ## License
 

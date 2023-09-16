@@ -29,7 +29,12 @@ func TestToTerraformInitArgs(t *testing.T) {
 
 			"dynamodb_table_tags": map[string]interface{}{
 				"team":    "team name",
-				"name":    "Terraform state storage",
+				"name":    "Terraform lock table",
+				"service": "Terraform"},
+
+			"accesslogging_bucket_tags": map[string]interface{}{
+				"team":    "team name",
+				"name":    "Terraform access log storage",
 				"service": "Terraform"},
 
 			"skip_bucket_versioning": true,
@@ -40,7 +45,7 @@ func TestToTerraformInitArgs(t *testing.T) {
 	}
 	args := remoteState.ToTerraformInitArgs()
 
-	// must not contain s3_bucket_tags or dynamodb_table_tags or skip_bucket_versioning
+	// must not contain s3_bucket_tags or dynamodb_table_tags or accesslogging_bucket_tags or skip_bucket_versioning
 	assertTerraformInitArgsEqual(t, args, "-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1 -backend-config=force_path_style=true -backend-config=shared_credentials_file=my-file")
 }
 
@@ -62,13 +67,14 @@ func TestToTerraformInitArgsForGCS(t *testing.T) {
 
 			"skip_bucket_versioning": true,
 
-			"credentials": "my-file",
+			"credentials":  "my-file",
+			"access_token": "xxxxxxxx",
 		},
 	}
 	args := remoteState.ToTerraformInitArgs()
 
 	// must not contain project, location gcs_bucket_labels or skip_bucket_versioning
-	assertTerraformInitArgsEqual(t, args, "-backend-config=bucket=my-bucket -backend-config=prefix=terraform.tfstate -backend-config=credentials=my-file")
+	assertTerraformInitArgsEqual(t, args, "-backend-config=bucket=my-bucket -backend-config=prefix=terraform.tfstate -backend-config=credentials=my-file -backend-config=access_token=xxxxxxxx")
 }
 
 func TestToTerraformInitArgsUnknownBackend(t *testing.T) {

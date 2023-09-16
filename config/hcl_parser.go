@@ -3,7 +3,7 @@ package config
 import (
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
@@ -184,6 +184,24 @@ func TestRunCommand(t *testing.T) {
 		},
 		{
 			[]string{"--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
+			terragruntOptionsForTest(t, homeDir),
+			"foo",
+			nil,
+		},
+		{
+			[]string{"--terragrunt-global-cache", "/bin/bash", "-c", "echo foo"},
+			terragruntOptionsForTest(t, homeDir),
+			"foo",
+			nil,
+		},
+		{
+			[]string{"--terragrunt-global-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
+			terragruntOptionsForTest(t, homeDir),
+			"foo",
+			nil,
+		},
+		{
+			[]string{"--terragrunt-quiet", "--terragrunt-global-cache", "/bin/bash", "-c", "echo foo"},
 			terragruntOptionsForTest(t, homeDir),
 			"foo",
 			nil,
@@ -877,6 +895,16 @@ func TestReadTerragruntConfigRemoteState(t *testing.T) {
 		configMap["s3_bucket_tags"].(map[string]interface{}),
 		map[string]interface{}{"owner": "terragrunt integration test", "name": "Terraform state storage"},
 	)
+	assert.Equal(
+		t,
+		configMap["dynamodb_table_tags"].(map[string]interface{}),
+		map[string]interface{}{"owner": "terragrunt integration test", "name": "Terraform lock table"},
+	)
+	assert.Equal(
+		t,
+		configMap["accesslogging_bucket_tags"].(map[string]interface{}),
+		map[string]interface{}{"owner": "terragrunt integration test", "name": "Terraform access log storage"},
+	)
 }
 
 func TestReadTerragruntConfigHooks(t *testing.T) {
@@ -965,6 +993,137 @@ func TestGetTerragruntSourceForModuleHappyPath(t *testing.T) {
 			actual, err := GetTerragruntSourceForModule(testCase.source, "mock-for-test", testCase.config)
 			require.NoError(t, err)
 			assert.Equal(t, testCase.expected, actual)
+		})
+	}
+}
+
+func TestStartsWith(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		config *options.TerragruntOptions
+		args   []string
+		value  bool
+	}{
+		{terragruntOptionsForTest(t, ""), []string{"hello world", "hello"}, true},
+		{terragruntOptionsForTest(t, ""), []string{"hello world", "world"}, false},
+		{terragruntOptionsForTest(t, ""), []string{"hello world", ""}, true},
+		{terragruntOptionsForTest(t, ""), []string{"hello world", " "}, false},
+		{terragruntOptionsForTest(t, ""), []string{"", ""}, true},
+		{terragruntOptionsForTest(t, ""), []string{"", " "}, false},
+		{terragruntOptionsForTest(t, ""), []string{" ", ""}, true},
+		{terragruntOptionsForTest(t, ""), []string{"", "hello"}, false},
+		{terragruntOptionsForTest(t, ""), []string{" ", "hello"}, false},
+	}
+
+	for id, testCase := range testCases {
+		testCase := testCase
+		t.Run(fmt.Sprintf("%v %v", id, testCase.args), func(t *testing.T) {
+			actual, err := startsWith(testCase.args, nil, testCase.config)
+			assert.NoError(t, err)
+			assert.Equal(t, testCase.value, actual)
+		})
+	}
+}
+
+func TestEndsWith(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		config *options.TerragruntOptions
+		args   []string
+		value  bool
+	}{
+		{terragruntOptionsForTest(t, ""), []string{"hello world", "world"}, true},
+		{terragruntOptionsForTest(t, ""), []string{"hello world", "hello"}, false},
+		{terragruntOptionsForTest(t, ""), []string{"hello world", ""}, true},
+		{terragruntOptionsForTest(t, ""), []string{"hello world", " "}, false},
+		{terragruntOptionsForTest(t, ""), []string{"", ""}, true},
+		{terragruntOptionsForTest(t, ""), []string{"", " "}, false},
+		{terragruntOptionsForTest(t, ""), []string{" ", ""}, true},
+		{terragruntOptionsForTest(t, ""), []string{"", "hello"}, false},
+		{terragruntOptionsForTest(t, ""), []string{" ", "hello"}, false},
+	}
+
+	for id, testCase := range testCases {
+		testCase := testCase
+		t.Run(fmt.Sprintf("%v %v", id, testCase.args), func(t *testing.T) {
+			actual, err := endsWith(testCase.args, nil, testCase.config)
+			assert.NoError(t, err)
+			assert.Equal(t, testCase.value, actual)
+		})
+	}
+}
+
+func TestTimeCmp(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		config *options.TerragruntOptions
+		args   []string
+		value  int64
+		err    string
+	}{
+		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T00:00:00Z", "2017-11-22T00:00:00Z"}, 0, ""},
+		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T00:00:00Z", "2017-11-22T01:00:00+01:00"}, 0, ""},
+		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T00:00:01Z", "2017-11-22T01:00:00+01:00"}, 1, ""},
+		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T01:00:00Z", "2017-11-22T00:59:00-01:00"}, -1, ""},
+		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T01:00:00+01:00", "2017-11-22T01:00:00-01:00"}, -1, ""},
+		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T01:00:00-01:00", "2017-11-22T01:00:00+01:00"}, 1, ""},
+		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T00:00:00Z", "bloop"}, 0, `could not parse second parameter "bloop": not a valid RFC3339 timestamp: cannot use "bloop" as year`},
+		{terragruntOptionsForTest(t, ""), []string{"2017-11-22 00:00:00Z", "2017-11-22T00:00:00Z"}, 0, `could not parse first parameter "2017-11-22 00:00:00Z": not a valid RFC3339 timestamp: missing required time introducer 'T'`},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+
+		t.Run(fmt.Sprintf("TimeCmp(%#v, %#v)", testCase.args[0], testCase.args[1]), func(t *testing.T) {
+			t.Parallel()
+
+			actual, err := timeCmp(testCase.args, nil, testCase.config)
+			if testCase.err != "" {
+				assert.EqualError(t, err, testCase.err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			assert.Equal(t, testCase.value, actual)
+		})
+	}
+}
+
+func TestStrContains(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		config *options.TerragruntOptions
+		args   []string
+		value  bool
+		err    string
+	}{
+		{terragruntOptionsForTest(t, ""), []string{"hello world", "hello"}, true, ""},
+		{terragruntOptionsForTest(t, ""), []string{"hello world", "world"}, true, ""},
+		{terragruntOptionsForTest(t, ""), []string{"hello world0", "0"}, true, ""},
+		{terragruntOptionsForTest(t, ""), []string{"9hello world0", "9"}, true, ""},
+		{terragruntOptionsForTest(t, ""), []string{"hello world", "test"}, false, ""},
+		{terragruntOptionsForTest(t, ""), []string{"hello", "hello"}, true, ""},
+		{terragruntOptionsForTest(t, ""), []string{}, false, "Empty string value is not allowed for parameter to the strcontains function"},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+
+		t.Run(fmt.Sprintf("StrContains %v", testCase.args), func(t *testing.T) {
+			t.Parallel()
+
+			actual, err := strContains(testCase.args, nil, testCase.config)
+			if testCase.err != "" {
+				assert.EqualError(t, err, testCase.err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			assert.Equal(t, testCase.value, actual)
 		})
 	}
 }

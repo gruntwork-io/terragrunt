@@ -13,7 +13,7 @@ import (
 	"github.com/creack/pty"
 	"golang.org/x/crypto/ssh/terminal"
 
-	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -87,5 +87,5 @@ func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.
 }
 
 func PrepareConsole(terragruntOptions *options.TerragruntOptions) {
-	//Do nothing
+	// No operation function to match windows execution
 }

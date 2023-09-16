@@ -13,7 +13,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
-	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -53,6 +53,7 @@ type GenerateConfig struct {
 	CommentPrefix    string `cty:"comment_prefix"`
 	Contents         string `cty:"contents"`
 	DisableSignature bool   `cty:"disable_signature"`
+	Disable          bool   `cty:"disable"`
 }
 
 // WriteToFile will generate a new file at the given target path with the given contents. If a file already exists at
@@ -61,6 +62,12 @@ type GenerateConfig struct {
 // - if ExistsSkip, do nothing and return
 // - if ExistsOverwrite, overwrite the existing file
 func WriteToFile(terragruntOptions *options.TerragruntOptions, basePath string, config GenerateConfig) error {
+	// If this GenerateConfig is disabled then skip further processing.
+	if config.Disable {
+		terragruntOptions.Logger.Debugf("Skipping generating file at %s because it is disabled", config.Path)
+		return nil
+	}
+
 	// Figure out thee target path to generate the code in. If relative, merge with basePath.
 	var targetPath string
 	if filepath.IsAbs(config.Path) {
@@ -173,7 +180,7 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]interfac
 	return f.Bytes(), nil
 }
 
-// GenerateConfigExistsFromString converst a string representation of if_exists into the enum, returning an error if it
+// GenerateConfigExistsFromString converts a string representation of if_exists into the enum, returning an error if it
 // is not set to one of the known values.
 func GenerateConfigExistsFromString(val string) (GenerateConfigExists, error) {
 	switch val {

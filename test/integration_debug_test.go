@@ -230,6 +230,7 @@ func TestRenderJSONConfig(t *testing.T) {
 					"config_path":  "../dep",
 					"outputs":      nil,
 					"mock_outputs": nil,
+					"enabled":      nil,
 					"mock_outputs_allowed_terraform_commands": nil,
 					"mock_outputs_merge_strategy_with_state":  nil,
 					"mock_outputs_merge_with_state":           nil,
@@ -250,6 +251,7 @@ func TestRenderJSONConfig(t *testing.T) {
 					"path":              "provider.tf",
 					"comment_prefix":    "# ",
 					"disable_signature": false,
+					"disable":           false,
 					"if_exists":         "overwrite_terragrunt",
 					"contents": `provider "aws" {
   region = "us-east-1"
@@ -285,9 +287,12 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
 	defer os.RemoveAll(tmpDir)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", fixtureRenderJSONRegression))
+	tmpEnvPath := copyEnvironment(t, fixtureRenderJSONRegression)
+	workDir := filepath.Join(tmpEnvPath, fixtureRenderJSONRegression)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-json-out %s", fixtureRenderJSONRegression, jsonOut))
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", workDir))
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-json-out %s", workDir, jsonOut))
 
 	jsonBytes, err := ioutil.ReadFile(jsonOut)
 	require.NoError(t, err)
@@ -326,6 +331,7 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 					"config_path":  "./baz",
 					"outputs":      nil,
 					"mock_outputs": nil,
+					"enabled":      nil,
 					"mock_outputs_allowed_terraform_commands": nil,
 					"mock_outputs_merge_strategy_with_state":  nil,
 					"mock_outputs_merge_with_state":           nil,
@@ -346,6 +352,7 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 					"path":              "provider.tf",
 					"comment_prefix":    "# ",
 					"disable_signature": false,
+					"disable":           false,
 					"if_exists":         "overwrite",
 					"contents":          "# This is just a test",
 				},
@@ -366,6 +373,61 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 				"from_root": "Hi",
 			},
 			inputsBlock.(map[string]interface{}),
+		)
+	}
+}
+
+func TestRenderJSONConfigRunAll(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, fixtureRenderJSONRegression)
+	workDir := filepath.Join(tmpEnvPath, fixtureRenderJSONRegression)
+
+	// NOTE: bar is not rendered out because it is considered a parent terragrunt.hcl config.
+
+	bazJSONOut := filepath.Join(workDir, "baz", "terragrunt_rendered.json")
+	rootChildJSONOut := filepath.Join(workDir, "terragrunt_rendered.json")
+
+	defer os.Remove(bazJSONOut)
+	defer os.Remove(rootChildJSONOut)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", workDir))
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", workDir))
+
+	bazJSONBytes, err := ioutil.ReadFile(bazJSONOut)
+	require.NoError(t, err)
+
+	var bazRendered map[string]interface{}
+	require.NoError(t, json.Unmarshal(bazJSONBytes, &bazRendered))
+
+	// Make sure top level locals are rendered out
+	bazLocals, bazHasLocals := bazRendered["locals"]
+	if assert.True(t, bazHasLocals) {
+		assert.Equal(
+			t,
+			map[string]interface{}{
+				"self": "baz",
+			},
+			bazLocals.(map[string]interface{}),
+		)
+	}
+
+	rootChildJSONBytes, err := ioutil.ReadFile(rootChildJSONOut)
+	require.NoError(t, err)
+
+	var rootChildRendered map[string]interface{}
+	require.NoError(t, json.Unmarshal(rootChildJSONBytes, &rootChildRendered))
+
+	// Make sure top level locals are rendered out
+	rootChildLocals, rootChildHasLocals := rootChildRendered["locals"]
+	if assert.True(t, rootChildHasLocals) {
+		assert.Equal(
+			t,
+			map[string]interface{}{
+				"foo": "bar",
+			},
+			rootChildLocals.(map[string]interface{}),
 		)
 	}
 }

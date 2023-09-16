@@ -636,7 +636,7 @@ remote_state {
 }
 ```
 
-If the command you are running has the potential to output sensitive values, you may wish to redact the output from appearing in the terminal. To do so, use the special `--terragrunt-quiet` argument which must be passed as the first argument to `run_cmd()`:
+If the command you are running has the potential to output sensitive values, you may wish to redact the output from appearing in the terminal. To do so, use the special `--terragrunt-quiet` argument which must be passed as one of the first arguments to `run_cmd()`:
 
 ``` hcl
 super_secret_value = run_cmd("--terragrunt-quiet", "./decrypt_secret.sh", "foo")
@@ -684,6 +684,12 @@ carrot
   * Output contains multiple times `uuid1` and `uuid2` because during HCL evaluation each `run_cmd` in `locals` is evaluated multiple times and random argument generated from `uuid()` save cached value under different key each time
   * Output contains multiple times `uuid3`, +1 more output comparing to `uuid1` and `uuid2` - because `uuid3` is declared in locals and inputs which add one more evaluation
   * Output contains only once `uuid4` since it is declared only once in `inputs`, `inputs` is not evaluated twice
+
+You can modify this caching behavior to ignore the existing directory if you know the command you are running is not dependent on the current directory path.  To do so, use the special `--terragrunt-global-cache` argument which must be passed as one of the first arguments to `run_cmd()` (and can be combined with `--terragrunt-quiet` in any order):
+
+``` hcl
+value = run_cmd("--terragrunt-global-cache", "--terragrunt-quiet", "/usr/local/bin/get-account-map")
+```
 
 ## read\_terragrunt\_config
 

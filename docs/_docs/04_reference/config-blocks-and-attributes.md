@@ -100,6 +100,7 @@ The `terraform` block supports the following arguments:
       `terragrunt-read-config` and `init-from-module` hooks, and the terraform module directory for other command hooks.
     - `run_on_error` (optional) : If set to true, this hook will run even if a previous hook hit an error, or in the
       case of "after" hooks, if the Terraform command hit an error. Default is false.
+    - `suppress_stdout` (optional) : If set to true, the stdout output of the executed commands will be suppressed. This can be useful when there are scripts relying on terraform's output and any other output would break their parsing.
 
 - `after_hook` (block): Nested blocks used to specify command hooks that should be run after `terraform` is called.
   Hooks run from the terragrunt configuration directory (the directory where `terragrunt.hcl` lives). Supports the same
@@ -293,7 +294,7 @@ instead of the module repository.**
 
 The `remote_state` block is used to configure how Terragrunt will set up the remote state configuration of your
 Terraform code. You can read more about Terragrunt's remote state functionality in [Keep your remote state configuration
-DRY](/use-cases/keep-your-remote-state-configuration-dry) use case overview.
+DRY](/docs/features/keep-your-remote-state-configuration-dry/) use case overview.
 
 The `remote_state` block supports the following arguments:
 
@@ -387,14 +388,16 @@ For the `s3` backend, the following additional properties are supported in the `
 - `skip_bucket_accesslogging`: _DEPRECATED_ If provided, will be ignored. A log warning will be issued in the console output to notify the user.
 - `skip_bucket_root_access`: When `true`, the S3 bucket that is created will not be configured with bucket policies that allow access to the root AWS user.
 - `skip_bucket_enforced_tls`: When `true`, the S3 bucket that is created will not be configured with a bucket policy that enforces access to the bucket via a TLS connection.
+- `skip_bucket_public_access_blocking`: When `true`, the S3 bucket that is created will not have public access blocking enabled.
 - `disable_bucket_update`: When `true`, disable update S3 bucket if not equal configured in config block
 - `enable_lock_table_ssencryption`: When `true`, the synchronization lock table in DynamoDB used for remote state concurrent access will not be configured with server side encryption.
 - `s3_bucket_tags`: A map of key value pairs to associate as tags on the created S3 bucket.
 - `dynamodb_table_tags`: A map of key value pairs to associate as tags on the created DynamoDB remote state lock table.
+- `accesslogging_bucket_tags`: A map of key value pairs to associate as tags on the created S3 bucket to store de access logs.
 - `disable_aws_client_checksums`: When `true`, disable computing and checking checksums on the request and response,
   such as the CRC32 check for DynamoDB. This can be used to workaround
   https://github.com/gruntwork-io/terragrunt/issues/1059.
-- `accesslogging_bucket_name`: (Optional) When provided as a valid `string`, create an S3 bucket with this name to store the access logs for the S3 bucket used to store Terraform state. If not provided, or string is empty or invalid S3 bucket name, then server access logging for the S3 bucket storing the terraform state will be disabled.
+- `accesslogging_bucket_name`: (Optional) When provided as a valid `string`, create an S3 bucket with this name to store the access logs for the S3 bucket used to store Terraform state. If not provided, or string is empty or invalid S3 bucket name, then server access logging for the S3 bucket storing the terraform state will be disabled. **Note:** When access logging is enabled supported encryption for state bucket is only `AES256`. Reference: [S3 server access logging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html)
 - `accesslogging_target_prefix`: (Optional) When provided as a valid `string`, set the `TargetPrefix` for the access log objects in the S3 bucket used to store Terraform state. If set to **empty**`string`, then `TargetPrefix` will be set to **empty** `string`. If attribute is not provided at all, then `TargetPrefix` will be set to **default** value `TFStateLogs/`. This attribute won't take effect if the `accesslogging_bucket_name` attribute is not present.
 - `bucket_sse_algorithm`: (Optional) The algorithm to use for server side encryption of the state bucket. Defaults to `aws:kms`.
 - `bucket_sse_kms_key_id`: (Optional) The KMS Key to use when the encryption algorithm is `aws:kms`. Defaults to the AWS Managed `aws/s3` key.
@@ -408,7 +411,8 @@ For the `gcs` backend, the following additional properties are supported in the 
 - `project`: The GCP project where the bucket will be created.
 - `location`: The GCP location where the bucket will be created.
 - `gcs_bucket_labels`: A map of key value pairs to associate as labels on the created GCS bucket.
-
+- `credentials`: Local path to Google Cloud Platform account credentials in JSON format.
+- `access_token`: A temporary [OAuth 2.0 access token] obtained from the Google Authorization server.
 Example with S3:
 
 ```hcl
@@ -880,6 +884,7 @@ The `dependency` block supports the following arguments:
   outputs of this dependency with the expression `dependency.vpc.outputs`.
 - `config_path` (attribute): Path to a Terragrunt module (folder with a `terragrunt.hcl` file) that should be included
   as a dependency in this configuration.
+- `enabled` (attribute): When `false`, excludes the dependency from execution. Defaults to `true`.
 - `skip_outputs` (attribute): When `true`, skip calling `terragrunt output` when processing this dependency. If
   `mock_outputs` is configured, set `outputs` to the value of `mock_outputs`. Otherwise, `outputs` will be set to an
   empty map. Put another way, setting `skip_outputs` means "use mocks all the time if `mock_outputs` are set."
@@ -1005,6 +1010,7 @@ The `generate` block supports the following arguments:
   there will be no difference between `overwrite_terragrunt` and `overwrite` for the `if_exists` setting. Defaults to
   `false`. Optional.
 - `contents` (attribute): The contents of the generated file.
+- `disable` (attribute): Disables this generate block.
 
 Example:
 

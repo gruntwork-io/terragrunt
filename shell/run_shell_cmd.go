@@ -7,16 +7,25 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"reflect"
 	"strings"
+	"sync"
 	"syscall"
+	"time"
 
-	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/go-commons/collections"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-multierror"
 	"github.com/sirupsen/logrus"
 )
+
+// The signal can be sent to the main process (only `terragrunt`) as well as the process group (`terragrunt` and `terraform`), for example:
+// kill -INT <pid>  # sends SIGINT only to the main process
+// kill -INT -<pid> # sends SIGINT to the process group
+// Since we cannot know how the signal is sent, we should give `terraform` time to gracefully exit if it receives the signal directly from the shell, to avoid sending the second interrupt signal to `terraform`.
+const signalForwardingDelay = time.Second * 30
 
 // Commands that implement a REPL need a pseudo TTY when run as a subprocess in order for the readline properties to be
 // preserved. This is a list of terraform commands that have this property, which is used to determine if terragrunt
@@ -25,9 +34,16 @@ var terraformCommandsThatNeedPty = []string{
 	"console",
 }
 
+var terraformInitMutex sync.Mutex
+
 // Run the given Terraform command
 func RunTerraformCommand(terragruntOptions *options.TerragruntOptions, args ...string) error {
-	_, err := RunShellCommandWithOutput(terragruntOptions, "", false, isTerraformCommandThatNeedsPty(args[0]), terragruntOptions.TerraformPath, args...)
+	needPTY, err := isTerraformCommandThatNeedsPty(args)
+	if err != nil {
+		return err
+	}
+
+	_, err = RunShellCommandWithOutput(terragruntOptions, "", false, needPTY, terragruntOptions.TerraformPath, args...)
 	return err
 }
 
@@ -40,11 +56,12 @@ func RunShellCommand(terragruntOptions *options.TerragruntOptions, command strin
 // Run the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
 // method's caller
 func RunTerraformCommandWithOutput(terragruntOptions *options.TerragruntOptions, args ...string) (*CmdOutput, error) {
-	needPty := false
-	if len(args) > 0 {
-		needPty = isTerraformCommandThatNeedsPty(args[0])
+	needPTY, err := isTerraformCommandThatNeedsPty(args)
+	if err != nil {
+		return nil, err
 	}
-	return RunShellCommandWithOutput(terragruntOptions, "", false, needPty, terragruntOptions.TerraformPath, args...)
+
+	return RunShellCommandWithOutput(terragruntOptions, "", false, needPTY, terragruntOptions.TerraformPath, args...)
 }
 
 // Run the specified shell command with the specified arguments. Connect the command's stdin, stdout, and stderr to
@@ -58,6 +75,14 @@ func RunShellCommandWithOutput(
 	command string,
 	args ...string,
 ) (*CmdOutput, error) {
+	// Terrafrom `init` command with the plugin cache directory is not guaranteed to be concurrency safe.
+	// The provider installer's behavior in environments with multiple terraform init calls is undefined.
+	// Thus, terraform `init` commands must be executed sequentially, even if `--terragrunt-parallelism` is greater than 1.
+	if command == "terraform" && collections.ListContainsElement(args, "init") && terraform.IsPluginCacheUsed() {
+		defer terraformInitMutex.Unlock()
+		terraformInitMutex.Lock()
+	}
+
 	terragruntOptions.Logger.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 	if suppressStdout {
 		terragruntOptions.Logger.Debugf("Command output will be suppressed.")
@@ -73,11 +98,9 @@ func RunShellCommandWithOutput(
 
 	var errWriter = terragruntOptions.ErrWriter
 	var outWriter = terragruntOptions.Writer
-	// Terragrunt can run some commands (such as terraform remote config) before running the actual terraform
-	// command requested by the user. The output of these other commands should not end up on stdout as this
-	// breaks scripts relying on terraform's output.
-	if !reflect.DeepEqual(terragruntOptions.TerraformCliArgs, args) {
-		outWriter = terragruntOptions.ErrWriter
+	var prefix = ""
+	if terragruntOptions.IncludeModulePrefix {
+		prefix = terragruntOptions.OutputPrefix
 	}
 
 	if workingDir == "" {
@@ -87,10 +110,10 @@ func RunShellCommandWithOutput(
 	}
 
 	// Inspired by https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
-	cmdStderr := io.MultiWriter(errWriter, &stderrBuf)
+	cmdStderr := io.MultiWriter(withPrefix(errWriter, prefix), &stderrBuf)
 	var cmdStdout io.Writer
 	if !suppressStdout {
-		cmdStdout = io.MultiWriter(outWriter, &stdoutBuf)
+		cmdStdout = io.MultiWriter(withPrefix(outWriter, prefix), &stdoutBuf)
 	} else {
 		cmdStdout = io.MultiWriter(&stdoutBuf)
 	}
@@ -126,9 +149,10 @@ func RunShellCommandWithOutput(
 
 	if err != nil {
 		err = ProcessExecutionError{
-			Err:    err,
-			StdOut: stdoutBuf.String(),
-			Stderr: stderrBuf.String(),
+			Err:        err,
+			StdOut:     stdoutBuf.String(),
+			Stderr:     stderrBuf.String(),
+			WorkingDir: cmd.Dir,
 		}
 	}
 
@@ -144,14 +168,33 @@ func toEnvVarsList(envVarsAsMap map[string]string) []string {
 }
 
 // isTerraformCommandThatNeedsPty returns true if the sub command of terraform we are running requires a pty.
-func isTerraformCommandThatNeedsPty(command string) bool {
-	return util.ListContainsElement(terraformCommandsThatNeedPty, command)
+func isTerraformCommandThatNeedsPty(args []string) (bool, error) {
+	if len(args) == 0 || !util.ListContainsElement(terraformCommandsThatNeedPty, args[0]) {
+		return false, nil
+	}
+
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		return false, errors.WithStackTrace(err)
+	}
+
+	// if there is data in the stdin, then the terraform console is used in non-interactive mode, for example `echo "1 + 5" | terragrunt console`.
+	if fi.Size() > 0 {
+		return false, nil
+	}
+
+	return true, nil
 }
 
-// Return the exit code of a command. If the error does not implement errors.IErrorCode or is not an exec.ExitError
+// Return the exit code of a command. If the error does not implement iErrorCode or is not an exec.ExitError
 // or *multierror.Error type, the error is returned.
 func GetExitCode(err error) (int, error) {
-	if exiterr, ok := errors.Unwrap(err).(errors.IErrorCode); ok {
+	// Interface to determine if we can retrieve an exit status from an error
+	type iErrorCode interface {
+		ExitStatus() (int, error)
+	}
+
+	if exiterr, ok := errors.Unwrap(err).(iErrorCode); ok {
 		return exiterr.ExitStatus()
 	}
 
@@ -172,6 +215,14 @@ func GetExitCode(err error) (int, error) {
 	return 0, err
 }
 
+func withPrefix(writer io.Writer, prefix string) io.Writer {
+	if prefix == "" {
+		return writer
+	}
+
+	return util.PrefixedWriter(writer, prefix)
+}
+
 type SignalsForwarder chan os.Signal
 
 // Forwards signals to a command, waiting for the command to finish.
@@ -183,14 +234,22 @@ func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger *logrus.Entry,
 		for {
 			select {
 			case s := <-signalChannel:
-				logger.Debugf("Forward signal %v to terraform.", s)
-				err := c.Process.Signal(s)
-				if err != nil {
-					logger.Errorf("Error forwarding signal: %v", err)
+				logger.Debugf("%s signal received. Gracefully shutting down... (it can take up to %v)", strings.Title(s.String()), signalForwardingDelay)
+
+				select {
+				case <-time.After(signalForwardingDelay):
+					logger.Debugf("Forward signal %v to terraform.", s)
+					err := c.Process.Signal(s)
+					if err != nil {
+						logger.Errorf("Error forwarding signal: %v", err)
+					}
+				case <-cmdChannel:
+					return
 				}
 			case <-cmdChannel:
 				return
 			}
+
 		}
 	}()
 
@@ -213,7 +272,7 @@ type CmdOutput struct {
 func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (string, error) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	opts, err := options.NewTerragruntOptions(path)
+	opts, err := options.NewTerragruntOptionsWithConfigPath(path)
 	if err != nil {
 		return "", err
 	}
@@ -230,13 +289,15 @@ func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (
 
 // ProcessExecutionError - error returned when a command fails, contains StdOut and StdErr
 type ProcessExecutionError struct {
-	Err    error
-	StdOut string
-	Stderr string
+	Err        error
+	StdOut     string
+	Stderr     string
+	WorkingDir string
 }
 
 func (err ProcessExecutionError) Error() string {
-	return err.Err.Error()
+	// Include in error message the working directory where the command was run, so it's easier for the user to
+	return fmt.Sprintf("[%s] %s", err.WorkingDir, err.Err.Error())
 }
 
 func (err ProcessExecutionError) ExitStatus() (int, error) {

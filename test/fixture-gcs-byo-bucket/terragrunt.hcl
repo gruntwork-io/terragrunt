@@ -3,7 +3,7 @@ remote_state {
   backend = "gcs"
 
   config = {
-    # we are explictly testing that a GCS bucket already exists and terragrunt should
+    # we are explicitly testing that a GCS bucket already exists and terragrunt should
     # work without project and location.
     #project  = ""
     #location = ""

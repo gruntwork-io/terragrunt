@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -36,9 +36,10 @@ type Local struct {
 
 // evaluateLocalsBlock is a routine to evaluate the locals block in a way to allow references to other locals. This
 // will:
-// - Extract a reference to the locals block from the parsed file
-// - Continuously evaluate the block until all references are evaluated, defering evaluation of anything that references
-//   other locals until those references are evaluated.
+//   - Extract a reference to the locals block from the parsed file
+//   - Continuously evaluate the block until all references are evaluated, defering evaluation of anything that references
+//     other locals until those references are evaluated.
+//
 // This returns a map of the local names to the evaluated expressions (represented as `cty.Value` objects). This will
 // error if there are remaining unevaluated locals after all references that can be evaluated has been evaluated.
 func evaluateLocalsBlock(
@@ -140,7 +141,7 @@ func attemptEvaluateLocals(
 
 	evaluatedLocalsAsCty, err := convertValuesMapToCtyVal(evaluatedLocals)
 	if err != nil {
-		terragruntOptions.Logger.Errorf("Could not convert evaluated locals to the execution context to evaluate additional locals")
+		terragruntOptions.Logger.Errorf("Could not convert evaluated locals to the execution context to evaluate additional locals in file %s", filename)
 		return nil, evaluatedLocals, false, err
 	}
 	evalCtx, err := CreateTerragruntEvalContext(
@@ -153,7 +154,7 @@ func attemptEvaluateLocals(
 		},
 	)
 	if err != nil {
-		terragruntOptions.Logger.Errorf("Could not convert include to the execution context to evaluate additional locals")
+		terragruntOptions.Logger.Errorf("Could not convert include to the execution context to evaluate additional locals in file %s", filename)
 		return nil, evaluatedLocals, false, err
 	}
 

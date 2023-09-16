@@ -3,7 +3,7 @@ layout: collection-browser-doc
 title: Work with multiple AWS accounts
 category: features
 categories_url: features
-excerpt: Learn how the Terragrunt may help you to work with mulitple AWS accounts.
+excerpt: Learn how the Terragrunt may help you to work with multiple AWS accounts.
 tags: ["AWS", "Use cases", "CLI", "AWS IAM"]
 order: 225
 nav_title: Documentation

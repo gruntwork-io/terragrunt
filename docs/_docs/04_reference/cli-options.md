@@ -35,7 +35,8 @@ Terragrunt supports the following CLI commands:
   - [graph-dependencies](#graph-dependencies)
   - [hclfmt](#hclfmt)
   - [aws-provider-patch](#aws-provider-patch)
-  - [crender-json](#render-json)
+  - [render-json](#render-json)
+  - [output-module-groups](#output-module-groups)
 
 ### All Terraform built-in commands
 
@@ -58,7 +59,7 @@ Run `terraform --help` to get the full list.
 
 ### run-all
 
-Runs the provided terraform command against a 'stack', where a 'stack' is a
+Runs the provided terraform command against a `stack`, where a `stack` is a
 tree of terragrunt modules. The command will recursively find terragrunt
 modules in the current directory tree and run the terraform command in
 dependency order (unless the command is destroy, in which case the command is
@@ -79,10 +80,10 @@ This will recursively search the current working directory for any folders that 
 [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
 [`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks.
 
-**[WARNING] Using `run-all` with `plan` is currently broken for certain use cases**. If you have a stack of Terragrunt modules with
-dependencies between them—either via `dependency` blocks or `terraform_remote_state` data sources—and you've never
-deployed them, then `plan-all` will fail as it will not be possible to resolve the `dependency` blocks or
-`terraform_remote_state` data sources! Please [see here for more
+**[WARNING] Using `run-all` with `plan` is currently broken for certain use cases**. If you have a stack of Terragrunt
+modules with dependencies between them—either via `dependency` blocks or `terraform_remote_state` data sources—and
+you've never deployed them, then `run-all plan` will fail as it will not be possible to resolve the `dependency` blocks
+or `terraform_remote_state` data sources! Please [see here for more
 information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-497888756).
 
 **[NOTE]** Using `run-all` with `apply` or `destroy` silently adds the `-auto-approve` flag to the command line
@@ -96,14 +97,14 @@ arguments passed to Terraform due to issues with shared `stdin` making individua
 
 **DEPRECATED: Use `run-all plan` instead.**
 
-Display the plans of a 'stack' by running 'terragrunt plan' in each subfolder. Make sure to read [Execute Terraform
+Display the plans of a `stack` by running `terragrunt plan` in each subfolder. Make sure to read [Execute Terraform
 commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for
 context.
 
 Example:
 
 ```bash
-terragrunt plan-all
+terragrunt run-all plan
 ```
 
 This will recursively search the current working directory for any folders that contain Terragrunt modules and run
@@ -111,9 +112,9 @@ This will recursively search the current working directory for any folders that 
 [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
 [`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks.
 
-**[WARNING] `plan-all` is currently broken for certain use cases**. If you have a stack of Terragrunt modules with
+**[WARNING] `run-all plan` is currently broken for certain use cases**. If you have a stack of Terragrunt modules with
 dependencies between them—either via `dependency` blocks or `terraform_remote_state` data sources—and you've never
-deployed them, then `plan-all` will fail as it will not be possible to resolve the `dependency` blocks or
+deployed them, then `run-all plan` will fail as it will not be possible to resolve the `dependency` blocks or
 `terraform_remote_state` data sources! Please [see here for more
 information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-497888756).
 
@@ -122,7 +123,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-
 
 **DEPRECATED: Use `run-all apply` instead.**
 
-Apply a 'stack' by running 'terragrunt apply' in each subfolder. Make sure to read [Execute Terraform
+Apply a `stack` by running `terragrunt apply` in each subfolder. Make sure to read [Execute Terraform
 commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for
 context.
 
@@ -146,7 +147,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/386#issuecomment-
 
 **DEPRECATED: Use `run-all output` instead.**
 
-Display the outputs of a 'stack' by running 'terragrunt output' in each subfolder. Make sure to read [Execute Terraform
+Display the outputs of a `stack` by running `terragrunt output` in each subfolder. Make sure to read [Execute Terraform
 commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for
 context.
 
@@ -171,7 +172,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-
 
 **DEPRECATED: Use `run-all destroy` instead.**
 
-Destroy a 'stack' by running 'terragrunt destroy' in each subfolder. Make sure to read [Execute Terraform
+Destroy a `stack` by running `terragrunt destroy` in each subfolder. Make sure to read [Execute Terraform
 commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for
 context.
 
@@ -195,7 +196,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/386#issuecomment-
 
 **DEPRECATED: Use `run-all validate` instead.**
 
-Validate 'stack' by running 'terragrunt validate' in each subfolder. Make sure to read [Execute Terraform
+Validate `stack` by running `terragrunt validate` in each subfolder. Make sure to read [Execute Terraform
 commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/) for
 context.
 
@@ -464,6 +465,46 @@ Example:
 }
 ```
 
+### output-module-groups
+
+Output groups of modules ordered for apply as a list of list in JSON (useful for CI use cases).
+
+Example:
+
+```bash
+terragrunt output-module-groups
+```
+
+This will recursively search the current working directory for any folders that contain Terragrunt modules and build
+the dependency graph based on [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
+[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks. This may produce output such as:
+
+```
+{
+  "Group 1": [
+    "stage/frontend-app"
+  ],
+  "Group 2": [
+    "stage/backend-app"
+  ],
+  "Group 3": [
+    "mgmt/bastion-host",
+    "stage/search-app"
+  ],
+  "Group 4": [
+    "mgmt/kms-master-key",
+    "stage/mysql",
+    "stage/redis"
+  ],
+  "Group 5": [
+    "stage/vpc"
+  ],
+  "Group 6": [
+    "mgmt/vpc"
+  ]
+}
+```
+
 ## CLI options
 
 Terragrunt forwards all options to Terraform. The only exceptions are `--version` and arguments that start with the
@@ -494,12 +535,18 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-parallelism](#terragrunt-parallelism)
 - [terragrunt-debug](#terragrunt-debug)
 - [terragrunt-log-level](#terragrunt-log-level)
+- [terragrunt-no-color](#terragrunt-no-color)
 - [terragrunt-check](#terragrunt-check)
 - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
 - [terragrunt-override-attr](#terragrunt-override-attr)
 - [terragrunt-json-out](#terragrunt-json-out)
 - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
 - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
+- [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
+- [terragrunt-include-module-prefix](#terragrunt-include-module-prefix)
+- [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
+- [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
+- [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
 
 ### terragrunt-config
 
@@ -510,8 +557,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 A custom path to the `terragrunt.hcl` or `terragrunt.hcl.json` file. The
 default path is `terragrunt.hcl` (preferred) or `terragrunt.hcl.json` in the current directory (see
 [Configuration]({{site.baseurl}}/docs/getting-started/configuration/#configuration) for a slightly more nuanced
-explanation). This argument is not used with the `apply-all`, `destroy-all`, `output-all`, `validate-all`, and
-`plan-all` commands.
+explanation). This argument is not used with the `run-all` commands.
 
 
 ### terragrunt-tfpath
@@ -530,7 +576,8 @@ configuration values specified in the `terragrunt.hcl` config for both the top l
 ### terragrunt-no-auto-init
 
 **CLI Arg**: `--terragrunt-no-auto-init`<br/>
-**Environment Variable**: `TERRAGRUNT_AUTO_INIT` (set to `false`)
+**Environment Variable**: `TERRAGRUNT_NO_AUTO_INIT` (set to `true`)
+_(Prior to Terragrunt v0.48.6, this environment variable was called `TERRAGRUNT_AUTO_INIT` (set to `false`), and is still available for backwards compatibility)_
 
 When passed in, don't automatically run `terraform init` when other commands are run (e.g. `terragrunt apply`). Useful
 if you want to pass custom arguments to `terraform init` that are specific to a user or execution environment, and
@@ -542,7 +589,8 @@ disabled. See [Auto-Init]({{site.baseurl}}/docs/features/auto-init#auto-init)
 ### terragrunt-no-auto-approve
 
 **CLI Arg**: `--terragrunt-no-auto-approve`<br/>
-**Environment Variable**: `TERRAGRUNT_AUTO_APPROVE` (set to `false`)
+**Environment Variable**: `TERRAGRUNT_NO_AUTO_APPROVE` (set to `true`)
+_(Prior to Terragrunt v0.48.6, this environment variable was called `TERRAGRUNT_AUTO_APPROVE` (set to `false`), and is still available for backwards compatibility)_
 **Commands**:
 - [run-all](#run-all)
 
@@ -554,7 +602,8 @@ with `run-all`. Note that due to the interactive prompts, this flag will also **
 ### terragrunt-no-auto-retry
 
 **CLI Arg**: `--terragrunt-no-auto-retry`<br/>
-**Environment Variable**: `TERRAGRUNT_AUTO_RETRY` (set to `false`)
+**Environment Variable**: `TERRAGRUNT_NO_AUTO_RETRY` (set to `true`)
+_(Prior to Terragrunt v0.48.6, this environment variable was called `TERRAGRUNT_AUTO_RETRY` (set to `false`), and is still available for backwards compatibility)_
 
 When passed in, don't automatically retry commands which fail with transient errors. See
 [Auto-Retry]({{site.baseurl}}/docs/features/auto-retry#auto-retry)
@@ -563,12 +612,13 @@ When passed in, don't automatically retry commands which fail with transient err
 ### terragrunt-non-interactive
 
 **CLI Arg**: `--terragrunt-non-interactive`<br/>
-**Environment Variable**: `TF_INPUT` (set to `false`)
+**Environment Variable**: `TERRAGRUNT_NON_INTERACTIVE` (set to `true`)
+_(Prior to Terragrunt v0.48.6, this environment variable was called `TF_INPUT` (set to `false`), and is still available for backwards compatibility. NOTE: [TF_INPUT](https://developer.hashicorp.com/terraform/cli/config/environment-variables#tf_input) is native to Terraform!)_
 
 When passed in, don't show interactive user prompts. This will default the answer for all prompts to `yes` except for
 the listed cases below. This is useful if you need to run Terragrunt in an automated setting (e.g. from a script). May
-also be specified with the [TF\_INPUT](https://www.terraform.io/docs/configuration/environment-variables.html#tf_input)
-environment variable.
+also be specified with the [TF\_INPUT](https://www.terraform.io/docs/configuration/environment-variables.html#tf_input) environment variable.
+
 
 This setting will default to `no` for the following cases:
 
@@ -583,9 +633,9 @@ This setting will default to `no` for the following cases:
 **Requires an argument**: `--terragrunt-working-dir /path/to/working-directory`
 
 Set the directory where Terragrunt should execute the `terraform` command. Default is the current working directory.
-Note that for the `apply-all`, `destroy-all`, `output-all`, `validate-all`, and `plan-all` commands, this parameter has
-a different meaning: Terragrunt will apply or destroy all the Terraform modules in the subfolders of the
-`terragrunt-working-dir`, running `terraform` in the root of each module it finds.
+Note that for the `run-all` commands, this parameter has a different meaning: Terragrunt will apply or destroy all the
+Terraform modules in the subfolders of the `terragrunt-working-dir`, running `terraform` in the root of each module it
+finds.
 
 
 ### terragrunt-download-dir
@@ -607,10 +657,10 @@ Default is `.terragrunt-cache` in the working directory. We recommend adding thi
 
 Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary
 folder. The source should use the same syntax as the [Terraform module
-source](https://www.terraform.io/docs/modules/sources.html) parameter. If you specify this argument for the `apply-all`,
-`destroy-all`, `output-all`, `validate-all`, or `plan-all` commands, Terragrunt will assume this is the local file path
-for all of your Terraform modules, and for each module processed by the `xxx-all` command, Terragrunt will automatically
-append the path of `source` parameter in each module to the `--terragrunt-source` parameter you passed in.
+source](https://www.terraform.io/docs/modules/sources.html) parameter. If you specify this argument for the `run-all`
+commands, Terragrunt will assume this is the local file path for all of your Terraform modules, and for each module
+processed by the `run-all` command, Terragrunt will automatically append the path of `source` parameter in each module
+to the `--terragrunt-source` parameter you passed in.
 
 
 ### terragrunt-source-map
@@ -758,6 +808,7 @@ included directories with `terragrunt-include-dir`.
 **Environment Variable**: `TERRAGRUNT_PARALLELISM`
 
 When passed in, limit the number of modules that are run concurrently to this number during *-all commands.
+The exception is the `terraform init` command, which is always executed sequentially if the [terraform plugin cache](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache) is used. This is because the terraform plugin cache is not guaranteed to be concurrency safe.
 
 
 ### terragrunt-debug
@@ -786,6 +837,14 @@ When passed it, sets logging level for terragrunt. All supported levels are:
 * debug
 * trace
 
+### terragrunt-no-color
+
+**CLI Arg**: `--terragrunt-no-color`<br/>
+**Environment Variable**: `TERRAGRUNT_NO_COLOR`
+
+If specified, Terragrunt output won't contain any color.
+
+NOTE: This option does not disable Terraform output colors. Use the Terraform [`-no-color`](https://developer.hashicorp.com/terraform/cli/commands/plan#no-color) argument.
 
 
 ### terragrunt-check
@@ -797,6 +856,16 @@ When passed it, sets logging level for terragrunt. All supported levels are:
 
 When passed in, run `hclfmt` in check only mode instead of actively overwriting the files. This will cause the
 command to exit with exit code 1 if there are any files that are not formatted.
+
+
+### terragrunt-diff
+
+**CLI Arg**: `--terragrunt-diff`<br/>
+**Environment Variable**: `TERRAGRUNT_DIFF` (set to `true`)
+**Commands**:
+- [hclfmt](#hclfmt)
+
+When passed in, running `hclfmt` will print diff between original and modified file versions.
 
 
 ### terragrunt-hclfmt-file
@@ -899,7 +968,44 @@ directory, or any path passed in to [terragrunt-working-dir](#terragrunt-working
 
 **CLI Arg**: `--terragrunt-fetch-dependency-output-from-state`
 **Environment Variable**: `TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE` (set to `true`)
+
 When using many dependencies, this option can speed up the dependency processing by fetching dependency output directly
 from the state file instead of init dependencies and running terraform on them.
 NOTE: This is an experimental feature, use with caution.
 Currently only AWS S3 backend is supported.
+
+### terragrunt-use-partial-parse-config-cache
+
+**CLI Arg**: `--terragrunt-use-partial-parse-config-cache`
+**Environment Variable**: `TERRAGRUNT_USE_PARTIAL_PARSE_CONFIG_CACHE` (set to `true`)
+
+This flag can be used to drastically decrease time required for parsing Terragrunt files. The effect will only show if a lot of similar includes are expected such as the root terragrunt.hcl include.
+NOTE: This is an experimental feature, use with caution.
+
+### terragrunt-include-module-prefix
+
+**CLI Arg**: `--terragrunt-include-module-prefix`
+**Environment Variable**: `TERRAGRUNT_INCLUDE_MODULE_PREFIX` (set to `true`)
+
+When this flag is set output from Terraform sub-commands is prefixed with module path.
+
+### terragrunt-fail-on-state-bucket-creation
+
+**CLI Arg**: `--terragrunt-fail-on-state-bucket-creation`
+**Environment Variable**: `TERRAGRUNT_FAIL_ON_STATE_BUCKET_CREATION` (set to `true`)
+
+When this flag is set, Terragrunt will fail and exit if it is necessary to create the remote state bucket.
+
+### terragrunt-disable-bucket-update
+
+**CLI Arg**: `--terragrunt-disable-bucket-update`
+**Environment Variable**: `TERRAGRUNT_DISABLE_BUCKET_UPDATE` (set to `true`)
+
+When this flag is set, Terragrunt does not update the remote state bucket, which is useful to set if the state bucket is managed by a third party.
+
+### terragrunt-disable-command-validation
+
+**CLI Arg**: `--terragrunt-disable-command-validation`
+**Environment Variable**: `TERRAGRUNT_DISABLE_COMMAND_VALIDATION` (set to `true`)
+
+When this flag is set, Terragrunt will not validate the terraform command, which can be useful when need to use non-existent commands in hooks.

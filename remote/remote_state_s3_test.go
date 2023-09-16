@@ -79,6 +79,12 @@ func TestConfigValuesEqual(t *testing.T) {
 			true,
 		},
 		{
+			"equal-ignore-accesslogging-bucket-tags",
+			map[string]interface{}{"accesslogging_bucket_tags": []map[string]string{{"foo": "bar"}}},
+			&TerraformBackend{Type: "s3", Config: map[string]interface{}{}},
+			true,
+		},
+		{
 			"unequal-wrong-backend",
 			map[string]interface{}{"foo": "bar"},
 			&TerraformBackend{Type: "wrong", Config: map[string]interface{}{"foo": "bar"}},
@@ -272,17 +278,19 @@ func TestGetTerraformInitArgs(t *testing.T) {
 		{
 			"empty-no-values-all-terragrunt-keys-filtered",
 			map[string]interface{}{
-				"s3_bucket_tags":                 map[string]string{},
-				"dynamodb_table_tags":            map[string]string{},
-				"skip_bucket_versioning":         true,
-				"skip_bucket_ssencryption":       false,
-				"skip_bucket_root_access":        false,
-				"skip_bucket_enforced_tls":       false,
-				"disable_bucket_update":          true,
-				"enable_lock_table_ssencryption": true,
-				"disable_aws_client_checksums":   false,
-				"accesslogging_bucket_name":      "test",
-				"accesslogging_target_prefix":    "test",
+				"s3_bucket_tags":                     map[string]string{},
+				"dynamodb_table_tags":                map[string]string{},
+				"accesslogging_bucket_tags":          map[string]string{},
+				"skip_bucket_versioning":             true,
+				"skip_bucket_ssencryption":           false,
+				"skip_bucket_root_access":            false,
+				"skip_bucket_enforced_tls":           false,
+				"skip_bucket_public_access_blocking": false,
+				"disable_bucket_update":              true,
+				"enable_lock_table_ssencryption":     true,
+				"disable_aws_client_checksums":       false,
+				"accesslogging_bucket_name":          "test",
+				"accesslogging_target_prefix":        "test",
 			},
 			map[string]interface{}{},
 			true,
@@ -343,7 +351,7 @@ func TestGetTerraformInitArgs(t *testing.T) {
 }
 
 // Test to validate cases when is not possible to read all S3 configurations
-//https://github.com/gruntwork-io/terragrunt/issues/2109
+// https://github.com/gruntwork-io/terragrunt/issues/2109
 func TestNegativePublicAccessResponse(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {

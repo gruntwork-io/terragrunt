@@ -4,8 +4,8 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-multierror"
@@ -149,6 +149,14 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 // Return the absolute path for the given path
 func canonical(t *testing.T, path string) string {
 	out, err := util.CanonicalPath(path, ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+func globCanonical(t *testing.T, path string) []string {
+	out, err := util.GlobCanonicalPath(path, ".")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,12 +7,15 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 
 	"golang.org/x/sys/windows"
 
-	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 )
+
+const InvalidHandleErrorMessage = "The handle is invalid"
 
 // PrepareConsole enables support for escape sequences
 // https://stackoverflow.com/questions/56460651/golang-fmt-print-033c-and-fmt-print-x1bc-are-not-clearing-screenansi-es
@@ -27,13 +30,20 @@ func enableVirtualTerminalProcessing(options *options.TerragruntOptions, file *o
 	var mode uint32
 	handle := windows.Handle(file.Fd())
 	if err := windows.GetConsoleMode(handle, &mode); err != nil {
-		options.Logger.Errorf("failed to get console mode: %v\n", err)
+		if strings.Contains(err.Error(), InvalidHandleErrorMessage) {
+			options.Logger.Debugf("failed to get console mode: %v\n", err)
+		} else {
+			options.Logger.Errorf("failed to get console mode: %v\n", err)
+		}
 		return
 	}
 
 	if err := windows.SetConsoleMode(handle, mode|windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING); err != nil {
 		options.Logger.Errorf("failed to set console mode: %v\n", err)
-		windows.SetConsoleMode(handle, mode)
+		if secondError := windows.SetConsoleMode(handle, mode); secondError != nil {
+			options.Logger.Errorf("failed to set console mode: %v\n", secondError)
+			return
+		}
 	}
 }
 

@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -148,7 +148,7 @@ func PartialParseConfigFile(
 		return nil, err
 	}
 
-	config, err := PartialParseConfigString(configString, terragruntOptions, include, filename, decodeList)
+	config, err := TerragruntConfigFromPartialConfigString(configString, terragruntOptions, include, filename, decodeList)
 	if err != nil {
 		return nil, err
 	}
@@ -156,16 +156,51 @@ func PartialParseConfigFile(
 	return config, nil
 }
 
-// ParitalParseConfigString partially parses and decodes the provided string. Which blocks/attributes to decode is
+var terragruntConfigCache = NewTerragruntConfigCache()
+
+// Wrapper of PartialParseConfigString which checks for cached configs.
+// filename, configString, includeFromChild and decodeList are used for the cache key,
+// by getting the default value (%#v) through fmt.
+func TerragruntConfigFromPartialConfigString(
+	configString string,
+	terragruntOptions *options.TerragruntOptions,
+	includeFromChild *IncludeConfig,
+	filename string,
+	decodeList []PartialDecodeSectionType,
+) (*TerragruntConfig, error) {
+	if terragruntOptions.UsePartialParseConfigCache {
+		var cacheKey = fmt.Sprintf("%#v-%#v-%#v-%#v", filename, configString, includeFromChild, decodeList)
+		var config, found = terragruntConfigCache.Get(cacheKey)
+
+		if !found {
+			terragruntOptions.Logger.Debugf("Cache miss for '%s' (partial parsing), decodeList: '%v'.", filename, decodeList)
+			tgConfig, err := PartialParseConfigString(configString, terragruntOptions, includeFromChild, filename, decodeList)
+			if err != nil {
+				return nil, err
+			}
+			config = *tgConfig
+			terragruntConfigCache.Put(cacheKey, config)
+		} else {
+			terragruntOptions.Logger.Debugf("Cache hit for '%s' (partial parsing), decodeList: '%v'.", filename, decodeList)
+		}
+
+		return &config, nil
+	} else {
+		return PartialParseConfigString(configString, terragruntOptions, includeFromChild, filename, decodeList)
+	}
+}
+
+// PartialParseConfigString partially parses and decodes the provided string. Which blocks/attributes to decode is
 // controlled by the function parameter decodeList. These blocks/attributes are parsed and set on the output
 // TerragruntConfig. Valid values are:
-// - DependenciesBlock: Parses the `dependencies` block in the config
-// - DependencyBlock: Parses the `dependency` block in the config
-// - TerraformBlock: Parses the `terraform` block in the config
-// - TerragruntFlags: Parses the boolean flags `prevent_destroy` and `skip` in the config
-// - TerragruntVersionConstraints: Parses the attributes related to constraining terragrunt and terraform versions in
-//                                 the config.
-// - RemoteStateBlock: Parses the `remote_state` block in the config
+//   - DependenciesBlock: Parses the `dependencies` block in the config
+//   - DependencyBlock: Parses the `dependency` block in the config
+//   - TerraformBlock: Parses the `terraform` block in the config
+//   - TerragruntFlags: Parses the boolean flags `prevent_destroy` and `skip` in the config
+//   - TerragruntVersionConstraints: Parses the attributes related to constraining terragrunt and terraform versions in
+//     the config.
+//   - RemoteStateBlock: Parses the `remote_state` block in the config
+//
 // Note that the following blocks are always decoded:
 // - locals
 // - include
@@ -255,7 +290,7 @@ func PartialParseConfigString(
 
 			// Convert dependency blocks into module depenency lists. If we already decoded some dependencies,
 			// merge them in. Otherwise, set as the new list.
-			dependencies := dependencyBlocksToModuleDependencies(decoded.Dependencies)
+			dependencies := dependencyBlocksToModuleDependencies(terragruntOptions.WorkingDir, decoded.Dependencies)
 			if output.Dependencies != nil {
 				output.Dependencies.Merge(dependencies)
 			} else {

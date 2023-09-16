@@ -17,8 +17,8 @@ import (
 	"github.com/zclconf/go-cty/cty/function"
 	"go.mozilla.org/sops/v3/decrypt"
 
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
-	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -142,11 +142,23 @@ func CreateTerragruntEvalContext(
 		"get_terragrunt_source_cli_flag":               wrapVoidToStringAsFuncImpl(getTerragruntSourceCliFlag, extensions.TrackInclude, terragruntOptions),
 	}
 
+	// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
+	// https://github.com/gruntwork-io/terragrunt/blob/master/go.mod#L22
+	terraformCompatibilityFunctions := map[string]function.Function{
+		"startswith":  wrapStringSliceToBoolAsFuncImpl(startsWith, extensions.TrackInclude, terragruntOptions),
+		"endswith":    wrapStringSliceToBoolAsFuncImpl(endsWith, extensions.TrackInclude, terragruntOptions),
+		"strcontains": wrapStringSliceToBoolAsFuncImpl(strContains, extensions.TrackInclude, terragruntOptions),
+		"timecmp":     wrapStringSliceToNumberAsFuncImpl(timeCmp, extensions.TrackInclude, terragruntOptions),
+	}
+
 	functions := map[string]function.Function{}
 	for k, v := range tfscope.Functions() {
 		functions[k] = v
 	}
 	for k, v := range terragruntFunctions {
+		functions[k] = v
+	}
+	for k, v := range terraformCompatibilityFunctions {
 		functions[k] = v
 	}
 
@@ -284,16 +296,26 @@ func runCommand(args []string, trackInclude *TrackInclude, terragruntOptions *op
 	}
 
 	suppressOutput := false
-	if args[0] == "--terragrunt-quiet" {
-		suppressOutput = true
-		args = append(args[:0], args[1:]...)
-	}
-
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+	cachePath := currentPath
+
+	checkOptions := true
+	for checkOptions && len(args) > 0 {
+		switch args[0] {
+		case "--terragrunt-quiet":
+			suppressOutput = true
+			args = append(args[:0], args[1:]...)
+		case "--terragrunt-global-cache":
+			cachePath = "_global_"
+			args = append(args[:0], args[1:]...)
+		default:
+			checkOptions = false
+		}
+	}
 
 	// To avoid re-run of the same run_cmd command, is used in memory cache for command results, with caching key path + arguments
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
-	cacheKey := fmt.Sprintf("%v-%v", currentPath, args)
+	cacheKey := fmt.Sprintf("%v-%v", cachePath, args)
 	cachedValue, foundInCache := runCommandCache.Get(cacheKey)
 	if foundInCache {
 		if suppressOutput {
@@ -423,14 +445,15 @@ func pathRelativeToInclude(params []string, trackInclude *TrackInclude, terragru
 		return ".", nil
 	}
 
-	includePath := filepath.Dir(included.Path)
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+	includePath := filepath.Dir(included.Path)
 
 	if !filepath.IsAbs(includePath) {
 		includePath = util.JoinPath(currentPath, includePath)
 	}
 
-	return util.GetPathRelativeTo(currentPath, includePath)
+	relativePath, err := util.GetPathRelativeTo(currentPath, includePath)
+	return relativePath, err
 }
 
 // Return the relative path from the current Terragrunt configuration to the included Terragrunt configuration file
@@ -540,7 +563,7 @@ func readTerragruntConfigAsFuncImpl(terragruntOptions *options.TerragruntOptions
 				return cty.NilVal, errors.WithStackTrace(WrongNumberOfParams{Func: "read_terragrunt_config", Expected: "1 or 2", Actual: numParams})
 			}
 
-			configPath, err := ctySliceToStringSlice(args[:1])
+			strArgs, err := ctySliceToStringSlice(args[:1])
 			if err != nil {
 				return cty.NilVal, err
 			}
@@ -549,7 +572,11 @@ func readTerragruntConfigAsFuncImpl(terragruntOptions *options.TerragruntOptions
 			if numParams == 2 {
 				defaultVal = &args[1]
 			}
-			return readTerragruntConfig(configPath[0], defaultVal, terragruntOptions)
+
+			targetConfigPath := strArgs[0]
+
+			relativePath, err := readTerragruntConfig(targetConfigPath, defaultVal, terragruntOptions)
+			return relativePath, err
 		},
 	})
 }
@@ -582,7 +609,6 @@ func getCleanedTargetConfigPath(configPath string, workingPath string) string {
 // source param in module's terragrunt.hcl: git::git@github.com:acme/infrastructure-modules.git//networking/vpc?ref=v0.0.1
 //
 // This method will return: /source/infrastructure-modules//networking/vpc
-//
 func GetTerragruntSourceForModule(sourcePath string, modulePath string, moduleTerragruntConfig *TerragruntConfig) (string, error) {
 	if sourcePath == "" || moduleTerragruntConfig.Terraform == nil || moduleTerragruntConfig.Terraform.Source == nil || *moduleTerragruntConfig.Terraform.Source == "" {
 		return "", nil
@@ -632,15 +658,13 @@ func getModulePathFromSourceUrl(sourceUrl string) (string, error) {
 	return matches[1], nil
 }
 
-//
-// A map that caches the results of a decrypt operation via sops. Each decryption
+// A cache of the results of a decrypt operation via sops. Each decryption
 // operation can take several seconds, so this cache speeds up terragrunt executions
 // where the same sops files are referenced multiple times.
 //
-// The keys are the canonical paths to the encrypted files, and the values are the
+// The cache keys are the canonical paths to the encrypted files, and the values are the
 // plain-text result of the decrypt operation.
-//
-var sopsCache = make(map[string]string)
+var sopsCache = NewStringCache()
 
 // decrypts and returns sops encrypted utf-8 yaml or json data as a string
 func sopsDecryptFile(params []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (string, error) {
@@ -663,7 +687,7 @@ func sopsDecryptFile(params []string, trackInclude *TrackInclude, terragruntOpti
 		return "", errors.WithStackTrace(err)
 	}
 
-	if val, ok := sopsCache[canonicalSourceFile]; ok {
+	if val, ok := sopsCache.Get(canonicalSourceFile); ok {
 		return val, nil
 	}
 
@@ -674,7 +698,7 @@ func sopsDecryptFile(params []string, trackInclude *TrackInclude, terragruntOpti
 
 	if utf8.Valid(rawData) {
 		value := string(rawData)
-		sopsCache[canonicalSourceFile] = value
+		sopsCache.Put(canonicalSourceFile, value)
 		return value, nil
 	}
 
@@ -706,11 +730,11 @@ func getTerragruntSourceCliFlag(trackInclude *TrackInclude, terragruntOptions *o
 }
 
 // Return the selected include block based on a label passed in as a function param. Note that the assumption is that:
-// - If the Original attribute is set, we are in the parent context so return that.
-// - If there are no include blocks, no param is required and nil is returned.
-// - If there is only one include block, no param is required and that is automatically returned.
-// - If there is more than one include block, 1 param is required to use as the label name to lookup the include block
-//   to use.
+//   - If the Original attribute is set, we are in the parent context so return that.
+//   - If there are no include blocks, no param is required and nil is returned.
+//   - If there is only one include block, no param is required and that is automatically returned.
+//   - If there is more than one include block, 1 param is required to use as the label name to lookup the include block
+//     to use.
 func getSelectedIncludeBlock(trackInclude TrackInclude, params []string) (*IncludeConfig, error) {
 	importMap := trackInclude.CurrentMap
 
@@ -739,6 +763,77 @@ func getSelectedIncludeBlock(trackInclude TrackInclude, params []string) (*Inclu
 		return nil, errors.WithStackTrace(InvalidIncludeKey{name: importName})
 	}
 	return &imported, nil
+}
+
+// startsWith Implementation of Terraform's startsWith function
+func startsWith(args []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	if len(args) == 0 {
+		return false, errors.WithStackTrace(EmptyStringNotAllowed("parameter to the startswith function"))
+	}
+	str := args[0]
+	prefix := args[1]
+
+	if strings.HasPrefix(str, prefix) {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+// endsWith Implementation of Terraform's endsWith function
+func endsWith(args []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	if len(args) == 0 {
+		return false, errors.WithStackTrace(EmptyStringNotAllowed("parameter to the endswith function"))
+	}
+	str := args[0]
+	suffix := args[1]
+
+	if strings.HasSuffix(str, suffix) {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+// timeCmp implements Terraform's `timecmp` function that compares two timestamps.
+func timeCmp(args []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (int64, error) {
+	if len(args) != 2 {
+		return 0, errors.WithStackTrace(fmt.Errorf("function can take only two parameters: timestamp_a and timestamp_b"))
+	}
+
+	tsA, err := util.ParseTimestamp(args[0])
+	if err != nil {
+		return 0, errors.WithStackTrace(fmt.Errorf("could not parse first parameter %q: %w", args[0], err))
+	}
+	tsB, err := util.ParseTimestamp(args[1])
+	if err != nil {
+		return 0, errors.WithStackTrace(fmt.Errorf("could not parse second parameter %q: %w", args[1], err))
+	}
+
+	switch {
+	case tsA.Equal(tsB):
+		return 0, nil
+	case tsA.Before(tsB):
+		return -1, nil
+	default:
+		// By elimination, tsA must be after tsB.
+		return 1, nil
+	}
+}
+
+// strContains Implementation of Terraform's strContains function
+func strContains(args []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	if len(args) == 0 {
+		return false, errors.WithStackTrace(EmptyStringNotAllowed("parameter to the strcontains function"))
+	}
+	str := args[0]
+	substr := args[1]
+
+	if strings.Contains(str, substr) {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // Custom error types

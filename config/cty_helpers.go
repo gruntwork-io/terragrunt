@@ -9,7 +9,7 @@ import (
 	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
-	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -34,6 +34,50 @@ func wrapStringSliceToStringAsFuncImpl(
 				return cty.StringVal(""), err
 			}
 			return cty.StringVal(out), nil
+		},
+	})
+}
+
+func wrapStringSliceToNumberAsFuncImpl(
+	toWrap func(params []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (int64, error),
+	trackInclude *TrackInclude,
+	terragruntOptions *options.TerragruntOptions,
+) function.Function {
+	return function.New(&function.Spec{
+		VarParam: &function.Parameter{Type: cty.String},
+		Type:     function.StaticReturnType(cty.Number),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			params, err := ctySliceToStringSlice(args)
+			if err != nil {
+				return cty.StringVal(""), err
+			}
+			out, err := toWrap(params, trackInclude, terragruntOptions)
+			if err != nil {
+				return cty.NumberIntVal(0), err
+			}
+			return cty.NumberIntVal(out), nil
+		},
+	})
+}
+
+func wrapStringSliceToBoolAsFuncImpl(
+	toWrap func(params []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (bool, error),
+	trackInclude *TrackInclude,
+	terragruntOptions *options.TerragruntOptions,
+) function.Function {
+	return function.New(&function.Spec{
+		VarParam: &function.Parameter{Type: cty.String},
+		Type:     function.StaticReturnType(cty.Bool),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			params, err := ctySliceToStringSlice(args)
+			if err != nil {
+				return cty.BoolVal(false), err
+			}
+			out, err := toWrap(params, trackInclude, terragruntOptions)
+			if err != nil {
+				return cty.BoolVal(false), err
+			}
+			return cty.BoolVal(out), nil
 		},
 	})
 }

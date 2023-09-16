@@ -9,14 +9,19 @@ import (
 	"regexp"
 	"strings"
 
+	urlhelper "github.com/hashicorp/go-getter/helper/url"
+
 	"fmt"
 
-	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/mattn/go-zglob"
 	homedir "github.com/mitchellh/go-homedir"
+	"github.com/sirupsen/logrus"
 )
 
 const TerraformLockFile = ".terraform.lock.hcl"
+
+const TerragruntCacheDir = ".terragrunt-cache"
 
 // FileOrData will read the contents of the data of the given arg if it is a file, and otherwise return the contents by
 // itself. This will return an error if the given path is a directory.
@@ -62,7 +67,7 @@ func EnsureDirectory(path string) error {
 	return nil
 }
 
-// Return the canonical version of the given path, relative to the given base path. That is, if the given path is a
+// CanonicalPath returns the canonical version of the given path, relative to the given base path. That is, if the given path is a
 // relative path, assume it is relative to the given base path. A canonical path is an absolute path with all relative
 // components (e.g. "../") fully resolved, which makes it safe to compare paths as strings.
 func CanonicalPath(path string, basePath string) (string, error) {
@@ -71,10 +76,49 @@ func CanonicalPath(path string, basePath string) (string, error) {
 	}
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return "", err
+		return "", errors.WithStackTrace(err)
 	}
 
 	return CleanPath(absPath), nil
+}
+
+// GlobCanonicalPath returns the canonical versions of the given glob paths, relative to the given base path.
+func GlobCanonicalPath(basePath string, globPaths ...string) ([]string, error) {
+	if len(globPaths) == 0 {
+		return []string{}, nil
+	}
+
+	var err error
+
+	// Ensure basePath is cannonical
+	basePath, err = CanonicalPath("", basePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var paths []string
+
+	for _, globPath := range globPaths {
+		// Ensure globPath are absolute
+		if !filepath.IsAbs(globPath) {
+			globPath = filepath.Join(basePath, globPath)
+		}
+
+		matches, err := zglob.Glob(globPath)
+		if err == nil {
+			paths = append(paths, matches...)
+		}
+	}
+
+	// Make sure all paths are canonical
+	for i := range paths {
+		paths[i], err = CanonicalPath(paths[i], basePath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return paths, nil
 }
 
 // Return the canonical version of the given paths, relative to the given base path. That is, if a given path is a
@@ -188,7 +232,7 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 		return nil, errors.WithStackTrace(err)
 	}
 	for _, absoluteExpandGlobPath := range absoluteExpandGlob {
-		if strings.Contains(absoluteExpandGlobPath, ".terragrunt-cache") {
+		if strings.Contains(absoluteExpandGlobPath, TerragruntCacheDir) {
 			continue
 		}
 		relativeExpandGlobPath, err := GetPathRelativeTo(absoluteExpandGlobPath, source)
@@ -364,7 +408,7 @@ func CleanPath(path string) string {
 
 // ContainsPath returns true if path contains the given subpath
 // E.g. path="foo/bar/bee", subpath="bar/bee" -> true
-// E.g. path="foo/bar/bee", subpath="bar/be" -> false (becuase be is not a directory)
+// E.g. path="foo/bar/bee", subpath="bar/be" -> false (because be is not a directory)
 func ContainsPath(path, subpath string) bool {
 	splitPath := SplitPath(CleanPath(path))
 	splitSubpath := SplitPath(CleanPath(subpath))
@@ -389,6 +433,20 @@ func HasPathPrefix(path, prefix string) bool {
 func JoinTerraformModulePath(modulesFolder string, path string) string {
 	cleanModulesFolder := strings.TrimRight(modulesFolder, `/\`)
 	cleanPath := strings.TrimLeft(path, `/\`)
+	// if source path contains "?ref=", reconstruct module dir using "//"
+	if strings.Contains(cleanModulesFolder, "?ref=") && cleanPath != "" {
+		canonicalSourceUrl, err := urlhelper.Parse(cleanModulesFolder)
+		if err == nil {
+			// append path
+			if canonicalSourceUrl.Opaque != "" {
+				canonicalSourceUrl.Opaque = fmt.Sprintf("%s//%s", strings.TrimRight(canonicalSourceUrl.Opaque, `/\`), cleanPath)
+			} else {
+				canonicalSourceUrl.Path = fmt.Sprintf("%s//%s", strings.TrimRight(canonicalSourceUrl.Path, `/\`), cleanPath)
+			}
+			return canonicalSourceUrl.String()
+		}
+		// fallback to old behavior if we can't parse the url
+	}
 	return fmt.Sprintf("%s//%s", cleanModulesFolder, cleanPath)
 }
 
@@ -510,4 +568,18 @@ type PathIsNotFile struct {
 
 func (err PathIsNotFile) Error() string {
 	return fmt.Sprintf("%s is not a file", err.path)
+}
+
+// Terraform 0.14 now generates a lock file when you run `terraform init`.
+// If any such file exists, this function will copy the lock file to the destination folder
+func CopyLockFile(sourceFolder string, destinationFolder string, logger *logrus.Entry) error {
+	sourceLockFilePath := JoinPath(sourceFolder, TerraformLockFile)
+	destinationLockFilePath := JoinPath(destinationFolder, TerraformLockFile)
+
+	if FileExists(sourceLockFilePath) {
+		logger.Debugf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
+		return CopyFile(sourceLockFilePath, destinationLockFilePath)
+	}
+
+	return nil
 }
