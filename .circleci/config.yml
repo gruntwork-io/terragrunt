@@ -11,7 +11,7 @@ env: &env
 
 defaults: &defaults
   docker:
-    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.20-tf1.5-tg39.1-pck1.8-ci50.7
+    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.21-tf1.5-tg39.1-pck1.8-ci50.7
 
 version: 2.1
 jobs:
