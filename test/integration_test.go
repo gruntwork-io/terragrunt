@@ -114,6 +114,7 @@ const (
 	TEST_FIXTURE_LOCAL_RUN_ONCE                                              = "fixture-locals/run-once"
 	TEST_FIXTURE_LOCAL_RUN_MULTIPLE                                          = "fixture-locals/run-multiple"
 	TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH                            = "qa/my-app"
+	TEST_FIXTURE_NO_COLOR                                                    = "fixture-no-color"
 	TEST_FIXTURE_READ_CONFIG                                                 = "fixture-read-config"
 	TEST_FIXTURE_READ_IAM_ROLE                                               = "fixture-read-config/iam_role_in_file"
 	TEST_FIXTURE_IAM_ROLES_MULTIPLE_MODULES                                  = "fixture-read-config/iam_roles_multiple_modules"
@@ -4886,6 +4887,24 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	require.NoError(t, err)
 	// auto initialization when source is changed
 	assert.Equal(t, 1, strings.Count(stdout.String(), "Terraform has been successfully initialized!"))
+}
+
+func TestNoColor(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_NO_COLOR)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_NO_COLOR)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan -no-color --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	require.NoError(t, err)
+	// providers initialization during first plan
+	assert.Equal(t, 1, strings.Count(stdout.String(), "Terraform has been successfully initialized!"))
+
+	assert.NotContains(t, stdout.String(), "[")
 }
 
 func TestRenderJsonAttributesMetadata(t *testing.T) {
