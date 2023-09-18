@@ -618,6 +618,7 @@ func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConf
 // Check if versioning is enabled for the S3 bucket specified in the given config and warn the user if it is not
 func checkIfVersioningEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	terragruntOptions.Logger.Debugf("Verifying AWS S3 Bucket Versioning %s", config.Bucket)
+
 	out, err := s3Client.GetBucketVersioning(&s3.GetBucketVersioningInput{Bucket: aws.String(config.Bucket)})
 	if err != nil {
 		return false, errors.WithStackTrace(err)
@@ -635,6 +636,8 @@ func checkIfVersioningEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 
 // Create the given S3 bucket and enable versioning for it
 func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Debugf("Create S3 bucket %s with versioning, SSE encryption, and access logging.", config.remoteStateConfigS3.Bucket)
+
 	err := CreateS3Bucket(s3Client, aws.String(config.remoteStateConfigS3.Bucket), terragruntOptions)
 
 	if err != nil {
@@ -1250,6 +1253,7 @@ func EnablePublicAccessBlockingForS3Bucket(s3Client *s3.S3, bucketName string, t
 
 func checkIfS3PublicAccessBlockingEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	terragruntOptions.Logger.Debugf("Checking if S3 bucket %s is configured to block public access", config.Bucket)
+
 	output, err := s3Client.GetPublicAccessBlock(&s3.GetPublicAccessBlockInput{
 		Bucket: aws.String(config.Bucket),
 	})
