@@ -3090,10 +3090,18 @@ func TestGetPathToRepoRoot(t *testing.T) {
 
 	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
 
-	pathToRoot, hasPathToRoot := outputs["path_to_root"]
+	expectedToRoot, err := filepath.Rel(rootPath, tmpEnvPath)
+	require.NoError(t, err)
 
-	require.True(t, hasPathToRoot)
-	require.Equal(t, pathToRoot.Value, "../../")
+	for name, expected := range map[string]string{
+		"path_to_root":    expectedToRoot,
+		"path_to_modules": filepath.Join(expectedToRoot, "modules"),
+	} {
+		value, hasValue := outputs[name]
+
+		require.True(t, hasValue)
+		require.Equal(t, expected, value.Value)
+	}
 }
 
 func TestGetPlatform(t *testing.T) {
