@@ -99,6 +99,7 @@ const (
 	TEST_FIXTURE_EXIT_CODE                                                   = "fixture-exit-code"
 	TEST_FIXTURE_AUTO_RETRY_RERUN                                            = "fixture-auto-retry/re-run"
 	TEST_FIXTURE_AUTO_RETRY_EXHAUST                                          = "fixture-auto-retry/exhaust"
+	TEST_FIXTURE_AUTO_RETRY_GET_DEFAULT_ERRORS                               = "fixture-auto-retry/get-default-errors"
 	TEST_FIXTURE_AUTO_RETRY_CUSTOM_ERRORS                                    = "fixture-auto-retry/custom-errors"
 	TEST_FIXTURE_AUTO_RETRY_CUSTOM_ERRORS_NOT_SET                            = "fixture-auto-retry/custom-errors-not-set"
 	TEST_FIXTURE_AUTO_RETRY_APPLY_ALL_RETRIES                                = "fixture-auto-retry/apply-all"
@@ -1173,6 +1174,26 @@ func TestAutoRetryCustomRetryableErrors(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Contains(t, out.String(), "My own little error")
 	assert.Contains(t, out.String(), "Apply complete!")
+}
+
+func TestAutoRetryGetDefaultErrors(t *testing.T) {
+	t.Parallel()
+
+	rootPath := copyEnvironment(t, TEST_FIXTURE_AUTO_RETRY_GET_DEFAULT_ERRORS)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_GET_DEFAULT_ERRORS)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath))
+
+	stdout := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), &stdout, os.Stderr)
+	require.NoError(t, err)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	list, hasVal := outputs["retryable_errors"]
+	require.True(t, hasVal)
+	require.ElementsMatch(t, list.Value, append(options.DEFAULT_RETRYABLE_ERRORS, "my special snowflake"))
 }
 
 func TestAutoRetryCustomRetryableErrorsFailsWhenRetryableErrorsNotSet(t *testing.T) {
