@@ -1,5 +1,5 @@
 variable "retryable_errors" {
-  type = list
+  type = list(any)
 }
 
 output "retryable_errors" {
