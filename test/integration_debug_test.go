@@ -37,10 +37,18 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-debug --terragrunt-working-dir %s", rootPath))
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-debug --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
 
 	debugFile := util.JoinPath(rootPath, terragruntDebugFile)
 	assert.True(t, util.FileExists(debugFile))
+
+	require.Contains(t, stderr.String(), fmt.Sprintf("-chdir=\"%s\"", rootPath))
 
 	// If the debug file is generated correctly, we should be able to run terraform apply using the generated var file
 	// without going through terragrunt.
@@ -52,8 +60,8 @@ func TestDebugGeneratedInputs(t *testing.T) {
 		shell.RunTerraformCommand(mockOptions, "apply", "-auto-approve", "-var-file", debugFile),
 	)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
 	require.NoError(
 		t,
 		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
