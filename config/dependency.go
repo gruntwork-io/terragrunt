@@ -35,6 +35,7 @@ const renderJsonCommand = "render-json"
 
 type Dependency struct {
 	Name                                string     `hcl:",label" cty:"name"`
+	Enabled                             *bool      `hcl:"enabled,attr" cty:"enabled"`
 	ConfigPath                          string     `hcl:"config_path,attr" cty:"config_path"`
 	SkipOutputs                         *bool      `hcl:"skip_outputs,attr" cty:"skip"`
 	MockOutputs                         *cty.Value `hcl:"mock_outputs,attr" cty:"mock_outputs"`
@@ -59,6 +60,10 @@ type Dependency struct {
 func (targetDepConfig *Dependency) DeepMerge(sourceDepConfig Dependency) error {
 	if sourceDepConfig.ConfigPath != "" {
 		targetDepConfig.ConfigPath = sourceDepConfig.ConfigPath
+	}
+
+	if sourceDepConfig.Enabled != nil {
+		targetDepConfig.Enabled = sourceDepConfig.Enabled
 	}
 
 	if sourceDepConfig.SkipOutputs != nil {
@@ -107,7 +112,15 @@ func (dependencyConfig Dependency) getMockOutputsMergeStrategy() MergeStrategyTy
 
 // Given a dependency config, we should only attempt to get the outputs if SkipOutputs is nil or false
 func (dependencyConfig Dependency) shouldGetOutputs() bool {
-	return dependencyConfig.SkipOutputs == nil || !(*dependencyConfig.SkipOutputs)
+	return dependencyConfig.isEnabled() && (dependencyConfig.SkipOutputs == nil || !*dependencyConfig.SkipOutputs)
+}
+
+// isEnabled returns true if the dependency is enabled
+func (dependencyConfig Dependency) isEnabled() bool {
+	if dependencyConfig.Enabled == nil {
+		return true
+	}
+	return *dependencyConfig.Enabled
 }
 
 // Given a dependency config, we should only attempt to merge mocks outputs with the outputs if MockOutputsMergeWithState is not nil or true
@@ -160,6 +173,16 @@ func decodeAndRetrieveOutputs(
 		return nil, err
 	}
 
+	// Skip disabled dependencies
+	updatedDependencies := terragruntDependency{}
+	for _, dep := range decodedDependency.Dependencies {
+		if !dep.isEnabled() {
+			continue
+		}
+		updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+	}
+	decodedDependency = updatedDependencies
+
 	// Merge in included dependencies
 	if trackInclude != nil {
 		mergedDecodedDependency, err := handleIncludeForDependency(decodedDependency, trackInclude, terragruntOptions)
@@ -177,20 +200,20 @@ func decodeAndRetrieveOutputs(
 
 // Convert the list of parsed Dependency blocks into a list of module dependencies. Each output block should
 // become a dependency of the current config, since that module has to be applied before we can read the output.
-func dependencyBlocksToModuleDependencies(decodedDependencyBlocks []Dependency) *ModuleDependencies {
+func dependencyBlocksToModuleDependencies(workingDir string, decodedDependencyBlocks []Dependency) *ModuleDependencies {
 	if len(decodedDependencyBlocks) == 0 {
 		return nil
 	}
 
 	paths := []string{}
 	for _, decodedDependencyBlock := range decodedDependencyBlocks {
-		configPath := decodedDependencyBlock.ConfigPath
-		if util.IsFile(configPath) && filepath.Base(configPath) == DefaultTerragruntConfigPath {
-			// dependencies system expects the directory containing the terragrunt.hcl file
-			configPath = filepath.Dir(configPath)
+		// skip dependency if is not enabled
+		if !decodedDependencyBlock.isEnabled() {
+			continue
 		}
-		paths = append(paths, configPath)
+		paths = append(paths, decodedDependencyBlock.ConfigPath)
 	}
+
 	return &ModuleDependencies{Paths: paths}
 }
 
@@ -278,6 +301,9 @@ func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOption
 	dependencyErrGroup, _ := errgroup.WithContext(context.Background())
 
 	for _, dependencyConfig := range dependencyConfigs {
+		if !dependencyConfig.isEnabled() {
+			continue
+		}
 		dependencyConfig := dependencyConfig // https://golang.org/doc/faq#closures_and_goroutines
 		dependencyErrGroup.Go(func() error {
 			// Loose struct to hold the attributes of the dependency. This includes:
@@ -329,6 +355,9 @@ func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOption
 //     If the dependency block indicates a mock_outputs_merge_strategy_with_state attribute, mock_outputs and state outputs will be merged following the merge strategy
 //   - If the dependency block does NOT indicate a mock_outputs attribute, this will return an error.
 func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
+	if !dependencyConfig.isEnabled() {
+		return nil, nil
+	}
 	if dependencyConfig.shouldGetOutputs() {
 		outputVal, isEmpty, err := getTerragruntOutput(dependencyConfig, terragruntOptions)
 		if err != nil {

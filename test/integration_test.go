@@ -69,6 +69,7 @@ const (
 	TEST_FIXTURE_ENV_VARS_BLOCK_PATH                                         = "fixture-env-vars-block/"
 	TEST_FIXTURE_SKIP                                                        = "fixture-skip/"
 	TEST_FIXTURE_CONFIG_SINGLE_JSON_PATH                                     = "fixture-config-files/single-json-config"
+	TEST_FIXTURE_CONFIG_WITH_NON_DEFAULT_NAMES                               = "fixture-config-files/with-non-default-names"
 	TEST_FIXTURE_PREVENT_DESTROY_OVERRIDE                                    = "fixture-prevent-destroy-override/child"
 	TEST_FIXTURE_PREVENT_DESTROY_NOT_SET                                     = "fixture-prevent-destroy-not-set/child"
 	TEST_FIXTURE_LOCAL_PREVENT_DESTROY                                       = "fixture-download/local-with-prevent-destroy"
@@ -169,6 +170,7 @@ const (
 	TEST_FIXTURE_GCS_NO_PREFIX                                               = "fixture-gcs-no-prefix/"
 	TEST_FIXTURE_DISABLED_PATH                                               = "fixture-disabled-path/"
 	TEST_FIXTURE_NO_SUBMODULES                                               = "fixture-no-submodules/"
+	TEST_FIXTURE_DISABLED_MODULE                                             = "fixture-disabled/"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TERRAFORM_FOLDER                                                         = ".terraform"
 	TERRAFORM_STATE                                                          = "terraform.tfstate"
@@ -759,6 +761,42 @@ func TestTerragruntWorksWithSingleJsonConfig(t *testing.T) {
 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_CONFIG_SINGLE_JSON_PATH)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootTerragruntConfigPath))
+}
+
+func TestTerragruntWorksWithNonDefaultConfigNamesAndRunAllCommand(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_CONFIG_WITH_NON_DEFAULT_NAMES)
+	tmpEnvPath = path.Join(tmpEnvPath, TEST_FIXTURE_CONFIG_WITH_NON_DEFAULT_NAMES)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-config main.hcl --terragrunt-non-interactive --terragrunt-working-dir %s", tmpEnvPath), &stdout, &stderr)
+	require.NoError(t, err)
+
+	out := stdout.String()
+	assert.Equal(t, 1, strings.Count(out, "parent_hcl_file"))
+	assert.Equal(t, 1, strings.Count(out, "dependency_hcl"))
+	assert.Equal(t, 1, strings.Count(out, "common_hcl"))
+}
+
+func TestTerragruntWorksWithNonDefaultConfigNames(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_CONFIG_WITH_NON_DEFAULT_NAMES)
+	tmpEnvPath = path.Join(tmpEnvPath, TEST_FIXTURE_CONFIG_WITH_NON_DEFAULT_NAMES)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-config main.hcl --terragrunt-non-interactive --terragrunt-working-dir %s", filepath.Join(tmpEnvPath, "app")), &stdout, &stderr)
+	require.NoError(t, err)
+
+	out := stdout.String()
+	assert.Equal(t, 1, strings.Count(out, "parent_hcl_file"))
+	assert.Equal(t, 1, strings.Count(out, "dependency_hcl"))
+	assert.Equal(t, 1, strings.Count(out, "common_hcl"))
 }
 
 func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
@@ -3052,10 +3090,18 @@ func TestGetPathToRepoRoot(t *testing.T) {
 
 	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
 
-	pathToRoot, hasPathToRoot := outputs["path_to_root"]
+	expectedToRoot, err := filepath.Rel(rootPath, tmpEnvPath)
+	require.NoError(t, err)
 
-	require.True(t, hasPathToRoot)
-	require.Equal(t, pathToRoot.Value, "../../")
+	for name, expected := range map[string]string{
+		"path_to_root":    expectedToRoot,
+		"path_to_modules": filepath.Join(expectedToRoot, "modules"),
+	} {
+		value, hasValue := outputs[name]
+
+		require.True(t, hasValue)
+		require.Equal(t, expected, value.Value)
+	}
 }
 
 func TestGetPlatform(t *testing.T) {
@@ -4975,7 +5021,7 @@ func TestOutputModuleGroups(t *testing.T) {
 	assert.True(t, strings.Contains(output, strings.TrimSpace(expectedOutput)))
 }
 
-func TestRenderJsonMetadataDependencies(t *testing.T) {
+func TestRenderJsonMetadataDependency(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_RENDER_JSON_METADATA)
@@ -5054,6 +5100,7 @@ func TestRenderJsonWithMockOutputs(t *testing.T) {
 			"metadata": expectedMetadata,
 			"value": map[string]interface{}{
 				"config_path": "../dependency",
+				"enabled":     nil,
 				"mock_outputs": map[string]interface{}{
 					"bastion_host_security_group_id": "123",
 					"security_group_id":              "sg-abcd1234",
@@ -5225,12 +5272,14 @@ func TestRenderJsonMetadataDepenency(t *testing.T) {
 				"name":                                    "dep",
 				"outputs":                                 nil,
 				"skip":                                    nil,
+				"enabled":                                 nil,
 			},
 		},
 		"dep2": map[string]interface{}{
 			"metadata": terragruntMetadata,
 			"value": map[string]interface{}{
 				"config_path": "../dependency2",
+				"enabled":     nil,
 				"mock_outputs": map[string]interface{}{
 					"test2": "value2",
 				},
@@ -5994,6 +6043,25 @@ func TestTerragruntNoWarningRemotePath(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	require.NoError(t, err)
 	require.NotContains(t, stderr.String(), "No double-slash (//) found in source URL")
+}
+
+func TestTerragruntDisabledDependency(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DISABLED_MODULE)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "app")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all plan --terragrunt-non-interactive  --terragrunt-log-level debug --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	require.NoError(t, err)
+	// check that only enabled dependencies are evaluated
+	require.Contains(t, stderr.String(), util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "app"))
+	require.Contains(t, stderr.String(), util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "m1"))
+	require.Contains(t, stderr.String(), util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "m3"))
+	require.NotContains(t, stderr.String(), util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "m2"))
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {

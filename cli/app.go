@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/shell"
+
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -155,7 +157,10 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 		// --- Terragrunt ConfigPath
 		if opts.TerragruntConfigPath == "" {
 			opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
+		} else if !filepath.IsAbs(opts.TerragruntConfigPath) && ctx.Command.Name == terraform.CommandName {
+			opts.TerragruntConfigPath = util.JoinPath(opts.WorkingDir, opts.TerragruntConfigPath)
 		}
+
 		opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)
 
 		opts.ExcludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.ExcludeDirs...)
@@ -205,6 +210,9 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 		opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
 
 		opts.RunTerragrunt = terraform.Run
+
+		shell.PrepareConsole(opts)
+
 		return nil
 	}
 }

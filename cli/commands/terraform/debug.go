@@ -49,10 +49,10 @@ func WriteTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terr
 	terragruntOptions.Logger.Debugf("Variables passed to terraform are located in \"%s\"", fileName)
 	terragruntOptions.Logger.Debugf("Run this command to replicate how terraform was invoked:")
 	terragruntOptions.Logger.Debugf(
-		"\tterraform %s -var-file=\"%s\" \"%s\"",
+		"\tterraform -chdir=\"%s\" %s -var-file=\"%s\" ",
+		terragruntOptions.WorkingDir,
 		strings.Join(terragruntOptions.TerraformCliArgs, " "),
 		fileName,
-		terragruntOptions.WorkingDir,
 	)
 	return nil
 }
