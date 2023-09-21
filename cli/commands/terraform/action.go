@@ -40,6 +40,8 @@ const (
 	CommandNameLock                 = "lock"
 	CommandNameTerragruntReadConfig = "terragrunt-read-config"
 	NullTFVarsFile                  = ".terragrunt-null-vars.auto.tfvars.json"
+
+	TerraformFlagNoColor = "-no-color"
 )
 
 var TerraformCommandsThatUseState = []string{
@@ -556,7 +558,6 @@ func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terr
 	}
 
 	initOptions, err := prepareInitOptions(terragruntOptions, terraformSource)
-
 	if err != nil {
 		return err
 	}
@@ -585,6 +586,10 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformS
 	if !collections.ListContainsElement(initOutputForCommands, terraformCommand) {
 		// Since some command can return a json string, it is necessary to suppress output to stdout of the `terraform init` command.
 		initOptions.Writer = io.Discard
+	}
+
+	if collections.ListContainsElement(terragruntOptions.TerraformCliArgs, TerraformFlagNoColor) {
+		initOptions.TerraformCliArgs = append(initOptions.TerraformCliArgs, TerraformFlagNoColor)
 	}
 
 	return initOptions, nil
