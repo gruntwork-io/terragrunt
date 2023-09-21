@@ -141,6 +141,7 @@ func CreateTerragruntEvalContext(
 		"get_terraform_commands_that_need_parallelism": wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_PARALLELISM),
 		"sops_decrypt_file":                            wrapStringSliceToStringAsFuncImpl(sopsDecryptFile, extensions.TrackInclude, terragruntOptions),
 		"get_terragrunt_source_cli_flag":               wrapVoidToStringAsFuncImpl(getTerragruntSourceCliFlag, extensions.TrackInclude, terragruntOptions),
+		"get_default_retryable_errors":                 wrapVoidToStringSliceAsFuncImpl(getDefaultRetryableErrors, extensions.TrackInclude, terragruntOptions),
 	}
 
 	// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
@@ -494,6 +495,11 @@ func getTerraformCommand(trackInclude *TrackInclude, terragruntOptions *options.
 // getTerraformCliArgs returns cli args for terraform
 func getTerraformCliArgs(trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) ([]string, error) {
 	return terragruntOptions.TerraformCliArgs, nil
+}
+
+// getDefaultRetryableErrors returns default retryable errors
+func getDefaultRetryableErrors(trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) ([]string, error) {
+	return options.DEFAULT_RETRYABLE_ERRORS, nil
 }
 
 // Return the AWS account id associated to the current set of credentials

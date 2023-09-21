@@ -46,6 +46,8 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
 
   - [get\_terraform\_command()](#get_terraform_command)
 
+  - [get\_default\_retryable\_errors()](#get_default_retryable_errors)
+
   - [get\_terraform\_cli\_args()](#get_terraform_cli_args)
 
   - [get\_aws\_account\_id()](#get_aws_account_id)
@@ -594,6 +596,14 @@ inputs = {
 inputs = {
   current_cli_args = get_terraform_cli_args()
 }
+```
+
+## get\_default\_retryable\_errors
+
+`get_default_retryable_errors()` returns default retryabled errors. Example:
+
+``` hcl
+retryable_errors = concat(get_default_retryable_errors(), ["my custom error"])
 ```
 
 ## get\_aws\_caller\_identity\_user\_id
