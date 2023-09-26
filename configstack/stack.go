@@ -2,13 +2,14 @@ package configstack
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/sirupsen/logrus"
@@ -49,6 +50,30 @@ func (stack *Stack) LogModuleDeployOrder(logger *logrus.Entry, terraformCommand 
 	}
 	logger.Info(outStr)
 	return nil
+}
+
+// JsonModuleDeployOrder will return the modules that will be deployed by a plan/apply operation, in the order
+// that the operations happen.
+func (stack *Stack) JsonModuleDeployOrder(terraformCommand string) (string, error) {
+	runGraph, err := stack.getModuleRunGraph(terraformCommand)
+	if err != nil {
+		return "", err
+	}
+	// Convert the module paths to a string array for JSON marshalling
+	// The index should be the group number, and the value should be an array of module paths
+	jsonGraph := make(map[string][]string)
+	for i, group := range runGraph {
+		groupNum := "Group " + fmt.Sprintf("%d", i+1)
+		jsonGraph[groupNum] = make([]string, len(group))
+		for j, module := range group {
+			jsonGraph[groupNum][j] = module.Path
+		}
+	}
+	j, _ := json.MarshalIndent(jsonGraph, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return string(j), nil
 }
 
 // Graph creates a graphviz representation of the modules
@@ -139,14 +164,14 @@ func (stack *Stack) CheckForCycles() error {
 
 // Find all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
 // assemble them into a Stack object that can be applied or destroyed in a single command
-func FindStackInSubfolders(terragruntOptions *options.TerragruntOptions) (*Stack, error) {
+func FindStackInSubfolders(terragruntOptions *options.TerragruntOptions, childTerragruntConfig *config.TerragruntConfig) (*Stack, error) {
 	terragruntConfigFiles, err := config.FindConfigFilesInPath(terragruntOptions.WorkingDir, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}
 
 	howThesePathsWereFound := fmt.Sprintf("Terragrunt config file found in a subdirectory of %s", terragruntOptions.WorkingDir)
-	return createStackForTerragruntConfigPaths(terragruntOptions.WorkingDir, terragruntConfigFiles, terragruntOptions, howThesePathsWereFound)
+	return createStackForTerragruntConfigPaths(terragruntOptions.WorkingDir, terragruntConfigFiles, terragruntOptions, childTerragruntConfig, howThesePathsWereFound)
 }
 
 // Sync the TerraformCliArgs for each module in the stack to match the provided terragruntOptions struct.
@@ -233,12 +258,12 @@ func (stack *Stack) getModuleRunGraph(terraformCommand string) ([][]*TerraformMo
 
 // Find all the Terraform modules in the folders that contain the given Terragrunt config files and assemble those
 // modules into a Stack object that can be applied or destroyed in a single command
-func createStackForTerragruntConfigPaths(path string, terragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions, howThesePathsWereFound string) (*Stack, error) {
+func createStackForTerragruntConfigPaths(path string, terragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions, childTerragruntConfig *config.TerragruntConfig, howThesePathsWereFound string) (*Stack, error) {
 	if len(terragruntConfigPaths) == 0 {
 		return nil, errors.WithStackTrace(NoTerraformModulesFound)
 	}
 
-	modules, err := ResolveTerraformModules(terragruntConfigPaths, terragruntOptions, howThesePathsWereFound)
+	modules, err := ResolveTerraformModules(terragruntConfigPaths, terragruntOptions, childTerragruntConfig, howThesePathsWereFound)
 	if err != nil {
 		return nil, err
 	}

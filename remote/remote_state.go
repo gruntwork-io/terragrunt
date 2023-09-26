@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/codegen"
-	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -208,3 +208,9 @@ var (
 	ErrRemoteBackendMissing             = fmt.Errorf("the remote_state.backend field cannot be empty")
 	ErrGenerateCalledWithNoGenerateAttr = fmt.Errorf("generate code routine called when no generate attribute is configured")
 )
+
+type BucketCreationNotAllowed string
+
+func (bucketName BucketCreationNotAllowed) Error() string {
+	return fmt.Sprintf("Creation of remote state bucket %s is not allowed", string(bucketName))
+}

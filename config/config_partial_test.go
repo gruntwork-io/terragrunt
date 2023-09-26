@@ -315,3 +315,21 @@ terraform {
 	require.NotNil(t, terragruntConfig.Terraform.Source)
 	assert.Equal(t, *terragruntConfig.Terraform.Source, "../../modules/app")
 }
+
+func TestOptionalDependenciesAreSkipped(t *testing.T) {
+	t.Parallel()
+
+	config := `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+dependency "ec2" {
+  config_path = "../ec2"
+  enabled    = false
+}
+`
+
+	terragruntConfig, err := PartialParseConfigString(config, mockOptionsForTest(t), nil, DefaultTerragruntConfigPath, []PartialDecodeSectionType{DependencyBlock})
+	require.NoError(t, err)
+	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
+}

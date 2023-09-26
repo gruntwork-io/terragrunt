@@ -11,19 +11,32 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-const defaultLogLevel = logrus.InfoLevel
-const logLevelEnvVar = "TERRAGRUNT_LOG_LEVEL"
+// used in integration tests
+const (
+	defaultLogLevel = logrus.InfoLevel
+	logLevelEnvVar  = "TERRAGRUNT_LOG_LEVEL"
+)
 
-// GlobalFallbackLogEntry is a global fallback logentry for the application
-// Should be used in cases when more specific logger can't be created (like in the very beginning, when we have not yet
-// parsed command line arguments).
-//
-// This might go away once we migrate toproper cli library
-// (see https://github.com/gruntwork-io/terragrunt/blob/master/cli/args.go#L29)
-var GlobalFallbackLogEntry *logrus.Entry
+var (
+	// GlobalFallbackLogEntry is a global fallback logentry for the application
+	// Should be used in cases when more specific logger can't be created (like in the very beginning, when we have not yet
+	// parsed command line arguments).
+	//
+	// This might go away once we migrate toproper cli library
+	// (see https://github.com/gruntwork-io/terragrunt/blob/master/cli/args.go#L29)
+	GlobalFallbackLogEntry *logrus.Entry
+
+	disableLogColors bool
+)
 
 func init() {
 	defaultLogLevel := GetDefaultLogLevel()
+	GlobalFallbackLogEntry = CreateLogEntry("", defaultLogLevel)
+}
+
+func DisableLogColors() {
+	disableLogColors = true
+	// Needs to re-create the global logger
 	GlobalFallbackLogEntry = CreateLogEntry("", defaultLogLevel)
 }
 
@@ -33,7 +46,8 @@ func CreateLogger(lvl logrus.Level) *logrus.Logger {
 	logger.SetLevel(lvl)
 	logger.SetOutput(os.Stderr) //Terragrunt should output all it's logs to stderr by default
 	logger.SetFormatter(&logrus.TextFormatter{
-		DisableQuote: true,
+		DisableQuote:  true,
+		DisableColors: disableLogColors,
 	})
 	return logger
 }
@@ -82,12 +96,16 @@ func GetDefaultLogLevel() logrus.Level {
 		return defaultLogLevel
 	}
 
-	parsedLogLevel, err := logrus.ParseLevel(defaultLogLevelStr)
+	return ParseLogLevel(defaultLogLevelStr)
+}
+
+func ParseLogLevel(logLevelStr string) logrus.Level {
+	parsedLogLevel, err := logrus.ParseLevel(logLevelStr)
 	if err != nil {
 		CreateLogEntry("", defaultLogLevel).Errorf(
 			"Could not parse log level from environment variable %s (%s) - falling back to default %s",
 			logLevelEnvVar,
-			defaultLogLevelStr,
+			logLevelStr,
 			defaultLogLevel,
 		)
 		return defaultLogLevel

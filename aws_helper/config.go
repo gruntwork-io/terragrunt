@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/request"
+	"github.com/gruntwork-io/go-commons/version"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -11,7 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -27,6 +30,13 @@ type AwsSessionConfig struct {
 	DisableComputeChecksums bool
 	ExternalID              string
 	SessionName             string
+}
+
+// addUserAgent - Add terragrunt version to the user agent for AWS API calls.
+var addUserAgent = request.NamedHandler{
+	Name: "terragrunt.UserAgentHandler",
+	Fn: request.MakeAddToUserAgentHandler(
+		"terragrunt", version.GetVersion()),
 }
 
 // Returns an AWS session object for the given config region (required), profile name (optional), and IAM role to assume
@@ -71,6 +81,8 @@ func CreateAwsSessionFromConfig(config *AwsSessionConfig, terragruntOptions *opt
 		return nil, errors.WithStackTraceAndPrefix(err, "Error initializing session")
 	}
 
+	sess.Handlers.Build.PushFrontNamed(addUserAgent)
+
 	// Merge the config based IAMRole options into the original one, as the config has higher precedence than CLI.
 	iamRoleOptions := terragruntOptions.IAMRoleOptions
 	if config.RoleArn != "" {
@@ -110,9 +122,10 @@ func getSTSCredentialsFromIAMRoleOptions(sess *session.Session, iamRoleOptions o
 }
 
 // Returns an AWS session object. The session is configured by either:
-// - The provided AwsSessionConfig struct, which specifies region (required), profile name (optional), and IAM role to
-//   assume (optional).
-// - The provided TerragruntOptions struct, which specifies any IAM role to assume (optional).
+//   - The provided AwsSessionConfig struct, which specifies region (required), profile name (optional), and IAM role to
+//     assume (optional).
+//   - The provided TerragruntOptions struct, which specifies any IAM role to assume (optional).
+//
 // Note that if the AwsSessionConfig object is null, this will return default session credentials using the default
 // credentials chain of the AWS SDK.
 func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*session.Session, error) {
@@ -124,6 +137,7 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 		if err != nil {
 			return nil, errors.WithStackTrace(err)
 		}
+		sess.Handlers.Build.PushFrontNamed(addUserAgent)
 		if terragruntOptions.IAMRoleOptions.RoleARN != "" {
 			terragruntOptions.Logger.Debugf("Assuming role %s", terragruntOptions.IAMRoleOptions.RoleARN)
 			sess.Config.Credentials = getSTSCredentialsFromIAMRoleOptions(sess, terragruntOptions.IAMRoleOptions)
@@ -154,6 +168,8 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
+
+	sess.Handlers.Build.PushFrontNamed(addUserAgent)
 
 	_, err = sess.Config.Credentials.Get()
 	if err != nil {

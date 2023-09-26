@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/cli"
-	"github.com/gruntwork-io/terragrunt/cli/tfsource"
+	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/errors"
+	tfsource "github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -130,7 +130,7 @@ func TestLocalWithMissingBackend(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), os.Stdout, os.Stderr)
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		assert.IsType(t, cli.BackendNotDefined{}, underlying)
+		assert.IsType(t, terraform.BackendNotDefined{}, underlying)
 	}
 }
 
@@ -211,7 +211,7 @@ func TestCustomLockFile(t *testing.T) {
 
 	source := "../custom-lock-file-module"
 	downloadDir := util.JoinPath(testFixtureCustomLockFile, TERRAGRUNT_CACHE)
-	result, err := tfsource.NewTerraformSource(source, downloadDir, testFixtureCustomLockFile, util.CreateLogEntry("", util.GetDefaultLogLevel()))
+	result, err := tfsource.NewSource(source, downloadDir, testFixtureCustomLockFile, util.CreateLogEntry("", util.GetDefaultLogLevel()))
 	require.NoError(t, err)
 
 	lockFilePath := util.JoinPath(result.WorkingDir, util.TerraformLockFile)

@@ -9,8 +9,10 @@ import (
 	"strconv"
 	"time"
 
+	"google.golang.org/api/impersonate"
+
 	"cloud.google.com/go/storage"
-	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -235,8 +237,8 @@ func parseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteState
 func validateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS, terragruntOptions *options.TerragruntOptions) error {
 	var config = extendedConfig.remoteStateConfigGCS
 
-	if config.Prefix == "" {
-		return errors.WithStackTrace(MissingRequiredGCSRemoteStateConfig("prefix"))
+	if config.Bucket == "" {
+		return errors.WithStackTrace(MissingRequiredGCSRemoteStateConfig("bucket"))
 	}
 
 	return nil
@@ -256,6 +258,10 @@ func createGCSBucketIfNecessary(gcsClient *storage.Client, config *ExtendedRemot
 		// A location must be specified in order for terragrunt to automatically create a storage bucket.
 		if config.Location == "" {
 			return errors.WithStackTrace(MissingRequiredGCSRemoteStateConfig("location"))
+		}
+
+		if terragruntOptions.FailIfBucketCreationRequired {
+			return BucketCreationNotAllowed(config.remoteStateConfigGCS.Bucket)
 		}
 
 		prompt := fmt.Sprintf("Remote state GCS bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", config.remoteStateConfigGCS.Bucket)
@@ -466,9 +472,15 @@ func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, err
 	}
 
 	if gcsConfigRemote.ImpersonateServiceAccount != "" {
-		opts = append(opts, option.ImpersonateCredentials(
-			gcsConfigRemote.ImpersonateServiceAccount,
-			gcsConfigRemote.ImpersonateServiceAccountDelegates...))
+		ts, err := impersonate.CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
+			TargetPrincipal: gcsConfigRemote.ImpersonateServiceAccount,
+			Scopes:          []string{storage.ScopeFullControl},
+			Delegates:       gcsConfigRemote.ImpersonateServiceAccountDelegates,
+		})
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, option.WithTokenSource(ts))
 	}
 
 	client, err := storage.NewClient(ctx, opts...)

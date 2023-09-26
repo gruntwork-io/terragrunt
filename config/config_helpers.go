@@ -17,8 +17,8 @@ import (
 	"github.com/zclconf/go-cty/cty/function"
 	"go.mozilla.org/sops/v3/decrypt"
 
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
-	"github.com/gruntwork-io/terragrunt/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -140,14 +140,16 @@ func CreateTerragruntEvalContext(
 		"get_terraform_commands_that_need_parallelism": wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_PARALLELISM),
 		"sops_decrypt_file":                            wrapStringSliceToStringAsFuncImpl(sopsDecryptFile, extensions.TrackInclude, terragruntOptions),
 		"get_terragrunt_source_cli_flag":               wrapVoidToStringAsFuncImpl(getTerragruntSourceCliFlag, extensions.TrackInclude, terragruntOptions),
+		"get_default_retryable_errors":                 wrapVoidToStringSliceAsFuncImpl(getDefaultRetryableErrors, extensions.TrackInclude, terragruntOptions),
 	}
 
 	// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
 	// https://github.com/gruntwork-io/terragrunt/blob/master/go.mod#L22
 	terraformCompatibilityFunctions := map[string]function.Function{
-		"startswith": wrapStringSliceToBoolAsFuncImpl(startsWith, extensions.TrackInclude, terragruntOptions),
-		"endswith":   wrapStringSliceToBoolAsFuncImpl(endsWith, extensions.TrackInclude, terragruntOptions),
-		"timecmp":    wrapStringSliceToNumberAsFuncImpl(timeCmp, extensions.TrackInclude, terragruntOptions),
+		"startswith":  wrapStringSliceToBoolAsFuncImpl(startsWith, extensions.TrackInclude, terragruntOptions),
+		"endswith":    wrapStringSliceToBoolAsFuncImpl(endsWith, extensions.TrackInclude, terragruntOptions),
+		"strcontains": wrapStringSliceToBoolAsFuncImpl(strContains, extensions.TrackInclude, terragruntOptions),
+		"timecmp":     wrapStringSliceToNumberAsFuncImpl(timeCmp, extensions.TrackInclude, terragruntOptions),
 	}
 
 	functions := map[string]function.Function{}
@@ -220,7 +222,7 @@ func getPathToRepoRoot(trackInclude *TrackInclude, terragruntOptions *options.Te
 		return "", errors.WithStackTrace(err)
 	}
 
-	return filepath.ToSlash(strings.TrimSpace(repoRootPathAbs) + "/"), nil
+	return filepath.ToSlash(strings.TrimSpace(repoRootPathAbs)), nil
 }
 
 // Return the directory where the Terragrunt configuration file lives
@@ -444,14 +446,15 @@ func pathRelativeToInclude(params []string, trackInclude *TrackInclude, terragru
 		return ".", nil
 	}
 
-	includePath := filepath.Dir(included.Path)
 	currentPath := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+	includePath := filepath.Dir(included.Path)
 
 	if !filepath.IsAbs(includePath) {
 		includePath = util.JoinPath(currentPath, includePath)
 	}
 
-	return util.GetPathRelativeTo(currentPath, includePath)
+	relativePath, err := util.GetPathRelativeTo(currentPath, includePath)
+	return relativePath, err
 }
 
 // Return the relative path from the current Terragrunt configuration to the included Terragrunt configuration file
@@ -485,6 +488,11 @@ func getTerraformCommand(trackInclude *TrackInclude, terragruntOptions *options.
 // getTerraformCliArgs returns cli args for terraform
 func getTerraformCliArgs(trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) ([]string, error) {
 	return terragruntOptions.TerraformCliArgs, nil
+}
+
+// getDefaultRetryableErrors returns default retryable errors
+func getDefaultRetryableErrors(trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) ([]string, error) {
+	return options.DEFAULT_RETRYABLE_ERRORS, nil
 }
 
 // Return the AWS account id associated to the current set of credentials
@@ -561,7 +569,7 @@ func readTerragruntConfigAsFuncImpl(terragruntOptions *options.TerragruntOptions
 				return cty.NilVal, errors.WithStackTrace(WrongNumberOfParams{Func: "read_terragrunt_config", Expected: "1 or 2", Actual: numParams})
 			}
 
-			configPath, err := ctySliceToStringSlice(args[:1])
+			strArgs, err := ctySliceToStringSlice(args[:1])
 			if err != nil {
 				return cty.NilVal, err
 			}
@@ -570,7 +578,11 @@ func readTerragruntConfigAsFuncImpl(terragruntOptions *options.TerragruntOptions
 			if numParams == 2 {
 				defaultVal = &args[1]
 			}
-			return readTerragruntConfig(configPath[0], defaultVal, terragruntOptions)
+
+			targetConfigPath := strArgs[0]
+
+			relativePath, err := readTerragruntConfig(targetConfigPath, defaultVal, terragruntOptions)
+			return relativePath, err
 		},
 	})
 }
@@ -813,6 +825,21 @@ func timeCmp(args []string, trackInclude *TrackInclude, terragruntOptions *optio
 		// By elimination, tsA must be after tsB.
 		return 1, nil
 	}
+}
+
+// strContains Implementation of Terraform's strContains function
+func strContains(args []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	if len(args) == 0 {
+		return false, errors.WithStackTrace(EmptyStringNotAllowed("parameter to the strcontains function"))
+	}
+	str := args[0]
+	substr := args[1]
+
+	if strings.Contains(str, substr) {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // Custom error types

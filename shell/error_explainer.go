@@ -6,15 +6,16 @@ import (
 
 	"github.com/gruntwork-io/gruntwork-cli/collections"
 
-	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/hashicorp/go-multierror"
 )
 
 // terraformErrorsMatcher List of errors that we know how to explain to the user. The key is a regex that matches the error message, and the value is the explanation.
 var terraformErrorsMatcher = map[string]string{
-	"(?s).*Error refreshing state: AccessDenied: Access Denied(?s).*": "You don't have access to the S3 bucket where the state is stored. Check your credentials and permissions.",
-	"(?s).*Error: Initialization required(?s).*":                      "You need to run terragrunt (run-all) init to initialize working directory.",
-	"(?s).*Module source has changed(?s).*":                           "You need to run terragrunt (run-all) init install all required modules.",
+	"(?s).*Error refreshing state: AccessDenied: Access Denied(?s).*":            "You don't have access to the S3 bucket where the state is stored. Check your credentials and permissions.",
+	"(?s).*AllAccessDisabled: All access to this object has been disabled(?s).*": "You don't have access to the S3 bucket where the state is stored. Check your credentials and permissions.",
+	"(?s).*Error: Initialization required(?s).*":                                 "You need to run terragrunt (run-all) init to initialize working directory.",
+	"(?s).*Module source has changed(?s).*":                                      "You need to run terragrunt (run-all) init install all required modules.",
 }
 
 // ExplainError will try to explain the error to the user, if we know how to do so.

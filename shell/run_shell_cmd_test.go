@@ -44,7 +44,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	stderr = new(bytes.Buffer)
 
 	terragruntOptions.TerraformCliArgs = []string{}
-	terragruntOptions.Writer = stdout
+	terragruntOptions.Writer = stderr
 	terragruntOptions.ErrWriter = stderr
 
 	cmd = RunShellCommand(terragruntOptions, "terraform", "--version")

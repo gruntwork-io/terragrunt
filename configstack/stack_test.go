@@ -29,14 +29,14 @@ func TestFindStackInSubfolders(t *testing.T) {
 	writeDummyTerragruntConfigs(t, tempFolder, filePaths)
 
 	envFolder := filepath.ToSlash(util.JoinPath(tempFolder + "/stage"))
-	terragruntOptions, err := options.NewTerragruntOptions(envFolder)
+	terragruntOptions, err := options.NewTerragruntOptionsWithConfigPath(envFolder)
 	if err != nil {
 		t.Fatalf("Failed when calling method under test: %s\n", err.Error())
 	}
 
 	terragruntOptions.WorkingDir = envFolder
 
-	stack, err := FindStackInSubfolders(terragruntOptions)
+	stack, err := FindStackInSubfolders(terragruntOptions, nil)
 	require.NoError(t, err)
 
 	var modulePaths []string

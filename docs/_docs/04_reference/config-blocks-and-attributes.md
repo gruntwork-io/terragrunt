@@ -100,6 +100,7 @@ The `terraform` block supports the following arguments:
       `terragrunt-read-config` and `init-from-module` hooks, and the terraform module directory for other command hooks.
     - `run_on_error` (optional) : If set to true, this hook will run even if a previous hook hit an error, or in the
       case of "after" hooks, if the Terraform command hit an error. Default is false.
+    - `suppress_stdout` (optional) : If set to true, the stdout output of the executed commands will be suppressed. This can be useful when there are scripts relying on terraform's output and any other output would break their parsing.
 
 - `after_hook` (block): Nested blocks used to specify command hooks that should be run after `terraform` is called.
   Hooks run from the terragrunt configuration directory (the directory where `terragrunt.hcl` lives). Supports the same
@@ -883,6 +884,7 @@ The `dependency` block supports the following arguments:
   outputs of this dependency with the expression `dependency.vpc.outputs`.
 - `config_path` (attribute): Path to a Terragrunt module (folder with a `terragrunt.hcl` file) that should be included
   as a dependency in this configuration.
+- `enabled` (attribute): When `false`, excludes the dependency from execution. Defaults to `true`.
 - `skip_outputs` (attribute): When `true`, skip calling `terragrunt output` when processing this dependency. If
   `mock_outputs` is configured, set `outputs` to the value of `mock_outputs`. Otherwise, `outputs` will be set to an
   empty map. Put another way, setting `skip_outputs` means "use mocks all the time if `mock_outputs` are set."

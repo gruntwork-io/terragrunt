@@ -1,10 +1,17 @@
 orbs:
   # The Windows orb gives us everything we need to start using the Windows executor.
   win: circleci/windows@2.4.0
+  go: circleci/go@1.7.3
+
+# The "sign binary" rubs in a MacOS environment, so it's necessary to download GW's binaries
+env: &env
+  environment:
+    GRUNTWORK_INSTALLER_VERSION: v0.0.39
+    MODULE_CI_VERSION: v0.52.6
 
 defaults: &defaults
   docker:
-    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.18-tf1.4-tg39.1-pck1.8-ci50.7
+    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.21-tf1.5-tg39.1-pck1.8-ci50.7
 
 version: 2.1
 jobs:
@@ -68,10 +75,23 @@ jobs:
       - store_test_results:
           path: logs
   integration_test:
+    resource_class: large
     <<: *defaults
     steps:
       - checkout
       - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.30.0'
+      # install tflint
+      - run:
+          command: |
+            pushd .
+            cd /tmp
+            curl -L "https://github.com/terraform-linters/tflint/releases/download/v0.47.0/tflint_linux_amd64.zip" -o tflint.zip
+            unzip -o tflint.zip
+            sudo install -m 0755 tflint /usr/local/bin/tflint
+            rm -rf tflint
+            rm -rf tflint.zip
+            popd
+            tflint --version
       # Make GCP Service Account creds available as a file
       - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
       - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
@@ -98,16 +118,49 @@ jobs:
       - store_test_results:
           path: logs
   build:
+    resource_class: large
     <<: *defaults
     steps:
       - checkout
-      - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG"
+      - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X github.com/gruntwork-io/go-commons/version.Version=$CIRCLE_TAG -extldflags '-static'"
+      - persist_to_workspace:
+          root: .
+          paths: bin
   deploy:
-    <<: *defaults
+    <<: *env
+    macos:
+      xcode: 14.2.0
+    resource_class: macos.x86.medium.gen2
     steps:
       - checkout
-      - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X main.VERSION=$CIRCLE_TAG"
-      - run: cd bin && sha256sum * > SHA256SUMS
+      - attach_workspace:
+          at: .
+      - go/install:
+          version: "1.20.5"
+      - run:
+          name: Install sign-binary-helpers
+          command: |
+            curl -Ls https://raw.githubusercontent.com/gruntwork-io/gruntwork-installer/master/bootstrap-gruntwork-installer.sh | bash /dev/stdin --version "${GRUNTWORK_INSTALLER_VERSION}"
+            gruntwork-install --module-name "gruntwork-module-circleci-helpers" --repo "https://github.com/gruntwork-io/terraform-aws-ci" --tag "${MODULE_CI_VERSION}"
+            gruntwork-install --module-name "sign-binary-helpers" --repo "https://github.com/gruntwork-io/terraform-aws-ci" --tag "${MODULE_CI_VERSION}"
+      - run:
+          name: Compile and sign the binaries
+          command: |
+            sign-binary --install-macos-sign-dependencies --os mac .gon_amd64.hcl
+            sign-binary --os mac .gon_arm64.hcl
+            echo "Done signing the binary"
+
+            # Replace the files in bin. These are the same file names generated from .gon_amd64.hcl and .gon_arm64.hcl
+            unzip terragrunt_darwin_amd64.zip
+            mv terragrunt_darwin_amd64 bin/
+
+            unzip terragrunt_darwin_arm64.zip
+            mv terragrunt_darwin_arm64 bin/
+      - run:
+          name: Run SHA256SUM
+          command: |
+            brew install coreutils
+            cd bin && sha256sum * > SHA256SUMS
       - run: upload-github-release-assets bin/*
 workflows:
   version: 2
@@ -162,3 +215,4 @@ workflows:
             - GITHUB__PAT__gruntwork-ci
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
+            - APPLE__OSX__code-signing
