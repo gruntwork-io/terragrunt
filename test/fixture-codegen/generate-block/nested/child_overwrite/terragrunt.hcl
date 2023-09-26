@@ -1,5 +1,6 @@
 include {
   path = "${get_terragrunt_dir()}/../root.hcl"
+  merge_strategy = "deep"
 }
 
 generate "backend" {
