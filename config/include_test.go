@@ -134,7 +134,8 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 			testCase.expected.TerragruntDependencies = []Dependency{}
 		}
 
-		testCase.includedConfig.Merge(testCase.config, mockOptionsForTest(t))
+		err := testCase.includedConfig.Merge(testCase.config, mockOptionsForTest(t))
+		assert.NoError(t, err)
 		assert.Equal(t, testCase.expected, testCase.includedConfig)
 	}
 }
