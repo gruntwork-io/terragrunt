@@ -878,9 +878,8 @@ func copyFieldsMetadata(sourceConfig *TerragruntConfig, targetConfig *Terragrunt
 // validateGenerateConfigs Validate if exists duplicate generate configs.
 func validateGenerateConfigs(sourceConfig *map[string]codegen.GenerateConfig, targetConfig *map[string]codegen.GenerateConfig) error {
 	var duplicatedNames []string
-	for key, _ := range *targetConfig {
-		_, found := (*sourceConfig)[key]
-		if found {
+	for key := range *targetConfig {
+		if _, found := (*sourceConfig)[key]; found {
 			duplicatedNames = append(duplicatedNames, key)
 		}
 	}
