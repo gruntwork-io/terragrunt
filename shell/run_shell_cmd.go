@@ -273,27 +273,27 @@ var gitTopLevelDirs = cache.NewGenericCache[string]()
 
 // GitTopLevelDir - fetch git repository path from passed directory
 func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (string, error) {
-	gitTopLevelDir, found := gitTopLevelDirs.Get(path)
-	if !found {
-		stdout := bytes.Buffer{}
-		stderr := bytes.Buffer{}
-		opts, err := options.NewTerragruntOptionsWithConfigPath(path)
-		if err != nil {
-			return "", err
-		}
-		opts.Env = terragruntOptions.Env
-		opts.Writer = &stdout
-		opts.ErrWriter = &stderr
-		cmd, err := RunShellCommandWithOutput(opts, path, true, false, "git", "rev-parse", "--show-toplevel")
-		terragruntOptions.Logger.Debugf("git show-toplevel result: \n%v\n%v\n", (string)(stdout.Bytes()), (string)(stderr.Bytes()))
-		if err != nil {
-			return "", err
-		}
-		cmdOutput := strings.TrimSpace(cmd.Stdout)
-		gitTopLevelDirs.Put(path, cmdOutput)
-		gitTopLevelDir = cmdOutput
+	if gitTopLevelDir, found := gitTopLevelDirs.Get(path); found {
+		return gitTopLevelDir, nil
 	}
-	return gitTopLevelDir, nil
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	opts, err := options.NewTerragruntOptionsWithConfigPath(path)
+	if err != nil {
+		return "", err
+	}
+	opts.Env = terragruntOptions.Env
+	opts.Writer = &stdout
+	opts.ErrWriter = &stderr
+	cmd, err := RunShellCommandWithOutput(opts, path, true, false, "git", "rev-parse", "--show-toplevel")
+	terragruntOptions.Logger.Debugf("git show-toplevel result: \n%v\n%v\n", (string)(stdout.Bytes()), (string)(stderr.Bytes()))
+	if err != nil {
+		return "", err
+	}
+	cmdOutput := strings.TrimSpace(cmd.Stdout)
+	gitTopLevelDirs.Put(path, cmdOutput)
+	return cmdOutput, nil
 }
 
 // ProcessExecutionError - error returned when a command fails, contains StdOut and StdErr

@@ -67,7 +67,7 @@ func TestGitLevelTopDirCaching(t *testing.T) {
 	expectedResult := strings.TrimSpace(cmd.Stdout)
 
 	actualResult, err := GitTopLevelDir(terragruntOptions, path)
-	assert.Nil(t, err, "Unexpected error executing GitTopLevelDir: %v", err)
+	assert.NoError(t, err, "Unexpected error executing GitTopLevelDir: %v", err)
 	assert.Equal(t, expectedResult, actualResult)
 
 	cachedResult, found := gitTopLevelDirs.Get(path)

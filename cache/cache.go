@@ -21,7 +21,7 @@ type GenericCache[cacheValue CacheValue] struct {
 	Mutex *sync.Mutex
 }
 
-// NewStringCache - create new generic cache
+// NewGenericCache - create new generic cache
 func NewGenericCache[cacheValue CacheValue]() *GenericCache[cacheValue] {
 	return &GenericCache[cacheValue]{
 		Cache: map[string]cacheValue{},
