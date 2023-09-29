@@ -3,7 +3,7 @@ package remote
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -62,19 +62,26 @@ func ParseTerraformStateFileFromLocation(backend string, config map[string]inter
 	}
 }
 
-// Parse the Terraform .tfstate file at the given path
+// ParseTerraformStateFile Parse the Terraform .tfstate file at the given path
 func ParseTerraformStateFile(path string) (*TerraformState, error) {
-	bytes, err := ioutil.ReadFile(path)
+	bytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, errors.WithStackTrace(CantParseTerraformStateFile{Path: path, UnderlyingErr: err})
 	}
-
-	return parseTerraformState(bytes)
+	state, err := parseTerraformState(bytes)
+	if err != nil {
+		return nil, errors.WithStackTrace(CantParseTerraformStateFile{Path: path, UnderlyingErr: err})
+	}
+	return state, nil
 }
 
 // Parse the Terraform state file data in the given byte slice
 func parseTerraformState(terraformStateData []byte) (*TerraformState, error) {
 	terraformState := &TerraformState{}
+
+	if len(terraformStateData) == 0 {
+		return terraformState, nil
+	}
 
 	if err := json.Unmarshal(terraformStateData, terraformState); err != nil {
 		return nil, errors.WithStackTrace(err)

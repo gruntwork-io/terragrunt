@@ -173,6 +173,7 @@ const (
 	TEST_FIXTURE_DISABLED_PATH                                               = "fixture-disabled-path/"
 	TEST_FIXTURE_NO_SUBMODULES                                               = "fixture-no-submodules/"
 	TEST_FIXTURE_DISABLED_MODULE                                             = "fixture-disabled/"
+	TEST_FIXTURE_EMPTY_STATE                                                 = "fixture-empty-state/"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TERRAFORM_FOLDER                                                         = ".terraform"
 	TERRAFORM_STATE                                                          = "terraform.tfstate"
@@ -6119,6 +6120,21 @@ func TestTerragruntDisabledDependency(t *testing.T) {
 	require.Contains(t, stderr.String(), util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "m1"))
 	require.Contains(t, stderr.String(), util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "m3"))
 	require.NotContains(t, stderr.String(), util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "m2"))
+}
+
+func TestTerragruntHandleEmptyStateFile(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_EMPTY_STATE)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_EMPTY_STATE)
+
+	// create empty terraform.tfstate file
+	file, err := os.Create(util.JoinPath(testPath, TERRAFORM_STATE))
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testPath))
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
