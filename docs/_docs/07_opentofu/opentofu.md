@@ -14,4 +14,4 @@ nav_title_link: /docs/
 
 Terragrunt will support OpenTofu when OpenTofu becomes available.
 
-To learn more about OpenTofu see the official see the [OpenTofu website](https://opentofu.org/) and the current [project status](https://github.com/opentofu/opentofu/blob/main/WEEKLY_UPDATES.md).
+To learn more about OpenTofu see the official [OpenTofu website](https://opentofu.org/) and the current [project status](https://github.com/opentofu/opentofu/blob/main/WEEKLY_UPDATES.md).
