@@ -3,6 +3,7 @@ package configstack
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -536,9 +537,16 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 	var matchedModulesMap = make(map[string]*TerraformModule)
 
 	gitTopLevelDir, err := shell.GitTopLevelDir(terragruntOptions, terragruntOptions.WorkingDir)
+	useIncludes := false
 	if err == nil { // top level detection worked
-		pathsToCheck = append(pathsToCheck, gitTopLevelDir)
-	} else { // detection failed, trying to use include directories as source for stacks
+		pathsToCheck, err = buildDirList(terragruntOptions, gitTopLevelDir)
+		if err != nil {
+			useIncludes = true
+		}
+	} else {
+		useIncludes = true
+	}
+	if useIncludes { // detection failed, trying to use include directories as source for stacks
 		uniquePaths := make(map[string]bool)
 		for _, includePath := range terragruntConfig.ProcessedIncludes {
 			uniquePaths[filepath.Dir(includePath.Path)] = true
@@ -553,24 +561,22 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 		cfgOptions, err := options.NewTerragruntOptionsWithConfigPath(dir)
 		if err != nil {
 			terragruntOptions.Logger.Debugf("Failed to build terragrunt options from %s %v", dir, err)
-			return nil
+			continue
 		}
 
 		cfgOptions.Env = terragruntOptions.Env
 		cfgOptions.LogLevel = terragruntOptions.LogLevel
 		cfgOptions.OriginalTerragruntConfigPath = terragruntOptions.OriginalTerragruntConfigPath
 
-		if terragruntOptions.TerraformCommand == "destroy" {
-			var hook = NewForceLogLevelHook(logrus.DebugLevel)
-			cfgOptions.Logger.Logger.AddHook(hook)
-		}
+		var hook = NewForceLogLevelHook(logrus.DebugLevel)
+		cfgOptions.Logger.Logger.AddHook(hook)
 
 		stack, err := FindStackInSubfolders(cfgOptions, terragruntConfig)
 		if err != nil {
-			// loggign error as debug since in some cases stack building may fail because parent files can be designed
+			// log error as debug since in some cases stack building may fail because parent files can be designed
 			// to work with relative paths from downstream modules
 			terragruntOptions.Logger.Debugf("Failed to build module stack %v", err)
-			return nil
+			continue
 		}
 
 		for _, module := range stack.Modules {
@@ -631,4 +637,22 @@ func (formatter *LogEntriesDropperFormatter) Format(entry *logrus.Entry) ([]byte
 		return formatter.OriginalFormatter.Format(entry)
 	}
 	return []byte(""), nil
+}
+
+// buildDirList - build list of directories from working directory to git top level directory
+func buildDirList(terragruntOptions *options.TerragruntOptions, topLevelDir string) ([]string, error) {
+	var pathsToCheck []string
+	relativePath, err := util.GetPathRelativeTo(topLevelDir, terragruntOptions.WorkingDir)
+	if err != nil {
+		return pathsToCheck, err
+	}
+	// build list of directories from working directory to git top level directory
+	// from which later will be built stacks
+	pathToAdd := terragruntOptions.WorkingDir
+	splits := strings.Split(relativePath, string(os.PathSeparator))
+	for _, path := range splits {
+		pathToAdd = filepath.Join(pathToAdd, path)
+		pathsToCheck = append(pathsToCheck, pathToAdd)
+	}
+	return pathsToCheck, nil
 }
