@@ -33,6 +33,7 @@ func TestAwsSessionValidationFail(t *testing.T) {
 	t.Parallel()
 
 	err := ValidateAwsSession(&AwsSessionConfig{
+		Region:        "not-existing-region",
 		CredsFilename: "/tmp/not-existing-file",
 	}, options.NewTerragruntOptions())
 	assert.Error(t, err)
