@@ -1,0 +1,113 @@
+run:
+  timeout: 2m
+  issues-exit-code: 1
+  tests: true
+  skip-dirs:
+    - docs
+    - _ci
+    - .github
+    - .circleci
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+
+linters-settings:
+  errcheck:
+    check-type-assertions: false
+    check-blank: false
+    exclude-functions:
+      - (*os.File).Close
+  errorlint:
+    errorf: true
+    asserts: true
+    comparison: true
+  gofmt:
+    simplify: true
+  gofumpt:
+    lang-version: "1.21"
+    extra-rules: false
+  gosimple:
+    go: "1.21"
+    checks: [ "all" ]
+  goimports:
+    local-prefixes: github.com/gruntwork-io/terragrunt
+  dupl:
+    threshold: 120
+  goconst:
+    min-len: 3
+    min-occurrences: 5
+  lll:
+    line-length: 140
+    tab-width: 1
+  gomnd:
+    settings:
+      mnd:
+        ignored-functions: strconv.Format*,os.*,strconv.Parse*,strings.SplitN,bytes.SplitN
+  revive:
+    min-confidence: 0.8
+  unused:
+    check-exported: false
+  unparam:
+    check-exported: false
+  nakedret:
+    max-func-lines: 20
+  prealloc:
+    simple: true
+    range-loops: true
+    for-loops: true
+  gocritic:
+    disabled-checks:
+      - regexpMust
+      - rangeValCopy
+      - appendAssign
+      - hugeParam
+    enabled-tags:
+      - performance
+    disabled-tags:
+      - experimental
+
+linters:
+  enable:
+    - dupl
+    - errcheck
+    - gochecknoinits
+    - goconst
+    - gocritic
+    - goimports
+    - gomnd
+    - gosimple
+    - govet
+    - ineffassign
+    - lll
+    - megacheck
+    - misspell
+    - prealloc
+    - revive
+    - stylecheck
+    - unconvert
+    - unused
+    - unparam
+    - wsl
+  enable-all: false
+  disable:
+    - depguard
+    - gosec
+    - interfacer
+    - gocyclo
+  fast: false
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - dupl
+        - gocyclo
+        - lll
+        - errcheck
+        - wsl
+        - gomnd
+
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
