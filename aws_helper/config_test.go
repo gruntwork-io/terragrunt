@@ -28,3 +28,12 @@ func TestTerragruntIsAddedInUserAgent(t *testing.T) {
 
 	assert.Contains(t, r.HTTPRequest.Header.Get("User-Agent"), "terragrunt")
 }
+
+func TestAwsSessionValidationFail(t *testing.T) {
+	t.Parallel()
+
+	err := ValidateAwsSession(&AwsSessionConfig{
+		CredsFilename: "/tmp/not-existing-file",
+	}, options.NewTerragruntOptions())
+	assert.Error(t, err)
+}
