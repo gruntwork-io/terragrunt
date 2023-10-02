@@ -165,6 +165,11 @@ func (s3Initializer S3Initializer) NeedsInitialization(remoteState *RemoteState,
 		return false, err
 	}
 
+	_, err = aws_helper.GetAWSCallerIdentity(s3ConfigExtended.GetAwsSessionConfig(), terragruntOptions)
+	if err != nil {
+		return false, err
+	}
+
 	if !DoesS3BucketExist(s3Client, &s3Config.Bucket) {
 		return true, nil
 	}
