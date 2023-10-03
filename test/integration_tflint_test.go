@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"regexp"
 	"testing"
@@ -93,7 +92,7 @@ func TestTflintFindsNoIssuesWithValidCodeDifferentDownloadDir(t *testing.T) {
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
 
-	downloadDir, err := ioutil.TempDir("", "download-dir")
+	downloadDir, err := os.MkdirTemp("", "download-dir")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir due to error: %v", err)
 	}

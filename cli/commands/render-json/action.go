@@ -9,7 +9,7 @@ package renderjson
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"github.com/zclconf/go-cty/cty"
@@ -64,7 +64,7 @@ func runRenderJSON(opts *options.TerragruntOptions, cfg *config.TerragruntConfig
 	}
 	opts.Logger.Debugf("Rendering config %s to JSON %s", opts.TerragruntConfigPath, jsonOutPath)
 
-	if err := ioutil.WriteFile(jsonOutPath, jsonBytes, 0644); err != nil {
+	if err := os.WriteFile(jsonOutPath, jsonBytes, 0644); err != nil {
 		return errors.WithStackTrace(err)
 	}
 	return nil

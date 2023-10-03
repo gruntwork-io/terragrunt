@@ -3,7 +3,6 @@ package test
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -217,7 +216,7 @@ func TestCustomLockFile(t *testing.T) {
 	lockFilePath := util.JoinPath(result.WorkingDir, util.TerraformLockFile)
 	require.FileExists(t, lockFilePath)
 
-	readFile, err := ioutil.ReadFile(lockFilePath)
+	readFile, err := os.ReadFile(lockFilePath)
 	require.NoError(t, err)
 
 	// In our lock file, we intentionally have hashes for an older version of the AWS provider. If the lock file

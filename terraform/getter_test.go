@@ -2,7 +2,6 @@ package terraform
 
 import (
 	"context"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -105,7 +104,7 @@ func TestTFRGetterRootDir(t *testing.T) {
 	testModuleURL, err := url.Parse("tfr://registry.terraform.io/terraform-aws-modules/vpc/aws?version=3.3.0")
 	require.NoError(t, err)
 
-	dstPath, err := ioutil.TempDir("", "")
+	dstPath, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 	defer os.RemoveAll(dstPath)
 
@@ -124,7 +123,7 @@ func TestTFRGetterSubModule(t *testing.T) {
 	testModuleURL, err := url.Parse("tfr://registry.terraform.io/terraform-aws-modules/vpc/aws//modules/vpc-endpoints?version=3.3.0")
 	require.NoError(t, err)
 
-	dstPath, err := ioutil.TempDir("", "")
+	dstPath, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 	defer os.RemoveAll(dstPath)
 

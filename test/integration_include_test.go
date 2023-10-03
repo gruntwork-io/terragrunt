@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -30,7 +30,7 @@ const (
 func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 	t.Parallel()
 
-	files, err := ioutil.ReadDir(includeExposeFixturePath)
+	files, err := os.ReadDir(includeExposeFixturePath)
 	require.NoError(t, err)
 
 	testCases := []string{}
@@ -193,7 +193,7 @@ func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 	t.Parallel()
 
-	files, err := ioutil.ReadDir(includeMultipleFixturePath)
+	files, err := os.ReadDir(includeMultipleFixturePath)
 	require.NoError(t, err)
 
 	testCases := []string{}

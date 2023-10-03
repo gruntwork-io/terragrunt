@@ -1,7 +1,6 @@
 package hclfmt
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -117,7 +116,7 @@ func TestHCLFmtCheck(t *testing.T) {
 	defer os.RemoveAll(tmpPath)
 	require.NoError(t, err)
 
-	expected, err := ioutil.ReadFile("../../../test/fixture-hclfmt-check/expected.hcl")
+	expected, err := os.ReadFile("../../../test/fixture-hclfmt-check/expected.hcl")
 	require.NoError(t, err)
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
@@ -148,7 +147,7 @@ func TestHCLFmtCheck(t *testing.T) {
 				t.Parallel()
 
 				tgHclPath := filepath.Join(tmpPath, dir)
-				actual, err := ioutil.ReadFile(tgHclPath)
+				actual, err := os.ReadFile(tgHclPath)
 				require.NoError(t, err)
 				assert.Equal(t, expected, actual)
 			})
@@ -163,7 +162,7 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 	defer os.RemoveAll(tmpPath)
 	require.NoError(t, err)
 
-	expected, err := ioutil.ReadFile("../../../test/fixture-hclfmt-check-errors/expected.hcl")
+	expected, err := os.ReadFile("../../../test/fixture-hclfmt-check-errors/expected.hcl")
 	require.NoError(t, err)
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
@@ -194,7 +193,7 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 				t.Parallel()
 
 				tgHclPath := filepath.Join(tmpPath, dir)
-				actual, err := ioutil.ReadFile(tgHclPath)
+				actual, err := os.ReadFile(tgHclPath)
 				require.NoError(t, err)
 				assert.Equal(t, expected, actual)
 			})
@@ -209,7 +208,7 @@ func TestHCLFmtFile(t *testing.T) {
 	defer os.RemoveAll(tmpPath)
 	require.NoError(t, err)
 
-	expected, err := ioutil.ReadFile("../../../test/fixture-hclfmt/expected.hcl")
+	expected, err := os.ReadFile("../../../test/fixture-hclfmt/expected.hcl")
 	require.NoError(t, err)
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
@@ -226,7 +225,7 @@ func TestHCLFmtFile(t *testing.T) {
 		t.Run(tgOptions.HclFile, func(t *testing.T) {
 			t.Parallel()
 			tgHclPath := filepath.Join(tmpPath, tgOptions.HclFile)
-			formatted, err := ioutil.ReadFile(tgHclPath)
+			formatted, err := os.ReadFile(tgHclPath)
 			require.NoError(t, err)
 			assert.Equal(t, expected, formatted)
 		})
@@ -237,7 +236,7 @@ func TestHCLFmtFile(t *testing.T) {
 		"a/b/c/terragrunt.hcl",
 	}
 
-	original, err := ioutil.ReadFile("../../../test/fixture-hclfmt/terragrunt.hcl")
+	original, err := os.ReadFile("../../../test/fixture-hclfmt/terragrunt.hcl")
 	require.NoError(t, err)
 
 	// test that none of the other files were formatted
@@ -251,7 +250,7 @@ func TestHCLFmtFile(t *testing.T) {
 			t.Run(dir, func(t *testing.T) {
 				t.Parallel()
 				testingPath := filepath.Join(tmpPath, dir)
-				actual, err := ioutil.ReadFile(testingPath)
+				actual, err := os.ReadFile(testingPath)
 				require.NoError(t, err)
 				assert.Equal(t, original, actual)
 			})
@@ -266,7 +265,7 @@ func TestHCLFmtHeredoc(t *testing.T) {
 	defer os.RemoveAll(tmpPath)
 	require.NoError(t, err)
 
-	expected, err := ioutil.ReadFile("../../../test/fixture-hclfmt-heredoc/expected.hcl")
+	expected, err := os.ReadFile("../../../test/fixture-hclfmt-heredoc/expected.hcl")
 	require.NoError(t, err)
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
@@ -278,7 +277,7 @@ func TestHCLFmtHeredoc(t *testing.T) {
 	require.NoError(t, err)
 
 	tgHclPath := filepath.Join(tmpPath, "terragrunt.hcl")
-	actual, err := ioutil.ReadFile(tgHclPath)
+	actual, err := os.ReadFile(tgHclPath)
 	require.NoError(t, err)
 	assert.Equal(t, expected, actual)
 }

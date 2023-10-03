@@ -3,7 +3,6 @@ package terraform
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,7 +41,7 @@ func WriteTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terr
 
 	configFolder := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 	fileName := filepath.Join(configFolder, TerragruntTFVarsFile)
-	if err := ioutil.WriteFile(fileName, fileContents, os.FileMode(int(0600))); err != nil {
+	if err := os.WriteFile(fileName, fileContents, os.FileMode(int(0600))); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
