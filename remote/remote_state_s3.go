@@ -160,6 +160,11 @@ func (s3Initializer S3Initializer) NeedsInitialization(remoteState *RemoteState,
 
 	sessionConfig := s3ConfigExtended.GetAwsSessionConfig()
 
+	// Validate current AWS session before checking S3
+	if err = aws_helper.ValidateAwsSession(sessionConfig, terragruntOptions); err != nil {
+		return false, err
+	}
+
 	s3Client, err := CreateS3Client(sessionConfig, terragruntOptions)
 	if err != nil {
 		return false, err
