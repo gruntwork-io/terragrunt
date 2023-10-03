@@ -3,7 +3,6 @@ package util
 import (
 	"encoding/gob"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -34,7 +33,7 @@ func FileOrData(maybePath string) (string, error) {
 	}
 
 	if IsFile(expandedMaybePath) {
-		contents, err := ioutil.ReadFile(expandedMaybePath)
+		contents, err := os.ReadFile(expandedMaybePath)
 		if err != nil {
 			return "", errors.WithStackTrace(err)
 		}
@@ -152,7 +151,7 @@ func Grep(regex *regexp.Regexp, glob string) (bool, error) {
 		if IsDir(match) {
 			continue
 		}
-		bytes, err := ioutil.ReadFile(match)
+		bytes, err := os.ReadFile(match)
 		if err != nil {
 			return false, errors.WithStackTrace(err)
 		}
@@ -206,7 +205,7 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 
 // Return the contents of the file at the given path as a string
 func ReadFileAsString(path string) (string, error) {
-	bytes, err := ioutil.ReadFile(path)
+	bytes, err := os.ReadFile(path)
 	if err != nil {
 		return "", errors.WithStackTraceAndPrefix(err, "Error reading file at path %s", path)
 	}
@@ -292,7 +291,7 @@ func CopyFolderContentsWithFilter(source, destination, manifestFile string, filt
 	}
 	defer manifest.Close()
 
-	// Why use filepath.Glob here? The original implementation used ioutil.ReadDir, but that method calls lstat on all
+	// Why use filepath.Glob here? The original implementation used os.ReadDir, but that method calls lstat on all
 	// the files/folders in the directory, including files/folders you may want to explicitly skip. The next attempt
 	// was to use filepath.Walk, but that doesn't work because it ignores symlinks. So, now we turn to filepath.Glob.
 	files, err := filepath.Glob(fmt.Sprintf("%s/*", source))
@@ -368,7 +367,7 @@ func TerragruntExcludes(path string) bool {
 
 // Copy a file from source to destination
 func CopyFile(source string, destination string) error {
-	contents, err := ioutil.ReadFile(source)
+	contents, err := os.ReadFile(source)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -383,7 +382,7 @@ func WriteFileWithSamePermissions(source string, destination string, contents []
 		return errors.WithStackTrace(err)
 	}
 
-	return ioutil.WriteFile(destination, contents, fileInfo.Mode())
+	return os.WriteFile(destination, contents, fileInfo.Mode())
 }
 
 // Windows systems use \ as the path separator *nix uses /

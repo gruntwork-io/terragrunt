@@ -3,7 +3,6 @@ package terraform
 import (
 	"crypto/sha256"
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -107,7 +106,7 @@ func (terraformSource Source) WriteVersionFile() error {
 		}
 	}
 
-	return errors.WithStackTrace(ioutil.WriteFile(terraformSource.VersionFile, []byte(version), 0640))
+	return errors.WithStackTrace(os.WriteFile(terraformSource.VersionFile, []byte(version), 0640))
 }
 
 // NewSource takes the given source path and create a TerraformSource struct from it, including the folder where the source should

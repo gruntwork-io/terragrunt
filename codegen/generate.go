@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -91,7 +90,7 @@ func WriteToFile(terragruntOptions *options.TerragruntOptions, basePath string, 
 	}
 	contentsToWrite := fmt.Sprintf("%s%s", prefix, config.Contents)
 
-	if err := ioutil.WriteFile(targetPath, []byte(contentsToWrite), 0644); err != nil {
+	if err := os.WriteFile(targetPath, []byte(contentsToWrite), 0644); err != nil {
 		return errors.WithStackTrace(err)
 	}
 	terragruntOptions.Logger.Debugf("Generated file %s.", targetPath)

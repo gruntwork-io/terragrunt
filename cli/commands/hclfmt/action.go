@@ -6,7 +6,6 @@ package hclfmt
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -115,7 +114,7 @@ func formatTgHCL(opts *options.TerragruntOptions, tgHclFile string) error {
 
 	if fileUpdated {
 		opts.Logger.Infof("%s was updated", tgHclFile)
-		return ioutil.WriteFile(tgHclFile, newContents, info.Mode())
+		return os.WriteFile(tgHclFile, newContents, info.Mode())
 	}
 
 	return nil
@@ -135,7 +134,7 @@ func checkErrors(logger *logrus.Entry, contents []byte, tgHclFile string) error 
 
 // bytesDiff uses GNU diff to display the differences between the contents of HCL file before and after formatting
 func bytesDiff(b1, b2 []byte, path string) ([]byte, error) {
-	f1, err := ioutil.TempFile("", "")
+	f1, err := os.CreateTemp("", "")
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +143,7 @@ func bytesDiff(b1, b2 []byte, path string) ([]byte, error) {
 		os.Remove(f1.Name())
 	}()
 
-	f2, err := ioutil.TempFile("", "")
+	f2, err := os.CreateTemp("", "")
 	if err != nil {
 		return nil, err
 	}

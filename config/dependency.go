@@ -6,7 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -702,7 +702,7 @@ func getTerragruntOutputJsonFromRemoteState(
 	if err := util.EnsureDirectory(terragruntOptions.DownloadDir); err != nil {
 		return nil, err
 	}
-	tempWorkDir, err := ioutil.TempDir(terragruntOptions.DownloadDir, "")
+	tempWorkDir, err := os.MkdirTemp(terragruntOptions.DownloadDir, "")
 	if err != nil {
 		return nil, err
 	}
@@ -798,7 +798,7 @@ func getTerragruntOutputJsonFromRemoteStateS3(
 	}
 
 	defer result.Body.Close()
-	steateBody, err := ioutil.ReadAll(result.Body)
+	steateBody, err := io.ReadAll(result.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -820,11 +820,11 @@ func getTerragruntOutputJsonFromRemoteStateS3(
 func setupTerragruntOptionsForBareTerraform(originalOptions *options.TerragruntOptions, workingDir string, configPath string, iamRoleOpts options.IAMRoleOptions) (*options.TerragruntOptions, error) {
 	// Here we clone the terragrunt options again since we need to make further modifications to it to allow running
 	// terraform directly.
-	// Set the terraform working dir to the tempdir, and set stdout writer to ioutil.Discard so that output content is
+	// Set the terraform working dir to the tempdir, and set stdout writer to io.Discard so that output content is
 	// not logged.
 	targetTGOptions := cloneTerragruntOptionsForDependency(originalOptions, configPath)
 	targetTGOptions.WorkingDir = workingDir
-	targetTGOptions.Writer = ioutil.Discard
+	targetTGOptions.Writer = io.Discard
 
 	// If the target config has an IAM role directive and it was not set on the command line, set it to
 	// the one we retrieved from the config.

@@ -2,7 +2,7 @@ package terraform
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/url"
 	"os"
 	"path"
@@ -360,7 +360,7 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 
 func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool) (*terraform.Source, *options.TerragruntOptions, *config.TerragruntConfig, error) {
 	logger := logrus.New()
-	logger.Out = ioutil.Discard
+	logger.Out = io.Discard
 	terraformSource := &terraform.Source{
 		CanonicalSourceURL: parseUrl(t, canonicalUrl),
 		DownloadDir:        downloadDir,
@@ -389,7 +389,7 @@ func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceU
 
 func testAlreadyHaveLatestCode(t *testing.T, canonicalUrl string, downloadDir string, expected bool) {
 	logger := logrus.New()
-	logger.Out = ioutil.Discard
+	logger.Out = io.Discard
 	terraformSource := &terraform.Source{
 		CanonicalSourceURL: parseUrl(t, canonicalUrl),
 		DownloadDir:        downloadDir,
@@ -407,7 +407,7 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalUrl string, downloadDir st
 }
 
 func tmpDir(t *testing.T) string {
-	dir, err := ioutil.TempDir("", "download-source-test")
+	dir, err := os.MkdirTemp("", "download-source-test")
 	if err != nil {
 		t.Fatal(err)
 	}
