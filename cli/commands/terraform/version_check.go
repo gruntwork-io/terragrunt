@@ -2,7 +2,7 @@ package terraform
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"regexp"
 	"strings"
 
@@ -69,8 +69,8 @@ func checkVersionConstraints(terragruntOptions *options.TerragruntOptions) error
 func PopulateTerraformVersion(terragruntOptions *options.TerragruntOptions) error {
 	// Discard all log output to make sure we don't pollute stdout or stderr with this extra call to '--version'
 	terragruntOptionsCopy := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
-	terragruntOptionsCopy.Writer = ioutil.Discard
-	terragruntOptionsCopy.ErrWriter = ioutil.Discard
+	terragruntOptionsCopy.Writer = io.Discard
+	terragruntOptionsCopy.ErrWriter = io.Discard
 
 	// Remove any TF_CLI_ARGS before version checking. These are appended to
 	// the arguments supplied on the command line and cause issues when running

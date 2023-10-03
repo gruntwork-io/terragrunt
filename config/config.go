@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path"
@@ -1123,7 +1122,7 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 // dependency or dependencies blocks defined. Note that this does not do any decoding of the blocks, as it is only meant
 // to check for block presence.
 func configFileHasDependencyBlock(configPath string, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	configBytes, err := ioutil.ReadFile(configPath)
+	configBytes, err := os.ReadFile(configPath)
 	if err != nil {
 		return false, errors.WithStackTrace(err)
 	}

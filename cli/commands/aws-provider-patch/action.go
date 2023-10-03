@@ -31,7 +31,7 @@ package awsproviderpatch
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -117,7 +117,7 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 		return nil, nil
 	}
 
-	modulesJsonContents, err := ioutil.ReadFile(modulesJsonPath)
+	modulesJsonContents, err := os.ReadFile(modulesJsonPath)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}

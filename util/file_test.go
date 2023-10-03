@@ -2,7 +2,6 @@ package util
 
 import (
 	"errors"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -176,11 +175,11 @@ func TestFileManifest(t *testing.T) {
 	var testfiles []string
 
 	// create temp dir
-	dir, err := ioutil.TempDir("", ".terragrunt-test-dir")
+	dir, err := os.MkdirTemp("", ".terragrunt-test-dir")
 	require.NoError(t, err)
 	for _, file := range []string{"file1", "file2"} {
 		// create temp files in the dir
-		f, err := ioutil.TempFile(dir, file)
+		f, err := os.CreateTemp(dir, file)
 		assert.NoError(t, err, f.Close())
 		testfiles = append(testfiles, f.Name())
 	}
