@@ -47,6 +47,14 @@ var TofuPath = identifyDefaultTofuPath()
 
 type ctxKey byte
 
+type TerraformImplementationType string
+
+const (
+	TerraformImpl TerraformImplementationType = "terraform"
+	OpenTofuImpl  TerraformImplementationType = "tofu"
+	UnknownImpl   TerraformImplementationType = "unknown"
+)
+
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
 	// Location of the Terragrunt config file
@@ -74,6 +82,9 @@ type TerragruntOptions struct {
 	// NOTE: For `xxx-all` commands, this will be set to the Terraform command, which would be `xxx`. For example,
 	// if you run `apply-all` (which is a terragrunt command), this variable will be set to `apply`.
 	OriginalTerraformCommand string
+
+	// Terraform implementation tool (e.g. terraform, tofu) that terragrunt is wrapping
+	TerraformImplementation TerraformImplementationType
 
 	// Version of terraform (obtained by running 'terraform version')
 	TerraformVersion *version.Version
@@ -306,6 +317,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 		OutputPrefix:                   "",
 		IncludeModulePrefix:            false,
 		JSONOut:                        DefaultJSONOutName,
+		TerraformImplementation:        UnknownImpl,
 		RunTerragrunt: func(opts *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
@@ -430,6 +442,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		IncludeModulePrefix:            opts.IncludeModulePrefix,
 		FailIfBucketCreationRequired:   opts.FailIfBucketCreationRequired,
 		DisableBucketUpdate:            opts.DisableBucketUpdate,
+		TerraformImplementation:        opts.TerraformImplementation,
 	}
 }
 
