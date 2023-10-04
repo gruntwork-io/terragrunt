@@ -174,6 +174,7 @@ const (
 	TEST_FIXTURE_DISABLED_MODULE                                             = "fixture-disabled/"
 	TEST_FIXTURE_EMPTY_STATE                                                 = "fixture-empty-state/"
 	TERRAFORM_BINARY                                                         = "terraform"
+	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
 	TERRAFORM_STATE                                                          = "terraform.tfstate"
 	TERRAFORM_STATE_BACKUP                                                   = "terraform.tfstate.backup"
@@ -1337,22 +1338,22 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 	}{
 		{
 			[]string{"version"},
-			"terraform version",
+			"tofu version",
 			nil,
 		},
 		{
 			[]string{"version", "foo"},
-			"terraform version foo",
+			"tofu version foo",
 			nil,
 		},
 		{
 			[]string{"version", "foo", "bar", "baz"},
-			"terraform version foo bar baz",
+			"tofu version foo bar baz",
 			nil,
 		},
 		{
 			[]string{"version", "foo", "bar", "baz", "foobar"},
-			"terraform version foo bar baz foobar",
+			"tofu version foo bar baz foobar",
 			nil,
 		},
 		{
@@ -1929,8 +1930,20 @@ func TestTerragruntInfo(t *testing.T) {
 	assert.Nil(t, err_unmarshal)
 
 	assert.Equal(t, dat.DownloadDir, fmt.Sprintf("%s/%s", rootPath, TERRAGRUNT_CACHE))
-	assert.Equal(t, dat.TerraformBinary, TERRAFORM_BINARY)
+	assert.Equal(t, dat.TerraformBinary, TOFU_BINARY)
 	assert.Equal(t, dat.IamRole, "")
+
+	showStdout = bytes.Buffer{}
+	showStderr = bytes.Buffer{}
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-tfpath terraform", rootPath), &showStdout, &showStderr)
+	assert.Nil(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+
+	err_unmarshal = json.Unmarshal(showStdout.Bytes(), &dat)
+	assert.Nil(t, err_unmarshal)
+	assert.Equal(t, dat.TerraformBinary, TERRAFORM_BINARY)
 }
 
 // Test case for yamldecode bug: https://github.com/gruntwork-io/terragrunt/issues/834
