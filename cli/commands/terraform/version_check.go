@@ -170,6 +170,7 @@ func parseTerraformVersion(versionCommandOutput string) (*version.Version, error
 	return version.NewVersion(matches[2])
 }
 
+// parseTerraformImplementationType - Parse terraform implementation from --version command output
 func parseTerraformImplementationType(versionCommandOutput string) (options.TerraformImplementationType, error) {
 	matches := TerraformVersionRegex.FindStringSubmatch(versionCommandOutput)
 
