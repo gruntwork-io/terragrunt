@@ -58,7 +58,7 @@ func TestGitLevelTopDirCaching(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
-	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+	assert.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	path := "./"
 
@@ -80,9 +80,9 @@ func TestGitLevelTopDirCaching(t *testing.T) {
 func BenchmarkPerformanceOfGitTopLevelDir(b *testing.B) {
 	for i := 0; i <= b.N; i++ {
 		terragruntOptions, err := options.NewTerragruntOptionsForTest("")
-		assert.Nil(b, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+		assert.NoError(b, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 		_, err = GitTopLevelDir(terragruntOptions, "")
-		assert.Nil(b, err, "Unexpected error running GitTopLevelDir: %v", err)
+		assert.NoError(b, err, "Unexpected error running GitTopLevelDir: %v", err)
 	}
 }
