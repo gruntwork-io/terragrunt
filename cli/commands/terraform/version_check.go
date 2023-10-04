@@ -22,7 +22,7 @@ const DefaultTerraformVersionConstraint = ">= v0.12.0"
 // - Terraform v0.13.0-beta2
 // - Terraform v0.12.27
 // We only make sure the "v#.#.#" part is present in the output.
-var TerraformVersionRegex = regexp.MustCompile(`Terraform (v?\d+\.\d+\.\d+).*`)
+var TerraformVersionRegex = regexp.MustCompile(`(?:Terraform|OpenTofu) (v?\d+\.\d+\.\d+).*`)
 
 // Check the version constraints of both terragrunt and terraform. Note that as a side effect this will set the
 // following settings on terragruntOptions:
