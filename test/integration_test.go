@@ -1363,7 +1363,7 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 		},
 		{
 			[]string{"paln", "--terragrunt-disable-command-validation"},
-			"Terraform invocation failed", // error caused by running terraform with the wrong command
+			"tofu invocation failed", // error caused by running terraform with the wrong command
 			nil,
 		},
 	}
@@ -1980,7 +1980,7 @@ func TestYamlDecodeRegressions(t *testing.T) {
 // module has been destroyed.
 func TestDependencyOutputOptimization(t *testing.T) {
 	expectOutputLogs := []string{
-		`Running command: terraform init -get=false prefix=\[.*fixture-get-output/nested-optimization/dep\]`,
+		`Running command: tofu init -get=false prefix=\[.*fixture-get-output/nested-optimization/dep\]`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization", true, expectOutputLogs)
 }
@@ -3988,7 +3988,7 @@ func TestLogFailingDependencies(t *testing.T) {
 	output := stderr.String()
 
 	assert.Error(t, err)
-	assert.Contains(t, output, "Terraform invocation failed in fixture-broken-dependency/dependency")
+	assert.Contains(t, output, "tofu invocation failed in fixture-broken-dependency/dependency")
 }
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
@@ -4928,7 +4928,7 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	require.NoError(t, err)
 	// providers initialization during first plan
-	assert.Equal(t, 1, strings.Count(stdout.String(), "Terraform has been successfully initialized!"))
+	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
 
 	updatedHcl = strings.Replace(contents, "__TAG_VALUE__", "v0.35.2", -1)
 	require.NoError(t, os.WriteFile(terragruntHcl, []byte(updatedHcl), 0444))
@@ -4939,7 +4939,7 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	require.NoError(t, err)
 	// auto initialization when source is changed
-	assert.Equal(t, 1, strings.Count(stdout.String(), "Terraform has been successfully initialized!"))
+	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
 }
 
 func TestNoColor(t *testing.T) {
@@ -4955,7 +4955,7 @@ func TestNoColor(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan -no-color --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	require.NoError(t, err)
 	// providers initialization during first plan
-	assert.Equal(t, 1, strings.Count(stdout.String(), "Terraform has been successfully initialized!"))
+	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
 
 	assert.NotContains(t, stdout.String(), "[")
 }
@@ -5843,8 +5843,8 @@ func TestInitSkipCache(t *testing.T) {
 	)
 
 	// verify that init was invoked
-	assert.Contains(t, stdout.String(), "Terraform has been successfully initialized!")
-	assert.Contains(t, stderr.String(), "Running command: terraform init")
+	assert.Contains(t, stdout.String(), "has been successfully initialized!")
+	assert.Contains(t, stderr.String(), "Running command: tofu init")
 
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
@@ -5855,8 +5855,8 @@ func TestInitSkipCache(t *testing.T) {
 	)
 
 	// verify that init wasn't invoked second time since cache directories are ignored
-	assert.NotContains(t, stdout.String(), "Terraform has been successfully initialized!")
-	assert.NotContains(t, stderr.String(), "Running command: terraform init")
+	assert.NotContains(t, stdout.String(), "has been successfully initialized!")
+	assert.NotContains(t, stderr.String(), "Running command: tofu init")
 
 	// verify that after adding new file, init is executed
 	tfFile := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_CACHE, "app", "project.tf")
@@ -5873,8 +5873,8 @@ func TestInitSkipCache(t *testing.T) {
 	)
 
 	// verify that init was invoked
-	assert.Contains(t, stdout.String(), "Terraform has been successfully initialized!")
-	assert.Contains(t, stderr.String(), "Running command: terraform init")
+	assert.Contains(t, stdout.String(), "has been successfully initialized!")
+	assert.Contains(t, stderr.String(), "Running command: tofu init")
 }
 
 func TestRenderJsonWithInputsNotExistingOutput(t *testing.T) {
