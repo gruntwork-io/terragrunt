@@ -1398,19 +1398,19 @@ func TestTerraformSubcommandCliArgs(t *testing.T) {
 	}{
 		{
 			[]string{"force-unlock"},
-			"terraform force-unlock",
+			"tofu force-unlock",
 		},
 		{
 			[]string{"force-unlock", "foo"},
-			"terraform force-unlock foo",
+			"tofu force-unlock foo",
 		},
 		{
 			[]string{"force-unlock", "foo", "bar", "baz"},
-			"terraform force-unlock foo bar baz",
+			"tofu force-unlock foo bar baz",
 		},
 		{
 			[]string{"force-unlock", "foo", "bar", "baz", "foobar"},
-			"terraform force-unlock foo bar baz foobar",
+			"tofu force-unlock foo bar baz foobar",
 		},
 	}
 
@@ -1994,7 +1994,7 @@ func TestDependencyOutputOptimizationSkipInit(t *testing.T) {
 
 func TestDependencyOutputOptimizationNoGenerate(t *testing.T) {
 	expectOutputLogs := []string{
-		`Running command: terraform init -get=false prefix=\[.*fixture-get-output/nested-optimization-nogen/dep\]`,
+		`Running command: tofu init -get=false prefix=\[.*fixture-get-output/nested-optimization-nogen/dep\]`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization-nogen", true, expectOutputLogs)
 }
@@ -4895,7 +4895,7 @@ func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	require.NoError(t, err)
 	// providers initialization during first plan
-	assert.Equal(t, 1, strings.Count(stdout.String(), "Terraform has been successfully initialized!"))
+	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
 
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
@@ -4904,7 +4904,7 @@ func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
 	require.NoError(t, err)
 	// no initialization expected for second plan run
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
-	assert.Equal(t, 0, strings.Count(stdout.String(), "Terraform has been successfully initialized!"))
+	assert.Equal(t, 0, strings.Count(stdout.String(), "has been successfully initialized!"))
 }
 
 func TestAutoInitWhenSourceIsChanged(t *testing.T) {
