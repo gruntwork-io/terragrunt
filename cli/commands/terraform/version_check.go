@@ -17,6 +17,8 @@ import (
 // This version of Terragrunt was tested to work with Terraform 0.12.0 and above only
 const DefaultTerraformVersionConstraint = ">= v0.12.0"
 
+const OpensourceTerraformVersionConstraint = "<= 1.5.7"
+
 // TerraformVersionRegex verifies that terraform --version output is in one of the following formats:
 // - Terraform v0.9.5-dev (cad024a5fe131a546936674ef85445215bbc4226+CHANGES)
 // - Terraform v0.13.0-beta2
@@ -47,6 +49,14 @@ func checkVersionConstraints(terragruntOptions *options.TerragruntOptions) error
 	}
 	if err := PopulateTerraformVersion(terragruntOptions); err != nil {
 		return err
+	}
+
+	// Check if terraform version is supported
+	if terragruntOptions.TerraformImplementation == options.TerraformImpl {
+		if err := CheckTerraformVersion(OpensourceTerraformVersionConstraint, terragruntOptions); err != nil {
+			terragruntOptions.Logger.Errorf("Terragrunt don't support %s version of terraform, please use OpenTofu", terragruntOptions.TerraformVersion)
+			return err
+		}
 	}
 
 	terraformVersionConstraint := DefaultTerraformVersionConstraint
