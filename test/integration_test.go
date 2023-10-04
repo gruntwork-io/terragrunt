@@ -6148,7 +6148,7 @@ func TestRenderJsonDependentModulesTerraform(t *testing.T) {
 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
 	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
 
-	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
 	var renderedJson = map[string]interface{}{}
@@ -6170,7 +6170,7 @@ func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
 	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
 
-	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
 	var renderedJson = map[string]map[string]interface{}{}
