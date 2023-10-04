@@ -30,6 +30,10 @@ jobs:
           shell: powershell.exe
           command: ./_ci/install-terraform.ps1
       - run:
+          name: Install Opentofu
+          shell: powershell.exe
+          command: ./_ci/install-opentofu.ps1
+      - run:
           name: Install TFLint
           shell: powershell.exe
           command: ./_ci/install-tflint.ps1
