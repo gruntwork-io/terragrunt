@@ -1,20 +1,20 @@
-# This file is maintained automatically by "terraform init".
+# This file is maintained automatically by "tofu init".
 # Manual edits may be lost in future updates.
 
-provider "registry.terraform.io/hashicorp/aws" {
-  version = "3.0.0"
+provider "registry.opentofu.org/hashicorp/aws" {
+  version     = "5.19.0"
+  constraints = "5.19.0"
   hashes = [
-    "h1:ULKfwySvQ4pDhy027ryRhLxDhg640wsojYc+7NHMFBU=",
-    "h1:UyKRcHE2W3io32hVQD7s9Ovb9LSyTIvhAAPS9RX5vtg=",
-    "zh:25294510ae9c250502f2e37ac32b01017439735f098f82a1728772427626a2fd",
-    "zh:3b723e7772d47bd8cc11bea6e5d3e0b5e1df8398c0e7aaf510e3a8a54e0f1874",
-    "zh:4b7b73b86f4a0705d5d2a7f1d3ad3279706bdb3957a48f4a389c36918fba838e",
-    "zh:9e26cdc3be97e3001c253c0ca28c5c8ff2d5476373ca1beb849f3f3957ce7f1a",
-    "zh:9e73cf1304bf57968d3048d70c0b766d41497430a2a9a7a718a196f3a385106a",
-    "zh:a30b5b66facfbb2b02814e4cd33ca9899f9ade5bbf478f78c41d2fe789f0582a",
-    "zh:b06fb5da094db41cb5e430c95c988b73f32695e9f90f25499e926842dbd21b21",
-    "zh:c5a4ff607e9e9edee3fcd6d6666241fb532adf88ea1fe24f2aa1eb36845b3ca3",
-    "zh:df568a69087831c1780fac4395630a2cfb3cdf67b7dffbfe16bd78c64770bb75",
-    "zh:fce1b69dd673aace19508640b0b9b7eb1ef7e746d76cb846b49e7d52e0f5fb7e",
+    "h1:xoQFH3TCqCvdaBuqxChcPaooKWOuz3mHI3VKdgxnxEk=",
+    "zh:0c1887bd8efd1da9458ad6d8c59f33de21041d06db3a1d3fa8eae53404051943",
+    "zh:1c3604f15481eff8ccbbeb31b47acf11454a391c1247c7b23d4e3636f1ce4547",
+    "zh:3363e23fe87cb7b0fbbb5e6fc4ef58d2aff05ef5fdf17605e5fbd7e4ee91a312",
+    "zh:3cba361ff181877cb261762a8225a42c5d1053503cb53796b6277bfedeb1baf9",
+    "zh:7a9d7dfaa5878ab51c45d8b5b6bec74a42e12d755753efaee6b2075875d3afd0",
+    "zh:b160fd637ebf3ffb8ee3f4f17e8d51f50e176e26f7889464fd019d20dd045159",
+    "zh:b32b9da9dba98e5be8b9b110c5306e99f49e6608eb434e93211db5bc3a78412e",
+    "zh:b5b60196dd0ce47111fbe2792670a0aca4d8814d15c291d23f1cb29224fbd9a7",
+    "zh:bd349062b14435a8d8924b37208e51caa197617b7a5f2c26e488007c7c6f3298",
+    "zh:f574b9f4652b3d4209fe41f360868e2a90aebebff5f9000f94c507b520490f74",
   ]
 }
