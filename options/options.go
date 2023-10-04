@@ -27,6 +27,9 @@ const (
 	// no limits on parallelism by default (limited by GOPROCS)
 	DefaultParallelism = math.MaxInt32
 
+	// TofuDefaultPath command to run tofu
+	TofuDefaultPath = "tofu"
+
 	// TerraformDefaultPath just takes terraform from the path
 	TerraformDefaultPath = "terraform"
 
@@ -39,6 +42,8 @@ const (
 )
 
 const ContextKey ctxKey = iota
+
+var TofuPath = identifyDefaultTofuPath()
 
 type ctxKey byte
 
@@ -265,7 +270,7 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 // Create a new TerragruntOptions object with reasonable defaults for real usage
 func NewTerragruntOptions() *TerragruntOptions {
 	return &TerragruntOptions{
-		TerraformPath:                  TerraformDefaultPath,
+		TerraformPath:                  TofuPath,
 		OriginalTerraformCommand:       "",
 		TerraformCommand:               "",
 		AutoInit:                       true,
@@ -500,6 +505,15 @@ func (opts *TerragruntOptions) DataDir() string {
 		return tfDataDir
 	}
 	return util.JoinPath(opts.WorkingDir, tfDataDir)
+}
+
+// identifyDefaultTofuPath - return default path used for tofu invocation
+func identifyDefaultTofuPath() string {
+	if util.IsCommandExecutable(TofuDefaultPath, "-version") {
+		return TofuDefaultPath
+	}
+	// fallback to terraform
+	return TerraformDefaultPath
 }
 
 // Custom error types
