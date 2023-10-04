@@ -9,7 +9,7 @@ import (
 func TestExistingCommand(t *testing.T) {
 	t.Parallel()
 
-	assert.True(t, IsCommandExecutable("tofu", "--version"))
+	assert.True(t, IsCommandExecutable("pwd"))
 }
 
 func TestNotExistingCommand(t *testing.T) {
