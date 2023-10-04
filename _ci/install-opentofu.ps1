@@ -1,7 +1,7 @@
-OpenTofuInstallPath = "C:\Program Files\OpenTofu\tofu.exe"
+OpenTofuInstallPath = "C:\Program Files\tofu\tofu.exe"
 $OpenTofuTmpPath = "C:\OpenTofutmp"
-$OpenTofuTmpBinaryPath = "C:\OpenTofutmp\OpenTofu.exe"
-$OpenTofuPath = "C:\Program Files\OpenTofu"
+$OpenTofuTmpBinaryPath = "C:\OpenTofutmp\tofu.exe"
+$OpenTofuPath = "C:\Program Files\tofu"
 # Remove any old OpenTofu installation, if present
 if (Test-Path -Path $OpenTofuInstallPath)
 {
