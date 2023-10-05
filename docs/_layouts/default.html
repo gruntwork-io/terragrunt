@@ -4,6 +4,13 @@
         {% include head.html %}
     </head>
     <body{% if page.slug %} class="{{ page.slug }}{% if page.slug != 'index-page' and page.slug !='how-it-works' and page.slug != 'guides' %} sub-page{% endif %}" {% endif %}>
+        {% include banner.html
+            text="✨&nbsp;&nbsp;Terragrunt will support OpenTofu when it becomes available. To learn more, see the official"
+            link_url="https://opentofu.org/"
+            link_text="OpenTofu website."
+            target="_blank"
+            has_button=false
+        %}
         {{ content }}
         {% include footer.html %}
         {% include scripts.html %}
