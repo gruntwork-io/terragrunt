@@ -281,7 +281,7 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 // Create a new TerragruntOptions object with reasonable defaults for real usage
 func NewTerragruntOptions() *TerragruntOptions {
 	return &TerragruntOptions{
-		TerraformPath:                  TerraformDefaultPath,
+		TerraformPath:                  DefaultWrappedPath,
 		OriginalTerraformCommand:       "",
 		TerraformCommand:               "",
 		AutoInit:                       true,
