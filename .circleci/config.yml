@@ -123,8 +123,6 @@ jobs:
       - checkout
       - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.30.0'
       - run:
-          <<: *install_tofu
-      - run:
           <<: *install_tflint
 
       # Make GCP Service Account creds available as a file
