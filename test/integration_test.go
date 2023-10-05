@@ -1363,7 +1363,7 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 		},
 		{
 			[]string{"paln", "--terragrunt-disable-command-validation"},
-			"tofu invocation failed", // error caused by running terraform with the wrong command
+			wrappedBinary() + " invocation failed", // error caused by running terraform with the wrong command
 			nil,
 		},
 	}
@@ -1398,19 +1398,19 @@ func TestTerraformSubcommandCliArgs(t *testing.T) {
 	}{
 		{
 			[]string{"force-unlock"},
-			"tofu force-unlock",
+			wrappedBinary() + " force-unlock",
 		},
 		{
 			[]string{"force-unlock", "foo"},
-			"tofu force-unlock foo",
+			wrappedBinary() + " force-unlock foo",
 		},
 		{
 			[]string{"force-unlock", "foo", "bar", "baz"},
-			"tofu force-unlock foo bar baz",
+			wrappedBinary() + " force-unlock foo bar baz",
 		},
 		{
 			[]string{"force-unlock", "foo", "bar", "baz", "foobar"},
-			"tofu force-unlock foo bar baz foobar",
+			wrappedBinary() + " force-unlock foo bar baz foobar",
 		},
 	}
 
@@ -1920,7 +1920,7 @@ func TestTerragruntInfo(t *testing.T) {
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-tfpath tofu", rootPath), &showStdout, &showStderr)
 	assert.Nil(t, err)
 
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
@@ -1980,7 +1980,7 @@ func TestYamlDecodeRegressions(t *testing.T) {
 // module has been destroyed.
 func TestDependencyOutputOptimization(t *testing.T) {
 	expectOutputLogs := []string{
-		`Running command: tofu init -get=false prefix=\[.*fixture-get-output/nested-optimization/dep\]`,
+		`Running command: ` + wrappedBinary() + ` init -get=false prefix=\[.*fixture-get-output/nested-optimization/dep\]`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization", true, expectOutputLogs)
 }
@@ -1994,7 +1994,7 @@ func TestDependencyOutputOptimizationSkipInit(t *testing.T) {
 
 func TestDependencyOutputOptimizationNoGenerate(t *testing.T) {
 	expectOutputLogs := []string{
-		`Running command: tofu init -get=false prefix=\[.*fixture-get-output/nested-optimization-nogen/dep\]`,
+		`Running command: ` + wrappedBinary() + ` init -get=false prefix=\[.*fixture-get-output/nested-optimization-nogen/dep\]`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization-nogen", true, expectOutputLogs)
 }
@@ -3988,7 +3988,7 @@ func TestLogFailingDependencies(t *testing.T) {
 	output := stderr.String()
 
 	assert.Error(t, err)
-	assert.Contains(t, output, "tofu invocation failed in fixture-broken-dependency/dependency")
+	assert.Contains(t, output, wrappedBinary()+" invocation failed in fixture-broken-dependency/dependency")
 }
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
@@ -5844,7 +5844,7 @@ func TestInitSkipCache(t *testing.T) {
 
 	// verify that init was invoked
 	assert.Contains(t, stdout.String(), "has been successfully initialized!")
-	assert.Contains(t, stderr.String(), "Running command: tofu init")
+	assert.Contains(t, stderr.String(), "Running command: "+wrappedBinary()+" init")
 
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
@@ -5856,7 +5856,7 @@ func TestInitSkipCache(t *testing.T) {
 
 	// verify that init wasn't invoked second time since cache directories are ignored
 	assert.NotContains(t, stdout.String(), "has been successfully initialized!")
-	assert.NotContains(t, stderr.String(), "Running command: tofu init")
+	assert.NotContains(t, stderr.String(), "Running command: "+wrappedBinary()+" init")
 
 	// verify that after adding new file, init is executed
 	tfFile := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_CACHE, "app", "project.tf")
@@ -5874,7 +5874,7 @@ func TestInitSkipCache(t *testing.T) {
 
 	// verify that init was invoked
 	assert.Contains(t, stdout.String(), "has been successfully initialized!")
-	assert.Contains(t, stderr.String(), "Running command: tofu init")
+	assert.Contains(t, stderr.String(), "Running command: "+wrappedBinary()+" init")
 }
 
 func TestRenderJsonWithInputsNotExistingOutput(t *testing.T) {
@@ -6201,4 +6201,12 @@ func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string
 	output, hasPlatform := outputs[key]
 	require.Truef(t, hasPlatform, "Expected output %s to be defined", key)
 	require.Equalf(t, output.Value, value, "Expected output %s to be %t", key, value)
+}
+
+func wrappedBinary() string {
+	value, found := os.LookupEnv("TERRAGRUNT_TFPATH")
+	if !found {
+		return TERRAFORM_BINARY
+	}
+	return value
 }
