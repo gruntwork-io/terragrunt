@@ -43,7 +43,7 @@ const (
 
 const ContextKey ctxKey = iota
 
-var TofuPath = identifyDefaultTofuPath()
+var DefaultWrappedPath = identifyDefaultWrappedExecutable()
 
 type ctxKey byte
 
@@ -281,7 +281,7 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 // Create a new TerragruntOptions object with reasonable defaults for real usage
 func NewTerragruntOptions() *TerragruntOptions {
 	return &TerragruntOptions{
-		TerraformPath:                  TofuPath,
+		TerraformPath:                  TerraformDefaultPath,
 		OriginalTerraformCommand:       "",
 		TerraformCommand:               "",
 		AutoInit:                       true,
@@ -520,13 +520,13 @@ func (opts *TerragruntOptions) DataDir() string {
 	return util.JoinPath(opts.WorkingDir, tfDataDir)
 }
 
-// identifyDefaultTofuPath - return default path used for tofu invocation
-func identifyDefaultTofuPath() string {
-	if util.IsCommandExecutable(TofuDefaultPath, "-version") {
-		return TofuDefaultPath
+// identifyDefaultWrappedExecutable - return default path used for wrapped executable
+func identifyDefaultWrappedExecutable() string {
+	if util.IsCommandExecutable(TerraformDefaultPath, "-version") {
+		return TerraformDefaultPath
 	}
-	// fallback to terraform
-	return TerraformDefaultPath
+	// fallback to Tofu if terraform is not available
+	return TofuDefaultPath
 }
 
 // Custom error types
