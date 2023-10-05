@@ -1920,30 +1920,18 @@ func TestTerragruntInfo(t *testing.T) {
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-tfpath tofu", rootPath), &showStdout, &showStderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
 	assert.Nil(t, err)
 
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
 
 	var dat terragruntinfo.TerragruntInfoGroup
-	err_unmarshal := json.Unmarshal(showStdout.Bytes(), &dat)
-	assert.Nil(t, err_unmarshal)
+	errUnmarshal := json.Unmarshal(showStdout.Bytes(), &dat)
+	assert.Nil(t, errUnmarshal)
 
 	assert.Equal(t, dat.DownloadDir, fmt.Sprintf("%s/%s", rootPath, TERRAGRUNT_CACHE))
-	assert.Equal(t, dat.TerraformBinary, TOFU_BINARY)
+	assert.Equal(t, dat.TerraformBinary, wrappedBinary())
 	assert.Equal(t, dat.IamRole, "")
-
-	showStdout = bytes.Buffer{}
-	showStderr = bytes.Buffer{}
-
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-tfpath terraform", rootPath), &showStdout, &showStderr)
-	assert.Nil(t, err)
-
-	logBufferContentsLineByLine(t, showStdout, "show stdout")
-
-	err_unmarshal = json.Unmarshal(showStdout.Bytes(), &dat)
-	assert.Nil(t, err_unmarshal)
-	assert.Equal(t, dat.TerraformBinary, TERRAFORM_BINARY)
 }
 
 // Test case for yamldecode bug: https://github.com/gruntwork-io/terragrunt/issues/834

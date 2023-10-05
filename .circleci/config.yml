@@ -64,9 +64,20 @@ jobs:
           shell: powershell.exe
           command: ./_ci/install-tflint.ps1
       - run:
-          name: Run go tests
+          name: Run go terraform tests
           shell: powershell.exe
           no_output_timeout: 45m
+          command: |
+            # We're running this test only on Windows currently to provide a convenient
+            # means of reproducing Terragrunt issues that only occur on that platform
+            go test -v ./... -run TestWindowsTerragruntSourceMapDebug -timeout 45m
+            go test -v ./... -run TestWindowsTflintIsInvoked -timeout 45m
+      - run:
+          name: Run go tofu tests
+          shell: powershell.exe
+          no_output_timeout: 45m
+          environment:
+            TERRAGRUNT_TFPATH: tofu
           command: |
             # We're running this test only on Windows currently to provide a convenient
             # means of reproducing Terragrunt issues that only occur on that platform
@@ -105,7 +116,7 @@ jobs:
       - store_test_results:
           path: logs
 
-  integration_test:
+  integration_test_terraform:
     resource_class: large
     <<: *defaults
     steps:
@@ -151,11 +162,14 @@ jobs:
       - run:
           command: |
             gpg --import --no-tty --batch --yes ./test/fixture-sops/test_pgp_key.asc
+            # remove terraform 
+            sudo rm -f $(which terraform)
             mkdir -p logs
-            # use tofu as wrapper
-            export TERRAGRUNT_TFPATH=tofu
             run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
           no_output_timeout: 30m
+          environment:
+            # use tofu as wrapper
+            TERRAGRUNT_TFPATH: tofu
       - run:
           command: terratest_log_parser --testlog logs/integration.log --outputdir logs
           when: always
@@ -263,7 +277,7 @@ workflows:
             - GITHUB__PAT__gruntwork-ci
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
-      - integration_test:
+      - integration_test_terraform:
           filters:
             tags:
               only: /^v.*/
