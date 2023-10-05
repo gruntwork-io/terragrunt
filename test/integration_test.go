@@ -1338,22 +1338,22 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 	}{
 		{
 			[]string{"version"},
-			"tofu version",
+			wrappedBinary() + " version",
 			nil,
 		},
 		{
 			[]string{"version", "foo"},
-			"tofu version foo",
+			wrappedBinary() + " version foo",
 			nil,
 		},
 		{
 			[]string{"version", "foo", "bar", "baz"},
-			"tofu version foo bar baz",
+			wrappedBinary() + " version foo bar baz",
 			nil,
 		},
 		{
 			[]string{"version", "foo", "bar", "baz", "foobar"},
-			"tofu version foo bar baz foobar",
+			wrappedBinary() + " version foo bar baz foobar",
 			nil,
 		},
 		{
@@ -6203,6 +6203,7 @@ func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string
 	require.Equalf(t, output.Value, value, "Expected output %s to be %t", key, value)
 }
 
+// wrappedBinary - return which binary will be wrapped by Terragrunt, useful in CICD to run same tests against tofu and terraform
 func wrappedBinary() string {
 	value, found := os.LookupEnv("TERRAGRUNT_TFPATH")
 	if !found {
