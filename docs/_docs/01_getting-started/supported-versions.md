@@ -35,7 +35,9 @@ The officially supported versions are:
 | 0.12.x            | [0.19.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.19.0) - [0.24.4](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.24.4) |
 | 0.11.x            | [0.14.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.14.0) - [0.18.7](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.18.7) |
 
-With the HashiCorp Terraform BSL license change, will be supported Terraform versions `<= 1.5.7`, for newer features, please use OpenTofu.
+Due to the HashiCorp BSL license change, we are restricting Terraform to the latest open source version (`1.5.7`).
+Going forward we will be adding support for OpenTofu. To learn more, see the official [OpenTofu website](https://opentofu.org/)
+and [project status](https://github.com/opentofu/opentofu/blob/main/WEEKLY_UPDATES.md).
 
 However, note that these are the versions that are officially tested in the CI process. In practice, the version
 compatibility is more relaxed than documented above. For example, we've found that Terraform 0.13 works with any version

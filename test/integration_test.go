@@ -173,6 +173,7 @@ const (
 	TEST_FIXTURE_NO_SUBMODULES                                               = "fixture-no-submodules/"
 	TEST_FIXTURE_DISABLED_MODULE                                             = "fixture-disabled/"
 	TEST_FIXTURE_EMPTY_STATE                                                 = "fixture-empty-state/"
+	TEST_FIXTURE_TF_1_6                                                      = "fixture-tf-1-6/"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -6194,6 +6195,25 @@ func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
 	// check if value list contains app-v1 and app-v2
 	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v1"))
 	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v2"))
+}
+
+func TestTerragruntFailUnsupportedTerraform(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := TEST_FIXTURE_TF_1_6
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
+	// generating path to custom script which return 1.6.0 version of terraform
+	curdir, err := os.Getwd()
+	require.NoError(t, err)
+	tfBinary := filepath.Join(curdir, generateTestCase, "tf-1-6.sh")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-working-dir %s --terragrunt-tfpath %s", generateTestCase, tfBinary), &stdout, &stderr)
+	require.Error(t, err)
+	require.Contains(t, stderr.String(), "Terragrunt don't support 1.6.0 version of terraform, please use OpenTofu")
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
