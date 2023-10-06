@@ -6192,6 +6192,8 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_EXTERNAL_DEPENDENCY)
 
+	assert.NoError(t, os.Mkdir(filepath.ToSlash("/tmp/external-46521694"), 0755))
+
 	output, err := exec.Command("git", "init", tmpEnvPath).CombinedOutput()
 	if err != nil {
 		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))

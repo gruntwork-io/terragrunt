@@ -1,3 +1,3 @@
 dependencies {
-  paths = ["/tmp/external1"]
+  paths = ["/tmp/external-46521694"]
 }
