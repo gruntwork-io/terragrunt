@@ -6219,8 +6219,8 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	captured := <-capturedOutput
 
 	require.NoError(t, err)
+	require.NotContains(t, captured, "Should Terragrunt apply the external dependency?")
 	require.NotContains(t, captured, "/tmp/external1")
-
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
