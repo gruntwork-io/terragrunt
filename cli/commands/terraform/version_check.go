@@ -22,7 +22,7 @@ const DefaultTerraformVersionConstraint = ">= v0.12.0"
 // - Terraform v0.13.0-beta2
 // - Terraform v0.12.27
 // We only make sure the "v#.#.#" part is present in the output.
-var TerraformVersionRegex = regexp.MustCompile(`Terraform (v?\d+\.\d+\.\d+).*`)
+var TerraformVersionRegex = regexp.MustCompile(`^(.*?)\s(v?\d+\.\d+\.\d+).*`)
 
 // Check the version constraints of both terragrunt and terraform. Note that as a side effect this will set the
 // following settings on terragruntOptions:
@@ -42,7 +42,7 @@ func checkVersionConstraints(terragruntOptions *options.TerragruntOptions) error
 
 	// Change the terraform binary path before checking the version
 	// if the path is not changed from default and set in the config.
-	if terragruntOptions.TerraformPath == options.TerraformDefaultPath && partialTerragruntConfig.TerraformBinary != "" {
+	if terragruntOptions.TerraformPath == options.DefaultWrappedPath && partialTerragruntConfig.TerraformBinary != "" {
 		terragruntOptions.TerraformPath = partialTerragruntConfig.TerraformBinary
 	}
 	if err := PopulateTerraformVersion(terragruntOptions); err != nil {
@@ -92,8 +92,20 @@ func PopulateTerraformVersion(terragruntOptions *options.TerragruntOptions) erro
 		return err
 	}
 
+	tfImplementation, err := parseTerraformImplementationType(output.Stdout)
+	if err != nil {
+		return err
+	}
+
 	terragruntOptions.TerraformVersion = terraformVersion
-	terragruntOptions.Logger.Debugf("Terraform version: %s", terraformVersion)
+	terragruntOptions.TerraformImplementation = tfImplementation
+
+	if tfImplementation == options.UnknownImpl {
+		terragruntOptions.TerraformImplementation = options.TerraformImpl
+		terragruntOptions.Logger.Warnf("Failed to identify Terraform implementation, fallback to terraform version: %s", terraformVersion)
+	} else {
+		terragruntOptions.Logger.Debugf("%s version: %s", tfImplementation, terraformVersion)
+	}
 	return nil
 }
 
@@ -141,11 +153,29 @@ func checkTerraformVersionMeetsConstraint(currentVersion *version.Version, const
 func parseTerraformVersion(versionCommandOutput string) (*version.Version, error) {
 	matches := TerraformVersionRegex.FindStringSubmatch(versionCommandOutput)
 
-	if len(matches) != 2 {
+	if len(matches) != 3 {
 		return nil, errors.WithStackTrace(InvalidTerraformVersionSyntax(versionCommandOutput))
 	}
 
-	return version.NewVersion(matches[1])
+	return version.NewVersion(matches[2])
+}
+
+// parseTerraformImplementationType - Parse terraform implementation from --version command output
+func parseTerraformImplementationType(versionCommandOutput string) (options.TerraformImplementationType, error) {
+	matches := TerraformVersionRegex.FindStringSubmatch(versionCommandOutput)
+
+	if len(matches) != 3 {
+		return options.UnknownImpl, errors.WithStackTrace(InvalidTerraformVersionSyntax(versionCommandOutput))
+	}
+	rawType := strings.ToLower(matches[1])
+	switch rawType {
+	case "terraform":
+		return options.TerraformImpl, nil
+	case "opentofu":
+		return options.OpenTofuImpl, nil
+	default:
+		return options.UnknownImpl, nil
+	}
 }
 
 // Custom error types

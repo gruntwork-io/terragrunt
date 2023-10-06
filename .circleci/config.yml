@@ -13,6 +13,32 @@ defaults: &defaults
   docker:
     - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.21-tf1.5-tg39.1-pck1.8-ci50.7
 
+install_tofu: &install_tofu
+  name: Install OpenTofu
+  command: |
+    pushd .
+    cd /tmp
+    curl -L "https://github.com/opentofu/opentofu/releases/download/v1.6.0-alpha1/tofu_1.6.0-alpha1_linux_amd64.zip" -o tofu.zip
+    unzip -o tofu.zip
+    sudo install -m 0755 tofu /usr/local/bin/tofu
+    rm -rf tofu
+    rm -rf tofu.zip
+    popd
+    tofu --version
+
+install_tflint: &install_tflint
+  name: Install Tflint
+  command: |
+    pushd .
+    cd /tmp
+    curl -L "https://github.com/terraform-linters/tflint/releases/download/v0.47.0/tflint_linux_amd64.zip" -o tflint.zip
+    unzip -o tflint.zip
+    sudo install -m 0755 tflint /usr/local/bin/tflint
+    rm -rf tflint
+    rm -rf tflint.zip
+    popd
+    tflint --version
+
 version: 2.1
 jobs:
   test_windows:
@@ -30,13 +56,28 @@ jobs:
           shell: powershell.exe
           command: ./_ci/install-terraform.ps1
       - run:
+          name: Install Opentofu
+          shell: powershell.exe
+          command: ./_ci/install-opentofu.ps1
+      - run:
           name: Install TFLint
           shell: powershell.exe
           command: ./_ci/install-tflint.ps1
       - run:
-          name: Run go tests
+          name: Run go terraform tests
           shell: powershell.exe
           no_output_timeout: 45m
+          command: |
+            # We're running this test only on Windows currently to provide a convenient
+            # means of reproducing Terragrunt issues that only occur on that platform
+            go test -v ./... -run TestWindowsTerragruntSourceMapDebug -timeout 45m
+            go test -v ./... -run TestWindowsTflintIsInvoked -timeout 45m
+      - run:
+          name: Run go tofu tests
+          shell: powershell.exe
+          no_output_timeout: 45m
+          environment:
+            TERRAGRUNT_TFPATH: tofu
           command: |
             # We're running this test only on Windows currently to provide a convenient
             # means of reproducing Terragrunt issues that only occur on that platform
@@ -74,24 +115,16 @@ jobs:
           path: logs
       - store_test_results:
           path: logs
-  integration_test:
+
+  integration_test_terraform:
     resource_class: large
     <<: *defaults
     steps:
       - checkout
       - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.30.0'
-      # install tflint
       - run:
-          command: |
-            pushd .
-            cd /tmp
-            curl -L "https://github.com/terraform-linters/tflint/releases/download/v0.47.0/tflint_linux_amd64.zip" -o tflint.zip
-            unzip -o tflint.zip
-            sudo install -m 0755 tflint /usr/local/bin/tflint
-            rm -rf tflint
-            rm -rf tflint.zip
-            popd
-            tflint --version
+          <<: *install_tflint
+
       # Make GCP Service Account creds available as a file
       - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
       - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
@@ -105,9 +138,66 @@ jobs:
       - run:
           command: terratest_log_parser --testlog logs/integration.log --outputdir logs
           when: always
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
+  integration_test_tofu:
+    resource_class: large
+    <<: *defaults
+    steps:
+      - checkout
+      - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.30.0'
+      - run:
+          <<: *install_tofu
+      - run:
+          <<: *install_tflint
+      # Make GCP Service Account creds available as a file
+      - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
+      - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
+      # Import test / dev key for SOPS
+      - run:
+          command: |
+            gpg --import --no-tty --batch --yes ./test/fixture-sops/test_pgp_key.asc
+            # remove terraform 
+            sudo rm -f $(which terraform)
+            mkdir -p logs
+            run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
+          no_output_timeout: 30m
+          environment:
+            # use tofu as wrapper
+            TERRAGRUNT_TFPATH: tofu
+      - run:
+          command: terratest_log_parser --testlog logs/integration.log --outputdir logs
+          when: always
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
+  integration_test_tflint:
+    resource_class: large
+    <<: *defaults
+    steps:
+      - checkout
+      - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.30.0'
+      - run:
+          <<: *install_tofu
+      - run:
+          <<: *install_tflint
+      # Make GCP Service Account creds available as a file
+      - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
+      - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
+      # Import test / dev key for SOPS
+      - run:
+          command: |
+            gpg --import --no-tty --batch --yes ./test/fixture-sops/test_pgp_key.asc
+          no_output_timeout: 30m
       # Run TFLint tests separately as tflint during execution change working directory.
       - run:
           command: |
+            mkdir -p logs
             run-go-tests --packages "-tags tflint -run TestTflint ./test" | tee logs/integration.log
           no_output_timeout: 30m
       - run:
@@ -117,6 +207,7 @@ jobs:
           path: logs
       - store_test_results:
           path: logs
+
   build:
     resource_class: large
     <<: *defaults
@@ -184,7 +275,25 @@ workflows:
             - GITHUB__PAT__gruntwork-ci
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
-      - integration_test:
+      - integration_test_terraform:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GITHUB__PAT__gruntwork-ci
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+      - integration_test_tofu:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GITHUB__PAT__gruntwork-ci
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+      - integration_test_tflint:
           filters:
             tags:
               only: /^v.*/

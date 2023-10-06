@@ -1,13 +1,21 @@
 ---
 layout: collection-browser-doc
-title: Terraform Version Compatibility Table
+title: Terraform and OpenTofu Version Compatibility Table
 category: getting-started
-excerpt: Learn which Terraform versions are compatible with which versions of Terragrunt.
+excerpt: Learn which Terraform and OpenTofu versions are compatible with which versions of Terragrunt.
 tags: ["install"]
 order: 102
 nav_title: Documentation
 nav_title_link: /docs/
 ---
+
+## Supported OpenTofu Versions
+
+The officially supported versions are:
+
+| OpenTofu Version | Terragrunt Version                                                           |
+|------------------|------------------------------------------------------------------------------|
+| 1.6.x            | >= [0.52.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.52.0) |
 
 ## Supported Terraform Versions
 
@@ -26,7 +34,6 @@ The officially supported versions are:
 | 0.13.x            | >= [0.25.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.25.0)                                                                          |
 | 0.12.x            | [0.19.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.19.0) - [0.24.4](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.24.4) |
 | 0.11.x            | [0.14.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.14.0) - [0.18.7](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.18.7) |
-
 
 However, note that these are the versions that are officially tested in the CI process. In practice, the version
 compatibility is more relaxed than documented above. For example, we've found that Terraform 0.13 works with any version

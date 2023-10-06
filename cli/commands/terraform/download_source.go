@@ -78,7 +78,7 @@ func downloadTerraformSourceIfNecessary(terraformSource *terraform.Source, terra
 		if err := validateWorkingDir(terraformSource); err != nil {
 			return err
 		}
-		terragruntOptions.Logger.Debugf("Terraform files in %s are up to date. Will not download again.", terraformSource.WorkingDir)
+		terragruntOptions.Logger.Debugf("%s files in %s are up to date. Will not download again.", terragruntOptions.TerraformImplementation, terraformSource.WorkingDir)
 		return nil
 	}
 
