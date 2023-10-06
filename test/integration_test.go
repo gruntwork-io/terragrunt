@@ -173,6 +173,7 @@ const (
 	TEST_FIXTURE_NO_SUBMODULES                                               = "fixture-no-submodules/"
 	TEST_FIXTURE_DISABLED_MODULE                                             = "fixture-disabled/"
 	TEST_FIXTURE_EMPTY_STATE                                                 = "fixture-empty-state/"
+	TEST_FIXTURE_EXTERNAL_DEPENDENCY                                         = "fixture-external-dependency/"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -6182,6 +6183,44 @@ func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
 	// check if value list contains app-v1 and app-v2
 	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v1"))
 	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v2"))
+}
+
+func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_EXTERNAL_DEPENDENCY)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_EXTERNAL_DEPENDENCY)
+
+	output, err := exec.Command("git", "init", tmpEnvPath).CombinedOutput()
+	if err != nil {
+		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
+	}
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stderr
+	os.Stderr = w
+
+	err = runTerragruntCommand(t, fmt.Sprintf("trragrunt destroy --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	os.Stderr = oldStdout
+	assert.NoError(t, w.Close())
+
+	capturedOutput := make(chan string)
+	go func() {
+		var buf bytes.Buffer
+		_, e := io.Copy(&buf, r)
+		assert.NoError(t, e)
+		capturedOutput <- buf.String()
+	}()
+
+	captured := <-capturedOutput
+
+	require.NoError(t, err)
+	require.NotContains(t, captured, "/tmp/external1")
+
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
