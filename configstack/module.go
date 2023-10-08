@@ -563,6 +563,8 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 		cfgOptions.Env = terragruntOptions.Env
 		cfgOptions.LogLevel = terragruntOptions.LogLevel
 		cfgOptions.OriginalTerragruntConfigPath = terragruntOptions.OriginalTerragruntConfigPath
+		cfgOptions.TerraformCommand = terragruntOptions.TerraformCommand
+		cfgOptions.NonInteractive = true
 
 		var hook = NewForceLogLevelHook(logrus.DebugLevel)
 		cfgOptions.Logger.Logger.AddHook(hook)
