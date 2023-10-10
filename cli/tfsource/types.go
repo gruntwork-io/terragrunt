@@ -103,7 +103,7 @@ func (terraformSource TerraformSource) WriteVersionFile() error {
 	return errors.WithStackTrace(ioutil.WriteFile(terraformSource.VersionFile, []byte(version), 0640))
 }
 
-// Take the given source path and create a TerraformSource struct from it, including the folder where the source should
+// NewTerraformSource takes the given source path and create a TerraformSource struct from it, including the folder where the source should
 // be downloaded to. Our goal is to reuse the download folder for the same source URL between Terragrunt runs.
 // Otherwise, for every Terragrunt command, you'd have to wait for Terragrunt to download your Terraform code, download
 // that code's dependencies (terraform get), and configure remote state (terraform remote config), which is very slow.
@@ -163,8 +163,7 @@ func NewTerraformSource(source string, downloadDir string, workingDir string, lo
 		return nil, err
 	}
 
-	encodedWorkingDir := util.EncodeBase64Sha1(canonicalWorkingDir)
-	updatedDownloadDir := util.JoinPath(downloadDir, encodedWorkingDir, rootPath)
+	updatedDownloadDir := util.JoinPath(downloadDir, rootPath)
 	updatedWorkingDir := util.JoinPath(updatedDownloadDir, modulePath)
 	versionFile := util.JoinPath(updatedDownloadDir, ".terragrunt-source-version")
 
@@ -254,8 +253,6 @@ func encodeSourceName(sourceUrl *url.URL) (string, error) {
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
-
-	sourceUrlNoQuery.RawQuery = ""
 
 	return util.EncodeBase64Sha1(sourceUrlNoQuery.String()), nil
 }
