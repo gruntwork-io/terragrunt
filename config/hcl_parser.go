@@ -3,13 +3,14 @@ package config
 import (
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/errors"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
+
+	"github.com/gruntwork-io/terragrunt/errors"
+	"github.com/gruntwork-io/terragrunt/options"
 )
 
 // parseHcl uses the HCL2 parser to parse the given string into an HCL file body.
@@ -82,8 +83,8 @@ func decodeHcl(
 	}
 
 	decodeDiagnostics := gohcl.DecodeBody(file.Body, evalContext, out)
-	if decodeDiagnostics != nil && decodeDiagnostics.HasErrors() {
-		return decodeDiagnostics
+	if decodeDiagnostics != nil && terragruntOptions.Logger != nil {
+		terragruntOptions.Logger.Debugf("a hcl diagnotic was returned decoding file: %q into: %T, err: %s", filename, out, decodeDiagnostics.Error())
 	}
 
 	return nil
