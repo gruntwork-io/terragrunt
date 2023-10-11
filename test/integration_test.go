@@ -6192,6 +6192,9 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_EXTERNAL_DEPENDENCY)
 
+	t.Cleanup(func() {
+		os.RemoveAll(filepath.ToSlash("/tmp/external-46521694"))
+	})
 	assert.NoError(t, os.Mkdir(filepath.ToSlash("/tmp/external-46521694"), 0755))
 
 	output, err := exec.Command("git", "init", tmpEnvPath).CombinedOutput()
