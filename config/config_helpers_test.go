@@ -1128,6 +1128,24 @@ func TestStrContains(t *testing.T) {
 	}
 }
 
+func TestReadTFVarFiles(t *testing.T) {
+	t.Parallel()
+
+	options := terragruntOptionsForTest(t, DefaultTerragruntConfigPath)
+	tgConfigCty, err := readTerragruntConfig("../test/fixture-read-tf-vars/terragrunt.hcl", nil, options)
+	require.NoError(t, err)
+
+	tgConfigMap, err := parseCtyValueToMap(tgConfigCty)
+	require.NoError(t, err)
+
+	locals := tgConfigMap["locals"].(map[string]interface{})
+
+	assert.Equal(t, locals["string_var"].(string), "string")
+	assert.Equal(t, locals["number_var"].(float64), float64(42))
+	assert.Equal(t, locals["bool_var"].(bool), true)
+	assert.Equal(t, locals["list_var"].([]interface{}), []interface{}{"hello", "world"})
+}
+
 func mockConfigWithSource(sourceUrl string) *TerragruntConfig {
 	cfg := TerragruntConfig{IsPartial: true}
 	cfg.Terraform = &TerraformConfig{Source: &sourceUrl}

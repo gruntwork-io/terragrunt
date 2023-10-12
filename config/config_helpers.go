@@ -1,7 +1,9 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -141,6 +143,7 @@ func CreateTerragruntEvalContext(
 		"sops_decrypt_file":                            wrapStringSliceToStringAsFuncImpl(sopsDecryptFile, extensions.TrackInclude, terragruntOptions),
 		"get_terragrunt_source_cli_flag":               wrapVoidToStringAsFuncImpl(getTerragruntSourceCliFlag, extensions.TrackInclude, terragruntOptions),
 		"get_default_retryable_errors":                 wrapVoidToStringSliceAsFuncImpl(getDefaultRetryableErrors, extensions.TrackInclude, terragruntOptions),
+		"read_tfvars_file":                             wrapStringSliceToStringAsFuncImpl(readTFVarsFile, extensions.TrackInclude, terragruntOptions),
 	}
 
 	// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
@@ -842,7 +845,60 @@ func strContains(args []string, trackInclude *TrackInclude, terragruntOptions *o
 	return false, nil
 }
 
+func readTFVarsFile(args []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (string, error) {
+
+	if len(args) != 1 {
+		return "", errors.WithStackTrace(WrongNumberOfParams{Func: "read_tfvars_file", Expected: "1", Actual: len(args)})
+	}
+
+	varFile := args[0]
+	varFile, err := util.CanonicalPath(varFile, terragruntOptions.WorkingDir)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	if !util.FileExists(varFile) {
+		return "", errors.WithStackTrace(TFVarFileNotFound{File: varFile})
+	}
+
+	fileContents, err := os.ReadFile(varFile)
+	if err != nil {
+		return "", errors.WithStackTrace(fmt.Errorf("could not read file %q: %w", varFile, err))
+	}
+
+	if strings.HasSuffix(varFile, "json") {
+		var variables map[string]interface{}
+		// just want to be sure that the file is valid json
+		if err := json.Unmarshal(fileContents, &variables); err != nil {
+			return "", errors.WithStackTrace(fmt.Errorf("could not unmarshal json body of tfvar file: %w", err))
+		}
+		return string(fileContents), nil
+	} else {
+		var variables map[string]interface{}
+		if err := ParseAndDecodeVarFile(string(fileContents), varFile, &variables); err != nil {
+			return "", err
+		}
+
+		data, err := json.Marshal(variables)
+		if err != nil {
+			return "", errors.WithStackTrace(fmt.Errorf("could not marshal json body of tfvar file: %w", err))
+		}
+		return string(data), nil
+	}
+
+}
+
 // Custom error types
+
+type TFVarFileNotFound struct {
+	File  string
+	Cause string
+}
+
+func (err TFVarFileNotFound) Error() string {
+	return fmt.Sprintf("TFVarFileNotFound: Could not find a %s. Cause: %s.", err.File, err.Cause)
+}
+
 type WrongNumberOfParams struct {
 	Func     string
 	Expected string
