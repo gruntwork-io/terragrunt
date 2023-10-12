@@ -7,7 +7,7 @@ package validateinputs
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -266,7 +266,7 @@ func getVarNamesFromVarFiles(varFiles []string) ([]string, error) {
 // getVarNamesFromVarFile will parse the given terraform var file and return a list of names of variables that are
 // configured in that var file.
 func getVarNamesFromVarFile(varFile string) ([]string, error) {
-	fileContents, err := ioutil.ReadFile(varFile)
+	fileContents, err := os.ReadFile(varFile)
 	if err != nil {
 		return nil, err
 	}

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/url"
 	"os"
@@ -174,7 +173,9 @@ const (
 	TEST_FIXTURE_NO_SUBMODULES                                               = "fixture-no-submodules/"
 	TEST_FIXTURE_DISABLED_MODULE                                             = "fixture-disabled/"
 	TEST_FIXTURE_EMPTY_STATE                                                 = "fixture-empty-state/"
+	TEST_FIXTURE_EXTERNAL_DEPENDENCY                                         = "fixture-external-dependency/"
 	TERRAFORM_BINARY                                                         = "terraform"
+	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
 	TERRAFORM_STATE                                                          = "terraform.tfstate"
 	TERRAFORM_STATE_BACKUP                                                   = "terraform.tfstate.backup"
@@ -310,9 +311,9 @@ func TestTerragruntHookRunAllApply(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
-	_, beforeErr := ioutil.ReadFile(beforeOnlyPath + "/file.out")
+	_, beforeErr := os.ReadFile(beforeOnlyPath + "/file.out")
 	assert.NoError(t, beforeErr)
-	_, afterErr := ioutil.ReadFile(afterOnlyPath + "/file.out")
+	_, afterErr := os.ReadFile(afterOnlyPath + "/file.out")
 	assert.NoError(t, afterErr)
 }
 
@@ -327,9 +328,9 @@ func TestTerragruntHookApplyAll(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all -auto-approve --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
-	_, beforeErr := ioutil.ReadFile(beforeOnlyPath + "/file.out")
+	_, beforeErr := os.ReadFile(beforeOnlyPath + "/file.out")
 	assert.NoError(t, beforeErr)
-	_, afterErr := ioutil.ReadFile(afterOnlyPath + "/file.out")
+	_, afterErr := os.ReadFile(afterOnlyPath + "/file.out")
 	assert.NoError(t, afterErr)
 }
 
@@ -342,7 +343,7 @@ func TestTerragruntBeforeHook(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
-	_, exception := ioutil.ReadFile(rootPath + "/file.out")
+	_, exception := os.ReadFile(rootPath + "/file.out")
 
 	assert.NoError(t, exception)
 }
@@ -367,7 +368,7 @@ func TestTerragruntAfterHook(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
-	_, exception := ioutil.ReadFile(rootPath + "/file.out")
+	_, exception := os.ReadFile(rootPath + "/file.out")
 
 	assert.NoError(t, exception)
 }
@@ -383,8 +384,8 @@ func TestTerragruntBeforeAndAfterHook(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 
-	_, beforeException := ioutil.ReadFile(rootPath + "/before.out")
-	_, afterException := ioutil.ReadFile(rootPath + "/after.out")
+	_, beforeException := os.ReadFile(rootPath + "/before.out")
+	_, afterException := os.ReadFile(rootPath + "/after.out")
 
 	output := stdout.String()
 
@@ -418,14 +419,14 @@ func TestTerragruntBeforeAfterAndErrorMergeHook(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath), &stdout, &stderr)
 	assert.ErrorContains(t, err, "executable file not found in $PATH")
 
-	_, beforeException := ioutil.ReadFile(childPath + "/before.out")
-	_, beforeChildException := ioutil.ReadFile(childPath + "/before-child.out")
-	_, beforeOverriddenParentException := ioutil.ReadFile(childPath + "/before-parent.out")
-	_, afterException := ioutil.ReadFile(childPath + "/after.out")
-	_, afterParentException := ioutil.ReadFile(childPath + "/after-parent.out")
-	_, errorHookParentException := ioutil.ReadFile(childPath + "/error-hook-parent.out")
-	_, errorHookChildException := ioutil.ReadFile(childPath + "/error-hook-child.out")
-	_, errorHookOverridenParentException := ioutil.ReadFile(childPath + "/error-hook-merge-parent.out")
+	_, beforeException := os.ReadFile(childPath + "/before.out")
+	_, beforeChildException := os.ReadFile(childPath + "/before-child.out")
+	_, beforeOverriddenParentException := os.ReadFile(childPath + "/before-parent.out")
+	_, afterException := os.ReadFile(childPath + "/after.out")
+	_, afterParentException := os.ReadFile(childPath + "/after-parent.out")
+	_, errorHookParentException := os.ReadFile(childPath + "/error-hook-parent.out")
+	_, errorHookChildException := os.ReadFile(childPath + "/error-hook-child.out")
+	_, errorHookOverridenParentException := os.ReadFile(childPath + "/error-hook-merge-parent.out")
 
 	assert.NoError(t, beforeException)
 	assert.NoError(t, beforeChildException)
@@ -1004,7 +1005,7 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 	//fixtureApp := path.Join(TEST_FIXTURE_PARALLELISM, "app")
 
 	// copy the template `numberOfModules` times into the app
-	tmpEnvPath, err := ioutil.TempDir("", "terragrunt-test")
+	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir due to error: %v", err)
 	}
@@ -1310,7 +1311,7 @@ func TestAwsProviderPatch(t *testing.T) {
 	// https://github.com/gruntwork-io/terragrunt/issues/1778
 	branchName = url.QueryEscape(branchName)
 	mainContents = strings.Replace(mainContents, "__BRANCH_NAME__", branchName, -1)
-	require.NoError(t, ioutil.WriteFile(mainTFFile, []byte(mainContents), 0444))
+	require.NoError(t, os.WriteFile(mainTFFile, []byte(mainContents), 0444))
 
 	assert.NoError(
 		t,
@@ -1338,22 +1339,22 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 	}{
 		{
 			[]string{"version"},
-			"terraform version",
+			wrappedBinary() + " version",
 			nil,
 		},
 		{
 			[]string{"version", "foo"},
-			"terraform version foo",
+			wrappedBinary() + " version foo",
 			nil,
 		},
 		{
 			[]string{"version", "foo", "bar", "baz"},
-			"terraform version foo bar baz",
+			wrappedBinary() + " version foo bar baz",
 			nil,
 		},
 		{
 			[]string{"version", "foo", "bar", "baz", "foobar"},
-			"terraform version foo bar baz foobar",
+			wrappedBinary() + " version foo bar baz foobar",
 			nil,
 		},
 		{
@@ -1363,7 +1364,7 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 		},
 		{
 			[]string{"paln", "--terragrunt-disable-command-validation"},
-			"Terraform invocation failed", // error caused by running terraform with the wrong command
+			wrappedBinary() + " invocation failed", // error caused by running terraform with the wrong command
 			nil,
 		},
 	}
@@ -1398,19 +1399,19 @@ func TestTerraformSubcommandCliArgs(t *testing.T) {
 	}{
 		{
 			[]string{"force-unlock"},
-			"terraform force-unlock",
+			wrappedBinary() + " force-unlock",
 		},
 		{
 			[]string{"force-unlock", "foo"},
-			"terraform force-unlock foo",
+			wrappedBinary() + " force-unlock foo",
 		},
 		{
 			[]string{"force-unlock", "foo", "bar", "baz"},
-			"terraform force-unlock foo bar baz",
+			wrappedBinary() + " force-unlock foo bar baz",
 		},
 		{
 			[]string{"force-unlock", "foo", "bar", "baz", "foobar"},
-			"terraform force-unlock foo bar baz foobar",
+			wrappedBinary() + " force-unlock foo bar baz foobar",
 		},
 	}
 
@@ -1926,11 +1927,11 @@ func TestTerragruntInfo(t *testing.T) {
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
 
 	var dat terragruntinfo.TerragruntInfoGroup
-	err_unmarshal := json.Unmarshal(showStdout.Bytes(), &dat)
-	assert.Nil(t, err_unmarshal)
+	errUnmarshal := json.Unmarshal(showStdout.Bytes(), &dat)
+	assert.Nil(t, errUnmarshal)
 
 	assert.Equal(t, dat.DownloadDir, fmt.Sprintf("%s/%s", rootPath, TERRAGRUNT_CACHE))
-	assert.Equal(t, dat.TerraformBinary, TERRAFORM_BINARY)
+	assert.Equal(t, dat.TerraformBinary, wrappedBinary())
 	assert.Equal(t, dat.IamRole, "")
 }
 
@@ -1968,7 +1969,7 @@ func TestYamlDecodeRegressions(t *testing.T) {
 // module has been destroyed.
 func TestDependencyOutputOptimization(t *testing.T) {
 	expectOutputLogs := []string{
-		`Running command: terraform init -get=false prefix=\[.*fixture-get-output/nested-optimization/dep\]`,
+		`Running command: ` + wrappedBinary() + ` init -get=false prefix=\[.*fixture-get-output/nested-optimization/dep\]`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization", true, expectOutputLogs)
 }
@@ -1982,7 +1983,7 @@ func TestDependencyOutputOptimizationSkipInit(t *testing.T) {
 
 func TestDependencyOutputOptimizationNoGenerate(t *testing.T) {
 	expectOutputLogs := []string{
-		`Running command: terraform init -get=false prefix=\[.*fixture-get-output/nested-optimization-nogen/dep\]`,
+		`Running command: ` + wrappedBinary() + ` init -get=false prefix=\[.*fixture-get-output/nested-optimization-nogen/dep\]`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization-nogen", true, expectOutputLogs)
 }
@@ -2744,7 +2745,7 @@ func TestOrderedMapOutputRegressions1102(t *testing.T) {
 		t,
 		runTerragruntCommand(t, command, &stdout, &stderr),
 	)
-	expected, _ := ioutil.ReadFile(path)
+	expected, _ := os.ReadFile(path)
 	require.Contains(t, string(expected), "local")
 
 	// runs terragrunt again. All the outputs must be
@@ -2754,7 +2755,7 @@ func TestOrderedMapOutputRegressions1102(t *testing.T) {
 			t,
 			runTerragruntCommand(t, command, &stdout, &stderr),
 		)
-		actual, _ := ioutil.ReadFile(path)
+		actual, _ := os.ReadFile(path)
 		require.Equal(t, expected, actual)
 	}
 }
@@ -3976,7 +3977,7 @@ func TestLogFailingDependencies(t *testing.T) {
 	output := stderr.String()
 
 	assert.Error(t, err)
-	assert.Contains(t, output, "Terraform invocation failed in fixture-broken-dependency/dependency")
+	assert.Contains(t, output, wrappedBinary()+" invocation failed in fixture-broken-dependency/dependency")
 }
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
@@ -4049,7 +4050,7 @@ func runTerragruntRedirectOutput(t *testing.T, command string, writer io.Writer,
 }
 
 func copyEnvironment(t *testing.T, environmentPath string) string {
-	tmpDir, err := ioutil.TempDir("", "terragrunt-test")
+	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir due to error: %v", err)
 	}
@@ -4062,7 +4063,7 @@ func copyEnvironment(t *testing.T, environmentPath string) string {
 }
 
 func copyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
-	tmpDir, err := ioutil.TempDir("", "terragrunt-test")
+	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir due to error: %v", err)
 	}
@@ -4084,7 +4085,7 @@ func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
 }
 
 func createTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string, childRelPath string, s3BucketName string, parentConfigFileName string, childConfigFileName string) string {
-	tmpDir, err := ioutil.TempDir("", "terragrunt-parent-child-test")
+	tmpDir, err := os.MkdirTemp("", "terragrunt-parent-child-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir due to error: %v", err)
 	}
@@ -4107,7 +4108,7 @@ func createTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string
 }
 
 func createTmpTerragruntConfig(t *testing.T, templatesPath string, s3BucketName string, lockTableName string, configFileName string) string {
-	tmpFolder, err := ioutil.TempDir("", "terragrunt-test")
+	tmpFolder, err := os.MkdirTemp("", "terragrunt-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp folder due to error: %v", err)
 	}
@@ -4120,14 +4121,14 @@ func createTmpTerragruntConfig(t *testing.T, templatesPath string, s3BucketName 
 }
 
 func createTmpTerragruntConfigContent(t *testing.T, contents string, configFileName string) string {
-	tmpFolder, err := ioutil.TempDir("", "terragrunt-test")
+	tmpFolder, err := os.MkdirTemp("", "terragrunt-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp folder due to error: %v", err)
 	}
 
 	tmpTerragruntConfigFile := util.JoinPath(tmpFolder, configFileName)
 
-	if err := ioutil.WriteFile(tmpTerragruntConfigFile, []byte(contents), 0444); err != nil {
+	if err := os.WriteFile(tmpTerragruntConfigFile, []byte(contents), 0444); err != nil {
 		t.Fatalf("Error writing temp Terragrunt config to %s: %v", tmpTerragruntConfigFile, err)
 	}
 
@@ -4135,7 +4136,7 @@ func createTmpTerragruntConfigContent(t *testing.T, contents string, configFileN
 }
 
 func createTmpTerragruntGCSConfig(t *testing.T, templatesPath string, project string, location string, gcsBucketName string, configFileName string) string {
-	tmpFolder, err := ioutil.TempDir("", "terragrunt-test")
+	tmpFolder, err := os.MkdirTemp("", "terragrunt-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp folder due to error: %v", err)
 	}
@@ -4158,7 +4159,7 @@ func copyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string,
 	contents = strings.Replace(contents, "__FILL_IN_REGION__", region, -1)
 	contents = strings.Replace(contents, "__FILL_IN_LOGS_BUCKET_NAME__", s3BucketName+"-tf-state-logs", -1)
 
-	if err := ioutil.WriteFile(configDestPath, []byte(contents), 0444); err != nil {
+	if err := os.WriteFile(configDestPath, []byte(contents), 0444); err != nil {
 		t.Fatalf("Error writing temp Terragrunt config to %s: %v", configDestPath, err)
 	}
 }
@@ -4176,7 +4177,7 @@ func copyTerragruntGCSConfigAndFillPlaceholders(t *testing.T, configSrcPath stri
 	email := os.Getenv("GOOGLE_IDENTITY_EMAIL")
 	contents = strings.Replace(contents, "__FILL_IN_GCP_EMAIL__", email, -1)
 
-	if err := ioutil.WriteFile(configDestPath, []byte(contents), 0444); err != nil {
+	if err := os.WriteFile(configDestPath, []byte(contents), 0444); err != nil {
 		t.Fatalf("Error writing temp Terragrunt config to %s: %v", configDestPath, err)
 	}
 }
@@ -4758,7 +4759,8 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 
 	rootPath = util.JoinPath(rootPath, TEST_FIXTURE_DESTROY_WARNING)
 	vpcPath := util.JoinPath(rootPath, "vpc")
-	appPath := util.JoinPath(rootPath, "app")
+	appV1Path := util.JoinPath(rootPath, "app-v1")
+	appV2Path := util.JoinPath(rootPath, "app-v2")
 
 	cleanupTerraformFolder(t, rootPath)
 	cleanupTerraformFolder(t, vpcPath)
@@ -4779,7 +4781,8 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	assert.NoError(t, err)
 
 	output := string(stderr.Bytes())
-	assert.Equal(t, 1, strings.Count(output, appPath))
+	assert.Equal(t, 1, strings.Count(output, appV1Path))
+	assert.Equal(t, 1, strings.Count(output, appV2Path))
 }
 
 func TestTerragruntOutputFromRemoteState(t *testing.T) {
@@ -4881,7 +4884,7 @@ func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	require.NoError(t, err)
 	// providers initialization during first plan
-	assert.Equal(t, 1, strings.Count(stdout.String(), "Terraform has been successfully initialized!"))
+	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
 
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
@@ -4890,7 +4893,7 @@ func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
 	require.NoError(t, err)
 	// no initialization expected for second plan run
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
-	assert.Equal(t, 0, strings.Count(stdout.String(), "Terraform has been successfully initialized!"))
+	assert.Equal(t, 0, strings.Count(stdout.String(), "has been successfully initialized!"))
 }
 
 func TestAutoInitWhenSourceIsChanged(t *testing.T) {
@@ -4906,7 +4909,7 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 		require.NoError(t, err)
 	}
 	updatedHcl := strings.Replace(contents, "__TAG_VALUE__", "v0.35.1", -1)
-	require.NoError(t, ioutil.WriteFile(terragruntHcl, []byte(updatedHcl), 0444))
+	require.NoError(t, os.WriteFile(terragruntHcl, []byte(updatedHcl), 0444))
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -4914,10 +4917,10 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	require.NoError(t, err)
 	// providers initialization during first plan
-	assert.Equal(t, 1, strings.Count(stdout.String(), "Terraform has been successfully initialized!"))
+	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
 
 	updatedHcl = strings.Replace(contents, "__TAG_VALUE__", "v0.35.2", -1)
-	require.NoError(t, ioutil.WriteFile(terragruntHcl, []byte(updatedHcl), 0444))
+	require.NoError(t, os.WriteFile(terragruntHcl, []byte(updatedHcl), 0444))
 
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
@@ -4925,7 +4928,7 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	require.NoError(t, err)
 	// auto initialization when source is changed
-	assert.Equal(t, 1, strings.Count(stdout.String(), "Terraform has been successfully initialized!"))
+	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
 }
 
 func TestNoColor(t *testing.T) {
@@ -4941,7 +4944,7 @@ func TestNoColor(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan -no-color --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	require.NoError(t, err)
 	// providers initialization during first plan
-	assert.Equal(t, 1, strings.Count(stdout.String(), "Terraform has been successfully initialized!"))
+	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
 
 	assert.NotContains(t, stdout.String(), "[")
 }
@@ -4963,7 +4966,7 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
 
-	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
 	var renderedJson = map[string]interface{}{}
@@ -5036,7 +5039,7 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 	var terraformBinary = renderedJson[config.MetadataTerraformBinary]
 	expectedTerraformBinary := map[string]interface{}{
 		"metadata": expectedMetadata,
-		"value":    "terraform",
+		"value":    wrappedBinary(),
 	}
 	assert.True(t, reflect.DeepEqual(expectedTerraformBinary, terraformBinary))
 
@@ -5101,7 +5104,7 @@ func TestRenderJsonMetadataDependency(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
 
-	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
 	var renderedJson = map[string]interface{}{}
@@ -5145,7 +5148,7 @@ func TestRenderJsonWithMockOutputs(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
 
-	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
 	var renderedJson = map[string]interface{}{}
@@ -5213,7 +5216,7 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
 
-	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
 	var renderedJson = map[string]interface{}{}
@@ -5308,7 +5311,7 @@ func TestRenderJsonMetadataDepenency(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
 
-	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
 	var renderedJson = map[string]interface{}{}
@@ -5381,7 +5384,7 @@ func TestRenderJsonMetadataTerraform(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
 
-	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
 	var renderedJson = map[string]interface{}{}
@@ -5720,7 +5723,7 @@ func TestHclFmtDiff(t *testing.T) {
 
 	output := stdout.String()
 
-	expectedDiff, err := ioutil.ReadFile(util.JoinPath(rootPath, "expected.diff"))
+	expectedDiff, err := os.ReadFile(util.JoinPath(rootPath, "expected.diff"))
 	assert.NoError(t, err)
 
 	logBufferContentsLineByLine(t, stdout, "output")
@@ -5829,8 +5832,8 @@ func TestInitSkipCache(t *testing.T) {
 	)
 
 	// verify that init was invoked
-	assert.Contains(t, stdout.String(), "Terraform has been successfully initialized!")
-	assert.Contains(t, stderr.String(), "Running command: terraform init")
+	assert.Contains(t, stdout.String(), "has been successfully initialized!")
+	assert.Contains(t, stderr.String(), "Running command: "+wrappedBinary()+" init")
 
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
@@ -5841,12 +5844,12 @@ func TestInitSkipCache(t *testing.T) {
 	)
 
 	// verify that init wasn't invoked second time since cache directories are ignored
-	assert.NotContains(t, stdout.String(), "Terraform has been successfully initialized!")
-	assert.NotContains(t, stderr.String(), "Running command: terraform init")
+	assert.NotContains(t, stdout.String(), "has been successfully initialized!")
+	assert.NotContains(t, stderr.String(), "Running command: "+wrappedBinary()+" init")
 
 	// verify that after adding new file, init is executed
 	tfFile := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_CACHE, "app", "project.tf")
-	if err := ioutil.WriteFile(tfFile, []byte(""), 0644); err != nil {
+	if err := os.WriteFile(tfFile, []byte(""), 0644); err != nil {
 		t.Fatalf("Error writing new Terraform file to %s: %v", tfFile, err)
 	}
 
@@ -5859,8 +5862,8 @@ func TestInitSkipCache(t *testing.T) {
 	)
 
 	// verify that init was invoked
-	assert.Contains(t, stdout.String(), "Terraform has been successfully initialized!")
-	assert.Contains(t, stderr.String(), "Running command: terraform init")
+	assert.Contains(t, stdout.String(), "has been successfully initialized!")
+	assert.Contains(t, stderr.String(), "Running command: "+wrappedBinary()+" init")
 }
 
 func TestRenderJsonWithInputsNotExistingOutput(t *testing.T) {
@@ -5876,7 +5879,7 @@ func TestRenderJsonWithInputsNotExistingOutput(t *testing.T) {
 
 	jsonOut := filepath.Join(appPath, "terragrunt_rendered.json")
 
-	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
 	var renderedJson = map[string]interface{}{}
@@ -6137,9 +6140,103 @@ func TestTerragruntHandleEmptyStateFile(t *testing.T) {
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testPath))
 }
 
+func TestRenderJsonDependentModulesTerraform(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DESTROY_WARNING)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "vpc")
+
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+
+	jsonBytes, err := os.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	var dependentModules = renderedJson[config.MetadataDependentModules].([]interface{})
+	// check if value list contains app-v1 and app-v2
+	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v1"))
+	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v2"))
+}
+
+func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DESTROY_WARNING)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "vpc")
+
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+
+	jsonBytes, err := os.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]map[string]interface{}{}
+
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	dependentModules := renderedJson[config.MetadataDependentModules]["value"].([]interface{})
+	// check if value list contains app-v1 and app-v2
+	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v1"))
+	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v2"))
+}
+
+func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_EXTERNAL_DEPENDENCY)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_EXTERNAL_DEPENDENCY)
+
+	assert.NoError(t, os.Mkdir(filepath.ToSlash("/tmp/external-46521694"), 0755))
+
+	output, err := exec.Command("git", "init", tmpEnvPath).CombinedOutput()
+	if err != nil {
+		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
+	}
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stderr
+	os.Stderr = w
+
+	err = runTerragruntCommand(t, fmt.Sprintf("trragrunt destroy --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	os.Stderr = oldStdout
+	assert.NoError(t, w.Close())
+
+	capturedOutput := make(chan string)
+	go func() {
+		var buf bytes.Buffer
+		_, e := io.Copy(&buf, r)
+		assert.NoError(t, e)
+		capturedOutput <- buf.String()
+	}()
+
+	captured := <-capturedOutput
+
+	require.NoError(t, err)
+	require.NotContains(t, captured, "Should Terragrunt apply the external dependency?")
+	require.NotContains(t, captured, "/tmp/external1")
+}
+
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
 	t.Helper()
 	output, hasPlatform := outputs[key]
 	require.Truef(t, hasPlatform, "Expected output %s to be defined", key)
 	require.Equalf(t, output.Value, value, "Expected output %s to be %t", key, value)
+}
+
+// wrappedBinary - return which binary will be wrapped by Terragrunt, useful in CICD to run same tests against tofu and terraform
+func wrappedBinary() string {
+	value, found := os.LookupEnv("TERRAGRUNT_TFPATH")
+	if !found {
+		return TERRAFORM_BINARY
+	}
+	return value
 }

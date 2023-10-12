@@ -1,0 +1,28 @@
+<style>
+	.banner {
+		padding: 1em;
+		text-align: center;
+		color: white;
+		font-size: smaller;
+	}
+	.banner .btn {
+		font-size: 1em;
+		margin-left: 1em;
+		min-width: 0;
+	}
+	.banner a, .banner a:hover, .banner a:active, .banner a:visited {
+ 		color: skyblue;
+	}
+</style>
+<div class="banner gradient-steel gradient-diagonal">
+	{{ include.text }} {% if include.link_text and include.link_url %}
+	<a
+		href="{{ include.link_url }}"
+		target="{{ include.target }}"
+		class="{% if include.has_button %}btn get-a-demo{% endif %}"
+		role="button"
+	>
+		{{ include.link_text }}
+	</a>
+	{% endif %}
+</div>

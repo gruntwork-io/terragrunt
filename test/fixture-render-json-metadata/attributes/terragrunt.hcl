@@ -15,7 +15,7 @@ skip = true
 iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 iam_assume_role_duration = 666
 
-terraform_binary = "terraform"
+terraform_binary = get_env("TERRAGRUNT_TFPATH", "terraform")
 terraform_version_constraint = ">= 0.11"
 
 retryable_errors = [

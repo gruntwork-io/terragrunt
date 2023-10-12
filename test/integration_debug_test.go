@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -72,7 +71,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	validateInputs(t, outputs)
 
 	// Also make sure the undefined variable is not included in the json file
-	debugJsonContents, err := ioutil.ReadFile(debugFile)
+	debugJsonContents, err := os.ReadFile(debugFile)
 	require.NoError(t, err)
 	var data map[string]interface{}
 	require.NoError(t, json.Unmarshal(debugJsonContents, &data))
@@ -181,7 +180,7 @@ func TestTerragruntValidateInputsWithStrictModeDisabledAndUnusedInputs(t *testin
 func TestRenderJSONConfig(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, err := ioutil.TempDir("", "terragrunt-render-json-*")
+	tmpDir, err := os.MkdirTemp("", "terragrunt-render-json-*")
 	require.NoError(t, err)
 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
 	defer os.RemoveAll(tmpDir)
@@ -192,7 +191,7 @@ func TestRenderJSONConfig(t *testing.T) {
 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", fixtureRenderJSON))
 	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-json-out %s", fixtureRenderJSONMainModulePath, jsonOut))
 
-	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
 	var rendered map[string]interface{}
@@ -290,7 +289,7 @@ func TestRenderJSONConfig(t *testing.T) {
 func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, err := ioutil.TempDir("", "terragrunt-render-json-*")
+	tmpDir, err := os.MkdirTemp("", "terragrunt-render-json-*")
 	require.NoError(t, err)
 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
 	defer os.RemoveAll(tmpDir)
@@ -302,7 +301,7 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-json-out %s", workDir, jsonOut))
 
-	jsonBytes, err := ioutil.ReadFile(jsonOut)
+	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
 	var rendered map[string]interface{}
@@ -403,7 +402,7 @@ func TestRenderJSONConfigRunAll(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", workDir))
 
-	bazJSONBytes, err := ioutil.ReadFile(bazJSONOut)
+	bazJSONBytes, err := os.ReadFile(bazJSONOut)
 	require.NoError(t, err)
 
 	var bazRendered map[string]interface{}
@@ -421,7 +420,7 @@ func TestRenderJSONConfigRunAll(t *testing.T) {
 		)
 	}
 
-	rootChildJSONBytes, err := ioutil.ReadFile(rootChildJSONOut)
+	rootChildJSONBytes, err := os.ReadFile(rootChildJSONOut)
 	require.NoError(t, err)
 
 	var rootChildRendered map[string]interface{}

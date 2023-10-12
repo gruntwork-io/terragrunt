@@ -38,6 +38,7 @@ type ExtendedRemoteStateConfigS3 struct {
 	S3BucketTags                   map[string]string `mapstructure:"s3_bucket_tags"`
 	DynamotableTags                map[string]string `mapstructure:"dynamodb_table_tags"`
 	AccessLoggingBucketTags        map[string]string `mapstructure:"accesslogging_bucket_tags"`
+	SkipCredentialsValidation      bool              `mapstructure:"skip_credentials_validation"`
 	SkipBucketVersioning           bool              `mapstructure:"skip_bucket_versioning"`
 	SkipBucketSSEncryption         bool              `mapstructure:"skip_bucket_ssencryption"`
 	SkipBucketAccessLogging        bool              `mapstructure:"skip_bucket_accesslogging"`
@@ -159,6 +160,13 @@ func (s3Initializer S3Initializer) NeedsInitialization(remoteState *RemoteState,
 	s3Config := s3ConfigExtended.remoteStateConfigS3
 
 	sessionConfig := s3ConfigExtended.GetAwsSessionConfig()
+
+	// Validate current AWS session before checking S3
+	if !s3ConfigExtended.SkipCredentialsValidation {
+		if err = aws_helper.ValidateAwsSession(sessionConfig, terragruntOptions); err != nil {
+			return false, err
+		}
+	}
 
 	s3Client, err := CreateS3Client(sessionConfig, terragruntOptions)
 	if err != nil {

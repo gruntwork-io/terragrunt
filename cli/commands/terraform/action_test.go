@@ -2,7 +2,6 @@ package terraform
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -471,7 +470,7 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 }
 
 func createTempFile(t *testing.T) string {
-	tmpFile, err := ioutil.TempFile("", "")
+	tmpFile, err := os.CreateTemp("", "")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %s\n", err.Error())
 	}

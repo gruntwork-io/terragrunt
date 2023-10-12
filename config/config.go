@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path"
@@ -33,7 +32,7 @@ const (
 	DefaultTerragruntJsonConfigPath = "terragrunt.hcl.json"
 )
 
-const foundInFile = "found_in_file"
+const FoundInFile = "found_in_file"
 
 const (
 	MetadataTerraform                   = "terraform"
@@ -55,6 +54,7 @@ const (
 	MetadataRetryableErrors             = "retryable_errors"
 	MetadataRetryMaxAttempts            = "retry_max_attempts"
 	MetadataRetrySleepIntervalSec       = "retry_sleep_interval_sec"
+	MetadataDependentModules            = "dependent_modules"
 )
 
 // Order matters, for example if none of the files are found `GetDefaultConfigPath` func returns the last element.
@@ -95,6 +95,9 @@ type TerragruntConfig struct {
 
 	// Map to store fields metadata
 	FieldsMetadata map[string]map[string]interface{}
+
+	// List of dependent modules
+	DependentModulesPath []*string
 }
 
 func (conf *TerragruntConfig) String() string {
@@ -896,7 +899,7 @@ func convertToTerragruntConfig(
 		GenerateConfigs: map[string]codegen.GenerateConfig{},
 	}
 
-	defaultMetadata := map[string]interface{}{foundInFile: configPath}
+	defaultMetadata := map[string]interface{}{FoundInFile: configPath}
 	if terragruntConfigFromFile.RemoteState != nil {
 		remoteState, err := terragruntConfigFromFile.RemoteState.toConfig()
 		if err != nil {
@@ -1123,7 +1126,7 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 // dependency or dependencies blocks defined. Note that this does not do any decoding of the blocks, as it is only meant
 // to check for block presence.
 func configFileHasDependencyBlock(configPath string, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	configBytes, err := ioutil.ReadFile(configPath)
+	configBytes, err := os.ReadFile(configPath)
 	if err != nil {
 		return false, errors.WithStackTrace(err)
 	}
