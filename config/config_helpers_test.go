@@ -1128,7 +1128,7 @@ func TestStrContains(t *testing.T) {
 	}
 }
 
-func TestReadTFVarFiles(t *testing.T) {
+func TestReadTFVarsFiles(t *testing.T) {
 	t.Parallel()
 
 	options := terragruntOptionsForTest(t, DefaultTerragruntConfigPath)
