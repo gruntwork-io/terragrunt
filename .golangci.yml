@@ -37,9 +37,6 @@ linters-settings:
   goconst:
     min-len: 3
     min-occurrences: 5
-  lll:
-    line-length: 140
-    tab-width: 1
   gomnd:
     settings:
       mnd:
