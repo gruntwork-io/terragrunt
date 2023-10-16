@@ -1,6 +1,5 @@
-// This code embeds tflint, which is under an MPL license, and you can
+// Package tflint embeds execution of tflint, which is under an MPL license, and you can
 // find its source code at https://github.com/terraform-linters/tflint
-
 package tflint
 
 import (
@@ -37,8 +36,10 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 		if err != nil {
 			return err
 		}
+
 		configFile = projectConfigFile
 	}
+
 	terragruntOptions.Logger.Debugf("Using .tflint.hcl file in %s", configFile)
 
 	variables, err := inputsToTflintVar(terragruntConfig.Inputs)
@@ -77,9 +78,11 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 	}
 
 	// tflint execution
-	args := []string{"tflint"}
-	args = append(args, "--config", configFile)
-	args = append(args, "--chdir", terragruntOptions.WorkingDir)
+	args := []string{
+		"tflint",
+		"--config", configFile,
+		"--chdir", terragruntOptions.WorkingDir,
+	}
 	args = append(args, variables...)
 	args = append(args, tflintArgs...)
 
@@ -108,10 +111,11 @@ func RunTflintWithOpts(terragruntOptions *options.TerragruntOptions, terragruntC
 	return nil
 }
 
-// tflintArguments check arguments for --terragrunt-external-tflint and returns filtered arguments and flag if should use external tflint
+// tflintArguments filters args for --terragrunt-external-tflint, returning filtered args and a flag for using
+// external tflint.
 func tflintArguments(arguments []string) ([]string, bool) {
 	externalTfLint := false
-	var filteredArguments []string
+	filteredArguments := make([]string, 0, len(arguments))
 
 	for _, arg := range arguments {
 		if arg == TFExternalTFLint {
@@ -135,7 +139,7 @@ func tflintConfigFilePath(arguments []string) string {
 
 // inputsToTflintVar converts the inputs map to a list of tflint variables.
 func inputsToTflintVar(inputs map[string]interface{}) ([]string, error) {
-	var variables []string
+	variables := make([]string, 0, len(inputs))
 	for key, value := range inputs {
 		varValue, err := util.AsTerraformEnvVarJsonValue(value)
 		if err != nil {
