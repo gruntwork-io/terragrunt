@@ -30,8 +30,6 @@ linters-settings:
   gosimple:
     go: "1.21"
     checks: [ "all" ]
-  goimports:
-    local-prefixes: github.com/gruntwork-io/terragrunt
   dupl:
     threshold: 120
   goconst:
