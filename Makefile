@@ -38,4 +38,10 @@ terragrunt: $(shell find . \( -type d -name 'vendor' -prune \) \
 clean:
 	rm -f terragrunt
 
-.PHONY: help fmtcheck fmt install-fmt-hook clean
+install-lint:
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54.2
+
+run-lint:
+	golangci-lint run
+
+.PHONY: help fmtcheck fmt install-fmt-hook clean install-lint run-lint
