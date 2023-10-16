@@ -14,8 +14,9 @@ import (
 //
 // For example, CLI command:
 // `terragrunt run-all apply --terragrunt-log-level debug --auto-approve --terragrunt-non-interactive`
-// The `App` will runs the registered command `run-all`, define the registered flags `--terragrunt-log-level`, `--terragrunt-non-interactive`,
-// and define args `apply --auto-approve` which can be obtained from the App context, ctx.Args().Slice()
+// The `App` will runs the registered command `run-all`, define the registered flags `--terragrunt-log-level`,
+// `--terragrunt-non-interactive`, and define args `apply --auto-approve` which can be obtained from the App context,
+// ctx.Args().Slice()
 type App struct {
 	*cli.App
 	// List of commands to execute

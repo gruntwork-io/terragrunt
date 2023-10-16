@@ -70,6 +70,7 @@ linters:
     - goconst
     - gocritic
     - goimports
+    - gochecknoinits
     - gomnd
     - gosimple
     - govet
