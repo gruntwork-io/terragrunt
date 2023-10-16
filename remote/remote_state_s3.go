@@ -485,29 +485,8 @@ func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 			terragruntOptions.Logger.Debugf("Access logging is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_access_logging' config.", config.remoteStateConfigS3.Bucket)
 		} else {
 			if config.AccessLoggingBucketName != "" {
-				terragruntOptions.Logger.Debugf("Enabling bucket-wide Access Logging on AWS S3 bucket %s - using as TargetBucket %s", config.remoteStateConfigS3.Bucket, config.AccessLoggingBucketName)
-
-				if err := CreateLogsS3BucketIfNecessary(s3Client, aws.String(config.AccessLoggingBucketName), terragruntOptions); err != nil {
-					terragruntOptions.Logger.Errorf("Could not create logs bucket %s for AWS S3 bucket %s\n%s", config.AccessLoggingBucketName, config.remoteStateConfigS3.Bucket, err.Error())
-					return err
-				}
-
-				if err := EnablePublicAccessBlockingForS3Bucket(s3Client, config.AccessLoggingBucketName, terragruntOptions); err != nil {
-					return err
-				}
-
-				if err := EnableAccessLoggingForS3BucketWide(s3Client, &config.remoteStateConfigS3, terragruntOptions, config.AccessLoggingBucketName, config.AccessLoggingTargetPrefix); err != nil {
-					return err
-				}
-
-				if !config.SkipBucketSSEncryption {
-					if err := EnableSSEForS3BucketWide(s3Client, config.AccessLoggingBucketName, s3.ServerSideEncryptionAes256, config, terragruntOptions); err != nil {
-						return err
-					}
-				}
-
-				if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, config.AccessLoggingBucketName, config, terragruntOptions); err != nil {
-					return err
+				if err := configureAccessLogBucket(terragruntOptions, s3Client, config); err != nil {
+					return nil
 				}
 			} else {
 				terragruntOptions.Logger.Debugf("Access Logging is disabled for the remote state AWS S3 bucket %s", config.remoteStateConfigS3.Bucket)
@@ -523,6 +502,35 @@ func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 		}
 	}
 
+	return nil
+}
+
+// configureAccessLogBucket - configure access log bucket.
+func configureAccessLogBucket(terragruntOptions *options.TerragruntOptions, s3Client *s3.S3, config *ExtendedRemoteStateConfigS3) error {
+	terragruntOptions.Logger.Debugf("Enabling bucket-wide Access Logging on AWS S3 bucket %s - using as TargetBucket %s", config.remoteStateConfigS3.Bucket, config.AccessLoggingBucketName)
+
+	if err := CreateLogsS3BucketIfNecessary(s3Client, aws.String(config.AccessLoggingBucketName), terragruntOptions); err != nil {
+		terragruntOptions.Logger.Errorf("Could not create logs bucket %s for AWS S3 bucket %s\n%s", config.AccessLoggingBucketName, config.remoteStateConfigS3.Bucket, err.Error())
+		return err
+	}
+
+	if err := EnablePublicAccessBlockingForS3Bucket(s3Client, config.AccessLoggingBucketName, terragruntOptions); err != nil {
+		return err
+	}
+
+	if err := EnableAccessLoggingForS3BucketWide(s3Client, &config.remoteStateConfigS3, terragruntOptions, config.AccessLoggingBucketName, config.AccessLoggingTargetPrefix); err != nil {
+		return err
+	}
+
+	if !config.SkipBucketSSEncryption {
+		if err := EnableSSEForS3BucketWide(s3Client, config.AccessLoggingBucketName, s3.ServerSideEncryptionAes256, config, terragruntOptions); err != nil {
+			return err
+		}
+	}
+
+	if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, config.AccessLoggingBucketName, config, terragruntOptions); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -704,29 +712,8 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 	}
 
 	if config.AccessLoggingBucketName != "" {
-		terragruntOptions.Logger.Debugf("Enabling bucket-wide Access Logging on AWS S3 bucket %s - using as TargetBucket %s", config.remoteStateConfigS3.Bucket, config.AccessLoggingBucketName)
-
-		if err := CreateLogsS3BucketIfNecessary(s3Client, aws.String(config.AccessLoggingBucketName), terragruntOptions); err != nil {
-			terragruntOptions.Logger.Errorf("Could not create logs bucket %s for AWS S3 bucket %s\n%s", config.AccessLoggingBucketName, config.remoteStateConfigS3.Bucket, err.Error())
-			return err
-		}
-
-		if err := EnablePublicAccessBlockingForS3Bucket(s3Client, config.AccessLoggingBucketName, terragruntOptions); err != nil {
-			return err
-		}
-
-		if err := EnableAccessLoggingForS3BucketWide(s3Client, &config.remoteStateConfigS3, terragruntOptions, config.AccessLoggingBucketName, config.AccessLoggingTargetPrefix); err != nil {
-			return err
-		}
-
-		if !config.SkipBucketSSEncryption {
-			if err := EnableSSEForS3BucketWide(s3Client, config.AccessLoggingBucketName, s3.ServerSideEncryptionAes256, config, terragruntOptions); err != nil {
-				return err
-			}
-		}
-
-		if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, config.AccessLoggingBucketName, config, terragruntOptions); err != nil {
-			return err
+		if err := configureAccessLogBucket(terragruntOptions, s3Client, config); err != nil {
+			return nil
 		}
 	} else {
 		terragruntOptions.Logger.Debugf("Access Logging is disabled for the remote state AWS S3 bucket %s", config.remoteStateConfigS3.Bucket)
