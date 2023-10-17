@@ -706,7 +706,12 @@ func getTerragruntOutputJsonFromRemoteState(
 	if err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(tempWorkDir)
+	defer func(path string) {
+		err := os.RemoveAll(path)
+		if err != nil {
+			terragruntOptions.Logger.Warnf("Failed to remove %s: %v", path, err)
+		}
+	}(tempWorkDir)
 	terragruntOptions.Logger.Debugf("Setting dependency working directory to %s", tempWorkDir)
 
 	targetTGOptions, err := setupTerragruntOptionsForBareTerraform(terragruntOptions, tempWorkDir, targetConfig, iamRoleOpts)
@@ -797,7 +802,12 @@ func getTerragruntOutputJsonFromRemoteStateS3(
 		return nil, err
 	}
 
-	defer result.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			terragruntOptions.Logger.Warnf("Failed to close remote state response %v", err)
+		}
+	}(result.Body)
 	steateBody, err := io.ReadAll(result.Body)
 	if err != nil {
 		return nil, err

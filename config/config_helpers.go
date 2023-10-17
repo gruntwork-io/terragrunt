@@ -548,7 +548,10 @@ func readTerragruntConfig(configPath string, defaultVal *cty.Value, terragruntOp
 	// NOTE: this will not call terragrunt output, since all the values are cached from the ParseConfigFile call
 	// NOTE: we don't use range here because range will copy the slice, thereby undoing the set attribute.
 	for i := 0; i < len(config.TerragruntDependencies); i++ {
-		config.TerragruntDependencies[i].setRenderedOutputs(targetOptions)
+		err := config.TerragruntDependencies[i].setRenderedOutputs(targetOptions)
+		if err != nil {
+			return cty.NilVal, err
+		}
 	}
 
 	return TerragruntConfigAsCty(config)
