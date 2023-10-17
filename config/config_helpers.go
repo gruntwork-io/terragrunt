@@ -845,6 +845,7 @@ func strContains(args []string, trackInclude *TrackInclude, terragruntOptions *o
 	return false, nil
 }
 
+// readTFVarsFile reads a *.tfvars or *.tfvars.json file and returns the contents as a JSON encoded string
 func readTFVarsFile(args []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (string, error) {
 
 	if len(args) != 1 {
@@ -858,7 +859,7 @@ func readTFVarsFile(args []string, trackInclude *TrackInclude, terragruntOptions
 	}
 
 	if !util.FileExists(varFile) {
-		return "", errors.WithStackTrace(TFVarFileNotFound{File: varFile})
+		return "", errors.WithStackTrace(TFVarFileNotFoundError{File: varFile})
 	}
 
 	fileContents, err := os.ReadFile(varFile)
@@ -873,29 +874,29 @@ func readTFVarsFile(args []string, trackInclude *TrackInclude, terragruntOptions
 			return "", errors.WithStackTrace(fmt.Errorf("could not unmarshal json body of tfvar file: %w", err))
 		}
 		return string(fileContents), nil
-	} else {
-		var variables map[string]interface{}
-		if err := ParseAndDecodeVarFile(string(fileContents), varFile, &variables); err != nil {
-			return "", err
-		}
-
-		data, err := json.Marshal(variables)
-		if err != nil {
-			return "", errors.WithStackTrace(fmt.Errorf("could not marshal json body of tfvar file: %w", err))
-		}
-		return string(data), nil
 	}
 
+	var variables map[string]interface{}
+	if err := ParseAndDecodeVarFile(string(fileContents), varFile, &variables); err != nil {
+		return "", err
+	}
+
+	data, err := json.Marshal(variables)
+	if err != nil {
+		return "", errors.WithStackTrace(fmt.Errorf("could not marshal json body of tfvar file: %w", err))
+	}
+
+	return string(data), nil
 }
 
 // Custom error types
 
-type TFVarFileNotFound struct {
+type TFVarFileNotFoundError struct {
 	File  string
 	Cause string
 }
 
-func (err TFVarFileNotFound) Error() string {
+func (err TFVarFileNotFoundError) Error() string {
 	return fmt.Sprintf("TFVarFileNotFound: Could not find a %s. Cause: %s.", err.File, err.Cause)
 }
 
