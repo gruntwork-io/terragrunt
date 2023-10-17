@@ -55,6 +55,7 @@ const (
 	MetadataRetryMaxAttempts            = "retry_max_attempts"
 	MetadataRetrySleepIntervalSec       = "retry_sleep_interval_sec"
 	MetadataDependentModules            = "dependent_modules"
+	MetadataDependencyEnvVars           = "dependency_env_vars"
 )
 
 // Order matters, for example if none of the files are found `GetDefaultConfigPath` func returns the last element.
@@ -85,6 +86,7 @@ type TerragruntConfig struct {
 	RetryableErrors             []string
 	RetryMaxAttempts            *int
 	RetrySleepIntervalSec       *int
+	DependencyEnvVars           map[string]string
 
 	// Fields used for internal tracking
 	// Indicates whether or not this is the result of a partial evaluation
@@ -172,6 +174,8 @@ type terragruntConfigFile struct {
 	RetryableErrors       []string `hcl:"retryable_errors,optional"`
 	RetryMaxAttempts      *int     `hcl:"retry_max_attempts,optional"`
 	RetrySleepIntervalSec *int     `hcl:"retry_sleep_interval_sec,optional"`
+
+	DependencyEnvVars map[string]string `hcl:"dependency_env_vars,optional"`
 
 	// This struct is used for validating and parsing the entire terragrunt config. Since locals and include are
 	// evaluated in a completely separate cycle, it should not be evaluated here. Otherwise, we can't support self
@@ -1006,6 +1010,11 @@ func convertToTerragruntConfig(
 	if terragruntConfigFromFile.IamAssumeRoleSessionName != nil {
 		terragruntConfig.IamAssumeRoleSessionName = *terragruntConfigFromFile.IamAssumeRoleSessionName
 		terragruntConfig.SetFieldMetadata(MetadataIamAssumeRoleSessionName, defaultMetadata)
+	}
+
+	if terragruntConfigFromFile.DependencyEnvVars != nil {
+		terragruntConfig.DependencyEnvVars = terragruntConfigFromFile.DependencyEnvVars
+		terragruntConfig.SetFieldMetadata(MetadataDependencyEnvVars, defaultMetadata)
 	}
 
 	generateBlocks := []terragruntGenerateBlock{}

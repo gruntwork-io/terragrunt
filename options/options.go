@@ -246,6 +246,9 @@ type TerragruntOptions struct {
 
 	// Disalbes validation terraform command
 	DisableCommandValidation bool
+
+	// Supplies the environment variables when calling output from dependencies
+	DependencyEnvVars map[string]string
 }
 
 // IAMOptions represents options that are used by Terragrunt to assume an IAM role.
@@ -316,6 +319,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 		UsePartialParseConfigCache:     false,
 		OutputPrefix:                   "",
 		IncludeModulePrefix:            false,
+		DependencyEnvVars:              map[string]string{},
 		JSONOut:                        DefaultJSONOutName,
 		TerraformImplementation:        UnknownImpl,
 		RunTerragrunt: func(opts *TerragruntOptions) error {
@@ -443,6 +447,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		FailIfBucketCreationRequired:   opts.FailIfBucketCreationRequired,
 		DisableBucketUpdate:            opts.DisableBucketUpdate,
 		TerraformImplementation:        opts.TerraformImplementation,
+		DependencyEnvVars:              util.CloneStringMap(opts.DependencyEnvVars),
 	}
 }
 

@@ -47,6 +47,9 @@ type Dependency struct {
 
 	// Used to store the rendered outputs for use when the config is imported or read with `read_terragrunt_config`
 	RenderedOutputs *cty.Value `cty:"outputs"`
+
+	// Used to supply additional info to subsequent terragrunt runs
+	EnvVars map[string]string `hcl:"env_vars,attr" cty:"env_vars"`
 }
 
 // DeepMerge will deep merge two Dependency configs, updating the target. Deep merge for Dependency configs is defined
@@ -427,7 +430,16 @@ func getTerragruntOutput(dependencyConfig Dependency, terragruntOptions *options
 		return nil, true, errors.WithStackTrace(DependencyConfigNotFound{Path: targetConfig})
 	}
 
-	jsonBytes, err := getOutputJsonWithCaching(targetConfig, terragruntOptions)
+	envVars := dependencyConfig.EnvVars
+	for k, v := range terragruntOptions.DependencyEnvVars {
+		if envVars[k] != "" {
+			envVars[k] = v
+		}
+	}
+
+	dependencyConfig.EnvVars = envVars
+
+	jsonBytes, err := getOutputJsonWithCaching(targetConfig, &dependencyConfig, terragruntOptions)
 	if err != nil {
 		if !isRenderJsonCommand(terragruntOptions) {
 			return nil, true, err
@@ -459,7 +471,7 @@ func isRenderJsonCommand(terragruntOptions *options.TerragruntOptions) bool {
 }
 
 // getOutputJsonWithCaching will run terragrunt output on the target config if it is not already cached.
-func getOutputJsonWithCaching(targetConfig string, terragruntOptions *options.TerragruntOptions) ([]byte, error) {
+func getOutputJsonWithCaching(targetConfig string, dependencyConfig *Dependency, terragruntOptions *options.TerragruntOptions) ([]byte, error) {
 	// Acquire synchronization lock to ensure only one instance of output is called per config.
 	rawActualLock, _ := outputLocks.LoadOrStore(targetConfig, &sync.Mutex{})
 	actualLock := rawActualLock.(*sync.Mutex)
@@ -471,16 +483,18 @@ func getOutputJsonWithCaching(targetConfig string, terragruntOptions *options.Te
 	// output" log for the dependency.
 	terragruntOptions.Logger.Debugf("Getting output of dependency %s for config %s", targetConfig, terragruntOptions.TerragruntConfigPath)
 
+	cacheKey := util.EncodeStringMap(&dependencyConfig.EnvVars, targetConfig)
+
 	// Look up if we have already run terragrunt output for this target config
-	rawJsonBytes, hasRun := jsonOutputCache.Load(targetConfig)
+	rawJsonBytes, hasRun := jsonOutputCache.Load(cacheKey)
 	if hasRun {
 		// Cache hit, so return cached output
-		terragruntOptions.Logger.Debugf("%s was run before. Using cached output.", targetConfig)
+		terragruntOptions.Logger.Debugf("%s was run before with same configuration (hash: %s). Using cached output.", targetConfig, cacheKey)
 		return rawJsonBytes.([]byte), nil
 	}
 
 	// Cache miss, so look up the output and store in cache
-	newJsonBytes, err := getTerragruntOutputJson(terragruntOptions, targetConfig)
+	newJsonBytes, err := getTerragruntOutputJson(terragruntOptions, dependencyConfig, targetConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -492,7 +506,7 @@ func getOutputJsonWithCaching(targetConfig string, terragruntOptions *options.Te
 		newJsonBytes = newJsonBytes[index:]
 	}
 
-	jsonOutputCache.Store(targetConfig, newJsonBytes)
+	jsonOutputCache.Store(cacheKey, newJsonBytes)
 	return newJsonBytes, nil
 }
 
@@ -514,7 +528,7 @@ func cloneTerragruntOptionsForDependency(terragruntOptions *options.TerragruntOp
 }
 
 // Clone terragrunt options and update context for dependency block so that the outputs can be read correctly
-func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.TerragruntOptions, targetConfig string) (*options.TerragruntOptions, error) {
+func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.TerragruntOptions, dependencyConfig *Dependency, targetConfig string) (*options.TerragruntOptions, error) {
 	targetOptions := cloneTerragruntOptionsForDependency(terragruntOptions, targetConfig)
 	targetOptions.IncludeModulePrefix = false
 	// just read outputs, so no need to check for dependent modules
@@ -575,6 +589,18 @@ func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.Terrag
 		targetOptions.Source = targetSource
 	}
 
+	if terragruntOptions.DependencyEnvVars != nil {
+		for key, val := range terragruntOptions.DependencyEnvVars {
+			targetOptions.Env[key] = val
+		}
+	}
+
+	if dependencyConfig.EnvVars != nil {
+		for key, val := range dependencyConfig.EnvVars {
+			targetOptions.Env[key] = val
+		}
+	}
+
 	return targetOptions, nil
 }
 
@@ -585,10 +611,10 @@ func cloneTerragruntOptionsForDependencyOutput(terragruntOptions *options.Terrag
 // If these conditions are met, terragrunt can optimize the retrieval to avoid recursively retrieving dependency outputs
 // by directly pulling down the state file. Otherwise, terragrunt will fallback to running `terragrunt output` on the
 // target module.
-func getTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, targetConfig string) ([]byte, error) {
+func getTerragruntOutputJson(terragruntOptions *options.TerragruntOptions, dependencyConfig *Dependency, targetConfig string) ([]byte, error) {
 	// Make a copy of the terragruntOptions so that we can reuse the same execution environment, but in the context of
 	// the target config.
-	targetTGOptions, err := cloneTerragruntOptionsForDependencyOutput(terragruntOptions, targetConfig)
+	targetTGOptions, err := cloneTerragruntOptionsForDependencyOutput(terragruntOptions, dependencyConfig, targetConfig)
 	if err != nil {
 		return nil, err
 	}
