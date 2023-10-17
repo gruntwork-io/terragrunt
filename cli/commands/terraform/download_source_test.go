@@ -249,7 +249,7 @@ func TestInvalidModulePath(t *testing.T) {
 
 	terraformSource, _, _, err := createConfig(t, canonicalUrl, downloadDir, false)
 	assert.Nil(t, err)
-	terraformSource.WorkingDir = terraformSource.WorkingDir + "/not-existing-path"
+	terraformSource.WorkingDir += "/not-existing-path"
 
 	err = validateWorkingDir(terraformSource)
 	assert.NotNil(t, err)
@@ -268,7 +268,7 @@ func TestDownloadInvalidPathToFilePath(t *testing.T) {
 
 	terraformSource, _, _, err := createConfig(t, canonicalUrl, downloadDir, false)
 	assert.Nil(t, err)
-	terraformSource.WorkingDir = terraformSource.WorkingDir + "/main.tf"
+	terraformSource.WorkingDir += "/main.tf"
 
 	err = validateWorkingDir(terraformSource)
 	assert.NotNil(t, err)
@@ -342,6 +342,8 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 
 func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool, expectedFileContents string, requireInitFile bool) {
 	terraformSource, terragruntOptions, terragruntConfig, err := createConfig(t, canonicalUrl, downloadDir, sourceUpdate)
+
+	assert.NoError(t, err)
 
 	err = downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions, terragruntConfig)
 	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)

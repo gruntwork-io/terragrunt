@@ -78,7 +78,6 @@ linters:
     - megacheck
     - misspell
     - prealloc
-    - stylecheck
     - unconvert
     - unused
     - unparam
