@@ -75,16 +75,13 @@ linters:
     - gosimple
     - govet
     - ineffassign
-    - lll
     - megacheck
     - misspell
     - prealloc
-    - revive
     - stylecheck
     - unconvert
     - unused
     - unparam
-    - wsl
   enable-all: false
   disable:
     - depguard
