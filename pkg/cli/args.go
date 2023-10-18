@@ -8,6 +8,8 @@ import (
 const (
 	SingleDashFlag NormalizeActsType = iota
 	DoubleDashFlag NormalizeActsType = iota
+
+	minTailLen = 2
 )
 
 var (
@@ -36,7 +38,7 @@ func (args *Args) First() string {
 // Tail returns the rest of the arguments (not the first one)
 // or else an empty string slice
 func (args *Args) Tail() []string {
-	if args.Len() >= 2 {
+	if args.Len() >= minTailLen {
 		tail := []string((*args)[1:])
 		ret := make([]string, len(tail))
 		copy(ret, tail)
@@ -68,7 +70,7 @@ func (args *Args) Slice() []string {
 //	`SingleDashFlag` - converts all arguments containing double dashes to single dashes
 //	`DoubleDashFlag` - converts all arguments containing signle dashes to double dashes
 func (args *Args) Normalize(acts ...NormalizeActsType) *Args {
-	var strArgs Args
+	strArgs := make(Args, 0, len(args.Slice()))
 
 	for _, arg := range args.Slice() {
 		for _, act := range acts {
