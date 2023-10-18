@@ -49,7 +49,7 @@ func wrapStringSliceToNumberAsFuncImpl(
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			params, err := ctySliceToStringSlice(args)
 			if err != nil {
-				return cty.StringVal(""), err
+				return cty.NumberIntVal(0), err
 			}
 			out, err := toWrap(params, trackInclude, terragruntOptions)
 			if err != nil {
