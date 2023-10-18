@@ -41,12 +41,12 @@ func (g *FileCopyGetter) Get(dst string, u *url.URL) error {
 	return util.CopyFolderContents(path, dst, SourceManifestName, g.IncludeInCopy)
 }
 
-// The original FileGetter already knows how to do file copying so long as we set the Copy flag to true, so just
+// GetFile The original FileGetter already knows how to do file copying so long as we set the Copy flag to true, so just
 // delegate to it
 func (g *FileCopyGetter) GetFile(dst string, u *url.URL) error {
 	underlying := &getter.FileGetter{Copy: true}
 	if err := underlying.GetFile(dst, u); err != nil {
-		errors.WithStackTrace(err)
+		return errors.WithStackTrace(err)
 	}
 	return nil
 }
