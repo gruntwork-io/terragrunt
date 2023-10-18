@@ -59,7 +59,7 @@ func TestCommandOutputPrefix(t *testing.T) {
 		prefixedOutput,
 		STDOUT,
 		STDERR,
-	), false)
+	), true)
 }
 
 func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions), assertResults func(string, *CmdOutput), allocateStdout bool) {
