@@ -15,8 +15,16 @@ import (
 // adding some styling to modules that are excluded from the execution in *-all commands
 func WriteDot(w io.Writer, terragruntOptions *options.TerragruntOptions, modules []*TerraformModule) error {
 
-	w.Write([]byte("digraph {\n"))
-	defer w.Write([]byte("}\n"))
+	_, err := w.Write([]byte("digraph {\n"))
+	if err != nil {
+		return err
+	}
+	defer func(w io.Writer, p []byte) {
+		_, err := w.Write(p)
+		if err != nil {
+			terragruntOptions.Logger.Warnf("Failed to close graphviz output: %v", err)
+		}
+	}(w, []byte("}\n"))
 
 	// all paths are relative to the TerragruntConfigPath
 	prefix := filepath.Dir(terragruntOptions.TerragruntConfigPath) + "/"
@@ -25,19 +33,26 @@ func WriteDot(w io.Writer, terragruntOptions *options.TerragruntOptions, modules
 		// apply a different coloring for excluded nodes
 		style := ""
 		if source.FlagExcluded {
-			style = fmt.Sprintf("[color=red]")
+			style = "[color=red]"
 		}
 
 		nodeLine := fmt.Sprintf("\t\"%s\" %s;\n",
 			strings.TrimPrefix(source.Path, prefix), style)
 
-		w.Write([]byte(nodeLine))
+		_, err := w.Write([]byte(nodeLine))
+		if err != nil {
+			return err
+		}
+
 		for _, target := range source.Dependencies {
 			line := fmt.Sprintf("\t\"%s\" -> \"%s\";\n",
 				strings.TrimPrefix(source.Path, prefix),
 				strings.TrimPrefix(target.Path, prefix),
 			)
-			w.Write([]byte(line))
+			_, err := w.Write([]byte(line))
+			if err != nil {
+				return err
+			}
 		}
 	}
 

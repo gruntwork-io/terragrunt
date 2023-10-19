@@ -1,3 +1,4 @@
+// nolint:unparam
 package terraform
 
 import (
@@ -159,7 +160,12 @@ func (tfrGetter *RegistryGetter) getSubdir(ctx context.Context, dstPath, sourceU
 	if err != nil {
 		return err
 	}
-	defer tempdirCloser.Close()
+	defer func(tempdirCloser io.Closer) {
+		err := tempdirCloser.Close()
+		if err != nil {
+			util.GlobalFallbackLogEntry.Warnf("Error closing temporary directory %s: %v", tempdirPath, err)
+		}
+	}(tempdirCloser)
 
 	var opts []getter.ClientOption
 	if tfrGetter.client != nil {
@@ -196,7 +202,12 @@ func (tfrGetter *RegistryGetter) getSubdir(ctx context.Context, dstPath, sourceU
 	// back to it.
 	manifestFname := ".tgmanifest"
 	manifestPath := filepath.Join(dstPath, manifestFname)
-	defer os.Remove(manifestPath)
+	defer func(name string) {
+		err := os.Remove(name)
+		if err != nil {
+			util.GlobalFallbackLogEntry.Warnf("Error removing temporary directory %s: %v", name, err)
+		}
+	}(manifestPath)
 	return util.CopyFolderContentsWithFilter(sourcePath, dstPath, manifestFname, func(path string) bool { return true })
 }
 
@@ -278,7 +289,12 @@ func httpGETAndGetResponse(ctx context.Context, getURL url.URL) ([]byte, *http.H
 		return nil, nil, errors.WithStackTrace(err)
 	}
 
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			util.GlobalFallbackLogEntry.Warnf("Error closing response body: %v", err)
+		}
+	}(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, nil, errors.WithStackTrace(RegistryAPIErr{url: getURL.String(), statusCode: resp.StatusCode})
 	}

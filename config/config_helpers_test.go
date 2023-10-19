@@ -1137,7 +1137,7 @@ func mockConfigWithSource(sourceUrl string) *TerragruntConfig {
 // Return keys as a map so it is treated like a set, and order doesn't matter when comparing equivalence
 func getKeys(valueMap map[string]cty.Value) map[string]bool {
 	keys := map[string]bool{}
-	for k, _ := range valueMap {
+	for k := range valueMap {
 		keys[k] = true
 	}
 	return keys

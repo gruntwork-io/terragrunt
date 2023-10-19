@@ -51,10 +51,6 @@ linters-settings:
     check-exported: false
   nakedret:
     max-func-lines: 20
-  prealloc:
-    simple: true
-    range-loops: true
-    for-loops: true
   gocritic:
     disabled-checks:
       - regexpMust
@@ -70,18 +66,15 @@ linters:
   enable:
     - dupl
     - errcheck
-    - gochecknoinits
     - goconst
     - gocritic
     - goimports
-    - gochecknoinits
     - gomnd
     - gosimple
     - govet
     - ineffassign
     - megacheck
     - misspell
-    - prealloc
     - unconvert
     - unused
     - unparam

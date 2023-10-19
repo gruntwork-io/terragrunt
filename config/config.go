@@ -447,13 +447,11 @@ func (conf *TerraformExtraArguments) String() string {
 }
 
 func (conf *TerraformExtraArguments) GetVarFiles(logger *logrus.Entry) []string {
-	varFiles := []string{}
+	var varFiles []string
 
 	// Include all specified RequiredVarFiles.
 	if conf.RequiredVarFiles != nil {
-		for _, file := range util.RemoveDuplicatesFromListKeepLast(*conf.RequiredVarFiles) {
-			varFiles = append(varFiles, file)
-		}
+		varFiles = append(varFiles, util.RemoveDuplicatesFromListKeepLast(*conf.RequiredVarFiles)...)
 	}
 
 	// If OptionalVarFiles is specified, check for each file if it exists and if so, include in the var
@@ -531,7 +529,7 @@ func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 	// Check if there is an entry to replace the URL portion in the map. Return the source as is if there is no entry in
 	// the map.
 	sourcePath, hasKey := sourceMap[moduleUrlQuery]
-	if hasKey == false {
+	if !hasKey {
 		return source, nil
 	}
 
@@ -1173,7 +1171,7 @@ func (conf *TerragruntConfig) SetFieldMetadata(fieldName string, m map[string]in
 // SetFieldMetadataMap set metadata on fields from map keys.
 // Example usage - setting metadata on all variables from inputs.
 func (conf *TerragruntConfig) SetFieldMetadataMap(field string, data map[string]interface{}, metadata map[string]interface{}) {
-	for name, _ := range data {
+	for name := range data {
 		conf.SetFieldMetadataWithType(field, name, metadata)
 	}
 }

@@ -5,10 +5,11 @@ import (
 	"io"
 	"os"
 
+	"golang.org/x/crypto/ssh/terminal"
+
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh/terminal"
 )
 
 // used in integration tests
@@ -44,7 +45,7 @@ func DisableLogColors() {
 func CreateLogger(lvl logrus.Level) *logrus.Logger {
 	logger := logrus.New()
 	logger.SetLevel(lvl)
-	logger.SetOutput(os.Stderr) //Terragrunt should output all it's logs to stderr by default
+	logger.SetOutput(os.Stderr) // Terragrunt should output all it's logs to stderr by default
 	logger.SetFormatter(&logrus.TextFormatter{
 		DisableQuote:  true,
 		DisableColors: disableLogColors,

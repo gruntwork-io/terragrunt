@@ -12,6 +12,9 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -234,7 +237,7 @@ func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger *logrus.Entry,
 		for {
 			select {
 			case s := <-signalChannel:
-				logger.Debugf("%s signal received. Gracefully shutting down... (it can take up to %v)", strings.Title(s.String()), signalForwardingDelay)
+				logger.Debugf("%s signal received. Gracefully shutting down... (it can take up to %v)", cases.Title(language.English).String(s.String()), signalForwardingDelay)
 
 				select {
 				case <-time.After(signalForwardingDelay):

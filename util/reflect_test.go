@@ -23,7 +23,7 @@ func TestKindOf(t *testing.T) {
 		{nil, reflect.Invalid},
 		{"Hello World!", reflect.String},
 		{new(string), reflect.Ptr},
-		{*new(string), reflect.String},
+		{"", reflect.String},
 		{interface{}(false), reflect.Bool},
 	}
 	for _, testCase := range testCases {

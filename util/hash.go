@@ -1,11 +1,11 @@
 package util
 
 import (
+	"crypto/rand"
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
-	"math/rand"
 )
 
 // Returns the base 64 encoded sha1 hash of the given string

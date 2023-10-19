@@ -78,7 +78,10 @@ func (stack *Stack) JsonModuleDeployOrder(terraformCommand string) (string, erro
 
 // Graph creates a graphviz representation of the modules
 func (stack *Stack) Graph(terragruntOptions *options.TerragruntOptions) {
-	WriteDot(terragruntOptions.Writer, terragruntOptions, stack.Modules)
+	err := WriteDot(terragruntOptions.Writer, terragruntOptions, stack.Modules)
+	if err != nil {
+		terragruntOptions.Logger.Warnf("Failed to graph dot: %v", err)
+	}
 }
 
 func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
