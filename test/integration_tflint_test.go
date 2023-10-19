@@ -13,6 +13,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTflintFindsNoIssuesWithValidCode(t *testing.T) {
@@ -171,4 +172,17 @@ func TestTflintCustomConfig(t *testing.T) {
 
 	assert.Contains(t, errOut.String(), "--config custom.tflint.hcl")
 	assert.Contains(t, errOut.String(), "Tflint has run successfully. No issues found")
+}
+
+func copyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
+	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir due to error: %v", err)
+	}
+
+	t.Logf("Copying %s to %s", environmentPath, tmpDir)
+
+	require.NoError(t, util.CopyFolderContents(environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", []string{".tflint.hcl"}))
+
+	return tmpDir
 }

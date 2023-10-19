@@ -75,8 +75,8 @@ const (
 	TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES                          = "fixture-download/local-with-prevent-destroy-dependencies"
 	TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES                  = "fixture-download/local-include-with-prevent-destroy-dependencies"
 	TEST_FIXTURE_NOT_EXISTING_SOURCE                                         = "fixture-download/invalid-path"
-	TEST_FIXTURE_EXTERNAL_DEPENDENCIE                                        = "fixture-external-dependencies"
-	TEST_FIXTURE_MISSING_DEPENDENCIE                                         = "fixture-missing-dependencies/main"
+	TEST_FIXTURE_EXTERNAL_DEPENDENCE                                         = "fixture-external-dependencies"
+	TEST_FIXTURE_MISSING_DEPENDENCE                                          = "fixture-missing-dependencies/main"
 	TEST_FIXTURE_GET_OUTPUT                                                  = "fixture-get-output"
 	TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH                                      = "fixture-hooks/before-only"
 	TEST_FIXTURE_HOOKS_ALL_PATH                                              = "fixture-hooks/all"
@@ -184,10 +184,6 @@ const (
 	qaMyAppRelPath  = "qa/my-app"
 	fixtureDownload = "fixture-download"
 )
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
 
 func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
 	t.Parallel()
@@ -1000,10 +996,6 @@ func TestTerragruntOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *tes
 func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules int, timeToDeployEachModule time.Duration) (string, int, error) {
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 
-	// folders inside the fixture
-	//fixtureTemplate := path.Join(TEST_FIXTURE_PARALLELISM, "template")
-	//fixtureApp := path.Join(TEST_FIXTURE_PARALLELISM, "app")
-
 	// copy the template `numberOfModules` times into the app
 	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")
 	if err != nil {
@@ -1025,7 +1017,7 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, config.DefaultTerragruntConfigPath)
 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
-	environmentPath := fmt.Sprintf("%s", tmpEnvPath)
+	environmentPath := tmpEnvPath
 
 	// forces plugin download & initialization (no parallelism control)
 	runTerragrunt(t, fmt.Sprintf("terragrunt plan-all --terragrunt-non-interactive --terragrunt-working-dir %s -var sleep_seconds=%d", environmentPath, timeToDeployEachModule/time.Second))
@@ -1310,7 +1302,7 @@ func TestAwsProviderPatch(t *testing.T) {
 	// https://www.terraform.io/docs/language/modules/sources.html#modules-in-package-sub-directories
 	// https://github.com/gruntwork-io/terragrunt/issues/1778
 	branchName = url.QueryEscape(branchName)
-	mainContents = strings.Replace(mainContents, "__BRANCH_NAME__", branchName, -1)
+	mainContents = strings.ReplaceAll(mainContents, "__BRANCH_NAME__", branchName)
 	require.NoError(t, os.WriteFile(mainTFFile, []byte(mainContents), 0444))
 
 	assert.NoError(
@@ -1773,7 +1765,7 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 func TestTerragruntMissingDependenciesFail(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := TEST_FIXTURE_MISSING_DEPENDENCIE
+	generateTestCase := TEST_FIXTURE_MISSING_DEPENDENCE
 	cleanupTerraformFolder(t, generateTestCase)
 	cleanupTerragruntFolder(t, generateTestCase)
 
@@ -1798,9 +1790,9 @@ func TestTerragruntExcludeExternalDependencies(t *testing.T) {
 		includedModule,
 	}
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_EXTERNAL_DEPENDENCIE)
+	cleanupTerraformFolder(t, TEST_FIXTURE_EXTERNAL_DEPENDENCE)
 	for _, module := range modules {
-		cleanupTerraformFolder(t, util.JoinPath(TEST_FIXTURE_EXTERNAL_DEPENDENCIE, module))
+		cleanupTerraformFolder(t, util.JoinPath(TEST_FIXTURE_EXTERNAL_DEPENDENCE, module))
 	}
 
 	var (
@@ -1808,8 +1800,8 @@ func TestTerragruntExcludeExternalDependencies(t *testing.T) {
 		applyAllStderr bytes.Buffer
 	)
 
-	rootPath := copyEnvironment(t, TEST_FIXTURE_EXTERNAL_DEPENDENCIE)
-	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_EXTERNAL_DEPENDENCIE, includedModule)
+	rootPath := copyEnvironment(t, TEST_FIXTURE_EXTERNAL_DEPENDENCE)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_EXTERNAL_DEPENDENCE, includedModule)
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-ignore-external-dependencies --terragrunt-working-dir %s", modulePath), &applyAllStdout, &applyAllStderr)
 	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
@@ -2273,7 +2265,7 @@ func TestDependencyMockOutputMergeWithStateDefault(t *testing.T) {
 	stderr.Reset()
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
 	assert.Error(t, err)
-	// Verify that we fail because the dependency is not applied yet, and the new attribue is not available and in
+	// Verify that we fail because the dependency is not applied yet, and the new attribute is not available and in
 	// this case, mocked outputs are not used.
 	assert.Contains(t, err.Error(), "This object does not have an attribute named \"test_output2\"")
 
@@ -2306,7 +2298,7 @@ func TestDependencyMockOutputMergeWithStateFalse(t *testing.T) {
 	stderr.Reset()
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
 	assert.Error(t, err)
-	// Verify that we fail because the dependency is not applied yet, and the new attribue is not available and in
+	// Verify that we fail because the dependency is not applied yet, and the new attribute is not available and in
 	// this case, mocked outputs are not used.
 	assert.Contains(t, err.Error(), "This object does not have an attribute named \"test_output2\"")
 
@@ -4062,28 +4054,6 @@ func copyEnvironment(t *testing.T, environmentPath string) string {
 	return tmpDir
 }
 
-func copyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
-	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir due to error: %v", err)
-	}
-
-	t.Logf("Copying %s to %s", environmentPath, tmpDir)
-
-	require.NoError(t, util.CopyFolderContents(environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", []string{".tflint.hcl"}))
-
-	return tmpDir
-}
-
-func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
-	if err := os.MkdirAll(targetPath, 0777); err != nil {
-		t.Fatalf("Failed to create temp dir %s due to error %v", targetPath, err)
-	}
-
-	copyErr := util.CopyFolderContents(environmentPath, util.JoinPath(targetPath, environmentPath), ".terragrunt-test", nil)
-	require.NoError(t, copyErr)
-}
-
 func createTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string, childRelPath string, s3BucketName string, parentConfigFileName string, childConfigFileName string) string {
 	tmpDir, err := os.MkdirTemp("", "terragrunt-parent-child-test")
 	if err != nil {
@@ -4154,10 +4124,10 @@ func copyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string,
 		t.Fatalf("Error reading Terragrunt config at %s: %v", configSrcPath, err)
 	}
 
-	contents = strings.Replace(contents, "__FILL_IN_BUCKET_NAME__", s3BucketName, -1)
-	contents = strings.Replace(contents, "__FILL_IN_LOCK_TABLE_NAME__", lockTableName, -1)
-	contents = strings.Replace(contents, "__FILL_IN_REGION__", region, -1)
-	contents = strings.Replace(contents, "__FILL_IN_LOGS_BUCKET_NAME__", s3BucketName+"-tf-state-logs", -1)
+	contents = strings.ReplaceAll(contents, "__FILL_IN_BUCKET_NAME__", s3BucketName)
+	contents = strings.ReplaceAll(contents, "__FILL_IN_LOCK_TABLE_NAME__", lockTableName)
+	contents = strings.ReplaceAll(contents, "__FILL_IN_REGION__", region)
+	contents = strings.ReplaceAll(contents, "__FILL_IN_LOGS_BUCKET_NAME__", s3BucketName+"-tf-state-logs")
 
 	if err := os.WriteFile(configDestPath, []byte(contents), 0444); err != nil {
 		t.Fatalf("Error writing temp Terragrunt config to %s: %v", configDestPath, err)
@@ -4170,12 +4140,12 @@ func copyTerragruntGCSConfigAndFillPlaceholders(t *testing.T, configSrcPath stri
 		t.Fatalf("Error reading Terragrunt config at %s: %v", configSrcPath, err)
 	}
 
-	contents = strings.Replace(contents, "__FILL_IN_PROJECT__", project, -1)
-	contents = strings.Replace(contents, "__FILL_IN_LOCATION__", location, -1)
-	contents = strings.Replace(contents, "__FILL_IN_BUCKET_NAME__", gcsBucketName, -1)
+	contents = strings.ReplaceAll(contents, "__FILL_IN_PROJECT__", project)
+	contents = strings.ReplaceAll(contents, "__FILL_IN_LOCATION__", location)
+	contents = strings.ReplaceAll(contents, "__FILL_IN_BUCKET_NAME__", gcsBucketName)
 
 	email := os.Getenv("GOOGLE_IDENTITY_EMAIL")
-	contents = strings.Replace(contents, "__FILL_IN_GCP_EMAIL__", email, -1)
+	contents = strings.ReplaceAll(contents, "__FILL_IN_GCP_EMAIL__", email)
 
 	if err := os.WriteFile(configDestPath, []byte(contents), 0444); err != nil {
 		t.Fatalf("Error writing temp Terragrunt config to %s: %v", configDestPath, err)
@@ -4648,7 +4618,7 @@ func runValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath
 		),
 	)
 	require.NoError(t, err)
-	matches := includedModulesRegexp.FindAllStringSubmatch(string(validateAllStderr.Bytes()), -1)
+	matches := includedModulesRegexp.FindAllStringSubmatch(validateAllStderr.String(), -1)
 	includedModules := []string{}
 	for _, match := range matches {
 		if match[2] == "false" {
@@ -4869,7 +4839,7 @@ func TestTerragruntInitConfirmation(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all init --terragrunt-working-dir %s", tmpEnvPath), &stdout, &stderr)
 	require.Error(t, err)
-	errout := string(stderr.Bytes())
+	errout := stderr.String()
 	assert.Equal(t, 1, strings.Count(errout, "does not exist or you don't have permissions to access it. Would you like Terragrunt to create it? (y/n)"))
 }
 
@@ -4910,7 +4880,7 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	if err != nil {
 		require.NoError(t, err)
 	}
-	updatedHcl := strings.Replace(contents, "__TAG_VALUE__", "v0.35.1", -1)
+	updatedHcl := strings.ReplaceAll(contents, "__TAG_VALUE__", "v0.35.1")
 	require.NoError(t, os.WriteFile(terragruntHcl, []byte(updatedHcl), 0444))
 
 	stdout := bytes.Buffer{}
@@ -4921,7 +4891,7 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	// providers initialization during first plan
 	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
 
-	updatedHcl = strings.Replace(contents, "__TAG_VALUE__", "v0.35.2", -1)
+	updatedHcl = strings.ReplaceAll(contents, "__TAG_VALUE__", "v0.35.2")
 	require.NoError(t, os.WriteFile(terragruntHcl, []byte(updatedHcl), 0444))
 
 	stdout = bytes.Buffer{}
@@ -5955,7 +5925,7 @@ func TestTerragruntDisableBucketUpdate(t *testing.T) {
 func TestTerragruntPassNullValues(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(TEST_FIXTURE_NULL_VALUE)
+	generateTestCase := TEST_FIXTURE_NULL_VALUE
 	cleanupTerraformFolder(t, generateTestCase)
 	cleanupTerragruntFolder(t, generateTestCase)
 

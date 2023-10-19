@@ -14,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -84,4 +85,12 @@ func TestWindowsTflintIsInvoked(t *testing.T) {
 	found, err := regexp.MatchString(fmt.Sprintf("--config %s/.terragrunt-cache/.*/.tflint.hcl", modulePath), errOut.String())
 	assert.NoError(t, err)
 	assert.True(t, found)
+}
+func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
+	if err := os.MkdirAll(targetPath, 0777); err != nil {
+		t.Fatalf("Failed to create temp dir %s due to error %v", targetPath, err)
+	}
+
+	copyErr := util.CopyFolderContents(environmentPath, util.JoinPath(targetPath, environmentPath), ".terragrunt-test", nil)
+	require.NoError(t, copyErr)
 }
