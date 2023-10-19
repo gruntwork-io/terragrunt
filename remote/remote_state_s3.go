@@ -513,25 +513,25 @@ func configureAccessLogBucket(terragruntOptions *options.TerragruntOptions, s3Cl
 
 	if err := CreateLogsS3BucketIfNecessary(s3Client, aws.String(config.AccessLoggingBucketName), terragruntOptions); err != nil {
 		terragruntOptions.Logger.Errorf("Could not create logs bucket %s for AWS S3 bucket %s\n%s", config.AccessLoggingBucketName, config.remoteStateConfigS3.Bucket, err.Error())
-		return err
+		return errors.WithStackTrace(err)
 	}
 
 	if err := EnablePublicAccessBlockingForS3Bucket(s3Client, config.AccessLoggingBucketName, terragruntOptions); err != nil {
-		return err
+		return errors.WithStackTrace(err)
 	}
 
 	if err := EnableAccessLoggingForS3BucketWide(s3Client, &config.remoteStateConfigS3, terragruntOptions, config.AccessLoggingBucketName, config.AccessLoggingTargetPrefix); err != nil {
-		return err
+		return errors.WithStackTrace(err)
 	}
 
 	if !config.SkipBucketSSEncryption {
 		if err := EnableSSEForS3BucketWide(s3Client, config.AccessLoggingBucketName, s3.ServerSideEncryptionAes256, config, terragruntOptions); err != nil {
-			return err
+			return errors.WithStackTrace(err)
 		}
 	}
 
 	if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, config.AccessLoggingBucketName, config, terragruntOptions); err != nil {
-		return err
+		return errors.WithStackTrace(err)
 	}
 	return nil
 }

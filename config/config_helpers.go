@@ -554,7 +554,7 @@ func readTerragruntConfig(configPath string, defaultVal *cty.Value, terragruntOp
 	for i := 0; i < len(config.TerragruntDependencies); i++ {
 		err := config.TerragruntDependencies[i].setRenderedOutputs(targetOptions)
 		if err != nil {
-			return cty.NilVal, err
+			return cty.NilVal, errors.WithStackTrace(err)
 		}
 	}
 

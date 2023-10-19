@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/go-commons/errors"
+
 	"github.com/sirupsen/logrus"
 
 	"github.com/hashicorp/go-multierror"
@@ -125,7 +127,7 @@ func checkErrors(logger *logrus.Entry, contents []byte, tgHclFile string) error 
 	diagWriter := util.GetDiagnosticsWriter(logger, parser)
 	err := diagWriter.WriteDiagnostics(diags)
 	if err != nil {
-		return err
+		return errors.WithStackTrace(err)
 	}
 	if diags.HasErrors() {
 		return diags

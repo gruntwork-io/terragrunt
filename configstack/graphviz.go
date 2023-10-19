@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/go-commons/errors"
+
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -17,7 +19,7 @@ func WriteDot(w io.Writer, terragruntOptions *options.TerragruntOptions, modules
 
 	_, err := w.Write([]byte("digraph {\n"))
 	if err != nil {
-		return err
+		return errors.WithStackTrace(err)
 	}
 	defer func(w io.Writer, p []byte) {
 		_, err := w.Write(p)
@@ -41,7 +43,7 @@ func WriteDot(w io.Writer, terragruntOptions *options.TerragruntOptions, modules
 
 		_, err := w.Write([]byte(nodeLine))
 		if err != nil {
-			return err
+			return errors.WithStackTrace(err)
 		}
 
 		for _, target := range source.Dependencies {
@@ -51,7 +53,7 @@ func WriteDot(w io.Writer, terragruntOptions *options.TerragruntOptions, modules
 			)
 			_, err := w.Write([]byte(line))
 			if err != nil {
-				return err
+				return errors.WithStackTrace(err)
 			}
 		}
 	}
