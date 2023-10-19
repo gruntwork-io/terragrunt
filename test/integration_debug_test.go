@@ -67,7 +67,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	)
 
 	outputs := map[string]TerraformOutput{}
-	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	validateInputs(t, outputs)
 
 	// Also make sure the undefined variable is not included in the json file
