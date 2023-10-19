@@ -89,7 +89,6 @@ func beforeAction(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 		if !ctx.Args().Present() {
 			err := cli.ShowAppHelp(ctx)
 			// exit the app
-
 			return cli.NewExitError(err, 0)
 		}
 
