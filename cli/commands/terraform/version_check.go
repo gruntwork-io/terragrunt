@@ -24,6 +24,10 @@ const DefaultTerraformVersionConstraint = ">= v0.12.0"
 // We only make sure the "v#.#.#" part is present in the output.
 var TerraformVersionRegex = regexp.MustCompile(`^(.*?)\s(v?\d+\.\d+\.\d+).*`)
 
+const (
+	versionParts = 3
+)
+
 // Check the version constraints of both terragrunt and terraform. Note that as a side effect this will set the
 // following settings on terragruntOptions:
 // - TerraformPath
@@ -153,7 +157,7 @@ func checkTerraformVersionMeetsConstraint(currentVersion *version.Version, const
 func parseTerraformVersion(versionCommandOutput string) (*version.Version, error) {
 	matches := TerraformVersionRegex.FindStringSubmatch(versionCommandOutput)
 
-	if len(matches) != 3 {
+	if len(matches) != versionParts {
 		return nil, errors.WithStackTrace(InvalidTerraformVersionSyntax(versionCommandOutput))
 	}
 
@@ -164,7 +168,7 @@ func parseTerraformVersion(versionCommandOutput string) (*version.Version, error
 func parseTerraformImplementationType(versionCommandOutput string) (options.TerraformImplementationType, error) {
 	matches := TerraformVersionRegex.FindStringSubmatch(versionCommandOutput)
 
-	if len(matches) != 3 {
+	if len(matches) != versionParts {
 		return options.UnknownImpl, errors.WithStackTrace(InvalidTerraformVersionSyntax(versionCommandOutput))
 	}
 	rawType := strings.ToLower(matches[1])

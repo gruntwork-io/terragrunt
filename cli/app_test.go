@@ -230,18 +230,18 @@ func mockOptionsWithIamRole(t *testing.T, terragruntConfigPath string, workingDi
 	return opts
 }
 
-func mockOptionsWithIamAssumeRoleDuration(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, IamAssumeRoleDuration int64) *options.TerragruntOptions {
+func mockOptionsWithIamAssumeRoleDuration(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, iamAssumeRoleDuration int64) *options.TerragruntOptions {
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
-	opts.OriginalIAMRoleOptions.AssumeRoleDuration = IamAssumeRoleDuration
-	opts.IAMRoleOptions.AssumeRoleDuration = IamAssumeRoleDuration
+	opts.OriginalIAMRoleOptions.AssumeRoleDuration = iamAssumeRoleDuration
+	opts.IAMRoleOptions.AssumeRoleDuration = iamAssumeRoleDuration
 
 	return opts
 }
 
-func mockOptionsWithIamAssumeRoleSessionName(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, IamAssumeRoleSessionName string) *options.TerragruntOptions {
+func mockOptionsWithIamAssumeRoleSessionName(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, iamAssumeRoleSessionName string) *options.TerragruntOptions {
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
-	opts.OriginalIAMRoleOptions.AssumeRoleSessionName = IamAssumeRoleSessionName
-	opts.IAMRoleOptions.AssumeRoleSessionName = IamAssumeRoleSessionName
+	opts.OriginalIAMRoleOptions.AssumeRoleSessionName = iamAssumeRoleSessionName
+	opts.IAMRoleOptions.AssumeRoleSessionName = iamAssumeRoleSessionName
 
 	return opts
 }

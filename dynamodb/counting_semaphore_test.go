@@ -1,3 +1,4 @@
+//nolint:govet
 package dynamodb
 
 import (

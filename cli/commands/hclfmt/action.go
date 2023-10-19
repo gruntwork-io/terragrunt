@@ -35,8 +35,6 @@ func Run(opts *options.TerragruntOptions) error {
 		return formatTgHCL(opts, targetFile)
 	}
 
-	targetFile = filepath.ToSlash(targetFile)
-
 	opts.Logger.Debugf("Formatting hcl files from the directory tree %s.", opts.WorkingDir)
 	// zglob normalizes paths to "/"
 	tgHclFiles, err := zglob.Glob(util.JoinPath(workingDir, "**", "*.hcl"))

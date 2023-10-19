@@ -81,7 +81,7 @@ func parseIncludedConfig(
 	// NOTE: To make the logic easier to implement, we implement the inverse here, where we check whether the included
 	// config has a dependency block, and if we are in the middle of a partial parse, we perform a partial parse of the
 	// included config.
-	hasDependency, err := configFileHasDependencyBlock(includePath, terragruntOptions)
+	hasDependency, err := configFileHasDependencyBlock(includePath)
 	if err != nil {
 		return nil, err
 	}
@@ -691,7 +691,9 @@ func getTrackInclude(
 	}
 
 	hasInclude := len(terragruntIncludeList) > 0
-	if hasInclude && includeFromChild != nil {
+	var trackInc TrackInclude
+	switch {
+	case hasInclude && includeFromChild != nil:
 		// tgInc appears in a parent that is already included, which means a nested include block. This is not
 		// something we currently support.
 		err := errors.WithStackTrace(TooManyLevelsOfInheritance{
@@ -700,23 +702,22 @@ func getTrackInclude(
 			SecondLevelIncludePath: strings.Join(includedPaths, ","),
 		})
 		return nil, err
-	} else if hasInclude && includeFromChild == nil {
+	case hasInclude && includeFromChild == nil:
 		// Current parsing context where there is no included config already loaded.
-		trackInc := TrackInclude{
+		trackInc = TrackInclude{
 			CurrentList: terragruntIncludeList,
 			CurrentMap:  terragruntIncludeMap,
 			Original:    nil,
 		}
-		return &trackInc, nil
-	} else {
+	case !hasInclude:
 		// Parsing context where there is an included config already loaded.
-		trackInc := TrackInclude{
+		trackInc = TrackInclude{
 			CurrentList: terragruntIncludeList,
 			CurrentMap:  terragruntIncludeMap,
 			Original:    includeFromChild,
 		}
-		return &trackInc, nil
 	}
+	return &trackInc, nil
 }
 
 // updateBareIncludeBlock searches the parsed terragrunt contents for a bare include block (include without a label),

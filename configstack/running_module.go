@@ -115,12 +115,13 @@ func crossLinkDependencies(modules map[string]*runningModule, dependencyOrder De
 			if !hasDependency {
 				return modules, errors.WithStackTrace(DependencyNotFoundWhileCrossLinking{module, dependency})
 			}
-			if dependencyOrder == NormalOrder {
+			switch dependencyOrder {
+			case NormalOrder:
 				module.Dependencies[runningDependency.Module.Path] = runningDependency
 				runningDependency.NotifyWhenDone = append(runningDependency.NotifyWhenDone, module)
-			} else if dependencyOrder == IgnoreOrder {
+			case IgnoreOrder:
 				// Nothing
-			} else {
+			default:
 				runningDependency.Dependencies[module.Module.Path] = module
 				module.NotifyWhenDone = append(module.NotifyWhenDone, runningDependency)
 			}

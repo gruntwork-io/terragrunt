@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+const (
+	mSecond = 1000
+)
+
 // Get a random time duration between the lower bound and upper bound. This is useful because some of our automated tests
 // wound up flooding the AWS API all at once, leading to a "Subscriber limit exceeded" error.
 // TODO: Some of the more exotic test cases fail, but it's not worth catching them given the intended use of this function.
@@ -26,8 +30,8 @@ func GetRandomTime(lowerBound, upperBound time.Duration) time.Duration {
 		return lowerBound
 	}
 
-	lowerBoundMs := lowerBound.Seconds() * 1000
-	upperBoundMs := upperBound.Seconds() * 1000
+	lowerBoundMs := lowerBound.Seconds() * mSecond
+	upperBoundMs := upperBound.Seconds() * mSecond
 
 	lowerBoundMsInt := int(lowerBoundMs)
 	upperBoundMsInt := int(upperBoundMs)

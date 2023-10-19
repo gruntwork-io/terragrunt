@@ -16,6 +16,8 @@ import (
 
 const TerragruntTFVarsFile = "terragrunt-debug.tfvars.json"
 
+const defaultPermissions = 600
+
 // WriteTerragruntDebugFile will create a tfvars file that can be used to invoke the terraform module in the same way
 // that terragrunt invokes the module, so that you can debug issues with the terragrunt config.
 func WriteTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
@@ -41,7 +43,7 @@ func WriteTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terr
 
 	configFolder := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 	fileName := filepath.Join(configFolder, TerragruntTFVarsFile)
-	if err := os.WriteFile(fileName, fileContents, os.FileMode(int(0600))); err != nil {
+	if err := os.WriteFile(fileName, fileContents, os.FileMode(defaultPermissions)); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
@@ -78,14 +80,15 @@ func terragruntDebugFileContents(
 		// Only add to the file if the explicit env var does NOT exist and the variable is defined in the module.
 		// We must do this in order to avoid overriding the env var when the user follows up with a direct invocation to
 		// terraform using this file (due to the order in which terraform resolves config sources).
-		if !varIsInEnv && varIsDefined {
+		switch {
+		case !varIsInEnv && varIsDefined:
 			jsonValuesByKey[varName] = varValue
-		} else if varIsInEnv {
+		case varIsInEnv:
 			terragruntOptions.Logger.Debugf(
 				"WARN: The variable %s was omitted from the debug file because the env var %s is already set.",
 				varName, nameAsEnvVar,
 			)
-		} else if !varIsDefined {
+		case !varIsDefined:
 			terragruntOptions.Logger.Debugf(
 				"WARN: The variable %s was omitted because it is not defined in the terraform module.",
 				varName,

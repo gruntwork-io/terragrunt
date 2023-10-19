@@ -19,6 +19,8 @@ import (
 
 var forcedRegexp = regexp.MustCompile(`^([A-Za-z0-9]+)::(.+)$`)
 
+const matchCount = 2
+
 // This struct represents information about Terraform source code that needs to be downloaded
 type Source struct {
 	// A canonical version of RawSource, in URL format
@@ -279,7 +281,7 @@ func encodeSourceName(sourceUrl *url.URL) (string, error) {
 // rest of the URL. This code is copied from the getForcedGetter method of go-getter/get.go, as that method is not
 // exported publicly.
 func getForcedGetter(sourceUrl string) (string, string) {
-	if matches := forcedRegexp.FindStringSubmatch(sourceUrl); matches != nil && len(matches) > 2 {
+	if matches := forcedRegexp.FindStringSubmatch(sourceUrl); len(matches) > matchCount {
 		return matches[1], matches[2]
 	}
 

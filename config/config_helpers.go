@@ -24,6 +24,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+const noMatchedPats = 1
+const matchedPats = 2
+
 // List of terraform commands that accept -lock-timeout
 var TERRAFORM_COMMANDS_NEED_LOCKING = []string{
 	"apply",
@@ -217,7 +220,7 @@ func getPathToRepoRoot(trackInclude *TrackInclude, terragruntOptions *options.Te
 		return "", errors.WithStackTrace(err)
 	}
 
-	repoRootPathAbs, err := filepath.Rel(terragruntOptions.WorkingDir, string(repoAbsPath))
+	repoRootPathAbs, err := filepath.Rel(terragruntOptions.WorkingDir, repoAbsPath)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
@@ -268,10 +271,10 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 	envVariable := EnvVar{}
 
 	switch len(parameters) {
-	case 1:
+	case noMatchedPats:
 		envVariable.IsRequired = true
 		envVariable.Name = parameters[0]
-	case 2:
+	case matchedPats:
 		envVariable.Name = parameters[0]
 		envVariable.DefaultValue = parameters[1]
 	default:
@@ -382,7 +385,7 @@ func findInParentFolders(
 	if numParams > 1 {
 		fallbackParam = params[1]
 	}
-	if numParams > 2 {
+	if numParams > matchedPats {
 		return "", errors.WithStackTrace(WrongNumberOfParams{Func: "find_in_parent_folders", Expected: "0, 1, or 2", Actual: numParams})
 	}
 
@@ -403,7 +406,7 @@ func findInParentFolders(
 	for i := 0; i < terragruntOptions.MaxFoldersToCheck; i++ {
 		currentDir := filepath.ToSlash(filepath.Dir(previousDir))
 		if currentDir == previousDir {
-			if numParams == 2 {
+			if numParams == matchedPats {
 				return fallbackParam, nil
 			}
 			return "", errors.WithStackTrace(ParentFileNotFound{Path: terragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: "Traversed all the way to the root"})
@@ -433,16 +436,17 @@ func pathRelativeToInclude(params []string, trackInclude *TrackInclude, terragru
 	}
 
 	var included IncludeConfig
-	if trackInclude.Original != nil {
+	switch {
+	case trackInclude.Original != nil:
 		included = *trackInclude.Original
-	} else if len(trackInclude.CurrentList) > 0 {
+	case len(trackInclude.CurrentList) > 0:
 		// Called in child context, so we need to select the right include file.
 		selected, err := getSelectedIncludeBlock(*trackInclude, params)
 		if err != nil {
 			return "", err
 		}
 		included = *selected
-	} else {
+	default:
 		return ".", nil
 	}
 
@@ -578,7 +582,7 @@ func readTerragruntConfigAsFuncImpl(terragruntOptions *options.TerragruntOptions
 			}
 
 			var defaultVal *cty.Value = nil
-			if numParams == 2 {
+			if numParams == matchedPats {
 				defaultVal = &args[1]
 			}
 
@@ -660,7 +664,7 @@ func getModulePathFromSourceUrl(sourceUrl string) (string, error) {
 	matches := moduleNameRegexp.FindStringSubmatch(sourceUrl)
 
 	// if regexp returns less/more than the full match + 1 capture group, then something went wrong with regex (invalid source string)
-	if len(matches) != 2 {
+	if len(matches) != matchedPats {
 		return "", errors.WithStackTrace(ErrorParsingModulePath{ModuleSourceUrl: sourceUrl})
 	}
 
@@ -806,7 +810,7 @@ func endsWith(args []string, trackInclude *TrackInclude, terragruntOptions *opti
 
 // timeCmp implements Terraform's `timecmp` function that compares two timestamps.
 func timeCmp(args []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (int64, error) {
-	if len(args) != 2 {
+	if len(args) != matchedPats {
 		return 0, errors.WithStackTrace(fmt.Errorf("function can take only two parameters: timestamp_a and timestamp_b"))
 	}
 

@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
@@ -80,8 +80,8 @@ func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Leve
 
 // GetDiagnosticsWriter returns a hcl2 parsing diagnostics emitter for the current terminal.
 func GetDiagnosticsWriter(logger *logrus.Entry, parser *hclparse.Parser) hcl.DiagnosticWriter {
-	termColor := terminal.IsTerminal(int(os.Stderr.Fd()))
-	termWidth, _, err := terminal.GetSize(int(os.Stdout.Fd()))
+	termColor := term.IsTerminal(int(os.Stderr.Fd()))
+	termWidth, _, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
 		termWidth = 80
 	}

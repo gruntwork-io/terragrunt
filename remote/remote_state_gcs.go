@@ -74,6 +74,11 @@ type accountFile struct {
 const MAX_RETRIES_WAITING_FOR_GCS_BUCKET = 12
 const SLEEP_BETWEEN_RETRIES_WAITING_FOR_GCS_BUCKET = 5 * time.Second
 
+const (
+	gcpMaxRetries          = 3
+	gcpSleepBetweenRetries = 10 * time.Second
+)
+
 type GCSInitializer struct{}
 
 // Returns true if:
@@ -163,7 +168,7 @@ func (gcsInitializer GCSInitializer) Initialize(remoteState *RemoteState, terrag
 		return err
 	}
 
-	if err := validateGCSConfig(gcsConfigExtended, terragruntOptions); err != nil {
+	if err := validateGCSConfig(gcsConfigExtended); err != nil {
 		return err
 	}
 
@@ -234,7 +239,7 @@ func parseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteState
 }
 
 // Validate all the parameters of the given GCS remote state configuration
-func validateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS, terragruntOptions *options.TerragruntOptions) error {
+func validateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS) error {
 	var config = extendedConfig.remoteStateConfigGCS
 
 	if config.Bucket == "" {
@@ -273,10 +278,8 @@ func createGCSBucketIfNecessary(gcsClient *storage.Client, config *ExtendedRemot
 		if shouldCreateBucket {
 			// To avoid any eventual consistency issues with creating a GCS bucket we use a retry loop.
 			description := fmt.Sprintf("Create GCS bucket %s", config.remoteStateConfigGCS.Bucket)
-			maxRetries := 3
-			sleepBetweenRetries := 10 * time.Second
 
-			return util.DoWithRetry(description, maxRetries, sleepBetweenRetries, terragruntOptions.Logger, logrus.DebugLevel, func() error {
+			return util.DoWithRetry(description, gcpMaxRetries, gcpSleepBetweenRetries, terragruntOptions.Logger, logrus.DebugLevel, func() error {
 				return CreateGCSBucketWithVersioning(gcsClient, config, terragruntOptions)
 			})
 		}

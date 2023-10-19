@@ -137,7 +137,7 @@ func (dependencyConfig *Dependency) setRenderedOutputs(terragruntOptions *option
 		return nil
 	}
 
-	if (*dependencyConfig).shouldGetOutputs() || (*dependencyConfig).shouldReturnMockOutputs(terragruntOptions) {
+	if dependencyConfig.shouldGetOutputs() || dependencyConfig.shouldReturnMockOutputs(terragruntOptions) {
 		outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(*dependencyConfig, terragruntOptions)
 		if err != nil {
 			return err
@@ -200,7 +200,7 @@ func decodeAndRetrieveOutputs(
 
 // Convert the list of parsed Dependency blocks into a list of module dependencies. Each output block should
 // become a dependency of the current config, since that module has to be applied before we can read the output.
-func dependencyBlocksToModuleDependencies(workingDir string, decodedDependencyBlocks []Dependency) *ModuleDependencies {
+func dependencyBlocksToModuleDependencies(decodedDependencyBlocks []Dependency) *ModuleDependencies {
 	if len(decodedDependencyBlocks) == 0 {
 		return nil
 	}

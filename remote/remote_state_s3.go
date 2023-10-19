@@ -24,6 +24,10 @@ const (
 	DefaultS3BucketAccessLoggingTargetPrefix = "TFStateLogs/"
 	SidRootPolicy                            = "RootAccess"
 	SidEnforcedTLSPolicy                     = "EnforcedTLS"
+
+	s3TimeBetweenRetries  = 5 * time.Second
+	s3MaxRetries          = 3
+	s3SleepBetweenRetries = 10 * time.Second
 )
 
 /*
@@ -401,10 +405,8 @@ func createS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 		// eventual consistency issues. Each S3 operation should be idempotent, so redoing steps that have already
 		// been performed should be a no-op.
 		description := fmt.Sprintf("Create S3 bucket with retry %s", config.remoteStateConfigS3.Bucket)
-		maxRetries := 3
-		sleepBetweenRetries := 10 * time.Second
 
-		return util.DoWithRetry(description, maxRetries, sleepBetweenRetries, terragruntOptions.Logger, logrus.DebugLevel, func() error {
+		return util.DoWithRetry(description, s3MaxRetries, s3SleepBetweenRetries, terragruntOptions.Logger, logrus.DebugLevel, func() error {
 			err := CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client, config, terragruntOptions)
 			if err != nil {
 				if isBucketCreationErrorRetriable(err) {
@@ -1312,7 +1314,6 @@ func waitUntilBucketHasAccessLoggingAcl(s3Client *s3.S3, bucket *string, terragr
 	terragruntOptions.Logger.Debugf("Waiting for ACL bucket %s to have the updated ACL for access logging.", aws.StringValue(bucket))
 
 	maxRetries := 10
-	timeBetweenRetries := 5 * time.Second
 
 	for i := 0; i < maxRetries; i++ {
 		out, err := s3Client.GetBucketAcl(&s3.GetBucketAclInput{Bucket: bucket})
@@ -1339,8 +1340,8 @@ func waitUntilBucketHasAccessLoggingAcl(s3Client *s3.S3, bucket *string, terragr
 			return nil
 		}
 
-		terragruntOptions.Logger.Debugf("Bucket %s still does not have the ACL permissions for access logging. Will sleep for %v and check again.", aws.StringValue(bucket), timeBetweenRetries)
-		time.Sleep(timeBetweenRetries)
+		terragruntOptions.Logger.Debugf("Bucket %s still does not have the ACL permissions for access logging. Will sleep for %v and check again.", aws.StringValue(bucket), s3TimeBetweenRetries)
+		time.Sleep(s3TimeBetweenRetries)
 	}
 
 	return errors.WithStackTrace(MaxRetriesWaitingForS3ACLExceeded(aws.StringValue(bucket)))

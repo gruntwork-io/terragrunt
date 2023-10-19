@@ -140,7 +140,12 @@ func RunShellCommandWithOutput(
 	// Make sure to forward signals to the subcommand.
 	cmdChannel := make(chan error) // used for closing the signals forwarder goroutine
 	signalChannel := NewSignalsForwarder(forwardSignals, cmd, terragruntOptions.Logger, cmdChannel)
-	defer signalChannel.Close()
+	defer func(signalChannel *SignalsForwarder) {
+		err := signalChannel.Close()
+		if err != nil {
+			terragruntOptions.Logger.Warnf("Error closing signal channel: %v", err)
+		}
+	}(&signalChannel)
 
 	err := cmd.Wait()
 	cmdChannel <- err

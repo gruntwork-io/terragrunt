@@ -15,7 +15,9 @@ import (
 
 // DynamoDB only allows 10 table creates/deletes simultaneously. To ensure we don't hit this error, especially when
 // running many automated tests in parallel, we use a counting semaphore
-var tableCreateDeleteSemaphore = NewCountingSemaphore(10)
+const dynamoParallelOperations = 10
+
+var tableCreateDeleteSemaphore = NewCountingSemaphore(dynamoParallelOperations)
 
 // Terraform requires the DynamoDB table to have a primary key with this name
 const ATTR_LOCK_ID = "LockID"
@@ -25,6 +27,8 @@ const MAX_RETRIES_WAITING_FOR_TABLE_TO_BE_ACTIVE = 30
 const SLEEP_BETWEEN_TABLE_STATUS_CHECKS = 10 * time.Second
 
 const DYNAMODB_PAY_PER_REQUEST_BILLING_MODE = "PAY_PER_REQUEST"
+
+const sleepBetweenRetriesSeconds = 20
 
 // Create an authenticated client for DynamoDB
 func CreateDynamoDbClient(config *aws_helper.AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*dynamodb.DynamoDB, error) {
@@ -127,7 +131,7 @@ func CreateLockTable(tableName string, tags map[string]string, client *dynamodb.
 
 func tagTableIfTagsGiven(tags map[string]string, tableArn *string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
 
-	if tags == nil || len(tags) == 0 {
+	if len(tags) == 0 {
 		terragruntOptions.Logger.Debugf("No tags for lock table given.")
 		return nil
 	}
@@ -238,7 +242,7 @@ func UpdateLockTableSetSSEncryptionOnIfNecessary(tableName string, client *dynam
 // Wait until encryption is enabled for the given table
 func waitForEncryptionToBeEnabled(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
 	maxRetries := 15
-	sleepBetweenRetries := 20 * time.Second
+	sleepBetweenRetries := sleepBetweenRetriesSeconds * time.Second
 
 	terragruntOptions.Logger.Debugf("Waiting for encryption to be enabled on table %s", tableName)
 

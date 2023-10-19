@@ -20,6 +20,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+const (
+	splitCount = 2
+)
+
 func Run(opts *options.TerragruntOptions) error {
 	target := terraform.NewTarget(terraform.TargetPointGenerateConfig, runValidateInputs)
 
@@ -312,7 +316,7 @@ func getVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 		if strings.HasPrefix(shlexedArg, "-var=") {
 			// -var is passed in in the format -var=VARNAME=VALUE, so we split on '=' and take the middle value.
 			splitArg := strings.Split(shlexedArg, "=")
-			if len(splitArg) < 2 {
+			if len(splitArg) < splitCount {
 				return vars, varFiles, fmt.Errorf("Unexpected -var arg format in terraform.extra_arguments.arguments. Expected '-var=VARNAME=VALUE', got %s.", arg)
 			}
 			vars = append(vars, splitArg[1])
