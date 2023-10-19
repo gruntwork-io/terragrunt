@@ -16,7 +16,7 @@ import (
 
 const TerragruntTFVarsFile = "terragrunt-debug.tfvars.json"
 
-const defaultPermissions = 600
+const defaultPermissions = int(0600)
 
 // WriteTerragruntDebugFile will create a tfvars file that can be used to invoke the terraform module in the same way
 // that terragrunt invokes the module, so that you can debug issues with the terragrunt config.
