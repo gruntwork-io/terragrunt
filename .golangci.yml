@@ -13,6 +13,10 @@ output:
   print-linter-name: true
 
 linters-settings:
+  staticcheck:
+    checks:
+      - all
+      - '-SA9005'
   errcheck:
     check-type-assertions: false
     check-blank: false
