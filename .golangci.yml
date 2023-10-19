@@ -96,6 +96,7 @@ issues:
         - errcheck
         - wsl
         - gomnd
+        - unparam
 
   exclude-use-default: false
   max-issues-per-linter: 0

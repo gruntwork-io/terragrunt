@@ -13,8 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/go-commons/env"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -124,13 +122,13 @@ func TestTerragruntCorrectlyMirrorsTerraformGCPAuth(t *testing.T) {
 
 	defer deleteGCSBucket(t, gcsBucketName)
 
-	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_PATH, project, env.GetString("TEST_TERRAFORM_REMOTE_STATE_GCP_REGION", TERRAFORM_REMOTE_STATE_GCP_REGION), gcsBucketName, env.GetString("TEST_GCS_CONFIG_PATH", config.DefaultTerragruntConfigPath))
+	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_PATH, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, TEST_FIXTURE_GCS_PATH))
 
 	var expectedGCSLabels = map[string]string{
 		"owner": "terragrunt_test",
 		"name":  "terraform_state_storage"}
-	validateGCSBucketExistsAndIsLabeled(t, env.GetString("TERRAFORM_REMOTE_STATE_GCP_REGION", TERRAFORM_REMOTE_STATE_GCP_REGION), gcsBucketName, expectedGCSLabels)
+	validateGCSBucketExistsAndIsLabeled(t, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, expectedGCSLabels)
 }
 
 func TestExtraArguments(t *testing.T) {
