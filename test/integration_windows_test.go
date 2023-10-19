@@ -86,6 +86,7 @@ func TestWindowsTflintIsInvoked(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, found)
 }
+
 func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
 	if err := os.MkdirAll(targetPath, 0777); err != nil {
 		t.Fatalf("Failed to create temp dir %s due to error %v", targetPath, err)
@@ -93,4 +94,17 @@ func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
 
 	copyErr := util.CopyFolderContents(environmentPath, util.JoinPath(targetPath, environmentPath), ".terragrunt-test", nil)
 	require.NoError(t, copyErr)
+}
+
+func copyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
+	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir due to error: %v", err)
+	}
+
+	t.Logf("Copying %s to %s", environmentPath, tmpDir)
+
+	require.NoError(t, util.CopyFolderContents(environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", []string{".tflint.hcl"}))
+
+	return tmpDir
 }
