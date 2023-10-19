@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/go-commons/env"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	terraws "github.com/gruntwork-io/terratest/modules/aws"
@@ -55,8 +57,8 @@ func TestTerragruntS3SSECustomKey(t *testing.T) {
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
 
-	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+	defer deleteS3Bucket(t, env.GetString("TERRAFORM_REMOTE_STATE_S3_REGION", TERRAFORM_REMOTE_STATE_S3_REGION), s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, env.GetString("TERRAFORM_REMOTE_STATE_S3_REGION", TERRAFORM_REMOTE_STATE_S3_REGION))
 
 	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, s3SSECustomKeyFixturePath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 
