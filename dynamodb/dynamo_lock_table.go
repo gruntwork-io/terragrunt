@@ -28,7 +28,8 @@ const SLEEP_BETWEEN_TABLE_STATUS_CHECKS = 10 * time.Second
 
 const DYNAMODB_PAY_PER_REQUEST_BILLING_MODE = "PAY_PER_REQUEST"
 
-const sleepBetweenRetriesSeconds = 20
+const sleepBetweenRetries = 20 * time.Second
+const maxRetries = 15
 
 // Create an authenticated client for DynamoDB
 func CreateDynamoDbClient(config *aws_helper.AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*dynamodb.DynamoDB, error) {
@@ -241,9 +242,6 @@ func UpdateLockTableSetSSEncryptionOnIfNecessary(tableName string, client *dynam
 
 // Wait until encryption is enabled for the given table
 func waitForEncryptionToBeEnabled(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
-	maxRetries := 15
-	sleepBetweenRetries := sleepBetweenRetriesSeconds * time.Second
-
 	terragruntOptions.Logger.Debugf("Waiting for encryption to be enabled on table %s", tableName)
 
 	for i := 0; i < maxRetries; i++ {

@@ -24,9 +24,7 @@ const DefaultTerraformVersionConstraint = ">= v0.12.0"
 // We only make sure the "v#.#.#" part is present in the output.
 var TerraformVersionRegex = regexp.MustCompile(`^(.*?)\s(v?\d+\.\d+\.\d+).*`)
 
-const (
-	versionParts = 3
-)
+const versionParts = 3
 
 // Check the version constraints of both terragrunt and terraform. Note that as a side effect this will set the
 // following settings on terragruntOptions:

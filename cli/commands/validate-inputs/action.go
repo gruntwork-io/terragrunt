@@ -20,9 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-const (
-	splitCount = 2
-)
+const splitCount = 2
 
 func Run(opts *options.TerragruntOptions) error {
 	target := terraform.NewTarget(terraform.TargetPointGenerateConfig, runValidateInputs)
