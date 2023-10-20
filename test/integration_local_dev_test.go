@@ -90,7 +90,7 @@ func TestGetTerragruntSourceHCL(t *testing.T) {
 
 	outputs := map[string]TerraformOutput{}
 
-	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	assert.Equal(t, fmt.Sprintf("HCL: %s", terraformSource), outputs["terragrunt_source"].Value)
 }
 
@@ -115,6 +115,6 @@ func TestGetTerragruntSourceCLI(t *testing.T) {
 
 	outputs := map[string]TerraformOutput{}
 
-	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	assert.Equal(t, fmt.Sprintf("CLI: %s", terraformSource), outputs["terragrunt_source"].Value)
 }

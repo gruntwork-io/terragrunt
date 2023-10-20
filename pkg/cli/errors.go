@@ -42,8 +42,6 @@ func (ee *exitError) ExitCode() int {
 }
 
 // NewExitError calls Exit to create a new ExitCoder.
-//
-// Deprecated: This function is a duplicate of Exit and will eventually be removed.
 func NewExitError(message interface{}, exitCode int) cli.ExitCoder {
 	var err error
 

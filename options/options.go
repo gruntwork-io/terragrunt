@@ -39,6 +39,8 @@ const (
 	DefaultTFDataDir = ".terraform"
 
 	DefaultIAMAssumeRoleDuration = 3600
+
+	minCommandLength = 2
 )
 
 const ContextKey ctxKey = iota
@@ -479,7 +481,7 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	if util.ListContainsElement(TERRAFORM_COMMANDS_WITH_SUBCOMMAND, opts.TerraformCliArgs[0]) {
 		// Since these terraform commands require subcommands which may not always be properly passed by the user,
 		// using util.Min to return the minimum to avoid potential out of bounds slice errors.
-		commandLength = util.Min(2, len(opts.TerraformCliArgs))
+		commandLength = util.Min(minCommandLength, len(opts.TerraformCliArgs))
 	}
 
 	// Options must be inserted after command but before the other args

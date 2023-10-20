@@ -1,3 +1,4 @@
+//nolint:dupl
 package config
 
 import (
@@ -49,7 +50,7 @@ func wrapStringSliceToNumberAsFuncImpl(
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			params, err := ctySliceToStringSlice(args)
 			if err != nil {
-				return cty.StringVal(""), err
+				return cty.NumberIntVal(0), err
 			}
 			out, err := toWrap(params, trackInclude, terragruntOptions)
 			if err != nil {
@@ -240,7 +241,7 @@ type CtyJsonOutput struct {
 // convertValuesMapToCtyVal takes a map of name - cty.Value pairs and converts to a single cty.Value object.
 func convertValuesMapToCtyVal(valMap map[string]cty.Value) (cty.Value, error) {
 	valMapAsCty := cty.NilVal
-	if valMap != nil && len(valMap) > 0 {
+	if len(valMap) > 0 {
 		var err error
 		valMapAsCty, err = gocty.ToCtyValue(valMap, generateTypeFromValuesMap(valMap))
 		if err != nil {

@@ -68,7 +68,7 @@ func TestArgsCommandName(t *testing.T) {
 	expected := "one"
 	assert.Equal(t, expected, actual)
 
-	mockArgs := Args(mockArgs[1:])
+	mockArgs := mockArgs[1:]
 	actual = mockArgs.CommandName()
 	expected = ""
 	assert.Equal(t, expected, actual)

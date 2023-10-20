@@ -33,16 +33,6 @@ output "hello" {
 }
 `
 
-const terraformCodeExampleAwsProviderRegionOverridenExpected = `
-provider "aws" {
-  region = "eu-west-1"
-}
-
-output "hello" {
-  value = "Hello, World"
-}
-`
-
 const terraformCodeExampleAwsProviderRegionVersionOverridenExpected = `
 provider "aws" {
   region  = "eu-west-1"

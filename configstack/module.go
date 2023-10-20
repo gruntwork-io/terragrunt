@@ -71,15 +71,9 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 		return nil, err
 	}
 
-	includedModules, err := flagIncludedDirs(crossLinkedModules, terragruntOptions)
-	if err != nil {
-		return nil, err
-	}
+	includedModules := flagIncludedDirs(crossLinkedModules, terragruntOptions)
 
-	includedModulesWithExcluded, err := flagExcludedDirs(includedModules, terragruntOptions)
-	if err != nil {
-		return nil, err
-	}
+	includedModulesWithExcluded := flagExcludedDirs(includedModules, terragruntOptions)
 
 	finalModules, err := flagModulesThatDontInclude(includedModulesWithExcluded, terragruntOptions)
 	if err != nil {
@@ -90,7 +84,7 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 }
 
 // flagExcludedDirs iterates over a module slice and flags all entries as excluded, which should be ignored via the terragrunt-exclude-dir CLI flag.
-func flagExcludedDirs(modules []*TerraformModule, terragruntOptions *options.TerragruntOptions) ([]*TerraformModule, error) {
+func flagExcludedDirs(modules []*TerraformModule, terragruntOptions *options.TerragruntOptions) []*TerraformModule {
 	for _, module := range modules {
 		if findModuleInPath(module, terragruntOptions.ExcludeDirs) {
 			// Mark module itself as excluded
@@ -105,20 +99,20 @@ func flagExcludedDirs(modules []*TerraformModule, terragruntOptions *options.Ter
 		}
 	}
 
-	return modules, nil
+	return modules
 }
 
 // flagIncludedDirs iterates over a module slice and flags all entries not in the list specified via the terragrunt-include-dir CLI flag as excluded.
-func flagIncludedDirs(modules []*TerraformModule, terragruntOptions *options.TerragruntOptions) ([]*TerraformModule, error) {
+func flagIncludedDirs(modules []*TerraformModule, terragruntOptions *options.TerragruntOptions) []*TerraformModule {
 
 	// If no IncludeDirs is specified return the modules list instantly
 	if len(terragruntOptions.IncludeDirs) == 0 {
 		// If we aren't given any include directories, but are given the strict include flag,
 		// return no modules.
 		if terragruntOptions.StrictInclude {
-			return []*TerraformModule{}, nil
+			return []*TerraformModule{}
 		}
-		return modules, nil
+		return modules
 	}
 
 	for _, module := range modules {
@@ -140,7 +134,7 @@ func flagIncludedDirs(modules []*TerraformModule, terragruntOptions *options.Ter
 		}
 	}
 
-	return modules, nil
+	return modules
 }
 
 // findModuleInPath returns true if a module is located under one of the target directories

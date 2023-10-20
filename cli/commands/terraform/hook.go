@@ -99,12 +99,12 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 }
 
 func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOptions, previousExecErrors *multierror.Error) bool {
-	//if there's no previous error, execute command
-	//OR if a previous error DID happen AND we want to run anyways
-	//then execute.
-	//Skip execution if there was an error AND we care about errors
+	// if there's no previous error, execute command
+	// OR if a previous error DID happen AND we want to run anyways
+	// then execute.
+	// Skip execution if there was an error AND we care about errors
 
-	//resolves: https://github.com/gruntwork-io/terragrunt/issues/459
+	// resolves: https://github.com/gruntwork-io/terragrunt/issues/459
 	hasErrors := previousExecErrors.ErrorOrNil() != nil
 	isCommandInHook := util.ListContainsElement(hook.Commands, terragruntOptions.TerraformCommand)
 

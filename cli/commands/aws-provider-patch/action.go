@@ -47,6 +47,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+const defaultKeyParts = 2
+
 func Run(opts *options.TerragruntOptions) error {
 	target := terraform.NewTarget(terraform.TargetPointInitCommand, runAwsProviderPatch)
 
@@ -310,7 +312,7 @@ func traverseBlock(block *hclwrite.Block, keyParts []string) (*hclwrite.Body, st
 		return nil, ""
 	}
 
-	if len(keyParts) < 2 {
+	if len(keyParts) < defaultKeyParts {
 		return block.Body(), strings.Join(keyParts, "")
 	}
 

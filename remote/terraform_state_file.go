@@ -13,13 +13,14 @@ import (
 // complicated and doesn't seem to be designed for standalone use. Fortunately, the .tfstate format is a fairly simple
 // JSON format, so hopefully this simple parsing code will not be a maintenance burden.
 
-// When storing Terraform state locally, this is the default path to the tfstate file
-const DEFAULT_PATH_TO_LOCAL_STATE_FILE = "terraform.tfstate"
+// DefaultPathToLocalStateFile is the default path to the tfstate file when storing Terraform state locally.
+const DefaultPathToLocalStateFile = "terraform.tfstate"
 
-// When using remote state storage, Terraform keeps a local copy of the state file in this folder
-const DEFAULT_PATH_TO_REMOTE_STATE_FILE = "terraform.tfstate"
+// DefaultPathToRemoteStateFile is the default folder location for the local copy of the state file when using remote
+// state storage in Terraform.
+const DefaultPathToRemoteStateFile = "terraform.tfstate"
 
-// The structure of the Terraform .tfstate file
+// TerraformState - represents the structure of the Terraform .tfstate file.
 type TerraformState struct {
 	Version int
 	Serial  int
@@ -27,55 +28,65 @@ type TerraformState struct {
 	Modules []TerraformStateModule
 }
 
-// The structure of the "backend" section of the Terraform .tfstate file
+// TerraformBackend represents the structure of the "backend" section in the Terraform .tfstate file.
 type TerraformBackend struct {
 	Type   string
 	Config map[string]interface{}
 }
 
-// The structure of a "module" section of the Terraform .tfstate file
+// TerraformStateModule represents the structure of a "module" section in the Terraform .tfstate file.
 type TerraformStateModule struct {
 	Path      []string
 	Outputs   map[string]interface{}
 	Resources map[string]interface{}
 }
 
-// Return true if this Terraform state is configured for remote state storage
+// IsRemote returns true if this Terraform state is configured for remote state storage.
 func (state *TerraformState) IsRemote() bool {
 	return state.Backend != nil && state.Backend.Type != "local"
 }
 
-// Parses the Terraform .tfstate file. If a local backend is used then search the given path, or
-// return nil if the file is missing. If the backend is not local then parse the Terraform .tfstate
+// ParseTerraformStateFileFromLocation parses the Terraform .tfstate file. If a local backend is used then search
+// the given path, or return nil if the file is missing. If the backend is not local then parse the Terraform .tfstate
 // file from the location specified by workingDir. If no location is specified, search the current
 // directory. If the file doesn't exist at any of the default locations, return nil.
-func ParseTerraformStateFileFromLocation(backend string, config map[string]interface{}, workingDir, dataDir string) (*TerraformState, error) {
+func ParseTerraformStateFileFromLocation(backend string, config map[string]interface{},
+	workingDir, dataDir string) (*TerraformState, error) {
 	stateFile, ok := config["path"].(string)
+
 	if backend == "local" && ok && util.FileExists(stateFile) {
 		return ParseTerraformStateFile(stateFile)
-	} else if util.FileExists(util.JoinPath(dataDir, DEFAULT_PATH_TO_REMOTE_STATE_FILE)) {
-		return ParseTerraformStateFile(util.JoinPath(dataDir, DEFAULT_PATH_TO_REMOTE_STATE_FILE))
-	} else if util.FileExists(util.JoinPath(workingDir, DEFAULT_PATH_TO_LOCAL_STATE_FILE)) {
-		return ParseTerraformStateFile(util.JoinPath(workingDir, DEFAULT_PATH_TO_LOCAL_STATE_FILE))
-	} else {
-		return nil, nil
 	}
+
+	if util.FileExists(util.JoinPath(dataDir, DefaultPathToRemoteStateFile)) {
+		return ParseTerraformStateFile(util.JoinPath(dataDir, DefaultPathToRemoteStateFile))
+	}
+
+	if util.FileExists(util.JoinPath(workingDir, DefaultPathToLocalStateFile)) {
+		return ParseTerraformStateFile(util.JoinPath(workingDir, DefaultPathToLocalStateFile))
+	}
+
+	return nil, nil
 }
 
-// ParseTerraformStateFile Parse the Terraform .tfstate file at the given path
+// ParseTerraformStateFile parses the Terraform .tfstate file located at the specified path.
 func ParseTerraformStateFile(path string) (*TerraformState, error) {
 	bytes, err := os.ReadFile(path)
+
 	if err != nil {
-		return nil, errors.WithStackTrace(CantParseTerraformStateFile{Path: path, UnderlyingErr: err})
+		return nil, errors.WithStackTrace(CantParseTerraformStateFileError{Path: path, UnderlyingErr: err})
 	}
+
 	state, err := parseTerraformState(bytes)
+
 	if err != nil {
-		return nil, errors.WithStackTrace(CantParseTerraformStateFile{Path: path, UnderlyingErr: err})
+		return nil, errors.WithStackTrace(CantParseTerraformStateFileError{Path: path, UnderlyingErr: err})
 	}
+
 	return state, nil
 }
 
-// Parse the Terraform state file data in the given byte slice
+// parseTerraformState parses the Terraform state file data from the provided byte slice.
 func parseTerraformState(terraformStateData []byte) (*TerraformState, error) {
 	terraformState := &TerraformState{}
 
@@ -90,11 +101,12 @@ func parseTerraformState(terraformStateData []byte) (*TerraformState, error) {
 	return terraformState, nil
 }
 
-type CantParseTerraformStateFile struct {
+// CantParseTerraformStateFileError error that occurs when we can't parse the Terraform state file.
+type CantParseTerraformStateFileError struct {
 	Path          string
 	UnderlyingErr error
 }
 
-func (err CantParseTerraformStateFile) Error() string {
+func (err CantParseTerraformStateFileError) Error() string {
 	return fmt.Sprintf("Error parsing Terraform state file %s: %s", err.Path, err.UnderlyingErr.Error())
 }

@@ -290,7 +290,7 @@ func PartialParseConfigString(
 
 			// Convert dependency blocks into module depenency lists. If we already decoded some dependencies,
 			// merge them in. Otherwise, set as the new list.
-			dependencies := dependencyBlocksToModuleDependencies(terragruntOptions.WorkingDir, decoded.Dependencies)
+			dependencies := dependencyBlocksToModuleDependencies(decoded.Dependencies)
 			if output.Dependencies != nil {
 				output.Dependencies.Merge(dependencies)
 			} else {

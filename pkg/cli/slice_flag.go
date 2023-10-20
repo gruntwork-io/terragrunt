@@ -174,10 +174,7 @@ func (flag *sliceValue[T]) IsSet() bool {
 func (flag *sliceValue[T]) Get() any {
 	var vals []T
 
-	for _, val := range *flag.values {
-		vals = append(vals, val)
-	}
-
+	vals = append(vals, *flag.values...)
 	return vals
 }
 
