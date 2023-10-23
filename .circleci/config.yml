@@ -104,6 +104,11 @@ jobs:
             pre-commit install
             pre-commit run --all-files
       - run:
+          name: run lint
+          command: |
+            make install-lint
+            make run-lint
+      - run:
           command: |
             mkdir -p logs
             go mod tidy

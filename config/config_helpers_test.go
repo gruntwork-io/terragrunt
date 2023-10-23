@@ -428,7 +428,7 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 		{
 			`iam_role = get_env("TEST_ENV_TERRAGRUNT_VAR")`,
 			nil,
-			terragruntOptionsForTestWithEnv(t, "/root/child/"+DefaultTerragruntConfigPath, map[string]string{"TEST_ENV_TERRAGRUNT_VAR": "SOMETHING"}),
+			terragruntOptionsForTestWithEnv(t, fmt.Sprintf("/root/child/%s", DefaultTerragruntConfigPath), map[string]string{"TEST_ENV_TERRAGRUNT_VAR": "SOMETHING"}),
 			"SOMETHING",
 			"",
 		},
@@ -1137,7 +1137,7 @@ func mockConfigWithSource(sourceUrl string) *TerragruntConfig {
 // Return keys as a map so it is treated like a set, and order doesn't matter when comparing equivalence
 func getKeys(valueMap map[string]cty.Value) map[string]bool {
 	keys := map[string]bool{}
-	for k, _ := range valueMap {
+	for k := range valueMap {
 		keys[k] = true
 	}
 	return keys

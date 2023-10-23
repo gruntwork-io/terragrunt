@@ -89,7 +89,7 @@ func GlobCanonicalPath(basePath string, globPaths ...string) ([]string, error) {
 
 	var err error
 
-	// Ensure basePath is cannonical
+	// Ensure basePath is canonical
 	basePath, err = CanonicalPath("", basePath)
 	if err != nil {
 		return nil, err
@@ -289,7 +289,12 @@ func CopyFolderContentsWithFilter(source, destination, manifestFile string, filt
 	if err := manifest.Create(); err != nil {
 		return errors.WithStackTrace(err)
 	}
-	defer manifest.Close()
+	defer func(manifest *fileManifest) {
+		err := manifest.Close()
+		if err != nil {
+			GlobalFallbackLogEntry.Warnf("Error closing manifest file: %v", err)
+		}
+	}(manifest)
 
 	// Why use filepath.Glob here? The original implementation used os.ReadDir, but that method calls lstat on all
 	// the files/folders in the directory, including files/folders you may want to explicitly skip. The next attempt
@@ -513,7 +518,12 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 	}
 	// remove the manifest itself
 	// it will run after the close defer
-	defer os.Remove(manifestPath)
+	defer func(name string) {
+		err := os.Remove(name)
+		if err != nil {
+			GlobalFallbackLogEntry.Warnf("Error removing manifest file %s: %v", name, err)
+		}
+	}(manifestPath)
 
 	return nil
 }

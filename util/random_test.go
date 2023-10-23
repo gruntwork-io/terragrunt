@@ -17,7 +17,7 @@ func TestGetRandomTime(t *testing.T) {
 		{-1 * time.Second, -3 * time.Second},
 		{1 * time.Second, 2000000001 * time.Nanosecond},
 		{1 * time.Millisecond, 10 * time.Millisecond},
-		//{1 * time.Second, 1000000001 * time.Nanosecond}, // This case fails
+		// {1 * time.Second, 1000000001 * time.Nanosecond}, // This case fails
 	}
 
 	// Loop through each test case

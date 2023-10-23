@@ -1,4 +1,4 @@
-// `hclFmt` commmand recursively looks for hcl files in the directory tree starting at workingDir, and formats them
+// `hclFmt` command recursively looks for hcl files in the directory tree starting at workingDir, and formats them
 // based on the language style guides provided by Hashicorp. This is done using the official hcl2 library.
 
 package hclfmt
@@ -10,6 +10,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/gruntwork-io/go-commons/errors"
 
 	"github.com/sirupsen/logrus"
 
@@ -34,8 +36,6 @@ func Run(opts *options.TerragruntOptions) error {
 		opts.Logger.Debugf("Formatting hcl file at: %s.", targetFile)
 		return formatTgHCL(opts, targetFile)
 	}
-
-	targetFile = filepath.ToSlash(targetFile)
 
 	opts.Logger.Debugf("Formatting hcl files from the directory tree %s.", opts.WorkingDir)
 	// zglob normalizes paths to "/"
@@ -96,7 +96,7 @@ func formatTgHCL(opts *options.TerragruntOptions, tgHclFile string) error {
 	fileUpdated := !bytes.Equal(newContents, contents)
 
 	if opts.Diff && fileUpdated {
-		diff, err := bytesDiff(contents, newContents, tgHclFile)
+		diff, err := bytesDiff(opts, contents, newContents, tgHclFile)
 		if err != nil {
 			opts.Logger.Errorf("Failed to generate diff for %s", tgHclFile)
 			return err
@@ -125,7 +125,10 @@ func checkErrors(logger *logrus.Entry, contents []byte, tgHclFile string) error 
 	parser := hclparse.NewParser()
 	_, diags := parser.ParseHCL(contents, tgHclFile)
 	diagWriter := util.GetDiagnosticsWriter(logger, parser)
-	diagWriter.WriteDiagnostics(diags)
+	err := diagWriter.WriteDiagnostics(diags)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
 	if diags.HasErrors() {
 		return diags
 	}
@@ -133,14 +136,18 @@ func checkErrors(logger *logrus.Entry, contents []byte, tgHclFile string) error 
 }
 
 // bytesDiff uses GNU diff to display the differences between the contents of HCL file before and after formatting
-func bytesDiff(b1, b2 []byte, path string) ([]byte, error) {
+func bytesDiff(opts *options.TerragruntOptions, b1, b2 []byte, path string) ([]byte, error) {
 	f1, err := os.CreateTemp("", "")
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
-		f1.Close()
-		os.Remove(f1.Name())
+		if err := f1.Close(); err != nil {
+			opts.Logger.Warnf("Failed to close file %s %v", f1.Name(), err)
+		}
+		if err := os.Remove(f1.Name()); err != nil {
+			opts.Logger.Warnf("Failed to remove file %s %v", f1.Name(), err)
+		}
 	}()
 
 	f2, err := os.CreateTemp("", "")
@@ -148,8 +155,12 @@ func bytesDiff(b1, b2 []byte, path string) ([]byte, error) {
 		return nil, err
 	}
 	defer func() {
-		f2.Close()
-		os.Remove(f2.Name())
+		if err := f2.Close(); err != nil {
+			opts.Logger.Warnf("Failed to close file %s %v", f2.Name(), err)
+		}
+		if err := os.Remove(f2.Name()); err != nil {
+			opts.Logger.Warnf("Failed to remove file %s %v", f2.Name(), err)
+		}
 	}()
 	if _, err := f1.Write(b1); err != nil {
 		return nil, err

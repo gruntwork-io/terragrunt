@@ -447,13 +447,11 @@ func (conf *TerraformExtraArguments) String() string {
 }
 
 func (conf *TerraformExtraArguments) GetVarFiles(logger *logrus.Entry) []string {
-	varFiles := []string{}
+	var varFiles []string
 
 	// Include all specified RequiredVarFiles.
 	if conf.RequiredVarFiles != nil {
-		for _, file := range util.RemoveDuplicatesFromListKeepLast(*conf.RequiredVarFiles) {
-			varFiles = append(varFiles, file)
-		}
+		varFiles = append(varFiles, util.RemoveDuplicatesFromListKeepLast(*conf.RequiredVarFiles)...)
 	}
 
 	// If OptionalVarFiles is specified, check for each file if it exists and if so, include in the var
@@ -476,11 +474,12 @@ func (conf *TerraformExtraArguments) GetVarFiles(logger *logrus.Entry) []string 
 // URL: via a command-line option or via an entry in the Terragrunt configuration. If the user used one of these, this
 // method returns the source URL or an empty string if there is no source url
 func GetTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragruntConfig *TerragruntConfig) (string, error) {
-	if terragruntOptions.Source != "" {
+	switch {
+	case terragruntOptions.Source != "":
 		return terragruntOptions.Source, nil
-	} else if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.Source != nil {
+	case terragruntConfig.Terraform != nil && terragruntConfig.Terraform.Source != nil:
 		return adjustSourceWithMap(terragruntOptions.SourceMap, *terragruntConfig.Terraform.Source, terragruntOptions.OriginalTerragruntConfigPath)
-	} else {
+	default:
 		return "", nil
 	}
 }
@@ -531,7 +530,7 @@ func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 	// Check if there is an entry to replace the URL portion in the map. Return the source as is if there is no entry in
 	// the map.
 	sourcePath, hasKey := sourceMap[moduleUrlQuery]
-	if hasKey == false {
+	if !hasKey {
 		return source, nil
 	}
 
@@ -1125,7 +1124,7 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 // configFileHasDependencyBlock statically checks the terrragrunt config file at the given path and checks if it has any
 // dependency or dependencies blocks defined. Note that this does not do any decoding of the blocks, as it is only meant
 // to check for block presence.
-func configFileHasDependencyBlock(configPath string, terragruntOptions *options.TerragruntOptions) (bool, error) {
+func configFileHasDependencyBlock(configPath string) (bool, error) {
 	configBytes, err := os.ReadFile(configPath)
 	if err != nil {
 		return false, errors.WithStackTrace(err)
@@ -1173,7 +1172,7 @@ func (conf *TerragruntConfig) SetFieldMetadata(fieldName string, m map[string]in
 // SetFieldMetadataMap set metadata on fields from map keys.
 // Example usage - setting metadata on all variables from inputs.
 func (conf *TerragruntConfig) SetFieldMetadataMap(field string, data map[string]interface{}, metadata map[string]interface{}) {
-	for name, _ := range data {
+	for name := range data {
 		conf.SetFieldMetadataWithType(field, name, metadata)
 	}
 }

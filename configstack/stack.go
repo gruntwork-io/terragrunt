@@ -78,7 +78,10 @@ func (stack *Stack) JsonModuleDeployOrder(terraformCommand string) (string, erro
 
 // Graph creates a graphviz representation of the modules
 func (stack *Stack) Graph(terragruntOptions *options.TerragruntOptions) {
-	WriteDot(terragruntOptions.Writer, terragruntOptions, stack.Modules)
+	err := WriteDot(terragruntOptions.Writer, terragruntOptions, stack.Modules)
+	if err != nil {
+		terragruntOptions.Logger.Warnf("Failed to graph dot: %v", err)
+	}
 }
 
 func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
@@ -119,11 +122,12 @@ func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
 		defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
 	}
 
-	if terragruntOptions.IgnoreDependencyOrder {
+	switch {
+	case terragruntOptions.IgnoreDependencyOrder:
 		return RunModulesIgnoreOrder(stack.Modules, terragruntOptions.Parallelism)
-	} else if stackCmd == "destroy" {
+	case stackCmd == "destroy":
 		return RunModulesReverseOrder(stack.Modules, terragruntOptions.Parallelism)
-	} else {
+	default:
 		return RunModules(stack.Modules, terragruntOptions.Parallelism)
 	}
 }
@@ -212,23 +216,24 @@ func (stack *Stack) getModuleRunGraph(terraformCommand string) ([][]*TerraformMo
 		// removeDep tracks which modules are run in the current iteration so that they need to be removed in the
 		// dependency list for the next iteration. This is separately tracked from currentIterationDeploy for
 		// convenience: this tracks the map key of the Dependencies attribute.
-		removeDep := []string{}
+		var removeDep []string
 
 		// Iterate the modules, looking for those that have no dependencies and select them for "running". In the
 		// process, track those that still need to run in a separate map for further processing.
 		for path, module := range moduleRunGraph {
 			// Anything that is already applied is culled from the graph when running, so we ignore them here as well.
-			if module.Module.AssumeAlreadyApplied {
+			switch {
+			case module.Module.AssumeAlreadyApplied:
 				removeDep = append(removeDep, path)
-			} else if len(module.Dependencies) == 0 {
+			case len(module.Dependencies) == 0:
 				currentIterationDeploy = append(currentIterationDeploy, module.Module)
 				removeDep = append(removeDep, path)
-			} else {
+			default:
 				next[path] = module
 			}
 		}
 
-		// Go through the remaining module and remove the dependencies that were selected to run in this curent
+		// Go through the remaining module and remove the dependencies that were selected to run in this current
 		// iteration.
 		for _, module := range next {
 			for _, path := range removeDep {

@@ -117,10 +117,8 @@ func CommaSeparatedStrings(list []string) string {
 
 // Make a copy of the given list of strings
 func CloneStringList(listToClone []string) []string {
-	out := []string{}
-	for _, item := range listToClone {
-		out = append(out, item)
-	}
+	var out []string
+	out = append(out, listToClone...)
 	return out
 }
 
@@ -177,7 +175,7 @@ func SplitUrls(s, sep string) []string {
 
 	// mask
 	for src, mask := range masks {
-		s = strings.Replace(s, src, mask, -1)
+		s = strings.ReplaceAll(s, src, mask)
 	}
 
 	urls := strings.Split(s, sep)
@@ -185,7 +183,7 @@ func SplitUrls(s, sep string) []string {
 	// unmask
 	for i := range urls {
 		for src, mask := range masks {
-			urls[i] = strings.Replace(urls[i], mask, src, -1)
+			urls[i] = strings.ReplaceAll(urls[i], mask, src)
 		}
 	}
 

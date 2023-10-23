@@ -62,7 +62,7 @@ func Run(opts *options.TerragruntOptions) error {
 		if err != nil {
 			return err
 		}
-		if shouldRunAll == false {
+		if !shouldRunAll {
 			return nil
 		}
 	}

@@ -15,7 +15,7 @@ func AsTerraformEnvVarJsonValue(value interface{}) (string, error) {
 	default:
 		envVarValue, err := json.Marshal(val)
 		if err != nil {
-			return "", err //errors.WithStackTrace(err)
+			return "", err
 		}
 		return string(envVarValue), nil
 	}

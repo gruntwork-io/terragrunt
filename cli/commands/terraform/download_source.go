@@ -220,7 +220,7 @@ func downloadSource(terraformSource *terraform.Source, terragruntOptions *option
 
 // Check if working terraformSource.WorkingDir exists and is directory
 func validateWorkingDir(terraformSource *terraform.Source) error {
-	workingLocalDir := strings.Replace(terraformSource.WorkingDir, terraformSource.DownloadDir+filepath.FromSlash("/"), "", -1)
+	workingLocalDir := strings.ReplaceAll(terraformSource.WorkingDir, terraformSource.DownloadDir+filepath.FromSlash("/"), "")
 	if util.IsFile(terraformSource.WorkingDir) {
 		return WorkingDirNotDir{Dir: workingLocalDir, Source: terraformSource.CanonicalSourceURL.String()}
 	}
