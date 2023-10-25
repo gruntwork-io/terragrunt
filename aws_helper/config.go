@@ -30,6 +30,8 @@ type AwsSessionConfig struct {
 	DisableComputeChecksums bool
 	ExternalID              string
 	SessionName             string
+	AccessKey               *string
+	SecretKey               *string
 }
 
 // addUserAgent - Add terragrunt version to the user agent for AWS API calls.
@@ -59,11 +61,17 @@ func CreateAwsSessionFromConfig(config *AwsSessionConfig, terragruntOptions *opt
 		return defaultResolver.EndpointFor(service, region, optFns...)
 	}
 
+	var maybeCredentials *credentials.Credentials
+	if config.AccessKey != nil && config.SecretKey != nil {
+		maybeCredentials = credentials.NewStaticCredentials(*config.AccessKey, *config.SecretKey, "")
+	}
+
 	var awsConfig = aws.Config{
 		Region:                  aws.String(config.Region),
 		EndpointResolver:        endpoints.ResolverFunc(s3CustResolverFn),
 		S3ForcePathStyle:        aws.Bool(config.S3ForcePathStyle),
 		DisableComputeChecksums: aws.Bool(config.DisableComputeChecksums),
+		Credentials:             maybeCredentials,
 	}
 
 	var sessionOptions = session.Options{
