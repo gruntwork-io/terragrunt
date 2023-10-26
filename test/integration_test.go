@@ -5029,29 +5029,73 @@ func TestOutputModuleGroups(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUTPUT_MODULE_GROUPS)
 	cleanupTerraformFolder(t, tmpEnvPath)
 	environmentPath := fmt.Sprintf("%s/%s", tmpEnvPath, TEST_FIXTURE_OUTPUT_MODULE_GROUPS)
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output-module-groups --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
-	output := stdout.String()
-	expectedOutput := fmt.Sprintf(`
-{
-  "Group 1": [
-    "%[1]s/root/vpc"
-  ],
-  "Group 2": [
-    "%[1]s/root/mysql",
-    "%[1]s/root/redis"
-  ],
-  "Group 3": [
-    "%[1]s/root/backend-app"
-  ],
-  "Group 4": [
-    "%[1]s/root/frontend-app"
-  ]
-}`, environmentPath)
-	assert.True(t, strings.Contains(output, strings.TrimSpace(expectedOutput)))
+
+	expectedApplyOutput := fmt.Sprintf(`
+	{
+	  "Group 1": [
+		"%[1]s/root/vpc"
+	  ],
+	  "Group 2": [
+		"%[1]s/root/mysql",
+		"%[1]s/root/redis"
+	  ],
+	  "Group 3": [
+		"%[1]s/root/backend-app"
+	  ],
+	  "Group 4": [
+		"%[1]s/root/frontend-app"
+	  ]
+	}`, environmentPath)
+
+	expectedDestroyOutput := fmt.Sprintf(`
+	{
+	  "Group 1": [
+	    "%[1]s/root/frontend-app"
+	  ],
+	  "Group 2": [
+		"%[1]s/root/backend-app"
+	  ],
+	  "Group 3": [
+		"%[1]s/root/mysql",
+		"%[1]s/root/redis"
+	  ],
+	  "Group 4": [
+		"%[1]s/root/vpc"
+	  ]
+	}`, environmentPath)
+
+	tests := map[string]struct {
+		subCommand     string
+		expectedOutput string
+	}{
+		"output-module-groups with no subcommand": {
+			subCommand:     "",
+			expectedOutput: expectedApplyOutput,
+		},
+		"output-module-groups with apply subcommand": {
+			subCommand:     "apply",
+			expectedOutput: expectedApplyOutput,
+		},
+		"output-module-groups with destroy subcommand": {
+			subCommand:     "destroy",
+			expectedOutput: expectedDestroyOutput,
+		},
+	}
+
+	for name, tt := range tests {
+		tt := tt
+
+		t.Run(name, func(t *testing.T) {
+			var (
+				stdout bytes.Buffer
+				stderr bytes.Buffer
+			)
+			runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output-module-groups --terragrunt-working-dir %s %s", environmentPath, tt.subCommand), &stdout, &stderr)
+			output := strings.ReplaceAll(stdout.String(), " ", "")
+			expectedOutput := strings.ReplaceAll(strings.ReplaceAll(tt.expectedOutput, "\t", ""), " ", "")
+			assert.True(t, strings.Contains(strings.TrimSpace(output), strings.TrimSpace(expectedOutput)))
+		})
+	}
 }
 
 func TestRenderJsonMetadataDependency(t *testing.T) {

@@ -3,19 +3,11 @@ package outputmodulegroups
 import (
 	"fmt"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
 func Run(opts *options.TerragruntOptions) error {
-	target := terraform.NewTarget(terraform.TargetPointParseConfig, runOutputModuleGroups)
-
-	return terraform.RunWithTarget(opts, target)
-}
-
-func runOutputModuleGroups(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	stack, err := configstack.FindStackInSubfolders(opts, nil)
 	if err != nil {
 		return err
@@ -32,5 +24,4 @@ func runOutputModuleGroups(opts *options.TerragruntOptions, cfg *config.Terragru
 	}
 
 	return nil
-
 }
