@@ -6,6 +6,7 @@ package test
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
