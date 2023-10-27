@@ -1,4 +1,3 @@
-
 run "valid_string_concat" {
   command = plan
   assert {
