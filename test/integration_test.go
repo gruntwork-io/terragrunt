@@ -174,8 +174,8 @@ const (
 	TEST_FIXTURE_DISABLED_MODULE                                             = "fixture-disabled/"
 	TEST_FIXTURE_EMPTY_STATE                                                 = "fixture-empty-state/"
 	TEST_FIXTURE_EXTERNAL_DEPENDENCY                                         = "fixture-external-dependency/"
+	TEST_FIXTURE_TF_TEST                                                     = "fixture-tftest/"
 	TERRAFORM_BINARY                                                         = "terraform"
-	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
 	TERRAFORM_STATE                                                          = "terraform.tfstate"
 	TERRAFORM_STATE_BACKUP                                                   = "terraform.tfstate.backup"
@@ -6242,6 +6242,21 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, captured, "Should Terragrunt apply the external dependency?")
 	require.NotContains(t, captured, "/tmp/external1")
+}
+
+func TestTerragruntInvokeTerraformTests(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_TF_TEST)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_TF_TEST)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt test --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	require.NoError(t, err)
+	require.Contains(t, stdout.String(), "1 passed, 0 failed")
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
