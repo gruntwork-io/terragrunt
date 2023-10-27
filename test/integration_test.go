@@ -174,6 +174,7 @@ const (
 	TEST_FIXTURE_DISABLED_MODULE                                             = "fixture-disabled/"
 	TEST_FIXTURE_EMPTY_STATE                                                 = "fixture-empty-state/"
 	TEST_FIXTURE_EXTERNAL_DEPENDENCY                                         = "fixture-external-dependency/"
+	TEST_FIXTURE_TF_TEST                                                     = "fixture-tftest/"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -6208,6 +6209,9 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_EXTERNAL_DEPENDENCY)
 
+	t.Cleanup(func() {
+		os.RemoveAll(filepath.ToSlash("/tmp/external-46521694"))
+	})
 	assert.NoError(t, os.Mkdir(filepath.ToSlash("/tmp/external-46521694"), 0755))
 
 	output, err := exec.Command("git", "init", tmpEnvPath).CombinedOutput()
@@ -6241,6 +6245,21 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	require.NotContains(t, captured, "/tmp/external1")
 }
 
+func TestTerragruntInvokeTerraformTests(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_TF_TEST)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_TF_TEST)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt test --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	require.NoError(t, err)
+	require.Contains(t, stdout.String(), "1 passed, 0 failed")
+}
+
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
 	t.Helper()
 	output, hasPlatform := outputs[key]
@@ -6252,7 +6271,11 @@ func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string
 func wrappedBinary() string {
 	value, found := os.LookupEnv("TERRAGRUNT_TFPATH")
 	if !found {
-		return TERRAFORM_BINARY
+		// if env variable is not defined, try to check through executing command
+		if util.IsCommandExecutable(TERRAFORM_BINARY, "-version") {
+			return TERRAFORM_BINARY
+		}
+		return TOFU_BINARY
 	}
 	return value
 }

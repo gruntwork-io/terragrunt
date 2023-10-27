@@ -130,6 +130,19 @@ jobs:
       - run:
           <<: *install_tflint
 
+      - run:
+      # Install Terraform 1.6 for integration tests
+          command: |
+            pushd .
+            cd /tmp
+            curl -L "https://releases.hashicorp.com/terraform/1.6.2/terraform_1.6.2_linux_amd64.zip" -o terraform.zip
+            unzip -o terraform.zip
+            sudo install -m 0755 terraform /usr/local/bin/terraform
+            rm -rf terraform
+            rm -rf terraform.zip
+            popd
+            terraform --version
+
       # Make GCP Service Account creds available as a file
       - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
       - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
