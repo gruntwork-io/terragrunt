@@ -204,13 +204,15 @@ func TestRemoteWithModuleInRoot(t *testing.T) {
 func TestCustomLockFile(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureCustomLockFile)
+	path := fmt.Sprintf("%s-%s", testFixtureCustomLockFile, wrappedBinary())
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureCustomLockFile))
+	cleanupTerraformFolder(t, path)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", path))
 
 	source := "../custom-lock-file-module"
-	downloadDir := util.JoinPath(testFixtureCustomLockFile, TERRAGRUNT_CACHE)
-	result, err := tfsource.NewSource(source, downloadDir, testFixtureCustomLockFile, util.CreateLogEntry("", util.GetDefaultLogLevel()))
+	downloadDir := util.JoinPath(path, TERRAGRUNT_CACHE)
+	result, err := tfsource.NewSource(source, downloadDir, path, util.CreateLogEntry("", util.GetDefaultLogLevel()))
 	require.NoError(t, err)
 
 	lockFilePath := util.JoinPath(result.WorkingDir, util.TerraformLockFile)
@@ -222,7 +224,7 @@ func TestCustomLockFile(t *testing.T) {
 	// In our lock file, we intentionally have hashes for an older version of the AWS provider. If the lock file
 	// copying works, then Terraform will stick with this older version. If there is a bug, Terraform will end up
 	// installing a newer version (since the version is not pinned in the .tf code, only in the lock file).
-	assert.Contains(t, string(readFile), `version     = "5.19.0"`)
+	assert.Contains(t, string(readFile), `version     = "5.23.0"`)
 }
 
 func TestExcludeDirs(t *testing.T) {
