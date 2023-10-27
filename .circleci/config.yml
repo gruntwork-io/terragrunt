@@ -131,6 +131,7 @@ jobs:
           <<: *install_tflint
 
       - run:
+      # Install Terraform 1.6 for integration tests
           command: |
             pushd .
             cd /tmp
