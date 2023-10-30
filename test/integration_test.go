@@ -1069,7 +1069,7 @@ func TestTerragruntStackCommands(t *testing.T) {
 }
 
 func TestTerragruntStackCommandsWithPlanFile(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	tmpEnvPath, err := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_DISJOINT))
 	assert.NoError(t, err)
