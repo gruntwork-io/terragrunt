@@ -4800,7 +4800,8 @@ func TestTerragruntOutputFromRemoteState(t *testing.T) {
 func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
 	t.Parallel()
 
-	appPath := copyEnvironment(t, TEST_FIXTURE_STACK)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_STACK)
+	appPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_STACK)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -5640,7 +5641,9 @@ func TestTerragruntValidateModulePrefix(t *testing.T) {
 func TestInitFailureModulePrefix(t *testing.T) {
 	t.Parallel()
 
-	initTestCase := TEST_FIXTURE_INIT_ERROR
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DISJOINT)
+	initTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISJOINT)
+
 	cleanupTerraformFolder(t, initTestCase)
 	cleanupTerragruntFolder(t, initTestCase)
 
@@ -5681,7 +5684,9 @@ func TestDependencyOutputModulePrefix(t *testing.T) {
 func TestErrorExplaining(t *testing.T) {
 	t.Parallel()
 
-	initTestCase := TEST_FIXTURE_INIT_ERROR
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DISJOINT)
+	initTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISJOINT)
+
 	cleanupTerraformFolder(t, initTestCase)
 	cleanupTerragruntFolder(t, initTestCase)
 
