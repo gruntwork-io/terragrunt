@@ -1076,7 +1076,7 @@ func TestTerragruntStackCommandsWithPlanFile(t *testing.T) {
 	disjointEnvironmentPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISJOINT)
 
 	cleanupTerraformFolder(t, disjointEnvironmentPath)
-	runTerragrunt(t, fmt.Sprintf("terragrunt plan-all -out=plan.qtfplan --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir %s", disjointEnvironmentPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt plan-all -out=plan.tfplan --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir %s", disjointEnvironmentPath))
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all plan.tfplan --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir %s", disjointEnvironmentPath))
 }
 
@@ -5641,8 +5641,8 @@ func TestTerragruntValidateModulePrefix(t *testing.T) {
 func TestInitFailureModulePrefix(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DISJOINT)
-	initTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISJOINT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INIT_ERROR)
+	initTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_ERROR)
 
 	cleanupTerraformFolder(t, initTestCase)
 	cleanupTerragruntFolder(t, initTestCase)
@@ -5684,8 +5684,8 @@ func TestDependencyOutputModulePrefix(t *testing.T) {
 func TestErrorExplaining(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DISJOINT)
-	initTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISJOINT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INIT_ERROR)
+	initTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_ERROR)
 
 	cleanupTerraformFolder(t, initTestCase)
 	cleanupTerragruntFolder(t, initTestCase)
