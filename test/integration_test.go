@@ -1050,13 +1050,16 @@ func TestTerragruntStackCommands(t *testing.T) {
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
 
+	cleanupTerraformFolder(t, TEST_FIXTURE_STACK)
+	cleanupTerragruntFolder(t, TEST_FIXTURE_STACK)
+
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_STACK)
 
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, "fixture-stack", config.DefaultTerragruntConfigPath)
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_STACK, config.DefaultTerragruntConfigPath)
 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
 
-	mgmtEnvironmentPath := fmt.Sprintf("%s/fixture-stack/mgmt", tmpEnvPath)
-	stageEnvironmentPath := fmt.Sprintf("%s/fixture-stack/stage", tmpEnvPath)
+	mgmtEnvironmentPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_STACK, "mgmt")
+	stageEnvironmentPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_STACK, "stage")
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", mgmtEnvironmentPath))
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", stageEnvironmentPath))
@@ -4800,7 +4803,8 @@ func TestTerragruntOutputFromRemoteState(t *testing.T) {
 func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
 	t.Parallel()
 
-	appPath := TEST_FIXTURE_STACK
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_STACK)
+	appPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_STACK)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -5641,6 +5645,7 @@ func TestInitFailureModulePrefix(t *testing.T) {
 	t.Parallel()
 
 	initTestCase := TEST_FIXTURE_INIT_ERROR
+
 	cleanupTerraformFolder(t, initTestCase)
 	cleanupTerragruntFolder(t, initTestCase)
 
@@ -5681,7 +5686,9 @@ func TestDependencyOutputModulePrefix(t *testing.T) {
 func TestErrorExplaining(t *testing.T) {
 	t.Parallel()
 
-	initTestCase := TEST_FIXTURE_INIT_ERROR
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INIT_ERROR)
+	initTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_ERROR)
+
 	cleanupTerraformFolder(t, initTestCase)
 	cleanupTerragruntFolder(t, initTestCase)
 
