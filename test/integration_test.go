@@ -1069,14 +1069,14 @@ func TestTerragruntStackCommands(t *testing.T) {
 }
 
 func TestTerragruntStackCommandsWithPlanFile(t *testing.T) {
-	// t.Parallel()
+	t.Parallel()
 
 	tmpEnvPath, err := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_DISJOINT))
 	assert.NoError(t, err)
 	disjointEnvironmentPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISJOINT)
 
 	cleanupTerraformFolder(t, disjointEnvironmentPath)
-	runTerragrunt(t, fmt.Sprintf("terragrunt plan-all -out=plan.tfplan --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir %s", disjointEnvironmentPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt plan-all -out=plan.qtfplan --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir %s", disjointEnvironmentPath))
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all plan.tfplan --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir %s", disjointEnvironmentPath))
 }
 
@@ -4800,7 +4800,7 @@ func TestTerragruntOutputFromRemoteState(t *testing.T) {
 func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
 	t.Parallel()
 
-	appPath := TEST_FIXTURE_STACK
+	appPath := copyEnvironment(t, TEST_FIXTURE_STACK)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
