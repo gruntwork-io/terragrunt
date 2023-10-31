@@ -1050,6 +1050,9 @@ func TestTerragruntStackCommands(t *testing.T) {
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
 
+	cleanupTerraformFolder(t, TEST_FIXTURE_STACK)
+	cleanupTerragruntFolder(t, TEST_FIXTURE_STACK)
+
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_STACK)
 
 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_STACK, config.DefaultTerragruntConfigPath)
@@ -5641,11 +5644,11 @@ func TestTerragruntValidateModulePrefix(t *testing.T) {
 func TestInitFailureModulePrefix(t *testing.T) {
 	t.Parallel()
 
+	cleanupTerraformFolder(t, TEST_FIXTURE_INIT_ERROR)
+	cleanupTerragruntFolder(t, TEST_FIXTURE_INIT_ERROR)
+
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INIT_ERROR)
 	initTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_ERROR)
-
-	cleanupTerraformFolder(t, initTestCase)
-	cleanupTerragruntFolder(t, initTestCase)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -5684,11 +5687,11 @@ func TestDependencyOutputModulePrefix(t *testing.T) {
 func TestErrorExplaining(t *testing.T) {
 	t.Parallel()
 
+	cleanupTerraformFolder(t, TEST_FIXTURE_INIT_ERROR)
+	cleanupTerragruntFolder(t, TEST_FIXTURE_INIT_ERROR)
+
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INIT_ERROR)
 	initTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_ERROR)
-
-	cleanupTerraformFolder(t, initTestCase)
-	cleanupTerragruntFolder(t, initTestCase)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
