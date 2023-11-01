@@ -6270,6 +6270,10 @@ func TestTerragruntUseExternalGCS(t *testing.T) {
 	assert.NoError(t, err)
 
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+
+	fmt.Printf("stdout: \n %s", stdout.String())
+	fmt.Printf("stderr: \n %s", stderr.String())
+
 	assert.Error(t, err)
 
 	output := stderr.String()
