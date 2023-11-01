@@ -6270,7 +6270,7 @@ func TestTerragruntUseExternalGCS(t *testing.T) {
 	err := util.CopyFile(tmpTerragruntGCSConfigPath, util.JoinPath(testPath, "terragrunt.hcl"))
 	assert.NoError(t, err)
 
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 
 	fmt.Printf("stdout: \n %s", stdout.String())
 	fmt.Printf("stderr: \n %s", stderr.String())
