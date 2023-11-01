@@ -6284,8 +6284,12 @@ func TestTerragruntUseExternalGCS(t *testing.T) {
 	err = util.CopyFile(tmpTerragruntGCSConfigPath, util.JoinPath(testPath, config.DefaultTerragruntConfigPath))
 	assert.NoError(t, err)
 
+	err = os.MkdirAll(util.JoinPath(homeDir, ".config", "gcloud"), 0755)
+	assert.NoError(t, err)
+
 	err = util.CopyFile(jsonCreds, applicationDefaultCredentials)
 	assert.NoError(t, err)
+	defer os.Remove(applicationDefaultCredentials)
 
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 
