@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terratest/modules/files"
+
 	"cloud.google.com/go/storage"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -6260,14 +6262,29 @@ func TestTerragruntUseExternalGCS(t *testing.T) {
 	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GCS_EXTERNAL)
 
+	jsonCreds := util.JoinPath(testPath, "application_default_credentials.json")
+	// copy file to $HOME/.config/gcloud/application_default_credentials.json and restore after test execution
+	homeDir, err := os.UserHomeDir()
+	assert.NoError(t, err)
+	applicationDefaultCredentials := util.JoinPath(homeDir, ".config", "gcloud", "application_default_credentials.json")
+	if files.FileExists(applicationDefaultCredentials) {
+		applicationDefaultCredentialsBackup := util.JoinPath(homeDir, ".config", "gcloud", "application_default_credentials.json.backup")
+		err = os.Rename(applicationDefaultCredentials, applicationDefaultCredentialsBackup)
+		assert.NoError(t, err)
+		defer os.Rename(applicationDefaultCredentialsBackup, applicationDefaultCredentials)
+	}
+
 	t.Setenv("GCLOUD_SERVICE_KEY", "")
-	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", util.JoinPath(tmpEnvPath, TEST_FIXTURE_GCS_EXTERNAL, "application_default_credentials.json"))
+	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", jsonCreds)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_EXTERNAL, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
 
-	err := util.CopyFile(tmpTerragruntGCSConfigPath, util.JoinPath(testPath, "terragrunt.hcl"))
+	err = util.CopyFile(tmpTerragruntGCSConfigPath, util.JoinPath(testPath, config.DefaultTerragruntConfigPath))
+	assert.NoError(t, err)
+
+	err = util.CopyFile(jsonCreds, applicationDefaultCredentials)
 	assert.NoError(t, err)
 
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", testPath), &stdout, &stderr)
