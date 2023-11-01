@@ -6260,6 +6260,7 @@ func TestTerragruntUseExternalGCS(t *testing.T) {
 	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GCS_EXTERNAL)
 
+	t.Setenv("GCLOUD_SERVICE_KEY", "")
 	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", util.JoinPath(tmpEnvPath, TEST_FIXTURE_GCS_EXTERNAL, "application_default_credentials.json"))
 
 	stdout := bytes.Buffer{}
