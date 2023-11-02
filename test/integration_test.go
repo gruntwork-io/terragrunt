@@ -6253,7 +6253,7 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	require.NotContains(t, captured, "/tmp/external1")
 }
 
-func TestTerragruntUseExternalGCS(t *testing.T) {
+func TestTerragruntUseExternalAuthGCS(t *testing.T) {
 	// No parallel test since are set environment variables
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
 	gcsBucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
@@ -6267,12 +6267,16 @@ func TestTerragruntUseExternalGCS(t *testing.T) {
 	homeDir, err := os.UserHomeDir()
 	assert.NoError(t, err)
 	applicationDefaultCredentials := util.JoinPath(homeDir, "gcloud-service-key.json")
+	fmt.Printf("TestTerragruntUseExternalAuthGCS: Checking path of %s \n", applicationDefaultCredentials)
 	if files.FileExists(applicationDefaultCredentials) {
+		fmt.Printf("TestTerragruntUseExternalAuthGCS: 1 \n")
 		applicationDefaultCredentialsBackup := util.JoinPath(homeDir, "gcloud-service-key.json.backup")
 		err = os.Rename(applicationDefaultCredentials, applicationDefaultCredentialsBackup)
 		assert.NoError(t, err)
 		defer os.Rename(applicationDefaultCredentialsBackup, applicationDefaultCredentials)
 	}
+
+	fmt.Printf("TestTerragruntUseExternalAuthGCS: 2 \n")
 
 	t.Setenv("GCLOUD_SERVICE_KEY", "")
 	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", jsonCreds)
@@ -6287,6 +6291,8 @@ func TestTerragruntUseExternalGCS(t *testing.T) {
 	err = util.CopyFile(jsonCreds, applicationDefaultCredentials)
 	assert.NoError(t, err)
 	defer os.Remove(applicationDefaultCredentials)
+
+	fmt.Printf("TestTerragruntUseExternalAuthGCS: 3 \n")
 
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 
