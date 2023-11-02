@@ -6287,6 +6287,7 @@ func TestTerragruntUseExternalAuthGCS(t *testing.T) {
 
 	fmt.Printf("TestTerragruntUseExternalAuthGCS: 2 %s \n", jsonCreds)
 
+	t.Setenv("TF_LOG", "trace")
 	t.Setenv("GCLOUD_SERVICE_KEY", "")
 	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", jsonCreds)
 
