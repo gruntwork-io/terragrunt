@@ -6276,10 +6276,10 @@ func TestTerragruntUseExternalAuthGCS(t *testing.T) {
 		defer os.Rename(applicationDefaultCredentialsBackup, applicationDefaultCredentials)
 	}
 
-	fmt.Printf("TestTerragruntUseExternalAuthGCS: 2 \n")
+	fmt.Printf("TestTerragruntUseExternalAuthGCS: 2 %s \n", jsonCreds)
 
 	//t.Setenv("GCLOUD_SERVICE_KEY", "")
-	//t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", jsonCreds)
+	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", jsonCreds)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -6288,9 +6288,9 @@ func TestTerragruntUseExternalAuthGCS(t *testing.T) {
 	err = util.CopyFile(tmpTerragruntGCSConfigPath, util.JoinPath(testPath, config.DefaultTerragruntConfigPath))
 	assert.NoError(t, err)
 
-	err = util.CopyFile(jsonCreds, applicationDefaultCredentials)
-	assert.NoError(t, err)
-	defer os.Remove(applicationDefaultCredentials)
+	//err = util.CopyFile(jsonCreds, applicationDefaultCredentials)
+	//assert.NoError(t, err)
+	//defer os.Remove(applicationDefaultCredentials)
 
 	fmt.Printf("TestTerragruntUseExternalAuthGCS: 3 \n")
 
