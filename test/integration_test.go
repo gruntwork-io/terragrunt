@@ -6297,7 +6297,8 @@ func TestTerragruntUseExternalAuthGCS(t *testing.T) {
 	err = util.CopyFile(tmpTerragruntGCSConfigPath, util.JoinPath(testPath, config.DefaultTerragruntConfigPath))
 	assert.NoError(t, err)
 
-	fmt.Printf("TestTerragruntUseExternalAuthGCS: 3 \n")
+	creds := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
+	fmt.Printf("TestTerragruntUseExternalAuthGCS: 3 %v \n", creds)
 
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 
