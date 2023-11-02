@@ -6266,9 +6266,9 @@ func TestTerragruntUseExternalGCS(t *testing.T) {
 	// copy file to $HOME/.config/gcloud/application_default_credentials.json and restore after test execution
 	homeDir, err := os.UserHomeDir()
 	assert.NoError(t, err)
-	applicationDefaultCredentials := util.JoinPath(homeDir, ".config", "gcloud", "application_default_credentials.json")
+	applicationDefaultCredentials := util.JoinPath(homeDir, "gcloud-service-key.json")
 	if files.FileExists(applicationDefaultCredentials) {
-		applicationDefaultCredentialsBackup := util.JoinPath(homeDir, ".config", "gcloud", "application_default_credentials.json.backup")
+		applicationDefaultCredentialsBackup := util.JoinPath(homeDir, "gcloud-service-key.json.backup")
 		err = os.Rename(applicationDefaultCredentials, applicationDefaultCredentialsBackup)
 		assert.NoError(t, err)
 		defer os.Rename(applicationDefaultCredentialsBackup, applicationDefaultCredentials)
@@ -6282,9 +6282,6 @@ func TestTerragruntUseExternalGCS(t *testing.T) {
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_EXTERNAL, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
 
 	err = util.CopyFile(tmpTerragruntGCSConfigPath, util.JoinPath(testPath, config.DefaultTerragruntConfigPath))
-	assert.NoError(t, err)
-
-	err = os.MkdirAll(util.JoinPath(homeDir, ".config", "gcloud"), 0755)
 	assert.NoError(t, err)
 
 	err = util.CopyFile(jsonCreds, applicationDefaultCredentials)
