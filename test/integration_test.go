@@ -6262,8 +6262,9 @@ func TestTerragruntUseExternalAuthGCS(t *testing.T) {
 	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GCS_EXTERNAL)
 
+	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_EXTERNAL, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
+
 	jsonCreds := util.JoinPath(testPath, "application_default_credentials.json")
-	// copy file to $HOME/.config/gcloud/application_default_credentials.json and restore after test execution
 	homeDir, err := os.UserHomeDir()
 	assert.NoError(t, err)
 	applicationDefaultCredentials := util.JoinPath(homeDir, "gcloud-service-key.json")
@@ -6273,24 +6274,27 @@ func TestTerragruntUseExternalAuthGCS(t *testing.T) {
 		applicationDefaultCredentialsBackup := util.JoinPath(homeDir, "gcloud-service-key.json.backup")
 		err = os.Rename(applicationDefaultCredentials, applicationDefaultCredentialsBackup)
 		assert.NoError(t, err)
+
+		err = util.CopyFile(jsonCreds, applicationDefaultCredentials)
+		assert.NoError(t, err)
+
+		content, err := util.ReadFileAsString(applicationDefaultCredentials)
+		assert.NoError(t, err)
+		fmt.Printf("TestTerragruntUseExternalAuthGCS: contents %s \n", content)
+
 		defer os.Rename(applicationDefaultCredentialsBackup, applicationDefaultCredentials)
 	}
 
 	fmt.Printf("TestTerragruntUseExternalAuthGCS: 2 %s \n", jsonCreds)
 
-	//t.Setenv("GCLOUD_SERVICE_KEY", "")
+	t.Setenv("GCLOUD_SERVICE_KEY", "")
 	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", jsonCreds)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_EXTERNAL, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
 
 	err = util.CopyFile(tmpTerragruntGCSConfigPath, util.JoinPath(testPath, config.DefaultTerragruntConfigPath))
 	assert.NoError(t, err)
-
-	//err = util.CopyFile(jsonCreds, applicationDefaultCredentials)
-	//assert.NoError(t, err)
-	//defer os.Remove(applicationDefaultCredentials)
 
 	fmt.Printf("TestTerragruntUseExternalAuthGCS: 3 \n")
 
