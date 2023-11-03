@@ -149,7 +149,6 @@ jobs:
       # Import test / dev key for SOPS
       - run:
           command: |
-            env
             gpg --import --no-tty --batch --yes ./test/fixture-sops/test_pgp_key.asc
             mkdir -p logs
             run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
@@ -178,7 +177,6 @@ jobs:
       # Import test / dev key for SOPS
       - run:
           command: |
-            env
             gpg --import --no-tty --batch --yes ./test/fixture-sops/test_pgp_key.asc
             # remove terraform 
             sudo rm -f $(which terraform)
