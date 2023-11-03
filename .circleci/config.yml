@@ -144,12 +144,11 @@ jobs:
             terraform --version
 
       # Make GCP Service Account creds available as a file
-      - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
-      - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
+#      - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
+#      - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
       # Import test / dev key for SOPS
       - run:
           command: |
-            echo "${HOME}/gcloud-service-key.json"
             gpg --import --no-tty --batch --yes ./test/fixture-sops/test_pgp_key.asc
             mkdir -p logs
             run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
@@ -173,8 +172,8 @@ jobs:
       - run:
           <<: *install_tflint
       # Make GCP Service Account creds available as a file
-      - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
-      - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
+#      - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
+#      - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
       # Import test / dev key for SOPS
       - run:
           command: |
