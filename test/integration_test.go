@@ -6295,6 +6295,14 @@ func TestTerragruntUseExternalAuthGCS(t *testing.T) {
 	t.Setenv("GOOGLE_PROJECT_ID", "")
 	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", jsonCreds)
 
+	os.Setenv("TF_LOG", "trace")
+	os.Setenv("GCLOUD_SERVICE_KEY", "")
+	os.Setenv("GCLOUD_SERVICE_KEY_IMPERSONATOR", "")
+	os.Setenv("GOOGLE_CLOUD_PROJECT", "")
+	os.Setenv("GOOGLE_IDENTITY_EMAIL", "")
+	os.Setenv("GOOGLE_PROJECT_ID", "")
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", jsonCreds)
+
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
