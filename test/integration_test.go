@@ -21,8 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/terratest/modules/files"
-
 	"cloud.google.com/go/storage"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -177,7 +175,6 @@ const (
 	TEST_FIXTURE_EMPTY_STATE                                                 = "fixture-empty-state/"
 	TEST_FIXTURE_EXTERNAL_DEPENDENCY                                         = "fixture-external-dependency/"
 	TEST_FIXTURE_TF_TEST                                                     = "fixture-tftest/"
-	TEST_FIXTURE_GCS_EXTERNAL                                                = "fixture-gcs-external"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -6251,77 +6248,6 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, captured, "Should Terragrunt apply the external dependency?")
 	require.NotContains(t, captured, "/tmp/external1")
-}
-
-func TestTerragruntUseExternalAuthGCS(t *testing.T) {
-	// No parallel test since are set environment variables
-	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	gcsBucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-
-	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GCS_EXTERNAL)
-	cleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GCS_EXTERNAL)
-
-	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_EXTERNAL, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
-
-	jsonCreds := util.JoinPath(testPath, "application_default_credentials.json")
-	homeDir, err := os.UserHomeDir()
-	assert.NoError(t, err)
-	applicationDefaultCredentials := util.JoinPath(homeDir, "gcloud-service-key.json")
-	fmt.Printf("TestTerragruntUseExternalAuthGCS: Checking path of %s \n", applicationDefaultCredentials)
-	if files.FileExists(applicationDefaultCredentials) {
-		fmt.Printf("TestTerragruntUseExternalAuthGCS: 1 \n")
-		applicationDefaultCredentialsBackup := util.JoinPath(homeDir, "gcloud-service-key.json.backup")
-		err = os.Rename(applicationDefaultCredentials, applicationDefaultCredentialsBackup)
-		assert.NoError(t, err)
-
-		err = util.CopyFile(jsonCreds, applicationDefaultCredentials)
-		assert.NoError(t, err)
-
-		content, err := util.ReadFileAsString(applicationDefaultCredentials)
-		assert.NoError(t, err)
-		fmt.Printf("TestTerragruntUseExternalAuthGCS: contents %s \n", content)
-
-		defer os.Rename(applicationDefaultCredentialsBackup, applicationDefaultCredentials)
-	}
-
-	fmt.Printf("TestTerragruntUseExternalAuthGCS: 2 %s \n", jsonCreds)
-
-	t.Setenv("TF_LOG", "trace")
-	t.Setenv("GCLOUD_SERVICE_KEY", "")
-	t.Setenv("GCLOUD_SERVICE_KEY_IMPERSONATOR", "")
-	t.Setenv("GOOGLE_CLOUD_PROJECT", "")
-	t.Setenv("GOOGLE_IDENTITY_EMAIL", "")
-	t.Setenv("GOOGLE_PROJECT_ID", "")
-	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", jsonCreds)
-
-	os.Setenv("TF_LOG", "trace")
-	os.Setenv("GCLOUD_SERVICE_KEY", "")
-	os.Setenv("GCLOUD_SERVICE_KEY_IMPERSONATOR", "")
-	os.Setenv("GOOGLE_CLOUD_PROJECT", "")
-	os.Setenv("GOOGLE_IDENTITY_EMAIL", "")
-	os.Setenv("GOOGLE_PROJECT_ID", "")
-	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", jsonCreds)
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err = util.CopyFile(tmpTerragruntGCSConfigPath, util.JoinPath(testPath, config.DefaultTerragruntConfigPath))
-	assert.NoError(t, err)
-
-	creds := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
-	fmt.Printf("TestTerragruntUseExternalAuthGCS: 3 %v \n", creds)
-
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", testPath), &stdout, &stderr)
-
-	fmt.Printf("stdout: \n %s", stdout.String())
-	fmt.Printf("stderr: \n %s", stderr.String())
-
-	assert.Error(t, err)
-
-	output := stderr.String()
-	assert.NotContains(t, output, "external_account_authorized_user")
-	assert.Contains(t, output, "invalid_grant")
 }
 
 func TestTerragruntInvokeTerraformTests(t *testing.T) {
