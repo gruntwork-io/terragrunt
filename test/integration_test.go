@@ -1042,6 +1042,9 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 }
 
 func TestTerragruntStackCommands(t *testing.T) {
+	// It seems that disabling parallel test execution helps avoid the CircleCi error: “NoSuchBucket Policy: The bucket policy does not exist.”
+	// t.Parallel()
+
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
 
