@@ -17,5 +17,6 @@ inputs = {
 }
 
 retryable_errors = [
-  "(?s).*A conflicting conditional operation is currently in progress against this resource. Please try again.*"
+  "(?s).*A conflicting conditional operation is currently in progress against this resource. Please try again.*",
+  "(?s).*The bucket policy does not exist*"
 ]
