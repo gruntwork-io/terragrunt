@@ -1062,12 +1062,17 @@ func TestTerragruntStackCommands(t *testing.T) {
 	stageEnvironmentPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_STACK, "stage")
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", mgmtEnvironmentPath))
+	time.Sleep(5 * time.Second)
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", stageEnvironmentPath))
+	time.Sleep(5 * time.Second)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir %s", mgmtEnvironmentPath))
+	time.Sleep(5 * time.Second)
 	runTerragrunt(t, fmt.Sprintf("terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir %s", stageEnvironmentPath))
+	time.Sleep(5 * time.Second)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt destroy-all --terragrunt-non-interactive --terragrunt-working-dir %s", stageEnvironmentPath))
+	time.Sleep(5 * time.Second)
 	runTerragrunt(t, fmt.Sprintf("terragrunt destroy-all --terragrunt-non-interactive --terragrunt-working-dir %s", mgmtEnvironmentPath))
 }
 
