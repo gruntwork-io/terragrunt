@@ -5,4 +5,3 @@ include {
 dependencies {
   paths = ["../vpc", "../kms-master-key"]
 }
-
