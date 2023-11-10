@@ -5701,6 +5701,24 @@ func TestErrorExplaining(t *testing.T) {
 	assert.Contains(t, explanation, "Check your credentials and permissions")
 }
 
+func TestExplainingMissingCredentials(t *testing.T) {
+	// no parallel because we need to set env vars
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/tmp/not-existing-creds-46521694")
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INIT_ERROR)
+	initTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_ERROR)
+
+	cleanupTerraformFolder(t, initTestCase)
+	cleanupTerragruntFolder(t, initTestCase)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", initTestCase), &stdout, &stderr)
+	explanation := shell.ExplainError(err)
+	assert.Contains(t, explanation, "Missing AWS credentials")
+}
+
 func TestModulePathInPlanErrorMessage(t *testing.T) {
 	t.Parallel()
 

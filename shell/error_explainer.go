@@ -16,6 +16,9 @@ var terraformErrorsMatcher = map[string]string{
 	"(?s).*AllAccessDisabled: All access to this object has been disabled(?s).*": "You don't have access to the S3 bucket where the state is stored. Check your credentials and permissions.",
 	"(?s).*Error: Initialization required(?s).*":                                 "You need to run terragrunt (run-all) init to initialize working directory.",
 	"(?s).*Module source has changed(?s).*":                                      "You need to run terragrunt (run-all) init install all required modules.",
+	"(?s).*Error finding AWS credentials(?s).*":                                  "Missing AWS credentials; provide credentials to proceed.",
+	"(?s).*Error: No valid credential sources found(?s).*":                       "Missing AWS credentials; provide credentials to proceed.",
+	"(?s).*Error: validating provider credentials(?s).*":                         "Missing AWS credentials; provide credentials to proceed.",
 }
 
 // ExplainError will try to explain the error to the user, if we know how to do so.
