@@ -5717,6 +5717,10 @@ func TestExplainingMissingCredentials(t *testing.T) {
 	stderr := bytes.Buffer{}
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", initTestCase), &stdout, &stderr)
+
+	fmt.Printf("stdout:\n%s\n", stdout.String())
+	fmt.Printf("stderr:\n%s\n", stderr.String())
+
 	explanation := shell.ExplainError(err)
 	assert.Contains(t, explanation, "Missing AWS credentials")
 }
