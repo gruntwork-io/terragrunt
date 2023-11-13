@@ -5732,6 +5732,8 @@ func TestModulePathInPlanErrorMessage(t *testing.T) {
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan -no-color --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 	assert.Error(t, err)
+	fmt.Printf("stdout : %s\n", stdout.String())
+	fmt.Printf("stderr : %s\n", stderr.String())
 	fmt.Printf("TestModulePathInPlanErrorMessage err : %v\n", err)
 	assert.Contains(t, err.Error(), fmt.Sprintf("[%s] exit status 1", util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "d1")))
 }
@@ -5747,6 +5749,8 @@ func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all plan -no-color --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 	assert.Error(t, err)
+	fmt.Printf("stdout : %s\n", stdout.String())
+	fmt.Printf("stderr : %s\n", stderr.String())
 	fmt.Printf("TestModulePathInRunAllPlanErrorMessage err : %v\n", err)
 	assert.Contains(t, err.Error(), fmt.Sprintf("[%s] exit status 1", util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "d1")))
 }
