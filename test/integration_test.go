@@ -5703,9 +5703,9 @@ func TestErrorExplaining(t *testing.T) {
 
 func TestExplainingMissingCredentials(t *testing.T) {
 	// no parallel because we need to set env vars
-	os.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/tmp/not-existing-creds-46521694")
-	defer os.Unsetenv("AWS_SHARED_CREDENTIALS_FILE")
-	//t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/tmp/not-existing-creds-46521694")
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/tmp/not-existing-creds-46521694")
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INIT_ERROR)
 	initTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_ERROR)
