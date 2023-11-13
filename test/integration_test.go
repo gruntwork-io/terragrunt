@@ -5720,6 +5720,7 @@ func TestExplainingMissingCredentials(t *testing.T) {
 
 	fmt.Printf("stdout:\n%s\n", stdout.String())
 	fmt.Printf("stderr:\n%s\n", stderr.String())
+	fmt.Printf("err:\n%v\n", err.Error())
 
 	explanation := shell.ExplainError(err)
 	assert.Contains(t, explanation, "Missing AWS credentials")
