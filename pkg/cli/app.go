@@ -175,7 +175,7 @@ func (app *App) setupAutocomplete(arguments []string) error {
 	}
 
 	if app.AutocompleteInstaller == nil {
-		app.AutocompleteInstaller = &realAutocompleteInstaller{}
+		app.AutocompleteInstaller = &autocompleteInstaller{}
 	}
 
 	for _, arg := range arguments {

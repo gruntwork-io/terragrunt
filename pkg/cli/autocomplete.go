@@ -20,6 +20,8 @@ const (
 	envCompleteLine = "COMP_LINE"
 )
 
+var DefaultComplete = defaultComplete
+
 // AutocompleteInstaller is an interface to be implemented to perform the
 // autocomplete installation and uninstallation with a CLI.
 //
@@ -30,11 +32,11 @@ type AutocompleteInstaller interface {
 	Uninstall(string) error
 }
 
-// realAutocompleteInstaller uses the real install package to do the
+// autocompleteInstaller uses the install package to do the
 // install/uninstall.
-type realAutocompleteInstaller struct{}
+type autocompleteInstaller struct{}
 
-func (i *realAutocompleteInstaller) Install(cmd string) error {
+func (i *autocompleteInstaller) Install(cmd string) error {
 	if err := install.Install(cmd); err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -42,7 +44,7 @@ func (i *realAutocompleteInstaller) Install(cmd string) error {
 	return nil
 }
 
-func (i *realAutocompleteInstaller) Uninstall(cmd string) error {
+func (i *autocompleteInstaller) Uninstall(cmd string) error {
 	if err := install.Uninstall(cmd); err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -59,24 +61,21 @@ func ShowCompletions(ctx *Context) error {
 	return DefaultComplete(ctx)
 }
 
-func DefaultComplete(ctx *Context) error {
+func defaultComplete(ctx *Context) error {
 	arg := ctx.Args().Last()
 
 	if strings.HasPrefix(arg, "-") {
 		if cmd := ctx.Command; cmd != nil {
-			printFlagSuggestions(arg, cmd.Flags, ctx.App.Writer)
-			return nil
+			return printFlagSuggestions(arg, cmd.Flags, ctx.App.Writer)
 		}
 
-		printFlagSuggestions(arg, ctx.App.Flags, ctx.App.Writer)
-		return nil
+		return printFlagSuggestions(arg, ctx.App.Flags, ctx.App.Writer)
 	}
 
-	printCommandSuggestions(arg, ctx.Command.Subcommands, ctx.App.Writer)
-	return nil
+	return printCommandSuggestions(arg, ctx.Command.Subcommands, ctx.App.Writer)
 }
 
-func printCommandSuggestions(arg string, commands []*Command, writer io.Writer) {
+func printCommandSuggestions(arg string, commands []*Command, writer io.Writer) error {
 	for _, command := range commands {
 		if command.Hidden {
 			continue
@@ -88,27 +87,13 @@ func printCommandSuggestions(arg string, commands []*Command, writer io.Writer) 
 			}
 		}
 	}
+
+	return nil
 }
 
-func cliArgContains(flagName string) bool {
-	for _, name := range strings.Split(flagName, ",") {
-		name = strings.TrimSpace(name)
-		count := utf8.RuneCountInString(name)
-		if count > 2 {
-			count = 2
-		}
-		flag := fmt.Sprintf("%s%s", strings.Repeat("-", count), name)
-		for _, a := range os.Args {
-			if a == flag {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func printFlagSuggestions(arg string, flags []Flag, writer io.Writer) {
+func printFlagSuggestions(arg string, flags []Flag, writer io.Writer) error {
 	cur := strings.TrimPrefix(arg, "-")
+
 	for _, flag := range flags {
 		for _, name := range flag.Names() {
 			name = strings.TrimSpace(name)
@@ -129,4 +114,23 @@ func printFlagSuggestions(arg string, flags []Flag, writer io.Writer) {
 			}
 		}
 	}
+
+	return nil
+}
+
+func cliArgContains(flagName string) bool {
+	for _, name := range strings.Split(flagName, ",") {
+		name = strings.TrimSpace(name)
+		count := utf8.RuneCountInString(name)
+		if count > 2 {
+			count = 2
+		}
+		flag := fmt.Sprintf("%s%s", strings.Repeat("-", count), name)
+		for _, a := range os.Args {
+			if a == flag {
+				return true
+			}
+		}
+	}
+	return false
 }
