@@ -5732,10 +5732,9 @@ func TestModulePathInPlanErrorMessage(t *testing.T) {
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan -no-color --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 	assert.Error(t, err)
-	fmt.Printf("stdout : %s\n", stdout.String())
-	fmt.Printf("stderr : %s\n", stderr.String())
-	fmt.Printf("TestModulePathInPlanErrorMessage err : %v\n", err)
-	assert.Contains(t, err.Error(), fmt.Sprintf("[%s] exit status 1", util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "d1")))
+	output := fmt.Sprintf("%s\n%s\n%v\n", stdout.String(), stderr.String(), err.Error())
+	assert.Contains(t, output, fmt.Sprintf("prefix=[%s]", util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "d1")))
+	assert.Contains(t, output, "1 error occurred")
 }
 
 func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
@@ -5749,10 +5748,10 @@ func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all plan -no-color --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 	assert.Error(t, err)
-	fmt.Printf("stdout : %s\n", stdout.String())
-	fmt.Printf("stderr : %s\n", stderr.String())
-	fmt.Printf("TestModulePathInRunAllPlanErrorMessage err : %v\n", err)
-	assert.Contains(t, err.Error(), fmt.Sprintf("[%s] exit status 1", util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "d1")))
+	output := fmt.Sprintf("%s\n%s\n%v\n", stdout.String(), stderr.String(), err.Error())
+	assert.Contains(t, output, "finished with an error")
+	assert.Contains(t, output, fmt.Sprintf("Module %s", util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "d1")))
+
 }
 
 func TestHclFmtDiff(t *testing.T) {
