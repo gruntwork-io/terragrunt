@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/hashicorp/go-getter"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -160,12 +161,20 @@ var outputLocks = sync.Map{}
 // NOTE FOR MAINTAINER: When implementing importation of other config blocks (e.g referencing inputs), carefully
 //
 //	consider whether or not the implementation of the cyclic dependency detection still makes sense.
-func (terragruntConfigFile *terragruntConfigFile) decodeAndRetrieveOutputs(
+func decodeAndRetrieveOutputs(
+	file *hcl.File,
+	filename string,
+	terragruntOptions *options.TerragruntOptions,
 	trackInclude *TrackInclude,
 	extensions EvalContextExtensions,
 ) (*cty.Value, error) {
+	evalContext, err := extensions.CreateTerragruntEvalContext(filename, terragruntOptions)
+	if err != nil {
+		return nil, err
+	}
+
 	decodedDependency := terragruntDependency{}
-	if err := terragruntConfigFile.decodeHcl(&decodedDependency, extensions); err != nil {
+	if err := decodeHcl(file, filename, &decodedDependency, terragruntOptions, evalContext); err != nil {
 		return nil, err
 	}
 
@@ -181,17 +190,17 @@ func (terragruntConfigFile *terragruntConfigFile) decodeAndRetrieveOutputs(
 
 	// Merge in included dependencies
 	if trackInclude != nil {
-		mergedDecodedDependency, err := handleIncludeForDependency(decodedDependency, trackInclude, terragruntConfigFile.terragruntOptions)
+		mergedDecodedDependency, err := handleIncludeForDependency(decodedDependency, trackInclude, terragruntOptions)
 		if err != nil {
 			return nil, err
 		}
 		decodedDependency = *mergedDecodedDependency
 	}
 
-	if err := checkForDependencyBlockCycles(terragruntConfigFile.configPath, decodedDependency, terragruntConfigFile.terragruntOptions); err != nil {
+	if err := checkForDependencyBlockCycles(filename, decodedDependency, terragruntOptions); err != nil {
 		return nil, err
 	}
-	return dependencyBlocksToCtyValue(decodedDependency.Dependencies, terragruntConfigFile.terragruntOptions)
+	return dependencyBlocksToCtyValue(decodedDependency.Dependencies, terragruntOptions)
 }
 
 // Convert the list of parsed Dependency blocks into a list of module dependencies. Each output block should

@@ -32,6 +32,8 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
 
   - [get\_terragrunt\_dir()](#get_terragrunt_dir)
 
+  - [get\_working\_dir()](#get_working_dir)
+
   - [get\_parent\_terragrunt\_dir()](#get_parent_terragrunt_dir)
 
   - [get\_original\_terragrunt\_dir()](#get_original_terragrunt_dir)
@@ -434,7 +436,9 @@ terraform {
 }
 ```
 
-For the example above, this path will resolve to `/terraform-code/frontend-app/../common.tfvars`, which is exactly what you want.
+## get\_working\_dir
+
+`get_working_dir()` returns the absolute path where Terragrunt runs Terraform commands. This is useful when you need to manage substitutions of vars inside a *.tfvars file located right inside terragrunt's tmp dir.
 
 ## get\_parent\_terragrunt\_dir
 

@@ -1,10 +1,10 @@
 package config
 
 import (
-	"encoding/json"
 	"path/filepath"
 
 	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclparse"
@@ -13,42 +13,30 @@ import (
 )
 
 // parseHcl uses the HCL2 parser to parse the given string into an HCL file body.
-func (config *terragruntConfigFile) parseHcl() (err error) {
-	config.parser = hclparse.NewParser()
-
+func parseHcl(parser *hclparse.Parser, hcl string, filename string) (file *hcl.File, err error) {
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
 	// those panics here and convert them to normal errors
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = errors.WithStackTrace(PanicWhileParsingConfig{RecoveredValue: recovered, ConfigFile: config.configPath})
+			err = errors.WithStackTrace(PanicWhileParsingConfig{RecoveredValue: recovered, ConfigFile: filename})
 		}
 	}()
 
-	var parseDiagnostics hcl.Diagnostics
-
-	if filepath.Ext(config.configPath) == ".json" {
-		config.file, parseDiagnostics = config.parser.ParseJSON([]byte(config.fileContents), config.configPath)
+	if filepath.Ext(filename) == ".json" {
+		file, parseDiagnostics := parser.ParseJSON([]byte(hcl), filename)
 		if parseDiagnostics != nil && parseDiagnostics.HasErrors() {
-			return parseDiagnostics
+			return nil, parseDiagnostics
 		}
 
-		return nil
+		return file, nil
 	}
 
-	config.file, parseDiagnostics = config.parser.ParseHCL([]byte(config.fileContents), config.configPath)
+	file, parseDiagnostics := parser.ParseHCL([]byte(hcl), filename)
 	if parseDiagnostics != nil && parseDiagnostics.HasErrors() {
-		return parseDiagnostics
+		return nil, parseDiagnostics
 	}
 
-	return nil
-}
-
-func (config *terragruntConfigFile) ParseJson(variables any) error {
-	if err := json.Unmarshal([]byte(config.fileContents), &variables); err != nil {
-		return errors.Errorf("could not unmarshal json body of tfvar file: %w", err)
-	}
-
-	return nil
+	return file, nil
 }
 
 // decodeHcl uses the HCL2 parser to decode the parsed HCL into the struct specified by out.
@@ -58,39 +46,37 @@ func (config *terragruntConfigFile) ParseJson(variables any) error {
 // blocks with labels, requiring the exact number of expected labels in the parsing step.  To handle this restriction,
 // we first see if there are any include blocks without any labels, and if there is, we modify it in the file object to
 // inject the label as "".
-func (terragruntConfigFile *terragruntConfigFile) decodeHcl(out interface{}, extensions EvalContextExtensions) (err error) {
+func decodeHcl(
+	file *hcl.File,
+	filename string,
+	out interface{},
+	terragruntOptions *options.TerragruntOptions,
+	evalContext *hcl.EvalContext,
+) (err error) {
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
 	// those panics here and convert them to normal errors
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = errors.WithStackTrace(PanicWhileParsingConfig{RecoveredValue: recovered, ConfigFile: terragruntConfigFile.configPath})
+			err = errors.WithStackTrace(PanicWhileParsingConfig{RecoveredValue: recovered, ConfigFile: filename})
 		}
 	}()
 
 	// Check if we need to update the file to label any bare include blocks.
-	updatedBytes, isUpdated, err := updateBareIncludeBlock(terragruntConfigFile.file, terragruntConfigFile.configPath)
+	updatedBytes, isUpdated, err := updateBareIncludeBlock(file, filename)
 	if err != nil {
 		return err
 	}
 	if isUpdated {
-		terragruntConfigFile.fileContents = string(updatedBytes)
 		// Code was updated, so we need to reparse the new updated contents. This is necessarily because the blocks
 		// returned by hclparse does not support editing, and so we have to go through hclwrite, which leads to a
 		// different AST representation.
-
-		if err = terragruntConfigFile.parseHcl(); err != nil {
+		file, err = parseHcl(hclparse.NewParser(), string(updatedBytes), filename)
+		if err != nil {
 			return err
 		}
 	}
 
-	evalContext, err := extensions.CreateTerragruntEvalContext(terragruntConfigFile.configPath, terragruntConfigFile.terragruntOptions)
-	if err != nil {
-		return err
-	}
-
-	delete(evalContext.Functions, "get_working_dir")
-
-	decodeDiagnostics := gohcl.DecodeBody(terragruntConfigFile.file.Body, evalContext, out)
+	decodeDiagnostics := gohcl.DecodeBody(file.Body, evalContext, out)
 	if decodeDiagnostics != nil && decodeDiagnostics.HasErrors() {
 		return decodeDiagnostics
 	}
@@ -100,21 +86,23 @@ func (terragruntConfigFile *terragruntConfigFile) decodeHcl(out interface{}, ext
 
 // ParseAndDecodeVarFile uses the HCL2 parser to parse the given varfile string into an HCL file body, and then decode it
 // into the provided output.
-func ParseAndDecodeVarFile(terragruntConfigFile *terragruntConfigFile, out interface{}) (err error) {
+func ParseAndDecodeVarFile(hclContents string, filename string, out interface{}) (err error) {
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
 	// those panics here and convert them to normal errors
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = errors.WithStackTrace(PanicWhileParsingConfig{RecoveredValue: recovered, ConfigFile: terragruntConfigFile.configPath})
+			err = errors.WithStackTrace(PanicWhileParsingConfig{RecoveredValue: recovered, ConfigFile: filename})
 		}
 	}()
 
-	if err := terragruntConfigFile.parseHcl(); err != nil {
+	parser := hclparse.NewParser()
+	file, err := parseHcl(parser, hclContents, filename)
+	if err != nil {
 		return err
 	}
 
 	// VarFiles should only have attributes, so extract the attributes and decode the expressions into the return map.
-	attrs, hclDiags := terragruntConfigFile.file.Body.JustAttributes()
+	attrs, hclDiags := file.Body.JustAttributes()
 	if hclDiags != nil && hclDiags.HasErrors() {
 		return hclDiags
 	}

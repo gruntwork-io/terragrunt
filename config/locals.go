@@ -151,16 +151,13 @@ func attemptEvaluateLocals(
 		return nil, evaluatedLocals, false, err
 	}
 
-	extensionsCtx := EvalContextExtensions{
+	extensions := EvalContextExtensions{
 		TrackInclude:           trackInclude,
 		Locals:                 &evaluatedLocalsAsCty,
 		PartialParseDecodeList: decodeList,
 	}
 
-	evalCtx, err := extensionsCtx.CreateTerragruntEvalContext(
-		filename,
-		terragruntOptions,
-	)
+	evalCtx, err := extensions.CreateTerragruntEvalContext(filename, terragruntOptions)
 	if err != nil {
 		terragruntOptions.Logger.Errorf("Could not convert include to the execution context to evaluate additional locals in file %s", filename)
 		return nil, evaluatedLocals, false, err

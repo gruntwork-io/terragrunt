@@ -175,7 +175,7 @@ func NewSource(source string, downloadDir string, workingDir string, logger *log
 	updatedDownloadDir := util.JoinPath(downloadDir, encodedWorkingDir, rootPath)
 	updatedWorkingDir := util.JoinPath(updatedDownloadDir, modulePath)
 	versionFile := util.JoinPath(updatedDownloadDir, ".terragrunt-source-version")
-	fmt.Println("============", workingDir, source)
+
 	return &Source{
 		CanonicalSourceURL: rootSourceUrl,
 		DownloadDir:        updatedDownloadDir,

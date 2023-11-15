@@ -5,7 +5,9 @@
 package validateinputs
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -187,7 +189,7 @@ func getTerraformInputNamesFromVarFiles(opts *options.TerragruntOptions, terragr
 		varFiles = append(varFiles, arg.GetVarFiles(opts.Logger)...)
 	}
 
-	return getVarNamesFromVarFiles(opts, varFiles)
+	return getVarNamesFromVarFiles(varFiles)
 }
 
 // getTerraformInputNamesFromCLIArgs will return the list of names of variables configured by -var and -var-file CLI
@@ -212,7 +214,7 @@ func getTerraformInputNamesFromCLIArgs(opts *options.TerragruntOptions, terragru
 		}
 	}
 
-	fileVars, err := getVarNamesFromVarFiles(opts, varFiles)
+	fileVars, err := getVarNamesFromVarFiles(varFiles)
 	if err != nil {
 		return inputNames, err
 	}
@@ -246,15 +248,15 @@ func getTerraformInputNamesFromAutomaticVarFiles(opts *options.TerragruntOptions
 		return nil, err
 	}
 	automaticVarFiles = append(automaticVarFiles, jsonVarFiles...)
-	return getVarNamesFromVarFiles(opts, automaticVarFiles)
+	return getVarNamesFromVarFiles(automaticVarFiles)
 }
 
 // getVarNamesFromVarFiles will parse all the given var files and returns a list of names of variables that are
 // configured in all of them combined together.
-func getVarNamesFromVarFiles(opts *options.TerragruntOptions, varFiles []string) ([]string, error) {
+func getVarNamesFromVarFiles(varFiles []string) ([]string, error) {
 	inputNames := []string{}
 	for _, varFile := range varFiles {
-		fileVars, err := getVarNamesFromVarFile(opts, varFile)
+		fileVars, err := getVarNamesFromVarFile(varFile)
 		if err != nil {
 			return inputNames, err
 		}
@@ -265,20 +267,19 @@ func getVarNamesFromVarFiles(opts *options.TerragruntOptions, varFiles []string)
 
 // getVarNamesFromVarFile will parse the given terraform var file and return a list of names of variables that are
 // configured in that var file.
-func getVarNamesFromVarFile(opts *options.TerragruntOptions, varFile string) ([]string, error) {
-	terragruntConfigFile := config.NewTerragruntConfigFile(opts)
-
-	if err := terragruntConfigFile.ReadFile(varFile); err != nil {
+func getVarNamesFromVarFile(varFile string) ([]string, error) {
+	fileContents, err := os.ReadFile(varFile)
+	if err != nil {
 		return nil, err
 	}
 
 	var variables map[string]interface{}
 	if strings.HasSuffix(varFile, "json") {
-		if err := terragruntConfigFile.ParseJson(&variables); err != nil {
+		if err := json.Unmarshal(fileContents, &variables); err != nil {
 			return nil, err
 		}
 	} else {
-		if err := config.ParseAndDecodeVarFile(terragruntConfigFile, &variables); err != nil {
+		if err := config.ParseAndDecodeVarFile(string(fileContents), varFile, &variables); err != nil {
 			return nil, err
 		}
 	}

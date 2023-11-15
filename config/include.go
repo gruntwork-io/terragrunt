@@ -97,7 +97,8 @@ func parseIncludedConfig(
 
 // handleInclude merges the included config into the current config depending on the merge strategy specified by the
 // user.
-func (config *TerragruntConfig) handleInclude(
+func handleInclude(
+	config *TerragruntConfig,
 	trackInclude *TrackInclude,
 	terragruntOptions *options.TerragruntOptions,
 	dependencyOutputs *cty.Value,
@@ -141,16 +142,6 @@ func (config *TerragruntConfig) handleInclude(
 			return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s", mergeStrategy)
 		}
 	}
-
-	// Saving processed includes into configuration, direct assignment since nested includes aren't supported
-	baseConfig.ProcessedIncludes = trackInclude.CurrentMap
-	// Make sure the top level information that is not automatically merged in is captured on the merged config to
-	// ensure the proper representation of the config is captured.
-	// - Locals are deliberately not merged in so that they remain local in scope. Here, we directly set it to the
-	//   original locals for the current config being handled, as that is the locals list that is in scope for this
-	//   config.
-	baseConfig.Locals = config.Locals
-
 	return baseConfig, nil
 }
 
