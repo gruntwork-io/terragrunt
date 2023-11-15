@@ -2,6 +2,9 @@ package scaffold
 
 import (
 	"fmt"
+	"io/ioutil"
+
+	"github.com/gruntwork-io/terratest/modules/files"
 
 	boilerplate_options "github.com/gruntwork-io/boilerplate/options"
 	"github.com/gruntwork-io/boilerplate/templates"
@@ -23,19 +26,29 @@ func Run(opts *options.TerragruntOptions) error {
 		templateUrl = opts.TerraformCliArgs[2]
 	}
 
-	opts.Logger.Infof("Scaffolding a new Terragrunt module %s %s to %s", moduleUrl, templateUrl, opts.WorkingDir)
-
-	err := getter.GetAny(opts.WorkingDir, moduleUrl)
+	tempDir, err := ioutil.TempDir("", "example")
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 
+	opts.Logger.Infof("Scaffolding a new Terragrunt module %s %s to %s", moduleUrl, templateUrl, opts.WorkingDir)
+
+	err = getter.Get(tempDir, moduleUrl)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	err = files.CopyFolderContents(tempDir, opts.WorkingDir)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
 	// run boilerplate
 	opts.Logger.Infof("Running boilerplate in %s", opts.WorkingDir)
 
 	bopts := &boilerplate_options.BoilerplateOptions{
-		TemplateUrl:  fmt.Sprintf("%s//boilerplate", opts.WorkingDir),
-		OutputFolder: opts.WorkingDir,
+		TemplateFolder:  fmt.Sprintf("%s/boilerplate", opts.WorkingDir),
+		OutputFolder:    opts.WorkingDir,
+		OnMissingKey:    boilerplate_options.DefaultMissingKeyAction,
+		OnMissingConfig: boilerplate_options.DefaultMissingConfigAction,
 	}
 
 	emptyDep := variables.Dependency{}
