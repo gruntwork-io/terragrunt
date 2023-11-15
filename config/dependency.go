@@ -174,7 +174,7 @@ func decodeAndRetrieveOutputs(
 	}
 
 	decodedDependency := terragruntDependency{}
-	if err := decodeHcl(file, filename, &decodedDependency, terragruntOptions, evalContext); err != nil {
+	if err := decodeHcl(file, filename, &decodedDependency, evalContext); err != nil {
 		return nil, err
 	}
 

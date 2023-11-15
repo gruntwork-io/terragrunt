@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclparse"
@@ -50,7 +49,6 @@ func decodeHcl(
 	file *hcl.File,
 	filename string,
 	out interface{},
-	terragruntOptions *options.TerragruntOptions,
 	evalContext *hcl.EvalContext,
 ) (err error) {
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from

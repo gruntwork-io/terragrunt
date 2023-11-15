@@ -813,7 +813,7 @@ func decodeAsTerragruntConfigFile(
 	evalContext *hcl.EvalContext,
 ) (*terragruntConfigFile, error) {
 	terragruntConfig := terragruntConfigFile{}
-	err := decodeHcl(file, filename, &terragruntConfig, terragruntOptions, evalContext)
+	err := decodeHcl(file, filename, &terragruntConfig, evalContext)
 	// in case of render-json command and inputs reference error, we update the inputs with default value
 	if diagErr, ok := err.(hcl.Diagnostics); ok && isRenderJsonCommand(terragruntOptions) && isAttributeAccessError(diagErr) {
 		terragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)

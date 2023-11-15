@@ -262,7 +262,7 @@ func PartialParseConfigString(
 		switch decode {
 		case DependenciesBlock:
 			decoded := terragruntDependencies{}
-			err := decodeHcl(file, filename, &decoded, terragruntOptions, evalContext)
+			err := decodeHcl(file, filename, &decoded, evalContext)
 			if err != nil {
 				return nil, err
 			}
@@ -276,7 +276,7 @@ func PartialParseConfigString(
 
 		case TerraformBlock:
 			decoded := terragruntTerraform{}
-			err := decodeHcl(file, filename, &decoded, terragruntOptions, evalContext)
+			err := decodeHcl(file, filename, &decoded, evalContext)
 			if err != nil {
 				return nil, err
 			}
@@ -284,7 +284,7 @@ func PartialParseConfigString(
 
 		case TerraformSource:
 			decoded := terragruntTerraformSource{}
-			err := decodeHcl(file, filename, &decoded, terragruntOptions, evalContext)
+			err := decodeHcl(file, filename, &decoded, evalContext)
 			if err != nil {
 				return nil, err
 			}
@@ -294,7 +294,7 @@ func PartialParseConfigString(
 
 		case DependencyBlock:
 			decoded := terragruntDependency{}
-			err := decodeHcl(file, filename, &decoded, terragruntOptions, evalContext)
+			err := decodeHcl(file, filename, &decoded, evalContext)
 			if err != nil {
 				return nil, err
 			}
@@ -311,7 +311,7 @@ func PartialParseConfigString(
 
 		case TerragruntFlags:
 			decoded := terragruntFlags{}
-			err := decodeHcl(file, filename, &decoded, terragruntOptions, evalContext)
+			err := decodeHcl(file, filename, &decoded, evalContext)
 			if err != nil {
 				return nil, err
 			}
@@ -327,7 +327,7 @@ func PartialParseConfigString(
 
 		case TerragruntVersionConstraints:
 			decoded := terragruntVersionConstraints{}
-			err := decodeHcl(file, filename, &decoded, terragruntOptions, evalContext)
+			err := decodeHcl(file, filename, &decoded, evalContext)
 			if err != nil {
 				return nil, err
 			}
@@ -343,7 +343,7 @@ func PartialParseConfigString(
 
 		case RemoteStateBlock:
 			decoded := terragruntRemoteState{}
-			err := decodeHcl(file, filename, &decoded, terragruntOptions, evalContext)
+			err := decodeHcl(file, filename, &decoded, evalContext)
 			if err != nil {
 				return nil, err
 			}
@@ -403,7 +403,7 @@ func decodeAsTerragruntInclude(
 	evalContext *hcl.EvalContext,
 ) ([]IncludeConfig, error) {
 	tgInc := terragruntIncludeMultiple{}
-	if err := decodeHcl(file, filename, &tgInc, terragruntOptions, evalContext); err != nil {
+	if err := decodeHcl(file, filename, &tgInc, evalContext); err != nil {
 		return nil, err
 	}
 
