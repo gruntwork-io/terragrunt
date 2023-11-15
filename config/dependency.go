@@ -166,7 +166,7 @@ func decodeAndRetrieveOutputs(
 	filename string,
 	terragruntOptions *options.TerragruntOptions,
 	trackInclude *TrackInclude,
-	extensions EvalContextExtensions,
+	extensions *EvalContextExtensions,
 ) (*cty.Value, error) {
 	evalContext, err := extensions.CreateTerragruntEvalContext(filename, terragruntOptions)
 	if err != nil {

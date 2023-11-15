@@ -659,7 +659,7 @@ func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptio
 	}
 
 	// Initialize evaluation context extensions from base blocks.
-	contextExtensions := EvalContextExtensions{
+	contextExtensions := &EvalContextExtensions{
 		DecodedDependencies: dependencyOutputs,
 	}
 
@@ -702,7 +702,7 @@ func ParseConfigString(
 	terragruntOptions *options.TerragruntOptions,
 	includeFromChild *IncludeConfig,
 	filename string,
-	contextExtensions EvalContextExtensions,
+	contextExtensions *EvalContextExtensions,
 ) (*TerragruntConfig, error) {
 	// Parse the HCL string into an AST body that can be decoded multiple times later without having to re-parse
 	parser := hclparse.NewParser()
@@ -888,7 +888,7 @@ func convertToTerragruntConfig(
 	terragruntConfigFromFile *terragruntConfigFile,
 	configPath string,
 	terragruntOptions *options.TerragruntOptions,
-	contextExtensions EvalContextExtensions,
+	contextExtensions *EvalContextExtensions,
 ) (cfg *TerragruntConfig, err error) {
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
 	// those panics here and convert them to normal errors

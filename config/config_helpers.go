@@ -538,7 +538,7 @@ func getWorkingDir(trackInclude *TrackInclude, terragruntOptions *options.Terrag
 	}
 
 	// Initialize evaluation context extensions from base blocks.
-	contextExtensions := EvalContextExtensions{
+	contextExtensions := &EvalContextExtensions{
 		PredefinedFunctions: map[string]function.Function{
 			FuncNameGetWorkingDir: wrapVoidToEmptyStringAsFuncImpl(),
 		},
