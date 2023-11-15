@@ -107,15 +107,13 @@ type EvalContextExtensions struct {
 	// indicate/detect that the current parsing context is partial, meaning that not all configuration values are
 	// expected to be available.
 	PartialParseDecodeList []PartialDecodeSectionType
+
+	predefinedFunctions map[string]function.Function
 }
 
 // Create an EvalContext for the HCL2 parser. We can define functions and variables in this context that the HCL2 parser
 // will make available to the Terragrunt configuration during parsing.
-func CreateTerragruntEvalContext(
-	filename string,
-	terragruntOptions *options.TerragruntOptions,
-	extensions EvalContextExtensions,
-) (*hcl.EvalContext, error) {
+func (extensions EvalContextExtensions) CreateTerragruntEvalContext(filename string, terragruntOptions *options.TerragruntOptions) (*hcl.EvalContext, error) {
 	tfscope := tflang.Scope{
 		BaseDir: filepath.Dir(filename),
 	}
@@ -147,11 +145,10 @@ func CreateTerragruntEvalContext(
 		"get_terragrunt_source_cli_flag":               wrapVoidToStringAsFuncImpl(getTerragruntSourceCliFlag, extensions.TrackInclude, terragruntOptions),
 		"get_default_retryable_errors":                 wrapVoidToStringSliceAsFuncImpl(getDefaultRetryableErrors, extensions.TrackInclude, terragruntOptions),
 		"read_tfvars_file":                             wrapStringSliceToStringAsFuncImpl(readTFVarsFile, extensions.TrackInclude, terragruntOptions),
-	}
+		"get_working_dir":                              wrapVoidToStringAsFuncImpl(getWorkingDir, extensions.TrackInclude, terragruntOptions),
 
-	// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
-	// https://github.com/gruntwork-io/terragrunt/blob/master/go.mod#L22
-	terraformCompatibilityFunctions := map[string]function.Function{
+		// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
+		// https://github.com/gruntwork-io/terragrunt/blob/master/go.mod#L22
 		"startswith":  wrapStringSliceToBoolAsFuncImpl(startsWith, extensions.TrackInclude, terragruntOptions),
 		"endswith":    wrapStringSliceToBoolAsFuncImpl(endsWith, extensions.TrackInclude, terragruntOptions),
 		"strcontains": wrapStringSliceToBoolAsFuncImpl(strContains, extensions.TrackInclude, terragruntOptions),
@@ -165,7 +162,7 @@ func CreateTerragruntEvalContext(
 	for k, v := range terragruntFunctions {
 		functions[k] = v
 	}
-	for k, v := range terraformCompatibilityFunctions {
+	for k, v := range extensions.predefinedFunctions {
 		functions[k] = v
 	}
 
@@ -490,6 +487,24 @@ func pathRelativeFromInclude(params []string, trackInclude *TrackInclude, terrag
 // getTerraformCommand returns the current terraform command in execution
 func getTerraformCommand(trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (string, error) {
 	return terragruntOptions.TerraformCommand, nil
+}
+
+// getWorkingDir returns the current working dir
+func getWorkingDir(trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (string, error) {
+	_, err := ReadTerragruntConfig(terragruntOptions)
+	if err != nil {
+		return "", err
+	}
+	os.Exit(1)
+	// sourceUrl, err := GetTerraformSourceUrl(terragruntOptions, terragruntConfig)
+	// if err != nil {
+	// 	return "", err
+	// }
+	// fmt.Println("!!!!!!!!!!!!", sourceUrl)
+
+	//fmt.Println("-------")
+	fmt.Println("getWorkingDir --------------", terragruntOptions.DownloadDir)
+	return terragruntOptions.WorkingDir, nil
 }
 
 // getTerraformCliArgs returns cli args for terraform
@@ -869,22 +884,23 @@ func readTFVarsFile(args []string, trackInclude *TrackInclude, terragruntOptions
 		return "", errors.WithStackTrace(TFVarFileNotFoundError{File: varFile})
 	}
 
-	fileContents, err := os.ReadFile(varFile)
-	if err != nil {
-		return "", errors.WithStackTrace(fmt.Errorf("could not read file %q: %w", varFile, err))
+	terragruntConfigFile := NewTerragruntConfigFile(terragruntOptions)
+
+	if err := terragruntConfigFile.ReadFile(varFile); err != nil {
+		return "", err
 	}
 
 	if strings.HasSuffix(varFile, "json") {
 		var variables map[string]interface{}
 		// just want to be sure that the file is valid json
-		if err := json.Unmarshal(fileContents, &variables); err != nil {
+		if err := terragruntConfigFile.ParseJson(&variables); err != nil {
 			return "", errors.WithStackTrace(fmt.Errorf("could not unmarshal json body of tfvar file: %w", err))
 		}
-		return string(fileContents), nil
+		return string(terragruntConfigFile.fileContents), nil
 	}
 
 	var variables map[string]interface{}
-	if err := ParseAndDecodeVarFile(string(fileContents), varFile, &variables); err != nil {
+	if err := ParseAndDecodeVarFile(terragruntConfigFile, &variables); err != nil {
 		return "", err
 	}
 

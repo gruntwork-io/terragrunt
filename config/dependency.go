@@ -15,7 +15,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/hashicorp/go-getter"
-	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -161,15 +160,12 @@ var outputLocks = sync.Map{}
 // NOTE FOR MAINTAINER: When implementing importation of other config blocks (e.g referencing inputs), carefully
 //
 //	consider whether or not the implementation of the cyclic dependency detection still makes sense.
-func decodeAndRetrieveOutputs(
-	file *hcl.File,
-	filename string,
-	terragruntOptions *options.TerragruntOptions,
+func (terragruntConfigFile *terragruntConfigFile) decodeAndRetrieveOutputs(
 	trackInclude *TrackInclude,
 	extensions EvalContextExtensions,
 ) (*cty.Value, error) {
 	decodedDependency := terragruntDependency{}
-	if err := decodeHcl(file, filename, &decodedDependency, terragruntOptions, extensions); err != nil {
+	if err := terragruntConfigFile.decodeHcl(&decodedDependency, extensions); err != nil {
 		return nil, err
 	}
 
@@ -185,17 +181,17 @@ func decodeAndRetrieveOutputs(
 
 	// Merge in included dependencies
 	if trackInclude != nil {
-		mergedDecodedDependency, err := handleIncludeForDependency(decodedDependency, trackInclude, terragruntOptions)
+		mergedDecodedDependency, err := handleIncludeForDependency(decodedDependency, trackInclude, terragruntConfigFile.terragruntOptions)
 		if err != nil {
 			return nil, err
 		}
 		decodedDependency = *mergedDecodedDependency
 	}
 
-	if err := checkForDependencyBlockCycles(filename, decodedDependency, terragruntOptions); err != nil {
+	if err := checkForDependencyBlockCycles(terragruntConfigFile.configPath, decodedDependency, terragruntConfigFile.terragruntOptions); err != nil {
 		return nil, err
 	}
-	return dependencyBlocksToCtyValue(decodedDependency.Dependencies, terragruntOptions)
+	return dependencyBlocksToCtyValue(decodedDependency.Dependencies, terragruntConfigFile.terragruntOptions)
 }
 
 // Convert the list of parsed Dependency blocks into a list of module dependencies. Each output block should
