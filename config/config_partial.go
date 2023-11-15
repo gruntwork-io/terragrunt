@@ -111,7 +111,6 @@ func DecodeBaseBlocks(
 	terragruntIncludeList, err := decodeAsTerragruntInclude(
 		hclFile,
 		filename,
-		terragruntOptions,
 		evalContext,
 	)
 	if err != nil {
@@ -399,7 +398,6 @@ func partialParseIncludedConfig(includedConfig *IncludeConfig, terragruntOptions
 func decodeAsTerragruntInclude(
 	file *hcl.File,
 	filename string,
-	terragruntOptions *options.TerragruntOptions,
 	evalContext *hcl.EvalContext,
 ) ([]IncludeConfig, error) {
 	tgInc := terragruntIncludeMultiple{}
