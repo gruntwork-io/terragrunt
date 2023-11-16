@@ -658,7 +658,12 @@ func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptio
 		return nil, err
 	}
 
-	config, err := ParseConfigString(configString, terragruntOptions, include, filename, dependencyOutputs)
+	// Initialize evaluation context extensions from base blocks.
+	contextExtensions := &EvalContextExtensions{
+		DecodedDependencies: dependencyOutputs,
+	}
+
+	config, err := ParseConfigString(configString, terragruntOptions, include, filename, contextExtensions)
 	if err != nil {
 		return nil, err
 	}
@@ -697,7 +702,7 @@ func ParseConfigString(
 	terragruntOptions *options.TerragruntOptions,
 	includeFromChild *IncludeConfig,
 	filename string,
-	dependencyOutputs *cty.Value,
+	contextExtensions *EvalContextExtensions,
 ) (*TerragruntConfig, error) {
 	// Parse the HCL string into an AST body that can be decoded multiple times later without having to re-parse
 	parser := hclparse.NewParser()
@@ -718,14 +723,10 @@ func ParseConfigString(
 		return nil, err
 	}
 
-	// Initialize evaluation context extensions from base blocks.
-	contextExtensions := EvalContextExtensions{
-		Locals:              localsAsCty,
-		TrackInclude:        trackInclude,
-		DecodedDependencies: dependencyOutputs,
-	}
+	contextExtensions.Locals = localsAsCty
+	contextExtensions.TrackInclude = trackInclude
 
-	if dependencyOutputs == nil {
+	if contextExtensions.DecodedDependencies == nil {
 		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
 		// process.
 		retrievedOutputs, err := decodeAndRetrieveOutputs(file, filename, terragruntOptions, trackInclude, contextExtensions)
@@ -735,9 +736,14 @@ func ParseConfigString(
 		contextExtensions.DecodedDependencies = retrievedOutputs
 	}
 
+	evalContext, err := contextExtensions.CreateTerragruntEvalContext(filename, terragruntOptions)
+	if err != nil {
+		return nil, err
+	}
+
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
 	// is appropriate
-	terragruntConfigFile, err := decodeAsTerragruntConfigFile(file, filename, terragruntOptions, contextExtensions)
+	terragruntConfigFile, err := decodeAsTerragruntConfigFile(file, filename, terragruntOptions, evalContext)
 	if err != nil {
 		return nil, err
 	}
@@ -804,10 +810,10 @@ func decodeAsTerragruntConfigFile(
 	file *hcl.File,
 	filename string,
 	terragruntOptions *options.TerragruntOptions,
-	extensions EvalContextExtensions,
+	evalContext *hcl.EvalContext,
 ) (*terragruntConfigFile, error) {
 	terragruntConfig := terragruntConfigFile{}
-	err := decodeHcl(file, filename, &terragruntConfig, terragruntOptions, extensions)
+	err := decodeHcl(file, filename, &terragruntConfig, evalContext)
 	// in case of render-json command and inputs reference error, we update the inputs with default value
 	if diagErr, ok := err.(hcl.Diagnostics); ok && isRenderJsonCommand(terragruntOptions) && isAttributeAccessError(diagErr) {
 		terragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
@@ -882,7 +888,7 @@ func convertToTerragruntConfig(
 	terragruntConfigFromFile *terragruntConfigFile,
 	configPath string,
 	terragruntOptions *options.TerragruntOptions,
-	contextExtensions EvalContextExtensions,
+	contextExtensions *EvalContextExtensions,
 ) (cfg *TerragruntConfig, err error) {
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
 	// those panics here and convert them to normal errors

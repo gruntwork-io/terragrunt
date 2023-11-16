@@ -167,6 +167,7 @@ func runTerraform(terragruntOptions *options.TerragruntOptions, target *Target) 
 	if err != nil {
 		return err
 	}
+
 	if sourceUrl != "" {
 		updatedTerragruntOptions, err = downloadTerraformSource(sourceUrl, terragruntOptions, terragruntConfig)
 		if err != nil {

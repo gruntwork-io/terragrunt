@@ -166,10 +166,15 @@ func decodeAndRetrieveOutputs(
 	filename string,
 	terragruntOptions *options.TerragruntOptions,
 	trackInclude *TrackInclude,
-	extensions EvalContextExtensions,
+	extensions *EvalContextExtensions,
 ) (*cty.Value, error) {
+	evalContext, err := extensions.CreateTerragruntEvalContext(filename, terragruntOptions)
+	if err != nil {
+		return nil, err
+	}
+
 	decodedDependency := terragruntDependency{}
-	if err := decodeHcl(file, filename, &decodedDependency, terragruntOptions, extensions); err != nil {
+	if err := decodeHcl(file, filename, &decodedDependency, evalContext); err != nil {
 		return nil, err
 	}
 
