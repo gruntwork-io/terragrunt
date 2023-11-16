@@ -5703,7 +5703,7 @@ func TestErrorExplaining(t *testing.T) {
 	fmt.Printf("err: %v\n", err.Error())
 
 	explanation := shell.ExplainError(err)
-	fmt.Printf("explanation: %s\n", explanation)
+	fmt.Printf("explanation: %s\n bool: %v\n", explanation, strings.Contains(explanation, "Check your credentials and permissions"))
 	assert.True(t, strings.Contains(explanation, "Check your credentials and permissions"))
 }
 
