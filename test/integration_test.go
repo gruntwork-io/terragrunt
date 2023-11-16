@@ -5703,7 +5703,8 @@ func TestErrorExplaining(t *testing.T) {
 	fmt.Printf("err: %v\n", err.Error())
 
 	explanation := shell.ExplainError(err)
-	assert.Contains(t, explanation, "Check your credentials and permissions")
+	fmt.Printf("explanation: %s\n", explanation)
+	assert.Contains(t, explanation, "You don't have access to the S3 bucket where the state is stored. Check your credentials and permissions.")
 }
 
 func TestExplainingMissingCredentials(t *testing.T) {
