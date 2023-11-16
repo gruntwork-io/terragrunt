@@ -555,7 +555,7 @@ func getWorkingDir(trackInclude *TrackInclude, terragruntOptions *options.Terrag
 	}
 
 	if sourceUrl == "" {
-		return "", errors.Errorf("get_working_dir built-in function requires the specified terrafrom source value")
+		return terragruntOptions.WorkingDir, nil
 	}
 
 	source, err := terraform.NewSource(sourceUrl, terragruntOptions.DownloadDir, terragruntOptions.WorkingDir, terragruntOptions.Logger)
