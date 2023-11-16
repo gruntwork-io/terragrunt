@@ -8,8 +8,9 @@ import (
 type Context struct {
 	context.Context
 	*App
-	Command *Command
-	args    *Args
+	Command       *Command
+	args          Args
+	shellComplete bool
 }
 
 func newContext(parentCtx context.Context, app *App) *Context {
@@ -21,10 +22,11 @@ func newContext(parentCtx context.Context, app *App) *Context {
 
 func (ctx *Context) Clone(command *Command, args Args) *Context {
 	return &Context{
-		Context: ctx.Context,
-		App:     ctx.App,
-		Command: command,
-		args:    &args,
+		Context:       ctx.Context,
+		App:           ctx.App,
+		shellComplete: ctx.shellComplete,
+		Command:       command,
+		args:          args,
 	}
 }
 
@@ -38,6 +40,6 @@ func (ctx *Context) Value(key any) any {
 }
 
 // Args returns the command line arguments associated with the context.
-func (ctx *Context) Args() *Args {
+func (ctx *Context) Args() Args {
 	return ctx.args
 }
