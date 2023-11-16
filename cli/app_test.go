@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/go-commons/errors"
@@ -441,7 +442,9 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 	app := cli.NewApp()
 	app.Writer = &bytes.Buffer{}
 	app.ErrWriter = &bytes.Buffer{}
-	app.Flags = commands.NewGlobalFlags(opts)
+	app.Flags = append(
+		commands.NewGlobalFlags(opts),
+		commands.NewHelpVersionFlags(opts)...)
 	app.Commands = append(
 		deprecatedCommands(opts),
 		terragruntCommands...)
@@ -462,4 +465,42 @@ type argMissingValueError string
 
 func (err argMissingValueError) Error() string {
 	return fmt.Sprintf("flag needs an argument: -%s", string(err))
+}
+
+func TestAutocomplete(t *testing.T) {
+	defer os.Unsetenv("COMP_LINE")
+
+	testCases := []struct {
+		compLine          string
+		expectedCompletes []string
+	}{
+		{
+			"",
+			[]string{"aws-provider-patch", "graph-dependencies", "hclfmt", "output-module-groups", "render-json", "run-all", "terragrunt-info", "validate-inputs"},
+		},
+		{
+			"--versio",
+			[]string{"--version"},
+		},
+		{
+			"render-json -",
+			[]string{"--terragrunt-json-out", "--with-metadata"},
+		},
+		{
+			"run-all ren",
+			[]string{"render-json"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		os.Setenv("COMP_LINE", "terragrunt "+testCase.compLine)
+
+		output := &bytes.Buffer{}
+		app := NewApp(output, os.Stderr)
+
+		err := app.Run([]string{"terragrunt"})
+		require.NoError(t, err)
+
+		assert.Contains(t, output.String(), strings.Join(testCase.expectedCompletes, "\n"))
+	}
 }

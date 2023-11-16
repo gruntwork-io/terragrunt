@@ -242,13 +242,14 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 
 	flags.Sort()
 
-	// add auxiliary flags after sorting to put the flag at the end of the flag list in the help.
-	flags.Add(
+	return flags
+}
+
+func NewHelpVersionFlags(opts *options.TerragruntOptions) cli.Flags {
+	return cli.Flags{
 		NewHelpFlag(opts),
 		NewVersionFlag(opts),
-	)
-
-	return flags
+	}
 }
 
 func NewHelpFlag(opts *options.TerragruntOptions) cli.Flag {

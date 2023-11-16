@@ -13,8 +13,8 @@ const (
 )
 
 var (
-	singleDashRegexp = regexp.MustCompile(`^-[^-]`)
-	doubleDashRegexp = regexp.MustCompile(`^--[^-]`)
+	singleDashRegexp = regexp.MustCompile(`^-([^-]|$)`)
+	doubleDashRegexp = regexp.MustCompile(`^--([^-]|$)`)
 )
 
 type NormalizeActsType byte
@@ -23,23 +23,28 @@ type NormalizeActsType byte
 type Args []string
 
 // Get returns the nth argument, or else a blank string
-func (args *Args) Get(n int) string {
-	if len(*args) > n {
-		return (*args)[n]
+func (args Args) Get(n int) string {
+	if len(args) > 0 && len(args) > n {
+		return (args)[n]
 	}
 	return ""
 }
 
-// First returns the first argument, or else a blank string
-func (args *Args) First() string {
+// First returns the first argument or a blank string
+func (args Args) First() string {
 	return args.Get(0)
+}
+
+// Last returns the last argument or a blank string
+func (args Args) Last() string {
+	return args.Get(len(args) - 1)
 }
 
 // Tail returns the rest of the arguments (not the first one)
 // or else an empty string slice
-func (args *Args) Tail() []string {
+func (args Args) Tail() []string {
 	if args.Len() >= minTailLen {
-		tail := []string((*args)[1:])
+		tail := []string((args)[1:])
 		ret := make([]string, len(tail))
 		copy(ret, tail)
 		return ret
@@ -48,19 +53,19 @@ func (args *Args) Tail() []string {
 }
 
 // Len returns the length of the wrapped slice
-func (args *Args) Len() int {
-	return len(*args)
+func (args Args) Len() int {
+	return len(args)
 }
 
 // Present checks if there are any arguments present
-func (args *Args) Present() bool {
+func (args Args) Present() bool {
 	return args.Len() != 0
 }
 
 // Slice returns a copy of the internal slice
-func (args *Args) Slice() []string {
-	ret := make([]string, len(*args))
-	copy(ret, *args)
+func (args Args) Slice() []string {
+	ret := make([]string, len(args))
+	copy(ret, args)
 	return ret
 }
 
@@ -69,7 +74,7 @@ func (args *Args) Slice() []string {
 //
 //	`SingleDashFlag` - converts all arguments containing double dashes to single dashes
 //	`DoubleDashFlag` - converts all arguments containing signle dashes to double dashes
-func (args *Args) Normalize(acts ...NormalizeActsType) *Args {
+func (args Args) Normalize(acts ...NormalizeActsType) Args {
 	strArgs := make(Args, 0, len(args.Slice()))
 
 	for _, arg := range args.Slice() {
@@ -89,11 +94,11 @@ func (args *Args) Normalize(acts ...NormalizeActsType) *Args {
 		strArgs = append(strArgs, arg)
 	}
 
-	return &strArgs
+	return strArgs
 }
 
 // CommandName returns the first value if it starts without a dash `-`, otherwise that means the args do not consist any command and an empty string is returned.
-func (args *Args) CommandName() string {
+func (args Args) CommandName() string {
 	name := args.First()
 
 	if !strings.HasPrefix(name, "-") {

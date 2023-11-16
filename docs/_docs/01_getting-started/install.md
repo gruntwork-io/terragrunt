@@ -32,6 +32,30 @@ If you  want the latest version, the recommended installation option is to [down
 
 * **FreeBSD**: You can install Terragrunt on FreeBSD using [Pkg](https://www.freebsd.org/cgi/man.cgi?pkg(7)): `pkg install terragrunt`.
 
+### Enable tab completion
+
+If you use either Bash or Zsh, you can enable tab completion for Terragrunt commands. To enable autocomplete, first ensure that a config file exists for your chosen shell.
+
+
+For Bash shell.
+``` shell
+touch ~/.bashrc
+```
+
+For Zsh shell.
+``` shell
+touch ~/.zshrc
+```
+
+Then install the autocomplete package.
+
+``` shell
+terragrunt --install-autocomplete
+```
+
+Once the autocomplete support is installed, you will need to restart your shell.
+
+
 ### Terragrunt GitHub Action
 
 Terragrunt is also available as a GitHub Action. Instructions on how to use it can be found at [https://github.com/gruntwork-io/terragrunt-action](https://github.com/gruntwork-io/terragrunt-action).
