@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -45,6 +46,9 @@ func ExplainError(err error) string {
 			continue
 		}
 		errorOutput := processError.Stderr
+		stdOut := processError.StdOut
+		fmt.Printf("Error stdOut: %s\n", stdOut)
+		fmt.Printf("Error output: %s\n", errorOutput)
 		for regex, explanation := range terraformErrorsMatcher {
 			if match, _ := regexp.MatchString(regex, errorOutput); match {
 				// collect matched explanations
