@@ -26,14 +26,14 @@ func Run(opts *options.TerragruntOptions) error {
 		templateUrl = opts.TerraformCliArgs[2]
 	}
 
-	tempDir, err := ioutil.TempDir("", "example")
+	tempDir, err := ioutil.TempDir("", "scaffold")
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 
 	opts.Logger.Infof("Scaffolding a new Terragrunt module %s %s to %s", moduleUrl, templateUrl, opts.WorkingDir)
 
-	err = getter.Get(tempDir, moduleUrl)
+	err = getter.GetAny(tempDir, moduleUrl)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
