@@ -15,6 +15,7 @@ var terraformErrorsMatcher = map[string]string{
 	"(?s).*Error refreshing state: AccessDenied: Access Denied(?s).*":                     "You don't have access to the S3 bucket where the state is stored. Check your credentials and permissions.",
 	"(?s).*AllAccessDisabled: All access to this object has been disabled(?s).*":          "You don't have access to the S3 bucket where the state is stored. Check your credentials and permissions.",
 	"(?s).*operation error S3: ListObjectsV2, https response error StatusCode: 301(?s).*": "You don't have access to the S3 bucket where the state is stored. Check your credentials and permissions.",
+	"(?s).*AuthorizationHeaderMalformed: The authorization header is malformed(?s).*":     "You don't have access to the S3 bucket where the state is stored. Check your credentials and permissions.",
 	"(?s).*Error: Initialization required(?s).*":                                          "You need to run terragrunt (run-all) init to initialize working directory.",
 	"(?s).*Module source has changed(?s).*":                                               "You need to run terragrunt (run-all) init install all required modules.",
 	"(?s).*Error finding AWS credentials(?s).*":                                           "Missing AWS credentials. Provide credentials to proceed.",
