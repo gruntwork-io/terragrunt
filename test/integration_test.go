@@ -5697,6 +5697,7 @@ func TestErrorExplaining(t *testing.T) {
 	stderr := bytes.Buffer{}
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", initTestCase), &stdout, &stderr)
+	assert.NoError(t, err)
 	fmt.Printf("stdout: %s\n", stdout.String())
 	fmt.Printf("stderr: %s\n", stderr.String())
 	fmt.Printf("err: %v\n", err.Error())
