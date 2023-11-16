@@ -52,7 +52,9 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 	app.Version = version.GetVersion()
 	app.Writer = writer
 	app.ErrWriter = errWriter
-	app.Flags = commands.NewGlobalFlags(opts)
+	app.Flags = append(
+		commands.NewGlobalFlags(opts),
+		commands.NewHelpVersionFlags(opts)...)
 	app.Commands = append(
 		deprecatedCommands(opts),
 		terragruntCommands(opts)...)

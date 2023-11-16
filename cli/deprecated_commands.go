@@ -55,7 +55,7 @@ func replaceDeprecatedCommandFunc(terragruntCommandName, terraformCommandName st
 				deprecatedCommandName,
 			)
 
-			err := command.Run(ctx, args...)
+			err := command.Run(ctx, args)
 			return err
 		}
 	}

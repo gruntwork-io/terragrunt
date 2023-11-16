@@ -182,7 +182,7 @@ func TestCommandRun(t *testing.T) {
 			app := &App{App: &cli.App{Writer: io.Discard}}
 			ctx := newContext(context.Background(), app)
 
-			err := testCase.command.Run(ctx, testCase.args...)
+			err := testCase.command.Run(ctx, testCase.args)
 			if testCase.expectedErr != nil {
 				require.EqualError(t, err, testCase.expectedErr.Error(), testCase)
 			} else {

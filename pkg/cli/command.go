@@ -35,6 +35,8 @@ type Command struct {
 	SkipFlagParsing bool
 	// Boolean to disable the parsing command, but it will still be shown in the help.
 	SkipRunning bool
+	// The function to call when checking for command completions
+	Complete CompleteFunc
 	// An action to execute before any subcommands are run, but after the context is ready
 	// If a non-nil error is returned, no subcommands are run
 	Before ActionFunc
@@ -52,7 +54,7 @@ func (cmd *Command) Names() []string {
 // HasName returns true if Command.Name matches given name
 func (cmd *Command) HasName(name string) bool {
 	for _, n := range cmd.Names() {
-		if n == name {
+		if n == name && name != "" {
 			return true
 		}
 	}
@@ -86,13 +88,27 @@ func (cmd Command) VisibleSubcommands() []*cli.Command {
 
 // Run parses the given args for the presence of flags as well as subcommands.
 // If this is the final command, starts its execution.
-func (cmd *Command) Run(ctx *Context, args ...string) (err error) {
-	args, err = cmd.parseFlags(args)
+func (cmd *Command) Run(ctx *Context, args Args) (err error) {
+	args, err = cmd.parseFlags(args.Slice())
 	if err != nil {
 		return err
 	}
 
 	ctx = ctx.Clone(cmd, args)
+
+	subCmdName := ctx.Args().CommandName()
+	subCmdArgs := ctx.Args().Tail()
+	subCmd := cmd.Subcommand(subCmdName)
+
+	if ctx.shellComplete {
+		if cmd := ctx.Command.Subcommand(args.CommandName()); cmd == nil {
+			return ShowCompletions(ctx)
+		}
+
+		if subCmd != nil {
+			return subCmd.Run(ctx, subCmdArgs)
+		}
+	}
 
 	if err := cmd.Flags.RunActions(ctx); err != nil {
 		return ctx.App.handleExitCoder(err)
@@ -111,15 +127,12 @@ func (cmd *Command) Run(ctx *Context, args ...string) (err error) {
 		}
 	}
 
-	subCmdName := ctx.Args().CommandName()
-	if subCmd := cmd.Subcommand(subCmdName); subCmd != nil && !subCmd.SkipRunning {
-		args := ctx.Args().Tail()
-		err = subCmd.Run(ctx, args...)
-		return err
+	if subCmd != nil && !subCmd.SkipRunning {
+		return subCmd.Run(ctx, subCmdArgs)
 	}
 
 	if cmd.IsRoot && ctx.App.DefaultCommand != nil {
-		err = ctx.App.DefaultCommand.Run(ctx, args...)
+		err = ctx.App.DefaultCommand.Run(ctx, args)
 		return err
 	}
 
