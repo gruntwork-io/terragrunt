@@ -48,9 +48,10 @@ func ExplainError(err error) string {
 		errorOutput := processError.Stderr
 		stdOut := processError.StdOut
 		fmt.Printf("Error stdOut: %s\n", stdOut)
-		fmt.Printf("Error output: %s\n", errorOutput)
+		fmt.Printf("Error errorOutput: %s\n", errorOutput)
+		message := fmt.Sprintf("%s\n%s", stdOut, errorOutput)
 		for regex, explanation := range terraformErrorsMatcher {
-			if match, _ := regexp.MatchString(regex, errorOutput); match {
+			if match, _ := regexp.MatchString(regex, message); match {
 				// collect matched explanations
 				explanations[explanation] = "1"
 			}
