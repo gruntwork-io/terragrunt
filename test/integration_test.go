@@ -5700,7 +5700,7 @@ func TestErrorExplaining(t *testing.T) {
 	assert.Error(t, err)
 
 	explanation := shell.ExplainError(err)
-	assert.True(t, strings.Contains(explanation, "Check your credentials and permissions"))
+	assert.Contains(t, explanation, "Check your credentials and permissions")
 }
 
 func TestExplainingMissingCredentials(t *testing.T) {
