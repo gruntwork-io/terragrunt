@@ -18,6 +18,8 @@ const (
 	defaultAutocompleteUninstallFlag = "uninstall-autocomplete"
 
 	envCompleteLine = "COMP_LINE"
+
+	maxDashesInFlag = 2
 )
 
 var DefaultComplete = defaultComplete
@@ -99,8 +101,8 @@ func printFlagSuggestions(arg string, flags []Flag, writer io.Writer) error {
 			name = strings.TrimSpace(name)
 			// this will get total count utf8 letters in flag name
 			count := utf8.RuneCountInString(name)
-			if count > 2 {
-				count = 2 // reuse this count to generate single - or -- in flag completion
+			if count > maxDashesInFlag {
+				count = maxDashesInFlag // reuse this count to generate single - or -- in flag completion
 			}
 			// if flag name has more than one utf8 letter and last argument in cli has -- prefix then
 			// skip flag completion for short flags example -v or -x
@@ -122,8 +124,8 @@ func cliArgContains(flagName string) bool {
 	for _, name := range strings.Split(flagName, ",") {
 		name = strings.TrimSpace(name)
 		count := utf8.RuneCountInString(name)
-		if count > 2 {
-			count = 2
+		if count > maxDashesInFlag {
+			count = maxDashesInFlag
 		}
 		flag := fmt.Sprintf("%s%s", strings.Repeat("-", count), name)
 		for _, a := range os.Args {
