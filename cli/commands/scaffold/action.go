@@ -47,8 +47,10 @@ func Run(opts *options.TerragruntOptions) error {
 		return errors.WithStackTrace(err)
 	}
 
-	listVariables(opts.WorkingDir)
-
+	inputs, err := listInputs(opts.WorkingDir)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
 	// run boilerplate
 	opts.Logger.Infof("Running boilerplate in %s", opts.WorkingDir)
 
@@ -57,6 +59,9 @@ func Run(opts *options.TerragruntOptions) error {
 		OutputFolder:    opts.WorkingDir,
 		OnMissingKey:    boilerplate_options.DefaultMissingKeyAction,
 		OnMissingConfig: boilerplate_options.DefaultMissingConfigAction,
+		Vars: map[string]interface{}{
+			"inputs": inputs,
+		},
 	}
 
 	emptyDep := variables.Dependency{}
@@ -68,7 +73,7 @@ func Run(opts *options.TerragruntOptions) error {
 	return nil
 }
 
-func listVariables(directoryPath string) ([]string, error) {
+func listInputs(directoryPath string) ([]string, error) {
 	tfFiles, err := listTerraformFiles(directoryPath)
 	if err != nil {
 		return nil, err
