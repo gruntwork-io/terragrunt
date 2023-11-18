@@ -7,13 +7,30 @@ import (
 
 const (
 	CommandName = "scaffold"
+	Var         = "var"
+	VarFile     = "var-file"
 )
+
+func NewFlags(opts *options.TerragruntOptions) cli.Flags {
+	return cli.Flags{
+		&cli.SliceFlag[string]{
+			Name:        Var,
+			Destination: &opts.BoilerPlateVars,
+			Usage:       "Boilerplate variables variable.",
+		},
+		&cli.SliceFlag[string]{
+			Name:        VarFile,
+			Destination: &opts.BoilerplateVarFiles,
+			Usage:       "Boilerplate variables file.",
+		},
+	}
+}
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
-		Name:  CommandName,
-		Usage: "Scaffold a new Terragrunt module.",
-
+		Name:   CommandName,
+		Usage:  "Scaffold a new Terragrunt module.",
+		Flags:  NewFlags(opts).Sort(),
 		Action: func(ctx *cli.Context) error { return Run(opts.OptionsFromContext(ctx)) },
 	}
 }
