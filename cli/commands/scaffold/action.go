@@ -1,11 +1,12 @@
 package scaffold
 
 import (
-	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
+
+	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
+	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terratest/modules/files"
@@ -17,6 +18,10 @@ import (
 	"github.com/gruntwork-io/boilerplate/variables"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/hashicorp/go-getter"
+)
+
+const (
+	DefaultBoilerplateDir = ".boilerplate"
 )
 
 func Run(opts *options.TerragruntOptions) error {
@@ -47,71 +52,71 @@ func Run(opts *options.TerragruntOptions) error {
 		return errors.WithStackTrace(err)
 	}
 
-	inputs, err := listInputs(opts.WorkingDir)
+	inputs, err := listInputs(opts, opts.WorkingDir)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
-	// run boilerplate
-	opts.Logger.Infof("Running boilerplate in %s", opts.WorkingDir)
 
-	bopts := &boilerplate_options.BoilerplateOptions{
-		TemplateFolder:  fmt.Sprintf("%s/boilerplate", opts.WorkingDir),
+	// run boilerplate
+	vars := map[string]interface{}{
+		"parsedInputs": inputs,
+		"moduleUrl":    moduleUrl,
+	}
+	opts.Logger.Infof("Running boilerplate in %s", opts.WorkingDir)
+	boilerplateOpts := &boilerplate_options.BoilerplateOptions{
+		TemplateFolder:  util.JoinPath(opts.WorkingDir, DefaultBoilerplateDir),
 		OutputFolder:    opts.WorkingDir,
 		OnMissingKey:    boilerplate_options.DefaultMissingKeyAction,
 		OnMissingConfig: boilerplate_options.DefaultMissingConfigAction,
-		Vars: map[string]interface{}{
-			"inputs": inputs,
-		},
+		Vars:            vars,
+		NonInteractive:  true,
+	}
+	emptyDep := variables.Dependency{}
+	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
+	if err != nil {
+		return errors.WithStackTrace(err)
 	}
 
-	emptyDep := variables.Dependency{}
-	err = templates.ProcessTemplate(bopts, bopts, emptyDep)
+	// running fmt
+	err = hclfmt.Run(opts)
 	if err != nil {
-		return err
+		return errors.WithStackTrace(err)
 	}
 
 	return nil
 }
 
-func listInputs(directoryPath string) ([]string, error) {
+func listInputs(opts *options.TerragruntOptions, directoryPath string) ([]string, error) {
 	tfFiles, err := listTerraformFiles(directoryPath)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStackTrace(err)
 	}
-	// Create an HCL parser
 	parser := hclparse.NewParser()
 
 	// Extract variables from all TF files
-	var allVariables []string
+	var variables []string
 	for _, tfFile := range tfFiles {
-		// Read the content of the TF file
-		content, err := ioutil.ReadFile(tfFile)
+		content, err := os.ReadFile(tfFile)
 		if err != nil {
-			log.Printf("Error reading file %s: %v", tfFile, err)
+			opts.Logger.Errorf("Error reading file %s: %v", tfFile, err)
 			continue
 		}
-
-		// Parse the HCL content
 		file, diags := parser.ParseHCL(content, tfFile)
 		if diags.HasErrors() {
-			log.Printf("Failed to parse HCL in file %s: %v", tfFile, diags)
+			opts.Logger.Warnf("Failed to parse HCL in file %s: %v", tfFile, diags)
 			continue
 		}
 		if body, ok := file.Body.(*hclsyntax.Body); ok {
-			fmt.Sprintf("%v", body)
 			for _, block := range body.Blocks {
 				if block.Type == "variable" {
 					if len(block.Labels[0]) > 0 {
-						allVariables = append(allVariables, block.Labels[0])
+						variables = append(variables, block.Labels[0])
 					}
 				}
 			}
 		}
 	}
-
-	fmt.Printf("%v", allVariables)
-
-	return allVariables, nil
+	return variables, nil
 }
 
 // listTerraformFiles returns a list of all TF files in the specified directory.
