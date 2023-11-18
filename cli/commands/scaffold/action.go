@@ -20,10 +20,6 @@ import (
 	"github.com/hashicorp/go-getter"
 )
 
-const (
-	DefaultBoilerplateDir = ".boilerplate"
-)
-
 func Run(opts *options.TerragruntOptions) error {
 	// download remote repo to local
 	moduleUrl := ""
@@ -64,7 +60,7 @@ func Run(opts *options.TerragruntOptions) error {
 	}
 	opts.Logger.Infof("Running boilerplate in %s", opts.WorkingDir)
 	boilerplateOpts := &boilerplate_options.BoilerplateOptions{
-		TemplateFolder:  util.JoinPath(opts.WorkingDir, DefaultBoilerplateDir),
+		TemplateFolder:  util.JoinPath(opts.WorkingDir, util.DefaultBoilerplateDir),
 		OutputFolder:    opts.WorkingDir,
 		OnMissingKey:    boilerplate_options.DefaultMissingKeyAction,
 		OnMissingConfig: boilerplate_options.DefaultMissingConfigAction,
@@ -94,7 +90,7 @@ func listInputs(opts *options.TerragruntOptions, directoryPath string) ([]string
 	parser := hclparse.NewParser()
 
 	// Extract variables from all TF files
-	var variables []string
+	var foundVars []string
 	for _, tfFile := range tfFiles {
 		content, err := os.ReadFile(tfFile)
 		if err != nil {
@@ -110,13 +106,13 @@ func listInputs(opts *options.TerragruntOptions, directoryPath string) ([]string
 			for _, block := range body.Blocks {
 				if block.Type == "variable" {
 					if len(block.Labels[0]) > 0 {
-						variables = append(variables, block.Labels[0])
+						foundVars = append(foundVars, block.Labels[0])
 					}
 				}
 			}
 		}
 	}
-	return variables, nil
+	return foundVars, nil
 }
 
 // listTerraformFiles returns a list of all TF files in the specified directory.

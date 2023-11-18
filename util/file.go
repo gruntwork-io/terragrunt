@@ -22,6 +22,8 @@ const TerraformLockFile = ".terraform.lock.hcl"
 
 const TerragruntCacheDir = ".terragrunt-cache"
 
+const DefaultBoilerplateDir = ".boilerplate"
+
 // FileOrData will read the contents of the data of the given arg if it is a file, and otherwise return the contents by
 // itself. This will return an error if the given path is a directory.
 func FileOrData(maybePath string) (string, error) {
