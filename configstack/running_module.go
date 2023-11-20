@@ -16,6 +16,7 @@ const (
 	Waiting ModuleStatus = iota
 	Running
 	Finished
+	channelSize = 1000 // Use a huge buffer to ensure senders are never blocked
 )
 
 // Represents a module we are trying to "run" (i.e. apply or destroy) as part of the apply-all or destroy-all command
@@ -45,7 +46,7 @@ func newRunningModule(module *TerraformModule) *runningModule {
 	return &runningModule{
 		Module:         module,
 		Status:         Waiting,
-		DependencyDone: make(chan *runningModule, 1000), // Use a huge buffer to ensure senders are never blocked
+		DependencyDone: make(chan *runningModule, channelSize),
 		Dependencies:   map[string]*runningModule{},
 		NotifyWhenDone: []*runningModule{},
 		FlagExcluded:   module.FlagExcluded,
@@ -114,12 +115,13 @@ func crossLinkDependencies(modules map[string]*runningModule, dependencyOrder De
 			if !hasDependency {
 				return modules, errors.WithStackTrace(DependencyNotFoundWhileCrossLinking{module, dependency})
 			}
-			if dependencyOrder == NormalOrder {
+			switch dependencyOrder {
+			case NormalOrder:
 				module.Dependencies[runningDependency.Module.Path] = runningDependency
 				runningDependency.NotifyWhenDone = append(runningDependency.NotifyWhenDone, module)
-			} else if dependencyOrder == IgnoreOrder {
+			case IgnoreOrder:
 				// Nothing
-			} else {
+			default:
 				runningDependency.Dependencies[module.Module.Path] = module
 				module.NotifyWhenDone = append(module.NotifyWhenDone, runningDependency)
 			}

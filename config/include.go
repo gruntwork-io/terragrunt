@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/codegen"
+
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/imdario/mergo"
@@ -79,7 +81,7 @@ func parseIncludedConfig(
 	// NOTE: To make the logic easier to implement, we implement the inverse here, where we check whether the included
 	// config has a dependency block, and if we are in the middle of a partial parse, we perform a partial parse of the
 	// included config.
-	hasDependency, err := configFileHasDependencyBlock(includePath, terragruntOptions)
+	hasDependency, err := configFileHasDependencyBlock(includePath)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +128,9 @@ func handleInclude(
 			terragruntOptions.Logger.Debugf("Included config %s has strategy no merge: not merging config in.", includeConfig.Path)
 		case ShallowMerge:
 			terragruntOptions.Logger.Debugf("Included config %s has strategy shallow merge: merging config in (shallow).", includeConfig.Path)
-			parsedIncludeConfig.Merge(baseConfig, terragruntOptions)
+			if err := parsedIncludeConfig.Merge(baseConfig, terragruntOptions); err != nil {
+				return nil, err
+			}
 			baseConfig = parsedIncludeConfig
 		case DeepMerge:
 			terragruntOptions.Logger.Debugf("Included config %s has strategy deep merge: merging config in (deep).", includeConfig.Path)
@@ -174,7 +178,9 @@ func handleIncludePartial(
 			terragruntOptions.Logger.Debugf("[Partial] Included config %s has strategy no merge: not merging config in.", includeConfig.Path)
 		case ShallowMerge:
 			terragruntOptions.Logger.Debugf("[Partial] Included config %s has strategy shallow merge: merging config in (shallow).", includeConfig.Path)
-			parsedIncludeConfig.Merge(baseConfig, terragruntOptions)
+			if err := parsedIncludeConfig.Merge(baseConfig, terragruntOptions); err != nil {
+				return nil, err
+			}
 			baseConfig = parsedIncludeConfig
 		case DeepMerge:
 			terragruntOptions.Logger.Debugf("[Partial] Included config %s has strategy deep merge: merging config in (deep).", includeConfig.Path)
@@ -247,7 +253,7 @@ func handleIncludeForDependency(
 // NOTE: dependencies block is a special case and is merged deeply. This is necessary to ensure the configstack system
 // works correctly, as it uses the `Dependencies` list to track the dependencies of modules for graph building purposes.
 // This list includes the dependencies added from dependency blocks, which is handled in a different stage.
-func (targetConfig *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terragruntOptions *options.TerragruntOptions) {
+func (targetConfig *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terragruntOptions *options.TerragruntOptions) error {
 	// Merge simple attributes first
 	if sourceConfig.DownloadDir != "" {
 		targetConfig.DownloadDir = sourceConfig.DownloadDir
@@ -326,6 +332,12 @@ func (targetConfig *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terr
 
 	// Merge the generate configs. This is a shallow merge. Meaning, if the child has the same name generate block, then the
 	// child's generate block will override the parent's block.
+
+	err := validateGenerateConfigs(&sourceConfig.GenerateConfigs, &targetConfig.GenerateConfigs)
+	if err != nil {
+		return err
+	}
+
 	for key, val := range sourceConfig.GenerateConfigs {
 		targetConfig.GenerateConfigs[key] = val
 	}
@@ -335,6 +347,8 @@ func (targetConfig *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terr
 	}
 
 	copyFieldsMetadata(sourceConfig, targetConfig)
+
+	return nil
 }
 
 // DeepMerge performs a deep merge of the given sourceConfig into the targetConfig. Deep merge is defined as follows:
@@ -677,7 +691,9 @@ func getTrackInclude(
 	}
 
 	hasInclude := len(terragruntIncludeList) > 0
-	if hasInclude && includeFromChild != nil {
+	var trackInc TrackInclude
+	switch {
+	case hasInclude && includeFromChild != nil:
 		// tgInc appears in a parent that is already included, which means a nested include block. This is not
 		// something we currently support.
 		err := errors.WithStackTrace(TooManyLevelsOfInheritance{
@@ -686,23 +702,22 @@ func getTrackInclude(
 			SecondLevelIncludePath: strings.Join(includedPaths, ","),
 		})
 		return nil, err
-	} else if hasInclude && includeFromChild == nil {
+	case hasInclude && includeFromChild == nil:
 		// Current parsing context where there is no included config already loaded.
-		trackInc := TrackInclude{
+		trackInc = TrackInclude{
 			CurrentList: terragruntIncludeList,
 			CurrentMap:  terragruntIncludeMap,
 			Original:    nil,
 		}
-		return &trackInc, nil
-	} else {
+	case !hasInclude:
 		// Parsing context where there is an included config already loaded.
-		trackInc := TrackInclude{
+		trackInc = TrackInclude{
 			CurrentList: terragruntIncludeList,
 			CurrentMap:  terragruntIncludeMap,
 			Original:    includeFromChild,
 		}
-		return &trackInc, nil
 	}
+	return &trackInc, nil
 }
 
 // updateBareIncludeBlock searches the parsed terragrunt contents for a bare include block (include without a label),
@@ -859,6 +874,22 @@ func copyFieldsMetadata(sourceConfig *TerragruntConfig, targetConfig *Terragrunt
 			targetConfig.FieldsMetadata[k] = v
 		}
 	}
+}
+
+// validateGenerateConfigs Validate if exists duplicate generate configs.
+func validateGenerateConfigs(sourceConfig *map[string]codegen.GenerateConfig, targetConfig *map[string]codegen.GenerateConfig) error {
+	var duplicatedNames []string
+	for key := range *targetConfig {
+		if _, found := (*sourceConfig)[key]; found {
+			duplicatedNames = append(duplicatedNames, key)
+		}
+	}
+
+	if len(duplicatedNames) != 0 {
+		return DuplicatedGenerateBlocks{duplicatedNames}
+	}
+
+	return nil
 }
 
 // Custom error types

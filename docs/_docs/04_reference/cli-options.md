@@ -467,17 +467,26 @@ Example:
 
 ### output-module-groups
 
-Output groups of modules ordered for apply as a list of list in JSON (useful for CI use cases).
+Output groups of modules ordered for apply (or destroy) as a list of list in JSON.
 
 Example:
 
 ```bash
-terragrunt output-module-groups
+terragrunt output-module-groups <sub-command>
 ```
+
+Optional sub-commands:
+- apply (default)
+- destroy
 
 This will recursively search the current working directory for any folders that contain Terragrunt modules and build
 the dependency graph based on [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
-[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks. This may produce output such as:
+[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks and output the graph as a JSON list of list (unless the sub-command is destroy, in which case the command will output the reverse dependency order).
+
+This can be be useful in several scenarios, such as in CICD, when determining apply order or searching for all files to apply with CLI options
+such as [`--terragrunt-modules-that-include`](#terragrunt-modules-that-include)
+
+This may produce output such as:
 
 ```
 {

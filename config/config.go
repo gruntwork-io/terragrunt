@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path"
@@ -34,7 +33,7 @@ const (
 	DefaultTerragruntJsonConfigPath = "terragrunt.hcl.json"
 )
 
-const foundInFile = "found_in_file"
+const FoundInFile = "found_in_file"
 
 const (
 	MetadataTerraform                   = "terraform"
@@ -56,6 +55,7 @@ const (
 	MetadataRetryableErrors             = "retryable_errors"
 	MetadataRetryMaxAttempts            = "retry_max_attempts"
 	MetadataRetrySleepIntervalSec       = "retry_sleep_interval_sec"
+	MetadataDependentModules            = "dependent_modules"
 )
 
 // Order matters, for example if none of the files are found `GetDefaultConfigPath` func returns the last element.
@@ -96,6 +96,9 @@ type TerragruntConfig struct {
 
 	// Map to store fields metadata
 	FieldsMetadata map[string]map[string]interface{}
+
+	// List of dependent modules
+	DependentModulesPath []*string
 }
 
 func (conf *TerragruntConfig) String() string {
@@ -445,13 +448,11 @@ func (conf *TerraformExtraArguments) String() string {
 }
 
 func (conf *TerraformExtraArguments) GetVarFiles(logger *logrus.Entry) []string {
-	varFiles := []string{}
+	var varFiles []string
 
 	// Include all specified RequiredVarFiles.
 	if conf.RequiredVarFiles != nil {
-		for _, file := range util.RemoveDuplicatesFromListKeepLast(*conf.RequiredVarFiles) {
-			varFiles = append(varFiles, file)
-		}
+		varFiles = append(varFiles, util.RemoveDuplicatesFromListKeepLast(*conf.RequiredVarFiles)...)
 	}
 
 	// If OptionalVarFiles is specified, check for each file if it exists and if so, include in the var
@@ -474,11 +475,12 @@ func (conf *TerraformExtraArguments) GetVarFiles(logger *logrus.Entry) []string 
 // URL: via a command-line option or via an entry in the Terragrunt configuration. If the user used one of these, this
 // method returns the source URL or an empty string if there is no source url
 func GetTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragruntConfig *TerragruntConfig) (string, error) {
-	if terragruntOptions.Source != "" {
+	switch {
+	case terragruntOptions.Source != "":
 		return terragruntOptions.Source, nil
-	} else if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.Source != nil {
+	case terragruntConfig.Terraform != nil && terragruntConfig.Terraform.Source != nil:
 		return adjustSourceWithMap(terragruntOptions.SourceMap, *terragruntConfig.Terraform.Source, terragruntOptions.OriginalTerragruntConfigPath)
-	} else {
+	default:
 		return "", nil
 	}
 }
@@ -529,7 +531,7 @@ func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 	// Check if there is an entry to replace the URL portion in the map. Return the source as is if there is no entry in
 	// the map.
 	sourcePath, hasKey := sourceMap[moduleUrlQuery]
-	if hasKey == false {
+	if !hasKey {
 		return source, nil
 	}
 
@@ -657,7 +659,12 @@ func ParseConfigFile(filename string, terragruntOptions *options.TerragruntOptio
 		return nil, err
 	}
 
-	config, err := ParseConfigString(configString, terragruntOptions, include, filename, dependencyOutputs)
+	// Initialize evaluation context extensions from base blocks.
+	contextExtensions := &EvalContextExtensions{
+		DecodedDependencies: dependencyOutputs,
+	}
+
+	config, err := ParseConfigString(configString, terragruntOptions, include, filename, contextExtensions)
 	if err != nil {
 		return nil, err
 	}
@@ -696,7 +703,7 @@ func ParseConfigString(
 	terragruntOptions *options.TerragruntOptions,
 	includeFromChild *IncludeConfig,
 	filename string,
-	dependencyOutputs *cty.Value,
+	contextExtensions *EvalContextExtensions,
 ) (*TerragruntConfig, error) {
 	// Parse the HCL string into an AST body that can be decoded multiple times later without having to re-parse
 	parser := hclparse.NewParser()
@@ -717,14 +724,10 @@ func ParseConfigString(
 		return nil, err
 	}
 
-	// Initialize evaluation context extensions from base blocks.
-	contextExtensions := EvalContextExtensions{
-		Locals:              localsAsCty,
-		TrackInclude:        trackInclude,
-		DecodedDependencies: dependencyOutputs,
-	}
+	contextExtensions.Locals = localsAsCty
+	contextExtensions.TrackInclude = trackInclude
 
-	if dependencyOutputs == nil {
+	if contextExtensions.DecodedDependencies == nil {
 		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
 		// process.
 		retrievedOutputs, err := decodeAndRetrieveOutputs(file, filename, terragruntOptions, trackInclude, contextExtensions)
@@ -734,9 +737,14 @@ func ParseConfigString(
 		contextExtensions.DecodedDependencies = retrievedOutputs
 	}
 
+	evalContext, err := contextExtensions.CreateTerragruntEvalContext(filename, terragruntOptions)
+	if err != nil {
+		return nil, err
+	}
+
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
 	// is appropriate
-	terragruntConfigFile, err := decodeAsTerragruntConfigFile(file, filename, terragruntOptions, contextExtensions)
+	terragruntConfigFile, err := decodeAsTerragruntConfigFile(file, filename, terragruntOptions, evalContext)
 	if err != nil {
 		return nil, err
 	}
@@ -803,10 +811,10 @@ func decodeAsTerragruntConfigFile(
 	file *hcl.File,
 	filename string,
 	terragruntOptions *options.TerragruntOptions,
-	extensions EvalContextExtensions,
+	evalContext *hcl.EvalContext,
 ) (*terragruntConfigFile, error) {
 	terragruntConfig := terragruntConfigFile{}
-	err := decodeHcl(file, filename, &terragruntConfig, terragruntOptions, extensions)
+	err := decodeHcl(file, filename, &terragruntConfig, evalContext)
 	// in case of render-json command and inputs reference error, we update the inputs with default value
 	if diagErr, ok := err.(hcl.Diagnostics); ok && isRenderJsonCommand(terragruntOptions) && isAttributeAccessError(diagErr) {
 		terragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
@@ -881,7 +889,7 @@ func convertToTerragruntConfig(
 	terragruntConfigFromFile *terragruntConfigFile,
 	configPath string,
 	terragruntOptions *options.TerragruntOptions,
-	contextExtensions EvalContextExtensions,
+	contextExtensions *EvalContextExtensions,
 ) (cfg *TerragruntConfig, err error) {
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
 	// those panics here and convert them to normal errors
@@ -897,7 +905,7 @@ func convertToTerragruntConfig(
 		GenerateConfigs: map[string]codegen.GenerateConfig{},
 	}
 
-	defaultMetadata := map[string]interface{}{foundInFile: configPath}
+	defaultMetadata := map[string]interface{}{FoundInFile: configPath}
 	if terragruntConfigFromFile.RemoteState != nil {
 		remoteState, err := terragruntConfigFromFile.RemoteState.toConfig()
 		if err != nil {
@@ -1123,8 +1131,8 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 // configFileHasDependencyBlock statically checks the terrragrunt config file at the given path and checks if it has any
 // dependency or dependencies blocks defined. Note that this does not do any decoding of the blocks, as it is only meant
 // to check for block presence.
-func configFileHasDependencyBlock(configPath string, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	configBytes, err := ioutil.ReadFile(configPath)
+func configFileHasDependencyBlock(configPath string) (bool, error) {
+	configBytes, err := os.ReadFile(configPath)
 	if err != nil {
 		return false, errors.WithStackTrace(err)
 	}
@@ -1171,7 +1179,7 @@ func (conf *TerragruntConfig) SetFieldMetadata(fieldName string, m map[string]in
 // SetFieldMetadataMap set metadata on fields from map keys.
 // Example usage - setting metadata on all variables from inputs.
 func (conf *TerragruntConfig) SetFieldMetadataMap(field string, data map[string]interface{}, metadata map[string]interface{}) {
-	for name, _ := range data {
+	for name := range data {
 		conf.SetFieldMetadataWithType(field, name, metadata)
 	}
 }

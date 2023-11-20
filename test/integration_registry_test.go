@@ -50,7 +50,7 @@ func testTerraformRegistryFetching(t *testing.T, modPath, expectedOutputKey stri
 	require.NoError(t, err)
 
 	outputs := map[string]TerraformOutput{}
-	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	_, hasOutput := outputs[expectedOutputKey]
 	assert.True(t, hasOutput)
 

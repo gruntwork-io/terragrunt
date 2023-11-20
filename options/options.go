@@ -27,6 +27,9 @@ const (
 	// no limits on parallelism by default (limited by GOPROCS)
 	DefaultParallelism = math.MaxInt32
 
+	// TofuDefaultPath command to run tofu
+	TofuDefaultPath = "tofu"
+
 	// TerraformDefaultPath just takes terraform from the path
 	TerraformDefaultPath = "terraform"
 
@@ -36,11 +39,23 @@ const (
 	DefaultTFDataDir = ".terraform"
 
 	DefaultIAMAssumeRoleDuration = 3600
+
+	minCommandLength = 2
 )
 
 const ContextKey ctxKey = iota
 
+var DefaultWrappedPath = identifyDefaultWrappedExecutable()
+
 type ctxKey byte
+
+type TerraformImplementationType string
+
+const (
+	TerraformImpl TerraformImplementationType = "terraform"
+	OpenTofuImpl  TerraformImplementationType = "tofu"
+	UnknownImpl   TerraformImplementationType = "unknown"
+)
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
@@ -69,6 +84,9 @@ type TerragruntOptions struct {
 	// NOTE: For `xxx-all` commands, this will be set to the Terraform command, which would be `xxx`. For example,
 	// if you run `apply-all` (which is a terragrunt command), this variable will be set to `apply`.
 	OriginalTerraformCommand string
+
+	// Terraform implementation tool (e.g. terraform, tofu) that terragrunt is wrapping
+	TerraformImplementation TerraformImplementationType
 
 	// Version of terraform (obtained by running 'terraform version')
 	TerraformVersion *version.Version
@@ -265,7 +283,7 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 // Create a new TerragruntOptions object with reasonable defaults for real usage
 func NewTerragruntOptions() *TerragruntOptions {
 	return &TerragruntOptions{
-		TerraformPath:                  TerraformDefaultPath,
+		TerraformPath:                  DefaultWrappedPath,
 		OriginalTerraformCommand:       "",
 		TerraformCommand:               "",
 		AutoInit:                       true,
@@ -301,6 +319,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 		OutputPrefix:                   "",
 		IncludeModulePrefix:            false,
 		JSONOut:                        DefaultJSONOutName,
+		TerraformImplementation:        UnknownImpl,
 		RunTerragrunt: func(opts *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
@@ -425,6 +444,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		IncludeModulePrefix:            opts.IncludeModulePrefix,
 		FailIfBucketCreationRequired:   opts.FailIfBucketCreationRequired,
 		DisableBucketUpdate:            opts.DisableBucketUpdate,
+		TerraformImplementation:        opts.TerraformImplementation,
 	}
 }
 
@@ -461,7 +481,7 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	if util.ListContainsElement(TERRAFORM_COMMANDS_WITH_SUBCOMMAND, opts.TerraformCliArgs[0]) {
 		// Since these terraform commands require subcommands which may not always be properly passed by the user,
 		// using util.Min to return the minimum to avoid potential out of bounds slice errors.
-		commandLength = util.Min(2, len(opts.TerraformCliArgs))
+		commandLength = util.Min(minCommandLength, len(opts.TerraformCliArgs))
 	}
 
 	// Options must be inserted after command but before the other args
@@ -500,6 +520,15 @@ func (opts *TerragruntOptions) DataDir() string {
 		return tfDataDir
 	}
 	return util.JoinPath(opts.WorkingDir, tfDataDir)
+}
+
+// identifyDefaultWrappedExecutable - return default path used for wrapped executable
+func identifyDefaultWrappedExecutable() string {
+	if util.IsCommandExecutable(TerraformDefaultPath, "-version") {
+		return TerraformDefaultPath
+	}
+	// fallback to Tofu if terraform is not available
+	return TofuDefaultPath
 }
 
 // Custom error types

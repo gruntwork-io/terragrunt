@@ -2,7 +2,7 @@ package terraform
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/url"
 	"os"
 	"path"
@@ -249,7 +249,7 @@ func TestInvalidModulePath(t *testing.T) {
 
 	terraformSource, _, _, err := createConfig(t, canonicalUrl, downloadDir, false)
 	assert.Nil(t, err)
-	terraformSource.WorkingDir = terraformSource.WorkingDir + "/not-existing-path"
+	terraformSource.WorkingDir += "/not-existing-path"
 
 	err = validateWorkingDir(terraformSource)
 	assert.NotNil(t, err)
@@ -268,7 +268,7 @@ func TestDownloadInvalidPathToFilePath(t *testing.T) {
 
 	terraformSource, _, _, err := createConfig(t, canonicalUrl, downloadDir, false)
 	assert.Nil(t, err)
-	terraformSource.WorkingDir = terraformSource.WorkingDir + "/main.tf"
+	terraformSource.WorkingDir += "/main.tf"
 
 	err = validateWorkingDir(terraformSource)
 	assert.NotNil(t, err)
@@ -343,6 +343,8 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool, expectedFileContents string, requireInitFile bool) {
 	terraformSource, terragruntOptions, terragruntConfig, err := createConfig(t, canonicalUrl, downloadDir, sourceUpdate)
 
+	assert.NoError(t, err)
+
 	err = downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions, terragruntConfig)
 	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
 
@@ -360,7 +362,7 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 
 func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool) (*terraform.Source, *options.TerragruntOptions, *config.TerragruntConfig, error) {
 	logger := logrus.New()
-	logger.Out = ioutil.Discard
+	logger.Out = io.Discard
 	terraformSource := &terraform.Source{
 		CanonicalSourceURL: parseUrl(t, canonicalUrl),
 		DownloadDir:        downloadDir,
@@ -389,7 +391,7 @@ func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceU
 
 func testAlreadyHaveLatestCode(t *testing.T, canonicalUrl string, downloadDir string, expected bool) {
 	logger := logrus.New()
-	logger.Out = ioutil.Discard
+	logger.Out = io.Discard
 	terraformSource := &terraform.Source{
 		CanonicalSourceURL: parseUrl(t, canonicalUrl),
 		DownloadDir:        downloadDir,
@@ -407,7 +409,7 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalUrl string, downloadDir st
 }
 
 func tmpDir(t *testing.T) string {
-	dir, err := ioutil.TempDir("", "download-source-test")
+	dir, err := os.MkdirTemp("", "download-source-test")
 	if err != nil {
 		t.Fatal(err)
 	}

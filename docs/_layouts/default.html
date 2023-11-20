@@ -4,6 +4,13 @@
         {% include head.html %}
     </head>
     <body{% if page.slug %} class="{{ page.slug }}{% if page.slug != 'index-page' and page.slug !='how-it-works' and page.slug != 'guides' %} sub-page{% endif %}" {% endif %}>
+        {% include banner.html
+            text="✨&nbsp;&nbsp;Terragrunt v0.52.0 now supports OpenTofu."
+            link_url="https://github.com/gruntwork-io/terragrunt/releases/tag/v0.52.0"
+            link_text="View release notes"
+            target="_blank"
+            has_button=false
+        %}
         {{ content }}
         {% include footer.html %}
         {% include scripts.html %}

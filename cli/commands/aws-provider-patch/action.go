@@ -31,7 +31,7 @@ package awsproviderpatch
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -46,6 +46,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
+
+const defaultKeyParts = 2
 
 func Run(opts *options.TerragruntOptions) error {
 	target := terraform.NewTarget(terraform.TargetPointInitCommand, runAwsProviderPatch)
@@ -117,7 +119,7 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 		return nil, nil
 	}
 
-	modulesJsonContents, err := ioutil.ReadFile(modulesJsonPath)
+	modulesJsonContents, err := os.ReadFile(modulesJsonPath)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
@@ -310,7 +312,7 @@ func traverseBlock(block *hclwrite.Block, keyParts []string) (*hclwrite.Body, st
 		return nil, ""
 	}
 
-	if len(keyParts) < 2 {
+	if len(keyParts) < defaultKeyParts {
 		return block.Body(), strings.Join(keyParts, "")
 	}
 

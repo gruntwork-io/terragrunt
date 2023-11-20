@@ -4,6 +4,15 @@
 # when we run 'init'. If the lock file copying works as expected in the custom-lock-file test, then we'll end up
 # with an older version of the provider. If there is a bug, Terraform will end up downloading the latest version of
 # the provider, as we're not pinning the version in the Terraform code (only in the lock file).
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "5.23.0"
+    }
+  }
+}
+
 provider "aws" {
   region = "eu-west-1"
 }

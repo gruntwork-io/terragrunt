@@ -12,6 +12,7 @@ import (
 var (
 	MapFlagEnvVarSep = ","
 	MapFlagKeyValSep = "="
+	flatPatsCount    = 2
 )
 
 type MapFlagKeyType interface {
@@ -157,7 +158,7 @@ func (flag *mapValue[K, V]) Set(str string) error {
 	}
 
 	parts := flag.splitter(str, flag.valSep)
-	if len(parts) != 2 {
+	if len(parts) != flatPatsCount {
 		return errors.WithStackTrace(NewInvalidKeyValueError(flag.valSep, str))
 	}
 

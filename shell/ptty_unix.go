@@ -10,9 +10,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/creack/pty"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 
+	"github.com/creack/pty"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -54,12 +54,12 @@ func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.
 	ch <- syscall.SIGWINCH // Make sure the pty matches current size
 
 	// Set stdin in raw mode so that we preserve readline properties
-	oldState, setRawErr := terminal.MakeRaw(int(os.Stdin.Fd()))
+	oldState, setRawErr := term.MakeRaw(int(os.Stdin.Fd()))
 	if setRawErr != nil {
 		return errors.WithStackTrace(setRawErr)
 	}
 	defer func() {
-		if restoreErr := terminal.Restore(int(os.Stdin.Fd()), oldState); restoreErr != nil {
+		if restoreErr := term.Restore(int(os.Stdin.Fd()), oldState); restoreErr != nil {
 			terragruntOptions.Logger.Errorf("Error restoring terminal state: %s", restoreErr)
 			// Only overwrite the previous error if there was no error since this error has lower priority than any
 			// errors in the main routine

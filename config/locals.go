@@ -54,7 +54,10 @@ func evaluateLocalsBlock(
 
 	localsBlock, diags := getLocalsBlock(hclFile)
 	if diags.HasErrors() {
-		diagsWriter.WriteDiagnostics(diags)
+		err := diagsWriter.WriteDiagnostics(diags)
+		if err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
 		return nil, errors.WithStackTrace(diags)
 	}
 	if localsBlock == nil {
@@ -68,7 +71,10 @@ func evaluateLocalsBlock(
 	locals, diags := decodeLocalsBlock(localsBlock)
 	if diags.HasErrors() {
 		terragruntOptions.Logger.Errorf("Encountered error while decoding locals block into name expression pairs.")
-		diagsWriter.WriteDiagnostics(diags)
+		err := diagsWriter.WriteDiagnostics(diags)
+		if err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
 		return nil, errors.WithStackTrace(diags)
 	}
 
@@ -102,7 +108,7 @@ func evaluateLocalsBlock(
 		// This is an error because we couldn't evaluate all locals
 		terragruntOptions.Logger.Errorf("Not all locals could be evaluated:")
 		for _, local := range locals {
-			_, reason := canEvaluate(terragruntOptions, local.Expr, evaluatedLocals)
+			_, reason := canEvaluate(local.Expr, evaluatedLocals)
 			terragruntOptions.Logger.Errorf("\t- %s [REASON: %s]", local.Name, reason)
 		}
 		return nil, errors.WithStackTrace(CouldNotEvaluateAllLocalsError{})
@@ -144,15 +150,14 @@ func attemptEvaluateLocals(
 		terragruntOptions.Logger.Errorf("Could not convert evaluated locals to the execution context to evaluate additional locals in file %s", filename)
 		return nil, evaluatedLocals, false, err
 	}
-	evalCtx, err := CreateTerragruntEvalContext(
-		filename,
-		terragruntOptions,
-		EvalContextExtensions{
-			TrackInclude:           trackInclude,
-			Locals:                 &evaluatedLocalsAsCty,
-			PartialParseDecodeList: decodeList,
-		},
-	)
+
+	extensions := EvalContextExtensions{
+		TrackInclude:           trackInclude,
+		Locals:                 &evaluatedLocalsAsCty,
+		PartialParseDecodeList: decodeList,
+	}
+
+	evalCtx, err := extensions.CreateTerragruntEvalContext(filename, terragruntOptions)
 	if err != nil {
 		terragruntOptions.Logger.Errorf("Could not convert include to the execution context to evaluate additional locals in file %s", filename)
 		return nil, evaluatedLocals, false, err
@@ -168,11 +173,14 @@ func attemptEvaluateLocals(
 		newEvaluatedLocals[key] = val
 	}
 	for _, local := range locals {
-		localEvaluated, _ := canEvaluate(terragruntOptions, local.Expr, evaluatedLocals)
+		localEvaluated, _ := canEvaluate(local.Expr, evaluatedLocals)
 		if localEvaluated {
 			evaluatedVal, diags := local.Expr.Value(evalCtx)
 			if diags.HasErrors() {
-				diagsWriter.WriteDiagnostics(diags)
+				err := diagsWriter.WriteDiagnostics(diags)
+				if err != nil {
+					return nil, nil, false, errors.WithStackTrace(err)
+				}
 				return nil, evaluatedLocals, false, errors.WithStackTrace(diags)
 			}
 			newEvaluatedLocals[local.Name] = evaluatedVal
@@ -198,9 +206,7 @@ func attemptEvaluateLocals(
 // - It has references to other locals that have already been evaluated.
 // Note that the second return value is a human friendly reason for why the expression can not be evaluated, and is
 // useful for error reporting.
-func canEvaluate(
-	terragruntOptions *options.TerragruntOptions,
-	expression hcl.Expression,
+func canEvaluate(expression hcl.Expression,
 	evaluatedLocals map[string]cty.Value,
 ) (bool, string) {
 	vars := expression.Variables()
@@ -234,7 +240,7 @@ func canEvaluate(
 		}
 
 		// If we can't get any local name, we can't evaluate it.
-		localName := getLocalName(terragruntOptions, var_)
+		localName := getLocalName(var_)
 		if localName == "" {
 			reason := fmt.Sprintf(
 				"Can't evaluate expression at %s because local var name can not be determined.",
@@ -263,7 +269,7 @@ func canEvaluate(
 // getLocalName takes a variable reference encoded as a HCL tree traversal that is rooted at the name `local` and
 // returns the underlying variable lookup on the local map. If it is not a local name lookup, this will return empty
 // string.
-func getLocalName(terragruntOptions *options.TerragruntOptions, traversal hcl.Traversal) string {
+func getLocalName(traversal hcl.Traversal) string {
 	if traversal.IsRelative() {
 		return ""
 	}
@@ -302,16 +308,17 @@ func getLocalsBlock(hclFile *hcl.File) (*hcl.Block, hcl.Diagnostics) {
 		}
 	}
 	// We currently only support parsing a single locals block
-	if len(extractedLocalsBlocks) == 1 {
+	switch {
+	case len(extractedLocalsBlocks) == 1:
 		return extractedLocalsBlocks[0], diags
-	} else if len(extractedLocalsBlocks) > 1 {
+	case len(extractedLocalsBlocks) > 1:
 		diags = append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Multiple locals block",
 			Detail:   multipleLocalsBlockDetail,
 		})
 		return nil, diags
-	} else {
+	default:
 		// No locals block parsed
 		return nil, diags
 	}

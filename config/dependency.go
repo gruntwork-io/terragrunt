@@ -6,7 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -137,7 +137,7 @@ func (dependencyConfig *Dependency) setRenderedOutputs(terragruntOptions *option
 		return nil
 	}
 
-	if (*dependencyConfig).shouldGetOutputs() || (*dependencyConfig).shouldReturnMockOutputs(terragruntOptions) {
+	if dependencyConfig.shouldGetOutputs() || dependencyConfig.shouldReturnMockOutputs(terragruntOptions) {
 		outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(*dependencyConfig, terragruntOptions)
 		if err != nil {
 			return err
@@ -166,10 +166,15 @@ func decodeAndRetrieveOutputs(
 	filename string,
 	terragruntOptions *options.TerragruntOptions,
 	trackInclude *TrackInclude,
-	extensions EvalContextExtensions,
+	extensions *EvalContextExtensions,
 ) (*cty.Value, error) {
+	evalContext, err := extensions.CreateTerragruntEvalContext(filename, terragruntOptions)
+	if err != nil {
+		return nil, err
+	}
+
 	decodedDependency := terragruntDependency{}
-	if err := decodeHcl(file, filename, &decodedDependency, terragruntOptions, extensions); err != nil {
+	if err := decodeHcl(file, filename, &decodedDependency, evalContext); err != nil {
 		return nil, err
 	}
 
@@ -200,7 +205,7 @@ func decodeAndRetrieveOutputs(
 
 // Convert the list of parsed Dependency blocks into a list of module dependencies. Each output block should
 // become a dependency of the current config, since that module has to be applied before we can read the output.
-func dependencyBlocksToModuleDependencies(workingDir string, decodedDependencyBlocks []Dependency) *ModuleDependencies {
+func dependencyBlocksToModuleDependencies(decodedDependencyBlocks []Dependency) *ModuleDependencies {
 	if len(decodedDependencyBlocks) == 0 {
 		return nil
 	}
@@ -702,11 +707,16 @@ func getTerragruntOutputJsonFromRemoteState(
 	if err := util.EnsureDirectory(terragruntOptions.DownloadDir); err != nil {
 		return nil, err
 	}
-	tempWorkDir, err := ioutil.TempDir(terragruntOptions.DownloadDir, "")
+	tempWorkDir, err := os.MkdirTemp(terragruntOptions.DownloadDir, "")
 	if err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(tempWorkDir)
+	defer func(path string) {
+		err := os.RemoveAll(path)
+		if err != nil {
+			terragruntOptions.Logger.Warnf("Failed to remove %s: %v", path, err)
+		}
+	}(tempWorkDir)
 	terragruntOptions.Logger.Debugf("Setting dependency working directory to %s", tempWorkDir)
 
 	targetTGOptions, err := setupTerragruntOptionsForBareTerraform(terragruntOptions, tempWorkDir, targetConfig, iamRoleOpts)
@@ -797,8 +807,13 @@ func getTerragruntOutputJsonFromRemoteStateS3(
 		return nil, err
 	}
 
-	defer result.Body.Close()
-	steateBody, err := ioutil.ReadAll(result.Body)
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			terragruntOptions.Logger.Warnf("Failed to close remote state response %v", err)
+		}
+	}(result.Body)
+	steateBody, err := io.ReadAll(result.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -820,11 +835,11 @@ func getTerragruntOutputJsonFromRemoteStateS3(
 func setupTerragruntOptionsForBareTerraform(originalOptions *options.TerragruntOptions, workingDir string, configPath string, iamRoleOpts options.IAMRoleOptions) (*options.TerragruntOptions, error) {
 	// Here we clone the terragrunt options again since we need to make further modifications to it to allow running
 	// terraform directly.
-	// Set the terraform working dir to the tempdir, and set stdout writer to ioutil.Discard so that output content is
+	// Set the terraform working dir to the tempdir, and set stdout writer to io.Discard so that output content is
 	// not logged.
 	targetTGOptions := cloneTerragruntOptionsForDependency(originalOptions, configPath)
 	targetTGOptions.WorkingDir = workingDir
-	targetTGOptions.Writer = ioutil.Discard
+	targetTGOptions.Writer = io.Discard
 
 	// If the target config has an IAM role directive and it was not set on the command line, set it to
 	// the one we retrieved from the config.

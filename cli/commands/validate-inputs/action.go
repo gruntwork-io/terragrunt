@@ -7,7 +7,7 @@ package validateinputs
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -19,6 +19,8 @@ import (
 	tr "github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
 )
+
+const splitCount = 2
 
 func Run(opts *options.TerragruntOptions) error {
 	target := terraform.NewTarget(terraform.TargetPointGenerateConfig, runValidateInputs)
@@ -266,7 +268,7 @@ func getVarNamesFromVarFiles(varFiles []string) ([]string, error) {
 // getVarNamesFromVarFile will parse the given terraform var file and return a list of names of variables that are
 // configured in that var file.
 func getVarNamesFromVarFile(varFile string) ([]string, error) {
-	fileContents, err := ioutil.ReadFile(varFile)
+	fileContents, err := os.ReadFile(varFile)
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +314,7 @@ func getVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 		if strings.HasPrefix(shlexedArg, "-var=") {
 			// -var is passed in in the format -var=VARNAME=VALUE, so we split on '=' and take the middle value.
 			splitArg := strings.Split(shlexedArg, "=")
-			if len(splitArg) < 2 {
+			if len(splitArg) < splitCount {
 				return vars, varFiles, fmt.Errorf("Unexpected -var arg format in terraform.extra_arguments.arguments. Expected '-var=VARNAME=VALUE', got %s.", arg)
 			}
 			vars = append(vars, splitArg[1])

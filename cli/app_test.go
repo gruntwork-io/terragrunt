@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/go-commons/errors"
@@ -230,18 +231,18 @@ func mockOptionsWithIamRole(t *testing.T, terragruntConfigPath string, workingDi
 	return opts
 }
 
-func mockOptionsWithIamAssumeRoleDuration(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, IamAssumeRoleDuration int64) *options.TerragruntOptions {
+func mockOptionsWithIamAssumeRoleDuration(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, iamAssumeRoleDuration int64) *options.TerragruntOptions {
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
-	opts.OriginalIAMRoleOptions.AssumeRoleDuration = IamAssumeRoleDuration
-	opts.IAMRoleOptions.AssumeRoleDuration = IamAssumeRoleDuration
+	opts.OriginalIAMRoleOptions.AssumeRoleDuration = iamAssumeRoleDuration
+	opts.IAMRoleOptions.AssumeRoleDuration = iamAssumeRoleDuration
 
 	return opts
 }
 
-func mockOptionsWithIamAssumeRoleSessionName(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, IamAssumeRoleSessionName string) *options.TerragruntOptions {
+func mockOptionsWithIamAssumeRoleSessionName(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, iamAssumeRoleSessionName string) *options.TerragruntOptions {
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
-	opts.OriginalIAMRoleOptions.AssumeRoleSessionName = IamAssumeRoleSessionName
-	opts.IAMRoleOptions.AssumeRoleSessionName = IamAssumeRoleSessionName
+	opts.OriginalIAMRoleOptions.AssumeRoleSessionName = iamAssumeRoleSessionName
+	opts.IAMRoleOptions.AssumeRoleSessionName = iamAssumeRoleSessionName
 
 	return opts
 }
@@ -441,7 +442,9 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 	app := cli.NewApp()
 	app.Writer = &bytes.Buffer{}
 	app.ErrWriter = &bytes.Buffer{}
-	app.Flags = commands.NewGlobalFlags(opts)
+	app.Flags = append(
+		commands.NewGlobalFlags(opts),
+		commands.NewHelpVersionFlags(opts)...)
 	app.Commands = append(
 		deprecatedCommands(opts),
 		terragruntCommands...)
@@ -462,4 +465,42 @@ type argMissingValueError string
 
 func (err argMissingValueError) Error() string {
 	return fmt.Sprintf("flag needs an argument: -%s", string(err))
+}
+
+func TestAutocomplete(t *testing.T) {
+	defer os.Unsetenv("COMP_LINE")
+
+	testCases := []struct {
+		compLine          string
+		expectedCompletes []string
+	}{
+		{
+			"",
+			[]string{"aws-provider-patch", "graph-dependencies", "hclfmt", "output-module-groups", "render-json", "run-all", "terragrunt-info", "validate-inputs"},
+		},
+		{
+			"--versio",
+			[]string{"--version"},
+		},
+		{
+			"render-json -",
+			[]string{"--terragrunt-json-out", "--with-metadata"},
+		},
+		{
+			"run-all ren",
+			[]string{"render-json"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		os.Setenv("COMP_LINE", "terragrunt "+testCase.compLine)
+
+		output := &bytes.Buffer{}
+		app := NewApp(output, os.Stderr)
+
+		err := app.Run([]string{"terragrunt"})
+		require.NoError(t, err)
+
+		assert.Contains(t, output.String(), strings.Join(testCase.expectedCompletes, "\n"))
+	}
 }

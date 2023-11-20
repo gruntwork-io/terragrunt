@@ -12,6 +12,9 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/cache"
@@ -138,7 +141,12 @@ func RunShellCommandWithOutput(
 	// Make sure to forward signals to the subcommand.
 	cmdChannel := make(chan error) // used for closing the signals forwarder goroutine
 	signalChannel := NewSignalsForwarder(forwardSignals, cmd, terragruntOptions.Logger, cmdChannel)
-	defer signalChannel.Close()
+	defer func(signalChannel *SignalsForwarder) {
+		err := signalChannel.Close()
+		if err != nil {
+			terragruntOptions.Logger.Warnf("Error closing signal channel: %v", err)
+		}
+	}(&signalChannel)
 
 	err := cmd.Wait()
 	cmdChannel <- err
@@ -235,7 +243,7 @@ func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger *logrus.Entry,
 		for {
 			select {
 			case s := <-signalChannel:
-				logger.Debugf("%s signal received. Gracefully shutting down... (it can take up to %v)", strings.Title(s.String()), signalForwardingDelay)
+				logger.Debugf("%s signal received. Gracefully shutting down... (it can take up to %v)", cases.Title(language.English).String(s.String()), signalForwardingDelay)
 
 				select {
 				case <-time.After(signalForwardingDelay):
@@ -287,7 +295,7 @@ func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (
 	opts.Writer = &stdout
 	opts.ErrWriter = &stderr
 	cmd, err := RunShellCommandWithOutput(opts, path, true, false, "git", "rev-parse", "--show-toplevel")
-	terragruntOptions.Logger.Debugf("git show-toplevel result: \n%v\n%v\n", (string)(stdout.Bytes()), (string)(stderr.Bytes()))
+	terragruntOptions.Logger.Debugf("git show-toplevel result: \n%v\n%v\n", stdout.String(), stderr.String())
 	if err != nil {
 		return "", err
 	}

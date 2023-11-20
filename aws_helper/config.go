@@ -217,6 +217,13 @@ func GetAWSCallerIdentity(config *AwsSessionConfig, terragruntOptions *options.T
 	return *identity, nil
 }
 
+// ValidateAwsSession - Validate if current AWS session is valid
+func ValidateAwsSession(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) error {
+	// read the caller identity to check if the credentials are valid
+	_, err := GetAWSCallerIdentity(config, terragruntOptions)
+	return err
+}
+
 // Get the AWS Partition of the current session configuration
 func GetAWSPartition(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	identity, err := GetAWSCallerIdentity(config, terragruntOptions)

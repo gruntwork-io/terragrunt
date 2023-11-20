@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/urfave/cli/v2"
 )
 
@@ -14,8 +15,9 @@ import (
 //
 // For example, CLI command:
 // `terragrunt run-all apply --terragrunt-log-level debug --auto-approve --terragrunt-non-interactive`
-// The `App` will runs the registered command `run-all`, define the registered flags `--terragrunt-log-level`, `--terragrunt-non-interactive`,
-// and define args `apply --auto-approve` which can be obtained from the App context, ctx.Args().Slice()
+// The `App` will runs the registered command `run-all`, define the registered flags `--terragrunt-log-level`,
+// `--terragrunt-non-interactive`, and define args `apply --auto-approve` which can be obtained from the App context,
+// ctx.Args().Slice()
 type App struct {
 	*cli.App
 	// List of commands to execute
@@ -30,6 +32,8 @@ type App struct {
 	// The difference between `Before` is that `CommonBefore` runs only once for the target command, while `Before` is different for each command and is performed by each command.
 	// Useful when some steps need to to performed for all commands without exception, when all flags are parsed and the context contains the target command.
 	CommonBefore ActionFunc
+	// The function to call when checking for command completions
+	Complete CompleteFunc
 	// An action to execute before any subcommands are run, but after the context is ready
 	// If a non-nil error is returned, no subcommands are run
 	Before ActionFunc
@@ -42,13 +46,36 @@ type App struct {
 	DefaultCommand *Command
 	// OsExiter is the function used when the app exits. If not set defaults to os.Exit.
 	OsExiter func(code int)
+
+	// Autocomplete enables or disables subcommand auto-completion support.
+	// This is enabled by default when NewApp is called. Otherwise, this
+	// must enabled explicitly.
+	//
+	// Autocomplete requires the "Name" option to be set on CLI. This name
+	// should be set exactly to the binary name that is autocompleted.
+	Autocomplete bool
+
+	// AutocompleteInstallFlag and AutocompleteUninstallFlag are the global flag
+	// names for installing and uninstalling the autocompletion handlers
+	// for the user's shell. The flag should omit the hyphen(s) in front of
+	// the value. Both single and double hyphens will automatically be supported
+	// for the flag name. These default to `autocomplete-install` and
+	// `autocomplete-uninstall` respectively.
+	AutocompleteInstallFlag   string
+	AutocompleteUninstallFlag string
+
+	// Autocompletion is supported via the github.com/posener/complete
+	// library. This library supports bash, zsh and fish. To add support
+	// for other shells, please see that library.
+	AutocompleteInstaller AutocompleteInstaller
 }
 
 // NewApp returns app new App instance.
 func NewApp() *App {
 	return &App{
-		App:      cli.NewApp(),
-		OsExiter: os.Exit,
+		App:          cli.NewApp(),
+		OsExiter:     os.Exit,
+		Autocomplete: true,
 	}
 }
 
@@ -77,11 +104,27 @@ func (app *App) Run(arguments []string) error {
 	app.Authors = []*cli.Author{{Name: app.Author}}
 
 	app.App.Action = func(parentCtx *cli.Context) error {
-		args := parentCtx.Args().Slice()
+		cmd := app.newRootCommand()
+
+		args := Args(parentCtx.Args().Slice())
 		ctx := newContext(parentCtx.Context, app)
 
-		cmd := ctx.App.newRootCommand()
-		err := cmd.Run(ctx, args...)
+		if app.Autocomplete {
+			if err := app.setupAutocomplete(args); err != nil {
+				return app.handleExitCoder(err)
+			}
+
+			if compLine := os.Getenv(envCompleteLine); compLine != "" {
+				args = strings.Fields(compLine)
+				if args[0] == app.Name {
+					args = args[1:]
+				}
+
+				ctx.shellComplete = true
+			}
+		}
+
+		err := cmd.Run(ctx, args.Normalize(SingleDashFlag))
 		return err
 	}
 
@@ -112,8 +155,62 @@ func (app *App) newRootCommand() *Command {
 		Description: app.Description,
 		Flags:       app.Flags,
 		Subcommands: app.Commands,
+		Complete:    app.Complete,
 		IsRoot:      true,
 	}
+}
+
+func (app *App) setupAutocomplete(arguments []string) error {
+	var (
+		isAutocompleteInstall   bool
+		isAutocompleteUninstall bool
+	)
+
+	if app.AutocompleteInstallFlag == "" {
+		app.AutocompleteInstallFlag = defaultAutocompleteInstallFlag
+	}
+
+	if app.AutocompleteUninstallFlag == "" {
+		app.AutocompleteUninstallFlag = defaultAutocompleteUninstallFlag
+	}
+
+	if app.AutocompleteInstaller == nil {
+		app.AutocompleteInstaller = &autocompleteInstaller{}
+	}
+
+	for _, arg := range arguments {
+		switch {
+		// Check for autocomplete flags
+		case arg == "-"+app.AutocompleteInstallFlag || arg == "--"+app.AutocompleteInstallFlag:
+			isAutocompleteInstall = true
+
+		case arg == "-"+app.AutocompleteUninstallFlag || arg == "--"+app.AutocompleteUninstallFlag:
+			isAutocompleteUninstall = true
+		}
+	}
+
+	// Autocomplete requires the "Name" to be set so that we know what command to setup the autocomplete on.
+	if app.Name == "" {
+		return errors.Errorf("internal error: App.Name must be specified for autocomplete to work")
+	}
+
+	// If both install and uninstall flags are specified, then error
+	if isAutocompleteInstall && isAutocompleteUninstall {
+		return errors.Errorf("either the autocomplete install or uninstall flag may be specified, but not both")
+	}
+
+	// If the install flag is specified, perform the install or uninstall and exit
+	if isAutocompleteInstall {
+		err := app.AutocompleteInstaller.Install(app.Name)
+		return NewExitError(err, 0)
+	}
+
+	if isAutocompleteUninstall {
+		err := app.AutocompleteInstaller.Uninstall(app.Name)
+		return NewExitError(err, 0)
+	}
+
+	return nil
 }
 
 func (app *App) handleExitCoder(err error) error {

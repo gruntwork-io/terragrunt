@@ -1,0 +1,103 @@
+run:
+  timeout: 2m
+  issues-exit-code: 1
+  tests: true
+  skip-dirs:
+    - docs
+    - _ci
+    - .github
+    - .circleci
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+
+linters-settings:
+  staticcheck:
+    checks:
+      - all
+      - '-SA9005'
+  errcheck:
+    check-type-assertions: false
+    check-blank: false
+    exclude-functions:
+      - (*os.File).Close
+  errorlint:
+    errorf: true
+    asserts: true
+    comparison: true
+  gofmt:
+    simplify: true
+  gofumpt:
+    lang-version: "1.21"
+    extra-rules: false
+  gosimple:
+    go: "1.21"
+    checks: [ "all" ]
+  dupl:
+    threshold: 120
+  goconst:
+    min-len: 3
+    min-occurrences: 5
+  gomnd:
+    settings:
+      mnd:
+        ignored-functions: strconv.Format*,os.*,strconv.Parse*,strings.SplitN,bytes.SplitN
+  revive:
+    min-confidence: 0.8
+  unused:
+    check-exported: false
+  unparam:
+    check-exported: false
+  nakedret:
+    max-func-lines: 20
+  gocritic:
+    disabled-checks:
+      - regexpMust
+      - rangeValCopy
+      - appendAssign
+      - hugeParam
+    enabled-tags:
+      - performance
+    disabled-tags:
+      - experimental
+
+linters:
+  enable:
+    - dupl
+    - errcheck
+    - goconst
+    - gocritic
+    - goimports
+    - gomnd
+    - gosimple
+    - govet
+    - ineffassign
+    - megacheck
+    - misspell
+    - unconvert
+    - unused
+    - unparam
+  enable-all: false
+  disable:
+    - depguard
+    - gosec
+    - interfacer
+    - gocyclo
+  fast: false
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - dupl
+        - gocyclo
+        - lll
+        - errcheck
+        - wsl
+        - gomnd
+        - unparam
+
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0

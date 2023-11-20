@@ -32,6 +32,8 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
 
   - [get\_terragrunt\_dir()](#get_terragrunt_dir)
 
+  - [get\_working\_dir()](#get_working_dir)
+
   - [get\_parent\_terragrunt\_dir()](#get_parent_terragrunt_dir)
 
   - [get\_original\_terragrunt\_dir()](#get_original_terragrunt_dir)
@@ -45,6 +47,8 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
   - [get\_terraform\_commands\_that\_need\_parallelism()](#get_terraform_commands_that_need_parallelism)
 
   - [get\_terraform\_command()](#get_terraform_command)
+
+  - [get\_default\_retryable\_errors()](#get_default_retryable_errors)
 
   - [get\_terraform\_cli\_args()](#get_terraform_cli_args)
 
@@ -61,6 +65,8 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
   - [sops\_decrypt\_file()](#sops_decrypt_file)
 
   - [get\_terragrunt\_source\_cli\_flag()](#get_terragrunt_source_cli_flag)
+
+  - [read\_tfvars\_file()](#read_tfvars_file)
 
 ## Terraform built-in functions
 
@@ -430,7 +436,9 @@ terraform {
 }
 ```
 
-For the example above, this path will resolve to `/terraform-code/frontend-app/../common.tfvars`, which is exactly what you want.
+## get\_working\_dir
+
+`get_working_dir()` returns the absolute path where Terragrunt runs Terraform commands. This is useful when you need to manage substitutions of vars inside a *.tfvars file located right inside terragrunt's tmp dir.
 
 ## get\_parent\_terragrunt\_dir
 
@@ -594,6 +602,14 @@ inputs = {
 inputs = {
   current_cli_args = get_terraform_cli_args()
 }
+```
+
+## get\_default\_retryable\_errors
+
+`get_default_retryable_errors()` returns default retryabled errors. Example:
+
+``` hcl
+retryable_errors = concat(get_default_retryable_errors(), ["my custom error"])
 ```
 
 ## get\_aws\_caller\_identity\_user\_id
@@ -809,3 +825,46 @@ Some example use cases are:
 - Setting debug logging when doing local development.
 - Adjusting the kubernetes provider configuration so that it targets minikube instead of real clusters.
 - Providing special mocks pulled in from the local dev source (e.g., something like `mock_outputs = jsondecode(file("${get_terragrunt_source_cli_arg()}/dependency_mocks/vpc.json"))`).
+
+
+## read\_tfvars\_file
+
+`read_tfvars_file(file_path)` reads a `.tfvars` or `.tfvars.json` file and returns a map of the variables defined in it.
+
+This is useful for reading variables from a `.tfvars` file and merging them into the inputs or to use them in a `locals` block:
+
+```hcl
+
+locals {
+  inputs_from_tfvars = jsondecode(read_tfvars_file("common.tfvars"))
+}
+
+inputs = merge(
+  local.inputs_from_tfvars,
+  {
+    # additional inputs
+  }
+)
+```
+
+Another example:
+
+```hcl
+
+locals {
+  backend = jsondecode(read_tfvars_file("backend.tfvars"))
+}
+
+remote_state {
+  backend = "s3"
+  config = {
+    bucket         = "${get_env("TG_BUCKET_PREFIX", "tf-bucket")}-${get_aws_account_id()}"
+    key            = "${path_relative_to_include()}/terraform-${local.aws_region}.tfstate"
+    region         = local.backend.region
+  }
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+}
+```

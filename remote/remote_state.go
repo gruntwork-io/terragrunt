@@ -1,3 +1,4 @@
+// Package remote contains code for configuring remote state storage.
 package remote
 
 import (

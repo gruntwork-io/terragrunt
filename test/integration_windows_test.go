@@ -14,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -53,7 +54,7 @@ func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 			copyEnvironmentToPath(t, fixtureSourceMapPath, targetPath)
 			rootPath := filepath.Join(targetPath, fixtureSourceMapPath)
 
-			os.Setenv(
+			t.Setenv(
 				"TERRAGRUNT_SOURCE_MAP",
 				strings.Join(
 					[]string{
@@ -84,4 +85,26 @@ func TestWindowsTflintIsInvoked(t *testing.T) {
 	found, err := regexp.MatchString(fmt.Sprintf("--config %s/.terragrunt-cache/.*/.tflint.hcl", modulePath), errOut.String())
 	assert.NoError(t, err)
 	assert.True(t, found)
+}
+
+func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
+	if err := os.MkdirAll(targetPath, 0777); err != nil {
+		t.Fatalf("Failed to create temp dir %s due to error %v", targetPath, err)
+	}
+
+	copyErr := util.CopyFolderContents(environmentPath, util.JoinPath(targetPath, environmentPath), ".terragrunt-test", nil)
+	require.NoError(t, copyErr)
+}
+
+func copyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
+	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir due to error: %v", err)
+	}
+
+	t.Logf("Copying %s to %s", environmentPath, tmpDir)
+
+	require.NoError(t, util.CopyFolderContents(environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", []string{".tflint.hcl"}))
+
+	return tmpDir
 }

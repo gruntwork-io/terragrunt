@@ -175,7 +175,7 @@ If you’re testing changes to a local copy of the `modules` repo, you can use t
 ### Working with lock files
 
 Terraform 0.14 introduced lock files. These should mostly "just work" with Terragrunt version v0.27.0 and above: that
-is, the lock file (`.terraform.lock.hcl`) will be generated next to your `terragrunt.hcl`, and you should check it into 
+is, the lock file (`.terraform.lock.hcl`) will be generated next to your `terragrunt.hcl`, and you should check it into
 version control. See the [Lock File Handling docs]({{site.baseurl}}/docs/features/lock-file-handling/) for more details.
 
 ### Important gotcha: Terragrunt caching
@@ -227,11 +227,11 @@ In particular:
 
 ### Using Terragrunt with private Git repos
 
-The easiest way to use Terragrunt with private Git repos is to use SSH authentication. Configure your Git account so you can use it with SSH (see the [guide for GitHub here](https://help.github.com/articles/connecting-to-github-with-ssh/)) and use the SSH URL for your repo, prepended with `git::ssh://`:
+The easiest way to use Terragrunt with private Git repos is to use SSH authentication. Configure your Git account so you can use it with SSH (see the [guide for GitHub here](https://help.github.com/articles/connecting-to-github-with-ssh/)) and use the SSH URL for your repo:
 
 ``` hcl
 terraform {
-  source = "git::ssh://git@github.com/foo/modules.git//path/to/module?ref=v0.0.1"
+  source = "git@github.com:foo/modules.git//path/to/module?ref=v0.0.1"
 }
 ```
 

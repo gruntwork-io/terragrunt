@@ -40,6 +40,8 @@ const (
 	CommandNameLock                 = "lock"
 	CommandNameTerragruntReadConfig = "terragrunt-read-config"
 	NullTFVarsFile                  = ".terragrunt-null-vars.auto.tfvars.json"
+
+	TerraformFlagNoColor = "-no-color"
 )
 
 var TerraformCommandsThatUseState = []string{
@@ -165,6 +167,7 @@ func runTerraform(terragruntOptions *options.TerragruntOptions, target *Target) 
 	if err != nil {
 		return err
 	}
+
 	if sourceUrl != "" {
 		updatedTerragruntOptions, err = downloadTerraformSource(sourceUrl, terragruntOptions, terragruntConfig)
 		if err != nil {
@@ -207,7 +210,7 @@ func runTerraform(terragruntOptions *options.TerragruntOptions, target *Target) 
 			return nil
 		}
 	}
-	return runTerragruntWithConfig(terragruntOptions, updatedTerragruntOptions, terragruntConfig, false, target)
+	return runTerragruntWithConfig(terragruntOptions, updatedTerragruntOptions, terragruntConfig, target)
 }
 
 func generateConfig(terragruntConfig *config.TerragruntConfig, updatedTerragruntOptions *options.TerragruntOptions) error {
@@ -240,7 +243,7 @@ func generateConfig(terragruntConfig *config.TerragruntConfig, updatedTerragrunt
 
 // This function takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
 // and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
-func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, allowSourceDownload bool, target *Target) error {
+func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, target *Target) error {
 	// Add extra_arguments to the command
 	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExtraArgs != nil && len(terragruntConfig.Terraform.ExtraArgs) > 0 {
 		args := filterTerraformExtraArgs(terragruntOptions, terragruntConfig)
@@ -255,7 +258,7 @@ func runTerragruntWithConfig(originalTerragruntOptions *options.TerragruntOption
 	}
 
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) == CommandNameInit {
-		if err := prepareInitCommand(terragruntOptions, terragruntConfig, allowSourceDownload); err != nil {
+		if err := prepareInitCommand(terragruntOptions, terragruntConfig); err != nil {
 			return err
 		}
 	} else {
@@ -405,7 +408,7 @@ func runTerraformWithRetry(terragruntOptions *options.TerragruntOptions) error {
 				terragruntOptions.Logger.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.RetrySleepIntervalSec)
 				time.Sleep(terragruntOptions.RetrySleepIntervalSec)
 			} else {
-				terragruntOptions.Logger.Errorf("Terraform invocation failed in %s", terragruntOptions.WorkingDir)
+				terragruntOptions.Logger.Errorf("%s invocation failed in %s", terragruntOptions.TerraformImplementation, terragruntOptions.WorkingDir)
 				return tferr
 			}
 		} else {
@@ -418,7 +421,7 @@ func runTerraformWithRetry(terragruntOptions *options.TerragruntOptions) error {
 
 // Prepare for running 'terraform init' by initializing remote state storage and adding backend configuration arguments
 // to the TerraformCliArgs
-func prepareInitCommand(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, allowSourceDownload bool) error {
+func prepareInitCommand(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	if terragruntConfig.RemoteState != nil {
 		// Initialize the remote state if necessary  (e.g. create S3 bucket and DynamoDB table)
 		remoteStateNeedsInit, err := remoteStateNeedsInit(terragruntConfig.RemoteState, terragruntOptions)
@@ -499,7 +502,7 @@ func prepareNonInitCommand(originalTerragruntOptions *options.TerragruntOptions,
 	}
 
 	if needsInit {
-		if err := runTerraformInit(originalTerragruntOptions, terragruntOptions, terragruntConfig, nil); err != nil {
+		if err := runTerraformInit(originalTerragruntOptions, terragruntOptions, terragruntConfig); err != nil {
 			return err
 		}
 	}
@@ -547,7 +550,7 @@ func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 //
 // This method takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
 // and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
-func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, terraformSource *terraform.Source) error {
+func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 
 	// Prevent Auto-Init if the user has disabled it
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) != CommandNameInit && !terragruntOptions.AutoInit {
@@ -555,13 +558,9 @@ func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terr
 		return nil
 	}
 
-	initOptions, err := prepareInitOptions(terragruntOptions, terraformSource)
+	initOptions := prepareInitOptions(terragruntOptions)
 
-	if err != nil {
-		return err
-	}
-
-	err = runTerragruntWithConfig(originalTerragruntOptions, initOptions, terragruntConfig, terraformSource != nil, new(Target))
+	err := runTerragruntWithConfig(originalTerragruntOptions, initOptions, terragruntConfig, new(Target))
 	if err != nil {
 		return err
 	}
@@ -573,7 +572,7 @@ func runTerraformInit(originalTerragruntOptions *options.TerragruntOptions, terr
 	return nil
 }
 
-func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformSource *terraform.Source) (*options.TerragruntOptions, error) {
+func prepareInitOptions(terragruntOptions *options.TerragruntOptions) *options.TerragruntOptions {
 	// Need to clone the terragruntOptions, so the TerraformCliArgs can be configured to run the init command
 	initOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	initOptions.TerraformCliArgs = []string{CommandNameInit}
@@ -587,7 +586,11 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions, terraformS
 		initOptions.Writer = io.Discard
 	}
 
-	return initOptions, nil
+	if collections.ListContainsElement(terragruntOptions.TerraformCliArgs, TerraformFlagNoColor) {
+		initOptions.TerraformCliArgs = append(initOptions.TerraformCliArgs, TerraformFlagNoColor)
+	}
+
+	return initOptions
 }
 
 // Return true if modules aren't already downloaded and the Terraform templates in this project reference modules.
@@ -726,7 +729,7 @@ func toTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) 
 			return nil, err
 		}
 
-		out[envVarName] = string(envVarValue)
+		out[envVarName] = envVarValue
 	}
 
 	return out, nil

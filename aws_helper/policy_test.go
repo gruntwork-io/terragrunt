@@ -62,7 +62,6 @@ func TestUnmarshalStringActionResource(t *testing.T) {
 	switch action := bucketPolicy.Statement[0].Action.(type) {
 	case string:
 		assert.Equal(t, "s3:*", action)
-		break
 	default:
 		assert.Fail(t, "Expected string type for Action")
 	}
@@ -70,7 +69,6 @@ func TestUnmarshalStringActionResource(t *testing.T) {
 	switch resource := bucketPolicy.Statement[0].Resource.(type) {
 	case string:
 		assert.Equal(t, "*", resource)
-		break
 	default:
 		assert.Fail(t, "Expected string type for Resource")
 	}
@@ -93,7 +91,6 @@ func TestUnmarshalActionResourceList(t *testing.T) {
 	case []interface{}:
 		assert.Equal(t, 11, len(actions))
 		assert.Contains(t, actions, "s3:ListJobs")
-		break
 	default:
 		assert.Fail(t, "Expected []string type for Action")
 	}
@@ -102,7 +99,6 @@ func TestUnmarshalActionResourceList(t *testing.T) {
 	case []interface{}:
 		assert.Equal(t, 2, len(resource))
 		assert.Contains(t, resource, "arn:aws:s3:*:666:job/*")
-		break
 	default:
 		assert.Fail(t, "Expected []string type for Resource")
 	}

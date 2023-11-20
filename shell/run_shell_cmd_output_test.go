@@ -20,11 +20,19 @@ func TestCommandOutputOrder(t *testing.T) {
 
 	t.Run("withPtty", func(t *testing.T) {
 		t.Parallel()
-		testCommandOutputOrder(t, true)
+		testCommandOutputOrder(t, true,
+			[]string{"stdout1", "stderr1", "stdout2", "stderr2", "stderr3"},
+			[]string{"stdout1", "stdout2"},
+			[]string{"stderr1", "stderr2", "stderr3"},
+		)
 	})
 	t.Run("withoutPtty", func(t *testing.T) {
 		t.Parallel()
-		testCommandOutputOrder(t, false)
+		testCommandOutputOrder(t, false,
+			[]string{"stderr1", "stderr2", "stderr3"},
+			[]string{"stdout1", "stdout2"},
+			[]string{"stderr1", "stderr2", "stderr3"},
+		)
 	})
 }
 
@@ -34,8 +42,8 @@ var FULL_OUTPUT = []string{"stdout1", "stderr1", "stdout2", "stderr2", "stderr3"
 var STDOUT = []string{"stdout1", "stdout2"}
 var STDERR = []string{"stderr1", "stderr2", "stderr3"}
 
-func testCommandOutputOrder(t *testing.T, withPtty bool) {
-	testCommandOutput(t, noop[*options.TerragruntOptions], assertOutputs(t, FULL_OUTPUT, STDOUT, STDERR))
+func testCommandOutputOrder(t *testing.T, withPtty bool, fullOutput []string, stdout []string, stderr []string) {
+	testCommandOutput(t, noop[*options.TerragruntOptions], assertOutputs(t, fullOutput, stdout, stderr), withPtty)
 }
 
 func TestCommandOutputPrefix(t *testing.T) {
@@ -51,10 +59,10 @@ func TestCommandOutputPrefix(t *testing.T) {
 		prefixedOutput,
 		STDOUT,
 		STDERR,
-	))
+	), true)
 }
 
-func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions), assertResults func(string, *CmdOutput)) {
+func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions), assertResults func(string, *CmdOutput), allocateStdout bool) {
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
@@ -68,7 +76,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 
 	withOptions(terragruntOptions)
 
-	out, err := RunShellCommandWithOutput(terragruntOptions, "", false, false, "../testdata/test_outputs.sh", "same")
+	out, err := RunShellCommandWithOutput(terragruntOptions, "", !allocateStdout, false, "../testdata/test_outputs.sh", "same")
 
 	require.NotNil(t, out, "Should get output")
 	assert.Nil(t, err, "Should have no error")

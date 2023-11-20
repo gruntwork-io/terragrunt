@@ -9,8 +9,10 @@ package renderjson
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
+
+	"github.com/gruntwork-io/terragrunt/configstack"
 
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -32,6 +34,15 @@ func runRenderJSON(opts *options.TerragruntOptions, cfg *config.TerragruntConfig
 	if cfg == nil {
 		return fmt.Errorf("Terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl.")
 	}
+
+	dependentModules := configstack.FindWhereWorkingDirIsIncluded(opts, cfg)
+	var dependentModulesPath []*string
+	for _, module := range dependentModules {
+		dependentModulesPath = append(dependentModulesPath, &module.Path)
+	}
+
+	cfg.DependentModulesPath = dependentModulesPath
+	cfg.SetFieldMetadata(config.MetadataDependentModules, map[string]interface{}{config.FoundInFile: opts.TerragruntConfigPath})
 
 	var terragruntConfigCty cty.Value
 
@@ -64,7 +75,7 @@ func runRenderJSON(opts *options.TerragruntOptions, cfg *config.TerragruntConfig
 	}
 	opts.Logger.Debugf("Rendering config %s to JSON %s", opts.TerragruntConfigPath, jsonOutPath)
 
-	if err := ioutil.WriteFile(jsonOutPath, jsonBytes, 0644); err != nil {
+	if err := os.WriteFile(jsonOutPath, jsonBytes, 0644); err != nil {
 		return errors.WithStackTrace(err)
 	}
 	return nil

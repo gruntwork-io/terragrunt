@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -30,7 +30,7 @@ const (
 func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 	t.Parallel()
 
-	files, err := ioutil.ReadDir(includeExposeFixturePath)
+	files, err := os.ReadDir(includeExposeFixturePath)
 	require.NoError(t, err)
 
 	testCases := []string{}
@@ -55,7 +55,7 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 			require.NoError(t, err)
 
 			outputs := map[string]TerraformOutput{}
-			require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+			require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 			assert.Equal(t, "us-west-1-test", outputs["region"].Value.(string))
 		})
 	}
@@ -166,7 +166,7 @@ func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 	require.NoError(t, err)
 
 	outputs := map[string]TerraformOutput{}
-	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
 	assert.Equal(t, "mock", outputs["attribute"].Value.(string))
 	assert.Equal(t, "new val", outputs["new_attribute"].Value.(string))
@@ -193,7 +193,7 @@ func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 	t.Parallel()
 
-	files, err := ioutil.ReadDir(includeMultipleFixturePath)
+	files, err := os.ReadDir(includeMultipleFixturePath)
 	require.NoError(t, err)
 
 	testCases := []string{}
@@ -220,7 +220,7 @@ func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 			require.NoError(t, err)
 
 			outputs := map[string]TerraformOutput{}
-			require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+			require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 			validateMultipleIncludeTestOutput(t, outputs)
 		})
 	}
@@ -256,7 +256,7 @@ func validateIncludeRemoteStateReflection(t *testing.T, s3BucketName string, key
 	require.NoError(t, err)
 
 	outputs := map[string]TerraformOutput{}
-	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	remoteStateOut := map[string]interface{}{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["reflect"].Value.(string)), &remoteStateOut))
 	assert.Equal(

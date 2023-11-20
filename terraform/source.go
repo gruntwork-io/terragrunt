@@ -3,7 +3,6 @@ package terraform
 import (
 	"crypto/sha256"
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -19,6 +18,8 @@ import (
 )
 
 var forcedRegexp = regexp.MustCompile(`^([A-Za-z0-9]+)::(.+)$`)
+
+const matchCount = 2
 
 // This struct represents information about Terraform source code that needs to be downloaded
 type Source struct {
@@ -107,7 +108,7 @@ func (terraformSource Source) WriteVersionFile() error {
 		}
 	}
 
-	return errors.WithStackTrace(ioutil.WriteFile(terraformSource.VersionFile, []byte(version), 0640))
+	return errors.WithStackTrace(os.WriteFile(terraformSource.VersionFile, []byte(version), 0640))
 }
 
 // Take the given source path and create a Source struct from it, including the folder where the source should
@@ -280,7 +281,7 @@ func encodeSourceName(sourceUrl *url.URL) (string, error) {
 // rest of the URL. This code is copied from the getForcedGetter method of go-getter/get.go, as that method is not
 // exported publicly.
 func getForcedGetter(sourceUrl string) (string, string) {
-	if matches := forcedRegexp.FindStringSubmatch(sourceUrl); matches != nil && len(matches) > 2 {
+	if matches := forcedRegexp.FindStringSubmatch(sourceUrl); len(matches) > matchCount {
 		return matches[1], matches[2]
 	}
 

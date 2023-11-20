@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -12,10 +13,18 @@ import (
 
 // terraformErrorsMatcher List of errors that we know how to explain to the user. The key is a regex that matches the error message, and the value is the explanation.
 var terraformErrorsMatcher = map[string]string{
-	"(?s).*Error refreshing state: AccessDenied: Access Denied(?s).*":            "You don't have access to the S3 bucket where the state is stored. Check your credentials and permissions.",
-	"(?s).*AllAccessDisabled: All access to this object has been disabled(?s).*": "You don't have access to the S3 bucket where the state is stored. Check your credentials and permissions.",
-	"(?s).*Error: Initialization required(?s).*":                                 "You need to run terragrunt (run-all) init to initialize working directory.",
-	"(?s).*Module source has changed(?s).*":                                      "You need to run terragrunt (run-all) init install all required modules.",
+	"(?s).*Error refreshing state: AccessDenied: Access Denied(?s).*":                     "You don't have access to the S3 bucket where the state is stored. Check your credentials and permissions.",
+	"(?s).*AllAccessDisabled: All access to this object has been disabled(?s).*":          "You don't have access to the S3 bucket where the state is stored. Check your credentials and permissions.",
+	"(?s).*operation error S3: ListObjectsV2, https response error StatusCode: 301(?s).*": "You don't have access to the S3 bucket where the state is stored. Check your credentials and permissions.",
+	"(?s).*The authorization header is malformed(?s).*":                                   "You don't have access to the S3 bucket where the state is stored. Check your credentials and permissions.",
+	"(?s).*Unable to list objects in S3 bucket(?s).*":                                     "You don't have access to the S3 bucket where the state is stored. Check your credentials and permissions.",
+	"(?s).*Error: Initialization required(?s).*":                                          "You need to run terragrunt (run-all) init to initialize working directory.",
+	"(?s).*Module source has changed(?s).*":                                               "You need to run terragrunt (run-all) init install all required modules.",
+	"(?s).*Error finding AWS credentials(?s).*":                                           "Missing AWS credentials. Provide credentials to proceed.",
+	"(?s).*Error: No valid credential sources found(?s).*":                                "Missing AWS credentials. Provide credentials to proceed.",
+	"(?s).*Error: validating provider credentials(?s).*":                                  "Missing AWS credentials. Provide credentials to proceed.",
+	"(?s).*NoCredentialProviders(?s).*":                                                   "Missing AWS credentials. Provide credentials to proceed.",
+	"(?s).*client: no valid credential sources(?s).*":                                     "Missing AWS credentials. Provide credentials to proceed.",
 }
 
 // ExplainError will try to explain the error to the user, if we know how to do so.
@@ -37,8 +46,10 @@ func ExplainError(err error) string {
 			continue
 		}
 		errorOutput := processError.Stderr
+		stdOut := processError.StdOut
+		message := fmt.Sprintf("%s\n%s", stdOut, errorOutput)
 		for regex, explanation := range terraformErrorsMatcher {
-			if match, _ := regexp.MatchString(regex, errorOutput); match {
+			if match, _ := regexp.MatchString(regex, message); match {
 				// collect matched explanations
 				explanations[explanation] = "1"
 			}
