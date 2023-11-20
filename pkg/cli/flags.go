@@ -1,13 +1,9 @@
 package cli
 
 import (
-	libflag "flag"
-	"io"
 	"sort"
-	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
-	"github.com/gruntwork-io/go-commons/errors"
 )
 
 const errFlagUndefined = "flag provided but not defined:"
@@ -67,66 +63,6 @@ func (flags Flags) Less(i, j int) bool {
 
 func (flags Flags) Swap(i, j int) {
 	flags[i], flags[j] = flags[j], flags[i]
-}
-
-func (flags Flags) newFlagSet(name string, errorHandling libflag.ErrorHandling) (*libflag.FlagSet, error) {
-	flagSet := libflag.NewFlagSet(name, errorHandling)
-	flagSet.SetOutput(io.Discard)
-
-	for _, flag := range flags {
-		if err := flag.Apply(flagSet); err != nil {
-			return nil, err
-		}
-	}
-
-	return flagSet, nil
-}
-
-func (flags Flags) parseFlags(flagSet *libflag.FlagSet, args []string) ([]string, error) {
-	var undefArgs []string
-
-	if len(args) == 0 {
-		return undefArgs, nil
-	}
-
-	for {
-		err := flagSet.Parse(args)
-		if err == nil {
-			break
-		}
-
-		// check if the error is due to an undefArgs flag
-		var undefArg string
-		errStr := err.Error()
-		if !strings.HasPrefix(errStr, errFlagUndefined) {
-			return nil, errors.WithStackTrace(err)
-		}
-
-		undefArg = strings.Trim(strings.TrimPrefix(errStr, errFlagUndefined), " -")
-
-		// cut off the args
-		var notFoundMatch bool
-		for i, arg := range args {
-			// `--var=input=from_env` trims to `var`
-			trimmed := strings.SplitN(strings.Trim(arg, "-"), "=", 2)[0]
-			if trimmed == undefArg {
-				undefArgs = append(undefArgs, arg)
-				notFoundMatch = true
-				args = args[i+1:]
-				break
-			}
-
-		}
-
-		// This should be an impossible to reach code path, but in case the arg
-		// splitting failed to happen, this will prevent infinite loops
-		if !notFoundMatch {
-			return nil, err
-		}
-	}
-
-	undefArgs = append(undefArgs, flagSet.Args()...)
-	return undefArgs, nil
 }
 
 func (flags Flags) RunActions(ctx *Context) error {
