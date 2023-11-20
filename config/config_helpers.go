@@ -53,7 +53,7 @@ const (
 	FuncNameGetAWSCallerIdentityUserID              = "get_aws_caller_identity_user_id"
 	FuncNameGetTerraformCommandsThatNeedVars        = "get_terraform_commands_that_need_vars"
 	FuncNameGetTerraformCommandsThatNeedLocking     = "get_terraform_commands_that_need_locking"
-	FuncNameGetTerraformCommandsThatNeedInput       = "get_terraform_commands_that_need_inputa"
+	FuncNameGetTerraformCommandsThatNeedInput       = "get_terraform_commands_that_need_input"
 	FuncNameGetTerraformCommandsThatNeedParallelism = "get_terraform_commands_that_need_parallelism"
 	FuncNameSopsDecryptFile                         = "sops_decrypt_file"
 	FuncNameGetTerragruntSourceCLIFlag              = "get_terragrunt_source_cli_flag"
