@@ -2991,6 +2991,47 @@ func TestGetRepoRoot(t *testing.T) {
 	require.Regexp(t, "/tmp/terragrunt-.*/fixture-get-repo-root", repoRoot.Value)
 }
 
+func TestGetRepoRootCaching(t *testing.T) {
+	t.Parallel()
+
+	var timeMeasurements []time.Duration
+	for iteration := 0; iteration < 2; iteration++ {
+		cleanupTerraformFolder(t, TEST_FIXTURE_GET_REPO_ROOT)
+		tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_GET_REPO_ROOT))
+		rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_REPO_ROOT)
+
+		output, err := exec.Command("git", "init", rootPath).CombinedOutput()
+		if err != nil {
+			t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
+		}
+		startMeasurement := time.Now()
+		runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+		endMeasurement := time.Now()
+
+		timeMeasurements = append(timeMeasurements, endMeasurement.Sub(startMeasurement))
+
+		// verify expected outputs are not empty
+		stdout := bytes.Buffer{}
+		stderr := bytes.Buffer{}
+
+		require.NoError(
+			t,
+			runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+		)
+
+		outputs := map[string]TerraformOutput{}
+
+		require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+
+		repoRoot, ok := outputs["repo_root"]
+
+		require.True(t, ok)
+		require.Regexp(t, "/tmp/terragrunt-.*/fixture-get-repo-root", repoRoot.Value)
+	}
+
+	require.Less(t, timeMeasurements[1], timeMeasurements[0])
+}
+
 func TestPathRelativeFromInclude(t *testing.T) {
 	t.Parallel()
 
