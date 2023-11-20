@@ -54,12 +54,12 @@ func Run(opts *options.TerragruntOptions) error {
 	}
 
 	// run boilerplate
-	vars := map[string]interface{}{
-		"parsedInputs": inputs,
-		"moduleUrl":    moduleUrl,
+	vars, err := variables.ParseVars(opts.ScaffoldVars, opts.ScaffoldVarFiles)
+	if err != nil {
+		return errors.WithStackTrace(err)
 	}
-
-	variables.ParseVars()
+	vars["parsedInputs"] = inputs
+	vars["moduleUrl"] = moduleUrl
 
 	opts.Logger.Infof("Running boilerplate in %s", opts.WorkingDir)
 	boilerplateOpts := &boilerplate_options.BoilerplateOptions{

@@ -249,8 +249,8 @@ type TerragruntOptions struct {
 	// Disables validation terraform command
 	DisableCommandValidation bool
 
-	BoilerPlateVars     []string
-	BoilerplateVarFiles []string
+	ScaffoldVars     []string
+	ScaffoldVarFiles []string
 }
 
 // IAMOptions represents options that are used by Terragrunt to assume an IAM role.
