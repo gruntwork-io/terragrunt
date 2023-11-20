@@ -58,6 +58,9 @@ func Run(opts *options.TerragruntOptions) error {
 		"parsedInputs": inputs,
 		"moduleUrl":    moduleUrl,
 	}
+
+	variables.ParseVars()
+
 	opts.Logger.Infof("Running boilerplate in %s", opts.WorkingDir)
 	boilerplateOpts := &boilerplate_options.BoilerplateOptions{
 		TemplateFolder:  util.JoinPath(opts.WorkingDir, util.DefaultBoilerplateDir),
@@ -65,7 +68,8 @@ func Run(opts *options.TerragruntOptions) error {
 		OnMissingKey:    boilerplate_options.DefaultMissingKeyAction,
 		OnMissingConfig: boilerplate_options.DefaultMissingConfigAction,
 		Vars:            vars,
-		NonInteractive:  true,
+
+		NonInteractive: true,
 	}
 	emptyDep := variables.Dependency{}
 	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
