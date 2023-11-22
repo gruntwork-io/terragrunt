@@ -4,6 +4,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
+
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
 	"github.com/gruntwork-io/terragrunt/util"
 
@@ -123,7 +126,14 @@ func Run(opts *options.TerragruntOptions) error {
 	return nil
 }
 
-func listInputs(opts *options.TerragruntOptions, directoryPath string) ([]string, error) {
+// ParsedInput structure with input name, default value and description.
+type ParsedInput struct {
+	Name         string
+	DefaultValue *cty.Value
+	Description  *cty.Value
+}
+
+func listInputs(opts *options.TerragruntOptions, directoryPath string) ([]ParsedInput, error) {
 	tfFiles, err := listTerraformFiles(directoryPath)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
@@ -131,7 +141,7 @@ func listInputs(opts *options.TerragruntOptions, directoryPath string) ([]string
 	parser := hclparse.NewParser()
 
 	// Extract variables from all TF files
-	var foundVars []string
+	var parsedInputs []ParsedInput
 	for _, tfFile := range tfFiles {
 		content, err := os.ReadFile(tfFile)
 		if err != nil {
@@ -143,17 +153,52 @@ func listInputs(opts *options.TerragruntOptions, directoryPath string) ([]string
 			opts.Logger.Warnf("Failed to parse HCL in file %s: %v", tfFile, diags)
 			continue
 		}
+
+		ctx := &hcl.EvalContext{}
+
 		if body, ok := file.Body.(*hclsyntax.Body); ok {
 			for _, block := range body.Blocks {
 				if block.Type == "variable" {
 					if len(block.Labels[0]) > 0 {
-						foundVars = append(foundVars, block.Labels[0])
+
+						name := block.Labels[0]
+
+						description, err := readBlockAttribute(ctx, block, "description")
+						if err != nil {
+							opts.Logger.Warnf("Failed to read description for %s %v", name, err)
+							description = nil
+						}
+						defaultValue, err := readBlockAttribute(ctx, block, "default")
+						if err != nil {
+							opts.Logger.Warnf("Failed to read default value for %s %v", name, err)
+							defaultValue = nil
+						}
+						input := ParsedInput{
+							Name:         name,
+							Description:  description,
+							DefaultValue: defaultValue,
+						}
+
+						parsedInputs = append(parsedInputs, input)
 					}
 				}
 			}
 		}
 	}
-	return foundVars, nil
+	return parsedInputs, nil
+}
+
+func readBlockAttribute(ctx *hcl.EvalContext, block *hclsyntax.Block, name string) (*cty.Value, error) {
+	if attr, ok := block.Body.Attributes[name]; ok {
+		if attr.Expr != nil {
+			value, err := attr.Expr.Value(ctx)
+			if err != nil {
+				return nil, err
+			}
+			return &value, nil
+		}
+	}
+	return nil, nil
 }
 
 // listTerraformFiles returns a list of all TF files in the specified directory.
