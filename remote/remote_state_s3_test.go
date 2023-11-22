@@ -225,6 +225,43 @@ func TestGetAwsSessionConfig(t *testing.T) {
 	}
 }
 
+func TestGetAwsSessionConfigWithAssumeRole(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		config map[string]interface{}
+	}{
+		{
+			"all-values",
+			map[string]interface{}{"role_arn": "arn::it", "external_id": "123", "session_name": "foobar"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		// The following is necessary to make sure testCase's values don't
+		// get updated due to concurrency within the scope of t.Run(..) below
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := map[string]interface{}{"assume_role": testCase.config}
+			s3ConfigExtended, err := ParseExtendedS3Config(config)
+			require.Nil(t, err, "Unexpected error parsing config for test: %v", err)
+
+			expected := &aws_helper.AwsSessionConfig{
+				RoleArn:     s3ConfigExtended.remoteStateConfigS3.AssumeRole.RoleArn,
+				ExternalID:  s3ConfigExtended.remoteStateConfigS3.AssumeRole.ExternalID,
+				SessionName: s3ConfigExtended.remoteStateConfigS3.AssumeRole.SessionName,
+			}
+
+			actual := s3ConfigExtended.GetAwsSessionConfig()
+			assert.Equal(t, expected, actual)
+		})
+	}
+}
+
 func TestGetTerraformInitArgs(t *testing.T) {
 	t.Parallel()
 
