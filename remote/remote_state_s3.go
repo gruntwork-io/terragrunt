@@ -130,7 +130,8 @@ func (s3Config *RemoteStateConfigS3) GetLockTableName() string {
 	return s3Config.LockTable
 }
 
-// Since Terraform 1.6 assume_role is a new block but we need to keep deprecated top level arguments
+// GetSessionRoleArn returns the role defined in the AssumeRole struct
+// or fallback to the top level argument deprecated in Terraform 1.6
 func (s3Config *RemoteStateConfigS3) GetSessionRoleArn() string {
 	if s3Config.AssumeRole.RoleArn != "" {
 		return s3Config.AssumeRole.RoleArn

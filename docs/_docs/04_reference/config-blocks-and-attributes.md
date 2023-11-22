@@ -401,6 +401,11 @@ For the `s3` backend, the following additional properties are supported in the `
 - `accesslogging_target_prefix`: (Optional) When provided as a valid `string`, set the `TargetPrefix` for the access log objects in the S3 bucket used to store Terraform state. If set to **empty**`string`, then `TargetPrefix` will be set to **empty** `string`. If attribute is not provided at all, then `TargetPrefix` will be set to **default** value `TFStateLogs/`. This attribute won't take effect if the `accesslogging_bucket_name` attribute is not present.
 - `bucket_sse_algorithm`: (Optional) The algorithm to use for server side encryption of the state bucket. Defaults to `aws:kms`.
 - `bucket_sse_kms_key_id`: (Optional) The KMS Key to use when the encryption algorithm is `aws:kms`. Defaults to the AWS Managed `aws/s3` key.
+- `assume_role`: (Optional) A configuration `map` to use when assuming a role (starting with Terraform 1.6). Override top level arguments
+  - `role_arn` - (Optional) The role to be assumed.
+  - `external_id` - (Optional) The external ID to use when assuming the role.
+  - `session_name` - (Optional) The session name to use when assuming the role.
+
 
 For the `gcs` backend, the following additional properties are supported in the `config` attribute:
 
