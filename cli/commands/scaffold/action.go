@@ -1,8 +1,12 @@
 package scaffold
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+
+	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
@@ -33,8 +37,18 @@ terraform {
 }
 
 inputs = {
-  {{range .parsedInputs}}
-  {{.}} = "PLACE_HOLDER_VALUE"
+  # Required input variables
+  {{range .parsedRequiredInputs}}
+  # Description: {{ .Description }}
+  # Type: {{ .Type }}
+  {{.Name}} = null
+  {{end}}
+
+  # Optional input variables
+  {{range .parsedOptionalInputs}}
+  # Description: {{ .Description }}
+  # Type: {{ .Type }}
+  # {{.Name}} = {{.DefaultValue}}
   {{end}}
 }
 `
@@ -98,7 +112,22 @@ func Run(opts *options.TerragruntOptions) error {
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
-	vars["parsedInputs"] = inputs
+
+	// separate inputs that require value and with default value
+	var parsedRequiredInputs []*ParsedInput
+	var parsedOptionalInputs []*ParsedInput
+
+	for _, value := range inputs {
+		if value.DefaultValue == "" {
+			parsedRequiredInputs = append(parsedRequiredInputs, value)
+		} else {
+			parsedOptionalInputs = append(parsedOptionalInputs, value)
+		}
+	}
+
+	vars["parsedRequiredInputs"] = parsedRequiredInputs
+	vars["parsedOptionalInputs"] = parsedOptionalInputs
+
 	vars["moduleUrl"] = moduleUrl
 
 	opts.Logger.Infof("Running boilerplate in %s", opts.WorkingDir)
@@ -129,11 +158,12 @@ func Run(opts *options.TerragruntOptions) error {
 // ParsedInput structure with input name, default value and description.
 type ParsedInput struct {
 	Name         string
-	DefaultValue *cty.Value
-	Description  *cty.Value
+	Description  string
+	Type         string
+	DefaultValue string
 }
 
-func listInputs(opts *options.TerragruntOptions, directoryPath string) ([]ParsedInput, error) {
+func listInputs(opts *options.TerragruntOptions, directoryPath string) ([]*ParsedInput, error) {
 	tfFiles, err := listTerraformFiles(directoryPath)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
@@ -141,7 +171,7 @@ func listInputs(opts *options.TerragruntOptions, directoryPath string) ([]Parsed
 	parser := hclparse.NewParser()
 
 	// Extract variables from all TF files
-	var parsedInputs []ParsedInput
+	var parsedInputs []*ParsedInput
 	for _, tfFile := range tfFiles {
 		content, err := os.ReadFile(tfFile)
 		if err != nil {
@@ -162,21 +192,60 @@ func listInputs(opts *options.TerragruntOptions, directoryPath string) ([]Parsed
 					if len(block.Labels[0]) > 0 {
 
 						name := block.Labels[0]
-
-						description, err := readBlockAttribute(ctx, block, "description")
+						descriptionAttr, err := readBlockAttribute(ctx, block, "description")
+						descriptionAttrText := ""
 						if err != nil {
-							opts.Logger.Warnf("Failed to read description for %s %v", name, err)
-							description = nil
+							opts.Logger.Warnf("Failed to read descriptionAttr for %s %v", name, err)
+							descriptionAttr = nil
 						}
+						if descriptionAttr != nil {
+							descriptionAttrText = descriptionAttr.AsString()
+						} else {
+							descriptionAttrText = fmt.Sprintf("No description for %s", name)
+						}
+
+						typeAttr, err := readBlockAttribute(ctx, block, "type")
+						typeAttrText := ""
+						if err != nil {
+							opts.Logger.Warnf("Failed to read type attribute for %s %v", name, err)
+							descriptionAttr = nil
+						}
+						if typeAttr != nil {
+							typeAttrText = typeAttr.AsString()
+						} else {
+							typeAttrText = fmt.Sprintf("No type for %s", name)
+						}
+
 						defaultValue, err := readBlockAttribute(ctx, block, "default")
 						if err != nil {
 							opts.Logger.Warnf("Failed to read default value for %s %v", name, err)
 							defaultValue = nil
 						}
-						input := ParsedInput{
+
+						defaultValueText := ""
+						if defaultValue != nil {
+							jsonBytes, err := ctyjson.Marshal(*defaultValue, cty.DynamicPseudoType)
+							if err != nil {
+								return nil, errors.WithStackTrace(err)
+							}
+
+							var ctyJsonOutput CtyJsonValue
+							if err := json.Unmarshal(jsonBytes, &ctyJsonOutput); err != nil {
+								return nil, errors.WithStackTrace(err)
+							}
+
+							jsonBytes, err = json.Marshal(ctyJsonOutput.Value)
+							if err != nil {
+								return nil, errors.WithStackTrace(err)
+							}
+							defaultValueText = string(jsonBytes)
+						}
+
+						input := &ParsedInput{
 							Name:         name,
-							Description:  description,
-							DefaultValue: defaultValue,
+							Type:         typeAttrText,
+							Description:  descriptionAttrText,
+							DefaultValue: defaultValueText,
 						}
 
 						parsedInputs = append(parsedInputs, input)
@@ -188,9 +257,24 @@ func listInputs(opts *options.TerragruntOptions, directoryPath string) ([]Parsed
 	return parsedInputs, nil
 }
 
+type CtyJsonValue struct {
+	Value interface{}
+	Type  interface{}
+}
+
 func readBlockAttribute(ctx *hcl.EvalContext, block *hclsyntax.Block, name string) (*cty.Value, error) {
 	if attr, ok := block.Body.Attributes[name]; ok {
 		if attr.Expr != nil {
+			// check if first var is traversal
+			if len(attr.Expr.Variables()) > 0 {
+				v := attr.Expr.Variables()[0]
+				// check if variable is traversal
+				if varTr, ok := v[0].(hcl.TraverseRoot); ok {
+					result := cty.StringVal(varTr.Name)
+					return &result, nil
+				}
+			}
+
 			value, err := attr.Expr.Value(ctx)
 			if err != nil {
 				return nil, err
