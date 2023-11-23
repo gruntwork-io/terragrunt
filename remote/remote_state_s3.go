@@ -79,22 +79,29 @@ var terragruntOnlyConfigs = []string{
 	"bucket_sse_kms_key_id",
 }
 
+type RemoteStateConfigS3AssumeRole struct {
+	RoleArn     string `mapstructure:"role_arn"`
+	ExternalID  string `mapstructure:"external_id"`
+	SessionName string `mapstructure:"session_name"`
+}
+
 // A representation of the configuration options available for S3 remote state
 type RemoteStateConfigS3 struct {
-	Encrypt          bool   `mapstructure:"encrypt"`
-	Bucket           string `mapstructure:"bucket"`
-	Key              string `mapstructure:"key"`
-	Region           string `mapstructure:"region"`
-	Endpoint         string `mapstructure:"endpoint"`
-	DynamoDBEndpoint string `mapstructure:"dynamodb_endpoint"`
-	Profile          string `mapstructure:"profile"`
-	RoleArn          string `mapstructure:"role_arn"`
-	ExternalID       string `mapstructure:"external_id"`
-	SessionName      string `mapstructure:"session_name"`
-	LockTable        string `mapstructure:"lock_table"` // Deprecated in Terraform version 0.13 or newer.
-	DynamoDBTable    string `mapstructure:"dynamodb_table"`
-	CredsFilename    string `mapstructure:"shared_credentials_file"`
-	S3ForcePathStyle bool   `mapstructure:"force_path_style"`
+	Encrypt          bool                          `mapstructure:"encrypt"`
+	Bucket           string                        `mapstructure:"bucket"`
+	Key              string                        `mapstructure:"key"`
+	Region           string                        `mapstructure:"region"`
+	Endpoint         string                        `mapstructure:"endpoint"`
+	DynamoDBEndpoint string                        `mapstructure:"dynamodb_endpoint"`
+	Profile          string                        `mapstructure:"profile"`
+	RoleArn          string                        `mapstructure:"role_arn"`     // Deprecated in Terraform version 1.6 or newer.
+	ExternalID       string                        `mapstructure:"external_id"`  // Deprecated in Terraform version 1.6 or newer.
+	SessionName      string                        `mapstructure:"session_name"` // Deprecated in Terraform version 1.6 or newer.
+	LockTable        string                        `mapstructure:"lock_table"`   // Deprecated in Terraform version 0.13 or newer.
+	DynamoDBTable    string                        `mapstructure:"dynamodb_table"`
+	CredsFilename    string                        `mapstructure:"shared_credentials_file"`
+	S3ForcePathStyle bool                          `mapstructure:"force_path_style"`
+	AssumeRole       RemoteStateConfigS3AssumeRole `mapstructure:"assume_role"`
 }
 
 // Builds a session config for AWS related requests from the RemoteStateConfigS3 configuration
@@ -104,9 +111,9 @@ func (c *ExtendedRemoteStateConfigS3) GetAwsSessionConfig() *aws_helper.AwsSessi
 		CustomS3Endpoint:        c.remoteStateConfigS3.Endpoint,
 		CustomDynamoDBEndpoint:  c.remoteStateConfigS3.DynamoDBEndpoint,
 		Profile:                 c.remoteStateConfigS3.Profile,
-		RoleArn:                 c.remoteStateConfigS3.RoleArn,
-		ExternalID:              c.remoteStateConfigS3.ExternalID,
-		SessionName:             c.remoteStateConfigS3.SessionName,
+		RoleArn:                 c.remoteStateConfigS3.GetSessionRoleArn(),
+		ExternalID:              c.remoteStateConfigS3.GetExternalId(),
+		SessionName:             c.remoteStateConfigS3.GetSessionName(),
 		CredsFilename:           c.remoteStateConfigS3.CredsFilename,
 		S3ForcePathStyle:        c.remoteStateConfigS3.S3ForcePathStyle,
 		DisableComputeChecksums: c.DisableAWSClientChecksums,
@@ -121,6 +128,29 @@ func (s3Config *RemoteStateConfigS3) GetLockTableName() string {
 		return s3Config.DynamoDBTable
 	}
 	return s3Config.LockTable
+}
+
+// GetSessionRoleArn returns the role defined in the AssumeRole struct
+// or fallback to the top level argument deprecated in Terraform 1.6
+func (s3Config *RemoteStateConfigS3) GetSessionRoleArn() string {
+	if s3Config.AssumeRole.RoleArn != "" {
+		return s3Config.AssumeRole.RoleArn
+	}
+	return s3Config.RoleArn
+}
+
+func (s3Config *RemoteStateConfigS3) GetExternalId() string {
+	if s3Config.AssumeRole.ExternalID != "" {
+		return s3Config.AssumeRole.ExternalID
+	}
+	return s3Config.ExternalID
+}
+
+func (s3Config *RemoteStateConfigS3) GetSessionName() string {
+	if s3Config.AssumeRole.SessionName != "" {
+		return s3Config.AssumeRole.SessionName
+	}
+	return s3Config.SessionName
 }
 
 const MAX_RETRIES_WAITING_FOR_S3_BUCKET = 12

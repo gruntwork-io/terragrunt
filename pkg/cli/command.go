@@ -2,7 +2,10 @@ package cli
 
 import (
 	libflag "flag"
+	"io"
+	"strings"
 
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/urfave/cli/v2"
 )
 
@@ -19,6 +22,8 @@ type Command struct {
 	Description string
 	// List of flags to parse
 	Flags Flags
+	// if DisallowUndefinedFlags is true, any undefined flag will cause the application to exit and return an error.
+	DisallowUndefinedFlags bool
 	// Full name of cmd for help, defaults to full cmd name, including parent commands.
 	HelpName string
 	// if this is a root "special" cmd
@@ -154,7 +159,7 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 func (cmd *Command) parseFlags(args []string) ([]string, error) {
 	var undefArgs []string
 
-	flagSet, err := cmd.Flags.newFlagSet(cmd.Name, libflag.ContinueOnError)
+	flagSet, err := cmd.newFlagSet(libflag.ContinueOnError)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +169,7 @@ func (cmd *Command) parseFlags(args []string) ([]string, error) {
 	}
 
 	for {
-		args, err = cmd.Flags.parseFlags(flagSet, args)
+		args, err = cmd.flagSetParse(flagSet, args)
 		if err != nil {
 			return nil, err
 		}
@@ -177,5 +182,65 @@ func (cmd *Command) parseFlags(args []string) ([]string, error) {
 		args = args[1:]
 	}
 
+	return undefArgs, nil
+}
+
+func (cmd *Command) newFlagSet(errorHandling libflag.ErrorHandling) (*libflag.FlagSet, error) {
+	flagSet := libflag.NewFlagSet(cmd.Name, errorHandling)
+	flagSet.SetOutput(io.Discard)
+
+	for _, flag := range cmd.Flags {
+		if err := flag.Apply(flagSet); err != nil {
+			return nil, err
+		}
+	}
+
+	return flagSet, nil
+}
+
+func (cmd *Command) flagSetParse(flagSet *libflag.FlagSet, args []string) ([]string, error) {
+	var undefArgs []string
+
+	if len(args) == 0 {
+		return undefArgs, nil
+	}
+
+	for {
+		err := flagSet.Parse(args)
+		if err == nil {
+			break
+		}
+
+		// check if the error is due to an undefArgs flag
+		var undefArg string
+		errStr := err.Error()
+		if cmd.DisallowUndefinedFlags || !strings.HasPrefix(errStr, errFlagUndefined) {
+			return nil, errors.WithStackTrace(err)
+		}
+
+		undefArg = strings.Trim(strings.TrimPrefix(errStr, errFlagUndefined), " -")
+
+		// cut off the args
+		var notFoundMatch bool
+		for i, arg := range args {
+			// `--var=input=from_env` trims to `var`
+			trimmed := strings.SplitN(strings.Trim(arg, "-"), "=", 2)[0]
+			if trimmed == undefArg {
+				undefArgs = append(undefArgs, arg)
+				notFoundMatch = true
+				args = args[i+1:]
+				break
+			}
+
+		}
+
+		// This should be an impossible to reach code path, but in case the arg
+		// splitting failed to happen, this will prevent infinite loops
+		if !notFoundMatch {
+			return nil, err
+		}
+	}
+
+	undefArgs = append(undefArgs, flagSet.Args()...)
 	return undefArgs, nil
 }

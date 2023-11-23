@@ -102,6 +102,16 @@ func wrapVoidToStringAsFuncImpl(
 	})
 }
 
+// Create a cty Function that takes no input parameters and returns as output an empty string.
+func wrapVoidToEmptyStringAsFuncImpl() function.Function {
+	return function.New(&function.Spec{
+		Type: function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			return cty.StringVal(""), nil
+		},
+	})
+}
+
 // Create a cty Function that takes no input parameters and returns as output a string slice. The implementation of the
 // function calls the given toWrap function, passing it the given include and terragruntOptions.
 func wrapVoidToStringSliceAsFuncImpl(
