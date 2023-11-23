@@ -41,10 +41,11 @@ inputs = {
   {{range .parsedRequiredInputs}}
   # Description: {{ .Description }}
   # Type: {{ .Type }}
-  {{.Name}} = null
+  {{.Name}} = null  # TODO: fill in value
   {{end}}
 
   # Optional input variables
+  # Uncomment the ones you wish to set
   {{range .parsedOptionalInputs}}
   # Description: {{ .Description }}
   # Type: {{ .Type }}
