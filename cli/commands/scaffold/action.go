@@ -77,12 +77,7 @@ func Run(opts *options.TerragruntOptions) error {
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
-	err = files.CopyFolderContents(tempDir, opts.WorkingDir)
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-
-	inputs, err := listInputs(opts, opts.WorkingDir)
+	inputs, err := listInputs(opts, tempDir)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -90,7 +85,7 @@ func Run(opts *options.TerragruntOptions) error {
 	// run boilerplate
 
 	// prepare boilerplate dir
-	boilerplateDir := util.JoinPath(opts.WorkingDir, util.DefaultBoilerplateDir)
+	boilerplateDir := util.JoinPath(tempDir, util.DefaultBoilerplateDir)
 	if !files.IsExistingDir(boilerplateDir) {
 		// no default boilerplate dir, create one
 		boilerplateDir, err = os.MkdirTemp("", "scaffold")
