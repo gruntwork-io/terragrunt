@@ -6114,7 +6114,7 @@ func TestTerragruntPrintAwsErrors(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigFile, rootPath), &stdout, &stderr)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "AllAccessDisabled: All access to this object has been disabled")
+	assert.Contains(t, err.Error(), "BucketRegionError: incorrect region")
 }
 
 func TestTerragruntErrorWhenStateBucketIsInDifferentRegion(t *testing.T) {
