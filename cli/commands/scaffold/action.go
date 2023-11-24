@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
@@ -174,6 +175,10 @@ func Run(opts *options.TerragruntOptions) error {
 			if value, found := vars["SourceGitSshUser"]; found {
 				gitUser = fmt.Sprintf("%s", value)
 			}
+			if strings.HasPrefix(path, "/") {
+				path = path[1:]
+			}
+
 			moduleUrl = fmt.Sprintf("%s@%s:%s", gitUser, host, path)
 		}
 	}
