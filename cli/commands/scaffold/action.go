@@ -3,8 +3,10 @@ package scaffold
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
@@ -27,11 +29,18 @@ import (
 )
 
 const (
+	SourceUrlTypeHttps = "https"
+	SourceUrlTypeGit   = "git"
+	SourceGitSshUser   = "git"
+
 	defaultBoilerplateConfig = `
 variables:
   - name: SourceUrlType
-    description: Source URL type
-    default: HTTPS
+    description: Source URL type, https, git
+    default: https
+  - name: SourceGitSshUser
+    description: Default git SSH user
+    default: git
   - name: Ref
     description: Reference version used in template
     default: ""
@@ -130,6 +139,29 @@ func Run(opts *options.TerragruntOptions) error {
 	vars["parsedRequiredInputs"] = parsedRequiredInputs
 	vars["parsedOptionalInputs"] = parsedOptionalInputs
 
+	// prepare source url
+
+	sourceUrlType := SourceUrlTypeHttps
+	if value, found := vars["SourceUrlType"]; found {
+		sourceUrlType = fmt.Sprintf("%s", value)
+	}
+
+	scheme, host, path := parseUrl(opts, moduleUrl)
+	// try to rewrite module url if is https and is requested to be git
+	if scheme != "" {
+		if scheme == SourceUrlTypeHttps && sourceUrlType == SourceUrlTypeGit {
+
+			gitUser := SourceGitSshUser
+			if value, found := vars["SourceGitSshUser"]; found {
+				gitUser = fmt.Sprintf("%s", value)
+			}
+			moduleUrl = fmt.Sprintf("%s@%s:%s", gitUser, host, path)
+		}
+	}
+
+	data, err := url.Parse(moduleUrl)
+	fmt.Printf("data: %v\n", data)
+
 	vars["sourceUrl"] = moduleUrl
 
 	opts.Logger.Infof("Running boilerplate in %s", opts.WorkingDir)
@@ -155,6 +187,24 @@ func Run(opts *options.TerragruntOptions) error {
 	}
 
 	return nil
+}
+
+func parseUrl(opts *options.TerragruntOptions, moduleUrl string) (string, string, string) {
+	pattern := `git::([^:]+)://([^/]+)(/.*)`
+
+	re := regexp.MustCompile(pattern)
+
+	matches := re.FindStringSubmatch(moduleUrl)
+	if len(matches) != 4 {
+		opts.Logger.Warnf("Failed to parse module url %s", moduleUrl)
+		return "", "", ""
+	}
+
+	scheme := matches[1]
+	host := matches[2]
+	path := matches[3]
+
+	return scheme, host, path
 }
 
 // ParsedInput structure with input name, default value and description.
