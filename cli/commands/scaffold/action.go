@@ -93,6 +93,19 @@ func Run(opts *options.TerragruntOptions) error {
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
+
+	templateDir := ""
+	if templateUrl != "" {
+		templateDir, err = os.MkdirTemp("", "templateDir")
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+		err = getter.GetAny(templateDir, templateUrl)
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+	}
+
 	inputs, err := listInputs(opts, tempDir)
 	if err != nil {
 		return errors.WithStackTrace(err)
@@ -102,6 +115,12 @@ func Run(opts *options.TerragruntOptions) error {
 
 	// prepare boilerplate dir
 	boilerplateDir := util.JoinPath(tempDir, util.DefaultBoilerplateDir)
+
+	// use template dir as boilerplate dir
+	if templateDir != "" {
+		boilerplateDir = templateDir
+	}
+
 	if !files.IsExistingDir(boilerplateDir) {
 		// no default boilerplate dir, create one
 		boilerplateDir, err = os.MkdirTemp("", "scaffold")
@@ -150,7 +169,7 @@ func Run(opts *options.TerragruntOptions) error {
 	// try to rewrite module url if is https and is requested to be git
 	if scheme != "" {
 		if scheme == SourceUrlTypeHttps && sourceUrlType == SourceUrlTypeGit {
-
+			// TODO: handle git -> https
 			gitUser := SourceGitSshUser
 			if value, found := vars["SourceGitSshUser"]; found {
 				gitUser = fmt.Sprintf("%s", value)
