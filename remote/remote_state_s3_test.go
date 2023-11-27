@@ -370,6 +370,22 @@ func TestGetTerraformInitArgs(t *testing.T) {
 			},
 			false,
 		},
+		{
+			"assume-role",
+			map[string]interface{}{
+				"bucket": "foo",
+				"assume_role": map[string]interface{}{
+					"role_arn":     "arn:aws:iam::123:role/role",
+					"external_id":  "123",
+					"session_name": "qwe",
+				},
+			},
+			map[string]interface{}{
+				"bucket":      "foo",
+				"assume_role": "{external_id=\"123\",role_arn=\"arn:aws:iam::123:role/role\",session_name=\"qwe\"}",
+			},
+			true,
+		},
 	}
 
 	for _, testCase := range testCases {
