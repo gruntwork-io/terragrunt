@@ -62,7 +62,7 @@ inputs = {
   {{range .parsedRequiredInputs}}
   # Description: {{ .Description }}
   # Type: {{ .Type }}
-  {{.Name}} = null  # TODO: fill in value
+  {{.Name}} = {{ .DefaultValuePlaceholder }}  # TODO: fill in value
   {{end}}
 
   # --------------------------------------------------------------------------------------------------------------------
@@ -259,8 +259,6 @@ func Run(opts *options.TerragruntOptions) error {
 	return nil
 }
 
-// token := os.Getenv("GITHUB_OAUTH_TOKEN")
-
 func getLatestReleaseTag(parsedURL *url.URL) (string, error) {
 	pathParts := strings.Split(parsedURL.Path, "/")
 	if len(pathParts) < 2 {
@@ -310,10 +308,11 @@ func parseUrl(opts *options.TerragruntOptions, moduleUrl string) (string, string
 
 // ParsedInput structure with input name, default value and description.
 type ParsedInput struct {
-	Name         string
-	Description  string
-	Type         string
-	DefaultValue string
+	Name                    string
+	Description             string
+	Type                    string
+	DefaultValue            string
+	DefaultValuePlaceholder string
 }
 
 func listInputs(opts *options.TerragruntOptions, directoryPath string) ([]*ParsedInput, error) {
@@ -395,10 +394,11 @@ func listInputs(opts *options.TerragruntOptions, directoryPath string) ([]*Parse
 						}
 
 						input := &ParsedInput{
-							Name:         name,
-							Type:         typeAttrText,
-							Description:  descriptionAttrText,
-							DefaultValue: defaultValueText,
+							Name:                    name,
+							Type:                    typeAttrText,
+							Description:             descriptionAttrText,
+							DefaultValue:            defaultValueText,
+							DefaultValuePlaceholder: generateDefaultValue(typeAttrText),
 						}
 
 						parsedInputs = append(parsedInputs, input)
@@ -410,6 +410,26 @@ func listInputs(opts *options.TerragruntOptions, directoryPath string) ([]*Parse
 	return parsedInputs, nil
 }
 
+// generate hcl default value
+func generateDefaultValue(typetxt string) string {
+
+	switch typetxt {
+	case "number":
+		return "0"
+	case "bool":
+		return "false"
+	case "list":
+		return "[]"
+	case "map":
+		return "{}"
+	case "object":
+		return "{}"
+	}
+
+	// fallback to empty value
+	return "\"\""
+}
+
 type CtyJsonValue struct {
 	Value interface{}
 	Type  interface{}
@@ -418,6 +438,12 @@ type CtyJsonValue struct {
 func readBlockAttribute(ctx *hcl.EvalContext, block *hclsyntax.Block, name string) (*cty.Value, error) {
 	if attr, ok := block.Body.Attributes[name]; ok {
 		if attr.Expr != nil {
+
+			if call, ok := attr.Expr.(*hclsyntax.FunctionCallExpr); ok {
+				result := cty.StringVal(call.Name)
+				return &result, nil
+			}
+
 			// check if first var is traversal
 			if len(attr.Expr.Variables()) > 0 {
 				v := attr.Expr.Variables()[0]
