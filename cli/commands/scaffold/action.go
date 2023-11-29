@@ -100,7 +100,18 @@ func Run(opts *options.TerragruntOptions) error {
 		return errors.WithStackTrace(err)
 	}
 
+	// prepare inputs
+	vars, err := variables.ParseVars(opts.ScaffoldVars, opts.ScaffoldVarFiles)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
 	params := parsedModuleUrl.Query()
+	refReplacement, refVarPassed := vars["Ref"]
+	if refVarPassed {
+		params.Set("ref", fmt.Sprintf("%s", refReplacement))
+		parsedModuleUrl.RawQuery = params.Encode()
+	}
 	ref := params.Get("ref")
 	if ref == "" {
 		rootSourceUrl, _, err := terraform.SplitSourceUrl(parsedModuleUrl, opts.Logger)
@@ -185,12 +196,6 @@ func Run(opts *options.TerragruntOptions) error {
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
-	}
-
-	// prepare inputs
-	vars, err := variables.ParseVars(opts.ScaffoldVars, opts.ScaffoldVarFiles)
-	if err != nil {
-		return errors.WithStackTrace(err)
 	}
 
 	// separate inputs that require value and with default value
