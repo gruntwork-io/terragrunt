@@ -95,15 +95,15 @@ func Run(opts *options.TerragruntOptions) error {
 		return errors.WithStackTrace(err)
 	}
 
-	sourceUrl, err := terraform.ToSourceUrl(moduleUrl, tempDir)
+	parsedModuleUrl, err := terraform.ToSourceUrl(moduleUrl, tempDir)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	params := sourceUrl.Query()
+	params := parsedModuleUrl.Query()
 	ref := params.Get("ref")
 	if ref == "" {
-		rootSourceUrl, _, err := terraform.SplitSourceUrl(sourceUrl, opts.Logger)
+		rootSourceUrl, _, err := terraform.SplitSourceUrl(parsedModuleUrl, opts.Logger)
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
@@ -111,13 +111,14 @@ func Run(opts *options.TerragruntOptions) error {
 		tag, err := getLatestReleaseTag(rootSourceUrl)
 		if err == nil {
 			params.Add("ref", tag)
-			sourceUrl.RawQuery = params.Encode()
+			parsedModuleUrl.RawQuery = params.Encode()
 		}
 	}
 
-	opts.Logger.Infof("Scaffolding a new Terragrunt module %s %s to %s", sourceUrl.String(), templateUrl, opts.WorkingDir)
+	moduleUrl = parsedModuleUrl.String()
+	opts.Logger.Infof("Scaffolding a new Terragrunt module %s %s to %s", parsedModuleUrl.String(), templateUrl, opts.WorkingDir)
 
-	if err := getter.GetAny(tempDir, sourceUrl.String()); err != nil {
+	if err := getter.GetAny(tempDir, parsedModuleUrl.String()); err != nil {
 		return errors.WithStackTrace(err)
 	}
 	if err != nil {
@@ -126,11 +127,13 @@ func Run(opts *options.TerragruntOptions) error {
 
 	templateDir := ""
 	if templateUrl != "" {
+		parsedTemplateUrl, err := terraform.ToSourceUrl(templateUrl, tempDir)
+
 		templateDir, err = os.MkdirTemp("", "templateDir")
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
-		err = getter.GetAny(templateDir, templateUrl)
+		err = getter.GetAny(templateDir, parsedTemplateUrl.String())
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
