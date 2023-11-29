@@ -51,7 +51,7 @@ func TestSplitSourceUrl(t *testing.T) {
 			terragruntOptions, err := options.NewTerragruntOptionsForTest("testing")
 			require.NoError(t, err)
 
-			actualRootRepo, actualModulePath, err := splitSourceUrl(sourceUrl, terragruntOptions.Logger)
+			actualRootRepo, actualModulePath, err := SplitSourceUrl(sourceUrl, terragruntOptions.Logger)
 			require.NoError(t, err)
 
 			assert.Equal(t, testCase.expectedRootRepo, actualRootRepo.String())
@@ -71,7 +71,7 @@ func TestRegressionSupportForGitRemoteCodecommit(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "git::codecommit::ap-northeast-1", sourceURL.Scheme)
 
-	actualRootRepo, actualModulePath, err := splitSourceUrl(sourceURL, terragruntOptions.Logger)
+	actualRootRepo, actualModulePath, err := SplitSourceUrl(sourceURL, terragruntOptions.Logger)
 	require.NoError(t, err)
 
 	require.Equal(t, "git::codecommit::ap-northeast-1://my_app_modules", actualRootRepo.String())
