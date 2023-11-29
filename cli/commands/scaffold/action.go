@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/terraform"
+
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/hashicorp/hcl/v2"
@@ -88,9 +90,16 @@ func Run(opts *options.TerragruntOptions) error {
 		return errors.WithStackTrace(err)
 	}
 
+	u, err := terraform.ToSourceUrl(moduleUrl, tempDir)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
 	opts.Logger.Infof("Scaffolding a new Terragrunt module %s %s to %s", moduleUrl, templateUrl, opts.WorkingDir)
 
-	err = getter.GetAny(tempDir, moduleUrl)
+	if err := getter.GetAny(tempDir, u.String()); err != nil {
+		return errors.WithStackTrace(err)
+	}
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
