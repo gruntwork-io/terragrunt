@@ -36,8 +36,8 @@ import (
 )
 
 const (
-	SourceUrlTypeHttps = "https"
-	SourceUrlTypeGit   = "git"
+	SourceUrlTypeHttps = "git-https"
+	SourceUrlTypeGit   = "git-ssh"
 	SourceGitSshUser   = "git"
 
 	defaultBoilerplateConfig = `
