@@ -129,10 +129,27 @@ func Run(opts *options.TerragruntOptions) error {
 	if templateUrl != "" {
 		parsedTemplateUrl, err := terraform.ToSourceUrl(templateUrl, tempDir)
 
+		params := parsedTemplateUrl.Query()
+		ref := params.Get("ref")
+		if ref == "" {
+			rootSourceUrl, _, err := terraform.SplitSourceUrl(parsedTemplateUrl, opts.Logger)
+			if err != nil {
+				return errors.WithStackTrace(err)
+			}
+
+			tag, err := getLatestReleaseTag(rootSourceUrl)
+			if err == nil {
+				params.Add("ref", tag)
+				parsedTemplateUrl.RawQuery = params.Encode()
+			}
+		}
+
 		templateDir, err = os.MkdirTemp("", "templateDir")
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
+		opts.Logger.Infof("Using template from %s as boilerplate", parsedTemplateUrl.String())
+
 		err = getter.GetAny(templateDir, parsedTemplateUrl.String())
 		if err != nil {
 			return errors.WithStackTrace(err)
@@ -201,7 +218,7 @@ func Run(opts *options.TerragruntOptions) error {
 	scheme, host, path := parseUrl(opts, moduleUrl)
 	// try to rewrite module url if is https and is requested to be git
 	if scheme != "" {
-		if scheme == SourceUrlTypeHttps && sourceUrlType == SourceUrlTypeGit {
+		if scheme == "https" && sourceUrlType == SourceUrlTypeGit {
 			// TODO: handle git -> https
 			gitUser := SourceGitSshUser
 			if value, found := vars["SourceGitSshUser"]; found {
@@ -214,9 +231,6 @@ func Run(opts *options.TerragruntOptions) error {
 			moduleUrl = fmt.Sprintf("%s@%s:%s", gitUser, host, path)
 		}
 	}
-
-	data, err := url.Parse(moduleUrl)
-	fmt.Printf("data: %v\n", data)
 
 	vars["sourceUrl"] = moduleUrl
 
