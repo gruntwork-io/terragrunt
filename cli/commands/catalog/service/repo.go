@@ -32,6 +32,7 @@ var (
 	adocImageReg = regexp.MustCompile(`image:[^\]]+]`)
 )
 
+// getRepo returns the absolute path to the repository if the given `repoPath` is a filesystem path, otherwise clones the repository to a temporary directory and returns the path.
 func getRepo(ctx context.Context, repoPath, tempDir string) (string, error) {
 	if repoPath == "" {
 		currentDir, err := os.Getwd()
@@ -70,7 +71,8 @@ func getRepo(ctx context.Context, repoPath, tempDir string) (string, error) {
 	return tempDir, nil
 }
 
-func remoteURL(repoPath string) (string, error) {
+// gitRemoteURL reads git config and returns remote origin URL.
+func gitRemoteURL(repoPath string) (string, error) {
 	gitConfigPath := filepath.Join(repoPath, ".git", "config")
 
 	if !files.FileExists(gitConfigPath) {
@@ -87,9 +89,10 @@ func remoteURL(repoPath string) (string, error) {
 		return "", errors.Errorf(`the specified git repository does not contain the remote "origin" URL`)
 	}
 
-	return filepath.Base(remoteURL), nil
+	return remoteURL, nil
 }
 
+// moduleDocPath returns the path to the module document (README.*), otherwise an empty string if the given `modulePath` does not contain a terraform module
 func moduleDocPath(modulePath string) string {
 	if !files.FileExists(filepath.Join(modulePath, "main.tf")) || !files.FileExists(filepath.Join(modulePath, "variables.tf")) {
 		return ""
@@ -105,6 +108,7 @@ func moduleDocPath(modulePath string) string {
 	return ""
 }
 
+// module returns a module instance if the given path `repoPath/moduleDir` contains a terraform module.
 func module(repoName, repoPath, moduleDir string) (*Module, error) {
 	var (
 		modulePath = filepath.Join(repoPath, moduleDir)
@@ -167,6 +171,7 @@ func module(repoName, repoPath, moduleDir string) (*Module, error) {
 
 }
 
+// FindModules clones the repository if `repoPath` is a URL, searches for terraform modules, indexes their README.* files, and returns module instances.
 func FindModules(ctx context.Context, repoPath string) (Modules, error) {
 	var repoName string
 
@@ -181,7 +186,7 @@ func FindModules(ctx context.Context, repoPath string) (Modules, error) {
 		return nil, err
 	}
 
-	remoteURL, err := remoteURL(repoPath)
+	remoteURL, err := gitRemoteURL(repoPath)
 	if err != nil {
 		return nil, err
 	}
