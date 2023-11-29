@@ -145,7 +145,7 @@ func NewSource(source string, downloadDir string, workingDir string, logger *log
 		return nil, err
 	}
 
-	canonicalSourceUrl, err := toSourceUrl(source, canonicalWorkingDir)
+	canonicalSourceUrl, err := ToSourceUrl(source, canonicalWorkingDir)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +187,7 @@ func NewSource(source string, downloadDir string, workingDir string, logger *log
 
 // Convert the given source into a URL struct. This method should be able to handle all source URLs that the terraform
 // init command can handle, parsing local file paths, Git paths, and HTTP URLs correctly.
-func toSourceUrl(source string, workingDir string) (*url.URL, error) {
+func ToSourceUrl(source string, workingDir string) (*url.URL, error) {
 	// The go-getter library is what Terraform's init command uses to download source URLs. Use that library to
 	// parse the URL.
 	rawSourceUrlWithGetter, err := getter.Detect(source, workingDir, getter.Detectors)
