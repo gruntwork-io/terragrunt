@@ -73,7 +73,7 @@ func NewModel(module *service.Module, width, height int, previousModel tea.Model
 					quitFn(err)
 					return nil
 				}
-				return tea.Exec(command.NewScaffold(module.Dir()), quitFn)
+				return tea.Exec(command.NewScaffold(module.Path()), quitFn)
 			}),
 			NewButton(ButtonViewInBrowserName, func(msg tea.Msg) tea.Cmd {
 				if err := browser.OpenURL(module.URL()); err != nil {

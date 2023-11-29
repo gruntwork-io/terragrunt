@@ -6,17 +6,17 @@ import (
 )
 
 type Scaffold struct {
-	moduelDir string
+	moduleDir string
 }
 
-func NewScaffold(moduelDir string) *Scaffold {
+func NewScaffold(moduleDir string) *Scaffold {
 	return &Scaffold{
-		moduelDir: moduelDir,
+		moduleDir: moduleDir,
 	}
 }
 
 func (cmd *Scaffold) Run() error {
-	fmt.Println("run Scaffold")
+	fmt.Println("run Scaffold", cmd.moduleDir)
 	return nil
 }
 
