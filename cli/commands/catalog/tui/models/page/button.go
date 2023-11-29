@@ -39,6 +39,10 @@ func NewButton(name string, action ButtonActionFunc) *Button {
 	}
 }
 
+func (btn *Button) Action(msg tea.Msg) tea.Cmd {
+	return btn.action(msg)
+}
+
 type Buttons []*Button
 
 func NewButtons(btns ...*Button) Buttons {
@@ -64,6 +68,15 @@ func (btns Buttons) Focus(index ...int) Buttons {
 func (btns Buttons) Get(index ...int) *Button {
 	for i, btn := range btns {
 		if collections.ListContainsElement(index, i+1) {
+			return btn
+		}
+	}
+	return nil
+}
+
+func (btns Buttons) GetByName(name string) *Button {
+	for _, btn := range btns {
+		if btn.name == name {
 			return btn
 		}
 	}

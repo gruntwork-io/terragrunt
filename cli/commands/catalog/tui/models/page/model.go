@@ -12,14 +12,16 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
+	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service"
+	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/command"
+	"github.com/pkg/browser"
 )
 
 const (
 	defaultFocusIndex = 1
 
-	buttonScaffoldName      = "Scaffold"
-	buttonViewInBrowserName = "View in Browser"
+	ButtonScaffoldName      = "Scaffold"
+	ButtonViewInBrowserName = "View in Browser"
 )
 
 var (
@@ -27,22 +29,67 @@ var (
 	infoLineStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#1D252"))
 )
 
-type model struct {
+type Model struct {
+	Buttons Buttons
+
 	viewport      *viewport.Model
 	previousModel tea.Model
 
 	height int
 
 	keys       KeyMap
-	buttons    Buttons
 	focusIndex int
 }
 
-func (model model) Init() tea.Cmd {
+func NewModel(module *service.Module, width, height int, previousModel tea.Model, quitFn func(error)) (*Model, error) {
+	renderer, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(width),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	content, err := renderer.Render(module.Content())
+	if err != nil {
+		return nil, err
+	}
+
+	keys := newKeyMap()
+
+	viewport := viewport.New(width, height)
+	viewport.SetContent(string(content))
+	viewport.KeyMap = keys.KeyMap
+
+	return &Model{
+		viewport:      &viewport,
+		height:        height,
+		keys:          keys,
+		previousModel: previousModel,
+		focusIndex:    defaultFocusIndex,
+		Buttons: NewButtons(
+			NewButton(ButtonScaffoldName, func(msg tea.Msg) tea.Cmd {
+				quitFn := func(err error) tea.Msg {
+					quitFn(err)
+					return nil
+				}
+				return tea.Exec(command.NewScaffold(module.Dir()), quitFn)
+			}),
+			NewButton(ButtonViewInBrowserName, func(msg tea.Msg) tea.Cmd {
+				if err := browser.OpenURL(module.URL()); err != nil {
+					quitFn(err)
+				}
+				return nil
+			}),
+		).Focus(defaultFocusIndex),
+	}, nil
+}
+
+func (Model Model) Init() tea.Cmd {
 	return nil
 }
 
-func (model model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
 		cmd  tea.Cmd
 		cmds []tea.Cmd
@@ -57,7 +104,7 @@ func (model model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, model.keys.Navigation):
 			model.focusIndex++
 
-			maxIndex := model.buttons.Len()
+			maxIndex := model.Buttons.Len()
 
 			if model.focusIndex > maxIndex {
 				model.focusIndex = 1
@@ -65,14 +112,20 @@ func (model model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				model.focusIndex = maxIndex
 			}
 
-			model.buttons.Focus(model.focusIndex)
+			model.Buttons.Focus(model.focusIndex)
 
 			return model, tea.Batch(cmds...)
 
 		case key.Matches(msg, model.keys.Choose):
-			if btn := model.buttons.Get(model.focusIndex); btn != nil {
+			if btn := model.Buttons.Get(model.focusIndex); btn != nil {
 				cmd := btn.action(msg)
-				cmds = append(cmds, cmd)
+				return model, cmd
+			}
+
+		case key.Matches(msg, model.keys.Scaffold):
+			if btn := model.Buttons.GetByName(ButtonScaffoldName); btn != nil {
+				cmd := btn.action(msg)
+				return model, cmd
 			}
 
 		case key.Matches(msg, model.keys.Quit):
@@ -96,23 +149,23 @@ func (model model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return model, tea.Batch(cmds...)
 }
 
-func (model model) View() string {
-	footer := model.footerView()
-	footerHeight := lipgloss.Height(model.footerView())
-	model.viewport.Height = model.height - footerHeight
+func (Model Model) View() string {
+	footer := Model.footerView()
+	footerHeight := lipgloss.Height(Model.footerView())
+	Model.viewport.Height = Model.height - footerHeight
 
-	return lipgloss.JoinVertical(lipgloss.Left, model.viewport.View(), footer)
+	return lipgloss.JoinVertical(lipgloss.Left, Model.viewport.View(), footer)
 }
 
-func (model model) footerView() string {
-	info := infoPositionStyle.Render(fmt.Sprintf("%2.f%%", model.viewport.ScrollPercent()*100))
+func (Model Model) footerView() string {
+	info := infoPositionStyle.Render(fmt.Sprintf("%2.f%%", Model.viewport.ScrollPercent()*100))
 
-	line := strings.Repeat("─", max(0, model.viewport.Width-lipgloss.Width(info)))
+	line := strings.Repeat("─", max(0, Model.viewport.Width-lipgloss.Width(info)))
 	line = infoLineStyle.Render(line)
 
 	info = lipgloss.JoinHorizontal(lipgloss.Center, line, info)
 
-	return lipgloss.JoinVertical(lipgloss.Left, info, model.buttons.View(), model.keys.View())
+	return lipgloss.JoinVertical(lipgloss.Left, info, Model.Buttons.View(), Model.keys.View())
 }
 
 func max(a, b int) int {
@@ -120,43 +173,4 @@ func max(a, b int) int {
 		return a
 	}
 	return b
-}
-
-func NewModel(module *module.Item, width, height int, previousModel tea.Model) (*model, error) {
-	renderer, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(width),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	content, err := renderer.Render(module.Readme())
-	if err != nil {
-		return nil, err
-	}
-
-	keys := newKeyMap()
-
-	viewport := viewport.New(width, height)
-	viewport.SetContent(string(content))
-	viewport.KeyMap = keys.KeyMap
-
-	return &model{
-		viewport:      &viewport,
-		height:        height,
-		keys:          keys,
-		previousModel: previousModel,
-		focusIndex:    defaultFocusIndex,
-		buttons: NewButtons(
-			NewButton(buttonScaffoldName, func(msg tea.Msg) tea.Cmd {
-				return tea.Exec(module.ScaffoldCommand(), nil)
-			}),
-
-			NewButton(buttonViewInBrowserName, func(msg tea.Msg) tea.Cmd {
-				module.ViewInBrowser()
-				return nil
-			}),
-		).Focus(defaultFocusIndex),
-	}, nil
 }

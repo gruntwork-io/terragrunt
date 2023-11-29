@@ -20,6 +20,8 @@ type KeyMap struct {
 
 	Choose key.Binding
 
+	Scaffold key.Binding
+
 	// Help toggle keybindings.
 	Help key.Binding
 
@@ -33,7 +35,7 @@ type KeyMap struct {
 // ShortHelp returns keybindings to be shown in the mini help view. It's part
 // of the key.Map interface.
 func (keys KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{keys.Up, keys.Down, keys.Navigation, keys.Choose, keys.Help, keys.Quit}
+	return []key.Binding{keys.Up, keys.Down, keys.Navigation, keys.Choose, keys.Scaffold, keys.Help, keys.Quit}
 }
 
 // FullHelp returns keybindings for the expanded help view. It's part of the
@@ -41,8 +43,8 @@ func (keys KeyMap) ShortHelp() []key.Binding {
 func (keys KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{keys.Up, keys.Down, keys.PageDown, keys.PageUp}, // first column
-		{keys.Navigation, keys.Choose},                   // first column
-		{keys.Help, keys.Quit, keys.ForceQuit},           // second column
+		{keys.Navigation, keys.Choose, keys.Scaffold},    // second column
+		{keys.Help, keys.Quit, keys.ForceQuit},           // third column
 	}
 }
 
@@ -98,6 +100,10 @@ func newKeyMap() KeyMap {
 		Choose: key.NewBinding(
 			key.WithKeys("enter", "ctrl-j"),
 			key.WithHelp("enter/ctrl-j", "choose"),
+		),
+		Scaffold: key.NewBinding(
+			key.WithKeys("S", "s"),
+			key.WithHelp("S", "Scaffold"),
 		),
 		Help: key.NewBinding(
 			key.WithKeys("?"),

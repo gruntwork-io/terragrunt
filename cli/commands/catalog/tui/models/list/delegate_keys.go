@@ -5,7 +5,8 @@ import "github.com/charmbracelet/bubbles/key"
 // DelegateKeyMap defines keybindings. It satisfies to the help.DelegateKeyMap interface, which
 // is used to render the menu.
 type DelegateKeyMap struct {
-	Choose key.Binding
+	Choose   key.Binding
+	Scaffold key.Binding
 }
 
 // NewDelegateKeyMap returns a set of keybindings.
@@ -15,6 +16,10 @@ func NewDelegateKeyMap() *DelegateKeyMap {
 			key.WithKeys("enter", "ctrl-j"),
 			key.WithHelp("enter/ctrl-j", "choose"),
 		),
+		Scaffold: key.NewBinding(
+			key.WithKeys("S", "s"),
+			key.WithHelp("S", "Scaffold"),
+		),
 	}
 }
 
@@ -22,7 +27,7 @@ func NewDelegateKeyMap() *DelegateKeyMap {
 // is entirely optional.
 func (d DelegateKeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
-		d.Choose,
+		d.Choose, d.Scaffold,
 	}
 }
 
@@ -31,7 +36,7 @@ func (d DelegateKeyMap) ShortHelp() []key.Binding {
 func (d DelegateKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{
-			d.Choose,
+			d.Choose, d.Scaffold,
 		},
 	}
 }

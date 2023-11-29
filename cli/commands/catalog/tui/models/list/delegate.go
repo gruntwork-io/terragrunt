@@ -1,9 +1,7 @@
 package list
 
 import (
-	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -40,29 +38,4 @@ func NewDelegate() *Delegate {
 		DefaultDelegate: DefaultDelegate{defaultDelegate},
 		DelegateKeyMap:  NewDelegateKeyMap(),
 	}
-}
-
-// Update checks whether the delegate's UpdateFunc is set and calls it.
-func (delegate Delegate) Update(msg tea.Msg, m *list.Model) tea.Cmd {
-	var title string
-
-	if i, ok := m.SelectedItem().(list.DefaultItem); ok {
-		title = i.Title()
-	} else {
-		return nil
-	}
-
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch {
-		case key.Matches(msg, delegate.Choose):
-			statusMessage := lipgloss.NewStyle().
-				Foreground(lipgloss.AdaptiveColor{Dark: statusMessageForegroundColorDark}).
-				Render("You chose " + title)
-
-			return m.NewStatusMessage(statusMessage)
-		}
-	}
-
-	return nil
 }

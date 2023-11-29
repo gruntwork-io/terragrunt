@@ -1,14 +1,11 @@
 package list
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
+	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/models/page"
 )
 
@@ -22,9 +19,10 @@ const (
 type Model struct {
 	*list.Model
 	delegate *Delegate
+	quitFn   func(error)
 }
 
-func NewModel(modules module.Items) *Model {
+func NewModel(modules service.Modules, quitFn func(error)) *Model {
 	var items []list.Item
 	for _, module := range modules {
 		items = append(items, module)
@@ -44,6 +42,7 @@ func NewModel(modules module.Items) *Model {
 	return &Model{
 		Model:    &model,
 		delegate: delegate,
+		quitFn:   quitFn,
 	}
 }
 
@@ -66,18 +65,24 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		switch {
-		case key.Matches(msg, model.delegate.Choose):
-			if module, ok := model.SelectedItem().(*module.Item); ok {
-				model, err := page.NewModel(module, model.Width(), model.Height(), model)
+		case key.Matches(msg, model.delegate.Choose, model.delegate.Scaffold):
+			if module, ok := model.SelectedItem().(*service.Module); ok {
+				pageModel, err := page.NewModel(module, model.Width(), model.Height(), model, model.quitFn)
 				if err != nil {
-					fmt.Println("Could not initialize Bubble Tea model:", err)
-					os.Exit(1)
+					model.quitFn(err)
 				}
 
-				return model, nil
+				switch {
+				case key.Matches(msg, model.delegate.Scaffold):
+					if btn := pageModel.Buttons.GetByName(page.ButtonScaffoldName); btn != nil {
+						cmd := btn.Action(msg)
+						return model, cmd
+					}
+				}
+
+				return pageModel, nil
 			}
 		}
-
 	}
 
 	newModel, cmd := model.Model.Update(msg)
