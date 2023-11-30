@@ -10,20 +10,20 @@ import (
 )
 
 func Run(ctx *cli.Context, opts *options.TerragruntOptions) error {
-	var rootPath string
+	var repoPath string
 
 	if val := ctx.Args().Get(0); val != "" {
-		rootPath = val
+		repoPath = val
 	}
 
 	log.SetLogger(opts.Logger.Logger)
 
-	modules, err := module.FindModules(ctx, rootPath)
+	modules, err := module.FindModules(ctx, repoPath)
 	if err != nil {
 		return err
 	}
 	if len(modules) == 0 {
-		return errors.Errorf("specified repository does not contain modules")
+		return errors.Errorf("specified repository %q does not contain modules", repoPath)
 	}
 
 	return tui.Run(ctx.Context, modules)
