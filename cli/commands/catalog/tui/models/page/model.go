@@ -12,7 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service"
+	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/command"
 	"github.com/pkg/browser"
 )
@@ -20,8 +20,8 @@ import (
 const (
 	defaultFocusIndex = 1
 
-	ButtonScaffoldName      = "Scaffold"
-	ButtonViewInBrowserName = "View in Browser"
+	ScaffoldButtonName      = "Scaffold"
+	ViewInBrowserButtonName = "View in Browser"
 )
 
 var (
@@ -41,7 +41,7 @@ type Model struct {
 	focusIndex int
 }
 
-func NewModel(module *service.Module, width, height int, previousModel tea.Model, quitFn func(error)) (*Model, error) {
+func NewModel(module *module.Module, width, height int, previousModel tea.Model, quitFn func(error)) (*Model, error) {
 	renderer, err := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
 		glamour.WithWordWrap(width),
@@ -68,14 +68,14 @@ func NewModel(module *service.Module, width, height int, previousModel tea.Model
 		previousModel: previousModel,
 		focusIndex:    defaultFocusIndex,
 		Buttons: NewButtons(
-			NewButton(ButtonScaffoldName, func(msg tea.Msg) tea.Cmd {
+			NewButton(ScaffoldButtonName, func(msg tea.Msg) tea.Cmd {
 				quitFn := func(err error) tea.Msg {
 					quitFn(err)
 					return nil
 				}
 				return tea.Exec(command.NewScaffold(module.Path()), quitFn)
 			}),
-			NewButton(ButtonViewInBrowserName, func(msg tea.Msg) tea.Cmd {
+			NewButton(ViewInBrowserButtonName, func(msg tea.Msg) tea.Cmd {
 				if err := browser.OpenURL(module.URL()); err != nil {
 					quitFn(err)
 				}
@@ -85,7 +85,7 @@ func NewModel(module *service.Module, width, height int, previousModel tea.Model
 	}, nil
 }
 
-func (Model Model) Init() tea.Cmd {
+func (model Model) Init() tea.Cmd {
 	return nil
 }
 
@@ -123,7 +123,7 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case key.Matches(msg, model.keys.Scaffold):
-			if btn := model.Buttons.GetByName(ButtonScaffoldName); btn != nil {
+			if btn := model.Buttons.GetByName(ScaffoldButtonName); btn != nil {
 				cmd := btn.action(msg)
 				return model, cmd
 			}
@@ -149,28 +149,21 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return model, tea.Batch(cmds...)
 }
 
-func (Model Model) View() string {
-	footer := Model.footerView()
-	footerHeight := lipgloss.Height(Model.footerView())
-	Model.viewport.Height = Model.height - footerHeight
+func (model Model) View() string {
+	footer := model.footerView()
+	footerHeight := lipgloss.Height(model.footerView())
+	model.viewport.Height = model.height - footerHeight
 
-	return lipgloss.JoinVertical(lipgloss.Left, Model.viewport.View(), footer)
+	return lipgloss.JoinVertical(lipgloss.Left, model.viewport.View(), footer)
 }
 
-func (Model Model) footerView() string {
-	info := infoPositionStyle.Render(fmt.Sprintf("%2.f%%", Model.viewport.ScrollPercent()*100))
+func (model Model) footerView() string {
+	info := infoPositionStyle.Render(fmt.Sprintf("%2.f%%", model.viewport.ScrollPercent()*100))
 
-	line := strings.Repeat("─", max(0, Model.viewport.Width-lipgloss.Width(info)))
+	line := strings.Repeat("─", max(0, model.viewport.Width-lipgloss.Width(info)))
 	line = infoLineStyle.Render(line)
 
 	info = lipgloss.JoinHorizontal(lipgloss.Center, line, info)
 
-	return lipgloss.JoinVertical(lipgloss.Left, info, Model.Buttons.View(), Model.keys.View())
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
+	return lipgloss.JoinVertical(lipgloss.Left, info, model.Buttons.View(), model.keys.View())
 }

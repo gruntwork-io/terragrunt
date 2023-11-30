@@ -1,10 +1,11 @@
 package catalog
 
 import (
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service"
+	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/pkg/errors"
 )
 
@@ -15,7 +16,9 @@ func Run(ctx *cli.Context, opts *options.TerragruntOptions) error {
 		rootPath = val
 	}
 
-	modules, err := service.FindModules(ctx, rootPath)
+	log.SetLogger(opts.Logger.Logger)
+
+	modules, err := module.FindModules(ctx, rootPath)
 	if err != nil {
 		return err
 	}

@@ -16,10 +16,13 @@ type KeyMap struct {
 	viewport.KeyMap
 	help help.Model
 
+	// Button navigation
 	Navigation key.Binding
 
+	// Select button
 	Choose key.Binding
 
+	// Run Scaffold command
 	Scaffold key.Binding
 
 	// Help toggle keybindings.

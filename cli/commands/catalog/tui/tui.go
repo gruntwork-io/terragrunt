@@ -4,11 +4,11 @@ import (
 	"context"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service"
+	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/models/list"
 )
 
-func Run(ctx context.Context, modules service.Modules) error {
+func Run(ctx context.Context, modules module.Modules) error {
 	ctx, cancel := context.WithCancelCause(ctx)
 	quitFn := func(err error) {
 		go cancel(err)

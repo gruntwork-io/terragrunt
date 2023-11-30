@@ -1,4 +1,4 @@
-package service
+package module
 
 type Modules []*Module
 

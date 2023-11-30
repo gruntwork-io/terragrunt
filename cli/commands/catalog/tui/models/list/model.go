@@ -5,7 +5,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service"
+	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/models/page"
 )
 
@@ -22,7 +22,7 @@ type Model struct {
 	quitFn   func(error)
 }
 
-func NewModel(modules service.Modules, quitFn func(error)) *Model {
+func NewModel(modules module.Modules, quitFn func(error)) *Model {
 	var items []list.Item
 	for _, module := range modules {
 		items = append(items, module)
@@ -66,7 +66,7 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		switch {
 		case key.Matches(msg, model.delegate.Choose, model.delegate.Scaffold):
-			if module, ok := model.SelectedItem().(*service.Module); ok {
+			if module, ok := model.SelectedItem().(*module.Module); ok {
 				pageModel, err := page.NewModel(module, model.Width(), model.Height(), model, model.quitFn)
 				if err != nil {
 					model.quitFn(err)
@@ -74,7 +74,7 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				switch {
 				case key.Matches(msg, model.delegate.Scaffold):
-					if btn := pageModel.Buttons.GetByName(page.ButtonScaffoldName); btn != nil {
+					if btn := pageModel.Buttons.GetByName(page.ScaffoldButtonName); btn != nil {
 						cmd := btn.Action(msg)
 						return model, cmd
 					}

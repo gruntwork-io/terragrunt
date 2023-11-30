@@ -1,8 +1,9 @@
 package command
 
 import (
-	"fmt"
 	"io"
+
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 type Scaffold struct {
@@ -16,7 +17,7 @@ func NewScaffold(moduleDir string) *Scaffold {
 }
 
 func (cmd *Scaffold) Run() error {
-	fmt.Println("run Scaffold", cmd.moduleDir)
+	log.Infof("Run Scaffold for the module: %q", cmd.moduleDir)
 	return nil
 }
 

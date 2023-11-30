@@ -63,10 +63,12 @@ require (
 	github.com/gruntwork-io/go-commons v0.17.1
 	github.com/gruntwork-io/gruntwork-cli v0.7.0
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
+	github.com/pkg/errors v0.9.1
 	github.com/posener/complete v1.2.3
 	github.com/urfave/cli/v2 v2.25.5
 	golang.org/x/term v0.13.0
 	golang.org/x/text v0.13.0
+	gopkg.in/ini.v1 v1.67.0
 )
 
 require (
@@ -160,7 +162,6 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/owenrumney/go-sarif v1.1.1 // indirect
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
@@ -189,7 +190,6 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231016165738-49dd2c1f3d0b // indirect
 	google.golang.org/grpc v1.59.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
-	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 	gopkg.in/urfave/cli.v1 v1.20.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

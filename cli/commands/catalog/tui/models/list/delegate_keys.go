@@ -5,7 +5,10 @@ import "github.com/charmbracelet/bubbles/key"
 // DelegateKeyMap defines keybindings. It satisfies to the help.DelegateKeyMap interface, which
 // is used to render the menu.
 type DelegateKeyMap struct {
-	Choose   key.Binding
+	// Select module
+	Choose key.Binding
+
+	// Run Scaffold command
 	Scaffold key.Binding
 }
 

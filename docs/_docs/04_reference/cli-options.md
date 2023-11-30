@@ -37,6 +37,7 @@ Terragrunt supports the following CLI commands:
   - [aws-provider-patch](#aws-provider-patch)
   - [render-json](#render-json)
   - [output-module-groups](#output-module-groups)
+  - [catalog](#catalog)
 
 ### All Terraform built-in commands
 
@@ -513,6 +514,20 @@ This may produce output such as:
   ]
 }
 ```
+
+### catalog
+
+Launch the user interface for searching and manipulating Terragrunt modules.
+
+Example:
+
+```bash
+terragrunt catalog <repo-path>
+```
+
+If `<repo-path>` is not specified, the modules are searched in the current directory. If a URL is provided, the repository will be copied to a temporary directory and deleted upon complete.
+
+This will recursively search Terragrunt modules in the `modules` directory and build the list of modules.
 
 ## CLI options
 
