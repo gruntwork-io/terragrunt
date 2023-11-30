@@ -178,16 +178,6 @@ func decodeAndRetrieveOutputs(
 		return nil, err
 	}
 
-	// Skip disabled dependencies
-	updatedDependencies := terragruntDependency{}
-	for _, dep := range decodedDependency.Dependencies {
-		if !dep.isEnabled() {
-			continue
-		}
-		updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
-	}
-	decodedDependency = updatedDependencies
-
 	// Merge in included dependencies
 	if trackInclude != nil {
 		mergedDecodedDependency, err := handleIncludeForDependency(decodedDependency, trackInclude, terragruntOptions)
@@ -228,6 +218,9 @@ func checkForDependencyBlockCycles(filename string, decodedDependency terragrunt
 	visitedPaths := []string{}
 	currentTraversalPaths := []string{filename}
 	for _, dependency := range decodedDependency.Dependencies {
+		if !dependency.isEnabled() {
+			continue
+		}
 		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath, filename)
 		dependencyOptions := cloneTerragruntOptionsForDependency(terragruntOptions, dependencyPath)
 		if err := checkForDependencyBlockCyclesUsingDFS(dependencyPath, &visitedPaths, &currentTraversalPaths, dependencyOptions); err != nil {
@@ -306,9 +299,6 @@ func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOption
 	dependencyErrGroup, _ := errgroup.WithContext(context.Background())
 
 	for _, dependencyConfig := range dependencyConfigs {
-		if !dependencyConfig.isEnabled() {
-			continue
-		}
 		dependencyConfig := dependencyConfig // https://golang.org/doc/faq#closures_and_goroutines
 		dependencyErrGroup.Go(func() error {
 			// Loose struct to hold the attributes of the dependency. This includes:
@@ -360,9 +350,6 @@ func dependencyBlocksToCtyValue(dependencyConfigs []Dependency, terragruntOption
 //     If the dependency block indicates a mock_outputs_merge_strategy_with_state attribute, mock_outputs and state outputs will be merged following the merge strategy
 //   - If the dependency block does NOT indicate a mock_outputs attribute, this will return an error.
 func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependency, terragruntOptions *options.TerragruntOptions) (*cty.Value, error) {
-	if !dependencyConfig.isEnabled() {
-		return nil, nil
-	}
 	if dependencyConfig.shouldGetOutputs() {
 		outputVal, isEmpty, err := getTerragruntOutput(dependencyConfig, terragruntOptions)
 		if err != nil {
@@ -413,6 +400,9 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(dependencyConfig Dependen
 // We should only return default outputs if the mock_outputs attribute is set, and if we are running one of the
 // allowed commands when `mock_outputs_allowed_terraform_commands` is set as well.
 func (dependencyConfig Dependency) shouldReturnMockOutputs(terragruntOptions *options.TerragruntOptions) bool {
+	if !dependencyConfig.isEnabled() {
+		return true
+	}
 	defaultOutputsSet := dependencyConfig.MockOutputs != nil
 	allowedCommand :=
 		dependencyConfig.MockOutputsAllowedTerraformCommands == nil ||
