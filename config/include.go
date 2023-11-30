@@ -346,6 +346,10 @@ func (targetConfig *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terr
 		targetConfig.Inputs = mergeInputs(sourceConfig.Inputs, targetConfig.Inputs)
 	}
 
+	for key, val := range sourceConfig.DependencyEnvVars {
+		targetConfig.DependencyEnvVars[key] = val
+	}
+
 	copyFieldsMetadata(sourceConfig, targetConfig)
 
 	return nil
@@ -494,6 +498,10 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 	}
 	for key, val := range sourceConfig.GenerateConfigs {
 		targetConfig.GenerateConfigs[key] = val
+	}
+
+	for key, val := range sourceConfig.DependencyEnvVars {
+		targetConfig.DependencyEnvVars[key] = val
 	}
 
 	copyFieldsMetadata(sourceConfig, targetConfig)

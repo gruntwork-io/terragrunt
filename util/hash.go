@@ -27,3 +27,13 @@ func GenerateRandomSha256() (string, error) {
 
 	return fmt.Sprintf("%x", sha256.Sum256(randomBytes)), nil
 }
+
+func EncodeStringMap(stringMap *map[string]string, seed string) string {
+	rollingHash := sha1.Sum([]byte(seed))
+
+	for k, v := range *stringMap {
+		rollingHash = sha1.Sum([]byte(fmt.Sprintf("%s:%s:%s", rollingHash, k, v)))
+	}
+
+	return string(rollingHash[:])
+}
