@@ -58,7 +58,7 @@ func NewModel(module *module.Module, width, height int, previousModel tea.Model,
 	keys := newKeyMap()
 
 	viewport := viewport.New(width, height)
-	viewport.SetContent(string(content))
+	viewport.SetContent(content)
 	viewport.KeyMap = keys.KeyMap
 
 	return &Model{
@@ -158,7 +158,8 @@ func (model Model) View() string {
 }
 
 func (model Model) footerView() string {
-	info := infoPositionStyle.Render(fmt.Sprintf("%2.f%%", model.viewport.ScrollPercent()*100))
+	percent := float64(100)
+	info := infoPositionStyle.Render(fmt.Sprintf("%2.f%%", model.viewport.ScrollPercent()*percent))
 
 	line := strings.Repeat("─", max(0, model.viewport.Width-lipgloss.Width(info)))
 	line = infoLineStyle.Render(line)

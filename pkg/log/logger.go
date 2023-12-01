@@ -6,8 +6,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const loggerName = "openvpn-admin"
-
 var (
 	logger       *logrus.Logger
 	logLevelLock = sync.Mutex{}

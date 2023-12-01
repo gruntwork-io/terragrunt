@@ -55,7 +55,9 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		h, v := lipgloss.NewStyle().Padding(1, 2).GetFrameSize()
+		topPadding := 1
+		rightPadding := 2
+		h, v := lipgloss.NewStyle().Padding(topPadding, rightPadding).GetFrameSize()
 		model.SetSize(msg.Width-h, msg.Height-v)
 
 	case tea.KeyMsg:
@@ -64,16 +66,14 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			break
 		}
 
-		switch {
-		case key.Matches(msg, model.delegate.Choose, model.delegate.Scaffold):
+		if key.Matches(msg, model.delegate.Choose, model.delegate.Scaffold) {
 			if module, ok := model.SelectedItem().(*module.Module); ok {
 				pageModel, err := page.NewModel(module, model.Width(), model.Height(), model, model.quitFn)
 				if err != nil {
 					model.quitFn(err)
 				}
 
-				switch {
-				case key.Matches(msg, model.delegate.Scaffold):
+				if key.Matches(msg, model.delegate.Scaffold) {
 					if btn := pageModel.Buttons.GetByName(page.ScaffoldButtonName); btn != nil {
 						cmd := btn.Action(msg)
 						return model, cmd

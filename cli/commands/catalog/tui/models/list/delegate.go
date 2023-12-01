@@ -11,8 +11,6 @@ const (
 
 	selectedDescForegroundColorDark       = "#59788E"
 	selectedDescBorderForegroundColorDark = "#63C5DA"
-
-	statusMessageForegroundColorDark = "#04B575"
 )
 
 type DefaultDelegate struct {

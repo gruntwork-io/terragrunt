@@ -195,6 +195,7 @@ func FindModules(ctx context.Context, repoPath string) (Modules, error) {
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
+	//nolint:errcheck
 	defer os.RemoveAll(tempDir)
 
 	repoPath, err = getRepo(ctx, repoPath, tempDir)

@@ -8,8 +8,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const spacebar = " "
-
 // KeyMap defines a set of keybindings. To work for help it must satisfy
 // key.Map. It could also very easily be a map[string]key.Binding.
 type KeyMap struct {
@@ -54,19 +52,17 @@ func (keys KeyMap) FullHelp() [][]key.Binding {
 func (keys *KeyMap) Update(msg tea.Msg) tea.Cmd {
 	var cmds []tea.Cmd
 
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch {
-		case key.Matches(msg, keys.Help):
-			keys.help.ShowAll = !keys.help.ShowAll
-		}
+	if msg, ok := msg.(tea.KeyMsg); ok && key.Matches(msg, keys.Help) {
+		keys.help.ShowAll = !keys.help.ShowAll
 	}
 
 	return tea.Batch(cmds...)
 }
 
 func (keys *KeyMap) View() string {
-	return lipgloss.NewStyle().Padding(2, 0, 0, 2).Render(keys.help.View(keys))
+	topPadding := 2
+	leftPadding := 2
+	return lipgloss.NewStyle().Padding(topPadding, 0, 0, leftPadding).Render(keys.help.View(keys))
 }
 
 func newKeyMap() KeyMap {

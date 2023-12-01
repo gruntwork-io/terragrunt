@@ -94,5 +94,6 @@ func (btns Buttons) View() string {
 		}
 	}
 
-	return lipgloss.NewStyle().Padding(0, 0, 0, 2).Render(names...)
+	leftPadding := 2
+	return lipgloss.NewStyle().Padding(0, 0, 0, leftPadding).Render(names...)
 }
