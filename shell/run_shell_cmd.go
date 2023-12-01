@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
+	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -271,10 +274,10 @@ func (signalChannel *SignalsForwarder) Close() error {
 	return nil
 }
 
-type CmdOutput struct {
-	Stdout string
-	Stderr string
-}
+const (
+	gitPrefix = "git::"
+	refsTags  = "refs/tags/"
+)
 
 // GitTopLevelDir - fetch git repository path from passed directory
 func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (string, error) {
@@ -293,6 +296,82 @@ func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (
 		return "", err
 	}
 	return strings.TrimSpace(cmd.Stdout), nil
+}
+
+// GitRepoTags - fetch git repository tags from passed url
+func GitRepoTags(opts *options.TerragruntOptions, gitRepo *url.URL) ([]string, error) {
+	repoPath := gitRepo.String()
+	// remove git:: part if passed
+	if strings.HasPrefix(repoPath, gitPrefix) {
+		repoPath = strings.TrimPrefix(repoPath, gitPrefix)
+	}
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	gitOpts, err := options.NewTerragruntOptionsWithConfigPath(opts.WorkingDir)
+	if err != nil {
+		return nil, err
+	}
+	gitOpts.Env = opts.Env
+	gitOpts.Writer = &stdout
+	gitOpts.ErrWriter = &stderr
+
+	output, err := RunShellCommandWithOutput(opts, opts.WorkingDir, true, false, "git", "ls-remote", "--tags", repoPath)
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+	var tags []string
+	tagLines := strings.Split(output.Stdout, "\n")
+	for _, line := range tagLines {
+		fields := strings.Fields(line)
+		if len(fields) >= 2 {
+			tags = append(tags, fields[1])
+		}
+	}
+	return tags, nil
+}
+
+// GitLastReleaseTag - fetch git repository last release tag
+func GitLastReleaseTag(opts *options.TerragruntOptions, gitRepo *url.URL) (string, error) {
+	tags, err := GitRepoTags(opts, gitRepo)
+	if err != nil {
+		return "", err
+	}
+	if len(tags) == 0 {
+		return "", nil
+	}
+	semverTags := extractSemVerTags(tags)
+	if len(semverTags) == 0 {
+		return "", nil
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(semverTags)))
+	lastReleaseTag := semverTags[0]
+	if strings.HasPrefix(lastReleaseTag, refsTags) {
+		lastReleaseTag = strings.TrimPrefix(lastReleaseTag, refsTags)
+	}
+	return lastReleaseTag, nil
+}
+
+func extractSemVerTags(tags []string) []string {
+	var semverTags []string
+	semverPattern := regexp.MustCompile(`^refs/tags/v?[0-9]+\.[0-9]+\.[0-9]+$`)
+
+	for _, tag := range tags {
+		fields := strings.Fields(tag)
+		if len(fields) > 1 {
+			value := fields[1]
+			if semverPattern.MatchString(value) {
+				semverTags = append(semverTags, value)
+			}
+		}
+	}
+
+	return semverTags
+}
+
+type CmdOutput struct {
+	Stdout string
+	Stderr string
 }
 
 // ProcessExecutionError - error returned when a command fails, contains StdOut and StdErr

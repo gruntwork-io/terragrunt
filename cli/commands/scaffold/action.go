@@ -1,44 +1,29 @@
 package scaffold
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
-	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/shell"
 
 	"github.com/gruntwork-io/terragrunt/terraform"
 
-	ctyjson "github.com/zclconf/go-cty/cty/json"
-
-	"github.com/hashicorp/hcl/v2"
-	"github.com/zclconf/go-cty/cty"
-
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
 	"github.com/gruntwork-io/terragrunt/util"
-
-	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terratest/modules/files"
-	"github.com/hashicorp/hcl/v2/hclparse"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
 
 	boilerplate_options "github.com/gruntwork-io/boilerplate/options"
 	"github.com/gruntwork-io/boilerplate/templates"
 	"github.com/gruntwork-io/boilerplate/variables"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terratest/modules/files"
 	"github.com/hashicorp/go-getter"
 )
 
 const (
-	gitPrefix = "git::"
-	refsTags  = "refs/tags/"
-
 	SourceUrlTypeHttps = "git-https"
 	SourceUrlTypeGit   = "git-ssh"
 	SourceGitSshUser   = "git"
@@ -57,21 +42,21 @@ inputs = {
   # --------------------------------------------------------------------------------------------------------------------
   # Required input variables
   # --------------------------------------------------------------------------------------------------------------------
-  {{range .parsedRequiredInputs}}
+  {{ range .requiredVariables }}
   # Description: {{ .Description }}
   # Type: {{ .Type }}
-  {{.Name}} = {{ .DefaultValuePlaceholder }}  # TODO: fill in value
-  {{end}}
+  {{ .Name }} = {{ .DefaultValuePlaceholder }}  # TODO: fill in value
+  {{ end }}
 
   # --------------------------------------------------------------------------------------------------------------------
   # Optional input variables
   # Uncomment the ones you wish to set
   # --------------------------------------------------------------------------------------------------------------------
-  {{range .parsedOptionalInputs}}
+  {{ range .optionalVariables }}
   # Description: {{ .Description }}
   # Type: {{ .Type }}
-  # {{.Name}} = {{.DefaultValue}}
-  {{end}}
+  # {{ .Name }} = {{ .DefaultValue }}
+  {{ end }}
 }
 `
 )
@@ -147,7 +132,7 @@ func Run(opts *options.TerragruntOptions) error {
 			return errors.WithStackTrace(err)
 		}
 
-		tag, err := getLatestReleaseTag(opts, rootSourceUrl)
+		tag, err := shell.GitLastReleaseTag(opts, rootSourceUrl)
 		if err == nil {
 			params.Add("ref", tag)
 			parsedModuleUrl.RawQuery = params.Encode()
@@ -176,7 +161,7 @@ func Run(opts *options.TerragruntOptions) error {
 				return errors.WithStackTrace(err)
 			}
 
-			tag, err := getLatestReleaseTag(opts, rootSourceUrl)
+			tag, err := shell.GitLastReleaseTag(opts, rootSourceUrl)
 			if err == nil {
 				params.Add("ref", tag)
 				parsedTemplateUrl.RawQuery = params.Encode()
@@ -195,7 +180,7 @@ func Run(opts *options.TerragruntOptions) error {
 		}
 	}
 
-	inputs, err := listInputs(opts, tempDir)
+	inputs, err := config.ParseVariables(opts, tempDir)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -227,19 +212,19 @@ func Run(opts *options.TerragruntOptions) error {
 	}
 
 	// separate inputs that require value and with default value
-	var parsedRequiredInputs []*ParsedInput
-	var parsedOptionalInputs []*ParsedInput
+	var requiredVariables []*config.ParsedVariable
+	var optionalVariables []*config.ParsedVariable
 
 	for _, value := range inputs {
 		if value.DefaultValue == "" {
-			parsedRequiredInputs = append(parsedRequiredInputs, value)
+			requiredVariables = append(requiredVariables, value)
 		} else {
-			parsedOptionalInputs = append(parsedOptionalInputs, value)
+			optionalVariables = append(optionalVariables, value)
 		}
 	}
 
-	vars["parsedRequiredInputs"] = parsedRequiredInputs
-	vars["parsedOptionalInputs"] = parsedOptionalInputs
+	vars["requiredVariables"] = requiredVariables
+	vars["optionalVariables"] = optionalVariables
 
 	vars["sourceUrl"] = moduleUrl
 
@@ -267,58 +252,6 @@ func Run(opts *options.TerragruntOptions) error {
 
 	return nil
 }
-func getLatestReleaseTag(opts *options.TerragruntOptions, parsedURL *url.URL) (string, error) {
-	repoPath := parsedURL.String()
-	if strings.HasPrefix(repoPath, gitPrefix) {
-		repoPath = strings.TrimPrefix(repoPath, gitPrefix)
-	}
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	gitOpts, err := options.NewTerragruntOptionsWithConfigPath(opts.WorkingDir)
-	if err != nil {
-		return "", err
-	}
-	gitOpts.Env = opts.Env
-	gitOpts.Writer = &stdout
-	gitOpts.ErrWriter = &stderr
-
-	output, err := shell.RunShellCommandWithOutput(opts, opts.WorkingDir, true, false, "git", "ls-remote", "--tags", repoPath)
-	if err != nil {
-		return "", errors.WithStackTrace(err)
-	}
-
-	tags := extractSemVerTags(output.Stdout)
-	tagName := ""
-	if len(tags) > 0 {
-		sort.Sort(sort.Reverse(sort.StringSlice(tags)))
-		tagName = tags[0]
-	}
-
-	if strings.HasPrefix(tagName, refsTags) {
-		tagName = strings.TrimPrefix(tagName, refsTags)
-	}
-
-	return tagName, nil
-}
-
-func extractSemVerTags(output string) []string {
-	lines := strings.Split(output, "\n")
-	var semverTags []string
-	semverPattern := regexp.MustCompile(`^refs/tags/v?[0-9]+\.[0-9]+\.[0-9]+$`)
-
-	for _, line := range lines {
-		fields := strings.Fields(line)
-		if len(fields) > 1 {
-			tag := fields[1]
-			if semverPattern.MatchString(tag) {
-				semverTags = append(semverTags, tag)
-			}
-		}
-	}
-
-	return semverTags
-}
 
 func parseUrl(opts *options.TerragruntOptions, moduleUrl string) (string, string, string) {
 	pattern := `git::([^:]+)://([^/]+)(/.*)`
@@ -336,179 +269,4 @@ func parseUrl(opts *options.TerragruntOptions, moduleUrl string) (string, string
 	path := matches[3]
 
 	return scheme, host, path
-}
-
-// ParsedInput structure with input name, default value and description.
-type ParsedInput struct {
-	Name                    string
-	Description             string
-	Type                    string
-	DefaultValue            string
-	DefaultValuePlaceholder string
-}
-
-func listInputs(opts *options.TerragruntOptions, directoryPath string) ([]*ParsedInput, error) {
-	tfFiles, err := listTerraformFiles(directoryPath)
-	if err != nil {
-		return nil, errors.WithStackTrace(err)
-	}
-	parser := hclparse.NewParser()
-
-	// Extract variables from all TF files
-	var parsedInputs []*ParsedInput
-	for _, tfFile := range tfFiles {
-		content, err := os.ReadFile(tfFile)
-		if err != nil {
-			opts.Logger.Errorf("Error reading file %s: %v", tfFile, err)
-			continue
-		}
-		file, diags := parser.ParseHCL(content, tfFile)
-		if diags.HasErrors() {
-			opts.Logger.Warnf("Failed to parse HCL in file %s: %v", tfFile, diags)
-			continue
-		}
-
-		ctx := &hcl.EvalContext{}
-
-		if body, ok := file.Body.(*hclsyntax.Body); ok {
-			for _, block := range body.Blocks {
-				if block.Type == "variable" {
-					if len(block.Labels[0]) > 0 {
-
-						name := block.Labels[0]
-						descriptionAttr, err := readBlockAttribute(ctx, block, "description")
-						descriptionAttrText := ""
-						if err != nil {
-							opts.Logger.Warnf("Failed to read descriptionAttr for %s %v", name, err)
-							descriptionAttr = nil
-						}
-						if descriptionAttr != nil {
-							descriptionAttrText = descriptionAttr.AsString()
-						} else {
-							descriptionAttrText = fmt.Sprintf("No description for %s", name)
-						}
-
-						typeAttr, err := readBlockAttribute(ctx, block, "type")
-						typeAttrText := ""
-						if err != nil {
-							opts.Logger.Warnf("Failed to read type attribute for %s %v", name, err)
-							descriptionAttr = nil
-						}
-						if typeAttr != nil {
-							typeAttrText = typeAttr.AsString()
-						} else {
-							typeAttrText = fmt.Sprintf("No type for %s", name)
-						}
-
-						defaultValue, err := readBlockAttribute(ctx, block, "default")
-						if err != nil {
-							opts.Logger.Warnf("Failed to read default value for %s %v", name, err)
-							defaultValue = nil
-						}
-
-						defaultValueText := ""
-						if defaultValue != nil {
-							jsonBytes, err := ctyjson.Marshal(*defaultValue, cty.DynamicPseudoType)
-							if err != nil {
-								return nil, errors.WithStackTrace(err)
-							}
-
-							var ctyJsonOutput CtyJsonValue
-							if err := json.Unmarshal(jsonBytes, &ctyJsonOutput); err != nil {
-								return nil, errors.WithStackTrace(err)
-							}
-
-							jsonBytes, err = json.Marshal(ctyJsonOutput.Value)
-							if err != nil {
-								return nil, errors.WithStackTrace(err)
-							}
-							defaultValueText = string(jsonBytes)
-						}
-
-						input := &ParsedInput{
-							Name:                    name,
-							Type:                    typeAttrText,
-							Description:             descriptionAttrText,
-							DefaultValue:            defaultValueText,
-							DefaultValuePlaceholder: generateDefaultValue(typeAttrText),
-						}
-
-						parsedInputs = append(parsedInputs, input)
-					}
-				}
-			}
-		}
-	}
-	return parsedInputs, nil
-}
-
-// generate hcl default value
-func generateDefaultValue(typetxt string) string {
-
-	switch typetxt {
-	case "number":
-		return "0"
-	case "bool":
-		return "false"
-	case "list":
-		return "[]"
-	case "map":
-		return "{}"
-	case "object":
-		return "{}"
-	}
-
-	// fallback to empty value
-	return "\"\""
-}
-
-type CtyJsonValue struct {
-	Value interface{}
-	Type  interface{}
-}
-
-func readBlockAttribute(ctx *hcl.EvalContext, block *hclsyntax.Block, name string) (*cty.Value, error) {
-	if attr, ok := block.Body.Attributes[name]; ok {
-		if attr.Expr != nil {
-
-			if call, ok := attr.Expr.(*hclsyntax.FunctionCallExpr); ok {
-				result := cty.StringVal(call.Name)
-				return &result, nil
-			}
-
-			// check if first var is traversal
-			if len(attr.Expr.Variables()) > 0 {
-				v := attr.Expr.Variables()[0]
-				// check if variable is traversal
-				if varTr, ok := v[0].(hcl.TraverseRoot); ok {
-					result := cty.StringVal(varTr.Name)
-					return &result, nil
-				}
-			}
-
-			value, err := attr.Expr.Value(ctx)
-			if err != nil {
-				return nil, err
-			}
-			return &value, nil
-		}
-	}
-	return nil, nil
-}
-
-// listTerraformFiles returns a list of all TF files in the specified directory.
-func listTerraformFiles(directoryPath string) ([]string, error) {
-	var tfFiles []string
-
-	err := filepath.Walk(directoryPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() && filepath.Ext(path) == ".tf" {
-			tfFiles = append(tfFiles, path)
-		}
-		return nil
-	})
-
-	return tfFiles, err
 }
