@@ -10,6 +10,13 @@ type Module struct {
 	content     string
 }
 
+func NewModule(title, path string) *Module {
+	return &Module{
+		title: title,
+		path:  path,
+	}
+}
+
 func (module *Module) Title() string {
 	return module.title
 }

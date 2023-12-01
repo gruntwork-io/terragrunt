@@ -51,7 +51,7 @@ func getRepo(ctx context.Context, repoPath, tempDir string) (string, error) {
 				return "", errors.WithStackTrace(err)
 			}
 
-			log.Debugf("Convert relative path %q to absolute %q", repoPath, absRepoPath)
+			log.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
 
 			return absRepoPath, nil
 		}
@@ -64,7 +64,7 @@ func getRepo(ctx context.Context, repoPath, tempDir string) (string, error) {
 		return "", errors.WithStackTrace(err)
 	}
 
-	log.Infof("Clone repository %q to a temprory directory %q", repoURL, tempDir)
+	log.Infof("Cloning repository %q to temprory directory %q", repoURL, tempDir)
 
 	// if the URL has `http(s)` schema, go-getter does not clone repo.
 	if strings.HasPrefix(repoURL.Scheme, "http") {
