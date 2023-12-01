@@ -1,17 +1,17 @@
 package scaffold
 
 import (
-	"context"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
-	"github.com/google/go-github/v35/github"
-	"golang.org/x/oauth2"
+	"github.com/gruntwork-io/terragrunt/shell"
 
 	"github.com/gruntwork-io/terragrunt/terraform"
 
@@ -119,7 +119,7 @@ func Run(opts *options.TerragruntOptions) error {
 			return errors.WithStackTrace(err)
 		}
 
-		tag, err := getLatestReleaseTag(rootSourceUrl)
+		tag, err := getLatestReleaseTag(opts, rootSourceUrl)
 		if err == nil {
 			params.Add("ref", tag)
 			parsedModuleUrl.RawQuery = params.Encode()
@@ -148,7 +148,7 @@ func Run(opts *options.TerragruntOptions) error {
 				return errors.WithStackTrace(err)
 			}
 
-			tag, err := getLatestReleaseTag(rootSourceUrl)
+			tag, err := getLatestReleaseTag(opts, rootSourceUrl)
 			if err == nil {
 				params.Add("ref", tag)
 				parsedTemplateUrl.RawQuery = params.Encode()
@@ -264,33 +264,62 @@ func Run(opts *options.TerragruntOptions) error {
 	return nil
 }
 
-func getLatestReleaseTag(parsedURL *url.URL) (string, error) {
-	pathParts := strings.Split(parsedURL.Path, "/")
-	if len(pathParts) < 2 {
-		return "", fmt.Errorf("invalid repository URL")
+const (
+	gitPrefix = "git::"
+	refsTags  = "refs/tags/"
+)
+
+func getLatestReleaseTag(opts *options.TerragruntOptions, parsedURL *url.URL) (string, error) {
+	repoPath := parsedURL.String()
+	if strings.HasPrefix(repoPath, gitPrefix) {
+		repoPath = strings.TrimPrefix(repoPath, gitPrefix)
 	}
-	owner := pathParts[1]
-	repo := pathParts[2]
 
-	repo = strings.TrimSuffix(repo, ".git")
-
-	token := os.Getenv("GITHUB_OAUTH_TOKEN")
-
-	ctx := context.Background()
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: token},
-	)
-	tc := oauth2.NewClient(ctx, ts)
-
-	client := github.NewClient(tc)
-
-	release, _, err := client.Repositories.GetLatestRelease(ctx, owner, repo)
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	gitOpts, err := options.NewTerragruntOptionsWithConfigPath(opts.WorkingDir)
 	if err != nil {
 		return "", err
 	}
+	gitOpts.Env = opts.Env
+	gitOpts.Writer = &stdout
+	gitOpts.ErrWriter = &stderr
 
-	tagName := release.GetTagName()
+	output, err := shell.RunShellCommandWithOutput(opts, opts.WorkingDir, true, false, "git", "ls-remote", "--tags", repoPath)
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	tags := extractSemVerTags(output.Stdout)
+	tagName := ""
+	if len(tags) > 0 {
+		sort.Sort(sort.Reverse(sort.StringSlice(tags)))
+		tagName = tags[0]
+	}
+
+	if strings.HasPrefix(tagName, refsTags) {
+		tagName = strings.TrimPrefix(tagName, refsTags)
+	}
+
 	return tagName, nil
+}
+
+func extractSemVerTags(output string) []string {
+	lines := strings.Split(output, "\n")
+	var semverTags []string
+	semverPattern := regexp.MustCompile(`^refs/tags/v?[0-9]+\.[0-9]+\.[0-9]+$`)
+
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) > 1 {
+			tag := fields[1]
+			if semverPattern.MatchString(tag) {
+				semverTags = append(semverTags, tag)
+			}
+		}
+	}
+
+	return semverTags
 }
 
 func parseUrl(opts *options.TerragruntOptions, moduleUrl string) (string, string, string) {
