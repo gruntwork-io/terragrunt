@@ -35,6 +35,16 @@ func TestCheckTerraformVersionMeetsConstraintLessMajor(t *testing.T) {
 	testCheckTerraformVersionMeetsConstraint(t, "v0.8.8", ">= v0.9.3", false)
 }
 
+func TestParseOpenTofuVersionNormal(t *testing.T) {
+	t.Parallel()
+	testParseTerraformVersion(t, "OpenTofu v1.6.0", "v1.6.0", nil)
+}
+
+func TestParseOpenTofuVersionDev(t *testing.T) {
+	t.Parallel()
+	testParseTerraformVersion(t, "OpenTofu v1.6.0-dev", "v1.6.0", nil)
+}
+
 func TestParseTerraformVersionNormal(t *testing.T) {
 	t.Parallel()
 	testParseTerraformVersion(t, "Terraform v0.9.3", "v0.9.3", nil)
