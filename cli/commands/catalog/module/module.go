@@ -10,10 +10,12 @@ type Module struct {
 	content     string
 }
 
+// Title implements /github.com/charmbracelet/bubbles.list.DefaultItem.Title
 func (module *Module) Title() string {
 	return module.title
 }
 
+// Description implements /github.com/charmbracelet/bubbles.list.DefaultItem.Description
 func (module *Module) Description() string {
 	return module.description
 }
@@ -22,6 +24,7 @@ func (module *Module) Content() string {
 	return module.content
 }
 
+// FilterValue implements /github.com/charmbracelet/bubbles.list.Item.FilterValue
 func (module *Module) FilterValue() string {
 	return module.title
 }
