@@ -46,10 +46,12 @@ func NewModel(modules module.Modules, quitFn func(error)) *Model {
 	}
 }
 
+// Init implements bubbletea.Model.Init
 func (model Model) Init() tea.Cmd {
 	return nil
 }
 
+// Update implements bubbletea.Model.Update
 func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 

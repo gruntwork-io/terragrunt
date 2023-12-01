@@ -52,6 +52,8 @@ func TestFindModules(t *testing.T) {
 				assert.NoError(t, err)
 
 				relPath, err := filepath.Rel(currentDir, module.path)
+				assert.NoError(t, err)
+
 				module.path = relPath
 				module.content = ""
 			}

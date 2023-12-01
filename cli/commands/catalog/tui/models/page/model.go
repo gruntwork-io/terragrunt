@@ -85,10 +85,12 @@ func NewModel(module *module.Module, width, height int, previousModel tea.Model,
 	}, nil
 }
 
+// Init implements bubbletea.Model.Init
 func (model Model) Init() tea.Cmd {
 	return nil
 }
 
+// Update implements bubbletea.Model.Update
 func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
 		cmd  tea.Cmd
@@ -149,6 +151,7 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return model, tea.Batch(cmds...)
 }
 
+// View implements bubbletea.Model.View
 func (model Model) View() string {
 	footer := model.footerView()
 	footerHeight := lipgloss.Height(model.footerView())
@@ -158,7 +161,7 @@ func (model Model) View() string {
 }
 
 func (model Model) footerView() string {
-	percent := float64(100)
+	var percent float64 = 100
 	info := infoPositionStyle.Render(fmt.Sprintf("%2.f%%", model.viewport.ScrollPercent()*percent))
 
 	line := strings.Repeat("─", max(0, model.viewport.Width-lipgloss.Width(info)))
