@@ -44,6 +44,10 @@ func TestFindModules(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.repoPath, func(t *testing.T) {
+			// Unfortunately, we are unable to commit the `.git` directory. We have to temporarily rename it while running the tests.
+			os.Rename(filepath.Join(testCase.repoPath, "gitdir"), filepath.Join(testCase.repoPath, ".git"))
+			defer os.Rename(filepath.Join(testCase.repoPath, ".git"), filepath.Join(testCase.repoPath, "gitdir"))
+
 			ctx := context.Background()
 			modules, err := FindModules(ctx, testCase.repoPath)
 
