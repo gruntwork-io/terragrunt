@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	go_errors "errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -102,7 +103,9 @@ func downloadTerraformSourceIfNecessary(terraformSource *terraform.Source, terra
 	})
 
 	if downloadErr != nil {
-		return downloadErr
+		download_info := fmt.Errorf("downloading source URL %s", terraformSource.CanonicalSourceURL.String())
+		err := go_errors.Join(download_info, downloadErr)
+		return err
 	}
 
 	if err := terraformSource.WriteVersionFile(); err != nil {
