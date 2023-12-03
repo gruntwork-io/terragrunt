@@ -612,3 +612,18 @@ func ListTfFiles(directoryPath string) ([]string, error) {
 
 	return tfFiles, err
 }
+
+// IsDirectoryEmpty - returns true if the given path exists and is a empty directory.
+func IsDirectoryEmpty(dirPath string) (bool, error) {
+	dir, err := os.Open(dirPath)
+	if err != nil {
+		return false, err
+	}
+	defer dir.Close()
+
+	_, err = dir.Readdir(1)
+	if err == nil {
+		return false, nil
+	}
+	return true, nil
+}

@@ -75,6 +75,17 @@ func Run(opts *options.TerragruntOptions) error {
 			}
 		}
 	}()
+
+	// scaffold only in empty directories
+	if empty, err := util.IsDirectoryEmpty(opts.WorkingDir); !empty || err != nil {
+		if err != nil {
+			return err
+		}
+		return WorkingDirectoryNotEmptyError{
+			dir: opts.WorkingDir,
+		}
+	}
+
 	if len(opts.TerraformCliArgs) >= 2 {
 		moduleUrl = opts.TerraformCliArgs[1]
 	}
@@ -318,4 +329,12 @@ func parseUrl(opts *options.TerragruntOptions, moduleUrl string) (string, string
 	path := matches[3]
 
 	return scheme, host, path
+}
+
+type WorkingDirectoryNotEmptyError struct {
+	dir string
+}
+
+func (err WorkingDirectoryNotEmptyError) Error() string {
+	return fmt.Sprintf("The working directory %s is not empty.", err.dir)
 }

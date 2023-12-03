@@ -321,3 +321,20 @@ func TestIncludeInCopy(t *testing.T) {
 			"Unexpected copy result for file '%s' (should be copied: '%t') - got error: %s", testCase.path, testCase.copyExpected, err)
 	}
 }
+
+func TestEmptyDir(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		path        string
+		expectEmpty bool
+	}{
+		{filepath.Join(t.TempDir()), true},
+		{os.TempDir(), false},
+	}
+	for _, testCase := range testCases {
+		emptyValue, err := IsDirectoryEmpty(testCase.path)
+		assert.NoError(t, err)
+		assert.Equal(t, testCase.expectEmpty, emptyValue, "For path %s", testCase.path)
+	}
+
+}
