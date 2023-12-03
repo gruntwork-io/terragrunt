@@ -16,12 +16,12 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 		&cli.SliceFlag[string]{
 			Name:        Var,
 			Destination: &opts.ScaffoldVars,
-			Usage:       "Boilerplate variables variable.",
+			Usage:       "Variables for usage in scaffolding.",
 		},
 		&cli.SliceFlag[string]{
 			Name:        VarFile,
 			Destination: &opts.ScaffoldVarFiles,
-			Usage:       "Boilerplate variables file.",
+			Usage:       "Files with variables to be used in modules scaffolding.",
 		},
 	}
 }

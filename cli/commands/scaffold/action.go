@@ -63,8 +63,17 @@ inputs = {
 
 func Run(opts *options.TerragruntOptions) error {
 	// download remote repo to local
-	moduleUrl := ""
-	templateUrl := ""
+	var moduleUrl = ""
+	var templateUrl = ""
+	// clean all temp dirs
+	var dirsToClean []string
+	defer func() {
+		for _, dir := range dirsToClean {
+			if err := os.RemoveAll(dir); err != nil {
+				opts.Logger.Warnf("Failed to clean up dir %s: %v", dir, err)
+			}
+		}
+	}()
 	if len(opts.TerraformCliArgs) >= 2 {
 		moduleUrl = opts.TerraformCliArgs[1]
 	}
@@ -77,6 +86,7 @@ func Run(opts *options.TerragruntOptions) error {
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
+	dirsToClean = append(dirsToClean, tempDir)
 
 	// prepare inputs
 	vars, err := variables.ParseVars(opts.ScaffoldVars, opts.ScaffoldVarFiles)
@@ -97,28 +107,27 @@ func Run(opts *options.TerragruntOptions) error {
 		sourceUrlType = fmt.Sprintf("%s", value)
 	}
 
+	// rewrite module url
 	scheme, host, path := parseUrl(opts, moduleUrl)
 	// try to rewrite module url if is https and is requested to be git
-	if scheme != "" {
-		if scheme == "https" && sourceUrlType == SourceUrlTypeGit {
-			// TODO: handle git -> https
-			gitUser := SourceGitSshUser
-			if value, found := vars["SourceGitSshUser"]; found {
-				gitUser = fmt.Sprintf("%s", value)
-			}
-			if strings.HasPrefix(path, "/") {
-				path = path[1:]
-			}
-
-			moduleUrl = fmt.Sprintf("%s@%s:%s", gitUser, host, path)
+	if scheme == "https" && sourceUrlType == SourceUrlTypeGit {
+		gitUser := SourceGitSshUser
+		if value, found := vars["SourceGitSshUser"]; found {
+			gitUser = fmt.Sprintf("%s", value)
 		}
+		if strings.HasPrefix(path, "/") {
+			path = path[1:]
+		}
+		moduleUrl = fmt.Sprintf("%s@%s:%s", gitUser, host, path)
 	}
 
+	// parse module url
 	parsedModuleUrl, err = terraform.ToSourceUrl(moduleUrl, tempDir)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 
+	// append ref to source url, if is passed through variables or find it from git tags
 	params := parsedModuleUrl.Query()
 	refReplacement, refVarPassed := vars["Ref"]
 	if refVarPassed {
@@ -127,88 +136,69 @@ func Run(opts *options.TerragruntOptions) error {
 	}
 	ref := params.Get("ref")
 	if ref == "" {
+		// if ref is not passed, find last release tag
 		rootSourceUrl, _, err := terraform.SplitSourceUrl(parsedModuleUrl, opts.Logger)
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
 
 		tag, err := shell.GitLastReleaseTag(opts, rootSourceUrl)
-		if err == nil {
+		if err != nil || tag == "" {
+			opts.Logger.Warnf("Failed to find last release tag for %s", rootSourceUrl)
+		} else {
 			params.Add("ref", tag)
 			parsedModuleUrl.RawQuery = params.Encode()
 		}
 	}
 
+	// regenerate module url with all changes
 	moduleUrl = parsedModuleUrl.String()
-	opts.Logger.Infof("Scaffolding a new Terragrunt module %s %s to %s", parsedModuleUrl.String(), templateUrl, opts.WorkingDir)
 
-	if err := getter.GetAny(tempDir, parsedModuleUrl.String()); err != nil {
-		return errors.WithStackTrace(err)
-	}
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-
+	// identify template url
 	templateDir := ""
 	if templateUrl != "" {
 		parsedTemplateUrl, err := terraform.ToSourceUrl(templateUrl, tempDir)
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
 
-		params := parsedTemplateUrl.Query()
-		ref := params.Get("ref")
+		var templateParams = parsedTemplateUrl.Query()
+		ref := templateParams.Get("ref")
 		if ref == "" {
 			rootSourceUrl, _, err := terraform.SplitSourceUrl(parsedTemplateUrl, opts.Logger)
 			if err != nil {
 				return errors.WithStackTrace(err)
 			}
-
 			tag, err := shell.GitLastReleaseTag(opts, rootSourceUrl)
-			if err == nil {
-				params.Add("ref", tag)
-				parsedTemplateUrl.RawQuery = params.Encode()
+			if err != nil || tag == "" {
+				opts.Logger.Warnf("Failed to find last release tag templae %s", rootSourceUrl)
+			} else {
+				templateParams.Add("ref", tag)
+				parsedTemplateUrl.RawQuery = templateParams.Encode()
 			}
 		}
 
-		templateDir, err = os.MkdirTemp("", "templateDir")
+		templateDir, err = os.MkdirTemp("", "template")
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
+		dirsToClean = append(dirsToClean, templateDir)
 		opts.Logger.Infof("Using template from %s as boilerplate", parsedTemplateUrl.String())
 
-		err = getter.GetAny(templateDir, parsedTemplateUrl.String())
-		if err != nil {
+		if err := getter.GetAny(templateDir, parsedTemplateUrl.String()); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
 
-	inputs, err := config.ParseVariables(opts, tempDir)
-	if err != nil {
+	opts.Logger.Infof("Scaffolding a new Terragrunt module %s %s to %s", moduleUrl, templateUrl, opts.WorkingDir)
+	if err := getter.GetAny(tempDir, parsedModuleUrl.String()); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	// run boilerplate
-
-	// prepare boilerplate dir
-	boilerplateDir := util.JoinPath(tempDir, util.DefaultBoilerplateDir)
-
-	// use template dir as boilerplate dir
-	if templateDir != "" {
-		boilerplateDir = templateDir
-	}
-
-	if !files.IsExistingDir(boilerplateDir) {
-		// no default boilerplate dir, create one
-		boilerplateDir, err = os.MkdirTemp("", "scaffold")
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
-		err = os.WriteFile(util.JoinPath(boilerplateDir, "terragrunt.hcl"), []byte(defaultTerragruntTemplate), 0644)
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
-		err = os.WriteFile(util.JoinPath(boilerplateDir, "boilerplate.yml"), []byte(defaultBoilerplateConfig), 0644)
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
+	// extract variables
+	inputs, err := config.ParseVariables(opts, tempDir)
+	if err != nil {
+		return errors.WithStackTrace(err)
 	}
 
 	// separate inputs that require value and with default value
@@ -222,13 +212,40 @@ func Run(opts *options.TerragruntOptions) error {
 			optionalVariables = append(optionalVariables, value)
 		}
 	}
+	opts.Logger.Debugf("Parsed %d required variables and %d optional variables", len(requiredVariables), len(optionalVariables))
 
+	// run boilerplate
+
+	// prepare boilerplate dir
+	boilerplateDir := util.JoinPath(tempDir, util.DefaultBoilerplateDir)
+	// use template dir as boilerplate dir
+	if templateDir != "" {
+		boilerplateDir = templateDir
+	}
+
+	// if boilerplate dir is not found, create one with default template
+	if !files.IsExistingDir(boilerplateDir) {
+		// no default boilerplate dir, create one
+		boilerplateDir, err = os.MkdirTemp("", "boilerplate")
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+		dirsToClean = append(dirsToClean, boilerplateDir)
+		if err := os.WriteFile(util.JoinPath(boilerplateDir, "terragrunt.hcl"), []byte(defaultTerragruntTemplate), 0644); err != nil {
+			return errors.WithStackTrace(err)
+		}
+		if err := os.WriteFile(util.JoinPath(boilerplateDir, "boilerplate.yml"), []byte(defaultBoilerplateConfig), 0644); err != nil {
+			return errors.WithStackTrace(err)
+		}
+	}
+
+	// add additional variables
 	vars["requiredVariables"] = requiredVariables
 	vars["optionalVariables"] = optionalVariables
 
 	vars["sourceUrl"] = moduleUrl
 
-	opts.Logger.Infof("Running boilerplate in %s", opts.WorkingDir)
+	opts.Logger.Infof("Running boilerplate generation to %s", opts.WorkingDir)
 	boilerplateOpts := &boilerplate_options.BoilerplateOptions{
 		TemplateFolder:  boilerplateDir,
 		OutputFolder:    opts.WorkingDir,
@@ -239,17 +256,14 @@ func Run(opts *options.TerragruntOptions) error {
 		NonInteractive: true,
 	}
 	emptyDep := variables.Dependency{}
-	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
-	if err != nil {
+	if err := templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	// running fmt
-	err = hclfmt.Run(opts)
-	if err != nil {
+	opts.Logger.Infof("Running fmt on generated code %s", opts.WorkingDir)
+	if err := hclfmt.Run(opts); err != nil {
 		return errors.WithStackTrace(err)
 	}
-
 	return nil
 }
 

@@ -249,7 +249,10 @@ type TerragruntOptions struct {
 	// Disables validation terraform command
 	DisableCommandValidation bool
 
-	ScaffoldVars     []string
+	// Variables for usage in scaffolding.
+	ScaffoldVars []string
+
+	// Files with variables to be used in modules scaffolding.
 	ScaffoldVarFiles []string
 }
 

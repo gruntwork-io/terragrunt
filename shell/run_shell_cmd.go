@@ -33,6 +33,11 @@ import (
 // Since we cannot know how the signal is sent, we should give `terraform` time to gracefully exit if it receives the signal directly from the shell, to avoid sending the second interrupt signal to `terraform`.
 const signalForwardingDelay = time.Second * 30
 
+const (
+	gitPrefix = "git::"
+	refsTags  = "refs/tags/"
+)
+
 // Commands that implement a REPL need a pseudo TTY when run as a subprocess in order for the readline properties to be
 // preserved. This is a list of terraform commands that have this property, which is used to determine if terragrunt
 // should allocate a ptty when running that terraform command.
@@ -274,10 +279,10 @@ func (signalChannel *SignalsForwarder) Close() error {
 	return nil
 }
 
-const (
-	gitPrefix = "git::"
-	refsTags  = "refs/tags/"
-)
+type CmdOutput struct {
+	Stdout string
+	Stderr string
+}
 
 // GitTopLevelDir - fetch git repository path from passed directory
 func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (string, error) {
@@ -357,21 +362,12 @@ func extractSemVerTags(tags []string) []string {
 	semverPattern := regexp.MustCompile(`^refs/tags/v?[0-9]+\.[0-9]+\.[0-9]+$`)
 
 	for _, tag := range tags {
-		fields := strings.Fields(tag)
-		if len(fields) > 1 {
-			value := fields[1]
-			if semverPattern.MatchString(value) {
-				semverTags = append(semverTags, value)
-			}
+		if semverPattern.MatchString(tag) {
+			semverTags = append(semverTags, tag)
 		}
 	}
 
 	return semverTags
-}
-
-type CmdOutput struct {
-	Stdout string
-	Stderr string
 }
 
 // ProcessExecutionError - error returned when a command fails, contains StdOut and StdErr
