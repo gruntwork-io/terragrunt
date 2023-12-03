@@ -328,7 +328,7 @@ func TestEmptyDir(t *testing.T) {
 		path        string
 		expectEmpty bool
 	}{
-		{filepath.Join(t.TempDir()), true},
+		{t.TempDir(), true},
 		{os.TempDir(), false},
 	}
 	for _, testCase := range testCases {

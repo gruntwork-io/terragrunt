@@ -25,9 +25,21 @@ import (
 )
 
 const (
-	SourceUrlTypeHttps = "git-https"
-	SourceUrlTypeGit   = "git-ssh"
-	SourceGitSshUser   = "git"
+	moduleCount            = 2
+	moduleAndTemplateCount = 3
+
+	sourceUrlTypeHttps = "git-https"
+	sourceUrlTypeGit   = "git-ssh"
+	sourceGitSshUser   = "git"
+
+	sourceUrlTypeVar    = "SourceUrlType"
+	sourceGitSshUserVar = "SourceGitSshUser"
+	refVar              = "Ref"
+	// refParam - ?ref param from url
+	refParam = "ref"
+
+	moduleUrlPattern = `git::([^:]+)://([^/]+)(/.*)`
+	moduleUrlParts   = 4
 
 	defaultBoilerplateConfig = `
 variables:
@@ -62,6 +74,8 @@ inputs = {
 `
 )
 
+var moduleUrlRegex = regexp.MustCompile(moduleUrlPattern)
+
 func Run(opts *options.TerragruntOptions) error {
 	// download remote repo to local
 	var moduleUrl = ""
@@ -86,11 +100,11 @@ func Run(opts *options.TerragruntOptions) error {
 		}
 	}
 
-	if len(opts.TerraformCliArgs) >= 2 {
+	if len(opts.TerraformCliArgs) >= moduleCount {
 		moduleUrl = opts.TerraformCliArgs[1]
 	}
 
-	if len(opts.TerraformCliArgs) >= 3 {
+	if len(opts.TerraformCliArgs) >= moduleAndTemplateCount {
 		templateUrl = opts.TerraformCliArgs[2]
 	}
 
@@ -236,22 +250,20 @@ func Run(opts *options.TerragruntOptions) error {
 // rewriteModuleUrl rewrites module url to git ssh if required
 func rewriteModuleUrl(opts *options.TerragruntOptions, vars map[string]interface{}, moduleUrl string) (*url.URL, error) {
 	var updatedModuleUrl = moduleUrl
-	sourceUrlType := SourceUrlTypeHttps
-	if value, found := vars["SourceUrlType"]; found {
+	sourceUrlType := sourceUrlTypeHttps
+	if value, found := vars[sourceUrlTypeVar]; found {
 		sourceUrlType = fmt.Sprintf("%s", value)
 	}
 
 	// rewrite module url
 	scheme, host, path := parseUrl(opts, moduleUrl)
 	// try to rewrite module url if is https and is requested to be git
-	if scheme == "https" && sourceUrlType == SourceUrlTypeGit {
-		gitUser := SourceGitSshUser
-		if value, found := vars["SourceGitSshUser"]; found {
+	if scheme == "https" && sourceUrlType == sourceUrlTypeGit {
+		gitUser := sourceGitSshUser
+		if value, found := vars[sourceGitSshUserVar]; found {
 			gitUser = fmt.Sprintf("%s", value)
 		}
-		if strings.HasPrefix(path, "/") {
-			path = path[1:]
-		}
+		path = strings.TrimPrefix(path, "/")
 		updatedModuleUrl = fmt.Sprintf("%s@%s:%s", gitUser, host, path)
 	}
 
@@ -266,7 +278,7 @@ func rewriteModuleUrl(opts *options.TerragruntOptions, vars map[string]interface
 func rewriteTemplateUrl(opts *options.TerragruntOptions, parsedTemplateUrl *url.URL) (*url.URL, error) {
 	var updatedTemplateUrl = parsedTemplateUrl
 	var templateParams = updatedTemplateUrl.Query()
-	ref := templateParams.Get("ref")
+	ref := templateParams.Get(refParam)
 	if ref == "" {
 		rootSourceUrl, _, err := terraform.SplitSourceUrl(updatedTemplateUrl, opts.Logger)
 		if err != nil {
@@ -276,7 +288,7 @@ func rewriteTemplateUrl(opts *options.TerragruntOptions, parsedTemplateUrl *url.
 		if err != nil || tag == "" {
 			opts.Logger.Warnf("Failed to find last release tag templae %s", rootSourceUrl)
 		} else {
-			templateParams.Add("ref", tag)
+			templateParams.Add(refParam, tag)
 			updatedTemplateUrl.RawQuery = templateParams.Encode()
 		}
 	}
@@ -288,12 +300,12 @@ func addRefToModuleUrl(opts *options.TerragruntOptions, parsedModuleUrl *url.URL
 	var moduleUrl = parsedModuleUrl
 	// append ref to source url, if is passed through variables or find it from git tags
 	params := moduleUrl.Query()
-	refReplacement, refVarPassed := vars["Ref"]
+	refReplacement, refVarPassed := vars[refVar]
 	if refVarPassed {
-		params.Set("ref", fmt.Sprintf("%s", refReplacement))
+		params.Set(refParam, fmt.Sprintf("%s", refReplacement))
 		moduleUrl.RawQuery = params.Encode()
 	}
-	ref := params.Get("ref")
+	ref := params.Get(refParam)
 	if ref == "" {
 		// if ref is not passed, find last release tag
 		rootSourceUrl, _, err := terraform.SplitSourceUrl(moduleUrl, opts.Logger)
@@ -305,7 +317,7 @@ func addRefToModuleUrl(opts *options.TerragruntOptions, parsedModuleUrl *url.URL
 		if err != nil || tag == "" {
 			opts.Logger.Warnf("Failed to find last release tag for %s", rootSourceUrl)
 		} else {
-			params.Add("ref", tag)
+			params.Add(refParam, tag)
 			moduleUrl.RawQuery = params.Encode()
 		}
 	}
@@ -314,12 +326,8 @@ func addRefToModuleUrl(opts *options.TerragruntOptions, parsedModuleUrl *url.URL
 
 // parseUrl parses module url to scheme, host and path
 func parseUrl(opts *options.TerragruntOptions, moduleUrl string) (string, string, string) {
-	pattern := `git::([^:]+)://([^/]+)(/.*)`
-
-	re := regexp.MustCompile(pattern)
-
-	matches := re.FindStringSubmatch(moduleUrl)
-	if len(matches) != 4 {
+	matches := moduleUrlRegex.FindStringSubmatch(moduleUrl)
+	if len(matches) != moduleUrlParts {
 		opts.Logger.Warnf("Failed to parse module url %s", moduleUrl)
 		return "", "", ""
 	}

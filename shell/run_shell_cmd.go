@@ -36,7 +36,12 @@ const signalForwardingDelay = time.Second * 30
 const (
 	gitPrefix = "git::"
 	refsTags  = "refs/tags/"
+
+	tagSplitPart  = 2
+	semverPattern = `^refs/tags/v?[0-9]+\.[0-9]+\.[0-9]+$`
 )
+
+var semverPatternRegex = regexp.MustCompile(semverPattern)
 
 // Commands that implement a REPL need a pseudo TTY when run as a subprocess in order for the readline properties to be
 // preserved. This is a list of terraform commands that have this property, which is used to determine if terragrunt
@@ -306,10 +311,8 @@ func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (
 // GitRepoTags - fetch git repository tags from passed url
 func GitRepoTags(opts *options.TerragruntOptions, gitRepo *url.URL) ([]string, error) {
 	repoPath := gitRepo.String()
-	// remove git:: part if passed
-	if strings.HasPrefix(repoPath, gitPrefix) {
-		repoPath = strings.TrimPrefix(repoPath, gitPrefix)
-	}
+	// remove git:: part if present
+	repoPath = strings.TrimPrefix(repoPath, gitPrefix)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -329,7 +332,7 @@ func GitRepoTags(opts *options.TerragruntOptions, gitRepo *url.URL) ([]string, e
 	tagLines := strings.Split(output.Stdout, "\n")
 	for _, line := range tagLines {
 		fields := strings.Fields(line)
-		if len(fields) >= 2 {
+		if len(fields) >= tagSplitPart {
 			tags = append(tags, fields[1])
 		}
 	}
@@ -351,18 +354,15 @@ func GitLastReleaseTag(opts *options.TerragruntOptions, gitRepo *url.URL) (strin
 	}
 	sort.Sort(sort.Reverse(sort.StringSlice(semverTags)))
 	lastReleaseTag := semverTags[0]
-	if strings.HasPrefix(lastReleaseTag, refsTags) {
-		lastReleaseTag = strings.TrimPrefix(lastReleaseTag, refsTags)
-	}
+	lastReleaseTag = strings.TrimPrefix(lastReleaseTag, refsTags)
 	return lastReleaseTag, nil
 }
 
+// extractSemVerTags - extract semver tags from passed tags slice.
 func extractSemVerTags(tags []string) []string {
 	var semverTags []string
-	semverPattern := regexp.MustCompile(`^refs/tags/v?[0-9]+\.[0-9]+\.[0-9]+$`)
-
 	for _, tag := range tags {
-		if semverPattern.MatchString(tag) {
+		if semverPatternRegex.MatchString(tag) {
 			semverTags = append(semverTags, tag)
 		}
 	}
