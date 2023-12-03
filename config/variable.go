@@ -24,14 +24,16 @@ type ParsedVariable struct {
 	DefaultValuePlaceholder string
 }
 
+// ParseVariables - parse variables from tf files.
 func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*ParsedVariable, error) {
+	// list all tf files
 	tfFiles, err := util.ListTfFiles(directoryPath)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
 	parser := hclparse.NewParser()
 
-	// Extract variables from all TF files
+	// iterate over files and parse variables.
 	var parsedInputs []*ParsedVariable
 	for _, tfFile := range tfFiles {
 		content, err := os.ReadFile(tfFile)
@@ -51,7 +53,7 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 			for _, block := range body.Blocks {
 				if block.Type == "variable" {
 					if len(block.Labels[0]) > 0 {
-
+						// extract variable attributes
 						name := block.Labels[0]
 						descriptionAttr, err := readBlockAttribute(ctx, block, "description")
 						descriptionAttrText := ""
@@ -90,7 +92,7 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 								return nil, errors.WithStackTrace(err)
 							}
 
-							var ctyJsonOutput CtyJsonValue
+							var ctyJsonOutput ctyJsonValue
 							if err := json.Unmarshal(jsonBytes, &ctyJsonOutput); err != nil {
 								return nil, errors.WithStackTrace(err)
 							}
@@ -119,7 +121,7 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 	return parsedInputs, nil
 }
 
-// generate hcl default value
+// generateDefaultValue - generate hcl default value
 func generateDefaultValue(typetxt string) string {
 
 	switch typetxt {
@@ -139,20 +141,19 @@ func generateDefaultValue(typetxt string) string {
 	return "\"\""
 }
 
-type CtyJsonValue struct {
+type ctyJsonValue struct {
 	Value interface{}
 	Type  interface{}
 }
 
+// readBlockAttribute - hcl block attribute.
 func readBlockAttribute(ctx *hcl.EvalContext, block *hclsyntax.Block, name string) (*cty.Value, error) {
 	if attr, ok := block.Body.Attributes[name]; ok {
 		if attr.Expr != nil {
-
 			if call, ok := attr.Expr.(*hclsyntax.FunctionCallExpr); ok {
 				result := cty.StringVal(call.Name)
 				return &result, nil
 			}
-
 			// check if first var is traversal
 			if len(attr.Expr.Variables()) > 0 {
 				v := attr.Expr.Variables()[0]
