@@ -2,6 +2,7 @@ package scaffold
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -88,67 +89,29 @@ func Run(opts *options.TerragruntOptions) error {
 	}
 	dirsToClean = append(dirsToClean, tempDir)
 
-	// prepare inputs
+	// prepare variables
 	vars, err := variables.ParseVars(opts.ScaffoldVars, opts.ScaffoldVarFiles)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	// prepare source url
-
+	// parse module url
 	parsedModuleUrl, err := terraform.ToSourceUrl(moduleUrl, tempDir)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 	moduleUrl = parsedModuleUrl.String()
 
-	sourceUrlType := SourceUrlTypeHttps
-	if value, found := vars["SourceUrlType"]; found {
-		sourceUrlType = fmt.Sprintf("%s", value)
-	}
-
-	// rewrite module url
-	scheme, host, path := parseUrl(opts, moduleUrl)
-	// try to rewrite module url if is https and is requested to be git
-	if scheme == "https" && sourceUrlType == SourceUrlTypeGit {
-		gitUser := SourceGitSshUser
-		if value, found := vars["SourceGitSshUser"]; found {
-			gitUser = fmt.Sprintf("%s", value)
-		}
-		if strings.HasPrefix(path, "/") {
-			path = path[1:]
-		}
-		moduleUrl = fmt.Sprintf("%s@%s:%s", gitUser, host, path)
-	}
-
-	// parse module url
-	parsedModuleUrl, err = terraform.ToSourceUrl(moduleUrl, tempDir)
+	// rewrite module url, if required
+	parsedModuleUrl, err = rewriteModuleUrl(opts, vars, moduleUrl)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	// append ref to source url, if is passed through variables or find it from git tags
-	params := parsedModuleUrl.Query()
-	refReplacement, refVarPassed := vars["Ref"]
-	if refVarPassed {
-		params.Set("ref", fmt.Sprintf("%s", refReplacement))
-		parsedModuleUrl.RawQuery = params.Encode()
-	}
-	ref := params.Get("ref")
-	if ref == "" {
-		// if ref is not passed, find last release tag
-		rootSourceUrl, _, err := terraform.SplitSourceUrl(parsedModuleUrl, opts.Logger)
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
-
-		tag, err := shell.GitLastReleaseTag(opts, rootSourceUrl)
-		if err != nil || tag == "" {
-			opts.Logger.Warnf("Failed to find last release tag for %s", rootSourceUrl)
-		} else {
-			params.Add("ref", tag)
-			parsedModuleUrl.RawQuery = params.Encode()
-		}
+	// add ref to module url, if required
+	parsedModuleUrl, err = addRefToModuleUrl(opts, parsedModuleUrl, vars)
+	if err != nil {
+		return errors.WithStackTrace(err)
 	}
 
 	// regenerate module url with all changes
@@ -157,51 +120,43 @@ func Run(opts *options.TerragruntOptions) error {
 	// identify template url
 	templateDir := ""
 	if templateUrl != "" {
+		// process template url if was passed
 		parsedTemplateUrl, err := terraform.ToSourceUrl(templateUrl, tempDir)
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
-
-		var templateParams = parsedTemplateUrl.Query()
-		ref := templateParams.Get("ref")
-		if ref == "" {
-			rootSourceUrl, _, err := terraform.SplitSourceUrl(parsedTemplateUrl, opts.Logger)
-			if err != nil {
-				return errors.WithStackTrace(err)
-			}
-			tag, err := shell.GitLastReleaseTag(opts, rootSourceUrl)
-			if err != nil || tag == "" {
-				opts.Logger.Warnf("Failed to find last release tag templae %s", rootSourceUrl)
-			} else {
-				templateParams.Add("ref", tag)
-				parsedTemplateUrl.RawQuery = templateParams.Encode()
-			}
+		parsedTemplateUrl, err = rewriteTemplateUrl(opts, parsedTemplateUrl)
+		if err != nil {
+			return errors.WithStackTrace(err)
 		}
+		// regenerate template url with all changes
+		templateUrl = parsedTemplateUrl.String()
 
 		templateDir, err = os.MkdirTemp("", "template")
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
 		dirsToClean = append(dirsToClean, templateDir)
-		opts.Logger.Infof("Using template from %s as boilerplate", parsedTemplateUrl.String())
 
-		if err := getter.GetAny(templateDir, parsedTemplateUrl.String()); err != nil {
+		// downloading template
+		opts.Logger.Infof("Using template from %s", templateUrl)
+		if err := getter.GetAny(templateDir, templateUrl); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
 
 	opts.Logger.Infof("Scaffolding a new Terragrunt module %s %s to %s", moduleUrl, templateUrl, opts.WorkingDir)
-	if err := getter.GetAny(tempDir, parsedModuleUrl.String()); err != nil {
+	if err := getter.GetAny(tempDir, moduleUrl); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	// extract variables
+	// extract variables from module url
 	inputs, err := config.ParseVariables(opts, tempDir)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	// separate inputs that require value and with default value
+	// separate variables that require value and with default value
 	var requiredVariables []*config.ParsedVariable
 	var optionalVariables []*config.ParsedVariable
 
@@ -267,6 +222,86 @@ func Run(opts *options.TerragruntOptions) error {
 	return nil
 }
 
+// rewriteModuleUrl rewrites module url to git ssh if required
+func rewriteModuleUrl(opts *options.TerragruntOptions, vars map[string]interface{}, moduleUrl string) (*url.URL, error) {
+	var updatedModuleUrl = moduleUrl
+	sourceUrlType := SourceUrlTypeHttps
+	if value, found := vars["SourceUrlType"]; found {
+		sourceUrlType = fmt.Sprintf("%s", value)
+	}
+
+	// rewrite module url
+	scheme, host, path := parseUrl(opts, moduleUrl)
+	// try to rewrite module url if is https and is requested to be git
+	if scheme == "https" && sourceUrlType == SourceUrlTypeGit {
+		gitUser := SourceGitSshUser
+		if value, found := vars["SourceGitSshUser"]; found {
+			gitUser = fmt.Sprintf("%s", value)
+		}
+		if strings.HasPrefix(path, "/") {
+			path = path[1:]
+		}
+		updatedModuleUrl = fmt.Sprintf("%s@%s:%s", gitUser, host, path)
+	}
+
+	parsedModuleUrl, err := terraform.ToSourceUrl(updatedModuleUrl, opts.WorkingDir)
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+	return parsedModuleUrl, nil
+}
+
+// rewriteTemplateUrl rewrites template url with reference to tag
+func rewriteTemplateUrl(opts *options.TerragruntOptions, parsedTemplateUrl *url.URL) (*url.URL, error) {
+	var updatedTemplateUrl = parsedTemplateUrl
+	var templateParams = updatedTemplateUrl.Query()
+	ref := templateParams.Get("ref")
+	if ref == "" {
+		rootSourceUrl, _, err := terraform.SplitSourceUrl(updatedTemplateUrl, opts.Logger)
+		if err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
+		tag, err := shell.GitLastReleaseTag(opts, rootSourceUrl)
+		if err != nil || tag == "" {
+			opts.Logger.Warnf("Failed to find last release tag templae %s", rootSourceUrl)
+		} else {
+			templateParams.Add("ref", tag)
+			updatedTemplateUrl.RawQuery = templateParams.Encode()
+		}
+	}
+	return updatedTemplateUrl, nil
+}
+
+// addRefToModuleUrl adds ref to module url if is passed through variables or find it from git tags
+func addRefToModuleUrl(opts *options.TerragruntOptions, parsedModuleUrl *url.URL, vars map[string]interface{}) (*url.URL, error) {
+	var moduleUrl = parsedModuleUrl
+	// append ref to source url, if is passed through variables or find it from git tags
+	params := moduleUrl.Query()
+	refReplacement, refVarPassed := vars["Ref"]
+	if refVarPassed {
+		params.Set("ref", fmt.Sprintf("%s", refReplacement))
+		moduleUrl.RawQuery = params.Encode()
+	}
+	ref := params.Get("ref")
+	if ref == "" {
+		// if ref is not passed, find last release tag
+		rootSourceUrl, _, err := terraform.SplitSourceUrl(moduleUrl, opts.Logger)
+		if err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
+
+		tag, err := shell.GitLastReleaseTag(opts, rootSourceUrl)
+		if err != nil || tag == "" {
+			opts.Logger.Warnf("Failed to find last release tag for %s", rootSourceUrl)
+		} else {
+			params.Add("ref", tag)
+			moduleUrl.RawQuery = params.Encode()
+		}
+	}
+	return moduleUrl, nil
+}
+
+// parseUrl parses module url to scheme, host and path
 func parseUrl(opts *options.TerragruntOptions, moduleUrl string) (string, string, string) {
 	pattern := `git::([^:]+)://([^/]+)(/.*)`
 
