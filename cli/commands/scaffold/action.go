@@ -244,6 +244,9 @@ func Run(opts *options.TerragruntOptions) error {
 	if err := hclfmt.Run(opts); err != nil {
 		return errors.WithStackTrace(err)
 	}
+
+	opts.Logger.Info("Scaffolding completed")
+
 	return nil
 }
 
