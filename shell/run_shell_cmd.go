@@ -17,6 +17,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/cache"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -276,8 +277,14 @@ type CmdOutput struct {
 	Stderr string
 }
 
+var gitTopLevelDirs = cache.NewGenericCache[string]()
+
 // GitTopLevelDir - fetch git repository path from passed directory
 func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (string, error) {
+	if gitTopLevelDir, found := gitTopLevelDirs.Get(path); found {
+		return gitTopLevelDir, nil
+	}
+
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	opts, err := options.NewTerragruntOptionsWithConfigPath(path)
@@ -292,7 +299,9 @@ func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(cmd.Stdout), nil
+	cmdOutput := strings.TrimSpace(cmd.Stdout)
+	gitTopLevelDirs.Put(path, cmdOutput)
+	return cmdOutput, nil
 }
 
 // ProcessExecutionError - error returned when a command fails, contains StdOut and StdErr
