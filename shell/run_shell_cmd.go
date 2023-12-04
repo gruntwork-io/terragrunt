@@ -348,14 +348,19 @@ func GitLastReleaseTag(opts *options.TerragruntOptions, gitRepo *url.URL) (strin
 	if len(tags) == 0 {
 		return "", nil
 	}
+	return lastReleaseTag(tags), nil
+}
+
+// lastReleaseTag - return last release tag from passed tags slice.
+func lastReleaseTag(tags []string) string {
 	semverTags := extractSemVerTags(tags)
 	if len(semverTags) == 0 {
-		return "", nil
+		return ""
 	}
 	sort.Sort(sort.Reverse(sort.StringSlice(semverTags)))
-	lastReleaseTag := semverTags[0]
-	lastReleaseTag = strings.TrimPrefix(lastReleaseTag, refsTags)
-	return lastReleaseTag, nil
+	last := semverTags[0]
+	last = strings.TrimPrefix(last, refsTags)
+	return last
 }
 
 // extractSemVerTags - extract semver tags from passed tags slice.
