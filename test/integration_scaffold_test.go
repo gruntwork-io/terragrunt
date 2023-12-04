@@ -15,7 +15,8 @@ const (
 	TEST_SCAFOLD_MODULE_GIT   = "git@github.com:gruntwork-io/terragrunt.git//test/fixture-scaffold/scaffold-module?ref=feature/scaffold"
 	TEST_SCAFOLD_MODULE_SHORT = "github.com/gruntwork-io/terragrunt.git//test/fixture-inputs"
 
-	TEST_SCAFOLD_TEMPLATE_MODULE = "https://github.com/gruntwork-io/terragrunt.git//test/fixture-scaffold/module-with-template?ref=feature/scaffold"
+	TEST_SCAFOLD_TEMPLATE_MODULE          = "git@github.com:gruntwork-io/terragrunt.git//test/fixture-scaffold/module-with-template?ref=feature/scaffold"
+	TEST_SCAFOLD_EXTERNAL_TEMPLATE_MODULE = "git@github.com:gruntwork-io/terragrunt.git//test/fixture-scaffold/external-template?ref=feature/scaffold"
 )
 
 func TestTerragruntScaffoldModule(t *testing.T) {
@@ -76,4 +77,6 @@ func TestTerragruntScaffoldModuleTemplate(t *testing.T) {
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, TEST_SCAFOLD_TEMPLATE_MODULE), &stdout, &stderr)
 	require.NoError(t, err)
 	require.Contains(t, stderr.String(), "Scaffolding completed")
+	// check that exists template file from .boilerplate dir
+	require.FileExists(t, fmt.Sprintf("%s/template-file.txt", tmpEnvPath))
 }
