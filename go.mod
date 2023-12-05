@@ -56,7 +56,7 @@ require (
 )
 
 require (
-	github.com/gruntwork-io/boilerplate v0.0.0-00010101000000-000000000000
+	github.com/gruntwork-io/boilerplate v0.5.7
 	github.com/gruntwork-io/go-commons v0.17.1
 	github.com/gruntwork-io/gruntwork-cli v0.7.0
 	github.com/posener/complete v1.2.3
@@ -194,5 +194,3 @@ require (
 // This is necessary to workaround go modules error with terraform importing vault incorrectly.
 // See https://github.com/hashicorp/vault/issues/7848 for more info
 replace github.com/hashicorp/vault => github.com/hashicorp/vault v1.4.2
-
-replace github.com/gruntwork-io/boilerplate => /projects/gruntwork/boilerplate
