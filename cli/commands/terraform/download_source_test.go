@@ -247,7 +247,13 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 
 	copyFolder(t, "../../../test/fixture-download-source/hello-world-version-remote", downloadDir)
 
-	testDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t, canonicalUrl, downloadDir, true)
+	terraformSource, terragruntOptions, terragruntConfig, err := createConfig(t, canonicalUrl, downloadDir, false)
+
+	assert.NoError(t, err)
+
+	err = downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions, terragruntConfig)
+	assert.NotNil(t, err)
+	assert.Containsf(t, err.Error(), canonicalUrl, "expected error containing %q, got %s", canonicalUrl, err)
 }
 
 func TestInvalidModulePath(t *testing.T) {
@@ -370,16 +376,6 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 		existsInitFile := util.FileExists(util.JoinPath(terraformSource.WorkingDir, moduleInitRequiredFile))
 		assert.True(t, existsInitFile)
 	}
-}
-
-func testDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool) {
-	terraformSource, terragruntOptions, terragruntConfig, err := createConfig(t, canonicalUrl, downloadDir, sourceUpdate)
-
-	assert.NoError(t, err)
-
-	err = downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions, terragruntConfig)
-	assert.NotNil(t, err)
-	assert.Containsf(t, err.Error(), canonicalUrl, "expected error containing %q, got %s", canonicalUrl, err)
 }
 
 func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool) (*terraform.Source, *options.TerragruntOptions, *config.TerragruntConfig, error) {

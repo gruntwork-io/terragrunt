@@ -103,8 +103,8 @@ func downloadTerraformSourceIfNecessary(terraformSource *terraform.Source, terra
 	})
 
 	if downloadErr != nil {
-		download_info := fmt.Errorf("Downloading Terraform source from %s", terraformSource.CanonicalSourceURL.String())
-		err := go_errors.Join(download_info, downloadErr)
+		downloadInfo := fmt.Errorf("downloading source url %s", terraformSource.CanonicalSourceURL.String())
+		err := go_errors.Join(downloadInfo, downloadErr)
 		return err
 	}
 
