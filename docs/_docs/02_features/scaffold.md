@@ -74,7 +74,7 @@ terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixture-inputs 
 ```
 Scaffold new project but use SSH for git clone: 
 ```
-terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixture-inputs --var SourceUrlType=git-ssh
+terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixture-inputs --var=SourceUrlType=git-ssh
 
 # terragrunt.hcl
 terraform {
