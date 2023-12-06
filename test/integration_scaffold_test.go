@@ -11,10 +11,9 @@ import (
 
 const (
 	// TODO: change ref values to master once the feature is merged
-	TEST_SCAFOLD_MODULE       = "https://github.com/gruntwork-io/terragrunt.git//test/fixture-scaffold/scaffold-module?ref=feature/scaffold"
-	TEST_SCAFOLD_MODULE_GIT   = "git@github.com:gruntwork-io/terragrunt.git//test/fixture-scaffold/scaffold-module?ref=feature/scaffold"
-	TEST_SCAFOLD_MODULE_SHORT = "github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=master"
-
+	TEST_SCAFOLD_MODULE                   = "https://github.com/gruntwork-io/terragrunt.git//test/fixture-scaffold/scaffold-module?ref=feature/scaffold"
+	TEST_SCAFOLD_MODULE_GIT               = "git@github.com:gruntwork-io/terragrunt.git//test/fixture-scaffold/scaffold-module?ref=feature/scaffold"
+	TEST_SCAFOLD_MODULE_SHORT             = "github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=master"
 	TEST_SCAFOLD_TEMPLATE_MODULE          = "git@github.com:gruntwork-io/terragrunt.git//test/fixture-scaffold/module-with-template?ref=feature/scaffold"
 	TEST_SCAFOLD_EXTERNAL_TEMPLATE_MODULE = "git@github.com:gruntwork-io/terragrunt.git//test/fixture-scaffold/external-template?ref=feature/scaffold"
 )
