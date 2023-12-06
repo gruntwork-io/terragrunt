@@ -48,6 +48,38 @@ func TestTerragruntScaffoldModuleShortUrl(t *testing.T) {
 	require.Contains(t, stderr.String(), "Scaffolding completed")
 }
 
+func TestTerragruntScaffoldModuleDifferentRevision(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := t.TempDir()
+	err := os.MkdirAll(tmpEnvPath, 0755)
+	require.NoError(t, err)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s --var=Ref=v0.53.1", tmpEnvPath, TEST_SCAFOLD_MODULE_SHORT), &stdout, &stderr)
+	require.NoError(t, err)
+	require.Contains(t, stderr.String(), "git::https://github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=v0.53.1")
+	require.Contains(t, stderr.String(), "Scaffolding completed")
+}
+
+func TestTerragruntScaffoldModuleDifferentRevisionAndSsh(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := t.TempDir()
+	err := os.MkdirAll(tmpEnvPath, 0755)
+	require.NoError(t, err)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s --var=Ref=v0.53.1 --var=SourceUrlType=git-ssh", tmpEnvPath, TEST_SCAFOLD_MODULE_SHORT), &stdout, &stderr)
+	require.NoError(t, err)
+	require.Contains(t, stderr.String(), "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=v0.53.1")
+	require.Contains(t, stderr.String(), "Scaffolding completed")
+}
+
 func TestTerragruntScaffoldModuleSsh(t *testing.T) {
 	t.Parallel()
 
