@@ -260,7 +260,7 @@ func rewriteModuleUrl(opts *options.TerragruntOptions, vars map[string]interface
 
 	// rewrite module url
 	parsedUrl, err := parseUrl(opts, moduleUrl)
-	if err == nil {
+	if err != nil {
 		opts.Logger.Warnf("Failed to parse module url %s", moduleUrl)
 		parsedModuleUrl, err := terraform.ToSourceUrl(updatedModuleUrl, opts.WorkingDir)
 		if err != nil {
