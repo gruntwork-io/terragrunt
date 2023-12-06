@@ -39,12 +39,12 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 		content, err := os.ReadFile(tfFile)
 		if err != nil {
 			opts.Logger.Warnf("Error reading file %s: %v", tfFile, err)
-			continue
+			return nil, errors.WithStackTrace(err)
 		}
 		file, diags := parser.ParseHCL(content, tfFile)
 		if diags.HasErrors() {
 			opts.Logger.Warnf("Failed to parse HCL in file %s: %v", tfFile, diags)
-			continue
+			return nil, errors.WithStackTrace(err)
 		}
 
 		ctx := &hcl.EvalContext{}
