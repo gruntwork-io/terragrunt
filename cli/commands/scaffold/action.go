@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/pkg/cli"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/shell"
 
@@ -76,7 +78,7 @@ inputs = {
 
 var moduleUrlRegex = regexp.MustCompile(moduleUrlPattern)
 
-func Run(opts *options.TerragruntOptions) error {
+func Run(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	// download remote repo to local
 	var moduleUrl = ""
 	var templateUrl = ""
@@ -98,12 +100,16 @@ func Run(opts *options.TerragruntOptions) error {
 		opts.Logger.Warnf("The working directory %s is not empty.", opts.WorkingDir)
 	}
 
-	if len(opts.TerraformCliArgs) >= moduleCount {
-		moduleUrl = opts.TerraformCliArgs[1]
+	if val := ctx.Args().Get(0); val != "" {
+		moduleUrl = val
 	}
 
-	if len(opts.TerraformCliArgs) >= moduleAndTemplateCount {
-		templateUrl = opts.TerraformCliArgs[2]
+	if val := ctx.Args().Get(1); val != "" {
+		templateUrl = val
+	}
+
+	if moduleUrl == "" {
+		return errors.WithStackTrace(NoModuleUrlPassed{})
 	}
 
 	// create temporary directory where to download module
@@ -389,4 +395,11 @@ type failedToParseUrlError struct {
 
 func (err failedToParseUrlError) Error() string {
 	return "Failed to parse Url."
+}
+
+type NoModuleUrlPassed struct {
+}
+
+func (err NoModuleUrlPassed) Error() string {
+	return "No module URL passed."
 }

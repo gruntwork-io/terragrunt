@@ -28,8 +28,6 @@ func TestTerragruntScaffoldModule(t *testing.T) {
 	stderr := bytes.Buffer{}
 
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, TEST_SCAFOLD_MODULE), &stdout, &stderr)
-	fmt.Println(stderr.String())
-	fmt.Println(stdout.String())
 	require.NoError(t, err)
 	require.Contains(t, stderr.String(), "Scaffolding completed")
 }
@@ -44,8 +42,6 @@ func TestTerragruntScaffoldModuleShortUrl(t *testing.T) {
 	stderr := bytes.Buffer{}
 
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, TEST_SCAFOLD_MODULE_SHORT), &stdout, &stderr)
-	fmt.Println(stderr.String())
-	fmt.Println(stdout.String())
 	require.NoError(t, err)
 	require.Contains(t, stderr.String(), "Scaffolding completed")
 }
@@ -60,8 +56,7 @@ func TestTerragruntScaffoldModuleDifferentRevision(t *testing.T) {
 	stderr := bytes.Buffer{}
 
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s --var=Ref=v0.53.1", tmpEnvPath, TEST_SCAFOLD_MODULE_SHORT), &stdout, &stderr)
-	fmt.Println(stderr.String())
-	fmt.Println(stdout.String())
+
 	require.NoError(t, err)
 	require.Contains(t, stderr.String(), "git::https://github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=v0.53.1")
 	require.Contains(t, stderr.String(), "Scaffolding completed")
@@ -77,8 +72,6 @@ func TestTerragruntScaffoldModuleDifferentRevisionAndSsh(t *testing.T) {
 	stderr := bytes.Buffer{}
 
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s --var=Ref=v0.53.1 --var=SourceUrlType=git-ssh", tmpEnvPath, TEST_SCAFOLD_MODULE_SHORT), &stdout, &stderr)
-	fmt.Println(stderr.String())
-	fmt.Println(stdout.String())
 	require.NoError(t, err)
 	require.Contains(t, stderr.String(), "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=v0.53.1")
 	require.Contains(t, stderr.String(), "Scaffolding completed")
@@ -94,8 +87,6 @@ func TestTerragruntScaffoldModuleSsh(t *testing.T) {
 	stderr := bytes.Buffer{}
 
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, TEST_SCAFOLD_MODULE_GIT), &stdout, &stderr)
-	fmt.Println(stderr.String())
-	fmt.Println(stdout.String())
 	require.NoError(t, err)
 	require.Contains(t, stderr.String(), "Scaffolding completed")
 }
@@ -110,8 +101,6 @@ func TestTerragruntScaffoldModuleTemplate(t *testing.T) {
 	stderr := bytes.Buffer{}
 
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, TEST_SCAFOLD_TEMPLATE_MODULE), &stdout, &stderr)
-	fmt.Println(stderr.String())
-	fmt.Println(stdout.String())
 	require.NoError(t, err)
 	require.Contains(t, stderr.String(), "Scaffolding completed")
 	// check that exists file from .boilerplate dir
@@ -128,10 +117,22 @@ func TestTerragruntScaffoldModuleExternalTemplate(t *testing.T) {
 	stderr := bytes.Buffer{}
 
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s %s", tmpEnvPath, TEST_SCAFOLD_MODULE_GIT, TEST_SCAFOLD_EXTERNAL_TEMPLATE_MODULE), &stdout, &stderr)
-	fmt.Println(stderr.String())
-	fmt.Println(stdout.String())
 	require.NoError(t, err)
 	require.Contains(t, stderr.String(), "Scaffolding completed")
 	// check that exists file from external template
 	require.FileExists(t, fmt.Sprintf("%s/external-template.txt", tmpEnvPath))
+}
+
+func TestTerragruntScaffoldErrorNoModuleUrl(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-scaffold-test")
+	require.NoError(t, err)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold", tmpEnvPath), &stdout, &stderr)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "No module URL passed")
 }
