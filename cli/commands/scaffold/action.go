@@ -27,9 +27,6 @@ import (
 )
 
 const (
-	moduleCount            = 2
-	moduleAndTemplateCount = 3
-
 	sourceUrlTypeHttps = "git-https"
 	sourceUrlTypeGit   = "git-ssh"
 	sourceGitSshUser   = "git"
