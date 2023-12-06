@@ -122,9 +122,9 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 }
 
 // generateDefaultValue - generate hcl default value
-func generateDefaultValue(typetxt string) string {
-
-	switch typetxt {
+// HCL type of variable https://developer.hashicorp.com/packer/docs/templates/hcl_templates/variables#type-constraints
+func generateDefaultValue(variableType string) string {
+	switch variableType {
 	case "number":
 		return "0"
 	case "bool":
@@ -136,7 +136,6 @@ func generateDefaultValue(typetxt string) string {
 	case "object":
 		return "{}"
 	}
-
 	// fallback to empty value
 	return "\"\""
 }
