@@ -169,6 +169,7 @@ func Run(ctx *cli.Context, opts *options.TerragruntOptions) error {
 		OnMissingConfig: boilerplate_options.DefaultMissingConfigAction,
 		Vars:            vars,
 		DisableShell:    true,
+		DisableHooks:    true,
 		NonInteractive:  opts.NonInteractive,
 		TemplateFolder:  boilerplateDir,
 	}
