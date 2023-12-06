@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
+
 	"github.com/gruntwork-io/terragrunt/shell"
 
 	"github.com/gruntwork-io/go-commons/errors"
@@ -75,6 +77,7 @@ func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 		renderjson.NewCommand(opts),         // render-json
 		awsproviderpatch.NewCommand(opts),   // aws-provider-patch
 		outputmodulegroups.NewCommand(opts), // output-module-groups
+		scaffold.NewCommand(opts),           // scaffold
 	}
 
 	sort.Sort(cmds)
