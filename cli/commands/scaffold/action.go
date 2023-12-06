@@ -81,6 +81,7 @@ func Run(opts *options.TerragruntOptions) error {
 	// download remote repo to local
 	var moduleUrl = ""
 	var templateUrl = ""
+	dirsToClean = []string{}
 	// clean all temp dirs
 	defer func() {
 		for _, dir := range dirsToClean {
