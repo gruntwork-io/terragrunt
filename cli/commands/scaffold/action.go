@@ -259,15 +259,23 @@ func rewriteModuleUrl(opts *options.TerragruntOptions, vars map[string]interface
 	}
 
 	// rewrite module url
-	scheme, host, path := parseUrl(opts, moduleUrl)
+	parsedUrl, err := parseUrl(opts, moduleUrl)
+	if err == nil {
+		opts.Logger.Warnf("Failed to parse module url %s", moduleUrl)
+		parsedModuleUrl, err := terraform.ToSourceUrl(updatedModuleUrl, opts.WorkingDir)
+		if err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
+		return parsedModuleUrl, nil
+	}
 	// try to rewrite module url if is https and is requested to be git
-	if scheme == "https" && sourceUrlType == sourceUrlTypeGit {
+	if parsedUrl.scheme == "https" && sourceUrlType == sourceUrlTypeGit {
 		gitUser := sourceGitSshUser
 		if value, found := vars[sourceGitSshUserVar]; found {
 			gitUser = fmt.Sprintf("%s", value)
 		}
-		path = strings.TrimPrefix(path, "/")
-		updatedModuleUrl = fmt.Sprintf("%s@%s:%s", gitUser, host, path)
+		path := strings.TrimPrefix(parsedUrl.path, "/")
+		updatedModuleUrl = fmt.Sprintf("%s@%s:%s", gitUser, parsedUrl.host, path)
 	}
 
 	parsedModuleUrl, err := terraform.ToSourceUrl(updatedModuleUrl, opts.WorkingDir)
@@ -328,18 +336,30 @@ func addRefToModuleUrl(opts *options.TerragruntOptions, parsedModuleUrl *url.URL
 }
 
 // parseUrl parses module url to scheme, host and path
-func parseUrl(opts *options.TerragruntOptions, moduleUrl string) (string, string, string) {
+func parseUrl(opts *options.TerragruntOptions, moduleUrl string) (*parsedUrl, error) {
 	matches := moduleUrlRegex.FindStringSubmatch(moduleUrl)
 	if len(matches) != moduleUrlParts {
 		opts.Logger.Warnf("Failed to parse module url %s", moduleUrl)
-		return "", "", ""
+		return nil, failedToParseUrlError{}
 	}
+	return &parsedUrl{
+		scheme: matches[1],
+		host:   matches[2],
+		path:   matches[3],
+	}, nil
+}
 
-	scheme := matches[1]
-	host := matches[2]
-	path := matches[3]
+type parsedUrl struct {
+	scheme string
+	host   string
+	path   string
+}
 
-	return scheme, host, path
+type failedToParseUrlError struct {
+}
+
+func (err failedToParseUrlError) Error() string {
+	return "Failed to parse Url."
 }
 
 type WorkingDirectoryNotEmptyError struct {
