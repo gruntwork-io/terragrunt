@@ -95,9 +95,7 @@ func Run(opts *options.TerragruntOptions) error {
 		if err != nil {
 			return err
 		}
-		return WorkingDirectoryNotEmptyError{
-			dir: opts.WorkingDir,
-		}
+		opts.Logger.Warnf("The working directory %s is not empty.", opts.WorkingDir)
 	}
 
 	if len(opts.TerraformCliArgs) >= moduleCount {
@@ -142,35 +140,7 @@ func Run(opts *options.TerragruntOptions) error {
 	// regenerate module url with all changes
 	moduleUrl = parsedModuleUrl.String()
 
-	// identify template url
-	templateDir := ""
-	if templateUrl != "" {
-		// process template url if was passed
-		parsedTemplateUrl, err := terraform.ToSourceUrl(templateUrl, tempDir)
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
-		parsedTemplateUrl, err = rewriteTemplateUrl(opts, parsedTemplateUrl)
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
-		// regenerate template url with all changes
-		templateUrl = parsedTemplateUrl.String()
-
-		templateDir, err = os.MkdirTemp("", "template")
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
-		dirsToClean = append(dirsToClean, templateDir)
-
-		// downloading template
-		opts.Logger.Infof("Using template from %s", templateUrl)
-		if err := getter.GetAny(templateDir, templateUrl); err != nil {
-			return errors.WithStackTrace(err)
-		}
-	}
-
-	opts.Logger.Infof("Scaffolding a new Terragrunt module %s %s to %s", moduleUrl, templateUrl, opts.WorkingDir)
+	opts.Logger.Infof("Scaffolding a new Terragrunt module %s to %s", moduleUrl, opts.WorkingDir)
 	if err := getter.GetAny(tempDir, moduleUrl); err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -193,6 +163,35 @@ func Run(opts *options.TerragruntOptions) error {
 		}
 	}
 	opts.Logger.Debugf("Parsed %d required variables and %d optional variables", len(requiredVariables), len(optionalVariables))
+
+	// identify template url
+	templateDir := ""
+	if templateUrl != "" {
+		// process template url if was passed
+		parsedTemplateUrl, err := terraform.ToSourceUrl(templateUrl, tempDir)
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+		parsedTemplateUrl, err = rewriteTemplateUrl(opts, parsedTemplateUrl)
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+		// regenerate template url with all changes
+		templateUrl = parsedTemplateUrl.String()
+
+		// prepare temporary directory for template
+		templateDir, err = os.MkdirTemp("", "template")
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+		dirsToClean = append(dirsToClean, templateDir)
+
+		// downloading template
+		opts.Logger.Infof("Using template from %s", templateUrl)
+		if err := getter.GetAny(templateDir, templateUrl); err != nil {
+			return errors.WithStackTrace(err)
+		}
+	}
 
 	// run boilerplate
 
@@ -227,14 +226,15 @@ func Run(opts *options.TerragruntOptions) error {
 
 	opts.Logger.Infof("Running boilerplate generation to %s", opts.WorkingDir)
 	boilerplateOpts := &boilerplate_options.BoilerplateOptions{
-		TemplateFolder:  boilerplateDir,
 		OutputFolder:    opts.WorkingDir,
 		OnMissingKey:    boilerplate_options.DefaultMissingKeyAction,
 		OnMissingConfig: boilerplate_options.DefaultMissingConfigAction,
 		Vars:            vars,
 		DisableShell:    true,
 		NonInteractive:  opts.NonInteractive,
+		TemplateFolder:  boilerplateDir,
 	}
+
 	emptyDep := variables.Dependency{}
 	if err := templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep); err != nil {
 		return errors.WithStackTrace(err)
@@ -258,8 +258,9 @@ func rewriteModuleUrl(opts *options.TerragruntOptions, vars map[string]interface
 		sourceUrlType = fmt.Sprintf("%s", value)
 	}
 
-	// rewrite module url
-	parsedUrl, err := parseUrl(opts, moduleUrl)
+	// expand module url
+	// github.com/gruntwork-io/terragrunt.git//test/fixture-inputs => git::https://github.com/gruntwork-io/terragrunt.git//test/fixture-inputs
+	parsedValue, err := parseUrl(opts, moduleUrl)
 	if err != nil {
 		opts.Logger.Warnf("Failed to parse module url %s", moduleUrl)
 		parsedModuleUrl, err := terraform.ToSourceUrl(updatedModuleUrl, opts.WorkingDir)
@@ -269,15 +270,17 @@ func rewriteModuleUrl(opts *options.TerragruntOptions, vars map[string]interface
 		return parsedModuleUrl, nil
 	}
 	// try to rewrite module url if is https and is requested to be git
-	if parsedUrl.scheme == "https" && sourceUrlType == sourceUrlTypeGit {
+	// git::https://github.com/gruntwork-io/terragrunt.git//test/fixture-inputs => git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixture-inputs
+	if parsedValue.scheme == "https" && sourceUrlType == sourceUrlTypeGit {
 		gitUser := sourceGitSshUser
 		if value, found := vars[sourceGitSshUserVar]; found {
 			gitUser = fmt.Sprintf("%s", value)
 		}
-		path := strings.TrimPrefix(parsedUrl.path, "/")
-		updatedModuleUrl = fmt.Sprintf("%s@%s:%s", gitUser, parsedUrl.host, path)
+		path := strings.TrimPrefix(parsedValue.path, "/")
+		updatedModuleUrl = fmt.Sprintf("%s@%s:%s", gitUser, parsedValue.host, path)
 	}
 
+	// persist changes in url.URL
 	parsedModuleUrl, err := terraform.ToSourceUrl(updatedModuleUrl, opts.WorkingDir)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
@@ -286,6 +289,7 @@ func rewriteModuleUrl(opts *options.TerragruntOptions, vars map[string]interface
 }
 
 // rewriteTemplateUrl rewrites template url with reference to tag
+// github.com/denis256/terragrunt-tests.git//scaffold/base-template => github.com/denis256/terragrunt-tests.git//scaffold/base-template?ref=v0.53.8
 func rewriteTemplateUrl(opts *options.TerragruntOptions, parsedTemplateUrl *url.URL) (*url.URL, error) {
 	var updatedTemplateUrl = parsedTemplateUrl
 	var templateParams = updatedTemplateUrl.Query()
@@ -319,6 +323,7 @@ func addRefToModuleUrl(opts *options.TerragruntOptions, parsedModuleUrl *url.URL
 	ref := params.Get(refParam)
 	if ref == "" {
 		// if ref is not passed, find last release tag
+		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixture-inputs => git::https://github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=v0.53.8
 		rootSourceUrl, _, err := terraform.SplitSourceUrl(moduleUrl, opts.Logger)
 		if err != nil {
 			return nil, errors.WithStackTrace(err)
@@ -360,12 +365,4 @@ type failedToParseUrlError struct {
 
 func (err failedToParseUrlError) Error() string {
 	return "Failed to parse Url."
-}
-
-type WorkingDirectoryNotEmptyError struct {
-	dir string
-}
-
-func (err WorkingDirectoryNotEmptyError) Error() string {
-	return fmt.Sprintf("The working directory %s is not empty.", err.dir)
 }
