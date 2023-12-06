@@ -76,7 +76,7 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 						if typeAttr != nil {
 							typeAttrText = typeAttr.AsString()
 						} else {
-							typeAttrText = fmt.Sprintf("No type for %s", name)
+							typeAttrText = fmt.Sprintf("(variable %s does not define a type)", name)
 						}
 
 						defaultValue, err := readBlockAttribute(ctx, block, "default")
