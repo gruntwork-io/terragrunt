@@ -232,8 +232,8 @@ func Run(opts *options.TerragruntOptions) error {
 		OnMissingKey:    boilerplate_options.DefaultMissingKeyAction,
 		OnMissingConfig: boilerplate_options.DefaultMissingConfigAction,
 		Vars:            vars,
-
-		NonInteractive: true,
+		DisableShell:    true,
+		NonInteractive:  opts.NonInteractive,
 	}
 	emptyDep := variables.Dependency{}
 	if err := templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep); err != nil {
@@ -289,7 +289,7 @@ func rewriteTemplateUrl(opts *options.TerragruntOptions, parsedTemplateUrl *url.
 		}
 		tag, err := shell.GitLastReleaseTag(opts, rootSourceUrl)
 		if err != nil || tag == "" {
-			opts.Logger.Warnf("Failed to find last release tag templae %s", rootSourceUrl)
+			opts.Logger.Warnf("Failed to find last release tag for URL %s, so will not add a ref param to the URL", rootSourceUrl)
 		} else {
 			templateParams.Add(refParam, tag)
 			updatedTemplateUrl.RawQuery = templateParams.Encode()

@@ -64,7 +64,7 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 						if descriptionAttr != nil {
 							descriptionAttrText = descriptionAttr.AsString()
 						} else {
-							descriptionAttrText = fmt.Sprintf("No description for %s", name)
+							descriptionAttrText = fmt.Sprintf("(variable %s did not define a description)", name)
 						}
 
 						typeAttr, err := readBlockAttribute(ctx, block, "type")
