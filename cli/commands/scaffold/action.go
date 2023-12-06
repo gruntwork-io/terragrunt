@@ -75,13 +75,12 @@ inputs = {
 )
 
 var moduleUrlRegex = regexp.MustCompile(moduleUrlPattern)
-var dirsToClean []string
 
 func Run(opts *options.TerragruntOptions) error {
 	// download remote repo to local
 	var moduleUrl = ""
 	var templateUrl = ""
-	dirsToClean = []string{}
+	var dirsToClean []string
 	// clean all temp dirs
 	defer func() {
 		for _, dir := range dirsToClean {
@@ -198,7 +197,6 @@ func prepareBoilerplateFiles(opts *options.TerragruntOptions, templateUrl string
 		if err != nil {
 			return "", errors.WithStackTrace(err)
 		}
-		dirsToClean = append(dirsToClean, templateDir)
 
 		// downloading template
 		opts.Logger.Infof("Using template from %s", templateUrl)
@@ -221,7 +219,6 @@ func prepareBoilerplateFiles(opts *options.TerragruntOptions, templateUrl string
 			return "", errors.WithStackTrace(err)
 		}
 		boilerplateDir = defaultTempDir
-		dirsToClean = append(dirsToClean, boilerplateDir)
 		if err := os.WriteFile(util.JoinPath(boilerplateDir, "terragrunt.hcl"), []byte(defaultTerragruntTemplate), 0644); err != nil {
 			return "", errors.WithStackTrace(err)
 		}
