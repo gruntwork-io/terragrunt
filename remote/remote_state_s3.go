@@ -341,6 +341,7 @@ func (s3Initializer S3Initializer) GetTerraformInitArgs(config map[string]interf
 	const (
 		lockTableKey     = "lock_table"
 		dynamoDBTableKey = "dynamodb_table"
+		assumeRoleKey    = "assume_role"
 	)
 
 	for key, val := range config {
@@ -357,6 +358,12 @@ func (s3Initializer S3Initializer) GetTerraformInitArgs(config map[string]interf
 		if key == lockTableKey {
 			filteredConfig[dynamoDBTableKey] = val
 			continue
+		}
+		if key == assumeRoleKey {
+			if mapVal, ok := val.(map[string]interface{}); ok {
+				filteredConfig[key] = wrapMapToSingleLineHcl(mapVal)
+				continue
+			}
 		}
 
 		filteredConfig[key] = val
