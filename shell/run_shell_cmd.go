@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"regexp"
 	"strings"
 	"sync"
 	"syscall"
@@ -38,11 +37,8 @@ const (
 	gitPrefix = "git::"
 	refsTags  = "refs/tags/"
 
-	tagSplitPart  = 2
-	semverPattern = `^refs/tags/v?[0-9]+\.[0-9]+\.[0-9]+$`
+	tagSplitPart = 2
 )
-
-var semverPatternRegex = regexp.MustCompile(semverPattern)
 
 // Commands that implement a REPL need a pseudo TTY when run as a subprocess in order for the readline properties to be
 // preserved. This is a list of terraform commands that have this property, which is used to determine if terragrunt
@@ -372,10 +368,10 @@ func lastReleaseTag(tags []string) string {
 func extractSemVerTags(tags []string) []*version.Version {
 	var semverTags []*version.Version
 	for _, tag := range tags {
-		if semverPatternRegex.MatchString(tag) {
-			if v, err := version.NewVersion(strings.TrimPrefix(tag, refsTags)); err == nil {
-				semverTags = append(semverTags, v)
-			}
+		t := strings.TrimPrefix(tag, refsTags)
+		if v, err := version.NewVersion(t); err == nil {
+			// consider only semver tags
+			semverTags = append(semverTags, v)
 		}
 	}
 	return semverTags
