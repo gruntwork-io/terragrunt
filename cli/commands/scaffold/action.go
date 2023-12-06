@@ -215,10 +215,11 @@ func prepareBoilerplateFiles(opts *options.TerragruntOptions, templateUrl string
 	// if boilerplate dir is not found, create one with default template
 	if !files.IsExistingDir(boilerplateDir) {
 		// no default boilerplate dir, create one
-		boilerplateDir, err := os.MkdirTemp("", "boilerplate")
+		defaultTempDir, err := os.MkdirTemp("", "boilerplate")
 		if err != nil {
 			return "", errors.WithStackTrace(err)
 		}
+		boilerplateDir = defaultTempDir
 		dirsToClean = append(dirsToClean, boilerplateDir)
 		if err := os.WriteFile(util.JoinPath(boilerplateDir, "terragrunt.hcl"), []byte(defaultTerragruntTemplate), 0644); err != nil {
 			return "", errors.WithStackTrace(err)
