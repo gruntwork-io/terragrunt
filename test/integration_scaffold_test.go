@@ -21,8 +21,7 @@ const (
 func TestTerragruntScaffoldModule(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
-	err := os.MkdirAll(tmpEnvPath, 0755)
+	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")
 	require.NoError(t, err)
 
 	stdout := bytes.Buffer{}
@@ -36,8 +35,7 @@ func TestTerragruntScaffoldModule(t *testing.T) {
 func TestTerragruntScaffoldModuleShortUrl(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
-	err := os.MkdirAll(tmpEnvPath, 0755)
+	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")
 	require.NoError(t, err)
 
 	stdout := bytes.Buffer{}
@@ -51,8 +49,7 @@ func TestTerragruntScaffoldModuleShortUrl(t *testing.T) {
 func TestTerragruntScaffoldModuleDifferentRevision(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
-	err := os.MkdirAll(tmpEnvPath, 0755)
+	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")
 	require.NoError(t, err)
 
 	stdout := bytes.Buffer{}
@@ -67,8 +64,7 @@ func TestTerragruntScaffoldModuleDifferentRevision(t *testing.T) {
 func TestTerragruntScaffoldModuleDifferentRevisionAndSsh(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
-	err := os.MkdirAll(tmpEnvPath, 0755)
+	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")
 	require.NoError(t, err)
 
 	stdout := bytes.Buffer{}
@@ -83,8 +79,7 @@ func TestTerragruntScaffoldModuleDifferentRevisionAndSsh(t *testing.T) {
 func TestTerragruntScaffoldModuleSsh(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
-	err := os.MkdirAll(tmpEnvPath, 0755)
+	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")
 	require.NoError(t, err)
 
 	stdout := bytes.Buffer{}
@@ -98,8 +93,7 @@ func TestTerragruntScaffoldModuleSsh(t *testing.T) {
 func TestTerragruntScaffoldModuleTemplate(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
-	err := os.MkdirAll(tmpEnvPath, 0755)
+	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")
 	require.NoError(t, err)
 
 	stdout := bytes.Buffer{}
@@ -115,8 +109,7 @@ func TestTerragruntScaffoldModuleTemplate(t *testing.T) {
 func TestTerragruntScaffoldModuleExternalTemplate(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := t.TempDir()
-	err := os.MkdirAll(tmpEnvPath, 0755)
+	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")
 	require.NoError(t, err)
 
 	stdout := bytes.Buffer{}
