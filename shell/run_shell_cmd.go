@@ -9,11 +9,12 @@ import (
 	"os/exec"
 	"os/signal"
 	"regexp"
-	"sort"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/hashicorp/go-version"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -357,21 +358,26 @@ func lastReleaseTag(tags []string) string {
 	if len(semverTags) == 0 {
 		return ""
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(semverTags)))
-	last := semverTags[0]
-	last = strings.TrimPrefix(last, refsTags)
-	return last
+	// find last semver tag
+	lastVersion := semverTags[0]
+	for _, ver := range semverTags {
+		if ver.GreaterThanOrEqual(lastVersion) {
+			lastVersion = ver
+		}
+	}
+	return lastVersion.Original()
 }
 
 // extractSemVerTags - extract semver tags from passed tags slice.
-func extractSemVerTags(tags []string) []string {
-	var semverTags []string
+func extractSemVerTags(tags []string) []*version.Version {
+	var semverTags []*version.Version
 	for _, tag := range tags {
 		if semverPatternRegex.MatchString(tag) {
-			semverTags = append(semverTags, tag)
+			if v, err := version.NewVersion(strings.TrimPrefix(tag, refsTags)); err == nil {
+				semverTags = append(semverTags, v)
+			}
 		}
 	}
-
 	return semverTags
 }
 
