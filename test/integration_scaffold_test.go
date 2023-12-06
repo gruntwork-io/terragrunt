@@ -21,7 +21,7 @@ const (
 func TestTerragruntScaffoldModule(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")
+	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-scaffold-test")
 	require.NoError(t, err)
 
 	stdout := bytes.Buffer{}
