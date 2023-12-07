@@ -1,5 +1,5 @@
 ---
-layout: scaffold
+layout: collection-browser-doc
 title: Scaffold
 category: features
 categories_url: features
