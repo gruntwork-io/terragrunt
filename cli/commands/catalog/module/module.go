@@ -33,8 +33,6 @@ var (
 type Modules []*Module
 
 type Module struct {
-	repo *Repo
-
 	path        string
 	url         string
 	title       string
