@@ -1,6 +1,7 @@
 package module
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -35,7 +36,8 @@ var (
 type Modules []*Module
 
 type Module struct {
-	path        string
+	repoPath    string
+	moduleDir   string
 	url         string
 	title       string
 	description string
@@ -45,7 +47,8 @@ type Module struct {
 // NewModule returns a module instance if the given `moduleDir` path contains a Terraform module, otherwise returns nil.
 func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 	module := &Module{
-		path:        filepath.Join(repo.path, moduleDir),
+		repoPath:    repo.path,
+		moduleDir:   moduleDir,
 		title:       filepath.Base(moduleDir),
 		description: defaultDescription,
 	}
@@ -54,7 +57,7 @@ func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 		return nil, err
 	}
 
-	log.Debugf("Found module in directory %q", module.path)
+	log.Debugf("Found module in directory %q", moduleDir)
 
 	moduleURL, err := repo.moduleURL(moduleDir)
 	if err != nil {
@@ -93,11 +96,12 @@ func (module *Module) URL() string {
 }
 
 func (module *Module) Path() string {
-	return module.path
+	return fmt.Sprintf("%s//%s", module.repoPath, module.moduleDir)
+
 }
 
 func (module *Module) isValid() (bool, error) {
-	files, err := os.ReadDir(module.path)
+	files, err := os.ReadDir(filepath.Join(module.repoPath, module.moduleDir))
 	if err != nil {
 		return false, errors.WithStackTrace(err)
 	}
@@ -123,7 +127,9 @@ func (module *Module) isValid() (bool, error) {
 func (module *Module) parseReadme() error {
 	var readmePath string
 
-	files, err := os.ReadDir(module.path)
+	modulePath := filepath.Join(module.repoPath, module.moduleDir)
+
+	files, err := os.ReadDir(modulePath)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -135,7 +141,7 @@ func (module *Module) parseReadme() error {
 
 		for _, readmeFile := range acceptableReadmeFiles {
 			if strings.EqualFold(readmeFile, file.Name()) {
-				readmePath = filepath.Join(module.path, file.Name())
+				readmePath = filepath.Join(modulePath, file.Name())
 				break
 			}
 		}
