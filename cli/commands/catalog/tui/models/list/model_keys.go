@@ -35,7 +35,7 @@ func NewKeyMap() list.KeyMap {
 		),
 		Filter: key.NewBinding(
 			key.WithKeys("/"),
-			key.WithHelp("/", "filter"),
+			key.WithHelp("/", "search"),
 		),
 		ClearFilter: key.NewBinding(
 			key.WithKeys("esc"),

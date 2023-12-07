@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/command"
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/pkg/browser"
 )
 
@@ -21,7 +22,7 @@ const (
 	defaultFocusIndex = 1
 
 	ScaffoldButtonName      = "Scaffold"
-	ViewInBrowserButtonName = "View in Browser"
+	ViewInBrowserButtonName = "View Source in Browser"
 )
 
 var (
@@ -41,7 +42,7 @@ type Model struct {
 	focusIndex int
 }
 
-func NewModel(module *module.Module, width, height int, previousModel tea.Model, quitFn func(error)) (*Model, error) {
+func NewModel(module *module.Module, width, height int, previousModel tea.Model, quitFn func(error), opts *options.TerragruntOptions) (*Model, error) {
 	renderer, err := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
 		glamour.WithWordWrap(width),
@@ -73,7 +74,7 @@ func NewModel(module *module.Module, width, height int, previousModel tea.Model,
 					quitFn(err)
 					return nil
 				}
-				return tea.Exec(command.NewScaffold(module.Path()), quitFn)
+				return tea.Exec(command.NewScaffold(module.Path(), opts), quitFn)
 			}),
 			NewButton(ViewInBrowserButtonName, func(msg tea.Msg) tea.Cmd {
 				if err := browser.OpenURL(module.URL()); err != nil {

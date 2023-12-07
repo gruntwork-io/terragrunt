@@ -8,7 +8,6 @@ import (
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -18,7 +17,8 @@ const (
 )
 
 var (
-	readmeFiles = []string{"README.md", "README.adoc"}
+	// When comparing, `strings.EqualFold` is used (case insensitive)
+	acceptableReadmeFiles = []string{"README.md", "README.adoc"}
 
 	mdHeaderReg   = regexp.MustCompile(`(?m)^#{1}\s?([^#][\S\s]+)`)
 	adocHeaderReg = regexp.MustCompile(`(?m)^={1}\s?([^=][\S\s]+)`)
@@ -28,6 +28,8 @@ var (
 
 	terraformFileExts = []string{".tf"}
 	ignoreFiles       = []string{"terraform-cloud-enterprise-private-module-registry-placeholder.tf"}
+
+	defaultDescription = "(no description found)"
 )
 
 type Modules []*Module
@@ -43,8 +45,9 @@ type Module struct {
 // module returns a module instance if the given path `repoPath/moduleDir` contains a Terragrunt module.
 func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 	module := &Module{
-		path:  filepath.Join(repo.path, moduleDir),
-		title: filepath.Base(moduleDir),
+		path:        filepath.Join(repo.path, moduleDir),
+		title:       filepath.Base(moduleDir),
+		description: defaultDescription,
 	}
 
 	if ok, err := module.isValid(); !ok || err != nil {
@@ -59,7 +62,7 @@ func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 	}
 	module.url = moduleURL
 
-	if err := module.parseDoc(); err != nil {
+	if err := module.parseReadme(); err != nil {
 		return nil, err
 	}
 
@@ -117,33 +120,48 @@ func (module *Module) isValid() (bool, error) {
 	return false, nil
 }
 
-func (module *Module) parseDoc() error {
-	var docPath string
+func (module *Module) parseReadme() error {
+	var readmePath string
 
-	for _, filename := range readmeFiles {
-		path := filepath.Join(module.path, filename)
-		if files.FileExists(path) {
-			docPath = path
+	files, err := os.ReadDir(module.path)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		for _, readmeFile := range acceptableReadmeFiles {
+			if strings.EqualFold(readmeFile, file.Name()) {
+				readmePath = filepath.Join(module.path, file.Name())
+				break
+			}
+		}
+
+		// `md` files have priority over `adoc` files
+		if strings.EqualFold(filepath.Ext(readmePath), ".md") {
 			break
 		}
 	}
 
-	if docPath == "" {
+	if readmePath == "" {
 		return nil
 	}
 
-	docContentByte, err := os.ReadFile(docPath)
+	readmeByte, err := os.ReadFile(readmePath)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
-	module.readme = string(docContentByte)
+	module.readme = string(readmeByte)
 
 	var (
 		reg       = mdHeaderReg
 		docHeader = mdHeader
 	)
 
-	if strings.HasSuffix(docPath, ".adoc") {
+	if strings.HasSuffix(readmePath, ".adoc") {
 		reg = adocHeaderReg
 		docHeader = adocHeader
 	}

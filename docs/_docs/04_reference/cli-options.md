@@ -517,17 +517,23 @@ This may produce output such as:
 
 ### catalog
 
-Launch the user interface for searching and manipulating Terragrunt modules.
+Launch the user interface for searching and managing your module catalog.
 
 Example:
 
 ```bash
-terragrunt catalog <repo-path>
+terragrunt catalog <repo-url>
 ```
 
-If `<repo-path>` is not specified, the modules are searched in the current directory. If a URL is provided, the repository will be copied to a temporary directory and deleted upon complete.
+[![Screenshot](https://terragrunt.gruntwork.io/docs/reference/cli-options/catalog-screenshot.png){ width=50% }](https://terragrunt.gruntwork.io/docs/reference/cli-options/catalog-screenshot.png)
 
-This will recursively search Terragrunt modules in the `modules` directory and build the list of modules.
+If `<repo-url>` is not specified, the modules are searched in the current directory. If a URL is provided, the repository will be copied to a temporary directory and deleted upon complete.
+
+This will recursively search for Terraform modules in the root of the repo and the `modules` directory and show a table with all the modules. You can then:
+1. Search and filter the table: `/` and start typing.
+1. Select a module in the table: use the arrow keys to go up and down and next/previous page.
+1. See the docs for a selected module: `ENTER`.
+1. Use [`terragrunt scaffold`](https://terragrunt.gruntwork.io/docs/features/scaffold/) to render a `terragrunt.hcl` for using the module: `S`.
 
 ## CLI options
 

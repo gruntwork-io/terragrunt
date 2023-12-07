@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/models/page"
+	"github.com/gruntwork-io/terragrunt/options"
 )
 
 const (
@@ -18,11 +19,12 @@ const (
 
 type Model struct {
 	*list.Model
-	delegate *Delegate
-	quitFn   func(error)
+	delegate          *Delegate
+	quitFn            func(error)
+	terragruntOptions *options.TerragruntOptions
 }
 
-func NewModel(modules module.Modules, quitFn func(error)) *Model {
+func NewModel(modules module.Modules, quitFn func(error), opts *options.TerragruntOptions) *Model {
 	var items []list.Item
 	for _, module := range modules {
 		items = append(items, module)
@@ -40,9 +42,10 @@ func NewModel(modules module.Modules, quitFn func(error)) *Model {
 		Padding(0, 1)
 
 	return &Model{
-		Model:    &model,
-		delegate: delegate,
-		quitFn:   quitFn,
+		Model:             &model,
+		delegate:          delegate,
+		quitFn:            quitFn,
+		terragruntOptions: opts,
 	}
 }
 
@@ -70,7 +73,7 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if key.Matches(msg, model.delegate.Choose, model.delegate.Scaffold) {
 			if module, ok := model.SelectedItem().(*module.Module); ok {
-				pageModel, err := page.NewModel(module, model.Width(), model.Height(), model, model.quitFn)
+				pageModel, err := page.NewModel(module, model.Width(), model.Height(), model, model.quitFn, model.terragruntOptions)
 				if err != nil {
 					model.quitFn(err)
 				}

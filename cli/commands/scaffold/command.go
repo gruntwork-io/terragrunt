@@ -32,6 +32,18 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Usage:                  "Scaffold a new Terragrunt module.",
 		DisallowUndefinedFlags: true,
 		Flags:                  NewFlags(opts).Sort(),
-		Action:                 func(ctx *cli.Context) error { return Run(ctx, opts.OptionsFromContext(ctx)) },
+		Action: func(ctx *cli.Context) error {
+			var moduleUrl, templateUrl string
+
+			if val := ctx.Args().Get(0); val != "" {
+				moduleUrl = val
+			}
+
+			if val := ctx.Args().Get(1); val != "" {
+				templateUrl = val
+			}
+
+			return Run(opts.OptionsFromContext(ctx), moduleUrl, templateUrl)
+		},
 	}
 }

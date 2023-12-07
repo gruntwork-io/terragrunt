@@ -7,8 +7,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/pkg/cli"
-
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/shell"
 
@@ -85,10 +83,8 @@ inputs = {
 
 var moduleUrlRegex = regexp.MustCompile(moduleUrlPattern)
 
-func Run(ctx *cli.Context, opts *options.TerragruntOptions) error {
+func Run(opts *options.TerragruntOptions, moduleUrl, templateUrl string) error {
 	// download remote repo to local
-	var moduleUrl = ""
-	var templateUrl = ""
 	var dirsToClean []string
 	// clean all temp dirs
 	defer func() {
@@ -105,14 +101,6 @@ func Run(ctx *cli.Context, opts *options.TerragruntOptions) error {
 			return err
 		}
 		opts.Logger.Warnf("The working directory %s is not empty.", opts.WorkingDir)
-	}
-
-	if val := ctx.Args().Get(0); val != "" {
-		moduleUrl = val
-	}
-
-	if val := ctx.Args().Get(1); val != "" {
-		templateUrl = val
 	}
 
 	if moduleUrl == "" {

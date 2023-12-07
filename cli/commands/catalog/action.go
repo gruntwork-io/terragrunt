@@ -1,21 +1,16 @@
 package catalog
 
 import (
+	"context"
+
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/pkg/errors"
 )
 
-func Run(ctx *cli.Context, opts *options.TerragruntOptions) error {
-	var repoPath string
-
-	if val := ctx.Args().Get(0); val != "" {
-		repoPath = val
-	}
-
+func Run(ctx context.Context, opts *options.TerragruntOptions, repoPath string) error {
 	log.SetLogger(opts.Logger.Logger)
 
 	repo, err := module.NewRepo(ctx, repoPath)
@@ -33,5 +28,5 @@ func Run(ctx *cli.Context, opts *options.TerragruntOptions) error {
 		return errors.Errorf("specified repository %q does not contain modules", repoPath)
 	}
 
-	return tui.Run(ctx.Context, modules)
+	return tui.Run(ctx, modules, opts)
 }
