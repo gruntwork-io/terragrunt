@@ -150,7 +150,7 @@ func NewSource(source string, downloadDir string, workingDir string, logger *log
 		return nil, err
 	}
 
-	rootSourceUrl, modulePath, err := splitSourceUrl(canonicalSourceUrl, logger)
+	rootSourceUrl, modulePath, err := SplitSourceUrl(canonicalSourceUrl, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +234,7 @@ func IsLocalSource(sourceUrl *url.URL) bool {
 // (//), which typically represents the root of a modules repo (e.g. github.com/foo/infrastructure-modules) and the
 // path is everything after the double slash. If there is no double-slash in the URL, the root repo is the entire
 // sourceUrl and the path is an empty string.
-func splitSourceUrl(sourceUrl *url.URL, logger *logrus.Entry) (*url.URL, string, error) {
+func SplitSourceUrl(sourceUrl *url.URL, logger *logrus.Entry) (*url.URL, string, error) {
 	pathSplitOnDoubleSlash := strings.SplitN(sourceUrl.Path, "//", 2)
 
 	if len(pathSplitOnDoubleSlash) > 1 {

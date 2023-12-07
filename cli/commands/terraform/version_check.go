@@ -18,11 +18,12 @@ import (
 const DefaultTerraformVersionConstraint = ">= v0.12.0"
 
 // TerraformVersionRegex verifies that terraform --version output is in one of the following formats:
+// - OpenTofu v1.6.0-dev
 // - Terraform v0.9.5-dev (cad024a5fe131a546936674ef85445215bbc4226+CHANGES)
 // - Terraform v0.13.0-beta2
 // - Terraform v0.12.27
 // We only make sure the "v#.#.#" part is present in the output.
-var TerraformVersionRegex = regexp.MustCompile(`^(.*?)\s(v?\d+\.\d+\.\d+).*`)
+var TerraformVersionRegex = regexp.MustCompile(`^(\S+)\s(v?\d+\.\d+\.\d+)`)
 
 const versionParts = 3
 

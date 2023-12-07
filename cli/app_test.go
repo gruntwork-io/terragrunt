@@ -476,7 +476,7 @@ func TestAutocomplete(t *testing.T) {
 	}{
 		{
 			"",
-			[]string{"aws-provider-patch", "graph-dependencies", "hclfmt", "output-module-groups", "render-json", "run-all", "terragrunt-info", "validate-inputs"},
+			[]string{"aws-provider-patch", "graph-dependencies", "hclfmt", "output-module-groups", "render-json", "run-all", "scaffold", "terragrunt-info", "validate-inputs"},
 		},
 		{
 			"--versio",
