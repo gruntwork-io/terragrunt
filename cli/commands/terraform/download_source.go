@@ -1,7 +1,6 @@
 package terraform
 
 import (
-	go_errors "errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -103,9 +102,7 @@ func downloadTerraformSourceIfNecessary(terraformSource *terraform.Source, terra
 	})
 
 	if downloadErr != nil {
-		downloadInfo := fmt.Errorf("downloading source url %s", terraformSource.CanonicalSourceURL.String())
-		err := go_errors.Join(downloadInfo, downloadErr)
-		return err
+		return DownloadingTerraformSourceNotFound{ErrMsg: downloadErr, Url: terraformSource.CanonicalSourceURL.String()}
 	}
 
 	if err := terraformSource.WriteVersionFile(); err != nil {
@@ -250,4 +247,13 @@ type WorkingDirNotDir struct {
 
 func (err WorkingDirNotDir) Error() string {
 	return fmt.Sprintf("Valid working dir %s from source %s", err.Dir, err.Source)
+}
+
+type DownloadingTerraformSourceNotFound struct {
+	ErrMsg error
+	Url    string
+}
+
+func (err DownloadingTerraformSourceNotFound) Error() string {
+	return fmt.Sprintf("failed to download source url %s\n%v", err.Url, err.ErrMsg)
 }

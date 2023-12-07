@@ -253,7 +253,8 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 
 	err = downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions, terragruntConfig)
 	assert.NotNil(t, err)
-	assert.Containsf(t, err.Error(), canonicalUrl, "expected error containing %q, got %s", canonicalUrl, err)
+	_, ok := errors.Unwrap(err).(DownloadingTerraformSourceNotFound)
+	assert.True(t, ok)
 }
 
 func TestInvalidModulePath(t *testing.T) {
