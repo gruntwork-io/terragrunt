@@ -18,7 +18,14 @@ func Run(ctx *cli.Context, opts *options.TerragruntOptions) error {
 
 	log.SetLogger(opts.Logger.Logger)
 
-	modules, err := module.FindModules(ctx, repoPath)
+	repo, err := module.NewRepo(ctx, repoPath)
+	if err != nil {
+		return err
+	}
+	//nolint:errcheck
+	defer repo.RemoveTempData()
+
+	modules, err := repo.FindModules(ctx)
 	if err != nil {
 		return err
 	}

@@ -2,12 +2,13 @@ package module
 
 import (
 	"context"
+	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
 
+	"github.com/gitsight/go-vcsurl"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -17,51 +18,160 @@ import (
 )
 
 const (
-	gitHubOrgURL = "https://github.com/gruntwork-io"
+	githubHost    = "github.com"
+	gitlabHost    = "gitlab.com"
+	azuredevHost  = "dev.azure.com"
+	bitbucketHost = "bitbucket.org"
 
-	mdHeader   = "#"
-	adocHeader = "="
+	tempDirPattern = "catalog-*"
 )
 
 var (
-	docFilenames = []string{"README.md", "README.adoc"}
+	gitHeadBranchName = regexp.MustCompile(`^.*?([^/]+)$`)
 
-	mdHeaderReg   = regexp.MustCompile(`(?m)^#{1}\s?([^#][\S\s]+)`)
-	adocHeaderReg = regexp.MustCompile(`(?m)^={1}\s?([^=][\S\s]+)`)
-
-	commentReg   = regexp.MustCompile(`<!--[\S\s]*?-->`)
-	adocImageReg = regexp.MustCompile(`image:[^\]]+]`)
+	modulesPaths = []string{"modules"}
 )
 
-// getRepo returns the absolute path to the repository if the given `repoPath` is a filesystem path, otherwise clones the repository to a temporary directory and returns the path.
-func getRepo(ctx context.Context, repoPath, tempDir string) (string, error) {
-	if repoPath == "" {
-		currentDir, err := os.Getwd()
+type Repo struct {
+	path    string
+	tempDir string
+
+	remoteURL  string
+	branchName string
+}
+
+func NewRepo(ctx context.Context, path string) (*Repo, error) {
+	repo := &Repo{
+		path: path,
+	}
+
+	if err := repo.clone(ctx); err != nil {
+		return nil, err
+	}
+
+	if err := repo.parseRemoteURL(); err != nil {
+		return nil, err
+	}
+
+	if err := repo.parseBranchName(); err != nil {
+		return nil, err
+	}
+
+	return repo, nil
+}
+
+func (repo *Repo) RemoveTempData() error {
+	return os.RemoveAll(repo.tempDir)
+}
+
+// FindModules clones the repository if `repoPath` is a URL, searches for Terragrunt modules, indexes their README.* files, and returns module instances.
+func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
+	var modules Modules
+
+	// check if root repo path is a module dir
+	if module, err := NewModule(repo, ""); err != nil {
+		return nil, err
+	} else if module != nil {
+		modules = append(modules, module)
+	}
+
+	for _, modulesPath := range modulesPaths {
+		modulesPath = filepath.Join(repo.path, modulesPath)
+
+		if !files.FileExists(modulesPath) {
+			continue
+		}
+
+		err := filepath.Walk(modulesPath,
+			func(dir string, remote os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				if !remote.IsDir() {
+					return nil
+				}
+
+				moduleDir, err := filepath.Rel(repo.path, dir)
+				if err != nil {
+					return errors.WithStackTrace(err)
+				}
+
+				if module, err := NewModule(repo, moduleDir); err != nil {
+					return err
+				} else if module != nil {
+					modules = append(modules, module)
+				}
+
+				return nil
+			})
 		if err != nil {
-			return "", errors.WithStackTrace(err)
+			return nil, err
 		}
 
-		repoPath = currentDir
 	}
 
-	if files.IsDir(repoPath) {
-		if !filepath.IsAbs(repoPath) {
-			absRepoPath, err := filepath.Abs(repoPath)
-			if err != nil {
-				return "", errors.WithStackTrace(err)
-			}
+	return modules, nil
+}
 
-			log.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
-
-			return absRepoPath, nil
-		}
-
-		return repoPath, nil
+func (repo *Repo) moduleURL(moduleDir string) (string, error) {
+	if repo.remoteURL == "" {
+		return filepath.Join(repo.path, moduleDir), nil
 	}
 
-	repoURL, err := terraform.ToSourceUrl(repoPath, tempDir)
+	remote, err := vcsurl.Parse(repo.remoteURL)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
+	}
+
+	switch remote.Host {
+	case githubHost:
+		return fmt.Sprintf("https://%s/%s/tree/%s/%s", remote.Host, remote.FullName, repo.branchName, moduleDir), nil
+	case gitlabHost:
+		return fmt.Sprintf("https://%s/%s/-/tree/%s/%s", remote.Host, remote.FullName, repo.branchName, moduleDir), nil
+	case bitbucketHost:
+		return fmt.Sprintf("https://%s/%s/browse/%s?at=%s", remote.Host, remote.FullName, moduleDir, repo.branchName), nil
+	case azuredevHost:
+		return fmt.Sprintf("https://%s/_git/%s?path=%s&version=GB%s", remote.Host, remote.FullName, moduleDir, repo.branchName), nil
+	default:
+		return "", errors.Errorf("hosting: %q is not supported yet", remote.Host)
+	}
+}
+
+// getRepo returns the absolute path to the repository if the given `repoPath` is a filesystem path, otherwise clones the repository to a temporary directory and returns the path.
+func (repo *Repo) clone(ctx context.Context) error {
+	if repo.path == "" {
+		currentDir, err := os.Getwd()
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+
+		repo.path = currentDir
+	}
+
+	if files.IsDir(repo.path) {
+		if !filepath.IsAbs(repo.path) {
+			absRepoPath, err := filepath.Abs(repo.path)
+			if err != nil {
+				return errors.WithStackTrace(err)
+			}
+
+			log.Debugf("Converting relative path %q to absolute %q", repo.path, absRepoPath)
+
+			repo.path = absRepoPath
+		}
+
+		return nil
+	}
+
+	tempDir, err := os.MkdirTemp("", tempDirPattern)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	repo.tempDir = tempDir
+
+	repoURL, err := terraform.ToSourceUrl(repo.path, tempDir)
+	if err != nil {
+		return errors.WithStackTrace(err)
 	}
 
 	log.Infof("Cloning repository %q to temprory directory %q", repoURL, tempDir)
@@ -77,181 +187,64 @@ func getRepo(ctx context.Context, repoPath, tempDir string) (string, error) {
 	}
 
 	if err := getter.GetAny(tempDir, strings.Trim(repoURL.String(), "/"), getter.WithContext(ctx)); err != nil {
-		return "", errors.WithStackTrace(err)
+		return errors.WithStackTrace(err)
 	}
 
-	return tempDir, nil
+	repo.path = tempDir
+	return nil
 }
 
-// gitRemoteURL reads git config and returns remote origin URL.
-func gitRemoteURL(repoPath string) (string, error) {
-	gitConfigPath := filepath.Join(repoPath, ".git", "config")
+// repoRemoteURL reads the git config `.git/config` and returns the first URL of the remote URLs, the remote name "origin" has the highest priority.
+func (repo *Repo) parseRemoteURL() error {
+	gitConfigPath := filepath.Join(repo.path, ".git", "config")
 
 	if !files.FileExists(gitConfigPath) {
-		return "", errors.Errorf("the specified path %q is not a git repository", repoPath)
+		return errors.Errorf("the specified path %q is not a git repository", repo.path)
 	}
 
-	log.Debugf("Parse git config %q", gitConfigPath)
+	log.Debugf("Parsing git config %q", gitConfigPath)
 
 	inidata, err := ini.Load(gitConfigPath)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return errors.WithStackTrace(err)
 	}
 
-	remoteURL := inidata.Section(`remote "origin"`).Key("url").String()
-	if remoteURL == "" {
-		return "", errors.Errorf(`the specified git repository does not contain the remote "origin" URL`)
-	}
+	var sectionName string
+	for _, name := range inidata.SectionStrings() {
+		if !strings.HasPrefix(name, "remote") {
+			continue
+		}
+		sectionName = name
 
-	return remoteURL, nil
-}
-
-// moduleDocPath returns the path to the module document (README.*), otherwise an empty string if the given `modulePath` does not contain a Terragrunt module
-func moduleDocPath(modulePath string) string {
-	if !files.FileExists(filepath.Join(modulePath, "main.tf")) || !files.FileExists(filepath.Join(modulePath, "variables.tf")) {
-		return ""
-	}
-
-	for _, filename := range docFilenames {
-		path := filepath.Join(modulePath, filename)
-		if files.FileExists(path) {
-			return path
+		if sectionName == `remote "origin"` {
+			break
 		}
 	}
 
-	return ""
+	// no git remotes found
+	if sectionName == "" {
+		return nil
+	}
+
+	repo.remoteURL = inidata.Section(sectionName).Key("url").String()
+	log.Debugf("Remote url: %q for repo: %q", repo.remoteURL, repo.path)
+
+	return nil
 }
 
-// module returns a module instance if the given path `repoPath/moduleDir` contains a Terragrunt module.
-func module(repoName, repoPath, moduleDir string) (*Module, error) {
-	var (
-		modulePath = filepath.Join(repoPath, moduleDir)
+// repoBranchName reads `.git/HEAD` file and retrun the branch name.
+func (repo *Repo) parseBranchName() error {
+	gitHeadFile := filepath.Join(repo.path, ".git", "HEAD")
 
-		reg       = mdHeaderReg
-		docHeader = mdHeader
-
-		title            = filepath.Base(moduleDir)
-		descriptionLines []string
-	)
-
-	docPath := moduleDocPath(modulePath)
-	if docPath == "" {
-		return nil, nil
-	}
-
-	log.Debugf("Found Terragrunt module in directory %q", modulePath)
-
-	docContentByte, err := os.ReadFile(docPath)
+	data, err := files.ReadFileAsString(gitHeadFile)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
-	}
-	docContent := string(docContentByte)
-
-	if strings.HasSuffix(docPath, ".adoc") {
-		reg = adocHeaderReg
-		docHeader = adocHeader
+		return errors.Errorf("the specified path %q is not a git repository", repo.path)
 	}
 
-	if match := reg.FindStringSubmatch(docContent); len(match) > 0 {
-		header := match[1]
-
-		// remove comments
-		header = commentReg.ReplaceAllString(header, "")
-		// remove adoc images
-		header = adocImageReg.ReplaceAllString(header, "")
-
-		lines := strings.Split(header, "\n")
-		title = strings.TrimSpace(lines[0])
-
-		if len(lines) > 1 {
-			for _, line := range lines[1:] {
-				line = strings.TrimSpace(line)
-
-				// another header begins
-				if strings.HasPrefix(line, docHeader) {
-					break
-				}
-
-				descriptionLines = append(descriptionLines, line)
-			}
-		}
+	if match := gitHeadBranchName.FindStringSubmatch(data); len(match) > 0 {
+		repo.branchName = strings.TrimSpace(match[1])
+		return nil
 	}
 
-	return &Module{
-		path:        modulePath,
-		url:         path.Join(gitHubOrgURL, repoName, "tree/master", moduleDir),
-		title:       title,
-		description: strings.TrimSpace(strings.Join(descriptionLines, " ")),
-		content:     docContent,
-	}, nil
-
-}
-
-// FindModules clones the repository if `repoPath` is a URL, searches for Terragrunt modules, indexes their README.* files, and returns module instances.
-func FindModules(ctx context.Context, repoPath string) (Modules, error) {
-	var repoName string
-
-	tempDir, err := os.MkdirTemp("", "catalog-*")
-	if err != nil {
-		return nil, errors.WithStackTrace(err)
-	}
-	//nolint:errcheck
-	defer os.RemoveAll(tempDir)
-
-	repoPath, err = getRepo(ctx, repoPath, tempDir)
-	if err != nil {
-		return nil, err
-	}
-
-	remoteURL, err := gitRemoteURL(repoPath)
-	if err != nil {
-		return nil, err
-	}
-	// remove extension like `.git`
-	ext := filepath.Ext(remoteURL)
-	remoteURL = strings.TrimRight(remoteURL, "."+ext)
-
-	repoName = filepath.Base(remoteURL)
-
-	modulesPath := filepath.Join(repoPath, "modules")
-
-	// It is assumed that the repository is a module itself
-	if !files.FileExists(modulesPath) {
-		module, err := module(repoName, repoPath, "")
-		if module == nil || err != nil {
-			return nil, err
-		}
-
-		return Modules{module}, nil
-	}
-
-	var modules Modules
-
-	err = filepath.Walk(modulesPath,
-		func(dir string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if !info.IsDir() {
-				return nil
-			}
-
-			moduleDir, err := filepath.Rel(repoPath, dir)
-			if err != nil {
-				return errors.WithStackTrace(err)
-			}
-
-			module, err := module(repoName, repoPath, moduleDir)
-			if module == nil || err != nil {
-				return err
-			}
-			modules = append(modules, module)
-
-			return filepath.SkipDir
-		})
-	if err != nil {
-		return nil, err
-	}
-
-	return modules, nil
+	return errors.Errorf("could not get branch name for repo %q", repo.path)
 }

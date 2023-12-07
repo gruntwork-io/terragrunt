@@ -60,6 +60,7 @@ require (
 	github.com/charmbracelet/bubbletea v0.24.2
 	github.com/charmbracelet/glamour v0.6.0
 	github.com/charmbracelet/lipgloss v0.9.1
+	github.com/gitsight/go-vcsurl v1.0.1
 	github.com/gruntwork-io/go-commons v0.17.1
 	github.com/gruntwork-io/gruntwork-cli v0.7.0
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8

@@ -50,7 +50,7 @@ func NewModel(module *module.Module, width, height int, previousModel tea.Model,
 		return nil, err
 	}
 
-	content, err := renderer.Render(module.Content())
+	content, err := renderer.Render(module.Readme())
 	if err != nil {
 		return nil, err
 	}
