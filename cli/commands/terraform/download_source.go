@@ -255,5 +255,5 @@ type DownloadingTerraformSourceNotFound struct {
 }
 
 func (err DownloadingTerraformSourceNotFound) Error() string {
-	return fmt.Sprintf("failed to download source url %s\n%v", err.Url, err.ErrMsg)
+	return fmt.Sprintf("downloading source url %s\n%v", err.Url, err.ErrMsg)
 }
