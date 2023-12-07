@@ -17,7 +17,7 @@ const (
 )
 
 var (
-	// When comparing, `strings.EqualFold` is used (case insensitive)
+	// `strings.EqualFold` is used (case insensitive) while comparing
 	acceptableReadmeFiles = []string{"README.md", "README.adoc"}
 
 	mdHeaderReg   = regexp.MustCompile(`(?m)^#{1}\s?([^#][\S\s]+)`)
@@ -42,7 +42,7 @@ type Module struct {
 	readme      string
 }
 
-// module returns a module instance if the given path `repoPath/moduleDir` contains a Terragrunt module.
+// NewModule returns a module instance if the given `moduleDir` path contains a Terraform module, otherwise returns nil.
 func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 	module := &Module{
 		path:        filepath.Join(repo.path, moduleDir),

@@ -113,6 +113,7 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 	return modules, nil
 }
 
+// moduleURL returns the URL of the module in this repository. `moduleDir` is the path from the repository root.
 func (repo *Repo) moduleURL(moduleDir string) (string, error) {
 	if repo.remoteURL == "" {
 		return filepath.Join(repo.path, moduleDir), nil
@@ -137,7 +138,7 @@ func (repo *Repo) moduleURL(moduleDir string) (string, error) {
 	}
 }
 
-// getRepo returns the absolute path to the repository if the given `repoPath` is a filesystem path, otherwise clones the repository to a temporary directory and returns the path.
+// clone clones the repository to a temporary directory if the repoPath is URL
 func (repo *Repo) clone(ctx context.Context) error {
 	if repo.path == "" {
 		currentDir, err := os.Getwd()
@@ -194,7 +195,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 	return nil
 }
 
-// repoRemoteURL reads the git config `.git/config` and returns the first URL of the remote URLs, the remote name "origin" has the highest priority.
+// parseRemoteURL reads the git config `.git/config` and parses the first URL of the remote URLs, the remote name "origin" has the highest priority.
 func (repo *Repo) parseRemoteURL() error {
 	gitConfigPath := filepath.Join(repo.path, ".git", "config")
 
@@ -232,7 +233,7 @@ func (repo *Repo) parseRemoteURL() error {
 	return nil
 }
 
-// repoBranchName reads `.git/HEAD` file and retrun the branch name.
+// parseBranchName reads `.git/HEAD` file and parses a branch name.
 func (repo *Repo) parseBranchName() error {
 	gitHeadFile := filepath.Join(repo.path, ".git", "HEAD")
 
