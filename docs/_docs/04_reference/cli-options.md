@@ -520,37 +520,13 @@ This may produce output such as:
 
 Generate Terragrunt files from existing Terraform modules.
 
-Example: 
-```bash
-terragrunt scaffold <MODULE_URL> [TEMPLATE_URL] [--var] [--var-file]
-```
-
-Description:
-* `MODULE_URL` - URL to a Terraform module. Can be a local file path, git URL, registry URL, or any other [module source URL](https://developer.hashicorp.com/terraform/language/modules/sources).
-* `TEMPLATE_URL` - Optional URL to a custom boilerplate template to use to generate HCL files. Can be a local file path, git URL, registry URL, or any other [module source URL](https://developer.hashicorp.com/terraform/language/modules/sources). If not specified, Terragrunt will:
-    - Look for a `.boilerplate` folder in the module at `MODULE_URL`, and if found, use the boilerplate template in that folder.
-    - Failing to find that, Terragrunt will use a boilerplate template that is built-in, which creates a best-practices `terragrunt.hcl` for deploying a single Terraform module.
-
 More details in [scaffold section](https://terragrunt.gruntwork.io/docs/features/scaffold/).
 
 ### catalog
 
 Launch the user interface for searching and managing your module catalog.
 
-Example:
-
-```bash
-terragrunt catalog <repo-url>
-```
-[![screenshot-fish-1](/assets/img/screenshots/catalog-screenshot.png){: width="50%" }](https://terragrunt.gruntwork.io/assets/img/screenshots/catalog-screenshot.png)
-
-If `<repo-url>` is not specified, the modules are searched in the current directory. If a URL is provided, the repository will be copied to a temporary directory and deleted upon complete.
-
-This will recursively search for Terraform modules in the root of the repo and the `modules` directory and show a table with all the modules. You can then:
-1. Search and filter the table: `/` and start typing.
-1. Select a module in the table: use the arrow keys to go up and down and next/previous page.
-1. See the docs for a selected module: `ENTER`.
-1. Use [`terragrunt scaffold`](https://terragrunt.gruntwork.io/docs/features/scaffold/) to render a `terragrunt.hcl` for using the module: `S`.
+More details in [catalog section](https://terragrunt.gruntwork.io/docs/features/catalog/).
 
 ## CLI options
 
