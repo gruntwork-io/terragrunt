@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
+	"github.com/gruntwork-io/terragrunt/cli/commands/catalog"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
 	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
@@ -77,6 +78,7 @@ func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 		renderjson.NewCommand(opts),         // render-json
 		awsproviderpatch.NewCommand(opts),   // aws-provider-patch
 		outputmodulegroups.NewCommand(opts), // output-module-groups
+		catalog.NewCommand(opts),            // catalog
 		scaffold.NewCommand(opts),           // scaffold
 	}
 

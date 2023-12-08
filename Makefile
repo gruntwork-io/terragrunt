@@ -42,6 +42,6 @@ install-lint:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54.2
 
 run-lint:
-	golangci-lint run -v ./...
+	golangci-lint run -v --timeout=5m ./...
 
 .PHONY: help fmtcheck fmt install-fmt-hook clean install-lint run-lint

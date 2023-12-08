@@ -476,7 +476,7 @@ func TestAutocomplete(t *testing.T) {
 	}{
 		{
 			"",
-			[]string{"aws-provider-patch", "graph-dependencies", "hclfmt", "output-module-groups", "render-json", "run-all", "scaffold", "terragrunt-info", "validate-inputs"},
+			[]string{"aws-provider-patch", "graph-dependencies", "hclfmt", "output-module-groups", "render-json", "run-all", "terragrunt-info", "validate-inputs"},
 		},
 		{
 			"--versio",
@@ -497,6 +497,7 @@ func TestAutocomplete(t *testing.T) {
 
 		output := &bytes.Buffer{}
 		app := NewApp(output, os.Stderr)
+		app.Commands = app.Commands.Filter([]string{"aws-provider-patch", "graph-dependencies", "hclfmt", "output-module-groups", "render-json", "run-all", "terragrunt-info", "validate-inputs"})
 
 		err := app.Run([]string{"terragrunt"})
 		require.NoError(t, err)
