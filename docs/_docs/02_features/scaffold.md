@@ -21,7 +21,7 @@ terragrunt scaffold <MODULE_URL> [TEMPLATE_URL] [--var] [--var-file]
 Description:
 * `MODULE_URL` - URL to a Terraform module. Can be a local file path, git URL, registry URL, or any other [module source URL](https://developer.hashicorp.com/terraform/language/modules/sources).
 * `TEMPLATE_URL` - Optional URL to a custom boilerplate template to use to generate HCL files. Can be a local file path, git URL, registry URL, or any other [module source URL](https://developer.hashicorp.com/terraform/language/modules/sources). If not specified, Terragrunt will:
-    - Look for a `.boilerplate` folder in the module at `MODULE_URL`, and if found, use the the boilerplate template in that folder.
+    - Look for a `.boilerplate` folder in the module at `MODULE_URL`, and if found, use the boilerplate template in that folder.
     - Failing to find that, Terragrunt will use a boilerplate template that is built-in, which creates a best-practices `terragrunt.hcl` for deploying a single Terraform module.
 
 
