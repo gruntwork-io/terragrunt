@@ -37,6 +37,7 @@ Terragrunt supports the following CLI commands:
   - [aws-provider-patch](#aws-provider-patch)
   - [render-json](#render-json)
   - [output-module-groups](#output-module-groups)
+  - [scaffold](#scaffold)
   - [catalog](#catalog)
 
 ### All Terraform built-in commands
@@ -515,25 +516,17 @@ This may produce output such as:
 }
 ```
 
+### scaffold
+
+Generate Terragrunt files from existing Terraform modules.
+
+More details in [scaffold section](https://terragrunt.gruntwork.io/docs/features/scaffold/).
+
 ### catalog
 
 Launch the user interface for searching and managing your module catalog.
 
-Example:
-
-```bash
-terragrunt catalog <repo-url>
-```
-
-[![Screenshot](https://terragrunt.gruntwork.io/docs/reference/cli-options/catalog-screenshot.png){ width=50% }](https://terragrunt.gruntwork.io/docs/reference/cli-options/catalog-screenshot.png)
-
-If `<repo-url>` is not specified, the modules are searched in the current directory. If a URL is provided, the repository will be copied to a temporary directory and deleted upon complete.
-
-This will recursively search for Terraform modules in the root of the repo and the `modules` directory and show a table with all the modules. You can then:
-1. Search and filter the table: `/` and start typing.
-1. Select a module in the table: use the arrow keys to go up and down and next/previous page.
-1. See the docs for a selected module: `ENTER`.
-1. Use [`terragrunt scaffold`](https://terragrunt.gruntwork.io/docs/features/scaffold/) to render a `terragrunt.hcl` for using the module: `S`.
+More details in [catalog section](https://terragrunt.gruntwork.io/docs/features/catalog/).
 
 ## CLI options
 

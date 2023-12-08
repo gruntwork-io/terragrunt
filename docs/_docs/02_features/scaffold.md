@@ -5,7 +5,7 @@ category: features
 categories_url: features
 excerpt: Learn how to scaffold Terragrunt projects.
 tags: ["scaffold"]
-order: 205
+order: 213
 nav_title: Documentation
 nav_title_link: /docs/
 ---
@@ -21,7 +21,7 @@ terragrunt scaffold <MODULE_URL> [TEMPLATE_URL] [--var] [--var-file]
 Description:
 * `MODULE_URL` - URL to a Terraform module. Can be a local file path, git URL, registry URL, or any other [module source URL](https://developer.hashicorp.com/terraform/language/modules/sources).
 * `TEMPLATE_URL` - Optional URL to a custom boilerplate template to use to generate HCL files. Can be a local file path, git URL, registry URL, or any other [module source URL](https://developer.hashicorp.com/terraform/language/modules/sources). If not specified, Terragrunt will:
-    - Look for a `.boilerplate` folder in the module at `MODULE_URL`, and if found, use the the boilerplate template in that folder.
+    - Look for a `.boilerplate` folder in the module at `MODULE_URL`, and if found, use the boilerplate template in that folder.
     - Failing to find that, Terragrunt will use a boilerplate template that is built-in, which creates a best-practices `terragrunt.hcl` for deploying a single Terraform module.
 
 
@@ -64,7 +64,7 @@ Important notes:
 * The `source` URL is configured for you automatically, with the `ref` pointing to the latest "release" tag of the module (found by scanning git tags).
 * The `inputs` section is generated for you automatically, and will list all required and optional variables from the module, with their types, descriptions, and defaults, so you can easily fill them in to configure the module as you like.
 
-#### Custom templates for scaffolding
+### Custom templates for scaffolding
 
 Terragrunt has a basic template built-in for rendering `terragrunt.hcl` files, but you can provide your own templates to customize what code is generated! Scaffolding is done via [boilerplate](https://github.com/gruntwork-io/boilerplate), and Terragrunt allows you to specify custom boilerplate templates via two mechanisms:
 1. You can specify a custom boilerplate template to use as the second argument of the `scaffold` command.
@@ -89,7 +89,7 @@ Optional variables which can be passed to `scaffold` command:
 * `SourceUrlType` - if set to `git-ssh` module url will be converted to Git/SSH format
 * `SourceGitSshUser` - git user for Git/SSH format, by default `git`
 
-#### Examples
+### Examples
 
 Scaffold new project but use specific module version:
 ```
