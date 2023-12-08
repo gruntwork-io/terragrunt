@@ -24,19 +24,19 @@ func TestFindModules(t *testing.T) {
 					title:       "ALB Ingress Controller Module",
 					description: "This Terraform Module installs and configures the [AWS ALB Ingress Controller](https://github.com/kubernetes-sigs/aws-alb-ingress-controller) on an EKS cluster.",
 					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/modules/eks-alb-ingress-controller",
-					path:        "modules/eks-alb-ingress-controller",
+					moduleDir:   "modules/eks-alb-ingress-controller",
 				},
 				&Module{
 					title:       "ALB Ingress Controller IAM Policy Module",
 					description: "This Terraform Module defines an [IAM policy](http://docs.aws.amazon.com/AmazonCloudWatch/latest/DeveloperGuide/QuickStartEC2Instance.html#d0e22325)  that defines the minimal set of permissions necessary for the [AWS ALB Ingress Controller]",
 					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/modules/eks-alb-ingress-controller-iam-policy",
-					path:        "modules/eks-alb-ingress-controller-iam-policy",
+					moduleDir:   "modules/eks-alb-ingress-controller-iam-policy",
 				},
 				&Module{
 					title:       "EKS AWS Auth Merger",
 					description: "This module contains a go CLI, docker container, and terraform module for deploying a Kubernetes controller for managing mappings between AWS IAM roles and users to RBAC groups in Kubernetes. The official way to manage the mapping is to add values in a single, central `ConfigMap`.  This module allows you to break up the central `ConfigMap` across multiple.   toc::[]",
 					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/modules/eks-aws-auth-merger",
-					path:        "modules/eks-aws-auth-merger",
+					moduleDir:   "modules/eks-aws-auth-merger",
 				}},
 			nil,
 		},
@@ -59,13 +59,7 @@ func TestFindModules(t *testing.T) {
 			modules, err := repo.FindModules(ctx)
 
 			for _, module := range modules {
-				currentDir, err := os.Getwd()
-				assert.NoError(t, err)
-
-				relPath, err := filepath.Rel(filepath.Join(currentDir, testCase.repoPath), module.path)
-				assert.NoError(t, err)
-
-				module.path = relPath
+				module.repoPath = ""
 				module.readme = ""
 			}
 
