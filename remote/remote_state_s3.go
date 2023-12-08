@@ -360,6 +360,7 @@ func (s3Initializer S3Initializer) GetTerraformInitArgs(config map[string]interf
 			continue
 		}
 		if key == assumeRoleKey {
+
 			if mapVal, ok := val.(map[string]interface{}); ok {
 				filteredConfig[key] = wrapMapToSingleLineHcl(mapVal)
 				continue
