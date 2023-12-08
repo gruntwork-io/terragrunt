@@ -542,8 +542,7 @@ Example:
 ```bash
 terragrunt catalog <repo-url>
 ```
-
-[![Screenshot](https://terragrunt.gruntwork.io/assets/img/screenshots/catalog-screenshot.png){ width=50% }](https://terragrunt.gruntwork.io/docs/reference/cli-options/catalog-screenshot.png)
+[![screenshot-fish-1](/assets/img/screenshots/catalog-screenshot.png){: width="50%" }](https://terragrunt.gruntwork.io/assets/img/screenshots/catalog-screenshot.png)
 
 If `<repo-url>` is not specified, the modules are searched in the current directory. If a URL is provided, the repository will be copied to a temporary directory and deleted upon complete.
 
