@@ -370,7 +370,7 @@ func addRefToModuleUrl(opts *options.TerragruntOptions, parsedModuleUrl *url.URL
 func parseUrl(opts *options.TerragruntOptions, moduleUrl string) (*parsedUrl, error) {
 	matches := moduleUrlRegex.FindStringSubmatch(moduleUrl)
 	if len(matches) != moduleUrlParts {
-		opts.Logger.Warnf("Failed to parse module url %s", moduleUrl)
+		opts.Logger.Warnf("Failed to parse url %s", moduleUrl)
 		return nil, failedToParseUrlError{}
 	}
 	return &parsedUrl{
