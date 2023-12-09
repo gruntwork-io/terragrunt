@@ -50,14 +50,11 @@ variables:
 terraform {
   source = "{{ .sourceUrl }}"
 }
-
-{{if .EnableRootInclude}}
+{{ if .EnableRootInclude }}
 include "root" {
   path = find_in_parent_folders()
 }
-{{end}}
-
-
+{{ end }}
 inputs = {
   # --------------------------------------------------------------------------------------------------------------------
   # Required input variables
