@@ -12,27 +12,34 @@ import (
 func TestFindModules(t *testing.T) {
 	t.Parallel()
 
+	type moduleData struct {
+		title       string
+		description string
+		url         string
+		moduleDir   string
+	}
+
 	testCases := []struct {
-		repoPath        string
-		expectedModules Modules
-		expectedErr     error
+		repoPath     string
+		expectedData []moduleData
+		expectedErr  error
 	}{
 		{
 			"testdata/find_modules/terraform-aws-eks",
-			Modules{
-				&Module{
+			[]moduleData{
+				{
 					title:       "ALB Ingress Controller Module",
 					description: "This Terraform Module installs and configures the [AWS ALB Ingress Controller](https://github.com/kubernetes-sigs/aws-alb-ingress-controller) on an EKS cluster.",
 					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/modules/eks-alb-ingress-controller",
 					moduleDir:   "modules/eks-alb-ingress-controller",
 				},
-				&Module{
+				{
 					title:       "ALB Ingress Controller IAM Policy Module",
 					description: "This Terraform Module defines an [IAM policy](http://docs.aws.amazon.com/AmazonCloudWatch/latest/DeveloperGuide/QuickStartEC2Instance.html#d0e22325)  that defines the minimal set of permissions necessary for the [AWS ALB Ingress Controller]",
 					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/modules/eks-alb-ingress-controller-iam-policy",
 					moduleDir:   "modules/eks-alb-ingress-controller-iam-policy",
 				},
-				&Module{
+				{
 					title:       "EKS AWS Auth Merger",
 					description: "This module contains a go CLI, docker container, and terraform module for deploying a Kubernetes controller for managing mappings between AWS IAM roles and users to RBAC groups in Kubernetes. The official way to manage the mapping is to add values in a single, central `ConfigMap`.  This module allows you to break up the central `ConfigMap` across multiple.   toc::[]",
 					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/modules/eks-aws-auth-merger",
@@ -57,14 +64,21 @@ func TestFindModules(t *testing.T) {
 			assert.NoError(t, err)
 
 			modules, err := repo.FindModules(ctx)
+			assert.Equal(t, testCase.expectedErr, err)
+
+			var realData []moduleData
 
 			for _, module := range modules {
-				module.repoPath = ""
-				module.readme = ""
+
+				realData = append(realData, moduleData{
+					title:       module.Title(),
+					description: module.Description(),
+					url:         module.URL(),
+					moduleDir:   module.moduleDir,
+				})
 			}
 
-			assert.Equal(t, testCase.expectedModules, modules)
-			assert.Equal(t, testCase.expectedErr, err)
+			assert.Equal(t, testCase.expectedData, realData)
 		})
 	}
 
