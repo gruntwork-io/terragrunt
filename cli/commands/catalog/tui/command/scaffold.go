@@ -3,27 +3,29 @@ package command
 import (
 	"io"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
+
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 type Scaffold struct {
-	moduleDir         string
+	module            *module.Module
 	terragruntOptions *options.TerragruntOptions
 }
 
-func NewScaffold(moduleDir string, opts *options.TerragruntOptions) *Scaffold {
+func NewScaffold(opts *options.TerragruntOptions, module *module.Module) *Scaffold {
 	return &Scaffold{
-		moduleDir:         moduleDir,
+		module:            module,
 		terragruntOptions: opts,
 	}
 }
 
 func (cmd *Scaffold) Run() error {
-	log.Infof("Run Scaffold for the module: %q", cmd.moduleDir)
+	log.Infof("Run Scaffold for the module: %q", cmd.module.TerraformSourcePath())
 
-	return scaffold.Run(cmd.terragruntOptions, cmd.moduleDir, "")
+	return scaffold.Run(cmd.terragruntOptions, cmd.module.TerraformSourcePath(), "")
 }
 
 func (cmd *Scaffold) SetStdin(io.Reader) {
