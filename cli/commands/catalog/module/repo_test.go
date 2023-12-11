@@ -25,7 +25,7 @@ func TestFindModules(t *testing.T) {
 		expectedErr  error
 	}{
 		{
-			"testdata/find_modules/terraform-aws-eks",
+			"testdata/find_modules",
 			[]moduleData{
 				{
 					title:       "ALB Ingress Controller Module",

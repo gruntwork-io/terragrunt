@@ -11,7 +11,8 @@ import (
 )
 
 const (
-	defaultDescription = "(no description found)"
+	defaultDescription   = "(no description found)"
+	maxDescriptionLenght = 200
 )
 
 var (
@@ -66,11 +67,11 @@ func (module *Module) FilterValue() string {
 
 // Title implements /github.com/charmbracelet/bubbles.list.DefaultItem.Title
 func (module *Module) Title() string {
-	if title := module.FrontmatterName(); title != "" {
+	if title := module.Doc.FrontmatterName(); title != "" {
 		return title
 	}
 
-	if title := module.H1Title(); title != "" {
+	if title := module.Doc.Name(); title != "" {
 		return title
 	}
 
@@ -79,11 +80,11 @@ func (module *Module) Title() string {
 
 // Description implements /github.com/charmbracelet/bubbles.list.DefaultItem.Description
 func (module *Module) Description() string {
-	if desc := module.FrontmatterDescription(); desc != "" {
+	if desc := module.Doc.FrontmatterDescription(); desc != "" {
 		return desc
 	}
 
-	if desc := module.H1Body(); desc != "" {
+	if desc := module.Doc.Description(maxDescriptionLenght); desc != "" {
 		return desc
 	}
 

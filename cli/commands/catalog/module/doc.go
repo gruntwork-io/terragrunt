@@ -12,44 +12,92 @@ import (
 const (
 	mdExt   = ".md"
 	adocExt = ".adoc"
+
+	elementH1 elementName = iota
+	elementH2
+
+	frontmatterName frontmatterKey = iota
+	frontmatterDescription
 )
 
 var (
 	// `strings.EqualFold` is used (case insensitive) while comparing
 	docFiles = []string{"README.md", "README.adoc"}
+
+	frontmatterKeys = map[string]frontmatterKey{
+		"name":        frontmatterName,
+		"description": frontmatterDescription,
+	}
 )
+
+type elementName byte
+type frontmatterKey byte
 
 type Doc struct {
 	content string
 	fileExt string
 
-	h1Cache string
-	h1Sign  string
-	h1Reg   *regexp.Regexp
+	elementCache     map[elementName]string
+	elementRegs      map[elementName]*regexp.Regexp
+	elementStripRegs []*regexp.Regexp
 
-	imageReg   *regexp.Regexp
-	commentReg *regexp.Regexp
-
-	frontmatterCache map[string]string
+	frontmatterCache map[frontmatterKey]string
 	frontmatterReg   *regexp.Regexp
 }
 
 func newDoc(content, fileExt string) *Doc {
 	doc := &Doc{
-		content:        content,
-		fileExt:        fileExt,
-		commentReg:     regexp.MustCompile(`<!--[\S\s]*?-->`),
+		content: content,
+		fileExt: fileExt,
+
+		elementRegs:    make(map[elementName]*regexp.Regexp),
 		frontmatterReg: regexp.MustCompile(`(?i)^[\s\n]*<!-- frontmatter[\s\n]*([\S\s]*?)[\s\n]*-->`),
 	}
 
 	switch fileExt {
 	case mdExt:
-		doc.h1Sign = "#"
-		doc.h1Reg = regexp.MustCompile(`(?m)^#{1}\s?([^#][\S\s]+)`)
+		doc.elementRegs[elementH1] = regexp.MustCompile(`(?m)(?:^|\n)\#{1}\s?([^#][\S\s]+?)\n\#`)
+		doc.elementRegs[elementH2] = regexp.MustCompile(`(?m)(?:^|\n)\#{2}\s?([^#][\S\s]+?)\n\#`)
+		doc.elementStripRegs = []*regexp.Regexp{
+			// code
+			regexp.MustCompile("`{3}" + `.*[\r\n]+`),
+			regexp.MustCompile("`(.+?)`"),
+			// html
+			regexp.MustCompile("<(.*?)>"),
+			// bold
+			regexp.MustCompile(`\*\*([^*]+)\*\*`),
+			regexp.MustCompile(`__([^_]+)__`),
+			// italic
+			regexp.MustCompile(`\*([^*]+)\*`),
+			regexp.MustCompile(`_([^_]+)_`),
+			// setext header
+			regexp.MustCompile(`^[=\-]{2,}\s*$`),
+			// foot note
+			regexp.MustCompile(`\[\^.+?\](\: .*?$)?`),
+			regexp.MustCompile(`\s{0,2}\[.*?\]: .*?$`),
+			// image
+			regexp.MustCompile(`\!\[(.*?)\]\s?[\[\(].*?[\]\)]`),
+			// link
+			regexp.MustCompile(`\[([\S\s]*?)\][\[\(].*?[\]\)]`),
+			// blockquote
+			regexp.MustCompile(`>\s*`),
+			// ref link
+			regexp.MustCompile(`^\s{1,2}\[(.*?)\]: (\S+)( ".*?")?\s*$`),
+			// header
+			regexp.MustCompile(`(?m)^\#{1,6}\s*([^#]+)\s*(\#{1,6})?$`),
+			// horizontal rule
+			regexp.MustCompile(`^[-\*_]{3,}\s*$`),
+		}
+
 	case adocExt:
-		doc.h1Sign = "="
-		doc.h1Reg = regexp.MustCompile(`(?m)^={1}\s?([^=][\S\s]+)`)
-		doc.imageReg = regexp.MustCompile(`image:[^\]]+]`)
+		doc.elementRegs[elementH1] = regexp.MustCompile(`(?m)(?:^|\n)={1}\s?([^=][\S\s]+?)\n=`)
+		doc.elementRegs[elementH2] = regexp.MustCompile(`(?m)(?:^|\n)={2}\s?([^=][\S\s]+?)\n=`)
+		doc.elementStripRegs = []*regexp.Regexp{
+			// html
+			regexp.MustCompile("<(.*?)>"),
+			// image
+			regexp.MustCompile(`image:[^\]]+]`),
+		}
 	}
 
 	return doc
@@ -95,91 +143,100 @@ func FindDoc(dir string) (*Doc, error) {
 	return newDoc(content, fileExt), nil
 }
 
-func (doc *Doc) frontmatter() map[string]string {
-	if doc.frontmatterReg == nil || doc.frontmatterCache != nil {
-		return doc.frontmatterCache
-	}
-
-	frontmatter := make(map[string]string)
-
-	match := doc.frontmatterReg.FindStringSubmatch(doc.content)
-	if len(match) == 0 {
-		// to prevent running this reg again if nothing was found the first time
-		doc.frontmatterReg = nil
-		return frontmatter
-	}
-	lines := strings.Split(match[1], "\n")
-
-	for _, line := range lines {
-		if parts := strings.Split(line, ":"); len(parts) > 1 {
-			frontmatter[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
-		}
-	}
-
-	doc.frontmatterCache = frontmatter
-	return frontmatter
-}
-
-func (doc *Doc) h1() string {
-	if doc.h1Reg == nil || doc.h1Cache != "" {
-		return doc.h1Cache
-	}
-
-	match := doc.h1Reg.FindStringSubmatch(doc.content)
-	if len(match) == 0 {
-		// to prevent running this reg again if nothing was found the first time
-		doc.h1Reg = nil
-		return ""
-	}
-	header := match[1]
-
-	if doc.commentReg != nil {
-		// remove comments
-		header = doc.commentReg.ReplaceAllString(header, "")
-	}
-
-	if doc.imageReg != nil {
-		// remove images
-		header = doc.imageReg.ReplaceAllString(header, "")
-	}
-
-	doc.h1Cache = header
-	return header
-}
-
 func (doc *Doc) FrontmatterName() string {
-	frontmatter := doc.frontmatter()
-	return frontmatter["name"]
+	return doc.frontmatter(frontmatterName)
 }
 
 func (doc *Doc) FrontmatterDescription() string {
-	frontmatter := doc.frontmatter()
-	return frontmatter["description"]
+	return doc.frontmatter(frontmatterDescription)
 }
 
-func (doc *Doc) H1Title() string {
-	lines := strings.Split(doc.h1(), "\n")
-
+func (doc *Doc) Name() string {
+	lines := strings.Split(doc.element(elementH1), "\n")
 	return strings.TrimSpace(lines[0])
 }
 
-func (doc *Doc) H1Body() string {
-	lines := strings.Split(doc.h1(), "\n")
+func (doc *Doc) Description(maxLenght int) string {
+	var strLines []string
 
-	var descriptionLines []string
+	if lines := strings.Split(doc.element(elementH1), "\n"); len(lines) > 1 {
+		strLines = append(strLines, lines[1:]...)
+	}
+	if lines := strings.Split(doc.element(elementH2), "\n"); len(lines) > 1 {
+		strLines = append(strLines, lines[1:]...)
+	}
 
-	if len(lines) > 1 {
-		for _, line := range lines[1:] {
-			line = strings.TrimSpace(line)
+	str := strings.Join(strLines, "\n")
 
-			// another header begins
-			if strings.HasPrefix(line, doc.h1Sign) {
-				break
+	for _, sripReg := range doc.elementStripRegs {
+		str = sripReg.ReplaceAllString(str, "$1")
+	}
+
+	// remove redundant spaces and new lines
+	str = strings.Join(strings.Fields(str), " ")
+
+	sentences := strings.Split(str, ".")
+
+	var desc string
+	for _, sentence := range sentences {
+		sentence = sentence + "."
+		if desc != "" && len(desc+sentence) > maxLenght {
+			break
+		}
+		desc += sentence
+	}
+
+	return desc
+}
+
+func (doc *Doc) frontmatter(key frontmatterKey) string {
+	if doc.frontmatterReg == nil {
+		return ""
+	}
+
+	if doc.frontmatterCache == nil {
+		doc.frontmatterCache = make(map[frontmatterKey]string)
+
+		match := doc.frontmatterReg.FindStringSubmatch(doc.content)
+		if len(match) == 0 {
+			return ""
+		}
+
+		lines := strings.Split(match[1], "\n")
+
+		for _, line := range lines {
+			if parts := strings.Split(line, ":"); len(parts) > 1 {
+				key := strings.ToLower(strings.TrimSpace(parts[0]))
+				val := strings.TrimSpace(parts[1])
+
+				if key, ok := frontmatterKeys[key]; ok {
+					doc.frontmatterCache[key] = val
+				}
 			}
-
-			descriptionLines = append(descriptionLines, line)
 		}
 	}
 
-	return strings.TrimSpace(strings.Join(descriptionLines, " "))
+	return doc.frontmatterCache[key]
+}
+
+func (doc *Doc) element(name elementName) string {
+	if doc.elementRegs == nil {
+		return ""
+	}
+
+	if doc.elementCache == nil {
+		doc.elementCache = make(map[elementName]string)
+
+		for name, elementReg := range doc.elementRegs {
+			match := elementReg.FindStringSubmatch(doc.content)
+			if len(match) == 0 {
+				continue
+			}
+			val := match[1]
+
+			doc.elementCache[name] = val
+		}
+	}
+
+	return doc.elementCache[name]
 }
