@@ -22,6 +22,7 @@ func TestScaffoldGitRepo(t *testing.T) {
 	assert.NoError(t, err)
 
 	modules, err := repo.FindModules(ctx)
+	assert.NoError(t, err)
 	assert.Equal(t, 4, len(modules))
 }
 
@@ -34,6 +35,7 @@ func TestScaffoldGitModule(t *testing.T) {
 	assert.NoError(t, err)
 
 	modules, err := repo.FindModules(ctx)
+	assert.NoError(t, err)
 	var auroraModule *module.Module
 	for _, m := range modules {
 		if m.Title() == "Terraform Fake AWS Aurora Module" {
