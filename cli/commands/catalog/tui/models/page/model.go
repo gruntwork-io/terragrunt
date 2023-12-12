@@ -43,17 +43,23 @@ type Model struct {
 }
 
 func NewModel(module *module.Module, width, height int, previousModel tea.Model, quitFn func(error), opts *options.TerragruntOptions) (*Model, error) {
-	renderer, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(width),
-	)
-	if err != nil {
-		return nil, err
-	}
+	var content string
 
-	content, err := renderer.Render(module.Readme())
-	if err != nil {
-		return nil, err
+	if module.IsMarkDown() {
+		renderer, err := glamour.NewTermRenderer(
+			glamour.WithAutoStyle(),
+			glamour.WithWordWrap(width),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		content, err = renderer.Render(module.Content(false))
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		content = module.Content(true)
 	}
 
 	keys := newKeyMap()

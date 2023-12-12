@@ -83,8 +83,8 @@ func (module *Module) Description() string {
 	return defaultDescription
 }
 
-func (module *Module) Readme() string {
-	return module.Doc.Content(true)
+func (module *Module) Content(stripTags bool) string {
+	return module.Doc.Content(stripTags)
 }
 
 func (module *Module) URL() string {

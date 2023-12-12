@@ -224,13 +224,13 @@ func TestElement(t *testing.T) {
 			"Amazon ECS Cluster",
 			"This service contains Terraform code to deploy a production-grade ECS cluster on AWS using Elastic Container Service (ECS).",
 		},
-		// {
-		// 	testH1EksAWSAuthMerger,
-		// 	".adoc",
-		// 	200,
-		// 	"EKS AWS Auth Merger",
-		// 	"This module contains a go CLI, docker container, and terraform module for deploying a Kubernetes controller for managing mappings between AWS IAM roles and users to RBAC groups in Kubernetes. The official way to manage the mapping is to add values in a single, central `ConfigMap`. This module allows you to break up the central `ConfigMap` across multiple, separate `ConfigMaps` each configuring a subset of the mappings you ultimately want to use, allowing you to update entries in the `ConfigMap` in isolated modules (e.g., when you add a new IAM role in a separate module from the EKS cluster). The `aws-auth` authentication `ConfigMap` for EKS.",
-		// },
+		{
+			testH1EksAWSAuthMerger,
+			".adoc",
+			200,
+			"EKS AWS Auth Merger",
+			"This module contains a go CLI, docker container, and terraform module for deploying a Kubernetes controller for managing mappings between AWS IAM roles and users to RBAC groups in Kubernetes.",
+		},
 	}
 
 	for i, testCase := range testCases {

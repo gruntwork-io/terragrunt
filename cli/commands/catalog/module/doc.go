@@ -17,8 +17,8 @@ const (
 	docDescription
 	docContent
 
-	elementH1Block docElementName = iota
-	elementH2Block
+	tagH1Block docTagName = iota
+	tagH2Block
 )
 
 var (
@@ -32,7 +32,7 @@ var (
 )
 
 type docDataKey byte
-type docElementName byte
+type docTagName byte
 
 type DocRegs []*regexp.Regexp
 
@@ -47,9 +47,9 @@ type Doc struct {
 	rawContent string
 	fileExt    string
 
-	elementCache     map[docDataKey]string
-	elementRegs      map[docElementName]*regexp.Regexp
-	elementStripRegs DocRegs
+	tagCache     map[docDataKey]string
+	tagRegs      map[docTagName]*regexp.Regexp
+	tagStripRegs DocRegs
 
 	frontmatterCache map[docDataKey]string
 	frontmatterReg   *regexp.Regexp
@@ -60,15 +60,15 @@ func newDoc(rawContent, fileExt string) *Doc {
 		rawContent: rawContent,
 		fileExt:    fileExt,
 
-		elementRegs:    make(map[docElementName]*regexp.Regexp),
+		tagRegs:        make(map[docTagName]*regexp.Regexp),
 		frontmatterReg: regexp.MustCompile(`(?i)^[\s\n]*<!-- frontmatter[\s\n]*([\S\s]*?)[\s\n]*-->`),
 	}
 
 	switch fileExt {
 	case mdExt:
-		doc.elementRegs[elementH1Block] = regexp.MustCompile(`(?:^|\n)\#{1}\s?([^#][\S\s]+?)(?:[\r\n]+\#|[\r\n]*$)`)
-		doc.elementRegs[elementH2Block] = regexp.MustCompile(`(?:^|\n)\#{2}\s?([^#][\S\s]+?)(?:[\r\n]+\#|[\r\n]*$)`)
-		doc.elementStripRegs = DocRegs{
+		doc.tagRegs[tagH1Block] = regexp.MustCompile(`(?:^|\n)\#{1}\s?([^#][\S\s]+?)(?:[\r\n]+\#|[\r\n]*$)`)
+		doc.tagRegs[tagH2Block] = regexp.MustCompile(`(?:^|\n)\#{2}\s?([^#][\S\s]+?)(?:[\r\n]+\#|[\r\n]*$)`)
+		doc.tagStripRegs = DocRegs{
 			// code
 			regexp.MustCompile("`{3}" + `.*[\r\n]+`),
 			regexp.MustCompile("`(.+?)`"),
@@ -100,13 +100,32 @@ func newDoc(rawContent, fileExt string) *Doc {
 		}
 
 	case adocExt:
-		doc.elementRegs[elementH1Block] = regexp.MustCompile(`(?m)(?:^|\n)={1}\s?([^=][\S\s]+?)\n=`)
-		doc.elementRegs[elementH2Block] = regexp.MustCompile(`(?m)(?:^|\n)={2}\s?([^=][\S\s]+?)\n=`)
-		doc.elementStripRegs = DocRegs{
+		doc.tagRegs[tagH1Block] = regexp.MustCompile(`(?m)(?:^|\n)={1}\s?([^=][\S\s]+?)\n=`)
+		doc.tagRegs[tagH2Block] = regexp.MustCompile(`(?m)(?:^|\n)={2}\s?([^=][\S\s]+?)\n=`)
+		doc.tagStripRegs = DocRegs{
 			// html
 			regexp.MustCompile("<(.*?)>"),
+			// ifdef endif
+			regexp.MustCompile(`ifdef::env-github\[\][\S\s]*?endif::\[\]`),
+			// comment
+			regexp.MustCompile(`(?m)^/{2}.*$`),
+			// ex. :name:value
+			regexp.MustCompile(`(?m)^:[-!\w]+:.*$`),
+			// ex. toc::[]
+			regexp.MustCompile(`\w+::\[.*?\]`),
+			// bold
+			regexp.MustCompile(`\*\*([^\s][^*]+[^\s])\*\*`),
+			regexp.MustCompile(`\*([^\s][^*]+[^\s])\*`),
+			// italic
+			regexp.MustCompile(`_{1,2}([^\s][^_]+[^\s])_{1,2}`),
 			// image
 			regexp.MustCompile(`image:[^\]]+]`),
+			// link
+			regexp.MustCompile(`(?:link|https):[\S\s]+?\[([\S\s]+?)\]`),
+			// header
+			regexp.MustCompile(`(?m)^\={1,6}\s*([^=]+)\s*(\={1,6})?$`),
+			// multiple line break
+			regexp.MustCompile(`((?:\r\n?|\n){2})(?:\r\n?|\n)*`),
 		}
 	}
 
@@ -154,18 +173,18 @@ func FindDoc(dir string) (*Doc, error) {
 }
 
 func (doc *Doc) Title() string {
-	if title := doc.frontmatter(docTitle); title != "" {
+	if title := doc.parseFrontmatter(docTitle); title != "" {
 		return title
 	}
 
-	return doc.element(docTitle)
+	return doc.parseTag(docTitle)
 }
 
 func (doc *Doc) Description(maxLenght int) string {
-	desc := doc.frontmatter(docDescription)
+	desc := doc.parseFrontmatter(docDescription)
 
 	if desc == "" {
-		desc = doc.element(docDescription)
+		desc = doc.parseTag(docDescription)
 	}
 
 	if maxLenght == 0 {
@@ -195,21 +214,19 @@ func (doc *Doc) Description(maxLenght int) string {
 	return desc
 }
 
-func (doc *Doc) Content(raw bool) string {
-	if raw {
+func (doc *Doc) Content(stripTags bool) string {
+	if !stripTags {
 		return doc.rawContent
 	}
 
-	// strip doc elements
-	str := doc.elementStripRegs.Replace(doc.rawContent)
-
-	// remove redundant spaces and new lines
-	str = strings.Join(strings.Fields(str), " ")
-
-	return str
+	return doc.parseTag(docContent)
 }
 
-func (doc *Doc) frontmatter(key docDataKey) string {
+func (doc *Doc) IsMarkDown() bool {
+	return doc.fileExt == mdExt
+}
+
+func (doc *Doc) parseFrontmatter(key docDataKey) string {
 	if doc.frontmatterReg == nil {
 		return ""
 	}
@@ -239,47 +256,55 @@ func (doc *Doc) frontmatter(key docDataKey) string {
 	return doc.frontmatterCache[key]
 }
 
-func (doc *Doc) element(key docDataKey) string {
-	if doc.elementRegs == nil {
+func (doc *Doc) parseTag(key docDataKey) string {
+	if doc.tagRegs == nil {
 		return ""
 	}
 
-	if doc.elementCache == nil {
-		doc.elementCache = make(map[docDataKey]string)
+	if doc.tagCache == nil {
+		doc.tagCache = make(map[docDataKey]string)
 
-		for elementName, elementReg := range doc.elementRegs {
-			match := elementReg.FindStringSubmatch(doc.rawContent)
+		for tagName, tagReg := range doc.tagRegs {
+			match := tagReg.FindStringSubmatch(doc.rawContent)
 			if len(match) == 0 {
 				continue
 			}
 			lines := strings.Split(match[1], "\n")
 
-			switch elementName {
-			case elementH1Block:
+			switch tagName {
+			case tagH1Block:
 				// header title
 				str := lines[0]
 
-				doc.elementCache[docTitle] = str
+				doc.tagCache[docTitle] = str
 				fallthrough
 
-			case elementH2Block:
-				if len(lines) > 1 {
-					// header body
-					str := strings.Join(lines[1:], "\n")
-
-					// strip doc elements
-					str = doc.elementStripRegs.Replace(str)
-
-					str = doc.elementCache[docDescription] + " " + str
-
-					// remove redundant spaces and new lines
-					str = strings.Join(strings.Fields(str), " ")
-
-					doc.elementCache[docDescription] = str
+			case tagH2Block:
+				if len(lines) == 1 {
+					break
 				}
+
+				// header body
+				str := strings.Join(lines[1:], "\n")
+
+				// strip doc tags
+				str = doc.tagStripRegs.Replace(str)
+
+				// concatenate headers body
+				str = doc.tagCache[docDescription] + " " + str
+
+				// remove redundant spaces and new lines
+				str = strings.Join(strings.Fields(str), " ")
+
+				doc.tagCache[docDescription] = str
 			}
 		}
+
+		// strip doc tags
+		str := doc.tagStripRegs.Replace(doc.rawContent)
+
+		doc.tagCache[docContent] = str
 	}
 
-	return doc.elementCache[key]
+	return doc.tagCache[key]
 }
