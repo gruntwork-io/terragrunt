@@ -284,9 +284,6 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 	return true
 }
 
-var mapAccessMutex sync.Mutex
-var mapMutex = make(map[string]*sync.Mutex)
-
 // Initialize the remote state S3 bucket specified in the given config. This function will validate the config
 // parameters, create the S3 bucket if it doesn't already exist, and check that versioning is enabled.
 func (s3Initializer S3Initializer) Initialize(remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error {

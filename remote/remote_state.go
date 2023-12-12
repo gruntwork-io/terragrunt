@@ -4,6 +4,7 @@ package remote
 import (
 	"fmt"
 	"reflect"
+	"sync"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/codegen"
@@ -19,6 +20,9 @@ type RemoteState struct {
 	Generate                      *RemoteStateGenerate
 	Config                        map[string]interface{}
 }
+
+var mapAccessMutex sync.Mutex
+var mapMutex = make(map[string]*sync.Mutex)
 
 func (remoteState *RemoteState) String() string {
 	return fmt.Sprintf("RemoteState{Backend = %v, DisableInit = %v, DisableDependencyOptimization = %v, Generate = %v, Config = %v}", remoteState.Backend, remoteState.DisableInit, remoteState.DisableDependencyOptimization, remoteState.Generate, remoteState.Config)

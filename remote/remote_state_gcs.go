@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"sync"
 	"time"
 
 	"google.golang.org/api/impersonate"
@@ -173,6 +174,17 @@ func (gcsInitializer GCSInitializer) Initialize(remoteState *RemoteState, terrag
 	}
 
 	var gcsConfig = gcsConfigExtended.remoteStateConfigGCS
+
+	// allow initialization of one GCS bucket at a time
+	var key = gcsConfig.Bucket
+	mapAccessMutex.Lock()
+	if mapMutex[key] == nil {
+		mapMutex[key] = &sync.Mutex{}
+	}
+	mu := mapMutex[key]
+	mapAccessMutex.Unlock()
+	mu.Lock()
+	defer mu.Unlock()
 
 	gcsClient, err := CreateGCSClient(gcsConfig)
 	if err != nil {
