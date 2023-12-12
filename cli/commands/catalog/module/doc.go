@@ -66,8 +66,8 @@ func newDoc(rawContent, fileExt string) *Doc {
 
 	switch fileExt {
 	case mdExt:
-		doc.tagRegs[tagH1Block] = regexp.MustCompile(`(?:^|\n)\#{1}\s?([^#][\S\s]+?)(?:[\r\n]+\#|[\r\n]*$)`)
-		doc.tagRegs[tagH2Block] = regexp.MustCompile(`(?:^|\n)\#{2}\s?([^#][\S\s]+?)(?:[\r\n]+\#|[\r\n]*$)`)
+		doc.tagRegs[tagH1Block] = regexp.MustCompile(`(?:^|\n)\#{1}\s([\S\s]+?)(?:[\r\n]+\#|[\r\n]*$)`)
+		doc.tagRegs[tagH2Block] = regexp.MustCompile(`(?:^|\n)\#{2}\s([\S\s]+?)(?:[\r\n]+\#|[\r\n]*$)`)
 		doc.tagStripRegs = DocRegs{
 			// code
 			regexp.MustCompile("`{3}" + `.*[\r\n]+`),
@@ -100,8 +100,8 @@ func newDoc(rawContent, fileExt string) *Doc {
 		}
 
 	case adocExt:
-		doc.tagRegs[tagH1Block] = regexp.MustCompile(`(?m)(?:^|\n)={1}\s?([^=][\S\s]+?)\n=`)
-		doc.tagRegs[tagH2Block] = regexp.MustCompile(`(?m)(?:^|\n)={2}\s?([^=][\S\s]+?)\n=`)
+		doc.tagRegs[tagH1Block] = regexp.MustCompile(`(?:^|\n)\={1}\s([\S\s]+?)(?:[\r\n]+\=|[\r\n]*$)`)
+		doc.tagRegs[tagH2Block] = regexp.MustCompile(`(?:^|\n)\={2}\s([\S\s]+?)(?:[\r\n]+\=|[\r\n]*$)`)
 		doc.tagStripRegs = DocRegs{
 			// html
 			regexp.MustCompile("<(.*?)>"),
@@ -263,6 +263,7 @@ func (doc *Doc) parseTag(key docDataKey) string {
 
 	if doc.tagCache == nil {
 		doc.tagCache = make(map[docDataKey]string)
+		var h1Body, h2Body string
 
 		for tagName, tagReg := range doc.tagRegs {
 			match := tagReg.FindStringSubmatch(doc.rawContent)
@@ -274,36 +275,32 @@ func (doc *Doc) parseTag(key docDataKey) string {
 			switch tagName {
 			case tagH1Block:
 				// header title
-				str := lines[0]
-
-				doc.tagCache[docTitle] = str
-				fallthrough
-
-			case tagH2Block:
-				if len(lines) == 1 {
-					break
+				doc.tagCache[docTitle] = lines[0]
+				if len(lines) > 1 {
+					h1Body = strings.Join(lines[1:], "\n")
 				}
 
-				// header body
-				str := strings.Join(lines[1:], "\n")
-
-				// strip doc tags
-				str = doc.tagStripRegs.Replace(str)
-
-				// concatenate headers body
-				str = doc.tagCache[docDescription] + " " + str
-
-				// remove redundant spaces and new lines
-				str = strings.Join(strings.Fields(str), " ")
-
-				doc.tagCache[docDescription] = str
+			case tagH2Block:
+				if len(lines) > 1 {
+					h2Body = strings.Join(lines[1:], "\n")
+				}
 			}
 		}
 
-		// strip doc tags
-		str := doc.tagStripRegs.Replace(doc.rawContent)
+		desc := h1Body + " " + h2Body
 
-		doc.tagCache[docContent] = str
+		// strip doc tags
+		desc = doc.tagStripRegs.Replace(desc)
+
+		// remove redundant spaces and new lines
+		desc = strings.Join(strings.Fields(desc), " ")
+
+		doc.tagCache[docDescription] = desc
+
+		// strip doc tags
+		content := doc.tagStripRegs.Replace(doc.rawContent)
+
+		doc.tagCache[docContent] = content
 	}
 
 	return doc.tagCache[key]
