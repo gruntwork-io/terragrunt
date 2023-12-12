@@ -42,22 +42,6 @@ built-with: terraform
 [![Maintained by Gruntwork](https://img.shields.io/badge/maintained%20by-gruntwork.io-%235849a6.svg)](https://gruntwork.io)
 `
 
-var df = `
-# ALB Ingress Controller Module
-
-This Terraform Module installs and configures the [AWS ALB Ingress
-Controller](https://github.com/kubernetes-sigs/aws-alb-ingress-controller) on an EKS cluster, so that you can configure
-an ALB using [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/) resources.
-
-This module uses the [community helm chart](https://github.com/aws/eks-charts), with a set of best practices input.
-
-#### Note: v2
-We're now supporting v2 of the AWS Load Balancer Ingress Controller. The AWS Load Balancer Ingress Controller v2 has many new features, and is considered backwards incompatible with the existing AWS resources it manages. Please note, that it can't coexist with the existing/older version, so you must fully undeploy the old version prior to updating. For the migration steps, please refer to the [relevant Release notes for this module](https://github.com/gruntwork-io/terraform-aws-eks/releases/tag/v0.28.0).
-
-## How does this work?
-
-`
-
 func TestFrontmatter(t *testing.T) {
 	t.Parallel()
 
