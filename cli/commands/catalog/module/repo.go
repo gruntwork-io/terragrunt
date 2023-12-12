@@ -33,8 +33,9 @@ var (
 )
 
 type Repo struct {
-	path    string
-	tempDir string
+	cloneUrl string
+	path     string
+	tempDir  string
 
 	remoteURL  string
 	branchName string
@@ -42,7 +43,8 @@ type Repo struct {
 
 func NewRepo(ctx context.Context, path string) (*Repo, error) {
 	repo := &Repo{
-		path: path,
+		cloneUrl: path,
+		path:     path,
 	}
 
 	if err := repo.clone(ctx); err != nil {

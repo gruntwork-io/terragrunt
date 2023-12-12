@@ -25,16 +25,18 @@ type Modules []*Module
 type Module struct {
 	*Doc
 
-	repoPath  string
-	moduleDir string
-	url       string
+	repoPath        string
+	moduleDir       string
+	url             string
+	terraformSource string
 }
 
 // NewModule returns a module instance if the given `moduleDir` path contains a Terraform module, otherwise returns nil.
 func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 	module := &Module{
-		repoPath:  repo.path,
-		moduleDir: moduleDir,
+		repoPath:        repo.path,
+		moduleDir:       moduleDir,
+		terraformSource: repo.cloneUrl + "//" + moduleDir,
 	}
 
 	if ok, err := module.isValid(); !ok || err != nil {
@@ -93,7 +95,10 @@ func (module *Module) URL() string {
 
 func (module *Module) Path() string {
 	return fmt.Sprintf("%s//%s", module.repoPath, module.moduleDir)
+}
 
+func (module *Module) TerraformSourcePath() string {
+	return module.terraformSource
 }
 
 func (module *Module) isValid() (bool, error) {
