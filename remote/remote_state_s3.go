@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -283,19 +284,34 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 	return true
 }
 
+var mapAccessMutex sync.Mutex
+var mapMutex = make(map[string]*sync.Mutex)
+
 // Initialize the remote state S3 bucket specified in the given config. This function will validate the config
 // parameters, create the S3 bucket if it doesn't already exist, and check that versioning is enabled.
 func (s3Initializer S3Initializer) Initialize(remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error {
+
 	s3ConfigExtended, err := ParseExtendedS3Config(remoteState.Config)
 	if err != nil {
-		return err
+		return errors.WithStackTrace(err)
 	}
 
 	if err := validateS3Config(s3ConfigExtended, terragruntOptions); err != nil {
-		return err
+		return errors.WithStackTrace(err)
 	}
 
 	var s3Config = s3ConfigExtended.remoteStateConfigS3
+
+	// allow initialization of one S3 bucket at a time
+	var key = s3Config.Bucket
+	mapAccessMutex.Lock()
+	if mapMutex[key] == nil {
+		mapMutex[key] = &sync.Mutex{}
+	}
+	mu := mapMutex[key]
+	mapAccessMutex.Unlock()
+	mu.Lock()
+	defer mu.Unlock()
 
 	// Display a deprecation warning when the "lock_table" attribute is being used
 	// during initialization.
@@ -305,31 +321,31 @@ func (s3Initializer S3Initializer) Initialize(remoteState *RemoteState, terragru
 
 	s3Client, err := CreateS3Client(s3ConfigExtended.GetAwsSessionConfig(), terragruntOptions)
 	if err != nil {
-		return err
+		return errors.WithStackTrace(err)
 	}
 
 	if err := createS3BucketIfNecessary(s3Client, s3ConfigExtended, terragruntOptions); err != nil {
-		return err
+		return errors.WithStackTrace(err)
 	}
 
 	if !terragruntOptions.DisableBucketUpdate && !s3ConfigExtended.DisableBucketUpdate {
 		if err := updateS3BucketIfNecessary(s3Client, s3ConfigExtended, terragruntOptions); err != nil {
-			return err
+			return errors.WithStackTrace(err)
 		}
 	}
 
 	if !s3ConfigExtended.SkipBucketVersioning {
 		if _, err := checkIfVersioningEnabled(s3Client, &s3Config, terragruntOptions); err != nil {
-			return err
+			return errors.WithStackTrace(err)
 		}
 	}
 
 	if err := createLockTableIfNecessary(s3ConfigExtended, s3ConfigExtended.DynamotableTags, terragruntOptions); err != nil {
-		return err
+		return errors.WithStackTrace(err)
 	}
 
 	if err := UpdateLockTableSetSSEncryptionOnIfNecessary(&s3Config, s3ConfigExtended, terragruntOptions); err != nil {
-		return err
+		return errors.WithStackTrace(err)
 	}
 
 	return nil
@@ -987,7 +1003,7 @@ func checkIfBucketRootAccess(s3Client *s3.S3, config *RemoteStateConfigS3, terra
 	})
 	if err != nil {
 		terragruntOptions.Logger.Debugf("Could not get policy for bucket %s", config.Bucket)
-		return false, err
+		return false, errors.WithStackTrace(err)
 	}
 
 	// If the bucket has no policy, it is not enforced
