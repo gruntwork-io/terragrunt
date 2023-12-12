@@ -29,19 +29,19 @@ func TestFindModules(t *testing.T) {
 			[]moduleData{
 				{
 					title:       "ALB Ingress Controller Module",
-					description: "This Terraform Module installs and configures the [AWS ALB Ingress Controller](https://github.com/kubernetes-sigs/aws-alb-ingress-controller) on an EKS cluster.",
+					description: "This Terraform Module installs and configures the AWS ALB Ingress Controller on an EKS cluster, so that you can configure an ALB using Ingress resources.",
 					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/modules/eks-alb-ingress-controller",
 					moduleDir:   "modules/eks-alb-ingress-controller",
 				},
 				{
 					title:       "ALB Ingress Controller IAM Policy Module",
-					description: "This Terraform Module defines an [IAM policy](http://docs.aws.amazon.com/AmazonCloudWatch/latest/DeveloperGuide/QuickStartEC2Instance.html#d0e22325)  that defines the minimal set of permissions necessary for the [AWS ALB Ingress Controller]",
+					description: "This Terraform Module defines an IAM policy that defines the minimal set of permissions necessary for the AWS ALB Ingress Controller.",
 					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/modules/eks-alb-ingress-controller-iam-policy",
 					moduleDir:   "modules/eks-alb-ingress-controller-iam-policy",
 				},
 				{
 					title:       "EKS AWS Auth Merger",
-					description: "This module contains a go CLI, docker container, and terraform module for deploying a Kubernetes controller for managing mappings between AWS IAM roles and users to RBAC groups in Kubernetes. The official way to manage the mapping is to add values in a single, central `ConfigMap`.  This module allows you to break up the central `ConfigMap` across multiple.   toc::[]",
+					description: "This module contains a go CLI, docker container, and terraform module for deploying a Kubernetes controller for managing mappings between AWS IAM roles and users to RBAC groups in Kubernetes.",
 					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/modules/eks-aws-auth-merger",
 					moduleDir:   "modules/eks-aws-auth-merger",
 				}},

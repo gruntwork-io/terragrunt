@@ -67,11 +67,7 @@ func (module *Module) FilterValue() string {
 
 // Title implements /github.com/charmbracelet/bubbles.list.DefaultItem.Title
 func (module *Module) Title() string {
-	if title := module.Doc.FrontmatterName(); title != "" {
-		return title
-	}
-
-	if title := module.Doc.Name(); title != "" {
+	if title := module.Doc.Title(); title != "" {
 		return title
 	}
 
@@ -80,10 +76,6 @@ func (module *Module) Title() string {
 
 // Description implements /github.com/charmbracelet/bubbles.list.DefaultItem.Description
 func (module *Module) Description() string {
-	if desc := module.Doc.FrontmatterDescription(); desc != "" {
-		return desc
-	}
-
 	if desc := module.Doc.Description(maxDescriptionLenght); desc != "" {
 		return desc
 	}
@@ -92,7 +84,7 @@ func (module *Module) Description() string {
 }
 
 func (module *Module) Readme() string {
-	return module.Doc.content
+	return module.Doc.Content(true)
 }
 
 func (module *Module) URL() string {
