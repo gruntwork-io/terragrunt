@@ -97,7 +97,7 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 	assert.True(t, found)
 	assert.Contains(t, *cfg.Terraform.Source, "git::https://github.com/gruntwork-io/terraform-fake-modules//modules/aws/aurora?ref=v0.0.5")
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", opts.WorkingDir))
+	runTerragrunt(t, fmt.Sprintf("terragrunt init --terragrunt-non-interactive --terragrunt-working-dir %s", opts.WorkingDir))
 }
 
 func readConfig(t *testing.T, opts *options.TerragruntOptions) *config.TerragruntConfig {
