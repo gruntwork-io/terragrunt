@@ -192,7 +192,6 @@ func (remoteState *RemoteState) GenerateTerraformCode(terragruntOptions *options
 	if hasInitializer {
 		config = initializer.GetTerraformInitArgs(config)
 	}
-	terragruntOptions.Logger.Infof("Generated config %v", config)
 
 	// Convert the IfExists setting to the internal enum representation before calling generate.
 	ifExistsEnum, err := codegen.GenerateConfigExistsFromString(remoteState.Generate.IfExists)
