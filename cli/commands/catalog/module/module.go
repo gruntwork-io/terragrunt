@@ -4,6 +4,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+
+	"github.com/gruntwork-io/terragrunt/util"
+
+	"github.com/gruntwork-io/terragrunt/terraform"
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/go-commons/errors"
@@ -25,18 +30,32 @@ type Modules []*Module
 type Module struct {
 	*Doc
 
-	repoPath        string
-	moduleDir       string
-	url             string
-	terraformSource string
+	cloneUrl  string
+	repoPath  string
+	moduleDir string
+	url       string
 }
 
 // NewModule returns a module instance if the given `moduleDir` path contains a Terraform module, otherwise returns nil.
 func NewModule(repo *Repo, moduleDir string) (*Module, error) {
+	cloneUrl := repo.cloneUrl
+	// if is remote path, convert to source URL cloneUrl
+	if !util.IsDir(cloneUrl) {
+		sourceUrl, err := terraform.ToSourceUrl(repo.cloneUrl, "")
+		if err != nil {
+			return nil, err
+		}
+		// specify git:: scheme for the module URL
+		if strings.HasPrefix(sourceUrl.Scheme, "http") {
+			sourceUrl.Scheme = "git::" + sourceUrl.Scheme
+		}
+		cloneUrl = sourceUrl.String()
+	}
+
 	module := &Module{
-		repoPath:        repo.path,
-		moduleDir:       moduleDir,
-		terraformSource: repo.cloneUrl + "//" + moduleDir,
+		cloneUrl:  cloneUrl,
+		repoPath:  repo.path,
+		moduleDir: moduleDir,
 	}
 
 	if ok, err := module.isValid(); !ok || err != nil {
@@ -98,7 +117,7 @@ func (module *Module) Path() string {
 }
 
 func (module *Module) TerraformSourcePath() string {
-	return module.terraformSource
+	return module.cloneUrl + "//" + module.moduleDir
 }
 
 func (module *Module) isValid() (bool, error) {
