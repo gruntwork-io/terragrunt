@@ -1,9 +1,13 @@
 # ALB Ingress Controller IAM Policy Module
 
 This Terraform Module defines an [IAM
-policy](http://docs.aws.amazon.com/AmazonCloudWatch/latest/DeveloperGuide/QuickStartEC2Instance.html#d0e22325)
+policy](http://docs.aws.amazon.com/AmazonCloudWatch/latest/DeveloperGuide/QuickStartEC2Instance.html#d0e22325) that
+defines the minimal set of permissions necessary for the [AWS ALB Ingress
+Controller](https://github.com/kubernetes-sigs/aws-alb-ingress-controller). This policy can then be attached to EC2
+instances or IAM roles so that the controller deployed has enough permissions to manage an ALB.
 
-that defines the minimal set of permissions necessary for the [AWS ALB Ingress Controller]
+See [the eks-alb-ingress-controller module](/modules/eks-alb-ingress-controller) for a module that deploys the Ingress
+Controller on to your EKS cluster.
 
 
 ## How do you use this module?
