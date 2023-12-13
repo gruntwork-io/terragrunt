@@ -7,7 +7,6 @@ import (
 	"os"
 	"reflect"
 	"strconv"
-	"sync"
 	"time"
 
 	"google.golang.org/api/impersonate"
@@ -176,36 +175,26 @@ func (gcsInitializer GCSInitializer) Initialize(remoteState *RemoteState, terrag
 	var gcsConfig = gcsConfigExtended.remoteStateConfigGCS
 
 	// allow initialization of one GCS bucket at a time
-	var key = gcsConfig.Bucket
-	mapAccessMutex.Lock()
-	if mapMutex[key] == nil {
-		mapMutex[key] = &sync.Mutex{}
-	}
-	mu := mapMutex[key]
-	mapAccessMutex.Unlock()
-	mu.Lock()
-	defer mu.Unlock()
-
-	gcsClient, err := CreateGCSClient(gcsConfig)
-	if err != nil {
-		return err
-	}
-
-	// If bucket is specified and skip_bucket_creation is false then check if Bucket needs to be created
-	if !gcsConfigExtended.SkipBucketCreation && gcsConfig.Bucket != "" {
-		if err := createGCSBucketIfNecessary(gcsClient, gcsConfigExtended, terragruntOptions); err != nil {
+	return stateAccessLock.Do(gcsConfig.Bucket, func() error {
+		gcsClient, err := CreateGCSClient(gcsConfig)
+		if err != nil {
 			return err
 		}
-	}
 
-	// If bucket is specified and skip_bucket_versioning is false then warn user if versioning is disabled on bucket
-	if !gcsConfigExtended.SkipBucketVersioning && gcsConfig.Bucket != "" {
-		if err := checkIfGCSVersioningEnabled(gcsClient, &gcsConfig, terragruntOptions); err != nil {
-			return err
+		// If bucket is specified and skip_bucket_creation is false then check if Bucket needs to be created
+		if !gcsConfigExtended.SkipBucketCreation && gcsConfig.Bucket != "" {
+			if err := createGCSBucketIfNecessary(gcsClient, gcsConfigExtended, terragruntOptions); err != nil {
+				return err
+			}
 		}
-	}
-
-	return nil
+		// If bucket is specified and skip_bucket_versioning is false then warn user if versioning is disabled on bucket
+		if !gcsConfigExtended.SkipBucketVersioning && gcsConfig.Bucket != "" {
+			if err := checkIfGCSVersioningEnabled(gcsClient, &gcsConfig, terragruntOptions); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (gcsInitializer GCSInitializer) GetTerraformInitArgs(config map[string]interface{}) map[string]interface{} {

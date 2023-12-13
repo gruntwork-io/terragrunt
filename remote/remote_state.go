@@ -21,8 +21,13 @@ type RemoteState struct {
 	Config                        map[string]interface{}
 }
 
-var mapAccessMutex sync.Mutex
-var mapMutex = make(map[string]*sync.Mutex)
+// map to store mutexes for each state bucket action
+type stateAccess struct {
+	mu sync.Mutex
+	m  map[string]*sync.Mutex
+}
+
+var stateAccessLock = newStateAccess()
 
 func (remoteState *RemoteState) String() string {
 	return fmt.Sprintf("RemoteState{Backend = %v, DisableInit = %v, DisableDependencyOptimization = %v, Generate = %v, Config = %v}", remoteState.Backend, remoteState.DisableInit, remoteState.DisableDependencyOptimization, remoteState.Generate, remoteState.Config)
@@ -219,4 +224,27 @@ type BucketCreationNotAllowed string
 
 func (bucketName BucketCreationNotAllowed) Error() string {
 	return fmt.Sprintf("Creation of remote state bucket %s is not allowed", string(bucketName))
+}
+
+func newStateAccess() *stateAccess {
+	return &stateAccess{
+		m: make(map[string]*sync.Mutex),
+	}
+}
+
+func (om *stateAccess) Do(key string, f func() error) error {
+	om.mu.Lock()
+	defer om.mu.Unlock()
+
+	if om.m == nil {
+		om.m = make(map[string]*sync.Mutex)
+	}
+
+	if _, ok := om.m[key]; !ok {
+		om.m[key] = &sync.Mutex{}
+	}
+
+	om.m[key].Lock()
+	defer om.m[key].Unlock()
+	return f()
 }

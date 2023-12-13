@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -300,52 +299,43 @@ func (s3Initializer S3Initializer) Initialize(remoteState *RemoteState, terragru
 	var s3Config = s3ConfigExtended.remoteStateConfigS3
 
 	// allow initialization of one S3 bucket at a time
-	var key = s3Config.Bucket
-	mapAccessMutex.Lock()
-	if mapMutex[key] == nil {
-		mapMutex[key] = &sync.Mutex{}
-	}
-	mu := mapMutex[key]
-	mapAccessMutex.Unlock()
-	mu.Lock()
-	defer mu.Unlock()
+	return stateAccessLock.Do(s3Config.Bucket, func() error {
+		// Display a deprecation warning when the "lock_table" attribute is being used
+		// during initialization.
+		if s3Config.LockTable != "" {
+			terragruntOptions.Logger.Warnf("%s\n", lockTableDeprecationMessage)
+		}
 
-	// Display a deprecation warning when the "lock_table" attribute is being used
-	// during initialization.
-	if s3Config.LockTable != "" {
-		terragruntOptions.Logger.Warnf("%s\n", lockTableDeprecationMessage)
-	}
-
-	s3Client, err := CreateS3Client(s3ConfigExtended.GetAwsSessionConfig(), terragruntOptions)
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-
-	if err := createS3BucketIfNecessary(s3Client, s3ConfigExtended, terragruntOptions); err != nil {
-		return errors.WithStackTrace(err)
-	}
-
-	if !terragruntOptions.DisableBucketUpdate && !s3ConfigExtended.DisableBucketUpdate {
-		if err := updateS3BucketIfNecessary(s3Client, s3ConfigExtended, terragruntOptions); err != nil {
+		s3Client, err := CreateS3Client(s3ConfigExtended.GetAwsSessionConfig(), terragruntOptions)
+		if err != nil {
 			return errors.WithStackTrace(err)
 		}
-	}
 
-	if !s3ConfigExtended.SkipBucketVersioning {
-		if _, err := checkIfVersioningEnabled(s3Client, &s3Config, terragruntOptions); err != nil {
+		if err := createS3BucketIfNecessary(s3Client, s3ConfigExtended, terragruntOptions); err != nil {
 			return errors.WithStackTrace(err)
 		}
-	}
 
-	if err := createLockTableIfNecessary(s3ConfigExtended, s3ConfigExtended.DynamotableTags, terragruntOptions); err != nil {
-		return errors.WithStackTrace(err)
-	}
+		if !terragruntOptions.DisableBucketUpdate && !s3ConfigExtended.DisableBucketUpdate {
+			if err := updateS3BucketIfNecessary(s3Client, s3ConfigExtended, terragruntOptions); err != nil {
+				return errors.WithStackTrace(err)
+			}
+		}
 
-	if err := UpdateLockTableSetSSEncryptionOnIfNecessary(&s3Config, s3ConfigExtended, terragruntOptions); err != nil {
-		return errors.WithStackTrace(err)
-	}
+		if !s3ConfigExtended.SkipBucketVersioning {
+			if _, err := checkIfVersioningEnabled(s3Client, &s3Config, terragruntOptions); err != nil {
+				return errors.WithStackTrace(err)
+			}
+		}
 
-	return nil
+		if err := createLockTableIfNecessary(s3ConfigExtended, s3ConfigExtended.DynamotableTags, terragruntOptions); err != nil {
+			return errors.WithStackTrace(err)
+		}
+
+		if err := UpdateLockTableSetSSEncryptionOnIfNecessary(&s3Config, s3ConfigExtended, terragruntOptions); err != nil {
+			return errors.WithStackTrace(err)
+		}
+		return nil
+	})
 }
 
 func (s3Initializer S3Initializer) GetTerraformInitArgs(config map[string]interface{}) map[string]interface{} {
