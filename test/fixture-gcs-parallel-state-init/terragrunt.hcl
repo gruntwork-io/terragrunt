@@ -8,6 +8,6 @@ remote_state {
     project        = "__FILL_IN_PROJECT__"
     location       = "__FILL_IN_LOCATION__"
     bucket         = "__FILL_IN_BUCKET_NAME__"
-    key            = "${path_relative_to_include()}/terraform.tfstate"
+    prefix         = "${path_relative_to_include()}/terraform.tfstate"
   }
 }
