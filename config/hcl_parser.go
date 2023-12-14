@@ -12,7 +12,7 @@ import (
 )
 
 // parseHcl uses the HCL2 parser to parse the given string into an HCL file body.
-func parseHcl(parser *hclparse.Parser, hcl string, filename string) (file *hcl.File, err error) {
+func ParseHCL(parser *hclparse.Parser, hcl string, filename string) (file *hcl.File, err error) {
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
 	// those panics here and convert them to normal errors
 	defer func() {
@@ -68,7 +68,7 @@ func decodeHcl(
 		// Code was updated, so we need to reparse the new updated contents. This is necessarily because the blocks
 		// returned by hclparse does not support editing, and so we have to go through hclwrite, which leads to a
 		// different AST representation.
-		file, err = parseHcl(hclparse.NewParser(), string(updatedBytes), filename)
+		file, err = ParseHCL(hclparse.NewParser(), string(updatedBytes), filename)
 		if err != nil {
 			return err
 		}
@@ -94,7 +94,7 @@ func ParseAndDecodeVarFile(hclContents string, filename string, out interface{})
 	}()
 
 	parser := hclparse.NewParser()
-	file, err := parseHcl(parser, hclContents, filename)
+	file, err := ParseHCL(parser, hclContents, filename)
 	if err != nil {
 		return err
 	}

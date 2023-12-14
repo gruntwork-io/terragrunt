@@ -24,7 +24,7 @@ dependency "sql" {
 `
 	filename := DefaultTerragruntConfigPath
 	parser := hclparse.NewParser()
-	file, err := parseHcl(parser, config, filename)
+	file, err := ParseHCL(parser, config, filename)
 	require.NoError(t, err)
 
 	decoded := terragruntDependency{}
@@ -47,7 +47,7 @@ locals {
 `
 	filename := DefaultTerragruntConfigPath
 	parser := hclparse.NewParser()
-	file, err := parseHcl(parser, config, filename)
+	file, err := ParseHCL(parser, config, filename)
 	require.NoError(t, err)
 
 	decoded := terragruntDependency{}
@@ -65,7 +65,7 @@ dependency {
 `
 	filename := DefaultTerragruntConfigPath
 	parser := hclparse.NewParser()
-	file, err := parseHcl(parser, config, filename)
+	file, err := ParseHCL(parser, config, filename)
 	require.NoError(t, err)
 
 	decoded := terragruntDependency{}
@@ -86,7 +86,7 @@ dependency "hitchhiker" {
 `
 	filename := DefaultTerragruntConfigPath
 	parser := hclparse.NewParser()
-	file, err := parseHcl(parser, config, filename)
+	file, err := ParseHCL(parser, config, filename)
 	require.NoError(t, err)
 
 	decoded := terragruntDependency{}
@@ -125,7 +125,7 @@ dependency "vpc" {
 `
 	filename := DefaultTerragruntConfigPath
 	parser := hclparse.NewParser()
-	file, err := parseHcl(parser, config, filename)
+	file, err := ParseHCL(parser, config, filename)
 	require.NoError(t, err)
 
 	decoded := terragruntDependency{}

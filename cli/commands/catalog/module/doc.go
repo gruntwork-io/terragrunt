@@ -226,6 +226,7 @@ func (doc *Doc) IsMarkDown() bool {
 	return doc.fileExt == mdExt
 }
 
+// parseFrontmatter parses Markdown files with frontmatter, which we use as the preferred title/description source.
 func (doc *Doc) parseFrontmatter(key docDataKey) string {
 	if doc.frontmatterReg == nil {
 		return ""
@@ -256,6 +257,7 @@ func (doc *Doc) parseFrontmatter(key docDataKey) string {
 	return doc.frontmatterCache[key]
 }
 
+// parseTag parses Markdown/AsciiDoc files, stips tags and extracts the H1 header as the title and the H1+H2 bodies as the description.
 func (doc *Doc) parseTag(key docDataKey) string {
 	if doc.tagRegs == nil {
 		return ""

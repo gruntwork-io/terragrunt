@@ -85,10 +85,6 @@ func (module *Module) Description() string {
 	return defaultDescription
 }
 
-func (module *Module) Content(stripTags bool) string {
-	return module.Doc.Content(stripTags)
-}
-
 func (module *Module) URL() string {
 	return module.url
 }
