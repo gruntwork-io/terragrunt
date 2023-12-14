@@ -231,19 +231,28 @@ func newStateAccess() *stateAccess {
 	}
 }
 
-func (om *stateAccess) StateUpdate(bucket string, f func() error) error {
-	om.mapAccess.Lock()
-	defer om.mapAccess.Unlock()
+// fetchMutex - fetch mutex for specific bucket.
+func (locks *stateAccess) fetchMutex(bucket string) *sync.Mutex {
+	// only one go routine can access mutex map.
+	locks.mapAccess.Lock()
+	defer locks.mapAccess.Unlock()
 
-	if om.bucketLocks == nil {
-		om.bucketLocks = make(map[string]*sync.Mutex)
+	if locks.bucketLocks == nil {
+		locks.bucketLocks = make(map[string]*sync.Mutex)
 	}
 
-	if _, ok := om.bucketLocks[bucket]; !ok {
-		om.bucketLocks[bucket] = &sync.Mutex{}
+	if _, ok := locks.bucketLocks[bucket]; !ok {
+		locks.bucketLocks[bucket] = &sync.Mutex{}
 	}
 
-	om.bucketLocks[bucket].Lock()
-	defer om.bucketLocks[bucket].Unlock()
-	return f()
+	return locks.bucketLocks[bucket]
+}
+
+// StateBucketUpdate - run state bucket initialization logic, maintaining a single logic execution per bucket simultaneously.
+func (locks *stateAccess) StateBucketUpdate(bucket string, logic func() error) error {
+	mutex := locks.fetchMutex(bucket)
+
+	mutex.Lock()
+	defer mutex.Unlock()
+	return logic()
 }

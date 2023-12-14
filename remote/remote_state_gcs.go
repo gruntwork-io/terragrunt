@@ -175,7 +175,7 @@ func (gcsInitializer GCSInitializer) Initialize(remoteState *RemoteState, terrag
 	var gcsConfig = gcsConfigExtended.remoteStateConfigGCS
 
 	// ensure that only one goroutine can initialize bucket
-	return stateAccessLock.StateUpdate(gcsConfig.Bucket, func() error {
+	return stateAccessLock.StateBucketUpdate(gcsConfig.Bucket, func() error {
 		gcsClient, err := CreateGCSClient(gcsConfig)
 		if err != nil {
 			return err
