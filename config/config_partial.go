@@ -221,7 +221,7 @@ func PartialParseConfigString(
 ) (*TerragruntConfig, error) {
 	// Parse the HCL string into an AST body that can be decoded multiple times later without having to re-parse
 	parser := hclparse.NewParser()
-	file, err := ParseHCL(parser, configString, filename)
+	file, err := parseHcl(parser, configString, filename)
 	if err != nil {
 		return nil, err
 	}

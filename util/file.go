@@ -13,6 +13,7 @@ import (
 	"fmt"
 
 	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/go-commons/files"
 	"github.com/mattn/go-zglob"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/sirupsen/logrus"
@@ -626,4 +627,26 @@ func IsDirectoryEmpty(dirPath string) (bool, error) {
 		return false, nil
 	}
 	return true, nil
+}
+
+// FindFileInParentDirs returns `path` if the file exists, otherwise searches for a file with the same name in the parent directories and returns the file's path if found.
+func FindFileInParentDirs(path string) string {
+	if files.IsDir(path) {
+		return ""
+	}
+
+	if files.FileExists(path) {
+		return path
+	}
+
+	currentDir, path := filepath.Split(path)
+	parentDir := filepath.Dir(filepath.Dir(currentDir))
+
+	// if the current directory is the root path, stop searching
+	if parentDir == currentDir || parentDir == "." {
+		return ""
+	}
+
+	path = filepath.Join(parentDir, path)
+	return FindFileInParentDirs(path)
 }

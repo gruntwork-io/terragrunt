@@ -33,6 +33,11 @@ const (
 )
 
 const (
+	// A consistent error message for multiple catalog block in terragrunt config (which is currently not supported)
+	multipleBlockDetailFmt = "Terragrunt currently does not support multiple %[1]s blocks in a single config. Consolidate to a single %[1]s block."
+)
+
+const (
 	FuncNameFindInParentFolders                     = "find_in_parent_folders"
 	FuncNamePathRelativeToInclude                   = "path_relative_to_include"
 	FuncNamePathRelativeFromInclude                 = "path_relative_from_include"
@@ -224,6 +229,34 @@ func (extensions EvalContextExtensions) CreateTerragruntEvalContext(filename str
 		ctx.Variables["include"] = exposedInclude
 	}
 	return ctx, nil
+}
+
+// getBlock takes a parsed HCL file and extracts a reference to the `name` block, if there are defined.
+func getBlock(hclFile *hcl.File, name string, isMultipleAllowed bool) ([]*hcl.Block, hcl.Diagnostics) {
+	catalogSchema := &hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{
+			hcl.BlockHeaderSchema{Type: name},
+		},
+	}
+	// We use PartialContent here, because we are only interested in parsing out the catalog block.
+	parsedLocals, _, diags := hclFile.Body.PartialContent(catalogSchema)
+	extractedLocalsBlocks := []*hcl.Block{}
+	for _, block := range parsedLocals.Blocks {
+		if block.Type == name {
+			extractedLocalsBlocks = append(extractedLocalsBlocks, block)
+		}
+	}
+
+	if len(extractedLocalsBlocks) > 1 && !isMultipleAllowed {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  fmt.Sprintf("Multiple %s block", name),
+			Detail:   fmt.Sprintf(multipleBlockDetailFmt, name),
+		})
+		return nil, diags
+	}
+
+	return extractedLocalsBlocks, diags
 }
 
 // Return the OS platform

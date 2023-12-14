@@ -22,9 +22,6 @@ const (
 	// A consistent detail message for all "not a valid identifier" diagnostics. This is exactly the same as that returned
 	// by terraform.
 	badIdentifierDetail = "A name must start with a letter and may contain only letters, digits, underscores, and dashes."
-
-	// A consistent error message for multiple locals block in terragrunt config (which is currently not supported)
-	multipleLocalsBlockDetail = "Terragrunt currently does not support multiple locals blocks in a single config. Consolidate to a single locals block."
 )
 
 // Local represents a single local name binding. This holds the unevaluated expression, extracted from the parsed file
@@ -52,7 +49,7 @@ func evaluateLocalsBlock(
 ) (map[string]cty.Value, error) {
 	diagsWriter := util.GetDiagnosticsWriter(terragruntOptions.Logger, parser)
 
-	localsBlock, diags := getLocalsBlock(hclFile)
+	localsBlock, diags := getBlock(hclFile, "locals", false)
 	if diags.HasErrors() {
 		err := diagsWriter.WriteDiagnostics(diags)
 		if err != nil {
@@ -60,7 +57,7 @@ func evaluateLocalsBlock(
 		}
 		return nil, errors.WithStackTrace(diags)
 	}
-	if localsBlock == nil {
+	if len(localsBlock) == 0 {
 		// No locals block referenced in the file
 		terragruntOptions.Logger.Debugf("Did not find any locals block: skipping evaluation.")
 		return nil, nil
@@ -68,7 +65,7 @@ func evaluateLocalsBlock(
 
 	terragruntOptions.Logger.Debugf("Found locals block: evaluating the expressions.")
 
-	locals, diags := decodeLocalsBlock(localsBlock)
+	locals, diags := decodeLocalsBlock(localsBlock[0])
 	if diags.HasErrors() {
 		terragruntOptions.Logger.Errorf("Encountered error while decoding locals block into name expression pairs.")
 		err := diagsWriter.WriteDiagnostics(diags)
@@ -290,38 +287,6 @@ func getLocalName(traversal hcl.Traversal) string {
 		}
 	}
 	return ""
-}
-
-// getLocalsBlock takes a parsed HCL file and extracts a reference to the `locals` block, if there is one defined.
-func getLocalsBlock(hclFile *hcl.File) (*hcl.Block, hcl.Diagnostics) {
-	localsSchema := &hcl.BodySchema{
-		Blocks: []hcl.BlockHeaderSchema{
-			hcl.BlockHeaderSchema{Type: "locals"},
-		},
-	}
-	// We use PartialContent here, because we are only interested in parsing out the locals block.
-	parsedLocals, _, diags := hclFile.Body.PartialContent(localsSchema)
-	extractedLocalsBlocks := []*hcl.Block{}
-	for _, block := range parsedLocals.Blocks {
-		if block.Type == "locals" {
-			extractedLocalsBlocks = append(extractedLocalsBlocks, block)
-		}
-	}
-	// We currently only support parsing a single locals block
-	switch {
-	case len(extractedLocalsBlocks) == 1:
-		return extractedLocalsBlocks[0], diags
-	case len(extractedLocalsBlocks) > 1:
-		diags = append(diags, &hcl.Diagnostic{
-			Severity: hcl.DiagError,
-			Summary:  "Multiple locals block",
-			Detail:   multipleLocalsBlockDetail,
-		})
-		return nil, diags
-	default:
-		// No locals block parsed
-		return nil, diags
-	}
 }
 
 // decodeLocalsBlock loads the block into name expression pairs to assist with evaluation of the locals prior to

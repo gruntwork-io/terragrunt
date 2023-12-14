@@ -19,7 +19,7 @@ func TestEvaluateLocalsBlock(t *testing.T) {
 	mockFilename := "terragrunt.hcl"
 
 	parser := hclparse.NewParser()
-	file, err := ParseHCL(parser, LocalsTestConfig, mockFilename)
+	file, err := parseHcl(parser, LocalsTestConfig, mockFilename)
 	require.NoError(t, err)
 
 	evaluatedLocals, err := evaluateLocalsBlock(terragruntOptions, parser, file, mockFilename, nil, nil)
@@ -64,7 +64,7 @@ func TestEvaluateLocalsBlockMultiDeepReference(t *testing.T) {
 	mockFilename := "terragrunt.hcl"
 
 	parser := hclparse.NewParser()
-	file, err := ParseHCL(parser, LocalsTestMultiDeepReferenceConfig, mockFilename)
+	file, err := parseHcl(parser, LocalsTestMultiDeepReferenceConfig, mockFilename)
 	require.NoError(t, err)
 
 	evaluatedLocals, err := evaluateLocalsBlock(terragruntOptions, parser, file, mockFilename, nil, nil)
@@ -103,7 +103,7 @@ func TestEvaluateLocalsBlockImpossibleWillFail(t *testing.T) {
 	mockFilename := "terragrunt.hcl"
 
 	parser := hclparse.NewParser()
-	file, err := ParseHCL(parser, LocalsTestImpossibleConfig, mockFilename)
+	file, err := parseHcl(parser, LocalsTestImpossibleConfig, mockFilename)
 	require.NoError(t, err)
 
 	_, err = evaluateLocalsBlock(terragruntOptions, parser, file, mockFilename, nil, nil)
@@ -123,7 +123,7 @@ func TestEvaluateLocalsBlockMultipleLocalsBlocksWillFail(t *testing.T) {
 	mockFilename := "terragrunt.hcl"
 
 	parser := hclparse.NewParser()
-	file, err := ParseHCL(parser, MultipleLocalsBlockConfig, mockFilename)
+	file, err := parseHcl(parser, MultipleLocalsBlockConfig, mockFilename)
 	require.NoError(t, err)
 
 	_, err = evaluateLocalsBlock(terragruntOptions, parser, file, mockFilename, nil, nil)
