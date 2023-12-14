@@ -225,6 +225,6 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 }
 
 func osExiter(exitCode int) {
-	// Do nothing. We just need to override this function, as the default value calls os.Exit, which
+	// StateUpdate nothing. We just need to override this function, as the default value calls os.Exit, which
 	// kills the app (or any automated test) dead in its tracks.
 }

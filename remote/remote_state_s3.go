@@ -298,8 +298,8 @@ func (s3Initializer S3Initializer) Initialize(remoteState *RemoteState, terragru
 
 	var s3Config = s3ConfigExtended.remoteStateConfigS3
 
-	// allow initialization of one S3 bucket at a time
-	return stateAccessLock.Do(s3Config.Bucket, func() error {
+	// ensure that only one goroutine can initialize bucket
+	return stateAccessLock.StateUpdate(s3Config.Bucket, func() error {
 		// Display a deprecation warning when the "lock_table" attribute is being used
 		// during initialization.
 		if s3Config.LockTable != "" {

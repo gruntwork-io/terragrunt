@@ -104,7 +104,7 @@ func shouldContinueWithFileExists(terragruntOptions *options.TerragruntOptions, 
 	case ExistsError:
 		return false, errors.WithStackTrace(GenerateFileExistsError{path: path})
 	case ExistsSkip:
-		// Do nothing since file exists and skip was configured
+		// StateUpdate nothing since file exists and skip was configured
 		terragruntOptions.Logger.Debugf("The file path %s already exists and if_exists for code generation set to \"skip\". Will not regenerate file.", path)
 		return false, nil
 	case ExistsOverwrite:

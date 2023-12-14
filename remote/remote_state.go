@@ -231,7 +231,7 @@ func newStateAccess() *stateAccess {
 	}
 }
 
-func (om *stateAccess) Do(key string, f func() error) error {
+func (om *stateAccess) StateUpdate(bucket string, f func() error) error {
 	om.mapAccess.Lock()
 	defer om.mapAccess.Unlock()
 
@@ -239,11 +239,11 @@ func (om *stateAccess) Do(key string, f func() error) error {
 		om.bucketLocks = make(map[string]*sync.Mutex)
 	}
 
-	if _, ok := om.bucketLocks[key]; !ok {
-		om.bucketLocks[key] = &sync.Mutex{}
+	if _, ok := om.bucketLocks[bucket]; !ok {
+		om.bucketLocks[bucket] = &sync.Mutex{}
 	}
 
-	om.bucketLocks[key].Lock()
-	defer om.bucketLocks[key].Unlock()
+	om.bucketLocks[bucket].Lock()
+	defer om.bucketLocks[bucket].Unlock()
 	return f()
 }

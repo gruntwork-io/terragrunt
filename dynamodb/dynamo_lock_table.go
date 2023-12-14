@@ -118,7 +118,7 @@ func CreateLockTable(tableName string, tags map[string]string, client *dynamodb.
 	}
 
 	if createTableOutput != nil && createTableOutput.TableDescription != nil && createTableOutput.TableDescription.TableArn != nil {
-		// Do not tag in case somebody else had created the table
+		// StateUpdate not tag in case somebody else had created the table
 
 		err = tagTableIfTagsGiven(tags, createTableOutput.TableDescription.TableArn, client, terragruntOptions)
 
