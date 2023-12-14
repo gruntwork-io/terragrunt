@@ -23,6 +23,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 			filepath.Join(basePath, "config1.hcl"),
 			[]string{
 				filepath.Join(basePath, "terraform-aws-eks"), // this path exists in the fixture directory and must be converted to the absolute path.
+				"/repo-copier",
 				"./terraform-aws-service-catalog",
 				"/project/terragrunt/test/terraform-aws-vpc",
 				"github.com/gruntwork-io/terraform-aws-lambda",
