@@ -23,8 +23,8 @@ type RemoteState struct {
 
 // map to store mutexes for each state bucket action
 type stateAccess struct {
-	mu sync.Mutex
-	m  map[string]*sync.Mutex
+	mapAccess   sync.Mutex
+	bucketLocks map[string]*sync.Mutex
 }
 
 var stateAccessLock = newStateAccess()
@@ -227,23 +227,23 @@ func (bucketName BucketCreationNotAllowed) Error() string {
 
 func newStateAccess() *stateAccess {
 	return &stateAccess{
-		m: make(map[string]*sync.Mutex),
+		bucketLocks: make(map[string]*sync.Mutex),
 	}
 }
 
 func (om *stateAccess) Do(key string, f func() error) error {
-	om.mu.Lock()
-	defer om.mu.Unlock()
+	om.mapAccess.Lock()
+	defer om.mapAccess.Unlock()
 
-	if om.m == nil {
-		om.m = make(map[string]*sync.Mutex)
+	if om.bucketLocks == nil {
+		om.bucketLocks = make(map[string]*sync.Mutex)
 	}
 
-	if _, ok := om.m[key]; !ok {
-		om.m[key] = &sync.Mutex{}
+	if _, ok := om.bucketLocks[key]; !ok {
+		om.bucketLocks[key] = &sync.Mutex{}
 	}
 
-	om.m[key].Lock()
-	defer om.m[key].Unlock()
+	om.bucketLocks[key].Lock()
+	defer om.bucketLocks[key].Unlock()
 	return f()
 }
