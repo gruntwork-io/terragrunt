@@ -27,7 +27,7 @@ If `<repo-url>` is provided, the repository will be cloned into a temporary dire
 1. The repository list are searched in the config file `terragrunt.hcl`. if `terragrunt.hcl` does not exist in the current directory, the config are searched in the parent directories.
 1. If the repository list is not found in the configuration file, the modules are looked for in the current directory.
 
-An example of how to define a list of repositories for the `catalog` command in the `terragrunt.hcl` configuration file:
+An example of how to define the list of repositories for the `catalog` command in the `terragrunt.hcl` configuration file:
 
 ``` hcl
 catalog {
