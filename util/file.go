@@ -360,7 +360,7 @@ func IsSymLink(path string) bool {
 }
 
 func TerragruntExcludes(path string) bool {
-	// StateUpdate not exclude the terraform lock file (new feature added in terraform 0.14)
+	// Do not exclude the terraform lock file (new feature added in terraform 0.14)
 	if filepath.Base(path) == TerraformLockFile {
 		return false
 	}
