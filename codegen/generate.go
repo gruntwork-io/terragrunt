@@ -42,7 +42,13 @@ const (
 	ExistsSkipStr                = "skip"
 	ExistsOverwriteStr           = "overwrite"
 	ExistsOverwriteTerragruntStr = "overwrite_terragrunt"
+
+	assumeRoleConfigKey = "assume_role"
 )
+
+var assumeRoleKeys = map[string]string{
+	"assume_role": "role_arn",
+}
 
 // Configuration for generating code
 type GenerateConfig struct {
@@ -164,19 +170,48 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]interfac
 	for _, key := range backendKeys {
 		// Since we don't have the cty type information for the config and since config can be arbitrary, we cheat by using
 		// json as an intermediate representation.
-		jsonBytes, err := json.Marshal(config[key])
+
+		_, isAssumeRole := config[assumeRoleConfigKey]
+		if isAssumeRole {
+			// fetch map from assume_role key
+			assumeRoleMap, _ := config[assumeRoleConfigKey].(map[string]interface{})
+			var keys []string
+			for key := range assumeRoleKeys {
+				keys = append(keys, key)
+			}
+			sort.Strings(keys)
+			for _, key := range keys {
+				roleValue, ok := assumeRoleMap[assumeRoleKeys[key]]
+				if ok {
+					ctyVal, err := convertValue(roleValue)
+					if err != nil {
+						return nil, errors.WithStackTrace(err)
+					}
+					backendBlockBody.SetAttributeValue(key, ctyVal.Value)
+				}
+			}
+		}
+		ctyVal, err := convertValue(config[key])
 		if err != nil {
 			return nil, errors.WithStackTrace(err)
 		}
-		var ctyVal ctyjson.SimpleJSONValue
-		if err := ctyVal.UnmarshalJSON(jsonBytes); err != nil {
-			return nil, errors.WithStackTrace(err)
-		}
-
 		backendBlockBody.SetAttributeValue(key, ctyVal.Value)
 	}
 
 	return f.Bytes(), nil
+}
+
+func convertValue(v interface{}) (ctyjson.SimpleJSONValue, error) {
+	jsonBytes, err := json.Marshal(v)
+	if err != nil {
+		return ctyjson.SimpleJSONValue{}, errors.WithStackTrace(err)
+	}
+	var ctyVal ctyjson.SimpleJSONValue
+	if err := ctyVal.UnmarshalJSON(jsonBytes); err != nil {
+		return ctyjson.SimpleJSONValue{}, errors.WithStackTrace(err)
+	}
+	return ctyVal, nil
+
 }
 
 // GenerateConfigExistsFromString converts a string representation of if_exists into the enum, returning an error if it
