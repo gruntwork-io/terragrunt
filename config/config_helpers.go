@@ -490,7 +490,7 @@ func FindInParentFolders(
 		}
 
 		fileToFind := GetDefaultConfigPath(currentDir)
-		if fileToFindParam != "" && !filepath.IsAbs(fileToFind) {
+		if fileToFindParam != "" && !filepath.IsAbs(fileToFindParam) {
 			fileToFind = util.JoinPath(currentDir, fileToFindParam)
 		}
 
