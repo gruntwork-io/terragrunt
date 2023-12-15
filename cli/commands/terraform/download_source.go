@@ -102,7 +102,7 @@ func downloadTerraformSourceIfNecessary(terraformSource *terraform.Source, terra
 	})
 
 	if downloadErr != nil {
-		return DownloadingTerraformSourceNotFound{ErrMsg: downloadErr, Url: terraformSource.CanonicalSourceURL.String()}
+		return DownloadingTerraformSourceErr{ErrMsg: downloadErr, Url: terraformSource.CanonicalSourceURL.String()}
 	}
 
 	if err := terraformSource.WriteVersionFile(); err != nil {
@@ -249,11 +249,11 @@ func (err WorkingDirNotDir) Error() string {
 	return fmt.Sprintf("Valid working dir %s from source %s", err.Dir, err.Source)
 }
 
-type DownloadingTerraformSourceNotFound struct {
+type DownloadingTerraformSourceErr struct {
 	ErrMsg error
 	Url    string
 }
 
-func (err DownloadingTerraformSourceNotFound) Error() string {
+func (err DownloadingTerraformSourceErr) Error() string {
 	return fmt.Sprintf("downloading source url %s\n%v", err.Url, err.ErrMsg)
 }

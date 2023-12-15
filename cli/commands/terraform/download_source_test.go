@@ -253,7 +253,7 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 
 	err = downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions, terragruntConfig)
 	assert.NotNil(t, err)
-	_, ok := errors.Unwrap(err).(DownloadingTerraformSourceNotFound)
+	_, ok := errors.Unwrap(err).(DownloadingTerraformSourceErr)
 	assert.True(t, ok)
 }
 
