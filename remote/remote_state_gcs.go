@@ -174,26 +174,27 @@ func (gcsInitializer GCSInitializer) Initialize(remoteState *RemoteState, terrag
 
 	var gcsConfig = gcsConfigExtended.remoteStateConfigGCS
 
-	gcsClient, err := CreateGCSClient(gcsConfig)
-	if err != nil {
-		return err
-	}
-
-	// If bucket is specified and skip_bucket_creation is false then check if Bucket needs to be created
-	if !gcsConfigExtended.SkipBucketCreation && gcsConfig.Bucket != "" {
-		if err := createGCSBucketIfNecessary(gcsClient, gcsConfigExtended, terragruntOptions); err != nil {
+	// ensure that only one goroutine can initialize bucket
+	return stateAccessLock.StateBucketUpdate(gcsConfig.Bucket, func() error {
+		gcsClient, err := CreateGCSClient(gcsConfig)
+		if err != nil {
 			return err
 		}
-	}
 
-	// If bucket is specified and skip_bucket_versioning is false then warn user if versioning is disabled on bucket
-	if !gcsConfigExtended.SkipBucketVersioning && gcsConfig.Bucket != "" {
-		if err := checkIfGCSVersioningEnabled(gcsClient, &gcsConfig, terragruntOptions); err != nil {
-			return err
+		// If bucket is specified and skip_bucket_creation is false then check if Bucket needs to be created
+		if !gcsConfigExtended.SkipBucketCreation && gcsConfig.Bucket != "" {
+			if err := createGCSBucketIfNecessary(gcsClient, gcsConfigExtended, terragruntOptions); err != nil {
+				return err
+			}
 		}
-	}
-
-	return nil
+		// If bucket is specified and skip_bucket_versioning is false then warn user if versioning is disabled on bucket
+		if !gcsConfigExtended.SkipBucketVersioning && gcsConfig.Bucket != "" {
+			if err := checkIfGCSVersioningEnabled(gcsClient, &gcsConfig, terragruntOptions); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (gcsInitializer GCSInitializer) GetTerraformInitArgs(config map[string]interface{}) map[string]interface{} {
