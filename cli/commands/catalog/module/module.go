@@ -1,7 +1,6 @@
 package module
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -106,10 +105,6 @@ func (module *Module) Description() string {
 
 func (module *Module) URL() string {
 	return module.url
-}
-
-func (module *Module) Path() string {
-	return fmt.Sprintf("%s//%s", module.repoPath, module.moduleDir)
 }
 
 func (module *Module) TerraformSourcePath() string {

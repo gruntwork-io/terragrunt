@@ -375,6 +375,25 @@ type ValueWithMetadata struct {
 	Metadata map[string]string `json:"metadata" cty:"metadata"`
 }
 
+// ctyCatalogConfig is an alternate representation of CatalogConfig that converts internal blocks into a map that
+// maps the name to the underlying struct, as opposed to a list representation.
+type ctyCatalogConfig struct {
+	URLs []string `cty:"urls"`
+}
+
+// Serialize CatalogConfig to a cty Value, but with maps instead of lists for the blocks.
+func catalogConfigAsCty(config *CatalogConfig) (cty.Value, error) {
+	if config == nil {
+		return cty.NilVal, nil
+	}
+
+	configCty := ctyCatalogConfig{
+		URLs: config.URLs,
+	}
+
+	return goTypeToCty(configCty)
+}
+
 // ctyTerraformConfig is an alternate representation of TerraformConfig that converts internal blocks into a map that
 // maps the name to the underlying struct, as opposed to a list representation.
 type ctyTerraformConfig struct {

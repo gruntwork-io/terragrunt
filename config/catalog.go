@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/go-commons/files"
-	"github.com/zclconf/go-cty/cty"
 )
 
 type CatalogConfig struct {
@@ -27,23 +26,4 @@ func (config *CatalogConfig) normalize(cofnigPath string) {
 			config.URLs[i] = url
 		}
 	}
-}
-
-// ctyCatalogConfig is an alternate representation of CatalogConfig that converts internal blocks into a map that
-// maps the name to the underlying struct, as opposed to a list representation.
-type ctyCatalogConfig struct {
-	URLs []string `cty:"urls"`
-}
-
-// Serialize CatalogConfig to a cty Value, but with maps instead of lists for the blocks.
-func catalogConfigAsCty(config *CatalogConfig) (cty.Value, error) {
-	if config == nil {
-		return cty.NilVal, nil
-	}
-
-	configCty := ctyCatalogConfig{
-		URLs: config.URLs,
-	}
-
-	return goTypeToCty(configCty)
 }
