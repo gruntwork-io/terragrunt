@@ -149,11 +149,18 @@ func TestInvalidRemoteDownload(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, testFixtureInvalidRemoteDownloadPath)
+	applyStdout := bytes.Buffer{}
+	applyStderr := bytes.Buffer{}
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureInvalidRemoteDownloadPath))
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureInvalidRemoteDownloadPath), &applyStdout, &applyStderr)
 
-	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureInvalidRemoteDownloadPath))
+	logBufferContentsLineByLine(t, applyStdout, "apply stdout")
+	logBufferContentsLineByLine(t, applyStderr, "apply stderr")
+
+	assert.Error(t, err)
+	errMessage := "downloading source url"
+	assert.Containsf(t, err.Error(), errMessage, "expected error containing %q, got %s", errMessage, err)
+
 }
 
 func TestRemoteDownloadWithRelativePath(t *testing.T) {
