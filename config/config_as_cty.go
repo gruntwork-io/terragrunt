@@ -28,6 +28,14 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	output[MetadataSkip] = goboolToCty(config.Skip)
 	output[MetadataIamAssumeRoleSessionName] = gostringToCty(config.IamAssumeRoleSessionName)
 
+	catalogConfigCty, err := catalogConfigAsCty(config.Catalog)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	if catalogConfigCty != cty.NilVal {
+		output[MetadataCatalog] = catalogConfigCty
+	}
+
 	terraformConfigCty, err := terraformConfigAsCty(config.Terraform)
 	if err != nil {
 		return cty.NilVal, err
@@ -119,14 +127,6 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	}
 	if localsCty != cty.NilVal {
 		output[MetadataLocals] = localsCty
-	}
-
-	catalogCty, err := convertToCtyWithJson(config.Catalog)
-	if err != nil {
-		return cty.NilVal, err
-	}
-	if catalogCty != cty.NilVal {
-		output[MetadataCatalog] = catalogCty
 	}
 
 	if len(config.DependentModulesPath) > 0 {
