@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestScaffoldGitRepo(t *testing.T) {
@@ -19,7 +20,7 @@ func TestScaffoldGitRepo(t *testing.T) {
 	ctx := context.Background()
 
 	repo, err := module.NewRepo(ctx, "github.com/gruntwork-io/terraform-fake-modules.git")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules, err := repo.FindModules(ctx)
 	assert.NoError(t, err)
