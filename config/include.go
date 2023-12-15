@@ -99,17 +99,16 @@ func parseIncludedConfig(
 // user.
 func handleInclude(
 	config *TerragruntConfig,
-	trackInclude *TrackInclude,
 	terragruntOptions *options.TerragruntOptions,
-	dependencyOutputs *cty.Value,
+	contextExtensions *EvalContextExtensions,
 ) (*TerragruntConfig, error) {
-	if trackInclude == nil {
+	if contextExtensions.TrackInclude == nil {
 		return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_NIL_INCLUDE_CONFIG")
 	}
 
 	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override
 	// those in earlier includes, so we need to merge bottom up instead of top down to ensure this.
-	includeList := trackInclude.CurrentList
+	includeList := contextExtensions.TrackInclude.CurrentList
 	baseConfig := config
 	for i := len(includeList) - 1; i >= 0; i-- {
 		includeConfig := includeList[i]
@@ -118,7 +117,7 @@ func handleInclude(
 			return config, err
 		}
 
-		parsedIncludeConfig, err := parseIncludedConfig(&includeConfig, terragruntOptions, dependencyOutputs, nil)
+		parsedIncludeConfig, err := parseIncludedConfig(&includeConfig, terragruntOptions, contextExtensions.DecodedDependencies, nil)
 		if err != nil {
 			return nil, err
 		}

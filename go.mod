@@ -65,7 +65,6 @@ require (
 	github.com/gruntwork-io/go-commons v0.17.1
 	github.com/gruntwork-io/gruntwork-cli v0.7.0
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
-	github.com/pkg/errors v0.9.1
 	github.com/posener/complete v1.2.3
 	github.com/urfave/cli/v2 v2.25.5
 	golang.org/x/term v0.13.0
@@ -176,6 +175,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/owenrumney/go-sarif v1.1.1 // indirect
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pterm/pterm v0.12.41 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect

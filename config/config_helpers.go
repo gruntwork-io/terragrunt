@@ -33,6 +33,11 @@ const (
 )
 
 const (
+	// A consistent error message for multiple catalog block in terragrunt config (which is currently not supported)
+	multipleBlockDetailFmt = "Terragrunt currently does not support multiple %[1]s blocks in a single config. Consolidate to a single %[1]s block."
+)
+
+const (
 	FuncNameFindInParentFolders                     = "find_in_parent_folders"
 	FuncNamePathRelativeToInclude                   = "path_relative_to_include"
 	FuncNamePathRelativeFromInclude                 = "path_relative_from_include"
@@ -149,6 +154,11 @@ type EvalContextExtensions struct {
 	PredefinedFunctions map[string]function.Function
 }
 
+func (extensions *EvalContextExtensions) Merge(new *EvalContextExtensions) {
+	extensions.Locals = new.Locals
+	extensions.TrackInclude = new.TrackInclude
+}
+
 // Create an EvalContext for the HCL2 parser. We can define functions and variables in this context that the HCL2 parser
 // will make available to the Terragrunt configuration during parsing.
 func (extensions EvalContextExtensions) CreateTerragruntEvalContext(filename string, terragruntOptions *options.TerragruntOptions) (*hcl.EvalContext, error) {
@@ -157,7 +167,7 @@ func (extensions EvalContextExtensions) CreateTerragruntEvalContext(filename str
 	}
 
 	terragruntFunctions := map[string]function.Function{
-		FuncNameFindInParentFolders:                     wrapStringSliceToStringAsFuncImpl(findInParentFolders, extensions.TrackInclude, terragruntOptions),
+		FuncNameFindInParentFolders:                     wrapStringSliceToStringAsFuncImpl(FindInParentFolders, extensions.TrackInclude, terragruntOptions),
 		FuncNamePathRelativeToInclude:                   wrapStringSliceToStringAsFuncImpl(pathRelativeToInclude, extensions.TrackInclude, terragruntOptions),
 		FuncNamePathRelativeFromInclude:                 wrapStringSliceToStringAsFuncImpl(pathRelativeFromInclude, extensions.TrackInclude, terragruntOptions),
 		FuncNameGetEnv:                                  wrapStringSliceToStringAsFuncImpl(getEnvironmentVariable, extensions.TrackInclude, terragruntOptions),
@@ -211,6 +221,7 @@ func (extensions EvalContextExtensions) CreateTerragruntEvalContext(filename str
 	if extensions.Locals != nil {
 		ctx.Variables["local"] = *extensions.Locals
 	}
+
 	if extensions.DecodedDependencies != nil {
 		ctx.Variables["dependency"] = *extensions.DecodedDependencies
 	}
@@ -224,6 +235,34 @@ func (extensions EvalContextExtensions) CreateTerragruntEvalContext(filename str
 		ctx.Variables["include"] = exposedInclude
 	}
 	return ctx, nil
+}
+
+// getBlock takes a parsed HCL file and extracts a reference to the `name` block, if there are defined.
+func getBlock(hclFile *hcl.File, name string, isMultipleAllowed bool) ([]*hcl.Block, hcl.Diagnostics) {
+	catalogSchema := &hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{
+			{Type: name},
+		},
+	}
+	// We use PartialContent here, because we are only interested in parsing out the catalog block.
+	parsed, _, diags := hclFile.Body.PartialContent(catalogSchema)
+	extractedBlocks := []*hcl.Block{}
+	for _, block := range parsed.Blocks {
+		if block.Type == name {
+			extractedBlocks = append(extractedBlocks, block)
+		}
+	}
+
+	if len(extractedBlocks) > 1 && !isMultipleAllowed {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  fmt.Sprintf("Multiple %s block", name),
+			Detail:   fmt.Sprintf(multipleBlockDetailFmt, name),
+		})
+		return nil, diags
+	}
+
+	return extractedBlocks, diags
 }
 
 // Return the OS platform
@@ -407,7 +446,7 @@ func getEnvironmentVariable(parameters []string, trackInclude *TrackInclude, ter
 
 // Find a parent Terragrunt configuration file in the parent folders above the current Terragrunt configuration file
 // and return its path
-func findInParentFolders(
+func FindInParentFolders(
 	params []string,
 	trackInclude *TrackInclude,
 	terragruntOptions *options.TerragruntOptions,
@@ -451,7 +490,7 @@ func findInParentFolders(
 		}
 
 		fileToFind := GetDefaultConfigPath(currentDir)
-		if fileToFindParam != "" {
+		if fileToFindParam != "" && !filepath.IsAbs(fileToFindParam) {
 			fileToFind = util.JoinPath(currentDir, fileToFindParam)
 		}
 

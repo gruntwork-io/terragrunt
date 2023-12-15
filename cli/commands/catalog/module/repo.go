@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-getter"
 	"gopkg.in/ini.v1"
 )
@@ -23,7 +24,7 @@ const (
 	azuredevHost  = "dev.azure.com"
 	bitbucketHost = "bitbucket.org"
 
-	tempDirPattern = "catalog-*"
+	tempDirFormat = "catalog-%x"
 )
 
 var (
@@ -35,7 +36,6 @@ var (
 type Repo struct {
 	cloneUrl string
 	path     string
-	tempDir  string
 
 	remoteURL  string
 	branchName string
@@ -60,10 +60,6 @@ func NewRepo(ctx context.Context, path string) (*Repo, error) {
 	}
 
 	return repo, nil
-}
-
-func (repo *Repo) RemoveTempData() error {
-	return os.RemoveAll(repo.tempDir)
 }
 
 // FindModules clones the repository if `repoPath` is a URL, searches for Terragrunt modules, indexes their README.* files, and returns module instances.
@@ -166,30 +162,33 @@ func (repo *Repo) clone(ctx context.Context) error {
 		return nil
 	}
 
-	tempDir, err := os.MkdirTemp("", tempDirPattern)
+	tempDir := filepath.Join(os.TempDir(), fmt.Sprintf(tempDirFormat, util.EncodeBase64Sha1(repo.path)))
+
+	if !files.FileExists(tempDir) {
+		if err := os.Mkdir(tempDir, os.ModePerm); err != nil {
+			return errors.WithStackTrace(err)
+		}
+	}
+
+	sourceUrl, err := terraform.ToSourceUrl(repo.cloneUrl, "")
 	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-	repo.tempDir = tempDir
-
-	repoURL, err := terraform.ToSourceUrl(repo.path, tempDir)
-	if err != nil {
-		return errors.WithStackTrace(err)
+		return err
 	}
 
-	log.Infof("Cloning repository %q to temprory directory %q", repoURL, tempDir)
-
-	// if the URL has `http(s)` schema, go-getter does not clone repo.
-	if strings.HasPrefix(repoURL.Scheme, "http") {
-		repoURL.Scheme = ""
+	// specify git:: scheme for the module URL
+	if strings.HasPrefix(sourceUrl.Scheme, "http") {
+		sourceUrl.Scheme = "git::" + sourceUrl.Scheme
 	}
+	repo.cloneUrl = sourceUrl.String()
+
+	log.Infof("Cloning repository %q to temprory directory %q", repo.cloneUrl, tempDir)
 
 	// if no repo directory is specified, `go-getter` returns the error "git exited with 128: fatal: not a git repository (or any of the parent directories"
-	if !strings.Contains(repoURL.RequestURI(), "//") {
-		repoURL.Path += "//."
+	if !strings.Contains(sourceUrl.RequestURI(), "//") {
+		sourceUrl.Path += "//."
 	}
 
-	if err := getter.GetAny(tempDir, strings.Trim(repoURL.String(), "/"), getter.WithContext(ctx)); err != nil {
+	if err := getter.GetAny(tempDir, strings.Trim(sourceUrl.String(), "/"), getter.WithContext(ctx)); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
