@@ -1,5 +1,5 @@
-include {
-  path = find_in_parent_folders()
+locals {
+  baseRepo = "github.com/gruntwork-io"
 }
 
 catalog {
@@ -8,6 +8,6 @@ catalog {
     "/repo-copier",
     "./terraform-aws-service-catalog",
     "/project/terragrunt/test/terraform-aws-vpc",
-    "github.com/gruntwork-io/terraform-aws-lambda",
+    "${local.baseRepo}/terraform-aws-lambda",
   ]
 }

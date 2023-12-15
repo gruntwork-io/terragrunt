@@ -121,6 +121,14 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output[MetadataLocals] = localsCty
 	}
 
+	catalogCty, err := convertToCtyWithJson(config.Catalog)
+	if err != nil {
+		return cty.NilVal, err
+	}
+	if catalogCty != cty.NilVal {
+		output[MetadataCatalog] = catalogCty
+	}
+
 	if len(config.DependentModulesPath) > 0 {
 		dependentModulesCty, err := convertToCtyWithJson(config.DependentModulesPath)
 		if err != nil {

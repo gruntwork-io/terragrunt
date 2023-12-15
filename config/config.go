@@ -50,6 +50,7 @@ const (
 	MetadataIamAssumeRoleSessionName    = "iam_assume_role_session_name"
 	MetadataInputs                      = "inputs"
 	MetadataLocals                      = "locals"
+	MetadataCatalog                     = "catalog"
 	MetadataGenerateConfigs             = "generate"
 	MetadataRetryableErrors             = "retryable_errors"
 	MetadataRetryMaxAttempts            = "retry_max_attempts"
@@ -66,6 +67,7 @@ var DefaultTerragruntConfigPaths = []string{
 // TerragruntConfig represents a parsed and expanded configuration
 // NOTE: if any attributes are added, make sure to update terragruntConfigAsCty in config_as_cty.go
 type TerragruntConfig struct {
+	Catalog                     *CatalogConfig
 	Terraform                   *TerraformConfig
 	TerraformBinary             string
 	TerraformVersionConstraint  string
@@ -120,6 +122,7 @@ func (conf *TerragruntConfig) GetIAMRoleOptions() options.IAMRoleOptions {
 // terragruntConfigFile represents the configuration supported in a Terragrunt configuration file (i.e.
 // terragrunt.hcl)
 type terragruntConfigFile struct {
+	Catalog                     *CatalogConfig   `hcl:"catalog,block"`
 	Terraform                   *TerraformConfig `hcl:"terraform,block"`
 	TerraformBinary             *string          `hcl:"terraform_binary,attr"`
 	TerraformVersionConstraint  *string          `hcl:"terraform_version_constraint,attr"`
@@ -187,6 +190,7 @@ type terragruntConfigFile struct {
 type terragruntLocal struct {
 	Remain hcl.Body `hcl:",remain"`
 }
+
 type terragruntIncludeIgnore struct {
 	Name   string   `hcl:"name,label"`
 	Remain hcl.Body `hcl:",remain"`
@@ -718,18 +722,17 @@ func ParseConfigString(
 	}
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
-	localsAsCty, trackInclude, err := DecodeBaseBlocks(terragruntOptions, parser, file, filename, includeFromChild, nil)
+	newContextExtensions, err := DecodeBaseBlocks(terragruntOptions, parser, file, filename, includeFromChild, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	contextExtensions.Locals = localsAsCty
-	contextExtensions.TrackInclude = trackInclude
+	contextExtensions.Merge(newContextExtensions)
 
 	if contextExtensions.DecodedDependencies == nil {
 		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
 		// process.
-		retrievedOutputs, err := decodeAndRetrieveOutputs(file, filename, terragruntOptions, trackInclude, contextExtensions)
+		retrievedOutputs, err := decodeAndRetrieveOutputs(file, filename, terragruntOptions, contextExtensions)
 		if err != nil {
 			return nil, err
 		}
@@ -757,13 +760,13 @@ func ParseConfigString(
 	}
 
 	// If this file includes another, parse and merge it.  Otherwise just return this config.
-	if trackInclude != nil {
-		mergedConfig, err := handleInclude(config, trackInclude, terragruntOptions, contextExtensions.DecodedDependencies)
+	if contextExtensions.TrackInclude != nil {
+		mergedConfig, err := handleInclude(config, terragruntOptions, contextExtensions)
 		if err != nil {
 			return nil, err
 		}
 		// Saving processed includes into configuration, direct assignment since nested includes aren't supported
-		mergedConfig.ProcessedIncludes = trackInclude.CurrentMap
+		mergedConfig.ProcessedIncludes = contextExtensions.TrackInclude.CurrentMap
 		// Make sure the top level information that is not automatically merged in is captured on the merged config to
 		// ensure the proper representation of the config is captured.
 		// - Locals are deliberately not merged in so that they remain local in scope. Here, we directly set it to the
@@ -927,6 +930,12 @@ func convertToTerragruntConfig(
 
 		terragruntConfig.RemoteState = remoteState
 		terragruntConfig.SetFieldMetadata(MetadataRemoteState, defaultMetadata)
+	}
+
+	terragruntConfig.Catalog = terragruntConfigFromFile.Catalog
+	if terragruntConfig.Catalog != nil { // since Catalog is nil each time avoid saving metadata when it is nil
+		terragruntConfig.Catalog.normalize(terragruntOptions.TerragruntConfigPath)
+		terragruntConfig.SetFieldMetadata(MetadataCatalog, defaultMetadata)
 	}
 
 	if err := terragruntConfigFromFile.Terraform.ValidateHooks(); err != nil {

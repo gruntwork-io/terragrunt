@@ -179,6 +179,8 @@ func TestTerraformConfigAsCtyDrift(t *testing.T) {
 
 func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string, bool) {
 	switch fieldName {
+	case "Catalog":
+		return "catalog", true
 	case "Terraform":
 		return "terraform", true
 	case "TerraformBinary":

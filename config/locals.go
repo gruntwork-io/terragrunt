@@ -44,8 +44,7 @@ func evaluateLocalsBlock(
 	parser *hclparse.Parser,
 	hclFile *hcl.File,
 	filename string,
-	trackInclude *TrackInclude,
-	decodeList []PartialDecodeSectionType,
+	contextExtensions *EvalContextExtensions,
 ) (map[string]cty.Value, error) {
 	diagsWriter := util.GetDiagnosticsWriter(terragruntOptions.Logger, parser)
 
@@ -92,8 +91,7 @@ func evaluateLocalsBlock(
 			filename,
 			locals,
 			evaluatedLocals,
-			trackInclude,
-			decodeList,
+			contextExtensions,
 			diagsWriter,
 		)
 		if err != nil {
@@ -105,7 +103,7 @@ func evaluateLocalsBlock(
 		// This is an error because we couldn't evaluate all locals
 		terragruntOptions.Logger.Errorf("Not all locals could be evaluated:")
 		for _, local := range locals {
-			_, reason := canEvaluate(local.Expr, evaluatedLocals)
+			_, reason := canEvaluateLocals(local.Expr, evaluatedLocals)
 			terragruntOptions.Logger.Errorf("\t- %s [REASON: %s]", local.Name, reason)
 		}
 		return nil, errors.WithStackTrace(CouldNotEvaluateAllLocalsError{})
@@ -125,8 +123,7 @@ func attemptEvaluateLocals(
 	filename string,
 	locals []*Local,
 	evaluatedLocals map[string]cty.Value,
-	trackInclude *TrackInclude,
-	decodeList []PartialDecodeSectionType,
+	contextExtensions *EvalContextExtensions,
 	diagsWriter hcl.DiagnosticWriter,
 ) (unevaluatedLocals []*Local, newEvaluatedLocals map[string]cty.Value, evaluated bool, err error) {
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
@@ -142,19 +139,14 @@ func attemptEvaluateLocals(
 		}
 	}()
 
-	evaluatedLocalsAsCty, err := convertValuesMapToCtyVal(evaluatedLocals)
+	localsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedLocals)
 	if err != nil {
 		terragruntOptions.Logger.Errorf("Could not convert evaluated locals to the execution context to evaluate additional locals in file %s", filename)
 		return nil, evaluatedLocals, false, err
 	}
+	contextExtensions.Locals = &localsAsCtyVal
 
-	extensions := EvalContextExtensions{
-		TrackInclude:           trackInclude,
-		Locals:                 &evaluatedLocalsAsCty,
-		PartialParseDecodeList: decodeList,
-	}
-
-	evalCtx, err := extensions.CreateTerragruntEvalContext(filename, terragruntOptions)
+	evalCtx, err := contextExtensions.CreateTerragruntEvalContext(filename, terragruntOptions)
 	if err != nil {
 		terragruntOptions.Logger.Errorf("Could not convert include to the execution context to evaluate additional locals in file %s", filename)
 		return nil, evaluatedLocals, false, err
@@ -170,7 +162,7 @@ func attemptEvaluateLocals(
 		newEvaluatedLocals[key] = val
 	}
 	for _, local := range locals {
-		localEvaluated, _ := canEvaluate(local.Expr, evaluatedLocals)
+		localEvaluated, _ := canEvaluateLocals(local.Expr, evaluatedLocals)
 		if localEvaluated {
 			evaluatedVal, diags := local.Expr.Value(evalCtx)
 			if diags.HasErrors() {
@@ -197,13 +189,13 @@ func attemptEvaluateLocals(
 	return unevaluatedLocals, newEvaluatedLocals, evaluated, nil
 }
 
-// canEvaluate determines if the local expression can be evaluated. An expression can be evaluated if one of the
+// canEvaluateLocals determines if the local expression can be evaluated. An expression can be evaluated if one of the
 // following is true:
 // - It has no references to other locals.
 // - It has references to other locals that have already been evaluated.
 // Note that the second return value is a human friendly reason for why the expression can not be evaluated, and is
 // useful for error reporting.
-func canEvaluate(expression hcl.Expression,
+func canEvaluateLocals(expression hcl.Expression,
 	evaluatedLocals map[string]cty.Value,
 ) (bool, string) {
 	vars := expression.Variables()

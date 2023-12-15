@@ -22,14 +22,13 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, repoURL string) e
 			opts.TerragruntConfigPath = configPath
 		}
 
-		config := config.NewCatalog()
-
-		if err := config.ParseConfigFile(opts.TerragruntConfigPath); err != nil {
-			return nil
+		config, err := config.ReadTerragruntConfig(opts)
+		if err != nil {
+			return err
 		}
 
-		if len(config.URLs) > 0 {
-			repoURLs = config.URLs
+		if len(config.Catalog.URLs) > 0 {
+			repoURLs = config.Catalog.URLs
 		}
 	}
 

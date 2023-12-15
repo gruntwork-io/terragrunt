@@ -1,3 +1,3 @@
-include {
-  path = find_in_parent_folders()
+locals {
+  baseRepo = "github.com/gruntwork-io"
 }

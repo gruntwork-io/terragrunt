@@ -154,6 +154,11 @@ type EvalContextExtensions struct {
 	PredefinedFunctions map[string]function.Function
 }
 
+func (extensions *EvalContextExtensions) Merge(new *EvalContextExtensions) {
+	extensions.Locals = new.Locals
+	extensions.TrackInclude = new.TrackInclude
+}
+
 // Create an EvalContext for the HCL2 parser. We can define functions and variables in this context that the HCL2 parser
 // will make available to the Terragrunt configuration during parsing.
 func (extensions EvalContextExtensions) CreateTerragruntEvalContext(filename string, terragruntOptions *options.TerragruntOptions) (*hcl.EvalContext, error) {
@@ -216,6 +221,7 @@ func (extensions EvalContextExtensions) CreateTerragruntEvalContext(filename str
 	if extensions.Locals != nil {
 		ctx.Variables["local"] = *extensions.Locals
 	}
+
 	if extensions.DecodedDependencies != nil {
 		ctx.Variables["dependency"] = *extensions.DecodedDependencies
 	}
@@ -235,19 +241,19 @@ func (extensions EvalContextExtensions) CreateTerragruntEvalContext(filename str
 func getBlock(hclFile *hcl.File, name string, isMultipleAllowed bool) ([]*hcl.Block, hcl.Diagnostics) {
 	catalogSchema := &hcl.BodySchema{
 		Blocks: []hcl.BlockHeaderSchema{
-			hcl.BlockHeaderSchema{Type: name},
+			{Type: name},
 		},
 	}
 	// We use PartialContent here, because we are only interested in parsing out the catalog block.
-	parsedLocals, _, diags := hclFile.Body.PartialContent(catalogSchema)
-	extractedLocalsBlocks := []*hcl.Block{}
-	for _, block := range parsedLocals.Blocks {
+	parsed, _, diags := hclFile.Body.PartialContent(catalogSchema)
+	extractedBlocks := []*hcl.Block{}
+	for _, block := range parsed.Blocks {
 		if block.Type == name {
-			extractedLocalsBlocks = append(extractedLocalsBlocks, block)
+			extractedBlocks = append(extractedBlocks, block)
 		}
 	}
 
-	if len(extractedLocalsBlocks) > 1 && !isMultipleAllowed {
+	if len(extractedBlocks) > 1 && !isMultipleAllowed {
 		diags = append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  fmt.Sprintf("Multiple %s block", name),
@@ -256,7 +262,7 @@ func getBlock(hclFile *hcl.File, name string, isMultipleAllowed bool) ([]*hcl.Bl
 		return nil, diags
 	}
 
-	return extractedLocalsBlocks, diags
+	return extractedBlocks, diags
 }
 
 // Return the OS platform
