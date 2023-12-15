@@ -18,7 +18,9 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, repoURL string) e
 	repoURLs := []string{repoURL}
 
 	if repoURLs[0] == "" {
-		if configPath := util.FindFileInParentDirs(opts.TerragruntConfigPath); configPath != "" {
+		if configPath, err := config.FindInParentFolders([]string{opts.TerragruntConfigPath}, nil, opts); err != nil {
+			return err
+		} else if configPath != "" {
 			opts.TerragruntConfigPath = configPath
 		}
 

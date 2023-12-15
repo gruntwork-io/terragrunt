@@ -167,7 +167,7 @@ func (extensions EvalContextExtensions) CreateTerragruntEvalContext(filename str
 	}
 
 	terragruntFunctions := map[string]function.Function{
-		FuncNameFindInParentFolders:                     wrapStringSliceToStringAsFuncImpl(findInParentFolders, extensions.TrackInclude, terragruntOptions),
+		FuncNameFindInParentFolders:                     wrapStringSliceToStringAsFuncImpl(FindInParentFolders, extensions.TrackInclude, terragruntOptions),
 		FuncNamePathRelativeToInclude:                   wrapStringSliceToStringAsFuncImpl(pathRelativeToInclude, extensions.TrackInclude, terragruntOptions),
 		FuncNamePathRelativeFromInclude:                 wrapStringSliceToStringAsFuncImpl(pathRelativeFromInclude, extensions.TrackInclude, terragruntOptions),
 		FuncNameGetEnv:                                  wrapStringSliceToStringAsFuncImpl(getEnvironmentVariable, extensions.TrackInclude, terragruntOptions),
@@ -446,7 +446,7 @@ func getEnvironmentVariable(parameters []string, trackInclude *TrackInclude, ter
 
 // Find a parent Terragrunt configuration file in the parent folders above the current Terragrunt configuration file
 // and return its path
-func findInParentFolders(
+func FindInParentFolders(
 	params []string,
 	trackInclude *TrackInclude,
 	terragruntOptions *options.TerragruntOptions,
@@ -490,7 +490,7 @@ func findInParentFolders(
 		}
 
 		fileToFind := GetDefaultConfigPath(currentDir)
-		if fileToFindParam != "" {
+		if fileToFindParam != "" && !filepath.IsAbs(fileToFind) {
 			fileToFind = util.JoinPath(currentDir, fileToFindParam)
 		}
 
