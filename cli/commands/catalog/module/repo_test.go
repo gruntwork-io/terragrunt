@@ -60,7 +60,7 @@ func TestFindModules(t *testing.T) {
 
 			ctx := context.Background()
 
-			repo, err := NewRepo(ctx, testCase.repoPath)
+			repo, err := NewRepo(ctx, testCase.repoPath, "")
 			assert.NoError(t, err)
 
 			modules, err := repo.FindModules(ctx)
