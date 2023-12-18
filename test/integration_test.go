@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/go-commons/files"
+
 	"cloud.google.com/go/storage"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -179,6 +181,7 @@ const (
 	TEST_COMMANDS_THAT_NEED_INPUT                                            = "fixture-commands-that-need-input"
 	TEST_FIXTURE_PARALLEL_STATE_INIT                                         = "fixture-parallel-state-init"
 	TEST_FIXTURE_GCS_PARALLEL_STATE_INIT                                     = "fixture-gcs-parallel-state-init"
+	TEST_FIXTURE_ASSUME_ROLE                                                 = "fixture-assume-role"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -6414,6 +6417,39 @@ func TestTerragruntGCSParallelStateInit(t *testing.T) {
 	assert.NoError(t, err)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", tmpEnvPath))
+}
+
+func TestTerragruntAssumeRole(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_ASSUME_ROLE)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_ASSUME_ROLE)
+
+	originalTerragruntConfigPath := util.JoinPath(TEST_FIXTURE_ASSUME_ROLE, "terragrunt.hcl")
+	tmpTerragruntConfigFile := util.JoinPath(testPath, "terragrunt.hcl")
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-2")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt validate-inputs -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testPath))
+
+	// validate generated backend.tf
+	backendFile := filepath.Join(testPath, "backend.tf")
+	assert.FileExists(t, backendFile)
+
+	content, err := files.ReadFileAsString(backendFile)
+	assert.NoError(t, err)
+
+	opts, err := options.NewTerragruntOptionsForTest(testPath)
+	assert.NoError(t, err)
+
+	identityARN, err := aws_helper.GetAWSIdentityArn(nil, opts)
+	assert.NoError(t, err)
+
+	assert.Contains(t, content, "role_arn     = \""+identityARN+"\"")
+	assert.Contains(t, content, "external_id  = \"external_id_123\"")
+	assert.Contains(t, content, "session_name = \"session_name_example\"")
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
