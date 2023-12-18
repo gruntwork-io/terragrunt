@@ -6432,7 +6432,7 @@ func TestTerragruntAssumeRole(t *testing.T) {
 	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
 	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-2")
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt init -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt validate-inputs -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testPath))
 
 	// validate generated backend.tf
 	backendFile := filepath.Join(testPath, "backend.tf")
