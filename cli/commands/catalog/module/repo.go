@@ -13,7 +13,6 @@ import (
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-getter"
 	"gopkg.in/ini.v1"
 )
@@ -23,8 +22,6 @@ const (
 	gitlabHost    = "gitlab.com"
 	azuredevHost  = "dev.azure.com"
 	bitbucketHost = "bitbucket.org"
-
-	tempDirFormat = "catalog-%x"
 )
 
 var (
@@ -36,15 +33,17 @@ var (
 type Repo struct {
 	cloneUrl string
 	path     string
+	tempDir  string
 
 	remoteURL  string
 	branchName string
 }
 
-func NewRepo(ctx context.Context, path string) (*Repo, error) {
+func NewRepo(ctx context.Context, path, tempDir string) (*Repo, error) {
 	repo := &Repo{
 		cloneUrl: path,
 		path:     path,
+		tempDir:  tempDir,
 	}
 
 	if err := repo.clone(ctx); err != nil {
@@ -162,13 +161,10 @@ func (repo *Repo) clone(ctx context.Context) error {
 		return nil
 	}
 
-	tempDir := filepath.Join(os.TempDir(), fmt.Sprintf(tempDirFormat, util.EncodeBase64Sha1(repo.path)))
-
-	if !files.FileExists(tempDir) {
-		if err := os.Mkdir(tempDir, os.ModePerm); err != nil {
-			return errors.WithStackTrace(err)
-		}
+	if err := os.MkdirAll(repo.tempDir, os.ModePerm); err != nil {
+		return errors.WithStackTrace(err)
 	}
+	repo.tempDir = filepath.Join(repo.tempDir, "temp")
 
 	sourceUrl, err := terraform.ToSourceUrl(repo.cloneUrl, "")
 	if err != nil {
@@ -181,18 +177,13 @@ func (repo *Repo) clone(ctx context.Context) error {
 	}
 	repo.cloneUrl = sourceUrl.String()
 
-	log.Infof("Cloning repository %q to temprory directory %q", repo.cloneUrl, tempDir)
+	log.Infof("Cloning repository %q to temprory directory %q", repo.cloneUrl, repo.tempDir)
 
-	// if no repo directory is specified, `go-getter` returns the error "git exited with 128: fatal: not a git repository (or any of the parent directories"
-	if !strings.Contains(sourceUrl.RequestURI(), "//") {
-		sourceUrl.Path += "//."
-	}
-
-	if err := getter.GetAny(tempDir, strings.Trim(sourceUrl.String(), "/"), getter.WithContext(ctx)); err != nil {
+	if err := getter.Get(repo.tempDir, strings.Trim(sourceUrl.String(), "/"), getter.WithContext(ctx)); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	repo.path = tempDir
+	repo.path = repo.tempDir
 	return nil
 }
 
