@@ -6445,6 +6445,7 @@ func TestTerragruntAssumeRole(t *testing.T) {
 	assert.NoError(t, err)
 
 	identityARN, err := aws_helper.GetAWSIdentityArn(nil, opts)
+	assert.NoError(t, err)
 
 	assert.Contains(t, content, "role_arn     = \""+identityARN+"\"")
 	assert.Contains(t, content, "external_id  = \"external_id_123\"")
