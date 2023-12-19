@@ -377,7 +377,7 @@ For the `s3` backend, the following additional properties are supported in the `
 - `region` - (Optional) The region of the S3 bucket.
 - `profile` - (Optional) This is the AWS profile name as set in the shared credentials file.
 - `endpoint` - (Optional) A custom endpoint for the S3 API.
-- `encrypt` - (Optional) Whether to enable server side encryption of the state file.
+- `encrypt` - (Optional) Whether to enable server side encryption of the state file. If disabled, a log warning will be issued in the console output to notify the user. If `skip_bucket_ssencryption` is enabled, the log will be written as a debug log.
 - `role_arn` - (Optional) The role to be assumed.
 - `shared_credentials_file` - (Optional) This is the path to the shared credentials file. If this is not set and a profile is specified, `~/.aws/credentials` will be used.
 - `external_id` - (Optional) The external ID to use when assuming the role.

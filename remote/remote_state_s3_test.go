@@ -1,9 +1,11 @@
 package remote
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/sirupsen/logrus"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
@@ -450,6 +452,80 @@ func TestNegativePublicAccessResponse(t *testing.T) {
 			response, err := validatePublicAccessBlock(testCase.response)
 			assert.NoError(t, err)
 			assert.False(t, response)
+		})
+	}
+}
+
+func TestValidateS3Config(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name           string
+		extendedConfig *ExtendedRemoteStateConfigS3
+		expectedErr    error
+		expectedOutput string
+	}{
+		{
+			name:           "no-region",
+			extendedConfig: &ExtendedRemoteStateConfigS3{},
+			expectedErr:    MissingRequiredS3RemoteStateConfig("region"),
+		},
+		{
+			name: "no-bucket",
+			extendedConfig: &ExtendedRemoteStateConfigS3{
+				remoteStateConfigS3: RemoteStateConfigS3{
+					Region: "us-west-2",
+				},
+			},
+			expectedErr: MissingRequiredS3RemoteStateConfig("bucket"),
+		},
+		{
+			name: "no-key",
+			extendedConfig: &ExtendedRemoteStateConfigS3{
+				remoteStateConfigS3: RemoteStateConfigS3{
+					Region: "us-west-2",
+					Bucket: "state-bucket",
+				},
+			},
+			expectedErr: MissingRequiredS3RemoteStateConfig("key"),
+		},
+		{
+			name: "log-warning-skip-bucket-sse-encryption",
+			extendedConfig: &ExtendedRemoteStateConfigS3{
+				remoteStateConfigS3: RemoteStateConfigS3{
+					Region: "us-west-2",
+					Bucket: "state-bucket",
+					Key:    "terraform.tfstate",
+				},
+			},
+			expectedOutput: "level=warning msg=\"Encryption is not enabled",
+		},
+		{
+			name: "log-debug-skip-bucket-sse-encryption",
+			extendedConfig: &ExtendedRemoteStateConfigS3{
+				SkipBucketSSEncryption: true,
+				remoteStateConfigS3: RemoteStateConfigS3{
+					Region: "us-west-2",
+					Bucket: "state-bucket",
+					Key:    "terraform.tfstate",
+				},
+			},
+			expectedOutput: "level=debug msg=\"Encryption is not enabled",
+		},
+	}
+	for _, testCase := range testCases {
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			buf := &bytes.Buffer{}
+			logger := logrus.New()
+			logger.SetLevel(logrus.DebugLevel)
+			logger.SetOutput(buf)
+			options := &options.TerragruntOptions{Logger: logrus.NewEntry(logger)}
+			err := validateS3Config(testCase.extendedConfig, options)
+			if err != nil {
+				assert.ErrorIs(t, err, testCase.expectedErr)
+			}
+			assert.Contains(t, buf.String(), testCase.expectedOutput)
 		})
 	}
 }
