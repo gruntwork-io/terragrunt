@@ -2,6 +2,9 @@ package catalog
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
@@ -10,6 +13,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
+)
+
+const (
+	tempDirFormat = "catalog%x"
 )
 
 func Run(ctx context.Context, opts *options.TerragruntOptions, repoURL string) error {
@@ -39,7 +46,9 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, repoURL string) e
 	var modules module.Modules
 
 	for _, repoURL := range repoURLs {
-		repo, err := module.NewRepo(ctx, repoURL)
+		tempDir := filepath.Join(os.TempDir(), fmt.Sprintf(tempDirFormat, util.EncodeBase64Sha1(repoURL)))
+
+		repo, err := module.NewRepo(ctx, repoURL, tempDir)
 		if err != nil {
 			return err
 		}

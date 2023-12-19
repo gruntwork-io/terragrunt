@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -19,7 +20,10 @@ func TestScaffoldGitRepo(t *testing.T) {
 
 	ctx := context.Background()
 
-	repo, err := module.NewRepo(ctx, "github.com/gruntwork-io/terraform-fake-modules.git")
+	tempDir, err := os.MkdirTemp("", "catalog-*")
+	require.NoError(t, err)
+
+	repo, err := module.NewRepo(ctx, "github.com/gruntwork-io/terraform-fake-modules.git", tempDir)
 	require.NoError(t, err)
 
 	modules, err := repo.FindModules(ctx)
@@ -32,7 +36,10 @@ func TestScaffoldGitModule(t *testing.T) {
 
 	ctx := context.Background()
 
-	repo, err := module.NewRepo(ctx, "https://github.com/gruntwork-io/terraform-fake-modules.git")
+	tempDir, err := os.MkdirTemp("", "catalog-*")
+	require.NoError(t, err)
+
+	repo, err := module.NewRepo(ctx, "https://github.com/gruntwork-io/terraform-fake-modules.git", tempDir)
 	require.NoError(t, err)
 
 	modules, err := repo.FindModules(ctx)
@@ -68,7 +75,10 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 
 	ctx := context.Background()
 
-	repo, err := module.NewRepo(ctx, "https://github.com/gruntwork-io/terraform-fake-modules")
+	tempDir, err := os.MkdirTemp("", "catalog-*")
+	require.NoError(t, err)
+
+	repo, err := module.NewRepo(ctx, "https://github.com/gruntwork-io/terraform-fake-modules", tempDir)
 	assert.NoError(t, err)
 
 	modules, err := repo.FindModules(ctx)
