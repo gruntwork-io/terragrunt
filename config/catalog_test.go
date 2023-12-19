@@ -62,6 +62,15 @@ func TestCatalogParseConfigFile(t *testing.T) {
 			},
 			nil,
 		},
+		{
+			filepath.Join(basePath, "complex/terragrunt.hcl"),
+			&CatalogConfig{
+				URLs: []string{
+					"https://github.com/gruntwork-io/terraform-aws-utilities",
+				},
+			},
+			errors.New(filepath.Join(basePath, "complex/terragrunt.hcl") + `:2,40-63: Error in function call; Call to function "find_in_parent_folders" failed: ParentFileNotFound: Could not find a common.hcl in any of the parent folders of testdata/fixture-catalog/complex/terragrunt.hcl. Cause: Traversed all the way to the root..`),
+		},
 	}
 
 	for i, testCase := range testCases {

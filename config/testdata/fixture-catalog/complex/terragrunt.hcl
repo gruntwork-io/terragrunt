@@ -4,10 +4,10 @@ locals {
 
 catalog {
   urls = [
-    "https://github.com/gruntwork-io/terraform-aws-utilities",
+    "https://github.com/${local.common_vars.locals.github_org}/terraform-aws-utilities",
   ]
 }
 
 inputs = {
-  name_prefix = local.common_vars.locals.name_prefix
+  name_prefix = local.common_vars.locals.github_org
 }

@@ -1,3 +1,3 @@
 locals {
-  name_prefix = "example"
+  github_org = "gruntwork-io"
 }
