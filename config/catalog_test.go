@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCatalogParseConfigFile(t *testing.T) {
@@ -44,6 +44,24 @@ func TestCatalogParseConfigFile(t *testing.T) {
 			nil,
 			errors.New(filepath.Join(basePath, "config3.hcl") + `:1,9-9: Missing required argument; The argument "urls" is required, but no definition was found.`),
 		},
+		{
+			filepath.Join(basePath, "complex/folder-with-terragrunt-hcl/terragrunt.hcl"),
+			&CatalogConfig{
+				URLs: []string{
+					"https://github.com/gruntwork-io/terraform-aws-utilities",
+				},
+			},
+			nil,
+		},
+		{
+			filepath.Join(basePath, "complex/folder-with-terragrunt-hcl/different-name.hcl"),
+			&CatalogConfig{
+				URLs: []string{
+					"https://github.com/gruntwork-io/terraform-aws-utilities",
+				},
+			},
+			nil,
+		},
 	}
 
 	for i, testCase := range testCases {
@@ -52,15 +70,13 @@ func TestCatalogParseConfigFile(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			opts := &options.TerragruntOptions{
-				Logger:               util.GlobalFallbackLogEntry,
-				TerragruntConfigPath: testCase.configPath,
-			}
+			opts, err := options.NewTerragruntOptionsWithConfigPath(testCase.configPath)
+			require.NoError(t, err)
 
 			config, err := ReadTerragruntConfig(opts)
 
 			if testCase.expectedErr == nil {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, testCase.expectedCatalog, config.Catalog)
 			} else {
 				assert.EqualError(t, err, testCase.expectedErr.Error())
