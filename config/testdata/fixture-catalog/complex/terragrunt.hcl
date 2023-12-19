@@ -9,5 +9,5 @@ catalog {
 }
 
 inputs = {
-  name_prefix = local.common_vars.locals.github_org
+  github_org = local.common_vars.locals.github_org
 }
