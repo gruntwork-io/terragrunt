@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -25,13 +26,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, repoURL string) e
 	repoURLs := []string{repoURL}
 
 	if repoURLs[0] == "" {
-		if configPath, err := config.FindInParentFolders([]string{opts.TerragruntConfigPath}, nil, opts); err != nil {
-			return err
-		} else if configPath != "" {
-			opts.TerragruntConfigPath = configPath
-		}
-
-		config, err := config.ReadTerragruntConfig(opts)
+		config, err := readTerragruntConfig(opts)
 		if err != nil {
 			return err
 		}
@@ -68,4 +63,33 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, repoURL string) e
 	}
 
 	return tui.Run(ctx, modules, opts)
+}
+
+func readTerragruntConfig(opts *options.TerragruntOptions) (*config.TerragruntConfig, error) {
+	if err := updateConfigPath(opts); err != nil {
+		return nil, err
+	}
+
+	config, err := config.ReadTerragruntConfig(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}
+
+// if the config file does not exist in the path specified in `opts.TerragruntConfigPath`,
+// tries to search for this file in the parent directories and updates `opts.TerragruntConfigPath` with the found path.
+func updateConfigPath(opts *options.TerragruntOptions) error {
+	if files.FileExists(opts.TerragruntConfigPath) {
+		return nil
+	}
+
+	if configPath, err := config.FindInParentFolders([]string{opts.TerragruntConfigPath}, nil, opts); err != nil {
+		return err
+	} else if configPath != "" {
+		opts.TerragruntConfigPath = configPath
+	}
+
+	return nil
 }

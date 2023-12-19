@@ -489,10 +489,14 @@ func FindInParentFolders(
 			return "", errors.WithStackTrace(ParentFileNotFound{Path: terragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: "Traversed all the way to the root"})
 		}
 
-		fileToFind := GetDefaultConfigPath(currentDir)
-		if fileToFindParam != "" && !filepath.IsAbs(fileToFindParam) {
-			fileToFind = util.JoinPath(currentDir, fileToFindParam)
+		fileToFind := currentDir
+
+		if fileToFindParam != "" {
+			fileToFind = util.JoinPath(currentDir, filepath.Base(fileToFindParam))
 		}
+
+		// if `fileToFind` is dir, append default config filename `terragrunt.hcl`
+		fileToFind = GetDefaultConfigPath(fileToFind)
 
 		if util.FileExists(fileToFind) {
 			return fileToFind, nil
