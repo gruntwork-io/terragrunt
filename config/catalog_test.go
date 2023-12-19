@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -14,7 +15,10 @@ import (
 func TestCatalogParseConfigFile(t *testing.T) {
 	t.Parallel()
 
-	basePath := "testdata/fixture-catalog"
+	curDir, err := os.Getwd()
+	require.NoError(t, err)
+
+	basePath := filepath.Join(curDir, "testdata/fixture-catalog")
 
 	testCases := []struct {
 		configPath      string
@@ -69,7 +73,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 					"https://github.com/gruntwork-io/terraform-aws-utilities",
 				},
 			},
-			errors.New(filepath.Join(basePath, "complex/terragrunt.hcl") + `:2,40-63: Error in function call; Call to function "find_in_parent_folders" failed: ParentFileNotFound: Could not find a common.hcl in any of the parent folders of testdata/fixture-catalog/complex/terragrunt.hcl. Cause: Traversed all the way to the root..`),
+			nil,
 		},
 	}
 
@@ -82,7 +86,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 			opts, err := options.NewTerragruntOptionsWithConfigPath(testCase.configPath)
 			require.NoError(t, err)
 
-			config, err := ReadTerragruntConfig(opts)
+			config, err := ReadCatalogConfig(opts)
 
 			if testCase.expectedErr == nil {
 				require.NoError(t, err)
