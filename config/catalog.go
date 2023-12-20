@@ -41,7 +41,7 @@ func (config *CatalogConfig) normalize(cofnigPath string) {
 
 func ReadCatalogConfig(opts *options.TerragruntOptions) (*TerragruntConfig, error) {
 	// We must first find the closest configuration from the current directory to ensure that it is not the root configuration,
-	// otherwise when we try to pull it via the include block it gets an error ""Only one level of includes is allowed".
+	// otherwise when we try to pull it via the include block it gets an error "Only one level of includes is allowed".
 	if !files.FileExists(opts.TerragruntConfigPath) {
 		if configPath, err := FindInParentFolders([]string{opts.TerragruntConfigPath}, nil, opts); err != nil {
 			return nil, err
@@ -55,17 +55,18 @@ func ReadCatalogConfig(opts *options.TerragruntOptions) (*TerragruntConfig, erro
 		return nil, err
 	}
 
-	// try to check if this is the root config, if yes then read the config file as is.
+	// try to check if this is the root config, if yes then read the config as is.
 	if rootConfigReg.MatchString(configString) {
-		return ReadTerragruntConfig(opts)
+		return ParseConfigString(configString, opts, nil, opts.TerragruntConfigPath, &EvalContextExtensions{})
 	}
 
 	configName := filepath.Base(opts.TerragruntConfigPath)
 	configDir := filepath.Dir(opts.TerragruntConfigPath)
 
-	// we have to imitate that we the current directory is deeper in order for `find_in_parent_folders` can find the included configuration.
+	// we have to imitate that the current directory is deeper in order for `find_in_parent_folders` can find the included configuration.
 	opts.TerragruntConfigPath = filepath.Join(configDir, util.UniqueId(), configName)
 
+	// try to load config via the include block
 	config, err := ParseConfigString(fmt.Sprintf(defaultCatalogConfigFmt, configName), opts, nil, opts.TerragruntConfigPath, &EvalContextExtensions{})
 	if err != nil {
 		return nil, err
