@@ -75,6 +75,15 @@ func TestCatalogParseConfigFile(t *testing.T) {
 			},
 			nil,
 		},
+		{
+			filepath.Join(basePath, "complex/folder-with-terragrunt-hcl/deeper/terragrunt.hcl"),
+			&CatalogConfig{
+				URLs: []string{
+					"https://github.com/gruntwork-io/terraform-aws-utilities",
+				},
+			},
+			nil,
+		},
 	}
 
 	for i, testCase := range testCases {

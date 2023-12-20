@@ -40,16 +40,24 @@ func (config *CatalogConfig) normalize(cofnigPath string) {
 }
 
 func ReadCatalogConfig(opts *options.TerragruntOptions) (*TerragruntConfig, error) {
-	if files.FileExists(opts.TerragruntConfigPath) {
-		configString, err := util.ReadFileAsString(opts.TerragruntConfigPath)
-		if err != nil {
+	// We must first find the closest configuration from the current directory to ensure that it is not the root configuration,
+	// otherwise when we try to pull it via the include block it gets an error ""Only one level of includes is allowed".
+	if !files.FileExists(opts.TerragruntConfigPath) {
+		if configPath, err := FindInParentFolders([]string{opts.TerragruntConfigPath}, nil, opts); err != nil {
 			return nil, err
+		} else if configPath != "" {
+			opts.TerragruntConfigPath = configPath
 		}
+	}
 
-		// try to check if this is the root config, if yes then read the config file as is.
-		if rootConfigReg.MatchString(configString) {
-			return ReadTerragruntConfig(opts)
-		}
+	configString, err := util.ReadFileAsString(opts.TerragruntConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// try to check if this is the root config, if yes then read the config file as is.
+	if rootConfigReg.MatchString(configString) {
+		return ReadTerragruntConfig(opts)
 	}
 
 	configName := filepath.Base(opts.TerragruntConfigPath)
