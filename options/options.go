@@ -112,6 +112,12 @@ type TerragruntOptions struct {
 	// Disalabe Terragrunt colors
 	DisableLogColors bool
 
+	// Output Terragrunt logs in JSON format
+	JsonLogFormat bool
+
+	// Wrap Terraform logs in JSON format
+	TerraformLogsToJson bool
+
 	// Log level
 	LogLevel logrus.Level
 

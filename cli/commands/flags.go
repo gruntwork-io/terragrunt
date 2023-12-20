@@ -33,6 +33,8 @@ const (
 	FlagNameTerragruntDebug                          = "terragrunt-debug"
 	FlagNameTerragruntLogLevel                       = "terragrunt-log-level"
 	FlagNameTerragruntNoColor                        = "terragrunt-no-color"
+	FlagNameTerragruntJsonLog                        = "terragrunt-json-log"
+	FlagNameTerragruntTfLogJson                      = "terragrunt-tf-logs-to-json"
 	FlagNameTerragruntModulesThatInclude             = "terragrunt-modules-that-include"
 	FlagNameTerragruntFetchDependencyOutputFromState = "terragrunt-fetch-dependency-output-from-state"
 	FlagNameTerragruntUsePartialParseConfigCache     = "terragrunt-use-partial-parse-config-cache"
@@ -191,6 +193,18 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.DisableLogColors,
 			EnvVar:      "TERRAGRUNT_NO_COLOR",
 			Usage:       "If specified, Terragrunt output won't contain any color.",
+		},
+		&cli.BoolFlag{
+			Name:        FlagNameTerragruntJsonLog,
+			Destination: &opts.JsonLogFormat,
+			EnvVar:      "TERRAGRUNT_JSON_LOG",
+			Usage:       "If specified, Terragrunt will outout logs in JSON format.",
+		},
+		&cli.BoolFlag{
+			Name:        FlagNameTerragruntTfLogJson,
+			Destination: &opts.TerraformLogsToJson,
+			EnvVar:      "TERRAGRUNT_TF_JSON_LOG",
+			Usage:       "If specified, Terragrunt will wrap Terraform output in JSON.",
 		},
 		&cli.BoolFlag{
 			Name:        FlagNameTerragruntUsePartialParseConfigCache,
