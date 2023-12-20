@@ -934,7 +934,7 @@ func convertToTerragruntConfig(
 
 	terragruntConfig.Catalog = terragruntConfigFromFile.Catalog
 	if terragruntConfig.Catalog != nil { // since Catalog is nil each time avoid saving metadata when it is nil
-		terragruntConfig.Catalog.normalize(terragruntOptions.TerragruntConfigPath)
+		terragruntConfig.Catalog.normalize(configPath)
 		terragruntConfig.SetFieldMetadata(MetadataCatalog, defaultMetadata)
 	}
 
