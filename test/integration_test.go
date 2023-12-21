@@ -6452,6 +6452,58 @@ func TestTerragruntAssumeRole(t *testing.T) {
 	assert.Contains(t, content, "session_name = \"session_name_example\"")
 }
 
+func TestTerragruntOutputJson(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_NOT_EXISTING_SOURCE)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_NOT_EXISTING_SOURCE)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-json-log --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	assert.Error(t, err)
+
+	var output map[string]interface{}
+
+	err = json.Unmarshal(stderr.Bytes(), &output)
+	assert.NoError(t, err)
+
+	assert.Contains(t, output["msg"], "Downloading Terraform configurations from git::https://github.com/gruntwork-io/terragrunt.git?ref=v0.9.9")
+}
+
+func TestTerragruntTerraformOutputJson(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INIT_ERROR)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_ERROR)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --no-color --terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	assert.Error(t, err)
+
+	assert.Contains(t, stderr.String(), "{\"level\":\"info\",\"msg\":\"Initializing the backend...")
+	assert.Contains(t, stderr.String(), "{\"level\":\"error\",\"msg\":\"terraform invocation failed in")
+
+	// check if output can be extracted in json
+	jsonStrings := strings.Split(stderr.String(), "\n")
+	for _, jsonString := range jsonStrings {
+		if len(jsonString) == 0 {
+			continue
+		}
+		var output map[string]interface{}
+		err = json.Unmarshal([]byte(jsonString), &output)
+		assert.NoErrorf(t, err, "Failed to parse json %s", jsonString)
+		assert.NotNil(t, output["level"])
+		assert.NotNil(t, output["level"])
+		assert.NotNil(t, output["time"])
+	}
+}
+
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
 	t.Helper()
 	output, hasPlatform := outputs[key]
