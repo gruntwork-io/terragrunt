@@ -6453,7 +6453,10 @@ func TestTerragruntAssumeRole(t *testing.T) {
 }
 
 func TestTerragruntOutputJson(t *testing.T) {
-	t.Parallel()
+	// no parallel test execution since JSON output is global
+	defer func() {
+		util.DisableJsonFormat()
+	}()
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_NOT_EXISTING_SOURCE)
 	cleanupTerraformFolder(t, tmpEnvPath)
@@ -6474,7 +6477,10 @@ func TestTerragruntOutputJson(t *testing.T) {
 }
 
 func TestTerragruntTerraformOutputJson(t *testing.T) {
-	t.Parallel()
+	// no parallel test execution since JSON output is global
+	defer func() {
+		util.DisableJsonFormat()
+	}()
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INIT_ERROR)
 	cleanupTerraformFolder(t, tmpEnvPath)

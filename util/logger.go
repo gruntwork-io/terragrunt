@@ -48,6 +48,12 @@ func JsonFormat() {
 	GlobalFallbackLogEntry = CreateLogEntry("", defaultLogLevel)
 }
 
+func DisableJsonFormat() {
+	jsonLogFormat = false
+	// Needs to re-create the global logger
+	GlobalFallbackLogEntry = CreateLogEntry("", defaultLogLevel)
+}
+
 // CreateLogger creates a logger. If debug is set, we use ErrorLevel to enable verbose output, otherwise - only errors are shown
 func CreateLogger(lvl logrus.Level) *logrus.Logger {
 	logger := logrus.New()
