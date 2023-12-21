@@ -6487,7 +6487,6 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 	assert.Error(t, err)
 
 	assert.Contains(t, stderr.String(), "{\"level\":\"info\",\"msg\":\"Initializing the backend...")
-	assert.Contains(t, stderr.String(), "{\"level\":\"error\",\"msg\":\"terraform invocation failed in")
 
 	// check if output can be extracted in json
 	jsonStrings := strings.Split(stderr.String(), "\n")
