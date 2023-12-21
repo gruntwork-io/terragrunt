@@ -332,6 +332,8 @@ func NewTerragruntOptions() *TerragruntOptions {
 		IncludeModulePrefix:            false,
 		JSONOut:                        DefaultJSONOutName,
 		TerraformImplementation:        UnknownImpl,
+		JsonLogFormat:                  false,
+		TerraformLogsToJson:            false,
 		RunTerragrunt: func(opts *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
@@ -457,6 +459,8 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		FailIfBucketCreationRequired:   opts.FailIfBucketCreationRequired,
 		DisableBucketUpdate:            opts.DisableBucketUpdate,
 		TerraformImplementation:        opts.TerraformImplementation,
+		JsonLogFormat:                  opts.JsonLogFormat,
+		TerraformLogsToJson:            opts.TerraformLogsToJson,
 	}
 }
 
