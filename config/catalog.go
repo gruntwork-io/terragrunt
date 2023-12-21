@@ -45,7 +45,8 @@ func ReadCatalogConfig(opts *options.TerragruntOptions) (*TerragruntConfig, erro
 	// We must first find the closest configuration from the current directory to ensure that it is not the root configuration,
 	// otherwise when we try to pull it via the include block it gets an error "Only one level of includes is allowed".
 	if !files.FileExists(opts.TerragruntConfigPath) {
-		if configPath, err := FindInParentFolders([]string{opts.TerragruntConfigPath}, nil, opts); err != nil {
+		fileToFind := filepath.Base(opts.TerragruntConfigPath)
+		if configPath, err := findInParentFolders([]string{fileToFind}, nil, opts); err != nil {
 			return nil, err
 		} else if configPath != "" {
 			opts.TerragruntConfigPath = configPath
