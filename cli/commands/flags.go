@@ -204,7 +204,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        FlagNameTerragruntTfLogJson,
 			Destination: &opts.TerraformLogsToJson,
 			EnvVar:      "TERRAGRUNT_TF_JSON_LOG",
-			Usage:       "If specified, Terragrunt will wrap Terraform output in JSON.",
+			Usage:       "If specified, Terragrunt will wrap Terraform stdout and stderr in JSON.",
 		},
 		&cli.BoolFlag{
 			Name:        FlagNameTerragruntUsePartialParseConfigCache,
