@@ -198,7 +198,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        FlagNameTerragruntJsonLog,
 			Destination: &opts.JsonLogFormat,
 			EnvVar:      "TERRAGRUNT_JSON_LOG",
-			Usage:       "If specified, Terragrunt will outout logs in JSON format.",
+			Usage:       "If specified, Terragrunt will output its logs in JSON format.",
 		},
 		&cli.BoolFlag{
 			Name:        FlagNameTerragruntTfLogJson,
