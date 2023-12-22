@@ -18,9 +18,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const TerraformLockFile = ".terraform.lock.hcl"
-
-const TerragruntCacheDir = ".terragrunt-cache"
+const (
+	TerraformLockFile     = ".terraform.lock.hcl"
+	TerragruntCacheDir    = ".terragrunt-cache"
+	DefaultBoilerplateDir = ".boilerplate"
+	TfFileExtension       = ".tf"
+)
 
 // FileOrData will read the contents of the data of the given arg if it is a file, and otherwise return the contents by
 // itself. This will return an error if the given path is a directory.
@@ -591,4 +594,36 @@ func CopyLockFile(sourceFolder string, destinationFolder string, logger *logrus.
 	}
 
 	return nil
+}
+
+// ListTfFiles returns a list of all TF files in the specified directory.
+func ListTfFiles(directoryPath string) ([]string, error) {
+	var tfFiles []string
+
+	err := filepath.Walk(directoryPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && filepath.Ext(path) == TfFileExtension {
+			tfFiles = append(tfFiles, path)
+		}
+		return nil
+	})
+
+	return tfFiles, err
+}
+
+// IsDirectoryEmpty - returns true if the given path exists and is a empty directory.
+func IsDirectoryEmpty(dirPath string) (bool, error) {
+	dir, err := os.Open(dirPath)
+	if err != nil {
+		return false, err
+	}
+	defer dir.Close()
+
+	_, err = dir.Readdir(1)
+	if err == nil {
+		return false, nil
+	}
+	return true, nil
 }

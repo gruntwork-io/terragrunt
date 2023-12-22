@@ -23,6 +23,11 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 	mockOutputsAllowedTerraformCommands := []string{"init"}
 	dependentModulesPath := []*string{&testSource}
 	testConfig := TerragruntConfig{
+		Catalog: &CatalogConfig{
+			URLs: []string{
+				"repo/path",
+			},
+		},
 		Terraform: &TerraformConfig{
 			Source: &testSource,
 			ExtraArgs: []TerraformExtraArguments{
@@ -80,7 +85,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 		},
 		DependentModulesPath: dependentModulesPath,
 		TerragruntDependencies: []Dependency{
-			Dependency{
+			{
 				Name:                                "foo",
 				ConfigPath:                          "foo",
 				SkipOutputs:                         &testTrue,
@@ -179,6 +184,8 @@ func TestTerraformConfigAsCtyDrift(t *testing.T) {
 
 func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string, bool) {
 	switch fieldName {
+	case "Catalog":
+		return "catalog", true
 	case "Terraform":
 		return "terraform", true
 	case "TerraformBinary":

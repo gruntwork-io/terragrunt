@@ -281,7 +281,6 @@ workflows:
               only: /^v.*/
           context:
             - AWS__PHXDEVOPS__circle-ci-test
-            - GITHUB__PAT__gruntwork-ci
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
       - unit_test:
@@ -290,7 +289,6 @@ workflows:
               only: /^v.*/
           context:
             - AWS__PHXDEVOPS__circle-ci-test
-            - GITHUB__PAT__gruntwork-ci
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
       - integration_test_terraform:
@@ -299,7 +297,6 @@ workflows:
               only: /^v.*/
           context:
             - AWS__PHXDEVOPS__circle-ci-test
-            - GITHUB__PAT__gruntwork-ci
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
       - integration_test_tofu:
@@ -308,7 +305,6 @@ workflows:
               only: /^v.*/
           context:
             - AWS__PHXDEVOPS__circle-ci-test
-            - GITHUB__PAT__gruntwork-ci
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
       - integration_test_tflint:
@@ -317,7 +313,6 @@ workflows:
               only: /^v.*/
           context:
             - AWS__PHXDEVOPS__circle-ci-test
-            - GITHUB__PAT__gruntwork-ci
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
       - build:
@@ -326,7 +321,6 @@ workflows:
               only: /^v.*/
           context:
             - AWS__PHXDEVOPS__circle-ci-test
-            - GITHUB__PAT__gruntwork-ci
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
       - deploy:
@@ -339,7 +333,6 @@ workflows:
               ignore: /.*/
           context:
             - AWS__PHXDEVOPS__circle-ci-test
-            - GITHUB__PAT__gruntwork-ci
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
             - APPLE__OSX__code-signing

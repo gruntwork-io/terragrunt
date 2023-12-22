@@ -3,6 +3,7 @@ package config
 import (
 	"testing"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +28,7 @@ dependency "sql" {
 	require.NoError(t, err)
 
 	decoded := terragruntDependency{}
-	require.NoError(t, decodeHcl(file, filename, &decoded, mockOptionsForTest(t), EvalContextExtensions{}))
+	require.NoError(t, decodeHcl(file, filename, &decoded, &hcl.EvalContext{}))
 
 	assert.Equal(t, len(decoded.Dependencies), 2)
 	assert.Equal(t, decoded.Dependencies[0].Name, "vpc")
@@ -50,7 +51,7 @@ locals {
 	require.NoError(t, err)
 
 	decoded := terragruntDependency{}
-	require.NoError(t, decodeHcl(file, filename, &decoded, mockOptionsForTest(t), EvalContextExtensions{}))
+	require.NoError(t, decodeHcl(file, filename, &decoded, &hcl.EvalContext{}))
 	assert.Equal(t, len(decoded.Dependencies), 0)
 }
 
@@ -68,7 +69,7 @@ dependency {
 	require.NoError(t, err)
 
 	decoded := terragruntDependency{}
-	require.Error(t, decodeHcl(file, filename, &decoded, mockOptionsForTest(t), EvalContextExtensions{}))
+	require.Error(t, decodeHcl(file, filename, &decoded, &hcl.EvalContext{}))
 }
 
 func TestDecodeDependencyMockOutputs(t *testing.T) {
@@ -89,7 +90,7 @@ dependency "hitchhiker" {
 	require.NoError(t, err)
 
 	decoded := terragruntDependency{}
-	require.NoError(t, decodeHcl(file, filename, &decoded, mockOptionsForTest(t), EvalContextExtensions{}))
+	require.NoError(t, decodeHcl(file, filename, &decoded, &hcl.EvalContext{}))
 
 	assert.Equal(t, len(decoded.Dependencies), 1)
 	dependency := decoded.Dependencies[0]
@@ -128,6 +129,6 @@ dependency "vpc" {
 	require.NoError(t, err)
 
 	decoded := terragruntDependency{}
-	require.NoError(t, decodeHcl(file, filename, &decoded, mockOptionsForTest(t), EvalContextExtensions{}))
+	require.NoError(t, decodeHcl(file, filename, &decoded, &hcl.EvalContext{}))
 	assert.Equal(t, len(decoded.Dependencies), 2)
 }

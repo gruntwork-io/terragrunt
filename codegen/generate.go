@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/hashicorp/hcl/v2/hclsimple"
+
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
@@ -42,6 +44,8 @@ const (
 	ExistsSkipStr                = "skip"
 	ExistsOverwriteStr           = "overwrite"
 	ExistsOverwriteTerragruntStr = "overwrite_terragrunt"
+
+	assumeRoleConfigKey = "assume_role"
 )
 
 // Configuration for generating code
@@ -164,19 +168,53 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]interfac
 	for _, key := range backendKeys {
 		// Since we don't have the cty type information for the config and since config can be arbitrary, we cheat by using
 		// json as an intermediate representation.
-		jsonBytes, err := json.Marshal(config[key])
+
+		// handle assume role config key in a different way since it is a single line HCL object
+		if key == assumeRoleConfigKey {
+			assumeRoleValue, isAssumeRole := config[assumeRoleConfigKey].(string)
+			if !isAssumeRole {
+				continue
+			}
+			// extract assume role hcl values to be rendered in HCL
+			var assumeRoleMap map[string]string
+			// split single line hcl to default multiline file
+			hclValue := strings.TrimSuffix(assumeRoleValue, "}")
+			hclValue = strings.TrimPrefix(hclValue, "{")
+			hclValue = strings.ReplaceAll(hclValue, ",", "\n")
+			// basic decode of hcl to a map
+			err := hclsimple.Decode("s3_assume_role.hcl", []byte(hclValue), nil, &assumeRoleMap)
+			if err != nil {
+				return nil, errors.WithStackTrace(err)
+			}
+			// write assume role map as HCL object
+			ctyVal, err := convertValue(assumeRoleMap)
+			if err != nil {
+				return nil, errors.WithStackTrace(err)
+			}
+			backendBlockBody.SetAttributeValue(key, ctyVal.Value)
+			continue
+		}
+		ctyVal, err := convertValue(config[key])
 		if err != nil {
 			return nil, errors.WithStackTrace(err)
 		}
-		var ctyVal ctyjson.SimpleJSONValue
-		if err := ctyVal.UnmarshalJSON(jsonBytes); err != nil {
-			return nil, errors.WithStackTrace(err)
-		}
-
 		backendBlockBody.SetAttributeValue(key, ctyVal.Value)
 	}
 
 	return f.Bytes(), nil
+}
+
+func convertValue(v interface{}) (ctyjson.SimpleJSONValue, error) {
+	jsonBytes, err := json.Marshal(v)
+	if err != nil {
+		return ctyjson.SimpleJSONValue{}, errors.WithStackTrace(err)
+	}
+	var ctyVal ctyjson.SimpleJSONValue
+	if err := ctyVal.UnmarshalJSON(jsonBytes); err != nil {
+		return ctyjson.SimpleJSONValue{}, errors.WithStackTrace(err)
+	}
+	return ctyVal, nil
+
 }
 
 // GenerateConfigExistsFromString converts a string representation of if_exists into the enum, returning an error if it

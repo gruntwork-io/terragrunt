@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -11,6 +12,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/hashicorp/go-version"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -29,6 +32,13 @@ import (
 // kill -INT -<pid> # sends SIGINT to the process group
 // Since we cannot know how the signal is sent, we should give `terraform` time to gracefully exit if it receives the signal directly from the shell, to avoid sending the second interrupt signal to `terraform`.
 const signalForwardingDelay = time.Second * 30
+
+const (
+	gitPrefix = "git::"
+	refsTags  = "refs/tags/"
+
+	tagSplitPart = 2
+)
 
 // Commands that implement a REPL need a pseudo TTY when run as a subprocess in order for the readline properties to be
 // preserved. This is a list of terraform commands that have this property, which is used to determine if terragrunt
@@ -293,6 +303,78 @@ func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (
 		return "", err
 	}
 	return strings.TrimSpace(cmd.Stdout), nil
+}
+
+// GitRepoTags - fetch git repository tags from passed url
+func GitRepoTags(opts *options.TerragruntOptions, gitRepo *url.URL) ([]string, error) {
+	repoPath := gitRepo.String()
+	// remove git:: part if present
+	repoPath = strings.TrimPrefix(repoPath, gitPrefix)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	gitOpts, err := options.NewTerragruntOptionsWithConfigPath(opts.WorkingDir)
+	if err != nil {
+		return nil, err
+	}
+	gitOpts.Env = opts.Env
+	gitOpts.Writer = &stdout
+	gitOpts.ErrWriter = &stderr
+
+	output, err := RunShellCommandWithOutput(opts, opts.WorkingDir, true, false, "git", "ls-remote", "--tags", repoPath)
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+	var tags []string
+	tagLines := strings.Split(output.Stdout, "\n")
+	for _, line := range tagLines {
+		fields := strings.Fields(line)
+		if len(fields) >= tagSplitPart {
+			tags = append(tags, fields[1])
+		}
+	}
+	return tags, nil
+}
+
+// GitLastReleaseTag - fetch git repository last release tag
+func GitLastReleaseTag(opts *options.TerragruntOptions, gitRepo *url.URL) (string, error) {
+	tags, err := GitRepoTags(opts, gitRepo)
+	if err != nil {
+		return "", err
+	}
+	if len(tags) == 0 {
+		return "", nil
+	}
+	return lastReleaseTag(tags), nil
+}
+
+// lastReleaseTag - return last release tag from passed tags slice.
+func lastReleaseTag(tags []string) string {
+	semverTags := extractSemVerTags(tags)
+	if len(semverTags) == 0 {
+		return ""
+	}
+	// find last semver tag
+	lastVersion := semverTags[0]
+	for _, ver := range semverTags {
+		if ver.GreaterThanOrEqual(lastVersion) {
+			lastVersion = ver
+		}
+	}
+	return lastVersion.Original()
+}
+
+// extractSemVerTags - extract semver tags from passed tags slice.
+func extractSemVerTags(tags []string) []*version.Version {
+	var semverTags []*version.Version
+	for _, tag := range tags {
+		t := strings.TrimPrefix(tag, refsTags)
+		if v, err := version.NewVersion(t); err == nil {
+			// consider only semver tags
+			semverTags = append(semverTags, v)
+		}
+	}
+	return semverTags
 }
 
 // ProcessExecutionError - error returned when a command fails, contains StdOut and StdErr

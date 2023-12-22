@@ -28,9 +28,33 @@ If you  want the latest version, the recommended installation option is to [down
 
 * **macOS**: You can install Terragrunt on macOS using [Homebrew](https://brew.sh/): `brew install terragrunt`.
 
-* **Linux**: Most Linux users can use [Homebrew](https://docs.brew.sh/Homebrew-on-Linux): `brew install terragrunt`. Arch Linux users can use `pacman -S terragrunt` to install it [`community-terragrunt`](https://archlinux.org/packages/community/x86_64/terragrunt/).
+* **Linux**: Most Linux users can use [Homebrew](https://docs.brew.sh/Homebrew-on-Linux): `brew install terragrunt`. Arch Linux users can use `pacman -S terragrunt` to install it [`community-terragrunt`](https://archlinux.org/packages/extra/x86_64/terragrunt/).
 
 * **FreeBSD**: You can install Terragrunt on FreeBSD using [Pkg](https://www.freebsd.org/cgi/man.cgi?pkg(7)): `pkg install terragrunt`.
+
+### Enable tab completion
+
+If you use either Bash or Zsh, you can enable tab completion for Terragrunt commands. To enable autocomplete, first ensure that a config file exists for your chosen shell.
+
+
+For Bash shell.
+``` shell
+touch ~/.bashrc
+```
+
+For Zsh shell.
+``` shell
+touch ~/.zshrc
+```
+
+Then install the autocomplete package.
+
+``` shell
+terragrunt --install-autocomplete
+```
+
+Once the autocomplete support is installed, you will need to restart your shell.
+
 
 ### Terragrunt GitHub Action
 

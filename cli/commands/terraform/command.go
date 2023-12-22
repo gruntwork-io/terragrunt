@@ -8,7 +8,8 @@ import (
 )
 
 const (
-	CommandName = "terraform"
+	CommandName     = ""
+	CommandHelpName = "*"
 )
 
 var (
@@ -18,7 +19,7 @@ var (
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:     CommandName,
-		HelpName: "*",
+		HelpName: CommandHelpName,
 		Usage:    "Terragrunt forwards all other commands directly to Terraform",
 		Action:   action(opts),
 	}

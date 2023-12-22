@@ -165,11 +165,15 @@ func decodeAndRetrieveOutputs(
 	file *hcl.File,
 	filename string,
 	terragruntOptions *options.TerragruntOptions,
-	trackInclude *TrackInclude,
-	extensions EvalContextExtensions,
+	extensions *EvalContextExtensions,
 ) (*cty.Value, error) {
+	evalContext, err := extensions.CreateTerragruntEvalContext(filename, terragruntOptions)
+	if err != nil {
+		return nil, err
+	}
+
 	decodedDependency := terragruntDependency{}
-	if err := decodeHcl(file, filename, &decodedDependency, terragruntOptions, extensions); err != nil {
+	if err := decodeHcl(file, filename, &decodedDependency, evalContext); err != nil {
 		return nil, err
 	}
 
@@ -184,8 +188,8 @@ func decodeAndRetrieveOutputs(
 	decodedDependency = updatedDependencies
 
 	// Merge in included dependencies
-	if trackInclude != nil {
-		mergedDecodedDependency, err := handleIncludeForDependency(decodedDependency, trackInclude, terragruntOptions)
+	if extensions.TrackInclude != nil {
+		mergedDecodedDependency, err := handleIncludeForDependency(decodedDependency, extensions.TrackInclude, terragruntOptions)
 		if err != nil {
 			return nil, err
 		}

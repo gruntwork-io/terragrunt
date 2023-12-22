@@ -37,6 +37,8 @@ Terragrunt supports the following CLI commands:
   - [aws-provider-patch](#aws-provider-patch)
   - [render-json](#render-json)
   - [output-module-groups](#output-module-groups)
+  - [scaffold](#scaffold)
+  - [catalog](#catalog)
 
 ### All Terraform built-in commands
 
@@ -513,6 +515,18 @@ This may produce output such as:
   ]
 }
 ```
+
+### scaffold
+
+Generate Terragrunt files from existing Terraform modules.
+
+More details in [scaffold section](https://terragrunt.gruntwork.io/docs/features/scaffold/).
+
+### catalog
+
+Launch the user interface for searching and managing your module catalog.
+
+More details in [catalog section](https://terragrunt.gruntwork.io/docs/features/catalog/).
 
 ## CLI options
 

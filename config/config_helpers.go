@@ -23,11 +23,53 @@ import (
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-const noMatchedPats = 1
-const matchedPats = 2
+const (
+	noMatchedPats = 1
+	matchedPats   = 2
+)
+
+const (
+	// A consistent error message for multiple catalog block in terragrunt config (which is currently not supported)
+	multipleBlockDetailFmt = "Terragrunt currently does not support multiple %[1]s blocks in a single config. Consolidate to a single %[1]s block."
+)
+
+const (
+	FuncNameFindInParentFolders                     = "find_in_parent_folders"
+	FuncNamePathRelativeToInclude                   = "path_relative_to_include"
+	FuncNamePathRelativeFromInclude                 = "path_relative_from_include"
+	FuncNameGetEnv                                  = "get_env"
+	FuncNameRunCmd                                  = "run_cmd"
+	FuncNameReadTerragruntConfig                    = "read_terragrunt_config"
+	FuncNameGetPlatform                             = "get_platform"
+	FuncNameGetRepoRoot                             = "get_repo_root"
+	FuncNameGetPathFromRepoRoot                     = "get_path_from_repo_root"
+	FuncNameGetPathToRepoRoot                       = "get_path_to_repo_root"
+	FuncNameGetTerragruntDir                        = "get_terragrunt_dir"
+	FuncNameGetOriginalTerragruntDir                = "get_original_terragrunt_dir"
+	FuncNameGetTerraformCommand                     = "get_terraform_command"
+	FuncNameGetTerraformCLIArgs                     = "get_terraform_cli_args"
+	FuncNameGetParentTerragruntDir                  = "get_parent_terragrunt_dir"
+	FuncNameGetAWSAccountID                         = "get_aws_account_id"
+	FuncNameGetAWSCallerIdentityArn                 = "get_aws_caller_identity_arn"
+	FuncNameGetAWSCallerIdentityUserID              = "get_aws_caller_identity_user_id"
+	FuncNameGetTerraformCommandsThatNeedVars        = "get_terraform_commands_that_need_vars"
+	FuncNameGetTerraformCommandsThatNeedLocking     = "get_terraform_commands_that_need_locking"
+	FuncNameGetTerraformCommandsThatNeedInput       = "get_terraform_commands_that_need_input"
+	FuncNameGetTerraformCommandsThatNeedParallelism = "get_terraform_commands_that_need_parallelism"
+	FuncNameSopsDecryptFile                         = "sops_decrypt_file"
+	FuncNameGetTerragruntSourceCLIFlag              = "get_terragrunt_source_cli_flag"
+	FuncNameGetDefaultRetryableErrors               = "get_default_retryable_errors"
+	FuncNameReadTfvarsFile                          = "read_tfvars_file"
+	FuncNameGetWorkingDir                           = "get_working_dir"
+	FuncNameStartsWith                              = "startswith"
+	FuncNameEndsWith                                = "endswith"
+	FuncNameStrContains                             = "strcontains"
+	FuncNameTimeCmp                                 = "timecmp"
+)
 
 // List of terraform commands that accept -lock-timeout
 var TERRAFORM_COMMANDS_NEED_LOCKING = []string{
@@ -107,55 +149,58 @@ type EvalContextExtensions struct {
 	// indicate/detect that the current parsing context is partial, meaning that not all configuration values are
 	// expected to be available.
 	PartialParseDecodeList []PartialDecodeSectionType
+
+	// These functions have the highest priority and will overwrite any others with the same name
+	PredefinedFunctions map[string]function.Function
+}
+
+func (extensions *EvalContextExtensions) Merge(new *EvalContextExtensions) {
+	extensions.Locals = new.Locals
+	extensions.TrackInclude = new.TrackInclude
 }
 
 // Create an EvalContext for the HCL2 parser. We can define functions and variables in this context that the HCL2 parser
 // will make available to the Terragrunt configuration during parsing.
-func CreateTerragruntEvalContext(
-	filename string,
-	terragruntOptions *options.TerragruntOptions,
-	extensions EvalContextExtensions,
-) (*hcl.EvalContext, error) {
+func (extensions EvalContextExtensions) CreateTerragruntEvalContext(filename string, terragruntOptions *options.TerragruntOptions) (*hcl.EvalContext, error) {
 	tfscope := tflang.Scope{
 		BaseDir: filepath.Dir(filename),
 	}
 
 	terragruntFunctions := map[string]function.Function{
-		"find_in_parent_folders":                       wrapStringSliceToStringAsFuncImpl(findInParentFolders, extensions.TrackInclude, terragruntOptions),
-		"path_relative_to_include":                     wrapStringSliceToStringAsFuncImpl(pathRelativeToInclude, extensions.TrackInclude, terragruntOptions),
-		"path_relative_from_include":                   wrapStringSliceToStringAsFuncImpl(pathRelativeFromInclude, extensions.TrackInclude, terragruntOptions),
-		"get_env":                                      wrapStringSliceToStringAsFuncImpl(getEnvironmentVariable, extensions.TrackInclude, terragruntOptions),
-		"run_cmd":                                      wrapStringSliceToStringAsFuncImpl(runCommand, extensions.TrackInclude, terragruntOptions),
-		"read_terragrunt_config":                       readTerragruntConfigAsFuncImpl(terragruntOptions),
-		"get_platform":                                 wrapVoidToStringAsFuncImpl(getPlatform, extensions.TrackInclude, terragruntOptions),
-		"get_repo_root":                                wrapVoidToStringAsFuncImpl(getRepoRoot, extensions.TrackInclude, terragruntOptions),
-		"get_path_from_repo_root":                      wrapVoidToStringAsFuncImpl(getPathFromRepoRoot, extensions.TrackInclude, terragruntOptions),
-		"get_path_to_repo_root":                        wrapVoidToStringAsFuncImpl(getPathToRepoRoot, extensions.TrackInclude, terragruntOptions),
-		"get_terragrunt_dir":                           wrapVoidToStringAsFuncImpl(getTerragruntDir, extensions.TrackInclude, terragruntOptions),
-		"get_original_terragrunt_dir":                  wrapVoidToStringAsFuncImpl(getOriginalTerragruntDir, extensions.TrackInclude, terragruntOptions),
-		"get_terraform_command":                        wrapVoidToStringAsFuncImpl(getTerraformCommand, extensions.TrackInclude, terragruntOptions),
-		"get_terraform_cli_args":                       wrapVoidToStringSliceAsFuncImpl(getTerraformCliArgs, extensions.TrackInclude, terragruntOptions),
-		"get_parent_terragrunt_dir":                    wrapStringSliceToStringAsFuncImpl(getParentTerragruntDir, extensions.TrackInclude, terragruntOptions),
-		"get_aws_account_id":                           wrapVoidToStringAsFuncImpl(getAWSAccountID, extensions.TrackInclude, terragruntOptions),
-		"get_aws_caller_identity_arn":                  wrapVoidToStringAsFuncImpl(getAWSCallerIdentityARN, extensions.TrackInclude, terragruntOptions),
-		"get_aws_caller_identity_user_id":              wrapVoidToStringAsFuncImpl(getAWSCallerIdentityUserID, extensions.TrackInclude, terragruntOptions),
-		"get_terraform_commands_that_need_vars":        wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_VARS),
-		"get_terraform_commands_that_need_locking":     wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_LOCKING),
-		"get_terraform_commands_that_need_input":       wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_INPUT),
-		"get_terraform_commands_that_need_parallelism": wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_PARALLELISM),
-		"sops_decrypt_file":                            wrapStringSliceToStringAsFuncImpl(sopsDecryptFile, extensions.TrackInclude, terragruntOptions),
-		"get_terragrunt_source_cli_flag":               wrapVoidToStringAsFuncImpl(getTerragruntSourceCliFlag, extensions.TrackInclude, terragruntOptions),
-		"get_default_retryable_errors":                 wrapVoidToStringSliceAsFuncImpl(getDefaultRetryableErrors, extensions.TrackInclude, terragruntOptions),
-		"read_tfvars_file":                             wrapStringSliceToStringAsFuncImpl(readTFVarsFile, extensions.TrackInclude, terragruntOptions),
-	}
+		FuncNameFindInParentFolders:                     wrapStringSliceToStringAsFuncImpl(findInParentFolders, extensions.TrackInclude, terragruntOptions),
+		FuncNamePathRelativeToInclude:                   wrapStringSliceToStringAsFuncImpl(pathRelativeToInclude, extensions.TrackInclude, terragruntOptions),
+		FuncNamePathRelativeFromInclude:                 wrapStringSliceToStringAsFuncImpl(pathRelativeFromInclude, extensions.TrackInclude, terragruntOptions),
+		FuncNameGetEnv:                                  wrapStringSliceToStringAsFuncImpl(getEnvironmentVariable, extensions.TrackInclude, terragruntOptions),
+		FuncNameRunCmd:                                  wrapStringSliceToStringAsFuncImpl(runCommand, extensions.TrackInclude, terragruntOptions),
+		FuncNameReadTerragruntConfig:                    readTerragruntConfigAsFuncImpl(terragruntOptions),
+		FuncNameGetPlatform:                             wrapVoidToStringAsFuncImpl(getPlatform, extensions.TrackInclude, terragruntOptions),
+		FuncNameGetRepoRoot:                             wrapVoidToStringAsFuncImpl(getRepoRoot, extensions.TrackInclude, terragruntOptions),
+		FuncNameGetPathFromRepoRoot:                     wrapVoidToStringAsFuncImpl(getPathFromRepoRoot, extensions.TrackInclude, terragruntOptions),
+		FuncNameGetPathToRepoRoot:                       wrapVoidToStringAsFuncImpl(getPathToRepoRoot, extensions.TrackInclude, terragruntOptions),
+		FuncNameGetTerragruntDir:                        wrapVoidToStringAsFuncImpl(getTerragruntDir, extensions.TrackInclude, terragruntOptions),
+		FuncNameGetOriginalTerragruntDir:                wrapVoidToStringAsFuncImpl(getOriginalTerragruntDir, extensions.TrackInclude, terragruntOptions),
+		FuncNameGetTerraformCommand:                     wrapVoidToStringAsFuncImpl(getTerraformCommand, extensions.TrackInclude, terragruntOptions),
+		FuncNameGetTerraformCLIArgs:                     wrapVoidToStringSliceAsFuncImpl(getTerraformCliArgs, extensions.TrackInclude, terragruntOptions),
+		FuncNameGetParentTerragruntDir:                  wrapStringSliceToStringAsFuncImpl(getParentTerragruntDir, extensions.TrackInclude, terragruntOptions),
+		FuncNameGetAWSAccountID:                         wrapVoidToStringAsFuncImpl(getAWSAccountID, extensions.TrackInclude, terragruntOptions),
+		FuncNameGetAWSCallerIdentityArn:                 wrapVoidToStringAsFuncImpl(getAWSCallerIdentityARN, extensions.TrackInclude, terragruntOptions),
+		FuncNameGetAWSCallerIdentityUserID:              wrapVoidToStringAsFuncImpl(getAWSCallerIdentityUserID, extensions.TrackInclude, terragruntOptions),
+		FuncNameGetTerraformCommandsThatNeedVars:        wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_VARS),
+		FuncNameGetTerraformCommandsThatNeedLocking:     wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_LOCKING),
+		FuncNameGetTerraformCommandsThatNeedInput:       wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_INPUT),
+		FuncNameGetTerraformCommandsThatNeedParallelism: wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_PARALLELISM),
+		FuncNameSopsDecryptFile:                         wrapStringSliceToStringAsFuncImpl(sopsDecryptFile, extensions.TrackInclude, terragruntOptions),
+		FuncNameGetTerragruntSourceCLIFlag:              wrapVoidToStringAsFuncImpl(getTerragruntSourceCliFlag, extensions.TrackInclude, terragruntOptions),
+		FuncNameGetDefaultRetryableErrors:               wrapVoidToStringSliceAsFuncImpl(getDefaultRetryableErrors, extensions.TrackInclude, terragruntOptions),
+		FuncNameReadTfvarsFile:                          wrapStringSliceToStringAsFuncImpl(readTFVarsFile, extensions.TrackInclude, terragruntOptions),
+		FuncNameGetWorkingDir:                           wrapVoidToStringAsFuncImpl(getWorkingDir, extensions.TrackInclude, terragruntOptions),
 
-	// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
-	// https://github.com/gruntwork-io/terragrunt/blob/master/go.mod#L22
-	terraformCompatibilityFunctions := map[string]function.Function{
-		"startswith":  wrapStringSliceToBoolAsFuncImpl(startsWith, extensions.TrackInclude, terragruntOptions),
-		"endswith":    wrapStringSliceToBoolAsFuncImpl(endsWith, extensions.TrackInclude, terragruntOptions),
-		"strcontains": wrapStringSliceToBoolAsFuncImpl(strContains, extensions.TrackInclude, terragruntOptions),
-		"timecmp":     wrapStringSliceToNumberAsFuncImpl(timeCmp, extensions.TrackInclude, terragruntOptions),
+		// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
+		// https://github.com/gruntwork-io/terragrunt/blob/master/go.mod#L22
+		FuncNameStartsWith:  wrapStringSliceToBoolAsFuncImpl(startsWith, extensions.TrackInclude, terragruntOptions),
+		FuncNameEndsWith:    wrapStringSliceToBoolAsFuncImpl(endsWith, extensions.TrackInclude, terragruntOptions),
+		FuncNameStrContains: wrapStringSliceToBoolAsFuncImpl(strContains, extensions.TrackInclude, terragruntOptions),
+		FuncNameTimeCmp:     wrapStringSliceToNumberAsFuncImpl(timeCmp, extensions.TrackInclude, terragruntOptions),
 	}
 
 	functions := map[string]function.Function{}
@@ -165,7 +210,7 @@ func CreateTerragruntEvalContext(
 	for k, v := range terragruntFunctions {
 		functions[k] = v
 	}
-	for k, v := range terraformCompatibilityFunctions {
+	for k, v := range extensions.PredefinedFunctions {
 		functions[k] = v
 	}
 
@@ -176,6 +221,7 @@ func CreateTerragruntEvalContext(
 	if extensions.Locals != nil {
 		ctx.Variables["local"] = *extensions.Locals
 	}
+
 	if extensions.DecodedDependencies != nil {
 		ctx.Variables["dependency"] = *extensions.DecodedDependencies
 	}
@@ -189,6 +235,34 @@ func CreateTerragruntEvalContext(
 		ctx.Variables["include"] = exposedInclude
 	}
 	return ctx, nil
+}
+
+// getBlock takes a parsed HCL file and extracts a reference to the `name` block, if there are defined.
+func getBlock(hclFile *hcl.File, name string, isMultipleAllowed bool) ([]*hcl.Block, hcl.Diagnostics) {
+	catalogSchema := &hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{
+			{Type: name},
+		},
+	}
+	// We use PartialContent here, because we are only interested in parsing out the catalog block.
+	parsed, _, diags := hclFile.Body.PartialContent(catalogSchema)
+	extractedBlocks := []*hcl.Block{}
+	for _, block := range parsed.Blocks {
+		if block.Type == name {
+			extractedBlocks = append(extractedBlocks, block)
+		}
+	}
+
+	if len(extractedBlocks) > 1 && !isMultipleAllowed {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  fmt.Sprintf("Multiple %s block", name),
+			Detail:   fmt.Sprintf(multipleBlockDetailFmt, name),
+		})
+		return nil, diags
+	}
+
+	return extractedBlocks, diags
 }
 
 // Return the OS platform
@@ -415,10 +489,14 @@ func findInParentFolders(
 			return "", errors.WithStackTrace(ParentFileNotFound{Path: terragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: "Traversed all the way to the root"})
 		}
 
-		fileToFind := GetDefaultConfigPath(currentDir)
+		fileToFind := currentDir
+
 		if fileToFindParam != "" {
 			fileToFind = util.JoinPath(currentDir, fileToFindParam)
 		}
+
+		// if `fileToFind` is dir, append default config filename `terragrunt.hcl`
+		fileToFind = GetDefaultConfigPath(fileToFind)
 
 		if util.FileExists(fileToFind) {
 			return fileToFind, nil
@@ -490,6 +568,45 @@ func pathRelativeFromInclude(params []string, trackInclude *TrackInclude, terrag
 // getTerraformCommand returns the current terraform command in execution
 func getTerraformCommand(trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (string, error) {
 	return terragruntOptions.TerraformCommand, nil
+}
+
+// getWorkingDir returns the current working dir
+func getWorkingDir(trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (string, error) {
+	terragruntOptions.Logger.Debugf("Start processing get_working_dir built-in function")
+	defer terragruntOptions.Logger.Debugf("Complete processing get_working_dir built-in function")
+
+	configString, err := util.ReadFileAsString(terragruntOptions.TerragruntConfigPath)
+	if err != nil {
+		return "", err
+	}
+
+	// Initialize evaluation context extensions from base blocks.
+	contextExtensions := &EvalContextExtensions{
+		PredefinedFunctions: map[string]function.Function{
+			FuncNameGetWorkingDir: wrapVoidToEmptyStringAsFuncImpl(),
+		},
+	}
+
+	terragruntConfig, err := ParseConfigString(configString, terragruntOptions, nil, terragruntOptions.TerragruntConfigPath, contextExtensions)
+	if err != nil {
+		return "", err
+	}
+
+	sourceUrl, err := GetTerraformSourceUrl(terragruntOptions, terragruntConfig)
+	if err != nil {
+		return "", err
+	}
+
+	if sourceUrl == "" {
+		return terragruntOptions.WorkingDir, nil
+	}
+
+	source, err := terraform.NewSource(sourceUrl, terragruntOptions.DownloadDir, terragruntOptions.WorkingDir, terragruntOptions.Logger)
+	if err != nil {
+		return "", err
+	}
+
+	return source.WorkingDir, nil
 }
 
 // getTerraformCliArgs returns cli args for terraform

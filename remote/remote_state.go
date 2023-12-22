@@ -4,6 +4,7 @@ package remote
 import (
 	"fmt"
 	"reflect"
+	"sync"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/codegen"
@@ -19,6 +20,14 @@ type RemoteState struct {
 	Generate                      *RemoteStateGenerate
 	Config                        map[string]interface{}
 }
+
+// map to store mutexes for each state bucket action
+type stateAccess struct {
+	mapAccess   sync.Mutex
+	bucketLocks map[string]*sync.Mutex
+}
+
+var stateAccessLock = newStateAccess()
 
 func (remoteState *RemoteState) String() string {
 	return fmt.Sprintf("RemoteState{Backend = %v, DisableInit = %v, DisableDependencyOptimization = %v, Generate = %v, Config = %v}", remoteState.Backend, remoteState.DisableInit, remoteState.DisableDependencyOptimization, remoteState.Generate, remoteState.Config)
@@ -214,4 +223,36 @@ type BucketCreationNotAllowed string
 
 func (bucketName BucketCreationNotAllowed) Error() string {
 	return fmt.Sprintf("Creation of remote state bucket %s is not allowed", string(bucketName))
+}
+
+func newStateAccess() *stateAccess {
+	return &stateAccess{
+		bucketLocks: make(map[string]*sync.Mutex),
+	}
+}
+
+// fetchMutex - fetch mutex for specific bucket.
+func (locks *stateAccess) fetchMutex(bucket string) *sync.Mutex {
+	// only one go routine can access mutex map.
+	locks.mapAccess.Lock()
+	defer locks.mapAccess.Unlock()
+
+	if locks.bucketLocks == nil {
+		locks.bucketLocks = make(map[string]*sync.Mutex)
+	}
+
+	if _, ok := locks.bucketLocks[bucket]; !ok {
+		locks.bucketLocks[bucket] = &sync.Mutex{}
+	}
+
+	return locks.bucketLocks[bucket]
+}
+
+// StateBucketUpdate - run state bucket initialization logic, maintaining a single logic execution per bucket simultaneously.
+func (locks *stateAccess) StateBucketUpdate(bucket string, logic func() error) error {
+	mutex := locks.fetchMutex(bucket)
+
+	mutex.Lock()
+	defer mutex.Unlock()
+	return logic()
 }
