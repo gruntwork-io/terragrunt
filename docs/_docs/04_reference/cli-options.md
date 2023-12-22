@@ -1040,7 +1040,7 @@ When this flag is set, Terragrunt will not validate the terraform command, which
 **CLI Arg**: `--terragrunt-json-log`
 **Environment Variable**: `TERRAGRUNT_JSON_LOG` (set to `true`)
 
-When this flag is set, Terragrunt will output logs in JSON format.
+When this flag is set, Terragrunt will output its logs in JSON format.
 
 ### terragrunt-tf-logs-to-json
 
