@@ -1047,4 +1047,4 @@ When this flag is set, Terragrunt will output logs in JSON format.
 **CLI Arg**: `--terragrunt-tf-logs-to-json`
 **Environment Variable**: `TERRAGRUNT_TF_JSON_LOG` (set to `true`)
 
-When this flag is set, Terragrunt will wrap Terraform output in JSON log messages, works only with `--terragrunt-json-log` flag.
+When this flag is set, Terragrunt will wrap Terraform `stdout` and `stderr` in JSON log messages. Works only with `--terragrunt-json-log` flag.
