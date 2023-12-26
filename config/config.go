@@ -7,6 +7,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/zclconf/go-cty/cty/gocty"
@@ -471,6 +472,8 @@ func (conf *TerraformExtraArguments) GetVarFiles(logger *logrus.Entry) []string 
 		}
 	}
 
+	// sort variable files to get consistent errors
+	sort.Strings(varFiles)
 	return varFiles
 }
 
