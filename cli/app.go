@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	destroy_graph "github.com/gruntwork-io/terragrunt/cli/commands/destroy-graph"
+
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -80,6 +82,7 @@ func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 		outputmodulegroups.NewCommand(opts), // output-module-groups
 		catalog.NewCommand(opts),            // catalog
 		scaffold.NewCommand(opts),           // scaffold
+		destroy_graph.NewCommand(opts),      // destroy-graph
 	}
 
 	sort.Sort(cmds)
