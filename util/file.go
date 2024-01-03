@@ -364,7 +364,7 @@ func TerragruntExcludes(path string) bool {
 	if filepath.Base(path) == TerraformLockFile {
 		return false
 	}
-	pathParts := strings.Split(path, filepath.ToSlash(string(filepath.Separator)))
+	pathParts := strings.Split(path, string(filepath.Separator))
 	for _, pathPart := range pathParts {
 		if strings.HasPrefix(pathPart, ".") && pathPart != "." && pathPart != ".." {
 			return true
