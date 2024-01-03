@@ -75,6 +75,7 @@ jobs:
             go test -v ./... -run TestCanonicalPath -timeout 45m
             go test -v ./... -run TestJoinTerraformModulePath -timeout 45m
             go test -v ./... -run TestIncludeInCopy -timeout 45m
+            go test -v ./... -tag windows -timeout 45m
       - run:
           name: Run go tofu tests
           shell: powershell.exe
@@ -89,6 +90,7 @@ jobs:
             go test -v ./... -run TestCanonicalPath -timeout 45m
             go test -v ./... -run TestJoinTerraformModulePath -timeout 45m
             go test -v ./... -run TestIncludeInCopy -timeout 45m
+            go test -v ./... -tag windows -timeout 45m
   # We're running unit tests separately from integration tests - with no parallelization.
   # With heavy parallelization coupled with re-use of test fixtures we've witnessed slight
   # instability with the tests. The unit tests are fast to execute, so there is negligible
@@ -223,6 +225,46 @@ jobs:
           command: |
             mkdir -p logs
             run-go-tests --packages "-tags tflint -run TestTflint ./test" | tee logs/integration.log
+          no_output_timeout: 30m
+      - run:
+          command: terratest_log_parser --testlog logs/integration.log --outputdir logs
+          when: always
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
+  integration_test_terraform:
+    resource_class: large
+    <<: *defaults
+    steps:
+      - checkout
+      - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.30.0'
+      - run:
+          <<: *install_tflint
+
+      - run:
+          # Install Terraform 1.6 for integration tests
+          command: |
+            pushd .
+            cd /tmp
+            curl -L "https://releases.hashicorp.com/terraform/1.6.2/terraform_1.6.2_linux_amd64.zip" -o terraform.zip
+            unzip -o terraform.zip
+            sudo install -m 0755 terraform /usr/local/bin/terraform
+            rm -rf terraform
+            rm -rf terraform.zip
+            popd
+            terraform --version
+
+      # Make GCP Service Account creds available as a file
+      - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
+      - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
+      # Import test / dev key for SOPS
+      - run:
+          command: |
+            gpg --import --no-tty --batch --yes ./test/fixture-sops/test_pgp_key.asc
+            mkdir -p logs
+            run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
           no_output_timeout: 30m
       - run:
           command: terratest_log_parser --testlog logs/integration.log --outputdir logs
