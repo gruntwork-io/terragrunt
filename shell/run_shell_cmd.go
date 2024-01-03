@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -96,8 +95,7 @@ func RunShellCommandWithOutput(
 		defer terraformInitMutex.Unlock()
 		terraformInitMutex.Lock()
 	}
-	// transform path to native
-	command = filepath.Join(command)
+
 	terragruntOptions.Logger.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 	if suppressStdout {
 		terragruntOptions.Logger.Debugf("Command output will be suppressed.")
