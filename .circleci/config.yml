@@ -75,7 +75,7 @@ jobs:
             go test -v ./... -run TestCanonicalPath -timeout 45m
             go test -v ./... -run TestJoinTerraformModulePath -timeout 45m
             go test -v ./... -run TestIncludeInCopy -timeout 45m
-            go test -v ./... -tags windows -timeout 45m
+            go test -tags windows -v ./test -timeout 45m
       - run:
           name: Run go tofu tests
           shell: powershell.exe
@@ -90,7 +90,7 @@ jobs:
             go test -v ./... -run TestCanonicalPath -timeout 45m
             go test -v ./... -run TestJoinTerraformModulePath -timeout 45m
             go test -v ./... -run TestIncludeInCopy -timeout 45m
-            go test -v ./... -tags windows -timeout 45m
+            go test -tags windows -v ./test -timeout 45m
   # We're running unit tests separately from integration tests - with no parallelization.
   # With heavy parallelization coupled with re-use of test fixtures we've witnessed slight
   # instability with the tests. The unit tests are fast to execute, so there is negligible
