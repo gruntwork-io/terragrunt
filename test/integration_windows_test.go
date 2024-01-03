@@ -19,6 +19,7 @@ import (
 
 const (
 	TEST_FIXTURE_LOCAL_RELATIVE_ARGS_WINDOWS_DOWNLOAD_PATH = "fixture-download/local-relative-extra-args-windows"
+	TEST_FIXTURE_FIND_PARENT                               = "fixture-find-parent"
 )
 
 func TestWindowsLocalWithRelativeExtraArgsWindows(t *testing.T) {
@@ -85,6 +86,17 @@ func TestWindowsTflintIsInvoked(t *testing.T) {
 	found, err := regexp.MatchString(fmt.Sprintf("--config %s/.terragrunt-cache/.*/.tflint.hcl", modulePath), errOut.String())
 	assert.NoError(t, err)
 	assert.True(t, found)
+}
+
+func TestWindowsFindParent(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_FIND_PARENT)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all plan --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_FIND_PARENT))
+
+	// second run shouldn't fail with find_in_parent_folders() issue
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_FIND_PARENT))
 }
 
 func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
