@@ -16,6 +16,7 @@ include "vpc_dep" {
 
 dependency "vpc" {
   config_path = "../vpc"
+  mock_outputs_allowed_terraform_commands = ["apply", "output"]
   mock_outputs = {
     attribute     = "mock"
     old_attribute = "old val"
