@@ -364,7 +364,7 @@ func TerragruntExcludes(path string) bool {
 	if filepath.Base(path) == TerraformLockFile {
 		return false
 	}
-	pathParts := strings.Split(path, string(filepath.Separator))
+	pathParts := strings.Split(path, filepath.ToSlash(string(filepath.Separator)))
 	for _, pathPart := range pathParts {
 		if strings.HasPrefix(pathPart, ".") && pathPart != "." && pathPart != ".." {
 			return true
@@ -405,7 +405,7 @@ func JoinPath(elem ...string) string {
 // E.g. "/foo/bar/boo.txt" -> ["", "foo", "bar", "boo.txt"]
 // Notice that if path is absolute the resulting list will begin with an empty string.
 func SplitPath(path string) []string {
-	return strings.Split(CleanPath(path), string(filepath.Separator))
+	return strings.Split(CleanPath(path), filepath.ToSlash(string(filepath.Separator)))
 }
 
 // Use this function when cleaning paths to ensure the returned path uses / as the path separator to improve cross-platform compatibility
