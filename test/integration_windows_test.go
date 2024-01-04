@@ -19,6 +19,7 @@ import (
 
 const (
 	TEST_FIXTURE_LOCAL_RELATIVE_ARGS_WINDOWS_DOWNLOAD_PATH = "fixture-download/local-relative-extra-args-windows"
+	TEST_FIXTURE_MANIFEST_REMOVAL                          = "fixture-manifest-removal"
 )
 
 func TestWindowsLocalWithRelativeExtraArgsWindows(t *testing.T) {
@@ -85,6 +86,25 @@ func TestWindowsTflintIsInvoked(t *testing.T) {
 	found, err := regexp.MatchString(fmt.Sprintf("--config %s/.terragrunt-cache/.*/.tflint.hcl", modulePath), errOut.String())
 	assert.NoError(t, err)
 	assert.True(t, found)
+}
+
+func TestWindowsManifestFileIsRemoved(t *testing.T) {
+	out := new(bytes.Buffer)
+	errOut := new(bytes.Buffer)
+	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_MANIFEST_REMOVAL)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_MANIFEST_REMOVAL, "app")
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", modulePath), out, errOut)
+	fmt.Printf(" out: \n%v\n", out.String())
+	fmt.Printf(" errOut: \n%v\n", errOut.String())
+	assert.NoError(t, err)
+
+	out = new(bytes.Buffer)
+	errOut = new(bytes.Buffer)
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", modulePath), out, errOut)
+	fmt.Printf(" out: \n%v\n", out.String())
+	fmt.Printf(" errOut: \n%v\n", errOut.String())
+	assert.NoError(t, err)
+
 }
 
 func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {

@@ -496,6 +496,15 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 		return err
 	}
 	defer file.Close()
+	//// cleaning manifest file
+	//defer func(name string) {
+	//	if err := file.Close(); err != nil {
+	//		GlobalFallbackLogEntry.Warnf("Error closing file %s: %v", name, err)
+	//	}
+	//	if err := os.Remove(name); err != nil {
+	//		GlobalFallbackLogEntry.Warnf("Error removing manifest file %s: %v", name, err)
+	//	}
+	//}(manifestPath)
 	decoder := gob.NewDecoder(file)
 	// decode paths one by one
 	for {
