@@ -495,16 +495,15 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
-	//// cleaning manifest file
-	//defer func(name string) {
-	//	if err := file.Close(); err != nil {
-	//		GlobalFallbackLogEntry.Warnf("Error closing file %s: %v", name, err)
-	//	}
-	//	if err := os.Remove(name); err != nil {
-	//		GlobalFallbackLogEntry.Warnf("Error removing manifest file %s: %v", name, err)
-	//	}
-	//}(manifestPath)
+	// cleaning manifest file
+	defer func(name string) {
+		if err := file.Close(); err != nil {
+			GlobalFallbackLogEntry.Warnf("Error closing file %s: %v", name, err)
+		}
+		if err := os.Remove(name); err != nil {
+			GlobalFallbackLogEntry.Warnf("Error removing manifest file %s: %v", name, err)
+		}
+	}(manifestPath)
 	decoder := gob.NewDecoder(file)
 	// decode paths one by one
 	for {
@@ -528,15 +527,6 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 			}
 		}
 	}
-	// remove the manifest itself
-	// it will run after the close defer
-	defer func(name string) {
-		err := os.Remove(name)
-		if err != nil {
-			GlobalFallbackLogEntry.Warnf("Error removing manifest file %s: %v", name, err)
-		}
-	}(manifestPath)
-
 	return nil
 }
 

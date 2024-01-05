@@ -94,17 +94,41 @@ func TestWindowsManifestFileIsRemoved(t *testing.T) {
 	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_MANIFEST_REMOVAL)
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_MANIFEST_REMOVAL, "app")
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", modulePath), out, errOut)
-	fmt.Printf(" out: \n%v\n", out.String())
-	fmt.Printf(" errOut: \n%v\n", errOut.String())
 	assert.NoError(t, err)
+
+	info1, err := fileInfo(modulePath, ".terragrunt-module-manifest")
+	assert.NoError(t, err)
+	assert.NotNil(t, info1)
 
 	out = new(bytes.Buffer)
 	errOut = new(bytes.Buffer)
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", modulePath), out, errOut)
-	fmt.Printf(" out: \n%v\n", out.String())
-	fmt.Printf(" errOut: \n%v\n", errOut.String())
 	assert.NoError(t, err)
 
+	info2, err := fileInfo(modulePath, ".terragrunt-module-manifest")
+	assert.NoError(t, err)
+	assert.NotNil(t, info2)
+
+	// ensure that .terragrunt-module-manifest was recreated
+	assert.True(t, (*info2).ModTime().After((*info1).ModTime()))
+}
+
+func fileInfo(path, fileName string) (*os.FileInfo, error) {
+	var fileInfo *os.FileInfo
+	err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+		if fileInfo != nil {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && info.Name() == fileName {
+			fileInfo = &info
+			return nil
+		}
+		return nil
+	})
+	return fileInfo, err
 }
 
 func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
