@@ -2,7 +2,6 @@ package config
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,7 +18,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 	curDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	basePath := filepath.Join(curDir, "testdata/fixture-catalog")
+	basePath := filepath.Join(curDir, "../test/fixture-catalog")
 
 	testCases := []struct {
 		configPath     string
@@ -46,40 +45,59 @@ func TestCatalogParseConfigFile(t *testing.T) {
 		},
 		{
 			filepath.Join(basePath, "config3.hcl"),
-			nil,
-			errors.New(filepath.Join(basePath, "config3.hcl") + `:1,9-9: Missing required argument; The argument "urls" is required, but no definition was found.`),
-		},
-		{
-			filepath.Join(basePath, "complex/folder-with-terragrunt-hcl/terragrunt.hcl"),
-			&CatalogConfig{
-				URLs: []string{
-					"https://github.com/gruntwork-io/terraform-aws-utilities",
-				},
-			},
-			nil,
-		},
-		{
-			filepath.Join(basePath, "complex/folder-with-terragrunt-hcl/different-name.hcl"),
-			&CatalogConfig{
-				URLs: []string{
-					"https://github.com/gruntwork-io/terraform-aws-utilities",
-				},
-			},
+			&CatalogConfig{},
 			nil,
 		},
 		{
 			filepath.Join(basePath, "complex/terragrunt.hcl"),
 			&CatalogConfig{
 				URLs: []string{
+					filepath.Join(basePath, "complex/dev/us-west-1/modules/terraform-aws-eks"),
+					"./terraform-aws-service-catalog",
 					"https://github.com/gruntwork-io/terraform-aws-utilities",
 				},
 			},
 			nil,
 		},
 		{
-			filepath.Join(basePath, "complex/folder-with-terragrunt-hcl/deeper/terragrunt.hcl"),
+			filepath.Join(basePath, "complex/dev/terragrunt.hcl"),
 			&CatalogConfig{
 				URLs: []string{
+					filepath.Join(basePath, "complex/dev/us-west-1/modules/terraform-aws-eks"),
+					"./terraform-aws-service-catalog",
+					"https://github.com/gruntwork-io/terraform-aws-utilities",
+				},
+			},
+			nil,
+		},
+		{
+			filepath.Join(basePath, "complex/dev/us-west-1/terragrunt.hcl"),
+			&CatalogConfig{
+				URLs: []string{
+					filepath.Join(basePath, "complex/dev/us-west-1/modules/terraform-aws-eks"),
+					"./terraform-aws-service-catalog",
+					"https://github.com/gruntwork-io/terraform-aws-utilities",
+				},
+			},
+			nil,
+		},
+		{
+			filepath.Join(basePath, "complex/dev/us-west-1/modules/terragrunt.hcl"),
+			&CatalogConfig{
+				URLs: []string{
+					filepath.Join(basePath, "complex/dev/us-west-1/modules/terraform-aws-eks"),
+					"./terraform-aws-service-catalog",
+					"https://github.com/gruntwork-io/terraform-aws-utilities",
+				},
+			},
+			nil,
+		},
+		{
+			filepath.Join(basePath, "complex/prod/terragrunt.hcl"),
+			&CatalogConfig{
+				URLs: []string{
+					filepath.Join(basePath, "complex/dev/us-west-1/modules/terraform-aws-eks"),
+					"./terraform-aws-service-catalog",
 					"https://github.com/gruntwork-io/terraform-aws-utilities",
 				},
 			},

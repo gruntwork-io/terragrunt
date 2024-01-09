@@ -21,10 +21,7 @@ import (
 const bareIncludeKey = ""
 
 // Parse the config of the given include, if one is specified
-func parseIncludedConfig(
-	ctx Context,
-	includedConfig *IncludeConfig,
-) (*TerragruntConfig, error) {
+func parseIncludedConfig(ctx *Context, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
 		return nil, errors.WithStackTrace(IncludedConfigMissingPathError(ctx.TerragruntOptions.TerragruntConfigPath))
 	}
@@ -97,10 +94,7 @@ func parseIncludedConfig(
 
 // handleInclude merges the included config into the current config depending on the merge strategy specified by the
 // user.
-func handleInclude(
-	ctx Context,
-	config *TerragruntConfig,
-) (*TerragruntConfig, error) {
+func handleInclude(ctx *Context, config *TerragruntConfig) (*TerragruntConfig, error) {
 	if ctx.TrackInclude == nil {
 		return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_NIL_INCLUDE_CONFIG")
 	}
@@ -145,11 +139,7 @@ func handleInclude(
 
 // handleIncludePartial merges the a partially parsed include config into the child config according to the strategy
 // specified by the user.
-func handleIncludePartial(
-	ctx Context,
-	file *hclparser.File,
-	config *TerragruntConfig,
-) (*TerragruntConfig, error) {
+func handleIncludePartial(ctx *Context, file *hclparser.File, config *TerragruntConfig) (*TerragruntConfig, error) {
 	if ctx.TrackInclude == nil {
 		return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_PARTIAL_NIL_INCLUDE_CONFIG")
 	}
@@ -196,11 +186,7 @@ func handleIncludePartial(
 // dependency block configurations between the included config and the child config. This allows us to merge the two
 // dependencies prior to retrieving the outputs, allowing you to have partial configuration that is overridden by a
 // child.
-func handleIncludeForDependency(
-	ctx Context,
-	configPath string,
-	childDecodedDependency terragruntDependency,
-) (*terragruntDependency, error) {
+func handleIncludeForDependency(ctx *Context, configPath string, childDecodedDependency terragruntDependency) (*terragruntDependency, error) {
 	if ctx.TrackInclude == nil {
 		return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_DEPENDENCY_NIL_INCLUDE_CONFIG")
 	}
@@ -675,11 +661,7 @@ func mergeErrorHooks(terragruntOptions *options.TerragruntOptions, childHooks []
 // getTrackInclude converts the terragrunt include blocks into TrackInclude structs that differentiate between an
 // included config in the current parsing ctx, and an included config that was passed through from a previous
 // parsing ctx.
-func getTrackInclude(
-	ctx Context,
-	terragruntIncludeList []IncludeConfig,
-	includeFromChild *IncludeConfig,
-) (*TrackInclude, error) {
+func getTrackInclude(ctx *Context, terragruntIncludeList []IncludeConfig, includeFromChild *IncludeConfig) (*TrackInclude, error) {
 	includedPaths := []string{}
 	terragruntIncludeMap := make(map[string]IncludeConfig, len(terragruntIncludeList))
 	for _, tgInc := range terragruntIncludeList {
@@ -723,31 +705,43 @@ func getTrackInclude(
 //
 // Returns the updated contents, a boolean indicated whether anything changed, and an error (if any).
 func updateBareIncludeBlock(file *hclparser.File) error {
-	if filepath.Ext(file.ConfigPath) == ".json" {
-		return file.Update(file.Bytes)
-	}
+	var (
+		codeWasUpdated bool
+		content        []byte
+		err            error
+	)
 
-	hclFile, diags := hclwrite.ParseConfig(file.Bytes, file.ConfigPath, hcl.InitialPos)
-	if diags.HasErrors() {
-		return errors.WithStackTrace(diags)
-	}
-
-	codeWasUpdated := false
-	for _, block := range hclFile.Body().Blocks() {
-		if block.Type() == MetadataInclude && len(block.Labels()) == 0 {
-			if codeWasUpdated {
-				return errors.WithStackTrace(MultipleBareIncludeBlocksErr{})
-			}
-			block.SetLabels([]string{bareIncludeKey})
-			codeWasUpdated = true
+	switch filepath.Ext(file.ConfigPath) {
+	case ".json":
+		content, codeWasUpdated, err = updateBareIncludeBlockJSON(file.Bytes)
+		if err != nil {
+			return err
 		}
+	default:
+		hclFile, diags := hclwrite.ParseConfig(file.Bytes, file.ConfigPath, hcl.InitialPos)
+		if diags.HasErrors() {
+			return errors.WithStackTrace(diags)
+		}
+
+		for _, block := range hclFile.Body().Blocks() {
+			if block.Type() == MetadataInclude && len(block.Labels()) == 0 {
+				if codeWasUpdated {
+					return errors.WithStackTrace(MultipleBareIncludeBlocksErr{})
+				}
+
+				block.SetLabels([]string{bareIncludeKey})
+				codeWasUpdated = true
+			}
+		}
+
+		content = hclFile.Bytes()
 	}
 
-	if codeWasUpdated {
-		return file.Update(hclFile.Bytes())
+	if !codeWasUpdated {
+		return nil
 	}
 
-	return nil
+	return file.Update(content)
 }
 
 // updateBareIncludeBlockJSON implements the logic for updateBareIncludeBlock when the terragrunt.hcl configuration is

@@ -22,7 +22,7 @@ const MaxIter = 1000
 //
 // This returns a map of the local names to the evaluated expressions (represented as `cty.Value` objects). This will
 // error if there are remaining unevaluated locals after all references that can be evaluated has been evaluated.
-func evaluateLocalsBlock(ctx Context, file *hclparser.File) (map[string]cty.Value, error) {
+func evaluateLocalsBlock(ctx *Context, file *hclparser.File) (map[string]cty.Value, error) {
 	localsBlock, err := file.Blocks(MetadataLocals, false)
 	if err != nil {
 		return nil, err
@@ -85,7 +85,7 @@ func evaluateLocalsBlock(ctx Context, file *hclparser.File) (map[string]cty.Valu
 // - whether or not any locals were evaluated in this attempt
 // - any errors from the evaluation
 func attemptEvaluateLocals(
-	ctx Context,
+	ctx *Context,
 	file *hclparser.File,
 	attrs hclparser.Attributes,
 	evaluatedLocals map[string]cty.Value,
@@ -142,9 +142,7 @@ func attemptEvaluateLocals(
 // - It has references to other locals that have already been evaluated.
 // Note that the second return value is a human friendly reason for why the expression can not be evaluated, and is
 // useful for error reporting.
-func canEvaluateLocals(expression hcl.Expression,
-	evaluatedLocals map[string]cty.Value,
-) (bool, string) {
+func canEvaluateLocals(expression hcl.Expression, evaluatedLocals map[string]cty.Value) (bool, string) {
 	vars := expression.Variables()
 	if len(vars) == 0 {
 		// If there are no local variable references, we can evaluate this expression.

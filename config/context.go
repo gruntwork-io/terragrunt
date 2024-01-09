@@ -38,63 +38,32 @@ type Context struct {
 
 	ParserOptions []hclparser.Option
 
-	ConvertToTerragruntConfigFunc func(ctx Context, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
+	ConvertToTerragruntConfigFunc func(ctx *Context, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
 }
 
-func NewContext(ctx context.Context, opts *options.TerragruntOptions) Context {
-	return Context{
+func NewContext(ctx context.Context, opts *options.TerragruntOptions) *Context {
+	return &Context{
 		Context:           ctx,
 		TerragruntOptions: opts,
 		ParserOptions:     DefaultParserOptions(opts),
 	}
 }
-func (ctx Context) WithDecodeList(decodeList ...PartialDecodeSectionType) Context {
+func (ctx Context) WithDecodeList(decodeList ...PartialDecodeSectionType) *Context {
 	ctx.PartialParseDecodeList = decodeList
-	return ctx
+	return &ctx
 }
 
-func (ctx Context) WithTerragruntOptions(opts *options.TerragruntOptions) Context {
+func (ctx Context) WithTerragruntOptions(opts *options.TerragruntOptions) *Context {
 	ctx.TerragruntOptions = opts
-	return ctx
+	return &ctx
 }
 
-// DecodeBaseBlocks takes in a parsed HCL2 file and decodes the base blocks. Base blocks are blocks that should always
-// be decoded even in partial decoding, because they provide bindings that are necessary for parsing any block in the
-// file. Currently base blocks are:
-// - locals
-// - include
-func (ctx Context) DecodeBaseBlocks(file *hclparser.File, includeFromChild *IncludeConfig) (Context, error) {
-	evalContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
-	if err != nil {
-		return ctx, err
-	}
+func (ctx Context) WithLocals(locals *cty.Value) *Context {
+	ctx.Locals = locals
+	return &ctx
+}
 
-	// Decode just the `include` and `import` blocks, and verify that it's allowed here
-	terragruntIncludeList, err := decodeAsTerragruntInclude(
-		file,
-		evalContext,
-	)
-	if err != nil {
-		return ctx, err
-	}
-
-	ctx.TrackInclude, err = getTrackInclude(ctx, terragruntIncludeList, includeFromChild)
-	if err != nil {
-		return ctx, err
-	}
-
-	// Evaluate all the expressions in the locals block separately and generate the variables list to use in the
-	// evaluation ctx.
-	locals, err := evaluateLocalsBlock(ctx, file)
-	if err != nil {
-		return ctx, err
-	}
-
-	localsAsCtyVal, err := convertValuesMapToCtyVal(locals)
-	if err != nil {
-		return ctx, err
-	}
-	ctx.Locals = &localsAsCtyVal
-
-	return ctx, nil
+func (ctx Context) WithTrackInclude(trackInclude *TrackInclude) *Context {
+	ctx.TrackInclude = trackInclude
+	return &ctx
 }

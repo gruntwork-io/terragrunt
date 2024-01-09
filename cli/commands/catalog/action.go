@@ -33,9 +33,6 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, repoURL string) e
 		if config != nil && len(config.URLs) > 0 {
 			repoURLs = config.URLs
 		}
-
-		fmt.Println("----------", repoURLs)
-		os.Exit(1)
 	}
 
 	repoURLs = util.RemoveDuplicatesFromList(repoURLs)

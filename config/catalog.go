@@ -68,7 +68,7 @@ func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOption
 
 	ctx := NewContext(parentCtx, opts)
 	ctx.ParserOptions = append(ctx.ParserOptions, hclparser.WithHaltOnErrorOnlyForBlocks([]string{MetadataCatalog}))
-	ctx.ConvertToTerragruntConfigFunc = func(ctx Context, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
+	ctx.ConvertToTerragruntConfigFunc = func(ctx *Context, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
 		var (
 			terragruntConfig = &TerragruntConfig{}
 			defaultMetadata  = map[string]interface{}{FoundInFile: configPath}

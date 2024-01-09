@@ -668,7 +668,7 @@ func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*Terrag
 
 // Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
-func ParseConfigFile(ctx Context, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
+func ParseConfigFile(ctx *Context, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
 	file, err := hclparser.New().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
 	if err != nil {
@@ -683,7 +683,7 @@ func ParseConfigFile(ctx Context, configPath string, includeFromChild *IncludeCo
 	return config, nil
 }
 
-func ParseConfigString(ctx Context, configPath string, configString string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
+func ParseConfigString(ctx *Context, configPath string, configString string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
 	file, err := hclparser.New().WithOptions(ctx.ParserOptions...).ParseFromString(configString, configPath)
 	if err != nil {
@@ -724,11 +724,7 @@ func ParseConfigString(ctx Context, configPath string, configString string, incl
 //     - dependency
 //  5. Merge the included config with the parsed config. Note that all the config data is mergable except for `locals`
 //     blocks, which are only scoped to be available within the defining config.
-func ParseConfig(
-	ctx Context,
-	file *hclparser.File,
-	includeFromChild *IncludeConfig,
-) (*TerragruntConfig, error) {
+func ParseConfig(ctx *Context, file *hclparser.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	// Initial evaluation of configuration to load flags like IamRole which will be used for final parsing
 	// https://github.com/gruntwork-io/terragrunt/issues/667
 	if err := setIAMRole(ctx, file, includeFromChild); err != nil {
@@ -736,10 +732,12 @@ func ParseConfig(
 	}
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
-	ctx, err := ctx.DecodeBaseBlocks(file, includeFromChild)
+	trackInclude, locals, err := DecodeBaseBlocks(ctx, file, includeFromChild)
 	if err != nil {
 		return nil, err
 	}
+	ctx = ctx.WithTrackInclude(trackInclude)
+	ctx = ctx.WithLocals(locals)
 
 	if ctx.DecodedDependencies == nil {
 		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
@@ -795,7 +793,7 @@ func ParseConfig(
 var iamRoleCache = NewIAMRoleOptionsCache()
 
 // setIAMRole - extract IAM role details from Terragrunt flags block
-func setIAMRole(ctx Context, file *hclparser.File, includeFromChild *IncludeConfig) error {
+func setIAMRole(ctx *Context, file *hclparser.File, includeFromChild *IncludeConfig) error {
 	// Prefer the IAM Role CLI args if they were passed otherwise lazily evaluate the IamRoleOptions using the config.
 	if ctx.TerragruntOptions.OriginalIAMRoleOptions.RoleARN != "" {
 		ctx.TerragruntOptions.IAMRoleOptions = ctx.TerragruntOptions.OriginalIAMRoleOptions
@@ -821,11 +819,7 @@ func setIAMRole(ctx Context, file *hclparser.File, includeFromChild *IncludeConf
 	return nil
 }
 
-func decodeAsTerragruntConfigFile(
-	ctx Context,
-	file *hclparser.File,
-	evalContext *hcl.EvalContext,
-) (*terragruntConfigFile, error) {
+func decodeAsTerragruntConfigFile(ctx *Context, file *hclparser.File, evalContext *hcl.EvalContext) (*terragruntConfigFile, error) {
 	terragruntConfig := terragruntConfigFile{}
 	err := file.Decode(&terragruntConfig, evalContext)
 	// in case of render-json command and inputs reference error, we update the inputs with default value
@@ -898,7 +892,7 @@ func getIndexOfExtraArgsWithName(extraArgs []TerraformExtraArguments, name strin
 }
 
 // Convert the contents of a fully resolved Terragrunt configuration to a TerragruntConfig object
-func convertToTerragruntConfig(ctx Context, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
+func convertToTerragruntConfig(ctx *Context, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
 	if ctx.ConvertToTerragruntConfigFunc != nil {
 		return ctx.ConvertToTerragruntConfigFunc(ctx, configPath, terragruntConfigFromFile)
 	}
@@ -1096,7 +1090,7 @@ func convertToTerragruntConfig(ctx Context, configPath string, terragruntConfigF
 }
 
 // Iterate over dependencies paths and check if directories exists, return error with all missing dependencies
-func validateDependencies(ctx Context, dependencies *ModuleDependencies) error {
+func validateDependencies(ctx *Context, dependencies *ModuleDependencies) error {
 	var missingDependencies []string
 	if dependencies == nil {
 		return nil

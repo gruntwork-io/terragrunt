@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
+	"github.com/hashicorp/hcl/v2/hclparse"
 )
 
 const (
@@ -25,6 +26,15 @@ func (file *File) Content() string {
 }
 
 func (file *File) Update(data []byte) error {
+	// Since `hclparse.Parser` has a cache, we need to override the instance to be able to parse the configuration with the same name.
+	parser := hclparse.NewParser()
+	for configPath, copyfile := range file.Files() {
+		if configPath != file.ConfigPath {
+			parser.AddFile(configPath, copyfile)
+		}
+	}
+	file.Parser.Parser = parser
+
 	updatedFile, err := file.ParseFromBytes(data, file.ConfigPath)
 	if err != nil {
 		return err
@@ -45,7 +55,7 @@ func (file *File) Decode(out interface{}, evalContext *hcl.EvalContext) (err err
 	// This is necessarily because the blocks returned by hclparse does not support editing,
 	// and so we have to go through hclwrite, which leads to a different AST representation.
 	if file.fileUpdateHandlerFunc != nil {
-		if err := file.fileUpdateHandlerFunc(file); err != nil {
+		if err := file.Parser.fileUpdateHandlerFunc(file); err != nil {
 			return err
 		}
 	}

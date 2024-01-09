@@ -3,8 +3,8 @@ package config
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/config/hclparser"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty/gocty"
@@ -23,12 +23,11 @@ dependency "sql" {
 }
 `
 	filename := DefaultTerragruntConfigPath
-	parser := hclparse.NewParser()
-	file, err := parseHcl(parser, config, filename)
+	file, err := hclparser.New().ParseFromString(config, filename)
 	require.NoError(t, err)
 
 	decoded := terragruntDependency{}
-	require.NoError(t, decodeHcl(file, filename, &decoded, &hcl.EvalContext{}))
+	require.NoError(t, file.Decode(&decoded, &hcl.EvalContext{}))
 
 	assert.Equal(t, len(decoded.Dependencies), 2)
 	assert.Equal(t, decoded.Dependencies[0].Name, "vpc")
@@ -46,12 +45,11 @@ locals {
 }
 `
 	filename := DefaultTerragruntConfigPath
-	parser := hclparse.NewParser()
-	file, err := parseHcl(parser, config, filename)
+	file, err := hclparser.New().ParseFromString(config, filename)
 	require.NoError(t, err)
 
 	decoded := terragruntDependency{}
-	require.NoError(t, decodeHcl(file, filename, &decoded, &hcl.EvalContext{}))
+	require.NoError(t, file.Decode(&decoded, &hcl.EvalContext{}))
 	assert.Equal(t, len(decoded.Dependencies), 0)
 }
 
@@ -64,12 +62,11 @@ dependency {
 }
 `
 	filename := DefaultTerragruntConfigPath
-	parser := hclparse.NewParser()
-	file, err := parseHcl(parser, config, filename)
+	file, err := hclparser.New().ParseFromString(config, filename)
 	require.NoError(t, err)
 
 	decoded := terragruntDependency{}
-	require.Error(t, decodeHcl(file, filename, &decoded, &hcl.EvalContext{}))
+	require.Error(t, file.Decode(&decoded, &hcl.EvalContext{}))
 }
 
 func TestDecodeDependencyMockOutputs(t *testing.T) {
@@ -85,12 +82,11 @@ dependency "hitchhiker" {
 }
 `
 	filename := DefaultTerragruntConfigPath
-	parser := hclparse.NewParser()
-	file, err := parseHcl(parser, config, filename)
+	file, err := hclparser.New().ParseFromString(config, filename)
 	require.NoError(t, err)
 
 	decoded := terragruntDependency{}
-	require.NoError(t, decodeHcl(file, filename, &decoded, &hcl.EvalContext{}))
+	require.NoError(t, file.Decode(&decoded, &hcl.EvalContext{}))
 
 	assert.Equal(t, len(decoded.Dependencies), 1)
 	dependency := decoded.Dependencies[0]
@@ -124,11 +120,10 @@ dependency "vpc" {
 }
 `
 	filename := DefaultTerragruntConfigPath
-	parser := hclparse.NewParser()
-	file, err := parseHcl(parser, config, filename)
+	file, err := hclparser.New().ParseFromString(config, filename)
 	require.NoError(t, err)
 
 	decoded := terragruntDependency{}
-	require.NoError(t, decodeHcl(file, filename, &decoded, &hcl.EvalContext{}))
+	require.NoError(t, file.Decode(&decoded, &hcl.EvalContext{}))
 	assert.Equal(t, len(decoded.Dependencies), 2)
 }
