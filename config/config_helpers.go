@@ -22,7 +22,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
-	"github.com/gruntwork-io/terragrunt/config/hclparser"
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/terraform"
@@ -944,7 +944,7 @@ func readTFVarsFile(ctx *Context, args []string) (string, error) {
 // ParseAndDecodeVarFile uses the HCL2 file to parse the given varfile string into an HCL file body, and then decode it
 // into the provided output.
 func ParseAndDecodeVarFile(varFile string, fileContents []byte, out interface{}) error {
-	parser := hclparser.New()
+	parser := hclparse.New()
 	file, err := parser.ParseFromBytes(fileContents, varFile)
 	if err != nil {
 		return err

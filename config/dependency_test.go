@@ -3,7 +3,7 @@ package config
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/config/hclparser"
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +23,7 @@ dependency "sql" {
 }
 `
 	filename := DefaultTerragruntConfigPath
-	file, err := hclparser.New().ParseFromString(config, filename)
+	file, err := hclparse.New().ParseFromString(config, filename)
 	require.NoError(t, err)
 
 	decoded := terragruntDependency{}
@@ -45,7 +45,7 @@ locals {
 }
 `
 	filename := DefaultTerragruntConfigPath
-	file, err := hclparser.New().ParseFromString(config, filename)
+	file, err := hclparse.New().ParseFromString(config, filename)
 	require.NoError(t, err)
 
 	decoded := terragruntDependency{}
@@ -62,7 +62,7 @@ dependency {
 }
 `
 	filename := DefaultTerragruntConfigPath
-	file, err := hclparser.New().ParseFromString(config, filename)
+	file, err := hclparse.New().ParseFromString(config, filename)
 	require.NoError(t, err)
 
 	decoded := terragruntDependency{}
@@ -82,7 +82,7 @@ dependency "hitchhiker" {
 }
 `
 	filename := DefaultTerragruntConfigPath
-	file, err := hclparser.New().ParseFromString(config, filename)
+	file, err := hclparse.New().ParseFromString(config, filename)
 	require.NoError(t, err)
 
 	decoded := terragruntDependency{}
@@ -120,7 +120,7 @@ dependency "vpc" {
 }
 `
 	filename := DefaultTerragruntConfigPath
-	file, err := hclparser.New().ParseFromString(config, filename)
+	file, err := hclparse.New().ParseFromString(config, filename)
 	require.NoError(t, err)
 
 	decoded := terragruntDependency{}

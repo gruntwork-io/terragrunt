@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/config/hclparser"
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
@@ -30,7 +30,7 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
-	parser := hclparser.New().WithOptions(DefaultParserOptions(opts)...)
+	parser := hclparse.New().WithOptions(DefaultParserOptions(opts)...)
 
 	// iterate over files and parse variables.
 	var parsedInputs []*ParsedVariable

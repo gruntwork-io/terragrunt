@@ -1,4 +1,4 @@
-package hclparser
+package hclparse
 
 import (
 	"github.com/gruntwork-io/go-commons/errors"

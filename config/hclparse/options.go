@@ -1,4 +1,4 @@
-package hclparser
+package hclparse
 
 import (
 	"github.com/hashicorp/hcl/v2"

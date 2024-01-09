@@ -8,7 +8,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/config/hclparser"
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
 )
 
 // MaxIter is the maximum number of depth we support in recursively evaluating locals.
@@ -22,7 +22,7 @@ const MaxIter = 1000
 //
 // This returns a map of the local names to the evaluated expressions (represented as `cty.Value` objects). This will
 // error if there are remaining unevaluated locals after all references that can be evaluated has been evaluated.
-func evaluateLocalsBlock(ctx *Context, file *hclparser.File) (map[string]cty.Value, error) {
+func evaluateLocalsBlock(ctx *Context, file *hclparse.File) (map[string]cty.Value, error) {
 	localsBlock, err := file.Blocks(MetadataLocals, false)
 	if err != nil {
 		return nil, err
@@ -86,10 +86,10 @@ func evaluateLocalsBlock(ctx *Context, file *hclparser.File) (map[string]cty.Val
 // - any errors from the evaluation
 func attemptEvaluateLocals(
 	ctx *Context,
-	file *hclparser.File,
-	attrs hclparser.Attributes,
+	file *hclparse.File,
+	attrs hclparse.Attributes,
 	evaluatedLocals map[string]cty.Value,
-) (unevaluatedAttrs hclparser.Attributes, newEvaluatedLocals map[string]cty.Value, evaluated bool, err error) {
+) (unevaluatedAttrs hclparse.Attributes, newEvaluatedLocals map[string]cty.Value, evaluated bool, err error) {
 	localsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedLocals)
 	if err != nil {
 		ctx.TerragruntOptions.Logger.Errorf("Could not convert evaluated locals to the execution ctx to evaluate additional locals in file %s", file.ConfigPath)
@@ -106,7 +106,7 @@ func attemptEvaluateLocals(
 	// Track the locals that were evaluated for logging purposes
 	newlyEvaluatedLocalNames := []string{}
 
-	unevaluatedAttrs = hclparser.Attributes{}
+	unevaluatedAttrs = hclparse.Attributes{}
 	evaluated = false
 	newEvaluatedLocals = map[string]cty.Value{}
 	for key, val := range evaluatedLocals {

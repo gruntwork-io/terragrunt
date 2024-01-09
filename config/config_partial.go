@@ -8,7 +8,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/config/hclparser"
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -91,7 +91,7 @@ type terragruntRemoteState struct {
 // file. Currently base blocks are:
 // - locals
 // - include
-func DecodeBaseBlocks(ctx *Context, file *hclparser.File, includeFromChild *IncludeConfig) (*TrackInclude, *cty.Value, error) {
+func DecodeBaseBlocks(ctx *Context, file *hclparse.File, includeFromChild *IncludeConfig) (*TrackInclude, *cty.Value, error) {
 	evalContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
 	if err != nil {
 		return nil, nil, err
@@ -127,7 +127,7 @@ func DecodeBaseBlocks(ctx *Context, file *hclparser.File, includeFromChild *Incl
 }
 
 func PartialParseConfigFile(ctx *Context, configPath string, include *IncludeConfig) (*TerragruntConfig, error) {
-	file, err := hclparser.New().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
+	file, err := hclparse.New().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +136,7 @@ func PartialParseConfigFile(ctx *Context, configPath string, include *IncludeCon
 }
 
 func PartialParseConfigString(ctx *Context, configPath, configString string, include *IncludeConfig) (*TerragruntConfig, error) {
-	file, err := hclparser.New().WithOptions(ctx.ParserOptions...).ParseFromString(configString, configPath)
+	file, err := hclparse.New().WithOptions(ctx.ParserOptions...).ParseFromString(configString, configPath)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ var terragruntConfigCache = NewTerragruntConfigCache()
 // Wrapper of PartialParseConfig which checks for cached configs.
 // filename, configString, includeFromChild and decodeList are used for the cache key,
 // by getting the default value (%#v) through fmt.
-func PartialParseConfig(ctx *Context, file *hclparser.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
+func PartialParseConfig(ctx *Context, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	var cacheKey = fmt.Sprintf("%#v-%#v-%#v-%#v", file.ConfigPath, file.Content(), includeFromChild, ctx.PartialParseDecodeList)
 
 	if ctx.TerragruntOptions.UsePartialParseConfigCache {
@@ -190,7 +190,7 @@ func PartialParseConfig(ctx *Context, file *hclparser.File, includeFromChild *In
 // - include
 // Note also that the following blocks are never decoded in a partial parse:
 // - inputs
-func partialParseConfig(ctx *Context, file *hclparser.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
+func partialParseConfig(ctx *Context, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
 	// Initialize evaluation ctx extensions from base blocks.
 
@@ -319,7 +319,7 @@ func partialParseConfig(ctx *Context, file *hclparser.File, includeFromChild *In
 
 	// If this file includes another, parse and merge the partial blocks.  Otherwise just return this config.
 	if len(ctx.TrackInclude.CurrentList) > 0 {
-		config, err := handleIncludePartial(ctx, file, output)
+		config, err := handleInclude(ctx, output, true)
 		if err != nil {
 			return nil, err
 		}
@@ -352,7 +352,7 @@ func partialParseIncludedConfig(ctx *Context, includedConfig *IncludeConfig) (*T
 // the config.
 // For consistency, `include` in the call to `file.Decode` is always assumed to be nil. Either it really is nil (parsing
 // the child config), or it shouldn't be used anyway (the parent config shouldn't have an include block).
-func decodeAsTerragruntInclude(file *hclparser.File, evalContext *hcl.EvalContext) ([]IncludeConfig, error) {
+func decodeAsTerragruntInclude(file *hclparse.File, evalContext *hcl.EvalContext) ([]IncludeConfig, error) {
 	tgInc := terragruntIncludeMultiple{}
 	if err := file.Decode(&tgInc, evalContext); err != nil {
 		return nil, err

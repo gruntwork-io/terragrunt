@@ -8,7 +8,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/files"
-	"github.com/gruntwork-io/terragrunt/config/hclparser"
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/zclconf/go-cty/cty"
@@ -67,7 +67,7 @@ func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOption
 	opts.TerragruntConfigPath = configPath
 
 	ctx := NewContext(parentCtx, opts)
-	ctx.ParserOptions = append(ctx.ParserOptions, hclparser.WithHaltOnErrorOnlyForBlocks([]string{MetadataCatalog}))
+	ctx.ParserOptions = append(ctx.ParserOptions, hclparse.WithHaltOnErrorOnlyForBlocks([]string{MetadataCatalog}))
 	ctx.ConvertToTerragruntConfigFunc = func(ctx *Context, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
 		var (
 			terragruntConfig = &TerragruntConfig{}

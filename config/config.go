@@ -21,7 +21,7 @@ import (
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/codegen"
-	"github.com/gruntwork-io/terragrunt/config/hclparser"
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -66,10 +66,10 @@ var (
 		DefaultTerragruntConfigPath,
 	}
 
-	DefaultParserOptions = func(opts *options.TerragruntOptions) []hclparser.Option {
-		return []hclparser.Option{
-			hclparser.WithLogger(opts.Logger),
-			hclparser.WithFileUpdate(updateBareIncludeBlock),
+	DefaultParserOptions = func(opts *options.TerragruntOptions) []hclparse.Option {
+		return []hclparse.Option{
+			hclparse.WithLogger(opts.Logger),
+			hclparse.WithFileUpdate(updateBareIncludeBlock),
 		}
 	}
 )
@@ -670,7 +670,7 @@ func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*Terrag
 // included in some other config file when resolving relative paths.
 func ParseConfigFile(ctx *Context, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
-	file, err := hclparser.New().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
+	file, err := hclparse.New().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
 	if err != nil {
 		return nil, err
 	}
@@ -685,7 +685,7 @@ func ParseConfigFile(ctx *Context, configPath string, includeFromChild *IncludeC
 
 func ParseConfigString(ctx *Context, configPath string, configString string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
-	file, err := hclparser.New().WithOptions(ctx.ParserOptions...).ParseFromString(configString, configPath)
+	file, err := hclparse.New().WithOptions(ctx.ParserOptions...).ParseFromString(configString, configPath)
 	if err != nil {
 		return nil, err
 	}
@@ -724,7 +724,7 @@ func ParseConfigString(ctx *Context, configPath string, configString string, inc
 //     - dependency
 //  5. Merge the included config with the parsed config. Note that all the config data is mergable except for `locals`
 //     blocks, which are only scoped to be available within the defining config.
-func ParseConfig(ctx *Context, file *hclparser.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
+func ParseConfig(ctx *Context, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	// Initial evaluation of configuration to load flags like IamRole which will be used for final parsing
 	// https://github.com/gruntwork-io/terragrunt/issues/667
 	if err := setIAMRole(ctx, file, includeFromChild); err != nil {
@@ -771,7 +771,7 @@ func ParseConfig(ctx *Context, file *hclparser.File, includeFromChild *IncludeCo
 
 	// If this file includes another, parse and merge it.  Otherwise just return this config.
 	if ctx.TrackInclude != nil {
-		mergedConfig, err := handleInclude(ctx, config)
+		mergedConfig, err := handleInclude(ctx, config, false)
 		if err != nil {
 			return nil, err
 		}
@@ -793,7 +793,7 @@ func ParseConfig(ctx *Context, file *hclparser.File, includeFromChild *IncludeCo
 var iamRoleCache = NewIAMRoleOptionsCache()
 
 // setIAMRole - extract IAM role details from Terragrunt flags block
-func setIAMRole(ctx *Context, file *hclparser.File, includeFromChild *IncludeConfig) error {
+func setIAMRole(ctx *Context, file *hclparse.File, includeFromChild *IncludeConfig) error {
 	// Prefer the IAM Role CLI args if they were passed otherwise lazily evaluate the IamRoleOptions using the config.
 	if ctx.TerragruntOptions.OriginalIAMRoleOptions.RoleARN != "" {
 		ctx.TerragruntOptions.IAMRoleOptions = ctx.TerragruntOptions.OriginalIAMRoleOptions
@@ -819,7 +819,7 @@ func setIAMRole(ctx *Context, file *hclparser.File, includeFromChild *IncludeCon
 	return nil
 }
 
-func decodeAsTerragruntConfigFile(ctx *Context, file *hclparser.File, evalContext *hcl.EvalContext) (*terragruntConfigFile, error) {
+func decodeAsTerragruntConfigFile(ctx *Context, file *hclparse.File, evalContext *hcl.EvalContext) (*terragruntConfigFile, error) {
 	terragruntConfig := terragruntConfigFile{}
 	err := file.Decode(&terragruntConfig, evalContext)
 	// in case of render-json command and inputs reference error, we update the inputs with default value

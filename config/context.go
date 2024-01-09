@@ -6,7 +6,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
-	"github.com/gruntwork-io/terragrunt/config/hclparser"
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -36,7 +36,7 @@ type Context struct {
 
 	TerragruntOptions *options.TerragruntOptions
 
-	ParserOptions []hclparser.Option
+	ParserOptions []hclparse.Option
 
 	ConvertToTerragruntConfigFunc func(ctx *Context, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
 }

@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/codegen"
-	"github.com/gruntwork-io/terragrunt/config/hclparser"
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -94,7 +94,7 @@ func parseIncludedConfig(ctx *Context, includedConfig *IncludeConfig) (*Terragru
 
 // handleInclude merges the included config into the current config depending on the merge strategy specified by the
 // user.
-func handleInclude(ctx *Context, config *TerragruntConfig) (*TerragruntConfig, error) {
+func handleInclude(ctx *Context, config *TerragruntConfig, isPartial bool) (*TerragruntConfig, error) {
 	if ctx.TrackInclude == nil {
 		return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_NIL_INCLUDE_CONFIG")
 	}
@@ -110,73 +110,38 @@ func handleInclude(ctx *Context, config *TerragruntConfig) (*TerragruntConfig, e
 			return config, err
 		}
 
-		parsedIncludeConfig, err := parseIncludedConfig(ctx, &includeConfig)
+		var (
+			parsedIncludeConfig *TerragruntConfig
+			logPrefix           string
+		)
+
+		if isPartial {
+			parsedIncludeConfig, err = partialParseIncludedConfig(ctx, &includeConfig)
+			logPrefix = "[Partial] "
+		} else {
+			parsedIncludeConfig, err = parseIncludedConfig(ctx, &includeConfig)
+		}
 		if err != nil {
 			return nil, err
 		}
 
 		switch mergeStrategy {
 		case NoMerge:
-			ctx.TerragruntOptions.Logger.Debugf("Included config %s has strategy no merge: not merging config in.", includeConfig.Path)
+			ctx.TerragruntOptions.Logger.Debugf("%sIncluded config %s has strategy no merge: not merging config in.", logPrefix, includeConfig.Path)
 		case ShallowMerge:
-			ctx.TerragruntOptions.Logger.Debugf("Included config %s has strategy shallow merge: merging config in (shallow).", includeConfig.Path)
+			ctx.TerragruntOptions.Logger.Debugf("%sIncluded config %s has strategy shallow merge: merging config in (shallow).", logPrefix, includeConfig.Path)
 			if err := parsedIncludeConfig.Merge(baseConfig, ctx.TerragruntOptions); err != nil {
 				return nil, err
 			}
 			baseConfig = parsedIncludeConfig
 		case DeepMerge:
-			ctx.TerragruntOptions.Logger.Debugf("Included config %s has strategy deep merge: merging config in (deep).", includeConfig.Path)
+			ctx.TerragruntOptions.Logger.Debugf("%sIncluded config %s has strategy deep merge: merging config in (deep).", logPrefix, includeConfig.Path)
 			if err := parsedIncludeConfig.DeepMerge(baseConfig, ctx.TerragruntOptions); err != nil {
 				return nil, err
 			}
 			baseConfig = parsedIncludeConfig
 		default:
 			return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s", mergeStrategy)
-		}
-	}
-	return baseConfig, nil
-}
-
-// handleIncludePartial merges the a partially parsed include config into the child config according to the strategy
-// specified by the user.
-func handleIncludePartial(ctx *Context, file *hclparser.File, config *TerragruntConfig) (*TerragruntConfig, error) {
-	if ctx.TrackInclude == nil {
-		return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_PARTIAL_NIL_INCLUDE_CONFIG")
-	}
-
-	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override
-	// those in earlier includes, so we need to merge bottom up instead of top down to ensure this.
-	includeList := ctx.TrackInclude.CurrentList
-	baseConfig := config
-	for i := len(includeList) - 1; i >= 0; i-- {
-		includeConfig := includeList[i]
-		mergeStrategy, err := includeConfig.GetMergeStrategy()
-		if err != nil {
-			return nil, err
-		}
-
-		parsedIncludeConfig, err := partialParseIncludedConfig(ctx, &includeConfig)
-		if err != nil {
-			return nil, err
-		}
-
-		switch mergeStrategy {
-		case NoMerge:
-			ctx.TerragruntOptions.Logger.Debugf("[Partial] Included config %s has strategy no merge: not merging config in.", includeConfig.Path)
-		case ShallowMerge:
-			ctx.TerragruntOptions.Logger.Debugf("[Partial] Included config %s has strategy shallow merge: merging config in (shallow).", includeConfig.Path)
-			if err := parsedIncludeConfig.Merge(baseConfig, ctx.TerragruntOptions); err != nil {
-				return nil, err
-			}
-			baseConfig = parsedIncludeConfig
-		case DeepMerge:
-			ctx.TerragruntOptions.Logger.Debugf("[Partial] Included config %s has strategy deep merge: merging config in (deep).", includeConfig.Path)
-			if err := parsedIncludeConfig.DeepMerge(baseConfig, ctx.TerragruntOptions); err != nil {
-				return nil, err
-			}
-			baseConfig = parsedIncludeConfig
-		default:
-			return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s_PARTIAL", mergeStrategy)
 		}
 	}
 	return baseConfig, nil
@@ -704,7 +669,7 @@ func getTrackInclude(ctx *Context, terragruntIncludeList []IncludeConfig, includ
 // label counts when parsing out labels with a go struct.
 //
 // Returns the updated contents, a boolean indicated whether anything changed, and an error (if any).
-func updateBareIncludeBlock(file *hclparser.File) error {
+func updateBareIncludeBlock(file *hclparse.File) error {
 	var (
 		codeWasUpdated bool
 		content        []byte
