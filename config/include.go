@@ -186,7 +186,7 @@ func handleIncludePartial(ctx *Context, file *hclparser.File, config *Terragrunt
 // dependency block configurations between the included config and the child config. This allows us to merge the two
 // dependencies prior to retrieving the outputs, allowing you to have partial configuration that is overridden by a
 // child.
-func handleIncludeForDependency(ctx *Context, configPath string, childDecodedDependency terragruntDependency) (*terragruntDependency, error) {
+func handleIncludeForDependency(ctx *Context, childDecodedDependency terragruntDependency) (*terragruntDependency, error) {
 	if ctx.TrackInclude == nil {
 		return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_DEPENDENCY_NIL_INCLUDE_CONFIG")
 	}

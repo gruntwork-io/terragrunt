@@ -591,7 +591,7 @@ func readTerragruntConfig(ctx *Context, configPath string, defaultVal *cty.Value
 
 	// We update the ctx of terragruntOptions to the config being read in.
 	ctx = ctx.WithTerragruntOptions(ctx.TerragruntOptions.Clone(targetConfig))
-	config, err := ParseConfigFile(ctx, configPath, nil)
+	config, err := ParseConfigFile(ctx, targetConfig, nil)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -637,7 +637,6 @@ func readTerragruntConfigAsFuncImpl(ctx *Context) function.Function {
 			}
 
 			targetConfigPath := strArgs[0]
-
 			return readTerragruntConfig(ctx, targetConfigPath, defaultVal)
 		},
 	})

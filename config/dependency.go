@@ -183,7 +183,7 @@ func decodeAndRetrieveOutputs(ctx *Context, file *hclparser.File) (*cty.Value, e
 
 	// Merge in included dependencies
 	if ctx.TrackInclude != nil {
-		mergedDecodedDependency, err := handleIncludeForDependency(ctx, file.ConfigPath, decodedDependency)
+		mergedDecodedDependency, err := handleIncludeForDependency(ctx, decodedDependency)
 		if err != nil {
 			return nil, err
 		}

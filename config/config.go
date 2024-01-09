@@ -897,15 +897,13 @@ func convertToTerragruntConfig(ctx *Context, configPath string, terragruntConfig
 		return ctx.ConvertToTerragruntConfigFunc(ctx, configPath, terragruntConfigFromFile)
 	}
 
-	var (
-		terragruntConfig = &TerragruntConfig{
-			IsPartial: false,
-			// Initialize GenerateConfigs so we can append to it
-			GenerateConfigs: map[string]codegen.GenerateConfig{},
-		}
-		defaultMetadata = map[string]interface{}{FoundInFile: configPath}
-	)
+	terragruntConfig := &TerragruntConfig{
+		IsPartial: false,
+		// Initialize GenerateConfigs so we can append to it
+		GenerateConfigs: map[string]codegen.GenerateConfig{},
+	}
 
+	defaultMetadata := map[string]interface{}{FoundInFile: configPath}
 	if terragruntConfigFromFile.RemoteState != nil {
 		remoteState, err := terragruntConfigFromFile.RemoteState.toConfig()
 		if err != nil {
@@ -930,22 +928,20 @@ func convertToTerragruntConfig(ctx *Context, configPath string, terragruntConfig
 		terragruntConfig.SetFieldMetadata(MetadataRemoteState, defaultMetadata)
 	}
 
-	if terragruntConfigFromFile.Terraform != nil { // since Terraform is nil each time avoid saving metadata when it is nil
-		if err := terragruntConfigFromFile.Terraform.ValidateHooks(); err != nil {
-			return nil, err
-		}
+	if err := terragruntConfigFromFile.Terraform.ValidateHooks(); err != nil {
+		return nil, err
+	}
 
-		terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
+	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
+	if terragruntConfig.Terraform != nil { // since Terraform is nil each time avoid saving metadata when it is nil
 		terragruntConfig.SetFieldMetadata(MetadataTerraform, defaultMetadata)
 	}
 
-	if terragruntConfigFromFile.Dependencies != nil {
-		terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
-
-		if err := validateDependencies(ctx, terragruntConfig.Dependencies); err != nil {
-			return nil, err
-		}
-
+	if err := validateDependencies(ctx, terragruntConfigFromFile.Dependencies); err != nil {
+		return nil, err
+	}
+	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
+	if terragruntConfig.Dependencies != nil {
 		for _, item := range terragruntConfig.Dependencies.Paths {
 			terragruntConfig.SetFieldMetadataWithType(MetadataDependencies, item, defaultMetadata)
 		}
