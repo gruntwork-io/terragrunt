@@ -22,6 +22,5 @@ catalog {
 }
 
 inputs = {
-  azure = "sdfsdfsd"
   github_org = local.inputs_vars.locals.github_org
 }
