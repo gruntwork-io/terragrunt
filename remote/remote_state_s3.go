@@ -991,8 +991,7 @@ func checkIfBucketRootAccess(s3Client *s3.S3, config *RemoteStateConfigS3, terra
 	if err != nil {
 		// NoSuchBucketPolicy error is considered as no policy.
 		if awsErr, ok := err.(awserr.Error); ok {
-			switch awsErr.Code() {
-			case "NoSuchBucketPolicy":
+			if awsErr.Code() == "NoSuchBucketPolicy" {
 				return false, nil
 			}
 		}
