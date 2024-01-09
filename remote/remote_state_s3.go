@@ -989,6 +989,13 @@ func checkIfBucketRootAccess(s3Client *s3.S3, config *RemoteStateConfigS3, terra
 		Bucket: aws.String(config.Bucket),
 	})
 	if err != nil {
+		// NoSuchBucketPolicy error is considered as no policy.
+		if awsErr, ok := err.(awserr.Error); ok {
+			switch awsErr.Code() {
+			case "NoSuchBucketPolicy":
+				return false, nil
+			}
+		}
 		terragruntOptions.Logger.Debugf("Could not get policy for bucket %s", config.Bucket)
 		return false, errors.WithStackTrace(err)
 	}
