@@ -97,7 +97,7 @@ func attemptEvaluateLocals(
 	}
 	ctx.Locals = &localsAsCtyVal
 
-	evalCtx, err := ctx.CreateTerragruntEvalContext(file.ConfigPath)
+	evalCtx, err := createTerragruntEvalContext(ctx, file.ConfigPath)
 	if err != nil {
 		ctx.TerragruntOptions.Logger.Errorf("Could not convert include to the execution ctx to evaluate additional locals in file %s", file.ConfigPath)
 		return nil, evaluatedLocals, false, err

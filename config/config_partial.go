@@ -86,7 +86,7 @@ type terragruntRemoteState struct {
 }
 
 func PartialParseConfigFile(ctx Context, configPath string, include *IncludeConfig) (*TerragruntConfig, error) {
-	file, err := ctx.NewHCLParser().ParseFromFile(configPath)
+	file, err := hclparser.New().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
 	if err != nil {
 		return nil, err
 	}
@@ -163,16 +163,7 @@ func partialParseConfig(
 	}
 	output.IsPartial = true
 
-	// // Set parsed Locals on the parsed config
-	// if ctx.Locals != nil && *ctx.Locals != cty.NilVal {
-	// 	localsParsed, err := parseCtyValueToMap(*ctx.Locals)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	output.Locals = localsParsed
-	// }
-
-	evalContext, err := ctx.CreateTerragruntEvalContext(file.ConfigPath)
+	evalContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/files"
+	"github.com/gruntwork-io/terragrunt/config/hclparser"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/zclconf/go-cty/cty"
@@ -59,8 +60,14 @@ func (config *CatalogConfig) normalize(cofnigPath string) {
 // We want users to be able to browse to any folder in an `infra-live` repo, run `terragrunt catalog` (with no URL) arg.
 // ReadCatalogConfig looks for the "nearest" `terragrunt.hcl` in the parent directories if the given `opts.TerragruntConfigPath` does not exist. Since our normal parsing `ParseConfig` does not always work, as some `terragrunt.hcl` files are meant to be used from an `include` and/or they might use `find_in_parent_folders` and they only work from certain child folders, it parses this file to see if the config contains `include{...find_in_parent_folders()...}` block to determine if it is the root configuration. If it finds `terragrunt.hcl` that already has `include`, then read that configuration as is, oterwise generate a stub child `terragrunt.hcl` in memory with an `include` to pull in the one we found.
 func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOptions) (*CatalogConfig, error) {
+	configPath, configString, err := findCatalogConfig(parentCtx, opts)
+	if err != nil || configPath == "" {
+		return nil, err
+	}
+	opts.TerragruntConfigPath = configPath
+
 	ctx := NewContext(parentCtx, opts)
-	ctx.ParserOptions = append(ctx.ParserOptions /* , hclparser.WithHaltOnErrorOnlyForSections([]string{MetadataCatalog}) */)
+	ctx.ParserOptions = append(ctx.ParserOptions, hclparser.WithHaltOnErrorOnlyForBlocks([]string{MetadataCatalog}))
 	ctx.ConvertToTerragruntConfigFunc = func(ctx Context, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
 		var (
 			terragruntConfig = &TerragruntConfig{}
@@ -83,12 +90,6 @@ func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOption
 		return terragruntConfig, nil
 	}
 
-	configPath, configString, err := findCatalogConfig(ctx, opts)
-	if err != nil || configPath == "" {
-		return nil, err
-	}
-	opts.TerragruntConfigPath = configPath
-
 	config, err := ParseConfigString(ctx, configPath, configString, nil)
 	if err != nil {
 		return nil, err
@@ -97,7 +98,7 @@ func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOption
 	return config.Catalog, nil
 }
 
-func findCatalogConfig(ctx Context, opts *options.TerragruntOptions) (string, string, error) {
+func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (string, string, error) {
 	var (
 		configPath        = opts.TerragruntConfigPath
 		configName        = filepath.Base(configPath)
@@ -117,7 +118,7 @@ func findCatalogConfig(ctx Context, opts *options.TerragruntOptions) (string, st
 			// continue
 		}
 
-		newConfigPath, err := findInParentFolders(ctx, []string{configName})
+		newConfigPath, err := findInParentFolders(NewContext(ctx, opts), []string{configName})
 		if err != nil {
 			if _, ok := errors.Unwrap(err).(ParentFileNotFoundError); ok {
 				break

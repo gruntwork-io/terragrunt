@@ -20,10 +20,10 @@ func WithFileUpdate(fn func(*File) error) Option {
 	}
 }
 
-func WithHaltOnErrorOnlyForSections(sectionNames []string) Option {
+func WithHaltOnErrorOnlyForBlocks(blockNames []string) Option {
 	return func(parser Parser) Parser {
 		parser.diagnosticsErrorFunc = func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
-			for _, sectionName := range sectionNames {
+			for _, sectionName := range blockNames {
 				blocks, err := file.Blocks(sectionName, true)
 				if err != nil {
 					return nil, err
