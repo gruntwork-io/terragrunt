@@ -3,13 +3,12 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/config/hclparser"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -31,22 +30,17 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
-	parser := hclparse.NewParser()
+	parser := hclparser.New().WithOptions(DefaultParserOptions(opts)...)
 
 	// iterate over files and parse variables.
 	var parsedInputs []*ParsedVariable
 	for _, tfFile := range tfFiles {
-		content, err := os.ReadFile(tfFile)
-		if err != nil {
-			opts.Logger.Warnf("Error reading file %s: %v", tfFile, err)
-			return nil, errors.WithStackTrace(err)
+		if _, err := parser.ParseFromFile(tfFile); err != nil {
+			return nil, err
 		}
-		file, diags := parser.ParseHCL(content, tfFile)
-		if diags.HasErrors() {
-			opts.Logger.Warnf("Failed to parse HCL in file %s: %v", tfFile, diags)
-			return nil, errors.WithStackTrace(err)
-		}
+	}
 
+	for _, file := range parser.Files() {
 		ctx := &hcl.EvalContext{}
 
 		if body, ok := file.Body.(*hclsyntax.Body); ok {

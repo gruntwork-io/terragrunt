@@ -1784,7 +1784,7 @@ func TestTerragruntMissingDependenciesFail(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
 	require.Error(t, err)
-	parsedError, ok := errors.Unwrap(err).(config.DependencyDirNotFound)
+	parsedError, ok := errors.Unwrap(err).(config.DependencyDirNotFoundError)
 	assert.True(t, ok)
 	assert.True(t, len(parsedError.Dir) == 1)
 	assert.Contains(t, parsedError.Dir[0], "hl3-release")
@@ -3690,7 +3690,7 @@ func TestTerragruntGenerateBlockSameNameFail(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
 	require.Error(t, err)
-	parsedError, ok := errors.Unwrap(err).(config.DuplicatedGenerateBlocks)
+	parsedError, ok := errors.Unwrap(err).(config.DuplicatedGenerateBlocksError)
 	assert.True(t, ok)
 	assert.True(t, len(parsedError.BlockName) == 1)
 	assert.Contains(t, parsedError.BlockName, "backend")
@@ -3707,7 +3707,7 @@ func TestTerragruntGenerateBlockSameNameIncludeFail(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
 	require.Error(t, err)
-	parsedError, ok := errors.Unwrap(err).(config.DuplicatedGenerateBlocks)
+	parsedError, ok := errors.Unwrap(err).(config.DuplicatedGenerateBlocksError)
 	assert.True(t, ok)
 	assert.True(t, len(parsedError.BlockName) == 1)
 	assert.Contains(t, parsedError.BlockName, "backend")
@@ -3724,7 +3724,7 @@ func TestTerragruntGenerateBlockMultipleSameNameFail(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
 	require.Error(t, err)
-	parsedError, ok := errors.Unwrap(err).(config.DuplicatedGenerateBlocks)
+	parsedError, ok := errors.Unwrap(err).(config.DuplicatedGenerateBlocksError)
 	assert.True(t, ok)
 	assert.True(t, len(parsedError.BlockName) == 2)
 	assert.Contains(t, parsedError.BlockName, "backend")

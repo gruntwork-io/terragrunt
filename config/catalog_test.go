@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -21,9 +22,9 @@ func TestCatalogParseConfigFile(t *testing.T) {
 	basePath := filepath.Join(curDir, "testdata/fixture-catalog")
 
 	testCases := []struct {
-		configPath      string
-		expectedCatalog *CatalogConfig
-		expectedErr     error
+		configPath     string
+		expectedConfig *CatalogConfig
+		expectedErr    error
 	}{
 		{
 			filepath.Join(basePath, "config1.hcl"),
@@ -95,11 +96,11 @@ func TestCatalogParseConfigFile(t *testing.T) {
 			opts, err := options.NewTerragruntOptionsWithConfigPath(testCase.configPath)
 			require.NoError(t, err)
 
-			config, err := ReadCatalogConfig(opts)
+			config, err := ReadCatalogConfig(context.Background(), opts)
 
 			if testCase.expectedErr == nil {
 				require.NoError(t, err)
-				assert.Equal(t, testCase.expectedCatalog, config.Catalog)
+				assert.Equal(t, testCase.expectedConfig, config)
 			} else {
 				assert.EqualError(t, err, testCase.expectedErr.Error())
 			}

@@ -11,16 +11,14 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/options"
 )
 
 // Create a cty Function that takes as input parameters a slice of strings (var args, so this slice could be of any
 // length) and returns as output a string. The implementation of the function calls the given toWrap function, passing
 // it the input parameters string slice as well as the given include and terragruntOptions.
 func wrapStringSliceToStringAsFuncImpl(
-	toWrap func(params []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (string, error),
-	trackInclude *TrackInclude,
-	terragruntOptions *options.TerragruntOptions,
+	ctx Context,
+	toWrap func(ctx Context, params []string) (string, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		VarParam: &function.Parameter{Type: cty.String},
@@ -30,7 +28,7 @@ func wrapStringSliceToStringAsFuncImpl(
 			if err != nil {
 				return cty.StringVal(""), err
 			}
-			out, err := toWrap(params, trackInclude, terragruntOptions)
+			out, err := toWrap(ctx, params)
 			if err != nil {
 				return cty.StringVal(""), err
 			}
@@ -40,9 +38,8 @@ func wrapStringSliceToStringAsFuncImpl(
 }
 
 func wrapStringSliceToNumberAsFuncImpl(
-	toWrap func(params []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (int64, error),
-	trackInclude *TrackInclude,
-	terragruntOptions *options.TerragruntOptions,
+	ctx Context,
+	toWrap func(ctx Context, params []string) (int64, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		VarParam: &function.Parameter{Type: cty.String},
@@ -52,7 +49,7 @@ func wrapStringSliceToNumberAsFuncImpl(
 			if err != nil {
 				return cty.NumberIntVal(0), err
 			}
-			out, err := toWrap(params, trackInclude, terragruntOptions)
+			out, err := toWrap(ctx, params)
 			if err != nil {
 				return cty.NumberIntVal(0), err
 			}
@@ -62,9 +59,8 @@ func wrapStringSliceToNumberAsFuncImpl(
 }
 
 func wrapStringSliceToBoolAsFuncImpl(
-	toWrap func(params []string, trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (bool, error),
-	trackInclude *TrackInclude,
-	terragruntOptions *options.TerragruntOptions,
+	ctx Context,
+	toWrap func(ctx Context, params []string) (bool, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		VarParam: &function.Parameter{Type: cty.String},
@@ -74,7 +70,7 @@ func wrapStringSliceToBoolAsFuncImpl(
 			if err != nil {
 				return cty.BoolVal(false), err
 			}
-			out, err := toWrap(params, trackInclude, terragruntOptions)
+			out, err := toWrap(ctx, params)
 			if err != nil {
 				return cty.BoolVal(false), err
 			}
@@ -86,14 +82,13 @@ func wrapStringSliceToBoolAsFuncImpl(
 // Create a cty Function that takes no input parameters and returns as output a string. The implementation of the
 // function calls the given toWrap function, passing it the given include and terragruntOptions.
 func wrapVoidToStringAsFuncImpl(
-	toWrap func(trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) (string, error),
-	trackInclude *TrackInclude,
-	terragruntOptions *options.TerragruntOptions,
+	ctx Context,
+	toWrap func(ctx Context) (string, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		Type: function.StaticReturnType(cty.String),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			out, err := toWrap(trackInclude, terragruntOptions)
+			out, err := toWrap(ctx)
 			if err != nil {
 				return cty.StringVal(""), err
 			}
@@ -115,14 +110,13 @@ func wrapVoidToEmptyStringAsFuncImpl() function.Function {
 // Create a cty Function that takes no input parameters and returns as output a string slice. The implementation of the
 // function calls the given toWrap function, passing it the given include and terragruntOptions.
 func wrapVoidToStringSliceAsFuncImpl(
-	toWrap func(trackInclude *TrackInclude, terragruntOptions *options.TerragruntOptions) ([]string, error),
-	trackInclude *TrackInclude,
-	terragruntOptions *options.TerragruntOptions,
+	ctx Context,
+	toWrap func(ctx Context) ([]string, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		Type: function.StaticReturnType(cty.List(cty.String)),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			outVals, err := toWrap(trackInclude, terragruntOptions)
+			outVals, err := toWrap(ctx)
 			if err != nil || len(outVals) == 0 {
 				return cty.ListValEmpty(cty.String), err
 			}
@@ -156,7 +150,7 @@ func ctySliceToStringSlice(args []cty.Value) ([]string, error) {
 	var out []string
 	for _, arg := range args {
 		if arg.Type() != cty.String {
-			return nil, errors.WithStackTrace(InvalidParameterType{Expected: "string", Actual: arg.Type().FriendlyName()})
+			return nil, errors.WithStackTrace(InvalidParameterTypeError{Expected: "string", Actual: arg.Type().FriendlyName()})
 		}
 		out = append(out, arg.AsString())
 	}
@@ -276,29 +270,26 @@ func generateTypeFromValuesMap(valMap map[string]cty.Value) cty.Type {
 // includeMapAsCtyVal converts the include map into a cty.Value struct that can be exposed to the child config. For
 // backward compatibility, this function will return the included config object if the config only defines a single bare
 // include block that is exposed.
-// NOTE: When evaluated in a partial parse context, only the partially parsed context is available in the expose. This
+// NOTE: When evaluated in a partial parse ctx, only the partially parsed ctx is available in the expose. This
 // ensures that we can parse the child config without having access to dependencies when constructing the dependency
 // graph.
-func includeMapAsCtyVal(
-	includeMap map[string]IncludeConfig,
-	terragruntOptions *options.TerragruntOptions,
-	decodedDependencies *cty.Value,
-	decodeList []PartialDecodeSectionType,
-) (cty.Value, error) {
+func includeMapAsCtyVal(ctx Context) (cty.Value, error) {
+	includeMap := ctx.TrackInclude.CurrentMap
+
 	bareInclude, hasBareInclude := includeMap[bareIncludeKey]
 	if len(includeMap) == 1 && hasBareInclude {
-		terragruntOptions.Logger.Debug("Detected single bare include block - exposing as top level")
-		return includeConfigAsCtyVal(bareInclude, terragruntOptions, decodedDependencies, decodeList)
+		ctx.TerragruntOptions.Logger.Debug("Detected single bare include block - exposing as top level")
+		return includeConfigAsCtyVal(ctx, bareInclude)
 	}
 
 	exposedIncludeMap := map[string]cty.Value{}
 	for key, included := range includeMap {
-		parsedIncludedCty, err := includeConfigAsCtyVal(included, terragruntOptions, decodedDependencies, decodeList)
+		parsedIncludedCty, err := includeConfigAsCtyVal(ctx, included)
 		if err != nil {
 			return cty.NilVal, err
 		}
 		if parsedIncludedCty != cty.NilVal {
-			terragruntOptions.Logger.Debugf("Exposing include block '%s'", key)
+			ctx.TerragruntOptions.Logger.Debugf("Exposing include block '%s'", key)
 			exposedIncludeMap[key] = parsedIncludedCty
 		}
 	}
@@ -307,14 +298,9 @@ func includeMapAsCtyVal(
 
 // includeConfigAsCtyVal returns the parsed include block as a cty.Value object if expose is true. Otherwise, return
 // the nil representation of cty.Value.
-func includeConfigAsCtyVal(
-	includeConfig IncludeConfig,
-	terragruntOptions *options.TerragruntOptions,
-	decodedDependencies *cty.Value,
-	decodeList []PartialDecodeSectionType,
-) (cty.Value, error) {
+func includeConfigAsCtyVal(ctx Context, includeConfig IncludeConfig) (cty.Value, error) {
 	if includeConfig.GetExpose() {
-		parsedIncluded, err := parseIncludedConfig(&includeConfig, terragruntOptions, decodedDependencies, decodeList)
+		parsedIncluded, err := parseIncludedConfig(ctx, &includeConfig)
 		if err != nil {
 			return cty.NilVal, err
 		}

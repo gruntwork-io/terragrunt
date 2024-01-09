@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"regexp"
@@ -33,11 +34,12 @@ const versionParts = 3
 // - TerraformVersion
 // TODO: Look into a way to refactor this function to avoid the side effect.
 func checkVersionConstraints(terragruntOptions *options.TerragruntOptions) error {
+	configContext := config.NewContext(context.Background(), terragruntOptions).WithDecodeList(config.TerragruntVersionConstraints)
+
 	partialTerragruntConfig, err := config.PartialParseConfigFile(
+		configContext,
 		terragruntOptions.TerragruntConfigPath,
-		terragruntOptions,
 		nil,
-		[]config.PartialDecodeSectionType{config.TerragruntVersionConstraints},
 	)
 	if err != nil {
 		return err

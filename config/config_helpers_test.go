@@ -148,7 +148,7 @@ func TestPathRelativeFromInclude(t *testing.T) {
 
 	for _, testCase := range testCases {
 		trackInclude := getTrackIncludeFromTestData(testCase.include, testCase.params)
-		actualPath, actualErr := pathRelativeFromInclude(testCase.params, trackInclude, testCase.terragruntOptions)
+		actualPath, actualErr := pathRelativeFromInclude(testCase.params, trackInclude, testCase.terragruntOptions, nil)
 		assert.Nil(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
 		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
 	}
@@ -210,12 +210,12 @@ func TestRunCommand(t *testing.T) {
 			nil,
 			terragruntOptionsForTest(t, homeDir),
 			"",
-			EmptyStringNotAllowed("{run_cmd()}"),
+			EmptyStringNotAllowedError("{run_cmd()}"),
 		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.terragruntOptions.TerragruntConfigPath, func(t *testing.T) {
-			actualOutput, actualErr := runCommand(testCase.params, nil, testCase.terragruntOptions)
+			actualOutput, actualErr := runCommand(testCase.params, nil, testCase.terragruntOptions, nil)
 			if testCase.expectedErr != nil {
 				if assert.Error(t, actualErr) {
 					assert.IsType(t, testCase.expectedErr, errors.Unwrap(actualErr))
@@ -259,7 +259,7 @@ func TestFindInParentFolders(t *testing.T) {
 			nil,
 			terragruntOptionsForTestWithMaxFolders(t, "../test/fixture-parent-folders/no-terragrunt-in-root/child/sub-child/"+DefaultTerragruntConfigPath, 3),
 			"",
-			ParentFileNotFound{},
+			ParentFileNotFoundError{},
 		},
 		{
 			nil,
@@ -301,13 +301,13 @@ func TestFindInParentFolders(t *testing.T) {
 			nil,
 			terragruntOptionsForTest(t, "/"),
 			"",
-			ParentFileNotFound{},
+			ParentFileNotFoundError{},
 		},
 		{
 			nil,
 			terragruntOptionsForTest(t, "/fake/path"),
 			"",
-			ParentFileNotFound{},
+			ParentFileNotFoundError{},
 		},
 		{
 			[]string{"foo.txt", "fallback.txt"},
@@ -319,7 +319,7 @@ func TestFindInParentFolders(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.terragruntOptions.TerragruntConfigPath, func(t *testing.T) {
-			actualPath, actualErr := findInParentFolders(testCase.params, nil, testCase.terragruntOptions)
+			actualPath, actualErr := findInParentFolders(testCase.params, nil, testCase.terragruntOptions, nil)
 			if testCase.expectedErr != nil {
 				if assert.Error(t, actualErr) {
 					assert.IsType(t, testCase.expectedErr, errors.Unwrap(actualErr))
@@ -368,14 +368,14 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 			nil,
 			terragruntOptionsForTestWithMaxFolders(t, "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/"+DefaultTerragruntConfigPath, 1),
 			"",
-			"ParentFileNotFound",
+			"ParentFileNotFoundError",
 		},
 		{
 			"terraform { source = find_in_parent_folders() }",
 			nil,
 			terragruntOptionsForTestWithMaxFolders(t, "../test/fixture-parent-folders/no-terragrunt-in-root/child/sub-child/"+DefaultTerragruntConfigPath, 3),
 			"",
-			"ParentFileNotFound",
+			"ParentFileNotFoundError",
 		},
 	}
 
@@ -384,7 +384,7 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 		// get updated due to concurrency within the scope of t.Run(..) below
 		testCase := testCase
 		t.Run(fmt.Sprintf("%s--%s", testCase.str, testCase.terragruntOptions.TerragruntConfigPath), func(t *testing.T) {
-			actualOut, actualErr := ParseConfigString(testCase.str, testCase.terragruntOptions, testCase.include, "mock-path-for-test.hcl", &EvalContextExtensions{})
+			actualOut, actualErr := ParseConfigString(testCase.terragruntOptions, testCase.include, "mock-path-for-test.hcl", testCase.str, &Context{})
 			if testCase.expectedErr != "" {
 				require.Error(t, actualErr)
 				assert.Contains(t, actualErr.Error(), testCase.expectedErr)
@@ -414,28 +414,28 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 			nil,
 			terragruntOptionsForTest(t, "/root/child/"+DefaultTerragruntConfigPath),
 			"",
-			"InvalidGetEnvParams",
+			"InvalidGetEnvParamsError",
 		},
 		{
 			`iam_role = "foo/${get_env("","")}/bar"`,
 			nil,
 			terragruntOptionsForTest(t, "/root/child/"+DefaultTerragruntConfigPath),
 			"",
-			"InvalidEnvParamName",
+			"InvalidEnvParamNameError",
 		},
 		{
 			`iam_role = get_env()`,
 			nil,
 			terragruntOptionsForTest(t, "/root/child/"+DefaultTerragruntConfigPath),
 			"",
-			"InvalidGetEnvParams",
+			"InvalidGetEnvParamsError",
 		},
 		{
 			`iam_role = get_env("TEST_VAR_1", "TEST_VAR_2", "TEST_VAR_3")`,
 			nil,
 			terragruntOptionsForTest(t, "/root/child/"+DefaultTerragruntConfigPath),
 			"",
-			"InvalidGetEnvParams",
+			"InvalidGetEnvParamsError",
 		},
 		{
 			`iam_role = get_env("TEST_ENV_TERRAGRUNT_VAR")`,
@@ -479,7 +479,7 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 		// get updated due to concurrency within the scope of t.Run(..) below
 		testCase := testCase
 		t.Run(testCase.str, func(t *testing.T) {
-			actualOut, actualErr := ParseConfigString(testCase.str, testCase.terragruntOptions, testCase.include, "mock-path-for-test.hcl", &EvalContextExtensions{})
+			actualOut, actualErr := ParseConfigString(testCase.terragruntOptions, testCase.include, "mock-path-for-test.hcl", testCase.str, &Context{})
 			if testCase.expectedErr != "" {
 				require.Error(t, actualErr)
 				assert.Contains(t, actualErr.Error(), testCase.expectedErr)
@@ -526,7 +526,7 @@ func TestResolveCommandsInterpolationConfigString(t *testing.T) {
 		testCase := testCase
 
 		t.Run(testCase.str, func(t *testing.T) {
-			actualOut, actualErr := ParseConfigString(testCase.str, testCase.terragruntOptions, testCase.include, "mock-path-for-test.hcl", &EvalContextExtensions{})
+			actualOut, actualErr := ParseConfigString(testCase.terragruntOptions, testCase.include, "mock-path-for-test.hcl", testCase.str, &Context{})
 			require.NoError(t, actualErr, "For string '%s' include %v and options %v, unexpected error: %v", testCase.str, testCase.include, testCase.terragruntOptions, actualErr)
 
 			require.NotNil(t, actualOut)
@@ -568,7 +568,7 @@ func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
 			expectedFooInput,
 		}
 		t.Run(testCase.str, func(t *testing.T) {
-			actualOut, actualErr := ParseConfigString(testCase.str, testCase.terragruntOptions, testCase.include, "mock-path-for-test.hcl", &EvalContextExtensions{})
+			actualOut, actualErr := ParseConfigString(testCase.terragruntOptions, testCase.include, "mock-path-for-test.hcl", testCase.str, &Context{})
 			require.NoError(t, actualErr, "For string '%s' include %v and options %v, unexpected error: %v", testCase.str, testCase.include, testCase.terragruntOptions, actualErr)
 
 			require.NotNil(t, actualOut)
@@ -620,7 +620,7 @@ func testGetTerragruntDir(t *testing.T, configPath string, expectedPath string) 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest(configPath)
 	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
-	actualPath, err := getTerragruntDir(nil, terragruntOptions)
+	actualPath, err := getTerragruntDir(nil, terragruntOptions, nil)
 
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, expectedPath, actualPath)
@@ -714,7 +714,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 
 	for _, testCase := range testCases {
 		trackInclude := getTrackIncludeFromTestData(testCase.include, testCase.params)
-		actualPath, actualErr := getParentTerragruntDir(testCase.params, trackInclude, testCase.terragruntOptions)
+		actualPath, actualErr := getParentTerragruntDir(testCase.params, trackInclude, testCase.terragruntOptions, nil)
 		assert.Nil(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
 		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
 	}
@@ -765,7 +765,8 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 		t.Run(testCase.input, func(t *testing.T) {
 
 			terragruntOptions := terragruntOptionsForTest(t, "../test/fixture-config-terraform-functions/"+DefaultTerragruntConfigPath)
-			actual, err := ParseConfigString(fmt.Sprintf("inputs = { test = %s }", testCase.input), terragruntOptions, nil, terragruntOptions.TerragruntConfigPath, &EvalContextExtensions{})
+			configString := fmt.Sprintf("inputs = { test = %s }", testCase.input)
+			actual, err := ParseConfigString(terragruntOptions, nil, terragruntOptions.TerragruntConfigPath, configString, &Context{})
 			require.NoError(t, err, "For hcl '%s' include %v and options %v, unexpected error: %v", testCase.input, nil, terragruntOptions, err)
 
 			require.NotNil(t, actual)
@@ -850,7 +851,8 @@ func TestReadTerragruntConfigInputs(t *testing.T) {
 	t.Parallel()
 
 	options := terragruntOptionsForTest(t, DefaultTerragruntConfigPath)
-	tgConfigCty, err := readTerragruntConfig("../test/fixture-inputs/terragrunt.hcl", nil, options)
+
+	tgConfigCty, err := readTerragruntConfig(options, "../test/fixture-inputs/terragrunt.hcl", nil, &Context{})
 	require.NoError(t, err)
 
 	tgConfigMap, err := parseCtyValueToMap(tgConfigCty)
