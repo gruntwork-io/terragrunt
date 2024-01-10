@@ -120,7 +120,7 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 		opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
 		assert.Nil(t, err)
 
-		ctx := config.NewContext(context.Background(), opts)
+		ctx := config.NewParsingContext(context.Background(), opts)
 		cfg, err := config.PartialParseConfigFile(ctx, configPath, nil)
 		assert.Nil(t, err)
 

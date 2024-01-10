@@ -21,7 +21,7 @@ import (
 const bareIncludeKey = ""
 
 // Parse the config of the given include, if one is specified
-func parseIncludedConfig(ctx *Context, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
+func parseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
 		return nil, errors.WithStackTrace(IncludedConfigMissingPathError(ctx.TerragruntOptions.TerragruntConfigPath))
 	}
@@ -94,7 +94,7 @@ func parseIncludedConfig(ctx *Context, includedConfig *IncludeConfig) (*Terragru
 
 // handleInclude merges the included config into the current config depending on the merge strategy specified by the
 // user.
-func handleInclude(ctx *Context, config *TerragruntConfig, isPartial bool) (*TerragruntConfig, error) {
+func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool) (*TerragruntConfig, error) {
 	if ctx.TrackInclude == nil {
 		return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_NIL_INCLUDE_CONFIG")
 	}
@@ -151,7 +151,7 @@ func handleInclude(ctx *Context, config *TerragruntConfig, isPartial bool) (*Ter
 // dependency block configurations between the included config and the child config. This allows us to merge the two
 // dependencies prior to retrieving the outputs, allowing you to have partial configuration that is overridden by a
 // child.
-func handleIncludeForDependency(ctx *Context, childDecodedDependency terragruntDependency) (*terragruntDependency, error) {
+func handleIncludeForDependency(ctx *ParsingContext, childDecodedDependency terragruntDependency) (*terragruntDependency, error) {
 	if ctx.TrackInclude == nil {
 		return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_DEPENDENCY_NIL_INCLUDE_CONFIG")
 	}
@@ -626,7 +626,7 @@ func mergeErrorHooks(terragruntOptions *options.TerragruntOptions, childHooks []
 // getTrackInclude converts the terragrunt include blocks into TrackInclude structs that differentiate between an
 // included config in the current parsing ctx, and an included config that was passed through from a previous
 // parsing ctx.
-func getTrackInclude(ctx *Context, terragruntIncludeList []IncludeConfig, includeFromChild *IncludeConfig) (*TrackInclude, error) {
+func getTrackInclude(ctx *ParsingContext, terragruntIncludeList []IncludeConfig, includeFromChild *IncludeConfig) (*TrackInclude, error) {
 	includedPaths := []string{}
 	terragruntIncludeMap := make(map[string]IncludeConfig, len(terragruntIncludeList))
 	for _, tgInc := range terragruntIncludeList {

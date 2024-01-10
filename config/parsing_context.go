@@ -10,9 +10,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-// Context provides various variables that are used throughout all funcs and passed from function to function.
-// Using `Context` makes the code more readable..
-type Context struct {
+// ParsingContext provides various variables that are used throughout all funcs and passed from function to function.
+// Using `ParsingContext` makes the code more readable..
+type ParsingContext struct {
 	context.Context
 
 	TerragruntOptions *options.TerragruntOptions
@@ -42,32 +42,32 @@ type Context struct {
 
 	// Set a custom converter to TerragruntConfig.
 	// Used to read a "catalog" configuration where only certain blocks (`catalog`, `locals`) do not need to be converted, avoiding errors if any of the remaining blocks were not evaluated correctly.
-	ConvertToTerragruntConfigFunc func(ctx *Context, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
+	ConvertToTerragruntConfigFunc func(ctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
 }
 
-func NewContext(ctx context.Context, opts *options.TerragruntOptions) *Context {
-	return &Context{
+func NewParsingContext(ctx context.Context, opts *options.TerragruntOptions) *ParsingContext {
+	return &ParsingContext{
 		Context:           ctx,
 		TerragruntOptions: opts,
 		ParserOptions:     DefaultParserOptions(opts),
 	}
 }
-func (ctx Context) WithDecodeList(decodeList ...PartialDecodeSectionType) *Context {
+func (ctx ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {
 	ctx.PartialParseDecodeList = decodeList
 	return &ctx
 }
 
-func (ctx Context) WithTerragruntOptions(opts *options.TerragruntOptions) *Context {
+func (ctx ParsingContext) WithTerragruntOptions(opts *options.TerragruntOptions) *ParsingContext {
 	ctx.TerragruntOptions = opts
 	return &ctx
 }
 
-func (ctx Context) WithLocals(locals *cty.Value) *Context {
+func (ctx ParsingContext) WithLocals(locals *cty.Value) *ParsingContext {
 	ctx.Locals = locals
 	return &ctx
 }
 
-func (ctx Context) WithTrackInclude(trackInclude *TrackInclude) *Context {
+func (ctx ParsingContext) WithTrackInclude(trackInclude *TrackInclude) *ParsingContext {
 	ctx.TrackInclude = trackInclude
 	return &ctx
 }

@@ -24,7 +24,7 @@ remote_state {
 }
 `
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	require.NoError(t, err)
 
@@ -48,7 +48,7 @@ remote_state = {
 }
 `
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	require.NoError(t, err)
 
@@ -74,7 +74,7 @@ func TestParseTerragruntJsonConfigRemoteStateMinimalConfig(t *testing.T) {
 }
 `
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntJsonConfigPath, config, nil)
 	require.NoError(t, err)
 
@@ -95,7 +95,7 @@ func TestParseTerragruntHclConfigRemoteStateMissingBackend(t *testing.T) {
 remote_state {}
 `
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	_, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "Missing required argument; The argument \"backend\" is required")
@@ -116,7 +116,7 @@ remote_state {
 }
 `
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -152,7 +152,7 @@ func TestParseTerragruntJsonConfigRemoteStateFullConfig(t *testing.T) {
 	}
 }
 `
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntJsonConfigPath, config, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -183,7 +183,7 @@ retryable_errors = [
     "Another one of my errors"
 ]
 `
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	require.NoError(t, err)
 
@@ -211,7 +211,7 @@ func TestParseTerragruntJsonConfigRetryConfiguration(t *testing.T) {
 }
 `
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntJsonConfigPath, config, nil)
 	require.NoError(t, err)
 
@@ -231,7 +231,7 @@ func TestParseIamRole(t *testing.T) {
 
 	config := `iam_role = "terragrunt-iam-role"`
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -250,7 +250,7 @@ func TestParseIamAssumeRoleDuration(t *testing.T) {
 
 	config := `iam_assume_role_duration = 36000`
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -269,7 +269,7 @@ func TestParseIamAssumeRoleSessionName(t *testing.T) {
 
 	config := `iam_assume_role_session_name = "terragrunt-iam-assume-role-session-name"`
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -292,7 +292,7 @@ dependencies {
 }
 `
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -318,7 +318,7 @@ dependencies {
 }
 `
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -357,7 +357,7 @@ dependencies {
 }
 `
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -406,7 +406,7 @@ func TestParseTerragruntJsonConfigRemoteStateDynamoDbTerraformConfigAndDependenc
 }
 `
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntJsonConfigPath, config, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -448,7 +448,7 @@ include {
 		Logger:               util.CreateLogEntry("", util.GetDefaultLogLevel()),
 	}
 
-	ctx := NewContext(context.Background(), opts)
+	ctx := NewParsingContext(context.Background(), opts)
 	terragruntConfig, err := ParseConfigString(ctx, opts.TerragruntConfigPath, config, nil)
 	if assert.Nil(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err)) {
 		assert.Nil(t, terragruntConfig.Terraform)
@@ -476,7 +476,7 @@ include {
 
 	opts := mockOptionsForTestWithConfigPath(t, "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath)
 
-	ctx := NewContext(context.Background(), opts)
+	ctx := NewParsingContext(context.Background(), opts)
 	terragruntConfig, err := ParseConfigString(ctx, opts.TerragruntConfigPath, config, nil)
 	if assert.Nil(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err)) {
 		assert.Nil(t, terragruntConfig.Terraform)
@@ -516,7 +516,7 @@ remote_state {
 
 	opts := mockOptionsForTestWithConfigPath(t, "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath)
 
-	ctx := NewContext(context.Background(), opts)
+	ctx := NewParsingContext(context.Background(), opts)
 	terragruntConfig, err := ParseConfigString(ctx, opts.TerragruntConfigPath, config, nil)
 	if assert.Nil(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err)) {
 		assert.Nil(t, terragruntConfig.Terraform)
@@ -564,7 +564,7 @@ dependencies {
 
 	opts := mockOptionsForTestWithConfigPath(t, "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+DefaultTerragruntConfigPath)
 
-	ctx := NewContext(context.Background(), opts)
+	ctx := NewParsingContext(context.Background(), opts)
 	terragruntConfig, err := ParseConfigString(ctx, opts.TerragruntConfigPath, config, nil)
 	require.NoError(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err))
 
@@ -613,7 +613,7 @@ func TestParseTerragruntJsonConfigIncludeOverrideAll(t *testing.T) {
 
 	opts := mockOptionsForTestWithConfigPath(t, "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+DefaultTerragruntJsonConfigPath)
 
-	ctx := NewContext(context.Background(), opts)
+	ctx := NewParsingContext(context.Background(), opts)
 	terragruntConfig, err := ParseConfigString(ctx, opts.TerragruntConfigPath, config, nil)
 	require.NoError(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err))
 
@@ -645,7 +645,7 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 
 	opts := mockOptionsForTestWithConfigPath(t, configPath)
 
-	ctx := NewContext(context.Background(), opts)
+	ctx := NewParsingContext(context.Background(), opts)
 	_, actualErr := ParseConfigString(ctx, configPath, config, nil)
 	expectedErr := TooManyLevelsOfInheritanceError{
 		ConfigPath:             configPath,
@@ -667,7 +667,7 @@ func TestParseTerragruntConfigThreeLevels(t *testing.T) {
 
 	opts := mockOptionsForTestWithConfigPath(t, configPath)
 
-	ctx := NewContext(context.Background(), opts)
+	ctx := NewParsingContext(context.Background(), opts)
 	_, actualErr := ParseConfigString(ctx, configPath, config, nil)
 	expectedErr := TooManyLevelsOfInheritanceError{
 		ConfigPath:             configPath,
@@ -682,7 +682,7 @@ func TestParseTerragruntConfigEmptyConfig(t *testing.T) {
 
 	config := ``
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	cfg, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	assert.NoError(t, err)
 
@@ -702,7 +702,7 @@ func TestParseTerragruntConfigEmptyConfigOldConfig(t *testing.T) {
 
 	config := ``
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -718,7 +718,7 @@ func TestParseTerragruntConfigTerraformNoSource(t *testing.T) {
 terraform {}
 `
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -740,7 +740,7 @@ terraform {
 }
 `
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -772,7 +772,7 @@ terraform {
 }
 `
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -832,7 +832,7 @@ terraform {
 }
 `
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	require.NoError(t, err)
 
@@ -889,7 +889,7 @@ func TestParseTerragruntJsonConfigTerraformWithMultipleExtraArguments(t *testing
 }
 `
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntJsonConfigPath, config, nil)
 	require.NoError(t, err)
 
@@ -1131,7 +1131,7 @@ func TestParseTerragruntConfigPreventDestroyTrue(t *testing.T) {
 prevent_destroy = true
 `
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -1150,7 +1150,7 @@ func TestParseTerragruntConfigPreventDestroyFalse(t *testing.T) {
 prevent_destroy = false
 `
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -1169,7 +1169,7 @@ func TestParseTerragruntConfigSkipTrue(t *testing.T) {
 skip = true
 `
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -1188,7 +1188,7 @@ func TestParseTerragruntConfigSkipFalse(t *testing.T) {
 skip = false
 `
 
-	ctx := NewContext(context.Background(), mockOptionsForTest(t))
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -1216,7 +1216,7 @@ terraform {
 		Logger:               util.CreateLogEntry("", util.GetDefaultLogLevel()),
 	}
 
-	ctx := NewContext(context.Background(), opts)
+	ctx := NewParsingContext(context.Background(), opts)
 	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
 	if err != nil {
 		t.Fatal(err)

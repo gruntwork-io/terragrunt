@@ -59,6 +59,7 @@ func (config *CatalogConfig) normalize(cofnigPath string) {
 
 // We want users to be able to browse to any folder in an `infra-live` repo, run `terragrunt catalog` (with no URL) arg.
 // ReadCatalogConfig looks for the "nearest" `terragrunt.hcl` in the parent directories if the given `opts.TerragruntConfigPath` does not exist. Since our normal parsing `ParseConfig` does not always work, as some `terragrunt.hcl` files are meant to be used from an `include` and/or they might use `find_in_parent_folders` and they only work from certain child folders, it parses this file to see if the config contains `include{...find_in_parent_folders()...}` block to determine if it is the root configuration. If it finds `terragrunt.hcl` that already has `include`, then read that configuration as is, oterwise generate a stub child `terragrunt.hcl` in memory with an `include` to pull in the one we found.
+// Unlike "RoadTerragruntConfig" func, it ignores any configuration errors not related to the "catalog" block.
 func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOptions) (*CatalogConfig, error) {
 	configPath, configString, err := findCatalogConfig(parentCtx, opts)
 	if err != nil || configPath == "" {
@@ -66,7 +67,7 @@ func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOption
 	}
 	opts.TerragruntConfigPath = configPath
 
-	ctx := NewContext(parentCtx, opts)
+	ctx := NewParsingContext(parentCtx, opts)
 	ctx.ParserOptions = append(ctx.ParserOptions, hclparse.WithHaltOnErrorOnlyForBlocks([]string{MetadataCatalog}))
 	ctx.ConvertToTerragruntConfigFunc = convertToTerragruntCatalogConfig
 
@@ -98,7 +99,7 @@ func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (st
 			// continue
 		}
 
-		newConfigPath, err := findInParentFolders(NewContext(ctx, opts), []string{configName})
+		newConfigPath, err := findInParentFolders(NewParsingContext(ctx, opts), []string{configName})
 		if err != nil {
 			if _, ok := errors.Unwrap(err).(ParentFileNotFoundError); ok {
 				break
@@ -136,7 +137,7 @@ func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (st
 	return "", "", nil
 }
 
-func convertToTerragruntCatalogConfig(ctx *Context, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
+func convertToTerragruntCatalogConfig(ctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
 	var (
 		terragruntConfig = &TerragruntConfig{}
 		defaultMetadata  = map[string]interface{}{FoundInFile: configPath}

@@ -17,8 +17,8 @@ import (
 // length) and returns as output a string. The implementation of the function calls the given toWrap function, passing
 // it the input parameters string slice as well as the given include and terragruntOptions.
 func wrapStringSliceToStringAsFuncImpl(
-	ctx *Context,
-	toWrap func(ctx *Context, params []string) (string, error),
+	ctx *ParsingContext,
+	toWrap func(ctx *ParsingContext, params []string) (string, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		VarParam: &function.Parameter{Type: cty.String},
@@ -38,8 +38,8 @@ func wrapStringSliceToStringAsFuncImpl(
 }
 
 func wrapStringSliceToNumberAsFuncImpl(
-	ctx *Context,
-	toWrap func(ctx *Context, params []string) (int64, error),
+	ctx *ParsingContext,
+	toWrap func(ctx *ParsingContext, params []string) (int64, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		VarParam: &function.Parameter{Type: cty.String},
@@ -59,8 +59,8 @@ func wrapStringSliceToNumberAsFuncImpl(
 }
 
 func wrapStringSliceToBoolAsFuncImpl(
-	ctx *Context,
-	toWrap func(ctx *Context, params []string) (bool, error),
+	ctx *ParsingContext,
+	toWrap func(ctx *ParsingContext, params []string) (bool, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		VarParam: &function.Parameter{Type: cty.String},
@@ -82,8 +82,8 @@ func wrapStringSliceToBoolAsFuncImpl(
 // Create a cty Function that takes no input parameters and returns as output a string. The implementation of the
 // function calls the given toWrap function, passing it the given include and terragruntOptions.
 func wrapVoidToStringAsFuncImpl(
-	ctx *Context,
-	toWrap func(ctx *Context) (string, error),
+	ctx *ParsingContext,
+	toWrap func(ctx *ParsingContext) (string, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		Type: function.StaticReturnType(cty.String),
@@ -110,8 +110,8 @@ func wrapVoidToEmptyStringAsFuncImpl() function.Function {
 // Create a cty Function that takes no input parameters and returns as output a string slice. The implementation of the
 // function calls the given toWrap function, passing it the given include and terragruntOptions.
 func wrapVoidToStringSliceAsFuncImpl(
-	ctx *Context,
-	toWrap func(ctx *Context) ([]string, error),
+	ctx *ParsingContext,
+	toWrap func(ctx *ParsingContext) ([]string, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		Type: function.StaticReturnType(cty.List(cty.String)),
@@ -273,7 +273,7 @@ func generateTypeFromValuesMap(valMap map[string]cty.Value) cty.Type {
 // NOTE: When evaluated in a partial parse ctx, only the partially parsed ctx is available in the expose. This
 // ensures that we can parse the child config without having access to dependencies when constructing the dependency
 // graph.
-func includeMapAsCtyVal(ctx *Context) (cty.Value, error) {
+func includeMapAsCtyVal(ctx *ParsingContext) (cty.Value, error) {
 	bareInclude, hasBareInclude := ctx.TrackInclude.CurrentMap[bareIncludeKey]
 	if len(ctx.TrackInclude.CurrentMap) == 1 && hasBareInclude {
 		ctx.TerragruntOptions.Logger.Debug("Detected single bare include block - exposing as top level")
@@ -296,7 +296,7 @@ func includeMapAsCtyVal(ctx *Context) (cty.Value, error) {
 
 // includeConfigAsCtyVal returns the parsed include block as a cty.Value object if expose is true. Otherwise, return
 // the nil representation of cty.Value.
-func includeConfigAsCtyVal(ctx *Context, includeConfig IncludeConfig) (cty.Value, error) {
+func includeConfigAsCtyVal(ctx *ParsingContext, includeConfig IncludeConfig) (cty.Value, error) {
 	ctx = ctx.WithTrackInclude(nil)
 
 	if includeConfig.GetExpose() {

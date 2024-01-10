@@ -34,7 +34,7 @@ const versionParts = 3
 // - TerraformVersion
 // TODO: Look into a way to refactor this function to avoid the side effect.
 func checkVersionConstraints(terragruntOptions *options.TerragruntOptions) error {
-	configContext := config.NewContext(context.Background(), terragruntOptions).WithDecodeList(config.TerragruntVersionConstraints)
+	configContext := config.NewParsingContext(context.Background(), terragruntOptions).WithDecodeList(config.TerragruntVersionConstraints)
 
 	partialTerragruntConfig, err := config.PartialParseConfigFile(
 		configContext,

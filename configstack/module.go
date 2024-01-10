@@ -274,7 +274,7 @@ func resolveTerraformModule(terragruntConfigPath string, moduleMap map[string]*T
 		return &TerraformModule{Path: modulePath, TerragruntOptions: opts, FlagExcluded: true}, nil
 	}
 
-	configContext := config.NewContext(context.Background(), opts).WithDecodeList(
+	configContext := config.NewParsingContext(context.Background(), opts).WithDecodeList(
 		// Need for initializing the modules
 		config.TerraformSource,
 
