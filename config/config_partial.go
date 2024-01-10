@@ -127,7 +127,7 @@ func DecodeBaseBlocks(ctx *Context, file *hclparse.File, includeFromChild *Inclu
 }
 
 func PartialParseConfigFile(ctx *Context, configPath string, include *IncludeConfig) (*TerragruntConfig, error) {
-	file, err := hclparse.New().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
+	file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +182,7 @@ func TerragruntConfigFromPartialConfig(ctx *Context, file *hclparse.File, includ
 // Note also that the following blocks are never decoded in a partial parse:
 // - inputs
 func PartialParseConfigString(ctx *Context, configPath, configString string, include *IncludeConfig) (*TerragruntConfig, error) {
-	file, err := hclparse.New().WithOptions(ctx.ParserOptions...).ParseFromString(configString, configPath)
+	file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromString(configString, configPath)
 	if err != nil {
 		return nil, err
 	}

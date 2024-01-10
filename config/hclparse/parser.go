@@ -18,7 +18,7 @@ type Parser struct {
 	fileUpdateHandlerFunc func(*File) error
 }
 
-func New() *Parser {
+func NewParser() *Parser {
 	return &Parser{
 		Parser: hclparse.NewParser(),
 	}

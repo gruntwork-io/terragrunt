@@ -30,7 +30,7 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
-	parser := hclparse.New().WithOptions(DefaultParserOptions(opts)...)
+	parser := hclparse.NewParser().WithOptions(DefaultParserOptions(opts)...)
 
 	// iterate over files and parse variables.
 	var parsedInputs []*ParsedVariable

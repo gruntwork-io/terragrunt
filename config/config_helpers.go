@@ -944,7 +944,7 @@ func readTFVarsFile(ctx *Context, args []string) (string, error) {
 // ParseAndDecodeVarFile uses the HCL2 file to parse the given varfile string into an HCL file body, and then decode it
 // into the provided output.
 func ParseAndDecodeVarFile(varFile string, fileContents []byte, out interface{}) error {
-	parser := hclparse.New()
+	parser := hclparse.NewParser()
 	file, err := parser.ParseFromBytes(fileContents, varFile)
 	if err != nil {
 		return err
