@@ -92,7 +92,7 @@ type terragruntRemoteState struct {
 // - locals
 // - include
 func DecodeBaseBlocks(ctx *Context, file *hclparse.File, includeFromChild *IncludeConfig) (*TrackInclude, *cty.Value, error) {
-	evalContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
+	evalContext, err := createTerragruntEvalContext(ctx.WithTrackInclude(nil), file.ConfigPath)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -132,24 +132,15 @@ func PartialParseConfigFile(ctx *Context, configPath string, include *IncludeCon
 		return nil, err
 	}
 
-	return PartialParseConfig(ctx, file, include)
-}
-
-func PartialParseConfigString(ctx *Context, configPath, configString string, include *IncludeConfig) (*TerragruntConfig, error) {
-	file, err := hclparse.New().WithOptions(ctx.ParserOptions...).ParseFromString(configString, configPath)
-	if err != nil {
-		return nil, err
-	}
-
-	return PartialParseConfig(ctx, file, include)
+	return TerragruntConfigFromPartialConfig(ctx, file, include)
 }
 
 var terragruntConfigCache = NewTerragruntConfigCache()
 
-// Wrapper of PartialParseConfig which checks for cached configs.
+// Wrapper of PartialParseConfigString which checks for cached configs.
 // filename, configString, includeFromChild and decodeList are used for the cache key,
 // by getting the default value (%#v) through fmt.
-func PartialParseConfig(ctx *Context, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
+func TerragruntConfigFromPartialConfig(ctx *Context, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	var cacheKey = fmt.Sprintf("%#v-%#v-%#v-%#v", file.ConfigPath, file.Content(), includeFromChild, ctx.PartialParseDecodeList)
 
 	if ctx.TerragruntOptions.UsePartialParseConfigCache {
@@ -161,7 +152,7 @@ func PartialParseConfig(ctx *Context, file *hclparse.File, includeFromChild *Inc
 		ctx.TerragruntOptions.Logger.Debugf("Cache miss for '%s' (partial parsing), decodeList: '%v'.", file.ConfigPath, ctx.PartialParseDecodeList)
 	}
 
-	config, err := partialParseConfig(ctx, file, includeFromChild)
+	config, err := PartialParseConfig(ctx, file, includeFromChild)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +165,7 @@ func PartialParseConfig(ctx *Context, file *hclparse.File, includeFromChild *Inc
 
 }
 
-// partialParseConfig partially parses and decodes the provided string. Which blocks/attributes to decode is
+// PartialParseConfigString partially parses and decodes the provided string. Which blocks/attributes to decode is
 // controlled by the function parameter decodeList. These blocks/attributes are parsed and set on the output
 // TerragruntConfig. Valid values are:
 //   - DependenciesBlock: Parses the `dependencies` block in the config
@@ -190,7 +181,16 @@ func PartialParseConfig(ctx *Context, file *hclparse.File, includeFromChild *Inc
 // - include
 // Note also that the following blocks are never decoded in a partial parse:
 // - inputs
-func partialParseConfig(ctx *Context, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
+func PartialParseConfigString(ctx *Context, configPath, configString string, include *IncludeConfig) (*TerragruntConfig, error) {
+	file, err := hclparse.New().WithOptions(ctx.ParserOptions...).ParseFromString(configString, configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return PartialParseConfig(ctx, file, include)
+}
+
+func PartialParseConfig(ctx *Context, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
 	// Initialize evaluation ctx extensions from base blocks.
 

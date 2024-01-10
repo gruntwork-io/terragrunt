@@ -802,7 +802,7 @@ func setIAMRole(ctx *Context, file *hclparse.File, includeFromChild *IncludeConf
 		var key = fmt.Sprintf("%v-%v", file.Content(), includeFromChild)
 		var config, found = iamRoleCache.Get(key)
 		if !found {
-			iamConfig, err := PartialParseConfig(ctx.WithDecodeList(TerragruntFlags), file, includeFromChild)
+			iamConfig, err := TerragruntConfigFromPartialConfig(ctx.WithDecodeList(TerragruntFlags), file, includeFromChild)
 			if err != nil {
 				return err
 			}

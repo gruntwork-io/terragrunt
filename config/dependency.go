@@ -270,12 +270,12 @@ func checkForDependencyBlockCyclesUsingDFS(
 }
 
 // Given the config path, return the list of config paths that are specified as dependency blocks in the config
-func getDependencyBlockConfigPathsByFilepath(ctx *Context, dependencyPath string) ([]string, error) {
+func getDependencyBlockConfigPathsByFilepath(ctx *Context, configPath string) ([]string, error) {
 	// This will automatically parse everything needed to parse the dependency block configs, and load them as
 	// TerragruntConfig.Dependencies. Note that since we aren't passing in `DependenciesBlock` to the
 	// PartialDecodeSectionType list, the Dependencies attribute will not include any dependencies specified via the
 	// dependencies block.
-	tgConfig, err := PartialParseConfigFile(ctx.WithDecodeList(DependencyBlock), dependencyPath, nil)
+	tgConfig, err := PartialParseConfigFile(ctx.WithDecodeList(DependencyBlock), configPath, nil)
 	if err != nil {
 		return nil, err
 	}

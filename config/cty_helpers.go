@@ -274,16 +274,14 @@ func generateTypeFromValuesMap(valMap map[string]cty.Value) cty.Type {
 // ensures that we can parse the child config without having access to dependencies when constructing the dependency
 // graph.
 func includeMapAsCtyVal(ctx *Context) (cty.Value, error) {
-	includeMap := ctx.TrackInclude.CurrentMap
-
-	bareInclude, hasBareInclude := includeMap[bareIncludeKey]
-	if len(includeMap) == 1 && hasBareInclude {
+	bareInclude, hasBareInclude := ctx.TrackInclude.CurrentMap[bareIncludeKey]
+	if len(ctx.TrackInclude.CurrentMap) == 1 && hasBareInclude {
 		ctx.TerragruntOptions.Logger.Debug("Detected single bare include block - exposing as top level")
 		return includeConfigAsCtyVal(ctx, bareInclude)
 	}
 
 	exposedIncludeMap := map[string]cty.Value{}
-	for key, included := range includeMap {
+	for key, included := range ctx.TrackInclude.CurrentMap {
 		parsedIncludedCty, err := includeConfigAsCtyVal(ctx, included)
 		if err != nil {
 			return cty.NilVal, err
