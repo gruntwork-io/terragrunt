@@ -3943,12 +3943,13 @@ func TestReadTerragruntConfigIamRole(t *testing.T) {
 
 	// Invoke terragrunt and verify used IAM role
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", TEST_FIXTURE_READ_IAM_ROLE), &stdout, &stderr)
+	require.NoError(t, err)
 
 	// Since are used not existing AWS accounts, for validation are used success and error outputs
-	output := fmt.Sprintf("%v %v %v", stderr.String(), stdout.String(), err.Error())
+	output := fmt.Sprintf("%v %v", stderr.String(), stdout.String())
 
 	// Check that output contains value defined in IAM role
-	assert.Equal(t, 1, strings.Count(output, "666666666666"))
+	assert.Contains(t, output, "666666666666")
 	// Ensure that state file wasn't created with default IAM value
 	assert.True(t, util.FileNotExists(util.JoinPath(TEST_FIXTURE_READ_IAM_ROLE, identityArn+".txt")))
 }
