@@ -113,7 +113,7 @@ func DecodeBaseBlocks(ctx *Context, file *hclparse.File, includeFromChild *Inclu
 
 	// Evaluate all the expressions in the locals block separately and generate the variables list to use in the
 	// evaluation ctx.
-	locals, err := evaluateLocalsBlock(ctx, file)
+	locals, err := evaluateLocalsBlock(ctx.WithTrackInclude(trackInclude), file)
 	if err != nil {
 		return nil, nil, err
 	}

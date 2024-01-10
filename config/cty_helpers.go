@@ -299,6 +299,8 @@ func includeMapAsCtyVal(ctx *Context) (cty.Value, error) {
 // includeConfigAsCtyVal returns the parsed include block as a cty.Value object if expose is true. Otherwise, return
 // the nil representation of cty.Value.
 func includeConfigAsCtyVal(ctx *Context, includeConfig IncludeConfig) (cty.Value, error) {
+	ctx = ctx.WithTrackInclude(nil)
+
 	if includeConfig.GetExpose() {
 		parsedIncluded, err := parseIncludedConfig(ctx, &includeConfig)
 		if err != nil {
