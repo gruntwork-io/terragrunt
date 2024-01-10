@@ -92,7 +92,7 @@ type terragruntRemoteState struct {
 // - locals
 // - include
 func DecodeBaseBlocks(ctx *Context, file *hclparse.File, includeFromChild *IncludeConfig) (*TrackInclude, *cty.Value, error) {
-	evalContext, err := createTerragruntEvalContext(ctx.WithTrackInclude(nil), file.ConfigPath)
+	evalContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -191,9 +191,10 @@ func PartialParseConfigString(ctx *Context, configPath, configString string, inc
 }
 
 func PartialParseConfig(ctx *Context, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
+	ctx = ctx.WithTrackInclude(nil)
+
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
 	// Initialize evaluation ctx extensions from base blocks.
-
 	trackInclude, locals, err := DecodeBaseBlocks(ctx, file, includeFromChild)
 	if err != nil {
 		return nil, err

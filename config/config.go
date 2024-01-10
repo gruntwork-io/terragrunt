@@ -725,6 +725,8 @@ func ParseConfigString(ctx *Context, configPath string, configString string, inc
 //  5. Merge the included config with the parsed config. Note that all the config data is mergable except for `locals`
 //     blocks, which are only scoped to be available within the defining config.
 func ParseConfig(ctx *Context, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
+	ctx = ctx.WithTrackInclude(nil)
+
 	// Initial evaluation of configuration to load flags like IamRole which will be used for final parsing
 	// https://github.com/gruntwork-io/terragrunt/issues/667
 	if err := setIAMRole(ctx, file, includeFromChild); err != nil {
