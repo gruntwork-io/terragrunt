@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	cloud.google.com/go/storage v1.30.1
-	github.com/aws/aws-sdk-go v1.46.6
+	github.com/aws/aws-sdk-go v1.49.17
 	github.com/creack/pty v1.1.17
 	github.com/fatih/structs v1.1.0
 	github.com/go-errors/errors v1.4.2
