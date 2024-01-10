@@ -10,9 +10,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-// Context provides various ctx to the evaluation ctx to enhance the parsing capabilities.
+// Context provides various variables that are used throughout all funcs and passed from function to function.
+// Using `Context` makes the code more readable..
 type Context struct {
 	context.Context
+
+	TerragruntOptions *options.TerragruntOptions
 
 	// TrackInclude represents contexts of included configurations.
 	TrackInclude *TrackInclude
@@ -34,10 +37,11 @@ type Context struct {
 	// These functions have the highest priority and will overwrite any others with the same name
 	PredefinedFunctions map[string]function.Function
 
-	TerragruntOptions *options.TerragruntOptions
-
+	// `ParserOptions` is used to configure hcl Parser.
 	ParserOptions []hclparse.Option
 
+	// Set a custom converter to TerragruntConfig.
+	// Used to read a "catalog" configuration where only certain blocks (`catalog`, `locals`) do not need to be converted, avoiding errors if any of the remaining blocks were not evaluated correctly.
 	ConvertToTerragruntConfigFunc func(ctx *Context, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
 }
 

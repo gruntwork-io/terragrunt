@@ -68,27 +68,7 @@ func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOption
 
 	ctx := NewContext(parentCtx, opts)
 	ctx.ParserOptions = append(ctx.ParserOptions, hclparse.WithHaltOnErrorOnlyForBlocks([]string{MetadataCatalog}))
-	ctx.ConvertToTerragruntConfigFunc = func(ctx *Context, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
-		var (
-			terragruntConfig = &TerragruntConfig{}
-			defaultMetadata  = map[string]interface{}{FoundInFile: configPath}
-		)
-
-		if terragruntConfigFromFile.Catalog != nil {
-			terragruntConfig.Catalog = terragruntConfigFromFile.Catalog
-			terragruntConfig.Catalog.normalize(configPath)
-			terragruntConfig.SetFieldMetadata(MetadataCatalog, defaultMetadata)
-		}
-
-		if ctx.Locals != nil && *ctx.Locals != cty.NilVal {
-			// we should ignore any errors from `parseCtyValueToMap` as some `locals` values might have been incorrectly evaluated, that results to `json.Unmarshal` error.
-			localsParsed, _ := parseCtyValueToMap(*ctx.Locals)
-			terragruntConfig.Locals = localsParsed
-			terragruntConfig.SetFieldMetadataMap(MetadataLocals, localsParsed, defaultMetadata)
-		}
-
-		return terragruntConfig, nil
-	}
+	ctx.ConvertToTerragruntConfigFunc = convertToTerragruntCatalogConfig
 
 	config, err := ParseConfigString(ctx, configPath, configString, nil)
 	if err != nil {
@@ -154,4 +134,26 @@ func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (st
 	}
 
 	return "", "", nil
+}
+
+func convertToTerragruntCatalogConfig(ctx *Context, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
+	var (
+		terragruntConfig = &TerragruntConfig{}
+		defaultMetadata  = map[string]interface{}{FoundInFile: configPath}
+	)
+
+	if terragruntConfigFromFile.Catalog != nil {
+		terragruntConfig.Catalog = terragruntConfigFromFile.Catalog
+		terragruntConfig.Catalog.normalize(configPath)
+		terragruntConfig.SetFieldMetadata(MetadataCatalog, defaultMetadata)
+	}
+
+	if ctx.Locals != nil && *ctx.Locals != cty.NilVal {
+		// we should ignore any errors from `parseCtyValueToMap` as some `locals` values might have been incorrectly evaluated, that results to `json.Unmarshal` error.
+		localsParsed, _ := parseCtyValueToMap(*ctx.Locals)
+		terragruntConfig.Locals = localsParsed
+		terragruntConfig.SetFieldMetadataMap(MetadataLocals, localsParsed, defaultMetadata)
+	}
+
+	return terragruntConfig, nil
 }

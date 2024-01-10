@@ -25,8 +25,10 @@ func (file *File) Content() string {
 	return string(file.Bytes)
 }
 
-func (file *File) Update(data []byte) error {
-	// Since `hclparse.Parser` has a cache, we need to override the instance to be able to parse the configuration with the same name.
+// Update reparses the file with the new `content`.
+func (file *File) Update(content []byte) error {
+	// Since `hclparse.Parser` has a cache, we need to recreate(clone) the Parser instance without current file
+	// to be able to parse the configuration with the same `configPath`.
 	parser := hclparse.NewParser()
 	for configPath, copyfile := range file.Files() {
 		if configPath != file.ConfigPath {
@@ -35,7 +37,10 @@ func (file *File) Update(data []byte) error {
 	}
 	file.Parser.Parser = parser
 
-	updatedFile, err := file.ParseFromBytes(data, file.ConfigPath)
+	// we need to reparse the new updated contents. This is necessarily because the blocks
+	// returned by hclparse does not support editing, and so we have to go through hclwrite, which leads to a
+	// different AST representation.
+	updatedFile, err := file.ParseFromBytes(content, file.ConfigPath)
 	if err != nil {
 		return err
 	}
@@ -52,8 +57,6 @@ func (file *File) Update(data []byte) error {
 // we first see if there are any include blocks without any labels, and if there is, we modify it in the file object to
 // inject the label as "".
 func (file *File) Decode(out interface{}, evalContext *hcl.EvalContext) (err error) {
-	// This is necessarily because the blocks returned by hclparse does not support editing,
-	// and so we have to go through hclwrite, which leads to a different AST representation.
 	if file.fileUpdateHandlerFunc != nil {
 		if err := file.Parser.fileUpdateHandlerFunc(file); err != nil {
 			return err

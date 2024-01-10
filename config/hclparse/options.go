@@ -13,6 +13,8 @@ func WithLogger(logger *logrus.Entry) Option {
 		return parser
 	}
 }
+
+// WithFileUpdate sets the `fileUpdateHandlerFunc` func which is run before each file decoding.
 func WithFileUpdate(fn func(*File) error) Option {
 	return func(parser Parser) Parser {
 		parser.fileUpdateHandlerFunc = fn
@@ -20,6 +22,8 @@ func WithFileUpdate(fn func(*File) error) Option {
 	}
 }
 
+// WithHaltOnErrorOnlyForBlocks configures a diagnostic error handler that runs when diagnostic errors occur.
+// If errors occur in the given `blockNames` blocks, parser returns the error to its caller, otherwise it skips the error.
 func WithHaltOnErrorOnlyForBlocks(blockNames []string) Option {
 	return func(parser Parser) Parser {
 		parser.diagnosticsErrorFunc = func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {

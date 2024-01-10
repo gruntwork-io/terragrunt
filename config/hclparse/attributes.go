@@ -9,9 +9,6 @@ import (
 
 type Attributes []*Attribute
 
-// GetAttrs loads the block into name expression pairs to assist with evaluation of the attrs prior to
-// evaluating the whole config. Note that this is exactly the same as
-// terraform/configs/named_values.go:decodeLocalsBlock
 func NewAttributes(file *File, hclAttrs hcl.Attributes) Attributes {
 	var attrs Attributes
 
@@ -35,8 +32,6 @@ func (attrs Attributes) ValidateIdentifier() error {
 	return nil
 }
 
-// Attribute represents a single local name binding. This holds the unevaluated expression, extracted from the parsed file
-// (but before decoding) so that we can look for references to other locals before evaluating.
 type Attribute struct {
 	*File
 	*hcl.Attribute

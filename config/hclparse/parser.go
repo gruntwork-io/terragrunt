@@ -1,3 +1,6 @@
+// The package wraps `hclparse.Parser` to be able to handle diagnostic errors from one place, see `diagnosticsError(diags hcl.Diagnostics) error` func.
+// This allows us to halt the process only when certain errors occur, such as skipping all errors not related to the `catalog` block.
+
 package hclparse
 
 import (
