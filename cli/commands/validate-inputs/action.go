@@ -279,7 +279,7 @@ func getVarNamesFromVarFile(varFile string) ([]string, error) {
 			return nil, err
 		}
 	} else {
-		if err := config.ParseAndDecodeVarFile(string(fileContents), varFile, &variables); err != nil {
+		if err := config.ParseAndDecodeVarFile(varFile, fileContents, &variables); err != nil {
 			return nil, err
 		}
 	}
