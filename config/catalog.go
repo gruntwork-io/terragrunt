@@ -92,6 +92,8 @@ func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (st
 			MaxFoldersToCheck:    opts.MaxFoldersToCheck,
 		}
 
+		// This allows to stop the process by pressing Ctrl-C, in case the loop is endless,
+		// it can happen if the functions of the `filepath` package do not work correctly under a certain operating system.
 		select {
 		case <-ctx.Done():
 			return "", "", nil
@@ -129,7 +131,7 @@ func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (st
 	// and the path one directory deeper in order for `find_in_parent_folders` can find the catalog configuration.
 	if catalogConfigPath != "" {
 		configString := fmt.Sprintf(rootConfigFmt, configName)
-		configPath := filepath.Join(filepath.Dir(catalogConfigPath), util.UniqueId(), configName)
+		configPath = filepath.Join(filepath.Dir(catalogConfigPath), util.UniqueId(), configName)
 
 		return configPath, configString, nil
 	}
@@ -151,6 +153,8 @@ func convertToTerragruntCatalogConfig(ctx *ParsingContext, configPath string, te
 
 	if ctx.Locals != nil && *ctx.Locals != cty.NilVal {
 		// we should ignore any errors from `parseCtyValueToMap` as some `locals` values might have been incorrectly evaluated, that results to `json.Unmarshal` error.
+		// for example if the locals block looks like `{"var1":, "var2":"value2"}`, `parseCtyValueToMap` returns the map with "var2" value and an syntax error,
+		// but since we consciously understand that not all variables can be evaluated correctly due to the fact that parsing may not start from the real root file, we can safely ignore this error.
 		localsParsed, _ := parseCtyValueToMap(*ctx.Locals)
 		terragruntConfig.Locals = localsParsed
 		terragruntConfig.SetFieldMetadataMap(MetadataLocals, localsParsed, defaultMetadata)

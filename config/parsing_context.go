@@ -11,7 +11,7 @@ import (
 )
 
 // ParsingContext provides various variables that are used throughout all funcs and passed from function to function.
-// Using `ParsingContext` makes the code more readable..
+// Using `ParsingContext` makes the code more readable.
 type ParsingContext struct {
 	context.Context
 
