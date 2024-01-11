@@ -6452,6 +6452,35 @@ func TestTerragruntAssumeRole(t *testing.T) {
 	assert.Contains(t, content, "session_name = \"session_name_example\"")
 }
 
+func TestTerragruntUpdatePolicy(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PATH)
+	cleanupTerraformFolder(t, rootPath)
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+
+	err := createS3BucketE(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	assert.NoError(t, err)
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+
+	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, rootPath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
+
+	// check that there is no policy on created bucket
+	_, err = bucketPolicy(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	assert.Error(t, err)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, rootPath))
+
+	// check that policy is created
+	_, err = bucketPolicy(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	assert.NoError(t, err)
+}
+
 func TestTerragruntOutputJson(t *testing.T) {
 	// no parallel test execution since JSON output is global
 	defer func() {

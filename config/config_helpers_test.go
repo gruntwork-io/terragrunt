@@ -292,6 +292,12 @@ func TestFindInParentFolders(t *testing.T) {
 			nil,
 		},
 		{
+			[]string{"tfwork"},
+			terragruntOptionsForTest(t, "../test/fixture-parent-folders/with-params/tfwork/tg/"+DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixture-parent-folders/with-params/tfwork"),
+			nil,
+		},
+		{
 			nil,
 			terragruntOptionsForTest(t, "/"),
 			"",
