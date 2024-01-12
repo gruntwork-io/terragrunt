@@ -649,8 +649,8 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 	_, actualErr := ParseConfigString(ctx, configPath, config, nil)
 	expectedErr := TooManyLevelsOfInheritanceError{
 		ConfigPath:             configPath,
-		FirstLevelIncludePath:  absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/"+DefaultTerragruntConfigPath),
-		SecondLevelIncludePath: absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/"+DefaultTerragruntConfigPath),
+		FirstLevelIncludePath:  filepath.ToSlash(absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/"+DefaultTerragruntConfigPath)),
+		SecondLevelIncludePath: filepath.ToSlash(absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/"+DefaultTerragruntConfigPath)),
 	}
 	assert.True(t, errors.IsError(actualErr, expectedErr), "Expected error %v but got %v", expectedErr, actualErr)
 }
