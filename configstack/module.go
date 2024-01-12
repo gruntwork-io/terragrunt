@@ -1,6 +1,7 @@
 package configstack
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -273,21 +274,22 @@ func resolveTerraformModule(terragruntConfigPath string, moduleMap map[string]*T
 		return &TerraformModule{Path: modulePath, TerragruntOptions: opts, FlagExcluded: true}, nil
 	}
 
+	configContext := config.NewParsingContext(context.Background(), opts).WithDecodeList(
+		// Need for initializing the modules
+		config.TerraformSource,
+
+		// Need for parsing out the dependencies
+		config.DependenciesBlock,
+		config.DependencyBlock,
+	)
+
 	// We only partially parse the config, only using the pieces that we need in this section. This config will be fully
 	// parsed at a later stage right before the action is run. This is to delay interpolation of functions until right
 	// before we call out to terraform.
 	terragruntConfig, err := config.PartialParseConfigFile(
+		configContext,
 		terragruntConfigPath,
-		opts,
 		includeConfig,
-		[]config.PartialDecodeSectionType{
-			// Need for initializing the modules
-			config.TerraformSource,
-
-			// Need for parsing out the dependencies
-			config.DependenciesBlock,
-			config.DependencyBlock,
-		},
 	)
 	if err != nil {
 		return nil, errors.WithStackTrace(ErrorProcessingModule{UnderlyingError: err, HowThisModuleWasFound: howThisModuleWasFound, ModulePath: terragruntConfigPath})
