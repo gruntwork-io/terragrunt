@@ -397,12 +397,13 @@ func catalogConfigAsCty(config *CatalogConfig) (cty.Value, error) {
 // ctyTerraformConfig is an alternate representation of TerraformConfig that converts internal blocks into a map that
 // maps the name to the underlying struct, as opposed to a list representation.
 type ctyTerraformConfig struct {
-	ExtraArgs     map[string]TerraformExtraArguments `cty:"extra_arguments"`
-	Source        *string                            `cty:"source"`
-	IncludeInCopy *[]string                          `cty:"include_in_copy"`
-	BeforeHooks   map[string]Hook                    `cty:"before_hook"`
-	AfterHooks    map[string]Hook                    `cty:"after_hook"`
-	ErrorHooks    map[string]ErrorHook               `cty:"error_hook"`
+	ExtraArgs             map[string]TerraformExtraArguments `cty:"extra_arguments"`
+	Source                *string                            `cty:"source"`
+	IncludeInCopy         *[]string                          `cty:"include_in_copy"`
+	CopyTerraformLockFile *bool                              `cty:"copy_terraform_lock_file"`
+	BeforeHooks           map[string]Hook                    `cty:"before_hook"`
+	AfterHooks            map[string]Hook                    `cty:"after_hook"`
+	ErrorHooks            map[string]ErrorHook               `cty:"error_hook"`
 }
 
 // Serialize TerraformConfig to a cty Value, but with maps instead of lists for the blocks.
@@ -412,12 +413,13 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 	}
 
 	configCty := ctyTerraformConfig{
-		Source:        config.Source,
-		IncludeInCopy: config.IncludeInCopy,
-		ExtraArgs:     map[string]TerraformExtraArguments{},
-		BeforeHooks:   map[string]Hook{},
-		AfterHooks:    map[string]Hook{},
-		ErrorHooks:    map[string]ErrorHook{},
+		Source:                config.Source,
+		IncludeInCopy:         config.IncludeInCopy,
+		CopyTerraformLockFile: config.CopyTerraformLockFile,
+		ExtraArgs:             map[string]TerraformExtraArguments{},
+		BeforeHooks:           map[string]Hook{},
+		AfterHooks:            map[string]Hook{},
+		ErrorHooks:            map[string]ErrorHook{},
 	}
 
 	for _, arg := range config.ExtraArgs {
