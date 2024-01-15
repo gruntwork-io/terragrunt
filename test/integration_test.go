@@ -2043,8 +2043,9 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 	assert.Equal(
 		t,
 		map[string]interface{}{
-			"source":          "./delorean",
-			"include_in_copy": []interface{}{"time_machine.*"},
+			"source":                   "./delorean",
+			"include_in_copy":          []interface{}{"time_machine.*"},
+			"copy_terraform_lock_file": true,
 			"extra_arguments": map[string]interface{}{
 				"var-files": map[string]interface{}{
 					"name":               "var-files",

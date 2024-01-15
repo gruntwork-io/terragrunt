@@ -438,6 +438,8 @@ type TerraformConfig struct {
 	// Ideally we can avoid the pointer to list slice, but if it is not a pointer, Terraform requires the attribute to
 	// be defined and we want to make this optional.
 	IncludeInCopy *[]string `hcl:"include_in_copy,attr"`
+
+	CopyTerraformLockFile *bool `hcl:"copy_terraform_lock_file,attr"`
 }
 
 func (cfg *TerraformConfig) String() string {

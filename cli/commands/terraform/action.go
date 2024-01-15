@@ -327,7 +327,7 @@ func runTerragruntWithConfig(ctx context.Context, originalTerragruntOptions *opt
 		runTerraformError := RunTerraformWithRetry(ctx, terragruntOptions)
 
 		var lockFileError error
-		if shouldCopyLockFile(terragruntOptions.TerraformCliArgs) {
+		if shouldCopyLockFile(terragruntOptions.TerraformCliArgs, terragruntConfig.Terraform) {
 			// Copy the lock file from the Terragrunt working dir (e.g., .terragrunt-cache/xxx/<some-module>) to the
 			// user's working dir (e.g., /live/stage/vpc). That way, the lock file will end up right next to the user's
 			// terragrunt.hcl and can be checked into version control. Note that in the past, Terragrunt allowed the
@@ -386,7 +386,11 @@ func confirmActionWithDependentModules(ctx context.Context, terragruntOptions *o
 // There are lots of details at [hashicorp/terraform#27264](https://github.com/hashicorp/terraform/issues/27264#issuecomment-743389837)
 // The `providers lock` sub command enables you to ensure that the lock file is
 // fully populated.
-func shouldCopyLockFile(args []string) bool {
+func shouldCopyLockFile(args []string, terraformConfig *config.TerraformConfig) bool {
+	if terraformConfig != nil && terraformConfig.CopyTerraformLockFile != nil && !*terraformConfig.CopyTerraformLockFile {
+		return false
+	}
+
 	if util.FirstArg(args) == terraform.CommandNameInit {
 		return true
 	}
