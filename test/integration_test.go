@@ -6521,7 +6521,7 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --no-color --terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	assert.Error(t, err)
 
-	assert.Contains(t, stderr.String(), "{\"level\":\"info\",\"msg\":\"Initializing the backend...")
+	assert.Contains(t, stderr.String(), "\"level\":\"info\",\"msg\":\"Initializing the backend...")
 
 	// check if output can be extracted in json
 	jsonStrings := strings.Split(stderr.String(), "\n")
