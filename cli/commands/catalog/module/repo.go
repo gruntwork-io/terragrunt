@@ -170,6 +170,9 @@ func (repo *Repo) clone(ctx context.Context) error {
 
 	repo.path = filepath.Join(repo.path, repoName)
 
+	// Since we are cloning the repository into a temporary directory, some operating systems such as MacOS have a service for deleting files that have not been accessed for a long time.
+	// For example, in MacOS the service is responsible for deleting unused files deletes only files while leaving the directory structure is untouched, which in turn misleads `go-getter`, which thinks that the repository exists but cannot update it due to the lack of files. In such cases, we simply delete the temporary directory in order to clone the one again.
+	// See https://github.com/gruntwork-io/terragrunt/pull/2888
 	if files.FileExists(repo.path) && !files.FileExists(repo.gitHeadfile()) {
 		log.Debugf("The repo dir exists but git file %q does not. Removing the repo dir for cloning from the remote source.", repo.gitHeadfile())
 
