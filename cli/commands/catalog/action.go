@@ -3,6 +3,9 @@ package catalog
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui"
@@ -11,8 +14,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 	"golang.org/x/sync/errgroup"
-	"os"
-	"path/filepath"
 )
 
 const (
