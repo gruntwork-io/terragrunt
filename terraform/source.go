@@ -222,6 +222,13 @@ func parseSourceUrl(source string) (*url.URL, error) {
 		canonicalSourceUrl.Scheme = fmt.Sprintf("%s::%s", forcedGetter, canonicalSourceUrl.Scheme)
 	}
 
+	// Set the "depth" parameter to 1 so that go-getter does a shallow clone. This will speed up the clone operation
+	// significantly, and as we aren't making any changes in these repos (these are read-only clones), a shallow clone
+	// should be fine
+	query := canonicalSourceUrl.Query()
+	query.Set("depth", "1")
+	canonicalSourceUrl.RawQuery = query.Encode()
+
 	return canonicalSourceUrl, nil
 }
 
