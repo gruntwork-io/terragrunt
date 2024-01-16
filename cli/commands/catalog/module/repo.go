@@ -25,25 +25,24 @@ const (
 )
 
 var (
-	gitHeadBranchName = regexp.MustCompile(`^.*?([^/]+)$`)
+	gitHeadBranchNameReg    = regexp.MustCompile(`^.*?([^/]+)$`)
+	repoNameFromCloneURLReg = regexp.MustCompile(`(?i)^.*?([-a-z_.]+)[^/]*?(?:\.git)?$`)
 
 	modulesPaths = []string{"modules"}
 )
 
 type Repo struct {
-	cloneUrl string
+	cloneURL string
 	path     string
-	tempDir  string
 
 	remoteURL  string
 	branchName string
 }
 
-func NewRepo(ctx context.Context, path, tempDir string) (*Repo, error) {
+func NewRepo(ctx context.Context, cloneURL, tempDir string) (*Repo, error) {
 	repo := &Repo{
-		cloneUrl: path,
-		path:     path,
-		tempDir:  tempDir,
+		cloneURL: cloneURL,
+		path:     tempDir,
 	}
 
 	if err := repo.clone(ctx); err != nil {
@@ -137,36 +136,52 @@ func (repo *Repo) moduleURL(moduleDir string) (string, error) {
 
 // clone clones the repository to a temporary directory if the repoPath is URL
 func (repo *Repo) clone(ctx context.Context) error {
-	if repo.path == "" {
+	if repo.cloneURL == "" {
 		currentDir, err := os.Getwd()
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
 
-		repo.path = currentDir
+		repo.cloneURL = currentDir
 	}
 
-	if files.IsDir(repo.path) {
-		if !filepath.IsAbs(repo.path) {
-			absRepoPath, err := filepath.Abs(repo.path)
+	if repoPath := repo.cloneURL; files.IsDir(repoPath) {
+		if !filepath.IsAbs(repoPath) {
+			absRepoPath, err := filepath.Abs(repoPath)
 			if err != nil {
 				return errors.WithStackTrace(err)
 			}
 
-			log.Debugf("Converting relative path %q to absolute %q", repo.path, absRepoPath)
-
-			repo.path = absRepoPath
+			log.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
 		}
+		repo.path = repoPath
 
 		return nil
 	}
 
-	if err := os.MkdirAll(repo.tempDir, os.ModePerm); err != nil {
+	if err := os.MkdirAll(repo.path, os.ModePerm); err != nil {
 		return errors.WithStackTrace(err)
 	}
-	repo.tempDir = filepath.Join(repo.tempDir, "temp")
 
-	sourceUrl, err := terraform.ToSourceUrl(repo.cloneUrl, "")
+	repoName := "temp"
+	if match := repoNameFromCloneURLReg.FindStringSubmatch(repo.cloneURL); len(match) > 0 && match[1] != "" {
+		repoName = match[1]
+	}
+
+	repo.path = filepath.Join(repo.path, repoName)
+
+	// Since we are cloning the repository into a temporary directory, some operating systems such as MacOS have a service for deleting files that have not been accessed for a long time.
+	// For example, in MacOS the service is responsible for deleting unused files deletes only files while leaving the directory structure is untouched, which in turn misleads `go-getter`, which thinks that the repository exists but cannot update it due to the lack of files. In such cases, we simply delete the temporary directory in order to clone the one again.
+	// See https://github.com/gruntwork-io/terragrunt/pull/2888
+	if files.FileExists(repo.path) && !files.FileExists(repo.gitHeadfile()) {
+		log.Debugf("The repo dir exists but git file %q does not. Removing the repo dir for cloning from the remote source.", repo.gitHeadfile())
+
+		if err := os.RemoveAll(repo.path); err != nil {
+			return errors.WithStackTrace(err)
+		}
+	}
+
+	sourceUrl, err := terraform.ToSourceUrl(repo.cloneURL, "")
 	if err != nil {
 		return err
 	}
@@ -175,15 +190,14 @@ func (repo *Repo) clone(ctx context.Context) error {
 	if strings.HasPrefix(sourceUrl.Scheme, "http") {
 		sourceUrl.Scheme = "git::" + sourceUrl.Scheme
 	}
-	repo.cloneUrl = sourceUrl.String()
+	repo.cloneURL = sourceUrl.String()
 
-	log.Infof("Cloning repository %q to temprory directory %q", repo.cloneUrl, repo.tempDir)
+	log.Infof("Cloning repository %q to temprory directory %q", repo.cloneURL, repo.path)
 
-	if err := getter.Get(repo.tempDir, strings.Trim(sourceUrl.String(), "/"), getter.WithContext(ctx)); err != nil {
+	if err := getter.Get(repo.path, strings.Trim(sourceUrl.String(), "/"), getter.WithContext(ctx)); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	repo.path = repo.tempDir
 	return nil
 }
 
@@ -225,16 +239,18 @@ func (repo *Repo) parseRemoteURL() error {
 	return nil
 }
 
+func (repo *Repo) gitHeadfile() string {
+	return filepath.Join(repo.path, ".git", "HEAD")
+}
+
 // parseBranchName reads `.git/HEAD` file and parses a branch name.
 func (repo *Repo) parseBranchName() error {
-	gitHeadFile := filepath.Join(repo.path, ".git", "HEAD")
-
-	data, err := files.ReadFileAsString(gitHeadFile)
+	data, err := files.ReadFileAsString(repo.gitHeadfile())
 	if err != nil {
 		return errors.Errorf("the specified path %q is not a git repository", repo.path)
 	}
 
-	if match := gitHeadBranchName.FindStringSubmatch(data); len(match) > 0 {
+	if match := gitHeadBranchNameReg.FindStringSubmatch(data); len(match) > 0 {
 		repo.branchName = strings.TrimSpace(match[1])
 		return nil
 	}
