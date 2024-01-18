@@ -217,19 +217,47 @@ func parseSourceUrl(source string) (*url.URL, error) {
 		return nil, errors.WithStackTrace(err)
 	}
 
+	// Set the "depth" parameter to 1 for git repos so that go-getter does a shallow clone. This will speed up git
+	// clone operations significantly, and as we aren't making any changes in these repos (these are read-only clones),
+	// a shallow clone should be fine.
+	if isGitUrl(canonicalSourceUrl, forcedGetters) {
+		query := canonicalSourceUrl.Query()
+		query.Set("depth", "1")
+		canonicalSourceUrl.RawQuery = query.Encode()
+	}
+
 	// Reattach the "getter" prefix as part of the scheme
 	for _, forcedGetter := range forcedGetters {
 		canonicalSourceUrl.Scheme = fmt.Sprintf("%s::%s", forcedGetter, canonicalSourceUrl.Scheme)
 	}
 
-	// Set the "depth" parameter to 1 so that go-getter does a shallow clone. This will speed up the clone operation
-	// significantly, and as we aren't making any changes in these repos (these are read-only clones), a shallow clone
-	// should be fine
-	query := canonicalSourceUrl.Query()
-	query.Set("depth", "1")
-	canonicalSourceUrl.RawQuery = query.Encode()
-
 	return canonicalSourceUrl, nil
+}
+
+// URL schemes we can be reasonably confident are Git URLs. Note that HTTPS is NOT included here: it can be a Git URL
+// scheme, but sometimes is not.
+var knownGitUrlSchemes = []string{
+	"git",
+	"git+ssh",
+	"ssh",
+}
+
+// Well-known Git hosts
+var knownGitHosts = []string{
+	"github.com",
+	"gitlab.com",
+	"bitbucket.org",
+}
+
+// isGitUrl returns true if the source URL looks like a Git URL or the forced getters would force it to be a Git URL.
+// For some type of repos, especially with HTTPS URLs, it's not possible to tell that a URL is a Git URL, so we are
+// more conservative here, and only say it's a Git URL if we're pretty confident that it is based on the scheme (e.g.,
+// git://), host (e.g., github.com), path (e.g., contains .git), or getters (e.g., git::).
+func isGitUrl(sourceUrl *url.URL, forcedGetters []string) bool {
+	return util.ListContainsElement(knownGitUrlSchemes, sourceUrl.Scheme) ||
+		util.ListContainsElement(knownGitHosts, sourceUrl.Host) ||
+		strings.Contains(sourceUrl.Path, ".git") ||
+		util.ListContainsAnyElement(knownGitUrlSchemes, forcedGetters)
 }
 
 // Returns true if the given URL refers to a path on the local file system
