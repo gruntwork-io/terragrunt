@@ -969,6 +969,11 @@ func ParseAndDecodeVarFile(varFile string, fileContents []byte, out interface{})
 		return err
 	}
 
+	if ctyVal.IsNull() {
+		// If the file is empty, doesn't make sense to do conversion
+		return nil
+	}
+
 	typedOut, hasType := out.(*map[string]interface{})
 	if hasType {
 		genericMap, err := parseCtyValueToMap(ctyVal)
