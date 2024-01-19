@@ -93,12 +93,12 @@ func RunWithTarget(opts *options.TerragruntOptions, target *Target) error {
 
 func runTerraform(terragruntOptions *options.TerragruntOptions, target *Target) error {
 	if err := checkVersionConstraints(terragruntOptions); err != nil {
-		return err
+		return target.runErrorCallback(terragruntOptions, nil, err)
 	}
 
 	terragruntConfig, err := config.ReadTerragruntConfig(terragruntOptions)
 	if err != nil {
-		return err
+		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
 	}
 
 	if target.isPoint(TargetPointParseConfig) {
@@ -109,7 +109,7 @@ func runTerraform(terragruntOptions *options.TerragruntOptions, target *Target) 
 	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
 
 	if err := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone, terragruntConfig, nil); err != nil {
-		return err
+		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
 	}
 
 	if terragruntConfig.Skip {
@@ -134,7 +134,7 @@ func runTerraform(terragruntOptions *options.TerragruntOptions, target *Target) 
 	// get the default download dir
 	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(terragruntOptions.TerragruntConfigPath)
 	if err != nil {
-		return err
+		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
 	}
 
 	// if the download dir hasn't been changed from default, and is set in the config,
@@ -165,13 +165,13 @@ func runTerraform(terragruntOptions *options.TerragruntOptions, target *Target) 
 	updatedTerragruntOptions := terragruntOptions
 	sourceUrl, err := config.GetTerraformSourceUrl(terragruntOptions, terragruntConfig)
 	if err != nil {
-		return err
+		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
 	}
 
 	if sourceUrl != "" {
 		updatedTerragruntOptions, err = downloadTerraformSource(sourceUrl, terragruntOptions, terragruntConfig)
 		if err != nil {
-			return err
+			return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
 		}
 	}
 
@@ -184,7 +184,7 @@ func runTerraform(terragruntOptions *options.TerragruntOptions, target *Target) 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
 	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
 	if err = generateConfig(terragruntConfig, updatedTerragruntOptions); err != nil {
-		return err
+		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
 	}
 
 	if target.isPoint(TargetPointGenerateConfig) {
@@ -194,14 +194,13 @@ func runTerraform(terragruntOptions *options.TerragruntOptions, target *Target) 
 	// We do the debug file generation here, after all the terragrunt generated terraform files are created so that we
 	// can ensure the tfvars json file only includes the vars that are defined in the module.
 	if updatedTerragruntOptions.Debug {
-		err := WriteTerragruntDebugFile(updatedTerragruntOptions, terragruntConfig)
-		if err != nil {
-			return err
+		if err := WriteTerragruntDebugFile(updatedTerragruntOptions, terragruntConfig); err != nil {
+			return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
 		}
 	}
 
 	if err := checkFolderContainsTerraformCode(updatedTerragruntOptions); err != nil {
-		return err
+		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
 	}
 
 	if terragruntOptions.CheckDependentModules {
@@ -210,7 +209,10 @@ func runTerraform(terragruntOptions *options.TerragruntOptions, target *Target) 
 			return nil
 		}
 	}
-	return runTerragruntWithConfig(terragruntOptions, updatedTerragruntOptions, terragruntConfig, target)
+	if err := runTerragruntWithConfig(terragruntOptions, updatedTerragruntOptions, terragruntConfig, target); err != nil {
+		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
+	}
+	return nil
 }
 
 func generateConfig(terragruntConfig *config.TerragruntConfig, updatedTerragruntOptions *options.TerragruntOptions) error {

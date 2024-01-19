@@ -182,6 +182,7 @@ const (
 	TEST_FIXTURE_PARALLEL_STATE_INIT                                         = "fixture-parallel-state-init"
 	TEST_FIXTURE_GCS_PARALLEL_STATE_INIT                                     = "fixture-gcs-parallel-state-init"
 	TEST_FIXTURE_ASSUME_ROLE                                                 = "fixture-assume-role"
+	TEST_FIXTURE_INFO_ERROR                                                  = "fixture-terragrunt-info-error"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -6536,6 +6537,25 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 		assert.NotNil(t, output["level"])
 		assert.NotNil(t, output["time"])
 	}
+}
+
+func TestTerragruntInfoError(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INFO_ERROR)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INFO_ERROR, "module-b")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	assert.Error(t, err)
+
+	// parse stdout json as TerragruntInfoGroup
+	var output terragruntinfo.TerragruntInfoGroup
+	err = json.Unmarshal(stdout.Bytes(), &output)
+	assert.NoError(t, err)
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
