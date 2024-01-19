@@ -136,6 +136,11 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 		if opts.DisableLogColors {
 			util.DisableLogColors()
 		}
+
+		if opts.JsonLogFormat {
+			util.JsonFormat()
+		}
+
 		opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
 		opts.Logger = util.CreateLogEntry("", opts.LogLevel)
 		opts.Logger.Logger.SetOutput(ctx.App.ErrWriter)

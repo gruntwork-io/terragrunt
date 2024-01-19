@@ -28,6 +28,7 @@ var (
 	GlobalFallbackLogEntry *logrus.Entry
 
 	disableLogColors bool
+	jsonLogFormat    bool
 )
 
 func init() {
@@ -41,15 +42,31 @@ func DisableLogColors() {
 	GlobalFallbackLogEntry = CreateLogEntry("", defaultLogLevel)
 }
 
+func JsonFormat() {
+	jsonLogFormat = true
+	// Needs to re-create the global logger
+	GlobalFallbackLogEntry = CreateLogEntry("", defaultLogLevel)
+}
+
+func DisableJsonFormat() {
+	jsonLogFormat = false
+	// Needs to re-create the global logger
+	GlobalFallbackLogEntry = CreateLogEntry("", defaultLogLevel)
+}
+
 // CreateLogger creates a logger. If debug is set, we use ErrorLevel to enable verbose output, otherwise - only errors are shown
 func CreateLogger(lvl logrus.Level) *logrus.Logger {
 	logger := logrus.New()
 	logger.SetLevel(lvl)
 	logger.SetOutput(os.Stderr) // Terragrunt should output all it's logs to stderr by default
-	logger.SetFormatter(&logrus.TextFormatter{
-		DisableQuote:  true,
-		DisableColors: disableLogColors,
-	})
+	if jsonLogFormat {
+		logger.SetFormatter(&logrus.JSONFormatter{})
+	} else {
+		logger.SetFormatter(&logrus.TextFormatter{
+			DisableQuote:  true,
+			DisableColors: disableLogColors,
+		})
+	}
 	return logger
 }
 
