@@ -405,7 +405,7 @@ func JoinPath(elem ...string) string {
 // E.g. "/foo/bar/boo.txt" -> ["", "foo", "bar", "boo.txt"]
 // Notice that if path is absolute the resulting list will begin with an empty string.
 func SplitPath(path string) []string {
-	return strings.Split(CleanPath(path), string(filepath.Separator))
+	return strings.Split(CleanPath(path), filepath.ToSlash(string(filepath.Separator)))
 }
 
 // Use this function when cleaning paths to ensure the returned path uses / as the path separator to improve cross-platform compatibility
@@ -495,7 +495,15 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	// cleaning manifest file
+	defer func(name string) {
+		if err := file.Close(); err != nil {
+			GlobalFallbackLogEntry.Warnf("Error closing file %s: %v", name, err)
+		}
+		if err := os.Remove(name); err != nil {
+			GlobalFallbackLogEntry.Warnf("Error removing manifest file %s: %v", name, err)
+		}
+	}(manifestPath)
 	decoder := gob.NewDecoder(file)
 	// decode paths one by one
 	for {
@@ -519,15 +527,6 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 			}
 		}
 	}
-	// remove the manifest itself
-	// it will run after the close defer
-	defer func(name string) {
-		err := os.Remove(name)
-		if err != nil {
-			GlobalFallbackLogEntry.Warnf("Error removing manifest file %s: %v", name, err)
-		}
-	}(manifestPath)
-
 	return nil
 }
 

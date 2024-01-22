@@ -570,6 +570,8 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
 - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
 - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
+- [terragrunt-json-log](#terragrunt-json-log)
+- [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json)
 
 ### terragrunt-config
 
@@ -1032,3 +1034,17 @@ When this flag is set, Terragrunt does not update the remote state bucket, which
 **Environment Variable**: `TERRAGRUNT_DISABLE_COMMAND_VALIDATION` (set to `true`)
 
 When this flag is set, Terragrunt will not validate the terraform command, which can be useful when need to use non-existent commands in hooks.
+
+### terragrunt-json-log
+
+**CLI Arg**: `--terragrunt-json-log`
+**Environment Variable**: `TERRAGRUNT_JSON_LOG` (set to `true`)
+
+When this flag is set, Terragrunt will output its logs in JSON format.
+
+### terragrunt-tf-logs-to-json
+
+**CLI Arg**: `--terragrunt-tf-logs-to-json`
+**Environment Variable**: `TERRAGRUNT_TF_JSON_LOG` (set to `true`)
+
+When this flag is set, Terragrunt will wrap Terraform `stdout` and `stderr` in JSON log messages. Works only with `--terragrunt-json-log` flag.

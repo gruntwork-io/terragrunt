@@ -24,14 +24,14 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, repoURL string) e
 
 	repoURLs := []string{repoURL}
 
-	if repoURLs[0] == "" {
-		config, err := config.ReadCatalogConfig(opts)
+	if repoURL == "" {
+		config, err := config.ReadCatalogConfig(ctx, opts)
 		if err != nil {
 			return err
 		}
 
-		if len(config.Catalog.URLs) > 0 {
-			repoURLs = config.Catalog.URLs
+		if config != nil && len(config.URLs) > 0 {
+			repoURLs = config.URLs
 		}
 	}
 

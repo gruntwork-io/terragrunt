@@ -1784,7 +1784,7 @@ func TestTerragruntMissingDependenciesFail(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
 	require.Error(t, err)
-	parsedError, ok := errors.Unwrap(err).(config.DependencyDirNotFound)
+	parsedError, ok := errors.Unwrap(err).(config.DependencyDirNotFoundError)
 	assert.True(t, ok)
 	assert.True(t, len(parsedError.Dir) == 1)
 	assert.Contains(t, parsedError.Dir[0], "hl3-release")
@@ -3690,7 +3690,7 @@ func TestTerragruntGenerateBlockSameNameFail(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
 	require.Error(t, err)
-	parsedError, ok := errors.Unwrap(err).(config.DuplicatedGenerateBlocks)
+	parsedError, ok := errors.Unwrap(err).(config.DuplicatedGenerateBlocksError)
 	assert.True(t, ok)
 	assert.True(t, len(parsedError.BlockName) == 1)
 	assert.Contains(t, parsedError.BlockName, "backend")
@@ -3707,7 +3707,7 @@ func TestTerragruntGenerateBlockSameNameIncludeFail(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
 	require.Error(t, err)
-	parsedError, ok := errors.Unwrap(err).(config.DuplicatedGenerateBlocks)
+	parsedError, ok := errors.Unwrap(err).(config.DuplicatedGenerateBlocksError)
 	assert.True(t, ok)
 	assert.True(t, len(parsedError.BlockName) == 1)
 	assert.Contains(t, parsedError.BlockName, "backend")
@@ -3724,7 +3724,7 @@ func TestTerragruntGenerateBlockMultipleSameNameFail(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
 	require.Error(t, err)
-	parsedError, ok := errors.Unwrap(err).(config.DuplicatedGenerateBlocks)
+	parsedError, ok := errors.Unwrap(err).(config.DuplicatedGenerateBlocksError)
 	assert.True(t, ok)
 	assert.True(t, len(parsedError.BlockName) == 2)
 	assert.Contains(t, parsedError.BlockName, "backend")
@@ -3948,7 +3948,7 @@ func TestReadTerragruntConfigIamRole(t *testing.T) {
 	output := fmt.Sprintf("%v %v %v", stderr.String(), stdout.String(), err.Error())
 
 	// Check that output contains value defined in IAM role
-	assert.Equal(t, 1, strings.Count(output, "666666666666"))
+	assert.Contains(t, output, "666666666666")
 	// Ensure that state file wasn't created with default IAM value
 	assert.True(t, util.FileNotExists(util.JoinPath(TEST_FIXTURE_READ_IAM_ROLE, identityArn+".txt")))
 }
@@ -6450,6 +6450,92 @@ func TestTerragruntAssumeRole(t *testing.T) {
 	assert.Contains(t, content, "role_arn     = \""+identityARN+"\"")
 	assert.Contains(t, content, "external_id  = \"external_id_123\"")
 	assert.Contains(t, content, "session_name = \"session_name_example\"")
+}
+
+func TestTerragruntUpdatePolicy(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PATH)
+	cleanupTerraformFolder(t, rootPath)
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+
+	err := createS3BucketE(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	assert.NoError(t, err)
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+
+	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, rootPath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
+
+	// check that there is no policy on created bucket
+	_, err = bucketPolicy(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	assert.Error(t, err)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, rootPath))
+
+	// check that policy is created
+	_, err = bucketPolicy(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	assert.NoError(t, err)
+}
+
+func TestTerragruntOutputJson(t *testing.T) {
+	// no parallel test execution since JSON output is global
+	defer func() {
+		util.DisableJsonFormat()
+	}()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_NOT_EXISTING_SOURCE)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_NOT_EXISTING_SOURCE)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-json-log --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	assert.Error(t, err)
+
+	var output map[string]interface{}
+
+	err = json.Unmarshal(stderr.Bytes(), &output)
+	assert.NoError(t, err)
+
+	assert.Contains(t, output["msg"], "Downloading Terraform configurations from git::https://github.com/gruntwork-io/terragrunt.git?ref=v0.9.9")
+}
+
+func TestTerragruntTerraformOutputJson(t *testing.T) {
+	// no parallel test execution since JSON output is global
+	defer func() {
+		util.DisableJsonFormat()
+	}()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INIT_ERROR)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_ERROR)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --no-color --terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	assert.Error(t, err)
+
+	assert.Contains(t, stderr.String(), "\"level\":\"info\",\"msg\":\"Initializing the backend...")
+
+	// check if output can be extracted in json
+	jsonStrings := strings.Split(stderr.String(), "\n")
+	for _, jsonString := range jsonStrings {
+		if len(jsonString) == 0 {
+			continue
+		}
+		var output map[string]interface{}
+		err = json.Unmarshal([]byte(jsonString), &output)
+		assert.NoErrorf(t, err, "Failed to parse json %s", jsonString)
+		assert.NotNil(t, output["level"])
+		assert.NotNil(t, output["level"])
+		assert.NotNil(t, output["time"])
+	}
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {

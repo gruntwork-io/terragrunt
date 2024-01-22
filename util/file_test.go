@@ -77,7 +77,7 @@ func TestGlobCanonicalPath(t *testing.T) {
 	expectedHelper := func(path string) string {
 		basePath, err := filepath.Abs(basePath)
 		assert.NoError(t, err)
-		return filepath.Join(basePath, path)
+		return filepath.ToSlash(filepath.Join(basePath, path))
 	}
 
 	testCases := []struct {
