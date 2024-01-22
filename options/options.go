@@ -262,7 +262,7 @@ type TerragruntOptions struct {
 	ScaffoldVarFiles []string
 }
 
-// IAMOptions represents options that are used by Terragrunt to assume an IAM role.
+// IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.
 type IAMRoleOptions struct {
 	// The ARN of an IAM Role to assume. Used when accessing AWS, both internally and through terraform.
 	RoleARN string
