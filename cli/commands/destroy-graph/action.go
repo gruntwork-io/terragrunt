@@ -10,9 +10,14 @@ import (
 
 func Run(opts *options.TerragruntOptions) error {
 
-	rootDir, err := shell.GitTopLevelDir(opts, opts.WorkingDir)
-	if err != nil {
-		return err
+	rootDir := opts.DestroyGraphRoot
+
+	if rootDir == "" {
+		gitRoot, err := shell.GitTopLevelDir(opts, opts.WorkingDir)
+		if err != nil {
+			return err
+		}
+		rootDir = gitRoot
 	}
 
 	rootOptions, err := options.NewTerragruntOptionsForTest(rootDir)

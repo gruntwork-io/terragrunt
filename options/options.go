@@ -260,6 +260,8 @@ type TerragruntOptions struct {
 
 	// Files with variables to be used in modules scaffolding.
 	ScaffoldVarFiles []string
+
+	DestroyGraphRoot string
 }
 
 // IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.
