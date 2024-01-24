@@ -85,11 +85,10 @@ func filterDependencies(stack *configstack.Stack, workDir string) {
 
 	for _, module := range stack.Modules {
 		visited := make(map[string]bool)
+		module.FlagExcluded = true
 		if isDependentOn(module, workDir, allModules, visited) {
 			filteredModules = append(filteredModules, module)
 			module.FlagExcluded = false
-		} else {
-			module.FlagExcluded = true
 		}
 	}
 }
