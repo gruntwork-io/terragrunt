@@ -6542,6 +6542,57 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 func TestTerragruntDestroyGraph(t *testing.T) {
 	t.Parallel()
 
+	testCases := []struct {
+		path               string
+		expectedModules    []string
+		notExpectedModules []string
+	}{
+		{
+			path:               "eks",
+			expectedModules:    []string{"eks-service-3-v3", "eks-service-3-v2", "eks-service-3", "eks-service-4", "eks-service-5", "eks-service-2-v2", "eks-service-2", "eks-service-1"},
+			notExpectedModules: []string{"lambda", "lambda-service-1", "lambda-service-2"},
+		},
+		{
+			path:               "services/lambda-service-1",
+			expectedModules:    []string{"lambda-service-2"},
+			notExpectedModules: []string{"lambda"},
+		},
+		{
+			path:               "mod3",
+			expectedModules:    []string{"mod3", "mod3-1"},
+			notExpectedModules: []string{"mod8", "mod6", "mod5", "mod5-1", "mod5-2", "mod2", "mod3", "mod1", "mod4", "mod7"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+
+		t.Run(testCase.path, func(t *testing.T) {
+			tmpEnvPath := prepareGraphFixture(t)
+			tmpModulePath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_GRAPH, testCase.path)
+
+			stdout := bytes.Buffer{}
+			stderr := bytes.Buffer{}
+
+			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy-graph --terragrunt-non-interactive --terragrunt-working-dir %s --destroy-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
+			assert.NoError(t, err)
+			output := fmt.Sprintf("%v\n%v\n", stdout.String(), stderr.String())
+
+			fmt.Printf("%s", output)
+
+			for _, module := range testCase.expectedModules {
+				assert.Containsf(t, output, "/"+module+"\n", "Expected module %s to be in output", module)
+			}
+
+			for _, module := range testCase.notExpectedModules {
+				assert.NotContainsf(t, output, "/"+module+"\n", "Expected module %s must not to be in output", module)
+			}
+		})
+	}
+}
+
+func prepareGraphFixture(t *testing.T) string {
+	t.Helper()
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DESTROY_GRAPH)
 	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_GRAPH)
@@ -6551,7 +6602,7 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	assert.NoError(t, err)
-
+	return tmpEnvPath
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
