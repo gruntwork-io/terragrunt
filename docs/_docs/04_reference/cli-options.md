@@ -39,7 +39,7 @@ Terragrunt supports the following CLI commands:
   - [output-module-groups](#output-module-groups)
   - [scaffold](#scaffold)
   - [catalog](#catalog)
-  - [destroy-graph](#destroy-graph)
+  - [graph](#graph)
 
 ### All Terraform built-in commands
 
@@ -529,12 +529,96 @@ Launch the user interface for searching and managing your module catalog.
 
 More details in [catalog section](https://terragrunt.gruntwork.io/docs/features/catalog/).
 
-### destroy-graph
+### graph
 
-Launch the user interface for searching and managing your module catalog.
+Run provided terraform command against a graph of dependencies build git repository root or path provided as `--graph-root` argument.
+Command will be executed only on modules that are dependent from the current module.
+Command will run following the order of dependencies, except when the command is 'destroy' - in that case, it will execute in the opposite order of the dependencies.
 
-More details in [catalog section](https://terragrunt.gruntwork.io/docs/features/catalog/).
+Example:
+Having bellow dependencies:
+[![dependency-graph](/assets/img/collections/documentation/dependency-graph.png){: width="80%" }]({{site.baseurl}}/assets/img/collections/documentation/dependency-graph.png)
 
+Running `terragrunt graph apply` in `eks` module will lead to bellow execution order: 
+```
+Group 1
+- Module project/eks
+
+Group 2
+- Module project/services/eks-service-1
+- Module project/services/eks-service-2
+
+Group 3
+- Module project/services/eks-service-2-v2
+- Module project/services/eks-service-3
+- Module project/services/eks-service-5
+
+Group 4
+- Module project/services/eks-service-3-v2
+- Module project/services/eks-service-4
+
+Group 5
+- Module project/services/eks-service-3-v3
+```
+Notes:
+* `lambda` modules aren't included in the graph, because they are not dependent on `eks` module.
+* execution is from bottom up based on dependencies
+
+Running `terragrunt graph destroy` in `eks` module will lead to bellow execution order:
+```
+Group 1
+- Module project/services/eks-service-2-v2
+- Module project/services/eks-service-3-v3
+- Module project/services/eks-service-4
+- Module project/services/eks-service-5
+
+Group 2
+- Module project/services/eks-service-3-v2
+
+Group 3
+- Module project/services/eks-service-3
+
+Group 4
+- Module project/services/eks-service-1
+- Module project/services/eks-service-2
+
+Group 5
+- Module project/eks
+```
+Notes:
+* execution is in reverse order, first are destroyed "top" modules and in the end `eks`
+* `lambda` modules aren't affected at all
+
+Running `terragrunt graph apply` in `services/eks-service-3`:
+```
+Group 1
+- Module project/services/eks-service-3
+
+Group 2
+- Module project/services/eks-service-3-v2
+- Module project/services/eks-service-4
+
+Group 3
+- Module project/services/eks-service-3-v3
+
+```
+Notes:
+* in execution are included only services dependent from `eks-service-3`
+
+Running `terragrunt graph destroy` in `services/eks-service-3`:
+```
+Group 1
+- Module project/services/eks-service-3-v3
+- Module project/services/eks-service-4
+
+Group 2
+- Module project/services/eks-service-3-v2
+
+Group 3
+- Module project/services/eks-service-3
+```
+Notes:
+* destroy will be executed only on subset of services dependent from `eks-service-3`
 
 ## CLI options
 

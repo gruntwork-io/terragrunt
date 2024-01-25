@@ -23,7 +23,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	globalFlags := commands.NewGlobalFlags(opts)
 	globalFlags.Add(
 		&cli.GenericFlag[string]{
-			Name:        "graph-root",
+			Name:        "terragrunt-graph-root",
 			Destination: &opts.GraphRoot,
 			Usage:       "Root directory from where to build graph dependencies.",
 		})

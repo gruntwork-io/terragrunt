@@ -6579,7 +6579,7 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
 
-			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt graph destroy --terragrunt-non-interactive --terragrunt-working-dir %s --graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
+			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt graph destroy --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
 			assert.NoError(t, err)
 			output := fmt.Sprintf("%v\n%v\n", stdout.String(), stderr.String())
 
@@ -6631,7 +6631,7 @@ func TestTerragruntApplyGraph(t *testing.T) {
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
 
-			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt graph apply --terragrunt-non-interactive --terragrunt-working-dir %s --graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
+			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt graph apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
 			assert.NoError(t, err)
 			output := fmt.Sprintf("%v\n%v\n", stdout.String(), stderr.String())
 
