@@ -2,6 +2,7 @@ package destroy_graph
 
 import (
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
+	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -45,50 +46,53 @@ func Run(opts *options.TerragruntOptions) error {
 	return runall.RunAllOnStack(opts, stack)
 }
 
-// isDependentOn checks if the workDir is directly or indirectly dependent on the given module
-func isDependentOn(module *configstack.TerraformModule, workDir string, allModules map[string]*configstack.TerraformModule, visited map[string]bool) bool {
-	if module.Path == workDir {
-		return true
-	}
-	if visited[module.Path] {
-		return false
-	}
-	visited[module.Path] = true
+// filterDependencies updates the stack to only include modules that are dependent on the given path
+func filterDependencies(stack *configstack.Stack, workDir string) {
 
-	// Check if any of the dependencies of this module lead to the workDir
-	for _, dep := range module.Dependencies {
-		if isDependentOn(dep, workDir, allModules, visited) {
-			return true
-		}
-	}
+	// build map of dependent modules
+	// module path -> list of dependent modules
+	var dependentModules = make(map[string][]string)
 
-	// Check if this module is a dependency of any other module that leads to the workDir
-	for _, mod := range allModules {
-		for _, dep := range mod.Dependencies {
-			if dep.Path == module.Path && isDependentOn(mod, workDir, allModules, visited) {
-				return true
+	// build initial mapping of dependent modules
+	for _, module := range stack.Modules {
+
+		if len(module.Dependencies) != 0 {
+			for _, dep := range module.Dependencies {
+				dependentModules[dep.Path] = util.RemoveDuplicatesFromList(append(dependentModules[dep.Path], module.Path))
 			}
 		}
 	}
 
-	return false
-}
-
-// filterDependencies updates the stack to only include modules that are dependent on the given path
-func filterDependencies(stack *configstack.Stack, workDir string) {
-	var filteredModules []*configstack.TerraformModule
-	allModules := make(map[string]*configstack.TerraformModule)
-
-	for _, module := range stack.Modules {
-		allModules[module.Path] = module
+	// for each element from slice copy respective slice from map
+	// loop while are changes in copy
+	for {
+		noUpdates := true
+		for module, dependents := range dependentModules {
+			for _, dependent := range dependents {
+				initialSize := len(dependentModules[module])
+				// merge without duplicates
+				dependentModules[module] = util.RemoveDuplicatesFromList(append(dependentModules[module], dependentModules[dependent]...))
+				if initialSize != len(dependentModules[module]) {
+					noUpdates = false
+				}
+			}
+		}
+		if noUpdates {
+			break
+		}
 	}
 
+	modulesToInclude := dependentModules[workDir]
+	// workdir to list too
+	modulesToInclude = append(modulesToInclude, workDir)
+
+	// include from stack only elements from modulesToInclude
 	for _, module := range stack.Modules {
-		visited := make(map[string]bool)
 		module.FlagExcluded = true
-		if isDependentOn(module, workDir, allModules, visited) {
-			filteredModules = append(filteredModules, module)
+		if util.ListContainsElement(modulesToInclude, module.Path) {
 			module.FlagExcluded = false
+		} else {
+
 		}
 	}
 }
