@@ -39,6 +39,7 @@ Terragrunt supports the following CLI commands:
   - [output-module-groups](#output-module-groups)
   - [scaffold](#scaffold)
   - [catalog](#catalog)
+  - [destroy-graph](#destroy-graph)
 
 ### All Terraform built-in commands
 
@@ -527,6 +528,13 @@ More details in [scaffold section](https://terragrunt.gruntwork.io/docs/features
 Launch the user interface for searching and managing your module catalog.
 
 More details in [catalog section](https://terragrunt.gruntwork.io/docs/features/catalog/).
+
+### destroy-graph
+
+Launch the user interface for searching and managing your module catalog.
+
+More details in [catalog section](https://terragrunt.gruntwork.io/docs/features/catalog/).
+
 
 ## CLI options
 

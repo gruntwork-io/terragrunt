@@ -91,8 +91,6 @@ func filterDependencies(stack *configstack.Stack, workDir string) {
 		module.FlagExcluded = true
 		if util.ListContainsElement(modulesToInclude, module.Path) {
 			module.FlagExcluded = false
-		} else {
-
 		}
 	}
 }
