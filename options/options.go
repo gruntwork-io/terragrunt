@@ -261,8 +261,8 @@ type TerragruntOptions struct {
 	// Files with variables to be used in modules scaffolding.
 	ScaffoldVarFiles []string
 
-	// Root directory for destroy-graph command.
-	DestroyGraphRoot string
+	// Root directory for graph command.
+	GraphRoot string
 }
 
 // IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.
@@ -464,7 +464,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		TerraformImplementation:        opts.TerraformImplementation,
 		JsonLogFormat:                  opts.JsonLogFormat,
 		TerraformLogsToJson:            opts.TerraformLogsToJson,
-		DestroyGraphRoot:               opts.DestroyGraphRoot,
+		GraphRoot:                      opts.GraphRoot,
 		ScaffoldVars:                   opts.ScaffoldVars,
 		ScaffoldVarFiles:               opts.ScaffoldVarFiles,
 	}

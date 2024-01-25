@@ -1,4 +1,4 @@
-package destroy_graph
+package graph
 
 import (
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
@@ -15,12 +15,12 @@ const (
 
 func Run(opts *options.TerragruntOptions) error {
 
-	opts.OriginalTerraformCommand = stackCommand
-	opts.TerraformCommand = stackCommand
-	opts.TerraformCliArgs = []string{stackCommand}
+	//opts.OriginalTerraformCommand = stackCommand
+	//opts.TerraformCommand = stackCommand
+	//opts.TerraformCliArgs = []string{stackCommand}
 
 	// consider root for graph identification passed destroy-graph-root argument
-	rootDir := opts.DestroyGraphRoot
+	rootDir := opts.GraphRoot
 
 	// if destroy-graph-root is empty, use git to find top level dir.
 	// may cause issues if in the same repo exist unrelated modules which will generate errors when scanning.
