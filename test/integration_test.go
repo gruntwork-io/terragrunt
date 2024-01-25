@@ -182,7 +182,7 @@ const (
 	TEST_FIXTURE_PARALLEL_STATE_INIT                                         = "fixture-parallel-state-init"
 	TEST_FIXTURE_GCS_PARALLEL_STATE_INIT                                     = "fixture-gcs-parallel-state-init"
 	TEST_FIXTURE_ASSUME_ROLE                                                 = "fixture-assume-role"
-	TEST_FIXTURE_DESTROY_GRAPH                                               = "fixture-destroy-graph"
+	TEST_FIXTURE_GRAPH                                                       = "fixture-graph"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -6574,12 +6574,12 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 
 		t.Run(testCase.path, func(t *testing.T) {
 			tmpEnvPath := prepareGraphFixture(t)
-			tmpModulePath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_GRAPH, testCase.path)
+			tmpModulePath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH, testCase.path)
 
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
 
-			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy-graph --terragrunt-non-interactive --terragrunt-working-dir %s --destroy-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
+			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt graph destroy --terragrunt-non-interactive --terragrunt-working-dir %s --graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
 			assert.NoError(t, err)
 			output := fmt.Sprintf("%v\n%v\n", stdout.String(), stderr.String())
 
@@ -6598,9 +6598,9 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 
 func prepareGraphFixture(t *testing.T) string {
 	t.Helper()
-	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DESTROY_GRAPH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GRAPH)
 	cleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_GRAPH)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
