@@ -261,6 +261,7 @@ type TerragruntOptions struct {
 	// Files with variables to be used in modules scaffolding.
 	ScaffoldVarFiles []string
 
+	// Root directory for destroy-graph command.
 	DestroyGraphRoot string
 }
 
@@ -463,6 +464,9 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		TerraformImplementation:        opts.TerraformImplementation,
 		JsonLogFormat:                  opts.JsonLogFormat,
 		TerraformLogsToJson:            opts.TerraformLogsToJson,
+		DestroyGraphRoot:               opts.DestroyGraphRoot,
+		ScaffoldVars:                   opts.ScaffoldVars,
+		ScaffoldVarFiles:               opts.ScaffoldVarFiles,
 	}
 }
 
