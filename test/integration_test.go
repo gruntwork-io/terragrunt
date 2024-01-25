@@ -6596,6 +6596,58 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 	}
 }
 
+func TestTerragruntApplyGraph(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		path               string
+		expectedModules    []string
+		notExpectedModules []string
+	}{
+		{
+			path:               "services/eks-service-3-v2",
+			expectedModules:    []string{"services/eks-service-3-v2", "services/eks-service-3-v3"},
+			notExpectedModules: []string{"lambda", "eks", "services/eks-service-3"},
+		},
+		{
+			path:               "lambda",
+			expectedModules:    []string{"lambda", "services/lambda-service-1", "services/lambda-service-2"},
+			notExpectedModules: []string{"eks", "services/eks-service-1", "services/eks-service-2", "services/eks-service-3"},
+		},
+		{
+			path:               "services/eks-service-5",
+			expectedModules:    []string{"services/eks-service-5"},
+			notExpectedModules: []string{"eks", "lambda", "services/eks-service-1", "services/eks-service-2", "services/eks-service-3"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+
+		t.Run(testCase.path, func(t *testing.T) {
+			tmpEnvPath := prepareGraphFixture(t)
+			tmpModulePath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH, testCase.path)
+
+			stdout := bytes.Buffer{}
+			stderr := bytes.Buffer{}
+
+			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt graph apply --terragrunt-non-interactive --terragrunt-working-dir %s --graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
+			assert.NoError(t, err)
+			output := fmt.Sprintf("%v\n%v\n", stdout.String(), stderr.String())
+
+			fmt.Printf("%s", output)
+
+			for _, module := range testCase.expectedModules {
+				assert.Containsf(t, output, "/"+module+"\n", "Expected module %s to be in output", module)
+			}
+
+			for _, module := range testCase.notExpectedModules {
+				assert.NotContainsf(t, output, "/"+module+"\n", "Expected module %s must not to be in output", module)
+			}
+		})
+	}
+}
+
 func prepareGraphFixture(t *testing.T) string {
 	t.Helper()
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GRAPH)

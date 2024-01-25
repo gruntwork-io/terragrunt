@@ -9,16 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 )
 
-const (
-	stackCommand = "destroy"
-)
-
 func Run(opts *options.TerragruntOptions) error {
-
-	//opts.OriginalTerraformCommand = stackCommand
-	//opts.TerraformCommand = stackCommand
-	//opts.TerraformCliArgs = []string{stackCommand}
-
 	// consider root for graph identification passed destroy-graph-root argument
 	rootDir := opts.GraphRoot
 
