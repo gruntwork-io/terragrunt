@@ -6272,6 +6272,26 @@ func TestRenderJsonDependentModulesTerraform(t *testing.T) {
 	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v2"))
 }
 
+func TestRenderJsonDisableDependentModulesTerraform(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DESTROY_WARNING)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "vpc")
+
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-json-disable-dependent-modules --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+
+	jsonBytes, err := os.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	_, found := renderedJson[config.MetadataDependentModules].([]interface{})
+	assert.False(t, found)
+}
+
 func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
 	t.Parallel()
 

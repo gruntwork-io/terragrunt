@@ -563,6 +563,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
 - [terragrunt-override-attr](#terragrunt-override-attr)
 - [terragrunt-json-out](#terragrunt-json-out)
+- [terragrunt-json-disable-dependent-modules](#terragrunt-json-disable-dependent-modules)
 - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
 - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
 - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
@@ -922,6 +923,15 @@ block by specifying `<BLOCK>.<ATTR>`, where `<BLOCK>` is the block name: e.g., `
 
 When passed in, render the json representation in this file.
 
+### terragrunt-json-disable-dependent-modules
+
+**CLI Arg**: `--terragrunt-json-disable-dependent-modules`
+**Requires an argument**: `--terragrunt-json-disable-dependent-modules`
+**Commands**:
+- [render-json](#render-json)
+
+When the `--terragrunt-json-disable-dependent-modules` flag is included in the command, the process of identifying dependent modules will be disabled during JSON rendering.
+This lead to a faster rendering process, but the output will not include any dependent modules.
 
 ### terragrunt-modules-that-include
 

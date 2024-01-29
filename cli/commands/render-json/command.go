@@ -8,8 +8,9 @@ import (
 const (
 	CommandName = "render-json"
 
-	FlagNameTerragruntJSONOut = "terragrunt-json-out"
-	FlagNameWithMetadata      = "with-metadata"
+	FlagNameTerragruntJSONOut       = "terragrunt-json-out"
+	FlagNameWithMetadata            = "with-metadata"
+	FlagNameDisableDependentModules = "terragrunt-json-disable-dependent-modules"
 )
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
@@ -23,6 +24,11 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        FlagNameWithMetadata,
 			Destination: &opts.RenderJsonWithMetadata,
 			Usage:       "Add metadata to the rendered JSON file.",
+		},
+		&cli.BoolFlag{
+			Name:        FlagNameDisableDependentModules,
+			Destination: &opts.JsonDisableDependentModules,
+			Usage:       "Disable identification of dependent modules rendering json config.",
 		},
 	}
 }
