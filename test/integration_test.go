@@ -6583,8 +6583,6 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 			assert.NoError(t, err)
 			output := fmt.Sprintf("%v\n%v\n", stdout.String(), stderr.String())
 
-			fmt.Printf("%s", output)
-
 			for _, module := range testCase.expectedModules {
 				assert.Containsf(t, output, "/"+module+"\n", "Expected module %s to be in output", module)
 			}
@@ -6635,8 +6633,6 @@ func TestTerragruntApplyGraph(t *testing.T) {
 			assert.NoError(t, err)
 			output := fmt.Sprintf("%v\n%v\n", stdout.String(), stderr.String())
 
-			fmt.Printf("%s", output)
-
 			for _, module := range testCase.expectedModules {
 				assert.Containsf(t, output, "/"+module+"\n", "Expected module %s to be in output", module)
 			}
@@ -6645,6 +6641,25 @@ func TestTerragruntApplyGraph(t *testing.T) {
 				assert.NotContainsf(t, output, "/"+module+"\n", "Expected module %s must not to be in output", module)
 			}
 		})
+	}
+}
+
+func TestTerragruntGraphNonTerraformCommandExecution(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := prepareGraphFixture(t)
+	tmpModulePath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH, "eks")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt graph render-json --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	// check that terragrunt_rendered.json is created in mod1/mod2/mod3
+	for _, module := range []string{"services/eks-service-1", "eks"} {
+		_, err = os.Stat(util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH, module, "terragrunt_rendered.json"))
+		assert.NoError(t, err)
 	}
 }
 
