@@ -37,9 +37,23 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		DisallowUndefinedFlags: true,
 		Flags:                  NewFlags(opts).Sort(),
 		Subcommands:            subCommands(opts).SkipRunning(),
-		Action: func(ctx *cli.Context) error {
-			return Run(opts.OptionsFromContext(ctx))
-		},
+		Action:                 action(opts),
+	}
+}
+
+func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
+	return func(ctx *cli.Context) error {
+		opts.RunTerragrunt = func(opts *options.TerragruntOptions) error {
+			if cmd := ctx.Command.Subcommand(opts.TerraformCommand); cmd != nil {
+				ctx := ctx.WithValue(options.ContextKey, opts)
+
+				return cmd.Action(ctx)
+			}
+
+			return terraform.Run(opts)
+		}
+
+		return Run(opts.OptionsFromContext(ctx))
 	}
 }
 
