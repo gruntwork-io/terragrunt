@@ -531,9 +531,9 @@ More details in [catalog section](https://terragrunt.gruntwork.io/docs/features/
 
 ### graph
 
-Run provided terraform command against a graph of dependencies build git repository root or path provided as `--graph-root` argument.
-Command will be executed only on modules that are dependent from the current module.
-Command will run following the order of dependencies, except when the command is 'destroy' - in that case, it will execute in the opposite order of the dependencies.
+Run the provided terraform command against the graph of dependencies for the module in the current working directory. The graph consists of all modules that depend on the module in the current working directory via a `depends_on` or `dependencies` block, plus all the modules that depend on those modules, and all the modules that depend on those modules, and so on, recursively up the tree, up to the Git repository root, or the path specified via the optional `--graph-root` argument.
+
+The Command will be executed following the order of dependencies: so it'll run on the module in the current working directory first, then on modules that depend on it directly, then on the modules that depend on those modules, and so on. Note that if the command is `destroy`, it will execute in the opposite order of the dependencies.
 
 Example:
 Having bellow dependencies:
