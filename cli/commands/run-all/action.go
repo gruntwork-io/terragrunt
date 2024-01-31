@@ -1,10 +1,13 @@
 package runall
 
 import (
+	"context"
+
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/telemetry"
 )
 
 // Known terraform commands that are explicitly not supported in run-all due to the nature of the command. This is
@@ -25,7 +28,7 @@ var runAllDisabledCommands = map[string]string{
 	// - version        : Supporting `version` with run-all could be useful for sanity checking a multi-version setup.
 }
 
-func Run(opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	if opts.TerraformCommand == "" {
 		return errors.WithStackTrace(MissingCommand{})
 	}
@@ -38,7 +41,12 @@ func Run(opts *options.TerragruntOptions) error {
 		}
 	}
 
-	stack, err := configstack.FindStackInSubfolders(opts, nil)
+	var stack *configstack.Stack
+	err := telemetry.Span(ctx, "configstack.FindStackInSubfolders", func(childCtx context.Context) error {
+		s, err := configstack.FindStackInSubfolders(opts, nil)
+		stack = s
+		return err
+	})
 	if err != nil {
 		return err
 	}

@@ -70,14 +70,27 @@ func OpenSpan(ctx context.Context, name string, attrs map[string]interface{}) (c
 	return childCtx, span
 }
 
-func Span(ctx context.Context, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
+// SpanFull - span execution of a function with attributes.
+func SpanFull(ctx context.Context, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
+	if traceProvider == nil { // invoke function without tracing
+		return fn(ctx)
+	}
 	childCtx, span := OpenSpan(ctx, name, attrs)
 	defer func() {
-		if span != nil {
-			span.End()
-		}
+		span.End()
 	}()
-	return fn(childCtx)
+	err := fn(childCtx)
+	if err != nil {
+		// record error in span
+		span.RecordError(err)
+	}
+
+	return err
+}
+
+// Span - span execution of a function.
+func Span(ctx context.Context, name string, fn func(childCtx context.Context) error) error {
+	return SpanFull(ctx, name, map[string]interface{}{}, fn)
 }
 
 func newExporter(ctx context.Context, opts *TelemetryOptions) (sdktrace.SpanExporter, error) {
