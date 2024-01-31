@@ -539,7 +539,7 @@ Example:
 Having bellow dependencies:
 [![dependency-graph](/assets/img/collections/documentation/dependency-graph.png){: width="80%" }]({{site.baseurl}}/assets/img/collections/documentation/dependency-graph.png)
 
-Running `terragrunt graph apply` in `eks` module will lead to bellow execution order: 
+Running `terragrunt graph apply` in `eks` module will lead to the following execution order: 
 ```
 Group 1
 - Module project/eks
