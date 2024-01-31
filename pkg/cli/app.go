@@ -112,6 +112,7 @@ func (app *App) Run(arguments []string) error {
 		args := Args(parentCtx.Args().Slice())
 		ctx := newContext(parentCtx.Context, app)
 
+		// configure telemetry integration
 		err := telemetry.InitTelemetry(ctx, &telemetry.TelemetryOptions{
 			AppName:    app.Name,
 			AppVersion: app.Version,
@@ -140,7 +141,6 @@ func (app *App) Run(arguments []string) error {
 				ctx.shellComplete = true
 			}
 		}
-
 		// wrap command execution with telemetry span
 		return telemetry.Span(ctx, app.Name, map[string]interface{}{
 			"command": cmd.Name,

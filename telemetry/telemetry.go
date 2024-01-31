@@ -2,6 +2,10 @@ package telemetry
 
 import (
 	"context"
+	"os"
+
+	"github.com/gruntwork-io/go-commons/env"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel"
@@ -13,17 +17,28 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var telemetryExporter oteltrace.SpanExporter
-var traceProvider *sdktrace.TracerProvider
-var rootTracer trace.Tracer
-
 type TelemetryOptions struct {
 	AppName    string
 	AppVersion string
 }
 
+var telemetryExporter oteltrace.SpanExporter
+var traceProvider *sdktrace.TracerProvider
+var rootTracer trace.Tracer
+
+type telemetryExporterType string
+
+const (
+	consoleType telemetryExporterType = "console"
+	httpType    telemetryExporterType = "http"
+)
+
 func InitTelemetry(ctx context.Context, opts *TelemetryOptions) error {
-	// TODO: add opt in flag, disabled by default
+
+	if env.GetBool(os.Getenv("TERRAGRUNT_TELEMETRY_ENABLED"), false) == false {
+		return nil
+	}
+
 	exp, err := newExporter(ctx, opts)
 	if err != nil {
 		return errors.WithStack(err)
@@ -66,7 +81,16 @@ func Span(ctx context.Context, name string, attrs map[string]interface{}, fn fun
 }
 
 func newExporter(ctx context.Context, opts *TelemetryOptions) (sdktrace.SpanExporter, error) {
-	return stdouttrace.New()
+	exporterType := telemetryExporterType(env.GetString(os.Getenv("TERRAGRUNT_TELEMETRY_EXPORTER"), string(consoleType)))
+	switch exporterType {
+	case httpType:
+		endpoint := env.GetString(os.Getenv("TERRAGRUNT_TELEMERTY_EXPORTER_HTTP_ENDPOINT"), "")
+		insecureOpt := otlptracehttp.WithInsecure()
+		endpointOpt := otlptracehttp.WithEndpoint(endpoint)
+		return otlptracehttp.New(ctx, insecureOpt, endpointOpt)
+	default:
+		return stdouttrace.New()
+	}
 }
 
 func newTraceProvider(opts *TelemetryOptions, exp sdktrace.SpanExporter) (*sdktrace.TracerProvider, error) {
