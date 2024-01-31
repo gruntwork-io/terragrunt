@@ -54,8 +54,29 @@ func filterDependencies(stack *configstack.Stack, workDir string) {
 		}
 	}
 
-	// for each element from slice copy respective slice from map
-	// loop while are changes in copy
+	// simple implementation Floyd–Warshall algorithm
+	// loop copying all dependencies from dependent modules
+	// Example:
+	// Initial setup:
+	// dependentModules["module1"] = ["module2", "module3"]
+	// dependentModules["module2"] = ["module3"]
+	// dependentModules["module3"] = ["module4"]
+	// dependentModules["module4"] = ["module5"]
+
+	// After first iteration:
+	// dependentModules["module1"] = ["module2", "module3", "module4"]
+	// dependentModules["module2"] = ["module3", "module4"]
+	// dependentModules["module3"] = ["module4", "module5"]
+	// dependentModules["module4"] = ["module5"]
+
+	// After second iteration:
+	// dependentModules["module1"] = ["module2", "module3", "module4", "module5"]
+	// dependentModules["module2"] = ["module3", "module4", "module5"]
+	// dependentModules["module3"] = ["module4", "module5"]
+	// dependentModules["module4"] = ["module5"]
+
+	// Done, no more updates and in map we have all dependent modules for each module.
+
 	for {
 		noUpdates := true
 		for module, dependents := range dependentModules {
