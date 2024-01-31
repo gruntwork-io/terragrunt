@@ -54,8 +54,9 @@ func filterDependencies(stack *configstack.Stack, workDir string) {
 		}
 	}
 
-	// simple implementation Floyd–Warshall algorithm
-	// loop copying all dependencies from dependent modules
+	// Floyd–Warshall inspired approach to find dependent modules
+	// merge map slices by key until no more updates are possible
+
 	// Example:
 	// Initial setup:
 	// dependentModules["module1"] = ["module2", "module3"]
@@ -63,13 +64,13 @@ func filterDependencies(stack *configstack.Stack, workDir string) {
 	// dependentModules["module3"] = ["module4"]
 	// dependentModules["module4"] = ["module5"]
 
-	// After first iteration: (added to module1 module4, added to module5 module 4, added to module3 module5)
+	// After first iteration: (module1 += module4, module2 += module4, module3 += module5)
 	// dependentModules["module1"] = ["module2", "module3", "module4"]
 	// dependentModules["module2"] = ["module3", "module4"]
 	// dependentModules["module3"] = ["module4", "module5"]
 	// dependentModules["module4"] = ["module5"]
 
-	// After second iteration: (added to module1 module5, added to module2 module5)
+	// After second iteration: (module1 += module5, module2 += module5)
 	// dependentModules["module1"] = ["module2", "module3", "module4", "module5"]
 	// dependentModules["module2"] = ["module3", "module4", "module5"]
 	// dependentModules["module3"] = ["module4", "module5"]
