@@ -33,7 +33,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:                   CommandName,
-		Usage:                  "Execute command on dependency graph.",
+		Usage:                  "Execute commands on the full graph of dependent modules for the current module, ensuring correct execution order.",
 		DisallowUndefinedFlags: true,
 		Flags:                  NewFlags(opts).Sort(),
 		Subcommands:            subCommands(opts).SkipRunning(),
