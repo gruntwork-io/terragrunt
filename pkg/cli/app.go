@@ -1,8 +1,11 @@
 package cli
 
 import (
+	"context"
 	"os"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/urfave/cli/v2"
@@ -109,6 +112,19 @@ func (app *App) Run(arguments []string) error {
 		args := Args(parentCtx.Args().Slice())
 		ctx := newContext(parentCtx.Context, app)
 
+		err := telemetry.InitTelemetry(ctx, &telemetry.TelemetryOptions{
+			AppVersion: app.Version,
+		})
+		if err != nil {
+			return err
+		}
+		defer func(ctx context.Context) {
+			err := telemetry.ShutdownTelemetry(ctx)
+			if err != nil {
+				_, _ = app.ErrWriter.Write([]byte(err.Error()))
+			}
+		}(ctx)
+
 		if app.Autocomplete {
 			if err := app.setupAutocomplete(args); err != nil {
 				return app.handleExitCoder(err)
@@ -124,8 +140,7 @@ func (app *App) Run(arguments []string) error {
 			}
 		}
 
-		err := cmd.Run(ctx, args.Normalize(SingleDashFlag))
-		return err
+		return cmd.Run(ctx, args.Normalize(SingleDashFlag))
 	}
 
 	return app.App.Run(arguments)
