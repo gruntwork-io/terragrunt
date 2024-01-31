@@ -564,7 +564,7 @@ Notes:
 * `lambda` modules aren't included in the graph, because they are not dependent on `eks` module.
 * execution is from bottom up based on dependencies
 
-Running `terragrunt graph destroy` in `eks` module will lead to bellow execution order:
+Running `terragrunt graph destroy` in `eks` module will lead to the following execution order:
 ```
 Group 1
 - Module project/services/eks-service-2-v2
