@@ -113,6 +113,7 @@ func (app *App) Run(arguments []string) error {
 		ctx := newContext(parentCtx.Context, app)
 
 		err := telemetry.InitTelemetry(ctx, &telemetry.TelemetryOptions{
+			AppName:    app.Name,
 			AppVersion: app.Version,
 		})
 		if err != nil {
@@ -140,7 +141,14 @@ func (app *App) Run(arguments []string) error {
 			}
 		}
 
-		return cmd.Run(ctx, args.Normalize(SingleDashFlag))
+		// wrap command execution with telemetry span
+		return telemetry.Span(ctx, app.Name, map[string]interface{}{
+			"command": cmd.Name,
+			"args":    args.Normalize(SingleDashFlag),
+		}, func(childCtx context.Context) error {
+			return cmd.Run(ctx, args.Normalize(SingleDashFlag))
+		})
+
 	}
 
 	return app.App.Run(arguments)
