@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/gruntwork-io/go-commons/env"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 
@@ -60,22 +62,12 @@ func ShutdownTelemetry(ctx context.Context) error {
 	return nil
 }
 
-func OpenSpan(ctx context.Context, name string, attrs map[string]interface{}) (context.Context, trace.Span) {
-	if traceProvider == nil {
-		return ctx, nil
-	}
-	childCtx, span := rootTracer.Start(ctx, name)
-	// TODO: add attributes
-	// span.SetAttributes()
-	return childCtx, span
-}
-
-// SpanFull - span execution of a function with attributes.
-func SpanFull(ctx context.Context, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
+// TraceFull - span execution of a function with attributes.
+func TraceFull(ctx context.Context, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
 	if traceProvider == nil { // invoke function without tracing
 		return fn(ctx)
 	}
-	childCtx, span := OpenSpan(ctx, name, attrs)
+	childCtx, span := openSpan(ctx, name, attrs)
 	defer func() {
 		span.End()
 	}()
@@ -88,9 +80,19 @@ func SpanFull(ctx context.Context, name string, attrs map[string]interface{}, fn
 	return err
 }
 
-// Span - span execution of a function.
-func Span(ctx context.Context, name string, fn func(childCtx context.Context) error) error {
-	return SpanFull(ctx, name, map[string]interface{}{}, fn)
+// Trace - span execution of a function.
+func Trace(ctx context.Context, name string, fn func(childCtx context.Context) error) error {
+	return TraceFull(ctx, name, map[string]interface{}{}, fn)
+}
+
+func openSpan(ctx context.Context, name string, attrs map[string]interface{}) (context.Context, trace.Span) {
+	if traceProvider == nil {
+		return ctx, nil
+	}
+	childCtx, span := rootTracer.Start(ctx, name)
+	// convert attrs map to span.SetAttributes
+	span.SetAttributes(mapToAttributes(attrs)...)
+	return childCtx, span
 }
 
 func newExporter(ctx context.Context, opts *TelemetryOptions) (sdktrace.SpanExporter, error) {
@@ -124,4 +126,26 @@ func newTraceProvider(opts *TelemetryOptions, exp sdktrace.SpanExporter) (*sdktr
 		sdktrace.WithBatcher(exp),
 		sdktrace.WithResource(r),
 	), nil
+}
+
+func mapToAttributes(data map[string]interface{}) []attribute.KeyValue {
+	var attrs []attribute.KeyValue
+	for k, v := range data {
+		switch val := v.(type) {
+		case string:
+			attrs = append(attrs, attribute.String(k, val))
+		case int:
+			attrs = append(attrs, attribute.Int64(k, int64(val)))
+		case int64:
+			attrs = append(attrs, attribute.Int64(k, val))
+		case float64:
+			attrs = append(attrs, attribute.Float64(k, val))
+		case bool:
+			attrs = append(attrs, attribute.Bool(k, val))
+		// Add other types as necessary
+		default:
+			// Handle or ignore unsupported types
+		}
+	}
+	return attrs
 }

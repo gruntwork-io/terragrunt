@@ -42,7 +42,9 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	}
 
 	var stack *configstack.Stack
-	err := telemetry.Span(ctx, "configstack.FindStackInSubfolders", func(childCtx context.Context) error {
+	err := telemetry.TraceFull(ctx, "configstack.FindStackInSubfolders", map[string]interface{}{
+		"workingDir": opts.WorkingDir,
+	}, func(childCtx context.Context) error {
 		s, err := configstack.FindStackInSubfolders(opts, nil)
 		stack = s
 		return err
@@ -75,5 +77,5 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		}
 	}
 
-	return stack.Run(opts)
+	return stack.Run(ctx, opts)
 }

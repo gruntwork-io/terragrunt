@@ -142,7 +142,7 @@ func (app *App) Run(arguments []string) error {
 			}
 		}
 		// wrap command execution with telemetry span
-		return telemetry.SpanFull(ctx, app.Name, map[string]interface{}{
+		return telemetry.TraceFull(ctx, app.Name, map[string]interface{}{
 			"command": cmd.Name,
 			"args":    args.Normalize(SingleDashFlag),
 		}, func(childCtx context.Context) error {

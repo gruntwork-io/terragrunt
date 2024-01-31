@@ -30,7 +30,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
-		return telemetry.Span(ctx, opts.TerraformCommand, func(childCtx context.Context) error {
+		return telemetry.Trace(ctx, opts.TerraformCommand, func(childCtx context.Context) error {
 			if opts.TerraformCommand == CommandNameDestroy {
 				opts.CheckDependentModules = true
 			}
