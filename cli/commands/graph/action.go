@@ -1,7 +1,11 @@
 package graph
 
 import (
+	"fmt"
+
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/configstack"
@@ -10,6 +14,15 @@ import (
 )
 
 func Run(opts *options.TerragruntOptions) error {
+	target := terraform.NewTarget(terraform.TargetPointParseConfig, graph)
+
+	return terraform.RunWithTarget(opts, target)
+}
+
+func graph(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+	if cfg == nil {
+		return fmt.Errorf("Terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl.")
+	}
 	// consider root for graph identification passed destroy-graph-root argument
 	rootDir := opts.GraphRoot
 
@@ -30,71 +43,9 @@ func Run(opts *options.TerragruntOptions) error {
 	if err != nil {
 		return err
 	}
+	dependentModules := configstack.ListStackDependentModules(stack)
 
-	// filter dependencies to have keep only dependencies with working dir
-	filterDependencies(stack, opts.WorkingDir)
-
-	return runall.RunAllOnStack(opts, stack)
-}
-
-// filterDependencies updates the stack to only include modules that are dependent on the given path
-func filterDependencies(stack *configstack.Stack, workDir string) {
-
-	// build map of dependent modules
-	// module path -> list of dependent modules
-	var dependentModules = make(map[string][]string)
-
-	// build initial mapping of dependent modules
-	for _, module := range stack.Modules {
-
-		if len(module.Dependencies) != 0 {
-			for _, dep := range module.Dependencies {
-				dependentModules[dep.Path] = util.RemoveDuplicatesFromList(append(dependentModules[dep.Path], module.Path))
-			}
-		}
-	}
-
-	// Floyd–Warshall inspired approach to find dependent modules
-	// merge map slices by key until no more updates are possible
-
-	// Example:
-	// Initial setup:
-	// dependentModules["module1"] = ["module2", "module3"]
-	// dependentModules["module2"] = ["module3"]
-	// dependentModules["module3"] = ["module4"]
-	// dependentModules["module4"] = ["module5"]
-
-	// After first iteration: (module1 += module4, module2 += module4, module3 += module5)
-	// dependentModules["module1"] = ["module2", "module3", "module4"]
-	// dependentModules["module2"] = ["module3", "module4"]
-	// dependentModules["module3"] = ["module4", "module5"]
-	// dependentModules["module4"] = ["module5"]
-
-	// After second iteration: (module1 += module5, module2 += module5)
-	// dependentModules["module1"] = ["module2", "module3", "module4", "module5"]
-	// dependentModules["module2"] = ["module3", "module4", "module5"]
-	// dependentModules["module3"] = ["module4", "module5"]
-	// dependentModules["module4"] = ["module5"]
-
-	// Done, no more updates and in map we have all dependent modules for each module.
-
-	for {
-		noUpdates := true
-		for module, dependents := range dependentModules {
-			for _, dependent := range dependents {
-				initialSize := len(dependentModules[module])
-				// merge without duplicates
-				dependentModules[module] = util.RemoveDuplicatesFromList(append(dependentModules[module], dependentModules[dependent]...))
-				if initialSize != len(dependentModules[module]) {
-					noUpdates = false
-				}
-			}
-		}
-		if noUpdates {
-			break
-		}
-	}
-
+	workDir := opts.WorkingDir
 	modulesToInclude := dependentModules[workDir]
 	// workdir to list too
 	modulesToInclude = append(modulesToInclude, workDir)
@@ -106,4 +57,6 @@ func filterDependencies(stack *configstack.Stack, workDir string) {
 			module.FlagExcluded = false
 		}
 	}
+
+	return runall.RunAllOnStack(opts, stack)
 }
