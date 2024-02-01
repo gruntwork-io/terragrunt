@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
+
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/util"

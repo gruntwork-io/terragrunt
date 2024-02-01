@@ -702,7 +702,9 @@ func ListStackDependentModules(stack *Stack) map[string][]string {
 			for _, dependent := range dependents {
 				initialSize := len(dependentModules[module])
 				// merge without duplicates
-				dependentModules[module] = util.RemoveDuplicatesFromList(append(dependentModules[module], dependentModules[dependent]...))
+				list := util.RemoveDuplicatesFromList(append(dependentModules[module], dependentModules[dependent]...))
+				list = util.RemoveElementFromList(list, module)
+				dependentModules[module] = list
 				if initialSize != len(dependentModules[module]) {
 					noUpdates = false
 				}
