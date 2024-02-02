@@ -182,6 +182,7 @@ const (
 	TEST_FIXTURE_PARALLEL_STATE_INIT                                         = "fixture-parallel-state-init"
 	TEST_FIXTURE_GCS_PARALLEL_STATE_INIT                                     = "fixture-gcs-parallel-state-init"
 	TEST_FIXTURE_ASSUME_ROLE                                                 = "fixture-assume-role"
+	TEST_FIXTURE_GRAPH                                                       = "fixture-graph"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -6536,6 +6537,144 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 		assert.NotNil(t, output["level"])
 		assert.NotNil(t, output["time"])
 	}
+}
+
+func TestTerragruntDestroyGraph(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		path               string
+		expectedModules    []string
+		notExpectedModules []string
+	}{
+		{
+			path:               "eks",
+			expectedModules:    []string{"eks-service-3-v3", "eks-service-3-v2", "eks-service-3", "eks-service-4", "eks-service-5", "eks-service-2-v2", "eks-service-2", "eks-service-1"},
+			notExpectedModules: []string{"lambda", "lambda-service-1", "lambda-service-2"},
+		},
+		{
+			path:               "services/lambda-service-1",
+			expectedModules:    []string{"lambda-service-2"},
+			notExpectedModules: []string{"lambda"},
+		},
+		{
+			path:               "services/eks-service-3",
+			expectedModules:    []string{"eks-service-3-v2", "eks-service-4", "eks-service-3-v3"},
+			notExpectedModules: []string{"eks", "eks-service-1", "eks-service-2"},
+		},
+		{
+			path:               "services/lambda-service-2",
+			expectedModules:    []string{"services/lambda-service-2"},
+			notExpectedModules: []string{"services/lambda-service-1", "lambda"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+
+		t.Run(testCase.path, func(t *testing.T) {
+			tmpEnvPath := prepareGraphFixture(t)
+			tmpModulePath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH, testCase.path)
+
+			stdout := bytes.Buffer{}
+			stderr := bytes.Buffer{}
+
+			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt graph destroy --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
+			assert.NoError(t, err)
+			output := fmt.Sprintf("%v\n%v\n", stdout.String(), stderr.String())
+
+			for _, module := range testCase.expectedModules {
+				assert.Containsf(t, output, "/"+module+"\n", "Expected module %s to be in output", module)
+			}
+
+			for _, module := range testCase.notExpectedModules {
+				assert.NotContainsf(t, output, "/"+module+"\n", "Expected module %s must not to be in output", module)
+			}
+		})
+	}
+}
+
+func TestTerragruntApplyGraph(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		path               string
+		expectedModules    []string
+		notExpectedModules []string
+	}{
+		{
+			path:               "services/eks-service-3-v2",
+			expectedModules:    []string{"services/eks-service-3-v2", "services/eks-service-3-v3"},
+			notExpectedModules: []string{"lambda", "eks", "services/eks-service-3"},
+		},
+		{
+			path:               "lambda",
+			expectedModules:    []string{"lambda", "services/lambda-service-1", "services/lambda-service-2"},
+			notExpectedModules: []string{"eks", "services/eks-service-1", "services/eks-service-2", "services/eks-service-3"},
+		},
+		{
+			path:               "services/eks-service-5",
+			expectedModules:    []string{"services/eks-service-5"},
+			notExpectedModules: []string{"eks", "lambda", "services/eks-service-1", "services/eks-service-2", "services/eks-service-3"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+
+		t.Run(testCase.path, func(t *testing.T) {
+			tmpEnvPath := prepareGraphFixture(t)
+			tmpModulePath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH, testCase.path)
+
+			stdout := bytes.Buffer{}
+			stderr := bytes.Buffer{}
+
+			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt graph apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
+			assert.NoError(t, err)
+			output := fmt.Sprintf("%v\n%v\n", stdout.String(), stderr.String())
+
+			for _, module := range testCase.expectedModules {
+				assert.Containsf(t, output, "/"+module+"\n", "Expected module %s to be in output", module)
+			}
+
+			for _, module := range testCase.notExpectedModules {
+				assert.NotContainsf(t, output, "/"+module+"\n", "Expected module %s must not to be in output", module)
+			}
+		})
+	}
+}
+
+func TestTerragruntGraphNonTerraformCommandExecution(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := prepareGraphFixture(t)
+	tmpModulePath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH, "eks")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt graph render-json --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	// check that terragrunt_rendered.json is created in mod1/mod2/mod3
+	for _, module := range []string{"services/eks-service-1", "eks"} {
+		_, err = os.Stat(util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH, module, "terragrunt_rendered.json"))
+		assert.NoError(t, err)
+	}
+}
+
+func prepareGraphFixture(t *testing.T) string {
+	t.Helper()
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GRAPH)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	assert.NoError(t, err)
+	return tmpEnvPath
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {

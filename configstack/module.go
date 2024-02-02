@@ -565,6 +565,7 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 		var hook = NewForceLogLevelHook(logrus.DebugLevel)
 		cfgOptions.Logger.Logger.AddHook(hook)
 
+		// build stack from config directory
 		stack, err := FindStackInSubfolders(cfgOptions, terragruntConfig)
 		if err != nil {
 			// log error as debug since in some cases stack building may fail because parent files can be designed
@@ -573,11 +574,15 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 			continue
 		}
 
-		for _, module := range stack.Modules {
-			for _, dep := range module.Dependencies {
-				if dep.Path == terragruntOptions.WorkingDir { // include in dependencies module which have in dependencies WorkingDir
-					matchedModulesMap[module.Path] = module
-					break
+		dependentModules := ListStackDependentModules(stack)
+		deps, found := dependentModules[terragruntOptions.WorkingDir]
+		if found {
+			for _, module := range stack.Modules {
+				for _, dep := range deps {
+					if dep == module.Path {
+						matchedModulesMap[module.Path] = module
+						break
+					}
 				}
 			}
 		}
@@ -649,4 +654,65 @@ func buildDirList(terragruntOptions *options.TerragruntOptions, topLevelDir stri
 		pathsToCheck = append(pathsToCheck, pathToAdd)
 	}
 	return pathsToCheck, nil
+}
+
+// ListStackDependentModules - build a map with each module and its dependent modules
+func ListStackDependentModules(stack *Stack) map[string][]string {
+	// build map of dependent modules
+	// module path -> list of dependent modules
+	var dependentModules = make(map[string][]string)
+
+	// build initial mapping of dependent modules
+	for _, module := range stack.Modules {
+
+		if len(module.Dependencies) != 0 {
+			for _, dep := range module.Dependencies {
+				dependentModules[dep.Path] = util.RemoveDuplicatesFromList(append(dependentModules[dep.Path], module.Path))
+			}
+		}
+	}
+
+	// Floyd–Warshall inspired approach to find dependent modules
+	// merge map slices by key until no more updates are possible
+
+	// Example:
+	// Initial setup:
+	// dependentModules["module1"] = ["module2", "module3"]
+	// dependentModules["module2"] = ["module3"]
+	// dependentModules["module3"] = ["module4"]
+	// dependentModules["module4"] = ["module5"]
+
+	// After first iteration: (module1 += module4, module2 += module4, module3 += module5)
+	// dependentModules["module1"] = ["module2", "module3", "module4"]
+	// dependentModules["module2"] = ["module3", "module4"]
+	// dependentModules["module3"] = ["module4", "module5"]
+	// dependentModules["module4"] = ["module5"]
+
+	// After second iteration: (module1 += module5, module2 += module5)
+	// dependentModules["module1"] = ["module2", "module3", "module4", "module5"]
+	// dependentModules["module2"] = ["module3", "module4", "module5"]
+	// dependentModules["module3"] = ["module4", "module5"]
+	// dependentModules["module4"] = ["module5"]
+
+	// Done, no more updates and in map we have all dependent modules for each module.
+
+	for {
+		noUpdates := true
+		for module, dependents := range dependentModules {
+			for _, dependent := range dependents {
+				initialSize := len(dependentModules[module])
+				// merge without duplicates
+				list := util.RemoveDuplicatesFromList(append(dependentModules[module], dependentModules[dependent]...))
+				list = util.RemoveElementFromList(list, module)
+				dependentModules[module] = list
+				if initialSize != len(dependentModules[module]) {
+					noUpdates = false
+				}
+			}
+		}
+		if noUpdates {
+			break
+		}
+	}
+	return dependentModules
 }

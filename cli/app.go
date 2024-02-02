@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/graph"
+
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -80,6 +82,7 @@ func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 		outputmodulegroups.NewCommand(opts), // output-module-groups
 		catalog.NewCommand(opts),            // catalog
 		scaffold.NewCommand(opts),           // scaffold
+		graph.NewCommand(opts),              // graph
 	}
 
 	sort.Sort(cmds)
@@ -121,7 +124,7 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 		cmdName := ctx.Command.Name
 
 		switch cmdName {
-		case terraform.CommandName, runall.CommandName:
+		case terraform.CommandName, runall.CommandName, graph.CommandName:
 			cmdName = ctx.Args().CommandName()
 		default:
 			args = append([]string{ctx.Command.Name}, args...)
