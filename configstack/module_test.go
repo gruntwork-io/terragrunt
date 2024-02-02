@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -951,4 +952,81 @@ func TestLogReductionHook(t *testing.T) {
 	assert.Contains(t, firstLogEntry, "level=error")
 	assert.Contains(t, secondLogEntry, "level=error")
 
+}
+
+func TestBasicDependency(t *testing.T) {
+	moduleC := &TerraformModule{Path: "C", Dependencies: []*TerraformModule{}}
+	moduleB := &TerraformModule{Path: "B", Dependencies: []*TerraformModule{moduleC}}
+	moduleA := &TerraformModule{Path: "A", Dependencies: []*TerraformModule{moduleB}}
+
+	stack := &Stack{
+		Path:    "test-stack",
+		Modules: []*TerraformModule{moduleA, moduleB, moduleC},
+	}
+
+	expected := map[string][]string{
+		"B": {"A"},
+		"C": {"B", "A"},
+	}
+
+	result := ListStackDependentModules(stack)
+
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("Expected %v, got %v", expected, result)
+	}
+}
+func TestNestedDependencies(t *testing.T) {
+	moduleD := &TerraformModule{Path: "D", Dependencies: []*TerraformModule{}}
+	moduleC := &TerraformModule{Path: "C", Dependencies: []*TerraformModule{moduleD}}
+	moduleB := &TerraformModule{Path: "B", Dependencies: []*TerraformModule{moduleC}}
+	moduleA := &TerraformModule{Path: "A", Dependencies: []*TerraformModule{moduleB}}
+
+	// Create a mock stack
+	stack := &Stack{
+		Path:    "nested-stack",
+		Modules: []*TerraformModule{moduleA, moduleB, moduleC, moduleD},
+	}
+
+	// Expected result
+	expected := map[string][]string{
+		"B": {"A"},
+		"C": {"B", "A"},
+		"D": {"C", "B", "A"},
+	}
+
+	// Run the function
+	result := ListStackDependentModules(stack)
+
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("Expected %v, got %v", expected, result)
+	}
+}
+
+func TestCircularDependencies(t *testing.T) {
+	// Mock modules with circular dependencies
+	moduleA := &TerraformModule{Path: "A"}
+	moduleB := &TerraformModule{Path: "B"}
+	moduleC := &TerraformModule{Path: "C"}
+
+	moduleA.Dependencies = []*TerraformModule{moduleB}
+	moduleB.Dependencies = []*TerraformModule{moduleC}
+	moduleC.Dependencies = []*TerraformModule{moduleA} // Circular dependency
+
+	stack := &Stack{
+		Path:    "circular-stack",
+		Modules: []*TerraformModule{moduleA, moduleB, moduleC},
+	}
+
+	expected := map[string][]string{
+		"A": {"C", "B"},
+		"B": {"A", "C"},
+		"C": {"B", "A"},
+	}
+
+	// Run the function
+	result := ListStackDependentModules(stack)
+
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("Expected %v, got %v", expected, result)
+	}
 }

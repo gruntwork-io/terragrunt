@@ -53,6 +53,10 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		return err
 	}
 
+	return RunAllOnStack(opts, stack)
+}
+
+func RunAllOnStack(opts *options.TerragruntOptions, stack *configstack.Stack) error {
 	opts.Logger.Debugf("%s", stack.String())
 	if err := stack.LogModuleDeployOrder(opts.Logger, opts.TerraformCommand); err != nil {
 		return err
