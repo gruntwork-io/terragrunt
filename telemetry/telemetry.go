@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 
+	"github.com/gruntwork-io/terragrunt/options"
+
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/gruntwork-io/go-commons/env"
@@ -83,6 +85,14 @@ func TraceFull(ctx context.Context, name string, attrs map[string]interface{}, f
 // Trace - span execution of a function.
 func Trace(ctx context.Context, name string, fn func(childCtx context.Context) error) error {
 	return TraceFull(ctx, name, map[string]interface{}{}, fn)
+}
+
+func TraceCommand(ctx context.Context, opts *options.TerragruntOptions, fn func(childCtx context.Context) error) error {
+	return TraceFull(ctx, opts.TerraformCommand, map[string]interface{}{
+		"command": opts.TerraformCommand,
+		"args":    opts.TerraformCliArgs,
+		"dir":     opts.WorkingDir,
+	}, fn)
 }
 
 func openSpan(ctx context.Context, name string, attrs map[string]interface{}) (context.Context, trace.Span) {

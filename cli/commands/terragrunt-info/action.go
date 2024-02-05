@@ -1,6 +1,7 @@
 package terragruntinfo
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -9,8 +10,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-func Run(opts *options.TerragruntOptions) error {
-	target := terraform.NewTarget(terraform.TargetPointDownloadSource, runTerragruntInfo)
+func Run(ctx context.Context, opts *options.TerragruntOptions) error {
+	target := terraform.NewTarget(ctx, terraform.TargetPointDownloadSource, runTerragruntInfo)
 
 	return terraform.RunWithTarget(opts, target)
 }
@@ -25,7 +26,7 @@ type TerragruntInfoGroup struct {
 	WorkingDir       string
 }
 
-func runTerragruntInfo(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func runTerragruntInfo(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	group := TerragruntInfoGroup{
 		ConfigPath:       opts.TerragruntConfigPath,
 		DownloadDir:      opts.DownloadDir,

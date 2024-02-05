@@ -1,8 +1,11 @@
 package awsproviderpatch
 
 import (
+	"context"
+
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
+	"github.com/gruntwork-io/terragrunt/telemetry"
 )
 
 const (
@@ -24,9 +27,13 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
-		Name:   CommandName,
-		Usage:  "Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018).",
-		Flags:  NewFlags(opts).Sort(),
-		Action: func(ctx *cli.Context) error { return Run(opts.OptionsFromContext(ctx)) },
+		Name:  CommandName,
+		Usage: "Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018).",
+		Flags: NewFlags(opts).Sort(),
+		Action: func(ctx *cli.Context) error {
+			return telemetry.TraceCommand(ctx, opts, func(childCtx context.Context) error {
+				return Run(childCtx, opts.OptionsFromContext(childCtx))
+			})
+		},
 	}
 }

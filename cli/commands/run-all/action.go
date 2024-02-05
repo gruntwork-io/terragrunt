@@ -42,7 +42,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	}
 
 	var stack *configstack.Stack
-	err := telemetry.TraceFull(ctx, "configstack.FindStackInSubfolders", map[string]interface{}{
+	err := telemetry.TraceFull(ctx, "creatingModuleStack", map[string]interface{}{
 		"workingDir": opts.WorkingDir,
 	}, func(childCtx context.Context) error {
 		s, err := configstack.FindStackInSubfolders(opts, nil)
@@ -53,10 +53,10 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		return err
 	}
 
-	return RunAllOnStack(opts, stack)
+	return RunAllOnStack(ctx, opts, stack)
 }
 
-func RunAllOnStack(opts *options.TerragruntOptions, stack *configstack.Stack) error {
+func RunAllOnStack(ctx context.Context, opts *options.TerragruntOptions, stack *configstack.Stack) error {
 	opts.Logger.Debugf("%s", stack.String())
 	if err := stack.LogModuleDeployOrder(opts.Logger, opts.TerraformCommand); err != nil {
 		return err
