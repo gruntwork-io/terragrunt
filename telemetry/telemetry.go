@@ -2,7 +2,6 @@ package telemetry
 
 import (
 	"context"
-	"os"
 
 	"github.com/gruntwork-io/terragrunt/options"
 
@@ -22,6 +21,7 @@ import (
 )
 
 type TelemetryOptions struct {
+	Vars       map[string]string
 	AppName    string
 	AppVersion string
 }
@@ -39,7 +39,7 @@ const (
 
 func InitTelemetry(ctx context.Context, opts *TelemetryOptions) error {
 
-	if env.GetBool(os.Getenv("TERRAGRUNT_TELEMETRY_ENABLED"), false) == false {
+	if env.GetBool(opts.Vars["TERRAGRUNT_TELEMETRY_ENABLED"], false) == false {
 		return nil
 	}
 
@@ -94,10 +94,10 @@ func openSpan(ctx context.Context, name string, attrs map[string]interface{}) (c
 }
 
 func newExporter(ctx context.Context, opts *TelemetryOptions) (sdktrace.SpanExporter, error) {
-	exporterType := telemetryExporterType(env.GetString(os.Getenv("TERRAGRUNT_TELEMETRY_EXPORTER"), string(consoleType)))
+	exporterType := telemetryExporterType(env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_EXPORTER"], string(consoleType)))
 	switch exporterType {
 	case httpType:
-		endpoint := env.GetString(os.Getenv("TERRAGRUNT_TELEMERTY_EXPORTER_HTTP_ENDPOINT"), "")
+		endpoint := env.GetString(opts.Vars["TERRAGRUNT_TELEMERTY_EXPORTER_HTTP_ENDPOINT"], "")
 		insecureOpt := otlptracehttp.WithInsecure()
 		endpointOpt := otlptracehttp.WithEndpoint(endpoint)
 		return otlptracehttp.New(ctx, insecureOpt, endpointOpt)

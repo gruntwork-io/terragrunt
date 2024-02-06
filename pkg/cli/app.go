@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gruntwork-io/go-commons/env"
+
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/gruntwork-io/go-commons/errors"
@@ -114,6 +116,7 @@ func (app *App) Run(arguments []string) error {
 
 		// configure telemetry integration
 		err := telemetry.InitTelemetry(ctx, &telemetry.TelemetryOptions{
+			Vars:       env.Parse(os.Environ()),
 			AppName:    app.Name,
 			AppVersion: app.Version,
 		})
