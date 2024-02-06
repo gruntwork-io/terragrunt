@@ -136,3 +136,13 @@ in dependency and local variable resolution.
 https://github.com/gruntwork-io/terragrunt/blob/eb692a83bee285b0baaaf4b271c66230f99b6358/docs/_docs/02_features/debugging.md
 for thoughts on other potential features to implement.
 -->
+
+### OpenTelemetry integration
+
+Terragrunt can be configured to emit OpenTelemetry traces to a collector(disabled by default).
+Configuration now is done through environment variables.
+Configuration environment variables are:
+* `TERRAGRUNT_TELEMETRY_ENABLED` - once set true, will be enabled open telemetry traces collection
+* `TERRAGRUNT_TELEMETRY_EXPORTER` - exporter type to be used. Currently supported exporters are `console` and `http`. 
+* `TERRAGRUNT_TELEMERTY_EXPORTER_HTTP_ENDPOINT` - in case of `http` exporter, this is the endpoint to which traces will be sent.
+
