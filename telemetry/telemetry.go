@@ -3,6 +3,8 @@ package telemetry
 import (
 	"context"
 
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+
 	"github.com/gruntwork-io/terragrunt/options"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -33,8 +35,10 @@ var rootTracer trace.Tracer
 type telemetryExporterType string
 
 const (
-	consoleType telemetryExporterType = "console"
-	httpType    telemetryExporterType = "http"
+	consoleType  telemetryExporterType = "console"
+	otlpHttpType telemetryExporterType = "otlpHttp"
+	otlpGrpcType telemetryExporterType = "otlpGrpc"
+	httpType     telemetryExporterType = "http"
 )
 
 // InitTelemetry - initialize the telemetry provider.
@@ -103,6 +107,10 @@ func newExporter(ctx context.Context, opts *TelemetryOptions) (sdktrace.SpanExpo
 		insecureOpt := otlptracehttp.WithInsecure()
 		endpointOpt := otlptracehttp.WithEndpoint(endpoint)
 		return otlptracehttp.New(ctx, insecureOpt, endpointOpt)
+	case otlpHttpType:
+		return otlptracehttp.New(ctx)
+	case otlpGrpcType:
+		return otlptracegrpc.New(ctx)
 	default:
 		return stdouttrace.New()
 	}

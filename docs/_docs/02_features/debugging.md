@@ -143,6 +143,10 @@ Terragrunt can be configured to emit OpenTelemetry traces to a collector(disable
 Configuration now is done through environment variables.
 Configuration environment variables are:
 * `TERRAGRUNT_TELEMETRY_ENABLED` - once set true, will be enabled open telemetry traces collection
-* `TERRAGRUNT_TELEMETRY_EXPORTER` - exporter type to be used. Currently supported exporters are `console` and `http`. 
+* `TERRAGRUNT_TELEMETRY_EXPORTER` - exporter type to be used. Currently supported values are:
+  * `console` - to export traces to console as JSONs
+  * `otlpHttp` - to export traces to an OpenTelemetry collector over HTTP [otlptracehttp](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp)
+  * `otlpGrpc` - to export traces over gRPC [otlptracegrpc](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc)
+  * `http` - to export traces to a custom HTTP endpoint using [otlptracehttp](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp)
 * `TERRAGRUNT_TELEMERTY_EXPORTER_HTTP_ENDPOINT` - in case of `http` exporter, this is the endpoint to which traces will be sent.
 
