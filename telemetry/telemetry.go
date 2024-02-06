@@ -37,6 +37,7 @@ const (
 	httpType    telemetryExporterType = "http"
 )
 
+// InitTelemetry - initialize the telemetry provider.
 func InitTelemetry(ctx context.Context, opts *TelemetryOptions) error {
 
 	if env.GetBool(opts.Vars["TERRAGRUNT_TELEMETRY_ENABLED"], false) == false {
@@ -57,6 +58,7 @@ func InitTelemetry(ctx context.Context, opts *TelemetryOptions) error {
 	return nil
 }
 
+// ShutdownTelemetry - shutdown the telemetry provider.
 func ShutdownTelemetry(ctx context.Context) error {
 	if traceProvider != nil {
 		return traceProvider.Shutdown(ctx)
