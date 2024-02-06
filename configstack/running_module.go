@@ -201,7 +201,7 @@ func collectErrors(modules map[string]*runningModule) error {
 // Run a module once all of its dependencies have finished executing.
 func (module *runningModule) runModuleWhenReady(opts *options.TerragruntOptions, semaphore chan struct{}) {
 
-	err := telemetry.TraceFull(opts, "waitForDependencies "+module.Module.Path, map[string]interface{}{
+	err := telemetry.TraceFull(opts, "wait", map[string]interface{}{
 		"path":             module.Module.Path,
 		"terraformCommand": module.Module.TerragruntOptions.TerraformCommand,
 	}, func(childCtx context.Context) error {
@@ -213,7 +213,7 @@ func (module *runningModule) runModuleWhenReady(opts *options.TerragruntOptions,
 		<-semaphore // Remove one from the buffered channel
 	}()
 	if err == nil {
-		err = telemetry.TraceFull(opts, "runNow "+module.Module.Path, map[string]interface{}{
+		err = telemetry.TraceFull(opts, "execute", map[string]interface{}{
 			"path":             module.Module.Path,
 			"terraformCommand": module.Module.TerragruntOptions.TerraformCommand,
 		}, func(childCtx context.Context) error {
