@@ -100,6 +100,8 @@ func telemetryCommand(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Co
 	fn := cmd.Action
 	cmd.Action = func(ctx *cli.Context) error {
 		return telemetry.TraceCommand(opts, func(childCtx context.Context) error {
+			ctx.Context = childCtx
+			opts.Ctx = childCtx
 			return fn(ctx)
 		})
 	}
