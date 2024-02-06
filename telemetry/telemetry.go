@@ -44,7 +44,7 @@ const (
 // InitTelemetry - initialize the telemetry provider.
 func InitTelemetry(ctx context.Context, opts *TelemetryOptions) error {
 
-	if env.GetBool(opts.Vars["TERRAGRUNT_TELEMETRY_ENABLED"], false) == false {
+	if !env.GetBool(opts.Vars["TERRAGRUNT_TELEMETRY_ENABLED"], false) {
 		return nil
 	}
 
