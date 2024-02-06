@@ -5,7 +5,6 @@
 package validateinputs
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -23,13 +22,13 @@ import (
 
 const splitCount = 2
 
-func Run(ctx context.Context, opts *options.TerragruntOptions) error {
-	target := terraform.NewTarget(ctx, terraform.TargetPointGenerateConfig, runValidateInputs)
+func Run(opts *options.TerragruntOptions) error {
+	target := terraform.NewTarget(terraform.TargetPointGenerateConfig, runValidateInputs)
 
 	return terraform.RunWithTarget(opts, target)
 }
 
-func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func runValidateInputs(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	required, optional, err := tr.ModuleVariables(opts.WorkingDir)
 	if err != nil {
 		return err
