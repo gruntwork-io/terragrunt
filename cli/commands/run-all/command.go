@@ -1,10 +1,7 @@
 package runall
 
 import (
-	"context"
 	"sort"
-
-	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
@@ -33,18 +30,19 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	}
 }
 
-func action(opts *options.TerragruntOptions) func(c *cli.Context) error {
-	return func(cliCtx *cli.Context) error {
-		return telemetry.Trace(cliCtx.Context, "run-all "+opts.TerraformCommand, func(childCtx context.Context) error {
-			opts.RunTerragrunt = func(opts *options.TerragruntOptions) error {
-				if cmd := cliCtx.Command.Subcommand(opts.TerraformCommand); cmd != nil {
-					ctx := cliCtx.WithValue(options.ContextKey, opts)
-					return cmd.Action(ctx)
-				}
-				return terraform.Run(opts)
+func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
+	return func(ctx *cli.Context) error {
+		opts.RunTerragrunt = func(opts *options.TerragruntOptions) error {
+			if cmd := ctx.Command.Subcommand(opts.TerraformCommand); cmd != nil {
+				ctx := ctx.WithValue(options.ContextKey, opts)
+
+				return cmd.Action(ctx)
 			}
-			return Run(childCtx, opts.OptionsFromContext(childCtx))
-		})
+
+			return terraform.Run(opts)
+		}
+
+		return Run(opts.OptionsFromContext(ctx))
 	}
 }
 

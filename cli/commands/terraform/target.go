@@ -1,8 +1,6 @@
 package terraform
 
 import (
-	"context"
-
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -16,7 +14,7 @@ const (
 
 type TargetPointType byte
 
-type TargetCallbackType func(ctx context.Context, opts *options.TerragruntOptions, config *config.TerragruntConfig) error
+type TargetCallbackType func(opts *options.TerragruntOptions, config *config.TerragruntConfig) error
 
 // Since most terragrunt CLI commands like `render-json`, `aws-provider-patch` ...  require preparatory steps, such as `generate configuration` which is already coded in `terraform.runTerraform` and com;licated to extracted into a separate function due to some steps that can be called recursively in case of nested configuration or dependencies.
 // Target struct helps to run `terraform.runTerraform` func up to the certain logic point, and the runs target's callback func and returns the flow.
@@ -53,14 +51,12 @@ type TargetCallbackType func(ctx context.Context, opts *options.TerragruntOption
 */
 
 type Target struct {
-	context      context.Context
 	point        TargetPointType
 	callbackFunc TargetCallbackType
 }
 
-func NewTarget(ctx context.Context, point TargetPointType, callbackFunc TargetCallbackType) *Target {
+func NewTarget(point TargetPointType, callbackFunc TargetCallbackType) *Target {
 	return &Target{
-		context:      ctx,
 		point:        point,
 		callbackFunc: callbackFunc,
 	}
@@ -71,5 +67,5 @@ func (target *Target) isPoint(point TargetPointType) bool {
 }
 
 func (target *Target) runCallback(opts *options.TerragruntOptions, config *config.TerragruntConfig) error {
-	return target.callbackFunc(target.context, opts, config)
+	return target.callbackFunc(opts, config)
 }

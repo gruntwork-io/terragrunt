@@ -1,12 +1,15 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/graph"
 
@@ -72,17 +75,17 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 // This set of commands is also used in unit tests
 func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	cmds := cli.Commands{
-		runall.NewCommand(opts),             // run-all
-		terragruntinfo.NewCommand(opts),     // terragrunt-info
-		validateinputs.NewCommand(opts),     // validate-inputs
-		graphdependencies.NewCommand(opts),  // graph-dependencies
-		hclfmt.NewCommand(opts),             // hclfmt
-		renderjson.NewCommand(opts),         // render-json
-		awsproviderpatch.NewCommand(opts),   // aws-provider-patch
-		outputmodulegroups.NewCommand(opts), // output-module-groups
-		catalog.NewCommand(opts),            // catalog
-		scaffold.NewCommand(opts),           // scaffold
-		graph.NewCommand(opts),              // graph
+		telemetryCommand(opts, runall.NewCommand(opts)),             // run-all
+		telemetryCommand(opts, terragruntinfo.NewCommand(opts)),     // terragrunt-info
+		telemetryCommand(opts, validateinputs.NewCommand(opts)),     // validate-inputs
+		telemetryCommand(opts, graphdependencies.NewCommand(opts)),  // graph-dependencies
+		telemetryCommand(opts, hclfmt.NewCommand(opts)),             // hclfmt
+		telemetryCommand(opts, renderjson.NewCommand(opts)),         // render-json
+		telemetryCommand(opts, awsproviderpatch.NewCommand(opts)),   // aws-provider-patch
+		telemetryCommand(opts, outputmodulegroups.NewCommand(opts)), // output-module-groups
+		telemetryCommand(opts, catalog.NewCommand(opts)),            // catalog
+		telemetryCommand(opts, scaffold.NewCommand(opts)),           // scaffold
+		telemetryCommand(opts, graph.NewCommand(opts)),              // graph
 	}
 
 	sort.Sort(cmds)
@@ -93,8 +96,21 @@ func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	return cmds
 }
 
+func telemetryCommand(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Command {
+	fn := cmd.Action
+	cmd.Action = func(ctx *cli.Context) error {
+		return telemetry.TraceCommand(opts, func(childCtx context.Context) error {
+			return fn(ctx)
+		})
+	}
+
+	return cmd
+}
+
 func beforeAction(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
+		// setting current context to the options
+		opts.Ctx = ctx
 		// show help if the args are not specified.
 		if !ctx.Args().Present() {
 			err := cli.ShowAppHelp(ctx)

@@ -2,7 +2,6 @@ package configstack
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -85,7 +84,7 @@ func (stack *Stack) Graph(terragruntOptions *options.TerragruntOptions) {
 	}
 }
 
-func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
+func (stack *Stack) Run(terragruntOptions *options.TerragruntOptions) error {
 	stackCmd := terragruntOptions.TerraformCommand
 
 	// For any command that needs input, run in non-interactive mode to avoid cominglint stdin across multiple
@@ -125,11 +124,11 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 
 	switch {
 	case terragruntOptions.IgnoreDependencyOrder:
-		return RunModulesIgnoreOrder(ctx, stack.Modules, terragruntOptions.Parallelism)
+		return RunModulesIgnoreOrder(terragruntOptions, stack.Modules, terragruntOptions.Parallelism)
 	case stackCmd == "destroy":
-		return RunModulesReverseOrder(ctx, stack.Modules, terragruntOptions.Parallelism)
+		return RunModulesReverseOrder(terragruntOptions, stack.Modules, terragruntOptions.Parallelism)
 	default:
-		return RunModules(ctx, stack.Modules, terragruntOptions.Parallelism)
+		return RunModules(terragruntOptions, stack.Modules, terragruntOptions.Parallelism)
 	}
 }
 

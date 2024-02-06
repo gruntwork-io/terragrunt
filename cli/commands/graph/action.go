@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"context"
 	"fmt"
 
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
@@ -15,13 +14,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 )
 
-func Run(ctx context.Context, opts *options.TerragruntOptions) error {
-	target := terraform.NewTarget(ctx, terraform.TargetPointParseConfig, graph)
+func Run(opts *options.TerragruntOptions) error {
+	target := terraform.NewTarget(terraform.TargetPointParseConfig, graph)
 
 	return terraform.RunWithTarget(opts, target)
 }
 
-func graph(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func graph(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	if cfg == nil {
 		return fmt.Errorf("Terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl.")
 	}

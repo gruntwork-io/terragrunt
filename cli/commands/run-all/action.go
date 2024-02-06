@@ -1,13 +1,10 @@
 package runall
 
 import (
-	"context"
-
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/gruntwork-io/terragrunt/telemetry"
 )
 
 // Known terraform commands that are explicitly not supported in run-all due to the nature of the command. This is
@@ -28,7 +25,7 @@ var runAllDisabledCommands = map[string]string{
 	// - version        : Supporting `version` with run-all could be useful for sanity checking a multi-version setup.
 }
 
-func Run(ctx context.Context, opts *options.TerragruntOptions) error {
+func Run(opts *options.TerragruntOptions) error {
 	if opts.TerraformCommand == "" {
 		return errors.WithStackTrace(MissingCommand{})
 	}
@@ -41,22 +38,15 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		}
 	}
 
-	var stack *configstack.Stack
-	err := telemetry.TraceFull(ctx, "creatingModuleStack", map[string]interface{}{
-		"workingDir": opts.WorkingDir,
-	}, func(childCtx context.Context) error {
-		s, err := configstack.FindStackInSubfolders(opts, nil)
-		stack = s
-		return err
-	})
+	stack, err := configstack.FindStackInSubfolders(opts, nil)
 	if err != nil {
 		return err
 	}
 
-	return RunAllOnStack(ctx, opts, stack)
+	return RunAllOnStack(opts, stack)
 }
 
-func RunAllOnStack(ctx context.Context, opts *options.TerragruntOptions, stack *configstack.Stack) error {
+func RunAllOnStack(opts *options.TerragruntOptions, stack *configstack.Stack) error {
 	opts.Logger.Debugf("%s", stack.String())
 	if err := stack.LogModuleDeployOrder(opts.Logger, opts.TerraformCommand); err != nil {
 		return err
@@ -81,5 +71,5 @@ func RunAllOnStack(ctx context.Context, opts *options.TerragruntOptions, stack *
 		}
 	}
 
-	return stack.Run(ctx, opts)
+	return stack.Run(opts)
 }

@@ -65,8 +65,9 @@ func ShutdownTelemetry(ctx context.Context) error {
 }
 
 // TraceFull - span execution of a function with attributes.
-func TraceFull(ctx context.Context, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
-	if traceProvider == nil { // invoke function without tracing
+func TraceFull(opts *options.TerragruntOptions, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
+	ctx := opts.Ctx
+	if traceProvider == nil || ctx == nil { // invoke function without tracing
 		return fn(ctx)
 	}
 	childCtx, span := openSpan(ctx, name, attrs)
@@ -83,12 +84,12 @@ func TraceFull(ctx context.Context, name string, attrs map[string]interface{}, f
 }
 
 // Trace - span execution of a function.
-func Trace(ctx context.Context, name string, fn func(childCtx context.Context) error) error {
-	return TraceFull(ctx, name, map[string]interface{}{}, fn)
+func Trace(opts *options.TerragruntOptions, name string, fn func(childCtx context.Context) error) error {
+	return TraceFull(opts, name, map[string]interface{}{}, fn)
 }
 
-func TraceCommand(ctx context.Context, opts *options.TerragruntOptions, fn func(childCtx context.Context) error) error {
-	return TraceFull(ctx, opts.TerraformCommand, map[string]interface{}{
+func TraceCommand(opts *options.TerragruntOptions, fn func(childCtx context.Context) error) error {
+	return TraceFull(opts, opts.TerraformCommand, map[string]interface{}{
 		"command": opts.TerraformCommand,
 		"args":    opts.TerraformCliArgs,
 		"dir":     opts.WorkingDir,
