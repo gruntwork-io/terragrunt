@@ -88,14 +88,6 @@ func Trace(opts *options.TerragruntOptions, name string, fn func(childCtx contex
 	return TraceFull(opts, name, map[string]interface{}{}, fn)
 }
 
-func TraceCommand(opts *options.TerragruntOptions, fn func(childCtx context.Context) error) error {
-	return TraceFull(opts, opts.TerraformCommand, map[string]interface{}{
-		"command": opts.TerraformCommand,
-		"args":    opts.TerraformCliArgs,
-		"dir":     opts.WorkingDir,
-	}, fn)
-}
-
 func openSpan(ctx context.Context, name string, attrs map[string]interface{}) (context.Context, trace.Span) {
 	if traceProvider == nil {
 		return ctx, nil
