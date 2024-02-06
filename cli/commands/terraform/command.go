@@ -1,13 +1,10 @@
 package terraform
 
 import (
-	"context"
-
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/gruntwork-cli/collections"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
-	"github.com/gruntwork-io/terragrunt/telemetry"
 )
 
 const (
@@ -30,17 +27,14 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
-		return telemetry.Trace(ctx, opts.TerraformCommand, func(childCtx context.Context) error {
-			if opts.TerraformCommand == CommandNameDestroy {
-				opts.CheckDependentModules = true
-			}
+		if opts.TerraformCommand == CommandNameDestroy {
+			opts.CheckDependentModules = true
+		}
 
-			if !opts.DisableCommandValidation && !collections.ListContainsElement(nativeTerraformCommands, opts.TerraformCommand) {
-				return errors.WithStackTrace(WrongTerraformCommand(opts.TerraformCommand))
-			}
+		if !opts.DisableCommandValidation && !collections.ListContainsElement(nativeTerraformCommands, opts.TerraformCommand) {
+			return errors.WithStackTrace(WrongTerraformCommand(opts.TerraformCommand))
+		}
 
-			return Run(opts.OptionsFromContext(childCtx))
-
-		})
+		return Run(opts.OptionsFromContext(ctx))
 	}
 }
