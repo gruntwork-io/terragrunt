@@ -99,8 +99,7 @@ func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 func telemetryCommand(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Command {
 	fn := cmd.Action
 	cmd.Action = func(ctx *cli.Context) error {
-		return telemetry.TraceFull(opts, ctx.Command.Name, map[string]interface{}{
-			"command":          ctx.Command.Name,
+		return telemetry.Trace(opts, fmt.Sprintf("%s %s", ctx.Command.Name, opts.TerraformCommand), map[string]interface{}{
 			"terraformCommand": opts.TerraformCommand,
 			"args":             opts.TerraformCliArgs,
 			"dir":              opts.WorkingDir,

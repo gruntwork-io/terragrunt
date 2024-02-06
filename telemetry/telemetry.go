@@ -64,8 +64,8 @@ func ShutdownTelemetry(ctx context.Context) error {
 	return nil
 }
 
-// TraceFull - span execution of a function with attributes.
-func TraceFull(opts *options.TerragruntOptions, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
+// Trace - span execution of a function with attributes.
+func Trace(opts *options.TerragruntOptions, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
 	ctx := opts.Ctx
 	if traceProvider == nil || ctx == nil { // invoke function without tracing
 		return fn(ctx)
@@ -81,11 +81,6 @@ func TraceFull(opts *options.TerragruntOptions, name string, attrs map[string]in
 	}
 
 	return err
-}
-
-// Trace - span execution of a function.
-func Trace(opts *options.TerragruntOptions, name string, fn func(childCtx context.Context) error) error {
-	return TraceFull(opts, name, map[string]interface{}{}, fn)
 }
 
 func openSpan(ctx context.Context, name string, attrs map[string]interface{}) (context.Context, trace.Span) {

@@ -516,7 +516,7 @@ func getWorkingDir(ctx *ParsingContext) (string, error) {
 		FuncNameGetWorkingDir: wrapVoidToEmptyStringAsFuncImpl(),
 	}
 
-	terragruntConfig, err := ParseConfigFile(ctx, ctx.TerragruntOptions.TerragruntConfigPath, nil)
+	terragruntConfig, err := ParseConfigFile(ctx.TerragruntOptions, ctx, ctx.TerragruntOptions.TerragruntConfigPath, nil)
 	if err != nil {
 		return "", err
 	}
@@ -591,7 +591,7 @@ func readTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *ct
 
 	// We update the ctx of terragruntOptions to the config being read in.
 	ctx = ctx.WithTerragruntOptions(ctx.TerragruntOptions.Clone(targetConfig))
-	config, err := ParseConfigFile(ctx, targetConfig, nil)
+	config, err := ParseConfigFile(ctx.TerragruntOptions, ctx, targetConfig, nil)
 	if err != nil {
 		return cty.NilVal, err
 	}
