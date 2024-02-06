@@ -53,7 +53,7 @@ func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 			return terraform.Run(opts)
 		}
 
-		return Run(ctx, opts.OptionsFromContext(ctx))
+		return Run(opts.OptionsFromContext(ctx))
 	}
 }
 
