@@ -65,8 +65,8 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 		deprecatedCommands(opts),
 		terragruntCommands(opts)...)
 	app.Before = beforeAction(opts)
-	app.CommonBefore = initialSetup(opts)           // all commands run this function before running their own `Action` function
-	app.DefaultCommand = terraform.NewCommand(opts) // by default, if no terragrunt command is specified, run the Terraform command
+	app.CommonBefore = initialSetup(opts)                                   // all commands run this function before running their own `Action` function
+	app.DefaultCommand = telemetryCommand(opts, terraform.NewCommand(opts)) // by default, if no terragrunt command is specified, run the Terraform command
 	app.OsExiter = osExiter
 
 	return app
@@ -91,7 +91,7 @@ func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	sort.Sort(cmds)
 
 	// add terraform command `*` after sorting to put the command at the end of the list in the help.
-	cmds.Add(terraform.NewCommand(opts))
+	cmds.Add(telemetryCommand(opts, terraform.NewCommand(opts)))
 
 	return cmds
 }
@@ -99,7 +99,6 @@ func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 func telemetryCommand(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Command {
 	fn := cmd.Action
 	cmd.Action = func(ctx *cli.Context) error {
-
 		return telemetry.TraceFull(opts, ctx.Command.Name, map[string]interface{}{
 			"command":          ctx.Command.Name,
 			"terraformCommand": opts.TerraformCommand,
