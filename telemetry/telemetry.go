@@ -132,7 +132,7 @@ func newExporter(ctx context.Context, opts *TelemetryOptions) (sdktrace.SpanExpo
 		if insecure {
 			config = append(config, otlptracegrpc.WithInsecure())
 		}
-		return otlptracegrpc.New(ctx)
+		return otlptracegrpc.New(ctx, config...)
 	case consoleType:
 		return stdouttrace.New(stdouttrace.WithWriter(opts.Writer))
 	default:
