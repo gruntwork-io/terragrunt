@@ -150,4 +150,20 @@ You can enable and configure telemetry through the following environment variabl
   * `otlpGrpc` - to export traces over gRPC [otlptracegrpc](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc)
   * `http` - to export traces to a custom HTTP endpoint using [otlptracehttp](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp)
 * `TERRAGRUNT_TELEMERTY_EXPORTER_HTTP_ENDPOINT` - in case of `http` exporter, this is the endpoint to which traces will be sent.
+* `TERRAGRUNT_TELEMERTY_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local traces collection.
 
+Example traces collection with Jaeger:
+* Start a Jaeger instance with docker:
+```bash
+docker run --rm --name jaeger -e COLLECTOR_OTLP_ENABLED=true -p 16686:16686 -p 4317:4317 -p 4318:4318 jaegertracing/all-in-one:1.54.0
+```
+* Verify that UI is available at http://localhost:16686/
+* Define environment variables for Terragrunt to report traces to Jaeger:
+```bash
+export TERRAGRUNT_TELEMETRY_ENABLED=true
+export TERRAGRUNT_TELEMETRY_EXPORTER=otlpHttp
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+export TERRAGRUNT_TELEMERTY_EXPORTER_INSECURE_ENDPOINT=true
+```
+* Run terragrunt
+* Verify that traces are available in Jaeger UI

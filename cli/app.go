@@ -96,7 +96,7 @@ func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	return cmds
 }
 
-// Wrap CLI command with setting telemetry context
+// Wrap CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just run the command.
 func telemetryCommand(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Command {
 	fn := cmd.Action
 	cmd.Action = func(ctx *cli.Context) error {

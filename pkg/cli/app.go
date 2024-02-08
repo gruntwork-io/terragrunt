@@ -119,6 +119,8 @@ func (app *App) Run(arguments []string) error {
 			Vars:       env.Parse(os.Environ()),
 			AppName:    app.Name,
 			AppVersion: app.Version,
+			Writer:     app.Writer,
+			ErrWriter:  app.ErrWriter,
 		})
 		if err != nil {
 			return err

@@ -2,6 +2,8 @@ package telemetry
 
 import (
 	"context"
+	"fmt"
+	"io"
 
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 
@@ -22,10 +24,13 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// TelemetryOptions - options for telemetry provider.
 type TelemetryOptions struct {
 	Vars       map[string]string
 	AppName    string
 	AppVersion string
+	Writer     io.Writer
+	ErrWriter  io.Writer
 }
 
 var telemetryExporter oteltrace.SpanExporter
@@ -89,6 +94,7 @@ func Trace(opts *options.TerragruntOptions, name string, attrs map[string]interf
 	return err
 }
 
+// openSpan - create a new span with attributes.
 func openSpan(ctx context.Context, name string, attrs map[string]interface{}) (context.Context, trace.Span) {
 	if traceProvider == nil {
 		return ctx, nil
@@ -99,23 +105,42 @@ func openSpan(ctx context.Context, name string, attrs map[string]interface{}) (c
 	return childCtx, span
 }
 
+// newExporter - create a new exporter based on the telemetry options.
 func newExporter(ctx context.Context, opts *TelemetryOptions) (sdktrace.SpanExporter, error) {
 	exporterType := telemetryExporterType(env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_EXPORTER"], string(consoleType)))
+	insecure := env.GetBool(opts.Vars["TERRAGRUNT_TELEMERTY_EXPORTER_INSECURE_ENDPOINT"], false)
 	switch exporterType {
 	case httpType:
 		endpoint := env.GetString(opts.Vars["TERRAGRUNT_TELEMERTY_EXPORTER_HTTP_ENDPOINT"], "")
-		insecureOpt := otlptracehttp.WithInsecure()
+		if endpoint == "" {
+			return nil, &ErrorMissingExporterEndpoint{}
+		}
 		endpointOpt := otlptracehttp.WithEndpoint(endpoint)
-		return otlptracehttp.New(ctx, insecureOpt, endpointOpt)
+		config := []otlptracehttp.Option{endpointOpt}
+		if insecure {
+			config = append(config, otlptracehttp.WithInsecure())
+		}
+		return otlptracehttp.New(ctx, config...)
 	case otlpHttpType:
-		return otlptracehttp.New(ctx)
+		var config []otlptracehttp.Option
+		if insecure {
+			config = append(config, otlptracehttp.WithInsecure())
+		}
+		return otlptracehttp.New(ctx, config...)
 	case otlpGrpcType:
+		var config []otlptracegrpc.Option
+		if insecure {
+			config = append(config, otlptracegrpc.WithInsecure())
+		}
 		return otlptracegrpc.New(ctx)
+	case consoleType:
+		return stdouttrace.New(stdouttrace.WithWriter(opts.Writer))
 	default:
-		return stdouttrace.New()
+		return stdouttrace.New(stdouttrace.WithWriter(opts.Writer))
 	}
 }
 
+// newTraceProvider - create a new trace provider with terragrunt version.
 func newTraceProvider(opts *TelemetryOptions, exp sdktrace.SpanExporter) (*sdktrace.TracerProvider, error) {
 	r, err := resource.Merge(
 		resource.Default(),
@@ -136,6 +161,7 @@ func newTraceProvider(opts *TelemetryOptions, exp sdktrace.SpanExporter) (*sdktr
 	), nil
 }
 
+// mapToAttributes - convert map to attributes to pass to span.SetAttributes.
 func mapToAttributes(data map[string]interface{}) []attribute.KeyValue {
 	var attrs []attribute.KeyValue
 	for k, v := range data {
@@ -150,10 +176,17 @@ func mapToAttributes(data map[string]interface{}) []attribute.KeyValue {
 			attrs = append(attrs, attribute.Float64(k, val))
 		case bool:
 			attrs = append(attrs, attribute.Bool(k, val))
-		// Add other types as necessary
 		default:
-			// Handle or ignore unsupported types
+			attrs = append(attrs, attribute.String(k, fmt.Sprintf("%v", val)))
 		}
 	}
 	return attrs
+}
+
+// ErrorMissingExporterEndpoint error for missing TERRAGRUNT_TELEMERTY_EXPORTER_HTTP_ENDPOINT
+type ErrorMissingExporterEndpoint struct {
+}
+
+func (e *ErrorMissingExporterEndpoint) Error() string {
+	return "http exporter requires TERRAGRUNT_TELEMERTY_EXPORTER_HTTP_ENDPOINT defined"
 }
