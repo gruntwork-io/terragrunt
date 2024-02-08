@@ -168,6 +168,19 @@ export TERRAGRUNT_TELEMERTY_EXPORTER_INSECURE_ENDPOINT=true
 * Run terragrunt
 * Verify that traces are available in Jaeger UI
 
+Configurations to collect traces in Grafana Tempo:
+* Start a Grafana Tempo instance [example](https://grafana.com/docs/tempo/latest/getting-started/docker-example/)
+* Define environment variables for Terragrunt to report traces to Tempo:
+```bash
+export TERRAGRUNT_TELEMETRY_ENABLED=true
+export TERRAGRUNT_TELEMETRY_EXPORTER=otlpHttp
+# Replace with your tempo instance
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+export TERRAGRUNT_TELEMERTY_EXPORTER_INSECURE_ENDPOINT=true
+````
+* Run terragrunt
+* Check for tractes in Tempo UI for service "terragrunt"
+
 Example traces collection in console:
 * Set env variable to enable telemetry:
 ```bash
