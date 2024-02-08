@@ -72,7 +72,7 @@ func ShutdownTelemetry(ctx context.Context) error {
 
 // Trace - span execution of a function with attributes.
 func Trace(opts *options.TerragruntOptions, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
-	ctx := opts.Ctx
+	ctx := opts.CtxTelemetryCtx
 	if traceProvider == nil || ctx == nil { // invoke function without tracing
 		return fn(ctx)
 	}

@@ -39,7 +39,7 @@ func TestShutdownTelemetry(t *testing.T) {
 
 func TestTraceFunctionExecution(t *testing.T) {
 	opts := &options.TerragruntOptions{
-		Ctx: context.Background(),
+		CtxTelemetryCtx: context.Background(),
 	}
 	name := "testSpan"
 	attrs := map[string]interface{}{

@@ -96,6 +96,7 @@ func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	return cmds
 }
 
+// Wrap CLI command with setting telemetry context
 func telemetryCommand(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Command {
 	fn := cmd.Action
 	cmd.Action = func(ctx *cli.Context) error {
@@ -105,7 +106,7 @@ func telemetryCommand(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Co
 			"dir":              opts.WorkingDir,
 		}, func(childCtx context.Context) error {
 			ctx.Context = childCtx
-			opts.Ctx = childCtx
+			opts.CtxTelemetryCtx = childCtx
 			return fn(ctx)
 		})
 	}
@@ -116,7 +117,7 @@ func telemetryCommand(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Co
 func beforeAction(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
 		// setting current context to the options
-		opts.Ctx = ctx
+		opts.CtxTelemetryCtx = ctx
 		// show help if the args are not specified.
 		if !ctx.Args().Present() {
 			err := cli.ShowAppHelp(ctx)
