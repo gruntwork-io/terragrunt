@@ -132,6 +132,19 @@ func ShutdownTelemetry(ctx context.Context) error {
 	return nil
 }
 
+func Time(opts *options.TerragruntOptions, name string, fn func(childCtx context.Context) error) error {
+	ctx := opts.CtxTelemetryCtx
+	if ctx == nil || metricExporter == nil {
+		return fn(ctx)
+	}
+
+	meter := otel.Meter("")
+
+	//metricExporter.
+	//		meter = otel.Meter(opts.AppName)
+	return nil
+}
+
 // Trace - span execution of a function with attributes.
 func Trace(opts *options.TerragruntOptions, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
 	ctx := opts.CtxTelemetryCtx
