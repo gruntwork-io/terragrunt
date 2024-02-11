@@ -82,7 +82,7 @@ func configureMetricsCollection(ctx context.Context, opts *TelemetryOptions) err
 	if err != nil {
 		return err
 	}
-
+	metricExporter = exporter
 	return nil
 }
 
