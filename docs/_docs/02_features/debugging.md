@@ -144,13 +144,16 @@ Terragrunt can be configured to emit [OpenTelemetry](https://opentelemetry.io/) 
 You can enable and configure telemetry through the following environment variables:
 
 * `TERRAGRUNT_TELEMETRY_ENABLED` - if set to true, enable open telemetry traces collection
-* `TERRAGRUNT_TELEMETRY_EXPORTER` - the exporter type to be used. Currently supported values are:
+* `TERRAGRUNT_TELEMETRY_TRACE_EXPORTER` - traces exporter type to be used. Currently supported values are:
+  * `none` - no trace exporting, default.
   * `console` - to export traces to console as JSON
   * `otlpHttp` - to export traces to an OpenTelemetry collector over HTTP [otlptracehttp](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp)
   * `otlpGrpc` - to export traces over gRPC [otlptracegrpc](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc)
   * `http` - to export traces to a custom HTTP endpoint using [otlptracehttp](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp)
-* `TERRAGRUNT_TELEMERTY_EXPORTER_HTTP_ENDPOINT` - in case of `http` exporter, this is the endpoint to which traces will be sent.
-* `TERRAGRUNT_TELEMERTY_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local traces collection.
+* `TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_HTTP_ENDPOINT` - in case of `http` exporter, this is the endpoint to which traces will be sent.
+* `TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local traces collection.
+
+* `TERRAGRUNT_TELEMETRY_METRICS_EXPORTER`
 
 Example traces collection with Jaeger:
 * Start a Jaeger instance with docker:

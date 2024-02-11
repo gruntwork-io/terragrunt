@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"io"
 
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
+	"go.opentelemetry.io/otel/sdk/metric"
+
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 
 	"github.com/gruntwork-io/terragrunt/options"
@@ -33,17 +37,25 @@ type TelemetryOptions struct {
 	ErrWriter  io.Writer
 }
 
-var telemetryExporter oteltrace.SpanExporter
+var spanExporter oteltrace.SpanExporter
 var traceProvider *sdktrace.TracerProvider
 var rootTracer trace.Tracer
 
-type telemetryExporterType string
+type traceExporterType string
+type metricsExporterType string
+
+var metricExporter metric.Exporter
 
 const (
-	consoleType  telemetryExporterType = "console"
-	otlpHttpType telemetryExporterType = "otlpHttp"
-	otlpGrpcType telemetryExporterType = "otlpGrpc"
-	httpType     telemetryExporterType = "http"
+	noneTraceExporterType     traceExporterType = "none"
+	consoleTraceExporterType  traceExporterType = "console"
+	otlpHttpTraceExporterType traceExporterType = "otlpHttp"
+	otlpGrpcTraceExporterType traceExporterType = "otlpGrpc"
+	httpTraceExporterType     traceExporterType = "http"
+
+	noneMetricsExporterType     metricsExporterType = "none"
+	oltpHttpMetricsExporterType metricsExporterType = "otlpHttp"
+	grpcHttpMetricsExporterType metricsExporterType = "grpcHttp"
 )
 
 // InitTelemetry - initialize the telemetry provider.
@@ -53,24 +65,63 @@ func InitTelemetry(ctx context.Context, opts *TelemetryOptions) error {
 		return nil
 	}
 
-	exp, err := newExporter(ctx, opts)
-	if err != nil {
-		return errors.WithStack(err)
+	if err := configureTraceCollection(ctx, opts); err != nil {
+		return err
 	}
-	telemetryExporter = exp
-	traceProvider, err = newTraceProvider(opts, telemetryExporter)
-	if err != nil {
-		return errors.WithStack(err)
+
+	if err := configureMetricsCollection(ctx, opts); err != nil {
+		return err
 	}
-	otel.SetTracerProvider(traceProvider)
-	rootTracer = traceProvider.Tracer(opts.AppName)
+
 	return nil
+}
+
+// configureMetricsCollection - configure the metrics collection
+func configureMetricsCollection(ctx context.Context, opts *TelemetryOptions) error {
+	exporter, err := newMetricsExporter(ctx, opts)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// newMetricsExporter - create a new exporter based on the telemetry options.
+func newMetricsExporter(ctx context.Context, opts *TelemetryOptions) (metric.Exporter, error) {
+	exporterType := metricsExporterType(env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_METRIC_EXPORTER"], string(noneMetricsExporterType)))
+	insecure := env.GetBool(opts.Vars["TERRAGRUNT_TELEMERTY_METRIC_EXPORTER_INSECURE_ENDPOINT"], false)
+	switch exporterType {
+	case oltpHttpMetricsExporterType:
+		var config []otlpmetrichttp.Option
+		if insecure {
+			config = append(config, otlpmetrichttp.WithInsecure())
+		}
+		return otlpmetrichttp.New(ctx, config...)
+	case grpcHttpMetricsExporterType:
+		var config []otlpmetricgrpc.Option
+		if insecure {
+			config = append(config, otlpmetricgrpc.WithInsecure())
+		}
+		return otlpmetricgrpc.New(ctx, config...)
+	case noneMetricsExporterType:
+		return nil, nil
+	default:
+		return nil, nil
+
+	}
 }
 
 // ShutdownTelemetry - shutdown the telemetry provider.
 func ShutdownTelemetry(ctx context.Context) error {
 	if traceProvider != nil {
-		return traceProvider.Shutdown(ctx)
+		if err := traceProvider.Shutdown(ctx); err != nil {
+			return err
+		}
+	}
+	if metricExporter != nil {
+		if err := metricExporter.Shutdown(ctx); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -78,7 +129,7 @@ func ShutdownTelemetry(ctx context.Context) error {
 // Trace - span execution of a function with attributes.
 func Trace(opts *options.TerragruntOptions, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
 	ctx := opts.CtxTelemetryCtx
-	if traceProvider == nil || ctx == nil { // invoke function without tracing
+	if spanExporter == nil || traceProvider == nil || ctx == nil { // invoke function without tracing
 		return fn(ctx)
 	}
 	childCtx, span := openSpan(ctx, name, attrs)
@@ -105,15 +156,17 @@ func openSpan(ctx context.Context, name string, attrs map[string]interface{}) (c
 	return childCtx, span
 }
 
-// newExporter - create a new exporter based on the telemetry options.
-func newExporter(ctx context.Context, opts *TelemetryOptions) (sdktrace.SpanExporter, error) {
-	exporterType := telemetryExporterType(env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_EXPORTER"], string(consoleType)))
-	insecure := env.GetBool(opts.Vars["TERRAGRUNT_TELEMERTY_EXPORTER_INSECURE_ENDPOINT"], false)
+// newTraceExporter - create a new exporter based on the telemetry options.
+func newTraceExporter(ctx context.Context, opts *TelemetryOptions) (sdktrace.SpanExporter, error) {
+	exporterType := traceExporterType(env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_TRACE_EXPORTER"], string(noneTraceExporterType)))
+	insecure := env.GetBool(opts.Vars["TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT"], false)
 	switch exporterType {
-	case httpType:
-		endpoint := env.GetString(opts.Vars["TERRAGRUNT_TELEMERTY_EXPORTER_HTTP_ENDPOINT"], "")
+	case httpTraceExporterType:
+		endpoint := env.GetString(opts.Vars["TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_HTTP_ENDPOINT"], "")
 		if endpoint == "" {
-			return nil, &ErrorMissingExporterEndpoint{}
+			return nil, &ErrorMissingEnvVariable{
+				Vars: []string{"TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_HTTP_ENDPOINT"},
+			}
 		}
 		endpointOpt := otlptracehttp.WithEndpoint(endpoint)
 		config := []otlptracehttp.Option{endpointOpt}
@@ -121,22 +174,25 @@ func newExporter(ctx context.Context, opts *TelemetryOptions) (sdktrace.SpanExpo
 			config = append(config, otlptracehttp.WithInsecure())
 		}
 		return otlptracehttp.New(ctx, config...)
-	case otlpHttpType:
+	case otlpHttpTraceExporterType:
 		var config []otlptracehttp.Option
 		if insecure {
 			config = append(config, otlptracehttp.WithInsecure())
 		}
 		return otlptracehttp.New(ctx, config...)
-	case otlpGrpcType:
+	case otlpGrpcTraceExporterType:
 		var config []otlptracegrpc.Option
 		if insecure {
 			config = append(config, otlptracegrpc.WithInsecure())
 		}
 		return otlptracegrpc.New(ctx, config...)
-	case consoleType:
+	case consoleTraceExporterType:
 		return stdouttrace.New(stdouttrace.WithWriter(opts.Writer))
+	case noneTraceExporterType:
+		// no trace exporter
+		return nil, nil
 	default:
-		return stdouttrace.New(stdouttrace.WithWriter(opts.Writer))
+		return nil, nil
 	}
 }
 
@@ -161,6 +217,25 @@ func newTraceProvider(opts *TelemetryOptions, exp sdktrace.SpanExporter) (*sdktr
 	), nil
 }
 
+// configureTraceCollection - configure the traces collection
+func configureTraceCollection(ctx context.Context, opts *TelemetryOptions) error {
+	exp, err := newTraceExporter(ctx, opts)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	if exp == nil { // no exporter
+		return nil
+	}
+	spanExporter = exp
+	traceProvider, err = newTraceProvider(opts, spanExporter)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	otel.SetTracerProvider(traceProvider)
+	rootTracer = traceProvider.Tracer(opts.AppName)
+	return nil
+}
+
 // mapToAttributes - convert map to attributes to pass to span.SetAttributes.
 func mapToAttributes(data map[string]interface{}) []attribute.KeyValue {
 	var attrs []attribute.KeyValue
@@ -183,10 +258,11 @@ func mapToAttributes(data map[string]interface{}) []attribute.KeyValue {
 	return attrs
 }
 
-// ErrorMissingExporterEndpoint error for missing TERRAGRUNT_TELEMERTY_EXPORTER_HTTP_ENDPOINT
-type ErrorMissingExporterEndpoint struct {
+// ErrorMissingEnvVariable error for missing TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_HTTP_ENDPOINT
+type ErrorMissingEnvVariable struct {
+	Vars []string
 }
 
-func (e *ErrorMissingExporterEndpoint) Error() string {
-	return "http exporter requires TERRAGRUNT_TELEMERTY_EXPORTER_HTTP_ENDPOINT defined"
+func (e *ErrorMissingEnvVariable) Error() string {
+	return fmt.Sprintf("missing environment variable: %v", e.Vars)
 }
