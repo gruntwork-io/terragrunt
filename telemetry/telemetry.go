@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
@@ -83,6 +84,11 @@ func configureMetricsCollection(ctx context.Context, opts *TelemetryOptions) err
 		return err
 	}
 	metricExporter = exporter
+	if metricExporter == nil {
+		return nil
+	}
+	metricProvider, err := newMetricsProvider(opts, metricExporter)
+	otel.SetMeterProvider(metricProvider)
 	return nil
 }
 
@@ -215,6 +221,28 @@ func newTraceProvider(opts *TelemetryOptions, exp sdktrace.SpanExporter) (*sdktr
 		sdktrace.WithBatcher(exp),
 		sdktrace.WithResource(r),
 	), nil
+}
+
+// newMetricsProvider - create a new metrics provider.
+func newMetricsProvider(opts *TelemetryOptions, exp metric.Exporter) (*metric.MeterProvider, error) {
+	r, err := resource.Merge(
+		resource.Default(),
+		resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceName(opts.AppName),
+			semconv.ServiceVersion(opts.AppVersion),
+		),
+	)
+
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	meterProvider := metric.NewMeterProvider(
+		metric.WithResource(r),
+		metric.WithReader(metric.NewPeriodicReader(exp, metric.WithInterval(1*time.Second))),
+	)
+	return meterProvider, nil
 }
 
 // configureTraceCollection - configure the traces collection
