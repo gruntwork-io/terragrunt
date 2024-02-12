@@ -192,7 +192,7 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 export TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
 ````
 * Run terragrunt
-* Check for tractes in Tempo UI for service "terragrunt"
+* Check for traces in Tempo UI for service "terragrunt"
 
 Example traces collection in console:
 * Set env variable to enable telemetry:
