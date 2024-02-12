@@ -52,17 +52,11 @@ func InitTelemetry(ctx context.Context, opts *TelemetryOptions) error {
 // ShutdownTelemetry - shutdown the telemetry provider.
 func ShutdownTelemetry(ctx context.Context) error {
 	if traceProvider != nil {
-		if err := traceProvider.ForceFlush(ctx); err != nil {
-			return errors.WithStack(err)
-		}
 		if err := traceProvider.Shutdown(ctx); err != nil {
 			return errors.WithStack(err)
 		}
 	}
 	if metricProvider != nil {
-		if err := metricProvider.ForceFlush(ctx); err != nil {
-			return errors.WithStack(err)
-		}
 		if err := metricProvider.Shutdown(ctx); err != nil {
 			return errors.WithStack(err)
 		}
