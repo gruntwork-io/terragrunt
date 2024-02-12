@@ -167,7 +167,9 @@ Metrics configuration:
 
 ## Example configurations for trace collection
 
-Example traces collection with Jaeger:
+Collection of examples how to configure Terragrunt to emit traces and metrics in OpenTelemetry format.
+
+### Example traces collection with Jaeger
 * Start a Jaeger instance with docker:
 ```bash
 docker run --rm --name jaeger -e COLLECTOR_OTLP_ENABLED=true -p 16686:16686 -p 4317:4317 -p 4318:4318 jaegertracing/all-in-one:1.54.0
@@ -182,7 +184,8 @@ export TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
 * Run terragrunt
 * Verify that traces are available in Jaeger UI
 
-Configurations to collect traces in Grafana Tempo:
+### Configurations to collect traces in Grafana Tempo
+
 * Start a Grafana Tempo instance [example](https://grafana.com/docs/tempo/latest/getting-started/docker-example/)
 * Define environment variables for Terragrunt to report traces to Tempo:
 ```bash
@@ -194,7 +197,7 @@ export TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
 * Run terragrunt
 * Check for traces in Tempo UI for service "terragrunt"
 
-Example traces collection in console:
+### Example traces collection in console
 * Set env variable to enable telemetry:
 ```bash
 export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER=console
@@ -210,9 +213,7 @@ export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER=console
 {"Name":"run-all apply","SpanContext":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"b0b007770f852066","TraceFlags":"01","TraceState":"","Remote":false},"Parent":{"TraceID":"00000000000000000000000000000000","SpanID":"0000000000000000","TraceFlags":"00","TraceState":"","Remote":false},"SpanKind":1,"StartTime":"2024-02-08T12:32:26.388519019Z","EndTime":"2024-02-08T12:32:31.793405603Z","Attributes":[{"Key":"terraformCommand","Value":{"Type":"STRING","Value":"apply"}},{"Key":"args","Value":{"Type":"STRING","Value":"[apply]"}},{"Key":"dir","Value":{"Type":"STRING","Value":"/projects/gruntwork/terragrunt-tests/trace-test"}}],"Events":null,"Links":null,"Status":{"Code":"Unset","Description":""},"DroppedAttributes":0,"DroppedEvents":0,"DroppedLinks":0,"ChildSpanCount":28,"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-29-g66bfa07b756e-dirty"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.0"}}],"InstrumentationLibrary":{"Name":"terragrunt","Version":"","SchemaURL":""}}
 ```
 
-## Example configurations for metrics collection
-
-Collection of metrics with OpenTelemetry collector and Prometheus.
+### Collection of metrics with OpenTelemetry collector and Prometheus
 
 * Start OpenTelemetry collector with Prometheus receiver
 Example setup through `docker-compose.yml`:
@@ -237,7 +238,7 @@ services:
       - otel-collector
 ```
 OpenTelemetry collector configuration `otel-collector-config.yaml`:
-```
+```yaml
 receivers:
   otlp:
     protocols:
