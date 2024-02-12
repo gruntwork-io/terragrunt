@@ -400,5 +400,6 @@ func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
 
 	// check that output have Telemetry json output
 	assert.Contains(t, output, "{\"Name\":\"hook_after_hook_2_duration\"")
-	assert.Contains(t, output, "{\"Name\":\"run_terraform_duration\"")
+	assert.Contains(t, output, "{\"Name\":\"run_")
+	assert.Contains(t, output, ",\"IsMonotonic\":true}}")
 }
