@@ -93,7 +93,7 @@ func mapToAttributes(data map[string]interface{}) []attribute.KeyValue {
 	return attrs
 }
 
-// ErrorMissingEnvVariable error for missing TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_HTTP_ENDPOINT
+// ErrorMissingEnvVariable error for missing environment variable.
 type ErrorMissingEnvVariable struct {
 	Vars []string
 }

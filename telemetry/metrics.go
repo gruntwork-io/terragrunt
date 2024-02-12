@@ -36,6 +36,7 @@ const (
 )
 
 var metricNameCleanPattern = regexp.MustCompile(`[^A-Za-z0-9_.-/]`)
+var multipleUnderscoresPattern = regexp.MustCompile(`_+`)
 
 // Time - collect time for function execution
 func Time(opts *options.TerragruntOptions, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
@@ -144,5 +145,7 @@ func newMetricsProvider(opts *TelemetryOptions, exp metric.Exporter) (*metric.Me
 
 // cleanMetricName - clean metric name from invalid characters.
 func cleanMetricName(metricName string) string {
-	return strings.TrimLeft(metricNameCleanPattern.ReplaceAllString(metricName, "_"), "_")
+	cleanedName := metricNameCleanPattern.ReplaceAllString(metricName, "_")
+	cleanedName = multipleUnderscoresPattern.ReplaceAllString(cleanedName, "_")
+	return strings.Trim(cleanedName, "_")
 }
