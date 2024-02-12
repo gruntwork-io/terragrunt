@@ -13,7 +13,6 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/gruntwork-io/go-commons/env"
 	oteltrace "go.opentelemetry.io/otel/sdk/trace"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
@@ -37,10 +36,6 @@ var metricExporter metric.Exporter
 
 // InitTelemetry - initialize the telemetry provider.
 func InitTelemetry(ctx context.Context, opts *TelemetryOptions) error {
-
-	if !env.GetBool(opts.Vars["TERRAGRUNT_TELEMETRY_ENABLED"], false) {
-		return nil
-	}
 
 	if err := configureTraceCollection(ctx, opts); err != nil {
 		return errors.WithStack(err)

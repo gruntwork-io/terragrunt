@@ -147,12 +147,9 @@ Concepts:
 * [Metrics](https://opentelemetry.io/docs/concepts/signals/metrics/)
 * [Jaeger](https://www.jaegertracing.io/)
 
-You can enable and configure telemetry through the following environment variables:
-* `TERRAGRUNT_TELEMETRY_ENABLED` - if set to true, enable collection of telemetry data.
-
 Tracing configuration:
 * `TERRAGRUNT_TELEMETRY_TRACE_EXPORTER` - traces exporter type to be used. Currently supported values are:
-  * `none` - no trace exporting, default.
+  * `none` - no trace exporting, default value.
   * `console` - to export traces to console as JSON
   * `otlpHttp` - to export traces to an OpenTelemetry collector over HTTP [otlptracehttp](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp)
   * `otlpGrpc` - to export traces over gRPC [otlptracegrpc](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc)
@@ -162,7 +159,7 @@ Tracing configuration:
 
 Metrics configuration:
 * `TERRAGRUNT_TELEMETRY_METRIC_EXPORTER` - metrics exporter type to be used. Currently supported values are:
-  * `none` - no metric exporting, default.
+  * `none` - no metric exporting, default value.
   * `console` - write metrics to console as JSONs.
   * `otlpHttp` - export metrics to an OpenTelemetry collector over HTTP [otlpmetrichttp](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp)
   * `grpcHttp` - export metrics to an OpenTelemetry collector over gRPC [otlpmetricgrpc](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc)
@@ -178,7 +175,6 @@ docker run --rm --name jaeger -e COLLECTOR_OTLP_ENABLED=true -p 16686:16686 -p 4
 * Verify that UI is available at http://localhost:16686/
 * Define environment variables for Terragrunt to report traces to Jaeger:
 ```bash
-export TERRAGRUNT_TELEMETRY_ENABLED=true
 export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER=otlpHttp
 export TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_HTTP_ENDPOINT=http://localhost:4318
 export TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
@@ -190,7 +186,6 @@ Configurations to collect traces in Grafana Tempo:
 * Start a Grafana Tempo instance [example](https://grafana.com/docs/tempo/latest/getting-started/docker-example/)
 * Define environment variables for Terragrunt to report traces to Tempo:
 ```bash
-export TERRAGRUNT_TELEMETRY_ENABLED=true
 export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER=otlpHttp
 # Replace with your tempo instance
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
@@ -202,7 +197,6 @@ export TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
 Example traces collection in console:
 * Set env variable to enable telemetry:
 ```bash
-export TERRAGRUNT_TELEMETRY_ENABLED=true
 export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER=console
 ```
 * Run terragrunt
@@ -279,10 +273,21 @@ scrape_configs:
 * Confirm that Prometheus is available at http://localhost:9090/
 * Define environment variables for Terragrunt to report metrics to OpenTelemetry collector:
 ```bash
-export TERRAGRUNT_TELEMETRY_ENABLED=true
 export TERRAGRUNT_TELEMETRY_METRIC_EXPORTER=grpcHttp
 export TERRAGRUNT_TELEMERTY_METRIC_EXPORTER_INSECURE_ENDPOINT=true
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 ```
 * Run terragrunt
 * Verify that metrics are available in Prometheus UI
+
+Example configuration to export metrics to console:
+* Set env variable to enable telemetry:
+```
+export TERRAGRUNT_TELEMETRY_METRIC_EXPORTER=console
+```
+* Run terragrunt
+* In output will be printed messages like:
+```
+{"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-41-g7185318bb11b"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.1"}}],"ScopeMetrics":[]}
+{"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-41-g7185318bb11b"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.1"}}],"ScopeMetrics":[{"Scope":{"Name":"terragrunt","Version":"","SchemaURL":""},"Metrics":[{"Name":"run_bash_duration","Description":"","Unit":"","Data":{"DataPoints":[{"Attributes":[{"Key":"args","Value":{"Type":"STRING","Value":"[-c sleep 2]"}},{"Key":"command","Value":{"Type":"STRING","Value":"bash"}},{"Key":"dir","Value":{"Type":"STRING","Value":"/projects/gruntwork/terragrunt-tests/trace-test/mod3"}}],"StartTime":"2024-02-12T14:38:14.85578658Z","Time":"2024-02-12T14:38:17.853165589Z","Count":1,"Bounds":[0,5,10,25,50,75,100,250,500,750,1000,2500,5000,7500,10000],"BucketCounts":[0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0],"Min":2005,"Max":2005,"Sum":2005}],"Temporality":"CumulativeTemporality"}},{"Name":"run_bash_success_count","Description":"","Unit":"","Data":{"DataPoints":[{"Attributes":[],"StartTime":"2024-02-12T14:38:16.860878555Z","Time":"2024-02-12T14:38:17.853169359Z","Value":1}],"Temporality":"CumulativeTemporality","IsMonotonic":true}}]}]}
+```
