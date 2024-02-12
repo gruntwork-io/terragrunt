@@ -399,6 +399,9 @@ func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
 	err = telemetry.ShutdownTelemetry(context.Background())
 	assert.NoError(t, err)
 
+	// sleep for a bit to allow the metrics to be flushed
+	time.Sleep(10 * time.Second)
+
 	output := stdout.String()
 
 	// check that output have Telemetry json output
