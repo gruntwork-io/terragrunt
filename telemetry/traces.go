@@ -120,9 +120,6 @@ func newTraceExporter(ctx context.Context, opts *TelemetryOptions) (sdktrace.Spa
 		return otlptracegrpc.New(ctx, config...)
 	case consoleTraceExporterType:
 		return stdouttrace.New(stdouttrace.WithWriter(opts.Writer))
-	case noneTraceExporterType:
-		// no trace exporter
-		return nil, nil
 	default:
 		return nil, nil
 	}

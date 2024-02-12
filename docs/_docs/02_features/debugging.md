@@ -282,7 +282,7 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 
 Example configuration to export metrics to console:
 * Set env variable to enable telemetry:
-```
+```bash
 export TERRAGRUNT_TELEMETRY_METRIC_EXPORTER=console
 ```
 * Run terragrunt

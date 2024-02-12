@@ -360,9 +360,8 @@ func TestTerragruntWorksWithImpersonateGCSBackend(t *testing.T) {
 	assert.True(t, ownerEmail, "Identity email should match the impersonated account")
 }
 
-func TestTracesTelemetryIsProduced(t *testing.T) {
-	t.Setenv("TERRAGRUNT_TELEMETRY_ENABLED", "true")
-	t.Setenv("TERRAGRUNT_TELEMETRY_EXPORTER", "console")
+func TestTerragruntProduceTelemetryTraces(t *testing.T) {
+	t.Setenv("TERRAGRUNT_TELEMETRY_TRACE_EXPORTER", "console")
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
@@ -380,4 +379,23 @@ func TestTracesTelemetryIsProduced(t *testing.T) {
 	assert.Contains(t, output, "\"TraceID\":")
 	assert.Contains(t, output, "\"Name\":\"hook_after_hook_1\"")
 	assert.Contains(t, output, "\"Name\":\"hook_after_hook_2\"")
+}
+
+func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
+	t.Setenv("TERRAGRUNT_TELEMETRY_METRIC_EXPORTER", "console")
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	output := stdout.String()
+
+	// check that output have Telemetry json output
+	assert.Contains(t, output, "{\"Name\":\"hook_after_hook_2_duration\"")
+	assert.Contains(t, output, "{\"Name\":\"run_terraform_duration\"")
 }

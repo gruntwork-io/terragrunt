@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
@@ -99,8 +100,6 @@ func newMetricsExporter(ctx context.Context, opts *TelemetryOptions) (metric.Exp
 	exporterType := metricsExporterType(env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_METRIC_EXPORTER"], string(noneMetricsExporterType)))
 	insecure := env.GetBool(opts.Vars["TERRAGRUNT_TELEMERTY_METRIC_EXPORTER_INSECURE_ENDPOINT"], false)
 	switch exporterType {
-	case consoleMetricsExporterType:
-		return stdoutmetric.New(stdoutmetric.WithWriter(opts.Writer))
 	case oltpHttpMetricsExporterType:
 		var config []otlpmetrichttp.Option
 		if insecure {
@@ -113,8 +112,8 @@ func newMetricsExporter(ctx context.Context, opts *TelemetryOptions) (metric.Exp
 			config = append(config, otlpmetricgrpc.WithInsecure())
 		}
 		return otlpmetricgrpc.New(ctx, config...)
-	case noneMetricsExporterType:
-		return nil, nil
+	case consoleMetricsExporterType:
+		return stdoutmetric.New(stdoutmetric.WithWriter(opts.Writer))
 	default:
 		return nil, nil
 
@@ -145,5 +144,5 @@ func newMetricsProvider(opts *TelemetryOptions, exp metric.Exporter) (*metric.Me
 
 // cleanMetricName - clean metric name from invalid characters.
 func cleanMetricName(metricName string) string {
-	return metricNameCleanPattern.ReplaceAllString(metricName, "_")
+	return strings.TrimLeft(metricNameCleanPattern.ReplaceAllString(metricName, "_"), "_")
 }
