@@ -32,6 +32,7 @@ var traceProvider *sdktrace.TracerProvider
 var rootTracer trace.Tracer
 
 var meter otelmetric.Meter
+var metricProvider *metric.MeterProvider
 var metricExporter metric.Exporter
 
 // InitTelemetry - initialize the telemetry provider.
@@ -58,11 +59,11 @@ func ShutdownTelemetry(ctx context.Context) error {
 			return errors.WithStack(err)
 		}
 	}
-	if metricExporter != nil {
-		if err := metricExporter.ForceFlush(ctx); err != nil {
+	if metricProvider != nil {
+		if err := metricProvider.ForceFlush(ctx); err != nil {
 			return errors.WithStack(err)
 		}
-		if err := metricExporter.Shutdown(ctx); err != nil {
+		if err := metricProvider.Shutdown(ctx); err != nil {
 			return errors.WithStack(err)
 		}
 	}

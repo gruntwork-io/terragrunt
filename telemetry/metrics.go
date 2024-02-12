@@ -86,10 +86,11 @@ func configureMetricsCollection(ctx context.Context, opts *TelemetryOptions) err
 	if metricExporter == nil {
 		return nil
 	}
-	metricProvider, err := newMetricsProvider(opts, metricExporter)
+	provider, err := newMetricsProvider(opts, metricExporter)
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	metricProvider = provider
 	otel.SetMeterProvider(metricProvider)
 	// configure app meter
 	meter = otel.GetMeterProvider().Meter(opts.AppName)
