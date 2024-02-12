@@ -2,6 +2,7 @@ package test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -12,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -393,8 +396,8 @@ func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 	assert.NoError(t, err)
 
-	// sleep to allow exporter to flush
-	time.Sleep(10 * time.Second)
+	err = telemetry.ShutdownTelemetry(context.Background())
+	assert.NoError(t, err)
 
 	output := stdout.String()
 
