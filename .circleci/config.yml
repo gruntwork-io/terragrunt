@@ -143,7 +143,7 @@ jobs:
           command: |
             pushd .
             cd /tmp
-            curl -L "https://releases.hashicorp.com/terraform/1.6.2/terraform_1.6.2_linux_amd64.zip" -o terraform.zip
+            curl -L "https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip" -o terraform.zip
             unzip -o terraform.zip
             sudo install -m 0755 terraform /usr/local/bin/terraform
             rm -rf terraform
@@ -186,7 +186,7 @@ jobs:
       - run:
           command: |
             gpg --import --no-tty --batch --yes ./test/fixture-sops/test_pgp_key.asc
-            # remove terraform 
+            # remove terraform
             sudo rm -f $(which terraform)
             mkdir -p logs
             run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
