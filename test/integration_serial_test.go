@@ -400,6 +400,8 @@ func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
 	err = telemetry.ShutdownTelemetry(context.Background())
 	assert.NoError(t, err)
 
+	context.Background().Done()
+
 	// sleep for a bit to allow the metrics to be flushed
 	time.Sleep(1 * time.Second)
 
