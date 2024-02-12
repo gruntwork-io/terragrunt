@@ -6,6 +6,8 @@ import (
 	"io"
 	"testing"
 
+	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
+
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
@@ -13,6 +15,9 @@ import (
 
 func TestNewMetricsExporter(t *testing.T) {
 	ctx := context.Background()
+
+	stdout, err := stdoutmetric.New()
+	assert.NoError(t, err)
 
 	tests := []struct {
 		name         string
@@ -37,6 +42,7 @@ func TestNewMetricsExporter(t *testing.T) {
 			name:         "Console Exporter",
 			exporterType: "console",
 			insecure:     false,
+			expectedType: stdout,
 		},
 		{
 			name:         "None Exporter",
@@ -78,8 +84,8 @@ func TestCleanMetricName(t *testing.T) {
 	}{
 		{
 			name:     "Normal case",
-			input:    "metricName_1.2-3/4",
-			expected: "metricName_1.2-3/4",
+			input:    "metricName_1.2-34",
+			expected: "metricName_1.2_34",
 		},
 		{
 			name:     "Starts with invalid characters",
