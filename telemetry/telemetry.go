@@ -55,11 +55,13 @@ func ShutdownTelemetry(ctx context.Context) error {
 		if err := traceProvider.Shutdown(ctx); err != nil {
 			return errors.WithStack(err)
 		}
+		traceProvider = nil
 	}
 	if metricProvider != nil {
 		if err := metricProvider.Shutdown(ctx); err != nil {
 			return errors.WithStack(err)
 		}
+		metricProvider = nil
 	}
 	return nil
 }
