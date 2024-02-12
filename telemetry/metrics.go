@@ -3,7 +3,10 @@ package telemetry
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"time"
+
+	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 
 	"github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -22,11 +25,16 @@ type metricsExporterType string
 
 const (
 	noneMetricsExporterType     metricsExporterType = "none"
+	consoleMetricsExporterType  metricsExporterType = "console"
 	oltpHttpMetricsExporterType metricsExporterType = "otlpHttp"
 	grpcHttpMetricsExporterType metricsExporterType = "grpcHttp"
 
 	ErrorsCounter = "errors"
+
+	readerInterval = 1 * time.Second
 )
+
+var metricNameCleanPattern = regexp.MustCompile(`[^A-Za-z0-9_.-/]`)
 
 // Time - collect time for function execution
 func Time(opts *options.TerragruntOptions, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
@@ -36,7 +44,7 @@ func Time(opts *options.TerragruntOptions, name string, attrs map[string]interfa
 	}
 
 	metricAttrs := mapToAttributes(attrs)
-	histogram, err := meter.Int64Histogram(fmt.Sprintf("%s_duration", name))
+	histogram, err := meter.Int64Histogram(cleanMetricName(fmt.Sprintf("%s_duration", name)))
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -47,6 +55,8 @@ func Time(opts *options.TerragruntOptions, name string, attrs map[string]interfa
 		// count errors
 		Count(opts, ErrorsCounter, 1)
 		Count(opts, fmt.Sprintf("%s_errors", name), 1)
+	} else {
+		Count(opts, fmt.Sprintf("%s_success", name), 1)
 	}
 	return err
 }
@@ -57,7 +67,7 @@ func Count(opts *options.TerragruntOptions, name string, value int64) {
 	if ctx == nil || metricExporter == nil {
 		return
 	}
-	counter, err := meter.Int64Counter(fmt.Sprintf("%s_count", name))
+	counter, err := meter.Int64Counter(cleanMetricName(fmt.Sprintf("%s_count", name)))
 	if err != nil {
 		return
 	}
@@ -89,6 +99,8 @@ func newMetricsExporter(ctx context.Context, opts *TelemetryOptions) (metric.Exp
 	exporterType := metricsExporterType(env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_METRIC_EXPORTER"], string(noneMetricsExporterType)))
 	insecure := env.GetBool(opts.Vars["TERRAGRUNT_TELEMERTY_METRIC_EXPORTER_INSECURE_ENDPOINT"], false)
 	switch exporterType {
+	case consoleMetricsExporterType:
+		return stdoutmetric.New(stdoutmetric.WithWriter(opts.Writer))
 	case oltpHttpMetricsExporterType:
 		var config []otlpmetrichttp.Option
 		if insecure {
@@ -126,7 +138,12 @@ func newMetricsProvider(opts *TelemetryOptions, exp metric.Exporter) (*metric.Me
 
 	meterProvider := metric.NewMeterProvider(
 		metric.WithResource(r),
-		metric.WithReader(metric.NewPeriodicReader(exp, metric.WithInterval(1*time.Second))),
+		metric.WithReader(metric.NewPeriodicReader(exp, metric.WithInterval(readerInterval))),
 	)
 	return meterProvider, nil
+}
+
+// cleanMetricName - clean metric name from invalid characters.
+func cleanMetricName(metricName string) string {
+	return metricNameCleanPattern.ReplaceAllString(metricName, "_")
 }

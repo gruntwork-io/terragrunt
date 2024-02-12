@@ -139,11 +139,18 @@ for thoughts on other potential features to implement.
 
 ### OpenTelemetry integration
 
-Terragrunt can be configured to emit [OpenTelemetry](https://opentelemetry.io/) traces to a collector. This feature is disabled by default, but you can enable it to help with debugging, performance optimization, etc.
+Terragrunt can be configured to emit telemetry in [OpenTelemetry](https://opentelemetry.io/) format, traces and metrics.
+
+Concepts:
+* [OpenTelemetry](https://opentelemetry.io/)
+* [Traces](https://opentelemetry.io/docs/concepts/signals/traces/)
+* [Metrics](https://opentelemetry.io/docs/concepts/signals/metrics/)
+* [Jaeger](https://www.jaegertracing.io/)
 
 You can enable and configure telemetry through the following environment variables:
+* `TERRAGRUNT_TELEMETRY_ENABLED` - if set to true, enable collection of telemetry data.
 
-* `TERRAGRUNT_TELEMETRY_ENABLED` - if set to true, enable open telemetry traces collection
+Tracing configuration:
 * `TERRAGRUNT_TELEMETRY_TRACE_EXPORTER` - traces exporter type to be used. Currently supported values are:
   * `none` - no trace exporting, default.
   * `console` - to export traces to console as JSON
@@ -153,7 +160,15 @@ You can enable and configure telemetry through the following environment variabl
 * `TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_HTTP_ENDPOINT` - in case of `http` exporter, this is the endpoint to which traces will be sent.
 * `TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local traces collection.
 
-* `TERRAGRUNT_TELEMETRY_METRICS_EXPORTER`
+Metrics configuration:
+* `TERRAGRUNT_TELEMETRY_METRIC_EXPORTER` - metrics exporter type to be used. Currently supported values are:
+  * `none` - no metric exporting, default.
+  * `console` - write metrics to console as JSONs.
+  * `otlpHttp` - export metrics to an OpenTelemetry collector over HTTP [otlpmetrichttp](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp)
+  * `grpcHttp` - export metrics to an OpenTelemetry collector over gRPC [otlpmetricgrpc](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc)
+* `TERRAGRUNT_TELEMERTY_METRIC_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local metrics collection.
+
+## Example configurations for trace collection
 
 Example traces collection with Jaeger:
 * Start a Jaeger instance with docker:
@@ -164,9 +179,9 @@ docker run --rm --name jaeger -e COLLECTOR_OTLP_ENABLED=true -p 16686:16686 -p 4
 * Define environment variables for Terragrunt to report traces to Jaeger:
 ```bash
 export TERRAGRUNT_TELEMETRY_ENABLED=true
-export TERRAGRUNT_TELEMETRY_EXPORTER=otlpHttp
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
-export TERRAGRUNT_TELEMERTY_EXPORTER_INSECURE_ENDPOINT=true
+export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER=otlpHttp
+export TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_HTTP_ENDPOINT=http://localhost:4318
+export TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
 ```
 * Run terragrunt
 * Verify that traces are available in Jaeger UI
@@ -176,10 +191,10 @@ Configurations to collect traces in Grafana Tempo:
 * Define environment variables for Terragrunt to report traces to Tempo:
 ```bash
 export TERRAGRUNT_TELEMETRY_ENABLED=true
-export TERRAGRUNT_TELEMETRY_EXPORTER=otlpHttp
+export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER=otlpHttp
 # Replace with your tempo instance
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
-export TERRAGRUNT_TELEMERTY_EXPORTER_INSECURE_ENDPOINT=true
+export TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
 ````
 * Run terragrunt
 * Check for tractes in Tempo UI for service "terragrunt"
@@ -188,6 +203,7 @@ Example traces collection in console:
 * Set env variable to enable telemetry:
 ```bash
 export TERRAGRUNT_TELEMETRY_ENABLED=true
+export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER=console
 ```
 * Run terragrunt
 * Check produced traces in console, like:
@@ -199,3 +215,74 @@ export TERRAGRUNT_TELEMETRY_ENABLED=true
 {"Name":"run_module","SpanContext":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"8a01522bc65e0f1b","TraceFlags":"01","TraceState":"","Remote":false},"Parent":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"b0b007770f852066","TraceFlags":"01","TraceState":"","Remote":false},"SpanKind":1,"StartTime":"2024-02-08T12:32:30.290680776Z","EndTime":"2024-02-08T12:32:31.793392803Z","Attributes":[{"Key":"path","Value":{"Type":"STRING","Value":"/projects/gruntwork/terragrunt-tests/trace-test/mod2"}},{"Key":"terraformCommand","Value":{"Type":"STRING","Value":"apply"}}],"Events":null,"Links":null,"Status":{"Code":"Unset","Description":""},"DroppedAttributes":0,"DroppedEvents":0,"DroppedLinks":0,"ChildSpanCount":0,"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-29-g66bfa07b756e-dirty"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.0"}}],"InstrumentationLibrary":{"Name":"terragrunt","Version":"","SchemaURL":""}}
 {"Name":"run-all apply","SpanContext":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"b0b007770f852066","TraceFlags":"01","TraceState":"","Remote":false},"Parent":{"TraceID":"00000000000000000000000000000000","SpanID":"0000000000000000","TraceFlags":"00","TraceState":"","Remote":false},"SpanKind":1,"StartTime":"2024-02-08T12:32:26.388519019Z","EndTime":"2024-02-08T12:32:31.793405603Z","Attributes":[{"Key":"terraformCommand","Value":{"Type":"STRING","Value":"apply"}},{"Key":"args","Value":{"Type":"STRING","Value":"[apply]"}},{"Key":"dir","Value":{"Type":"STRING","Value":"/projects/gruntwork/terragrunt-tests/trace-test"}}],"Events":null,"Links":null,"Status":{"Code":"Unset","Description":""},"DroppedAttributes":0,"DroppedEvents":0,"DroppedLinks":0,"ChildSpanCount":28,"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-29-g66bfa07b756e-dirty"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.0"}}],"InstrumentationLibrary":{"Name":"terragrunt","Version":"","SchemaURL":""}}
 ```
+
+## Example configurations for metrics collection
+
+Collection of metrics with OpenTelemetry collector and Prometheus.
+
+* Start OpenTelemetry collector with Prometheus receiver
+Example setup through `docker-compose.yml`:
+```yaml
+version: '3'
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector:0.94.0
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol/config.yaml
+    ports:
+      - "4317:4317" # OTLP gRPC receiver
+      - "4318:4318" # OTLP HTTP receiver
+      - "8889:8889" # Prometheus exporter
+  prometheus:
+    image: prom/prometheus:v2.45.3
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    depends_on:
+      - otel-collector
+```
+OpenTelemetry collector configuration `otel-collector-config.yaml`:
+```
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+processors:
+  batch:
+
+exporters:
+  prometheus:
+    endpoint: "0.0.0.0:8889" # Prometheus exporter endpoint
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus]
+```
+Prometheus configuration file `prometheus.yml`:
+```yaml
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'opentelemetry'
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['otel-collector:8889']
+
+```
+* Confirm that Prometheus is available at http://localhost:9090/
+* Define environment variables for Terragrunt to report metrics to OpenTelemetry collector:
+```bash
+export TERRAGRUNT_TELEMETRY_ENABLED=true
+export TERRAGRUNT_TELEMETRY_METRIC_EXPORTER=grpcHttp
+export TERRAGRUNT_TELEMERTY_METRIC_EXPORTER_INSECURE_ENDPOINT=true
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+```
+* Run terragrunt
+* Verify that metrics are available in Prometheus UI
