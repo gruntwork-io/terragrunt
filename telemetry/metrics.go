@@ -99,7 +99,6 @@ func configureMetricsCollection(ctx context.Context, opts *TelemetryOptions) err
 // newMetricsExporter - create a new exporter based on the telemetry options.
 func newMetricsExporter(ctx context.Context, opts *TelemetryOptions) (metric.Exporter, error) {
 	exporterType := metricsExporterType(env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_METRIC_EXPORTER"], string(noneMetricsExporterType)))
-	fmt.Fprint(opts.Writer, "Metrics exporter type: ", exporterType, "\n")
 	insecure := env.GetBool(opts.Vars["TERRAGRUNT_TELEMERTY_METRIC_EXPORTER_INSECURE_ENDPOINT"], false)
 	switch exporterType {
 	case oltpHttpMetricsExporterType:
@@ -115,7 +114,6 @@ func newMetricsExporter(ctx context.Context, opts *TelemetryOptions) (metric.Exp
 		}
 		return otlpmetricgrpc.New(ctx, config...)
 	case consoleMetricsExporterType:
-		fmt.Fprint(opts.Writer, "Metrics exporter type: consoleMetricsExporterType ", exporterType, "\n")
 		return stdoutmetric.New(stdoutmetric.WithWriter(opts.Writer))
 	default:
 		return nil, nil

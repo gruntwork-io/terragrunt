@@ -393,6 +393,9 @@ func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 	assert.NoError(t, err)
 
+	// sleep for 1 second to allow the metrics to be flushed
+	time.Sleep(1 * time.Second)
+
 	output := stdout.String()
 
 	// check that output have Telemetry json output
