@@ -175,8 +175,8 @@ docker run --rm --name jaeger -e COLLECTOR_OTLP_ENABLED=true -p 16686:16686 -p 4
 * Verify that UI is available at http://localhost:16686/
 * Define environment variables for Terragrunt to report traces to Jaeger:
 ```bash
-export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER=otlpHttp
-export TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_HTTP_ENDPOINT=http://localhost:4318
+export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER=http
+export TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_HTTP_ENDPOINT=localhost:4318
 export TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
 ```
 * Run terragrunt

@@ -67,6 +67,7 @@ func ShutdownTelemetry(ctx context.Context) error {
 func Telemetry(opts *options.TerragruntOptions, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
 	// wrap telemetry collection with trace and time metric
 	return Trace(opts, name, attrs, func(childCtx context.Context) error {
+		opts.CtxTelemetryCtx = childCtx
 		return Time(opts, name, attrs, fn)
 	})
 }
