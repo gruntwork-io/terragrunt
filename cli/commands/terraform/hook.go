@@ -91,7 +91,7 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 	for _, curHook := range hooks {
 		allPreviousErrors := multierror.Append(previousExecErrors, errorsOccured)
 		if shouldRunHook(curHook, terragruntOptions, allPreviousErrors) {
-			err := telemetry.Trace(terragruntOptions, fmt.Sprintf("hook_%s", curHook.Name), map[string]interface{}{
+			err := telemetry.Telemetry(terragruntOptions, fmt.Sprintf("hook_%s", curHook.Name), map[string]interface{}{
 				"hook": curHook.Name,
 				"dir":  curHook.WorkingDir,
 			}, func(childCtx context.Context) error {

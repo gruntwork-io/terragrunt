@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/gruntwork-io/terragrunt/options"
+
 	"github.com/pkg/errors"
 	otelmetric "go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/sdk/metric"
@@ -64,6 +66,14 @@ func ShutdownTelemetry(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// Telemetry - collect telemetry from function execution - metrics and traces.
+func Telemetry(opts *options.TerragruntOptions, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
+	// wrap telemetry collection with trace and time metric
+	return Trace(opts, name, attrs, func(childCtx context.Context) error {
+		return Time(opts, name, attrs, fn)
+	})
 }
 
 // mapToAttributes - convert map to attributes to pass to span.SetAttributes.

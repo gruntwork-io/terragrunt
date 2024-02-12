@@ -172,7 +172,7 @@ func runTerraform(terragruntOptions *options.TerragruntOptions, target *Target) 
 	}
 
 	if sourceUrl != "" {
-		err = telemetry.Trace(terragruntOptions, "download_terraform_source", map[string]interface{}{
+		err = telemetry.Telemetry(terragruntOptions, "download_terraform_source", map[string]interface{}{
 			"sourceUrl": sourceUrl,
 		}, func(childCtx context.Context) error {
 			updatedTerragruntOptions, err = downloadTerraformSource(sourceUrl, terragruntOptions, terragruntConfig)

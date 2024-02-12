@@ -3,9 +3,9 @@ package telemetry
 import (
 	"context"
 
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-
 	"github.com/gruntwork-io/terragrunt/options"
+
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 
 	"github.com/gruntwork-io/go-commons/env"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
@@ -29,7 +29,7 @@ const (
 	httpTraceExporterType     traceExporterType = "http"
 )
 
-// Trace - span execution of a function with attributes.
+// Trace - collect traces for method execution
 func Trace(opts *options.TerragruntOptions, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
 	ctx := opts.CtxTelemetryCtx
 	if spanExporter == nil || traceProvider == nil || ctx == nil { // invoke function without tracing

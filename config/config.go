@@ -673,7 +673,7 @@ func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*Terrag
 func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 
 	var config *TerragruntConfig
-	err := telemetry.Trace(opts, "parse_config_file", map[string]interface{}{
+	err := telemetry.Telemetry(opts, "parse_config_file", map[string]interface{}{
 		"config_path": configPath,
 	}, func(childCtx context.Context) error {
 		// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse

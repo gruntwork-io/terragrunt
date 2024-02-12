@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/gruntwork-io/go-commons/env"
@@ -10,7 +11,9 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
+	otelmetric "go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/sdk/metric"
+
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 )
@@ -21,17 +24,44 @@ const (
 	noneMetricsExporterType     metricsExporterType = "none"
 	oltpHttpMetricsExporterType metricsExporterType = "otlpHttp"
 	grpcHttpMetricsExporterType metricsExporterType = "grpcHttp"
+
+	ErrorsCounter = "errors"
 )
 
-func Time(opts *options.TerragruntOptions, name string, fn func(childCtx context.Context) error) error {
+// Time - collect time for function execution
+func Time(opts *options.TerragruntOptions, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
 	ctx := opts.CtxTelemetryCtx
 	if ctx == nil || metricExporter == nil {
 		return fn(ctx)
 	}
 
-	//metricExporter.
-	//		meter = otel.Meter(opts.AppName)
-	return nil
+	metricAttrs := mapToAttributes(attrs)
+	histogram, err := meter.Int64Histogram(fmt.Sprintf("%s_duration", name))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	startTime := time.Now()
+	err = fn(ctx)
+	histogram.Record(ctx, time.Since(startTime).Milliseconds(), otelmetric.WithAttributes(metricAttrs...))
+	if err != nil {
+		// count errors
+		Count(opts, ErrorsCounter, 1)
+		Count(opts, fmt.Sprintf("%s_errors", name), 1)
+	}
+	return err
+}
+
+// Count - add to counter provided value
+func Count(opts *options.TerragruntOptions, name string, value int64) {
+	ctx := opts.CtxTelemetryCtx
+	if ctx == nil || metricExporter == nil {
+		return
+	}
+	counter, err := meter.Int64Counter(fmt.Sprintf("%s_count", name))
+	if err != nil {
+		return
+	}
+	counter.Add(ctx, value)
 }
 
 // configureMetricsCollection - configure the metrics collection

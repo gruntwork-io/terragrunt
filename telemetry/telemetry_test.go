@@ -46,7 +46,7 @@ func TestTraceFunctionExecution(t *testing.T) {
 		"key1": "value1",
 	}
 
-	err := Trace(opts, name, attrs, func(ctx context.Context) error {
+	err := Telemetry(opts, name, attrs, func(ctx context.Context) error {
 		return nil
 	})
 	assert.NoError(t, err)
