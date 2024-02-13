@@ -6681,6 +6681,11 @@ func TestTerragruntSkipDependenciesWithSkipFlag(t *testing.T) {
 
 	assert.Contains(t, output, "first/terragrunt.hcl due to skip = true")
 	assert.Contains(t, output, "second/terragrunt.hcl due to skip = true")
+	// check that no test_file.txt was created in module directory
+	_, err = os.Stat(util.JoinPath(tmpEnvPath, TEST_FIXTURE_SKIP_DEPENDENCIES, "first", "test_file.txt"))
+	assert.Error(t, err)
+	_, err = os.Stat(util.JoinPath(tmpEnvPath, TEST_FIXTURE_SKIP_DEPENDENCIES, "second", "test_file.txt"))
+	assert.Error(t, err)
 }
 
 func prepareGraphFixture(t *testing.T) string {
