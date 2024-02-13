@@ -122,6 +122,11 @@ func (dependencyConfig Dependency) isEnabled() bool {
 	return *dependencyConfig.Enabled
 }
 
+// isDisabled returns true if the dependency is disabled
+func (dependencyConfig Dependency) isDisabled() bool {
+	return !dependencyConfig.isEnabled()
+}
+
 // Given a dependency config, we should only attempt to merge mocks outputs with the outputs if MockOutputsMergeWithState is not nil or true
 func (dependencyConfig Dependency) shouldMergeMockOutputsWithState(ctx *ParsingContext) bool {
 	allowedCommand :=
@@ -171,11 +176,17 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 		return nil, err
 	}
 
-	// Skip disabled dependencies
+	// Mark skipped dependencies as disabled
 	updatedDependencies := terragruntDependency{}
 	for _, dep := range decodedDependency.Dependencies {
-		if !dep.isEnabled() {
-			continue
+		depPath := getCleanedTargetConfigPath(dep.ConfigPath, ctx.TerragruntOptions.TerragruntConfigPath)
+		depConfig, err := PartialParseConfigFile(ctx.WithDecodeList(TerragruntFlags), depPath, nil)
+		if err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
+		if depConfig.Skip {
+			ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
+			dep.Enabled = new(bool)
 		}
 		updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
 	}
@@ -221,6 +232,9 @@ func checkForDependencyBlockCycles(ctx *ParsingContext, configPath string, decod
 	visitedPaths := []string{}
 	currentTraversalPaths := []string{configPath}
 	for _, dependency := range decodedDependency.Dependencies {
+		if dependency.isDisabled() {
+			continue
+		}
 		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath, configPath)
 		dependencyConetxt := ctx.WithTerragruntOptions(cloneTerragruntOptionsForDependency(ctx, dependencyPath))
 
@@ -301,9 +315,6 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, dependencyConfigs []Depende
 	dependencyErrGroup, _ := errgroup.WithContext(ctx.Context)
 
 	for _, dependencyConfig := range dependencyConfigs {
-		if !dependencyConfig.isEnabled() {
-			continue
-		}
 		dependencyConfig := dependencyConfig // https://golang.org/doc/faq#closures_and_goroutines
 		dependencyErrGroup.Go(func() error {
 			// Loose struct to hold the attributes of the dependency. This includes:
@@ -355,8 +366,9 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, dependencyConfigs []Depende
 //     If the dependency block indicates a mock_outputs_merge_strategy_with_state attribute, mock_outputs and state outputs will be merged following the merge strategy
 //   - If the dependency block does NOT indicate a mock_outputs attribute, this will return an error.
 func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx *ParsingContext, dependencyConfig Dependency) (*cty.Value, error) {
-	if !dependencyConfig.isEnabled() {
-		return nil, nil
+	if dependencyConfig.isDisabled() {
+		ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dependencyConfig.Name)
+		return dependencyConfig.MockOutputs, nil
 	}
 	if dependencyConfig.shouldGetOutputs() {
 		outputVal, isEmpty, err := getTerragruntOutput(ctx, dependencyConfig)
@@ -408,6 +420,9 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx *ParsingContext, depe
 // We should only return default outputs if the mock_outputs attribute is set, and if we are running one of the
 // allowed commands when `mock_outputs_allowed_terraform_commands` is set as well.
 func (dependencyConfig Dependency) shouldReturnMockOutputs(ctx *ParsingContext) bool {
+	if dependencyConfig.isDisabled() {
+		return true
+	}
 	defaultOutputsSet := dependencyConfig.MockOutputs != nil
 	allowedCommand :=
 		dependencyConfig.MockOutputsAllowedTerraformCommands == nil ||
