@@ -180,13 +180,17 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 	updatedDependencies := terragruntDependency{}
 	for _, dep := range decodedDependency.Dependencies {
 		depPath := getCleanedTargetConfigPath(dep.ConfigPath, ctx.TerragruntOptions.TerragruntConfigPath)
-		depConfig, err := PartialParseConfigFile(ctx.WithDecodeList(TerragruntFlags), depPath, nil)
-		if err != nil {
-			return nil, errors.WithStackTrace(err)
-		}
-		if depConfig.Skip {
-			ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
-			dep.Enabled = new(bool)
+		if dep.isEnabled() && util.FileExists(depPath) {
+			depConfig, err := PartialParseConfigFile(ctx.WithDecodeList(TerragruntFlags), depPath, nil)
+			if err == nil {
+				if depConfig.Skip {
+					ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
+					dep.Enabled = new(bool)
+				}
+			} else {
+				ctx.TerragruntOptions.Logger.Warnf("Error reading partial config  for dependency %s: %v", dep.Name, err)
+			}
+
 		}
 		updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
 	}
