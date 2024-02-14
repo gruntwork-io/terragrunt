@@ -183,6 +183,7 @@ const (
 	TEST_FIXTURE_GCS_PARALLEL_STATE_INIT                                     = "fixture-gcs-parallel-state-init"
 	TEST_FIXTURE_ASSUME_ROLE                                                 = "fixture-assume-role"
 	TEST_FIXTURE_GRAPH                                                       = "fixture-graph"
+	TEST_FIXTURE_SKIP_DEPENDENCIES                                           = "fixture-skip-dependencies"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -6661,6 +6662,30 @@ func TestTerragruntGraphNonTerraformCommandExecution(t *testing.T) {
 		_, err = os.Stat(util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH, module, "terragrunt_rendered.json"))
 		assert.NoError(t, err)
 	}
+}
+
+func TestTerragruntSkipDependenciesWithSkipFlag(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_SKIP_DEPENDENCIES)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_SKIP_DEPENDENCIES)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply --no-color --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
+
+	assert.Contains(t, output, "first/terragrunt.hcl due to skip = true")
+	assert.Contains(t, output, "second/terragrunt.hcl due to skip = true")
+	// check that no test_file.txt was created in module directory
+	_, err = os.Stat(util.JoinPath(tmpEnvPath, TEST_FIXTURE_SKIP_DEPENDENCIES, "first", "test_file.txt"))
+	assert.Error(t, err)
+	_, err = os.Stat(util.JoinPath(tmpEnvPath, TEST_FIXTURE_SKIP_DEPENDENCIES, "second", "test_file.txt"))
+	assert.Error(t, err)
 }
 
 func prepareGraphFixture(t *testing.T) string {
