@@ -145,6 +145,7 @@ func terraformStateConfigEqual(existingConfig map[string]interface{}, newConfig 
 	return reflect.DeepEqual(existingConfigNonNil, newConfig)
 }
 
+// Copy the non-nil values from the existingMap to a new map
 func copyExistingNotNullValues(existingMap map[string]interface{}, newMap map[string]interface{}) map[string]interface{} {
 	existingConfigNonNil := map[string]interface{}{}
 	for existingKey, existingValue := range existingMap {

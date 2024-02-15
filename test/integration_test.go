@@ -6719,11 +6719,8 @@ func TestTerragruntAssumeRoleDuration(t *testing.T) {
 	assert.NoError(t, err)
 
 	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
-	fmt.Printf(output)
 	assert.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
-
 	// run one more time to check that no init is performed
-
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
 
@@ -6733,7 +6730,7 @@ func TestTerragruntAssumeRoleDuration(t *testing.T) {
 	output = fmt.Sprintf("%s %s", stderr.String(), stdout.String())
 	assert.NotContains(t, output, "Initializing the backend...")
 	assert.NotContains(t, output, "has been successfully initialized!")
-	assert.Contains(t, output, "No changes. Your infrastructure matches the configuration.")
+	assert.Contains(t, output, "no changes are needed.")
 }
 
 func prepareGraphFixture(t *testing.T) string {
